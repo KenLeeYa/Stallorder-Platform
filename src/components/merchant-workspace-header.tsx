@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, Building2, Package, Store, Users } from "lucide-react";
+import { BarChart3, Building2, FileChartColumn, Package, Store, Users } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import type { WorkspaceOrganization } from "@/lib/workspace";
 
@@ -93,6 +93,11 @@ export function MerchantWorkspaceHeader({
           <Link title="儀表板" href={`/merchant/dashboard?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
             <BarChart3 className="h-5 w-5" /><span className="sr-only">儀表板</span>
           </Link>
+          {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN" || role === "FINANCE_VIEWER") ? (
+            <Link title="跨攤位報表" href={`/merchant/reports/overview?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <FileChartColumn className="h-5 w-5" /><span className="sr-only">跨攤位報表</span>
+            </Link>
+          ) : null}
           <Link title="管理攤位" href={`/merchant/stalls?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
             <Building2 className="h-5 w-5" /><span className="sr-only">管理攤位</span>
           </Link>

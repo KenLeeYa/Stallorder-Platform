@@ -233,7 +233,7 @@ select ok(
 );
 select ok(
   (
-    select count(*) = 21 and bool_and(c.relrowsecurity)
+    select count(*) = 23 and bool_and(c.relrowsecurity)
     from pg_class c
     join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public'
@@ -241,7 +241,7 @@ select ok(
         'organizations', 'stalls', 'profiles', 'organization_memberships',
         'stall_memberships', 'auth_sessions',
         'audit_logs', 'rate_limit_buckets', 'product_categories', 'product_groups',
-        'products', 'stall_products', 'qr_codes',
+        'products', 'stall_products', 'payments', 'daily_stall_summaries', 'qr_codes',
         'stall_ordering_settings', 'order_sessions', 'orders', 'order_items',
         'order_events', 'public_order_attempts', 'public_rate_limit_buckets',
         'stall_order_counters'

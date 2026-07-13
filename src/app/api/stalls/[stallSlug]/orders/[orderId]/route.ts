@@ -109,11 +109,27 @@ export async function PATCH(request: Request, context: RouteContext) {
         data: {
           status: nextStatus,
           confirmedAt: nextStatus === "CONFIRMED" ? now : order.confirmedAt,
+          completedAt: nextStatus === "COMPLETED" ? now : order.completedAt,
           paymentStatus: nextStatus === "COMPLETED" ? "PAID" : order.paymentStatus,
           paidAt: nextStatus === "COMPLETED" ? now : order.paidAt,
         },
       });
       if (changed.count !== 1) throw new TransitionConflict();
+
+      if (nextStatus === "COMPLETED") {
+        await transaction.payment.create({
+          data: {
+            organizationId: order.organizationId,
+            stallId: order.stallId,
+            orderId: order.id,
+            amount: order.total,
+            method: "CASH",
+            status: "PAID",
+            recordedById: authorization.principal.user.id,
+            paidAt: now,
+          },
+        });
+      }
 
       await transaction.orderEvent.create({
         data: {

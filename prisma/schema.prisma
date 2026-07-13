@@ -39,6 +39,14 @@ enum PaymentStatus {
   @@map("payment_status")
 }
 
+enum PaymentMethod {
+  CASH
+  MANUAL_TRANSFER
+  OTHER
+
+  @@map("payment_method")
+}
+
 enum UserRole {
   PLATFORM_ADMIN
   MERCHANT_OWNER
@@ -130,6 +138,8 @@ model Organization {
   orders                 Order[]
   orderItems             OrderItem[]
   orderEvents            OrderEvent[]
+  payments               Payment[]
+  dailyStallSummaries    DailyStallSummary[]
   publicOrderAttempts    PublicOrderAttempt[]
   publicRateLimitBuckets PublicRateLimitBucket[]
   orderCounters          StallOrderCounter[]
@@ -170,6 +180,8 @@ model Stall {
   publicRateLimitBuckets PublicRateLimitBucket[]
   orderCounters          StallOrderCounter[]
   orderEvents            OrderEvent[]
+  payments               Payment[]
+  dailySummaries         DailyStallSummary[]
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -192,6 +204,7 @@ model Profile {
   stallMemberships        StallMembership[]
   sessions                AuthSession[]
   auditLogs               AuditLog[]
+  recordedPayments        Payment[]
 
   @@map("profiles")
 }
@@ -453,6 +466,7 @@ model Order {
   confirmationExpiresAt DateTime      @map("confirmation_expires_at")
   confirmedAt           DateTime?     @map("confirmed_at")
   expiredAt             DateTime?     @map("expired_at")
+  completedAt           DateTime?     @map("completed_at")
   createdAt             DateTime      @default(now()) @map("created_at")
   updatedAt             DateTime      @updatedAt @map("updated_at")
   paidAt                DateTime?     @map("paid_at")
@@ -461,6 +475,7 @@ model Order {
   items                 OrderItem[]
   events                OrderEvent[]
   orderSession          OrderSession?
+  payment               Payment?
 
   @@unique([stallId, orderNo])
   @@unique([stallId, idempotencyKey])
@@ -469,6 +484,61 @@ model Order {
   @@index([stallId, createdAt])
   @@index([confirmationExpiresAt, status])
   @@map("orders")
+}
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  stallId        String        @map("stall_id") @db.Uuid
+  orderId        String        @unique @map("order_id") @db.Uuid
+  amount         Int
+  method         PaymentMethod @default(CASH)
+  status         PaymentStatus @default(PAID)
+  reference      String?
+  recordedById   String?       @map("recorded_by") @db.Uuid
+  paidAt         DateTime      @default(now()) @map("paid_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall         @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  recordedBy     Profile?      @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, stallId, paidAt])
+  @@index([status, method, paidAt])
+  @@index([recordedById, paidAt])
+  @@map("payments")
+}
+
+model DailyStallSummary {
+  id                   String       @id @default(uuid()) @db.Uuid
+  organizationId       String       @map("organization_id") @db.Uuid
+  stallId              String       @map("stall_id") @db.Uuid
+  businessDate         DateTime     @map("business_date") @db.Date
+  orderCount           Int          @default(0) @map("order_count")
+  confirmedOrderCount  Int          @default(0) @map("confirmed_order_count")
+  completedOrderCount  Int          @default(0) @map("completed_order_count")
+  cancelledOrderCount  Int          @default(0) @map("cancelled_order_count")
+  pendingOrderCount    Int          @default(0) @map("pending_order_count")
+  unpaidOrderCount     Int          @default(0) @map("unpaid_order_count")
+  grossSales           Int          @default(0) @map("gross_sales")
+  discountAmount       Int          @default(0) @map("discount_amount")
+  netSales             Int          @default(0) @map("net_sales")
+  cashAmount           Int          @default(0) @map("cash_amount")
+  manualTransferAmount Int          @default(0) @map("manual_transfer_amount")
+  otherPaymentAmount   Int          @default(0) @map("other_payment_amount")
+  averageOrderValue    Int          @default(0) @map("average_order_value")
+  lastOrderAt          DateTime?    @map("last_order_at")
+  lastCalculatedAt     DateTime     @default(now()) @map("last_calculated_at")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@unique([stallId, businessDate])
+  @@index([organizationId, businessDate, stallId])
+  @@index([stallId, businessDate(sort: Desc)])
+  @@map("daily_stall_summaries")
 }
 
 model OrderItem {

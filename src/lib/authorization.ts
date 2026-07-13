@@ -156,6 +156,7 @@ export async function authorizeOrganizationApiRequest(
   request: Request,
   organizationId: string,
   permission: Permission,
+  includeStallRoles = false,
 ) {
   const requestId = createRequestId();
   const principal = await getRequestPrincipal(request);
@@ -208,7 +209,10 @@ export async function authorizeOrganizationApiRequest(
     };
   }
 
-  if (!workspace.roles.some((role) => hasPermission(role, permission))) {
+  const effectiveRoles = includeStallRoles
+    ? [...new Set([...workspace.roles, ...workspace.stalls.flatMap((stall) => stall.roles)])]
+    : workspace.roles;
+  if (!effectiveRoles.some((role) => hasPermission(role, permission))) {
     await recordAuditEvent({
       organizationId: workspace.id,
       action: "AUTHORIZATION_DENIED",
@@ -218,7 +222,7 @@ export async function authorizeOrganizationApiRequest(
       requestId,
       actorProfileId: principal.user.id,
       ipHash: hashClientIp(request),
-      metadata: { permission, role: workspace.roles.join(",") },
+      metadata: { permission, role: effectiveRoles.join(",") },
     });
     return {
       ok: false as const,
