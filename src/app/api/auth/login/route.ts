@@ -13,6 +13,7 @@ import {
   isTrustedOrigin,
   sanitizeRedirectPath,
 } from "@/lib/security";
+import { getDefaultWorkspacePath, getWorkspaceAccess } from "@/lib/workspace";
 
 const DUMMY_PASSWORD_HASH = "$2b$12$5P3MOwUu1mkhrOn6Bt9R8etsWXlVRiTry2UyxGJL10DuiX8tvLKP6";
 const loginSchema = z.object({
@@ -135,8 +136,9 @@ export async function POST(request: Request) {
   }
 
   const session = await createSession(profile.id);
-  const fallbackPath = organizationMembership?.organization.stalls[0]
-    ? `/merchant/${organizationMembership.organization.stalls[0].slug}`
+  const workspaces = await getWorkspaceAccess(profile.id, profile.platformRole);
+  const fallbackPath = workspaces.length > 0
+    ? getDefaultWorkspacePath(workspaces)
     : stallMembership
       ? defaultPathForRole(stallMembership.role, stallMembership.stall.slug)
       : "/";
@@ -147,7 +149,7 @@ export async function POST(request: Request) {
   setSessionCookies(response, session);
 
   await recordAuditEvent({
-    organizationId: organizationMembership?.organizationId ?? stallMembership?.organizationId,
+    organizationId: workspaces[0]?.id ?? organizationMembership?.organizationId ?? stallMembership?.organizationId,
     action: "LOGIN_SUCCESS",
     entityType: "AUTH",
     outcome: "SUCCESS",

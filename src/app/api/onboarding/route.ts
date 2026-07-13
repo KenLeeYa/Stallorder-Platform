@@ -4,8 +4,10 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createSession, setSessionCookies } from "@/lib/auth";
+import { getRequestPrincipal } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { readJson } from "@/lib/http";
+import { validateCsrf } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp, isTrustedOrigin } from "@/lib/security";
@@ -18,9 +20,9 @@ const passwordSchema = z
 
 const onboardingSchema = z.object({
   merchantName: z.string().trim().min(2).max(80),
-  displayName: z.string().trim().min(2).max(80),
-  email: z.string().trim().email().max(120).transform((value) => value.toLowerCase()),
-  password: passwordSchema,
+  displayName: z.string().trim().min(2).max(80).optional(),
+  email: z.string().trim().email().max(120).transform((value) => value.toLowerCase()).optional(),
+  password: passwordSchema.optional(),
   phone: z.string().trim().min(6).max(30),
   stallName: z.string().trim().min(2).max(80),
   location: z.string().trim().min(2).max(120),
@@ -30,9 +32,16 @@ const onboardingSchema = z.object({
 export async function POST(request: Request) {
   const requestId = createRequestId();
   const ipHash = hashClientIp(request);
+  const principal = await getRequestPrincipal(request);
   if (!isTrustedOrigin(request)) {
     return NextResponse.json(
       { error: "無法驗證申請來源。" },
+      { status: 403, headers: { "x-request-id": requestId } },
+    );
+  }
+  if (principal && !validateCsrf(request, principal)) {
+    return NextResponse.json(
+      { error: "安全驗證已失效，請重新整理後再試。" },
       { status: 403, headers: { "x-request-id": requestId } },
     );
   }
@@ -71,16 +80,39 @@ export async function POST(request: Request) {
   }
 
   const data = parsed.data;
-  const passwordHash = await hash(data.password, 12);
+  if (!principal && (!data.email || !data.displayName || !data.password)) {
+    return NextResponse.json(
+      { error: "申請資料不完整，密碼需至少 12 個字元。" },
+      { status: 400, headers: { "x-request-id": requestId } },
+    );
+  }
+  const passwordHash = data.password ? await hash(data.password, 12) : null;
 
   try {
     const result = await prisma.$transaction(async (transaction) => {
+      const existingProfile = principal
+        ? await transaction.profile.findUnique({ where: { id: principal.user.id } })
+        : null;
+      if (principal && !existingProfile?.isActive) throw new Error("PROFILE_NOT_AVAILABLE");
+      if (principal) {
+        const [organizationAccess, stallAccess] = await Promise.all([
+          transaction.organizationMembership.count({
+            where: { profileId: principal.user.id, isActive: true },
+          }),
+          transaction.stallMembership.count({
+            where: { profileId: principal.user.id, isActive: true },
+          }),
+        ]);
+        if (organizationAccess > 0 || stallAccess > 0) throw new Error("PROFILE_ALREADY_ONBOARDED");
+      }
+
+      const accountEmail = existingProfile?.email ?? data.email!;
       const organization = await transaction.organization.create({
         data: {
           name: data.merchantName,
           businessName: data.merchantName,
           slug: `${data.slug}-organization`,
-          email: data.email,
+          email: accountEmail,
           phone: data.phone,
         },
       });
@@ -121,11 +153,11 @@ export async function POST(request: Request) {
           sortOrder: 1,
         },
       });
-      const profile = await transaction.profile.create({
+      const profile = existingProfile ?? await transaction.profile.create({
         data: {
-          email: data.email,
-          passwordHash,
-          displayName: data.displayName,
+          email: accountEmail,
+          passwordHash: passwordHash!,
+          displayName: data.displayName!,
         },
       });
       await transaction.organizationMembership.create({
@@ -141,7 +173,10 @@ export async function POST(request: Request) {
 
     const session = await createSession(result.profile.id);
     const response = NextResponse.json(
-      { stallSlug: result.stall.slug },
+      {
+        stallSlug: result.stall.slug,
+        next: `/merchant/dashboard?organizationId=${result.organization.id}`,
+      },
       { status: 201, headers: { "x-request-id": requestId } },
     );
     setSessionCookies(response, session);
@@ -159,9 +194,16 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     const conflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+    const alreadyOnboarded = error instanceof Error && error.message === "PROFILE_ALREADY_ONBOARDED";
     return NextResponse.json(
-      { error: conflict ? "此電子郵件或攤位網址已被使用。" : "目前無法完成申請，請稍後再試。" },
-      { status: conflict ? 409 : 500, headers: { "x-request-id": requestId } },
+      {
+        error: alreadyOnboarded
+          ? "此帳號已經具有組織權限。"
+          : conflict
+            ? "此電子郵件或攤位網址已被使用。"
+            : "目前無法完成申請，請稍後再試。",
+      },
+      { status: alreadyOnboarded || conflict ? 409 : 500, headers: { "x-request-id": requestId } },
     );
   }
 }

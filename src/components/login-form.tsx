@@ -4,9 +4,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogIn } from "lucide-react";
 
-export function LoginForm({ nextPath }: { nextPath?: string }) {
+const oauthErrorMessages: Record<string, string> = {
+  "not-configured": "Google 登入尚未完成環境設定。",
+  "rate-limited": "Google 登入嘗試過於頻繁，請稍後再試。",
+  "start-failed": "目前無法啟動 Google 登入。",
+  "callback-failed": "Google 登入驗證失敗，請重新嘗試。",
+  "account-conflict": "此 Email 已連結至其他登入身分，請聯絡管理員。",
+};
+
+export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: string; googleEnabled: boolean; oauthError?: string }) {
   const router = useRouter();
-  const [error, setError] = useState("");
+  const [error, setError] = useState(oauthError ? oauthErrorMessages[oauthError] ?? "Google 登入失敗。" : "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submit(formData: FormData) {
@@ -76,6 +84,12 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
         <LogIn className="h-4 w-4" />
         {isSubmitting ? "登入中..." : "登入"}
       </button>
+      {googleEnabled ? (
+        <>
+          <div className="my-5 flex items-center gap-3 text-xs text-stone-500"><span className="h-px flex-1 bg-stone-200" /><span>或</span><span className="h-px flex-1 bg-stone-200" /></div>
+          <a href={`/auth/google${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ""}`} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 hover:bg-stone-50"><LogIn className="h-4 w-4" />使用 Google 登入</a>
+        </>
+      ) : null}
     </form>
   );
 }

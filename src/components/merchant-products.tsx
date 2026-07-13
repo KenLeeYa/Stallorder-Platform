@@ -5,7 +5,6 @@ import Link from "next/link";
 import type { QrCodeState, StallOrderingState, UserRole } from "@prisma/client";
 import { QRCodeSVG } from "qrcode.react";
 import { Ban, BarChart3, ChevronDown, CircleStop, PackageCheck, PackageX, Pause, Play, RotateCw, Save } from "lucide-react";
-import { LogoutButton } from "@/components/logout-button";
 import { MerchantCatalog, type MerchantCategory, type MerchantProduct } from "@/components/merchant-catalog";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { roleLabels } from "@/lib/rbac";
@@ -73,10 +72,7 @@ export function MerchantProducts({ stall, products, categories, appBaseUrl, qrCo
   return (
     <main className="mx-auto grid min-h-screen max-w-7xl gap-8 px-4 py-5 md:grid-cols-[340px_minmax(0,1fr)] md:px-8">
       <aside className="h-fit md:sticky md:top-5">
-        <div className="flex items-start justify-between gap-3">
-          <div><p className="text-sm font-medium text-teal-800">商戶管理台</p><p className="mt-1 text-xs text-stone-500">{account.displayName} · {roleLabels[account.role]}</p></div>
-          <LogoutButton />
-        </div>
+        <div><p className="text-sm font-medium text-teal-800">攤位管理</p><p className="mt-1 text-xs text-stone-500">{account.displayName} · {roleLabels[account.role]}</p></div>
         <h1 className="mt-2 text-3xl font-semibold">{stall.name}</h1>
 
         <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">

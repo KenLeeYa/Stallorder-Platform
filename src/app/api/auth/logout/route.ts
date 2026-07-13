@@ -3,6 +3,7 @@ import { clearSessionCookies, getRequestPrincipal, revokeRequestSession } from "
 import { recordAuditEvent } from "@/lib/audit";
 import { validateCsrf } from "@/lib/csrf";
 import { createRequestId, hashClientIp } from "@/lib/security";
+import { createSupabaseAuthClient, isSupabaseAuthConfigured } from "@/lib/supabase-auth";
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
@@ -15,6 +16,10 @@ export async function POST(request: Request) {
   }
 
   await revokeRequestSession(request);
+  if (isSupabaseAuthConfigured()) {
+    const supabase = await createSupabaseAuthClient();
+    await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+  }
   const response = NextResponse.json({ ok: true }, { headers: { "x-request-id": requestId } });
   clearSessionCookies(response);
   await recordAuditEvent({

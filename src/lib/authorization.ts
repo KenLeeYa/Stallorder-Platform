@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission, resolvePrimaryRole, type Permission } from "@/lib/rbac";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp } from "@/lib/security";
+import { getWorkspaceAccess } from "@/lib/workspace";
 
 export async function findStallAccess(principal: SessionPrincipal, stallSlug: string) {
   const stall = await prisma.stall.findFirst({
@@ -149,4 +150,167 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
   }
 
   return { ok: true as const, requestId, principal, ...access };
+}
+
+export async function authorizeOrganizationApiRequest(
+  request: Request,
+  organizationId: string,
+  permission: Permission,
+) {
+  const requestId = createRequestId();
+  const principal = await getRequestPrincipal(request);
+  if (!principal) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "請先登入。" },
+        { status: 401, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  const apiLimit = await checkRateLimit({
+    scope: "authenticated-api",
+    identifier: principal.user.id,
+    limit: 300,
+    windowMs: 5 * 60_000,
+  });
+  if (!apiLimit.allowed) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "操作過於頻繁，請稍後再試。" },
+        {
+          status: 429,
+          headers: { "retry-after": String(apiLimit.retryAfterSeconds), "x-request-id": requestId },
+        },
+      ),
+    };
+  }
+
+  const workspaces = await getWorkspaceAccess(principal.user.id, principal.user.platformRole);
+  const workspace = workspaces.find((candidate) => candidate.id === organizationId);
+  if (!workspace) {
+    await recordAuditEvent({
+      action: "AUTHORIZATION_DENIED",
+      entityType: "ORGANIZATION",
+      outcome: "DENIED",
+      requestId,
+      actorProfileId: principal.user.id,
+      ipHash: hashClientIp(request),
+    });
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "找不到指定資源。" },
+        { status: 404, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  if (!workspace.roles.some((role) => hasPermission(role, permission))) {
+    await recordAuditEvent({
+      organizationId: workspace.id,
+      action: "AUTHORIZATION_DENIED",
+      entityType: "ORGANIZATION",
+      entityId: workspace.id,
+      outcome: "DENIED",
+      requestId,
+      actorProfileId: principal.user.id,
+      ipHash: hashClientIp(request),
+      metadata: { permission, role: workspace.roles.join(",") },
+    });
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "您的角色沒有執行此操作的權限。" },
+        { status: 403, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  return { ok: true as const, requestId, principal, workspace };
+}
+
+export async function authorizeStallManagementApiRequest(
+  request: Request,
+  stallId: string,
+  permission: Permission,
+) {
+  const requestId = createRequestId();
+  const principal = await getRequestPrincipal(request);
+  if (!principal) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "請先登入。" },
+        { status: 401, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  const apiLimit = await checkRateLimit({
+    scope: "authenticated-api",
+    identifier: principal.user.id,
+    limit: 300,
+    windowMs: 5 * 60_000,
+  });
+  if (!apiLimit.allowed) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "操作過於頻繁，請稍後再試。" },
+        {
+          status: 429,
+          headers: { "retry-after": String(apiLimit.retryAfterSeconds), "x-request-id": requestId },
+        },
+      ),
+    };
+  }
+
+  const workspaces = await getWorkspaceAccess(principal.user.id, principal.user.platformRole);
+  const workspace = workspaces.find((candidate) => candidate.stalls.some((stall) => stall.id === stallId));
+  const workspaceStall = workspace?.stalls.find((stall) => stall.id === stallId);
+  if (!workspace || !workspaceStall) {
+    await recordAuditEvent({
+      action: "AUTHORIZATION_DENIED",
+      entityType: "STALL",
+      outcome: "DENIED",
+      requestId,
+      actorProfileId: principal.user.id,
+      ipHash: hashClientIp(request),
+    });
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "找不到指定資源。" },
+        { status: 404, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  const roles = [...new Set([...workspace.roles, ...workspaceStall.roles])];
+  if (!roles.some((role) => hasPermission(role, permission))) {
+    await recordAuditEvent({
+      organizationId: workspace.id,
+      stallId,
+      action: "AUTHORIZATION_DENIED",
+      entityType: "STALL",
+      entityId: stallId,
+      outcome: "DENIED",
+      requestId,
+      actorProfileId: principal.user.id,
+      ipHash: hashClientIp(request),
+      metadata: { permission, role: roles.join(",") },
+    });
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "您的角色沒有執行此操作的權限。" },
+        { status: 403, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  return { ok: true as const, requestId, principal, workspace, workspaceStall, roles };
 }
