@@ -1,0 +1,51 @@
+{
+  "name": "stallorder-platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "db:start": "supabase start",
+    "db:push": "supabase db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "supabase db reset",
+    "db:test": "supabase test db",
+    "functions:serve": "supabase functions serve --env-file supabase/functions/.env --no-verify-jwt"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "bcryptjs": "^3.0.3",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.562.0",
+    "next": "16.2.10",
+    "qrcode.react": "^4.2.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "prisma": "^6.19.0",
+    "supabase": "^2.109.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
+  }
+}

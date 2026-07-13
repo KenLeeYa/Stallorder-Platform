@@ -1,0 +1,469 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum TenantStatus {
+  TRIALING
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+
+  @@map("tenant_status")
+}
+
+enum OrderStatus {
+  WAITING_CONFIRMATION
+  CONFIRMED
+  PREPARING
+  READY
+  COMPLETED
+  CANCELLED
+  EXPIRED
+
+  @@map("order_status")
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+
+  @@map("payment_status")
+}
+
+enum UserRole {
+  PLATFORM_ADMIN
+  MERCHANT_OWNER
+  MERCHANT_MANAGER
+  STAFF
+  KITCHEN
+
+  @@map("user_role")
+}
+
+enum AuditOutcome {
+  SUCCESS
+  DENIED
+  FAILURE
+
+  @@map("audit_outcome")
+}
+
+enum QrCodeState {
+  ACTIVE
+  PAUSED
+  EXPIRED
+  REVOKED
+
+  @@map("qr_code_state")
+}
+
+enum OrderSessionStatus {
+  ACTIVE
+  CONSUMED
+  EXPIRED
+  REVOKED
+
+  @@map("order_session_status")
+}
+
+enum StallOrderingState {
+  OPEN
+  PAUSED
+  CLOSED
+
+  @@map("stall_ordering_state")
+}
+
+enum PublicAttemptOutcome {
+  ALLOWED
+  DENIED
+  ERROR
+
+  @@map("public_attempt_outcome")
+}
+
+model Merchant {
+  id                  String               @id @default(uuid()) @db.Uuid
+  name                String
+  slug                String               @unique
+  status              TenantStatus         @default(TRIALING)
+  email               String               @unique
+  phone               String
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  stalls              Stall[]
+  memberships         StallMembership[]
+  productCategories   ProductCategory[]
+  products            Product[]
+  orders              Order[]
+  auditLogs           AuditLog[]
+  qrCodes             QrCode[]
+  orderSessions       OrderSession[]
+  publicOrderAttempts PublicOrderAttempt[]
+
+  @@map("tenants")
+}
+
+model Stall {
+  id                     String                  @id @default(uuid()) @db.Uuid
+  merchantId             String                  @map("tenant_id") @db.Uuid
+  name                   String
+  slug                   String                  @unique
+  location               String
+  currency               String                  @default("TWD")
+  isActive               Boolean                 @default(true) @map("is_active")
+  orderingState          StallOrderingState      @default(OPEN) @map("ordering_state")
+  isSoldOut              Boolean                 @default(false) @map("is_sold_out")
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
+  merchant               Merchant                @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  productCategories      ProductCategory[]
+  products               Product[]
+  orders                 Order[]
+  memberships            StallMembership[]
+  auditLogs              AuditLog[]
+  qrCodes                QrCode[]
+  orderingSettings       StallOrderingSettings?
+  orderSessions          OrderSession[]
+  publicOrderAttempts    PublicOrderAttempt[]
+  publicRateLimitBuckets PublicRateLimitBucket[]
+  orderCounters          StallOrderCounter[]
+  orderEvents            OrderEvent[]
+
+  @@index([merchantId])
+  @@map("stalls")
+}
+
+model UserAccount {
+  id           String            @id @default(uuid()) @db.Uuid
+  authUserId   String?           @unique @map("auth_user_id") @db.Uuid
+  email        String            @unique
+  passwordHash String            @map("password_hash")
+  displayName  String            @map("display_name")
+  isActive     Boolean           @default(true) @map("is_active")
+  platformRole UserRole?         @map("platform_role")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  memberships  StallMembership[]
+  sessions     AuthSession[]
+  auditLogs    AuditLog[]
+
+  @@map("user_accounts")
+}
+
+model StallMembership {
+  id        String      @id @default(uuid()) @db.Uuid
+  tenantId  String      @map("tenant_id") @db.Uuid
+  userId    String      @map("user_id") @db.Uuid
+  stallId   String      @map("stall_id") @db.Uuid
+  role      UserRole
+  isActive  Boolean     @default(true) @map("is_active")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  tenant    Merchant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stall     Stall       @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stallId])
+  @@index([stallId, role])
+  @@index([tenantId])
+  @@map("stall_memberships")
+}
+
+model AuthSession {
+  id            String      @id @default(uuid()) @db.Uuid
+  userId        String      @map("user_id") @db.Uuid
+  tokenHash     String      @unique @map("token_hash")
+  csrfTokenHash String      @map("csrf_token_hash")
+  expiresAt     DateTime    @map("expires_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  lastSeenAt    DateTime    @default(now()) @map("last_seen_at")
+  user          UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+model AuditLog {
+  id          String       @id @default(uuid()) @db.Uuid
+  tenantId    String?      @map("tenant_id") @db.Uuid
+  stallId     String?      @map("stall_id") @db.Uuid
+  actorUserId String?      @map("actor_user_id") @db.Uuid
+  action      String
+  entityType  String       @map("entity_type")
+  entityId    String?      @map("entity_id") @db.Uuid
+  outcome     AuditOutcome
+  requestId   String       @map("request_id")
+  ipHash      String?      @map("ip_hash")
+  metadata    String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+  tenant      Merchant?    @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  stall       Stall?       @relation(fields: [stallId], references: [id], onDelete: SetNull)
+  actor       UserAccount? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([stallId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime @map("expires_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([expiresAt])
+  @@map("rate_limit_buckets")
+}
+
+model ProductCategory {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  stallId   String    @map("stall_id") @db.Uuid
+  name      String
+  sortOrder Int       @default(0) @map("sort_order")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  tenant    Merchant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stall     Stall     @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  products  Product[]
+
+  @@unique([stallId, name])
+  @@index([tenantId])
+  @@index([stallId, sortOrder])
+  @@map("product_categories")
+}
+
+model Product {
+  id          String          @id @default(uuid()) @db.Uuid
+  tenantId    String          @map("tenant_id") @db.Uuid
+  stallId     String          @map("stall_id") @db.Uuid
+  categoryId  String          @map("category_id") @db.Uuid
+  name        String
+  description String
+  price       Int
+  isAvailable Boolean         @default(true) @map("is_available")
+  sortOrder   Int             @default(0) @map("sort_order")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  tenant      Merchant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stall       Stall           @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  category    ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  orderItems  OrderItem[]
+
+  @@index([tenantId])
+  @@index([stallId, categoryId])
+  @@map("products")
+}
+
+model QrCode {
+  id                  String               @id @default(uuid()) @db.Uuid
+  tenantId            String               @map("tenant_id") @db.Uuid
+  stallId             String               @map("stall_id") @db.Uuid
+  token               String               @unique
+  label               String
+  state               QrCodeState          @default(ACTIVE)
+  tokenVersion        Int                  @default(1) @map("token_version")
+  expiresAt           DateTime?            @map("expires_at")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  tenant              Merchant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stall               Stall                @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  orderSessions       OrderSession[]
+  publicOrderAttempts PublicOrderAttempt[]
+
+  @@index([tenantId, stallId])
+  @@index([stallId, state])
+  @@map("qr_codes")
+}
+
+model StallOrderingSettings {
+  stallId                        String   @id @map("stall_id") @db.Uuid
+  tenantId                       String   @map("tenant_id") @db.Uuid
+  orderSessionTtlSeconds         Int      @default(600) @map("order_session_ttl_seconds")
+  unconfirmedOrderTimeoutSeconds Int      @default(600) @map("unconfirmed_order_timeout_seconds")
+  maxItemQuantity                Int      @default(20) @map("max_item_quantity")
+  maxUniqueProducts              Int      @default(20) @map("max_unique_products")
+  maxTotalQuantity               Int      @default(40) @map("max_total_quantity")
+  maxNoteLength                  Int      @default(200) @map("max_note_length")
+  maxPendingOrdersPerDevice      Int      @default(3) @map("max_pending_orders_per_device")
+  maxOrdersPerWindow             Int      @default(5) @map("max_orders_per_window")
+  orderWindowSeconds             Int      @default(300) @map("order_window_seconds")
+  maxSessionsPerIpWindow         Int      @default(20) @map("max_sessions_per_ip_window")
+  maxSessionsPerDeviceWindow     Int      @default(10) @map("max_sessions_per_device_window")
+  maxSessionsPerQrWindow         Int      @default(100) @map("max_sessions_per_qr_window")
+  maxSessionsPerStallWindow      Int      @default(500) @map("max_sessions_per_stall_window")
+  maxBehaviorFrequency           Int      @default(4) @map("max_behavior_frequency")
+  createdAt                      DateTime @default(now()) @map("created_at")
+  updatedAt                      DateTime @updatedAt @map("updated_at")
+  stall                          Stall    @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("stall_ordering_settings")
+}
+
+model OrderSession {
+  id         String             @id @default(uuid()) @db.Uuid
+  tenantId   String             @map("tenant_id") @db.Uuid
+  stallId    String             @map("stall_id") @db.Uuid
+  qrCodeId   String             @map("qr_code_id") @db.Uuid
+  tokenHash  String             @unique @map("token_hash")
+  deviceHash String             @map("device_hash")
+  ipHash     String             @map("ip_hash")
+  status     OrderSessionStatus @default(ACTIVE)
+  expiresAt  DateTime           @map("expires_at")
+  usedAt     DateTime?          @map("used_at")
+  revokedAt  DateTime?          @map("revoked_at")
+  orderId    String?            @unique @map("order_id") @db.Uuid
+  createdAt  DateTime           @default(now()) @map("created_at")
+  tenant     Merchant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stall      Stall              @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  qrCode     QrCode             @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
+  order      Order?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([stallId, status, expiresAt])
+  @@index([deviceHash, status])
+  @@map("order_sessions")
+}
+
+model Order {
+  id                    String        @id @default(uuid()) @db.Uuid
+  tenantId              String        @map("tenant_id") @db.Uuid
+  stallId               String        @map("stall_id") @db.Uuid
+  orderNo               String        @map("order_no")
+  trackingTokenHash     String        @unique @map("tracking_token_hash")
+  idempotencyKey        String        @map("idempotency_key") @db.Uuid
+  source                String        @default("QR_MENU")
+  customerName          String        @map("customer_name")
+  customerPhone         String?       @map("customer_phone")
+  tableLabel            String?       @map("table_label")
+  note                  String?
+  status                OrderStatus   @default(WAITING_CONFIRMATION)
+  paymentStatus         PaymentStatus @default(UNPAID) @map("payment_status")
+  total                 Int
+  deviceHash            String        @map("device_hash")
+  pickupCodeHash        String        @map("pickup_code_hash")
+  pickupVerifiedAt      DateTime?     @map("pickup_verified_at")
+  confirmationExpiresAt DateTime      @map("confirmation_expires_at")
+  confirmedAt           DateTime?     @map("confirmed_at")
+  expiredAt             DateTime?     @map("expired_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  paidAt                DateTime?     @map("paid_at")
+  tenant                Merchant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stall                 Stall         @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  items                 OrderItem[]
+  events                OrderEvent[]
+  orderSession          OrderSession?
+
+  @@unique([stallId, orderNo])
+  @@unique([stallId, idempotencyKey])
+  @@index([tenantId])
+  @@index([stallId, status])
+  @@index([stallId, createdAt])
+  @@index([confirmationExpiresAt, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  stallId   String   @map("stall_id") @db.Uuid
+  orderId   String   @map("order_id") @db.Uuid
+  productId String?  @map("product_id") @db.Uuid
+  name      String
+  unitPrice Int      @map("unit_price")
+  quantity  Int
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, stallId])
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderEvent {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenantId       String       @map("tenant_id") @db.Uuid
+  stallId        String       @map("stall_id") @db.Uuid
+  orderId        String       @map("order_id") @db.Uuid
+  eventType      String       @map("event_type")
+  previousStatus OrderStatus? @map("previous_status")
+  newStatus      OrderStatus? @map("new_status")
+  createdBy      String?      @map("created_by") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at")
+  stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([stallId, createdAt(sort: Desc)])
+  @@index([orderId, createdAt])
+  @@map("order_events")
+}
+
+model PublicOrderAttempt {
+  id               String               @id @default(uuid()) @db.Uuid
+  tenantId         String?              @map("tenant_id") @db.Uuid
+  stallId          String?              @map("stall_id") @db.Uuid
+  qrCodeId         String?              @map("qr_code_id") @db.Uuid
+  orderSessionId   String?              @map("order_session_id") @db.Uuid
+  requestId        String               @map("request_id")
+  eventType        String               @map("event_type")
+  outcome          PublicAttemptOutcome
+  reasonCode       String               @map("reason_code")
+  ipHash           String?              @map("ip_hash")
+  deviceHash       String?              @map("device_hash")
+  qrTokenHash      String?              @map("qr_token_hash")
+  orderSessionHash String?              @map("order_session_hash")
+  behaviorHash     String?              @map("behavior_hash")
+  idempotencyHash  String?              @map("idempotency_hash")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  tenant           Merchant?            @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  stall            Stall?               @relation(fields: [stallId], references: [id], onDelete: SetNull)
+  qrCode           QrCode?              @relation(fields: [qrCodeId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([stallId, createdAt])
+  @@index([ipHash, createdAt])
+  @@index([deviceHash, createdAt])
+  @@map("public_order_attempts")
+}
+
+model PublicRateLimitBucket {
+  id            String   @id @default(uuid()) @db.Uuid
+  stallId       String   @map("stall_id") @db.Uuid
+  dimensionType String   @map("dimension_type")
+  dimensionHash String   @map("dimension_hash")
+  windowStart   DateTime @map("window_start")
+  count         Int      @default(0)
+  expiresAt     DateTime @map("expires_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  stall         Stall    @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@unique([stallId, dimensionType, dimensionHash, windowStart])
+  @@index([expiresAt])
+  @@map("public_rate_limit_buckets")
+}
+
+model StallOrderCounter {
+  stallId      String   @map("stall_id") @db.Uuid
+  businessDate DateTime @map("business_date") @db.Date
+  nextValue    Int      @default(1) @map("next_value")
+  stall        Stall    @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@id([stallId, businessDate])
+  @@map("stall_order_counters")
+}
