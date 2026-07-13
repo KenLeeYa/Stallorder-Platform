@@ -27,6 +27,7 @@ export default async function StallDashboardPage({ params }: PageProps) {
         businessStatus: stall.businessStatus,
         isActive: stall.isActive,
       }]}
+      canManageOrdering={workspace.roles.some((role) => hasPermission(role, "MANAGE_ORDERING"))}
       initialSelectedStallIds={[stall.id]}
     />
   );

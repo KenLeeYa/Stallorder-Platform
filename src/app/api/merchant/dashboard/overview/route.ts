@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { getDashboardOverview } from "@/lib/dashboard-data";
 import { dashboardQuerySchema } from "@/lib/dashboard-validation";
+import { hasPermission } from "@/lib/rbac";
 
 const allowedQueryKeys = new Set(["organizationId", "stallId", "dateFrom", "dateTo"]);
 
@@ -43,6 +44,10 @@ export async function GET(request: Request) {
   const overview = await getDashboardOverview({
     organizationId: authorization.workspace.id,
     stalls: availableStalls.filter((stall) => requestedIds.includes(stall.id)),
+    alertStallIds: availableStalls
+      .filter((stall) => requestedIds.includes(stall.id))
+      .filter((stall) => [...authorization.workspace.roles, ...stall.roles].some((role) => hasPermission(role, "MANAGE_ORDERING")))
+      .map((stall) => stall.id),
     dateFrom: parsed.data.dateFrom,
     dateTo: parsed.data.dateTo,
   });

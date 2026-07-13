@@ -8,13 +8,20 @@ import {
   CircleAlert,
   CircleCheck,
   Clock3,
+  Pause,
+  Play,
   RefreshCw,
   Search,
   ShoppingBag,
   Store,
+  TriangleAlert,
   WalletCards,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
+import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
+import { createOptionalSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase-browser";
 
 type StallOption = {
   id: string;
@@ -54,9 +61,21 @@ type Overview = {
     busiestStall: { stallId: string; stallName: string; orderCount: number } | null;
   };
   stalls: StallMetric[];
+  alerts: Array<{
+    id: string;
+    stallId: string;
+    stallName: string;
+    alertType: string;
+    severity: "INFO" | "WARNING" | "CRITICAL";
+    message: string;
+    status: "ACTIVE" | "ACKNOWLEDGED";
+    detectedAt: string;
+  }>;
 };
 type DatePreset = "TODAY" | "YESTERDAY" | "WEEK" | "MONTH" | "CUSTOM";
 type SortKey = "sales" | "orders" | "pending" | "name";
+type BatchAction = "PAUSE" | "RESUME";
+type RealtimeState = "CONNECTING" | "LIVE" | "FALLBACK";
 
 const statusLabels = { OPEN: "營業中", PAUSED: "已暫停", CLOSED: "已關閉", SOLD_OUT: "全攤售罄" } as const;
 
@@ -65,12 +84,14 @@ export function MultiStallDashboard({
   organizationName,
   currency,
   stalls,
+  canManageOrdering,
   initialSelectedStallIds,
 }: {
   organizationId: string;
   organizationName: string;
   currency: string;
   stalls: StallOption[];
+  canManageOrdering: boolean;
   initialSelectedStallIds?: string[];
 }) {
   const today = useMemo(() => taipeiToday(), []);
@@ -84,6 +105,13 @@ export function MultiStallDashboard({
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("sales");
+  const [realtimeState, setRealtimeState] = useState<RealtimeState>(() => (
+    isSupabaseBrowserConfigured() ? "CONNECTING" : "FALLBACK"
+  ));
+  const [pendingBatchAction, setPendingBatchAction] = useState<BatchAction | null>(null);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [controlMessage, setControlMessage] = useState("");
+  const [updatingAlertId, setUpdatingAlertId] = useState<string | null>(null);
 
   const loadOverview = useCallback(async (quiet = false) => {
     if (selectedStallIds.length === 0) {
@@ -123,6 +151,89 @@ export function MultiStallDashboard({
     };
   }, [loadOverview]);
 
+  useEffect(() => {
+    const supabase = createOptionalSupabaseBrowserClient();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel(`organization:${organizationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "operational_events",
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        () => void loadOverview(true),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "operational_alerts",
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        () => void loadOverview(true),
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") setRealtimeState("LIVE");
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          setRealtimeState("FALLBACK");
+        }
+      });
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadOverview, organizationId]);
+
+  async function executeBatchAction() {
+    if (!pendingBatchAction || selectedStallIds.length === 0) return;
+    setBatchRunning(true);
+    setControlMessage("");
+    try {
+      const response = await fetch(`/api/merchant/organizations/${organizationId}/stalls/batch-ordering`, {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify({
+          action: pendingBatchAction,
+          stallIds: selectedStallIds,
+          confirmation: "CONFIRM_BATCH_ACTION",
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "目前無法執行批次操作。");
+      setControlMessage(`已${pendingBatchAction === "PAUSE" ? "暫停" : "恢復"} ${payload.updatedCount} 個攤位。`);
+      setPendingBatchAction(null);
+      await loadOverview(true);
+    } catch (requestError) {
+      setControlMessage(requestError instanceof Error ? requestError.message : "目前無法執行批次操作。");
+    } finally {
+      setBatchRunning(false);
+    }
+  }
+
+  async function acknowledgeAlert(alertId: string) {
+    setUpdatingAlertId(alertId);
+    setControlMessage("");
+    try {
+      const response = await fetch(`/api/merchant/organizations/${organizationId}/alerts/${alertId}`, {
+        method: "PATCH",
+        headers: csrfHeaders(),
+        body: JSON.stringify({ status: "ACKNOWLEDGED" }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "目前無法確認警示。");
+      await loadOverview(true);
+    } catch (requestError) {
+      setControlMessage(requestError instanceof Error ? requestError.message : "目前無法確認警示。");
+    } finally {
+      setUpdatingAlertId(null);
+    }
+  }
+
   function choosePreset(nextPreset: DatePreset) {
     setPreset(nextPreset);
     if (nextPreset !== "CUSTOM") setDateRange(presetRange(nextPreset, today));
@@ -152,7 +263,13 @@ export function MultiStallDashboard({
       <div className="border-b border-stone-200 pb-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div><p className="text-sm font-semibold text-teal-800">多攤位營運總覽</p><h1 className="mt-1 text-3xl font-semibold">{organizationName}</h1><p className="mt-2 text-sm text-stone-600">依攤位時區彙整的銷售、訂單與付款資料。</p></div>
-          <button type="button" disabled={loading} onClick={() => void loadOverview()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />重新整理</button>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className={`inline-flex min-h-10 items-center gap-2 text-xs font-medium ${realtimeState === "LIVE" ? "text-emerald-700" : "text-amber-700"}`} title={realtimeState === "LIVE" ? "Supabase Realtime 已連線" : "即時連線未就緒，使用 45 秒自動更新備援"}>
+              {realtimeState === "LIVE" ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+              {realtimeState === "LIVE" ? "即時更新中" : realtimeState === "CONNECTING" ? "即時連線中" : "自動更新中"}
+            </span>
+            <button type="button" disabled={loading} onClick={() => void loadOverview()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />重新整理</button>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,420px)]">
@@ -171,10 +288,34 @@ export function MultiStallDashboard({
             {stalls.map((stall) => <label key={stall.id} className="flex min-h-10 items-center gap-2 border-t border-stone-100 text-sm"><input type="checkbox" checked={selectedStallIds.includes(stall.id)} onChange={() => toggleStall(stall.id)} />{stall.name}</label>)}
           </details>
         </div>
+        {canManageOrdering ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-4">
+            <button type="button" disabled={selectedStallIds.length === 0 || batchRunning} onClick={() => setPendingBatchAction("PAUSE")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-amber-300 px-3 text-sm font-semibold text-amber-900 disabled:opacity-50"><Pause className="h-4 w-4" />暫停已選攤位</button>
+            <button type="button" disabled={selectedStallIds.length === 0 || batchRunning} onClick={() => setPendingBatchAction("RESUME")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-emerald-300 px-3 text-sm font-semibold text-emerald-800 disabled:opacity-50"><Play className="h-4 w-4" />恢復已選攤位</button>
+            <span className="text-xs text-stone-500">操作範圍：{selectedStallIds.length} 個攤位</span>
+          </div>
+        ) : null}
       </div>
 
       {error ? <div role="alert" className="mt-5 flex items-center gap-2 border-y border-red-200 py-3 text-sm font-medium text-red-800"><CircleAlert className="h-4 w-4" />{error}</div> : null}
+      {controlMessage ? <p role="status" className="mt-4 border-y border-stone-200 py-3 text-sm font-medium text-stone-700">{controlMessage}</p> : null}
       {loading && !overview ? <p className="py-12 text-center text-sm text-stone-500">正在載入營運資料...</p> : null}
+
+      {overview?.alerts.length ? (
+        <section className="border-b border-stone-200 py-5" aria-labelledby="operational-alerts-title">
+          <div className="flex items-center gap-2"><TriangleAlert className="h-5 w-5 text-amber-700" /><h2 id="operational-alerts-title" className="text-lg font-semibold">營運警示</h2></div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            {overview.alerts.map((alert) => (
+              <article key={alert.id} className={`border-l-4 bg-stone-50 p-4 ${alert.severity === "CRITICAL" ? "border-red-600" : "border-amber-500"}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div><p className="text-sm font-semibold">{alert.stallName}</p><p className="mt-1 text-sm text-stone-700">{alert.message}</p></div>
+                  {alert.status === "ACTIVE" && canManageOrdering ? <button type="button" disabled={updatingAlertId === alert.id} onClick={() => void acknowledgeAlert(alert.id)} className="min-h-10 rounded-md border border-stone-300 bg-white px-3 text-xs font-semibold disabled:opacity-50">{updatingAlertId === alert.id ? "處理中..." : "確認收到"}</button> : <span className="text-xs font-medium text-stone-500">已確認</span>}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {summary ? <>
         <section className="grid border-b border-stone-200 sm:grid-cols-2 lg:grid-cols-4" aria-label="營運摘要">
@@ -203,6 +344,19 @@ export function MultiStallDashboard({
           {visibleStalls.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">此範圍沒有符合條件的攤位資料。</p> : null}
         </section>
       </> : null}
+
+      {pendingBatchAction ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="batch-action-title" aria-describedby="batch-action-description" className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+            <div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-50 text-amber-800"><TriangleAlert className="h-5 w-5" /></span><div><h2 id="batch-action-title" className="text-lg font-semibold">確認批次{pendingBatchAction === "PAUSE" ? "暫停" : "恢復"}？</h2><p className="mt-1 text-sm font-medium text-stone-800">將影響 {selectedStallIds.length} 個已選攤位</p></div></div>
+            <p id="batch-action-description" className="mt-4 text-sm leading-6 text-stone-600">{pendingBatchAction === "PAUSE" ? "暫停後，這些攤位將停止接受新的 QR 點餐；既有訂單仍須完成處理。" : "恢復後，這些攤位將重新開放 QR 點餐。請先確認現場人力與商品供應。"}</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" autoFocus disabled={batchRunning} onClick={() => setPendingBatchAction(null)} className="rounded-md border border-stone-300 px-3 py-2 text-sm font-medium disabled:opacity-50">返回檢查</button>
+              <button type="button" disabled={batchRunning} onClick={() => void executeBatchAction()} className={`rounded-md px-3 py-2 text-sm font-semibold text-white disabled:opacity-50 ${pendingBatchAction === "PAUSE" ? "bg-amber-700" : "bg-emerald-700"}`}>{batchRunning ? "處理中..." : `確認${pendingBatchAction === "PAUSE" ? "暫停" : "恢復"}`}</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

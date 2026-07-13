@@ -29,7 +29,7 @@ export default async function StaffPage({ params }: PageProps) {
 
   return (
     <StaffOrderBoard
-      stall={{ slug: stall.slug, name: stall.name, currency: stall.currency }}
+      stall={{ id: stall.id, slug: stall.slug, name: stall.name, currency: stall.currency }}
       initialOrders={orders.map((order) => ({
         id: order.id,
         orderNo: order.orderNo,

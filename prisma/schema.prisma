@@ -140,6 +140,8 @@ model Organization {
   orderEvents            OrderEvent[]
   payments               Payment[]
   dailyStallSummaries    DailyStallSummary[]
+  operationalEvents      OperationalEvent[]
+  operationalAlerts      OperationalAlert[]
   publicOrderAttempts    PublicOrderAttempt[]
   publicRateLimitBuckets PublicRateLimitBucket[]
   orderCounters          StallOrderCounter[]
@@ -182,6 +184,8 @@ model Stall {
   orderEvents            OrderEvent[]
   payments               Payment[]
   dailySummaries         DailyStallSummary[]
+  operationalEvents      OperationalEvent[]
+  operationalAlerts      OperationalAlert[]
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -579,6 +583,45 @@ model OrderEvent {
   @@index([stallId, createdAt(sort: Desc)])
   @@index([orderId, createdAt])
   @@map("order_events")
+}
+
+model OperationalEvent {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  stallId        String       @map("stall_id") @db.Uuid
+  eventType      String       @map("event_type")
+  entityType     String       @map("entity_type")
+  entityId       String       @map("entity_id") @db.Uuid
+  payload        Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([stallId, createdAt(sort: Desc)])
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@map("operational_events")
+}
+
+model OperationalAlert {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  stallId        String       @map("stall_id") @db.Uuid
+  alertType      String       @map("alert_type")
+  severity       String
+  message        String
+  status         String       @default("ACTIVE")
+  detectedAt     DateTime     @default(now()) @map("detected_at")
+  acknowledgedAt DateTime?    @map("acknowledged_at")
+  resolvedAt     DateTime?    @map("resolved_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, detectedAt(sort: Desc)])
+  @@index([stallId, status, detectedAt(sort: Desc)])
+  @@map("operational_alerts")
 }
 
 model PublicOrderAttempt {

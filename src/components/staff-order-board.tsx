@@ -9,6 +9,7 @@ import { formatMoney } from "@/lib/money";
 import { orderStatusLabels, paymentStatusLabels, staffStatusOptions } from "@/lib/orders";
 import { isCompletePickupCode, normalizePickupCode } from "@/lib/pickup-code";
 import { canTransitionOrder, hasPermission, roleLabels } from "@/lib/rbac";
+import { createOptionalSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 type OrderWithItems = {
   id: string;
@@ -27,7 +28,7 @@ type OrderWithItems = {
 };
 
 type Props = {
-  stall: { slug: string; name: string; currency: string };
+  stall: { id: string; slug: string; name: string; currency: string };
   initialOrders: OrderWithItems[];
   account: { displayName: string; role: UserRole };
 };
@@ -144,6 +145,9 @@ export function StaffOrderBoard({ stall, initialOrders, account }: Props) {
 
   useEffect(() => {
     let eventSource: EventSource | null = null;
+    const supabase = createOptionalSupabaseBrowserClient();
+    let realtimeConnected = false;
+    let sseConnected = false;
     let fallbackTimer: number | null = null;
     let fallbackStatusTimer: number | null = null;
 
@@ -165,7 +169,7 @@ export function StaffOrderBoard({ stall, initialOrders, account }: Props) {
       }
       if (fallbackStatusTimer === null) {
         fallbackStatusTimer = window.setTimeout(() => {
-          setLiveConnection("fallback");
+          if (!realtimeConnected && !sseConnected) setLiveConnection("fallback");
           fallbackStatusTimer = null;
         }, 4_000);
       }
@@ -177,25 +181,55 @@ export function StaffOrderBoard({ stall, initialOrders, account }: Props) {
     if ("EventSource" in window) {
       eventSource = new EventSource(`/api/stalls/${stall.slug}/orders/stream`);
       eventSource.onopen = () => {
+        sseConnected = true;
         stopFallback();
         setLiveConnection("connected");
         refreshSilently();
       };
       eventSource.addEventListener("orders", refreshSilently);
-      eventSource.onerror = startFallback;
+      eventSource.onerror = () => {
+        sseConnected = false;
+        if (!realtimeConnected) startFallback();
+      };
     } else {
       startFallback();
     }
+
+    const realtimeChannel = supabase
+      ?.channel(`stall:${stall.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "operational_events",
+          filter: `stall_id=eq.${stall.id}`,
+        },
+        refreshSilently,
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          realtimeConnected = true;
+          stopFallback();
+          setLiveConnection("connected");
+          refreshSilently();
+        }
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          realtimeConnected = false;
+          if (!sseConnected) startFallback();
+        }
+      });
 
     const safetyTimer = window.setInterval(refreshSilently, 30_000);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       eventSource?.close();
+      if (supabase && realtimeChannel) void supabase.removeChannel(realtimeChannel);
       stopFallback();
       window.clearInterval(safetyTimer);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [refreshOrders, stall.slug]);
+  }, [refreshOrders, stall.id, stall.slug]);
 
   useEffect(() => {
     if (!pendingCancellation) return;

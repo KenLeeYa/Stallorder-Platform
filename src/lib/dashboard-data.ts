@@ -7,26 +7,42 @@ import type { WorkspaceStall } from "@/lib/workspace";
 export async function getDashboardOverview({
   organizationId,
   stalls,
+  alertStallIds,
   dateFrom,
   dateTo,
 }: {
   organizationId: string;
   stalls: WorkspaceStall[];
+  alertStallIds: string[];
   dateFrom: string;
   dateTo: string;
 }) {
   const stallIds = stalls.map((stall) => stall.id);
-  const rows = stallIds.length === 0 ? [] : await prisma.dailyStallSummary.findMany({
-    where: {
-      organizationId,
-      stallId: { in: stallIds },
-      businessDate: {
-        gte: new Date(`${dateFrom}T00:00:00.000Z`),
-        lte: new Date(`${dateTo}T00:00:00.000Z`),
+  if (alertStallIds.length > 0) {
+    await prisma.$queryRaw`select public.refresh_operational_alerts(${organizationId}::uuid)`;
+  }
+  const [rows, alerts] = await Promise.all([
+    stallIds.length === 0 ? [] : prisma.dailyStallSummary.findMany({
+      where: {
+        organizationId,
+        stallId: { in: stallIds },
+        businessDate: {
+          gte: new Date(`${dateFrom}T00:00:00.000Z`),
+          lte: new Date(`${dateTo}T00:00:00.000Z`),
+        },
       },
-    },
-    orderBy: [{ businessDate: "asc" }, { stallId: "asc" }],
-  });
+      orderBy: [{ businessDate: "asc" }, { stallId: "asc" }],
+    }),
+    alertStallIds.length === 0 ? [] : prisma.operationalAlert.findMany({
+      where: {
+        organizationId,
+        stallId: { in: alertStallIds },
+        status: { in: ["ACTIVE", "ACKNOWLEDGED"] },
+      },
+      orderBy: [{ severity: "desc" }, { detectedAt: "desc" }],
+      take: 20,
+    }),
+  ]);
 
   const overall = aggregateDailyMetrics(rows);
   const stallMetrics = stalls.map((stall) => {
@@ -62,11 +78,30 @@ export async function getDashboardOverview({
       busiestStall: busiest && busiest.orderCount > 0 ? { stallId: busiest.stallId, stallName: busiest.stallName, orderCount: busiest.orderCount } : null,
     },
     stalls: stallMetrics,
+    alerts: [...alerts].sort((left, right) => (
+      severityRank(right.severity) - severityRank(left.severity)
+      || right.detectedAt.valueOf() - left.detectedAt.valueOf()
+    )).map((alert) => ({
+      id: alert.id,
+      stallId: alert.stallId,
+      stallName: stalls.find((stall) => stall.id === alert.stallId)?.name ?? "攤位",
+      alertType: alert.alertType,
+      severity: alert.severity,
+      message: alert.message,
+      status: alert.status,
+      detectedAt: alert.detectedAt.toISOString(),
+    })),
     trends: [...trendRows.entries()].map(([businessDate, dayRows]) => ({
       businessDate,
       ...serializeMetrics(aggregateDailyMetrics(dayRows)),
     })),
   };
+}
+
+function severityRank(severity: string) {
+  if (severity === "CRITICAL") return 3;
+  if (severity === "WARNING") return 2;
+  return 1;
 }
 
 function serializeMetrics(metric: ReturnType<typeof aggregateDailyMetrics>) {
