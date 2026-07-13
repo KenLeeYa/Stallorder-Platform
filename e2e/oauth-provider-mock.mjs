@@ -1,0 +1,116 @@
+import { createServer } from "node:http";
+import { PrismaClient } from "@prisma/client";
+
+loadLocalEnv();
+
+const port = 55431;
+const ownerEmail = "owner@stallorder.test";
+const prisma = new PrismaClient();
+
+const server = createServer(async (request, response) => {
+  const url = new URL(request.url ?? "/", `http://127.0.0.1:${port}`);
+
+  if (url.pathname === "/health") {
+    sendJson(response, 200, { status: "ok" });
+    return;
+  }
+
+  if (url.pathname === "/auth/v1/authorize") {
+    const redirectTo = url.searchParams.get("redirect_to");
+    if (url.searchParams.get("provider") !== "google" || !redirectTo) {
+      sendJson(response, 400, { error: "invalid oauth request" });
+      return;
+    }
+    const callback = new URL(redirectTo);
+    callback.searchParams.set("code", "stallorder-e2e-google-code");
+    response.writeHead(302, { location: callback.toString() });
+    response.end();
+    return;
+  }
+
+  if (url.pathname === "/auth/v1/token" && request.method === "POST") {
+    const body = await readJson(request);
+    if (url.searchParams.get("grant_type") === "pkce" && body.auth_code !== "stallorder-e2e-google-code") {
+      sendJson(response, 400, { error: "invalid_grant" });
+      return;
+    }
+    sendJson(response, 200, await sessionPayload());
+    return;
+  }
+
+  if (url.pathname === "/auth/v1/user") {
+    const session = await sessionPayload();
+    sendJson(response, 200, session.user);
+    return;
+  }
+
+  response.writeHead(404);
+  response.end();
+});
+
+server.listen(port, "127.0.0.1");
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, async () => {
+    await prisma.$disconnect();
+    server.close(() => process.exit(0));
+  });
+}
+
+async function sessionPayload() {
+  const profile = await prisma.profile.findUniqueOrThrow({
+    where: { email: ownerEmail },
+    select: { authUserId: true, displayName: true },
+  });
+  if (!profile.authUserId) throw new Error("E2E owner is not linked to an auth user");
+
+  const now = new Date().toISOString();
+  const user = {
+    id: profile.authUserId,
+    aud: "authenticated",
+    role: "authenticated",
+    email: ownerEmail,
+    email_confirmed_at: now,
+    confirmed_at: now,
+    last_sign_in_at: now,
+    app_metadata: { provider: "google", providers: ["google"] },
+    user_metadata: {
+      full_name: profile.displayName,
+      avatar_url: "https://example.test/stallorder-owner.png",
+    },
+    identities: [],
+    created_at: now,
+    updated_at: now,
+  };
+  return {
+    access_token: "stallorder-e2e-access-token",
+    token_type: "bearer",
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    refresh_token: "stallorder-e2e-refresh-token",
+    user,
+  };
+}
+
+function sendJson(response, status, payload) {
+  response.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+  });
+  response.end(JSON.stringify(payload));
+}
+
+async function readJson(request) {
+  let body = "";
+  for await (const chunk of request) body += chunk;
+  try {
+    return JSON.parse(body || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function loadLocalEnv() {
+  if (process.env.DATABASE_URL) return;
+  process.loadEnvFile?.(".env");
+}

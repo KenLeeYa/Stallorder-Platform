@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:e2e": "concurrently --kill-others --success command-1 \"npm run functions:serve\" \"playwright test\"",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "db:start": "supabase start",
@@ -34,10 +35,13 @@
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "prisma": "^6.19.0",
