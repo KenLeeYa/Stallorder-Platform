@@ -37,7 +37,7 @@ export async function POST(request: Request, context: RouteContext) {
   const product = await prisma.product.create({
     data: {
       ...parsed.data,
-      tenantId: authorization.stall.merchantId,
+      organizationId: authorization.stall.organizationId,
       stallId: authorization.stall.id,
     },
   });
@@ -48,7 +48,7 @@ export async function POST(request: Request, context: RouteContext) {
     outcome: "SUCCESS",
     requestId: authorization.requestId,
     stallId: authorization.stall.id,
-    actorUserId: authorization.principal.user.id,
+    actorProfileId: authorization.principal.user.id,
     ipHash: hashClientIp(request),
     metadata: { categoryId: product.categoryId, price: product.price },
   });

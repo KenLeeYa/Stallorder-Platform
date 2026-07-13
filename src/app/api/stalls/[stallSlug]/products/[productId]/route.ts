@@ -59,7 +59,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     outcome: "SUCCESS",
     requestId: authorization.requestId,
     stallId: authorization.stall.id,
-    actorUserId: authorization.principal.user.id,
+    actorProfileId: authorization.principal.user.id,
     ipHash: hashClientIp(request),
     metadata: {
       changedFieldCount: changedFields.length,
@@ -97,7 +97,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     outcome: "SUCCESS",
     requestId: authorization.requestId,
     stallId: authorization.stall.id,
-    actorUserId: authorization.principal.user.id,
+    actorProfileId: authorization.principal.user.id,
     ipHash: hashClientIp(request),
   });
 

@@ -9,6 +9,9 @@ export type Permission =
   | "VIEW_REPORTS"
   | "MANAGE_STAFF"
   | "MANAGE_STALL"
+  | "MANAGE_ORGANIZATION"
+  | "MANAGE_SUBSCRIPTION"
+  | "MANAGE_SHARED_PRODUCTS"
   | "PLATFORM_ADMIN";
 
 const rolePermissions: Record<UserRole, readonly Permission[]> = {
@@ -21,9 +24,39 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "VIEW_REPORTS",
     "MANAGE_STAFF",
     "MANAGE_STALL",
+    "MANAGE_ORGANIZATION",
+    "MANAGE_SUBSCRIPTION",
+    "MANAGE_SHARED_PRODUCTS",
     "PLATFORM_ADMIN",
   ],
-  MERCHANT_OWNER: [
+  MERCHANT_OWNER: [],
+  MERCHANT_MANAGER: [],
+  ORGANIZATION_OWNER: [
+    "VIEW_ORDERS",
+    "UPDATE_ORDERS",
+    "CHECKOUT_ORDERS",
+    "MANAGE_PRODUCTS",
+    "MANAGE_ORDERING",
+    "VIEW_REPORTS",
+    "MANAGE_STAFF",
+    "MANAGE_STALL",
+    "MANAGE_ORGANIZATION",
+    "MANAGE_SUBSCRIPTION",
+    "MANAGE_SHARED_PRODUCTS",
+  ],
+  ORGANIZATION_ADMIN: [
+    "VIEW_ORDERS",
+    "UPDATE_ORDERS",
+    "CHECKOUT_ORDERS",
+    "MANAGE_PRODUCTS",
+    "MANAGE_ORDERING",
+    "VIEW_REPORTS",
+    "MANAGE_STAFF",
+    "MANAGE_STALL",
+    "MANAGE_SHARED_PRODUCTS",
+  ],
+  FINANCE_VIEWER: ["VIEW_REPORTS"],
+  STALL_MANAGER: [
     "VIEW_ORDERS",
     "UPDATE_ORDERS",
     "CHECKOUT_ORDERS",
@@ -33,17 +66,21 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STAFF",
     "MANAGE_STALL",
   ],
-  MERCHANT_MANAGER: [
-    "VIEW_ORDERS",
-    "UPDATE_ORDERS",
-    "CHECKOUT_ORDERS",
-    "MANAGE_PRODUCTS",
-    "MANAGE_ORDERING",
-    "VIEW_REPORTS",
-  ],
   STAFF: ["VIEW_ORDERS", "UPDATE_ORDERS", "CHECKOUT_ORDERS"],
   KITCHEN: ["VIEW_ORDERS", "UPDATE_ORDERS"],
 };
+
+const primaryRoleOrder: readonly UserRole[] = [
+  "PLATFORM_ADMIN",
+  "ORGANIZATION_OWNER",
+  "ORGANIZATION_ADMIN",
+  "STALL_MANAGER",
+  "STAFF",
+  "KITCHEN",
+  "FINANCE_VIEWER",
+  "MERCHANT_OWNER",
+  "MERCHANT_MANAGER",
+];
 
 const allowedOrderTransitions: Record<OrderStatus, readonly OrderStatus[]> = {
   WAITING_CONFIRMATION: ["CONFIRMED", "CANCELLED"],
@@ -59,6 +96,11 @@ export function hasPermission(role: UserRole, permission: Permission) {
   return rolePermissions[role].includes(permission);
 }
 
+export function resolvePrimaryRole(roles: readonly UserRole[]) {
+  const roleSet = new Set(roles);
+  return primaryRoleOrder.find((role) => roleSet.has(role)) ?? null;
+}
+
 export function canTransitionOrder(current: OrderStatus, next: OrderStatus, role: UserRole) {
   if (!hasPermission(role, "UPDATE_ORDERS")) return false;
   if (!allowedOrderTransitions[current].includes(next)) return false;
@@ -68,8 +110,12 @@ export function canTransitionOrder(current: OrderStatus, next: OrderStatus, role
 
 export const roleLabels: Record<UserRole, string> = {
   PLATFORM_ADMIN: "平台管理員",
-  MERCHANT_OWNER: "商戶擁有者",
-  MERCHANT_MANAGER: "商戶經理",
+  MERCHANT_OWNER: "舊版商戶擁有者",
+  MERCHANT_MANAGER: "舊版商戶經理",
+  ORGANIZATION_OWNER: "組織擁有者",
+  ORGANIZATION_ADMIN: "組織管理員",
+  FINANCE_VIEWER: "財務檢視者",
+  STALL_MANAGER: "攤位經理",
   STAFF: "店員",
   KITCHEN: "廚房",
 };

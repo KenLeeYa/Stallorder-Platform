@@ -7,7 +7,7 @@ export default async function Home() {
     orderBy: { createdAt: "asc" },
     take: 6,
     include: {
-      merchant: true,
+      organization: true,
       qrCodes: { where: { state: "ACTIVE" }, orderBy: { tokenVersion: "desc" }, take: 1 },
     },
   });
@@ -74,7 +74,7 @@ export default async function Home() {
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           {stalls.map((stall) => (
             <div key={stall.id} className="rounded-lg border border-stone-200 bg-white p-5">
-              <div className="text-sm text-stone-500">{stall.merchant.name}</div>
+              <div className="text-sm text-stone-500">{stall.organization.name}</div>
               <h3 className="mt-1 text-xl font-semibold">{stall.name}</h3>
               <p className="mt-1 text-sm text-stone-600">{stall.location}</p>
               <div className="mt-5 flex flex-wrap gap-2">

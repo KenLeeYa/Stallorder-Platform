@@ -28,7 +28,7 @@ export async function POST(request: Request, context: RouteContext) {
     const category = await prisma.productCategory.create({
       data: {
         ...parsed.data,
-        tenantId: authorization.stall.merchantId,
+        organizationId: authorization.stall.organizationId,
         stallId: authorization.stall.id,
       },
     });
@@ -39,7 +39,7 @@ export async function POST(request: Request, context: RouteContext) {
       outcome: "SUCCESS",
       requestId: authorization.requestId,
       stallId: authorization.stall.id,
-      actorUserId: authorization.principal.user.id,
+      actorProfileId: authorization.principal.user.id,
       ipHash: hashClientIp(request),
     });
     return NextResponse.json(

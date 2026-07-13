@@ -18,7 +18,7 @@ describe("商品與分類輸入驗證", () => {
 
   it("接受完整商品並拒絕越權欄位", () => {
     expect(productInputSchema.safeParse(product).success).toBe(true);
-    expect(productInputSchema.safeParse({ ...product, tenantId: crypto.randomUUID() }).success).toBe(false);
+    expect(productInputSchema.safeParse({ ...product, organizationId: crypto.randomUUID() }).success).toBe(false);
   });
 
   it("拒絕負數價格、非整數價格與空更新", () => {

@@ -103,7 +103,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         const nextVersion = (stall.qrCodes[0]?.tokenVersion ?? 0) + 1;
         await transaction.qrCode.create({
           data: {
-            tenantId: stall.merchantId,
+            organizationId: stall.organizationId,
             stallId: stall.id,
             token,
             label: `主要點餐 QR v${nextVersion}`,
@@ -116,7 +116,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       case "UPDATE_LIMITS":
         await transaction.stallOrderingSettings.upsert({
           where: { stallId: stall.id },
-          create: { stallId: stall.id, tenantId: stall.merchantId, ...parsed.data.settings },
+          create: { stallId: stall.id, organizationId: stall.organizationId, ...parsed.data.settings },
           update: parsed.data.settings,
         });
         break;
@@ -134,14 +134,14 @@ export async function PATCH(request: Request, context: RouteContext) {
   });
 
   await recordAuditEvent({
-    tenantId: authorization.stall.merchantId,
+    organizationId: authorization.stall.organizationId,
     action: `ORDERING_${parsed.data.action}`,
     entityType: "STALL",
     entityId: authorization.stall.id,
     outcome: "SUCCESS",
     requestId: authorization.requestId,
     stallId: authorization.stall.id,
-    actorUserId: authorization.principal.user.id,
+    actorProfileId: authorization.principal.user.id,
     ipHash: hashClientIp(request),
   });
 

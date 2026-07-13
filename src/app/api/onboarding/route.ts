@@ -75,24 +75,27 @@ export async function POST(request: Request) {
 
   try {
     const result = await prisma.$transaction(async (transaction) => {
-      const merchant = await transaction.merchant.create({
+      const organization = await transaction.organization.create({
         data: {
           name: data.merchantName,
-          slug: `${data.slug}-tenant`,
+          businessName: data.merchantName,
+          slug: `${data.slug}-organization`,
           email: data.email,
           phone: data.phone,
         },
       });
       const stall = await transaction.stall.create({
         data: {
-          merchantId: merchant.id,
+          organizationId: organization.id,
           name: data.stallName,
           slug: data.slug,
+          code: data.slug.toUpperCase(),
+          address: data.location,
           location: data.location,
-          orderingSettings: { create: { tenantId: merchant.id } },
+          orderingSettings: { create: { organizationId: organization.id } },
           qrCodes: {
             create: {
-              tenantId: merchant.id,
+              organizationId: organization.id,
               token: randomBytes(32).toString("base64url"),
               label: "主要點餐 QR v1",
             },
@@ -101,7 +104,7 @@ export async function POST(request: Request) {
       });
       const category = await transaction.productCategory.create({
         data: {
-          tenantId: merchant.id,
+          organizationId: organization.id,
           stallId: stall.id,
           name: "熱門",
           sortOrder: 1,
@@ -109,7 +112,7 @@ export async function POST(request: Request) {
       });
       await transaction.product.create({
         data: {
-          tenantId: merchant.id,
+          organizationId: organization.id,
           stallId: stall.id,
           categoryId: category.id,
           name: "招牌商品",
@@ -118,34 +121,39 @@ export async function POST(request: Request) {
           sortOrder: 1,
         },
       });
-      const user = await transaction.userAccount.create({
+      const profile = await transaction.profile.create({
         data: {
           email: data.email,
           passwordHash,
           displayName: data.displayName,
-          memberships: {
-            create: { tenantId: merchant.id, stallId: stall.id, role: "MERCHANT_OWNER" },
-          },
         },
       });
-      return { stall, user };
+      await transaction.organizationMembership.create({
+        data: {
+          organizationId: organization.id,
+          profileId: profile.id,
+          role: "ORGANIZATION_OWNER",
+          allStalls: true,
+        },
+      });
+      return { organization, stall, profile };
     });
 
-    const session = await createSession(result.user.id);
+    const session = await createSession(result.profile.id);
     const response = NextResponse.json(
       { stallSlug: result.stall.slug },
       { status: 201, headers: { "x-request-id": requestId } },
     );
     setSessionCookies(response, session);
     await recordAuditEvent({
-      tenantId: result.stall.merchantId,
+      organizationId: result.organization.id,
       action: "MERCHANT_ONBOARDING_COMPLETED",
       entityType: "STALL",
       entityId: result.stall.id,
       outcome: "SUCCESS",
       requestId,
       stallId: result.stall.id,
-      actorUserId: result.user.id,
+      actorProfileId: result.profile.id,
       ipHash,
     });
     return response;

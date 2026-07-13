@@ -24,7 +24,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       outcome: "DENIED",
       requestId: authorization.requestId,
       stallId: authorization.stall.id,
-      actorUserId: authorization.principal.user.id,
+      actorProfileId: authorization.principal.user.id,
       ipHash: hashClientIp(request),
     });
     return NextResponse.json(
@@ -66,7 +66,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       outcome: "DENIED",
       requestId: authorization.requestId,
       stallId: authorization.stall.id,
-      actorUserId: authorization.principal.user.id,
+      actorProfileId: authorization.principal.user.id,
       ipHash: hashClientIp(request),
     });
     return NextResponse.json(
@@ -117,7 +117,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
       await transaction.orderEvent.create({
         data: {
-          tenantId: order.tenantId,
+          organizationId: order.organizationId,
           stallId: order.stallId,
           orderId: order.id,
           eventType: nextStatus === "COMPLETED" ? "CASH_CHECKOUT_COMPLETED" : "STAFF_STATUS_CHANGED",
@@ -139,7 +139,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       outcome: "SUCCESS",
       requestId: authorization.requestId,
       stallId: authorization.stall.id,
-      actorUserId: authorization.principal.user.id,
+      actorProfileId: authorization.principal.user.id,
       ipHash: hashClientIp(request),
       metadata: { previousStatus: order.status, newStatus: nextStatus },
     });

@@ -67,7 +67,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     await transaction.orderEvent.create({
       data: {
-        tenantId: authorization.stall.merchantId,
+        organizationId: authorization.stall.organizationId,
         stallId: authorization.stall.id,
         orderId,
         eventType: "PICKUP_CODE_VERIFIED",
@@ -84,7 +84,7 @@ export async function POST(request: Request, context: RouteContext) {
       outcome: "DENIED",
       requestId: authorization.requestId,
       stallId: authorization.stall.id,
-      actorUserId: authorization.principal.user.id,
+      actorProfileId: authorization.principal.user.id,
       ipHash: hashClientIp(request),
     });
     return NextResponse.json(
@@ -100,7 +100,7 @@ export async function POST(request: Request, context: RouteContext) {
     outcome: "SUCCESS",
     requestId: authorization.requestId,
     stallId: authorization.stall.id,
-    actorUserId: authorization.principal.user.id,
+    actorProfileId: authorization.principal.user.id,
     ipHash: hashClientIp(request),
   });
   return NextResponse.json(

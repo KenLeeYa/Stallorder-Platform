@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     entityType: "AUTH",
     outcome: "SUCCESS",
     requestId,
-    actorUserId: principal.user.id,
+    actorProfileId: principal.user.id,
     ipHash: hashClientIp(request),
   });
   return response;

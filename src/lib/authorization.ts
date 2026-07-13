@@ -6,33 +6,56 @@ import { NextResponse } from "next/server";
 import { getPagePrincipal, getRequestPrincipal, type SessionPrincipal } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { hasPermission, type Permission } from "@/lib/rbac";
+import { hasPermission, resolvePrimaryRole, type Permission } from "@/lib/rbac";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp } from "@/lib/security";
 
-async function findStallAccess(principal: SessionPrincipal, stallSlug: string) {
+export async function findStallAccess(principal: SessionPrincipal, stallSlug: string) {
+  const stall = await prisma.stall.findFirst({
+    where: {
+      slug: stallSlug,
+      isActive: true,
+      organization: { status: { in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] } },
+    },
+    include: { organization: true },
+  });
+  if (!stall) return null;
+
   if (principal.user.platformRole === "PLATFORM_ADMIN") {
-    const stall = await prisma.stall.findFirst({
-      where: { slug: stallSlug, isActive: true },
-      include: { merchant: true },
-    });
-    return stall ? { stall, role: "PLATFORM_ADMIN" as UserRole } : null;
+    return { stall, role: "PLATFORM_ADMIN" as UserRole, roles: ["PLATFORM_ADMIN" as UserRole] };
   }
 
-  const membership = await prisma.stallMembership.findFirst({
-    where: {
-      userId: principal.user.id,
-      isActive: true,
-      stall: {
-        slug: stallSlug,
+  const [organizationMemberships, stallMemberships] = await Promise.all([
+    prisma.organizationMembership.findMany({
+      where: {
+        organizationId: stall.organizationId,
+        profileId: principal.user.id,
         isActive: true,
-        merchant: { status: { in: ["TRIALING", "ACTIVE"] } },
       },
-    },
-    include: { stall: { include: { merchant: true } } },
-  });
+    }),
+    prisma.stallMembership.findMany({
+      where: {
+        organizationId: stall.organizationId,
+        profileId: principal.user.id,
+        stallId: stall.id,
+        isActive: true,
+      },
+    }),
+  ]);
 
-  return membership ? { stall: membership.stall, role: membership.role } : null;
+  const roles = [
+    ...organizationMemberships
+      .filter((membership) => (
+        membership.role === "ORGANIZATION_OWNER"
+        || membership.allStalls
+        || stallMemberships.length > 0
+      ))
+      .map((membership) => membership.role),
+    ...stallMemberships.map((membership) => membership.role),
+  ];
+  const role = resolvePrimaryRole(roles);
+
+  return role ? { stall, role, roles } : null;
 }
 
 export async function requirePagePermission(stallSlug: string, permission: Permission, returnPath: string) {
@@ -40,7 +63,7 @@ export async function requirePagePermission(stallSlug: string, permission: Permi
   if (!principal) redirect(`/login?next=${encodeURIComponent(returnPath)}`);
 
   const access = await findStallAccess(principal, stallSlug);
-  if (!access || !hasPermission(access.role, permission)) notFound();
+  if (!access || !access.roles.some((role) => hasPermission(role, permission))) notFound();
 
   return { principal, ...access };
 }
@@ -70,7 +93,7 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
       entityType: "AUTHENTICATED_API",
       outcome: "DENIED",
       requestId,
-      actorUserId: principal.user.id,
+      actorProfileId: principal.user.id,
       ipHash: hashClientIp(request),
     });
     return {
@@ -92,7 +115,7 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
       entityType: "STALL",
       outcome: "DENIED",
       requestId,
-      actorUserId: principal.user.id,
+      actorProfileId: principal.user.id,
       ipHash: hashClientIp(request),
     });
     return {
@@ -104,7 +127,7 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
     };
   }
 
-  if (!hasPermission(access.role, permission)) {
+  if (!access.roles.some((role) => hasPermission(role, permission))) {
     await recordAuditEvent({
       action: "AUTHORIZATION_DENIED",
       entityType: "STALL",
@@ -112,9 +135,9 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
       outcome: "DENIED",
       requestId,
       stallId: access.stall.id,
-      actorUserId: principal.user.id,
+      actorProfileId: principal.user.id,
       ipHash: hashClientIp(request),
-      metadata: { permission, role: access.role },
+      metadata: { permission, role: access.roles.join(",") },
     });
     return {
       ok: false as const,

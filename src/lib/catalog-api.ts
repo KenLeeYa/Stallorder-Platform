@@ -23,7 +23,7 @@ export async function authorizeCatalogMutation(
       outcome: "DENIED",
       requestId: authorization.requestId,
       stallId: authorization.stall.id,
-      actorUserId: authorization.principal.user.id,
+      actorProfileId: authorization.principal.user.id,
       ipHash: hashClientIp(request),
     });
     return {
