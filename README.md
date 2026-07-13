@@ -1,79 +1,131 @@
-# StallOrder 攤位點餐
+# StallOrder 攤點通
 
-StallOrder 是供夜市攤位、餐車、市集商戶、快閃店與小型餐飲業者使用的多租戶 QR Code 點餐 SaaS。介面為台灣繁體中文，訂單以人工確認、現金付款與取餐碼驗證為核心。
+StallOrder 是供夜市攤位、餐車、市集商戶、快閃店與小型餐飲業者使用的多租戶 QR 點餐 SaaS。系統以一套前端、一個 Supabase 專案及一個 PostgreSQL 資料庫服務多個組織；每個組織可管理多個攤位，資料以 `organization_id` 與 `stall_id` 分層，並由 PostgreSQL RLS 強制隔離。
+
+預設語系為台灣繁體中文，時區為 `Asia/Taipei`，幣別為 `TWD`。
 
 ## 已完成範圍
 
-- 靜態印刷 QR Code 與 10 分鐘短效訂單 session
-- Cloudflare Turnstile 伺服器端驗證
-- IP、裝置、QR、session、攤位及行為頻率多維限流
-- `WAITING_CONFIRMATION` 員工接單流程與未確認自動逾時
-- 六位取餐驗證碼與人工現金結帳
-- 商品供應／售完、攤位暫停／關閉及 QR 撤銷／輪替
-- 每攤位可設定數量、種類、備註、待確認與時間窗上限
-- 商戶申請、資料庫式登入 session、RBAC 與 CSRF
-- PostgreSQL 全業務表 RLS、匿名零寫入權限及租戶資料隔離
-- `public_order_attempts`、audit log、JSON stdout 與健康檢查
+- Google OAuth/Supabase Auth 身分連結，以及資料庫式八小時應用 session
+- 組織與攤位分層 RBAC、CSRF、登入/API rate limiting 與結構化稽核
+- `ORGANIZATION_OWNER`、`ORGANIZATION_ADMIN`、`FINANCE_VIEWER`
+- `STALL_MANAGER`、`STAFF`、`KITCHEN`
+- 多攤位工作區、攤位切換、建立/編輯/停用與人員指派
+- 組織共用商品分類、群組與商品主檔，支援多攤分派、攤位價格覆寫及售罄
+- 多攤位儀表板、單攤篩選、跨攤報表、CSV 匯出與每日摘要
+- 授權範圍內的 Realtime、SSE/輪詢備援與營運警示
+- Lite、Standard、Pro、Enterprise 方案資料、額外攤位核准、invoice line item 與 usage metering
+- 高熵、雜湊儲存、七日到期、一次性且比對 Google 驗證 Email 的團隊邀請
+- 靜態 QR、10 分鐘短效單次 session、Turnstile 伺服器驗證與多維防濫用限流
+- `WAITING_CONFIRMATION` 接單、未確認逾時、即時員工看板、防誤取消、六位取餐碼與人工現金結帳
+- 32 張公開業務表啟用且強制 RLS；匿名客戶端不能直接寫入訂單
 
-## 技術架構
+## 架構摘要
+
+```text
+StallOrder
+└─ Organization
+   ├─ Organization memberships
+   ├─ Shared product catalog
+   ├─ Subscription / invoices / usage
+   ├─ Stall A
+   │  ├─ Stall memberships
+   │  ├─ Product settings
+   │  └─ Orders / payments / summaries
+   └─ Stall B
+```
 
 - Next.js 16、React 19、TypeScript、Tailwind CSS
-- Supabase PostgreSQL、Edge Functions、RLS、pg_cron
-- Prisma 供受信任的商戶／員工 Next.js 後端使用
-- Zod、bcrypt、Vitest、pgTAP
+- Supabase PostgreSQL、Auth、Realtime、Edge Functions、RLS、pg_cron
+- Prisma 只供受信任的 Next.js 後端使用
+- Zod、bcrypt、Vitest、pgTAP、Playwright
 
-公開瀏覽器不持有 service role key，也不能直接寫入 `orders`。掃碼 session 與公開訂單只由 Supabase Edge Functions 呼叫受限的 `SECURITY DEFINER` RPC 建立；價格、數量限制、攤位狀態與 session 消耗皆在同一資料庫交易重新驗證。
+公開瀏覽器不持有 service role key，也不能直接寫入 `orders`。掃碼 session 與公開訂單只由 Edge Functions 呼叫受限 RPC 建立；價格、供應、數量、攤位狀態、Turnstile 與 session 消耗都在伺服器及同一交易內重新驗證。
+
+## 主要路由
+
+```text
+/select-organization                  組織選擇
+/select-stall                         攤位選擇
+/merchant/dashboard                  多攤位儀表板
+/merchant/stalls                     攤位管理
+/merchant/catalog                    組織共用商品
+/merchant/reports/*                  跨攤位報表
+/merchant/team                       組織與攤位邀請/成員
+/merchant/subscription               方案、用量與帳務
+/staff/:stallSlug                    店員/廚房訂單看板
+/q/:qrToken                          顧客掃碼點餐
+/order/:trackingToken                顧客訂單追蹤
+```
 
 ## 本機啟動
 
-需求：Node.js 22 以上與 Docker Desktop。
+需求：Node.js 22 以上、Docker Desktop，以及 Supabase CLI。
 
 ```powershell
 npm install
 Copy-Item .env.example .env
+Copy-Item supabase/functions/.env.example supabase/functions/.env
 npx supabase start
 npm run db:reset
 ```
 
-將 `.env` 的 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` 設為 Cloudflare 測試 site key，並由 `supabase/functions/.env.example` 建立忽略版控的 `supabase/functions/.env`。本機可使用 Cloudflare 官方測試組合；`TURNSTILE_ALLOW_TEST_KEYS` 僅限本機為 `true`。
-
-分別啟動：
+分別啟動 Edge Functions 與 Next.js：
 
 ```powershell
 npm run functions:serve
 npm run dev
 ```
 
-預設網址為 `http://localhost:3000`。若連接埠已占用，可用 `npm run dev -- -p 3001`，並將同一 Origin 加入 `NEXT_PUBLIC_APP_URL` 與 `PUBLIC_APP_ORIGINS`。
+預設網址為 `http://localhost:3000`。若改用其他連接埠，`NEXT_PUBLIC_APP_URL` 與 Edge 的 `PUBLIC_APP_ORIGINS` 必須使用完全相同的 Origin。
 
 示範帳號密碼為 `StallOrderDemo!2026`：
 
-- 商戶擁有者：`owner@stallorder.test`
-- 店員：`staff@stallorder.test`
-- 廚房：`kitchen@stallorder.test`
+- `owner@stallorder.test`
+- `staff@stallorder.test`
+- `kitchen@stallorder.test`
 
-示範 QR 路徑：`/q/demo-aming-chicken-qr-2026-rotate-me`。
+示範 QR：`/q/demo-aming-chicken-qr-2026-rotate-me`。正式環境禁止執行示範 seed。
 
-## 驗證指令
+## 驗證
 
 ```powershell
 npm run lint
 npm run typecheck
-npm test
+npm run test
 npm run db:test
-npx supabase db lint --level warning
+npx supabase db lint --local
 npm run build
+npm run test:e2e
 npm audit --audit-level=moderate
 ```
 
+`npm run test:e2e` 只允許連接 `localhost/127.0.0.1` 資料庫，會啟動本機 OAuth 測試端、Next.js 與 Edge Functions。外部 Google 同意頁仍需在 staging/production 使用真實 Google/Supabase 憑證做部署驗收。
+
 ## 正式部署
 
-1. 建立 Supabase 專案並執行 `supabase db push`。
-2. 部署三支公開 Edge Function，且維持 `verify_jwt = false`；它們自行執行 CORS、Turnstile、session 與 rate limit 驗證。
-3. 以 `supabase secrets set` 設定 `ABUSE_HASH_SECRET`、`TOKEN_DERIVATION_SECRET`、`TURNSTILE_SECRET_KEY`、`TURNSTILE_EXPECTED_HOSTNAME` 與 `PUBLIC_APP_ORIGINS`。
-4. 正式環境必須設定 `TURNSTILE_ALLOW_TEST_KEYS=false`，且不得使用 Cloudflare 測試金鑰。
-5. Next.js 設定 `DATABASE_URL`、`DIRECT_URL`、`NEXT_PUBLIC_APP_URL`、`NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL`、`NEXT_PUBLIC_TURNSTILE_SITE_KEY` 與 `AUDIT_IP_HASH_SECRET`。
-6. 只有在上游代理會覆寫而非附加用戶輸入的 IP header 時，才設定 `TRUST_PROXY_HEADERS=true`。
-7. 將 Next.js 與 Edge stdout 匯入集中式日誌服務，並依 [MONITORING.md](docs/MONITORING.md) 建立告警。
+1. 建立單一 Supabase 專案並執行所有 migration。
+2. 設定 Google provider、Site URL 與 `/auth/callback` redirect allow list。
+3. 部署 `create-order-session`、`create-public-order`、`get-public-order`，維持 `verify_jwt=false`；函式自行執行 CORS、Turnstile、session 與 rate limit 驗證。
+4. 設定 Edge secrets：`ABUSE_HASH_SECRET`、`TOKEN_DERIVATION_SECRET`、`TURNSTILE_SECRET_KEY`、`TURNSTILE_EXPECTED_HOSTNAME`、`PUBLIC_APP_ORIGINS`。
+5. 正式環境設定 `TURNSTILE_ALLOW_TEST_KEYS=false`，且不得使用 Cloudflare 測試金鑰。
+6. Next.js 設定資料庫、Supabase、應用 Origin、Turnstile 與 audit hash 環境變數。
+7. 上線前填入核准的方案底價與超額訂單單價；目前種子保守維持為 0/未設定。
+8. 將 stdout 與資料庫安全事件送入集中式監控，完成備份還原與 QR/secret 輪替演練。
 
-正式環境不得執行示範 seed，也不得提交任何 `.env`。完整安全設計見 [SECURITY.md](docs/SECURITY.md)。
+詳細步驟見 [多攤位維運手冊](docs/MULTI_STALL_OPERATIONS.md)。
+
+## 文件
+
+- [架構](docs/MULTI_STALL_ARCHITECTURE.md)
+- [資料庫 Schema](docs/MULTI_STALL_DATABASE_SCHEMA.md)
+- [遷移計畫](docs/MULTI_STALL_MIGRATION_PLAN.md)
+- [RLS 與權限](docs/MULTI_STALL_RLS.md)
+- [儀表板與報表](docs/MULTI_STALL_DASHBOARD.md)
+- [Realtime 與警示](docs/MULTI_STALL_REALTIME.md)
+- [方案與計價](docs/MULTI_STALL_PRICING.md)
+- [測試計畫](docs/MULTI_STALL_TEST_PLAN.md)
+- [維運手冊](docs/MULTI_STALL_OPERATIONS.md)
+- [後續議題](docs/MULTI_STALL_GITHUB_ISSUES.md)
+- [安全基線](docs/SECURITY.md)
+- [監控基線](docs/MONITORING.md)

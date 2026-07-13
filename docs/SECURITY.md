@@ -6,7 +6,7 @@
 - `anon` 與 `authenticated` 對業務資料表均沒有直接寫入權限，也不能執行建單 RPC；所有寫入都必須經 Edge 或 Next.js 受信任後端。
 - Edge Function 使用 service role 呼叫固定 RPC；service role key 不會傳到前端。
 - 商戶／員工 Next.js API 使用伺服器端 Prisma、登入 session、RBAC、CSRF 與攤位範圍查詢。
-- 所有 17 張公開業務表均啟用並強制 RLS。政策以 `auth.uid()` 對應帳號及啟用中的 stall membership，平台管理員另有明確政策。
+- 所有 32 張公開業務表均啟用並強制 RLS。政策以 `auth.uid()` 對應 profile、organization membership 與 stall membership，平台管理員另有明確政策。
 
 ## QR 與公開訂單
 
@@ -36,13 +36,16 @@
 
 ## RBAC
 
-- `PLATFORM_ADMIN`：跨租戶平台權限。
-- `MERCHANT_OWNER`：攤位、QR、限制、商品、報表、人員與結帳。
-- `MERCHANT_MANAGER`：QR／點餐限制、商品、報表、訂單與結帳。
-- `STAFF`：接單、狀態更新、取餐碼驗證與現金結帳。
-- `KITCHEN`：只看已確認訂單，僅能推進製作中與可取餐。
+- `PLATFORM_ADMIN`：跨租戶平台維運與額外攤位核准，不能由商戶邀請授予。
+- `ORGANIZATION_OWNER`：組織、所有攤位、共用商品、財務、人員、訂閱與帳務。
+- `ORGANIZATION_ADMIN`：依 `all_stalls` 與攤位指派管理營運，不可管理 subscription。
+- `FINANCE_VIEWER`：授權範圍財務/報表唯讀，不可更新訂單、商品、人員或攤位。
+- `STALL_MANAGER`：指定攤位商品、點餐、員工、訂單、結帳與攤位報表。
+- `STAFF`：指定攤位接單、狀態更新、取消防呆、取餐碼驗證與現金結帳。
+- `KITCHEN`：指定攤位只看已確認訂單，僅能推進 `PREPARING/READY`，不可讀財務。
+- `MERCHANT_OWNER/MERCHANT_MANAGER` 僅保留 enum migration 相容性，不授予新流程權限。
 
-所有物件查詢均同時加入伺服器解析出的 `stallId`；跨攤位物件以 404 或空結果處理。
+所有物件查詢同時加入伺服器解析出的 organization/stall scope；跨組織或未授權跨攤位物件以 404、403 或空結果處理。Client role、URL、localStorage 與 Google metadata 均不作授權證據。
 
 ## OWASP Top 10 對應
 
