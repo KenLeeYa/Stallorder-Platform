@@ -64,6 +64,43 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
+  let before: Prisma.InputJsonObject | undefined;
+  if (command.operation === "UPDATE_CATEGORY") {
+    const category = await prisma.productCategory.findFirst({
+      where: { id: command.categoryId, organizationId },
+      select: { name: true, sortOrder: true, isActive: true },
+    });
+    before = category ?? undefined;
+  } else if (command.operation === "UPDATE_GROUP") {
+    const group = await prisma.productGroup.findFirst({
+      where: { id: command.groupId, organizationId },
+      select: { categoryId: true, name: true, sortOrder: true, isActive: true },
+    });
+    before = group ?? undefined;
+  } else if (command.operation === "UPDATE_PRODUCT") {
+    const product = await prisma.product.findFirst({
+      where: { id: command.productId, organizationId },
+      select: {
+        categoryId: true,
+        groupId: true,
+        name: true,
+        description: true,
+        defaultPrice: true,
+        imageUrl: true,
+        sortOrder: true,
+        isActive: true,
+      },
+    });
+    before = product ?? undefined;
+  } else if (command.operation === "SET_ASSIGNMENTS") {
+    const assignments = await prisma.stallProduct.findMany({
+      where: { organizationId, productId: command.productId, stallId: { in: authorizedStallIds } },
+      select: { stallId: true },
+      orderBy: { stallId: "asc" },
+    });
+    before = { stallIds: assignments.map((assignment) => assignment.stallId) };
+  }
+
   try {
     const result = await prisma.$transaction(async (transaction) => {
       if (command.operation === "CREATE_CATEGORY") {
@@ -207,6 +244,19 @@ export async function POST(request: Request, context: RouteContext) {
     });
 
     const action = catalogAuditAction(command.operation);
+    const after: Record<string, Prisma.InputJsonValue | null> = {
+      operation: command.operation,
+      entityId: result.id,
+    };
+    if ("name" in command) after.name = command.name;
+    if ("sortOrder" in command) after.sortOrder = command.sortOrder;
+    if ("categoryId" in command) after.categoryId = command.categoryId;
+    if ("groupId" in command) after.groupId = command.groupId;
+    if ("description" in command) after.description = command.description;
+    if ("defaultPrice" in command) after.defaultPrice = command.defaultPrice;
+    if ("imageUrl" in command) after.imageUrl = command.imageUrl;
+    if ("isActive" in command) after.isActive = command.isActive;
+    if ("stallIds" in command) after.stallIds = [...command.stallIds].sort();
     await recordAuditEvent({
       organizationId,
       actorProfileId: authorization.principal.user.id,
@@ -218,6 +268,8 @@ export async function POST(request: Request, context: RouteContext) {
       outcome: "SUCCESS",
       requestId: authorization.requestId,
       ipHash: hashClientIp(request),
+      before,
+      after,
       metadata: "stallIds" in command ? { assignedStallCount: command.stallIds.length } : undefined,
     });
 

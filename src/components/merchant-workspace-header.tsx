@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, Building2, FileChartColumn, Package, Store, Users } from "lucide-react";
+import { BarChart3, Building2, CreditCard, FileChartColumn, Package, Store, Users } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import type { WorkspaceOrganization } from "@/lib/workspace";
 
@@ -109,6 +109,11 @@ export function MerchantWorkspaceHeader({
           <Link title="團隊" href={`/merchant/team?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
             <Users className="h-5 w-5" /><span className="sr-only">團隊</span>
           </Link>
+          {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER") ? (
+            <Link title="訂閱與用量" href={`/merchant/subscription?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <CreditCard className="h-5 w-5" /><span className="sr-only">訂閱與用量</span>
+            </Link>
+          ) : null}
         </nav>
 
         <span className="hidden max-w-36 truncate text-sm text-stone-600 lg:inline">{displayName}</span>

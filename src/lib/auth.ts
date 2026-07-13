@@ -15,6 +15,7 @@ export type SessionPrincipal = {
   csrfTokenHash: string;
   user: {
     id: string;
+    authUserId: string | null;
     email: string;
     displayName: string;
     platformRole: UserRole | null;
@@ -39,6 +40,7 @@ async function findPrincipal(token: string | null): Promise<SessionPrincipal | n
     csrfTokenHash: session.csrfTokenHash,
     user: {
       id: session.profile.id,
+      authUserId: session.profile.authUserId,
       email: session.profile.email,
       displayName: session.profile.displayName,
       platformRole: session.profile.platformRole,

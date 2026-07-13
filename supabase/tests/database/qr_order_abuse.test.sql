@@ -233,7 +233,7 @@ select ok(
 );
 select ok(
   (
-    select count(*) = 25 and bool_and(c.relrowsecurity)
+    select count(*) = 32 and bool_and(c.relrowsecurity)
     from pg_class c
     join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public'
@@ -245,7 +245,8 @@ select ok(
         'operational_events', 'operational_alerts', 'qr_codes',
         'stall_ordering_settings', 'order_sessions', 'orders', 'order_items',
         'order_events', 'public_order_attempts', 'public_rate_limit_buckets',
-        'stall_order_counters'
+        'stall_order_counters', 'plans', 'subscriptions', 'additional_stall_approvals',
+        'invoices', 'invoice_line_items', 'usage_events', 'organization_invitations'
       ])
   ),
   '所有暴露業務資料表均啟用 RLS'

@@ -113,17 +113,17 @@ enum PublicAttemptOutcome {
 }
 
 model Organization {
-  id                     String                   @id @default(uuid()) @db.Uuid
+  id                     String                    @id @default(uuid()) @db.Uuid
   name                   String
-  slug                   String                   @unique
-  businessName           String                   @map("business_name")
-  status                 OrganizationStatus       @default(TRIALING)
-  email                  String                   @unique
+  slug                   String                    @unique
+  businessName           String                    @map("business_name")
+  status                 OrganizationStatus        @default(TRIALING)
+  email                  String                    @unique
   phone                  String
-  defaultTimezone        String                   @default("Asia/Taipei") @map("default_timezone")
-  defaultCurrency        String                   @default("TWD") @map("default_currency")
-  createdAt              DateTime                 @default(now()) @map("created_at")
-  updatedAt              DateTime                 @updatedAt @map("updated_at")
+  defaultTimezone        String                    @default("Asia/Taipei") @map("default_timezone")
+  defaultCurrency        String                    @default("TWD") @map("default_currency")
+  createdAt              DateTime                  @default(now()) @map("created_at")
+  updatedAt              DateTime                  @updatedAt @map("updated_at")
   stalls                 Stall[]
   memberships            OrganizationMembership[]
   stallMemberships       StallMembership[]
@@ -142,6 +142,12 @@ model Organization {
   dailyStallSummaries    DailyStallSummary[]
   operationalEvents      OperationalEvent[]
   operationalAlerts      OperationalAlert[]
+  subscription           Subscription?
+  additionalApprovals    AdditionalStallApproval[]
+  invoices               Invoice[]
+  invoiceLineItems       InvoiceLineItem[]
+  usageEvents            UsageEvent[]
+  invitations            OrganizationInvitation[]
   publicOrderAttempts    PublicOrderAttempt[]
   publicRateLimitBuckets PublicRateLimitBucket[]
   orderCounters          StallOrderCounter[]
@@ -150,27 +156,27 @@ model Organization {
 }
 
 model Stall {
-  id                     String                  @id @default(uuid()) @db.Uuid
-  organizationId         String                  @map("organization_id") @db.Uuid
+  id                     String                   @id @default(uuid()) @db.Uuid
+  organizationId         String                   @map("organization_id") @db.Uuid
   name                   String
-  slug                   String                  @unique
+  slug                   String                   @unique
   code                   String
-  description            String                  @default("")
+  description            String                   @default("")
   address                String
-  phone                  String                  @default("")
-  timezone               String                  @default("Asia/Taipei")
-  currency               String                  @default("TWD")
-  isActive               Boolean                 @default(true) @map("is_active")
-  businessStatus         StallBusinessStatus     @default(OPEN) @map("business_status")
-  orderingEnabled        Boolean                 @default(true) @map("ordering_enabled")
-  logoUrl                String?                 @map("logo_url")
-  coverImageUrl          String?                 @map("cover_image_url")
+  phone                  String                   @default("")
+  timezone               String                   @default("Asia/Taipei")
+  currency               String                   @default("TWD")
+  isActive               Boolean                  @default(true) @map("is_active")
+  businessStatus         StallBusinessStatus      @default(OPEN) @map("business_status")
+  orderingEnabled        Boolean                  @default(true) @map("ordering_enabled")
+  logoUrl                String?                  @map("logo_url")
+  coverImageUrl          String?                  @map("cover_image_url")
   location               String
-  orderingState          StallOrderingState      @default(OPEN) @map("ordering_state")
-  isSoldOut              Boolean                 @default(false) @map("is_sold_out")
-  createdAt              DateTime                @default(now()) @map("created_at")
-  updatedAt              DateTime                @updatedAt @map("updated_at")
-  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orderingState          StallOrderingState       @default(OPEN) @map("ordering_state")
+  isSoldOut              Boolean                  @default(false) @map("is_sold_out")
+  createdAt              DateTime                 @default(now()) @map("created_at")
+  updatedAt              DateTime                 @updatedAt @map("updated_at")
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stallProducts          StallProduct[]
   orders                 Order[]
   memberships            StallMembership[]
@@ -186,6 +192,8 @@ model Stall {
   dailySummaries         DailyStallSummary[]
   operationalEvents      OperationalEvent[]
   operationalAlerts      OperationalAlert[]
+  usageEvents            UsageEvent[]
+  invitations            OrganizationInvitation[]
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -193,22 +201,24 @@ model Stall {
 }
 
 model Profile {
-  id                      String                   @id @default(uuid()) @db.Uuid
-  authUserId              String?                  @unique @map("auth_user_id") @db.Uuid
-  email                   String                   @unique
-  passwordHash            String?                  @map("password_hash")
-  displayName             String                   @map("display_name")
-  avatarUrl               String?                  @map("avatar_url")
-  isActive                Boolean                  @default(true) @map("is_active")
-  lastLoginAt             DateTime?                @map("last_login_at")
-  platformRole            UserRole?                @map("platform_role")
-  createdAt               DateTime                 @default(now()) @map("created_at")
-  updatedAt               DateTime                 @updatedAt @map("updated_at")
-  organizationMemberships OrganizationMembership[]
-  stallMemberships        StallMembership[]
-  sessions                AuthSession[]
-  auditLogs               AuditLog[]
-  recordedPayments        Payment[]
+  id                       String                    @id @default(uuid()) @db.Uuid
+  authUserId               String?                   @unique @map("auth_user_id") @db.Uuid
+  email                    String                    @unique
+  passwordHash             String?                   @map("password_hash")
+  displayName              String                    @map("display_name")
+  avatarUrl                String?                   @map("avatar_url")
+  isActive                 Boolean                   @default(true) @map("is_active")
+  lastLoginAt              DateTime?                 @map("last_login_at")
+  platformRole             UserRole?                 @map("platform_role")
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
+  organizationMemberships  OrganizationMembership[]
+  stallMemberships         StallMembership[]
+  sessions                 AuthSession[]
+  auditLogs                AuditLog[]
+  recordedPayments         Payment[]
+  approvedAdditionalStalls AdditionalStallApproval[] @relation("AdditionalStallApprover")
+  sentInvitations          OrganizationInvitation[]  @relation("InvitationSender")
 
   @@map("profiles")
 }
@@ -277,6 +287,8 @@ model AuditLog {
   requestId      String        @map("request_id")
   ipHash         String?       @map("ip_hash")
   metadata       String?
+  beforeJson     Json?         @map("before_json")
+  afterJson      Json?         @map("after_json")
   createdAt      DateTime      @default(now()) @map("created_at")
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall          Stall?        @relation(fields: [stallId], references: [id], onDelete: SetNull)
@@ -287,6 +299,147 @@ model AuditLog {
   @@index([actorProfileId, createdAt])
   @@index([action, createdAt])
   @@map("audit_logs")
+}
+
+model Plan {
+  id                   String         @id @default(uuid()) @db.Uuid
+  code                 String         @unique
+  displayName          String         @map("display_name")
+  basePrice            Int            @default(0) @map("base_price")
+  includedStalls       Int            @map("included_stalls")
+  additionalStallPrice Int?           @map("additional_stall_price")
+  maxStalls            Int?           @map("max_stalls")
+  includedOrders       Int?           @map("included_orders")
+  excessOrderPrice     Int            @default(0) @map("excess_order_price")
+  isActive             Boolean        @default(true) @map("is_active")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+  subscriptions        Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  organizationId      String                    @unique @map("organization_id") @db.Uuid
+  planId              String                    @map("plan_id") @db.Uuid
+  status              String                    @default("TRIALING")
+  billingPeriodStart  DateTime                  @map("billing_period_start") @db.Date
+  billingPeriodEnd    DateTime                  @map("billing_period_end") @db.Date
+  cancelAtPeriodEnd   Boolean                   @default(false) @map("cancel_at_period_end")
+  createdAt           DateTime                  @default(now()) @map("created_at")
+  updatedAt           DateTime                  @updatedAt @map("updated_at")
+  organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan                Plan                      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  additionalApprovals AdditionalStallApproval[]
+  invoices            Invoice[]
+
+  @@index([planId, status])
+  @@map("subscriptions")
+}
+
+model AdditionalStallApproval {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  subscriptionId String       @map("subscription_id") @db.Uuid
+  quantity       Int
+  unitPrice      Int          @map("unit_price")
+  status         String       @default("APPROVED")
+  approvedById   String?      @map("approved_by") @db.Uuid
+  reason         String       @default("")
+  effectiveAt    DateTime     @default(now()) @map("effective_at")
+  expiresAt      DateTime?    @map("expires_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  approvedBy     Profile?     @relation("AdditionalStallApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, effectiveAt])
+  @@map("additional_stall_approvals")
+}
+
+model Invoice {
+  id                 String            @id @default(uuid()) @db.Uuid
+  organizationId     String            @map("organization_id") @db.Uuid
+  subscriptionId     String            @map("subscription_id") @db.Uuid
+  invoiceNumber      String            @unique @map("invoice_number")
+  status             String            @default("DRAFT")
+  currency           String            @default("TWD")
+  billingPeriodStart DateTime          @map("billing_period_start") @db.Date
+  billingPeriodEnd   DateTime          @map("billing_period_end") @db.Date
+  subtotal           Int               @default(0)
+  total              Int               @default(0)
+  issuedAt           DateTime?         @map("issued_at")
+  paidAt             DateTime?         @map("paid_at")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription       Subscription      @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  lineItems          InvoiceLineItem[]
+
+  @@unique([organizationId, billingPeriodStart, billingPeriodEnd])
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  invoiceId      String       @map("invoice_id") @db.Uuid
+  lineType       String       @map("line_type")
+  description    String
+  quantity       Int
+  unitAmount     Int          @map("unit_amount")
+  amount         Int
+  referenceId    String?      @map("reference_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, createdAt])
+  @@index([organizationId, lineType, createdAt])
+  @@map("invoice_line_items")
+}
+
+model UsageEvent {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  stallId        String?      @map("stall_id") @db.Uuid
+  eventType      String       @map("event_type")
+  quantity       Int
+  billingPeriod  DateTime     @map("billing_period") @db.Date
+  referenceId    String?      @map("reference_id")
+  occurredAt     DateTime     @default(now()) @map("occurred_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall?       @relation(fields: [stallId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, billingPeriod, eventType])
+  @@index([stallId, billingPeriod, eventType])
+  @@map("usage_events")
+}
+
+model OrganizationInvitation {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  stallId        String?      @map("stall_id") @db.Uuid
+  email          String
+  role           UserRole
+  tokenHash      String       @unique @map("token_hash")
+  status         String       @default("PENDING")
+  invitedById    String?      @map("invited_by") @db.Uuid
+  expiresAt      DateTime     @map("expires_at")
+  acceptedAt     DateTime?    @map("accepted_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall?       @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  invitedBy      Profile?     @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@index([tokenHash, status, expiresAt])
+  @@map("organization_invitations")
 }
 
 model RateLimitBucket {

@@ -116,6 +116,19 @@ export async function POST(request: Request) {
           phone: data.phone,
         },
       });
+      const litePlan = await transaction.plan.findUniqueOrThrow({ where: { code: "LITE" } });
+      const billingPeriodStart = new Date(new Date().toISOString().slice(0, 7) + "-01T00:00:00.000Z");
+      const billingPeriodEnd = new Date(billingPeriodStart);
+      billingPeriodEnd.setUTCMonth(billingPeriodEnd.getUTCMonth() + 1);
+      await transaction.subscription.create({
+        data: {
+          organizationId: organization.id,
+          planId: litePlan.id,
+          status: "TRIALING",
+          billingPeriodStart,
+          billingPeriodEnd,
+        },
+      });
       const stall = await transaction.stall.create({
         data: {
           organizationId: organization.id,

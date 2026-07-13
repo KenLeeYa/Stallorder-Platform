@@ -111,7 +111,7 @@ export async function getWorkspaceAccess(profileId: string, platformRole: UserRo
       status: organization.status,
       defaultCurrency: organization.defaultCurrency,
       roles: organizationRoles,
-      canUseAllStalls: organizationRoles.length > 0,
+      canUseAllStalls: hasAllStallAccess,
       stalls,
     };
   });

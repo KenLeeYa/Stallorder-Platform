@@ -122,3 +122,15 @@ insert into public.stall_memberships (
 ) values
   ('66666666-6666-4666-8666-666666666662', '11111111-1111-4111-8111-111111111111', '55555555-5555-4555-8555-555555555552', '22222222-2222-4222-8222-222222222222', 'STAFF', true, now(), now()),
   ('66666666-6666-4666-8666-666666666663', '11111111-1111-4111-8111-111111111111', '55555555-5555-4555-8555-555555555553', '22222222-2222-4222-8222-222222222222', 'KITCHEN', true, now(), now());
+
+insert into public.subscriptions (
+  organization_id, plan_id, status, billing_period_start, billing_period_end
+)
+select
+  '11111111-1111-4111-8111-111111111111',
+  id,
+  'ACTIVE',
+  date_trunc('month', now() at time zone 'Asia/Taipei')::date,
+  (date_trunc('month', now() at time zone 'Asia/Taipei') + interval '1 month')::date
+from public.plans
+where code = 'PRO';

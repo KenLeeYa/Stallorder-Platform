@@ -65,6 +65,16 @@ export async function POST(request: Request, context: RouteContext) {
           outcome: "SUCCESS",
           requestId: authorization.requestId,
           ipHash: hashClientIp(request),
+          beforeJson: {
+            stalls: targetStalls.map((stall) => ({
+              stallId: stall.id,
+              businessStatus: stall.businessStatus,
+              orderingEnabled: stall.orderingEnabled,
+            })),
+          },
+          afterJson: {
+            stalls: targetStalls.map((stall) => ({ stallId: stall.id, ...nextState })),
+          },
           metadata: JSON.stringify({
             stallIds: targetStalls.map((stall) => stall.id),
             previousStates: targetStalls.map((stall) => ({

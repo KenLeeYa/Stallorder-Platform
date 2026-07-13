@@ -76,6 +76,18 @@ export async function PATCH(request: Request, context: RouteContext) {
     outcome: "SUCCESS",
     requestId: authorization.requestId,
     ipHash: hashClientIp(request),
+    before: {
+      isEnabled: existing.isEnabled,
+      isSoldOut: existing.isSoldOut,
+      priceOverride: existing.priceOverride,
+      sortOrder: existing.sortOrder,
+    },
+    after: {
+      isEnabled: stallProduct.isEnabled,
+      isSoldOut: stallProduct.isSoldOut,
+      priceOverride: stallProduct.priceOverride,
+      sortOrder: stallProduct.sortOrder,
+    },
     metadata: {
       isEnabled: stallProduct.isEnabled,
       isSoldOut: stallProduct.isSoldOut,

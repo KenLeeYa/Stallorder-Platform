@@ -180,6 +180,22 @@ async function main() {
       });
     }
   }
+
+  const proPlan = await prisma.plan.findUniqueOrThrow({ where: { code: "PRO" } });
+  const billingPeriodStart = new Date(new Date().toISOString().slice(0, 7) + "-01T00:00:00.000Z");
+  const billingPeriodEnd = new Date(billingPeriodStart);
+  billingPeriodEnd.setUTCMonth(billingPeriodEnd.getUTCMonth() + 1);
+  await prisma.subscription.upsert({
+    where: { organizationId: organization.id },
+    update: { planId: proPlan.id, status: "ACTIVE", billingPeriodStart, billingPeriodEnd },
+    create: {
+      organizationId: organization.id,
+      planId: proPlan.id,
+      status: "ACTIVE",
+      billingPeriodStart,
+      billingPeriodEnd,
+    },
+  });
 }
 
 main().then(() => prisma.$disconnect()).catch(async (error) => {

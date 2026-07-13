@@ -70,6 +70,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       entityId: membership.id,
       outcome: "SUCCESS",
       requestId: authorization.requestId,
+      before: {
+        targetProfileId: existing.profileId,
+        role: existing.role,
+        isActive: existing.isActive,
+      },
+      after: {
+        targetProfileId: membership.profileId,
+        role: membership.role,
+        isActive: membership.isActive,
+      },
       metadata: { targetProfileId: membership.profileId, role: membership.role },
     });
     return NextResponse.json(

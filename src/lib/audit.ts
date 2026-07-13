@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AuditOutcome } from "@prisma/client";
+import type { AuditOutcome, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 type AuditEvent = {
@@ -14,6 +14,8 @@ type AuditEvent = {
   entityId?: string;
   ipHash?: string;
   metadata?: Record<string, string | number | boolean | null>;
+  before?: Prisma.InputJsonObject;
+  after?: Prisma.InputJsonObject;
 };
 
 function cleanMetadata(metadata: AuditEvent["metadata"]) {
@@ -59,6 +61,8 @@ export async function recordAuditEvent(event: AuditEvent) {
         entityId: event.entityId,
         ipHash: event.ipHash,
         metadata: cleanMetadata(event.metadata),
+        beforeJson: event.before,
+        afterJson: event.after,
       },
     });
     logEvent(event.outcome === "SUCCESS" ? "info" : "warn", event.action, {

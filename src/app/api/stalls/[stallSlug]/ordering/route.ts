@@ -53,6 +53,18 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const token = randomBytes(32).toString("base64url");
   const now = new Date();
+  const previousState = await prisma.stall.findFirstOrThrow({
+    where: { id: authorization.stall.id, organizationId: authorization.stall.organizationId },
+    select: {
+      orderingState: true,
+      isSoldOut: true,
+      qrCodes: {
+        orderBy: { tokenVersion: "desc" },
+        take: 1,
+        select: { state: true, tokenVersion: true },
+      },
+    },
+  });
   const state = await prisma.$transaction(async (transaction) => {
     const stall = await transaction.stall.findUniqueOrThrow({
       where: { id: authorization.stall.id },
@@ -143,6 +155,18 @@ export async function PATCH(request: Request, context: RouteContext) {
     stallId: authorization.stall.id,
     actorProfileId: authorization.principal.user.id,
     ipHash: hashClientIp(request),
+    before: {
+      orderingState: previousState.orderingState,
+      isSoldOut: previousState.isSoldOut,
+      qrCode: previousState.qrCodes[0] ?? null,
+    },
+    after: {
+      orderingState: state.orderingState,
+      isSoldOut: state.isSoldOut,
+      qrCode: state.qrCodes[0]
+        ? { state: state.qrCodes[0].state, tokenVersion: state.qrCodes[0].tokenVersion }
+        : null,
+    },
   });
 
   return NextResponse.json(

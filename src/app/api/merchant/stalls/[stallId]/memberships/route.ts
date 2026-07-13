@@ -79,6 +79,11 @@ export async function POST(request: Request, context: RouteContext) {
       entityId: membership.id,
       outcome: "SUCCESS",
       requestId: authorization.requestId,
+      after: {
+        targetProfileId: profile.id,
+        role: membership.role,
+        isActive: membership.isActive,
+      },
       metadata: { targetProfileId: profile.id, role: membership.role },
     });
     return NextResponse.json(

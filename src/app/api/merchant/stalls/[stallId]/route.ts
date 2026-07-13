@@ -33,6 +33,27 @@ export async function PATCH(request: Request, context: RouteContext) {
   const data = { ...parsed.data };
   delete data.confirmation;
   try {
+    const before = await prisma.stall.findFirst({
+      where: { id: stallId, organizationId: authorization.workspace.id },
+      select: {
+        name: true,
+        code: true,
+        description: true,
+        address: true,
+        phone: true,
+        timezone: true,
+        currency: true,
+        businessStatus: true,
+        orderingEnabled: true,
+        isActive: true,
+      },
+    });
+    if (!before) {
+      return NextResponse.json(
+        { error: "找不到指定資源。" },
+        { status: 404, headers: { "x-request-id": authorization.requestId } },
+      );
+    }
     const stall = await prisma.stall.update({
       where: { id: stallId, organizationId: authorization.workspace.id },
       data: { ...data, location: data.address },
@@ -40,6 +61,11 @@ export async function PATCH(request: Request, context: RouteContext) {
         id: true,
         name: true,
         code: true,
+        description: true,
+        address: true,
+        phone: true,
+        timezone: true,
+        currency: true,
         businessStatus: true,
         orderingEnabled: true,
         isActive: true,
@@ -54,6 +80,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       entityId: stall.id,
       outcome: "SUCCESS",
       requestId: authorization.requestId,
+      before,
+      after: stall,
       metadata: {
         name: stall.name,
         code: stall.code,
