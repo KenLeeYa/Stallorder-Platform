@@ -24,3 +24,75 @@ export const categoryUpdateSchema = categoryInputSchema.partial().refine(
   (value) => Object.keys(value).length > 0,
   { message: "至少需要一個更新欄位。" },
 );
+
+const catalogName = z.string().trim().min(1).max(80);
+const sortOrder = z.number().int().min(0).max(10_000);
+const uuid = z.string().uuid();
+const stallIds = z.array(uuid).max(100).refine(
+  (ids) => new Set(ids).size === ids.length,
+  { message: "攤位清單不可重複。" },
+);
+
+export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
+  z.object({
+    operation: z.literal("CREATE_CATEGORY"),
+    name: catalogName,
+    sortOrder,
+  }).strict(),
+  z.object({
+    operation: z.literal("UPDATE_CATEGORY"),
+    categoryId: uuid,
+    name: catalogName,
+    sortOrder,
+    isActive: z.boolean(),
+  }).strict(),
+  z.object({
+    operation: z.literal("CREATE_GROUP"),
+    categoryId: uuid,
+    name: catalogName,
+    sortOrder,
+  }).strict(),
+  z.object({
+    operation: z.literal("UPDATE_GROUP"),
+    groupId: uuid,
+    categoryId: uuid,
+    name: catalogName,
+    sortOrder,
+    isActive: z.boolean(),
+  }).strict(),
+  z.object({
+    operation: z.literal("CREATE_PRODUCT"),
+    categoryId: uuid,
+    groupId: uuid.nullable(),
+    name: catalogName,
+    description: z.string().trim().max(500),
+    defaultPrice: z.number().int().min(0).max(10_000_000),
+    imageUrl: z.string().url().max(2_000).nullable(),
+    sortOrder,
+    stallIds,
+  }).strict(),
+  z.object({
+    operation: z.literal("UPDATE_PRODUCT"),
+    productId: uuid,
+    categoryId: uuid,
+    groupId: uuid.nullable(),
+    name: catalogName,
+    description: z.string().trim().max(500),
+    defaultPrice: z.number().int().min(0).max(10_000_000),
+    imageUrl: z.string().url().max(2_000).nullable(),
+    sortOrder,
+    isActive: z.boolean(),
+  }).strict(),
+  z.object({
+    operation: z.literal("SET_ASSIGNMENTS"),
+    productId: uuid,
+    stallIds,
+  }).strict(),
+]);
+
+export const stallProductSettingsSchema = z.object({
+  priceOverride: z.number().int().min(0).max(10_000_000).nullable(),
+  isEnabled: z.boolean(),
+  isSoldOut: z.boolean(),
+  sortOrder,
+}).strict();

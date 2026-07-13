@@ -60,32 +60,80 @@ async function main() {
   });
 
   const products = [
-    ["香酥雞排", "現炸雞排，灑上胡椒鹽。", 95, "炸物"],
-    ["地瓜薯條", "金黃酥脆，適合一起分享。", 55, "炸物"],
-    ["台式鹽酥雞", "一口大小的鹽酥雞，搭配九層塔。", 75, "炸物"],
-    ["冬瓜茶", "冰涼古早味冬瓜茶。", 35, "飲料"],
+    ["香酥雞排", "現炸雞排，灑上胡椒鹽。", 95, "炸物", "人氣炸物"],
+    ["地瓜薯條", "金黃酥脆，適合一起分享。", 55, "炸物", "人氣炸物"],
+    ["台式鹽酥雞", "一口大小的鹽酥雞，搭配九層塔。", 75, "炸物", "人氣炸物"],
+    ["冬瓜茶", "冰涼古早味冬瓜茶。", 35, "飲料", "清涼飲品"],
   ] as const;
   const categoryIds = new Map<string, string>();
   for (const [index, categoryName] of [...new Set(products.map((product) => product[3]))].entries()) {
-    const category = await prisma.productCategory.upsert({
-      where: { stallId_name: { stallId: stall.id, name: categoryName } },
-      update: { organizationId: organization.id, sortOrder: index + 1, isActive: true },
+    const existingCategory = await prisma.productCategory.findFirst({
+      where: { organizationId: organization.id, name: categoryName },
+    });
+    const category = existingCategory
+      ? await prisma.productCategory.update({
+        where: { id: existingCategory.id },
+        data: { sortOrder: index + 1, isActive: true },
+      })
+      : await prisma.productCategory.create({
+        data: {
+        organizationId: organization.id,
+        name: categoryName,
+        sortOrder: index + 1,
+        },
+      });
+    categoryIds.set(categoryName, category.id);
+  }
+  const groupIds = new Map<string, string>();
+  for (const [index, groupName] of [...new Set(products.map((product) => product[4]))].entries()) {
+    const categoryName = products.find((product) => product[4] === groupName)?.[3];
+    const categoryId = categoryName ? categoryIds.get(categoryName) : null;
+    if (!categoryId) throw new Error(`找不到群組所屬分類：${groupName}`);
+    const existingGroup = await prisma.productGroup.findFirst({
+      where: { organizationId: organization.id, categoryId, name: groupName },
+    });
+    const group = existingGroup
+      ? await prisma.productGroup.update({
+        where: { id: existingGroup.id },
+        data: { sortOrder: index + 1, isActive: true },
+      })
+      : await prisma.productGroup.create({
+        data: { organizationId: organization.id, categoryId, name: groupName, sortOrder: index + 1 },
+      });
+    groupIds.set(groupName, group.id);
+  }
+  const existing = await prisma.product.findMany({
+    where: { organizationId: organization.id },
+    orderBy: { sortOrder: "asc" },
+  });
+  for (const [index, [name, description, defaultPrice, category, group]] of products.entries()) {
+    const categoryId = categoryIds.get(category);
+    if (!categoryId) throw new Error(`找不到商品分類：${category}`);
+    const groupId = groupIds.get(group);
+    if (!groupId) throw new Error(`找不到商品群組：${group}`);
+    const data = {
+      organizationId: organization.id,
+      categoryId,
+      groupId,
+      name,
+      description,
+      defaultPrice,
+      isActive: true,
+      sortOrder: index + 1,
+    };
+    const product = existing[index]
+      ? await prisma.product.update({ where: { id: existing[index].id }, data })
+      : await prisma.product.create({ data });
+    await prisma.stallProduct.upsert({
+      where: { stallId_productId: { stallId: stall.id, productId: product.id } },
+      update: { organizationId: organization.id, isEnabled: true, isSoldOut: false, sortOrder: index + 1 },
       create: {
         organizationId: organization.id,
         stallId: stall.id,
-        name: categoryName,
+        productId: product.id,
         sortOrder: index + 1,
       },
     });
-    categoryIds.set(categoryName, category.id);
-  }
-  const existing = await prisma.product.findMany({ where: { stallId: stall.id }, orderBy: { sortOrder: "asc" } });
-  for (const [index, [name, description, price, category]] of products.entries()) {
-    const categoryId = categoryIds.get(category);
-    if (!categoryId) throw new Error(`找不到商品分類：${category}`);
-    const data = { organizationId: organization.id, stallId: stall.id, categoryId, name, description, price, sortOrder: index + 1 };
-    if (existing[index]) await prisma.product.update({ where: { id: existing[index].id }, data });
-    else await prisma.product.create({ data });
   }
 
   const passwordHash = await hash("StallOrderDemo!2026", 12);

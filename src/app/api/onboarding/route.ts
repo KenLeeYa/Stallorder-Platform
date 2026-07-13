@@ -137,19 +137,25 @@ export async function POST(request: Request) {
       const category = await transaction.productCategory.create({
         data: {
           organizationId: organization.id,
-          stallId: stall.id,
           name: "熱門",
           sortOrder: 1,
         },
       });
-      await transaction.product.create({
+      const product = await transaction.product.create({
         data: {
           organizationId: organization.id,
-          stallId: stall.id,
           categoryId: category.id,
           name: "招牌商品",
           description: "請將此商品改成您的熱門品項。",
-          price: 80,
+          defaultPrice: 80,
+          sortOrder: 1,
+        },
+      });
+      await transaction.stallProduct.create({
+        data: {
+          organizationId: organization.id,
+          stallId: stall.id,
+          productId: product.id,
           sortOrder: 1,
         },
       });

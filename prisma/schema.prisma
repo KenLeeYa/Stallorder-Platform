@@ -120,7 +120,9 @@ model Organization {
   memberships            OrganizationMembership[]
   stallMemberships       StallMembership[]
   productCategories      ProductCategory[]
+  productGroups          ProductGroup[]
   products               Product[]
+  stallProducts          StallProduct[]
   auditLogs              AuditLog[]
   qrCodes                QrCode[]
   orderingSettings       StallOrderingSettings[]
@@ -157,8 +159,7 @@ model Stall {
   createdAt              DateTime                @default(now()) @map("created_at")
   updatedAt              DateTime                @updatedAt @map("updated_at")
   organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  productCategories      ProductCategory[]
-  products               Product[]
+  stallProducts          StallProduct[]
   orders                 Order[]
   memberships            StallMembership[]
   auditLogs              AuditLog[]
@@ -282,44 +283,81 @@ model RateLimitBucket {
 }
 
 model ProductCategory {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  stallId        String       @map("stall_id") @db.Uuid
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
   name           String
-  sortOrder      Int          @default(0) @map("sort_order")
-  isActive       Boolean      @default(true) @map("is_active")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  sortOrder      Int            @default(0) @map("sort_order")
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  groups         ProductGroup[]
   products       Product[]
 
-  @@unique([stallId, name])
-  @@index([organizationId])
-  @@index([stallId, sortOrder])
+  @@index([organizationId, sortOrder])
   @@map("product_categories")
+}
+
+model ProductGroup {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  categoryId     String          @map("category_id") @db.Uuid
+  name           String
+  sortOrder      Int             @default(0) @map("sort_order")
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category       ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  products       Product[]
+
+  @@index([organizationId, categoryId, sortOrder])
+  @@map("product_groups")
 }
 
 model Product {
   id             String          @id @default(uuid()) @db.Uuid
   organizationId String          @map("organization_id") @db.Uuid
-  stallId        String          @map("stall_id") @db.Uuid
   categoryId     String          @map("category_id") @db.Uuid
+  groupId        String?         @map("group_id") @db.Uuid
   name           String
   description    String
-  price          Int
-  isAvailable    Boolean         @default(true) @map("is_available")
+  defaultPrice   Int             @map("default_price")
+  imageUrl       String?         @map("image_url")
+  isActive       Boolean         @default(true) @map("is_active")
   sortOrder      Int             @default(0) @map("sort_order")
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @updatedAt @map("updated_at")
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  stall          Stall           @relation(fields: [stallId], references: [id], onDelete: Cascade)
   category       ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  group          ProductGroup?   @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  stallProducts  StallProduct[]
   orderItems     OrderItem[]
 
-  @@index([organizationId])
-  @@index([stallId, categoryId])
+  @@index([organizationId, categoryId, sortOrder])
+  @@index([organizationId, groupId])
   @@map("products")
+}
+
+model StallProduct {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  stallId        String       @map("stall_id") @db.Uuid
+  productId      String       @map("product_id") @db.Uuid
+  priceOverride  Int?         @map("price_override")
+  isEnabled      Boolean      @default(true) @map("is_enabled")
+  isSoldOut      Boolean      @default(false) @map("is_sold_out")
+  sortOrder      Int          @default(0) @map("sort_order")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([stallId, productId])
+  @@index([organizationId, stallId, isEnabled, isSoldOut])
+  @@index([productId, stallId])
+  @@map("stall_products")
 }
 
 model QrCode {

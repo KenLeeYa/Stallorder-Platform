@@ -29,7 +29,6 @@ export async function POST(request: Request, context: RouteContext) {
       data: {
         ...parsed.data,
         organizationId: authorization.stall.organizationId,
-        stallId: authorization.stall.id,
       },
     });
     await recordAuditEvent({

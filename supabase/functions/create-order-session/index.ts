@@ -70,21 +70,16 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
     }
 
-    const [stallQuery, productsQuery, categoriesQuery, settingsQuery] = await Promise.all([
+    const [stallQuery, stallProductsQuery, settingsQuery] = await Promise.all([
       admin.from("stalls")
-        .select("name, slug, location, currency")
+        .select("organization_id, name, slug, location, currency")
         .eq("id", result.stall_id)
         .single(),
-      admin.from("products")
-        .select("id, name, description, price, category_id, sort_order")
+      admin.from("stall_products")
+        .select("product_id, price_override, sort_order")
         .eq("stall_id", result.stall_id)
-        .eq("is_available", true)
-        .order("sort_order", { ascending: true })
-        .limit(100),
-      admin.from("product_categories")
-        .select("id, name, sort_order")
-        .eq("stall_id", result.stall_id)
-        .eq("is_active", true)
+        .eq("is_enabled", true)
+        .eq("is_sold_out", false)
         .order("sort_order", { ascending: true })
         .limit(100),
       admin.from("stall_ordering_settings")
@@ -93,22 +88,48 @@ Deno.serve(async (request) => {
         .single(),
     ]);
 
-    if (stallQuery.error || productsQuery.error || categoriesQuery.error || settingsQuery.error) {
-      throw stallQuery.error ?? productsQuery.error ?? categoriesQuery.error ?? settingsQuery.error;
+    if (stallQuery.error || stallProductsQuery.error || settingsQuery.error) {
+      throw stallQuery.error ?? stallProductsQuery.error ?? settingsQuery.error;
+    }
+
+    const productIds = stallProductsQuery.data.map((assignment) => assignment.product_id);
+    const [productsQuery, categoriesQuery] = await Promise.all([
+      productIds.length === 0
+        ? Promise.resolve({ data: [], error: null })
+        : admin.from("products")
+          .select("id, name, description, default_price, category_id, sort_order")
+          .eq("organization_id", stallQuery.data.organization_id)
+          .eq("is_active", true)
+          .in("id", productIds)
+          .limit(100),
+      admin.from("product_categories")
+        .select("id, name, sort_order")
+        .eq("organization_id", stallQuery.data.organization_id)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .limit(100),
+    ]);
+
+    if (productsQuery.error || categoriesQuery.error) {
+      throw productsQuery.error ?? categoriesQuery.error;
     }
 
     const categoriesById = new Map(categoriesQuery.data.map((category) => [category.id, category]));
+    const assignmentsByProductId = new Map(
+      stallProductsQuery.data.map((assignment) => [assignment.product_id, assignment]),
+    );
     const productsWithSortOrder = productsQuery.data
       .flatMap((product) => {
         const category = categoriesById.get(product.category_id);
-        return category ? [{
+        const assignment = assignmentsByProductId.get(product.id);
+        return category && assignment ? [{
           id: product.id,
           name: product.name,
           description: product.description,
-          price: product.price,
+          price: assignment.price_override ?? product.default_price,
           category: category.name,
           categorySortOrder: category.sort_order,
-          productSortOrder: product.sort_order,
+          productSortOrder: assignment.sort_order || product.sort_order,
         }] : [];
       })
       .sort((left, right) => left.categorySortOrder - right.categorySortOrder

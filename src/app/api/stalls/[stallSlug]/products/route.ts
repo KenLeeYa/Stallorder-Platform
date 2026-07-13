@@ -24,7 +24,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const category = await prisma.productCategory.findFirst({
-    where: { id: parsed.data.categoryId, stallId: authorization.stall.id },
+    where: { id: parsed.data.categoryId, organizationId: authorization.stall.organizationId },
     select: { id: true },
   });
   if (!category) {
@@ -34,12 +34,28 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const product = await prisma.product.create({
-    data: {
-      ...parsed.data,
-      organizationId: authorization.stall.organizationId,
-      stallId: authorization.stall.id,
-    },
+  const product = await prisma.$transaction(async (transaction) => {
+    const master = await transaction.product.create({
+      data: {
+        organizationId: authorization.stall.organizationId,
+        categoryId: parsed.data.categoryId,
+        name: parsed.data.name,
+        description: parsed.data.description,
+        defaultPrice: parsed.data.price,
+        sortOrder: parsed.data.sortOrder,
+      },
+    });
+    await transaction.stallProduct.create({
+      data: {
+        organizationId: authorization.stall.organizationId,
+        stallId: authorization.stall.id,
+        productId: master.id,
+        isEnabled: true,
+        isSoldOut: !parsed.data.isAvailable,
+        sortOrder: parsed.data.sortOrder,
+      },
+    });
+    return master;
   });
   await recordAuditEvent({
     action: "PRODUCT_CREATED",
@@ -50,11 +66,11 @@ export async function POST(request: Request, context: RouteContext) {
     stallId: authorization.stall.id,
     actorProfileId: authorization.principal.user.id,
     ipHash: hashClientIp(request),
-    metadata: { categoryId: product.categoryId, price: product.price },
+    metadata: { categoryId: product.categoryId, price: product.defaultPrice },
   });
 
   return NextResponse.json(
-    { product },
+    { product: { ...product, price: product.defaultPrice, isAvailable: parsed.data.isAvailable } },
     { status: 201, headers: { "x-request-id": authorization.requestId } },
   );
 }

@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { QrCodeState, StallOrderingState, UserRole } from "@prisma/client";
 import { QRCodeSVG } from "qrcode.react";
-import { Ban, BarChart3, ChevronDown, CircleStop, PackageCheck, PackageX, Pause, Play, RotateCw, Save } from "lucide-react";
-import { MerchantCatalog, type MerchantCategory, type MerchantProduct } from "@/components/merchant-catalog";
+import { Ban, BarChart3, ChevronDown, CircleStop, Package, PackageCheck, PackageX, Pause, Play, RotateCw, Save } from "lucide-react";
+import { StallCatalogSettings, type StallCatalogProduct } from "@/components/stall-catalog-settings";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { roleLabels } from "@/lib/rbac";
 
@@ -24,9 +24,9 @@ type QrState = { token: string; state: QrCodeState; tokenVersion: number } | nul
 type ControlAction = "PAUSE" | "RESUME" | "REVOKE_QR" | "ROTATE_QR" | "MARK_SOLD_OUT" | "MARK_AVAILABLE" | "CLOSE" | "OPEN";
 
 type Props = {
-  stall: { name: string; slug: string; currency: string; orderingState: StallOrderingState; isSoldOut: boolean };
-  products: MerchantProduct[];
-  categories: MerchantCategory[];
+  stall: { id: string; name: string; slug: string; currency: string; orderingState: StallOrderingState; isSoldOut: boolean };
+  products: StallCatalogProduct[];
+  sharedCatalogUrl?: string;
   appBaseUrl: string;
   qrCode: QrState;
   orderingSettings: Limits;
@@ -36,7 +36,7 @@ type Props = {
 const qrLabels: Record<QrCodeState, string> = { ACTIVE: "啟用中", PAUSED: "已暫停", EXPIRED: "已到期", REVOKED: "已撤銷" };
 const orderingLabels: Record<StallOrderingState, string> = { OPEN: "開放點餐", PAUSED: "暫停點餐", CLOSED: "已關閉點餐" };
 
-export function MerchantProducts({ stall, products, categories, appBaseUrl, qrCode, orderingSettings, account }: Props) {
+export function MerchantProducts({ stall, products, sharedCatalogUrl, appBaseUrl, qrCode, orderingSettings, account }: Props) {
   const [ordering, setOrdering] = useState({ orderingState: stall.orderingState, isSoldOut: stall.isSoldOut, qrCode });
   const [limits, setLimits] = useState(orderingSettings);
   const [message, setMessage] = useState("");
@@ -107,15 +107,12 @@ export function MerchantProducts({ stall, products, categories, appBaseUrl, qrCo
           <button disabled={isSaving || !ordering.qrCode || ordering.qrCode.state === "REVOKED"} onClick={() => void runControl("REVOKE_QR")} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-800 disabled:opacity-40"><Ban className="h-4 w-4" />撤銷目前 QR</button>
         </div>
         <Link href={`/merchant/${stall.slug}/reports`} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-teal-800"><BarChart3 className="h-4 w-4" />查看每日報表</Link>
+        {sharedCatalogUrl ? <Link href={sharedCatalogUrl} className="mt-3 flex items-center gap-2 text-sm font-semibold text-teal-800"><Package className="h-4 w-4" />管理共用商品主檔</Link> : null}
       </aside>
 
       <div>
         {message ? <p role="alert" className="mb-4 text-sm text-red-700">{message}</p> : null}
-        <MerchantCatalog
-          stall={{ slug: stall.slug, currency: stall.currency }}
-          initialProducts={products}
-          initialCategories={categories}
-        />
+        <StallCatalogSettings stallId={stall.id} currency={stall.currency} initialProducts={products} />
 
         <details className="group mt-10 border-y border-stone-200">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-semibold hover:text-teal-800 [&::-webkit-details-marker]:hidden">

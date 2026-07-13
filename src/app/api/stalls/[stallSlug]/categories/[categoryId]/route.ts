@@ -30,7 +30,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const existing = await prisma.productCategory.findFirst({
-    where: { id: categoryId, stallId: authorization.stall.id },
+    where: { id: categoryId, organizationId: authorization.stall.organizationId },
   });
   if (!existing) {
     return NextResponse.json(
@@ -80,7 +80,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (!authorization.ok) return authorization.response;
 
   const category = await prisma.productCategory.findFirst({
-    where: { id: categoryId, stallId: authorization.stall.id },
+    where: { id: categoryId, organizationId: authorization.stall.organizationId },
     select: { id: true },
   });
   if (!category) {
@@ -90,28 +90,10 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
-  const productCount = await prisma.product.count({ where: { categoryId: category.id } });
-  if (productCount > 0) {
-    return NextResponse.json(
-      { error: "此分類仍有商品，請先移動或刪除商品。" },
-      { status: 409, headers: { "x-request-id": authorization.requestId } },
-    );
-  }
-
-  try {
-    await prisma.productCategory.delete({ where: { id: category.id } });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
-      return NextResponse.json(
-        { error: "此分類目前無法刪除。" },
-        { status: 409, headers: { "x-request-id": authorization.requestId } },
-      );
-    }
-    throw error;
-  }
+  await prisma.productCategory.update({ where: { id: category.id }, data: { isActive: false } });
 
   await recordAuditEvent({
-    action: "PRODUCT_CATEGORY_DELETED",
+    action: "PRODUCT_CATEGORY_DEACTIVATED",
     entityType: "PRODUCT_CATEGORY",
     entityId: category.id,
     outcome: "SUCCESS",

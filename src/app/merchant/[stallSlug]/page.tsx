@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { requirePagePermission } from "@/lib/authorization";
 import { MerchantProducts } from "@/components/merchant-products";
+import { hasPermission } from "@/lib/rbac";
+import { effectiveProductPrice } from "@/lib/shared-catalog";
 
 type PageProps = {
   params: Promise<{ stallSlug: string }>;
@@ -8,19 +10,23 @@ type PageProps = {
 
 export default async function MerchantPage({ params }: PageProps) {
   const { stallSlug } = await params;
-  const { stall, principal, role } = await requirePagePermission(
+  const { stall, principal, role, roles } = await requirePagePermission(
     stallSlug,
     "MANAGE_PRODUCTS",
     `/merchant/${stallSlug}`,
   );
-  const [products, categories, qrCode, orderingSettings] = await Promise.all([
-    prisma.product.findMany({
+  const [products, qrCode, orderingSettings] = await Promise.all([
+    prisma.stallProduct.findMany({
       where: { stallId: stall.id },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    }),
-    prisma.productCategory.findMany({
-      where: { stallId: stall.id },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      orderBy: [{ sortOrder: "asc" }, { product: { name: "asc" } }],
+      include: {
+        product: {
+          include: {
+            category: { select: { name: true } },
+            group: { select: { name: true } },
+          },
+        },
+      },
     }),
     prisma.qrCode.findFirst({
       where: { stallId: stall.id },
@@ -35,6 +41,7 @@ export default async function MerchantPage({ params }: PageProps) {
   return (
     <MerchantProducts
       stall={{
+        id: stall.id,
         name: stall.name,
         slug: stall.slug,
         currency: stall.currency,
@@ -43,19 +50,22 @@ export default async function MerchantPage({ params }: PageProps) {
       }}
       products={products.map((product) => ({
         id: product.id,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        categoryId: product.categoryId,
-        isAvailable: product.isAvailable,
+        productId: product.productId,
+        categoryName: product.product.category.name,
+        groupName: product.product.group?.name ?? null,
+        name: product.product.name,
+        description: product.product.description,
+        defaultPrice: product.product.defaultPrice,
+        priceOverride: product.priceOverride,
+        effectivePrice: effectiveProductPrice(product.product.defaultPrice, product.priceOverride),
+        isEnabled: product.isEnabled,
+        isSoldOut: product.isSoldOut,
         sortOrder: product.sortOrder,
+        masterIsActive: product.product.isActive,
       }))}
-      categories={categories.map((category) => ({
-        id: category.id,
-        name: category.name,
-        sortOrder: category.sortOrder,
-        isActive: category.isActive,
-      }))}
+      sharedCatalogUrl={roles.some((candidate) => hasPermission(candidate, "MANAGE_SHARED_PRODUCTS"))
+        ? `/merchant/catalog?organizationId=${stall.organizationId}`
+        : undefined}
       appBaseUrl={baseUrl}
       qrCode={qrCode}
       orderingSettings={orderingSettings ?? {

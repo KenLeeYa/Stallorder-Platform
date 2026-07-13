@@ -27,6 +27,7 @@ export type WorkspaceOrganization = {
   businessName: string;
   slug: string;
   status: OrganizationStatus;
+  defaultCurrency: string;
   roles: UserRole[];
   canUseAllStalls: boolean;
   stalls: WorkspaceStall[];
@@ -108,6 +109,7 @@ export async function getWorkspaceAccess(profileId: string, platformRole: UserRo
       businessName: organization.businessName,
       slug: organization.slug,
       status: organization.status,
+      defaultCurrency: organization.defaultCurrency,
       roles: organizationRoles,
       canUseAllStalls: organizationRoles.length > 0,
       stalls,

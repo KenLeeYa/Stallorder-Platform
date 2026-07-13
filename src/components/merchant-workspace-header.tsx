@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, Building2, Store, Users } from "lucide-react";
+import { BarChart3, Building2, Package, Store, Users } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import type { WorkspaceOrganization } from "@/lib/workspace";
 
@@ -96,6 +96,11 @@ export function MerchantWorkspaceHeader({
           <Link title="管理攤位" href={`/merchant/stalls?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
             <Building2 className="h-5 w-5" /><span className="sr-only">管理攤位</span>
           </Link>
+          {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN") ? (
+            <Link title="共用商品" href={`/merchant/catalog?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <Package className="h-5 w-5" /><span className="sr-only">共用商品</span>
+            </Link>
+          ) : null}
           <Link title="團隊" href={`/merchant/team?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
             <Users className="h-5 w-5" /><span className="sr-only">團隊</span>
           </Link>
