@@ -1,7 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const appUrl = "http://localhost:3001";
+const appUrl = process.env.PLAYWRIGHT_APP_URL ?? "http://localhost:3001";
 const oauthMockUrl = "http://127.0.0.1:55431";
+const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === "true";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -23,7 +24,7 @@ export default defineConfig({
     trace: "retain-on-failure",
     video: "retain-on-failure",
   },
-  webServer: [
+  webServer: reuseExistingServer ? undefined : [
     {
       command: "node e2e/oauth-provider-mock.mjs",
       url: `${oauthMockUrl}/health`,

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
 import { LogIn } from "lucide-react";
 
 const oauthErrorMessages: Record<string, string> = {
@@ -13,11 +12,13 @@ const oauthErrorMessages: Record<string, string> = {
 };
 
 export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: string; googleEnabled: boolean; oauthError?: string }) {
-  const router = useRouter();
   const [error, setError] = useState(oauthError ? oauthErrorMessages[oauthError] ?? "Google 登入失敗。" : "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function submit(formData: FormData) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
     setError("");
     setIsSubmitting(true);
     try {
@@ -35,8 +36,7 @@ export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: 
         setError(result.error ?? "目前無法登入，請稍後再試。");
         return;
       }
-      router.push(result.next);
-      router.refresh();
+      window.location.assign(result.next);
     } catch {
       setError("目前無法連線，請確認網路後重試。");
     } finally {
@@ -45,7 +45,7 @@ export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: 
   }
 
   return (
-    <form action={submit} className="w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+    <form onSubmit={submit} className="w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
       <div className="mb-6">
         <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-md bg-teal-50 text-teal-800">
           <LogIn className="h-5 w-5" />
