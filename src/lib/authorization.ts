@@ -6,7 +6,12 @@ import { NextResponse } from "next/server";
 import { getPagePrincipal, getRequestPrincipal, type SessionPrincipal } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { hasPermission, resolvePrimaryRole, type Permission } from "@/lib/rbac";
+import {
+  authorizedStallIdsForPermission,
+  hasPermission,
+  resolvePrimaryRole,
+  type Permission,
+} from "@/lib/rbac";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp } from "@/lib/security";
 import { getWorkspaceAccess } from "@/lib/workspace";
@@ -209,10 +214,12 @@ export async function authorizeOrganizationApiRequest(
     };
   }
 
-  const effectiveRoles = includeStallRoles
-    ? [...new Set([...workspace.roles, ...workspace.stalls.flatMap((stall) => stall.roles)])]
-    : workspace.roles;
-  if (!effectiveRoles.some((role) => hasPermission(role, permission))) {
+  const authorizedStallIds = includeStallRoles
+    ? authorizedStallIdsForPermission(workspace.stalls, permission)
+    : [];
+  const hasOrganizationPermission = workspace.roles.some((role) => hasPermission(role, permission))
+    && (!includeStallRoles || workspace.canUseAllStalls);
+  if (!hasOrganizationPermission && authorizedStallIds.length === 0) {
     await recordAuditEvent({
       organizationId: workspace.id,
       action: "AUTHORIZATION_DENIED",
@@ -222,7 +229,7 @@ export async function authorizeOrganizationApiRequest(
       requestId,
       actorProfileId: principal.user.id,
       ipHash: hashClientIp(request),
-      metadata: { permission, role: effectiveRoles.join(",") },
+      metadata: { permission, role: workspace.roles.join(",") },
     });
     return {
       ok: false as const,
@@ -233,7 +240,7 @@ export async function authorizeOrganizationApiRequest(
     };
   }
 
-  return { ok: true as const, requestId, principal, workspace };
+  return { ok: true as const, requestId, principal, workspace, authorizedStallIds };
 }
 
 export async function authorizeStallManagementApiRequest(

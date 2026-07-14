@@ -1,9 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { hash } from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSession, setSessionCookies } from "@/lib/auth";
 import { getRequestPrincipal } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { readJson } from "@/lib/http";
@@ -12,22 +10,13 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp, isTrustedOrigin } from "@/lib/security";
 
-const passwordSchema = z
-  .string()
-  .min(12)
-  .max(128)
-  .refine((value) => Buffer.byteLength(value, "utf8") <= 72);
-
 const onboardingSchema = z.object({
   merchantName: z.string().trim().min(2).max(80),
-  displayName: z.string().trim().min(2).max(80).optional(),
-  email: z.string().trim().email().max(120).transform((value) => value.toLowerCase()).optional(),
-  password: passwordSchema.optional(),
   phone: z.string().trim().min(6).max(30),
   stallName: z.string().trim().min(2).max(80),
   location: z.string().trim().min(2).max(120),
   slug: z.string().trim().min(3).max(50).regex(/^[a-z0-9-]+$/),
-});
+}).strict();
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
@@ -39,7 +28,13 @@ export async function POST(request: Request) {
       { status: 403, headers: { "x-request-id": requestId } },
     );
   }
-  if (principal && !validateCsrf(request, principal)) {
+  if (!principal?.user.authUserId) {
+    return NextResponse.json(
+      { error: "請先使用 Google 帳號登入，再建立商家。" },
+      { status: 401, headers: { "x-request-id": requestId } },
+    );
+  }
+  if (!validateCsrf(request, principal)) {
     return NextResponse.json(
       { error: "安全驗證已失效，請重新整理後再試。" },
       { status: 403, headers: { "x-request-id": requestId } },
@@ -74,39 +69,29 @@ export async function POST(request: Request) {
   const parsed = onboardingSchema.safeParse(body.data);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "申請資料格式不正確，密碼需至少 12 個字元。" },
+      { error: "申請資料格式不正確。" },
       { status: 400, headers: { "x-request-id": requestId } },
     );
   }
 
   const data = parsed.data;
-  if (!principal && (!data.email || !data.displayName || !data.password)) {
-    return NextResponse.json(
-      { error: "申請資料不完整，密碼需至少 12 個字元。" },
-      { status: 400, headers: { "x-request-id": requestId } },
-    );
-  }
-  const passwordHash = data.password ? await hash(data.password, 12) : null;
-
   try {
     const result = await prisma.$transaction(async (transaction) => {
-      const existingProfile = principal
-        ? await transaction.profile.findUnique({ where: { id: principal.user.id } })
-        : null;
-      if (principal && !existingProfile?.isActive) throw new Error("PROFILE_NOT_AVAILABLE");
-      if (principal) {
-        const [organizationAccess, stallAccess] = await Promise.all([
-          transaction.organizationMembership.count({
-            where: { profileId: principal.user.id, isActive: true },
-          }),
-          transaction.stallMembership.count({
-            where: { profileId: principal.user.id, isActive: true },
-          }),
-        ]);
-        if (organizationAccess > 0 || stallAccess > 0) throw new Error("PROFILE_ALREADY_ONBOARDED");
+      const existingProfile = await transaction.profile.findUnique({ where: { id: principal.user.id } });
+      if (!existingProfile?.isActive || existingProfile.authUserId !== principal.user.authUserId) {
+        throw new Error("PROFILE_NOT_AVAILABLE");
       }
+      const [organizationAccess, stallAccess] = await Promise.all([
+        transaction.organizationMembership.count({
+          where: { profileId: principal.user.id, isActive: true },
+        }),
+        transaction.stallMembership.count({
+          where: { profileId: principal.user.id, isActive: true },
+        }),
+      ]);
+      if (organizationAccess > 0 || stallAccess > 0) throw new Error("PROFILE_ALREADY_ONBOARDED");
 
-      const accountEmail = existingProfile?.email ?? data.email!;
+      const accountEmail = existingProfile.email;
       const organization = await transaction.organization.create({
         data: {
           name: data.merchantName,
@@ -172,25 +157,17 @@ export async function POST(request: Request) {
           sortOrder: 1,
         },
       });
-      const profile = existingProfile ?? await transaction.profile.create({
-        data: {
-          email: accountEmail,
-          passwordHash: passwordHash!,
-          displayName: data.displayName!,
-        },
-      });
       await transaction.organizationMembership.create({
         data: {
           organizationId: organization.id,
-          profileId: profile.id,
+          profileId: existingProfile.id,
           role: "ORGANIZATION_OWNER",
           allStalls: true,
         },
       });
-      return { organization, stall, profile };
+      return { organization, stall, profile: existingProfile };
     });
 
-    const session = await createSession(result.profile.id);
     const response = NextResponse.json(
       {
         stallSlug: result.stall.slug,
@@ -198,7 +175,6 @@ export async function POST(request: Request) {
       },
       { status: 201, headers: { "x-request-id": requestId } },
     );
-    setSessionCookies(response, session);
     await recordAuditEvent({
       organizationId: result.organization.id,
       action: "MERCHANT_ONBOARDING_COMPLETED",

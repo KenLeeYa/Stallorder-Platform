@@ -32,7 +32,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const availableStalls = authorization.workspace.stalls.filter((stall) => stall.isActive);
+  const authorizedStallIds = new Set(authorization.authorizedStallIds);
+  const availableStalls = authorization.workspace.stalls.filter(
+    (stall) => stall.isActive && authorizedStallIds.has(stall.id),
+  );
   const requestedIds = parsed.data.stallIds.length > 0
     ? parsed.data.stallIds
     : availableStalls.map((stall) => stall.id);

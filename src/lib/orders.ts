@@ -1,4 +1,22 @@
+import type { Prisma } from "@prisma/client";
+
 export const activeOrderStatuses = ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "READY"] as const;
+
+export const staffOrderSelect = {
+  id: true,
+  orderNo: true,
+  source: true,
+  customerName: true,
+  tableLabel: true,
+  note: true,
+  status: true,
+  paymentStatus: true,
+  total: true,
+  pickupVerifiedAt: true,
+  confirmationExpiresAt: true,
+  createdAt: true,
+  items: { select: { id: true, name: true, unitPrice: true, quantity: true } },
+} satisfies Prisma.OrderSelect;
 
 export const staffStatusOptions = [
   { value: "CONFIRMED", label: "確認接單" },

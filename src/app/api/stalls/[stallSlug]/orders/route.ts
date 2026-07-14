@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeApiRequest } from "@/lib/authorization";
-import { activeOrderStatuses } from "@/lib/orders";
+import { activeOrderStatuses, staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
@@ -18,21 +18,7 @@ export async function GET(request: Request, context: RouteContext) {
     where: { stallId: authorization.stall.id, status: { in: [...statuses] } },
     orderBy: { createdAt: "asc" },
     take: 50,
-    select: {
-      id: true,
-      orderNo: true,
-      source: true,
-      customerName: true,
-      tableLabel: true,
-      note: true,
-      status: true,
-      paymentStatus: true,
-      total: true,
-      pickupVerifiedAt: true,
-      confirmationExpiresAt: true,
-      createdAt: true,
-      items: { select: { id: true, name: true, unitPrice: true, quantity: true } },
-    },
+    select: staffOrderSelect,
   });
 
   return NextResponse.json(

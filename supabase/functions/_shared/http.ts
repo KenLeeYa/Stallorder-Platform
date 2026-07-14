@@ -80,10 +80,32 @@ export async function readBoundedJson(request: Request, maxBytes = MAX_CONTENT_L
   }
 }
 
-export function getGatewayClientIp(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const candidate = forwarded?.split(",").at(-1)?.trim() ?? "unknown";
-  return candidate.slice(0, 64);
+export function getGatewayClientIp(
+  request: Request,
+  configuredHeader?: string,
+) {
+  const headerName = configuredHeader
+    ?? Deno.env.get("TRUSTED_CLIENT_IP_HEADER")?.trim().toLowerCase()
+    ?? (Deno.env.get("APP_ENV") === "production" ? undefined : "cf-connecting-ip");
+  if (headerName !== "cf-connecting-ip" && headerName !== "x-real-ip") {
+    throw new Error("TRUSTED_CLIENT_IP_HEADER must be cf-connecting-ip or x-real-ip.");
+  }
+  const candidate = request.headers.get(headerName)?.trim();
+  if (!candidate || candidate.includes(",") || !isValidIp(candidate)) return "unknown";
+  return candidate;
+}
+
+function isValidIp(value: string) {
+  const ipv4 = value.split(".");
+  if (ipv4.length === 4) {
+    return ipv4.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255);
+  }
+  if (!value.includes(":") || !/^[0-9a-f:.]+$/i.test(value)) return false;
+  try {
+    return new URL(`http://[${value}]/`).hostname.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export function errorMessage(code: string) {

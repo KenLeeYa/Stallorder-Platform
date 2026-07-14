@@ -345,7 +345,7 @@ select ok(
 );
 
 select set_config('request.jwt.claim.sub', 'b2000000-0000-4000-8000-000000000001', true);
-select is((select count(*)::integer from public.invoices), 1, '財務檢視者可讀取自己組織發票');
+select is((select count(*)::integer from public.invoices), 0, '財務檢視者不可直接讀取擁有者帳務發票');
 select ok(not has_table_privilege(current_user, 'public.invoices', 'UPDATE'), '財務檢視者不能修改發票');
 
 select set_config('request.jwt.claim.sub', 'b3000000-0000-4000-8000-000000000001', true);

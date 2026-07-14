@@ -1,10 +1,10 @@
-import { compare } from "bcryptjs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createSession, defaultPathForRole, setSessionCookies } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { verifyPasswordCredential } from "@/lib/password-auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
   createRequestId,
@@ -15,7 +15,6 @@ import {
 } from "@/lib/security";
 import { getDefaultWorkspacePath, getWorkspaceAccess } from "@/lib/workspace";
 
-const DUMMY_PASSWORD_HASH = "$2b$12$5P3MOwUu1mkhrOn6Bt9R8etsWXlVRiTry2UyxGJL10DuiX8tvLKP6";
 const loginSchema = z.object({
   email: z.string().trim().email().max(120).transform((value) => value.toLowerCase()),
   password: z.string().min(1).max(128),
@@ -50,16 +49,27 @@ export async function POST(request: Request) {
     );
   }
 
-  const [ipLimit, accountLimit] = await Promise.all([
+  const accountHash = hashToken(parsed.data.email);
+  const [ipLimit, ipAccountLimit, accountLimit] = await Promise.all([
     checkRateLimit({ scope: "login-ip", identifier: ipHash, limit: 20, windowMs: 15 * 60_000 }),
     checkRateLimit({
+      scope: "login-ip-account",
+      identifier: `${ipHash}:${accountHash}`,
+      limit: 5,
+      windowMs: 15 * 60_000,
+    }),
+    checkRateLimit({
       scope: "login-account",
-      identifier: `${ipHash}:${hashToken(parsed.data.email)}`,
+      identifier: accountHash,
       limit: 5,
       windowMs: 15 * 60_000,
     }),
   ]);
-  const limited = !ipLimit.allowed ? ipLimit : !accountLimit.allowed ? accountLimit : null;
+  const limited = !ipLimit.allowed
+    ? ipLimit
+    : !ipAccountLimit.allowed
+      ? ipAccountLimit
+      : !accountLimit.allowed ? accountLimit : null;
   if (limited) {
     await recordAuditEvent({
       action: "RATE_LIMIT_HIT",
@@ -110,7 +120,7 @@ export async function POST(request: Request) {
       },
     },
   });
-  const passwordValid = await compare(parsed.data.password, profile?.passwordHash ?? DUMMY_PASSWORD_HASH);
+  const passwordValid = await verifyPasswordCredential(parsed.data.password, profile?.passwordHash);
   const organizationMembership = profile?.organizationMemberships[0];
   const stallMembership = profile?.stallMemberships[0];
 

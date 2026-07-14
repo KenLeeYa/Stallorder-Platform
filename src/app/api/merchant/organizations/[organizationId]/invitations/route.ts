@@ -34,8 +34,9 @@ export async function POST(request: Request, context: RouteContext) {
   const organizationRole = organizationInvitationRoles.includes(parsed.data.role as (typeof organizationInvitationRoles)[number]);
   const stallRole = stallInvitationRoles.includes(parsed.data.role as (typeof stallInvitationRoles)[number]);
   const organizationManagers = authorization.workspace.roles.some((role) => (
-    role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN"
+    role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER"
   ));
+  const canGrantStallManager = organizationManagers || authorization.workspace.roles.includes("ORGANIZATION_ADMIN");
   const canGrantOwner = authorization.workspace.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER");
   if (organizationRole && (!organizationManagers || parsed.data.stallId !== null)) {
     return NextResponse.json({ error: "您沒有指派此組織角色的權限。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
@@ -43,11 +44,11 @@ export async function POST(request: Request, context: RouteContext) {
   if (parsed.data.role === "ORGANIZATION_OWNER" && !canGrantOwner) {
     return NextResponse.json({ error: "只有組織擁有者可邀請另一位擁有者。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
   }
-  const authorizedStallIds = new Set(authorization.workspace.stalls.map((stall) => stall.id));
+  const authorizedStallIds = new Set(authorization.authorizedStallIds);
   if (stallRole && (!parsed.data.stallId || !authorizedStallIds.has(parsed.data.stallId))) {
     return NextResponse.json({ error: "找不到可指派的攤位。" }, { status: 404, headers: { "x-request-id": authorization.requestId } });
   }
-  if (parsed.data.role === "STALL_MANAGER" && !organizationManagers) {
+  if (parsed.data.role === "STALL_MANAGER" && !canGrantStallManager) {
     return NextResponse.json({ error: "只有組織擁有者或管理員可邀請攤位經理。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
   }
 

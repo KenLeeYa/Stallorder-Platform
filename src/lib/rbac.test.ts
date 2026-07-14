@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { canTransitionOrder, hasPermission, resolvePrimaryRole } from "./rbac";
+import {
+  authorizedStallIdsForPermission,
+  canTransitionOrder,
+  hasPermission,
+  resolvePrimaryRole,
+} from "./rbac";
 
 describe("RBAC", () => {
   it("只允許組織或攤位管理角色變更商品", () => {
@@ -41,5 +46,19 @@ describe("RBAC", () => {
     expect(canTransitionOrder("WAITING_CONFIRMATION", "CONFIRMED", "STAFF")).toBe(true);
     expect(canTransitionOrder("READY", "PREPARING", "STAFF")).toBe(false);
     expect(canTransitionOrder("COMPLETED", "CANCELLED", "ORGANIZATION_OWNER")).toBe(false);
+  });
+
+  it("只回傳具備指定權限的攤位", () => {
+    const stalls = [
+      { id: "stall-manager", roles: ["STALL_MANAGER" as const] },
+      { id: "stall-finance", roles: ["FINANCE_VIEWER" as const] },
+      { id: "stall-staff", roles: ["STAFF" as const] },
+    ];
+
+    expect(authorizedStallIdsForPermission(stalls, "VIEW_REPORTS")).toEqual([
+      "stall-manager",
+      "stall-finance",
+    ]);
+    expect(authorizedStallIdsForPermission(stalls, "MANAGE_STAFF")).toEqual(["stall-manager"]);
   });
 });

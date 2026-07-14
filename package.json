@@ -16,7 +16,7 @@
     "prisma:generate": "prisma generate",
     "db:start": "supabase start",
     "db:push": "supabase db push",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "cross-env ALLOW_DEMO_SEED=true tsx prisma/seed.ts",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
     "functions:serve": "supabase functions serve --env-file supabase/functions/.env --no-verify-jwt"

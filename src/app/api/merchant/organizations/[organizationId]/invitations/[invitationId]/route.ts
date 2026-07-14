@@ -16,8 +16,10 @@ export async function DELETE(request: Request, context: RouteContext) {
   }
 
   const invitation = await prisma.organizationInvitation.findFirst({ where: { id: invitationId, organizationId } });
-  const authorizedStallIds = new Set(authorization.workspace.stalls.map((stall) => stall.id));
-  const organizationManager = authorization.workspace.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN");
+  const authorizedStallIds = new Set(authorization.authorizedStallIds);
+  const organizationManager = authorization.workspace.roles.some(
+    (role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER",
+  );
   if (!invitation || (invitation.stallId ? !authorizedStallIds.has(invitation.stallId) : !organizationManager)) {
     return NextResponse.json({ error: "找不到指定資源。" }, { status: 404, headers: { "x-request-id": authorization.requestId } });
   }

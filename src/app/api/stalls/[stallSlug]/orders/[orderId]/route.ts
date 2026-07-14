@@ -4,6 +4,7 @@ import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { cancellationMatchesOrder, orderStatusUpdateSchema } from "@/lib/order-status-update";
+import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { canTransitionOrder, hasPermission } from "@/lib/rbac";
 import { hashClientIp } from "@/lib/security";
@@ -144,7 +145,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
       return transaction.order.findUniqueOrThrow({
         where: { id: order.id },
-        include: { items: true },
+        select: staffOrderSelect,
       });
     });
 

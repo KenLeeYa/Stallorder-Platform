@@ -38,7 +38,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const alert = await prisma.operationalAlert.findFirst({
     where: { id: alertId, organizationId },
   });
-  const authorizedStallIds = new Set(authorization.workspace.stalls.map((stall) => stall.id));
+  const authorizedStallIds = new Set(authorization.authorizedStallIds);
   if (!alert || !authorizedStallIds.has(alert.stallId)) {
     return NextResponse.json(
       { error: "找不到指定資源。" },

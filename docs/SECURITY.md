@@ -15,8 +15,9 @@
 - 成功建單會在同一交易將 session 設為 `CONSUMED`。相同冪等鍵可安全取回既有結果；不同冪等鍵重播會被拒絕。
 - 三支 Edge Function 入口先以 IP、裝置與行為雜湊執行全域 gate，避免未知 token 無界請求；取得有效 stall/session 後，再執行 IP、裝置、QR、session、攤位與行為雜湊六維 gate，成功建單交易另有第二層限流。
 - Turnstile token 固定送往 Cloudflare Siteverify，檢查 success、五分鐘期限、單次使用結果、hostname 與 `public_order` action。網路錯誤採 fail closed。
-- Cloudflare 官方測試金鑰只有在 `TURNSTILE_ALLOW_TEST_KEYS=true`、secret 精確吻合且 Siteverify 回傳 testing metadata 時才可略過測試回應缺少的 action／hostname。
+- Siteverify 的 `idempotency_key` 由伺服器獨立產生，不沿用顧客訂單冪等鍵。Cloudflare 官方測試金鑰僅能在非 production 且 `TURNSTILE_ALLOW_TEST_KEYS=true` 時使用；production 一律拒絕。
 - 伺服器重新查詢商品、供應狀態與價格，並套用單品數量、商品種類、總數量、備註、每裝置待確認與時間窗限制。
+- 每裝置待確認上限在資料庫 `BEFORE INSERT` trigger 以 stall/device transaction advisory lock 再次檢查，避免多個不同 session 同時通過 stale count。
 
 ## 訂單狀態與取餐
 
@@ -28,8 +29,9 @@
 
 ## 登入、Session 與 CSRF
 
-- 密碼至少 12 個字元，bcrypt cost 12；不存在帳號也執行 dummy hash 比對。
-- 登入受 IP 及 IP+帳號雙維限流。停用帳號、停權 tenant 或停用 stall membership 均無法登入或授權。
+- 既有密碼帳號使用 bcrypt cost 12；不存在或無密碼的帳號仍執行 dummy hash 比對，但 dummy 結果永遠不能授權。
+- 登入同時受 IP、IP+帳號及帳號全域三維限流。停用帳號、停權 tenant 或停用 stall membership 均無法登入或授權。
+- 新商家必須先完成 Google OAuth；callback 不會把 Google 身分依 Email 自動連結到未綁定的密碼帳號。
 - 登入 session 使用 256-bit 隨機 token，資料庫只保存 SHA-256，有效期固定八小時。
 - Session Cookie 為 `HttpOnly`、`SameSite=Lax`，正式環境加 `Secure`；登出會刪除伺服器 session。
 - 已登入寫入同時驗證同源 Origin、double-submit CSRF cookie/header，以及 session 綁定的 CSRF token hash。
@@ -47,6 +49,8 @@
 
 所有物件查詢同時加入伺服器解析出的 organization/stall scope；跨組織或未授權跨攤位物件以 404、403 或空結果處理。Client role、URL、localStorage 與 Google metadata 均不作授權證據。
 
+`authenticated` 只取得 profiles 與 orders 的安全欄位投影；`password_hash`、`auth_user_id`、tracking/pickup hash、idempotency key、device hash 與 customer phone 不授予直接 SELECT。`FINANCE_VIEWER` 不具營運訂單列或 owner-only subscription/invoice/usage 的直接 RLS 讀取權限，報表只經授權 API 與彙總資料提供。
+
 ## OWASP Top 10 對應
 
 - A01 Broken Access Control：全表 RLS、RBAC、物件層 stall 條件、anon 零寫入、跨裝置 tracking 綁定。
@@ -63,3 +67,5 @@
 ## Secrets 與資料保護
 
 不得記錄密碼、session／CSRF／QR raw token、Turnstile token、service role key、完整 IP、顧客備註或取餐碼。IP 與裝置識別使用環境專屬 HMAC secret；不同環境不得共用。正式資料庫備份、還原演練、金鑰輪替與刪除政策由部署平台負責。
+
+Next.js 與 Edge 只讀取 `TRUSTED_CLIENT_IP_HEADER` 指定的 `cf-connecting-ip` 或 `x-real-ip`；不解析用戶可控制的 `X-Forwarded-For` 鏈。正式環境未設定可信標頭時採 fail closed，且上游必須移除用戶送入的同名標頭後再覆寫。

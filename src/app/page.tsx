@@ -1,20 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, BarChart3, CheckCircle2, QrCode, Store, Utensils } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { ArrowRight, BarChart3, CheckCircle2, LogIn, QrCode, Store, Utensils } from "lucide-react";
 
-export default async function Home() {
-  const stalls = await prisma.stall.findMany({
-    orderBy: { createdAt: "asc" },
-    take: 6,
-    include: {
-      organization: true,
-      qrCodes: { where: { state: "ACTIVE" }, orderBy: { tokenVersion: "desc" }, take: 1 },
-    },
-  });
-
-  const demoSlug = stalls[0]?.slug ?? "aming-chicken";
-  const demoQrToken = stalls[0]?.qrCodes[0]?.token;
-
+export default function Home() {
   return (
     <main className="min-h-screen">
       <section className="border-b border-stone-200 bg-white">
@@ -39,11 +26,11 @@ export default async function Home() {
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href={demoQrToken ? `/q/${demoQrToken}` : `/s/${demoSlug}`}
+                href="/login"
                 className="inline-flex items-center gap-2 rounded-md border border-stone-300 bg-white px-5 py-3 text-sm font-semibold text-stone-900 hover:bg-stone-100"
               >
-                體驗示範點餐
-                <QrCode className="h-4 w-4" />
+                商戶與員工登入
+                <LogIn className="h-4 w-4" />
               </Link>
             </div>
           </div>
@@ -64,42 +51,6 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-5 py-10 md:px-8">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold">目前攤位</h2>
-            <p className="text-sm text-stone-600">每個攤位都有獨立菜單、員工看板與報表權限。</p>
-          </div>
-        </div>
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {stalls.map((stall) => (
-            <div key={stall.id} className="rounded-lg border border-stone-200 bg-white p-5">
-              <div className="text-sm text-stone-500">{stall.organization.name}</div>
-              <h3 className="mt-1 text-xl font-semibold">{stall.name}</h3>
-              <p className="mt-1 text-sm text-stone-600">{stall.location}</p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                {stall.qrCodes[0] ? (
-                  <Link className="rounded-md bg-stone-900 px-3 py-2 text-sm font-medium text-white" href={`/q/${stall.qrCodes[0].token}`}>
-                    顧客點餐
-                  </Link>
-                ) : null}
-                <Link className="rounded-md border border-stone-300 px-3 py-2 text-sm font-medium" href={`/staff/${stall.slug}`}>
-                  員工看板
-                </Link>
-                <Link className="rounded-md border border-stone-300 px-3 py-2 text-sm font-medium" href={`/merchant/${stall.slug}`}>
-                  商戶管理
-                </Link>
-                <Link className="rounded-md border border-stone-300 px-3 py-2 text-sm font-medium" href={`/merchant/${stall.slug}/reports`}>
-                  每日報表
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-6">
-          <Link href="/login" className="text-sm font-semibold text-teal-800">商戶與員工登入</Link>
-        </div>
-      </section>
     </main>
   );
 }

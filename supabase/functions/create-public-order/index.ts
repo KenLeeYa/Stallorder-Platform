@@ -22,7 +22,7 @@ type StoredOrder = {
   created_at: string;
 };
 
-async function safeRecordTurnstileFailure(
+async function safeRecordSubmissionFailure(
   admin: ReturnType<typeof createServiceClient>,
   values: {
     requestId: string;
@@ -99,17 +99,6 @@ Deno.serve(async (request) => {
     ]);
 
     const admin = createServiceClient();
-    const { data: existing, error: existingError } = await admin.rpc("lookup_public_order_idempotency", {
-      p_session_token_hash: sessionHash,
-      p_idempotency_key: input.idempotencyKey,
-    });
-    if (existingError) throw existingError;
-    if (existing) {
-      const order = existing as StoredOrder;
-      const tokens = await derivePublicOrderTokens(order.order_id, tokenSecret);
-      return jsonResponse(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200, corsHeaders, requestId);
-    }
-
     const { data: globalGateResult, error: globalGateError } = await admin.rpc(
       "check_global_public_request_gate",
       {
@@ -125,6 +114,17 @@ Deno.serve(async (request) => {
     if (!globalGate.ok) {
       const code = globalGate.code ?? "RATE_LIMITED";
       return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
+    }
+
+    const { data: existing, error: existingError } = await admin.rpc("lookup_public_order_idempotency", {
+      p_session_token_hash: sessionHash,
+      p_idempotency_key: input.idempotencyKey,
+    });
+    if (existingError) throw existingError;
+    if (existing) {
+      const order = existing as StoredOrder;
+      const tokens = await derivePublicOrderTokens(order.order_id, tokenSecret);
+      return jsonResponse(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200, corsHeaders, requestId);
     }
 
     const { data: gateResult, error: gateError } = await admin.rpc("check_public_order_submission_gate", {
@@ -145,14 +145,15 @@ Deno.serve(async (request) => {
     const turnstile = await verifyTurnstile({
       token: input.turnstileToken,
       remoteIp: clientIp,
-      idempotencyKey: input.idempotencyKey,
+      idempotencyKey: crypto.randomUUID(),
       secret: requireEnv("TURNSTILE_SECRET_KEY"),
       expectedHostname: Deno.env.get("TURNSTILE_EXPECTED_HOSTNAME")?.trim() || undefined,
       expectedAction: "public_order",
       allowTestKeys: Deno.env.get("TURNSTILE_ALLOW_TEST_KEYS") === "true",
+      environment: Deno.env.get("APP_ENV")?.trim() || "development",
     });
     if (!turnstile.ok) {
-      await safeRecordTurnstileFailure(admin, {
+      await safeRecordSubmissionFailure(admin, {
         requestId,
         code: turnstile.code,
         ipHash,
@@ -204,7 +205,28 @@ Deno.serve(async (request) => {
       p_pickup_code_hash: pickupCodeHash,
       p_request_id: requestId,
     });
-    if (createError) throw createError;
+    if (createError) {
+      if (createError.message.includes("TOO_MANY_PENDING_ORDERS")) {
+        const code = "TOO_MANY_PENDING_ORDERS";
+        await safeRecordSubmissionFailure(admin, {
+          requestId,
+          code,
+          ipHash,
+          deviceHash,
+          qrTokenHash,
+          sessionHash,
+          behaviorHash,
+          idempotencyHash,
+        });
+        return jsonResponse(
+          { error: errorMessage(code), code },
+          statusForCode(code),
+          corsHeaders,
+          requestId,
+        );
+      }
+      throw createError;
+    }
 
     const result = createResult as { ok: boolean; code?: string; idempotent_replay?: boolean; order?: StoredOrder };
     if (!result.ok || !result.order) {

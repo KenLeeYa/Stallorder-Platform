@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSession, setSessionCookies } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
+import { resolveOAuthLinkProfile } from "@/lib/oauth-linking";
 import { prisma } from "@/lib/prisma";
 import { createRequestId, hashClientIp, sanitizeRedirectPath } from "@/lib/security";
 import { createSupabaseAuthClient } from "@/lib/supabase-auth";
@@ -49,10 +50,7 @@ export async function GET(request: Request) {
         transaction.profile.findUnique({ where: { authUserId: authUser.id } }),
         transaction.profile.findUnique({ where: { email } }),
       ]);
-      if (byAuthId && byEmail && byAuthId.id !== byEmail.id) throw new Error("OAUTH_ACCOUNT_CONFLICT");
-      if (byEmail?.authUserId && byEmail.authUserId !== authUser.id) throw new Error("OAUTH_ACCOUNT_CONFLICT");
-
-      const existing = byAuthId ?? byEmail;
+      const existing = resolveOAuthLinkProfile(authUser.id, byAuthId, byEmail);
       if (existing) {
         return transaction.profile.update({
           where: { id: existing.id },

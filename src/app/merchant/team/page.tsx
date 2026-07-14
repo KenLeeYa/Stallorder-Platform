@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { OrganizationInvitationManager } from "@/components/organization-invitation-manager";
 import { OrganizationMembershipManager } from "@/components/organization-membership-manager";
 import { prisma } from "@/lib/prisma";
-import { hasPermission, roleLabels } from "@/lib/rbac";
+import { authorizedStallIdsForPermission, roleLabels } from "@/lib/rbac";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string }> };
@@ -12,10 +12,11 @@ export default async function MerchantTeamPage({ searchParams }: PageProps) {
   const { workspaces } = await requireWorkspacePage();
   if (!organizationId && workspaces.length > 1) redirect("/select-organization");
   const workspace = requireWorkspaceOrganization(workspaces, organizationId);
-  const authorizedStallIds = workspace.stalls.map((stall) => stall.id);
-  const canManageOrganizationTeam = workspace.roles.some((role) => hasPermission(role, "MANAGE_STAFF"));
-  const canManage = canManageOrganizationTeam
-    || workspace.stalls.some((stall) => stall.roles.some((role) => hasPermission(role, "MANAGE_STAFF")));
+  const authorizedStallIds = authorizedStallIdsForPermission(workspace.stalls, "MANAGE_STAFF");
+  const canManageOrganizationTeam = workspace.roles.some((role) => (
+    role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER"
+  ));
+  const canManage = canManageOrganizationTeam || authorizedStallIds.length > 0;
   if (!canManage) notFound();
 
   const invitationScope = canManageOrganizationTeam
@@ -66,7 +67,7 @@ export default async function MerchantTeamPage({ searchParams }: PageProps) {
 
       <OrganizationInvitationManager
         organizationId={workspace.id}
-        stalls={workspace.stalls.filter((stall) => stall.isActive).map((stall) => ({ id: stall.id, name: stall.name }))}
+        stalls={workspace.stalls.filter((stall) => stall.isActive && authorizedStallIds.includes(stall.id)).map((stall) => ({ id: stall.id, name: stall.name }))}
         initialInvitations={invitations.map((invitation) => ({
           ...invitation,
           role: invitation.role as "ORGANIZATION_OWNER" | "ORGANIZATION_ADMIN" | "FINANCE_VIEWER" | "STALL_MANAGER" | "STAFF" | "KITCHEN",

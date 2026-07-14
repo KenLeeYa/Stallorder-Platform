@@ -4,7 +4,15 @@ import { hash } from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  if (process.env.NODE_ENV === "production") throw new Error("禁止在正式環境執行示範資料種子。");
+  if (process.env.ALLOW_DEMO_SEED !== "true") {
+    throw new Error("執行示範資料種子前必須明確設定 ALLOW_DEMO_SEED=true。");
+  }
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("執行示範資料種子需要 DATABASE_URL。");
+  const hostname = new URL(databaseUrl).hostname;
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(hostname)) {
+    throw new Error("示範資料種子僅允許寫入本機資料庫。");
+  }
 
   const organization = await prisma.organization.upsert({
     where: { email: "owner@stallorder.test" },

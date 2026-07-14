@@ -29,6 +29,8 @@ TOKEN_DERIVATION_SECRET
 TURNSTILE_SECRET_KEY
 TURNSTILE_EXPECTED_HOSTNAME
 TURNSTILE_ALLOW_TEST_KEYS=false
+APP_ENV=production
+TRUSTED_CLIENT_IP_HEADER=cf-connecting-ip
 PUBLIC_APP_ORIGINS=https://app.example.com
 ```
 
@@ -43,10 +45,13 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL
 NEXT_PUBLIC_TURNSTILE_SITE_KEY
 AUDIT_IP_HASH_SECRET
-TRUST_PROXY_HEADERS
+TRUSTED_CLIENT_IP_HEADER=cf-connecting-ip
+ALLOW_DEMO_SEED=false
 ```
 
-`TRUST_PROXY_HEADERS=true` 只在受控上游會覆寫 `CF-Connecting-IP/X-Forwarded-For` 時啟用。
+`TRUSTED_CLIENT_IP_HEADER` 只允許 `cf-connecting-ip` 或 `x-real-ip`。上游必須先移除客戶端同名標頭再寫入可信 IP；應用不接受 `X-Forwarded-For` 鏈。production 缺少此設定會 fail closed。
+
+`ALLOW_DEMO_SEED=true` 仍只允許 loopback `DATABASE_URL`。正式環境不得設定此值，也不得執行 `npm run db:seed`。
 
 ## Google OAuth
 

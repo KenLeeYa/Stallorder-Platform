@@ -96,6 +96,15 @@ export function hasPermission(role: UserRole, permission: Permission) {
   return rolePermissions[role].includes(permission);
 }
 
+export function authorizedStallIdsForPermission(
+  stalls: readonly { id: string; roles: readonly UserRole[] }[],
+  permission: Permission,
+) {
+  return stalls
+    .filter((stall) => stall.roles.some((role) => hasPermission(role, permission)))
+    .map((stall) => stall.id);
+}
+
 export function resolvePrimaryRole(roles: readonly UserRole[]) {
   const roleSet = new Set(roles);
   return primaryRoleOrder.find((role) => roleSet.has(role)) ?? null;

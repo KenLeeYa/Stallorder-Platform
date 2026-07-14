@@ -17,7 +17,7 @@ export type TurnstileResult =
 
 export async function verifyTurnstile(options: {
   token: string;
-  remoteIp: string;
+  remoteIp?: string;
   idempotencyKey: string;
   secret: string;
   expectedHostname?: string;
@@ -25,12 +25,19 @@ export async function verifyTurnstile(options: {
   fetchImpl?: typeof fetch;
   now?: Date;
   allowTestKeys?: boolean;
+  environment?: string;
 }): Promise<TurnstileResult> {
+  if (
+    options.secret === OFFICIAL_ALWAYS_PASS_TEST_SECRET
+    && (options.allowTestKeys !== true || options.environment === "production")
+  ) {
+    return { ok: false, code: "INVALID_TURNSTILE", errors: ["test_key_not_allowed"] };
+  }
   const fetchImpl = options.fetchImpl ?? fetch;
   const form = new FormData();
   form.set("secret", options.secret);
   form.set("response", options.token);
-  form.set("remoteip", options.remoteIp);
+  if (options.remoteIp && options.remoteIp !== "unknown") form.set("remoteip", options.remoteIp);
   form.set("idempotency_key", options.idempotencyKey);
 
   try {

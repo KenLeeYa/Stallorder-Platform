@@ -24,6 +24,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     "MANAGE_STAFF",
   );
   if (!authorization.ok) return authorization.response;
+  const canManageOrganizationRoles = authorization.workspace.roles.some((role) => (
+    role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER"
+  ));
+  if (!canManageOrganizationRoles) {
+    return NextResponse.json(
+      { error: "只有組織擁有者可變更組織層角色。" },
+      { status: 403, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json(
       { error: "安全驗證已失效，請重新整理後再試。" },
@@ -51,9 +60,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  const canGrantOwner = authorization.workspace.roles.some((role) => (
-    role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER"
-  ));
+  const canGrantOwner = canManageOrganizationRoles;
   if ((existing.role === "ORGANIZATION_OWNER" || parsed.data.role === "ORGANIZATION_OWNER") && !canGrantOwner) {
     return NextResponse.json(
       { error: "只有組織擁有者可變更擁有者權限。" },

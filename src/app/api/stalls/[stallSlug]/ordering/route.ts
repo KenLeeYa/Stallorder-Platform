@@ -66,6 +66,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     },
   });
   const state = await prisma.$transaction(async (transaction) => {
+    await transaction.$queryRaw`
+      select id
+      from public.stalls
+      where id = ${authorization.stall.id}::uuid
+      for update
+    `;
     const stall = await transaction.stall.findUniqueOrThrow({
       where: { id: authorization.stall.id },
       include: {

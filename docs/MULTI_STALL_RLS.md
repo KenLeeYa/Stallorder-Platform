@@ -20,6 +20,9 @@
 | `can_access_stall(stall)` | 平台 admin、全攤組織角色或有效 stall membership |
 | `has_stall_role(stall, roles[])` | 是否具指定有效攤位角色 |
 | `can_view_stall_financials(stall)` | owner/admin/finance 或 stall manager 的財務 read 判斷 |
+| `has_organization_wide_staff_access(org)` | owner、全攤位 admin 或 platform admin 的組織人員管理範圍 |
+| `can_manage_stall(stall)` | owner、全攤位 admin 或指定 stall manager 的管理範圍 |
+| `can_view_orders(stall)` | owner、全攤位 admin、指定 manager/staff/kitchen 的訂單範圍；明確排除 Finance |
 
 需要 `SECURITY DEFINER` 的 helper 固定 `search_path=''`、完整限定 schema，並撤銷 `public/anon` 不必要 execute。重建摘要與刷新警示只授權 service role。
 
@@ -27,13 +30,13 @@
 
 | 能力 | Owner | Org Admin | Finance | Stall Manager | Staff | Kitchen |
 | --- | --- | --- | --- | --- | --- | --- |
-| 全組織攤位 | 是 | 依 `all_stalls` | 是，只讀財務 | 否 | 否 | 否 |
+| 全組織攤位 | 是 | 依 `all_stalls` | 是，只讀彙總報表 | 否 | 否 | 否 |
 | 管理組織/訂閱 | 是 | 否 | 否 | 否 | 否 | 否 |
 | 共用商品主檔 | 是 | 是 | 否 | 否 | 否 | 否 |
 | 攤位商品/售罄 | 是 | 授權攤位 | 否 | 指派攤位 | 否 | 否 |
 | 訂單更新/結帳 | 是 | 授權攤位 | 否 | 指派攤位 | 指派攤位 | 僅 PREPARING/READY |
 | 組織財務報表 | 是 | 授權範圍 | 是 | 指派攤位 | 否 | 否 |
-| 人員管理 | 是 | 授權範圍 | 否 | 指派攤位 | 否 | 否 |
+| 人員管理 | 組織與攤位 | 指派攤位 | 否 | 指派攤位 | 否 | 否 |
 
 Kitchen 的訂單 policy 仍會排除未確認訂單，且 payment/summary policy 不包含 Kitchen。Finance 只有 `VIEW_REPORTS`，API mutation 在到達物件查詢前即回 403。
 
@@ -41,14 +44,15 @@ Kitchen 的訂單 policy 仍會排除未確認訂單，且 payment/summary polic
 
 - Organization table：有效組織 membership 或 platform admin。
 - Stall table：`can_access_stall(id)`。
-- Membership：本人或具人員管理範圍的組織/攤位管理者。
+- Profile：本人或人員管理範圍內的安全欄位投影，不授予密碼/OAuth provider 欄位。
+- Membership：本人、組織 owner，或具該攤位人員管理權限者。
 - Catalog master：同組織且至少一個授權攤位；assignment 再檢查 stall。
-- Orders/items/events：同時比對 record organization 與授權 stall。
+- Orders/items/events：使用 `can_view_orders(stall)`；orders 另以 column grant 排除所有 capability hash 與裝置識別。
 - Payments/summaries：`can_view_stall_financials`。
 - Operational events：可存取 stall；付款事件再要求財務/結帳角色。
-- Alerts：組織財務角色或 stall manager/staff；不開放 Kitchen。
-- Subscription/invoice/usage：owner、finance 與 platform admin 的 read 範圍。
-- Invitation：具 `MANAGE_STAFF` 的授權範圍。
+- Alerts：owner、全攤 admin 或指定 stall manager/staff；不開放 Finance/Kitchen。
+- Subscription/invoice/usage：僅 owner 與 platform admin 的直接 read 範圍。
+- Invitation：組織層只限 owner；攤位層限該攤位 `MANAGE_STAFF` 範圍。
 
 ## API 物件防護
 

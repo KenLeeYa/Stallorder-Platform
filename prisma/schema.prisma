@@ -546,6 +546,7 @@ model QrCode {
   orderSessions       OrderSession[]
   publicOrderAttempts PublicOrderAttempt[]
 
+  @@unique([stallId, tokenVersion])
   @@index([organizationId, stallId])
   @@index([stallId, state])
   @@map("qr_codes")

@@ -45,13 +45,28 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const profile = await prisma.profile.findUnique({
-    where: { email: parsed.data.email },
+  const profile = await prisma.profile.findFirst({
+    where: {
+      email: parsed.data.email,
+      isActive: true,
+      OR: [
+        {
+          organizationMemberships: {
+            some: { organizationId: authorization.workspace.id, isActive: true },
+          },
+        },
+        {
+          stallMemberships: {
+            some: { organizationId: authorization.workspace.id, isActive: true },
+          },
+        },
+      ],
+    },
     select: { id: true, email: true, displayName: true, isActive: true },
   });
   if (!profile?.isActive) {
     return NextResponse.json(
-      { error: "找不到可指派的帳號；請確認對方已完成登入或接受邀請。" },
+      { error: "找不到同組織的有效帳號；外部成員請改用 Email 邀請。" },
       { status: 404, headers: { "x-request-id": authorization.requestId } },
     );
   }

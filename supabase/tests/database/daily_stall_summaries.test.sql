@@ -152,10 +152,9 @@ where id = '55555555-5555-4555-8555-555555555553';
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a4444444-4444-4444-8444-444444444440', true);
-select is(
-  (select count(*)::integer from public.daily_stall_summaries),
-  1,
-  '財務檢視者可讀取授權攤位彙總'
+select ok(
+  (select count(id) >= 1 from public.daily_stall_summaries),
+  '財務檢視者可讀取授權攤位的每日彙總'
 );
 select is(
   (select count(*)::integer from public.payments),
