@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
+import { ProductNoteGroupsManager, type ProductNoteGroupView } from "@/components/product-note-groups-manager";
 
 type Category = { id: string; name: string; sortOrder: number; isActive: boolean };
 type Group = { id: string; categoryId: string; name: string; sortOrder: number; isActive: boolean };
@@ -62,11 +63,13 @@ export function SharedCatalogManager({
   currency,
   stalls,
   initialCatalog,
+  initialNoteGroups,
 }: {
   organizationId: string;
   currency: string;
   stalls: Stall[];
   initialCatalog: Catalog;
+  initialNoteGroups: ProductNoteGroupView[];
 }) {
   const [catalog, setCatalog] = useState(initialCatalog);
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null);
@@ -367,6 +370,17 @@ export function SharedCatalogManager({
       ) : null}
 
       {assignmentProduct ? <Editor title={`分派「${assignmentProduct.name}」`} onClose={() => setAssignmentProduct(null)}><StallChecks stalls={stalls} selected={assignmentStallIds} onChange={setAssignmentStallIds} /><button type="button" disabled={busy} onClick={() => void saveAssignments()} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存分派</button></Editor> : null}
+      <ProductNoteGroupsManager
+        organizationId={organizationId}
+        currency={currency}
+        products={catalog.products.map((product) => ({
+          id: product.id,
+          name: product.name,
+          categoryName: catalog.categories.find((category) => category.id === product.categoryId)?.name ?? "未分類",
+          isActive: product.isActive,
+        }))}
+        initialNoteGroups={initialNoteGroups}
+      />
     </section>
   );
 }

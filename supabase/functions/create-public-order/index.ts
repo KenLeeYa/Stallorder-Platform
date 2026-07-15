@@ -91,7 +91,7 @@ Deno.serve(async (request) => {
     const clientIp = getGatewayClientIp(request);
     const sortedBehavior = [...input.items]
       .sort((left, right) => left.productId.localeCompare(right.productId))
-      .map((item) => `${item.productId}:${item.quantity}`)
+      .map((item) => `${item.productId}:${item.quantity}:${[...item.noteOptionIds].sort().join(",")}`)
       .join("|");
     const [sessionHash, ipHash, deviceHash, qrTokenHash, behaviorHash, idempotencyHash] = await Promise.all([
       sha256Hex(input.orderSessionToken),
@@ -204,6 +204,7 @@ Deno.serve(async (request) => {
         product_id: item.productId,
         quantity: item.quantity,
         note: item.note,
+        modifier_option_ids: item.noteOptionIds,
       })),
       p_tracking_token_hash: trackingTokenHash,
       p_pickup_code_hash: pickupCodeHash,

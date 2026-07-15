@@ -4,7 +4,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clock3, Minus, Plus, Send, ShieldCheck } from "lucide-react";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { formatMoney } from "@/lib/money";
+import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
 import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeUrl } from "@/lib/public-order-client";
+
+type NoteOption = {
+  id: string;
+  name: string;
+  priceDelta: number;
+  sortOrder: number;
+  translations: Array<{ locale: string; name: string }>;
+};
+type NoteGroup = {
+  id: string;
+  name: string;
+  selectionMode: "SINGLE" | "MULTIPLE";
+  isRequired: boolean;
+  minSelections: number;
+  maxSelections: number | null;
+  sortOrder: number;
+  translations: Array<{ locale: string; name: string }>;
+  options: NoteOption[];
+};
 
 type Product = {
   id: string;
@@ -14,6 +34,7 @@ type Product = {
   category: string;
   imageUrl: string | null;
   translations: Array<{ locale: string; name: string; description: string }>;
+  noteGroups: NoteGroup[];
 };
 
 type OrderSession = {
@@ -53,6 +74,7 @@ export function QrOrderFlow({ qrToken }: Props) {
   const [deviceId, setDeviceId] = useState("");
   const [session, setSession] = useState<OrderSession | null>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [noteSelections, setNoteSelections] = useState<Record<string, string[]>>({});
   const [customerName, setCustomerName] = useState("");
   const [customerNote, setCustomerNote] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -97,12 +119,12 @@ export function QrOrderFlow({ qrToken }: Props) {
     if (!session) return [];
     return session.products
       .filter((product) => (quantities[product.id] ?? 0) > 0)
-      .map((product) => ({ productId: product.id, quantity: quantities[product.id], note: "" }));
-  }, [quantities, session]);
+      .map((product) => ({ productId: product.id, quantity: quantities[product.id], note: "", noteOptionIds: noteSelections[product.id] ?? [] }));
+  }, [noteSelections, quantities, session]);
 
   const totalQuantity = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
   const total = session?.products.reduce(
-    (sum, product) => sum + product.price * (quantities[product.id] ?? 0),
+    (sum, product) => sum + Math.max(0, product.price + notePriceAdjustment(product.noteGroups, noteSelections[product.id] ?? [])) * (quantities[product.id] ?? 0),
     0,
   ) ?? 0;
   const categories = session ? [...new Set(session.products.map((product) => product.category))] : [];
@@ -110,6 +132,8 @@ export function QrOrderFlow({ qrToken }: Props) {
     const translation = product.translations.find((item) => item.locale === locale);
     return translation ? { name: translation.name, description: translation.description } : product;
   }, [locale]);
+  const localizedGroupName = useCallback((group: NoteGroup) => group.translations.find((item) => item.locale === locale)?.name ?? group.name, [locale]);
+  const localizedOptionName = useCallback((option: NoteOption) => option.translations.find((item) => item.locale === locale)?.name ?? option.name, [locale]);
 
   const handleTurnstileToken = useCallback((token: string | null) => {
     setTurnstileToken(token);
@@ -128,6 +152,21 @@ export function QrOrderFlow({ qrToken }: Props) {
     }
     setMessage("");
     setQuantities((values) => ({ ...values, [productId]: Math.max(0, next) }));
+    if (next <= 0) {
+      setNoteSelections((values) => {
+        const nextValues = { ...values };
+        delete nextValues[productId];
+        return nextValues;
+      });
+    }
+  }
+
+  function selectNoteOption(productId: string, group: NoteGroup, optionId: string | null) {
+    setMessage("");
+    setNoteSelections((values) => ({
+      ...values,
+      [productId]: toggleNoteOption(values[productId] ?? [], group, optionId),
+    }));
   }
 
   async function submitOrder() {
@@ -137,6 +176,13 @@ export function QrOrderFlow({ qrToken }: Props) {
     }
     if (secondsRemaining <= 0) {
       setMessage("點餐工作階段已逾時，請重新掃描 QR Code。");
+      return;
+    }
+    const invalidProduct = session.products.find((product) =>
+      (quantities[product.id] ?? 0) > 0
+      && !noteSelectionIsValid(product.noteGroups, noteSelections[product.id] ?? []));
+    if (invalidProduct) {
+      setMessage(`請完成「${localizedProduct(invalidProduct).name}」的必選註記。`);
       return;
     }
 
@@ -221,7 +267,7 @@ export function QrOrderFlow({ qrToken }: Props) {
                       <div className="min-w-0 flex-1">
                         <h3 className="font-semibold">{localizedProduct(product).name}</h3>
                         <p className="mt-1 text-sm leading-6 text-stone-600">{localizedProduct(product).description}</p>
-                        <p className="mt-2 font-semibold">{formatMoney(product.price, session.stall.currency)}</p>
+                        <p className="mt-2 font-semibold">{formatMoney(Math.max(0, product.price + notePriceAdjustment(product.noteGroups, noteSelections[product.id] ?? [])), session.stall.currency)}</p>
                       </div>
                       <div className="grid grid-cols-[40px_28px_40px] items-center gap-2">
                         <button type="button" title="減少數量" aria-label={`減少 ${localizedProduct(product).name}`} disabled={!quantities[product.id]} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) - 1)} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
@@ -233,6 +279,27 @@ export function QrOrderFlow({ qrToken }: Props) {
                         </button>
                       </div>
                     </div>
+                    {(quantities[product.id] ?? 0) > 0 && product.noteGroups.length > 0 ? (
+                      <div className="mt-4 space-y-4 border-t border-stone-200 pt-4">
+                        {product.noteGroups.map((group) => {
+                          const groupOptionIds = new Set(group.options.map((option) => option.id));
+                          const selectedCount = (noteSelections[product.id] ?? []).filter((id) => groupOptionIds.has(id)).length;
+                          const maximumReached = group.maxSelections !== null && selectedCount >= group.maxSelections;
+                          return (
+                            <fieldset key={group.id}>
+                              <legend className="text-sm font-semibold text-stone-700">{localizedGroupName(group)}{group.isRequired ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.selectionMode === "SINGLE" ? "單選" : group.maxSelections ? `最多 ${group.maxSelections} 項` : "複選"}</span></legend>
+                              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                                {group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-9 items-center gap-2 text-sm"><input type="radio" name={`note-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectNoteOption(product.id, group, null)} />不選擇</label> : null}
+                                {group.options.map((option) => {
+                                  const checked = (noteSelections[product.id] ?? []).includes(option.id);
+                                  return <label key={option.id} className="inline-flex min-h-9 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`note-${product.id}-${group.id}`} checked={checked} disabled={group.selectionMode === "MULTIPLE" && maximumReached && !checked} onChange={() => selectNoteOption(product.id, group, option.id)} /><span>{localizedOptionName(option)}</span>{option.priceDelta !== 0 ? <span className="text-xs text-stone-500">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, session.stall.currency)}</span> : null}</label>;
+                                })}
+                              </div>
+                            </fieldset>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                   </article>
                 ))}
               </div>

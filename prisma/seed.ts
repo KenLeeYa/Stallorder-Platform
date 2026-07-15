@@ -183,6 +183,7 @@ async function main() {
     where: { organizationId: organization.id },
     orderBy: { sortOrder: "asc" },
   });
+  const seededProducts = new Map<string, string>();
   for (const [index, [name, description, defaultPrice, category, group]] of products.entries()) {
     const categoryId = categoryIds.get(category);
     if (!categoryId) throw new Error(`找不到商品分類：${category}`);
@@ -201,6 +202,7 @@ async function main() {
     const product = existing[index]
       ? await prisma.product.update({ where: { id: existing[index].id }, data })
       : await prisma.product.create({ data });
+    seededProducts.set(name, product.id);
     await prisma.stallProduct.upsert({
       where: { stallId_productId: { stallId: stall.id, productId: product.id } },
       update: { organizationId: organization.id, isEnabled: true, isSoldOut: false, sortOrder: index + 1 },
@@ -217,6 +219,92 @@ async function main() {
         where: { productId_locale: { productId: product.id, locale: translation.locale } },
         update: { organizationId: organization.id, name: translation.name, description: translation.description },
         create: { organizationId: organization.id, productId: product.id, ...translation },
+      });
+    }
+  }
+
+  const noteGroupDefinitions = [
+    {
+      name: "辣度",
+      selectionMode: "SINGLE" as const,
+      isRequired: true,
+      minSelections: 1,
+      maxSelections: 1,
+      sortOrder: 1,
+      productNames: ["台式鹽酥雞"],
+      translations: [{ locale: "en", name: "Spice level" }],
+      options: [
+        { name: "不辣", priceDelta: 0, translations: [{ locale: "en", name: "No spice" }] },
+        { name: "小辣", priceDelta: 0, translations: [{ locale: "en", name: "Mild" }] },
+        { name: "中辣", priceDelta: 0, translations: [{ locale: "en", name: "Medium" }] },
+        { name: "大辣", priceDelta: 0, translations: [{ locale: "en", name: "Hot" }] },
+      ],
+    },
+    {
+      name: "加料",
+      selectionMode: "MULTIPLE" as const,
+      isRequired: false,
+      minSelections: 0,
+      maxSelections: 2,
+      sortOrder: 2,
+      productNames: ["香酥雞排", "地瓜薯條", "台式鹽酥雞"],
+      translations: [{ locale: "en", name: "Add-ons" }],
+      options: [
+        { name: "加蛋", priceDelta: 15, translations: [{ locale: "en", name: "Egg" }] },
+        { name: "加起司", priceDelta: 20, translations: [{ locale: "en", name: "Cheese" }] },
+        { name: "加九層塔", priceDelta: 5, translations: [{ locale: "en", name: "Thai basil" }] },
+      ],
+    },
+  ];
+  for (const definition of noteGroupDefinitions) {
+    const noteGroup = await prisma.productNoteGroup.upsert({
+      where: { organizationId_name: { organizationId: organization.id, name: definition.name } },
+      update: {
+        selectionMode: definition.selectionMode,
+        isRequired: definition.isRequired,
+        minSelections: definition.minSelections,
+        maxSelections: definition.maxSelections,
+        sortOrder: definition.sortOrder,
+        isActive: true,
+      },
+      create: {
+        organizationId: organization.id,
+        name: definition.name,
+        selectionMode: definition.selectionMode,
+        isRequired: definition.isRequired,
+        minSelections: definition.minSelections,
+        maxSelections: definition.maxSelections,
+        sortOrder: definition.sortOrder,
+      },
+    });
+    for (const translation of definition.translations) {
+      await prisma.productNoteGroupTranslation.upsert({
+        where: { noteGroupId_locale: { noteGroupId: noteGroup.id, locale: translation.locale } },
+        update: { organizationId: organization.id, name: translation.name },
+        create: { organizationId: organization.id, noteGroupId: noteGroup.id, ...translation },
+      });
+    }
+    for (const [optionIndex, optionDefinition] of definition.options.entries()) {
+      const noteOption = await prisma.productNoteOption.upsert({
+        where: { noteGroupId_name: { noteGroupId: noteGroup.id, name: optionDefinition.name } },
+        update: { organizationId: organization.id, priceDelta: optionDefinition.priceDelta, sortOrder: optionIndex + 1, isActive: true },
+        create: { organizationId: organization.id, noteGroupId: noteGroup.id, name: optionDefinition.name, priceDelta: optionDefinition.priceDelta, sortOrder: optionIndex + 1 },
+      });
+      for (const translation of optionDefinition.translations) {
+        await prisma.productNoteOptionTranslation.upsert({
+          where: { noteOptionId_locale: { noteOptionId: noteOption.id, locale: translation.locale } },
+          update: { organizationId: organization.id, name: translation.name },
+          create: { organizationId: organization.id, noteOptionId: noteOption.id, ...translation },
+        });
+      }
+    }
+    for (const [assignmentIndex, productName] of definition.productNames.entries()) {
+      const productId = seededProducts.get(productName);
+      if (!productId) throw new Error(`找不到註記群組商品：${productName}`);
+      await prisma.productNoteGroupAssignment.upsert({
+        where: { productId_noteGroupId: { productId, noteGroupId: noteGroup.id } },
+        update: { organizationId: organization.id, sortOrder: assignmentIndex + 1, isActive: true },
+        create: { organizationId: organization.id, productId, noteGroupId: noteGroup.id, sortOrder: assignmentIndex + 1 },
       });
     }
   }

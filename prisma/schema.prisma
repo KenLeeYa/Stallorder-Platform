@@ -63,6 +63,13 @@ enum OrderItemStatus {
   @@map("order_item_status")
 }
 
+enum ProductNoteSelectionMode {
+  SINGLE
+  MULTIPLE
+
+  @@map("product_note_selection_mode")
+}
+
 enum PaymentOptionKind {
   CASH
   LINE_PAY
@@ -138,48 +145,54 @@ enum PublicAttemptOutcome {
 }
 
 model Organization {
-  id                     String                    @id @default(uuid()) @db.Uuid
-  name                   String
-  slug                   String                    @unique
-  businessName           String                    @map("business_name")
-  status                 OrganizationStatus        @default(TRIALING)
-  email                  String                    @unique
-  phone                  String
-  defaultTimezone        String                    @default("Asia/Taipei") @map("default_timezone")
-  defaultCurrency        String                    @default("TWD") @map("default_currency")
-  createdAt              DateTime                  @default(now()) @map("created_at")
-  updatedAt              DateTime                  @updatedAt @map("updated_at")
-  stalls                 Stall[]
-  memberships            OrganizationMembership[]
-  stallMemberships       StallMembership[]
-  productCategories      ProductCategory[]
-  productGroups          ProductGroup[]
-  products               Product[]
-  productTranslations    ProductTranslation[]
-  stallProducts          StallProduct[]
-  diningTables           DiningTable[]
-  paymentOptions         PaymentOption[]
-  discountOptions        DiscountOption[]
-  auditLogs              AuditLog[]
-  qrCodes                QrCode[]
-  orderingSettings       StallOrderingSettings[]
-  orderSessions          OrderSession[]
-  orders                 Order[]
-  orderItems             OrderItem[]
-  orderEvents            OrderEvent[]
-  payments               Payment[]
-  dailyStallSummaries    DailyStallSummary[]
-  operationalEvents      OperationalEvent[]
-  operationalAlerts      OperationalAlert[]
-  subscription           Subscription?
-  additionalApprovals    AdditionalStallApproval[]
-  invoices               Invoice[]
-  invoiceLineItems       InvoiceLineItem[]
-  usageEvents            UsageEvent[]
-  invitations            OrganizationInvitation[]
-  publicOrderAttempts    PublicOrderAttempt[]
-  publicRateLimitBuckets PublicRateLimitBucket[]
-  orderCounters          StallOrderCounter[]
+  id                            String                         @id @default(uuid()) @db.Uuid
+  name                          String
+  slug                          String                         @unique
+  businessName                  String                         @map("business_name")
+  status                        OrganizationStatus             @default(TRIALING)
+  email                         String                         @unique
+  phone                         String
+  defaultTimezone               String                         @default("Asia/Taipei") @map("default_timezone")
+  defaultCurrency               String                         @default("TWD") @map("default_currency")
+  createdAt                     DateTime                       @default(now()) @map("created_at")
+  updatedAt                     DateTime                       @updatedAt @map("updated_at")
+  stalls                        Stall[]
+  memberships                   OrganizationMembership[]
+  stallMemberships              StallMembership[]
+  productCategories             ProductCategory[]
+  productGroups                 ProductGroup[]
+  products                      Product[]
+  productTranslations           ProductTranslation[]
+  productNoteGroups             ProductNoteGroup[]
+  productNoteOptions            ProductNoteOption[]
+  productNoteGroupTranslations  ProductNoteGroupTranslation[]
+  productNoteOptionTranslations ProductNoteOptionTranslation[]
+  productNoteAssignments        ProductNoteGroupAssignment[]
+  stallProducts                 StallProduct[]
+  diningTables                  DiningTable[]
+  paymentOptions                PaymentOption[]
+  discountOptions               DiscountOption[]
+  auditLogs                     AuditLog[]
+  qrCodes                       QrCode[]
+  orderingSettings              StallOrderingSettings[]
+  orderSessions                 OrderSession[]
+  orders                        Order[]
+  orderItems                    OrderItem[]
+  orderItemNoteOptions          OrderItemNoteOption[]
+  orderEvents                   OrderEvent[]
+  payments                      Payment[]
+  dailyStallSummaries           DailyStallSummary[]
+  operationalEvents             OperationalEvent[]
+  operationalAlerts             OperationalAlert[]
+  subscription                  Subscription?
+  additionalApprovals           AdditionalStallApproval[]
+  invoices                      Invoice[]
+  invoiceLineItems              InvoiceLineItem[]
+  usageEvents                   UsageEvent[]
+  invitations                   OrganizationInvitation[]
+  publicOrderAttempts           PublicOrderAttempt[]
+  publicRateLimitBuckets        PublicRateLimitBucket[]
+  orderCounters                 StallOrderCounter[]
 
   @@map("organizations")
 }
@@ -208,6 +221,7 @@ model Stall {
   organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stallProducts          StallProduct[]
   orders                 Order[]
+  orderItemNoteOptions   OrderItemNoteOption[]
   memberships            StallMembership[]
   auditLogs              AuditLog[]
   qrCodes                QrCode[]
@@ -519,24 +533,25 @@ model ProductGroup {
 }
 
 model Product {
-  id             String               @id @default(uuid()) @db.Uuid
-  organizationId String               @map("organization_id") @db.Uuid
-  categoryId     String               @map("category_id") @db.Uuid
-  groupId        String?              @map("group_id") @db.Uuid
-  name           String
-  description    String
-  defaultPrice   Int                  @map("default_price")
-  imageUrl       String?              @map("image_url")
-  isActive       Boolean              @default(true) @map("is_active")
-  sortOrder      Int                  @default(0) @map("sort_order")
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
-  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  category       ProductCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  group          ProductGroup?        @relation(fields: [groupId], references: [id], onDelete: Restrict)
-  stallProducts  StallProduct[]
-  orderItems     OrderItem[]
-  translations   ProductTranslation[]
+  id                   String                       @id @default(uuid()) @db.Uuid
+  organizationId       String                       @map("organization_id") @db.Uuid
+  categoryId           String                       @map("category_id") @db.Uuid
+  groupId              String?                      @map("group_id") @db.Uuid
+  name                 String
+  description          String
+  defaultPrice         Int                          @map("default_price")
+  imageUrl             String?                      @map("image_url")
+  isActive             Boolean                      @default(true) @map("is_active")
+  sortOrder            Int                          @default(0) @map("sort_order")
+  createdAt            DateTime                     @default(now()) @map("created_at")
+  updatedAt            DateTime                     @updatedAt @map("updated_at")
+  organization         Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category             ProductCategory              @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  group                ProductGroup?                @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  stallProducts        StallProduct[]
+  orderItems           OrderItem[]
+  translations         ProductTranslation[]
+  noteGroupAssignments ProductNoteGroupAssignment[]
 
   @@index([organizationId, categoryId, sortOrder])
   @@index([organizationId, groupId])
@@ -558,6 +573,100 @@ model ProductTranslation {
   @@unique([productId, locale])
   @@index([organizationId, locale])
   @@map("product_translations")
+}
+
+model ProductNoteGroup {
+  id             String                        @id @default(uuid()) @db.Uuid
+  organizationId String                        @map("organization_id") @db.Uuid
+  name           String
+  selectionMode  ProductNoteSelectionMode      @default(MULTIPLE) @map("selection_mode")
+  isRequired     Boolean                       @default(false) @map("is_required")
+  minSelections  Int                           @default(0) @map("min_selections")
+  maxSelections  Int?                          @map("max_selections")
+  sortOrder      Int                           @default(0) @map("sort_order")
+  isActive       Boolean                       @default(true) @map("is_active")
+  createdAt      DateTime                      @default(now()) @map("created_at")
+  updatedAt      DateTime                      @updatedAt @map("updated_at")
+  organization   Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  options        ProductNoteOption[]
+  translations   ProductNoteGroupTranslation[]
+  assignments    ProductNoteGroupAssignment[]
+  orderItemNotes OrderItemNoteOption[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, sortOrder])
+  @@map("product_note_groups")
+}
+
+model ProductNoteOption {
+  id             String                         @id @default(uuid()) @db.Uuid
+  organizationId String                         @map("organization_id") @db.Uuid
+  noteGroupId    String                         @map("note_group_id") @db.Uuid
+  name           String
+  priceDelta     Int                            @default(0) @map("price_delta")
+  sortOrder      Int                            @default(0) @map("sort_order")
+  isActive       Boolean                        @default(true) @map("is_active")
+  createdAt      DateTime                       @default(now()) @map("created_at")
+  updatedAt      DateTime                       @updatedAt @map("updated_at")
+  organization   Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  noteGroup      ProductNoteGroup               @relation(fields: [noteGroupId], references: [id], onDelete: Cascade)
+  translations   ProductNoteOptionTranslation[]
+  orderItemNotes OrderItemNoteOption[]
+
+  @@unique([noteGroupId, name])
+  @@index([organizationId, noteGroupId, sortOrder])
+  @@map("product_note_options")
+}
+
+model ProductNoteGroupTranslation {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  noteGroupId    String           @map("note_group_id") @db.Uuid
+  locale         String
+  name           String
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  noteGroup      ProductNoteGroup @relation(fields: [noteGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([noteGroupId, locale])
+  @@index([organizationId, locale])
+  @@map("product_note_group_translations")
+}
+
+model ProductNoteOptionTranslation {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  noteOptionId   String            @map("note_option_id") @db.Uuid
+  locale         String
+  name           String
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  noteOption     ProductNoteOption @relation(fields: [noteOptionId], references: [id], onDelete: Cascade)
+
+  @@unique([noteOptionId, locale])
+  @@index([organizationId, locale])
+  @@map("product_note_option_translations")
+}
+
+model ProductNoteGroupAssignment {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  productId      String           @map("product_id") @db.Uuid
+  noteGroupId    String           @map("note_group_id") @db.Uuid
+  sortOrder      Int              @default(0) @map("sort_order")
+  isActive       Boolean          @default(true) @map("is_active")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product        Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  noteGroup      ProductNoteGroup @relation(fields: [noteGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, noteGroupId])
+  @@index([organizationId, productId, sortOrder])
+  @@index([organizationId, noteGroupId])
+  @@map("product_note_group_assignments")
 }
 
 model StallProduct {
@@ -829,27 +938,53 @@ model DailyStallSummary {
 }
 
 model OrderItem {
-  id             String          @id @default(uuid()) @db.Uuid
-  organizationId String          @map("organization_id") @db.Uuid
-  stallId        String          @map("stall_id") @db.Uuid
-  orderId        String          @map("order_id") @db.Uuid
-  productId      String?         @map("product_id") @db.Uuid
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @map("organization_id") @db.Uuid
+  stallId        String                @map("stall_id") @db.Uuid
+  orderId        String                @map("order_id") @db.Uuid
+  productId      String?               @map("product_id") @db.Uuid
   name           String
-  unitPrice      Int             @map("unit_price")
+  baseUnitPrice  Int                   @map("base_unit_price")
+  unitPrice      Int                   @map("unit_price")
   quantity       Int
   note           String?
-  status         OrderItemStatus @default(PENDING)
-  preparingAt    DateTime?       @map("preparing_at")
-  readyAt        DateTime?       @map("ready_at")
-  servedAt       DateTime?       @map("served_at")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product        Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  status         OrderItemStatus       @default(PENDING)
+  preparingAt    DateTime?             @map("preparing_at")
+  readyAt        DateTime?             @map("ready_at")
+  servedAt       DateTime?             @map("served_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  order          Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  noteOptions    OrderItemNoteOption[]
 
   @@index([organizationId, stallId])
   @@index([orderId])
   @@map("order_items")
+}
+
+model OrderItemNoteOption {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  stallId        String             @map("stall_id") @db.Uuid
+  orderItemId    String             @map("order_item_id") @db.Uuid
+  noteGroupId    String?            @map("note_group_id") @db.Uuid
+  noteOptionId   String?            @map("note_option_id") @db.Uuid
+  groupName      String             @map("group_name")
+  optionName     String             @map("option_name")
+  priceDelta     Int                @map("price_delta")
+  sortOrder      Int                @default(0) @map("sort_order")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall              @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  orderItem      OrderItem          @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  noteGroup      ProductNoteGroup?  @relation(fields: [noteGroupId], references: [id], onDelete: SetNull)
+  noteOption     ProductNoteOption? @relation(fields: [noteOptionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, stallId])
+  @@index([orderItemId])
+  @@index([noteOptionId])
+  @@map("order_item_note_options")
 }
 
 model OrderEvent {

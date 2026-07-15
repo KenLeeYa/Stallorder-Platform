@@ -16,7 +16,14 @@ type PublicOrder = {
   pickupVerificationCode: string | null;
   fulfillmentType: "TAKEOUT" | "DINE_IN";
   tableLabel: string | null;
-  items: Array<{ id: string; name: string; quantity: number; status: "PENDING" | "PREPARING" | "READY" | "SERVED" }>;
+  items: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    note: string | null;
+    noteOptions: Array<{ groupName: string; optionName: string; priceDelta: number }>;
+    status: "PENDING" | "PREPARING" | "READY" | "SERVED";
+  }>;
 };
 
 const itemStatusLabels: Record<PublicOrder["items"][number]["status"], string> = {
@@ -101,7 +108,8 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
               <div className="mt-2 font-semibold">{order.paymentStatus === "PAID" ? "已付款" : "待付款"}</div>
             </div>
           </div>
-          {order.fulfillmentType === "DINE_IN" ? <div className="mt-6 divide-y divide-stone-100 border-y border-stone-200">{order.items.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 py-3 text-sm"><span>{item.quantity} × {item.name}</span><span className="font-medium text-stone-600">{itemStatusLabels[item.status]}</span></div>)}</div> : <p className="mt-6 text-sm leading-6 text-stone-600">請在取餐時向攤位人員出示驗證碼。訂單確認前不會開始製作。</p>}
+          <div className="mt-6 divide-y divide-stone-100 border-y border-stone-200">{order.items.map((item) => <div key={item.id} className="grid gap-2 py-3 text-sm sm:grid-cols-[1fr_auto]"><div><span>{item.quantity} × {item.name}</span>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{item.noteOptions.map((noteOption) => `${noteOption.groupName}：${noteOption.optionName}`).join("、")}</p> : null}{item.note ? <p className="mt-1 text-xs text-stone-500">備註：{item.note}</p> : null}</div><span className="font-medium text-stone-600">{itemStatusLabels[item.status]}</span></div>)}</div>
+          {order.fulfillmentType === "TAKEOUT" ? <p className="mt-5 text-sm leading-6 text-stone-600">請在取餐時向攤位人員出示驗證碼。訂單確認前不會開始製作。</p> : null}
         </section>
       ) : null}
     </main>

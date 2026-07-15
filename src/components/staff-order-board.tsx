@@ -34,6 +34,8 @@ type OrderWithItems = {
     name: string;
     unitPrice: number;
     quantity: number;
+    note: string | null;
+    noteOptions: Array<{ groupName: string; optionName: string; priceDelta: number }>;
     status: OrderItemStatus;
     preparingAt: string | null;
     readyAt: string | null;
@@ -418,6 +420,8 @@ export function StaffOrderBoard({ stall, initialOrders, account, modules, paymen
                       <span className="font-medium">{item.quantity} × {item.name}</span>
                       <span>{formatMoney(item.unitPrice * item.quantity, stall.currency)}</span>
                     </div>
+                    {item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{item.noteOptions.map((noteOption) => `${noteOption.groupName}：${noteOption.optionName}${noteOption.priceDelta === 0 ? "" : ` (${noteOption.priceDelta > 0 ? "+" : ""}${formatMoney(noteOption.priceDelta, stall.currency)})`}`).join("、")}</p> : null}
+                    {item.note ? <p className="mt-1 text-xs text-stone-600">備註：{item.note}</p> : null}
                     <span className={`mt-1 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${item.status === "SERVED" ? "bg-emerald-50 text-emerald-800" : item.status === "READY" ? "bg-blue-50 text-blue-800" : item.status === "PREPARING" ? "bg-amber-50 text-amber-800" : "bg-stone-100 text-stone-600"}`}>
                       {orderItemStatusLabels[item.status]}
                     </span>

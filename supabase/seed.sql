@@ -137,6 +137,49 @@ insert into public.product_translations (
   ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'vi', 'Gà chiên giòn', 'Gà chiên nóng phủ muối tiêu.', now(), now()),
   ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'th', 'ไก่ทอดกรอบ', 'ไก่ทอดร้อนโรยเกลือพริกไทย', now(), now());
 
+insert into public.product_note_groups (
+  id, organization_id, name, selection_mode, is_required, min_selections,
+  max_selections, sort_order, is_active, created_at, updated_at
+) values
+  ('cccccccc-cccc-4ccc-8ccc-ccccccccccc1', '11111111-1111-4111-8111-111111111111', '辣度', 'SINGLE', true, 1, 1, 1, true, now(), now()),
+  ('cccccccc-cccc-4ccc-8ccc-ccccccccccc2', '11111111-1111-4111-8111-111111111111', '加料', 'MULTIPLE', false, 0, 2, 2, true, now(), now());
+
+insert into public.product_note_options (
+  id, organization_id, note_group_id, name, price_delta, sort_order, is_active, created_at, updated_at
+) values
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd1', '11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', '不辣', 0, 1, true, now(), now()),
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd2', '11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', '小辣', 0, 2, true, now(), now()),
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd3', '11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', '中辣', 0, 3, true, now(), now()),
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd4', '11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', '大辣', 0, 4, true, now(), now()),
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd5', '11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', '加蛋', 15, 1, true, now(), now()),
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd6', '11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', '加起司', 20, 2, true, now(), now()),
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd7', '11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', '加九層塔', 5, 3, true, now(), now());
+
+insert into public.product_note_group_translations (
+  organization_id, note_group_id, locale, name, created_at, updated_at
+) values
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 'en', 'Spice level', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 'en', 'Add-ons', now(), now());
+
+insert into public.product_note_option_translations (
+  organization_id, note_option_id, locale, name, created_at, updated_at
+) values
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'en', 'No spice', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'en', 'Mild', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd3', 'en', 'Medium', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd4', 'en', 'Hot', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd5', 'en', 'Egg', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd6', 'en', 'Cheese', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd7', 'en', 'Thai basil', now(), now());
+
+insert into public.product_note_group_assignments (
+  organization_id, product_id, note_group_id, sort_order, is_active, created_at, updated_at
+) values
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444443', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 1, true, now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 1, true, now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444442', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 2, true, now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444443', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 3, true, now(), now());
+
 insert into public.stall_products (
   organization_id, stall_id, product_id, price_override, is_enabled,
   is_sold_out, sort_order, created_at, updated_at

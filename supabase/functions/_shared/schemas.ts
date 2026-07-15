@@ -16,12 +16,18 @@ export const createPublicOrderSchema = z.object({
     productId: z.string().uuid(),
     quantity: z.number().int().min(1).max(100),
     note: z.string().trim().max(1000).optional().default(""),
+    noteOptionIds: z.array(z.string().uuid()).max(50).default([]),
   })).min(1).max(100),
   turnstileToken: z.string().min(1).max(2048),
 }).superRefine((value, context) => {
   if (new Set(value.items.map((item) => item.productId)).size !== value.items.length) {
     context.addIssue({ code: "custom", path: ["items"], message: "duplicate products" });
   }
+  value.items.forEach((item, index) => {
+    if (new Set(item.noteOptionIds).size !== item.noteOptionIds.length) {
+      context.addIssue({ code: "custom", path: ["items", index, "noteOptionIds"], message: "duplicate note options" });
+    }
+  });
 });
 
 export const getPublicOrderSchema = z.object({

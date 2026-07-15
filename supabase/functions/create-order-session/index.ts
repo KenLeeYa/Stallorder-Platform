@@ -137,6 +137,59 @@ Deno.serve(async (request) => {
       throw productsQuery.error ?? categoriesQuery.error ?? translationsQuery.error;
     }
 
+    const noteAssignmentsQuery = productIds.length === 0
+      ? { data: [], error: null }
+      : await admin.from("product_note_group_assignments")
+        .select("product_id, note_group_id, sort_order")
+        .eq("organization_id", stallQuery.data.organization_id)
+        .eq("is_active", true)
+        .in("product_id", productIds)
+        .order("sort_order", { ascending: true })
+        .limit(500);
+    if (noteAssignmentsQuery.error) throw noteAssignmentsQuery.error;
+
+    const noteGroupIds = [...new Set(noteAssignmentsQuery.data.map((assignment) => assignment.note_group_id))];
+    const [noteGroupsQuery, noteOptionsQuery, noteGroupTranslationsQuery] = await Promise.all([
+      noteGroupIds.length === 0
+        ? Promise.resolve({ data: [], error: null })
+        : admin.from("product_note_groups")
+          .select("id, name, selection_mode, is_required, min_selections, max_selections, sort_order")
+          .eq("organization_id", stallQuery.data.organization_id)
+          .eq("is_active", true)
+          .in("id", noteGroupIds)
+          .order("sort_order", { ascending: true })
+          .limit(100),
+      noteGroupIds.length === 0
+        ? Promise.resolve({ data: [], error: null })
+        : admin.from("product_note_options")
+          .select("id, note_group_id, name, price_delta, sort_order")
+          .eq("organization_id", stallQuery.data.organization_id)
+          .eq("is_active", true)
+          .in("note_group_id", noteGroupIds)
+          .order("sort_order", { ascending: true })
+          .limit(500),
+      noteGroupIds.length === 0
+        ? Promise.resolve({ data: [], error: null })
+        : admin.from("product_note_group_translations")
+          .select("note_group_id, locale, name")
+          .eq("organization_id", stallQuery.data.organization_id)
+          .in("note_group_id", noteGroupIds)
+          .limit(500),
+    ]);
+    if (noteGroupsQuery.error || noteOptionsQuery.error || noteGroupTranslationsQuery.error) {
+      throw noteGroupsQuery.error ?? noteOptionsQuery.error ?? noteGroupTranslationsQuery.error;
+    }
+
+    const noteOptionIds = noteOptionsQuery.data.map((option) => option.id);
+    const noteOptionTranslationsQuery = noteOptionIds.length === 0
+      ? { data: [], error: null }
+      : await admin.from("product_note_option_translations")
+        .select("note_option_id, locale, name")
+        .eq("organization_id", stallQuery.data.organization_id)
+        .in("note_option_id", noteOptionIds)
+        .limit(2_500);
+    if (noteOptionTranslationsQuery.error) throw noteOptionTranslationsQuery.error;
+
     const categoriesById = new Map(categoriesQuery.data.map((category) => [category.id, category]));
     const assignmentsByProductId = new Map(
       stallProductsQuery.data.map((assignment) => [assignment.product_id, assignment]),
@@ -153,6 +206,36 @@ Deno.serve(async (request) => {
           translations: translationsQuery.data
             .filter((translation) => translation.product_id === product.id)
             .map((translation) => ({ locale: translation.locale, name: translation.name, description: translation.description })),
+          noteGroups: noteAssignmentsQuery.data
+            .filter((assignment) => assignment.product_id === product.id)
+            .flatMap((assignment) => {
+              const noteGroup = noteGroupsQuery.data.find((group) => group.id === assignment.note_group_id);
+              if (!noteGroup) return [];
+              return [{
+                id: noteGroup.id,
+                name: noteGroup.name,
+                selectionMode: noteGroup.selection_mode,
+                isRequired: noteGroup.is_required,
+                minSelections: noteGroup.min_selections,
+                maxSelections: noteGroup.max_selections,
+                sortOrder: assignment.sort_order || noteGroup.sort_order,
+                translations: noteGroupTranslationsQuery.data
+                  .filter((translation) => translation.note_group_id === noteGroup.id)
+                  .map((translation) => ({ locale: translation.locale, name: translation.name })),
+                options: noteOptionsQuery.data
+                  .filter((option) => option.note_group_id === noteGroup.id)
+                  .map((option) => ({
+                    id: option.id,
+                    name: option.name,
+                    priceDelta: option.price_delta,
+                    sortOrder: option.sort_order,
+                    translations: noteOptionTranslationsQuery.data
+                      .filter((translation) => translation.note_option_id === option.id)
+                      .map((translation) => ({ locale: translation.locale, name: translation.name })),
+                  })),
+              }];
+            })
+            .sort((left, right) => left.sortOrder - right.sortOrder),
           price: assignment.price_override ?? product.default_price,
           category: category.name,
           categorySortOrder: category.sort_order,
@@ -167,6 +250,7 @@ Deno.serve(async (request) => {
       description: product.description,
       imageUrl: product.imageUrl,
       translations: product.translations,
+      noteGroups: product.noteGroups,
       price: product.price,
       category: product.category,
     }));
@@ -184,7 +268,11 @@ Deno.serve(async (request) => {
         table: tableQuery.data ? { id: tableQuery.data.id, code: tableQuery.data.code, label: tableQuery.data.label } : null,
       },
       products,
-      supportedLocales: [...new Set(translationsQuery.data.map((translation) => translation.locale))].sort(),
+      supportedLocales: [...new Set([
+        ...translationsQuery.data.map((translation) => translation.locale),
+        ...noteGroupTranslationsQuery.data.map((translation) => translation.locale),
+        ...noteOptionTranslationsQuery.data.map((translation) => translation.locale),
+      ])].sort(),
       limits: {
         maxItemQuantity: settings.max_item_quantity,
         maxUniqueProducts: settings.max_unique_products,

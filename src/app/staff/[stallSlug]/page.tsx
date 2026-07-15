@@ -25,7 +25,11 @@ export default async function StaffPage({ params }: PageProps) {
         status: { in: [...statuses] },
       },
       orderBy: { createdAt: "asc" },
-      include: { items: true },
+      include: {
+        items: {
+          include: { noteOptions: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] } },
+        },
+      },
     }),
     prisma.stallOrderingSettings.findUnique({
       where: { stallId: stall.id },
@@ -72,6 +76,12 @@ export default async function StaffPage({ params }: PageProps) {
           name: item.name,
           unitPrice: item.unitPrice,
           quantity: item.quantity,
+          note: item.note,
+          noteOptions: item.noteOptions.map((noteOption) => ({
+            groupName: noteOption.groupName,
+            optionName: noteOption.optionName,
+            priceDelta: noteOption.priceDelta,
+          })),
           status: item.status,
           preparingAt: item.preparingAt?.toISOString() ?? null,
           readyAt: item.readyAt?.toISOString() ?? null,

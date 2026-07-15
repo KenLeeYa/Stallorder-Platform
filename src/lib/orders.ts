@@ -25,10 +25,15 @@ export const staffOrderSelect = {
       name: true,
       unitPrice: true,
       quantity: true,
+      note: true,
       status: true,
       preparingAt: true,
       readyAt: true,
       servedAt: true,
+      noteOptions: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { groupName: true, optionName: true, priceDelta: true },
+      },
     },
   },
 } satisfies Prisma.OrderSelect;

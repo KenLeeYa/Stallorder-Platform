@@ -38,6 +38,9 @@ test("商戶可檢視營運模組、鎖定擁有者、報表快捷與商品多�
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
   await expect(page.getByRole("link", { name: "匯出 CSV" })).toBeVisible();
   await expect(page.getByText("匯入 CSV", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "商品註記群組" })).toBeVisible();
+  await expect(page.getByText("辣度", { exact: true })).toBeVisible();
+  await expect(page.getByText("加蛋", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "編輯 香酥雞排" }).click();
   const editor = page.getByRole("dialog", { name: "編輯商品" });
   await expect(editor.getByLabel("圖片網址")).toBeVisible();
