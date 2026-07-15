@@ -16,17 +16,17 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await page.goto(`/q/${tableQrToken}`);
   await expect(page.getByText("內用 · A1 桌", { exact: true })).toBeVisible();
 
-  await page.getByLabel("商品語言").selectOption("en");
-  await expect(page.getByRole("heading", { name: "Crispy Chicken Cutlet" })).toBeVisible();
-  await page.getByRole("button", { name: "增加 Crispy Chicken Cutlet" }).click();
-  await page.getByLabel("顧客稱呼").fill(customerName);
-  await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeEnabled({ timeout: 15_000 });
+  await page.getByLabel("點餐語言").selectOption("en");
+  await expect(page.getByRole("heading", { name: "Deep-Fried Chicken Cutlet" })).toBeVisible();
+  await page.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet" }).click();
+  await page.getByLabel("Customer name").fill(customerName);
+  await expect(page.getByRole("button", { name: "Place order", exact: true })).toBeEnabled({ timeout: 15_000 });
 
   const createResponse = page.waitForResponse((response) => (
     new URL(response.url()).pathname.endsWith("/create-public-order")
     && response.request().method() === "POST"
   ));
-  await page.getByRole("button", { name: "送出訂單", exact: true }).click();
+  await page.getByRole("button", { name: "Place order", exact: true }).click();
   expect((await createResponse).status()).toBe(201);
   await expect(page).toHaveURL(/\/order\//);
   await expect(page.getByText("內用桌位", { exact: true })).toBeVisible();

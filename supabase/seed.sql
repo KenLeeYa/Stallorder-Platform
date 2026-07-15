@@ -131,11 +131,26 @@ insert into public.products (
 insert into public.product_translations (
   organization_id, product_id, locale, name, description, created_at, updated_at
 ) values
-  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'en', 'Crispy Chicken Cutlet', 'Freshly fried chicken cutlet with pepper salt.', now(), now()),
-  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'ja', 'サクサク鶏排', '揚げたての鶏排に胡椒塩をかけました。', now(), now()),
-  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'ko', '바삭 닭튀김', '갓 튀긴 닭튀김에 후추 소금을 뿌렸습니다.', now(), now()),
-  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'vi', 'Gà chiên giòn', 'Gà chiên nóng phủ muối tiêu.', now(), now()),
-  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'th', 'ไก่ทอดกรอบ', 'ไก่ทอดร้อนโรยเกลือพริกไทย', now(), now());
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'en', 'Deep-Fried Chicken Cutlet', 'Freshly deep-fried Taiwanese chicken cutlet seasoned with pepper salt.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'ja', '鶏肉の揚げ物', '揚げたての台湾風大判チキンに胡椒塩をかけました。', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'ko', '지파이 (대만식 닭튀김)', '갓 튀긴 대만식 대형 닭튀김에 후추 소금을 뿌렸습니다.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'vi', 'Gà phi lê chiên giòn kiểu Đài Loan', 'Gà phi lê kiểu Đài Loan chiên nóng, nêm muối tiêu.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444441', 'th', 'ไก่ทอดแผ่นใหญ่สไตล์ไต้หวัน', 'ไก่ทอดแผ่นใหญ่แบบไต้หวัน โรยเกลือพริกไทย', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444442', 'en', 'Sweet Potato Fries', 'Golden, crispy sweet potato fries for sharing.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444442', 'ja', 'さつまいもフライ', '黄金色でサクサクのさつまいもフライ。', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444442', 'ko', '고구마튀김', '함께 즐기기 좋은 바삭한 고구마튀김입니다.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444442', 'vi', 'Khoai lang chiên', 'Khoai lang chiên vàng giòn, thích hợp để dùng chung.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444442', 'th', 'มันหวานทอด', 'มันหวานทอดกรอบสีทอง เหมาะสำหรับแบ่งกันทาน', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444443', 'en', 'Pepper Popcorn Chicken', 'Bite-sized fried chicken seasoned with pepper salt and Taiwanese basil.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444443', 'ja', '台湾風鶏の唐揚げ', '一口サイズの鶏の唐揚げを胡椒塩と台湾バジルで仕上げました。', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444443', 'ko', '셴수지 (타이완식 후라이드 치킨)', '한입 크기 닭튀김에 후추 소금과 대만 바질을 곁들였습니다.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444443', 'vi', 'Gà chiên muối tiêu kiểu Đài Loan', 'Gà chiên miếng nhỏ nêm muối tiêu và húng quế Đài Loan.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444443', 'th', 'ไก่ป๊อปคอร์นพริกไทยสไตล์ไต้หวัน', 'ไก่ทอดชิ้นพอดีคำปรุงเกลือพริกไทยและโหระพาไต้หวัน', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444444', 'en', 'Winter Melon Tea', 'Chilled traditional winter melon tea.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444444', 'ja', '冬瓜茶', '冷たい昔ながらの冬瓜茶。', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444444', 'ko', '동과차', '시원한 전통 동과차입니다.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444444', 'vi', 'Trà bí đao', 'Trà bí đao truyền thống dùng lạnh.', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444444', 'th', 'ชาฟักเขียว', 'ชาฟักเขียวแบบดั้งเดิมเสิร์ฟเย็น', now(), now());
 
 insert into public.product_note_groups (
   id, organization_id, name, selection_mode, is_required, min_selections,
@@ -158,19 +173,55 @@ insert into public.product_note_options (
 insert into public.product_note_group_translations (
   organization_id, note_group_id, locale, name, created_at, updated_at
 ) values
-  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 'en', 'Spice level', now(), now()),
-  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 'en', 'Add-ons', now(), now());
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 'en', 'Spice Level', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 'ja', '辛さ', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 'ko', '맵기', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 'vi', 'Mức độ cay', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 'th', 'ระดับความเผ็ด', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 'en', 'Add-ons', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 'ja', '追加トッピング', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 'ko', '추가 토핑', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 'vi', 'Món thêm', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 'th', 'ท็อปปิ้งเพิ่มเติม', now(), now());
 
 insert into public.product_note_option_translations (
   organization_id, note_option_id, locale, name, created_at, updated_at
 ) values
-  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'en', 'No spice', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'en', 'No Spice', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'ja', '無辛', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'ko', '안 맵게', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'vi', 'Không cay', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'th', 'ไม่เผ็ด', now(), now()),
   ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'en', 'Mild', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'ja', '小辛', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'ko', '약간 매운맛', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'vi', 'Ít cay', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'th', 'เผ็ดน้อย', now(), now()),
   ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd3', 'en', 'Medium', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd3', 'ja', '中辛', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd3', 'ko', '보통 매운맛', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd3', 'vi', 'Cay vừa', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd3', 'th', 'เผ็ดปานกลาง', now(), now()),
   ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd4', 'en', 'Hot', now(), now()),
-  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd5', 'en', 'Egg', now(), now()),
-  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd6', 'en', 'Cheese', now(), now()),
-  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd7', 'en', 'Thai basil', now(), now());
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd4', 'ja', '大辛', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd4', 'ko', '매운맛', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd4', 'vi', 'Rất cay', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd4', 'th', 'เผ็ดมาก', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd5', 'en', 'Extra Egg', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd5', 'ja', '卵追加', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd5', 'ko', '계란 추가', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd5', 'vi', 'Thêm trứng', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd5', 'th', 'เพิ่มไข่', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd6', 'en', 'Extra Cheese', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd6', 'ja', 'チーズ追加', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd6', 'ko', '치즈 추가', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd6', 'vi', 'Thêm phô mai', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd6', 'th', 'เพิ่มชีส', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd7', 'en', 'Extra Taiwanese Basil', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd7', 'ja', '台湾バジル追加', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd7', 'ko', '대만 바질 추가', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd7', 'vi', 'Thêm húng quế Đài Loan', now(), now()),
+  ('11111111-1111-4111-8111-111111111111', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd7', 'th', 'เพิ่มโหระพาไต้หวัน', now(), now());
 
 insert into public.product_note_group_assignments (
   organization_id, product_id, note_group_id, sort_order, is_active, created_at, updated_at

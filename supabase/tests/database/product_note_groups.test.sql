@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(21);
+select plan(24);
 
 delete from public.public_order_attempts;
 delete from public.public_rate_limit_buckets;
@@ -57,6 +57,74 @@ select ok(
       and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
   ),
   '登入角色也必須經受信任後端寫入註記群組'
+);
+
+select ok(
+  (
+    select count(*) = 4
+      and bool_and(translation_count = 5 and supported_locale_count = 5)
+    from (
+      select product.id,
+        count(translation.product_id) as translation_count,
+        count(distinct translation.locale) filter (
+          where translation.locale = any (array['en', 'ja', 'ko', 'vi', 'th'])
+        ) as supported_locale_count
+      from public.products product
+      left join public.product_translations translation on translation.product_id = product.id
+      where product.id = any (array[
+        '44444444-4444-4444-8444-444444444441'::uuid,
+        '44444444-4444-4444-8444-444444444442'::uuid,
+        '44444444-4444-4444-8444-444444444443'::uuid,
+        '44444444-4444-4444-8444-444444444444'::uuid
+      ])
+      group by product.id
+    ) coverage
+  ),
+  '四項示範商品皆有英日韓越泰翻譯'
+);
+
+select ok(
+  (
+    select count(*) = 2
+      and bool_and(translation_count = 5 and supported_locale_count = 5)
+    from (
+      select note_group.id,
+        count(translation.note_group_id) as translation_count,
+        count(distinct translation.locale) filter (
+          where translation.locale = any (array['en', 'ja', 'ko', 'vi', 'th'])
+        ) as supported_locale_count
+      from public.product_note_groups note_group
+      left join public.product_note_group_translations translation on translation.note_group_id = note_group.id
+      where note_group.id = any (array[
+        'cccccccc-cccc-4ccc-8ccc-ccccccccccc1'::uuid,
+        'cccccccc-cccc-4ccc-8ccc-ccccccccccc2'::uuid
+      ])
+      group by note_group.id
+    ) coverage
+  ),
+  '兩個示範註記群組皆有英日韓越泰翻譯'
+);
+
+select ok(
+  (
+    select count(*) = 7
+      and bool_and(translation_count = 5 and supported_locale_count = 5)
+    from (
+      select note_option.id,
+        count(translation.note_option_id) as translation_count,
+        count(distinct translation.locale) filter (
+          where translation.locale = any (array['en', 'ja', 'ko', 'vi', 'th'])
+        ) as supported_locale_count
+      from public.product_note_options note_option
+      left join public.product_note_option_translations translation on translation.note_option_id = note_option.id
+      where note_option.note_group_id = any (array[
+        'cccccccc-cccc-4ccc-8ccc-ccccccccccc1'::uuid,
+        'cccccccc-cccc-4ccc-8ccc-ccccccccccc2'::uuid
+      ])
+      group by note_option.id
+    ) coverage
+  ),
+  '七個示範註記選項皆有英日韓越泰翻譯'
 );
 
 insert into public.organizations (

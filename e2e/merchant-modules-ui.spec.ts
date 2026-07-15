@@ -45,6 +45,6 @@ test("商戶可檢視營運模組、鎖定擁有者、報表快捷與商品多�
   const editor = page.getByRole("dialog", { name: "編輯商品" });
   await expect(editor.getByLabel("圖片網址")).toBeVisible();
   await expect(editor.getByText("本機上傳", { exact: true })).toBeVisible();
-  await expect(editor.getByLabel("英文名稱")).toHaveValue("Crispy Chicken Cutlet");
-  await expect(editor.getByLabel("日文名稱")).toHaveValue("サクサク鶏排");
+  await expect(editor.getByLabel("英文名稱")).toHaveValue("Deep-Fried Chicken Cutlet");
+  await expect(editor.getByLabel("日文名稱")).toHaveValue("鶏肉の揚げ物");
 });
