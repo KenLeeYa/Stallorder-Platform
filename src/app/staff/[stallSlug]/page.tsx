@@ -18,14 +18,34 @@ export default async function StaffPage({ params }: PageProps) {
   const statuses = role === "KITCHEN"
     ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
     : activeOrderStatuses;
-  const orders = await prisma.order.findMany({
-    where: {
-      stallId: stall.id,
-      status: { in: [...statuses] },
-    },
-    orderBy: { createdAt: "asc" },
-    include: { items: true },
-  });
+  const [orders, settings, paymentOptions, discountOptions] = await Promise.all([
+    prisma.order.findMany({
+      where: {
+        stallId: stall.id,
+        status: { in: [...statuses] },
+      },
+      orderBy: { createdAt: "asc" },
+      include: { items: true },
+    }),
+    prisma.stallOrderingSettings.findUnique({
+      where: { stallId: stall.id },
+      select: {
+        printModuleEnabled: true,
+        paymentModuleEnabled: true,
+        discountModuleEnabled: true,
+      },
+    }),
+    prisma.paymentOption.findMany({
+      where: { stallId: stall.id, organizationId: stall.organizationId, isEnabled: true },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: { id: true, name: true, kind: true },
+    }),
+    prisma.discountOption.findMany({
+      where: { stallId: stall.id, organizationId: stall.organizationId, isEnabled: true },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: { id: true, name: true, rateBps: true },
+    }),
+  ]);
 
   return (
     <StaffOrderBoard
@@ -36,9 +56,13 @@ export default async function StaffPage({ params }: PageProps) {
         source: order.source,
         customerName: order.customerName,
         tableLabel: order.tableLabel,
+        fulfillmentType: order.fulfillmentType,
         note: order.note,
         status: order.status,
         paymentStatus: order.paymentStatus,
+        subtotal: order.subtotal,
+        discountAmount: order.discountAmount,
+        discountLabel: order.discountLabel,
         total: order.total,
         pickupVerifiedAt: order.pickupVerifiedAt?.toISOString() ?? null,
         confirmationExpiresAt: order.confirmationExpiresAt.toISOString(),
@@ -48,9 +72,20 @@ export default async function StaffPage({ params }: PageProps) {
           name: item.name,
           unitPrice: item.unitPrice,
           quantity: item.quantity,
+          status: item.status,
+          preparingAt: item.preparingAt?.toISOString() ?? null,
+          readyAt: item.readyAt?.toISOString() ?? null,
+          servedAt: item.servedAt?.toISOString() ?? null,
         })),
       }))}
       account={{ displayName: principal.user.displayName, role }}
+      modules={{
+        print: settings?.printModuleEnabled ?? false,
+        payment: settings?.paymentModuleEnabled ?? false,
+        discount: settings?.discountModuleEnabled ?? false,
+      }}
+      paymentOptions={paymentOptions}
+      discountOptions={discountOptions}
     />
   );
 }

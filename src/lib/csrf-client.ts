@@ -10,3 +10,7 @@ export function readCsrfToken() {
 export function csrfHeaders() {
   return { "Content-Type": "application/json", "x-csrf-token": readCsrfToken() };
 }
+
+export function csrfFormHeaders() {
+  return { "x-csrf-token": readCsrfToken() };
+}

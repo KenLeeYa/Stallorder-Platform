@@ -53,8 +53,32 @@ async function main() {
 
   await prisma.stallOrderingSettings.upsert({
     where: { stallId: stall.id },
-    update: { organizationId: organization.id },
-    create: { stallId: stall.id, organizationId: organization.id },
+    update: {
+      organizationId: organization.id,
+      dineInEnabled: true,
+      printModuleEnabled: true,
+      paymentModuleEnabled: true,
+      discountModuleEnabled: true,
+    },
+    create: {
+      stallId: stall.id,
+      organizationId: organization.id,
+      dineInEnabled: true,
+      printModuleEnabled: true,
+      paymentModuleEnabled: true,
+      discountModuleEnabled: true,
+    },
+  });
+  const diningTable = await prisma.diningTable.upsert({
+    where: { stallId_code: { stallId: stall.id, code: "A1" } },
+    update: { organizationId: organization.id, label: "A1 桌", isActive: true, sortOrder: 1 },
+    create: {
+      organizationId: organization.id,
+      stallId: stall.id,
+      code: "A1",
+      label: "A1 桌",
+      sortOrder: 1,
+    },
   });
   await prisma.qrCode.upsert({
     where: { token: "demo-aming-chicken-qr-2026-rotate-me" },
@@ -66,6 +90,51 @@ async function main() {
       label: "主要點餐 QR v1",
     },
   });
+  await prisma.qrCode.upsert({
+    where: { token: "demo-aming-chicken-table-a1-qr-2026" },
+    update: {
+      organizationId: organization.id,
+      stallId: stall.id,
+      diningTableId: diningTable.id,
+      label: "A1 桌點餐 QR",
+      state: "ACTIVE",
+    },
+    create: {
+      organizationId: organization.id,
+      stallId: stall.id,
+      diningTableId: diningTable.id,
+      token: "demo-aming-chicken-table-a1-qr-2026",
+      label: "A1 桌點餐 QR",
+    },
+  });
+
+  const paymentOptions = [
+    { code: "CASH", name: "現金", kind: "CASH" as const, sortOrder: 1 },
+    { code: "LINE_PAY", name: "LINE Pay", kind: "LINE_PAY" as const, sortOrder: 2 },
+    { code: "JKO_PAY", name: "街口支付", kind: "JKO_PAY" as const, sortOrder: 3 },
+  ];
+  for (const option of paymentOptions) {
+    await prisma.paymentOption.upsert({
+      where: { stallId_code: { stallId: stall.id, code: option.code } },
+      update: { organizationId: organization.id, ...option, isEnabled: true },
+      create: { organizationId: organization.id, stallId: stall.id, ...option },
+    });
+  }
+  for (const [index, discount] of [{ name: "9 折", rateBps: 9000 }, { name: "8 折", rateBps: 8000 }].entries()) {
+    const existingDiscount = await prisma.discountOption.findFirst({
+      where: { stallId: stall.id, organizationId: organization.id, name: discount.name },
+    });
+    if (existingDiscount) {
+      await prisma.discountOption.update({
+        where: { id: existingDiscount.id },
+        data: { rateBps: discount.rateBps, isEnabled: true, sortOrder: index + 1 },
+      });
+    } else {
+      await prisma.discountOption.create({
+        data: { organizationId: organization.id, stallId: stall.id, ...discount, sortOrder: index + 1 },
+      });
+    }
+  }
 
   const products = [
     ["香酥雞排", "現炸雞排，灑上胡椒鹽。", 95, "炸物", "人氣炸物"],
@@ -142,6 +211,14 @@ async function main() {
         sortOrder: index + 1,
       },
     });
+    const translations = demoProductTranslations[name];
+    for (const translation of translations) {
+      await prisma.productTranslation.upsert({
+        where: { productId_locale: { productId: product.id, locale: translation.locale } },
+        update: { organizationId: organization.id, name: translation.name, description: translation.description },
+        create: { organizationId: organization.id, productId: product.id, ...translation },
+      });
+    }
   }
 
   const passwordHash = await hash("StallOrderDemo!2026", 12);
@@ -165,12 +242,13 @@ async function main() {
             role: account.role,
           },
         },
-        update: { allStalls: true, isActive: true },
+        update: { allStalls: true, isActive: true, isPrimaryOwner: true },
         create: {
           organizationId: organization.id,
           profileId: profile.id,
           role: account.role,
           allStalls: true,
+          isPrimaryOwner: true,
         },
       });
     } else {
@@ -205,6 +283,37 @@ async function main() {
     },
   });
 }
+
+const demoProductTranslations = {
+  "香酥雞排": [
+    { locale: "en", name: "Crispy Chicken Cutlet", description: "Freshly fried chicken cutlet with pepper salt." },
+    { locale: "ja", name: "サクサク鶏排", description: "揚げたての鶏排に胡椒塩をかけました。" },
+    { locale: "ko", name: "바삭 닭튀김", description: "갓 튀긴 닭튀김에 후추 소금을 뿌렸습니다." },
+    { locale: "vi", name: "Gà chiên giòn", description: "Gà chiên nóng phủ muối tiêu." },
+    { locale: "th", name: "ไก่ทอดกรอบ", description: "ไก่ทอดร้อนโรยเกลือพริกไทย" },
+  ],
+  "地瓜薯條": [
+    { locale: "en", name: "Sweet Potato Fries", description: "Golden, crispy sweet potato fries for sharing." },
+    { locale: "ja", name: "さつまいもフライ", description: "黄金色でサクサクのさつまいもフライ。" },
+    { locale: "ko", name: "고구마 튀김", description: "함께 즐기기 좋은 바삭한 고구마 튀김입니다." },
+    { locale: "vi", name: "Khoai lang chiên", description: "Khoai lang chiên vàng giòn, thích hợp để chia sẻ." },
+    { locale: "th", name: "มันหวานทอด", description: "มันหวานทอดกรอบสีทอง เหมาะสำหรับแบ่งกันทาน" },
+  ],
+  "台式鹽酥雞": [
+    { locale: "en", name: "Taiwanese Popcorn Chicken", description: "Bite-sized fried chicken with Thai basil." },
+    { locale: "ja", name: "台湾塩酥鶏", description: "一口サイズの唐揚げを台湾バジルと一緒に。" },
+    { locale: "ko", name: "대만식 팝콘 치킨", description: "한입 크기 닭튀김과 타이 바질을 함께 제공합니다." },
+    { locale: "vi", name: "Gà chiên kiểu Đài Loan", description: "Gà chiên miếng nhỏ dùng cùng húng quế Thái." },
+    { locale: "th", name: "ไก่ป๊อปไต้หวัน", description: "ไก่ทอดชิ้นพอดีคำเสิร์ฟพร้อมโหระพา" },
+  ],
+  "冬瓜茶": [
+    { locale: "en", name: "Winter Melon Tea", description: "Chilled traditional winter melon tea." },
+    { locale: "ja", name: "冬瓜茶", description: "冷たい昔ながらの冬瓜茶。" },
+    { locale: "ko", name: "동과차", description: "시원한 전통 동과차입니다." },
+    { locale: "vi", name: "Trà bí đao", description: "Trà bí đao truyền thống dùng lạnh." },
+    { locale: "th", name: "ชาฟักเขียว", description: "ชาฟักเขียวแบบดั้งเดิมเสิร์ฟเย็น" },
+  ],
+} as const;
 
 main().then(() => prisma.$disconnect()).catch(async (error) => {
   console.error(error);

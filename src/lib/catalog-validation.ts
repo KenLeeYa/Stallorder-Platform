@@ -32,6 +32,15 @@ const stallIds = z.array(uuid).max(100).refine(
   (ids) => new Set(ids).size === ids.length,
   { message: "攤位清單不可重複。" },
 );
+export const supportedProductLocales = ["en", "ja", "ko", "vi", "th"] as const;
+const productTranslations = z.array(z.object({
+  locale: z.enum(supportedProductLocales),
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(500),
+}).strict()).max(supportedProductLocales.length).refine(
+  (translations) => new Set(translations.map((translation) => translation.locale)).size === translations.length,
+  { message: "商品翻譯語系不可重複。" },
+).default([]);
 
 export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
   z.object({
@@ -70,6 +79,7 @@ export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
     imageUrl: z.string().url().max(2_000).nullable(),
     sortOrder,
     stallIds,
+    translations: productTranslations,
   }).strict(),
   z.object({
     operation: z.literal("UPDATE_PRODUCT"),
@@ -82,6 +92,11 @@ export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
     imageUrl: z.string().url().max(2_000).nullable(),
     sortOrder,
     isActive: z.boolean(),
+    translations: productTranslations,
+  }).strict(),
+  z.object({
+    operation: z.literal("DELETE_PRODUCT"),
+    productId: uuid,
   }).strict(),
   z.object({
     operation: z.literal("SET_ASSIGNMENTS"),

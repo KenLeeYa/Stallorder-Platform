@@ -57,6 +57,7 @@ export async function POST(request: Request, context: RouteContext) {
       where: {
         id: orderId,
         stallId: authorization.stall.id,
+        fulfillmentType: "TAKEOUT",
         status: "READY",
         pickupVerifiedAt: null,
         pickupCodeHash: hashToken(parsed.data.code),

@@ -179,9 +179,22 @@ test.describe("多攤位商戶關鍵流程", () => {
     expect(secondStall.name).toBe("E2E 夜市二號攤");
 
     businessDate = new Date(`${taipeiToday()}T00:00:00.000Z`);
-    await prisma.dailyStallSummary.createMany({
-      data: [
-        {
+    await prisma.$transaction([
+      prisma.dailyStallSummary.upsert({
+        where: { stallId_businessDate: { stallId: firstStall.id, businessDate } },
+        update: {
+          orderCount: 10,
+          completedOrderCount: 9,
+          cancelledOrderCount: 1,
+          pendingOrderCount: 0,
+          unpaidOrderCount: 0,
+          netSales: 1_000,
+          grossSales: 1_000,
+          cashAmount: 1_000,
+          averageOrderValue: 111,
+          lastOrderAt: new Date(),
+        },
+        create: {
           organizationId: organization.id,
           stallId: firstStall.id,
           businessDate,
@@ -196,7 +209,22 @@ test.describe("多攤位商戶關鍵流程", () => {
           averageOrderValue: 111,
           lastOrderAt: new Date(),
         },
-        {
+      }),
+      prisma.dailyStallSummary.upsert({
+        where: { stallId_businessDate: { stallId: secondStall.id, businessDate } },
+        update: {
+          orderCount: 5,
+          completedOrderCount: 4,
+          pendingOrderCount: 1,
+          unpaidOrderCount: 1,
+          netSales: 500,
+          grossSales: 500,
+          cashAmount: 400,
+          otherPaymentAmount: 100,
+          averageOrderValue: 125,
+          lastOrderAt: new Date(),
+        },
+        create: {
           organizationId: organization.id,
           stallId: secondStall.id,
           businessDate,
@@ -211,8 +239,8 @@ test.describe("多攤位商戶關鍵流程", () => {
           averageOrderValue: 125,
           lastOrderAt: new Date(),
         },
-      ],
-    });
+      }),
+    ]);
   });
 
   test("共用商品分派、攤位覆寫價格與顧客菜單一致", async ({ page }) => {

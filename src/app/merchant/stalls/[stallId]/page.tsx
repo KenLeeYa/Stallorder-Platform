@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { StallEditor } from "@/components/stall-editor";
+import { StallModulesManager } from "@/components/stall-modules-manager";
 import { StallTeamManager } from "@/components/stall-team-manager";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
+import { getStallModuleState } from "@/lib/stall-modules";
 import { requireWorkspacePage } from "@/lib/workspace";
 
 type PageProps = { params: Promise<{ stallId: string }> };
@@ -18,15 +20,18 @@ export default async function EditStallPage({ params }: PageProps) {
   const roles = [...new Set([...workspace.roles, ...workspaceStall.roles])];
   if (!roles.some((role) => hasPermission(role, "MANAGE_STALL"))) notFound();
 
-  const stall = await prisma.stall.findUnique({
-    where: { id: stallId, organizationId: workspace.id },
-    include: {
-      memberships: {
-        orderBy: { createdAt: "asc" },
-        include: { profile: { select: { id: true, displayName: true, email: true } } },
+  const [stall, moduleState] = await Promise.all([
+    prisma.stall.findUnique({
+      where: { id: stallId, organizationId: workspace.id },
+      include: {
+        memberships: {
+          orderBy: { createdAt: "asc" },
+          include: { profile: { select: { id: true, displayName: true, email: true } } },
+        },
       },
-    },
-  });
+    }),
+    getStallModuleState(stallId, workspace.id),
+  ]);
   if (!stall) notFound();
 
   return (
@@ -35,6 +40,11 @@ export default async function EditStallPage({ params }: PageProps) {
       <div className="mt-4 border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 text-3xl font-semibold">{stall.name}</h1><p className="mt-2 text-sm text-stone-500">{stall.slug}</p></div>
       <div className="py-7">
         <StallEditor organizationId={workspace.id} stallId={stall.id} initial={{ name: stall.name, code: stall.code, description: stall.description, address: stall.address, phone: stall.phone, timezone: stall.timezone, currency: stall.currency, businessStatus: stall.businessStatus, orderingEnabled: stall.orderingEnabled, isActive: stall.isActive }} />
+        <StallModulesManager
+          stallId={stall.id}
+          appUrl={process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}
+          initialState={moduleState}
+        />
         <StallTeamManager stallId={stall.id} initialMemberships={stall.memberships.map((membership) => ({ id: membership.id, role: membership.role as "STALL_MANAGER" | "STAFF" | "KITCHEN", isActive: membership.isActive, profile: membership.profile }))} />
       </div>
     </main>

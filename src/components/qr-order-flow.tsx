@@ -12,13 +12,23 @@ type Product = {
   description: string;
   price: number;
   category: string;
+  imageUrl: string | null;
+  translations: Array<{ locale: string; name: string; description: string }>;
 };
 
 type OrderSession = {
   orderSessionToken: string;
   expiresAt: string;
-  stall: { name: string; slug: string; location: string; currency: string };
+  stall: {
+    name: string;
+    slug: string;
+    location: string;
+    currency: string;
+    fulfillmentType: "TAKEOUT" | "DINE_IN";
+    table: { id: string; code: string; label: string } | null;
+  };
   products: Product[];
+  supportedLocales: string[];
   limits: {
     maxItemQuantity: number;
     maxUniqueProducts: number;
@@ -28,6 +38,14 @@ type OrderSession = {
 };
 
 type Props = { qrToken: string };
+
+const localeLabels: Record<string, string> = {
+  en: "English",
+  ja: "日本語",
+  ko: "한국어",
+  vi: "Tiếng Việt",
+  th: "ไทย",
+};
 
 export function QrOrderFlow({ qrToken }: Props) {
   const startedRef = useRef(false);
@@ -43,6 +61,7 @@ export function QrOrderFlow({ qrToken }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
+  const [locale, setLocale] = useState("zh-TW");
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -87,6 +106,10 @@ export function QrOrderFlow({ qrToken }: Props) {
     0,
   ) ?? 0;
   const categories = session ? [...new Set(session.products.map((product) => product.category))] : [];
+  const localizedProduct = useCallback((product: Product) => {
+    const translation = product.translations.find((item) => item.locale === locale);
+    return translation ? { name: translation.name, description: translation.description } : product;
+  }, [locale]);
 
   const handleTurnstileToken = useCallback((token: string | null) => {
     setTurnstileToken(token);
@@ -176,8 +199,11 @@ export function QrOrderFlow({ qrToken }: Props) {
   return (
     <main className="mx-auto grid min-h-screen max-w-5xl gap-6 px-4 py-5 md:grid-cols-[minmax(0,1fr)_340px] md:px-8">
       <section>
-        <p className="text-sm font-medium text-teal-800">{session.stall.location}</p>
-        <h1 className="mt-1 text-3xl font-semibold">{session.stall.name}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><p className="text-sm font-medium text-teal-800">{session.stall.location}</p><h1 className="mt-1 text-3xl font-semibold">{session.stall.name}</h1></div>
+          <label className="text-xs font-medium text-stone-500">語言<select aria-label="商品語言" value={locale} onChange={(event) => setLocale(event.target.value)} className="mt-1 block h-10 rounded-md border border-stone-300 bg-white px-2 text-sm text-stone-900"><option value="zh-TW">繁體中文</option>{session.supportedLocales.map((supportedLocale) => <option key={supportedLocale} value={supportedLocale}>{localeLabels[supportedLocale] ?? supportedLocale}</option>)}</select></label>
+        </div>
+        <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? `內用 · ${session.stall.table?.label}` : "外帶取餐"}</p>
         <div className="mt-3 inline-flex items-center gap-2 text-sm text-stone-600">
           <Clock3 className="h-4 w-4" />
           點餐時間剩餘 {Math.floor(secondsRemaining / 60)}:{String(secondsRemaining % 60).padStart(2, "0")}
@@ -191,17 +217,18 @@ export function QrOrderFlow({ qrToken }: Props) {
                 {session.products.filter((product) => product.category === category).map((product) => (
                   <article key={product.id} className="rounded-lg border border-stone-200 bg-white p-4">
                     <div className="flex items-center gap-4">
+                      {product.imageUrl ? <div role="img" aria-label={`${localizedProduct(product).name}圖片`} className="h-20 w-20 shrink-0 rounded-md bg-cover bg-center" style={{ backgroundImage: `url("${product.imageUrl.replaceAll('"', "%22")}")` }} /> : null}
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold">{product.name}</h3>
-                        <p className="mt-1 text-sm leading-6 text-stone-600">{product.description}</p>
+                        <h3 className="font-semibold">{localizedProduct(product).name}</h3>
+                        <p className="mt-1 text-sm leading-6 text-stone-600">{localizedProduct(product).description}</p>
                         <p className="mt-2 font-semibold">{formatMoney(product.price, session.stall.currency)}</p>
                       </div>
                       <div className="grid grid-cols-[40px_28px_40px] items-center gap-2">
-                        <button type="button" title="減少數量" aria-label={`減少 ${product.name}`} disabled={!quantities[product.id]} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) - 1)} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
+                        <button type="button" title="減少數量" aria-label={`減少 ${localizedProduct(product).name}`} disabled={!quantities[product.id]} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) - 1)} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
                           <Minus className="h-4 w-4" />
                         </button>
                         <span className="text-center font-semibold">{quantities[product.id] ?? 0}</span>
-                        <button type="button" title="增加數量" aria-label={`增加 ${product.name}`} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) + 1)} className="grid h-10 w-10 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
+                        <button type="button" title="增加數量" aria-label={`增加 ${localizedProduct(product).name}`} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) + 1)} className="grid h-10 w-10 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
                           <Plus className="h-4 w-4" />
                         </button>
                       </div>
@@ -231,7 +258,7 @@ export function QrOrderFlow({ qrToken }: Props) {
           <Send className="h-4 w-4" />
           {isSubmitting ? "送出中..." : "送出訂單"}
         </button>
-        <p className="mt-3 text-xs leading-5 text-stone-500">訂單需經攤位人員確認後才會開始製作，取餐時以現金付款。</p>
+        <p className="mt-3 text-xs leading-5 text-stone-500">送出後須由店員確認，確認前不會開始製作。</p>
         {message ? <p role="alert" className="mt-3 text-sm text-red-700">{message}</p> : null}
       </aside>
     </main>

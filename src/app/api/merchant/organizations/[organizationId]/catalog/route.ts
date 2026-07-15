@@ -77,7 +77,7 @@ export async function POST(request: Request, context: RouteContext) {
       select: { categoryId: true, name: true, sortOrder: true, isActive: true },
     });
     before = group ?? undefined;
-  } else if (command.operation === "UPDATE_PRODUCT") {
+  } else if (command.operation === "UPDATE_PRODUCT" || command.operation === "DELETE_PRODUCT") {
     const product = await prisma.product.findFirst({
       where: { id: command.productId, organizationId },
       select: {
@@ -189,6 +189,11 @@ export async function POST(request: Request, context: RouteContext) {
             data: { organizationId, ...productData },
             select: { id: true },
           });
+          if (command.translations.length > 0) {
+            await transaction.productTranslation.createMany({
+              data: command.translations.map((translation) => ({ organizationId, productId: product.id, ...translation })),
+            });
+          }
           if (command.stallIds.length > 0) {
             await transaction.stallProduct.createMany({
               data: command.stallIds.map((stallId) => ({
@@ -211,6 +216,14 @@ export async function POST(request: Request, context: RouteContext) {
           data: { ...productData, isActive: command.isActive },
           select: { id: true },
         });
+        await transaction.productTranslation.deleteMany({
+          where: { productId: product.id, organizationId, locale: { notIn: command.translations.map((translation) => translation.locale) } },
+        });
+        await Promise.all(command.translations.map((translation) => transaction.productTranslation.upsert({
+          where: { productId_locale: { productId: product.id, locale: translation.locale } },
+          create: { organizationId, productId: product.id, ...translation },
+          update: { name: translation.name, description: translation.description },
+        })));
         if (!command.isActive) {
           await transaction.stallProduct.updateMany({
             where: { organizationId, productId: product.id },
@@ -218,6 +231,16 @@ export async function POST(request: Request, context: RouteContext) {
           });
         }
         return product;
+      }
+
+      if (command.operation === "DELETE_PRODUCT") {
+        const existing = await transaction.product.findFirst({
+          where: { id: command.productId, organizationId },
+          select: { id: true },
+        });
+        if (!existing) throw new CatalogNotFoundError();
+        await transaction.product.delete({ where: { id: existing.id } });
+        return existing;
       }
 
       const product = await transaction.product.findFirst({
@@ -255,6 +278,7 @@ export async function POST(request: Request, context: RouteContext) {
     if ("description" in command) after.description = command.description;
     if ("defaultPrice" in command) after.defaultPrice = command.defaultPrice;
     if ("imageUrl" in command) after.imageUrl = command.imageUrl;
+    if ("translations" in command) after.translations = command.translations;
     if ("isActive" in command) after.isActive = command.isActive;
     if ("stallIds" in command) after.stallIds = [...command.stallIds].sort();
     await recordAuditEvent({
@@ -297,6 +321,7 @@ function catalogAuditAction(operation: string) {
     UPDATE_GROUP: "PRODUCT_GROUP_UPDATED",
     CREATE_PRODUCT: "PRODUCT_CREATED",
     UPDATE_PRODUCT: "PRODUCT_UPDATED",
+    DELETE_PRODUCT: "PRODUCT_DELETED",
     SET_ASSIGNMENTS: "PRODUCT_STALL_ASSIGNMENTS_CHANGED",
   };
   return actions[operation] ?? "CATALOG_UPDATED";

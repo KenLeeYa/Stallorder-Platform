@@ -5,9 +5,9 @@ set local search_path = public, extensions;
 select plan(11);
 
 delete from public.payments;
-delete from public.daily_stall_summaries;
 delete from public.order_sessions;
 delete from public.orders;
+delete from public.daily_stall_summaries;
 
 insert into public.orders (
   id, tenant_id, organization_id, stall_id, order_no, tracking_token_hash,

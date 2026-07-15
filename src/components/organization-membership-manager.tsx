@@ -9,6 +9,7 @@ type Membership = {
   role: OrganizationRole;
   isActive: boolean;
   allStalls: boolean;
+  isPrimaryOwner: boolean;
   profile: { id: string; displayName: string; email: string };
 };
 
@@ -58,11 +59,15 @@ export function OrganizationMembershipManager({
       <h2 className="text-lg font-semibold">組織成員</h2>
       <div className="mt-4 divide-y divide-stone-200 border-y border-stone-200">
         {memberships.map((membership) => {
-          const ownerLocked = membership.role === "ORGANIZATION_OWNER" && !canGrantOwner;
+          const ownerLocked = membership.isPrimaryOwner
+            || (membership.role === "ORGANIZATION_OWNER" && !canGrantOwner);
           return (
             <div key={membership.id} className="flex flex-col gap-3 py-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
-                <div className="font-medium">{membership.profile.displayName}</div>
+                <div className="flex flex-wrap items-center gap-2 font-medium">
+                  <span>{membership.profile.displayName}</span>
+                  {membership.isPrimaryOwner ? <span className="rounded bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">最高擁有者</span> : null}
+                </div>
                 <div className="mt-1 break-all text-sm text-stone-500">{membership.profile.email}</div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -89,7 +94,7 @@ export function OrganizationMembershipManager({
                     <input
                       type="checkbox"
                       checked={membership.allStalls}
-                      disabled={savingId !== null || !membership.isActive}
+                      disabled={savingId !== null || !membership.isActive || ownerLocked}
                       onChange={(event) => void updateMembership(membership, {
                         role: membership.role,
                         isActive: true,

@@ -19,6 +19,8 @@ type StoredOrder = {
   order_status: string;
   payment_status: string;
   total_amount: number;
+  fulfillment_type?: string;
+  pickup_required?: boolean;
   created_at: string;
 };
 
@@ -58,10 +60,12 @@ async function safeRecordSubmissionFailure(
 }
 
 function publicOrderResponse(order: StoredOrder, trackingToken: string, pickupCode: string) {
+  const pickupRequired = order.pickup_required !== false && order.fulfillment_type !== "DINE_IN";
   return {
     orderNo: order.order_no,
     trackingToken,
-    pickupVerificationCode: pickupCode,
+    pickupVerificationCode: pickupRequired ? pickupCode : null,
+    fulfillmentType: order.fulfillment_type ?? "TAKEOUT",
     orderStatus: order.order_status,
     paymentStatus: order.payment_status,
     totalAmount: order.total_amount,

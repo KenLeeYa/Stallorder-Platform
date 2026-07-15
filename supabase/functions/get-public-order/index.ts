@@ -66,11 +66,10 @@ Deno.serve(async (request) => {
       });
       return jsonResponse({ error: errorMessage("ORDER_NOT_FOUND"), code: "ORDER_NOT_FOUND" }, 404, corsHeaders, requestId);
     }
-    const stored = data as Record<string, unknown> & { orderId: string };
-    const { pickupCode } = await derivePublicOrderTokens(
-      stored.orderId,
-      requireEnv("TOKEN_DERIVATION_SECRET"),
-    );
+    const stored = data as Record<string, unknown> & { orderId: string; fulfillmentType?: string };
+    const pickupCode = stored.fulfillmentType === "DINE_IN"
+      ? null
+      : (await derivePublicOrderTokens(stored.orderId, requireEnv("TOKEN_DERIVATION_SECRET"))).pickupCode;
     const publicOrder: Record<string, unknown> = { ...stored };
     delete publicOrder.orderId;
     return jsonResponse({

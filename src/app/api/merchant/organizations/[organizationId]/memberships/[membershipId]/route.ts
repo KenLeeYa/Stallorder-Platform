@@ -60,6 +60,23 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
+  if (existing.isPrimaryOwner) {
+    await recordAuditEvent({
+      organizationId,
+      actorProfileId: authorization.principal.user.id,
+      action: "PRIMARY_OWNER_CHANGE_DENIED",
+      entityType: "ORGANIZATION_MEMBERSHIP",
+      entityId: existing.id,
+      outcome: "DENIED",
+      requestId: authorization.requestId,
+      ipHash: hashClientIp(request),
+    });
+    return NextResponse.json(
+      { error: "最高擁有者為系統綁定角色，無法變更或停用。" },
+      { status: 409, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+
   const canGrantOwner = canManageOrganizationRoles;
   if ((existing.role === "ORGANIZATION_OWNER" || parsed.data.role === "ORGANIZATION_OWNER") && !canGrantOwner) {
     return NextResponse.json(

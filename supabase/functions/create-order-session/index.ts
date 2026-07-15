@@ -64,13 +64,13 @@ Deno.serve(async (request) => {
     });
     if (sessionError) throw sessionError;
 
-    const result = sessionResult as { ok: boolean; code?: string; stall_id?: string; expires_at?: string };
-    if (!result.ok || !result.stall_id || !result.expires_at) {
+    const result = sessionResult as { ok: boolean; code?: string; stall_id?: string; qr_code_id?: string; expires_at?: string };
+    if (!result.ok || !result.stall_id || !result.qr_code_id || !result.expires_at) {
       const code = result.code ?? "ORDER_CREATE_ERROR";
       return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
     }
 
-    const [stallQuery, stallProductsQuery, settingsQuery] = await Promise.all([
+    const [stallQuery, stallProductsQuery, settingsQuery, qrQuery] = await Promise.all([
       admin.from("stalls")
         .select("organization_id, name, slug, location, currency")
         .eq("id", result.stall_id)
@@ -83,21 +83,37 @@ Deno.serve(async (request) => {
         .order("sort_order", { ascending: true })
         .limit(100),
       admin.from("stall_ordering_settings")
-        .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length")
+        .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length, dine_in_enabled")
         .eq("stall_id", result.stall_id)
+        .single(),
+      admin.from("qr_codes")
+        .select("dining_table_id")
+        .eq("id", result.qr_code_id)
         .single(),
     ]);
 
-    if (stallQuery.error || stallProductsQuery.error || settingsQuery.error) {
-      throw stallQuery.error ?? stallProductsQuery.error ?? settingsQuery.error;
+    if (stallQuery.error || stallProductsQuery.error || settingsQuery.error || qrQuery.error) {
+      throw stallQuery.error ?? stallProductsQuery.error ?? settingsQuery.error ?? qrQuery.error;
+    }
+
+    const tableQuery = qrQuery.data.dining_table_id
+      ? await admin.from("dining_tables")
+        .select("id, label, code, is_active")
+        .eq("id", qrQuery.data.dining_table_id)
+        .eq("stall_id", result.stall_id)
+        .single()
+      : { data: null, error: null };
+    if (tableQuery.error) throw tableQuery.error;
+    if (tableQuery.data && (!tableQuery.data.is_active || !settingsQuery.data.dine_in_enabled)) {
+      throw new HttpInputError("TABLE_UNAVAILABLE", 409);
     }
 
     const productIds = stallProductsQuery.data.map((assignment) => assignment.product_id);
-    const [productsQuery, categoriesQuery] = await Promise.all([
+    const [productsQuery, categoriesQuery, translationsQuery] = await Promise.all([
       productIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : admin.from("products")
-          .select("id, name, description, default_price, category_id, sort_order")
+          .select("id, name, description, default_price, image_url, category_id, sort_order")
           .eq("organization_id", stallQuery.data.organization_id)
           .eq("is_active", true)
           .in("id", productIds)
@@ -108,10 +124,17 @@ Deno.serve(async (request) => {
         .eq("is_active", true)
         .order("sort_order", { ascending: true })
         .limit(100),
+      productIds.length === 0
+        ? Promise.resolve({ data: [], error: null })
+        : admin.from("product_translations")
+          .select("product_id, locale, name, description")
+          .eq("organization_id", stallQuery.data.organization_id)
+          .in("product_id", productIds)
+          .limit(500),
     ]);
 
-    if (productsQuery.error || categoriesQuery.error) {
-      throw productsQuery.error ?? categoriesQuery.error;
+    if (productsQuery.error || categoriesQuery.error || translationsQuery.error) {
+      throw productsQuery.error ?? categoriesQuery.error ?? translationsQuery.error;
     }
 
     const categoriesById = new Map(categoriesQuery.data.map((category) => [category.id, category]));
@@ -126,6 +149,10 @@ Deno.serve(async (request) => {
           id: product.id,
           name: product.name,
           description: product.description,
+          imageUrl: product.image_url,
+          translations: translationsQuery.data
+            .filter((translation) => translation.product_id === product.id)
+            .map((translation) => ({ locale: translation.locale, name: translation.name, description: translation.description })),
           price: assignment.price_override ?? product.default_price,
           category: category.name,
           categorySortOrder: category.sort_order,
@@ -138,6 +165,8 @@ Deno.serve(async (request) => {
       id: product.id,
       name: product.name,
       description: product.description,
+      imageUrl: product.imageUrl,
+      translations: product.translations,
       price: product.price,
       category: product.category,
     }));
@@ -151,8 +180,11 @@ Deno.serve(async (request) => {
         slug: stallQuery.data.slug,
         location: stallQuery.data.location,
         currency: stallQuery.data.currency,
+        fulfillmentType: tableQuery.data ? "DINE_IN" : "TAKEOUT",
+        table: tableQuery.data ? { id: tableQuery.data.id, code: tableQuery.data.code, label: tableQuery.data.label } : null,
       },
       products,
+      supportedLocales: [...new Set(translationsQuery.data.map((translation) => translation.locale))].sort(),
       limits: {
         maxItemQuantity: settings.max_item_quantity,
         maxUniqueProducts: settings.max_unique_products,

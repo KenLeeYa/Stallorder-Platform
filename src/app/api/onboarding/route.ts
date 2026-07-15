@@ -163,6 +163,7 @@ export async function POST(request: Request) {
           profileId: existingProfile.id,
           role: "ORGANIZATION_OWNER",
           allStalls: true,
+          isPrimaryOwner: true,
         },
       });
       return { organization, stall, profile: existingProfile };

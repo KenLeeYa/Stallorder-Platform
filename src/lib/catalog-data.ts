@@ -27,6 +27,10 @@ export async function getOrganizationCatalog(organizationId: string, authorizedS
         imageUrl: true,
         sortOrder: true,
         isActive: true,
+        translations: {
+          orderBy: { locale: "asc" },
+          select: { locale: true, name: true, description: true },
+        },
         stallProducts: {
           where: { stallId: { in: authorizedStallIds } },
           orderBy: { stallId: "asc" },

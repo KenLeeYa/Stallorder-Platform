@@ -15,7 +15,7 @@ export default function Home() {
               StallOrder 攤位點餐
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-600">
-              顧客掃描 QR Code 即可點餐，員工用手機確認訂單，取餐時以現金結帳；每個商戶的商品、訂單與銷售報表皆獨立隔離。
+              顧客掃描桌位或外帶 QR Code 點餐，員工用手機連動廚房與出餐，並以啟用的付款方式完成訂單；每個商戶的商品、訂單與銷售報表皆獨立隔離。
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -38,7 +38,7 @@ export default function Home() {
             {[
               ["顧客 QR Code 點餐", "適合行動裝置的快速選餐與送單流程。", QrCode],
               ["員工確認訂單", "清楚管理待確認、製作中、可取餐與取消狀態。", CheckCircle2],
-              ["人工現金結帳", "顧客付款後由授權員工完成結帳。", Utensils],
+              ["多元付款與折扣", "由授權員工記錄付款、折扣、實收與找零。", Utensils],
               ["每日銷售報表", "檢視營業額、訂單數、未付款訂單與熱銷商品。", BarChart3],
             ].map(([title, body, Icon]) => (
               <div key={title as string} className="rounded-lg border border-stone-200 bg-stone-50 p-5">

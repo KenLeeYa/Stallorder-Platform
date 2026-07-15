@@ -14,7 +14,7 @@ const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com${isProduction ? "" : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
+  `img-src 'self' data: blob: https: ${publicEdgeOrigin}`,
   "font-src 'self'",
   `connect-src 'self' ${publicEdgeOrigin} https://challenges.cloudflare.com`,
   "frame-src https://challenges.cloudflare.com",

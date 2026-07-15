@@ -13,7 +13,17 @@ type PublicOrder = {
   confirmedAt: string | null;
   completedAt: string | null;
   stallName: string;
-  pickupVerificationCode: string;
+  pickupVerificationCode: string | null;
+  fulfillmentType: "TAKEOUT" | "DINE_IN";
+  tableLabel: string | null;
+  items: Array<{ id: string; name: string; quantity: number; status: "PENDING" | "PREPARING" | "READY" | "SERVED" }>;
+};
+
+const itemStatusLabels: Record<PublicOrder["items"][number]["status"], string> = {
+  PENDING: "待製作",
+  PREPARING: "製作中",
+  READY: "待出餐",
+  SERVED: "已出餐",
 };
 
 const statusLabels: Record<PublicOrder["orderStatus"], string> = {
@@ -83,15 +93,15 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
           </div>
           <div className="mt-7 grid grid-cols-2 gap-5">
             <div>
-              <div className="text-xs text-stone-500">取餐驗證碼</div>
-              <div className="mt-1 font-mono text-3xl font-semibold tracking-normal">{order.pickupVerificationCode}</div>
+              <div className="text-xs text-stone-500">{order.fulfillmentType === "DINE_IN" ? "內用桌位" : "取餐驗證碼"}</div>
+              <div className={`mt-1 font-semibold ${order.fulfillmentType === "TAKEOUT" ? "font-mono text-3xl tracking-normal" : "text-xl"}`}>{order.fulfillmentType === "DINE_IN" ? order.tableLabel : order.pickupVerificationCode}</div>
             </div>
             <div>
               <div className="text-xs text-stone-500">付款狀態</div>
-              <div className="mt-2 font-semibold">{order.paymentStatus === "PAID" ? "已付款" : "現金待付款"}</div>
+              <div className="mt-2 font-semibold">{order.paymentStatus === "PAID" ? "已付款" : "待付款"}</div>
             </div>
           </div>
-          <p className="mt-6 text-sm leading-6 text-stone-600">請在取餐時向攤位人員出示驗證碼。訂單確認前不會開始製作。</p>
+          {order.fulfillmentType === "DINE_IN" ? <div className="mt-6 divide-y divide-stone-100 border-y border-stone-200">{order.items.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 py-3 text-sm"><span>{item.quantity} × {item.name}</span><span className="font-medium text-stone-600">{itemStatusLabels[item.status]}</span></div>)}</div> : <p className="mt-6 text-sm leading-6 text-stone-600">請在取餐時向攤位人員出示驗證碼。訂單確認前不會開始製作。</p>}
         </section>
       ) : null}
     </main>

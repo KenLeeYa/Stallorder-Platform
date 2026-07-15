@@ -120,6 +120,7 @@ export function errorMessage(code: string) {
     QR_PAUSED: "此 QR Code 已暫停接單。",
     QR_EXPIRED: "此 QR Code 已過期。",
     QR_NOT_ACTIVE: "此 QR Code 目前無法使用。",
+    TABLE_UNAVAILABLE: "此內用桌位目前無法點餐。",
     QR_SESSION_MISMATCH: "點餐連結與 Session 不相符，請重新掃描。",
     STALL_CLOSED: "攤位目前已關閉點餐。",
     ORDERING_PAUSED: "攤位目前暫停接單。",

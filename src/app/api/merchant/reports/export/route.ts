@@ -5,6 +5,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { dashboardQuerySchema } from "@/lib/dashboard-validation";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { getPaymentMethodReport } from "@/lib/report-data";
 import { hashClientIp } from "@/lib/security";
 
 export async function POST(request: Request) {
@@ -47,18 +48,26 @@ export async function POST(request: Request) {
     );
   }
 
-  const summaries = await prisma.dailyStallSummary.findMany({
-    where: {
-      organizationId: authorization.workspace.id,
-      stallId: { in: requestedIds },
-      businessDate: {
-        gte: new Date(`${parsed.data.dateFrom}T00:00:00.000Z`),
-        lte: new Date(`${parsed.data.dateTo}T00:00:00.000Z`),
+  const [summaries, paymentMethods] = await Promise.all([
+    prisma.dailyStallSummary.findMany({
+      where: {
+        organizationId: authorization.workspace.id,
+        stallId: { in: requestedIds },
+        businessDate: {
+          gte: new Date(`${parsed.data.dateFrom}T00:00:00.000Z`),
+          lte: new Date(`${parsed.data.dateTo}T00:00:00.000Z`),
+        },
       },
-    },
-    orderBy: [{ businessDate: "asc" }, { stallId: "asc" }],
-    include: { stall: { select: { name: true, code: true } } },
-  });
+      orderBy: [{ businessDate: "asc" }, { stallId: "asc" }],
+      include: { stall: { select: { name: true, code: true } } },
+    }),
+    getPaymentMethodReport(
+      authorization.workspace.id,
+      requestedIds,
+      parsed.data.dateFrom,
+      parsed.data.dateTo,
+    ),
+  ]);
 
   await prisma.$transaction(async (transaction) => {
     await transaction.$executeRaw`
@@ -96,6 +105,7 @@ export async function POST(request: Request) {
     });
   });
 
+  const stallCodes = new Map(authorization.workspace.stalls.map((stall) => [stall.id, stall.code]));
   const csv = createCsv([
     [
       "營業日期", "攤位代碼", "攤位", "訂單數", "已確認", "已完成", "已取消",
@@ -117,6 +127,16 @@ export async function POST(request: Request) {
       summary.manualTransferAmount,
       summary.otherPaymentAmount,
       summary.averageOrderValue,
+    ]),
+    [],
+    ["付款方式明細"],
+    ["攤位代碼", "攤位", "付款方式", "付款筆數", "付款金額"],
+    ...paymentMethods.map((payment) => [
+      stallCodes.get(payment.stallId) ?? "",
+      payment.stallName,
+      payment.methodLabel,
+      payment.paymentCount,
+      payment.amount,
     ]),
   ]);
   const filename = `stallorder-report-${parsed.data.dateFrom}-${parsed.data.dateTo}.csv`;
