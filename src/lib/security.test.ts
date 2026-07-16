@@ -9,10 +9,13 @@ import {
 } from "./security";
 
 const originalTrustedIpHeader = process.env.TRUSTED_CLIENT_IP_HEADER;
+const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 
 afterEach(() => {
   if (originalTrustedIpHeader === undefined) delete process.env.TRUSTED_CLIENT_IP_HEADER;
   else process.env.TRUSTED_CLIENT_IP_HEADER = originalTrustedIpHeader;
+  if (originalAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+  else process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
 });
 
 describe("安全工具", () => {
@@ -38,6 +41,7 @@ describe("安全工具", () => {
   });
 
   it("只接受同源寫入請求", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
     const trusted = new Request("http://localhost:3000/api/test", {
       headers: { origin: "http://localhost:3000", "sec-fetch-site": "same-origin" },
     });
