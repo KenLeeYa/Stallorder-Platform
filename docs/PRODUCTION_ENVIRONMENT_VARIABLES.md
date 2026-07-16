@@ -18,7 +18,7 @@
 | `TRUSTED_CLIENT_IP_HEADER` | `x-forwarded-for` | `x-forwarded-for` | 否 | Vercel 覆寫的單一 client IP header |
 | `ALLOW_DEMO_SEED` | `false` | `false` | 否 | 正式 guardrail |
 | `LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT` | `false` | `false` | 否 | 只能在雙 loopback 本機 QA 使用 |
-| `CRON_SECRET` | Staging unique secret | Production unique secret | 是 | Vercel Cron authorization |
+| `CRON_SECRET` | Staging unique secret | Production unique secret | 是 | `/api/cron/report-deliveries` bearer authorization；Supabase Vault 需保存同值供資料庫排程呼叫 |
 | `RESEND_API_KEY` | Staging key | Production key | 是 | 排程報表寄送 |
 | `REPORT_FROM_EMAIL` | 已驗證 staging sender | 已驗證 qidaigo.com sender | 否 | 報表寄件者 |
 | `REPORT_DELIVERY_MODE` | `simulate` 或 staging policy | `live` | 否 | 正式不得 simulate |

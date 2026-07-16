@@ -33,9 +33,9 @@
 - Prisma 僅由可信任的 Next.js 後端使用，`DATABASE_URL` 與 `DIRECT_URL` 都是 server-only。
 - 目前共有 27 份版本化 migration 與 13 個 pgTAP 測試檔，共 232 項測試；`supabase/seed.sql` 是 Development demo seed。
 - 公開 Edge Functions 是 `create-order-session`、`create-public-order`、`get-public-order`，三者刻意使用 `verify_jwt=false`，並自行驗證 CORS、QR、短效 session、Turnstile、限流、冪等與權限。
-- Vercel 必要 variables 不只原提示列出的連線字串，還包括 Supabase public URL／publishable key、server secret key、報表 Cron 與寄信設定；完整清單見 [PRODUCTION_ENVIRONMENT_VARIABLES.md](./PRODUCTION_ENVIRONMENT_VARIABLES.md)。
+- Vercel 必要 variables 不只原提示列出的連線字串，還包括 Supabase public URL／publishable key、server secret key、報表 API 授權與寄信設定；完整清單見 [PRODUCTION_ENVIRONMENT_VARIABLES.md](./PRODUCTION_ENVIRONMENT_VARIABLES.md)。
 - 程式使用明確白名單 `TRUSTED_CLIENT_IP_HEADER`，而非 `TRUST_PROXY_HEADERS`。Vercel 應設 `x-forwarded-for`；Supabase Edge 應依平台實際 gateway 使用 `cf-connecting-ip`，兩者不可互換或接受任意 header。
-- `vercel.json` 已有每五分鐘執行報表寄送的 Cron，正式環境必須設定 `CRON_SECRET`。
+- 報表寄送每五分鐘排程改由 Supabase `pg_cron + pg_net + Vault` 執行，設定方式見 [SUPABASE_REPORT_DELIVERY_CRON.md](./SUPABASE_REPORT_DELIVERY_CRON.md)；正式環境仍必須設定 `CRON_SECRET`。
 - 原 README 的「單一 Supabase 專案」正式部署敘述已不適用；Development、Staging、Production 必須完全隔離。
 
 ## 上線順序與阻擋條件

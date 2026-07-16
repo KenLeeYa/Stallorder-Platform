@@ -15,7 +15,7 @@
 1. 連接 GitHub repository，專案名稱設 `stallorder-platform`，Root Directory 為 repository root。
 2. Framework preset 使用 Next.js；保留 `npm run build` 與 npm lockfile。
 3. Production branch 設 `main`；`deployment/production-qidaigo` 只能產生 Preview。
-4. 保留 `vercel.json` 的 report delivery Cron；Production 必須有 `CRON_SECRET`。
+4. `vercel.json` 不宣告 Vercel Cron；報表排程改由 Supabase `pg_cron + pg_net + Vault` 執行。Production 仍必須有 `CRON_SECRET` 保護 `/api/cron/report-deliveries`。
 
 ## 環境隔離
 

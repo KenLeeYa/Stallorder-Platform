@@ -112,7 +112,7 @@ npm audit --audit-level=moderate
 6. Next.js 設定資料庫、Supabase、應用 Origin、Turnstile、audit hash 與明確的 `TRUSTED_CLIENT_IP_HEADER`；正式環境維持 `ALLOW_DEMO_SEED=false`。
 7. 上線前填入核准的方案底價與超額訂單單價；目前種子保守維持為 0/未設定。
 8. 將 stdout 與資料庫安全事件送入集中式監控，完成備份還原與 QR/secret 輪替演練。
-9. 設定 `CRON_SECRET`、`RESEND_API_KEY` 與已驗證網域的 `REPORT_FROM_EMAIL`，確認報表排程測試信及 Cron 寄送紀錄。
+9. 設定 `CRON_SECRET`、`RESEND_API_KEY` 與已驗證網域的 `REPORT_FROM_EMAIL`，並依 [Supabase Report Delivery Cron](docs/SUPABASE_REPORT_DELIVERY_CRON.md) 設定 Vault 後確認排程報表寄送紀錄。
 
 詳細步驟見 [多攤位維運手冊](docs/MULTI_STALL_OPERATIONS.md)。
 
@@ -133,5 +133,6 @@ npm audit --audit-level=moderate
 - [安全基線](docs/SECURITY.md)
 - [監控基線](docs/MONITORING.md)
 - [P2 排程報表寄送](docs/P2_REPORT_DELIVERY.md)
+- [Supabase 報表排程 Cron](docs/SUPABASE_REPORT_DELIVERY_CRON.md)
 - [qidaigo.com 正式部署](docs/PRODUCTION_DEPLOYMENT_QIDAIGO.md)
 - [Go-Live Checklist](docs/GO_LIVE_CHECKLIST.md)
