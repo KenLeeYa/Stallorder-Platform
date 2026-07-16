@@ -4,19 +4,19 @@
 
 ## Supabase
 
-- [ ] Supabase Organization selected：`KuanGuard`
-- [ ] Project costs explicitly confirmed
-- [ ] Production Project `stallorder-production` active
-- [ ] Staging Project `stallorder-staging` active
-- [ ] Projects use `ap-northeast-1` and are fully isolated
-- [ ] Migrations applied to Staging
+- [x] Supabase Organization selected：`KuanGuard`
+- [x] Project costs explicitly confirmed
+- [x] Production Project `stallorder-production` active
+- [x] Staging project ref `daeqwtpaxcebmtwxqdkj` active（顯示名稱待改為 `stallorder-staging`）
+- [x] Projects use `ap-northeast-1` and are fully isolated
+- [x] Migrations applied to Staging
 - [ ] Staging tests pass
-- [ ] Staging Security／Performance Advisor reviewed
-- [ ] Migrations applied to Production with no drift
-- [ ] Production has no demo seed／account／QR／customer order
-- [ ] RLS and cross-tenant validation passes
-- [ ] Security Advisor has no unresolved critical/high finding
-- [ ] Required index／constraint／Cron／function exists
+- [x] Staging Security／Performance Advisor reviewed
+- [x] Migrations applied to Production with no drift
+- [x] Production has no demo seed／account／QR／customer order
+- [x] RLS and cross-tenant validation passes
+- [x] Security Advisor has no unresolved critical/high finding
+- [x] Required index／constraint／Cron／function exists
 - [ ] Edge Functions deployed and versions recorded
 - [ ] Production Edge secrets configured independently
 - [ ] Edge logs contain no secret／token／stack trace
@@ -49,12 +49,12 @@
 
 ## GitHub／CI
 
-- [ ] `CI` passes lint, typecheck, unit, database tests, db lint, build, audit
-- [ ] Production guardrails pass
+- [x] `CI` passes lint, typecheck, unit, database tests, db lint, build, audit
+- [x] Production guardrails pass
 - [ ] `main` requires successful CI
 - [ ] GitHub `production` Environment is protected with approval
 - [ ] Remote migration dry-run passes before apply
-- [ ] No committed `.env`, password, service key, Turnstile secret, OAuth secret or Vercel token
+- [x] No committed `.env`, password, service key, Turnstile secret, OAuth secret or Vercel token
 
 ## Bootstrap 與功能
 

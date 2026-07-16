@@ -49,4 +49,4 @@ npx supabase functions deploy get-public-order --project-ref <STAGING_SUPABASE_P
 - 執行全部 RLS／QR abuse 測試案例與 [PRODUCTION_EDGE_FUNCTION_VALIDATION.md](./PRODUCTION_EDGE_FUNCTION_VALIDATION.md)。
 - 執行 Supabase Security Advisor 與 Performance Advisor；critical/high 必須修正。
 - Review Database、Auth、Realtime、Edge Function logs，確認沒有 secret、token 或跨租戶資料外洩。
-- Preview smoke test 通過後，才可開始 Production database 部署。
+- Staging Edge 測試與 Preview smoke test 通過後，才可開始 Production Edge／Vercel 部署。

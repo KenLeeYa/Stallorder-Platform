@@ -4,8 +4,8 @@
 
 ## 目前本機基線
 
-- 26 份 migration 可由空資料庫依序套用。
-- 12 個 pgTAP 檔、224 個 assertions 全部通過。
+- 27 份 migration 可由空資料庫依序套用。
+- 13 個 pgTAP 檔、232 個 assertions 全部通過。
 - `supabase db lint --local --level warning --fail-on warning` 為 0 警告。
 - 已偵測並審查一個 `DROP COLUMN`：`20260713000400_product_categories.sql` 先建立／回填 `product_categories` 與 `products.category_id`，再移除舊 `products.category`。
 - 未發現 `DROP TABLE`、`TRUNCATE` 或不可逆 `ALTER COLUMN TYPE`。
@@ -95,10 +95,10 @@ select jobid, schedule, command, active from cron.job order by jobid;
 
 | 項目 | Staging | Production | 阻擋規則 |
 | --- | --- | --- | --- |
-| Migration history | 尚未建立專案 | 尚未建立專案 | 不一致即阻擋 |
-| RLS／cross-tenant | 尚未執行 | 尚未執行 | 任一失敗即阻擋 |
-| Security Advisor | 尚未執行 | 尚未執行 | critical/high 未解即阻擋 |
-| Performance Advisor | 尚未執行 | 尚未執行 | 影響上線的 index／connection 問題即阻擋 |
+| Migration history | 27 份，與 Git timestamp 逐筆一致 | 27 份，與 Git timestamp 逐筆一致 | 不一致即阻擋 |
+| RLS／cross-tenant | 51/51 public tables 啟用並強制 RLS；匿名訂單寫入與內部 trigger RPC 已拒絕 | 51/51 public tables 啟用並強制 RLS；匿名訂單寫入與內部 trigger RPC 已拒絕 | 任一失敗即阻擋 |
+| Security Advisor | 6 INFO；13 個必要 RLS helper WARN 已審查；0 critical/high | 6 INFO；13 個必要 RLS helper WARN 已審查；0 critical/high | critical/high 未解即阻擋 |
+| Performance Advisor | 0 個未索引 FK；147 個空資料庫 unused-index INFO | 0 個未索引 FK；147 個空資料庫 unused-index INFO | 影響上線的 index／connection 問題即阻擋 |
 | Backup／restore point | 不適用測試資料 | 尚未確認 | 無可用備份即阻擋 |
 
-執行結果只記錄狀態、finding title 與修正版本；不得把 SQL 連線字串或 credentials 寫入本文件。
+`20260716114718_production_advisor_hardening.sql` 已移除 Storage 公開列舉 policy、撤銷三個內部 trigger function 的直接執行權限，並補齊 43 個外鍵所需的 42 個 index。執行結果只記錄狀態、finding title 與修正版本；不得把 SQL 連線字串或 credentials 寫入本文件。

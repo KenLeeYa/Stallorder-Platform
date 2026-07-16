@@ -6,23 +6,24 @@
 
 | 項目 | 狀態 | 已確認內容 |
 | --- | --- | --- |
-| GitHub | 已連線 | `KenLeeYa/Stallorder-Platform`，預設分支 `main`，Private repository |
-| 部署分支 | 已建立 | `deployment/production-qidaigo` |
+| GitHub | 已連線 | `KenLeeYa/Stallorder-Platform`，Draft PR #2；最新 CI 已通過 |
+| 部署分支 | 已建立並推送 | `deployment/production-qidaigo` |
 | Supabase Organization | 已找到 | `KuanGuard`，ID `urxujyhcggjgwsjtleys` |
-| Supabase 費用 | 已查詢、待使用者確認 | 每個新專案 0／月；兩個合計 0／月 |
-| 既有 Supabase | 保留為開發環境 | 已有健康的 `StallOrder Project`；不改名、不作正式用途 |
-| Staging／Production Supabase | 尚未建立 | 必須先取得明確費用同意 |
-| Vercel | 已連線 | Team `ada76145-8663's projects`；目前沒有專案 |
+| Supabase 費用 | 已明確確認 | 每個新專案 0／月；因免費方案同時專案上限，採方案 3 重用既有專案作 Staging |
+| Supabase Staging | 資料庫完成 | `StallOrder Project`（待改顯示名稱），ref `daeqwtpaxcebmtwxqdkj`，27 份 migration 與 RLS／Advisor 已驗證 |
+| Supabase Production | 資料庫完成 | `stallorder-production`，ref `eyuctbnlvnbnivwasvqr`，27 份 migration 與 RLS／Advisor 已驗證；無 demo 資料 |
+| Vercel | 已連線、待建立專案 | Team `ada76145-8663's projects`；需先設定 Staging variables，避免 Preview 誤連 Production 或以缺少憑證的狀態上線 |
 | Turnstile Production Widget | 尚未建立 | 需由 Cloudflare Dashboard 手動建立 |
 | GoDaddy DNS | 尚未變更 | 必須等 Vercel 回傳專案專屬記錄，禁止猜值 |
 
 ## USER ACTION REQUIRED
 
-1. 明確同意在 `KuanGuard` 建立 `stallorder-staging` 與 `stallorder-production`。Supabase 回報每個專案 0／月，兩個合計 0／月。
-2. 建立 Cloudflare Turnstile Production Widget，並分別將 Site Key 與 Secret Key 放入 Vercel／Supabase Secret 管理。
-3. 提供或自行設定 Staging 與 Production 各自獨立的資料庫密碼、Edge secrets、Vercel variables、OAuth 與寄信憑證。不得在訊息、Git 或 Markdown 貼出 secret 值。
-4. Vercel 加入網域後，依 [GODADDY_DNS_SETUP.md](./GODADDY_DNS_SETUP.md) 的 Vercel 實際回傳值手動修改 DNS。
-5. 在 GitHub 建立 `staging` 與 `production` Environment；Production 設必要審核者，並將 `CI` 設為 `main` 必要檢查。
+1. 在 Supabase Dashboard 將 Staging 顯示名稱由 `StallOrder Project` 改為 `stallorder-staging`；ref 與資料隔離不受名稱影響。
+2. 建立 Cloudflare Turnstile Staging／Production Widget，並分別將 Site Key 與 Secret Key 放入 Vercel／Supabase Secret 管理。
+3. 產生並設定 Staging 與 Production 各自獨立的資料庫密碼、Edge secrets、Vercel variables、OAuth 與寄信憑證。不得在訊息、Git 或 Markdown 貼出 secret 值。
+4. 完成 Staging variables 後建立 Vercel Preview；通過 Edge 與 Preview smoke test 前不得部署 Production。
+5. Vercel 加入網域後，依 [GODADDY_DNS_SETUP.md](./GODADDY_DNS_SETUP.md) 的 Vercel 實際回傳值手動修改 DNS。
+6. GitHub `staging` 與 `production` Environment 已建立，但 Private repository 目前方案不允許以 API 設定 branch protection；需升級方案或改採人工合併管制與 Environment approval。
 
 除上述人工項目外，其餘工作可繼續自動執行。
 
@@ -30,7 +31,7 @@
 
 - 專案是 Next.js 16 App Router、React 19、Prisma 6、Supabase PostgreSQL／Auth／Realtime／Edge Functions，不是純 Supabase client 專案。
 - Prisma 僅由可信任的 Next.js 後端使用，`DATABASE_URL` 與 `DIRECT_URL` 都是 server-only。
-- 目前共有 26 份版本化 migration 與 12 個 pgTAP 測試檔；`supabase/seed.sql` 是 Development demo seed。
+- 目前共有 27 份版本化 migration 與 13 個 pgTAP 測試檔，共 232 項測試；`supabase/seed.sql` 是 Development demo seed。
 - 公開 Edge Functions 是 `create-order-session`、`create-public-order`、`get-public-order`，三者刻意使用 `verify_jwt=false`，並自行驗證 CORS、QR、短效 session、Turnstile、限流、冪等與權限。
 - Vercel 必要 variables 不只原提示列出的連線字串，還包括 Supabase public URL／publishable key、server secret key、報表 Cron 與寄信設定；完整清單見 [PRODUCTION_ENVIRONMENT_VARIABLES.md](./PRODUCTION_ENVIRONMENT_VARIABLES.md)。
 - 程式使用明確白名單 `TRUSTED_CLIENT_IP_HEADER`，而非 `TRUST_PROXY_HEADERS`。Vercel 應設 `x-forwarded-for`；Supabase Edge 應依平台實際 gateway 使用 `cf-connecting-ip`，兩者不可互換或接受任意 header。

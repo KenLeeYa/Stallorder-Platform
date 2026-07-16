@@ -6,7 +6,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Development | `http://localhost:3000` | 本機 Supabase CLI | local | `http://127.0.0.1:54321` | feature branches | Development | 本機 27 份已驗證 | 本機 serve | 13 檔／232 項 pgTAP 通過 | localhost／測試政策 |
 | Staging | Vercel Preview URL；日後可用 `https://staging.qidaigo.com` | `StallOrder Project`（轉作 Staging；待改顯示名稱） | `daeqwtpaxcebmtwxqdkj` | `https://daeqwtpaxcebmtwxqdkj.supabase.co` | `deployment/production-qidaigo`／PR | Preview | 27 份已套用，版本完全一致 | 待設定 secrets 後部署 | 51/51 強制 RLS；Advisor 已驗證 | 實際 Preview 或 staging hostname |
-| Production | `https://app.qidaigo.com` | `stallorder-production` | `eyuctbnlvnbnivwasvqr` | `https://eyuctbnlvnbnivwasvqr.supabase.co` | `main` | Production | 待本次 CI 通過後套用 | Staging 通過後才部署 | 待套用後驗證 | `app.qidaigo.com` |
+| Production | `https://app.qidaigo.com` | `stallorder-production` | `eyuctbnlvnbnivwasvqr` | `https://eyuctbnlvnbnivwasvqr.supabase.co` | `main` | Production | 27 份已套用，版本完全一致 | 待 Staging Edge／Preview 通過後部署 | 51/51 強制 RLS；Advisor 已驗證 | `app.qidaigo.com` |
 
 ## 資料規則
 
