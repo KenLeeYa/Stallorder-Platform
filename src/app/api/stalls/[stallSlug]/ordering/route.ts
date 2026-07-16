@@ -18,6 +18,8 @@ const settingsSchema = z.object({
   maxPendingOrdersPerDevice: z.number().int().min(1).max(20),
   maxOrdersPerWindow: z.number().int().min(1).max(100),
   orderWindowSeconds: z.number().int().min(60).max(3600),
+  estimatedWaitMinutes: z.number().int().min(0).max(240),
+  businessDayCutoffHour: z.number().int().min(0).max(23),
 }).refine((value) => value.maxTotalQuantity >= value.maxItemQuantity, {
   message: "總數量上限不得低於單品上限。",
   path: ["maxTotalQuantity"],

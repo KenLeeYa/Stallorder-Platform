@@ -1,6 +1,6 @@
 # StallOrder 攤點通
 
-StallOrder 是供夜市攤位、餐車、市集商戶、快閃店與小型餐飲業者使用的多租戶 QR 點餐 SaaS。系統以一套前端、一個 Supabase 專案及一個 PostgreSQL 資料庫服務多個組織；每個組織可管理多個攤位，資料以 `organization_id` 與 `stall_id` 分層，並由 PostgreSQL RLS 強制隔離。
+StallOrder 是供夜市攤位、餐車、市集商戶、快閃店與小型餐飲業者使用的多租戶 QR 點餐 SaaS。每個部署環境以一套前端、一個獨立 Supabase 專案及一個 PostgreSQL 資料庫服務多個組織；每個組織可管理多個攤位，資料以 `organization_id` 與 `stall_id` 分層，並由 PostgreSQL RLS 強制隔離。
 
 預設語系為台灣繁體中文，時區為 `Asia/Taipei`，幣別為 `TWD`。
 
@@ -17,7 +17,7 @@ StallOrder 是供夜市攤位、餐車、市集商戶、快閃店與小型餐飲
 - Lite、Standard、Pro、Enterprise 方案資料、額外攤位核准、invoice line item 與 usage metering
 - 高熵、雜湊儲存、七日到期、一次性且比對 Google 驗證 Email 的團隊邀請
 - 靜態 QR、10 分鐘短效單次 session、Turnstile 伺服器驗證與多維防濫用限流
-- `WAITING_CONFIRMATION` 接單、未確認逾時、即時員工看板、防誤取消、六位取餐碼與人工現金結帳
+- `WAITING_CONFIRMATION` 接單、未確認逾時、即時員工看板、防誤取消、三位取餐碼與人工現金結帳
 - 32 張公開業務表啟用且強制 RLS；匿名客戶端不能直接寫入訂單
 
 ## 架構摘要
@@ -104,7 +104,7 @@ npm audit --audit-level=moderate
 
 ## 正式部署
 
-1. 建立單一 Supabase 專案並執行所有 migration。
+1. 分別建立 Staging 與 Production Supabase 專案；先在 Staging 驗證所有 migration，再以同一版本化歷史部署 Production，且 Production 不執行 demo seed。
 2. 設定 Google provider、Site URL 與 `/auth/callback` redirect allow list。
 3. 部署 `create-order-session`、`create-public-order`、`get-public-order`，維持 `verify_jwt=false`；函式自行執行 CORS、Turnstile、session 與 rate limit 驗證。
 4. 設定 Edge secrets：`ABUSE_HASH_SECRET`、`TOKEN_DERIVATION_SECRET`、`TURNSTILE_SECRET_KEY`、`TURNSTILE_EXPECTED_HOSTNAME`、`PUBLIC_APP_ORIGINS`、`TRUSTED_CLIENT_IP_HEADER`、`APP_ENV=production`。
@@ -112,8 +112,11 @@ npm audit --audit-level=moderate
 6. Next.js 設定資料庫、Supabase、應用 Origin、Turnstile、audit hash 與明確的 `TRUSTED_CLIENT_IP_HEADER`；正式環境維持 `ALLOW_DEMO_SEED=false`。
 7. 上線前填入核准的方案底價與超額訂單單價；目前種子保守維持為 0/未設定。
 8. 將 stdout 與資料庫安全事件送入集中式監控，完成備份還原與 QR/secret 輪替演練。
+9. 設定 `CRON_SECRET`、`RESEND_API_KEY` 與已驗證網域的 `REPORT_FROM_EMAIL`，確認報表排程測試信及 Cron 寄送紀錄。
 
 詳細步驟見 [多攤位維運手冊](docs/MULTI_STALL_OPERATIONS.md)。
+
+`qidaigo.com` 的完整環境隔離、Supabase、Vercel、Turnstile、DNS、smoke test、bootstrap 與 rollback 流程見 [正式部署總覽](docs/PRODUCTION_DEPLOYMENT_QIDAIGO.md)。
 
 ## 文件
 
@@ -129,3 +132,6 @@ npm audit --audit-level=moderate
 - [後續議題](docs/MULTI_STALL_GITHUB_ISSUES.md)
 - [安全基線](docs/SECURITY.md)
 - [監控基線](docs/MONITORING.md)
+- [P2 排程報表寄送](docs/P2_REPORT_DELIVERY.md)
+- [qidaigo.com 正式部署](docs/PRODUCTION_DEPLOYMENT_QIDAIGO.md)
+- [Go-Live Checklist](docs/GO_LIVE_CHECKLIST.md)

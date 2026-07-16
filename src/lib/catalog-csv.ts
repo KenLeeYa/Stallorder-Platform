@@ -66,6 +66,11 @@ const catalogCsvRowSchema = z.object({
 });
 
 export type CatalogCsvRow = z.infer<typeof catalogCsvRowSchema>;
+export type CatalogCsvRowError = {
+  line: number;
+  error: string;
+  values: Record<string, string>;
+};
 
 export function getCatalogCsvTranslations(row: CatalogCsvRow) {
   return catalogCsvTranslationColumns.map((columns) => ({
@@ -76,6 +81,15 @@ export function getCatalogCsvTranslations(row: CatalogCsvRow) {
 }
 
 export function parseCatalogCsv(text: string) {
+  const preview = parseCatalogCsvPreview(text);
+  if (!preview.ok) return preview;
+  if (preview.errors.length > 0) {
+    return { ok: false as const, error: preview.errors[0].error };
+  }
+  return { ok: true as const, rows: preview.rows.map((item) => item.row) };
+}
+
+export function parseCatalogCsvPreview(text: string) {
   const parsed = Papa.parse<Record<string, string>>(text.replace(/^\uFEFF/, ""), {
     header: true,
     skipEmptyLines: "greedy",
@@ -92,15 +106,28 @@ export function parseCatalogCsv(text: string) {
     return { ok: false as const, error: "CSV 欄位不完整，請先匯出範本後再修改。" };
   }
 
-  const rows: CatalogCsvRow[] = [];
+  const rows: Array<{ line: number; row: CatalogCsvRow; values: Record<string, string> }> = [];
+  const errors: CatalogCsvRowError[] = [];
   for (const [index, raw] of parsed.data.entries()) {
     const normalized = Object.fromEntries(catalogCsvHeaders.map((header) => [header, raw[header] ?? ""]));
     const row = catalogCsvRowSchema.safeParse(normalized);
-    if (!row.success) return { ok: false as const, error: `CSV 第 ${index + 2} 列資料不正確。` };
-    if (new Set(row.data.stallCodes).size !== row.data.stallCodes.length) {
-      return { ok: false as const, error: `CSV 第 ${index + 2} 列有重複攤位代碼。` };
+    if (!row.success) {
+      errors.push({ line: index + 2, error: `CSV 第 ${index + 2} 列資料不正確：${row.error.issues[0]?.message ?? "欄位格式錯誤"}`, values: normalized });
+      continue;
     }
-    rows.push(row.data);
+    if (new Set(row.data.stallCodes).size !== row.data.stallCodes.length) {
+      errors.push({ line: index + 2, error: `CSV 第 ${index + 2} 列有重複攤位代碼。`, values: normalized });
+      continue;
+    }
+    rows.push({ line: index + 2, row: row.data, values: normalized });
   }
-  return { ok: true as const, rows };
+  return { ok: true as const, rows, errors, totalRows: parsed.data.length };
+}
+
+export function buildCatalogCsvErrorReport(errors: CatalogCsvRowError[]) {
+  return Papa.unparse(errors.map((error) => ({
+    line: error.line,
+    error: error.error,
+    ...Object.fromEntries(catalogCsvHeaders.map((header) => [header, error.values[header] ?? ""])),
+  })), { columns: ["line", "error", ...catalogCsvHeaders] });
 }

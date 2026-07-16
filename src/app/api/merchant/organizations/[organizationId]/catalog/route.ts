@@ -77,7 +77,7 @@ export async function POST(request: Request, context: RouteContext) {
       select: { categoryId: true, name: true, sortOrder: true, isActive: true },
     });
     before = group ?? undefined;
-  } else if (command.operation === "UPDATE_PRODUCT" || command.operation === "DELETE_PRODUCT") {
+  } else if (command.operation === "UPDATE_PRODUCT" || command.operation === "DELETE_PRODUCT" || command.operation === "CLONE_PRODUCT") {
     const product = await prisma.product.findFirst({
       where: { id: command.productId, organizationId },
       select: {
@@ -243,6 +243,70 @@ export async function POST(request: Request, context: RouteContext) {
         return existing;
       }
 
+      if (command.operation === "CLONE_PRODUCT") {
+        const source = await transaction.product.findFirst({
+          where: { id: command.productId, organizationId },
+          include: {
+            translations: true,
+            noteGroupAssignments: true,
+            stallProducts: true,
+          },
+        });
+        if (!source) throw new CatalogNotFoundError();
+        const product = await transaction.product.create({
+          data: {
+            organizationId,
+            categoryId: source.categoryId,
+            groupId: source.groupId,
+            name: copyProductName(source.name),
+            description: source.description,
+            defaultPrice: source.defaultPrice,
+            imageUrl: source.imageUrl,
+            isActive: source.isActive,
+            sortOrder: Math.min(10_000, source.sortOrder + 1),
+          },
+          select: { id: true },
+        });
+        if (source.translations.length > 0) {
+          await transaction.productTranslation.createMany({
+            data: source.translations.map((translation) => ({
+              organizationId,
+              productId: product.id,
+              locale: translation.locale,
+              name: translation.name,
+              description: translation.description,
+            })),
+          });
+        }
+        if (source.noteGroupAssignments.length > 0) {
+          await transaction.productNoteGroupAssignment.createMany({
+            data: source.noteGroupAssignments.map((assignment) => ({
+              organizationId,
+              productId: product.id,
+              noteGroupId: assignment.noteGroupId,
+              sortOrder: assignment.sortOrder,
+              isActive: assignment.isActive,
+            })),
+          });
+        }
+        if (source.stallProducts.length > 0) {
+          await transaction.stallProduct.createMany({
+            data: source.stallProducts.map((assignment) => ({
+              organizationId,
+              stallId: assignment.stallId,
+              productId: product.id,
+              priceOverride: assignment.priceOverride,
+              isEnabled: assignment.isEnabled,
+              isSoldOut: assignment.isSoldOut,
+              sortOrder: Math.min(10_000, assignment.sortOrder + 1),
+              availableFrom: assignment.availableFrom,
+              availableUntil: assignment.availableUntil,
+            })),
+          });
+        }
+        return product;
+      }
+
       const product = await transaction.product.findFirst({
         where: { id: command.productId, organizationId },
         select: { id: true, sortOrder: true },
@@ -322,7 +386,13 @@ function catalogAuditAction(operation: string) {
     CREATE_PRODUCT: "PRODUCT_CREATED",
     UPDATE_PRODUCT: "PRODUCT_UPDATED",
     DELETE_PRODUCT: "PRODUCT_DELETED",
+    CLONE_PRODUCT: "PRODUCT_CLONED",
     SET_ASSIGNMENTS: "PRODUCT_STALL_ASSIGNMENTS_CHANGED",
   };
   return actions[operation] ?? "CATALOG_UPDATED";
+}
+
+function copyProductName(name: string) {
+  const suffix = "（副本）";
+  return `${name.slice(0, 80 - suffix.length)}${suffix}`;
 }

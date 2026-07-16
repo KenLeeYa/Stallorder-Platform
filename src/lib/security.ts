@@ -37,8 +37,14 @@ export function getClientIp(request: Request) {
     }
     return "unknown";
   }
-  if (headerName !== "cf-connecting-ip" && headerName !== "x-real-ip") {
-    throw new Error("TRUSTED_CLIENT_IP_HEADER must be cf-connecting-ip or x-real-ip.");
+  if (
+    headerName !== "cf-connecting-ip"
+    && headerName !== "x-real-ip"
+    && headerName !== "x-forwarded-for"
+  ) {
+    throw new Error(
+      "TRUSTED_CLIENT_IP_HEADER must be cf-connecting-ip, x-real-ip, or x-forwarded-for.",
+    );
   }
 
   const value = request.headers.get(headerName)?.trim();
@@ -58,6 +64,33 @@ export function hashClientIp(request: Request) {
 
 export function createRequestId() {
   return randomUUID();
+}
+
+export function isLocalQaLoginRateLimitDisabled(
+  environment: {
+    NODE_ENV?: string;
+    LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT?: string;
+    NEXT_PUBLIC_APP_URL?: string;
+    DATABASE_URL?: string;
+  } = process.env,
+) {
+  if (environment.LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT !== "true") return false;
+
+  function isLoopbackUrl(value: string | undefined) {
+    if (!value) return false;
+    try {
+      const hostname = new URL(value).hostname;
+      return hostname === "localhost"
+        || hostname === "127.0.0.1"
+        || hostname === "::1"
+        || hostname === "[::1]";
+    } catch {
+      return false;
+    }
+  }
+
+  return isLoopbackUrl(environment.NEXT_PUBLIC_APP_URL)
+    && isLoopbackUrl(environment.DATABASE_URL);
 }
 
 export function isTrustedOrigin(request: Request) {

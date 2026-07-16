@@ -26,6 +26,8 @@ test("商家可新增、修改、指派與刪除商品註記群組", async ({ pa
   const groupEditor = page.getByRole("dialog", { name: "新增註記群組" });
   await groupEditor.getByLabel("群組名稱").fill(groupName);
   await groupEditor.getByLabel("選取方式").selectOption("SINGLE");
+  await groupEditor.getByLabel("顧客必須選擇").check();
+  await expect(groupEditor.getByLabel("最少選取數")).toHaveValue("1");
   await groupEditor.getByLabel("冬瓜茶", { exact: true }).check();
   await groupEditor.getByText("多語名稱", { exact: true }).click();
   await groupEditor.getByLabel("英文", { exact: true }).fill("Sweetness");
@@ -34,6 +36,7 @@ test("商家可新增、修改、指派與刪除商品註記群組", async ({ pa
 
   const group = page.locator("details").filter({ has: page.getByText(groupName, { exact: true }) }).first();
   await expect(group).toContainText("冬瓜茶");
+  await expect(group).toContainText("最少 1 項");
   await group.getByRole("button", { name: "註記選項" }).click();
 
   const optionEditor = page.getByRole("dialog", { name: "新增註記選項" });

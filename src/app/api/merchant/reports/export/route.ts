@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
+import { cancellationReasonLabels } from "@/lib/cancellation-reasons";
 import { createCsv } from "@/lib/csv";
 import { validateCsrf } from "@/lib/csrf";
 import { dashboardQuerySchema } from "@/lib/dashboard-validation";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { getPaymentMethodReport } from "@/lib/report-data";
+import { getCancellationReasonReport, getPaymentMethodReport } from "@/lib/report-data";
 import { hashClientIp } from "@/lib/security";
 
 export async function POST(request: Request) {
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const [summaries, paymentMethods] = await Promise.all([
+  const [summaries, paymentMethods, cancellationReasons] = await Promise.all([
     prisma.dailyStallSummary.findMany({
       where: {
         organizationId: authorization.workspace.id,
@@ -62,6 +63,12 @@ export async function POST(request: Request) {
       include: { stall: { select: { name: true, code: true } } },
     }),
     getPaymentMethodReport(
+      authorization.workspace.id,
+      requestedIds,
+      parsed.data.dateFrom,
+      parsed.data.dateTo,
+    ),
+    getCancellationReasonReport(
       authorization.workspace.id,
       requestedIds,
       parsed.data.dateFrom,
@@ -137,6 +144,15 @@ export async function POST(request: Request) {
       payment.methodLabel,
       payment.paymentCount,
       payment.amount,
+    ]),
+    [],
+    ["取消原因明細"],
+    ["攤位代碼", "攤位", "取消原因", "取消筆數"],
+    ...cancellationReasons.map((cancellation) => [
+      stallCodes.get(cancellation.stallId) ?? "",
+      cancellation.stallName,
+      cancellationReasonLabels[cancellation.reason],
+      cancellation.count,
     ]),
   ]);
   const filename = `stallorder-report-${parsed.data.dateFrom}-${parsed.data.dateTo}.csv`;

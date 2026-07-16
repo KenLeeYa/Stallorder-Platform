@@ -4,6 +4,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
+import { initialFloorPosition } from "@/lib/dining-floor-layout";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp, createOpaqueToken } from "@/lib/security";
 import { getStallModuleState, stallModuleCommandSchema } from "@/lib/stall-modules";
@@ -43,14 +44,33 @@ export async function PATCH(request: Request, context: RouteContext) {
             printModuleEnabled: command.printModuleEnabled,
             paymentModuleEnabled: command.paymentModuleEnabled,
             discountModuleEnabled: command.discountModuleEnabled,
+            discountApprovalThresholdBps: command.discountApprovalThresholdBps,
           },
         });
         return stallId;
       }
 
+      if (command.operation === "UPDATE_LOCALES") {
+        await transaction.stallOrderingSettings.update({
+          where: { stallId, organizationId },
+          data: { enabledLocales: command.enabledLocales },
+        });
+        return stallId;
+      }
+
       if (command.operation === "CREATE_TABLE") {
+        const tableCount = await transaction.diningTable.count({ where: { stallId, organizationId } });
+        const floorPosition = initialFloorPosition(tableCount);
         const table = await transaction.diningTable.create({
-          data: { organizationId, stallId, code: command.code, label: command.label, isActive: command.isActive, sortOrder: command.sortOrder },
+          data: {
+            organizationId,
+            stallId,
+            code: command.code,
+            label: command.label,
+            isActive: command.isActive,
+            sortOrder: command.sortOrder,
+            ...floorPosition,
+          },
         });
         await transaction.qrCode.create({
           data: {
@@ -73,6 +93,21 @@ export async function PATCH(request: Request, context: RouteContext) {
           data: { code: command.code, label: command.label, isActive: command.isActive, sortOrder: command.sortOrder },
         });
         return existing.id;
+      }
+
+      if (command.operation === "UPDATE_TABLE_LAYOUT") {
+        const tableIds = command.tables.map((table) => table.tableId);
+        const ownedTableCount = await transaction.diningTable.count({
+          where: { id: { in: tableIds }, stallId, organizationId },
+        });
+        if (ownedTableCount !== tableIds.length) throw new ModuleNotFoundError();
+        for (const table of command.tables) {
+          await transaction.diningTable.update({
+            where: { id: table.tableId },
+            data: { layoutX: table.layoutX, layoutY: table.layoutY },
+          });
+        }
+        return stallId;
       }
 
       if (command.operation === "DELETE_TABLE") {

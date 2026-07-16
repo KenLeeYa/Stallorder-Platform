@@ -3,6 +3,7 @@ import { requirePagePermission } from "@/lib/authorization";
 import { MerchantProducts } from "@/components/merchant-products";
 import { hasPermission } from "@/lib/rbac";
 import { effectiveProductPrice } from "@/lib/shared-catalog";
+import { getWorkspaceAccess } from "@/lib/workspace";
 
 type PageProps = {
   params: Promise<{ stallSlug: string }>;
@@ -15,6 +16,8 @@ export default async function MerchantPage({ params }: PageProps) {
     "MANAGE_PRODUCTS",
     `/merchant/${stallSlug}`,
   );
+  const workspaces = await getWorkspaceAccess(principal.user.id, principal.user.platformRole);
+  const workspace = workspaces.find((candidate) => candidate.id === stall.organizationId);
   const [products, qrCode, orderingSettings] = await Promise.all([
     prisma.stallProduct.findMany({
       where: { stallId: stall.id },
@@ -61,8 +64,13 @@ export default async function MerchantPage({ params }: PageProps) {
         isEnabled: product.isEnabled,
         isSoldOut: product.isSoldOut,
         sortOrder: product.sortOrder,
+        availableFrom: product.availableFrom?.toISOString() ?? null,
+        availableUntil: product.availableUntil?.toISOString() ?? null,
         masterIsActive: product.product.isActive,
       }))}
+      sourceStalls={(workspace?.stalls ?? [])
+        .filter((candidate) => candidate.id !== stall.id && candidate.roles.some((candidateRole) => hasPermission(candidateRole, "MANAGE_PRODUCTS")))
+        .map((candidate) => ({ id: candidate.id, name: candidate.name, code: candidate.code }))}
       sharedCatalogUrl={roles.some((candidate) => hasPermission(candidate, "MANAGE_SHARED_PRODUCTS"))
         ? `/merchant/catalog?organizationId=${stall.organizationId}`
         : undefined}
@@ -78,6 +86,8 @@ export default async function MerchantPage({ params }: PageProps) {
         maxPendingOrdersPerDevice: 3,
         maxOrdersPerWindow: 5,
         orderWindowSeconds: 300,
+        estimatedWaitMinutes: 15,
+        businessDayCutoffHour: 0,
       }}
       account={{ displayName: principal.user.displayName, role }}
     />

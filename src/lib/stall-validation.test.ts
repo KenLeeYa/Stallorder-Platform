@@ -29,13 +29,36 @@ describe("攤位資料驗證", () => {
 
   it("停用攤位必須提供明確確認值", () => {
     const update = {
-      ...validCreate,
+      operation: "UPDATE_OPERATIONS" as const,
       businessStatus: "CLOSED",
       orderingEnabled: false,
       isActive: false,
     };
-    delete (update as Partial<typeof update>).slug;
     expect(updateStallSchema.safeParse(update).success).toBe(false);
     expect(updateStallSchema.safeParse({ ...update, confirmation: "DEACTIVATE" }).success).toBe(true);
+  });
+
+  it("基本資料與營運狀態只能更新各自欄位", () => {
+    const basicUpdate = {
+      operation: "UPDATE_BASIC" as const,
+      name: validCreate.name,
+      code: validCreate.code,
+      description: validCreate.description,
+      address: validCreate.address,
+      phone: validCreate.phone,
+      timezone: validCreate.timezone,
+      currency: validCreate.currency,
+    };
+    const operationsUpdate = {
+      operation: "UPDATE_OPERATIONS" as const,
+      businessStatus: "OPEN" as const,
+      orderingEnabled: true,
+      isActive: true,
+    };
+
+    expect(updateStallSchema.safeParse(basicUpdate).success).toBe(true);
+    expect(updateStallSchema.safeParse({ ...basicUpdate, orderingEnabled: false }).success).toBe(false);
+    expect(updateStallSchema.safeParse(operationsUpdate).success).toBe(true);
+    expect(updateStallSchema.safeParse({ ...operationsUpdate, name: "不可夾帶" }).success).toBe(false);
   });
 });

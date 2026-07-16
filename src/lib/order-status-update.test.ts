@@ -10,11 +10,26 @@ describe("訂單取消確認", () => {
     const parsed = orderStatusUpdateSchema.safeParse({
       status: "CANCELLED",
       confirmationOrderNo: "260713-001",
+      cancellationReason: "CUSTOMER_CANCELLED",
     });
 
     expect(parsed.success).toBe(true);
     expect(cancellationMatchesOrder("260713-001", "260713-001")).toBe(true);
     expect(cancellationMatchesOrder("260713-002", "260713-001")).toBe(false);
+  });
+
+  it("其他取消原因必須提供補充說明", () => {
+    expect(orderStatusUpdateSchema.safeParse({
+      status: "CANCELLED",
+      confirmationOrderNo: "260713-001",
+      cancellationReason: "OTHER",
+    }).success).toBe(false);
+    expect(orderStatusUpdateSchema.safeParse({
+      status: "CANCELLED",
+      confirmationOrderNo: "260713-001",
+      cancellationReason: "OTHER",
+      cancellationDetail: "顧客重複操作",
+    }).success).toBe(true);
   });
 
   it("一般狀態更新不可夾帶取消確認資料", () => {
@@ -30,6 +45,9 @@ describe("訂單取消確認", () => {
       paymentOptionId: "99999999-9999-4999-8999-999999999991",
       discountOptionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
       cashReceived: 500,
+      discountApprovalReason: "熟客補償",
+      managerEmail: "manager@example.com",
+      managerPassword: "approval-password",
     }).success).toBe(true);
     expect(orderStatusUpdateSchema.safeParse({
       status: "COMPLETED",

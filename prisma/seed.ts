@@ -59,6 +59,8 @@ async function main() {
       printModuleEnabled: true,
       paymentModuleEnabled: true,
       discountModuleEnabled: true,
+      discountApprovalThresholdBps: 8000,
+      enabledLocales: ["zh-TW", "en", "ja", "ko", "vi", "th"],
     },
     create: {
       stallId: stall.id,
@@ -67,17 +69,33 @@ async function main() {
       printModuleEnabled: true,
       paymentModuleEnabled: true,
       discountModuleEnabled: true,
+      discountApprovalThresholdBps: 8000,
+      enabledLocales: ["zh-TW", "en", "ja", "ko", "vi", "th"],
     },
+  });
+  for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek += 1) {
+    await prisma.stallBusinessHour.upsert({
+      where: { stallId_dayOfWeek: { stallId: stall.id, dayOfWeek } },
+      update: { organizationId: organization.id, opensAt: "17:00", closesAt: "23:00", isClosed: dayOfWeek === 1 },
+      create: { organizationId: organization.id, stallId: stall.id, dayOfWeek, opensAt: "17:00", closesAt: "23:00", isClosed: dayOfWeek === 1 },
+    });
+  }
+  await prisma.printer.upsert({
+    where: { stallId_name: { stallId: stall.id, name: "櫃台印表機" } },
+    update: { organizationId: organization.id, isEnabled: true },
+    create: { organizationId: organization.id, stallId: stall.id, name: "櫃台印表機" },
   });
   const diningTable = await prisma.diningTable.upsert({
     where: { stallId_code: { stallId: stall.id, code: "A1" } },
-    update: { organizationId: organization.id, label: "A1 桌", isActive: true, sortOrder: 1 },
+    update: { organizationId: organization.id, label: "A1 桌", isActive: true, sortOrder: 1, layoutX: 60, layoutY: 80 },
     create: {
       organizationId: organization.id,
       stallId: stall.id,
       code: "A1",
       label: "A1 桌",
       sortOrder: 1,
+      layoutX: 60,
+      layoutY: 80,
     },
   });
   await prisma.qrCode.upsert({

@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
-import { calculateCheckout, paymentMethodForKind } from "@/lib/checkout";
 import { validateCsrf } from "@/lib/csrf";
+import { DiscountApprovalError } from "@/lib/discount-approval";
 import { readJson } from "@/lib/http";
 import { cancellationMatchesOrder, orderStatusUpdateSchema } from "@/lib/order-status-update";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { canTransitionOrder, hasPermission } from "@/lib/rbac";
 import { hashClientIp } from "@/lib/security";
+import { resolveStaffCheckout, StaffCheckoutError } from "@/lib/staff-checkout";
 
 type RouteContext = { params: Promise<{ stallSlug: string; orderId: string }> };
 class TransitionConflict extends Error {}
-class CheckoutValidationError extends Error {}
 
 export async function PATCH(request: Request, context: RouteContext) {
   const { stallSlug, orderId } = await context.params;
@@ -58,6 +58,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const nextStatus = parsed.data.status;
+  const cancellation = parsed.data.status === "CANCELLED" ? parsed.data : null;
   if (
     nextStatus === "CANCELLED"
     && !cancellationMatchesOrder(parsed.data.confirmationOrderNo, order.orderNo)
@@ -102,18 +103,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  let checkout: null | {
-    paymentOptionId: string | null;
-    method: "CASH" | "MANUAL_TRANSFER" | "OTHER";
-    methodLabel: string;
-    discountOptionId: string | null;
-    discountLabel: string | null;
-    discountRateBps: number | null;
-    discountAmount: number;
-    total: number;
-    cashReceived: number | null;
-    changeAmount: number | null;
-  } = null;
+  let checkout: Awaited<ReturnType<typeof resolveStaffCheckout>> | null = null;
 
   if (nextStatus === "COMPLETED") {
     const incompleteItemCount = await prisma.orderItem.count({
@@ -132,97 +122,33 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const settings = await prisma.stallOrderingSettings.findUnique({
-      where: { stallId: order.stallId },
-      select: { paymentModuleEnabled: true, discountModuleEnabled: true },
-    });
-    const paymentModuleEnabled = settings?.paymentModuleEnabled ?? false;
-    const discountModuleEnabled = settings?.discountModuleEnabled ?? false;
-
-    const requestedPaymentOptionId = parsed.data.paymentOptionId ?? null;
-    if (paymentModuleEnabled && !requestedPaymentOptionId) {
-      return NextResponse.json(
-        { error: "請選擇付款方式。" },
-        { status: 400, headers: { "x-request-id": authorization.requestId } },
-      );
-    }
-    const paymentOption = requestedPaymentOptionId
-      ? await prisma.paymentOption.findFirst({
-          where: {
-            id: requestedPaymentOptionId,
-            stallId: order.stallId,
-            organizationId: order.organizationId,
-            isEnabled: true,
-          },
-          select: { id: true, name: true, kind: true },
-        })
-      : await prisma.paymentOption.findFirst({
-          where: {
-            stallId: order.stallId,
-            organizationId: order.organizationId,
-            kind: "CASH",
-            isEnabled: true,
-          },
-          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          select: { id: true, name: true, kind: true },
-        });
-    if (requestedPaymentOptionId && !paymentOption) {
-      return NextResponse.json(
-        { error: "付款方式已停用或不存在，請重新選擇。" },
-        { status: 409, headers: { "x-request-id": authorization.requestId } },
-      );
-    }
-
-    const requestedDiscountOptionId = parsed.data.discountOptionId ?? null;
-    if (!discountModuleEnabled && requestedDiscountOptionId) {
-      return NextResponse.json(
-        { error: "此攤位尚未開啟折扣模組。" },
-        { status: 409, headers: { "x-request-id": authorization.requestId } },
-      );
-    }
-    const discount = requestedDiscountOptionId
-      ? await prisma.discountOption.findFirst({
-          where: {
-            id: requestedDiscountOptionId,
-            stallId: order.stallId,
-            organizationId: order.organizationId,
-            isEnabled: true,
-          },
-          select: { id: true, name: true, rateBps: true },
-        })
-      : null;
-    if (requestedDiscountOptionId && !discount) {
-      return NextResponse.json(
-        { error: "折扣已停用或不存在，請重新選擇。" },
-        { status: 409, headers: { "x-request-id": authorization.requestId } },
-      );
-    }
-
-    const paymentKind = paymentOption?.kind ?? "CASH";
     try {
-      const amounts = calculateCheckout(
-        order.subtotal,
-        discount?.rateBps ?? 10_000,
-        paymentKind === "CASH" ? parsed.data.cashReceived : undefined,
-      );
-      checkout = {
-        paymentOptionId: paymentOption?.id ?? null,
-        method: paymentMethodForKind(paymentKind),
-        methodLabel: paymentOption?.name ?? "現金",
-        discountOptionId: discount?.id ?? null,
-        discountLabel: discount?.name ?? null,
-        discountRateBps: discount?.rateBps ?? null,
-        discountAmount: amounts.discountAmount,
-        total: amounts.total,
-        cashReceived: paymentKind === "CASH" ? amounts.cashReceived : null,
-        changeAmount: paymentKind === "CASH" ? amounts.changeAmount : null,
-      };
+      checkout = await resolveStaffCheckout({
+        organizationId: order.organizationId,
+        stallId: order.stallId,
+        subtotals: [order.subtotal],
+        actorProfileId: authorization.principal.user.id,
+        actorRoles: authorization.roles,
+        request: parsed.data,
+      });
     } catch (error) {
-      if (!(error instanceof Error) || error.message !== "INSUFFICIENT_CASH") throw error;
-      return NextResponse.json(
-        { error: "實收金額不可小於應收金額。" },
-        { status: 400, headers: { "x-request-id": authorization.requestId } },
-      );
+      if (error instanceof DiscountApprovalError) {
+        await recordAuditEvent({
+          organizationId: order.organizationId,
+          stallId: order.stallId,
+          actorProfileId: authorization.principal.user.id,
+          action: "DISCOUNT_APPROVAL_FAILED",
+          entityType: "ORDER",
+          entityId: order.id,
+          outcome: "DENIED",
+          requestId: authorization.requestId,
+          ipHash: hashClientIp(request),
+          metadata: { reason: error.code },
+        });
+      }
+      const response = checkoutErrorResponse(error, authorization.requestId);
+      if (response) return response;
+      throw error;
     }
   }
 
@@ -247,14 +173,21 @@ export async function PATCH(request: Request, context: RouteContext) {
           discountOptionId: checkout?.discountOptionId,
           discountLabel: checkout?.discountLabel,
           discountRateBps: checkout?.discountRateBps,
+          discountAppliedById: checkout?.discountAppliedById,
+          discountApprovedById: checkout?.discountApprovedById,
+          discountApprovalReason: checkout?.discountApprovalReason,
           discountAmount: checkout?.discountAmount,
           total: checkout?.total,
+          cancellationReason: cancellation?.cancellationReason ?? order.cancellationReason,
+          cancellationDetail: cancellation ? cancellation.cancellationDetail ?? null : order.cancellationDetail,
+          cancelledAt: nextStatus === "CANCELLED" ? now : order.cancelledAt,
+          cancelledById: nextStatus === "CANCELLED" ? authorization.principal.user.id : order.cancelledById,
         },
       });
       if (changed.count !== 1) throw new TransitionConflict();
 
       if (nextStatus === "COMPLETED") {
-        if (!checkout) throw new CheckoutValidationError();
+        if (!checkout) throw new Error("CHECKOUT_NOT_RESOLVED");
         await transaction.payment.create({
           data: {
             organizationId: order.organizationId,
@@ -304,6 +237,8 @@ export async function PATCH(request: Request, context: RouteContext) {
         newStatus: nextStatus,
         paymentMethod: checkout?.methodLabel ?? null,
         discount: checkout?.discountLabel ?? null,
+        discountApprovedBy: checkout?.discountApprovedById ?? null,
+        cancellationReason: cancellation?.cancellationReason ?? null,
         total: checkout?.total ?? null,
       },
     });
@@ -318,4 +253,32 @@ export async function PATCH(request: Request, context: RouteContext) {
       { status: 409, headers: { "x-request-id": authorization.requestId } },
     );
   }
+}
+
+function checkoutErrorResponse(error: unknown, requestId: string) {
+  const headers = { "x-request-id": requestId };
+  if (error instanceof StaffCheckoutError) {
+    const messages: Record<StaffCheckoutError["code"], string> = {
+      PAYMENT_REQUIRED: "請選擇付款方式。",
+      PAYMENT_INVALID: "付款方式已停用或不存在，請重新選擇。",
+      DISCOUNT_DISABLED: "此攤位尚未開啟折扣模組。",
+      DISCOUNT_INVALID: "折扣已停用或不存在，請重新選擇。",
+      INSUFFICIENT_CASH: "實收金額不可小於應收金額。",
+    };
+    const status = error.code === "PAYMENT_INVALID" || error.code === "DISCOUNT_DISABLED" || error.code === "DISCOUNT_INVALID" ? 409 : 400;
+    return NextResponse.json({ error: messages[error.code] }, { status, headers });
+  }
+  if (error instanceof DiscountApprovalError) {
+    const messages: Record<DiscountApprovalError["code"], string> = {
+      REASON_REQUIRED: "超過折扣門檻時必須填寫核准原因。",
+      CREDENTIALS_REQUIRED: "此折扣需要經理帳號與密碼核准。",
+      INVALID_MANAGER: "經理驗證失敗或帳號沒有折扣核准權限。",
+      RATE_LIMITED: "經理驗證嘗試過多，請稍後再試。",
+    };
+    return NextResponse.json(
+      { error: messages[error.code], code: error.code },
+      { status: error.code === "RATE_LIMITED" ? 429 : error.code === "INVALID_MANAGER" ? 403 : 400, headers },
+    );
+  }
+  return null;
 }

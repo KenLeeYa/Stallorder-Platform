@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
-import { getCatalogCsvTranslations, parseCatalogCsv } from "@/lib/catalog-csv";
+import { getCatalogCsvTranslations, parseCatalogCsvPreview, type CatalogCsvRowError } from "@/lib/catalog-csv";
 import { getOrganizationCatalog } from "@/lib/catalog-data";
 import { validateCsrf } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
@@ -20,22 +20,69 @@ export async function POST(request: Request, context: RouteContext) {
   }
   const form = await request.formData().catch(() => null);
   const file = form?.get("catalog");
+  const mode = form?.get("mode");
+  if (mode !== "PREVIEW" && mode !== "APPLY") {
+    return NextResponse.json({ error: "請指定匯入預覽或套用模式。" }, { status: 400 });
+  }
   if (!(file instanceof File) || file.size === 0 || file.size > maxCsvSize || !file.name.toLowerCase().endsWith(".csv")) {
     return NextResponse.json({ error: "請選擇 2MB 以下的 CSV 檔案。" }, { status: 400 });
   }
-  const parsed = parseCatalogCsv(await file.text());
+  const parsed = parseCatalogCsvPreview(await file.text());
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
   const authorizedStalls = authorization.workspace.stalls;
   const stallsByCode = new Map(authorizedStalls.map((stall) => [stall.code, stall]));
-  const unknownCode = parsed.rows.flatMap((row) => row.stallCodes).find((code) => !stallsByCode.has(code));
-  if (unknownCode) return NextResponse.json({ error: `找不到或無權管理攤位代碼 ${unknownCode}。` }, { status: 403 });
+  const requestedProductIds = [...new Set(parsed.rows.map((item) => item.row.id).filter(Boolean))];
+  const existingProducts = requestedProductIds.length > 0 ? await prisma.product.findMany({
+    where: { organizationId, id: { in: requestedProductIds } },
+    select: { id: true },
+  }) : [];
+  const existingProductIds = new Set(existingProducts.map((product) => product.id));
+  const seenProductIds = new Set<string>();
+  const errors: CatalogCsvRowError[] = [...parsed.errors];
+  const validRows = parsed.rows.flatMap((item) => {
+    const unknownCode = item.row.stallCodes.find((code) => !stallsByCode.has(code));
+    const duplicateId = item.row.id && seenProductIds.has(item.row.id);
+    if (item.row.id) seenProductIds.add(item.row.id);
+    const missingId = item.row.id && !existingProductIds.has(item.row.id);
+    if (!unknownCode && !duplicateId && !missingId) return [item.row];
+    errors.push({
+      line: item.line,
+      error: unknownCode
+        ? `CSV 第 ${item.line} 列的攤位代碼 ${unknownCode} 不存在或無權管理。`
+        : duplicateId ? `CSV 第 ${item.line} 列重複使用商品 ID ${item.row.id}。`
+          : `CSV 第 ${item.line} 列找不到商品 ${item.row.id}。`,
+      values: item.values,
+    });
+    return [];
+  });
+
+  if (mode === "PREVIEW") {
+    return NextResponse.json({
+      totalCount: parsed.totalRows,
+      validCount: validRows.length,
+      invalidCount: errors.length,
+      previewRows: validRows.slice(0, 20).map((row) => ({
+        id: row.id || null,
+        category: row.category,
+        group: row.group || null,
+        name: row.name,
+        price: row.price,
+        stallCodes: row.stallCodes,
+      })),
+      errors,
+    }, { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } });
+  }
+
+  if (validRows.length === 0) {
+    return NextResponse.json({ error: "沒有可套用的有效商品列。", errors }, { status: 400 });
+  }
 
   try {
     await prisma.$transaction(async (transaction) => {
       const categoryCache = new Map<string, string>();
       const groupCache = new Map<string, string>();
-      for (const row of parsed.rows) {
+      for (const row of validRows) {
         let categoryId = categoryCache.get(row.category);
         if (!categoryId) {
           const existing = await transaction.productCategory.findFirst({ where: { organizationId, name: row.category } });
@@ -108,10 +155,12 @@ export async function POST(request: Request, context: RouteContext) {
       outcome: "SUCCESS",
       requestId: authorization.requestId,
       ipHash: hashClientIp(request),
-      metadata: { rowCount: parsed.rows.length },
+      metadata: { rowCount: validRows.length, skippedCount: errors.length },
     });
     return NextResponse.json({
-      importedCount: parsed.rows.length,
+      importedCount: validRows.length,
+      skippedCount: errors.length,
+      errors,
       catalog: await getOrganizationCatalog(organizationId, authorizedStalls.map((stall) => stall.id)),
     }, { headers: { "x-request-id": authorization.requestId } });
   } catch (error) {

@@ -136,12 +136,71 @@ enum StallBusinessStatus {
   @@map("stall_business_status")
 }
 
+enum DiningTableServiceState {
+  EMPTY
+  OCCUPIED
+  NEEDS_CLEANING
+
+  @@map("dining_table_service_state")
+}
+
+enum CancellationReason {
+  SOLD_OUT
+  CUSTOMER_CANCELLED
+  WAIT_TOO_LONG
+  DUPLICATE_ORDER
+  OTHER
+
+  @@map("cancellation_reason")
+}
+
+enum PrintJobStatus {
+  PENDING
+  PRINTING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+
+  @@map("print_job_status")
+}
+
+enum CashShiftStatus {
+  OPEN
+  CLOSED
+
+  @@map("cash_shift_status")
+}
+
+enum CashMovementType {
+  CASH_IN
+  CASH_OUT
+
+  @@map("cash_movement_type")
+}
+
 enum PublicAttemptOutcome {
   ALLOWED
   DENIED
   ERROR
 
   @@map("public_attempt_outcome")
+}
+
+enum ReportScheduleType {
+  DAILY_SALES
+  WEEKLY_SALES
+  PAYMENT_VARIANCE
+
+  @@map("report_schedule_type")
+}
+
+enum ReportDeliveryStatus {
+  PROCESSING
+  SENT
+  SIMULATED
+  FAILURE
+
+  @@map("report_delivery_status")
 }
 
 model Organization {
@@ -193,6 +252,15 @@ model Organization {
   publicOrderAttempts           PublicOrderAttempt[]
   publicRateLimitBuckets        PublicRateLimitBucket[]
   orderCounters                 StallOrderCounter[]
+  orderItemBatchActions         OrderItemBatchAction[]
+  businessHours                 StallBusinessHour[]
+  printers                      Printer[]
+  printJobs                     PrintJob[]
+  cashShifts                    CashShift[]
+  cashMovements                 CashMovement[]
+  checkoutGroups                CheckoutGroup[]
+  reportSchedules               ReportSchedule[]
+  reportDeliveries              ReportDelivery[]
 
   @@map("organizations")
 }
@@ -240,6 +308,13 @@ model Stall {
   operationalAlerts      OperationalAlert[]
   usageEvents            UsageEvent[]
   invitations            OrganizationInvitation[]
+  orderItemBatchActions  OrderItemBatchAction[]
+  businessHours          StallBusinessHour[]
+  printers               Printer[]
+  printJobs              PrintJob[]
+  cashShifts             CashShift[]
+  cashMovements          CashMovement[]
+  checkoutGroups         CheckoutGroup[]
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -265,6 +340,17 @@ model Profile {
   recordedPayments         Payment[]
   approvedAdditionalStalls AdditionalStallApproval[] @relation("AdditionalStallApprover")
   sentInvitations          OrganizationInvitation[]  @relation("InvitationSender")
+  orderItemBatchActions    OrderItemBatchAction[]
+  requestedPrintJobs       PrintJob[]                @relation("PrintJobRequestedBy")
+  openedCashShifts         CashShift[]               @relation("CashShiftOpenedBy")
+  closedCashShifts         CashShift[]               @relation("CashShiftClosedBy")
+  cashMovements            CashMovement[]
+  checkoutGroups           CheckoutGroup[]
+  discountAppliedOrders    Order[]                   @relation("DiscountAppliedBy")
+  discountApprovedOrders   Order[]                   @relation("DiscountApprovedBy")
+  cancelledOrders          Order[]                   @relation("OrderCancelledBy")
+  createdReportSchedules   ReportSchedule[]          @relation("ReportScheduleCreatedBy")
+  updatedReportSchedules   ReportSchedule[]          @relation("ReportScheduleUpdatedBy")
 
   @@map("profiles")
 }
@@ -346,6 +432,63 @@ model AuditLog {
   @@index([actorProfileId, createdAt])
   @@index([action, createdAt])
   @@map("audit_logs")
+}
+
+model ReportSchedule {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  name           String
+  reportType     ReportScheduleType @map("report_type")
+  recipients     String[]
+  stallIds       String[]           @map("stall_ids") @db.Uuid
+  timezone       String             @default("Asia/Taipei")
+  sendHour       Int                @default(8) @map("send_hour") @db.SmallInt
+  sendMinute     Int                @default(0) @map("send_minute") @db.SmallInt
+  dayOfWeek      Int?               @map("day_of_week") @db.SmallInt
+  isEnabled      Boolean            @default(true) @map("is_enabled")
+  nextRunAt      DateTime           @map("next_run_at")
+  lastRunAt      DateTime?          @map("last_run_at")
+  archivedAt     DateTime?          @map("archived_at")
+  createdById    String             @map("created_by") @db.Uuid
+  updatedById    String             @map("updated_by") @db.Uuid
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      Profile            @relation("ReportScheduleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      Profile            @relation("ReportScheduleUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  deliveries     ReportDelivery[]
+
+  @@index([organizationId, isEnabled, archivedAt])
+  @@index([isEnabled, archivedAt, nextRunAt])
+  @@map("report_schedules")
+}
+
+model ReportDelivery {
+  id                String               @id @default(uuid()) @db.Uuid
+  organizationId    String               @map("organization_id") @db.Uuid
+  reportScheduleId  String               @map("report_schedule_id") @db.Uuid
+  reportType        ReportScheduleType   @map("report_type")
+  status            ReportDeliveryStatus @default(PROCESSING)
+  scheduledFor      DateTime             @map("scheduled_for")
+  periodStart       DateTime             @map("period_start") @db.Date
+  periodEnd         DateTime             @map("period_end") @db.Date
+  recipients        String[]
+  subject           String
+  payload           Json?
+  attemptCount      Int                  @default(1) @map("attempt_count")
+  providerMessageId String?              @map("provider_message_id")
+  errorCode         String?              @map("error_code")
+  startedAt         DateTime             @default(now()) @map("started_at")
+  sentAt            DateTime?            @map("sent_at")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reportSchedule    ReportSchedule       @relation(fields: [reportScheduleId], references: [id], onDelete: Restrict)
+
+  @@unique([reportScheduleId, scheduledFor])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([status, startedAt])
+  @@map("report_deliveries")
 }
 
 model Plan {
@@ -677,6 +820,8 @@ model StallProduct {
   priceOverride  Int?         @map("price_override")
   isEnabled      Boolean      @default(true) @map("is_enabled")
   isSoldOut      Boolean      @default(false) @map("is_sold_out")
+  availableFrom  DateTime?    @map("available_from")
+  availableUntil DateTime?    @map("available_until")
   sortOrder      Int          @default(0) @map("sort_order")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
@@ -735,6 +880,10 @@ model StallOrderingSettings {
   printModuleEnabled             Boolean      @default(false) @map("print_module_enabled")
   paymentModuleEnabled           Boolean      @default(true) @map("payment_module_enabled")
   discountModuleEnabled          Boolean      @default(false) @map("discount_module_enabled")
+  discountApprovalThresholdBps   Int          @default(8000) @map("discount_approval_threshold_bps")
+  estimatedWaitMinutes           Int          @default(15) @map("estimated_wait_minutes")
+  businessDayCutoffHour          Int          @default(0) @map("business_day_cutoff_hour") @db.SmallInt
+  enabledLocales                 String[]     @default(["zh-TW", "en", "ja", "ko", "vi", "th"]) @map("enabled_locales")
   createdAt                      DateTime     @default(now()) @map("created_at")
   updatedAt                      DateTime     @updatedAt @map("updated_at")
   organization                   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -744,20 +893,44 @@ model StallOrderingSettings {
   @@map("stall_ordering_settings")
 }
 
-model DiningTable {
+model StallBusinessHour {
   id             String       @id @default(uuid()) @db.Uuid
   organizationId String       @map("organization_id") @db.Uuid
   stallId        String       @map("stall_id") @db.Uuid
-  code           String
-  label          String
-  isActive       Boolean      @default(true) @map("is_active")
-  sortOrder      Int          @default(0) @map("sort_order")
+  dayOfWeek      Int          @map("day_of_week") @db.SmallInt
+  opensAt        String       @default("17:00") @map("opens_at")
+  closesAt       String       @default("23:00") @map("closes_at")
+  isClosed       Boolean      @default(false) @map("is_closed")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@unique([stallId, dayOfWeek])
+  @@index([organizationId, stallId])
+  @@map("stall_business_hours")
+}
+
+model DiningTable {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @map("organization_id") @db.Uuid
+  stallId        String                  @map("stall_id") @db.Uuid
+  code           String
+  label          String
+  isActive       Boolean                 @default(true) @map("is_active")
+  sortOrder      Int                     @default(0) @map("sort_order")
+  layoutX        Int                     @default(60) @map("layout_x") @db.SmallInt
+  layoutY        Int                     @default(80) @map("layout_y") @db.SmallInt
+  serviceState   DiningTableServiceState @default(EMPTY) @map("service_state")
+  seatedAt       DateTime?               @map("seated_at")
+  cleanedAt      DateTime?               @map("cleaned_at")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
   qrCodes        QrCode[]
   orders         Order[]
+  checkoutGroups CheckoutGroup[]
 
   @@unique([stallId, code])
   @@index([organizationId, stallId, isActive])
@@ -778,6 +951,7 @@ model PaymentOption {
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall          Stall             @relation(fields: [stallId], references: [id], onDelete: Cascade)
   payments       Payment[]
+  checkoutGroups CheckoutGroup[]
 
   @@unique([stallId, code])
   @@index([organizationId, stallId, isEnabled])
@@ -785,18 +959,19 @@ model PaymentOption {
 }
 
 model DiscountOption {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  stallId        String       @map("stall_id") @db.Uuid
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  stallId        String          @map("stall_id") @db.Uuid
   name           String
-  rateBps        Int          @map("rate_bps")
-  isEnabled      Boolean      @default(true) @map("is_enabled")
-  sortOrder      Int          @default(0) @map("sort_order")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  rateBps        Int             @map("rate_bps")
+  isEnabled      Boolean         @default(true) @map("is_enabled")
+  sortOrder      Int             @default(0) @map("sort_order")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall           @relation(fields: [stallId], references: [id], onDelete: Cascade)
   orders         Order[]
+  checkoutGroups CheckoutGroup[]
 
   @@index([organizationId, stallId, isEnabled])
   @@map("discount_options")
@@ -828,45 +1003,58 @@ model OrderSession {
 }
 
 model Order {
-  id                    String          @id @default(uuid()) @db.Uuid
-  organizationId        String          @map("organization_id") @db.Uuid
-  stallId               String          @map("stall_id") @db.Uuid
-  orderNo               String          @map("order_no")
-  trackingTokenHash     String          @unique @map("tracking_token_hash")
-  idempotencyKey        String          @map("idempotency_key") @db.Uuid
-  source                String          @default("QR_MENU")
-  customerName          String          @map("customer_name")
-  customerPhone         String?         @map("customer_phone")
-  tableLabel            String?         @map("table_label")
-  diningTableId         String?         @map("dining_table_id") @db.Uuid
-  fulfillmentType       FulfillmentType @default(TAKEOUT) @map("fulfillment_type")
-  note                  String?
-  status                OrderStatus     @default(WAITING_CONFIRMATION)
-  paymentStatus         PaymentStatus   @default(UNPAID) @map("payment_status")
-  subtotal              Int
-  discountAmount        Int             @default(0) @map("discount_amount")
-  discountOptionId      String?         @map("discount_option_id") @db.Uuid
-  discountLabel         String?         @map("discount_label")
-  discountRateBps       Int?            @map("discount_rate_bps")
-  total                 Int
-  deviceHash            String          @map("device_hash")
-  pickupCodeHash        String?         @map("pickup_code_hash")
-  pickupVerifiedAt      DateTime?       @map("pickup_verified_at")
-  confirmationExpiresAt DateTime        @map("confirmation_expires_at")
-  confirmedAt           DateTime?       @map("confirmed_at")
-  expiredAt             DateTime?       @map("expired_at")
-  completedAt           DateTime?       @map("completed_at")
-  createdAt             DateTime        @default(now()) @map("created_at")
-  updatedAt             DateTime        @updatedAt @map("updated_at")
-  paidAt                DateTime?       @map("paid_at")
-  organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  stall                 Stall           @relation(fields: [stallId], references: [id], onDelete: Cascade)
-  diningTable           DiningTable?    @relation(fields: [diningTableId], references: [id], onDelete: SetNull)
-  discountOption        DiscountOption? @relation(fields: [discountOptionId], references: [id], onDelete: SetNull)
-  items                 OrderItem[]
-  events                OrderEvent[]
-  orderSession          OrderSession?
-  payment               Payment?
+  id                       String              @id @default(uuid()) @db.Uuid
+  organizationId           String              @map("organization_id") @db.Uuid
+  stallId                  String              @map("stall_id") @db.Uuid
+  orderNo                  String              @map("order_no")
+  trackingTokenHash        String              @unique @map("tracking_token_hash")
+  idempotencyKey           String              @map("idempotency_key") @db.Uuid
+  source                   String              @default("QR_MENU")
+  customerName             String              @map("customer_name")
+  customerPhone            String?             @map("customer_phone")
+  tableLabel               String?             @map("table_label")
+  diningTableId            String?             @map("dining_table_id") @db.Uuid
+  fulfillmentType          FulfillmentType     @default(TAKEOUT) @map("fulfillment_type")
+  note                     String?
+  status                   OrderStatus         @default(WAITING_CONFIRMATION)
+  paymentStatus            PaymentStatus       @default(UNPAID) @map("payment_status")
+  subtotal                 Int
+  discountAmount           Int                 @default(0) @map("discount_amount")
+  discountOptionId         String?             @map("discount_option_id") @db.Uuid
+  discountLabel            String?             @map("discount_label")
+  discountRateBps          Int?                @map("discount_rate_bps")
+  discountAppliedById      String?             @map("discount_applied_by") @db.Uuid
+  discountApprovedById     String?             @map("discount_approved_by") @db.Uuid
+  discountApprovalReason   String?             @map("discount_approval_reason")
+  total                    Int
+  deviceHash               String              @map("device_hash")
+  pickupCodeHash           String?             @map("pickup_code_hash")
+  pickupCodeLength         Int                 @default(3) @map("pickup_code_length") @db.SmallInt
+  pickupVerifiedAt         DateTime?           @map("pickup_verified_at")
+  pickupVerificationMethod String?             @map("pickup_verification_method")
+  confirmationExpiresAt    DateTime            @map("confirmation_expires_at")
+  confirmedAt              DateTime?           @map("confirmed_at")
+  expiredAt                DateTime?           @map("expired_at")
+  completedAt              DateTime?           @map("completed_at")
+  cancellationReason       CancellationReason? @map("cancellation_reason")
+  cancellationDetail       String?             @map("cancellation_detail")
+  cancelledAt              DateTime?           @map("cancelled_at")
+  cancelledById            String?             @map("cancelled_by") @db.Uuid
+  createdAt                DateTime            @default(now()) @map("created_at")
+  updatedAt                DateTime            @updatedAt @map("updated_at")
+  paidAt                   DateTime?           @map("paid_at")
+  organization             Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                    Stall               @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  diningTable              DiningTable?        @relation(fields: [diningTableId], references: [id], onDelete: SetNull)
+  discountOption           DiscountOption?     @relation(fields: [discountOptionId], references: [id], onDelete: SetNull)
+  discountAppliedBy        Profile?            @relation("DiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
+  discountApprovedBy       Profile?            @relation("DiscountApprovedBy", fields: [discountApprovedById], references: [id], onDelete: SetNull)
+  cancelledBy              Profile?            @relation("OrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  items                    OrderItem[]
+  events                   OrderEvent[]
+  orderSession             OrderSession?
+  payment                  Payment?
+  printJobs                PrintJob[]
 
   @@unique([stallId, orderNo])
   @@unique([stallId, idempotencyKey])
@@ -874,6 +1062,7 @@ model Order {
   @@index([stallId, status])
   @@index([stallId, createdAt])
   @@index([confirmationExpiresAt, status])
+  @@index([stallId, cancellationReason, cancelledAt])
   @@map("orders")
 }
 
@@ -882,6 +1071,7 @@ model Payment {
   organizationId  String         @map("organization_id") @db.Uuid
   stallId         String         @map("stall_id") @db.Uuid
   orderId         String         @unique @map("order_id") @db.Uuid
+  checkoutGroupId String?        @map("checkout_group_id") @db.Uuid
   paymentOptionId String?        @map("payment_option_id") @db.Uuid
   amount          Int
   method          PaymentMethod  @default(CASH)
@@ -897,13 +1087,144 @@ model Payment {
   organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall           Stall          @relation(fields: [stallId], references: [id], onDelete: Cascade)
   order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  checkoutGroup   CheckoutGroup? @relation(fields: [checkoutGroupId], references: [id], onDelete: SetNull)
   paymentOption   PaymentOption? @relation(fields: [paymentOptionId], references: [id], onDelete: SetNull)
   recordedBy      Profile?       @relation(fields: [recordedById], references: [id], onDelete: SetNull)
 
   @@index([organizationId, stallId, paidAt])
   @@index([status, method, paidAt])
   @@index([recordedById, paidAt])
+  @@index([checkoutGroupId])
   @@map("payments")
+}
+
+model CheckoutGroup {
+  id               String          @id @default(uuid()) @db.Uuid
+  organizationId   String          @map("organization_id") @db.Uuid
+  stallId          String          @map("stall_id") @db.Uuid
+  diningTableId    String          @map("dining_table_id") @db.Uuid
+  paymentOptionId  String?         @map("payment_option_id") @db.Uuid
+  discountOptionId String?         @map("discount_option_id") @db.Uuid
+  methodLabel      String          @map("method_label")
+  discountLabel    String?         @map("discount_label")
+  discountRateBps  Int?            @map("discount_rate_bps")
+  subtotal         Int
+  discountAmount   Int             @default(0) @map("discount_amount")
+  total            Int
+  cashReceived     Int?            @map("cash_received")
+  changeAmount     Int?            @map("change_amount")
+  recordedById     String          @map("recorded_by") @db.Uuid
+  createdAt        DateTime        @default(now()) @map("created_at")
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall            Stall           @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  diningTable      DiningTable     @relation(fields: [diningTableId], references: [id], onDelete: Restrict)
+  paymentOption    PaymentOption?  @relation(fields: [paymentOptionId], references: [id], onDelete: SetNull)
+  discountOption   DiscountOption? @relation(fields: [discountOptionId], references: [id], onDelete: SetNull)
+  recordedBy       Profile         @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+  payments         Payment[]
+
+  @@index([organizationId, stallId, createdAt(sort: Desc)])
+  @@index([diningTableId, createdAt(sort: Desc)])
+  @@map("checkout_groups")
+}
+
+model Printer {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  stallId        String       @map("stall_id") @db.Uuid
+  name           String
+  isEnabled      Boolean      @default(true) @map("is_enabled")
+  lastSeenAt     DateTime?    @map("last_seen_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  jobs           PrintJob[]
+
+  @@unique([stallId, name])
+  @@index([organizationId, stallId, isEnabled])
+  @@index([stallId, lastSeenAt])
+  @@map("printers")
+}
+
+model PrintJob {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  stallId        String         @map("stall_id") @db.Uuid
+  orderId        String         @map("order_id") @db.Uuid
+  printerId      String?        @map("printer_id") @db.Uuid
+  requestedById  String?        @map("requested_by") @db.Uuid
+  reprintOfId    String?        @map("reprint_of_id") @db.Uuid
+  status         PrintJobStatus @default(PENDING)
+  copies         Int            @default(1)
+  attemptCount   Int            @default(0) @map("attempt_count")
+  maxAttempts    Int            @default(3) @map("max_attempts")
+  lastError      String?        @map("last_error")
+  nextRetryAt    DateTime?      @map("next_retry_at")
+  queuedAt       DateTime       @default(now()) @map("queued_at")
+  printingAt     DateTime?      @map("printing_at")
+  printedAt      DateTime?      @map("printed_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall          @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  printer        Printer?       @relation(fields: [printerId], references: [id], onDelete: SetNull)
+  requestedBy    Profile?       @relation("PrintJobRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  reprintOf      PrintJob?      @relation("PrintJobReprints", fields: [reprintOfId], references: [id], onDelete: SetNull)
+  reprints       PrintJob[]     @relation("PrintJobReprints")
+
+  @@index([organizationId, stallId, status, queuedAt])
+  @@index([printerId, status, nextRetryAt])
+  @@index([orderId, createdAt(sort: Desc)])
+  @@map("print_jobs")
+}
+
+model CashShift {
+  id                   String          @id @default(uuid()) @db.Uuid
+  organizationId       String          @map("organization_id") @db.Uuid
+  stallId              String          @map("stall_id") @db.Uuid
+  status               CashShiftStatus @default(OPEN)
+  openingAmount        Int             @map("opening_amount")
+  systemExpectedAmount Int?            @map("system_expected_amount")
+  countedAmount        Int?            @map("counted_amount")
+  varianceAmount       Int?            @map("variance_amount")
+  note                 String?
+  openedById           String          @map("opened_by") @db.Uuid
+  closedById           String?         @map("closed_by") @db.Uuid
+  openedAt             DateTime        @default(now()) @map("opened_at")
+  closedAt             DateTime?       @map("closed_at")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+  organization         Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                Stall           @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  openedBy             Profile         @relation("CashShiftOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  closedBy             Profile?        @relation("CashShiftClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
+  movements            CashMovement[]
+
+  @@index([organizationId, stallId, openedAt(sort: Desc)])
+  @@index([stallId, status])
+  @@map("cash_shifts")
+}
+
+model CashMovement {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  stallId        String           @map("stall_id") @db.Uuid
+  cashShiftId    String           @map("cash_shift_id") @db.Uuid
+  type           CashMovementType
+  amount         Int
+  reason         String
+  recordedById   String           @map("recorded_by") @db.Uuid
+  createdAt      DateTime         @default(now()) @map("created_at")
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall            @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  cashShift      CashShift        @relation(fields: [cashShiftId], references: [id], onDelete: Cascade)
+  recordedBy     Profile          @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, stallId, createdAt(sort: Desc)])
+  @@index([cashShiftId, createdAt])
+  @@map("cash_movements")
 }
 
 model DailyStallSummary {
@@ -985,6 +1306,25 @@ model OrderItemNoteOption {
   @@index([orderItemId])
   @@index([noteOptionId])
   @@map("order_item_note_options")
+}
+
+model OrderItemBatchAction {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  stallId        String          @map("stall_id") @db.Uuid
+  actorProfileId String          @map("actor_profile_id") @db.Uuid
+  targetStatus   OrderItemStatus @map("target_status")
+  itemSnapshots  Json            @map("item_snapshots")
+  expiresAt      DateTime        @map("expires_at")
+  undoneAt       DateTime?       @map("undone_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall           @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  actor          Profile         @relation(fields: [actorProfileId], references: [id], onDelete: Restrict)
+
+  @@index([stallId, actorProfileId, createdAt(sort: Desc)])
+  @@index([expiresAt])
+  @@map("order_item_batch_actions")
 }
 
 model OrderEvent {

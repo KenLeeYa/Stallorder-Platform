@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 type ProductRow = { stall_id: string; stall_name: string; product_name: string; quantity: bigint; revenue: bigint };
 type HourRow = { stall_id: string; stall_name: string; sale_hour: number; order_count: bigint; sales: bigint };
 type PaymentRow = { stall_id: string; stall_name: string; method_label: string; payment_count: bigint; amount: bigint };
+type CancellationRow = { stall_id: string; stall_name: string; reason: string; cancellation_count: bigint };
 
 export async function getProductAndHourlyReport(
   organizationId: string,
@@ -29,7 +30,7 @@ export async function getProductAndHourlyReport(
       where item.organization_id = ${organizationId}::uuid
         and item.stall_id in (${scopedIds})
         and order_record.status = 'COMPLETED'::public.order_status
-        and (order_record.completed_at at time zone stall.timezone)::date between ${dateFrom}::date and ${dateTo}::date
+        and public.stall_business_date(stall.id, order_record.completed_at) between ${dateFrom}::date and ${dateTo}::date
       group by item.stall_id, stall.name, item.name
       order by revenue desc, item.name asc
       limit 500
@@ -68,7 +69,7 @@ export async function getHourlySalesReport(
     where order_record.organization_id = ${organizationId}::uuid
       and order_record.stall_id in (${scopedIds})
       and order_record.status = 'COMPLETED'::public.order_status
-      and (order_record.completed_at at time zone stall.timezone)::date between ${dateFrom}::date and ${dateTo}::date
+      and public.stall_business_date(stall.id, order_record.completed_at) between ${dateFrom}::date and ${dateTo}::date
     group by order_record.stall_id, stall.name, sale_hour
     order by sale_hour asc, sales desc
   `);
@@ -101,7 +102,7 @@ export async function getPaymentMethodReport(
     where payment.organization_id = ${organizationId}::uuid
       and payment.stall_id in (${scopedIds})
       and payment.status = 'PAID'::public.payment_status
-      and (payment.paid_at at time zone stall.timezone)::date between ${dateFrom}::date and ${dateTo}::date
+      and public.stall_business_date(stall.id, payment.paid_at) between ${dateFrom}::date and ${dateTo}::date
     group by payment.stall_id, stall.name, payment.method_label
     order by amount desc, payment.method_label asc
   `);
@@ -111,5 +112,37 @@ export async function getPaymentMethodReport(
     methodLabel: row.method_label,
     paymentCount: Number(row.payment_count),
     amount: Number(row.amount),
+  }));
+}
+
+export async function getCancellationReasonReport(
+  organizationId: string,
+  stallIds: string[],
+  dateFrom: string,
+  dateTo: string,
+) {
+  if (stallIds.length === 0) return [];
+  const scopedIds = Prisma.join(stallIds.map((id) => Prisma.sql`${id}::uuid`));
+  const rows = await prisma.$queryRaw<CancellationRow[]>(Prisma.sql`
+    select
+      order_record.stall_id,
+      stall.name as stall_name,
+      coalesce(order_record.cancellation_reason::text, 'OTHER') as reason,
+      count(*)::bigint as cancellation_count
+    from public.orders order_record
+    join public.stalls stall on stall.id = order_record.stall_id
+    where order_record.organization_id = ${organizationId}::uuid
+      and order_record.stall_id in (${scopedIds})
+      and order_record.status = 'CANCELLED'::public.order_status
+      and public.stall_business_date(stall.id, coalesce(order_record.cancelled_at, order_record.updated_at))
+        between ${dateFrom}::date and ${dateTo}::date
+    group by order_record.stall_id, stall.name, reason
+    order by cancellation_count desc, stall.name asc, reason asc
+  `);
+  return rows.map((row) => ({
+    stallId: row.stall_id,
+    stallName: row.stall_name,
+    reason: row.reason as "SOLD_OUT" | "CUSTOMER_CANCELLED" | "WAIT_TOO_LONG" | "DUPLICATE_ORDER" | "OTHER",
+    count: Number(row.cancellation_count),
   }));
 }

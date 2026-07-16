@@ -58,6 +58,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       isEnabled: true,
       isSoldOut: true,
       sortOrder: true,
+      availableFrom: true,
+      availableUntil: true,
       product: { select: { defaultPrice: true } },
     },
   });
@@ -81,12 +83,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       isSoldOut: existing.isSoldOut,
       priceOverride: existing.priceOverride,
       sortOrder: existing.sortOrder,
+      availableFrom: existing.availableFrom,
+      availableUntil: existing.availableUntil,
     },
     after: {
       isEnabled: stallProduct.isEnabled,
       isSoldOut: stallProduct.isSoldOut,
       priceOverride: stallProduct.priceOverride,
       sortOrder: stallProduct.sortOrder,
+      availableFrom: stallProduct.availableFrom,
+      availableUntil: stallProduct.availableUntil,
     },
     metadata: {
       isEnabled: stallProduct.isEnabled,

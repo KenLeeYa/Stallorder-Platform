@@ -2,8 +2,10 @@ import "server-only";
 
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { isQrLocale, QR_LOCALES } from "@/lib/qr-order-i18n";
 
 const uuid = z.string().uuid();
+const floorCoordinate = z.number().int().min(0).max(820);
 const tableFields = {
   code: z.string().trim().min(1).max(20).regex(/^[A-Z0-9-]+$/),
   label: z.string().trim().min(1).max(40),
@@ -31,9 +33,25 @@ export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
     printModuleEnabled: z.boolean(),
     paymentModuleEnabled: z.boolean(),
     discountModuleEnabled: z.boolean(),
+    discountApprovalThresholdBps: z.number().int().min(0).max(10_000),
+  }).strict(),
+  z.object({
+    operation: z.literal("UPDATE_LOCALES"),
+    enabledLocales: z.array(z.enum(QR_LOCALES)).min(1).max(QR_LOCALES.length)
+      .refine((locales) => locales.includes("zh-TW"), "繁體中文必須保持啟用")
+      .refine((locales) => new Set(locales).size === locales.length, "語系不可重複"),
   }).strict(),
   z.object({ operation: z.literal("CREATE_TABLE"), ...tableFields }).strict(),
   z.object({ operation: z.literal("UPDATE_TABLE"), tableId: uuid, ...tableFields }).strict(),
+  z.object({
+    operation: z.literal("UPDATE_TABLE_LAYOUT"),
+    tables: z.array(z.object({
+      tableId: uuid,
+      layoutX: floorCoordinate,
+      layoutY: floorCoordinate,
+    }).strict()).min(1).max(100)
+      .refine((tables) => new Set(tables.map((table) => table.tableId)).size === tables.length, "桌位不可重複"),
+  }).strict(),
   z.object({ operation: z.literal("DELETE_TABLE"), tableId: uuid }).strict(),
   z.object({ operation: z.literal("ROTATE_TABLE_QR"), tableId: uuid }).strict(),
   z.object({ operation: z.literal("CREATE_PAYMENT_OPTION"), ...paymentFields }).strict(),
@@ -53,6 +71,8 @@ export async function getStallModuleState(stallId: string, organizationId: strin
         printModuleEnabled: true,
         paymentModuleEnabled: true,
         discountModuleEnabled: true,
+        discountApprovalThresholdBps: true,
+        enabledLocales: true,
       },
     }),
     prisma.diningTable.findMany({
@@ -78,7 +98,10 @@ export async function getStallModuleState(stallId: string, organizationId: strin
   ]);
 
   return {
-    settings,
+    settings: {
+      ...settings,
+      enabledLocales: settings.enabledLocales.filter(isQrLocale),
+    },
     tables: tables.map(({ qrCodes, ...table }) => ({ ...table, qrCode: qrCodes[0] ?? null })),
     paymentOptions,
     discounts,

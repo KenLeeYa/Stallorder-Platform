@@ -19,6 +19,8 @@ type Limits = {
   maxPendingOrdersPerDevice: number;
   maxOrdersPerWindow: number;
   orderWindowSeconds: number;
+  estimatedWaitMinutes: number;
+  businessDayCutoffHour: number;
 };
 type QrState = { token: string; state: QrCodeState; tokenVersion: number } | null;
 type ControlAction = "PAUSE" | "RESUME" | "REVOKE_QR" | "ROTATE_QR" | "MARK_SOLD_OUT" | "MARK_AVAILABLE" | "CLOSE" | "OPEN";
@@ -26,6 +28,7 @@ type ControlAction = "PAUSE" | "RESUME" | "REVOKE_QR" | "ROTATE_QR" | "MARK_SOLD
 type Props = {
   stall: { id: string; name: string; slug: string; currency: string; orderingState: StallOrderingState; isSoldOut: boolean };
   products: StallCatalogProduct[];
+  sourceStalls: Array<{ id: string; name: string; code: string }>;
   sharedCatalogUrl?: string;
   appBaseUrl: string;
   qrCode: QrState;
@@ -36,7 +39,7 @@ type Props = {
 const qrLabels: Record<QrCodeState, string> = { ACTIVE: "啟用中", PAUSED: "已暫停", EXPIRED: "已到期", REVOKED: "已撤銷" };
 const orderingLabels: Record<StallOrderingState, string> = { OPEN: "開放點餐", PAUSED: "暫停點餐", CLOSED: "已關閉點餐" };
 
-export function MerchantProducts({ stall, products, sharedCatalogUrl, appBaseUrl, qrCode, orderingSettings, account }: Props) {
+export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogUrl, appBaseUrl, qrCode, orderingSettings, account }: Props) {
   const [ordering, setOrdering] = useState({ orderingState: stall.orderingState, isSoldOut: stall.isSoldOut, qrCode });
   const [limits, setLimits] = useState(orderingSettings);
   const [message, setMessage] = useState("");
@@ -112,7 +115,7 @@ export function MerchantProducts({ stall, products, sharedCatalogUrl, appBaseUrl
 
       <div>
         {message ? <p role="alert" className="mb-4 text-sm text-red-700">{message}</p> : null}
-        <StallCatalogSettings stallId={stall.id} currency={stall.currency} initialProducts={products} />
+        <StallCatalogSettings stallId={stall.id} currency={stall.currency} initialProducts={products} sourceStalls={sourceStalls} />
 
         <details className="group mt-10 border-y border-stone-200">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-semibold hover:text-teal-800 [&::-webkit-details-marker]:hidden">
@@ -120,6 +123,10 @@ export function MerchantProducts({ stall, products, sharedCatalogUrl, appBaseUrl
             <ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" />
           </summary>
           <div className="pb-7">
+            <div className="mb-6 grid gap-4 border-b border-stone-200 pb-6 sm:grid-cols-2">
+              <label className="text-sm font-medium text-stone-700">顧客預估等候分鐘<input type="number" min={0} max={240} value={limits.estimatedWaitMinutes} onChange={(event) => updateLimit("estimatedWaitMinutes", event.target.value)} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm" /></label>
+              <label className="text-sm font-medium text-stone-700">營業日切換時間<select value={limits.businessDayCutoffHour} onChange={(event) => updateLimit("businessDayCutoffHour", event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>)}</select><span className="mt-1 block text-xs font-normal text-stone-500">切換前完成的訂單計入前一個營業日。</span></label>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {([
               ["orderSessionTtlSeconds", "點餐工作階段秒數", 60, 1800],

@@ -24,8 +24,8 @@ export const createStallSchema = z.object({
   slug: z.string().trim().min(3).max(50).regex(/^[a-z0-9-]+$/),
 }).strict();
 
-export const updateStallSchema = z.object({
-  ...stallFields,
+const updateStallOperationsSchema = z.object({
+  operation: z.literal("UPDATE_OPERATIONS"),
   businessStatus: z.enum(["OPEN", "PAUSED", "CLOSED", "SOLD_OUT"]),
   orderingEnabled: z.boolean(),
   isActive: z.boolean(),
@@ -35,3 +35,8 @@ export const updateStallSchema = z.object({
     context.addIssue({ code: "custom", path: ["confirmation"], message: "停用攤位前必須再次確認" });
   }
 });
+
+export const updateStallSchema = z.discriminatedUnion("operation", [
+  z.object({ operation: z.literal("UPDATE_BASIC"), ...stallFields }).strict(),
+  updateStallOperationsSchema,
+]);

@@ -34,9 +34,11 @@ export default async function StaffPage({ params }: PageProps) {
     prisma.stallOrderingSettings.findUnique({
       where: { stallId: stall.id },
       select: {
+        dineInEnabled: true,
         printModuleEnabled: true,
         paymentModuleEnabled: true,
         discountModuleEnabled: true,
+        discountApprovalThresholdBps: true,
       },
     }),
     prisma.paymentOption.findMany({
@@ -60,6 +62,7 @@ export default async function StaffPage({ params }: PageProps) {
         source: order.source,
         customerName: order.customerName,
         tableLabel: order.tableLabel,
+        diningTableId: order.diningTableId,
         fulfillmentType: order.fulfillmentType,
         note: order.note,
         status: order.status,
@@ -68,7 +71,11 @@ export default async function StaffPage({ params }: PageProps) {
         discountAmount: order.discountAmount,
         discountLabel: order.discountLabel,
         total: order.total,
+        pickupCodeLength: order.pickupCodeLength,
         pickupVerifiedAt: order.pickupVerifiedAt?.toISOString() ?? null,
+        pickupVerificationMethod: order.pickupVerificationMethod === "CODE"
+          ? "CODE"
+          : order.pickupVerificationMethod === "MANUAL" ? "MANUAL" : null,
         confirmationExpiresAt: order.confirmationExpiresAt.toISOString(),
         createdAt: order.createdAt.toISOString(),
         items: order.items.map((item) => ({
@@ -90,9 +97,11 @@ export default async function StaffPage({ params }: PageProps) {
       }))}
       account={{ displayName: principal.user.displayName, role }}
       modules={{
+        dineIn: settings?.dineInEnabled ?? false,
         print: settings?.printModuleEnabled ?? false,
         payment: settings?.paymentModuleEnabled ?? false,
         discount: settings?.discountModuleEnabled ?? false,
+        discountApprovalThresholdBps: settings?.discountApprovalThresholdBps ?? 8000,
       }}
       paymentOptions={paymentOptions}
       discountOptions={discountOptions}

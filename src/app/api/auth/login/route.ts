@@ -10,6 +10,7 @@ import {
   createRequestId,
   hashClientIp,
   hashToken,
+  isLocalQaLoginRateLimitDisabled,
   isTrustedOrigin,
   sanitizeRedirectPath,
 } from "@/lib/security";
@@ -49,43 +50,45 @@ export async function POST(request: Request) {
     );
   }
 
-  const accountHash = hashToken(parsed.data.email);
-  const [ipLimit, ipAccountLimit, accountLimit] = await Promise.all([
-    checkRateLimit({ scope: "login-ip", identifier: ipHash, limit: 20, windowMs: 15 * 60_000 }),
-    checkRateLimit({
-      scope: "login-ip-account",
-      identifier: `${ipHash}:${accountHash}`,
-      limit: 5,
-      windowMs: 15 * 60_000,
-    }),
-    checkRateLimit({
-      scope: "login-account",
-      identifier: accountHash,
-      limit: 5,
-      windowMs: 15 * 60_000,
-    }),
-  ]);
-  const limited = !ipLimit.allowed
-    ? ipLimit
-    : !ipAccountLimit.allowed
-      ? ipAccountLimit
-      : !accountLimit.allowed ? accountLimit : null;
-  if (limited) {
-    await recordAuditEvent({
-      action: "RATE_LIMIT_HIT",
-      entityType: "AUTH",
-      outcome: "DENIED",
-      requestId,
-      ipHash,
-      metadata: { scope: "login" },
-    });
-    return NextResponse.json(
-      { error: "登入嘗試次數過多，請稍後再試。" },
-      {
-        status: 429,
-        headers: { "retry-after": String(limited.retryAfterSeconds), "x-request-id": requestId },
-      },
-    );
+  if (!isLocalQaLoginRateLimitDisabled()) {
+    const accountHash = hashToken(parsed.data.email);
+    const [ipLimit, ipAccountLimit, accountLimit] = await Promise.all([
+      checkRateLimit({ scope: "login-ip", identifier: ipHash, limit: 20, windowMs: 15 * 60_000 }),
+      checkRateLimit({
+        scope: "login-ip-account",
+        identifier: `${ipHash}:${accountHash}`,
+        limit: 5,
+        windowMs: 15 * 60_000,
+      }),
+      checkRateLimit({
+        scope: "login-account",
+        identifier: accountHash,
+        limit: 5,
+        windowMs: 15 * 60_000,
+      }),
+    ]);
+    const limited = !ipLimit.allowed
+      ? ipLimit
+      : !ipAccountLimit.allowed
+        ? ipAccountLimit
+        : !accountLimit.allowed ? accountLimit : null;
+    if (limited) {
+      await recordAuditEvent({
+        action: "RATE_LIMIT_HIT",
+        entityType: "AUTH",
+        outcome: "DENIED",
+        requestId,
+        ipHash,
+        metadata: { scope: "login" },
+      });
+      return NextResponse.json(
+        { error: "登入嘗試次數過多，請稍後再試。" },
+        {
+          status: 429,
+          headers: { "retry-after": String(limited.retryAfterSeconds), "x-request-id": requestId },
+        },
+      );
+    }
   }
 
   const profile = await prisma.profile.findUnique({

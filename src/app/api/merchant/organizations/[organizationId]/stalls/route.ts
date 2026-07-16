@@ -6,6 +6,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { evaluateStallCreation } from "@/lib/billing";
+import { defaultBusinessHours } from "@/lib/business-hours";
 import { prisma } from "@/lib/prisma";
 import { createStallSchema } from "@/lib/stall-validation";
 
@@ -71,6 +72,7 @@ export async function POST(request: Request, context: RouteContext) {
           ...parsed.data,
           location: parsed.data.address,
           orderingSettings: { create: { organizationId } },
+          businessHours: { create: defaultBusinessHours.map((hour) => ({ organizationId, ...hour })) },
           qrCodes: {
             create: {
               organizationId,

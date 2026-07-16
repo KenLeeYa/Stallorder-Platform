@@ -32,6 +32,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 .next-dev*.log
+/.codex-*.log
 
 # local database
 /prisma/dev.db

@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(16);
+select plan(20);
 
 select ok(
   (select count(*) = 4 and bool_and(relrowsecurity)
@@ -19,6 +19,28 @@ select ok(not has_table_privilege('anon', 'public.dining_tables', 'INSERT'), '�
 select ok(not has_table_privilege('anon', 'public.payment_options', 'INSERT'), '匿名角色不可直接新增付款方式');
 select ok(not has_table_privilege('anon', 'public.discount_options', 'INSERT'), '匿名角色不可直接新增折扣');
 select ok(not has_table_privilege('anon', 'public.product_translations', 'INSERT'), '匿名角色不可直接新增商品翻譯');
+select is(
+  (select layout_x::text || ',' || layout_y::text from public.dining_tables where code = 'A1'),
+  '60,80',
+  '示範桌位具有正規化平面座標'
+);
+select throws_ok(
+  $$update public.dining_tables set layout_x = 821 where code = 'A1'$$,
+  '23514', null,
+  '桌位座標不可超出平面畫布'
+);
+select is(
+  (select enabled_locales from public.stall_ordering_settings where stall_id = '22222222-2222-4222-8222-222222222222'),
+  array['zh-TW', 'en', 'ja', 'ko', 'vi', 'th']::text[],
+  '示範攤位預設開啟全部 QR 點餐語系'
+);
+select throws_ok(
+  $$update public.stall_ordering_settings
+    set enabled_locales = array['en', 'ja']::text[]
+    where stall_id = '22222222-2222-4222-8222-222222222222'$$,
+  '23514', null,
+  '繁體中文回退語系不可關閉'
+);
 
 select lives_ok(
   $$update public.qr_codes

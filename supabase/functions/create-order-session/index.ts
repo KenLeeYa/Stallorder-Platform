@@ -1,4 +1,4 @@
-import { hmacHex, randomToken, sha256Hex } from "../_shared/crypto.ts";
+import { derivePublicOrderTokens, hmacHex, randomToken, sha256Hex } from "../_shared/crypto.ts";
 import { getAllowedOrigins, requireEnv } from "../_shared/env.ts";
 import {
   errorMessage,
@@ -26,9 +26,7 @@ Deno.serve(async (request) => {
 
     const abuseSecret = requireEnv("ABUSE_HASH_SECRET");
     const clientIp = getGatewayClientIp(request);
-    const sessionToken = randomToken(32);
-    const [sessionTokenHash, ipHash, deviceHash, qrTokenHash, behaviorHash] = await Promise.all([
-      sha256Hex(sessionToken),
+    const [ipHash, deviceHash, qrTokenHash, behaviorHash] = await Promise.all([
       hmacHex(abuseSecret, `ip:${clientIp}`),
       hmacHex(abuseSecret, `device:${parsed.data.deviceId}`),
       hmacHex(abuseSecret, `qr:${parsed.data.qrToken}`),
@@ -53,6 +51,37 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
     }
 
+    const { error: expirationError } = await admin.rpc("expire_unconfirmed_orders");
+    if (expirationError) throw expirationError;
+    const { data: resumableOrder, error: resumableOrderError } = await admin.rpc(
+      "lookup_resumable_public_order",
+      {
+        p_qr_token: parsed.data.qrToken,
+        p_device_hash: deviceHash,
+        p_ip_hash: ipHash,
+        p_qr_token_hash: qrTokenHash,
+        p_behavior_hash: behaviorHash,
+        p_request_id: requestId,
+      },
+    );
+    if (resumableOrderError) throw resumableOrderError;
+    if (resumableOrder) {
+      const recovered = resumableOrder as { order_id: string; order_status: string };
+      const { trackingToken } = await derivePublicOrderTokens(
+        recovered.order_id,
+        requireEnv("TOKEN_DERIVATION_SECRET"),
+      );
+      return jsonResponse({
+        resumeOrder: {
+          trackingToken,
+          orderStatus: recovered.order_status,
+        },
+      }, 200, corsHeaders, requestId);
+    }
+
+    const sessionToken = randomToken(32);
+    const sessionTokenHash = await sha256Hex(sessionToken);
+
     const { data: sessionResult, error: sessionError } = await admin.rpc("issue_order_session", {
       p_qr_token: parsed.data.qrToken,
       p_session_token_hash: sessionTokenHash,
@@ -76,14 +105,14 @@ Deno.serve(async (request) => {
         .eq("id", result.stall_id)
         .single(),
       admin.from("stall_products")
-        .select("product_id, price_override, sort_order")
+        .select("product_id, price_override, sort_order, available_from, available_until")
         .eq("stall_id", result.stall_id)
         .eq("is_enabled", true)
         .eq("is_sold_out", false)
         .order("sort_order", { ascending: true })
         .limit(100),
       admin.from("stall_ordering_settings")
-        .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length, dine_in_enabled")
+        .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length, dine_in_enabled, enabled_locales, estimated_wait_minutes")
         .eq("stall_id", result.stall_id)
         .single(),
       admin.from("qr_codes")
@@ -108,7 +137,25 @@ Deno.serve(async (request) => {
       throw new HttpInputError("TABLE_UNAVAILABLE", 409);
     }
 
-    const productIds = stallProductsQuery.data.map((assignment) => assignment.product_id);
+    const lastTableOrderQuery = tableQuery.data
+      ? await admin.from("orders")
+        .select("created_at")
+        .eq("stall_id", result.stall_id)
+        .eq("dining_table_id", tableQuery.data.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      : { data: null, error: null };
+    if (lastTableOrderQuery.error) throw lastTableOrderQuery.error;
+
+    const enabledLocales = settingsQuery.data.enabled_locales as string[];
+
+    const now = Date.now();
+    const availableAssignments = stallProductsQuery.data.filter((assignment) => (
+      (!assignment.available_from || Date.parse(assignment.available_from) <= now)
+      && (!assignment.available_until || Date.parse(assignment.available_until) > now)
+    ));
+    const productIds = availableAssignments.map((assignment) => assignment.product_id);
     const [productsQuery, categoriesQuery, translationsQuery] = await Promise.all([
       productIds.length === 0
         ? Promise.resolve({ data: [], error: null })
@@ -130,6 +177,7 @@ Deno.serve(async (request) => {
           .select("product_id, locale, name, description")
           .eq("organization_id", stallQuery.data.organization_id)
           .in("product_id", productIds)
+          .in("locale", enabledLocales)
           .limit(500),
     ]);
 
@@ -174,6 +222,7 @@ Deno.serve(async (request) => {
           .select("note_group_id, locale, name")
           .eq("organization_id", stallQuery.data.organization_id)
           .in("note_group_id", noteGroupIds)
+          .in("locale", enabledLocales)
           .limit(500),
     ]);
     if (noteGroupsQuery.error || noteOptionsQuery.error || noteGroupTranslationsQuery.error) {
@@ -187,12 +236,13 @@ Deno.serve(async (request) => {
         .select("note_option_id, locale, name")
         .eq("organization_id", stallQuery.data.organization_id)
         .in("note_option_id", noteOptionIds)
+        .in("locale", enabledLocales)
         .limit(2_500);
     if (noteOptionTranslationsQuery.error) throw noteOptionTranslationsQuery.error;
 
     const categoriesById = new Map(categoriesQuery.data.map((category) => [category.id, category]));
     const assignmentsByProductId = new Map(
-      stallProductsQuery.data.map((assignment) => [assignment.product_id, assignment]),
+      availableAssignments.map((assignment) => [assignment.product_id, assignment]),
     );
     const productsWithSortOrder = productsQuery.data
       .flatMap((product) => {
@@ -268,11 +318,9 @@ Deno.serve(async (request) => {
         table: tableQuery.data ? { id: tableQuery.data.id, code: tableQuery.data.code, label: tableQuery.data.label } : null,
       },
       products,
-      supportedLocales: [...new Set([
-        ...translationsQuery.data.map((translation) => translation.locale),
-        ...noteGroupTranslationsQuery.data.map((translation) => translation.locale),
-        ...noteOptionTranslationsQuery.data.map((translation) => translation.locale),
-      ])].sort(),
+      supportedLocales: enabledLocales,
+      estimatedWaitMinutes: settings.estimated_wait_minutes,
+      lastTableOrderAt: lastTableOrderQuery.data?.created_at ?? null,
       limits: {
         maxItemQuantity: settings.max_item_quantity,
         maxUniqueProducts: settings.max_unique_products,

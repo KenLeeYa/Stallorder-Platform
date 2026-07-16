@@ -33,15 +33,15 @@ export function randomToken(bytes = 32) {
   return toBase64Url(crypto.getRandomValues(new Uint8Array(bytes)));
 }
 
-export async function derivePublicOrderTokens(orderId: string, secret: string) {
+export async function derivePublicOrderTokens(orderId: string, secret: string, pickupCodeLength: 3 | 6 = 3) {
   const trackingBytes = await hmacBytes(secret, `tracking:${orderId}`);
   const pickupBytes = await hmacBytes(secret, `pickup:${orderId}`);
   const pickupNumber = (
     ((pickupBytes[0] << 24) | (pickupBytes[1] << 16) | (pickupBytes[2] << 8) | pickupBytes[3]) >>> 0
-  ) % 1_000_000;
+  ) % (pickupCodeLength === 3 ? 1_000 : 1_000_000);
 
   return {
     trackingToken: `sto_${toBase64Url(trackingBytes)}`,
-    pickupCode: pickupNumber.toString().padStart(6, "0"),
+    pickupCode: pickupNumber.toString().padStart(pickupCodeLength, "0"),
   };
 }

@@ -4,6 +4,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import {
   Boxes,
   Check,
+  Copy,
   Download,
   Eye,
   EyeOff,
@@ -18,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
+import { buildCatalogCsvErrorReport, type CatalogCsvRowError } from "@/lib/catalog-csv";
 import { formatMoney } from "@/lib/money";
 import { ProductNoteGroupsManager, type ProductNoteGroupView } from "@/components/product-note-groups-manager";
 
@@ -49,6 +51,14 @@ type Stall = { id: string; name: string; isActive: boolean };
 type CategoryDraft = Omit<Category, "id"> & { id?: string };
 type GroupDraft = Omit<Group, "id"> & { id?: string };
 type ProductDraft = Omit<Product, "id" | "stallProducts"> & { id?: string; stallIds: string[] };
+type ImportPreview = {
+  file: File;
+  totalCount: number;
+  validCount: number;
+  invalidCount: number;
+  previewRows: Array<{ id: string | null; category: string; group: string | null; name: string; price: number; stallCodes: string[] }>;
+  errors: CatalogCsvRowError[];
+};
 
 const translationOptions = [
   { locale: "en", label: "英文" },
@@ -79,6 +89,7 @@ export function SharedCatalogManager({
   const [assignmentStallIds, setAssignmentStallIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
 
   const sortedCategories = useMemo(
     () => [...catalog.categories].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-TW")),
@@ -180,9 +191,33 @@ export function SharedCatalogManager({
     if (ok) setProductDraft(null);
   }
 
-  async function importCatalog(file: File) {
+  async function previewCatalogImport(file: File) {
     const form = new FormData();
     form.set("catalog", file);
+    form.set("mode", "PREVIEW");
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/merchant/organizations/${organizationId}/catalog/import`, {
+        method: "POST",
+        headers: csrfFormHeaders(),
+        body: form,
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "商品匯入失敗。");
+      setImportPreview({ file, ...payload });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "商品匯入失敗。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applyCatalogImport() {
+    if (!importPreview || importPreview.validCount === 0) return;
+    const form = new FormData();
+    form.set("catalog", importPreview.file);
+    form.set("mode", "APPLY");
     setBusy(true);
     setMessage("");
     try {
@@ -194,12 +229,24 @@ export function SharedCatalogManager({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "商品匯入失敗。");
       setCatalog(payload.catalog);
-      setMessage(`已匯入 ${payload.importedCount} 筆商品。`);
+      setImportPreview(null);
+      setMessage(`已套用 ${payload.importedCount} 筆商品${payload.skippedCount > 0 ? `，略過 ${payload.skippedCount} 筆錯誤資料` : ""}。`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "商品匯入失敗。");
     } finally {
       setBusy(false);
     }
+  }
+
+  function downloadImportErrors() {
+    if (!importPreview || importPreview.errors.length === 0) return;
+    const content = `\uFEFF${buildCatalogCsvErrorReport(importPreview.errors)}`;
+    const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "stallorder-catalog-import-errors.csv";
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   async function uploadProductImage(file: File) {
@@ -260,6 +307,13 @@ export function SharedCatalogManager({
     );
   }
 
+  async function cloneProduct(product: Product) {
+    await runCommand(
+      { operation: "CLONE_PRODUCT", productId: product.id },
+      `已建立「${product.name}」副本，翻譯、註記與攤位分派已一併複製。`,
+    );
+  }
+
   function openAssignments(product: Product) {
     setAssignmentProduct(product);
     setAssignmentStallIds(product.stallProducts.map((assignment) => assignment.stallId));
@@ -288,7 +342,7 @@ export function SharedCatalogManager({
         </div>
         <div className="flex flex-wrap gap-2">
           <a href={`/api/merchant/organizations/${organizationId}/catalog/export`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Download className="h-4 w-4" />匯出 CSV</a>
-          <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Upload className="h-4 w-4" />匯入 CSV<input type="file" accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void importCatalog(file); event.currentTarget.value = ""; }} /></label>
+          <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Upload className="h-4 w-4" />匯入 CSV<input type="file" accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewCatalogImport(file); event.currentTarget.value = ""; }} /></label>
           <button type="button" onClick={() => setCategoryDraft({ name: "", sortOrder: catalog.categories.length + 1, isActive: true })} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Plus className="h-4 w-4" />分類</button>
           <button type="button" disabled={sortedCategories.length === 0} onClick={() => setGroupDraft({ categoryId: sortedCategories[0].id, name: "", sortOrder: catalog.groups.length + 1, isActive: true })} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-40"><Plus className="h-4 w-4" />群組</button>
           <button type="button" onClick={createProduct} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white"><Plus className="h-4 w-4" />商品</button>
@@ -320,13 +374,13 @@ export function SharedCatalogManager({
                       <IconButton label={`編輯 ${group.name}`} onClick={() => setGroupDraft({ ...group })}><Pencil className="h-4 w-4" /></IconButton>
                       <IconButton label={`${group.isActive ? "停用" : "恢復"} ${group.name}`} onClick={() => void toggleActive("GROUP", group)}>{group.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
                     </div>
-                    <ProductRows products={productsFor(category.id, group.id)} currency={currency} onEdit={(product) => setProductDraft({ ...product, stallIds: [] })} onAssignments={openAssignments} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
+                    <ProductRows products={productsFor(category.id, group.id)} currency={currency} onEdit={(product) => setProductDraft({ ...product, stallIds: [] })} onAssignments={openAssignments} onClone={(product) => void cloneProduct(product)} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
                   </div>
                 ))}
                 {ungrouped.length > 0 ? (
                   <div className="border-l-2 border-stone-200 py-3 pl-4">
                     <h2 className="text-sm font-semibold">未分組商品</h2>
-                    <ProductRows products={ungrouped} currency={currency} onEdit={(product) => setProductDraft({ ...product, stallIds: [] })} onAssignments={openAssignments} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
+                    <ProductRows products={ungrouped} currency={currency} onEdit={(product) => setProductDraft({ ...product, stallIds: [] })} onAssignments={openAssignments} onClone={(product) => void cloneProduct(product)} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
                   </div>
                 ) : null}
               </div>
@@ -369,6 +423,15 @@ export function SharedCatalogManager({
         </Editor>
       ) : null}
 
+      {importPreview ? (
+        <Editor title="CSV 匯入預覽" onClose={() => !busy && setImportPreview(null)} wide>
+          <div className="grid grid-cols-3 gap-3 border-y border-stone-200 py-4 text-center"><div><div className="text-2xl font-semibold">{importPreview.totalCount}</div><div className="text-xs text-stone-500">總筆數</div></div><div><div className="text-2xl font-semibold text-emerald-700">{importPreview.validCount}</div><div className="text-xs text-stone-500">可套用</div></div><div><div className="text-2xl font-semibold text-red-700">{importPreview.invalidCount}</div><div className="text-xs text-stone-500">將略過</div></div></div>
+          {importPreview.previewRows.length > 0 ? <div className="mt-4 max-h-64 overflow-auto"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-white text-stone-500"><tr><th className="py-2">商品</th><th>分類／群組</th><th>售價</th><th>攤位</th></tr></thead><tbody>{importPreview.previewRows.map((row, index) => <tr key={`${row.id ?? "new"}-${index}`} className="border-t border-stone-100"><td className="py-2 font-medium">{row.name}</td><td>{row.category}{row.group ? `／${row.group}` : ""}</td><td>{formatMoney(row.price, currency)}</td><td>{row.stallCodes.join("、") || "未分派"}</td></tr>)}</tbody></table>{importPreview.validCount > importPreview.previewRows.length ? <p className="py-2 text-xs text-stone-500">僅顯示前 {importPreview.previewRows.length} 筆有效資料。</p> : null}</div> : <p className="mt-4 text-sm text-red-700">此檔案沒有可套用的商品資料。</p>}
+          {importPreview.errors.length > 0 ? <div className="mt-4 border-t border-stone-200 pt-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">錯誤資料</h3><button type="button" onClick={downloadImportErrors} className="inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Download className="h-4 w-4" />下載錯誤 CSV</button></div><ul className="mt-2 max-h-28 overflow-auto text-xs text-red-700">{importPreview.errors.slice(0, 10).map((error) => <li key={`${error.line}-${error.error}`} className="py-1">{error.error}</li>)}</ul></div> : null}
+          <div className="mt-5 grid grid-cols-2 gap-3"><button type="button" disabled={busy} onClick={() => setImportPreview(null)} className="h-11 rounded-md border border-stone-300 text-sm font-semibold">取消</button><button type="button" disabled={busy || importPreview.validCount === 0} onClick={() => void applyCatalogImport()} className="h-11 rounded-md bg-stone-900 text-sm font-semibold text-white disabled:opacity-40">{busy ? "套用中…" : `套用 ${importPreview.validCount} 筆有效資料`}</button></div>
+        </Editor>
+      ) : null}
+
       {assignmentProduct ? <Editor title={`分派「${assignmentProduct.name}」`} onClose={() => setAssignmentProduct(null)}><StallChecks stalls={stalls} selected={assignmentStallIds} onChange={setAssignmentStallIds} /><button type="button" disabled={busy} onClick={() => void saveAssignments()} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存分派</button></Editor> : null}
       <ProductNoteGroupsManager
         organizationId={organizationId}
@@ -385,8 +448,8 @@ export function SharedCatalogManager({
   );
 }
 
-function ProductRows({ products, currency, onEdit, onAssignments, onToggle, onDelete }: { products: Product[]; currency: string; onEdit: (product: Product) => void; onAssignments: (product: Product) => void; onToggle: (product: Product) => void; onDelete: (product: Product) => void }) {
-  return <div className="mt-2 divide-y divide-stone-100">{products.map((product) => <div key={product.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div className="min-w-0"><div className="flex items-center gap-2"><span className="truncate font-medium">{product.name}</span>{!product.isActive ? <span className="text-xs text-red-700">已停用</span> : null}</div><p className="mt-1 text-sm text-stone-600">{formatMoney(product.defaultPrice, currency)} · 已分派 {product.stallProducts.length} 攤</p></div><div className="flex items-center"><IconButton label={`分派 ${product.name}`} onClick={() => onAssignments(product)}><Store className="h-4 w-4" /></IconButton><IconButton label={`編輯 ${product.name}`} onClick={() => onEdit(product)}><Pencil className="h-4 w-4" /></IconButton><IconButton label={`${product.isActive ? "停用" : "恢復"} ${product.name}`} onClick={() => onToggle(product)}>{product.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton><IconButton label={`刪除 ${product.name}`} danger onClick={() => onDelete(product)}><Trash2 className="h-4 w-4" /></IconButton></div></div>)}</div>;
+function ProductRows({ products, currency, onEdit, onAssignments, onClone, onToggle, onDelete }: { products: Product[]; currency: string; onEdit: (product: Product) => void; onAssignments: (product: Product) => void; onClone: (product: Product) => void; onToggle: (product: Product) => void; onDelete: (product: Product) => void }) {
+  return <div className="mt-2 divide-y divide-stone-100">{products.map((product) => <div key={product.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div className="min-w-0"><div className="flex items-center gap-2"><span className="truncate font-medium">{product.name}</span>{!product.isActive ? <span className="text-xs text-red-700">已停用</span> : null}</div><p className="mt-1 text-sm text-stone-600">{formatMoney(product.defaultPrice, currency)} · 已分派 {product.stallProducts.length} 攤</p></div><div className="flex items-center"><IconButton label={`分派 ${product.name}`} onClick={() => onAssignments(product)}><Store className="h-4 w-4" /></IconButton><IconButton label={`複製 ${product.name}`} onClick={() => onClone(product)}><Copy className="h-4 w-4" /></IconButton><IconButton label={`編輯 ${product.name}`} onClick={() => onEdit(product)}><Pencil className="h-4 w-4" /></IconButton><IconButton label={`${product.isActive ? "停用" : "恢復"} ${product.name}`} onClick={() => onToggle(product)}>{product.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton><IconButton label={`刪除 ${product.name}`} danger onClick={() => onDelete(product)}><Trash2 className="h-4 w-4" /></IconButton></div></div>)}</div>;
 }
 
 function StallChecks({ stalls, selected, onChange }: { stalls: Stall[]; selected: string[]; onChange: (ids: string[]) => void }) {

@@ -21,6 +21,27 @@ describe("RBAC", () => {
     expect(hasPermission("FINANCE_VIEWER", "UPDATE_ORDERS")).toBe(false);
     expect(hasPermission("FINANCE_VIEWER", "MANAGE_STAFF")).toBe(false);
     expect(hasPermission("FINANCE_VIEWER", "MANAGE_SUBSCRIPTION")).toBe(false);
+    expect(hasPermission("FINANCE_VIEWER", "VIEW_DINING_FLOOR")).toBe(false);
+  });
+
+  it("店員與廚房可查看桌位平面圖", () => {
+    expect(hasPermission("STAFF", "VIEW_DINING_FLOOR")).toBe(true);
+    expect(hasPermission("KITCHEN", "VIEW_DINING_FLOOR")).toBe(true);
+  });
+
+  it("營運權限區分列印、現金交班與折扣核准", () => {
+    expect(hasPermission("STAFF", "MANAGE_PRINT_QUEUE")).toBe(true);
+    expect(hasPermission("KITCHEN", "MANAGE_PRINT_QUEUE")).toBe(true);
+    expect(hasPermission("STAFF", "MANAGE_CASH_SHIFT")).toBe(true);
+    expect(hasPermission("KITCHEN", "MANAGE_CASH_SHIFT")).toBe(false);
+    expect(hasPermission("STALL_MANAGER", "APPROVE_DISCOUNT")).toBe(true);
+    expect(hasPermission("STAFF", "APPROVE_DISCOUNT")).toBe(false);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_OPERATIONAL_ALERTS")).toBe(true);
+    expect(hasPermission("STAFF", "MANAGE_OPERATIONAL_ALERTS")).toBe(false);
+    expect(hasPermission("ORGANIZATION_ADMIN", "VIEW_AUDIT_LOGS")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "VIEW_AUDIT_LOGS")).toBe(false);
+    expect(hasPermission("ORGANIZATION_ADMIN", "MANAGE_REPORT_SCHEDULES")).toBe(true);
+    expect(hasPermission("FINANCE_VIEWER", "MANAGE_REPORT_SCHEDULES")).toBe(false);
   });
 
   it("只有組織擁有者可管理訂閱", () => {

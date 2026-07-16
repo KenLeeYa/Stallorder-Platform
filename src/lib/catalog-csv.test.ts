@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { catalogCsvHeaders, parseCatalogCsv } from "./catalog-csv";
+import { buildCatalogCsvErrorReport, catalogCsvHeaders, parseCatalogCsv, parseCatalogCsvPreview } from "./catalog-csv";
 
 const headers = catalogCsvHeaders.join(",");
 const blankTranslations = ",,,,,,,,,,";
@@ -19,5 +19,14 @@ describe("商品 CSV 匯入", () => {
   it("接受完整翻譯並拒絕只有說明的翻譯", () => {
     expect(parseCatalogCsv(`${headers}\n,炸物,,雞排,現炸,95,,1,true,AMING-01,Chicken,Fried chicken,,,,,,,,`).ok).toBe(true);
     expect(parseCatalogCsv(`${headers}\n,炸物,,雞排,現炸,95,,1,true,AMING-01,,Fried chicken,,,,,,,,`).ok).toBe(false);
+  });
+
+  it("預覽會保留有效列並產生可下載的錯誤列", () => {
+    const preview = parseCatalogCsvPreview(`${headers}\n,炸物,,雞排,現炸,95,,1,true,AMING-01${blankTranslations}\n,炸物,,錯誤商品,,=100,,2,true,AMING-01${blankTranslations}`);
+    expect(preview.ok).toBe(true);
+    if (!preview.ok) return;
+    expect(preview.rows).toHaveLength(1);
+    expect(preview.errors).toHaveLength(1);
+    expect(buildCatalogCsvErrorReport(preview.errors)).toContain("錯誤商品");
   });
 });

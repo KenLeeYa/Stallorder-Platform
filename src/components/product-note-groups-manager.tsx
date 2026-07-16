@@ -28,7 +28,7 @@ export type ProductNoteGroupView = {
   options: NoteOption[];
 };
 type ProductRef = { id: string; name: string; categoryName: string; isActive: boolean };
-type GroupDraft = Omit<ProductNoteGroupView, "id" | "minSelections" | "assignments" | "options"> & {
+type GroupDraft = Omit<ProductNoteGroupView, "id" | "assignments" | "options"> & {
   id?: string;
   productIds: string[];
 };
@@ -96,6 +96,7 @@ export function ProductNoteGroupsManager({
       name: group.name,
       selectionMode: group.selectionMode,
       isRequired: group.isRequired,
+      minSelections: group.minSelections,
       maxSelections: group.maxSelections,
       sortOrder: group.sortOrder,
       isActive: group.isActive,
@@ -113,6 +114,7 @@ export function ProductNoteGroupsManager({
       name: groupDraft.name,
       selectionMode: groupDraft.selectionMode,
       isRequired: groupDraft.isRequired,
+      minSelections: groupDraft.minSelections,
       maxSelections: groupDraft.selectionMode === "SINGLE" ? 1 : groupDraft.maxSelections,
       sortOrder: groupDraft.sortOrder,
       isActive: groupDraft.isActive,
@@ -144,6 +146,7 @@ export function ProductNoteGroupsManager({
       name: group.name,
       selectionMode: group.selectionMode,
       isRequired: group.isRequired,
+      minSelections: group.minSelections,
       maxSelections: group.maxSelections,
       sortOrder: group.sortOrder,
       isActive: !group.isActive,
@@ -181,7 +184,7 @@ export function ProductNoteGroupsManager({
           <p className="text-sm font-semibold text-teal-800">商品客製化</p>
           <h2 id="product-notes-heading" className="mt-1 text-2xl font-semibold">商品註記群組</h2>
         </div>
-        <button type="button" onClick={() => setGroupDraft({ name: "", selectionMode: "MULTIPLE", isRequired: false, maxSelections: null, sortOrder: groups.length + 1, isActive: true, translations: [], productIds: [] })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white">
+        <button type="button" onClick={() => setGroupDraft({ name: "", selectionMode: "MULTIPLE", isRequired: false, minSelections: 0, maxSelections: null, sortOrder: groups.length + 1, isActive: true, translations: [], productIds: [] })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white">
           <Plus className="h-4 w-4" />新增群組
         </button>
       </div>
@@ -198,7 +201,7 @@ export function ProductNoteGroupsManager({
                 <MessageSquareText className="h-4 w-4 shrink-0 text-teal-700" />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2"><strong>{group.name}</strong>{!group.isActive ? <span className="text-xs text-red-700">已停用</span> : null}</div>
-                  <p className="mt-1 truncate text-xs text-stone-500">{group.selectionMode === "SINGLE" ? "單選" : "複選"} · {group.isRequired ? "必選" : "選填"} · {assignedNames.length} 項商品</p>
+                  <p className="mt-1 truncate text-xs text-stone-500">{group.selectionMode === "SINGLE" ? "單選" : "複選"} · {group.isRequired ? "必選" : "選填"} · 最少 {group.minSelections} 項 · 最多 {group.maxSelections ?? "不限"} 項 · {assignedNames.length} 項商品</p>
                 </div>
                 <div className="ml-auto flex items-center">
                   <IconButton label={`編輯 ${group.name}`} onClick={(event) => { event.preventDefault(); editGroup(group); }}><Pencil className="h-4 w-4" /></IconButton>
@@ -235,10 +238,11 @@ export function ProductNoteGroupsManager({
         <Editor title={groupDraft.id ? "編輯註記群組" : "新增註記群組"} onClose={() => setGroupDraft(null)} wide>
           <form onSubmit={saveGroup} className="grid gap-4 sm:grid-cols-2">
             <TextField label="群組名稱" value={groupDraft.name} onChange={(name) => setGroupDraft({ ...groupDraft, name })} wide />
-            <SelectField label="選取方式" value={groupDraft.selectionMode} options={[{ value: "SINGLE", label: "單選" }, { value: "MULTIPLE", label: "複選" }]} onChange={(selectionMode) => setGroupDraft({ ...groupDraft, selectionMode: selectionMode as GroupDraft["selectionMode"], maxSelections: selectionMode === "SINGLE" ? 1 : null })} />
-            {groupDraft.selectionMode === "MULTIPLE" ? <OptionalNumberField label="最多選取數" value={groupDraft.maxSelections} onChange={(maxSelections) => setGroupDraft({ ...groupDraft, maxSelections })} /> : <div />}
+            <SelectField label="選取方式" value={groupDraft.selectionMode} options={[{ value: "SINGLE", label: "單選" }, { value: "MULTIPLE", label: "複選" }]} onChange={(selectionMode) => setGroupDraft({ ...groupDraft, selectionMode: selectionMode as GroupDraft["selectionMode"], minSelections: selectionMode === "SINGLE" ? Math.min(groupDraft.minSelections, 1) : groupDraft.minSelections, maxSelections: selectionMode === "SINGLE" ? 1 : null })} />
+            <NumberField label="最少選取數" value={groupDraft.minSelections} min={0} max={groupDraft.selectionMode === "SINGLE" ? 1 : 20} onChange={(minSelections) => setGroupDraft({ ...groupDraft, minSelections, isRequired: minSelections > 0 })} />
+            {groupDraft.selectionMode === "MULTIPLE" ? <OptionalNumberField label="最多選取數" value={groupDraft.maxSelections} min={Math.max(1, groupDraft.minSelections)} onChange={(maxSelections) => setGroupDraft({ ...groupDraft, maxSelections })} /> : <div />}
             <NumberField label="排序" value={groupDraft.sortOrder} onChange={(sortOrder) => setGroupDraft({ ...groupDraft, sortOrder })} />
-            <div className="grid content-center gap-2"><CheckField label="顧客必須選擇" checked={groupDraft.isRequired} onChange={(isRequired) => setGroupDraft({ ...groupDraft, isRequired })} /><CheckField label="啟用群組" checked={groupDraft.isActive} onChange={(isActive) => setGroupDraft({ ...groupDraft, isActive })} /></div>
+            <div className="grid content-center gap-2"><CheckField label="顧客必須選擇" checked={groupDraft.isRequired} onChange={(isRequired) => setGroupDraft({ ...groupDraft, isRequired, minSelections: isRequired ? Math.max(1, groupDraft.minSelections) : 0 })} /><CheckField label="啟用群組" checked={groupDraft.isActive} onChange={(isActive) => setGroupDraft({ ...groupDraft, isActive })} /></div>
             <fieldset className="sm:col-span-2"><legend className="text-sm font-semibold text-stone-700">指派商品</legend><div className="mt-2 max-h-56 overflow-y-auto border-y border-stone-200">{productsByCategory.map(([categoryName, categoryProducts]) => <details key={categoryName} open><summary className="cursor-pointer py-2 text-sm font-semibold">{categoryName}</summary><div className="pb-2 pl-3">{categoryProducts.map((product) => <label key={product.id} className="flex min-h-9 items-center gap-2 text-sm"><input type="checkbox" checked={groupDraft.productIds.includes(product.id)} onChange={(event) => setGroupDraft({ ...groupDraft, productIds: event.target.checked ? [...groupDraft.productIds, product.id] : groupDraft.productIds.filter((id) => id !== product.id) })} />{product.name}{!product.isActive ? <span className="text-xs text-stone-500">（已停用）</span> : null}</label>)}</div></details>)}</div></fieldset>
             <TranslationFields translations={groupDraft.translations} onChange={(translations) => setGroupDraft({ ...groupDraft, translations })} />
             <SubmitButton busy={busy} />
@@ -276,14 +280,14 @@ function IconButton({ label, danger = false, onClick, children }: { label: strin
 function TextField({ label, value, onChange, wide = false }: { label: string; value: string; onChange: (value: string) => void; wide?: boolean }) {
   return <label className={`text-sm font-medium text-stone-700 ${wide ? "sm:col-span-2" : ""}`}>{label}<input required maxLength={80} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>;
 }
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return <label className="text-sm font-medium text-stone-700">{label}<input required type="number" min={0} max={10_000} value={value} onChange={(event) => onChange(Number(event.target.value))} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>;
+function NumberField({ label, value, min = 0, max = 10_000, onChange }: { label: string; value: number; min?: number; max?: number; onChange: (value: number) => void }) {
+  return <label className="text-sm font-medium text-stone-700">{label}<input required type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>;
 }
 function SignedNumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return <label className="text-sm font-medium text-stone-700">{label}<input required type="number" min={-10_000_000} max={10_000_000} value={value} onChange={(event) => onChange(Number(event.target.value))} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>;
 }
-function OptionalNumberField({ label, value, onChange }: { label: string; value: number | null; onChange: (value: number | null) => void }) {
-  return <label className="text-sm font-medium text-stone-700">{label}<input type="number" min={1} max={20} placeholder="不限" value={value ?? ""} onChange={(event) => onChange(event.target.value ? Number(event.target.value) : null)} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>;
+function OptionalNumberField({ label, value, min = 1, onChange }: { label: string; value: number | null; min?: number; onChange: (value: number | null) => void }) {
+  return <label className="text-sm font-medium text-stone-700">{label}<input type="number" min={min} max={20} placeholder="不限" value={value ?? ""} onChange={(event) => onChange(event.target.value ? Number(event.target.value) : null)} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>;
 }
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) {
   return <label className="text-sm font-medium text-stone-700">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2">{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;

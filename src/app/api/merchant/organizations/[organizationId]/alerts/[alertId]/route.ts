@@ -14,7 +14,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const authorization = await authorizeOrganizationApiRequest(
     request,
     organizationId,
-    "MANAGE_ORDERING",
+    "MANAGE_OPERATIONAL_ALERTS",
     true,
   );
   if (!authorization.ok) return authorization.response;

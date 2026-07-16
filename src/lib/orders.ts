@@ -8,6 +8,7 @@ export const staffOrderSelect = {
   source: true,
   customerName: true,
   tableLabel: true,
+  diningTableId: true,
   fulfillmentType: true,
   note: true,
   status: true,
@@ -16,7 +17,9 @@ export const staffOrderSelect = {
   discountAmount: true,
   discountLabel: true,
   total: true,
+  pickupCodeLength: true,
   pickupVerifiedAt: true,
+  pickupVerificationMethod: true,
   confirmationExpiresAt: true,
   createdAt: true,
   items: {

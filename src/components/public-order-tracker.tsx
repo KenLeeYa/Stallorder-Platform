@@ -16,6 +16,8 @@ type PublicOrder = {
   pickupVerificationCode: string | null;
   fulfillmentType: "TAKEOUT" | "DINE_IN";
   tableLabel: string | null;
+  estimatedWaitMinutes: number;
+  lastTableOrderAt: string | null;
   items: Array<{
     id: string;
     name: string;
@@ -101,12 +103,18 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
           <div className="mt-7 grid grid-cols-2 gap-5">
             <div>
               <div className="text-xs text-stone-500">{order.fulfillmentType === "DINE_IN" ? "內用桌位" : "取餐驗證碼"}</div>
-              <div className={`mt-1 font-semibold ${order.fulfillmentType === "TAKEOUT" ? "font-mono text-3xl tracking-normal" : "text-xl"}`}>{order.fulfillmentType === "DINE_IN" ? order.tableLabel : order.pickupVerificationCode}</div>
+              <div data-testid={order.fulfillmentType === "TAKEOUT" ? "pickup-code" : undefined} className={`mt-1 font-semibold ${order.fulfillmentType === "TAKEOUT" ? "font-mono text-3xl tracking-normal" : "text-xl"}`}>{order.fulfillmentType === "DINE_IN" ? order.tableLabel : order.pickupVerificationCode}</div>
             </div>
             <div>
               <div className="text-xs text-stone-500">付款狀態</div>
               <div className="mt-2 font-semibold">{order.paymentStatus === "PAID" ? "已付款" : "待付款"}</div>
             </div>
+          </div>
+          <div className="mt-5 rounded-md bg-stone-50 px-4 py-3 text-sm text-stone-700">
+            {order.orderStatus === "READY" || order.orderStatus === "COMPLETED"
+              ? "餐點已完成，請依畫面狀態取餐或等候出餐。"
+              : order.estimatedWaitMinutes > 0 ? `目前預估等候約 ${order.estimatedWaitMinutes} 分鐘。` : "目前可立即處理。"}
+            {order.fulfillmentType === "DINE_IN" && order.lastTableOrderAt ? <div className="mt-1 text-xs text-stone-500">同桌最近追加點餐：{new Date(order.lastTableOrderAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}</div> : null}
           </div>
           <div className="mt-6 divide-y divide-stone-100 border-y border-stone-200">{order.items.map((item) => <div key={item.id} className="grid gap-2 py-3 text-sm sm:grid-cols-[1fr_auto]"><div><span>{item.quantity} × {item.name}</span>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{item.noteOptions.map((noteOption) => `${noteOption.groupName}：${noteOption.optionName}`).join("、")}</p> : null}{item.note ? <p className="mt-1 text-xs text-stone-500">備註：{item.note}</p> : null}</div><span className="font-medium text-stone-600">{itemStatusLabels[item.status]}</span></div>)}</div>
           {order.fulfillmentType === "TAKEOUT" ? <p className="mt-5 text-sm leading-6 text-stone-600">請在取餐時向攤位人員出示驗證碼。訂單確認前不會開始製作。</p> : null}

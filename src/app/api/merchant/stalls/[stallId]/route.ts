@@ -26,13 +26,12 @@ export async function PATCH(request: Request, context: RouteContext) {
   const parsed = updateStallSchema.safeParse(body.data);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "攤位資料格式不正確，停用攤位前也必須再次確認。" },
+      { error: "攤位資料格式不正確，請檢查後再試。" },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }
 
-  const data = { ...parsed.data };
-  delete data.confirmation;
+  const command = parsed.data;
   try {
     const { before, stall } = await prisma.$transaction(async (transaction) => {
       const before = await transaction.stall.findFirst({
@@ -52,7 +51,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
       if (!before) throw new Error("STALL_NOT_FOUND");
 
-      if (!before.isActive && data.isActive) {
+      if (command.operation === "UPDATE_OPERATIONS" && !before.isActive && command.isActive) {
         await transaction.$queryRaw`
           select id
           from public.subscriptions
@@ -89,9 +88,25 @@ export async function PATCH(request: Request, context: RouteContext) {
         if (!entitlement.allowed) throw new Error(entitlement.code);
       }
 
+      const updateData = command.operation === "UPDATE_BASIC"
+        ? {
+            name: command.name,
+            code: command.code,
+            description: command.description,
+            address: command.address,
+            location: command.address,
+            phone: command.phone,
+            timezone: command.timezone,
+            currency: command.currency,
+          }
+        : {
+            businessStatus: command.businessStatus,
+            orderingEnabled: command.orderingEnabled,
+            isActive: command.isActive,
+          };
       const stall = await transaction.stall.update({
         where: { id: stallId, organizationId: authorization.workspace.id },
-        data: { ...data, location: data.address },
+        data: updateData,
         select: {
           id: true,
           name: true,
@@ -112,7 +127,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       organizationId: authorization.workspace.id,
       stallId,
       actorProfileId: authorization.principal.user.id,
-      action: stall.isActive ? "STALL_UPDATED" : "STALL_DEACTIVATED",
+      action: command.operation === "UPDATE_OPERATIONS" && !stall.isActive ? "STALL_DEACTIVATED" : "STALL_UPDATED",
       entityType: "STALL",
       entityId: stall.id,
       outcome: "SUCCESS",
@@ -120,6 +135,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       before,
       after: stall,
       metadata: {
+        operation: command.operation,
         name: stall.name,
         code: stall.code,
         businessStatus: stall.businessStatus,

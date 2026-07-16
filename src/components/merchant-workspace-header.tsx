@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, Building2, CreditCard, FileChartColumn, Package, Store, Users } from "lucide-react";
+import { BarChart3, Building2, CalendarClock, CreditCard, FileChartColumn, Languages, Package, ScrollText, Store, Users } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
+import { PwaControls } from "@/components/pwa-controls";
+import { hasPermission } from "@/lib/rbac";
 import type { WorkspaceOrganization } from "@/lib/workspace";
 
 const ORGANIZATION_STORAGE_KEY = "stallorder.organization.preference";
@@ -89,7 +91,7 @@ export function MerchantWorkspaceHeader({
           </select>
         </label>
 
-        <nav className="flex items-center gap-1" aria-label="商戶功能">
+        <nav className="flex w-full min-w-0 items-center gap-1 overflow-x-auto md:w-auto" aria-label="商戶功能">
           <Link title="儀表板" href={`/merchant/dashboard?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
             <BarChart3 className="h-5 w-5" /><span className="sr-only">儀表板</span>
           </Link>
@@ -102,20 +104,39 @@ export function MerchantWorkspaceHeader({
             <Building2 className="h-5 w-5" /><span className="sr-only">管理攤位</span>
           </Link>
           {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN") ? (
-            <Link title="共用商品" href={`/merchant/catalog?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-              <Package className="h-5 w-5" /><span className="sr-only">共用商品</span>
-            </Link>
+            <>
+              <Link title="共用商品" href={`/merchant/catalog?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+                <Package className="h-5 w-5" /><span className="sr-only">共用商品</span>
+              </Link>
+              <Link title="翻譯完整度" href={`/merchant/localization?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+                <Languages className="h-5 w-5" /><span className="sr-only">翻譯完整度</span>
+              </Link>
+            </>
           ) : null}
           <Link title="團隊" href={`/merchant/team?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
             <Users className="h-5 w-5" /><span className="sr-only">團隊</span>
           </Link>
+          {workspace && (
+            workspace.roles.some((role) => hasPermission(role, "VIEW_AUDIT_LOGS"))
+            || workspace.stalls.some((stall) => stall.roles.some((role) => hasPermission(role, "MANAGE_OPERATIONAL_ALERTS")))
+          ) ? (
+            <Link title="稽核與營運警示" href={`/merchant/operations?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <ScrollText className="h-5 w-5" /><span className="sr-only">稽核與營運警示</span>
+            </Link>
+          ) : null}
           {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER") ? (
             <Link title="訂閱與用量" href={`/merchant/subscription?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
               <CreditCard className="h-5 w-5" /><span className="sr-only">訂閱與用量</span>
             </Link>
           ) : null}
+          {workspace?.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES")) ? (
+            <Link title="報表排程" href={`/merchant/report-schedules?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <CalendarClock className="h-5 w-5" /><span className="sr-only">報表排程</span>
+            </Link>
+          ) : null}
         </nav>
 
+        <PwaControls />
         <span className="hidden max-w-36 truncate text-sm text-stone-600 lg:inline">{displayName}</span>
         <LogoutButton />
       </div>

@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Clock3, Minus, Plus, Send, ShieldCheck } from "lucide-react";
+import { Clock3, History, Minus, Plus, Send, ShieldCheck } from "lucide-react";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { formatMoney } from "@/lib/money";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
 import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeUrl } from "@/lib/public-order-client";
+import { qrCartStorageKey, restoreQrCartDraft, serializeQrCartDraft } from "@/lib/qr-cart";
 import {
   isQrLocale,
   localizedPublicOrderError,
@@ -60,6 +61,8 @@ type OrderSession = {
   };
   products: Product[];
   supportedLocales: string[];
+  estimatedWaitMinutes: number;
+  lastTableOrderAt: string | null;
   limits: {
     maxItemQuantity: number;
     maxUniqueProducts: number;
@@ -88,6 +91,8 @@ export function QrOrderFlow({ qrToken }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
   const [locale, setLocale] = useState<QrLocale>("zh-TW");
+  const [cartReady, setCartReady] = useState(false);
+  const [cartRestored, setCartRestored] = useState(false);
   const copy = qrOrderMessages[locale];
 
   useEffect(() => {
@@ -114,6 +119,12 @@ export function QrOrderFlow({ qrToken }: Props) {
     }).then(async (response) => {
       const payload = await parseEdgeResponse(response);
       if (!response.ok) throw new LocalizedOrderError(localizedPublicOrderError(browserLocale, String(payload.code ?? "")));
+      if (payload.resumeOrder && typeof payload.resumeOrder === "object") {
+        const trackingToken = String((payload.resumeOrder as Record<string, unknown>).trackingToken ?? "");
+        if (!trackingToken) throw new LocalizedOrderError(qrOrderMessages[browserLocale].sessionStartError);
+        window.location.replace(`/order/${encodeURIComponent(trackingToken)}`);
+        return;
+      }
       const orderSession = payload as unknown as OrderSession;
       const availableLocales = new Set<QrLocale>(["zh-TW"]);
       orderSession.supportedLocales.forEach((supportedLocale) => {
@@ -123,7 +134,24 @@ export function QrOrderFlow({ qrToken }: Props) {
         ? storedLocale
         : resolvePreferredQrLocale(preferredLocales, orderSession.supportedLocales);
       setLocale(selectedLocale);
+      try {
+        const restored = restoreQrCartDraft(
+          window.localStorage.getItem(qrCartStorageKey(qrToken)),
+          orderSession.products,
+          orderSession.limits,
+        );
+        if (restored) {
+          setQuantities(restored.quantities);
+          setNoteSelections(restored.noteSelections);
+          setCustomerName(restored.customerName);
+          setCustomerNote(restored.customerNote);
+          setCartRestored(true);
+        }
+      } catch {
+        // Restricted browser storage must not block ordering.
+      }
       setSession(orderSession);
+      setCartReady(true);
     }).catch((error: unknown) => {
       setMessage(error instanceof LocalizedOrderError ? error.message : qrOrderMessages[browserLocale].networkError);
     }).finally(() => setIsLoading(false));
@@ -142,6 +170,29 @@ export function QrOrderFlow({ qrToken }: Props) {
     const timer = window.setInterval(updateRemaining, 1000);
     return () => window.clearInterval(timer);
   }, [session]);
+
+  useEffect(() => {
+    if (!session || !cartReady) return;
+    const timer = window.setTimeout(() => {
+      try {
+        const hasDraft = Object.values(quantities).some((quantity) => quantity > 0)
+          || customerName.length > 0 || customerNote.length > 0;
+        if (!hasDraft) {
+          window.localStorage.removeItem(qrCartStorageKey(qrToken));
+          return;
+        }
+        window.localStorage.setItem(qrCartStorageKey(qrToken), serializeQrCartDraft({
+          customerName,
+          customerNote,
+          quantities,
+          noteSelections,
+        }));
+      } catch {
+        // Restricted browser storage must not block ordering.
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [cartReady, customerName, customerNote, noteSelections, qrToken, quantities, session]);
 
   const selectedItems = useMemo(() => {
     if (!session) return [];
@@ -259,6 +310,11 @@ export function QrOrderFlow({ qrToken }: Props) {
       }
 
       const trackingToken = String(payload.trackingToken);
+      try {
+        window.localStorage.removeItem(qrCartStorageKey(qrToken));
+      } catch {
+        // The order already succeeded; storage cleanup is best effort.
+      }
       window.location.assign(`/order/${encodeURIComponent(trackingToken)}`);
     } catch (error) {
       setMessage(error instanceof LocalizedOrderError ? error.message : copy.networkError);
@@ -293,6 +349,11 @@ export function QrOrderFlow({ qrToken }: Props) {
           <Clock3 className="h-4 w-4" />
           {copy.timeRemaining(Math.floor(secondsRemaining / 60), String(secondsRemaining % 60).padStart(2, "0"))}
         </div>
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-y border-stone-200 py-3 text-sm text-stone-700">
+          <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{copy.estimatedWait(session.estimatedWaitMinutes)}</span>
+          {session.lastTableOrderAt ? <span className="inline-flex items-center gap-2"><History className="h-4 w-4 text-stone-500" />{copy.lastTableOrder(new Date(session.lastTableOrderAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }))}</span> : null}
+        </div>
+        {cartRestored ? <p role="status" className="mt-3 text-sm font-medium text-emerald-800">{copy.cartRestored}</p> : null}
 
         <div className="mt-6 space-y-7">
           {categories.map((category) => (

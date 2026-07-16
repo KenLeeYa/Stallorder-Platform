@@ -99,6 +99,10 @@ export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
     productId: uuid,
   }).strict(),
   z.object({
+    operation: z.literal("CLONE_PRODUCT"),
+    productId: uuid,
+  }).strict(),
+  z.object({
     operation: z.literal("SET_ASSIGNMENTS"),
     productId: uuid,
     stallIds,
@@ -110,4 +114,21 @@ export const stallProductSettingsSchema = z.object({
   isEnabled: z.boolean(),
   isSoldOut: z.boolean(),
   sortOrder,
-}).strict();
+  availableFrom: z.string().datetime({ offset: true }).nullable().default(null),
+  availableUntil: z.string().datetime({ offset: true }).nullable().default(null),
+}).strict().refine((value) => (
+  !value.availableFrom || !value.availableUntil
+  || new Date(value.availableFrom).getTime() < new Date(value.availableUntil).getTime()
+), { message: "供應結束時間必須晚於開始時間。", path: ["availableUntil"] });
+
+export const stallProductBulkCommandSchema = z.discriminatedUnion("operation", [
+  z.object({
+    operation: z.literal("BULK_SOLD_OUT"),
+    productIds: z.array(uuid).min(1).max(100).refine((ids) => new Set(ids).size === ids.length),
+    isSoldOut: z.boolean(),
+  }).strict(),
+  z.object({
+    operation: z.literal("COPY_FROM_STALL"),
+    sourceStallId: uuid,
+  }).strict(),
+]);

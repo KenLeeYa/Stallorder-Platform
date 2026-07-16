@@ -32,7 +32,7 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: `cross-env NEXT_PUBLIC_APP_URL=${appUrl} NEXT_PUBLIC_SUPABASE_URL=${oauthMockUrl} NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=e2e-publishable-key next dev -p 3001`,
+      command: `cross-env NEXT_PUBLIC_APP_URL=${appUrl} NEXT_PUBLIC_SUPABASE_URL=${oauthMockUrl} NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=e2e-publishable-key CRON_SECRET=e2e-cron-secret REPORT_DELIVERY_MODE=simulate next dev -p 3001`,
       url: `${appUrl}/api/health`,
       reuseExistingServer: false,
       timeout: 120_000,

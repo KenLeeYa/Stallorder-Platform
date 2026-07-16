@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Users } from "lucide-react";
+import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
 import { csrfHeaders } from "@/lib/csrf-client";
 
 type StallRole = "STALL_MANAGER" | "STAFF" | "KITCHEN";
@@ -61,8 +62,10 @@ export function StallTeamManager({ stallId, initialMemberships }: { stallId: str
   }
 
   return (
-    <section id="stall-team" className="scroll-mt-24 border-t border-stone-200 pt-7">
-      <h2 className="text-lg font-semibold">攤位成員</h2>
+    <section id="stall-team" className="mt-8 scroll-mt-24">
+      <details open data-settings-section data-settings-scope="stall-team" data-settings-search="攤位成員 員工 廚房 主管 權限" className="border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180">
+        <CollapsibleSectionSummary icon={Users} title="攤位成員" />
+        <div className="pb-7">
       <form action={addMember} className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
         <label className="text-sm font-medium">帳號 Email<input name="email" type="email" required maxLength={120} className="mt-1.5 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
         <label className="text-sm font-medium">角色<select name="role" defaultValue="STAFF" className="mt-1.5 h-11 w-full rounded-md border border-stone-300 bg-white px-3"><option value="STALL_MANAGER">攤位經理</option><option value="STAFF">店員</option><option value="KITCHEN">廚房</option></select></label>
@@ -82,6 +85,8 @@ export function StallTeamManager({ stallId, initialMemberships }: { stallId: str
       </div>
       {memberships.length === 0 ? <p className="mt-5 text-sm text-stone-600">尚未指派攤位成員。</p> : null}
       {message ? <p role="status" className={message.includes("已") ? "mt-4 text-sm text-emerald-700" : "mt-4 text-sm text-red-700"}>{message}</p> : null}
+        </div>
+      </details>
     </section>
   );
 }

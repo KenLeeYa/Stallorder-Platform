@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getClientIp, hashToken, isTrustedOrigin, safeEqual, sanitizeRedirectPath } from "./security";
+import {
+  getClientIp,
+  hashToken,
+  isLocalQaLoginRateLimitDisabled,
+  isTrustedOrigin,
+  safeEqual,
+  sanitizeRedirectPath,
+} from "./security";
 
 const originalTrustedIpHeader = process.env.TRUSTED_CLIENT_IP_HEADER;
 
@@ -50,9 +57,45 @@ describe("安全工具", () => {
       headers: { "cf-connecting-ip": "203.0.113.8, 198.51.100.2" },
     }))).toBe("unknown");
 
+    process.env.TRUSTED_CLIENT_IP_HEADER = "x-forwarded-for";
+    expect(getClientIp(new Request("http://localhost", {
+      headers: { "x-forwarded-for": "198.51.100.2" },
+    }))).toBe("198.51.100.2");
+    expect(getClientIp(new Request("http://localhost", {
+      headers: { "x-forwarded-for": "198.51.100.2, 203.0.113.8" },
+    }))).toBe("unknown");
+
     delete process.env.TRUSTED_CLIENT_IP_HEADER;
     expect(getClientIp(new Request("http://localhost", {
       headers: { "x-forwarded-for": "198.51.100.2" },
     }))).toBe("unknown");
+  });
+});
+
+describe("本機 QA 登入限制", () => {
+  it("必須明確啟用且網站與資料庫皆為本機位址", () => {
+    expect(isLocalQaLoginRateLimitDisabled({
+      LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT: "true",
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3010",
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+    })).toBe(true);
+
+    expect(isLocalQaLoginRateLimitDisabled({
+      LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT: "false",
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3010",
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+    })).toBe(false);
+
+    expect(isLocalQaLoginRateLimitDisabled({
+      LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT: "true",
+      NEXT_PUBLIC_APP_URL: "https://stallorder.example",
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+    })).toBe(false);
+
+    expect(isLocalQaLoginRateLimitDisabled({
+      LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT: "true",
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3010",
+      DATABASE_URL: "postgresql://postgres:postgres@db.example/postgres",
+    })).toBe(false);
   });
 });

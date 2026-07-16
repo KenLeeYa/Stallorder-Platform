@@ -37,7 +37,8 @@ insert into public.stalls (
 
 insert into public.stall_ordering_settings (
   stall_id, organization_id, dine_in_enabled, print_module_enabled,
-  payment_module_enabled, discount_module_enabled, created_at, updated_at
+  payment_module_enabled, discount_module_enabled, discount_approval_threshold_bps,
+  enabled_locales, created_at, updated_at
 ) values (
   '22222222-2222-4222-8222-222222222222',
   '11111111-1111-4111-8111-111111111111',
@@ -45,12 +46,41 @@ insert into public.stall_ordering_settings (
   true,
   true,
   true,
+  8000,
+  array['zh-TW', 'en', 'ja', 'ko', 'vi', 'th']::text[],
+  now(),
+  now()
+);
+
+insert into public.stall_business_hours (
+  organization_id, stall_id, day_of_week, opens_at, closes_at, is_closed, created_at, updated_at
+)
+select
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  day_of_week,
+  '17:00',
+  '23:00',
+  day_of_week = 1,
+  now(),
+  now()
+from generate_series(0, 6) as day_of_week;
+
+insert into public.printers (
+  id, organization_id, stall_id, name, is_enabled, created_at, updated_at
+) values (
+  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1',
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  '櫃台印表機',
+  true,
   now(),
   now()
 );
 
 insert into public.dining_tables (
-  id, organization_id, stall_id, code, label, is_active, sort_order, created_at, updated_at
+  id, organization_id, stall_id, code, label, is_active, sort_order,
+  layout_x, layout_y, created_at, updated_at
 ) values (
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   '11111111-1111-4111-8111-111111111111',
@@ -59,6 +89,8 @@ insert into public.dining_tables (
   'A1 桌',
   true,
   1,
+  60,
+  80,
   now(),
   now()
 );

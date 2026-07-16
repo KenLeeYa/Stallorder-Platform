@@ -66,14 +66,48 @@ Deno.serve(async (request) => {
       });
       return jsonResponse({ error: errorMessage("ORDER_NOT_FOUND"), code: "ORDER_NOT_FOUND" }, 404, corsHeaders, requestId);
     }
-    const stored = data as Record<string, unknown> & { orderId: string; fulfillmentType?: string };
+    const stored = data as Record<string, unknown> & {
+      orderId: string;
+      fulfillmentType?: string;
+      pickupCodeLength?: number;
+    };
     const pickupCode = stored.fulfillmentType === "DINE_IN"
       ? null
-      : (await derivePublicOrderTokens(stored.orderId, requireEnv("TOKEN_DERIVATION_SECRET"))).pickupCode;
+      : (await derivePublicOrderTokens(
+        stored.orderId,
+        requireEnv("TOKEN_DERIVATION_SECRET"),
+        stored.pickupCodeLength === 6 ? 6 : 3,
+      )).pickupCode;
+    const orderContext = await admin.from("orders")
+      .select("stall_id, dining_table_id")
+      .eq("id", stored.orderId)
+      .single();
+    if (orderContext.error) throw orderContext.error;
+    const settingsQuery = await admin.from("stall_ordering_settings")
+      .select("estimated_wait_minutes")
+      .eq("stall_id", orderContext.data.stall_id)
+      .single();
+    if (settingsQuery.error) throw settingsQuery.error;
+    const lastTableOrderQuery = orderContext.data.dining_table_id
+      ? await admin.from("orders")
+        .select("created_at")
+        .eq("stall_id", orderContext.data.stall_id)
+        .eq("dining_table_id", orderContext.data.dining_table_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      : { data: null, error: null };
+    if (lastTableOrderQuery.error) throw lastTableOrderQuery.error;
     const publicOrder: Record<string, unknown> = { ...stored };
     delete publicOrder.orderId;
+    delete publicOrder.pickupCodeLength;
     return jsonResponse({
-      order: { ...publicOrder, pickupVerificationCode: pickupCode },
+      order: {
+        ...publicOrder,
+        pickupVerificationCode: pickupCode,
+        estimatedWaitMinutes: settingsQuery.data.estimated_wait_minutes,
+        lastTableOrderAt: lastTableOrderQuery.data?.created_at ?? null,
+      },
     }, 200, corsHeaders, requestId);
   } catch (error) {
     const code = error instanceof HttpInputError ? error.code : "ORDER_CREATE_ERROR";

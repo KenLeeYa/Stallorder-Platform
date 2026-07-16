@@ -27,6 +27,9 @@ export type QrOrderMessages = {
   dineIn: (table: string) => string;
   takeout: string;
   timeRemaining: (minutes: number, seconds: string) => string;
+  estimatedWait: (minutes: number) => string;
+  lastTableOrder: (time: string) => string;
+  cartRestored: string;
   productImage: (name: string) => string;
   decrease: (name: string) => string;
   increase: (name: string) => string;
@@ -66,6 +69,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     dineIn: (table) => `內用 · ${table}`,
     takeout: "外帶取餐",
     timeRemaining: (minutes, seconds) => `點餐時間剩餘 ${minutes}:${seconds}`,
+    estimatedWait: (minutes) => minutes > 0 ? `目前預估等候約 ${minutes} 分鐘` : "目前可立即處理",
+    lastTableOrder: (time) => `此桌最近追加點餐：${time}`,
+    cartRestored: "已恢復上次尚未送出的點餐內容。",
     productImage: (name) => `${name}圖片`,
     decrease: (name) => `減少 ${name}`,
     increase: (name) => `增加 ${name}`,
@@ -116,6 +122,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     dineIn: (table) => `Dine-in · ${table}`,
     takeout: "Takeout",
     timeRemaining: (minutes, seconds) => `Time remaining ${minutes}:${seconds}`,
+    estimatedWait: (minutes) => minutes > 0 ? `Estimated wait: about ${minutes} minutes` : "Ready to prepare now",
+    lastTableOrder: (time) => `Latest order for this table: ${time}`,
+    cartRestored: "Your unsent cart has been restored.",
     productImage: (name) => `${name} image`,
     decrease: (name) => `Decrease ${name}`,
     increase: (name) => `Increase ${name}`,
@@ -166,6 +175,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     dineIn: (table) => `店内 · ${table}`,
     takeout: "テイクアウト",
     timeRemaining: (minutes, seconds) => `注文可能時間 残り ${minutes}:${seconds}`,
+    estimatedWait: (minutes) => minutes > 0 ? `現在の待ち時間目安：約${minutes}分` : "ただいますぐに調理可能です",
+    lastTableOrder: (time) => `このテーブルの最終追加注文：${time}`,
+    cartRestored: "未送信のカート内容を復元しました。",
     productImage: (name) => `${name}の画像`,
     decrease: (name) => `${name}を減らす`,
     increase: (name) => `${name}を増やす`,
@@ -216,6 +228,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     dineIn: (table) => `매장 식사 · ${table}`,
     takeout: "포장 주문",
     timeRemaining: (minutes, seconds) => `주문 가능 시간 ${minutes}:${seconds}`,
+    estimatedWait: (minutes) => minutes > 0 ? `현재 예상 대기 시간: 약 ${minutes}분` : "현재 바로 준비할 수 있습니다",
+    lastTableOrder: (time) => `이 테이블의 최근 추가 주문: ${time}`,
+    cartRestored: "전송하지 않은 장바구니를 복원했습니다.",
     productImage: (name) => `${name} 이미지`,
     decrease: (name) => `${name} 수량 줄이기`,
     increase: (name) => `${name} 수량 늘리기`,
@@ -266,6 +281,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     dineIn: (table) => `Dùng tại chỗ · ${table}`,
     takeout: "Mang đi",
     timeRemaining: (minutes, seconds) => `Thời gian đặt món còn lại ${minutes}:${seconds}`,
+    estimatedWait: (minutes) => minutes > 0 ? `Thời gian chờ dự kiến: khoảng ${minutes} phút` : "Có thể chuẩn bị ngay",
+    lastTableOrder: (time) => `Lần gọi thêm gần nhất của bàn này: ${time}`,
+    cartRestored: "Đã khôi phục giỏ hàng chưa gửi.",
     productImage: (name) => `Hình ảnh ${name}`,
     decrease: (name) => `Giảm ${name}`,
     increase: (name) => `Tăng ${name}`,
@@ -316,6 +334,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     dineIn: (table) => `รับประทานที่ร้าน · ${table}`,
     takeout: "สั่งกลับบ้าน",
     timeRemaining: (minutes, seconds) => `เวลาสั่งอาหารคงเหลือ ${minutes}:${seconds}`,
+    estimatedWait: (minutes) => minutes > 0 ? `เวลารอโดยประมาณ ${minutes} นาที` : "สามารถเริ่มเตรียมได้ทันที",
+    lastTableOrder: (time) => `เวลาสั่งเพิ่มล่าสุดของโต๊ะนี้: ${time}`,
+    cartRestored: "กู้คืนรายการในตะกร้าที่ยังไม่ได้ส่งแล้ว",
     productImage: (name) => `รูปภาพ ${name}`,
     decrease: (name) => `ลดจำนวน ${name}`,
     increase: (name) => `เพิ่มจำนวน ${name}`,
