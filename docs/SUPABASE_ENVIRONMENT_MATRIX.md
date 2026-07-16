@@ -4,9 +4,9 @@
 
 | 環境 | Application URL | Supabase 專案 | Project ref | Project URL | Git branch | Vercel 環境 | Migration | Edge Functions | RLS | Turnstile hostname |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Development | `http://localhost:3000` | 本機 Supabase CLI／既有開發專案 | local | `http://127.0.0.1:54321` | feature branches | Development | 本機 26 份已驗證 | 本機 serve | 本機 pgTAP 驗證 | localhost／測試政策 |
-| Staging | Vercel Preview URL；日後可用 `https://staging.qidaigo.com` | `stallorder-staging` | `<STAGING_SUPABASE_PROJECT_REF>` | `https://<STAGING_SUPABASE_PROJECT_REF>.supabase.co` | `deployment/production-qidaigo`／PR | Preview | 待建立後套用 | 待部署 | 待 Advisor／pgTAP 驗證 | 實際 Preview 或 staging hostname |
-| Production | `https://app.qidaigo.com` | `stallorder-production` | `<PRODUCTION_SUPABASE_PROJECT_REF>` | `https://<PRODUCTION_SUPABASE_PROJECT_REF>.supabase.co` | `main` | Production | Staging 通過後才套用 | Staging 通過後才部署 | 待 Advisor／隔離測試 | `app.qidaigo.com` |
+| Development | `http://localhost:3000` | 本機 Supabase CLI | local | `http://127.0.0.1:54321` | feature branches | Development | 本機 27 份已驗證 | 本機 serve | 13 檔／232 項 pgTAP 通過 | localhost／測試政策 |
+| Staging | Vercel Preview URL；日後可用 `https://staging.qidaigo.com` | `StallOrder Project`（轉作 Staging；待改顯示名稱） | `daeqwtpaxcebmtwxqdkj` | `https://daeqwtpaxcebmtwxqdkj.supabase.co` | `deployment/production-qidaigo`／PR | Preview | 27 份已套用，版本完全一致 | 待設定 secrets 後部署 | 51/51 強制 RLS；Advisor 已驗證 | 實際 Preview 或 staging hostname |
+| Production | `https://app.qidaigo.com` | `stallorder-production` | `eyuctbnlvnbnivwasvqr` | `https://eyuctbnlvnbnivwasvqr.supabase.co` | `main` | Production | 待本次 CI 通過後套用 | Staging 通過後才部署 | 待套用後驗證 | `app.qidaigo.com` |
 
 ## 資料規則
 
@@ -18,7 +18,7 @@
 ### Staging
 
 - 只放 synthetic test data，不複製 Production 顧客、Auth user 或 Storage object。
-- Preview 必須連到 `<STAGING_SUPABASE_PROJECT_REF>`，不得使用 Production database。
+- Preview 必須連到 `daeqwtpaxcebmtwxqdkj`，不得使用 Production database。
 - Secret 必須與 Production 獨立；測試 key 是否允許需由 staging Turnstile 政策明確決定。
 
 ### Production

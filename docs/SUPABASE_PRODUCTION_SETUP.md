@@ -11,8 +11,8 @@
 
 ## 建立與連線
 
-1. 以 Supabase cost confirmation 建立 `stallorder-production`，ref 記為 `<PRODUCTION_SUPABASE_PROJECT_REF>`。
-2. 等待 `ACTIVE_HEALTHY`；記錄 Project URL 與區域，不記錄 database password 或 secret key。
+1. `stallorder-production` 已建立，ref 為 `eyuctbnlvnbnivwasvqr`。
+2. 專案已確認為 `ACTIVE_HEALTHY`；Project URL 與區域已記錄，未記錄 database password 或 secret key。
 3. 從 Supabase 取得實際 Transaction Pooler 與 Direct/Session connection：
    - `DATABASE_URL=<PRODUCTION_DATABASE_URL>`，供 Vercel serverless runtime。
    - `DIRECT_URL=<PRODUCTION_DIRECT_URL>`，供 Prisma migration-compatible connection。
@@ -21,7 +21,7 @@
 ## 正式 Migration
 
 ```powershell
-npx supabase link --project-ref <PRODUCTION_SUPABASE_PROJECT_REF>
+npx supabase link --project-ref eyuctbnlvnbnivwasvqr
 npx supabase migration list --linked
 npx supabase db push --linked --dry-run
 npx supabase db push --linked
