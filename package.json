@@ -2,8 +2,9 @@
   "name": "stallorder-platform",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@11.16.0",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24.0.0 <25"
   },
   "scripts": {
     "dev": "next dev",
@@ -14,6 +15,7 @@
     "test": "vitest run",
     "test:e2e": "concurrently --kill-others --success command-1 \"npm run functions:serve\" \"playwright test\"",
     "typecheck": "tsc --noEmit",
+    "local:doctor": "node scripts/local-dev-doctor.mjs",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "production:check": "node scripts/production-readiness.mjs",
