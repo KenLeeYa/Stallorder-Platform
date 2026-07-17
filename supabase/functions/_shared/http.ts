@@ -80,10 +80,32 @@ export async function readBoundedJson(request: Request, maxBytes = MAX_CONTENT_L
   }
 }
 
-export function getGatewayClientIp(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const candidate = forwarded?.split(",").at(-1)?.trim() ?? "unknown";
-  return candidate.slice(0, 64);
+export function getGatewayClientIp(
+  request: Request,
+  configuredHeader?: string,
+) {
+  const headerName = configuredHeader
+    ?? Deno.env.get("TRUSTED_CLIENT_IP_HEADER")?.trim().toLowerCase()
+    ?? (Deno.env.get("APP_ENV") === "production" ? undefined : "cf-connecting-ip");
+  if (headerName !== "cf-connecting-ip" && headerName !== "x-real-ip") {
+    throw new Error("TRUSTED_CLIENT_IP_HEADER must be cf-connecting-ip or x-real-ip.");
+  }
+  const candidate = request.headers.get(headerName)?.trim();
+  if (!candidate || candidate.includes(",") || !isValidIp(candidate)) return "unknown";
+  return candidate;
+}
+
+function isValidIp(value: string) {
+  const ipv4 = value.split(".");
+  if (ipv4.length === 4) {
+    return ipv4.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255);
+  }
+  if (!value.includes(":") || !/^[0-9a-f:.]+$/i.test(value)) return false;
+  try {
+    return new URL(`http://[${value}]/`).hostname.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export function errorMessage(code: string) {
@@ -98,6 +120,7 @@ export function errorMessage(code: string) {
     QR_PAUSED: "此 QR Code 已暫停接單。",
     QR_EXPIRED: "此 QR Code 已過期。",
     QR_NOT_ACTIVE: "此 QR Code 目前無法使用。",
+    TABLE_UNAVAILABLE: "此內用桌位目前無法點餐。",
     QR_SESSION_MISMATCH: "點餐連結與 Session 不相符，請重新掃描。",
     STALL_CLOSED: "攤位目前已關閉點餐。",
     ORDERING_PAUSED: "攤位目前暫停接單。",
@@ -116,6 +139,7 @@ export function errorMessage(code: string) {
     EXCESSIVE_ITEM_QUANTITY: "單項商品數量超過攤位限制。",
     NOTE_TOO_LONG: "備註內容超過攤位限制。",
     PRODUCT_UNAVAILABLE: "部分商品已售完或無法供應。",
+    INVALID_PRODUCT_NOTES: "商品註記已變更或選取不完整，請重新確認。",
     TOO_MANY_PENDING_ORDERS: "此裝置尚有過多待確認訂單。",
     ORDER_CONFLICT: "訂單發生衝突，請重新掃描後再試。",
     ORDER_CREATE_ERROR: "目前無法建立訂單，請稍後再試。",
@@ -130,6 +154,7 @@ export function statusForCode(code: string) {
   if (code === "RATE_LIMITED" || code === "TOO_MANY_PENDING_ORDERS") return 429;
   if (code === "TURNSTILE_UNAVAILABLE") return 503;
   if (["ORDER_CONFLICT"].includes(code)) return 409;
+  if (code === "INVALID_PRODUCT_NOTES") return 422;
   if (["ORDER_CREATE_ERROR"].includes(code)) return 500;
   return 400;
 }

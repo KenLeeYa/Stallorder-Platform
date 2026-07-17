@@ -1,38 +1,42 @@
 import { randomBytes } from "node:crypto";
-import { hash } from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSession, setSessionCookies } from "@/lib/auth";
+import { getRequestPrincipal } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { readJson } from "@/lib/http";
+import { validateCsrf } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp, isTrustedOrigin } from "@/lib/security";
 
-const passwordSchema = z
-  .string()
-  .min(12)
-  .max(128)
-  .refine((value) => Buffer.byteLength(value, "utf8") <= 72);
-
 const onboardingSchema = z.object({
   merchantName: z.string().trim().min(2).max(80),
-  displayName: z.string().trim().min(2).max(80),
-  email: z.string().trim().email().max(120).transform((value) => value.toLowerCase()),
-  password: passwordSchema,
   phone: z.string().trim().min(6).max(30),
   stallName: z.string().trim().min(2).max(80),
   location: z.string().trim().min(2).max(120),
   slug: z.string().trim().min(3).max(50).regex(/^[a-z0-9-]+$/),
-});
+}).strict();
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
   const ipHash = hashClientIp(request);
+  const principal = await getRequestPrincipal(request);
   if (!isTrustedOrigin(request)) {
     return NextResponse.json(
       { error: "無法驗證申請來源。" },
+      { status: 403, headers: { "x-request-id": requestId } },
+    );
+  }
+  if (!principal?.user.authUserId) {
+    return NextResponse.json(
+      { error: "請先使用 Google 帳號登入，再建立商家。" },
+      { status: 401, headers: { "x-request-id": requestId } },
+    );
+  }
+  if (!validateCsrf(request, principal)) {
+    return NextResponse.json(
+      { error: "安全驗證已失效，請重新整理後再試。" },
       { status: 403, headers: { "x-request-id": requestId } },
     );
   }
@@ -65,34 +69,63 @@ export async function POST(request: Request) {
   const parsed = onboardingSchema.safeParse(body.data);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "申請資料格式不正確，密碼需至少 12 個字元。" },
+      { error: "申請資料格式不正確。" },
       { status: 400, headers: { "x-request-id": requestId } },
     );
   }
 
   const data = parsed.data;
-  const passwordHash = await hash(data.password, 12);
-
   try {
     const result = await prisma.$transaction(async (transaction) => {
-      const merchant = await transaction.merchant.create({
+      const existingProfile = await transaction.profile.findUnique({ where: { id: principal.user.id } });
+      if (!existingProfile?.isActive || existingProfile.authUserId !== principal.user.authUserId) {
+        throw new Error("PROFILE_NOT_AVAILABLE");
+      }
+      const [organizationAccess, stallAccess] = await Promise.all([
+        transaction.organizationMembership.count({
+          where: { profileId: principal.user.id, isActive: true },
+        }),
+        transaction.stallMembership.count({
+          where: { profileId: principal.user.id, isActive: true },
+        }),
+      ]);
+      if (organizationAccess > 0 || stallAccess > 0) throw new Error("PROFILE_ALREADY_ONBOARDED");
+
+      const accountEmail = existingProfile.email;
+      const organization = await transaction.organization.create({
         data: {
           name: data.merchantName,
-          slug: `${data.slug}-tenant`,
-          email: data.email,
+          businessName: data.merchantName,
+          slug: `${data.slug}-organization`,
+          email: accountEmail,
           phone: data.phone,
+        },
+      });
+      const litePlan = await transaction.plan.findUniqueOrThrow({ where: { code: "LITE" } });
+      const billingPeriodStart = new Date(new Date().toISOString().slice(0, 7) + "-01T00:00:00.000Z");
+      const billingPeriodEnd = new Date(billingPeriodStart);
+      billingPeriodEnd.setUTCMonth(billingPeriodEnd.getUTCMonth() + 1);
+      await transaction.subscription.create({
+        data: {
+          organizationId: organization.id,
+          planId: litePlan.id,
+          status: "TRIALING",
+          billingPeriodStart,
+          billingPeriodEnd,
         },
       });
       const stall = await transaction.stall.create({
         data: {
-          merchantId: merchant.id,
+          organizationId: organization.id,
           name: data.stallName,
           slug: data.slug,
+          code: data.slug.toUpperCase(),
+          address: data.location,
           location: data.location,
-          orderingSettings: { create: { tenantId: merchant.id } },
+          orderingSettings: { create: { organizationId: organization.id } },
           qrCodes: {
             create: {
-              tenantId: merchant.id,
+              organizationId: organization.id,
               token: randomBytes(32).toString("base64url"),
               label: "主要點餐 QR v1",
             },
@@ -101,59 +134,72 @@ export async function POST(request: Request) {
       });
       const category = await transaction.productCategory.create({
         data: {
-          tenantId: merchant.id,
-          stallId: stall.id,
+          organizationId: organization.id,
           name: "熱門",
           sortOrder: 1,
         },
       });
-      await transaction.product.create({
+      const product = await transaction.product.create({
         data: {
-          tenantId: merchant.id,
-          stallId: stall.id,
+          organizationId: organization.id,
           categoryId: category.id,
           name: "招牌商品",
           description: "請將此商品改成您的熱門品項。",
-          price: 80,
+          defaultPrice: 80,
           sortOrder: 1,
         },
       });
-      const user = await transaction.userAccount.create({
+      await transaction.stallProduct.create({
         data: {
-          email: data.email,
-          passwordHash,
-          displayName: data.displayName,
-          memberships: {
-            create: { tenantId: merchant.id, stallId: stall.id, role: "MERCHANT_OWNER" },
-          },
+          organizationId: organization.id,
+          stallId: stall.id,
+          productId: product.id,
+          sortOrder: 1,
         },
       });
-      return { stall, user };
+      await transaction.organizationMembership.create({
+        data: {
+          organizationId: organization.id,
+          profileId: existingProfile.id,
+          role: "ORGANIZATION_OWNER",
+          allStalls: true,
+          isPrimaryOwner: true,
+        },
+      });
+      return { organization, stall, profile: existingProfile };
     });
 
-    const session = await createSession(result.user.id);
     const response = NextResponse.json(
-      { stallSlug: result.stall.slug },
+      {
+        stallSlug: result.stall.slug,
+        next: `/merchant/dashboard?organizationId=${result.organization.id}`,
+      },
       { status: 201, headers: { "x-request-id": requestId } },
     );
-    setSessionCookies(response, session);
     await recordAuditEvent({
-      tenantId: result.stall.merchantId,
+      organizationId: result.organization.id,
       action: "MERCHANT_ONBOARDING_COMPLETED",
       entityType: "STALL",
       entityId: result.stall.id,
       outcome: "SUCCESS",
       requestId,
       stallId: result.stall.id,
-      actorUserId: result.user.id,
+      actorProfileId: result.profile.id,
       ipHash,
     });
     return response;
   } catch (error) {
     const conflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+    const alreadyOnboarded = error instanceof Error && error.message === "PROFILE_ALREADY_ONBOARDED";
     return NextResponse.json(
-      { error: conflict ? "此電子郵件或攤位網址已被使用。" : "目前無法完成申請，請稍後再試。" },
-      { status: conflict ? 409 : 500, headers: { "x-request-id": requestId } },
+      {
+        error: alreadyOnboarded
+          ? "此帳號已經具有組織權限。"
+          : conflict
+            ? "此電子郵件或攤位網址已被使用。"
+            : "目前無法完成申請，請稍後再試。",
+      },
+      { status: alreadyOnboarded || conflict ? 409 : 500, headers: { "x-request-id": requestId } },
     );
   }
 }

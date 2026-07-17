@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(27);
+select plan(31);
 
 delete from public.public_order_attempts;
 delete from public.public_rate_limit_buckets;
@@ -161,6 +161,31 @@ select ok(
   ) is null,
   '其他裝置不得跨訂單查詢'
 );
+select is(
+  public.lookup_resumable_public_order(
+    'demo-aming-chicken-qr-2026-rotate-me',
+    encode(extensions.digest('device-a', 'sha256'), 'hex'),
+    'resume-ip', 'resume-qr', 'resume-behavior', 'resume-request'
+  )->>'order_id',
+  '70000000-0000-4000-8000-000000000003',
+  '同一裝置重掃原 QR 可找回進行中的訂單'
+);
+select ok(
+  public.lookup_resumable_public_order(
+    'demo-aming-chicken-qr-2026-rotate-me',
+    encode(extensions.digest('device-b', 'sha256'), 'hex'),
+    'resume-ip-b', 'resume-qr-b', 'resume-behavior-b', 'resume-request-b'
+  ) is null,
+  '不同裝置重掃同一 QR 不得取得其他顧客訂單'
+);
+select ok(
+  not has_function_privilege(
+    'anon',
+    'public.lookup_resumable_public_order(text,text,text,text,text,text)',
+    'EXECUTE'
+  ),
+  'anon 無法直接執行訂單找回 RPC'
+);
 
 select pg_temp.add_session('gate-session');
 do $$
@@ -233,16 +258,24 @@ select ok(
 );
 select ok(
   (
-    select count(*) = 18 and bool_and(c.relrowsecurity)
+    select count(*) = 42 and bool_and(c.relrowsecurity)
     from pg_class c
     join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'public'
       and c.relname = any (array[
-        'tenants', 'stalls', 'user_accounts', 'stall_memberships', 'auth_sessions',
-        'audit_logs', 'rate_limit_buckets', 'product_categories', 'products', 'qr_codes',
+        'organizations', 'stalls', 'profiles', 'organization_memberships',
+        'stall_memberships', 'auth_sessions',
+        'audit_logs', 'rate_limit_buckets', 'product_categories', 'product_groups',
+        'products', 'stall_products', 'payments', 'daily_stall_summaries',
+        'operational_events', 'operational_alerts', 'qr_codes',
         'stall_ordering_settings', 'order_sessions', 'orders', 'order_items',
         'order_events', 'public_order_attempts', 'public_rate_limit_buckets',
-        'stall_order_counters'
+        'stall_order_counters', 'plans', 'subscriptions', 'additional_stall_approvals',
+        'invoices', 'invoice_line_items', 'usage_events', 'organization_invitations',
+        'product_translations', 'dining_tables', 'payment_options', 'discount_options',
+        'product_note_groups', 'product_note_options',
+        'product_note_group_translations', 'product_note_option_translations',
+        'product_note_group_assignments', 'order_item_note_options'
       ])
   ),
   '所有暴露業務資料表均啟用 RLS'
@@ -264,6 +297,14 @@ select is(
   (select status::text from public.orders where tracking_token_hash = encode(extensions.digest('tracking-success', 'sha256'), 'hex')),
   'EXPIRED',
   '未確認訂單逾時後狀態為 EXPIRED'
+);
+select ok(
+  public.lookup_resumable_public_order(
+    'demo-aming-chicken-qr-2026-rotate-me',
+    encode(extensions.digest('device-a', 'sha256'), 'hex'),
+    'resume-ip-expired', 'resume-qr-expired', 'resume-behavior-expired', 'resume-request-expired'
+  ) is null,
+  '已逾時訂單不可再由 QR 找回'
 );
 
 select lives_ok(

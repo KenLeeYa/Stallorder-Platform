@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 export async function getStallBySlug(slug: string) {
   const stall = await prisma.stall.findUnique({
     where: { slug },
-    include: { merchant: true },
+    include: { organization: true },
   });
 
-  if (!stall || !stall.isActive || !["TRIALING", "ACTIVE"].includes(stall.merchant.status)) {
+  if (!stall || !stall.isActive || !["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"].includes(stall.organization.status)) {
     notFound();
   }
 
@@ -19,7 +19,7 @@ export async function getStallForApi(slug: string) {
     where: {
       slug,
       isActive: true,
-      merchant: { status: { in: ["TRIALING", "ACTIVE"] } },
+      organization: { status: { in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] } },
     },
     select: { id: true, slug: true, name: true, currency: true },
   });

@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { requirePagePermission } from "@/lib/authorization";
 import { MerchantProducts } from "@/components/merchant-products";
+import { hasPermission } from "@/lib/rbac";
+import { effectiveProductPrice } from "@/lib/shared-catalog";
+import { getWorkspaceAccess } from "@/lib/workspace";
 
 type PageProps = {
   params: Promise<{ stallSlug: string }>;
@@ -8,19 +11,25 @@ type PageProps = {
 
 export default async function MerchantPage({ params }: PageProps) {
   const { stallSlug } = await params;
-  const { stall, principal, role } = await requirePagePermission(
+  const { stall, principal, role, roles } = await requirePagePermission(
     stallSlug,
     "MANAGE_PRODUCTS",
     `/merchant/${stallSlug}`,
   );
-  const [products, categories, qrCode, orderingSettings] = await Promise.all([
-    prisma.product.findMany({
+  const workspaces = await getWorkspaceAccess(principal.user.id, principal.user.platformRole);
+  const workspace = workspaces.find((candidate) => candidate.id === stall.organizationId);
+  const [products, qrCode, orderingSettings] = await Promise.all([
+    prisma.stallProduct.findMany({
       where: { stallId: stall.id },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    }),
-    prisma.productCategory.findMany({
-      where: { stallId: stall.id },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      orderBy: [{ sortOrder: "asc" }, { product: { name: "asc" } }],
+      include: {
+        product: {
+          include: {
+            category: { select: { name: true } },
+            group: { select: { name: true } },
+          },
+        },
+      },
     }),
     prisma.qrCode.findFirst({
       where: { stallId: stall.id },
@@ -35,6 +44,7 @@ export default async function MerchantPage({ params }: PageProps) {
   return (
     <MerchantProducts
       stall={{
+        id: stall.id,
         name: stall.name,
         slug: stall.slug,
         currency: stall.currency,
@@ -43,19 +53,27 @@ export default async function MerchantPage({ params }: PageProps) {
       }}
       products={products.map((product) => ({
         id: product.id,
-        name: product.name,
-        description: product.description,
-        price: product.price,
-        categoryId: product.categoryId,
-        isAvailable: product.isAvailable,
+        productId: product.productId,
+        categoryName: product.product.category.name,
+        groupName: product.product.group?.name ?? null,
+        name: product.product.name,
+        description: product.product.description,
+        defaultPrice: product.product.defaultPrice,
+        priceOverride: product.priceOverride,
+        effectivePrice: effectiveProductPrice(product.product.defaultPrice, product.priceOverride),
+        isEnabled: product.isEnabled,
+        isSoldOut: product.isSoldOut,
         sortOrder: product.sortOrder,
+        availableFrom: product.availableFrom?.toISOString() ?? null,
+        availableUntil: product.availableUntil?.toISOString() ?? null,
+        masterIsActive: product.product.isActive,
       }))}
-      categories={categories.map((category) => ({
-        id: category.id,
-        name: category.name,
-        sortOrder: category.sortOrder,
-        isActive: category.isActive,
-      }))}
+      sourceStalls={(workspace?.stalls ?? [])
+        .filter((candidate) => candidate.id !== stall.id && candidate.roles.some((candidateRole) => hasPermission(candidateRole, "MANAGE_PRODUCTS")))
+        .map((candidate) => ({ id: candidate.id, name: candidate.name, code: candidate.code }))}
+      sharedCatalogUrl={roles.some((candidate) => hasPermission(candidate, "MANAGE_SHARED_PRODUCTS"))
+        ? `/merchant/catalog?organizationId=${stall.organizationId}`
+        : undefined}
       appBaseUrl={baseUrl}
       qrCode={qrCode}
       orderingSettings={orderingSettings ?? {
@@ -68,6 +86,8 @@ export default async function MerchantPage({ params }: PageProps) {
         maxPendingOrdersPerDevice: 3,
         maxOrdersPerWindow: 5,
         orderWindowSeconds: 300,
+        estimatedWaitMinutes: 15,
+        businessDayCutoffHour: 0,
       }}
       account={{ displayName: principal.user.displayName, role }}
     />

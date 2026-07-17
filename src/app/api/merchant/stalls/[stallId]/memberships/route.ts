@@ -1,0 +1,115 @@
+import { Prisma } from "@prisma/client";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { authorizeStallManagementApiRequest } from "@/lib/authorization";
+import { recordAuditEvent } from "@/lib/audit";
+import { validateCsrf } from "@/lib/csrf";
+import { readJson } from "@/lib/http";
+import { prisma } from "@/lib/prisma";
+
+const membershipSchema = z.object({
+  email: z.string().trim().email().max(120).transform((value) => value.toLowerCase()),
+  role: z.enum(["STALL_MANAGER", "STAFF", "KITCHEN"]),
+}).strict();
+
+type RouteContext = { params: Promise<{ stallId: string }> };
+
+export async function POST(request: Request, context: RouteContext) {
+  const { stallId } = await context.params;
+  const authorization = await authorizeStallManagementApiRequest(request, stallId, "MANAGE_STAFF");
+  if (!authorization.ok) return authorization.response;
+  if (!validateCsrf(request, authorization.principal)) {
+    return NextResponse.json(
+      { error: "安全驗證已失效，請重新整理後再試。" },
+      { status: 403, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+
+  const body = await readJson(request, authorization.requestId);
+  if (body.error) return body.error;
+  const parsed = membershipSchema.safeParse(body.data);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "成員 Email 或角色格式不正確。" },
+      { status: 400, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+
+  const canGrantManager = authorization.workspace.roles.some(
+    (role) => role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN" || role === "PLATFORM_ADMIN",
+  );
+  if (parsed.data.role === "STALL_MANAGER" && !canGrantManager) {
+    return NextResponse.json(
+      { error: "只有組織擁有者或管理員可指派攤位經理。" },
+      { status: 403, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+
+  const profile = await prisma.profile.findFirst({
+    where: {
+      email: parsed.data.email,
+      isActive: true,
+      OR: [
+        {
+          organizationMemberships: {
+            some: { organizationId: authorization.workspace.id, isActive: true },
+          },
+        },
+        {
+          stallMemberships: {
+            some: { organizationId: authorization.workspace.id, isActive: true },
+          },
+        },
+      ],
+    },
+    select: { id: true, email: true, displayName: true, isActive: true },
+  });
+  if (!profile?.isActive) {
+    return NextResponse.json(
+      { error: "找不到同組織的有效帳號；外部成員請改用 Email 邀請。" },
+      { status: 404, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+
+  try {
+    const membership = await prisma.stallMembership.upsert({
+      where: {
+        stallId_profileId_role: { stallId, profileId: profile.id, role: parsed.data.role },
+      },
+      update: { isActive: true },
+      create: {
+        organizationId: authorization.workspace.id,
+        stallId,
+        profileId: profile.id,
+        role: parsed.data.role,
+      },
+      select: { id: true, role: true, isActive: true },
+    });
+    await recordAuditEvent({
+      organizationId: authorization.workspace.id,
+      stallId,
+      actorProfileId: authorization.principal.user.id,
+      action: "STALL_ROLE_GRANTED",
+      entityType: "STALL_MEMBERSHIP",
+      entityId: membership.id,
+      outcome: "SUCCESS",
+      requestId: authorization.requestId,
+      after: {
+        targetProfileId: profile.id,
+        role: membership.role,
+        isActive: membership.isActive,
+      },
+      metadata: { targetProfileId: profile.id, role: membership.role },
+    });
+    return NextResponse.json(
+      { membership: { ...membership, profile } },
+      { status: 201, headers: { "x-request-id": authorization.requestId } },
+    );
+  } catch (error) {
+    const conflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+    return NextResponse.json(
+      { error: conflict ? "此成員已具有相同角色。" : "目前無法指派成員。" },
+      { status: conflict ? 409 : 500, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+}

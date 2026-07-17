@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Store } from "lucide-react";
+import { csrfHeaders } from "@/lib/csrf-client";
 
-export function OnboardingForm() {
+export function OnboardingForm({ authenticatedProfile }: { authenticatedProfile: { displayName: string; email: string } }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -13,18 +14,11 @@ export function OnboardingForm() {
     setError("");
     setIsSubmitting(true);
 
-    if (formData.get("password") !== formData.get("passwordConfirmation")) {
-      setError("兩次輸入的密碼不一致。");
-      setIsSubmitting(false);
-      return;
-    }
-
     const payload = Object.fromEntries(formData.entries());
-    delete payload.passwordConfirmation;
     try {
       const response = await fetch("/api/onboarding", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders(),
         body: JSON.stringify(payload),
       });
       const result = await response.json();
@@ -32,7 +26,7 @@ export function OnboardingForm() {
         setError(result.error ?? "目前無法建立商戶，請稍後再試。");
         return;
       }
-      router.push(`/merchant/${result.stallSlug}`);
+      router.push(result.next ?? `/merchant/${result.stallSlug}`);
       router.refresh();
     } catch {
       setError("目前無法連線，請確認網路後重試。");
@@ -47,16 +41,13 @@ export function OnboardingForm() {
         <Store className="h-6 w-6 text-teal-700" />
         <div>
           <h1 className="text-2xl font-semibold">商戶申請與開店設定</h1>
-          <p className="text-sm text-stone-600">建立商戶擁有者帳號與獨立攤位工作區。</p>
+          <p className="text-sm text-stone-600">建立組織與第一個攤位工作區。</p>
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <input name="merchantName" maxLength={80} className="rounded-md border border-stone-300 px-3 py-2" placeholder="商戶名稱" required />
-        <input name="displayName" maxLength={80} className="rounded-md border border-stone-300 px-3 py-2" placeholder="您的顯示名稱" required />
-        <input name="email" maxLength={120} autoComplete="username" className="rounded-md border border-stone-300 px-3 py-2" placeholder="電子郵件" type="email" required />
+        <div className="rounded-md border border-stone-200 bg-stone-50 px-3 py-2 text-sm"><div className="font-medium">{authenticatedProfile.displayName}</div><div className="text-stone-500">{authenticatedProfile.email}</div></div>
         <input name="phone" maxLength={30} autoComplete="tel" className="rounded-md border border-stone-300 px-3 py-2" placeholder="聯絡電話" required />
-        <input name="password" minLength={12} maxLength={72} autoComplete="new-password" className="rounded-md border border-stone-300 px-3 py-2" placeholder="密碼（至少 12 個字元）" type="password" required />
-        <input name="passwordConfirmation" minLength={12} maxLength={72} autoComplete="new-password" className="rounded-md border border-stone-300 px-3 py-2" placeholder="再次輸入密碼" type="password" required />
         <input name="stallName" maxLength={80} className="rounded-md border border-stone-300 px-3 py-2" placeholder="攤位名稱" required />
         <input name="location" maxLength={120} className="rounded-md border border-stone-300 px-3 py-2" placeholder="營業地點" required />
         <input

@@ -24,7 +24,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const product = await prisma.product.findFirst({
-    where: { id: productId, stallId: authorization.stall.id },
+    where: { id: productId, organizationId: authorization.stall.organizationId },
   });
   if (!product) {
     return NextResponse.json(
@@ -35,7 +35,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   if (parsed.data.categoryId) {
     const category = await prisma.productCategory.findFirst({
-      where: { id: parsed.data.categoryId, stallId: authorization.stall.id },
+      where: { id: parsed.data.categoryId, organizationId: authorization.stall.organizationId },
       select: { id: true },
     });
     if (!category) {
@@ -46,9 +46,26 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
-  const updatedProduct = await prisma.product.update({
-    where: { id: product.id },
-    data: parsed.data,
+  const updated = await prisma.$transaction(async (transaction) => {
+    const updatedProduct = await transaction.product.update({
+      where: { id: product.id },
+      data: {
+        categoryId: parsed.data.categoryId,
+        name: parsed.data.name,
+        description: parsed.data.description,
+        defaultPrice: parsed.data.price,
+        sortOrder: parsed.data.sortOrder,
+      },
+    });
+    const assignment = parsed.data.isAvailable === undefined
+      ? await transaction.stallProduct.findUnique({
+        where: { stallId_productId: { stallId: authorization.stall.id, productId: product.id } },
+      })
+      : await transaction.stallProduct.update({
+        where: { stallId_productId: { stallId: authorization.stall.id, productId: product.id } },
+        data: { isEnabled: true, isSoldOut: !parsed.data.isAvailable },
+      });
+    return { updatedProduct, assignment };
   });
   const changedFields = Object.keys(parsed.data);
   const availabilityOnly = changedFields.length === 1 && changedFields[0] === "isAvailable";
@@ -59,16 +76,22 @@ export async function PATCH(request: Request, context: RouteContext) {
     outcome: "SUCCESS",
     requestId: authorization.requestId,
     stallId: authorization.stall.id,
-    actorUserId: authorization.principal.user.id,
+    actorProfileId: authorization.principal.user.id,
     ipHash: hashClientIp(request),
     metadata: {
       changedFieldCount: changedFields.length,
-      isAvailable: updatedProduct.isAvailable,
+      isAvailable: updated.assignment ? updated.assignment.isEnabled && !updated.assignment.isSoldOut : false,
     },
   });
 
   return NextResponse.json(
-    { product: updatedProduct },
+    {
+      product: {
+        ...updated.updatedProduct,
+        price: updated.updatedProduct.defaultPrice,
+        isAvailable: updated.assignment ? updated.assignment.isEnabled && !updated.assignment.isSoldOut : false,
+      },
+    },
     { headers: { "x-request-id": authorization.requestId } },
   );
 }
@@ -79,7 +102,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (!authorization.ok) return authorization.response;
 
   const product = await prisma.product.findFirst({
-    where: { id: productId, stallId: authorization.stall.id },
+    where: { id: productId, organizationId: authorization.stall.organizationId },
     select: { id: true },
   });
   if (!product) {
@@ -89,15 +112,21 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
-  await prisma.product.delete({ where: { id: product.id } });
+  await prisma.$transaction([
+    prisma.product.update({ where: { id: product.id }, data: { isActive: false } }),
+    prisma.stallProduct.updateMany({
+      where: { organizationId: authorization.stall.organizationId, productId: product.id },
+      data: { isEnabled: false },
+    }),
+  ]);
   await recordAuditEvent({
-    action: "PRODUCT_DELETED",
+    action: "PRODUCT_DEACTIVATED",
     entityType: "PRODUCT",
     entityId: product.id,
     outcome: "SUCCESS",
     requestId: authorization.requestId,
     stallId: authorization.stall.id,
-    actorUserId: authorization.principal.user.id,
+    actorProfileId: authorization.principal.user.id,
     ipHash: hashClientIp(request),
   });
 

@@ -19,10 +19,12 @@ type StoredOrder = {
   order_status: string;
   payment_status: string;
   total_amount: number;
+  fulfillment_type?: string;
+  pickup_required?: boolean;
   created_at: string;
 };
 
-async function safeRecordTurnstileFailure(
+async function safeRecordSubmissionFailure(
   admin: ReturnType<typeof createServiceClient>,
   values: {
     requestId: string;
@@ -58,10 +60,12 @@ async function safeRecordTurnstileFailure(
 }
 
 function publicOrderResponse(order: StoredOrder, trackingToken: string, pickupCode: string) {
+  const pickupRequired = order.pickup_required !== false && order.fulfillment_type !== "DINE_IN";
   return {
     orderNo: order.order_no,
     trackingToken,
-    pickupVerificationCode: pickupCode,
+    pickupVerificationCode: pickupRequired ? pickupCode : null,
+    fulfillmentType: order.fulfillment_type ?? "TAKEOUT",
     orderStatus: order.order_status,
     paymentStatus: order.payment_status,
     totalAmount: order.total_amount,
@@ -87,7 +91,7 @@ Deno.serve(async (request) => {
     const clientIp = getGatewayClientIp(request);
     const sortedBehavior = [...input.items]
       .sort((left, right) => left.productId.localeCompare(right.productId))
-      .map((item) => `${item.productId}:${item.quantity}`)
+      .map((item) => `${item.productId}:${item.quantity}:${[...item.noteOptionIds].sort().join(",")}`)
       .join("|");
     const [sessionHash, ipHash, deviceHash, qrTokenHash, behaviorHash, idempotencyHash] = await Promise.all([
       sha256Hex(input.orderSessionToken),
@@ -99,17 +103,6 @@ Deno.serve(async (request) => {
     ]);
 
     const admin = createServiceClient();
-    const { data: existing, error: existingError } = await admin.rpc("lookup_public_order_idempotency", {
-      p_session_token_hash: sessionHash,
-      p_idempotency_key: input.idempotencyKey,
-    });
-    if (existingError) throw existingError;
-    if (existing) {
-      const order = existing as StoredOrder;
-      const tokens = await derivePublicOrderTokens(order.order_id, tokenSecret);
-      return jsonResponse(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200, corsHeaders, requestId);
-    }
-
     const { data: globalGateResult, error: globalGateError } = await admin.rpc(
       "check_global_public_request_gate",
       {
@@ -125,6 +118,17 @@ Deno.serve(async (request) => {
     if (!globalGate.ok) {
       const code = globalGate.code ?? "RATE_LIMITED";
       return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
+    }
+
+    const { data: existing, error: existingError } = await admin.rpc("lookup_public_order_idempotency", {
+      p_session_token_hash: sessionHash,
+      p_idempotency_key: input.idempotencyKey,
+    });
+    if (existingError) throw existingError;
+    if (existing) {
+      const order = existing as StoredOrder;
+      const tokens = await derivePublicOrderTokens(order.order_id, tokenSecret);
+      return jsonResponse(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200, corsHeaders, requestId);
     }
 
     const { data: gateResult, error: gateError } = await admin.rpc("check_public_order_submission_gate", {
@@ -145,14 +149,15 @@ Deno.serve(async (request) => {
     const turnstile = await verifyTurnstile({
       token: input.turnstileToken,
       remoteIp: clientIp,
-      idempotencyKey: input.idempotencyKey,
+      idempotencyKey: crypto.randomUUID(),
       secret: requireEnv("TURNSTILE_SECRET_KEY"),
       expectedHostname: Deno.env.get("TURNSTILE_EXPECTED_HOSTNAME")?.trim() || undefined,
       expectedAction: "public_order",
       allowTestKeys: Deno.env.get("TURNSTILE_ALLOW_TEST_KEYS") === "true",
+      environment: Deno.env.get("APP_ENV")?.trim() || "development",
     });
     if (!turnstile.ok) {
-      await safeRecordTurnstileFailure(admin, {
+      await safeRecordSubmissionFailure(admin, {
         requestId,
         code: turnstile.code,
         ipHash,
@@ -199,12 +204,34 @@ Deno.serve(async (request) => {
         product_id: item.productId,
         quantity: item.quantity,
         note: item.note,
+        modifier_option_ids: item.noteOptionIds,
       })),
       p_tracking_token_hash: trackingTokenHash,
       p_pickup_code_hash: pickupCodeHash,
       p_request_id: requestId,
     });
-    if (createError) throw createError;
+    if (createError) {
+      if (createError.message.includes("TOO_MANY_PENDING_ORDERS")) {
+        const code = "TOO_MANY_PENDING_ORDERS";
+        await safeRecordSubmissionFailure(admin, {
+          requestId,
+          code,
+          ipHash,
+          deviceHash,
+          qrTokenHash,
+          sessionHash,
+          behaviorHash,
+          idempotencyHash,
+        });
+        return jsonResponse(
+          { error: errorMessage(code), code },
+          statusForCode(code),
+          corsHeaders,
+          requestId,
+        );
+      }
+      throw createError;
+    }
 
     const result = createResult as { ok: boolean; code?: string; idempotent_replay?: boolean; order?: StoredOrder };
     if (!result.ok || !result.order) {

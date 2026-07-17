@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { isIP } from "node:net";
 
 const LOCAL_IP_HASH_SECRET = "stallorder-development-ip-hash-secret";
 
@@ -29,13 +30,25 @@ export function getCookieValue(request: Request, name: string) {
 }
 
 export function getClientIp(request: Request) {
-  if (process.env.TRUST_PROXY_HEADERS !== "true") return "unknown";
+  const headerName = process.env.TRUSTED_CLIENT_IP_HEADER?.trim().toLowerCase();
+  if (!headerName) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("TRUSTED_CLIENT_IP_HEADER must be configured in production.");
+    }
+    return "unknown";
+  }
+  if (
+    headerName !== "cf-connecting-ip"
+    && headerName !== "x-real-ip"
+    && headerName !== "x-forwarded-for"
+  ) {
+    throw new Error(
+      "TRUSTED_CLIENT_IP_HEADER must be cf-connecting-ip, x-real-ip, or x-forwarded-for.",
+    );
+  }
 
-  const cloudflareIp = request.headers.get("cf-connecting-ip");
-  if (cloudflareIp) return cloudflareIp.trim();
-
-  const forwarded = request.headers.get("x-forwarded-for");
-  return forwarded?.split(",").at(-1)?.trim() || "unknown";
+  const value = request.headers.get(headerName)?.trim();
+  return value && !value.includes(",") && isIP(value) !== 0 ? value : "unknown";
 }
 
 export function hashClientIp(request: Request) {
@@ -51,6 +64,33 @@ export function hashClientIp(request: Request) {
 
 export function createRequestId() {
   return randomUUID();
+}
+
+export function isLocalQaLoginRateLimitDisabled(
+  environment: {
+    NODE_ENV?: string;
+    LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT?: string;
+    NEXT_PUBLIC_APP_URL?: string;
+    DATABASE_URL?: string;
+  } = process.env,
+) {
+  if (environment.LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT !== "true") return false;
+
+  function isLoopbackUrl(value: string | undefined) {
+    if (!value) return false;
+    try {
+      const hostname = new URL(value).hostname;
+      return hostname === "localhost"
+        || hostname === "127.0.0.1"
+        || hostname === "::1"
+        || hostname === "[::1]";
+    } catch {
+      return false;
+    }
+  }
+
+  return isLoopbackUrl(environment.NEXT_PUBLIC_APP_URL)
+    && isLoopbackUrl(environment.DATABASE_URL);
 }
 
 export function isTrustedOrigin(request: Request) {
@@ -87,6 +127,21 @@ export function isTrustedOrigin(request: Request) {
 
 export function sanitizeRedirectPath(value: unknown, fallback = "/") {
   if (typeof value !== "string") return fallback;
-  if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
-  return value;
+  if (/\s|[\u0000-\u001f\u007f]/.test(value)) return fallback;
+
+  try {
+    const decoded = decodeURIComponent(value);
+    if (
+      !decoded.startsWith("/")
+      || decoded.startsWith("//")
+      || /\\|\s|[\u0000-\u001f\u007f]/.test(decoded)
+    ) return fallback;
+
+    const base = new URL("https://stallorder.invalid");
+    const redirect = new URL(value, base);
+    if (redirect.origin !== base.origin) return fallback;
+    return `${redirect.pathname}${redirect.search}${redirect.hash}`;
+  } catch {
+    return fallback;
+  }
 }

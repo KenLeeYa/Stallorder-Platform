@@ -1,0 +1,265 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { expect, test, type Page } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
+
+loadLocalEnv();
+assertLocalDatabase();
+
+const prisma = new PrismaClient();
+const password = "StallOrderDemo!2026";
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const primaryStallId = "22222222-2222-4222-8222-222222222222";
+const tableQrToken = "demo-aming-chicken-table-a1-qr-2026";
+const sourceSlug = "p1-template-source";
+const targetSlug = "p1-template-target";
+let sourceStallId = "";
+let targetStallId = "";
+let highDiscountId = "";
+
+test.describe("P1 營運功能", () => {
+  test.describe.configure({ mode: "serial" });
+
+  test.beforeAll(async () => {
+    await prisma.rateLimitBucket.deleteMany();
+    await prisma.publicRateLimitBucket.deleteMany({ where: { stallId: primaryStallId } });
+    await prisma.stall.deleteMany({ where: { slug: { in: [sourceSlug, targetSlug] } } });
+    await prisma.discountOption.deleteMany({ where: { stallId: primaryStallId, name: "7 折 P1" } });
+    await prisma.orderSession.deleteMany({ where: { order: { customerName: { startsWith: "P1 E2E" } } } });
+    await prisma.order.deleteMany({ where: { stallId: primaryStallId, customerName: { startsWith: "P1 E2E" } } });
+    await prisma.cashShift.deleteMany({ where: { stallId: primaryStallId, note: { startsWith: "P1 E2E" } } });
+
+    const product = await prisma.product.findFirstOrThrow({ where: { organizationId, name: "香酥雞排" } });
+    const source = await prisma.stall.create({
+      data: {
+        organizationId,
+        name: "P1 範本來源攤位",
+        slug: sourceSlug,
+        code: "P1-SOURCE",
+        address: "台北市測試路 1 號",
+        location: "台北市測試路 1 號",
+        orderingSettings: {
+          create: {
+            organizationId,
+            paymentModuleEnabled: true,
+            discountModuleEnabled: true,
+            discountApprovalThresholdBps: 8500,
+          },
+        },
+        businessHours: { create: Array.from({ length: 7 }, (_, dayOfWeek) => ({ organizationId, dayOfWeek, opensAt: "10:00", closesAt: "20:00", isClosed: dayOfWeek === 1 })) },
+        paymentOptions: { create: [{ organizationId, code: "P1_PAY", name: "P1 行動支付", kind: "CUSTOM", isEnabled: true, sortOrder: 1 }] },
+        discountOptions: { create: [{ organizationId, name: "P1 九折", rateBps: 9000, isEnabled: true, sortOrder: 1 }] },
+        stallProducts: { create: [{ organizationId, productId: product.id, isEnabled: true, isSoldOut: true, sortOrder: 1 }] },
+      },
+    });
+    const target = await prisma.stall.create({
+      data: {
+        organizationId,
+        name: "P1 範本目標攤位",
+        slug: targetSlug,
+        code: "P1-TARGET",
+        address: "台北市測試路 2 號",
+        location: "台北市測試路 2 號",
+        orderingSettings: {
+          create: {
+            organizationId,
+            paymentModuleEnabled: false,
+            discountModuleEnabled: false,
+            discountApprovalThresholdBps: 9500,
+          },
+        },
+        businessHours: { create: Array.from({ length: 7 }, (_, dayOfWeek) => ({ organizationId, dayOfWeek, opensAt: "17:00", closesAt: "23:00", isClosed: false })) },
+      },
+    });
+    sourceStallId = source.id;
+    targetStallId = target.id;
+    highDiscountId = (await prisma.discountOption.create({
+      data: { organizationId, stallId: primaryStallId, name: "7 折 P1", rateBps: 7000, isEnabled: true, sortOrder: 99 },
+    })).id;
+  });
+
+  test.afterAll(async () => {
+    await prisma.rateLimitBucket.deleteMany();
+    await prisma.publicRateLimitBucket.deleteMany({ where: { stallId: primaryStallId } });
+    await prisma.orderSession.deleteMany({ where: { order: { customerName: { startsWith: "P1 E2E" } } } });
+    await prisma.order.deleteMany({ where: { stallId: primaryStallId, customerName: { startsWith: "P1 E2E" } } });
+    await prisma.cashShift.deleteMany({ where: { stallId: primaryStallId, note: { startsWith: "P1 E2E" } } });
+    if (highDiscountId) await prisma.discountOption.deleteMany({ where: { id: highDiscountId } });
+    await prisma.stall.deleteMany({ where: { id: { in: [sourceStallId, targetStallId].filter(Boolean) } } });
+    await prisma.$disconnect();
+  });
+
+  test("同桌追加點餐可合併結帳、經理核准、列印重試並納入現金交班", async ({ browser, page }) => {
+    test.setTimeout(180_000);
+    await login(page, "staff@stallorder.test");
+    await page.goto("/staff/aming-chicken/cash");
+    await page.getByLabel("開班金額").fill("2000");
+    await page.getByLabel("備註（選填）").fill("P1 E2E 班次");
+    await page.getByRole("button", { name: "開始班次" }).click();
+    await expect(page.getByText("班次進行中", { exact: true })).toBeVisible();
+    await page.getByLabel("金額", { exact: true }).fill("500");
+    await page.getByLabel("原因", { exact: true }).fill("P1 E2E 備用金");
+    await page.getByRole("button", { name: "新增紀錄" }).click();
+    await expect(page.getByText("P1 E2E 備用金", { exact: true })).toBeVisible();
+
+    const firstContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
+    const secondContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
+    const firstCustomer = await firstContext.newPage();
+    const secondCustomer = await secondContext.newPage();
+    const firstOrderNo = await createDineInOrder(firstCustomer, "P1 E2E 同桌甲", "Deep-Fried Chicken Cutlet");
+    const secondOrderNo = await createDineInOrder(secondCustomer, "P1 E2E 同桌乙", "Sweet Potato Fries");
+
+    await page.goto("/staff/aming-chicken");
+    await page.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 同桌");
+    for (const customerName of ["P1 E2E 同桌甲", "P1 E2E 同桌乙"]) {
+      const order = page.getByRole("article").filter({ hasText: customerName });
+      await order.getByRole("button", { name: "確認接單" }).click();
+      await order.getByRole("button", { name: "全部開始製作（1）" }).click();
+      await order.getByRole("button", { name: "全部餐點完成（1）" }).click();
+      await order.getByRole("button", { name: "全部標記已出餐（1）" }).click();
+      await expect(order.getByText("已出餐", { exact: true })).toBeVisible();
+    }
+
+    await page.getByRole("button", { name: "同桌合併" }).click();
+    const tableGroup = page.getByRole("article").filter({ hasText: firstOrderNo });
+    await expect(tableGroup).toContainText(secondOrderNo);
+    await tableGroup.getByRole("button", { name: "合併結帳（2 筆）" }).click();
+    const checkout = page.getByRole("dialog", { name: "同桌合併結帳" });
+    await checkout.getByRole("button", { name: "7 折 P1" }).click();
+    await expect(checkout.getByText("此折扣超過店員免核准門檻")).toBeVisible();
+    await checkout.getByLabel("折扣原因").fill("P1 E2E 等候補償");
+    await checkout.getByLabel("經理帳號").fill("owner@stallorder.test");
+    await checkout.getByLabel("經理密碼").fill(password);
+    await checkout.getByRole("button", { name: "$500" }).click();
+    await expect(checkout).toContainText("$106");
+    await checkout.getByRole("button", { name: "完成訂單", exact: true }).click();
+    await expect(checkout).toHaveCount(0);
+
+    const checkedOutOrders = await prisma.order.findMany({
+      where: { orderNo: { in: [firstOrderNo, secondOrderNo] }, stallId: primaryStallId },
+      include: { payment: true, discountApprovedBy: true },
+    });
+    expect(checkedOutOrders).toHaveLength(2);
+    expect(checkedOutOrders.every((order) => order.status === "COMPLETED" && order.discountApprovalReason === "P1 E2E 等候補償")).toBe(true);
+    expect(checkedOutOrders.every((order) => order.discountApprovedBy?.email === "owner@stallorder.test")).toBe(true);
+    expect(new Set(checkedOutOrders.map((order) => order.payment?.checkoutGroupId)).size).toBe(1);
+
+    await page.goto("/staff/aming-chicken/print");
+    await page.getByRole("button", { name: "本機接手" }).first().click();
+    const initialJob = page.getByRole("article").filter({ hasText: firstOrderNo }).first();
+    await expect(initialJob).toContainText("待列印");
+    await initialJob.getByRole("button", { name: "開始列印" }).click();
+    await initialJob.getByRole("button", { name: "成功" }).click();
+    await expect(initialJob).toContainText("列印成功");
+    await initialJob.getByRole("button", { name: "補印" }).click();
+    const reprintJob = page.getByRole("article").filter({ hasText: firstOrderNo }).first();
+    await expect(reprintJob).toContainText("補印");
+    await reprintJob.getByRole("button", { name: "開始列印" }).click();
+    await reprintJob.getByRole("button", { name: "失敗" }).click();
+    await expect(reprintJob).toContainText("列印失敗");
+    await reprintJob.getByRole("button", { name: "重試" }).click();
+    await expect(reprintJob).toContainText("待列印");
+
+    await page.goto("/staff/aming-chicken/cash");
+    await expect(page.getByText("$2,606", { exact: true })).toBeVisible();
+    await page.getByLabel("實際盤點金額").fill("2606");
+    await expect(page.getByText("帳款相符", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "完成交班" }).click();
+    await expect(page.getByText("尚無已完成的交班紀錄。")).toHaveCount(0);
+    const closedShift = await prisma.cashShift.findFirstOrThrow({ where: { stallId: primaryStallId, note: "P1 E2E 班次" }, orderBy: { openedAt: "desc" } });
+    expect(closedShift.varianceAmount).toBe(0);
+
+    const cancelContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
+    const cancelCustomer = await cancelContext.newPage();
+    const cancelledOrderNo = await createDineInOrder(cancelCustomer, "P1 E2E 取消單", "Deep-Fried Chicken Cutlet");
+    await page.goto("/staff/aming-chicken");
+    await page.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 取消單");
+    const cancelledOrder = page.getByRole("article").filter({ hasText: "P1 E2E 取消單" });
+    await cancelledOrder.getByRole("button", { name: "取消訂單" }).click();
+    const cancellation = page.getByRole("alertdialog", { name: "確認取消訂單？" });
+    await cancellation.getByLabel("取消原因").selectOption("SOLD_OUT");
+    await cancellation.getByLabel(/補充說明/).fill("P1 E2E 商品售罄");
+    await cancellation.getByRole("button", { name: "確認取消訂單" }).click();
+    await expect(cancelledOrder).toHaveCount(0);
+    const cancelledRecord = await prisma.order.findFirstOrThrow({ where: { stallId: primaryStallId, orderNo: cancelledOrderNo } });
+    expect(cancelledRecord.cancellationReason).toBe("SOLD_OUT");
+    expect(cancelledRecord.cancellationDetail).toBe("P1 E2E 商品售罄");
+
+    await firstContext.close();
+    await secondContext.close();
+    await cancelContext.close();
+  });
+
+  test("多攤位範本先顯示差異再套用全部營運設定", async ({ page }) => {
+    await login(page, "owner@stallorder.test");
+    await page.goto(`/merchant/stalls/${targetStallId}`);
+    await expect(page.getByText("營業時間", { exact: true })).toBeVisible();
+    await page.getByText("多攤位範本", { exact: true }).click();
+    const template = page.locator("details").filter({ hasText: "多攤位範本" }).last();
+    await template.getByLabel("來源攤位").selectOption(sourceStallId);
+    await template.getByRole("button", { name: "比較差異" }).click();
+    await expect(template).toContainText("付款方式");
+    await expect(template).toContainText("經理核准門檻：8.5 折以下");
+    await expect(template).toContainText("商品供應");
+    await expect(template).toContainText("營業時間");
+    page.once("dialog", (dialog) => dialog.accept());
+    await template.getByRole("button", { name: "套用所選設定" }).click();
+    await expect(template.getByRole("status")).toContainText("攤位範本已套用");
+
+    const [payment, discounts, products, hours, settings] = await Promise.all([
+      prisma.paymentOption.findMany({ where: { stallId: targetStallId }, orderBy: { sortOrder: "asc" } }),
+      prisma.discountOption.findMany({ where: { stallId: targetStallId }, orderBy: { sortOrder: "asc" } }),
+      prisma.stallProduct.findMany({ where: { stallId: targetStallId } }),
+      prisma.stallBusinessHour.findMany({ where: { stallId: targetStallId }, orderBy: { dayOfWeek: "asc" } }),
+      prisma.stallOrderingSettings.findUniqueOrThrow({ where: { stallId: targetStallId } }),
+    ]);
+    expect(payment.map((option) => option.code)).toEqual(["P1_PAY"]);
+    expect(discounts.map((option) => option.name)).toEqual(["P1 九折"]);
+    expect(products).toHaveLength(1);
+    expect(products[0]?.isSoldOut).toBe(true);
+    expect(hours).toHaveLength(7);
+    expect(hours.every((hour) => hour.opensAt === "10:00" && hour.closesAt === "20:00")).toBe(true);
+    expect(settings.paymentModuleEnabled).toBe(true);
+    expect(settings.discountModuleEnabled).toBe(true);
+    expect(settings.discountApprovalThresholdBps).toBe(8500);
+  });
+});
+
+async function login(page: Page, email: string) {
+  await page.goto("/login");
+  await page.getByLabel("電子郵件").fill(email);
+  await page.getByLabel("密碼").fill(password);
+  await page.getByRole("button", { name: "登入", exact: true }).click();
+  await expect(page).toHaveURL(/\/merchant\/dashboard|\/staff\//);
+}
+
+async function createDineInOrder(page: Page, customerName: string, productName: string) {
+  await page.goto(`/q/${tableQrToken}`);
+  await page.getByLabel("點餐語言").selectOption("en");
+  await page.getByRole("button", { name: `Increase ${productName}` }).click();
+  await page.getByLabel("Customer name").fill(customerName);
+  const responsePromise = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith("/create-public-order") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Place order", exact: true }).click();
+  expect((await responsePromise).status()).toBe(201);
+  await expect(page).toHaveURL(/\/order\//);
+  const orderText = await page.getByText(/^訂單 /).first().textContent();
+  if (!orderText) throw new Error("找不到新訂單編號");
+  return orderText.replace(/^訂單\s+/, "").trim();
+}
+
+function assertLocalDatabase() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error("E2E 必須設定 DATABASE_URL");
+  const hostname = new URL(databaseUrl).hostname;
+  if (hostname !== "127.0.0.1" && hostname !== "localhost") throw new Error(`拒絕在非本機資料庫執行 E2E：${hostname}`);
+}
+
+function loadLocalEnv() {
+  const content = readFileSync(resolve(process.cwd(), ".env"), "utf8");
+  for (const line of content.split(/\r?\n/)) {
+    const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (!match || process.env[match[1]]) continue;
+    const value = match[2].trim();
+    process.env[match[1]] = value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
+  }
+}

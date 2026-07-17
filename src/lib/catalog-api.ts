@@ -12,7 +12,7 @@ export async function authorizeCatalogMutation(
   entityType: "PRODUCT" | "PRODUCT_CATEGORY",
   entityId?: string,
 ) {
-  const authorization = await authorizeApiRequest(request, stallSlug, "MANAGE_PRODUCTS");
+  const authorization = await authorizeApiRequest(request, stallSlug, "MANAGE_SHARED_PRODUCTS");
   if (!authorization.ok) return authorization;
 
   if (!validateCsrf(request, authorization.principal)) {
@@ -23,7 +23,7 @@ export async function authorizeCatalogMutation(
       outcome: "DENIED",
       requestId: authorization.requestId,
       stallId: authorization.stall.id,
-      actorUserId: authorization.principal.user.id,
+      actorProfileId: authorization.principal.user.id,
       ipHash: hashClientIp(request),
     });
     return {

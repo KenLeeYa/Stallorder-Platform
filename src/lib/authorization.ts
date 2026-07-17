@@ -6,33 +6,62 @@ import { NextResponse } from "next/server";
 import { getPagePrincipal, getRequestPrincipal, type SessionPrincipal } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { hasPermission, type Permission } from "@/lib/rbac";
+import {
+  authorizedStallIdsForPermission,
+  hasPermission,
+  resolvePrimaryRole,
+  type Permission,
+} from "@/lib/rbac";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp } from "@/lib/security";
+import { getWorkspaceAccess } from "@/lib/workspace";
 
-async function findStallAccess(principal: SessionPrincipal, stallSlug: string) {
+export async function findStallAccess(principal: SessionPrincipal, stallSlug: string) {
+  const stall = await prisma.stall.findFirst({
+    where: {
+      slug: stallSlug,
+      isActive: true,
+      organization: { status: { in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] } },
+    },
+    include: { organization: true },
+  });
+  if (!stall) return null;
+
   if (principal.user.platformRole === "PLATFORM_ADMIN") {
-    const stall = await prisma.stall.findFirst({
-      where: { slug: stallSlug, isActive: true },
-      include: { merchant: true },
-    });
-    return stall ? { stall, role: "PLATFORM_ADMIN" as UserRole } : null;
+    return { stall, role: "PLATFORM_ADMIN" as UserRole, roles: ["PLATFORM_ADMIN" as UserRole] };
   }
 
-  const membership = await prisma.stallMembership.findFirst({
-    where: {
-      userId: principal.user.id,
-      isActive: true,
-      stall: {
-        slug: stallSlug,
+  const [organizationMemberships, stallMemberships] = await Promise.all([
+    prisma.organizationMembership.findMany({
+      where: {
+        organizationId: stall.organizationId,
+        profileId: principal.user.id,
         isActive: true,
-        merchant: { status: { in: ["TRIALING", "ACTIVE"] } },
       },
-    },
-    include: { stall: { include: { merchant: true } } },
-  });
+    }),
+    prisma.stallMembership.findMany({
+      where: {
+        organizationId: stall.organizationId,
+        profileId: principal.user.id,
+        stallId: stall.id,
+        isActive: true,
+      },
+    }),
+  ]);
 
-  return membership ? { stall: membership.stall, role: membership.role } : null;
+  const roles = [
+    ...organizationMemberships
+      .filter((membership) => (
+        membership.role === "ORGANIZATION_OWNER"
+        || membership.allStalls
+        || stallMemberships.length > 0
+      ))
+      .map((membership) => membership.role),
+    ...stallMemberships.map((membership) => membership.role),
+  ];
+  const role = resolvePrimaryRole(roles);
+
+  return role ? { stall, role, roles } : null;
 }
 
 export async function requirePagePermission(stallSlug: string, permission: Permission, returnPath: string) {
@@ -40,7 +69,7 @@ export async function requirePagePermission(stallSlug: string, permission: Permi
   if (!principal) redirect(`/login?next=${encodeURIComponent(returnPath)}`);
 
   const access = await findStallAccess(principal, stallSlug);
-  if (!access || !hasPermission(access.role, permission)) notFound();
+  if (!access || !access.roles.some((role) => hasPermission(role, permission))) notFound();
 
   return { principal, ...access };
 }
@@ -70,7 +99,7 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
       entityType: "AUTHENTICATED_API",
       outcome: "DENIED",
       requestId,
-      actorUserId: principal.user.id,
+      actorProfileId: principal.user.id,
       ipHash: hashClientIp(request),
     });
     return {
@@ -92,7 +121,7 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
       entityType: "STALL",
       outcome: "DENIED",
       requestId,
-      actorUserId: principal.user.id,
+      actorProfileId: principal.user.id,
       ipHash: hashClientIp(request),
     });
     return {
@@ -104,7 +133,7 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
     };
   }
 
-  if (!hasPermission(access.role, permission)) {
+  if (!access.roles.some((role) => hasPermission(role, permission))) {
     await recordAuditEvent({
       action: "AUTHORIZATION_DENIED",
       entityType: "STALL",
@@ -112,9 +141,9 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
       outcome: "DENIED",
       requestId,
       stallId: access.stall.id,
-      actorUserId: principal.user.id,
+      actorProfileId: principal.user.id,
       ipHash: hashClientIp(request),
-      metadata: { permission, role: access.role },
+      metadata: { permission, role: access.roles.join(",") },
     });
     return {
       ok: false as const,
@@ -126,4 +155,173 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
   }
 
   return { ok: true as const, requestId, principal, ...access };
+}
+
+export async function authorizeOrganizationApiRequest(
+  request: Request,
+  organizationId: string,
+  permission: Permission,
+  includeStallRoles = false,
+) {
+  const requestId = createRequestId();
+  const principal = await getRequestPrincipal(request);
+  if (!principal) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "請先登入。" },
+        { status: 401, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  const apiLimit = await checkRateLimit({
+    scope: "authenticated-api",
+    identifier: principal.user.id,
+    limit: 300,
+    windowMs: 5 * 60_000,
+  });
+  if (!apiLimit.allowed) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "操作過於頻繁，請稍後再試。" },
+        {
+          status: 429,
+          headers: { "retry-after": String(apiLimit.retryAfterSeconds), "x-request-id": requestId },
+        },
+      ),
+    };
+  }
+
+  const workspaces = await getWorkspaceAccess(principal.user.id, principal.user.platformRole);
+  const workspace = workspaces.find((candidate) => candidate.id === organizationId);
+  if (!workspace) {
+    await recordAuditEvent({
+      action: "AUTHORIZATION_DENIED",
+      entityType: "ORGANIZATION",
+      outcome: "DENIED",
+      requestId,
+      actorProfileId: principal.user.id,
+      ipHash: hashClientIp(request),
+    });
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "找不到指定資源。" },
+        { status: 404, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  const authorizedStallIds = includeStallRoles
+    ? authorizedStallIdsForPermission(workspace.stalls, permission)
+    : [];
+  const hasOrganizationPermission = workspace.roles.some((role) => hasPermission(role, permission))
+    && (!includeStallRoles || workspace.canUseAllStalls);
+  if (!hasOrganizationPermission && authorizedStallIds.length === 0) {
+    await recordAuditEvent({
+      organizationId: workspace.id,
+      action: "AUTHORIZATION_DENIED",
+      entityType: "ORGANIZATION",
+      entityId: workspace.id,
+      outcome: "DENIED",
+      requestId,
+      actorProfileId: principal.user.id,
+      ipHash: hashClientIp(request),
+      metadata: { permission, role: workspace.roles.join(",") },
+    });
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "您的角色沒有執行此操作的權限。" },
+        { status: 403, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  return { ok: true as const, requestId, principal, workspace, authorizedStallIds };
+}
+
+export async function authorizeStallManagementApiRequest(
+  request: Request,
+  stallId: string,
+  permission: Permission,
+) {
+  const requestId = createRequestId();
+  const principal = await getRequestPrincipal(request);
+  if (!principal) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "請先登入。" },
+        { status: 401, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  const apiLimit = await checkRateLimit({
+    scope: "authenticated-api",
+    identifier: principal.user.id,
+    limit: 300,
+    windowMs: 5 * 60_000,
+  });
+  if (!apiLimit.allowed) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "操作過於頻繁，請稍後再試。" },
+        {
+          status: 429,
+          headers: { "retry-after": String(apiLimit.retryAfterSeconds), "x-request-id": requestId },
+        },
+      ),
+    };
+  }
+
+  const workspaces = await getWorkspaceAccess(principal.user.id, principal.user.platformRole);
+  const workspace = workspaces.find((candidate) => candidate.stalls.some((stall) => stall.id === stallId));
+  const workspaceStall = workspace?.stalls.find((stall) => stall.id === stallId);
+  if (!workspace || !workspaceStall) {
+    await recordAuditEvent({
+      action: "AUTHORIZATION_DENIED",
+      entityType: "STALL",
+      outcome: "DENIED",
+      requestId,
+      actorProfileId: principal.user.id,
+      ipHash: hashClientIp(request),
+    });
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "找不到指定資源。" },
+        { status: 404, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  const roles = [...new Set([...workspace.roles, ...workspaceStall.roles])];
+  if (!roles.some((role) => hasPermission(role, permission))) {
+    await recordAuditEvent({
+      organizationId: workspace.id,
+      stallId,
+      action: "AUTHORIZATION_DENIED",
+      entityType: "STALL",
+      entityId: stallId,
+      outcome: "DENIED",
+      requestId,
+      actorProfileId: principal.user.id,
+      ipHash: hashClientIp(request),
+      metadata: { permission, role: roles.join(",") },
+    });
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "您的角色沒有執行此操作的權限。" },
+        { status: 403, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+
+  return { ok: true as const, requestId, principal, workspace, workspaceStall, roles };
 }

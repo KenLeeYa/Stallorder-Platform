@@ -58,7 +58,24 @@ describe("Turnstile 伺服器驗證", () => {
       ...base,
       secret: "1x0000000000000000000000000000000AA",
       allowTestKeys: true,
+      environment: "development",
       fetchImpl,
     })).resolves.toEqual({ ok: true });
+  });
+
+  it("正式環境一律拒絕 Cloudflare 官方測試私鑰", async () => {
+    const fetchImpl = siteverify({
+      success: true,
+      challenge_ts: "2026-07-13T00:04:30Z",
+      metadata: { result_with_testing_key: true },
+    });
+    await expect(verifyTurnstile({
+      ...base,
+      secret: "1x0000000000000000000000000000000AA",
+      allowTestKeys: true,
+      environment: "production",
+      fetchImpl,
+    })).resolves.toMatchObject({ ok: false, code: "INVALID_TURNSTILE" });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

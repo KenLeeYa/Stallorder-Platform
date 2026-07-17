@@ -15,6 +15,7 @@ export type SessionPrincipal = {
   csrfTokenHash: string;
   user: {
     id: string;
+    authUserId: string | null;
     email: string;
     displayName: string;
     platformRole: UserRole | null;
@@ -26,10 +27,10 @@ async function findPrincipal(token: string | null): Promise<SessionPrincipal | n
 
   const session = await prisma.authSession.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: true },
+    include: { profile: true },
   });
 
-  if (!session || !session.user.isActive || session.expiresAt <= new Date()) {
+  if (!session || !session.profile.isActive || session.expiresAt <= new Date()) {
     if (session) await prisma.authSession.delete({ where: { id: session.id } }).catch(() => undefined);
     return null;
   }
@@ -38,10 +39,11 @@ async function findPrincipal(token: string | null): Promise<SessionPrincipal | n
     sessionId: session.id,
     csrfTokenHash: session.csrfTokenHash,
     user: {
-      id: session.user.id,
-      email: session.user.email,
-      displayName: session.user.displayName,
-      platformRole: session.user.platformRole,
+      id: session.profile.id,
+      authUserId: session.profile.authUserId,
+      email: session.profile.email,
+      displayName: session.profile.displayName,
+      platformRole: session.profile.platformRole,
     },
   };
 }
@@ -55,15 +57,15 @@ export async function getPagePrincipal() {
   return findPrincipal(cookieStore.get(SESSION_COOKIE)?.value ?? null);
 }
 
-export async function createSession(userId: string) {
+export async function createSession(profileId: string) {
   const token = createOpaqueToken();
   const csrfToken = createOpaqueToken();
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
 
-  await prisma.authSession.deleteMany({ where: { userId, expiresAt: { lte: new Date() } } });
+  await prisma.authSession.deleteMany({ where: { profileId, expiresAt: { lte: new Date() } } });
   await prisma.authSession.create({
     data: {
-      userId,
+      profileId,
       tokenHash: hashToken(token),
       csrfTokenHash: hashToken(csrfToken),
       expiresAt,
@@ -105,5 +107,9 @@ export function clearSessionCookies(response: NextResponse) {
 }
 
 export function defaultPathForRole(role: UserRole, stallSlug: string) {
-  return role === "STAFF" || role === "KITCHEN" ? `/staff/${stallSlug}` : `/merchant/${stallSlug}`;
+  if (role === "STAFF" || role === "KITCHEN") return `/staff/${stallSlug}`;
+  if (role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN" || role === "FINANCE_VIEWER") {
+    return "/merchant/dashboard";
+  }
+  return `/merchant/${stallSlug}`;
 }

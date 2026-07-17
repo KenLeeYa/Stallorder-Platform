@@ -1,19 +1,21 @@
 import "server-only";
 
-import type { AuditOutcome } from "@prisma/client";
+import type { AuditOutcome, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 type AuditEvent = {
-  tenantId?: string;
+  organizationId?: string;
   action: string;
   entityType: string;
   outcome: AuditOutcome;
   requestId: string;
   stallId?: string;
-  actorUserId?: string;
+  actorProfileId?: string;
   entityId?: string;
   ipHash?: string;
   metadata?: Record<string, string | number | boolean | null>;
+  before?: Prisma.InputJsonObject;
+  after?: Prisma.InputJsonObject;
 };
 
 function cleanMetadata(metadata: AuditEvent["metadata"]) {
@@ -41,31 +43,33 @@ export function logEvent(
 
 export async function recordAuditEvent(event: AuditEvent) {
   try {
-    const tenantId = event.tenantId ?? (event.stallId
+    const organizationId = event.organizationId ?? (event.stallId
       ? (await prisma.stall.findUnique({
         where: { id: event.stallId },
-        select: { merchantId: true },
-      }))?.merchantId
+        select: { organizationId: true },
+      }))?.organizationId
       : undefined);
     await prisma.auditLog.create({
       data: {
         action: event.action,
-        tenantId,
+        organizationId,
         entityType: event.entityType,
         outcome: event.outcome,
         requestId: event.requestId,
         stallId: event.stallId,
-        actorUserId: event.actorUserId,
+        actorProfileId: event.actorProfileId,
         entityId: event.entityId,
         ipHash: event.ipHash,
         metadata: cleanMetadata(event.metadata),
+        beforeJson: event.before,
+        afterJson: event.after,
       },
     });
     logEvent(event.outcome === "SUCCESS" ? "info" : "warn", event.action, {
       requestId: event.requestId,
       outcome: event.outcome,
       stallId: event.stallId,
-      actorUserId: event.actorUserId,
+      actorProfileId: event.actorProfileId,
       entityId: event.entityId,
     });
   } catch {

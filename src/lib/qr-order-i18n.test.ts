@@ -1,0 +1,46 @@
+import { describe, expect, it } from "vitest";
+import {
+  localizedPublicOrderError,
+  localizedQrCategory,
+  resolvePreferredQrLocale,
+} from "./qr-order-i18n";
+
+const allTranslations = ["en", "ja", "ko", "vi", "th"];
+
+describe("QR 點餐瀏覽器語系", () => {
+  it.each([
+    ["en-US", "en"],
+    ["ja-JP", "ja"],
+    ["ko-KR", "ko"],
+    ["vi-VN", "vi"],
+    ["th-TH", "th"],
+    ["zh-Hant-TW", "zh-TW"],
+    ["zh-HK", "zh-TW"],
+  ])("將 %s 對應至 %s", (browserLocale, expected) => {
+    expect(resolvePreferredQrLocale([browserLocale], allTranslations)).toBe(expected);
+  });
+
+  it("依瀏覽器偏好順序選擇商家有提供的語系", () => {
+    expect(resolvePreferredQrLocale(["fr-FR", "ja-JP", "en-US"], ["en", "ja"])).toBe("ja");
+  });
+
+  it("商家未提供瀏覽器語系時回到繁體中文", () => {
+    expect(resolvePreferredQrLocale(["ja-JP"], ["en"])).toBe("zh-TW");
+    expect(resolvePreferredQrLocale(["fr-FR"], allTranslations)).toBe("zh-TW");
+  });
+});
+
+describe("QR 點餐介面翻譯", () => {
+  it("翻譯既有商品分類", () => {
+    expect(localizedQrCategory("en", "炸物")).toBe("Deep-fried food");
+    expect(localizedQrCategory("ja", "炸物")).toBe("揚げ物");
+    expect(localizedQrCategory("ko", "飲料")).toBe("음료");
+    expect(localizedQrCategory("vi", "飲料")).toBe("Đồ uống");
+    expect(localizedQrCategory("th", "炸物")).toBe("อาหารทอด");
+  });
+
+  it("使用目前語系顯示後端錯誤", () => {
+    expect(localizedPublicOrderError("ja", "QR_REVOKED")).toContain("QRコード");
+    expect(localizedPublicOrderError("th", "RATE_LIMITED")).toContain("บ่อยเกินไป");
+  });
+});

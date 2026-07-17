@@ -16,10 +16,13 @@ declare global {
 
 type Props = {
   resetKey: number;
+  locale?: string;
+  label: string;
+  missingKeyMessage: string;
   onToken: (token: string | null) => void;
 };
 
-export function TurnstileWidget({ resetKey, onToken }: Props) {
+export function TurnstileWidget({ resetKey, locale = "auto", label, missingKeyMessage, onToken }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
   const [scriptReady, setScriptReady] = useState(false);
@@ -34,7 +37,7 @@ export function TurnstileWidget({ resetKey, onToken }: Props) {
     widgetIdRef.current = window.turnstile.render(container, {
       sitekey: siteKey,
       action: "public_order",
-      language: "zh-tw",
+      language: locale === "zh-TW" ? "zh-tw" : locale,
       theme: "light",
       size: "flexible",
       callback: (token: string) => onToken(token),
@@ -49,10 +52,10 @@ export function TurnstileWidget({ resetKey, onToken }: Props) {
         widgetIdRef.current = null;
       }
     };
-  }, [onToken, resetKey, scriptReady, siteKey]);
+  }, [locale, onToken, resetKey, scriptReady, siteKey]);
 
   if (!siteKey) {
-    return <p role="alert" className="text-sm text-red-700">尚未設定 Turnstile 網站金鑰。</p>;
+    return <p role="alert" className="text-sm text-red-700">{missingKeyMessage}</p>;
   }
 
   return (
@@ -62,7 +65,7 @@ export function TurnstileWidget({ resetKey, onToken }: Props) {
         strategy="afterInteractive"
         onLoad={() => setScriptReady(true)}
       />
-      <div ref={containerRef} className="min-h-16 w-full" aria-label="安全驗證" />
+      <div ref={containerRef} className="min-h-16 w-full" aria-label={label} />
     </>
   );
 }
