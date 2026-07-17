@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, BarChart3, CheckCircle2, LogIn, QrCode, Store, Utensils } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default function Home() {
   return (
     <main className="min-h-screen">
