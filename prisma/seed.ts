@@ -56,6 +56,7 @@ async function main() {
     update: {
       organizationId: organization.id,
       dineInEnabled: true,
+      deliveryModuleEnabled: true,
       printModuleEnabled: true,
       paymentModuleEnabled: true,
       discountModuleEnabled: true,
@@ -66,6 +67,7 @@ async function main() {
       stallId: stall.id,
       organizationId: organization.id,
       dineInEnabled: true,
+      deliveryModuleEnabled: true,
       printModuleEnabled: true,
       paymentModuleEnabled: true,
       discountModuleEnabled: true,

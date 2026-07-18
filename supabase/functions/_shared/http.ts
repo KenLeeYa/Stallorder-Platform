@@ -109,6 +109,12 @@ function isValidIp(value: string) {
 }
 
 export function errorMessage(code: string) {
+  const deliveryMessages: Record<string, string> = {
+    DELIVERY_UNAVAILABLE: "目前未開放線上外送。",
+    INVALID_DELIVERY_DETAILS: "請填寫有效的聯絡電話與外送地址。",
+    ORDER_MODE_CONFLICT: "點餐連結與訂購方式不相符，請重新開啟正確連結。",
+  };
+  if (deliveryMessages[code]) return deliveryMessages[code];
   const messages: Record<string, string> = {
     ORIGIN_NOT_ALLOWED: "不允許此網站送出訂單。",
     METHOD_NOT_ALLOWED: "不支援此請求方式。",
@@ -150,11 +156,11 @@ export function errorMessage(code: string) {
 
 export function statusForCode(code: string) {
   if (["QR_NOT_FOUND", "SESSION_NOT_FOUND", "ORDER_NOT_FOUND"].includes(code)) return 404;
-  if (["QR_REVOKED", "QR_PAUSED", "QR_EXPIRED", "QR_NOT_ACTIVE", "QR_SESSION_MISMATCH", "STALL_CLOSED", "ORDERING_PAUSED", "STALL_SOLD_OUT", "TENANT_INACTIVE", "SESSION_EXPIRED", "SESSION_REPLAYED", "SESSION_DEVICE_MISMATCH"].includes(code)) return 409;
+  if (["QR_REVOKED", "QR_PAUSED", "QR_EXPIRED", "QR_NOT_ACTIVE", "QR_SESSION_MISMATCH", "STALL_CLOSED", "ORDERING_PAUSED", "STALL_SOLD_OUT", "TENANT_INACTIVE", "SESSION_EXPIRED", "SESSION_REPLAYED", "SESSION_DEVICE_MISMATCH", "DELIVERY_UNAVAILABLE", "ORDER_MODE_CONFLICT"].includes(code)) return 409;
   if (code === "RATE_LIMITED" || code === "TOO_MANY_PENDING_ORDERS") return 429;
   if (code === "TURNSTILE_UNAVAILABLE") return 503;
   if (["ORDER_CONFLICT"].includes(code)) return 409;
-  if (code === "INVALID_PRODUCT_NOTES") return 422;
+  if (["INVALID_PRODUCT_NOTES", "INVALID_DELIVERY_DETAILS"].includes(code)) return 422;
   if (["ORDER_CREATE_ERROR"].includes(code)) return 500;
   return 400;
 }

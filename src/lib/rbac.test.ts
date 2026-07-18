@@ -29,6 +29,14 @@ describe("RBAC", () => {
     expect(hasPermission("KITCHEN", "VIEW_DINING_FLOOR")).toBe(true);
   });
 
+  it("只有前台營運角色可建立店員代點訂單", () => {
+    expect(hasPermission("ORGANIZATION_OWNER", "CREATE_ORDERS")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "CREATE_ORDERS")).toBe(true);
+    expect(hasPermission("STAFF", "CREATE_ORDERS")).toBe(true);
+    expect(hasPermission("KITCHEN", "CREATE_ORDERS")).toBe(false);
+    expect(hasPermission("FINANCE_VIEWER", "CREATE_ORDERS")).toBe(false);
+  });
+
   it("營運權限區分列印、現金交班與折扣核准", () => {
     expect(hasPermission("STAFF", "MANAGE_PRINT_QUEUE")).toBe(true);
     expect(hasPermission("KITCHEN", "MANAGE_PRINT_QUEUE")).toBe(true);

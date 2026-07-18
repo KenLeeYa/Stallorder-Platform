@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Eye, ImageOff } from "lucide-react";
+import { LocaleFlag } from "@/components/locale-flag";
 import { getLocalizedStallPreview } from "@/lib/localization-data";
 import { formatMoney } from "@/lib/money";
 import { hasPermission } from "@/lib/rbac";
@@ -37,7 +38,7 @@ export default async function LocalizationPreviewPage({ searchParams }: PageProp
     <main className="mx-auto min-h-screen max-w-3xl bg-white px-4 py-6 md:px-8" lang={locale}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-5">
         <div><Link href={`/merchant/localization?organizationId=${workspace.id}`} className="inline-flex min-h-9 items-center gap-2 text-sm font-semibold text-teal-800"><ArrowLeft className="h-4 w-4" />返回翻譯完整度</Link><h1 className="mt-2 text-3xl font-semibold">{stall.name}</h1><p className="mt-1 text-sm text-stone-500">{stall.location}</p></div>
-        <span className="inline-flex min-h-10 items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-900"><Eye className="h-4 w-4" />{copy.localeName} · 預覽模式</span>
+        <span className="inline-flex min-h-10 items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-900"><Eye className="h-4 w-4" /><LocaleFlag locale={locale} />{copy.localeName} · 預覽模式</span>
       </div>
       <div className="border-b border-stone-200 py-4 text-sm text-stone-600">{copy.confirmationNotice}</div>
       {categories.map((category) => (

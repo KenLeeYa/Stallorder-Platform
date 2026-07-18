@@ -14,8 +14,10 @@ type PublicOrder = {
   completedAt: string | null;
   stallName: string;
   pickupVerificationCode: string | null;
-  fulfillmentType: "TAKEOUT" | "DINE_IN";
+  fulfillmentType: "TAKEOUT" | "DINE_IN" | "DELIVERY";
   tableLabel: string | null;
+  customerPhone: string | null;
+  deliveryAddress: string | null;
   estimatedWaitMinutes: number;
   lastTableOrderAt: string | null;
   items: Array<{
@@ -102,8 +104,9 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
           </div>
           <div className="mt-7 grid grid-cols-2 gap-5">
             <div>
-              <div className="text-xs text-stone-500">{order.fulfillmentType === "DINE_IN" ? "內用桌位" : "取餐驗證碼"}</div>
-              <div data-testid={order.fulfillmentType === "TAKEOUT" ? "pickup-code" : undefined} className={`mt-1 font-semibold ${order.fulfillmentType === "TAKEOUT" ? "font-mono text-3xl tracking-normal" : "text-xl"}`}>{order.fulfillmentType === "DINE_IN" ? order.tableLabel : order.pickupVerificationCode}</div>
+              <div className="text-xs text-stone-500">{order.fulfillmentType === "DINE_IN" ? "內用桌位" : order.fulfillmentType === "DELIVERY" ? "外送地址" : "取餐驗證碼"}</div>
+              <div data-testid={order.fulfillmentType === "TAKEOUT" ? "pickup-code" : undefined} className={`mt-1 font-semibold ${order.fulfillmentType === "TAKEOUT" ? "font-mono text-3xl tracking-normal" : "break-words text-base"}`}>{order.fulfillmentType === "DINE_IN" ? order.tableLabel : order.fulfillmentType === "DELIVERY" ? order.deliveryAddress : order.pickupVerificationCode}</div>
+              {order.fulfillmentType === "DELIVERY" && order.customerPhone ? <div className="mt-1 text-xs text-stone-500">{order.customerPhone}</div> : null}
             </div>
             <div>
               <div className="text-xs text-stone-500">付款狀態</div>
@@ -112,7 +115,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
           </div>
           <div className="mt-5 rounded-md bg-stone-50 px-4 py-3 text-sm text-stone-700">
             {order.orderStatus === "READY" || order.orderStatus === "COMPLETED"
-              ? "餐點已完成，請依畫面狀態取餐或等候出餐。"
+              ? order.fulfillmentType === "DELIVERY" ? "餐點已完成，請留意店家後續配送與聯絡。" : "餐點已完成，請依畫面狀態取餐或等候出餐。"
               : order.estimatedWaitMinutes > 0 ? `目前預估等候約 ${order.estimatedWaitMinutes} 分鐘。` : "目前可立即處理。"}
             {order.fulfillmentType === "DINE_IN" && order.lastTableOrderAt ? <div className="mt-1 text-xs text-stone-500">同桌最近追加點餐：{new Date(order.lastTableOrderAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}</div> : null}
           </div>

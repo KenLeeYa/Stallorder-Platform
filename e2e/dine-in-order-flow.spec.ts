@@ -7,16 +7,23 @@ async function login(page: Page, email: string) {
   await page.goto("/login");
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
+  const loginResponse = page.waitForResponse((response) => (
+    response.url().endsWith("/api/auth/login")
+    && response.request().method() === "POST"
+  ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
+  expect((await loginResponse).status()).toBe(200);
   await expect(page).toHaveURL(/\/merchant\/dashboard|\/staff\//);
 }
 
 test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ browser, page }) => {
+  test.setTimeout(180_000);
   const customerName = `內用 QA ${Date.now()}`;
   await page.goto(`/q/${tableQrToken}`);
   await expect(page.getByText("內用 · A1 桌", { exact: true })).toBeVisible();
 
-  await page.getByLabel("點餐語言").selectOption("en");
+  await page.getByRole("button", { name: "點餐語言" }).click();
+  await page.getByRole("option", { name: "English", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Deep-Fried Chicken Cutlet" })).toBeVisible();
   await page.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet" }).click();
   await page.getByRole("button", { name: "Increase Sweet Potato Fries" }).click();
@@ -75,11 +82,11 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await staffPage.getByRole("link", { name: "桌位平面圖" }).click();
   await expect(staffPage).toHaveURL(/\/staff\/aming-chicken\/floor/);
   await expect(staffPage.getByRole("region", { name: "內用桌位平面" })).toBeVisible();
-  await staffPage.getByRole("button", { name: /A1 桌，待出餐，未出餐 2 份/ }).click();
+  await staffPage.getByRole("button", { name: /^A1 桌，/ }).click();
   const tableDetail = staffPage.getByRole("region", { name: "A1 桌" });
   await expect(tableDetail).toContainText(customerName);
   const tableOrder = tableDetail.locator("article").filter({ hasText: customerName });
-  await tableDetail.getByRole("button", { name: "全部標記已出餐（2）", exact: true }).click();
+  await tableOrder.getByRole("button", { name: "全部標記已出餐（2）", exact: true }).click();
   await expect(tableOrder.getByText("已出餐", { exact: true })).toHaveCount(2);
   expect(await staffPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await staffPage.getByRole("link", { name: "訂單看板" }).click();

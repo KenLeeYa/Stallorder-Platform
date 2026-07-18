@@ -30,7 +30,7 @@ Deno.serve(async (request) => {
       hmacHex(abuseSecret, `ip:${clientIp}`),
       hmacHex(abuseSecret, `device:${parsed.data.deviceId}`),
       hmacHex(abuseSecret, `qr:${parsed.data.qrToken}`),
-      hmacHex(abuseSecret, `scan:${clientIp}:${parsed.data.deviceId}:${parsed.data.qrToken}`),
+      hmacHex(abuseSecret, `scan:${parsed.data.orderingMode}:${clientIp}:${parsed.data.deviceId}:${parsed.data.qrToken}`),
     ]);
 
     const admin = createServiceClient();
@@ -54,7 +54,9 @@ Deno.serve(async (request) => {
     const { error: expirationError } = await admin.rpc("expire_unconfirmed_orders");
     if (expirationError) throw expirationError;
     const { data: resumableOrder, error: resumableOrderError } = await admin.rpc(
-      "lookup_resumable_public_order",
+      parsed.data.orderingMode === "DELIVERY"
+        ? "lookup_resumable_public_delivery_order"
+        : "lookup_resumable_public_order",
       {
         p_qr_token: parsed.data.qrToken,
         p_device_hash: deviceHash,
@@ -93,11 +95,17 @@ Deno.serve(async (request) => {
     });
     if (sessionError) throw sessionError;
 
-    const result = sessionResult as { ok: boolean; code?: string; stall_id?: string; qr_code_id?: string; expires_at?: string };
-    if (!result.ok || !result.stall_id || !result.qr_code_id || !result.expires_at) {
+    const result = sessionResult as { ok: boolean; code?: string; stall_id?: string; qr_code_id?: string; order_session_id?: string; expires_at?: string };
+    if (!result.ok || !result.stall_id || !result.qr_code_id || !result.order_session_id || !result.expires_at) {
       const code = result.code ?? "ORDER_CREATE_ERROR";
       return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
     }
+
+    const { error: orderingModeError } = await admin.from("order_sessions")
+      .update({ ordering_mode: parsed.data.orderingMode })
+      .eq("id", result.order_session_id)
+      .eq("status", "ACTIVE");
+    if (orderingModeError) throw orderingModeError;
 
     const [stallQuery, stallProductsQuery, settingsQuery, qrQuery] = await Promise.all([
       admin.from("stalls")
@@ -112,7 +120,7 @@ Deno.serve(async (request) => {
         .order("sort_order", { ascending: true })
         .limit(100),
       admin.from("stall_ordering_settings")
-        .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length, dine_in_enabled, enabled_locales, estimated_wait_minutes")
+        .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length, dine_in_enabled, delivery_module_enabled, enabled_locales, estimated_wait_minutes")
         .eq("stall_id", result.stall_id)
         .single(),
       admin.from("qr_codes")
@@ -123,6 +131,17 @@ Deno.serve(async (request) => {
 
     if (stallQuery.error || stallProductsQuery.error || settingsQuery.error || qrQuery.error) {
       throw stallQuery.error ?? stallProductsQuery.error ?? settingsQuery.error ?? qrQuery.error;
+    }
+
+    if (
+      parsed.data.orderingMode === "DELIVERY"
+      && (qrQuery.data.dining_table_id || !settingsQuery.data.delivery_module_enabled)
+    ) {
+      await admin.from("order_sessions")
+        .update({ status: "REVOKED", revoked_at: new Date().toISOString() })
+        .eq("id", result.order_session_id)
+        .eq("status", "ACTIVE");
+      throw new HttpInputError("DELIVERY_UNAVAILABLE", 409);
     }
 
     const tableQuery = qrQuery.data.dining_table_id
@@ -314,7 +333,9 @@ Deno.serve(async (request) => {
         slug: stallQuery.data.slug,
         location: stallQuery.data.location,
         currency: stallQuery.data.currency,
-        fulfillmentType: tableQuery.data ? "DINE_IN" : "TAKEOUT",
+        fulfillmentType: parsed.data.orderingMode === "DELIVERY"
+          ? "DELIVERY"
+          : tableQuery.data ? "DINE_IN" : "TAKEOUT",
         table: tableQuery.data ? { id: tableQuery.data.id, code: tableQuery.data.code, label: tableQuery.data.label } : null,
       },
       products,

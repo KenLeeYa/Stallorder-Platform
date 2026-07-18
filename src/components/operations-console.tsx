@@ -1,10 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { CheckCircle2, CircleAlert, RefreshCw, ScrollText, ShieldAlert, TriangleAlert } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, RefreshCw, ScrollText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatTaipeiDateTime } from "@/lib/date-time";
+import {
+  OPERATIONS_PAGE_SIZES,
+  type OperationsPageMeta,
+  type OperationsPageSize,
+} from "@/lib/operations-pagination";
 
 type Alert = {
   id: string;
@@ -54,6 +59,8 @@ export function OperationsConsole({
   stalls,
   alerts: initialAlerts,
   auditLogs,
+  alertPagination,
+  auditPagination,
   canManageAlerts,
   canViewAudit,
   filters,
@@ -62,14 +69,37 @@ export function OperationsConsole({
   stalls: Array<{ id: string; name: string }>;
   alerts: Alert[];
   auditLogs: AuditLog[];
+  alertPagination: OperationsPageMeta;
+  auditPagination: OperationsPageMeta;
   canManageAlerts: boolean;
   canViewAudit: boolean;
   filters: FilterValues;
 }) {
   const router = useRouter();
-  const [alerts, setAlerts] = useState(initialAlerts);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [alertOverrides, setAlertOverrides] = useState<Record<string, Pick<Alert, "status" | "acknowledgedAt" | "resolvedAt">>>({});
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const alerts = initialAlerts.map((alert) => ({ ...alert, ...alertOverrides[alert.id] }));
+
+  function navigatePagination(
+    section: "alerts" | "auditLogs",
+    page: number,
+    pageSize: OperationsPageSize,
+    replace = false,
+  ) {
+    const params = new URLSearchParams(searchParams.toString());
+    const pageParam = section === "alerts" ? "alertPage" : "auditPage";
+    const pageSizeParam = section === "alerts" ? "alertPageSize" : "auditPageSize";
+    const hash = section === "alerts" ? "alerts-title" : "audit-title";
+    params.set("organizationId", organizationId);
+    params.set(pageParam, String(page));
+    params.set(pageSizeParam, String(pageSize));
+    const href = `${pathname}?${params.toString()}#${hash}`;
+    if (replace) router.replace(href, { scroll: false });
+    else router.push(href, { scroll: false });
+  }
 
   async function updateAlert(alertId: string, status: "ACKNOWLEDGED" | "RESOLVED") {
     setUpdatingId(alertId);
@@ -82,13 +112,18 @@ export function OperationsConsole({
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "無法更新警示。");
-      setAlerts((current) => current.map((alert) => alert.id === alertId ? {
-        ...alert,
+      const currentAlert = alerts.find((alert) => alert.id === alertId);
+      const updatedAt = new Date().toISOString();
+      setAlertOverrides((current) => ({
+        ...current,
+        [alertId]: {
         status,
-        acknowledgedAt: status === "ACKNOWLEDGED" ? new Date().toISOString() : alert.acknowledgedAt,
-        resolvedAt: status === "RESOLVED" ? new Date().toISOString() : alert.resolvedAt,
-      } : alert));
+          acknowledgedAt: status === "ACKNOWLEDGED" ? updatedAt : currentAlert?.acknowledgedAt ?? null,
+          resolvedAt: status === "RESOLVED" ? updatedAt : currentAlert?.resolvedAt ?? null,
+        },
+      }));
       setMessage(status === "ACKNOWLEDGED" ? "警示已確認並留下稽核紀錄。" : "警示已標記為已解除。");
+      navigatePagination("alerts", 1, alertPagination.pageSize, true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "無法更新警示。");
     } finally {
@@ -101,11 +136,13 @@ export function OperationsConsole({
       <div className="border-b border-stone-200 pb-5">
         <div className="flex items-center gap-2 text-teal-800"><ShieldAlert className="h-5 w-5" /><span className="text-sm font-semibold">治理與營運</span></div>
         <h1 className="mt-2 text-3xl font-semibold">稽核紀錄與營運警示</h1>
-        <p className="mt-2 text-sm text-stone-600">依登入者權限及攤位範圍顯示，最多載入最近 100 筆。</p>
+        <p className="mt-2 text-sm text-stone-600">依登入者權限、攤位與篩選條件，由伺服器分頁載入資料。</p>
       </div>
 
       <form method="get" className="grid gap-3 border-b border-stone-200 py-5 md:grid-cols-3 lg:grid-cols-6">
         <input type="hidden" name="organizationId" value={organizationId} />
+        <input type="hidden" name="alertPageSize" value={alertPagination.pageSize} />
+        <input type="hidden" name="auditPageSize" value={auditPagination.pageSize} />
         <FilterSelect label="攤位" name="stallId" defaultValue={filters.stallId ?? ""}><option value="">全部授權攤位</option>{stalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}</FilterSelect>
         <FilterSelect label="警示狀態" name="alertStatus" defaultValue={filters.alertStatus ?? "ACTIVE"}><option value="ALL">全部</option><option value="ACTIVE">待處理</option><option value="ACKNOWLEDGED">已確認</option><option value="RESOLVED">已解除</option></FilterSelect>
         <FilterSelect label="嚴重程度" name="alertSeverity" defaultValue={filters.alertSeverity ?? "ALL"}><option value="ALL">全部</option><option value="CRITICAL">嚴重</option><option value="WARNING">警告</option><option value="INFO">資訊</option></FilterSelect>
@@ -123,7 +160,10 @@ export function OperationsConsole({
       {message ? <p role="status" className={`border-b border-stone-200 py-3 text-sm font-medium ${message.includes("無法") ? "text-red-700" : "text-emerald-700"}`}>{message}</p> : null}
 
       <section className="border-b border-stone-200 py-6" aria-labelledby="alerts-title">
-        <div className="flex items-center gap-2"><TriangleAlert className="h-5 w-5 text-amber-700" /><h2 id="alerts-title" className="text-lg font-semibold">營運警示</h2><span className="text-sm text-stone-500">{alerts.length}</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2"><TriangleAlert className="h-5 w-5 text-amber-700" /><h2 id="alerts-title" className="text-lg font-semibold">營運警示</h2><span className="text-sm text-stone-500">共 {alertPagination.total} 筆</span></div>
+          <PageSizeSelect label="營運警示" value={alertPagination.pageSize} onChange={(pageSize) => navigatePagination("alerts", 1, pageSize)} />
+        </div>
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           {alerts.map((alert) => (
             <article key={alert.id} className={`rounded-md border-l-4 bg-white p-4 ${alert.severity === "CRITICAL" ? "border-red-600" : "border-amber-500"}`}>
@@ -139,11 +179,15 @@ export function OperationsConsole({
           ))}
           {alerts.length === 0 ? <p className="py-8 text-sm text-stone-500">目前篩選範圍沒有營運警示。</p> : null}
         </div>
+        <PageNavigation label="營運警示" pagination={alertPagination} onPageChange={(page) => navigatePagination("alerts", page, alertPagination.pageSize)} />
       </section>
 
       {canViewAudit ? (
         <section className="py-6" aria-labelledby="audit-title">
-          <div className="flex items-center gap-2"><ScrollText className="h-5 w-5 text-teal-700" /><h2 id="audit-title" className="text-lg font-semibold">稽核紀錄</h2><span className="text-sm text-stone-500">{auditLogs.length}</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2"><ScrollText className="h-5 w-5 text-teal-700" /><h2 id="audit-title" className="text-lg font-semibold">稽核紀錄</h2><span className="text-sm text-stone-500">共 {auditPagination.total} 筆</span></div>
+            <PageSizeSelect label="稽核紀錄" value={auditPagination.pageSize} onChange={(pageSize) => navigatePagination("auditLogs", 1, pageSize)} />
+          </div>
           <div className="mt-4 divide-y divide-stone-100 border-y border-stone-200">
             {auditLogs.map((log) => (
               <details key={log.id} className="group py-3">
@@ -153,9 +197,35 @@ export function OperationsConsole({
             ))}
             {auditLogs.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">目前篩選範圍沒有稽核紀錄。</p> : null}
           </div>
+          <PageNavigation label="稽核紀錄" pagination={auditPagination} onPageChange={(page) => navigatePagination("auditLogs", page, auditPagination.pageSize)} />
         </section>
       ) : null}
     </main>
+  );
+}
+
+function PageSizeSelect({ label, value, onChange }: { label: string; value: OperationsPageSize; onChange: (value: OperationsPageSize) => void }) {
+  return (
+    <label className="inline-flex items-center gap-2 text-xs font-semibold text-stone-600">
+      每頁
+      <select aria-label={`${label}每頁顯示數量`} value={value} onChange={(event) => onChange(Number(event.target.value) as OperationsPageSize)} className="h-9 rounded-md border border-stone-300 bg-white px-2 text-sm text-stone-900">
+        {OPERATIONS_PAGE_SIZES.map((pageSize) => <option key={pageSize} value={pageSize}>{pageSize}</option>)}
+      </select>
+      筆
+    </label>
+  );
+}
+
+function PageNavigation({ label, pagination, onPageChange }: { label: string; pagination: OperationsPageMeta; onPageChange: (page: number) => void }) {
+  return (
+    <nav aria-label={`${label}分頁`} className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-stone-600">
+      <span>{pagination.total === 0 ? "沒有資料" : `顯示 ${pagination.firstItem}–${pagination.lastItem}，共 ${pagination.total} 筆`}</span>
+      <div className="flex items-center gap-2">
+        <button type="button" title={`${label}上一頁`} aria-label={`${label}上一頁`} disabled={pagination.page <= 1} onClick={() => onPageChange(pagination.page - 1)} className="grid h-9 w-9 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+        <span className="min-w-20 text-center text-xs font-semibold text-stone-700">第 {pagination.page} / {pagination.totalPages} 頁</span>
+        <button type="button" title={`${label}下一頁`} aria-label={`${label}下一頁`} disabled={pagination.page >= pagination.totalPages} onClick={() => onPageChange(pagination.page + 1)} className="grid h-9 w-9 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+      </div>
+    </nav>
   );
 }
 

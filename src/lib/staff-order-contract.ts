@@ -1,0 +1,91 @@
+import { z } from "zod";
+
+const checkoutSchema = z.object({
+  paymentOptionId: z.string().uuid().nullable().optional(),
+  discountOptionId: z.string().uuid().nullable().optional(),
+  cashReceived: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  discountApprovalReason: z.string().trim().min(1).max(200).nullable().optional(),
+  managerEmail: z.string().trim().email().max(254).nullable().optional(),
+  managerPassword: z.string().min(1).max(128).nullable().optional(),
+}).strict();
+
+const itemSchema = z.object({
+  productId: z.string().uuid(),
+  quantity: z.number().int().min(1).max(100),
+  note: z.string().trim().max(1000).optional().default(""),
+  noteOptionIds: z.array(z.string().uuid()).max(50).default([]),
+}).strict();
+
+const baseOrderFields = {
+  idempotencyKey: z.string().uuid(),
+  customerName: z.string().trim().max(50).optional().default(""),
+  customerNote: z.string().trim().max(1000).optional().default(""),
+  paymentTiming: z.enum(["PAY_NOW", "PAY_LATER"]),
+  checkout: checkoutSchema.optional(),
+  items: z.array(itemSchema).min(1).max(100),
+};
+
+export const createStaffOrderSchema = z.discriminatedUnion("fulfillmentType", [
+  z.object({
+    ...baseOrderFields,
+    fulfillmentType: z.literal("TAKEOUT"),
+    customerPhone: z.string().trim().max(30).optional().default(""),
+  }).strict(),
+  z.object({
+    ...baseOrderFields,
+    fulfillmentType: z.literal("DINE_IN"),
+    diningTableId: z.string().uuid(),
+    customerPhone: z.string().trim().max(30).optional().default(""),
+  }).strict(),
+  z.object({
+    ...baseOrderFields,
+    fulfillmentType: z.literal("DELIVERY"),
+    customerPhone: z.string().trim().min(6).max(30),
+    deliveryAddress: z.string().trim().min(1).max(300),
+  }).strict(),
+]).superRefine((value, context) => {
+  if (new Set(value.items.map((item) => item.productId)).size !== value.items.length) {
+    context.addIssue({ code: "custom", path: ["items"], message: "商品不可重複。" });
+  }
+  value.items.forEach((item, index) => {
+    if (new Set(item.noteOptionIds).size !== item.noteOptionIds.length) {
+      context.addIssue({ code: "custom", path: ["items", index, "noteOptionIds"], message: "註記不可重複。" });
+    }
+  });
+  if (value.paymentTiming === "PAY_NOW" && !value.checkout) {
+    context.addIssue({ code: "custom", path: ["checkout"], message: "立即結帳需要付款資料。" });
+  }
+});
+
+export type CreateStaffOrderInput = z.infer<typeof createStaffOrderSchema>;
+
+export type StaffOrderCatalog = {
+  products: Array<{
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    price: number;
+    imageUrl: string | null;
+    noteGroups: Array<{
+      id: string;
+      name: string;
+      selectionMode: "SINGLE" | "MULTIPLE";
+      isRequired: boolean;
+      minSelections: number;
+      maxSelections: number | null;
+      options: Array<{
+        id: string;
+        name: string;
+        priceDelta: number;
+      }>;
+    }>;
+  }>;
+  tables: Array<{ id: string; label: string }>;
+  limits: {
+    maxItemQuantity: number;
+    maxUniqueProducts: number;
+    maxTotalQuantity: number;
+    maxNoteLength: number;
+  };
+};

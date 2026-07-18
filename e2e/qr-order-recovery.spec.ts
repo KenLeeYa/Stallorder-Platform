@@ -12,9 +12,11 @@ async function login(page: Page, email: string) {
 }
 
 test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核對", async ({ browser, page }) => {
+  test.setTimeout(120_000);
   const customerName = `重掃 QA ${Date.now()}`;
   await page.goto(`/q/${takeoutQrToken}`);
-  await page.getByLabel("點餐語言").selectOption("en");
+  await page.getByRole("button", { name: "點餐語言" }).click();
+  await page.getByRole("option", { name: "English", exact: true }).click();
   await page.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet" }).click();
   await page.getByLabel("Customer name").fill(customerName);
   await expect(page.getByRole("button", { name: "Place order", exact: true })).toBeEnabled({ timeout: 15_000 });

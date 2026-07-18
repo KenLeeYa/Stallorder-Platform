@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clock3, History, Minus, Plus, Send, ShieldCheck } from "lucide-react";
+import { QrLanguageSelector } from "@/components/qr-language-selector";
 import { TurnstileWidget } from "@/components/turnstile-widget";
+import { deliveryOrderMessages, localizedDeliveryOrderError } from "@/lib/delivery-order-i18n";
 import { formatMoney } from "@/lib/money";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
 import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeUrl } from "@/lib/public-order-client";
@@ -56,7 +58,7 @@ type OrderSession = {
     slug: string;
     location: string;
     currency: string;
-    fulfillmentType: "TAKEOUT" | "DINE_IN";
+    fulfillmentType: "TAKEOUT" | "DINE_IN" | "DELIVERY";
     table: { id: string; code: string; label: string } | null;
   };
   products: Product[];
@@ -71,11 +73,11 @@ type OrderSession = {
   };
 };
 
-type Props = { qrToken: string };
+type Props = { qrToken: string; orderingMode?: "DEFAULT" | "DELIVERY" };
 
 class LocalizedOrderError extends Error {}
 
-export function QrOrderFlow({ qrToken }: Props) {
+export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
   const startedRef = useRef(false);
   const idempotencyRef = useRef<{ key: string; fingerprint: string } | null>(null);
   const [deviceId, setDeviceId] = useState("");
@@ -83,6 +85,8 @@ export function QrOrderFlow({ qrToken }: Props) {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [noteSelections, setNoteSelections] = useState<Record<string, string[]>>({});
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [customerNote, setCustomerNote] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
@@ -94,6 +98,7 @@ export function QrOrderFlow({ qrToken }: Props) {
   const [cartReady, setCartReady] = useState(false);
   const [cartRestored, setCartRestored] = useState(false);
   const copy = qrOrderMessages[locale];
+  const deliveryCopy = deliveryOrderMessages[locale];
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -114,11 +119,16 @@ export function QrOrderFlow({ qrToken }: Props) {
     void fetch(publicEdgeUrl("create-order-session"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ qrToken, deviceId: currentDeviceId }),
+      body: JSON.stringify({ qrToken, deviceId: currentDeviceId, orderingMode }),
       cache: "no-store",
     }).then(async (response) => {
       const payload = await parseEdgeResponse(response);
-      if (!response.ok) throw new LocalizedOrderError(localizedPublicOrderError(browserLocale, String(payload.code ?? "")));
+      if (!response.ok) {
+        const code = String(payload.code ?? "");
+        throw new LocalizedOrderError(
+          localizedDeliveryOrderError(browserLocale, code) ?? localizedPublicOrderError(browserLocale, code),
+        );
+      }
       if (payload.resumeOrder && typeof payload.resumeOrder === "object") {
         const trackingToken = String((payload.resumeOrder as Record<string, unknown>).trackingToken ?? "");
         if (!trackingToken) throw new LocalizedOrderError(qrOrderMessages[browserLocale].sessionStartError);
@@ -136,7 +146,7 @@ export function QrOrderFlow({ qrToken }: Props) {
       setLocale(selectedLocale);
       try {
         const restored = restoreQrCartDraft(
-          window.localStorage.getItem(qrCartStorageKey(qrToken)),
+          window.localStorage.getItem(qrCartStorageKey(qrToken, orderingMode)),
           orderSession.products,
           orderSession.limits,
         );
@@ -145,6 +155,8 @@ export function QrOrderFlow({ qrToken }: Props) {
           setNoteSelections(restored.noteSelections);
           setCustomerName(restored.customerName);
           setCustomerNote(restored.customerNote);
+          setCustomerPhone(restored.customerPhone ?? "");
+          setDeliveryAddress(restored.deliveryAddress ?? "");
           setCartRestored(true);
         }
       } catch {
@@ -155,7 +167,7 @@ export function QrOrderFlow({ qrToken }: Props) {
     }).catch((error: unknown) => {
       setMessage(error instanceof LocalizedOrderError ? error.message : qrOrderMessages[browserLocale].networkError);
     }).finally(() => setIsLoading(false));
-  }, [qrToken]);
+  }, [orderingMode, qrToken]);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -173,26 +185,26 @@ export function QrOrderFlow({ qrToken }: Props) {
 
   useEffect(() => {
     if (!session || !cartReady) return;
-    const timer = window.setTimeout(() => {
-      try {
-        const hasDraft = Object.values(quantities).some((quantity) => quantity > 0)
-          || customerName.length > 0 || customerNote.length > 0;
-        if (!hasDraft) {
-          window.localStorage.removeItem(qrCartStorageKey(qrToken));
-          return;
-        }
-        window.localStorage.setItem(qrCartStorageKey(qrToken), serializeQrCartDraft({
-          customerName,
-          customerNote,
-          quantities,
-          noteSelections,
-        }));
-      } catch {
-        // Restricted browser storage must not block ordering.
+    try {
+      const hasDraft = Object.values(quantities).some((quantity) => quantity > 0)
+        || customerName.length > 0 || customerNote.length > 0
+        || customerPhone.length > 0 || deliveryAddress.length > 0;
+      if (!hasDraft) {
+        window.localStorage.removeItem(qrCartStorageKey(qrToken, orderingMode));
+        return;
       }
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [cartReady, customerName, customerNote, noteSelections, qrToken, quantities, session]);
+      window.localStorage.setItem(qrCartStorageKey(qrToken, orderingMode), serializeQrCartDraft({
+        customerName,
+        customerNote,
+        customerPhone,
+        deliveryAddress,
+        quantities,
+        noteSelections,
+      }));
+    } catch {
+      // Restricted browser storage must not block ordering.
+    }
+  }, [cartReady, customerName, customerNote, customerPhone, deliveryAddress, noteSelections, orderingMode, qrToken, quantities, session]);
 
   const selectedItems = useMemo(() => {
     if (!session) return [];
@@ -268,6 +280,10 @@ export function QrOrderFlow({ qrToken }: Props) {
       setMessage(copy.sessionExpired);
       return;
     }
+    if (orderingMode === "DELIVERY" && (customerPhone.trim().length < 6 || !deliveryAddress.trim())) {
+      setMessage(deliveryCopy.detailsRequired);
+      return;
+    }
     const invalidProduct = session.products.find((product) =>
       (quantities[product.id] ?? 0) > 0
       && !noteSelectionIsValid(product.noteGroups, noteSelections[product.id] ?? []));
@@ -276,7 +292,7 @@ export function QrOrderFlow({ qrToken }: Props) {
       return;
     }
 
-    const fingerprint = JSON.stringify({ customerName, customerNote, selectedItems });
+    const fingerprint = JSON.stringify({ orderingMode, customerName, customerPhone, deliveryAddress, customerNote, selectedItems });
     if (!idempotencyRef.current || idempotencyRef.current.fingerprint !== fingerprint) {
       idempotencyRef.current = { key: crypto.randomUUID(), fingerprint };
     }
@@ -293,7 +309,10 @@ export function QrOrderFlow({ qrToken }: Props) {
           deviceId,
           idempotencyKey: idempotencyRef.current.key,
           customerName,
+          customerPhone,
+          deliveryAddress,
           customerNote,
+          orderingMode,
           items: selectedItems,
           turnstileToken,
         }),
@@ -306,12 +325,14 @@ export function QrOrderFlow({ qrToken }: Props) {
           setTurnstileToken(null);
           setTurnstileResetKey((value) => value + 1);
         }
-        throw new LocalizedOrderError(localizedPublicOrderError(locale, code));
+        throw new LocalizedOrderError(
+          localizedDeliveryOrderError(locale, code) ?? localizedPublicOrderError(locale, code),
+        );
       }
 
       const trackingToken = String(payload.trackingToken);
       try {
-        window.localStorage.removeItem(qrCartStorageKey(qrToken));
+        window.localStorage.removeItem(qrCartStorageKey(qrToken, orderingMode));
       } catch {
         // The order already succeeded; storage cleanup is best effort.
       }
@@ -337,14 +358,18 @@ export function QrOrderFlow({ qrToken }: Props) {
     );
   }
 
+  const availableLocales = QR_LOCALES.filter((candidate) => (
+    candidate === "zh-TW" || session.supportedLocales.includes(candidate)
+  ));
+
   return (
     <main className="mx-auto grid min-h-screen max-w-5xl gap-6 px-4 py-5 md:grid-cols-[minmax(0,1fr)_340px] md:px-8">
       <section>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><p className="text-sm font-medium text-teal-800">{session.stall.location}</p><h1 className="mt-1 text-3xl font-semibold">{session.stall.name}</h1></div>
-          <label className="text-xs font-medium text-stone-500">{copy.language}<select aria-label={copy.menuLanguage} value={locale} onChange={(event) => changeLocale(event.target.value)} className="mt-1 block h-10 rounded-md border border-stone-300 bg-white px-2 text-sm text-stone-900">{["zh-TW", ...session.supportedLocales.filter((supportedLocale) => supportedLocale !== "zh-TW" && isQrLocale(supportedLocale))].map((supportedLocale) => <option key={supportedLocale} value={supportedLocale}>{qrOrderMessages[supportedLocale as QrLocale].localeName}</option>)}</select></label>
+          <QrLanguageSelector locale={locale} locales={availableLocales} label={copy.language} menuLabel={copy.menuLanguage} onChange={changeLocale} />
         </div>
-        <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? copy.dineIn(session.stall.table?.label ?? "") : copy.takeout}</p>
+        <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? copy.dineIn(session.stall.table?.label ?? "") : session.stall.fulfillmentType === "DELIVERY" ? deliveryCopy.delivery : copy.takeout}</p>
         <div className="mt-3 inline-flex items-center gap-2 text-sm text-stone-600">
           <Clock3 className="h-4 w-4" />
           {copy.timeRemaining(Math.floor(secondsRemaining / 60), String(secondsRemaining % 60).padStart(2, "0"))}
@@ -412,6 +437,12 @@ export function QrOrderFlow({ qrToken }: Props) {
         <h2 className="text-lg font-semibold">{copy.yourOrder}</h2>
         <div className="mt-4 space-y-3">
           <input aria-label={copy.customerName} className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" placeholder={copy.customerNamePlaceholder} maxLength={50} value={customerName} onChange={(event) => setCustomerName(event.target.value)} />
+          {session.stall.fulfillmentType === "DELIVERY" ? (
+            <>
+              <input required aria-label={deliveryCopy.phone} className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" placeholder={deliveryCopy.phonePlaceholder} maxLength={30} value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} />
+              <textarea required aria-label={deliveryCopy.address} className="min-h-20 w-full rounded-md border border-stone-300 px-3 py-2 text-sm" placeholder={deliveryCopy.addressPlaceholder} maxLength={300} value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} />
+            </>
+          ) : null}
           <textarea aria-label={copy.orderNote} className="min-h-20 w-full rounded-md border border-stone-300 px-3 py-2 text-sm" placeholder={copy.orderNotePlaceholder(session.limits.maxNoteLength)} maxLength={session.limits.maxNoteLength} value={customerNote} onChange={(event) => setCustomerNote(event.target.value)} />
         </div>
         <div className="mt-5 flex items-center justify-between border-t border-stone-200 pt-4">

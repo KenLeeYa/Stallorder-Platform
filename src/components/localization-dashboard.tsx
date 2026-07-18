@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Languages, Search } from "lucide-react";
+import { LocaleFlag } from "@/components/locale-flag";
 import { QR_LOCALES, qrOrderMessages, type QrLocale } from "@/lib/qr-order-i18n";
 import type { TranslationCoverage, TranslationEntityType } from "@/lib/translation-completeness";
 
@@ -48,7 +49,7 @@ export function LocalizationDashboard({
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {coverage.map((item) => (
             <button key={item.locale} type="button" onClick={() => setLocale(item.locale)} aria-pressed={locale === item.locale} className={`rounded-md border p-4 text-left ${locale === item.locale ? "border-teal-600 bg-teal-50" : "border-stone-200 bg-white"}`}>
-              <div className="flex items-center justify-between gap-3"><span className="font-semibold">{qrOrderMessages[item.locale].localeName}</span><span className={`text-lg font-semibold ${item.percentage === 100 ? "text-emerald-700" : "text-amber-800"}`}>{item.percentage}%</span></div>
+              <div className="flex items-center justify-between gap-3"><span className="inline-flex min-w-0 items-center gap-2 font-semibold"><LocaleFlag locale={item.locale} /><span className="truncate">{qrOrderMessages[item.locale].localeName}</span></span><span className={`text-lg font-semibold ${item.percentage === 100 ? "text-emerald-700" : "text-amber-800"}`}>{item.percentage}%</span></div>
               <div className="mt-3 h-2 overflow-hidden rounded bg-stone-200"><span className="block h-full bg-teal-700" style={{ width: `${item.percentage}%` }} /></div>
               <p className="mt-2 text-xs text-stone-500">完成 {item.completed} / {item.total}，缺漏 {item.missing.length}</p>
             </button>
@@ -59,7 +60,7 @@ export function LocalizationDashboard({
       <section className="grid gap-6 border-b border-stone-200 py-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
         <div>
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div><h2 className="text-lg font-semibold">缺漏項目</h2><p className="mt-1 text-sm text-stone-500">{qrOrderMessages[locale].localeName} · {missing.length} 項</p></div>
+            <div><h2 className="text-lg font-semibold">缺漏項目</h2><p className="mt-1 inline-flex items-center gap-2 text-sm text-stone-500"><LocaleFlag locale={locale} />{qrOrderMessages[locale].localeName} · {missing.length} 項</p></div>
             <Link href={`/merchant/catalog?organizationId=${organizationId}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-teal-800">前往編輯翻譯<ExternalLink className="h-4 w-4" /></Link>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
@@ -80,7 +81,7 @@ export function LocalizationDashboard({
             {QR_LOCALES.map((previewLocale) => {
               const selectedStall = stalls.find((stall) => stall.id === stallId);
               const enabled = previewLocale === "zh-TW" || selectedStall?.enabledLocales.includes(previewLocale);
-              return <Link key={previewLocale} target="_blank" rel="noopener noreferrer" href={`/merchant/localization/preview?organizationId=${organizationId}&stallId=${stallId}&locale=${previewLocale}`} className={`inline-flex min-h-11 items-center justify-between rounded-md border px-3 text-sm font-semibold ${enabled ? "border-stone-300 bg-white text-stone-900" : "border-stone-200 bg-stone-100 text-stone-500"}`}>{qrOrderMessages[previewLocale].localeName}<ExternalLink className="h-3.5 w-3.5" /></Link>;
+              return <Link key={previewLocale} target="_blank" rel="noopener noreferrer" href={`/merchant/localization/preview?organizationId=${organizationId}&stallId=${stallId}&locale=${previewLocale}`} className={`inline-flex min-h-11 items-center justify-between gap-2 rounded-md border px-3 text-sm font-semibold ${enabled ? "border-stone-300 bg-white text-stone-900" : "border-stone-200 bg-stone-100 text-stone-500"}`}><span className="inline-flex min-w-0 items-center gap-2"><LocaleFlag locale={previewLocale} /><span className="truncate">{qrOrderMessages[previewLocale].localeName}</span></span><ExternalLink className="h-3.5 w-3.5 shrink-0" /></Link>;
             })}
           </div>
         </aside>

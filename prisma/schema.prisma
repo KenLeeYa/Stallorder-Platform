@@ -50,6 +50,7 @@ enum PaymentMethod {
 enum FulfillmentType {
   TAKEOUT
   DINE_IN
+  DELIVERY
 
   @@map("fulfillment_type")
 }
@@ -877,6 +878,7 @@ model StallOrderingSettings {
   maxSessionsPerStallWindow      Int          @default(500) @map("max_sessions_per_stall_window")
   maxBehaviorFrequency           Int          @default(4) @map("max_behavior_frequency")
   dineInEnabled                  Boolean      @default(true) @map("dine_in_enabled")
+  deliveryModuleEnabled          Boolean      @default(false) @map("delivery_module_enabled")
   printModuleEnabled             Boolean      @default(false) @map("print_module_enabled")
   paymentModuleEnabled           Boolean      @default(true) @map("payment_module_enabled")
   discountModuleEnabled          Boolean      @default(false) @map("discount_module_enabled")
@@ -990,6 +992,7 @@ model OrderSession {
   usedAt         DateTime?          @map("used_at")
   revokedAt      DateTime?          @map("revoked_at")
   orderId        String?            @unique @map("order_id") @db.Uuid
+  orderingMode   String             @default("DEFAULT") @map("ordering_mode")
   createdAt      DateTime           @default(now()) @map("created_at")
   organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall          Stall              @relation(fields: [stallId], references: [id], onDelete: Cascade)
@@ -1012,6 +1015,7 @@ model Order {
   source                   String              @default("QR_MENU")
   customerName             String              @map("customer_name")
   customerPhone            String?             @map("customer_phone")
+  deliveryAddress          String?             @map("delivery_address")
   tableLabel               String?             @map("table_label")
   diningTableId            String?             @map("dining_table_id") @db.Uuid
   fulfillmentType          FulfillmentType     @default(TAKEOUT) @map("fulfillment_type")

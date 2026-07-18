@@ -41,12 +41,46 @@ export async function PATCH(request: Request, context: RouteContext) {
           where: { stallId, organizationId },
           data: {
             dineInEnabled: command.dineInEnabled,
+            deliveryModuleEnabled: command.deliveryModuleEnabled,
             printModuleEnabled: command.printModuleEnabled,
             paymentModuleEnabled: command.paymentModuleEnabled,
             discountModuleEnabled: command.discountModuleEnabled,
             discountApprovalThresholdBps: command.discountApprovalThresholdBps,
           },
         });
+        if (!command.deliveryModuleEnabled) {
+          await transaction.orderSession.updateMany({
+            where: { stallId, organizationId, orderingMode: "DELIVERY", status: "ACTIVE" },
+            data: { status: "REVOKED", revokedAt: new Date() },
+          });
+        }
+        if (command.deliveryModuleEnabled) {
+          const deliveryQr = await transaction.qrCode.findFirst({
+            where: {
+              stallId,
+              organizationId,
+              diningTableId: null,
+              state: { in: ["ACTIVE", "PAUSED"] },
+            },
+            select: { id: true },
+          });
+          if (!deliveryQr) {
+            const latest = await transaction.qrCode.findFirst({
+              where: { stallId, organizationId, diningTableId: null },
+              orderBy: { tokenVersion: "desc" },
+              select: { tokenVersion: true },
+            });
+            await transaction.qrCode.create({
+              data: {
+                organizationId,
+                stallId,
+                token: createOpaqueToken(),
+                label: "主要點餐與外送連結",
+                tokenVersion: (latest?.tokenVersion ?? 0) + 1,
+              },
+            });
+          }
+        }
         return stallId;
       }
 

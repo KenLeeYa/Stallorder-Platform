@@ -40,6 +40,8 @@ export async function getPrintQueueState(stallId: string, organizationId: string
             id: true,
             orderNo: true,
             customerName: true,
+            customerPhone: true,
+            deliveryAddress: true,
             tableLabel: true,
             fulfillmentType: true,
             total: true,

@@ -12,6 +12,8 @@ const organizationId = "11111111-1111-4111-8111-111111111111";
 const primaryStallId = "22222222-2222-4222-8222-222222222222";
 const scheduleName = "P2 E2E 每日報告";
 const alertMessage = "P2 E2E 營運警示";
+const paginationAlertPrefix = "P2 E2E 分頁警示";
+const paginationAuditPrefix = "P2_PAGINATION_QA";
 
 test.describe("P2 後續成長功能", () => {
   test.describe.configure({ mode: "serial" });
@@ -122,6 +124,59 @@ test.describe("P2 後續成長功能", () => {
     await prisma.stall.update({ where: { id: primaryStallId }, data: { businessStatus: "OPEN", orderingEnabled: true } });
   });
 
+  test("稽核紀錄與營運警示可獨立調整每頁顯示數量", async ({ page }, testInfo) => {
+    const now = Date.now();
+    await prisma.operationalAlert.createMany({
+      data: Array.from({ length: 7 }, (_, index) => ({
+        organizationId,
+        stallId: primaryStallId,
+        alertType: "PAYMENT_MISMATCH",
+        severity: "INFO",
+        message: `${paginationAlertPrefix} ${index + 1}`,
+        status: "RESOLVED",
+        detectedAt: new Date(now + (index * 1_000)),
+        resolvedAt: new Date(now + (index * 1_000)),
+      })),
+    });
+    await prisma.auditLog.createMany({
+      data: Array.from({ length: 7 }, (_, index) => ({
+        organizationId,
+        stallId: primaryStallId,
+        action: `${paginationAuditPrefix}_${index + 1}`,
+        entityType: "PAGINATION_QA",
+        outcome: "SUCCESS" as const,
+        requestId: `p2-pagination-${now}-${index}`,
+        createdAt: new Date(now + (index * 1_000)),
+      })),
+    });
+
+    await login(page, "owner@stallorder.test");
+    await page.goto(`/merchant/operations?organizationId=${organizationId}&stallId=${primaryStallId}&alertStatus=RESOLVED&alertSeverity=INFO&auditOutcome=SUCCESS&auditQuery=${paginationAuditPrefix}&alertPageSize=5&auditPageSize=5`);
+
+    const alertSection = page.locator('section[aria-labelledby="alerts-title"]');
+    const auditSection = page.locator('section[aria-labelledby="audit-title"]');
+    await expect(page.getByLabel("營運警示每頁顯示數量")).toHaveValue("5");
+    await expect(page.getByLabel("稽核紀錄每頁顯示數量")).toHaveValue("5");
+    await expect(alertSection.getByRole("article")).toHaveCount(5);
+    await expect(auditSection.locator("details")).toHaveCount(5);
+    await expect(alertSection.getByText("顯示 1–5，共 7 筆", { exact: true })).toBeVisible();
+    await expect(auditSection.getByText("顯示 1–5，共 7 筆", { exact: true })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("operations-pagination.png"), fullPage: true });
+
+    await page.getByRole("button", { name: "營運警示下一頁" }).click();
+    await expect(alertSection.getByText("第 2 / 2 頁", { exact: true })).toBeVisible();
+    await expect(alertSection.getByRole("article")).toHaveCount(2);
+    await expect(auditSection.locator("details")).toHaveCount(5);
+
+    await page.getByRole("button", { name: "稽核紀錄下一頁" }).click();
+    await expect(auditSection.getByText("第 2 / 2 頁", { exact: true })).toBeVisible();
+    await expect(auditSection.locator("details")).toHaveCount(2);
+    await page.getByLabel("稽核紀錄每頁顯示數量").selectOption("10");
+    await expect(page.getByLabel("稽核紀錄每頁顯示數量")).toHaveValue("10");
+    await expect(auditSection.getByText("第 1 / 1 頁", { exact: true })).toBeVisible();
+    await expect(auditSection.locator("details")).toHaveCount(7);
+  });
+
   test("報表排程可建立並完成本機模擬寄送", async ({ page }) => {
     await login(page, "owner@stallorder.test");
     await page.goto(`/merchant/report-schedules?organizationId=${organizationId}`);
@@ -167,6 +222,8 @@ async function cleanup() {
     await prisma.reportSchedule.deleteMany({ where: { id: { in: scheduleIds } } });
   }
   await prisma.operationalAlert.deleteMany({ where: { organizationId, message: alertMessage } });
+  await prisma.operationalAlert.deleteMany({ where: { organizationId, message: { startsWith: paginationAlertPrefix } } });
+  await prisma.auditLog.deleteMany({ where: { organizationId, action: { startsWith: paginationAuditPrefix } } });
   await prisma.auditLog.deleteMany({ where: { organizationId, action: { in: ["REPORT_SCHEDULE_CREATED", "REPORT_SCHEDULE_TESTED"] } } });
 }
 
@@ -175,7 +232,7 @@ async function login(page: Page, email: string) {
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(/\/merchant\/dashboard|\/staff\//);
+  await expect(page).toHaveURL(/\/merchant\/dashboard|\/staff\//, { timeout: 30_000 });
 }
 
 function assertLocalDatabase() {

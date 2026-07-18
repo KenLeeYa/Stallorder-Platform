@@ -30,6 +30,7 @@ export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
   z.object({
     operation: z.literal("UPDATE_MODULES"),
     dineInEnabled: z.boolean(),
+    deliveryModuleEnabled: z.boolean(),
     printModuleEnabled: z.boolean(),
     paymentModuleEnabled: z.boolean(),
     discountModuleEnabled: z.boolean(),
@@ -68,6 +69,7 @@ export async function getStallModuleState(stallId: string, organizationId: strin
       where: { stallId, organizationId },
       select: {
         dineInEnabled: true,
+        deliveryModuleEnabled: true,
         printModuleEnabled: true,
         paymentModuleEnabled: true,
         discountModuleEnabled: true,

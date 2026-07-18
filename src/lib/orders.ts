@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { FulfillmentType, OrderItemStatus, OrderStatus, Prisma } from "@prisma/client";
 
 export const activeOrderStatuses = ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "READY"] as const;
 
@@ -7,6 +7,8 @@ export const staffOrderSelect = {
   orderNo: true,
   source: true,
   customerName: true,
+  customerPhone: true,
+  deliveryAddress: true,
   tableLabel: true,
   diningTableId: true,
   fulfillmentType: true,
@@ -40,6 +42,60 @@ export const staffOrderSelect = {
     },
   },
 } satisfies Prisma.OrderSelect;
+
+export type StaffOrderDto = {
+  id: string;
+  orderNo: string;
+  source: string;
+  customerName: string;
+  customerPhone: string | null;
+  deliveryAddress: string | null;
+  tableLabel: string | null;
+  diningTableId: string | null;
+  fulfillmentType: FulfillmentType;
+  note: string | null;
+  status: OrderStatus;
+  paymentStatus: "UNPAID" | "PAID" | "REFUNDED";
+  subtotal: number;
+  discountAmount: number;
+  discountLabel: string | null;
+  total: number;
+  pickupCodeLength: number;
+  pickupVerifiedAt: string | null;
+  pickupVerificationMethod: "CODE" | "MANUAL" | null;
+  confirmationExpiresAt: string;
+  createdAt: string;
+  items: Array<{
+    id: string;
+    name: string;
+    unitPrice: number;
+    quantity: number;
+    note: string | null;
+    status: OrderItemStatus;
+    preparingAt: string | null;
+    readyAt: string | null;
+    servedAt: string | null;
+    noteOptions: Array<{ groupName: string; optionName: string; priceDelta: number }>;
+  }>;
+};
+
+export function serializeStaffOrder(order: Prisma.OrderGetPayload<{ select: typeof staffOrderSelect }>): StaffOrderDto {
+  return {
+    ...order,
+    pickupVerifiedAt: order.pickupVerifiedAt?.toISOString() ?? null,
+    pickupVerificationMethod: order.pickupVerificationMethod === "CODE"
+      ? "CODE"
+      : order.pickupVerificationMethod === "MANUAL" ? "MANUAL" : null,
+    confirmationExpiresAt: order.confirmationExpiresAt.toISOString(),
+    createdAt: order.createdAt.toISOString(),
+    items: order.items.map((item) => ({
+      ...item,
+      preparingAt: item.preparingAt?.toISOString() ?? null,
+      readyAt: item.readyAt?.toISOString() ?? null,
+      servedAt: item.servedAt?.toISOString() ?? null,
+    })),
+  };
+}
 
 export const staffStatusOptions = [
   { value: "CONFIRMED", label: "確認接單" },

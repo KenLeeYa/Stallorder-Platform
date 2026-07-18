@@ -235,7 +235,8 @@ async function login(page: Page, email: string) {
 
 async function createDineInOrder(page: Page, customerName: string, productName: string) {
   await page.goto(`/q/${tableQrToken}`);
-  await page.getByLabel("點餐語言").selectOption("en");
+  await page.getByRole("button", { name: "點餐語言" }).click();
+  await page.getByRole("option", { name: "English", exact: true }).click();
   await page.getByRole("button", { name: `Increase ${productName}` }).click();
   await page.getByLabel("Customer name").fill(customerName);
   const responsePromise = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith("/create-public-order") && response.request().method() === "POST");

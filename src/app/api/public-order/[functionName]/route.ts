@@ -17,6 +17,36 @@ function publicFunctionsBaseUrl() {
   ).replace(/\/$/, "");
 }
 
+function publicFunctionOrigin() {
+  const configured = process.env.PUBLIC_ORDER_FUNCTION_ORIGIN || process.env.NEXT_PUBLIC_APP_URL;
+  if (!configured) return "https://app.qidaigo.com";
+  try {
+    return new URL(configured).origin;
+  } catch {
+    throw new Error("PUBLIC_ORDER_FUNCTION_ORIGIN or NEXT_PUBLIC_APP_URL must be a valid URL.");
+  }
+}
+
+function publicFunctionGatewayHeaders() {
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!publishableKey) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required for public order functions.");
+  }
+  return {
+    apikey: publishableKey,
+    authorization: `Bearer ${publishableKey}`,
+  };
+}
+
+function trustedClientIp(request: Request) {
+  const candidate = (
+    request.headers.get("x-vercel-forwarded-for")
+    || request.headers.get("x-real-ip")
+    || request.headers.get("x-forwarded-for")
+  )?.trim();
+  return candidate && !candidate.includes(",") ? candidate : null;
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204 });
 }
@@ -30,11 +60,15 @@ export async function POST(
     return NextResponse.json({ error: "找不到此公開點餐服務。", code: "FUNCTION_NOT_FOUND" }, { status: 404 });
   }
 
+  const clientIp = trustedClientIp(request);
+
   const upstream = await fetch(`${publicFunctionsBaseUrl()}/${functionName}`, {
     method: "POST",
     headers: {
       "content-type": request.headers.get("content-type") ?? "application/json",
-      origin: process.env.PUBLIC_ORDER_FUNCTION_ORIGIN || "https://app.qidaigo.com",
+      origin: publicFunctionOrigin(),
+      ...publicFunctionGatewayHeaders(),
+      ...(clientIp ? { "x-real-ip": clientIp, "cf-connecting-ip": clientIp } : {}),
     },
     body: await request.text(),
     cache: "no-store",

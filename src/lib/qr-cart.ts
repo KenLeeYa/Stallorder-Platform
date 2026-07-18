@@ -4,6 +4,8 @@ export type QrCartDraft = {
   savedAt: number;
   customerName: string;
   customerNote: string;
+  customerPhone?: string;
+  deliveryAddress?: string;
   quantities: Record<string, number>;
   noteSelections: Record<string, string[]>;
 };
@@ -20,8 +22,9 @@ type CartLimits = {
   maxNoteLength: number;
 };
 
-export function qrCartStorageKey(qrToken: string) {
-  return `stallorder_qr_cart:${encodeURIComponent(qrToken)}`;
+export function qrCartStorageKey(qrToken: string, scope: "DEFAULT" | "DELIVERY" = "DEFAULT") {
+  const suffix = scope === "DELIVERY" ? ":delivery" : "";
+  return `stallorder_qr_cart:${encodeURIComponent(qrToken)}${suffix}`;
 }
 
 export function serializeQrCartDraft(draft: Omit<QrCartDraft, "savedAt">, now = Date.now()) {
@@ -72,12 +75,16 @@ export function restoreQrCartDraft(
   const customerNote = typeof parsed.customerNote === "string"
     ? parsed.customerNote.slice(0, limits.maxNoteLength)
     : "";
-  if (Object.keys(quantities).length === 0 && !customerName && !customerNote) return null;
+  const customerPhone = typeof parsed.customerPhone === "string" ? parsed.customerPhone.slice(0, 30) : "";
+  const deliveryAddress = typeof parsed.deliveryAddress === "string" ? parsed.deliveryAddress.slice(0, 300) : "";
+  if (Object.keys(quantities).length === 0 && !customerName && !customerNote && !customerPhone && !deliveryAddress) return null;
 
   return {
     savedAt: Number(parsed.savedAt),
     customerName,
     customerNote,
+    customerPhone,
+    deliveryAddress,
     quantities,
     noteSelections,
   };

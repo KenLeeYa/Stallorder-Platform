@@ -121,7 +121,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         { status: 409, headers: { "x-request-id": authorization.requestId } },
       );
     }
+  }
 
+  if (nextStatus === "COMPLETED" && order.paymentStatus === "UNPAID") {
     try {
       checkout = await resolveStaffCheckout({
         organizationId: order.organizationId,
@@ -169,7 +171,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           confirmedAt: nextStatus === "CONFIRMED" ? now : order.confirmedAt,
           completedAt: nextStatus === "COMPLETED" ? now : order.completedAt,
           paymentStatus: nextStatus === "COMPLETED" ? "PAID" : order.paymentStatus,
-          paidAt: nextStatus === "COMPLETED" ? now : order.paidAt,
+          paidAt: nextStatus === "COMPLETED" && order.paymentStatus === "UNPAID" ? now : order.paidAt,
           discountOptionId: checkout?.discountOptionId,
           discountLabel: checkout?.discountLabel,
           discountRateBps: checkout?.discountRateBps,
@@ -186,7 +188,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
       if (changed.count !== 1) throw new TransitionConflict();
 
-      if (nextStatus === "COMPLETED") {
+      if (nextStatus === "COMPLETED" && order.paymentStatus === "UNPAID") {
         if (!checkout) throw new Error("CHECKOUT_NOT_RESOLVED");
         await transaction.payment.create({
           data: {
@@ -211,7 +213,9 @@ export async function PATCH(request: Request, context: RouteContext) {
           organizationId: order.organizationId,
           stallId: order.stallId,
           orderId: order.id,
-          eventType: nextStatus === "COMPLETED" ? "CHECKOUT_COMPLETED" : "STAFF_STATUS_CHANGED",
+          eventType: nextStatus === "COMPLETED"
+            ? order.paymentStatus === "PAID" ? "ORDER_COMPLETED_AFTER_PREPAYMENT" : "CHECKOUT_COMPLETED"
+            : "STAFF_STATUS_CHANGED",
           previousStatus: order.status,
           newStatus: nextStatus,
           createdBy: authorization.principal.user.id,
@@ -224,7 +228,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
 
     await recordAuditEvent({
-      action: nextStatus === "COMPLETED" ? "CHECKOUT_COMPLETED" : "ORDER_STATUS_CHANGED",
+      action: nextStatus === "COMPLETED"
+        ? order.paymentStatus === "PAID" ? "ORDER_COMPLETED_AFTER_PREPAYMENT" : "CHECKOUT_COMPLETED"
+        : "ORDER_STATUS_CHANGED",
       entityType: "ORDER",
       entityId: order.id,
       outcome: "SUCCESS",

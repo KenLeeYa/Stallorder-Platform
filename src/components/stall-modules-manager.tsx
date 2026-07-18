@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Languages, MapPinned, Percent, Plus, Printer, QrCode, RotateCw, Save, SlidersHorizontal, Trash2, WalletCards } from "lucide-react";
+import { Copy, Languages, MapPinned, MessageCircle, Percent, Plus, Printer, QrCode, RotateCw, Save, SlidersHorizontal, Trash2, Truck, Utensils, WalletCards } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
 import { DiningFloorEditor } from "@/components/dining-floor-editor";
+import { LocaleFlag } from "@/components/locale-flag";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { QR_LOCALES, type QrLocale } from "@/lib/qr-order-i18n";
 import { useUnsavedSettings } from "@/lib/unsaved-settings";
@@ -21,6 +22,7 @@ const QR_LOCALE_LABELS: Record<QrLocale, string> = {
 type ModuleState = {
   settings: {
     dineInEnabled: boolean;
+    deliveryModuleEnabled: boolean;
     printModuleEnabled: boolean;
     paymentModuleEnabled: boolean;
     discountModuleEnabled: boolean;
@@ -60,10 +62,12 @@ type DiscountDraft = Omit<ModuleState["discounts"][number], "id">;
 
 export function StallModulesManager({
   stallId,
+  stallSlug,
   appUrl,
   initialState,
 }: {
   stallId: string;
+  stallSlug: string;
   appUrl: string;
   initialState: ModuleState;
 }) {
@@ -74,6 +78,8 @@ export function StallModulesManager({
   const [newDiscount, setNewDiscount] = useState<DiscountDraft>({ name: "", rateBps: 9000, isEnabled: true, sortOrder: initialState.discounts.length + 1 });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const deliveryUrl = `${appUrl.replace(/\/$/, "")}/delivery/${encodeURIComponent(stallSlug)}`;
+  const lineReply = `您好，請點擊以下連結選擇餐點並填寫外送資料：\n${deliveryUrl}`;
   const moduleDirty = JSON.stringify(state) !== JSON.stringify(savedState)
     || Boolean(newTable.code || newTable.label || newPayment.code || newPayment.name || newDiscount.name);
   useUnsavedSettings("stall-modules", moduleDirty);
@@ -153,7 +159,7 @@ export function StallModulesManager({
 
   return (
     <section className="mt-8" aria-label="營運模組與內用桌位">
-      <details open data-settings-section data-settings-scope="stall-modules" data-settings-search="營運模組 內用桌位 專屬 QR 點餐語系 訂單列印 付款方式 結帳折扣 桌位平面配置" className="border-y border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
+      <details open data-settings-section data-settings-scope="stall-modules" data-settings-search="營運模組 內用桌位 外送 LINE 專屬 QR 點餐語系 訂單列印 付款方式 結帳折扣 桌位平面配置" className="border-y border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
         <CollapsibleSectionSummary
           icon={SlidersHorizontal}
           title="營運模組與內用桌位"
@@ -161,23 +167,35 @@ export function StallModulesManager({
         />
         <div className="pb-7">
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <ModuleSwitch label="內用桌位" checked={state.settings.dineInEnabled} onChange={(dineInEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, dineInEnabled } }))} />
+      <div data-module-switch-grid className="mt-5 grid gap-3 sm:grid-cols-2">
+        <ModuleSwitch label="內用桌位" icon={<Utensils className="h-4 w-4" />} checked={state.settings.dineInEnabled} onChange={(dineInEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, dineInEnabled } }))} />
+        <ModuleSwitch label="線上外送" icon={<Truck className="h-4 w-4" />} checked={state.settings.deliveryModuleEnabled} onChange={(deliveryModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, deliveryModuleEnabled } }))} />
         <ModuleSwitch label="訂單列印" icon={<Printer className="h-4 w-4" />} checked={state.settings.printModuleEnabled} onChange={(printModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, printModuleEnabled } }))} />
-        <ModuleSwitch label="多元付款" checked={state.settings.paymentModuleEnabled} onChange={(paymentModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, paymentModuleEnabled } }))} />
-        <ModuleSwitch label="結帳折扣" checked={state.settings.discountModuleEnabled} onChange={(discountModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, discountModuleEnabled } }))} />
+        <ModuleSwitch label="多元付款" icon={<WalletCards className="h-4 w-4" />} checked={state.settings.paymentModuleEnabled} onChange={(paymentModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, paymentModuleEnabled } }))} />
+        <ModuleSwitch label="結帳折扣" icon={<Percent className="h-4 w-4" />} checked={state.settings.discountModuleEnabled} onChange={(discountModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, discountModuleEnabled } }))} />
       </div>
       {state.settings.discountModuleEnabled ? <label className="mt-4 block max-w-xs text-xs font-semibold text-stone-600">超過此折扣需經理核准（%）<input type="number" min={0} max={100} step={1} value={(10_000 - state.settings.discountApprovalThresholdBps) / 100} onChange={(event) => { const percent = Math.max(0, Math.min(100, Number(event.target.value) || 0)); setState((current) => ({ ...current, settings: { ...current.settings, discountApprovalThresholdBps: 10_000 - percent * 100 } })); }} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /><span className="mt-1 block font-normal text-stone-500">例如設定 20%，折扣超過 20%（低於 8 折）時需要經理驗證。</span></label> : null}
       <button type="button" disabled={busy} onClick={() => void saveModules()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存模組開關</button>
+
+      <details className="mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180" open={state.settings.deliveryModuleEnabled}>
+        <CollapsibleSectionSummary icon={Truck} title="外送與 LINE 連結" description="固定網址可放入 LINE 官方帳號的關鍵字自動回覆。" level={3} />
+        <div className="pb-6">
+          {!state.settings.deliveryModuleEnabled ? <p className="mb-3 text-sm text-amber-800">請先開啟並儲存「線上外送」模組，顧客才能使用此連結。</p> : null}
+          <label className="block text-xs font-semibold text-stone-600">顧客外送網址<div className="mt-1 flex gap-2"><input readOnly value={deliveryUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製外送網址" onClick={() => void navigator.clipboard.writeText(deliveryUrl)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
+          <label className="mt-4 block text-xs font-semibold text-stone-600">LINE 自動回覆內容<textarea readOnly value={lineReply} className="mt-1 min-h-24 w-full rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm" /></label>
+          <button type="button" onClick={() => void navigator.clipboard.writeText(lineReply)} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MessageCircle className="h-4 w-4" />複製 LINE 回覆內容</button>
+        </div>
+      </details>
 
       <details aria-label="QR 點餐語系" className="mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180">
         <CollapsibleSectionSummary icon={Languages} title="QR 點餐語系" level={3} />
         <div className="pb-6">
           <p className="mb-3 text-sm text-stone-600">只向顧客提供已開啟的語系；瀏覽器語言若已關閉，會自動改用繁體中文。</p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div data-locale-switch-grid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {QR_LOCALES.map((locale) => (
               <ModuleSwitch
                 key={locale}
+                icon={<LocaleFlag locale={locale} />}
                 label={`${QR_LOCALE_LABELS[locale]}${locale === "zh-TW" ? "（預設）" : ""}`}
                 checked={state.settings.enabledLocales.includes(locale)}
                 disabled={locale === "zh-TW"}
@@ -265,7 +283,7 @@ export function StallModulesManager({
 }
 
 function ModuleSwitch({ label, icon, checked, disabled = false, onChange }: { label: string; icon?: React.ReactNode; checked: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
-  return <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)} className={`flex min-h-12 items-center gap-3 rounded-md border px-3 text-left text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 ${checked ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-600"}`}>{icon}<span>{label}</span><span className="ml-auto text-xs">{checked ? "開啟" : "關閉"}</span></button>;
+  return <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)} className={`flex min-h-12 items-center gap-3 rounded-md border px-3 text-left text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 ${checked ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-600"}`}>{icon ? <span aria-hidden="true" className="grid h-5 w-5 shrink-0 place-items-center">{icon}</span> : null}<span>{label}</span><span className="ml-auto text-xs">{checked ? "開啟" : "關閉"}</span></button>;
 }
 
 function TextInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {

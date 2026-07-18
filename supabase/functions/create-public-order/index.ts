@@ -60,12 +60,14 @@ async function safeRecordSubmissionFailure(
 }
 
 function publicOrderResponse(order: StoredOrder, trackingToken: string, pickupCode: string) {
-  const pickupRequired = order.pickup_required !== false && order.fulfillment_type !== "DINE_IN";
+  const fulfillmentType = order.fulfillment_type ?? "TAKEOUT";
+  const pickupRequired = order.pickup_required === true
+    || (order.pickup_required === undefined && fulfillmentType === "TAKEOUT");
   return {
     orderNo: order.order_no,
     trackingToken,
     pickupVerificationCode: pickupRequired ? pickupCode : null,
-    fulfillmentType: order.fulfillment_type ?? "TAKEOUT",
+    fulfillmentType,
     orderStatus: order.order_status,
     paymentStatus: order.payment_status,
     totalAmount: order.total_amount,
@@ -98,7 +100,7 @@ Deno.serve(async (request) => {
       hmacHex(abuseSecret, `ip:${clientIp}`),
       hmacHex(abuseSecret, `device:${input.deviceId}`),
       hmacHex(abuseSecret, `qr:${input.qrToken}`),
-      hmacHex(abuseSecret, `order:${input.deviceId}:${input.qrToken}:${sortedBehavior}`),
+      hmacHex(abuseSecret, `order:${input.orderingMode}:${input.deviceId}:${input.qrToken}:${sortedBehavior}`),
       hmacHex(abuseSecret, `idempotency:${input.idempotencyKey}`),
     ]);
 
@@ -117,6 +119,26 @@ Deno.serve(async (request) => {
     const globalGate = globalGateResult as { ok: boolean; code?: string };
     if (!globalGate.ok) {
       const code = globalGate.code ?? "RATE_LIMITED";
+      return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
+    }
+
+    const { data: sessionContext, error: sessionContextError } = await admin.from("order_sessions")
+      .select("ordering_mode")
+      .eq("token_hash", sessionHash)
+      .maybeSingle();
+    if (sessionContextError) throw sessionContextError;
+    if (!sessionContext) {
+      const code = "SESSION_NOT_FOUND";
+      await safeRecordSubmissionFailure(admin, {
+        requestId, code, ipHash, deviceHash, qrTokenHash, sessionHash, behaviorHash, idempotencyHash,
+      });
+      return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
+    }
+    if (sessionContext.ordering_mode !== input.orderingMode) {
+      const code = "ORDER_MODE_CONFLICT";
+      await safeRecordSubmissionFailure(admin, {
+        requestId, code, ipHash, deviceHash, qrTokenHash, sessionHash, behaviorHash, idempotencyHash,
+      });
       return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
     }
 
@@ -188,7 +210,7 @@ Deno.serve(async (request) => {
       sha256Hex(provisionalTokens.trackingToken),
       sha256Hex(provisionalTokens.pickupCode),
     ]);
-    const { data: createResult, error: createError } = await admin.rpc("create_public_order", {
+    const createArguments = {
       p_order_id: orderId,
       p_qr_token: input.qrToken,
       p_session_token_hash: sessionHash,
@@ -209,7 +231,15 @@ Deno.serve(async (request) => {
       p_tracking_token_hash: trackingTokenHash,
       p_pickup_code_hash: pickupCodeHash,
       p_request_id: requestId,
-    });
+      ...(input.orderingMode === "DELIVERY" ? {
+        p_customer_phone: input.customerPhone,
+        p_delivery_address: input.deliveryAddress,
+      } : {}),
+    };
+    const { data: createResult, error: createError } = await admin.rpc(
+      input.orderingMode === "DELIVERY" ? "create_public_delivery_order" : "create_public_order",
+      createArguments,
+    );
     if (createError) {
       if (createError.message.includes("TOO_MANY_PENDING_ORDERS")) {
         const code = "TOO_MANY_PENDING_ORDERS";

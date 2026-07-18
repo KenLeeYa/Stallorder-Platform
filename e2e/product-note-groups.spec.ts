@@ -71,7 +71,7 @@ test("QR 依瀏覽器語系自動切換並保留手動選擇", async ({ browser 
   try {
     await page.goto(`/q/${takeoutQrToken}`);
     await expect(page.locator("html")).toHaveAttribute("lang", "ja");
-    await expect(page.getByLabel("メニュー言語")).toHaveValue("ja");
+    await expect(page.getByRole("button", { name: "メニュー言語" })).toHaveAttribute("data-current-locale", "ja");
     await expect(page.getByText("揚げ物", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "台湾風鶏の唐揚げ" })).toBeVisible();
 
@@ -80,13 +80,14 @@ test("QR 依瀏覽器語系自動切換並保留手動選擇", async ({ browser 
     await expect(page.getByLabel("小辛", { exact: true })).toBeVisible();
     await expect(page.getByRole("group", { name: /追加トッピング/ })).toBeVisible();
 
-    await page.getByLabel("メニュー言語").selectOption("en");
+    await page.getByRole("button", { name: "メニュー言語" }).click();
+    await page.getByRole("option", { name: "English", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await expect(page.getByRole("heading", { name: "Pepper Popcorn Chicken" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Your order" })).toBeVisible();
 
     await page.reload();
-    await expect(page.getByLabel("Menu language")).toHaveValue("en");
+    await expect(page.getByRole("button", { name: "Menu language" })).toHaveAttribute("data-current-locale", "en");
     await expect(page.getByRole("heading", { name: "Pepper Popcorn Chicken" })).toBeVisible();
   } finally {
     await context.close();

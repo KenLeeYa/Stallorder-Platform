@@ -1,61 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CancellationReason, FulfillmentType, OrderItemStatus, OrderStatus, PaymentOptionKind, UserRole } from "@prisma/client";
+import type { CancellationReason, OrderItemStatus, OrderStatus, PaymentOptionKind, UserRole } from "@prisma/client";
 import Link from "next/link";
-import { CheckCheck, CheckCircle2, ChefHat, KeyRound, ListChecks, LoaderCircle, MapPinned, PackageCheck, Play, Printer, RefreshCw, Search, TriangleAlert, Undo2, Volume2, VolumeX, WalletCards, Wifi, WifiOff, X } from "lucide-react";
+import { CheckCheck, CheckCircle2, ChefHat, KeyRound, ListChecks, LoaderCircle, MapPinned, PackageCheck, Play, Printer, RefreshCw, Search, ShoppingCart, TriangleAlert, Truck, Undo2, Volume2, VolumeX, WalletCards, Wifi, WifiOff, X } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
+import { StaffOrderComposer } from "@/components/staff-order-composer";
 import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
 import { canTransitionOrderItem } from "@/lib/order-item-status";
-import { orderItemStatusLabels, orderStatusLabels, paymentStatusLabels, staffStatusOptions } from "@/lib/orders";
+import { orderItemStatusLabels, orderStatusLabels, paymentStatusLabels, staffStatusOptions, type StaffOrderDto } from "@/lib/orders";
 import { isCompletePickupCode, normalizePickupCode } from "@/lib/pickup-code";
 import { canTransitionOrder, hasPermission, roleLabels } from "@/lib/rbac";
 import { createOptionalSupabaseBrowserClient } from "@/lib/supabase-browser";
+import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
 
-type OrderWithItems = {
-  id: string;
-  orderNo: string;
-  source: string;
-  customerName: string;
-  tableLabel: string | null;
-  diningTableId: string | null;
-  fulfillmentType: FulfillmentType;
-  note: string | null;
-  status: OrderStatus;
-  paymentStatus: keyof typeof paymentStatusLabels;
-  subtotal: number;
-  discountAmount: number;
-  discountLabel: string | null;
-  total: number;
-  pickupCodeLength: number;
-  pickupVerifiedAt: string | null;
-  pickupVerificationMethod: "CODE" | "MANUAL" | null;
-  confirmationExpiresAt: string;
-  createdAt: string;
-  items: Array<{
-    id: string;
-    name: string;
-    unitPrice: number;
-    quantity: number;
-    note: string | null;
-    noteOptions: Array<{ groupName: string; optionName: string; priceDelta: number }>;
-    status: OrderItemStatus;
-    preparingAt: string | null;
-    readyAt: string | null;
-    servedAt: string | null;
-  }>;
-};
+type OrderWithItems = StaffOrderDto;
 
 type Props = {
   stall: { id: string; slug: string; name: string; currency: string };
   initialOrders: OrderWithItems[];
+  initialNow: number;
   account: { displayName: string; role: UserRole };
-  modules: { dineIn: boolean; print: boolean; payment: boolean; discount: boolean; discountApprovalThresholdBps: number };
+  modules: { dineIn: boolean; delivery: boolean; print: boolean; payment: boolean; discount: boolean; discountApprovalThresholdBps: number };
   paymentOptions: Array<{ id: string; name: string; kind: PaymentOptionKind }>;
   discountOptions: Array<{ id: string; name: string; rateBps: number }>;
+  orderCatalog: StaffOrderCatalog | null;
 };
 
 type StaffStatus = (typeof staffStatusOptions)[number]["value"];
@@ -81,7 +53,7 @@ type CheckoutRequest = {
 };
 type UndoBatch = { actionId: string; undoExpiresAt: string; itemCount: number };
 
-export function StaffOrderBoard({ stall, initialOrders, account, modules, paymentOptions, discountOptions }: Props) {
+export function StaffOrderBoard({ stall, initialOrders, initialNow, account, modules, paymentOptions, discountOptions, orderCatalog }: Props) {
   const knownOrderIdsRef = useRef(new Set(initialOrders.map((order) => order.id)));
   const alertsEnabledRef = useRef(false);
   const [orders, setOrders] = useState(initialOrders);
@@ -103,12 +75,13 @@ export function StaffOrderBoard({ stall, initialOrders, account, modules, paymen
   const [managerPassword, setManagerPassword] = useState("");
   const [message, setMessage] = useState("");
   const [query, setQuery] = useState("");
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(initialNow);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const [viewMode, setViewMode] = useState<"TICKETS" | "TABLES" | "SUMMARY">("TICKETS");
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [batchBusy, setBatchBusy] = useState(false);
   const [undoBatch, setUndoBatch] = useState<UndoBatch | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
   const checkoutOrder = checkoutOrders[0] ?? null;
 
   const notifyNewOrders = useCallback((count: number) => {
@@ -319,6 +292,17 @@ export function StaffOrderBoard({ stall, initialOrders, account, modules, paymen
     setOrders((current) => current.map((order) => replacements.get(order.id) ?? order));
   }
 
+  function handleStaffOrderCreated(order: OrderWithItems) {
+    knownOrderIdsRef.current.add(order.id);
+    setOrders((current) => [...current.filter((candidate) => candidate.id !== order.id), order]
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt)));
+    setComposerOpen(false);
+    setViewMode("TICKETS");
+    setMessage(order.paymentStatus === "PAID"
+      ? `訂單 ${order.orderNo} 已建立、完成收款並送入廚房。`
+      : `訂單 ${order.orderNo} 已建立並送入廚房，請稍後結帳。`);
+  }
+
   function openCheckout(orderOrOrders: OrderWithItems | OrderWithItems[]) {
     const ordersToCheckout = Array.isArray(orderOrOrders) ? orderOrOrders : [orderOrOrders];
     const defaultPayment = modules.payment
@@ -385,6 +369,14 @@ export function StaffOrderBoard({ stall, initialOrders, account, modules, paymen
       setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
     } finally {
       setUpdatingOrderId(null);
+    }
+  }
+
+  async function completePaidOrders(paidOrders: OrderWithItems[]) {
+    for (const order of paidOrders) {
+      if (order.paymentStatus !== "PAID") continue;
+      const completed = await updateOrder(order.id, "COMPLETED");
+      if (!completed) return;
     }
   }
 
@@ -715,13 +707,19 @@ export function StaffOrderBoard({ stall, initialOrders, account, modules, paymen
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-5 md:px-8">
-      <div className="flex items-center justify-between gap-4 print:hidden">
-        <div>
+      <div className="flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <p className="text-sm font-medium text-teal-800">行動訂單看板</p>
           <h1 className="text-3xl font-semibold">{stall.name}</h1>
           <p className="mt-1 text-xs text-stone-500">{account.displayName} · {roleLabels[account.role]}</p>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex w-full flex-wrap justify-start gap-2 sm:w-auto sm:justify-end">
+          {orderCatalog && hasPermission(account.role, "CREATE_ORDERS") ? (
+            <button type="button" onClick={() => setComposerOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white">
+              <ShoppingCart className="h-4 w-4" />
+              <span>店員點餐</span>
+            </button>
+          ) : null}
           {modules.dineIn ? (
             <Link href={`/staff/${stall.slug}/floor`} title="桌位平面圖" className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold">
               <MapPinned className="h-4 w-4" />
@@ -810,9 +808,22 @@ export function StaffOrderBoard({ stall, initialOrders, account, modules, paymen
         <div className="mt-6 grid gap-4 md:grid-cols-2 print:hidden">
           {diningTableGroups.map((group) => {
             const allServed = group.orders.every((order) => order.items.every((item) => item.status === "SERVED"));
-            const checkoutEligible = allServed && group.orders.every((order) => order.status === "READY" && order.paymentStatus === "UNPAID");
+            const checkoutEligible = allServed && group.orders.every((order) => order.status === "READY");
+            const unpaidOrders = group.orders.filter((order) => order.paymentStatus === "UNPAID");
             const pendingItems = group.orders.flatMap((order) => order.items).filter((item) => item.status !== "SERVED").length;
-            return <article key={group.diningTableId} className="rounded-lg border border-stone-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">{group.tableLabel}</h2><p className="mt-1 text-xs text-stone-500">{group.orders.length} 筆追加訂單 · {group.orders.reduce((sum, order) => sum + order.items.reduce((count, item) => count + item.quantity, 0), 0)} 份餐點</p></div><strong>{formatMoney(group.orders.reduce((sum, order) => sum + order.total, 0), stall.currency)}</strong></div><div className="mt-4 divide-y divide-stone-100 border-y border-stone-200">{group.orders.map((order) => <div key={order.id} className="py-3"><div className="flex items-center justify-between gap-3 text-sm"><strong>訂單 {order.orderNo}</strong><span className="rounded bg-stone-100 px-2 py-0.5 text-xs font-semibold">{orderStatusLabels[order.status]}</span></div><p className="mt-1 text-xs text-stone-600">{order.items.map((item) => `${item.quantity}×${item.name}`).join("、")}</p></div>)}</div><div className="mt-4 flex items-center justify-between gap-3"><span className={`text-xs font-semibold ${pendingItems === 0 ? "text-emerald-700" : "text-amber-800"}`}>{pendingItems === 0 ? "餐點皆已出餐" : `${pendingItems} 個品項尚未出餐`}</span><button type="button" disabled={!checkoutEligible || updatingOrderId !== null} onClick={() => openCheckout(group.orders)} className="h-10 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{group.orders.length > 1 ? `合併結帳（${group.orders.length} 筆）` : "完成此桌結帳"}</button></div></article>;
+            return (
+              <article key={group.diningTableId} className="rounded-lg border border-stone-200 bg-white p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div><h2 className="text-lg font-semibold">{group.tableLabel}</h2><p className="mt-1 text-xs text-stone-500">{group.orders.length} 筆追加訂單 · {group.orders.reduce((sum, order) => sum + order.items.reduce((count, item) => count + item.quantity, 0), 0)} 份餐點</p></div>
+                  <strong>{formatMoney(group.orders.reduce((sum, order) => sum + order.total, 0), stall.currency)}</strong>
+                </div>
+                <div className="mt-4 divide-y divide-stone-100 border-y border-stone-200">{group.orders.map((order) => <div key={order.id} className="py-3"><div className="flex items-center justify-between gap-3 text-sm"><strong>訂單 {order.orderNo}</strong><span className="rounded bg-stone-100 px-2 py-0.5 text-xs font-semibold">{orderStatusLabels[order.status]}</span></div><p className="mt-1 text-xs text-stone-600">{order.items.map((item) => `${item.quantity}×${item.name}`).join("、")}</p><p className="mt-1 text-xs text-stone-500">{paymentStatusLabels[order.paymentStatus]}</p></div>)}</div>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <span className={`text-xs font-semibold ${pendingItems === 0 ? "text-emerald-700" : "text-amber-800"}`}>{pendingItems === 0 ? "餐點皆已出餐" : `${pendingItems} 個品項尚未出餐`}</span>
+                  <button type="button" disabled={!checkoutEligible || updatingOrderId !== null} onClick={() => unpaidOrders.length > 0 ? openCheckout(unpaidOrders) : void completePaidOrders(group.orders)} className="h-10 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{unpaidOrders.length > 0 ? unpaidOrders.length > 1 ? `合併結帳（${unpaidOrders.length} 筆）` : "完成此桌結帳" : "完成此桌"}</button>
+                </div>
+              </article>
+            );
           })}
           {diningTableGroups.length === 0 ? <p className="py-10 text-center text-sm text-stone-500 md:col-span-2">目前沒有內用桌位訂單。</p> : null}
         </div>
@@ -828,11 +839,19 @@ export function StaffOrderBoard({ stall, initialOrders, account, modules, paymen
                 <div className="text-xs font-semibold text-stone-500">訂單 {order.orderNo}</div>
                 <h2 className="mt-1 font-semibold">{order.customerName}</h2>
                 <p className="mt-1 text-sm text-stone-500">
-                  {order.fulfillmentType === "DINE_IN" ? `內用 · ${order.tableLabel ?? "未指定桌位"}` : "外帶取餐"} · {new Date(order.createdAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })} · 已等待 {orderAgeMinutes(order.createdAt, now)} 分
+                  {order.fulfillmentType === "DINE_IN"
+                    ? `內用 · ${order.tableLabel ?? "未指定桌位"}`
+                    : order.fulfillmentType === "DELIVERY" ? "外送訂單" : "外帶取餐"} · {new Date(order.createdAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })} · 已等待 {orderAgeMinutes(order.createdAt, now)} 分
                 </p>
               </div>
               <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">{orderStatusLabels[order.status]}</span>
             </div>
+            {order.fulfillmentType === "DELIVERY" ? (
+              <div className="mt-3 flex items-start gap-2 border-y border-stone-200 bg-stone-50 px-3 py-3 text-sm">
+                <Truck className="mt-0.5 h-4 w-4 shrink-0 text-teal-800" />
+                <div className="min-w-0"><p className="font-medium break-words">{order.deliveryAddress}</p>{order.customerPhone ? <p className="mt-1 text-stone-600">{order.customerPhone}</p> : null}</div>
+              </div>
+            ) : null}
             {order.status === "WAITING_CONFIRMATION" ? (
               <p className="mt-3 text-xs font-medium text-amber-800">確認後才可開始製作；逾時時間 {new Date(order.confirmationExpiresAt).toLocaleTimeString("zh-TW")}</p>
             ) : null}
@@ -990,7 +1009,8 @@ export function StaffOrderBoard({ stall, initialOrders, account, modules, paymen
                         return;
                       }
                       if (option.value === "COMPLETED") {
-                        openCheckout(order);
+                        if (order.paymentStatus === "PAID") void updateOrder(order.id, "COMPLETED");
+                        else openCheckout(order);
                         return;
                       }
                       void updateOrder(order.id, option.value);
@@ -1006,6 +1026,19 @@ export function StaffOrderBoard({ stall, initialOrders, account, modules, paymen
       </div>
       )}
       {viewMode === "TICKETS" && filteredOrders.length === 0 ? <p className="mt-10 text-center text-sm text-stone-500 print:hidden">{query ? "找不到符合條件的訂單。" : "目前沒有待處理訂單。"}</p> : null}
+
+      {composerOpen && orderCatalog ? (
+        <StaffOrderComposer
+          stall={stall}
+          catalog={orderCatalog}
+          account={account}
+          modules={modules}
+          paymentOptions={paymentOptions}
+          discountOptions={discountOptions}
+          onCreated={handleStaffOrderCreated}
+          onClose={() => setComposerOpen(false)}
+        />
+      ) : null}
 
       {checkoutOrder ? (
         <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4 print:hidden">

@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { OperationsConsole } from "@/components/operations-console";
 import { getOperationsConsoleData, type OperationsFilters } from "@/lib/operations-data";
+import { parseOperationsPage, parseOperationsPageSize } from "@/lib/operations-pagination";
 import { authorizedStallIdsForPermission, hasPermission } from "@/lib/rbac";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 
@@ -35,12 +36,23 @@ export default async function OperationsPage({ searchParams }: PageProps) {
     dateFrom: single(params.dateFrom),
     dateTo: single(params.dateTo),
   };
+  const pagination = {
+    alerts: {
+      page: parseOperationsPage(single(params.alertPage)),
+      pageSize: parseOperationsPageSize(single(params.alertPageSize)),
+    },
+    auditLogs: {
+      page: parseOperationsPage(single(params.auditPage)),
+      pageSize: parseOperationsPageSize(single(params.auditPageSize)),
+    },
+  };
   const data = await getOperationsConsoleData({
     organizationId: workspace.id,
     alertStallIds,
     auditStallIds: canViewAudit ? workspace.stalls.map((stall) => stall.id) : [],
     canViewAudit,
     filters,
+    pagination,
   });
   const visibleStalls = workspace.stalls.filter((stall) => canViewAudit || alertStallIds.includes(stall.id));
 
@@ -50,6 +62,8 @@ export default async function OperationsPage({ searchParams }: PageProps) {
       stalls={visibleStalls.map((stall) => ({ id: stall.id, name: stall.name }))}
       alerts={data.alerts}
       auditLogs={data.auditLogs}
+      alertPagination={data.alertPagination}
+      auditPagination={data.auditPagination}
       canManageAlerts={alertStallIds.length > 0}
       canViewAudit={canViewAudit}
       filters={filters}

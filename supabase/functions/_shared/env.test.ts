@@ -12,4 +12,14 @@ describe("Edge Function Origin 白名單", () => {
       "https://app.qidaigo.com",
     ]));
   });
+
+  it("保留正式站與 Vercel production alias", () => {
+    vi.stubGlobal("Deno", { env: { get: () => "https://preview.example.com" } });
+
+    expect(getAllowedOrigins()).toEqual([
+      "https://preview.example.com",
+      "https://stallorder-platform.vercel.app",
+      "https://app.qidaigo.com",
+    ]);
+  });
 });

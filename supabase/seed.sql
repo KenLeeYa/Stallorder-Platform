@@ -36,12 +36,13 @@ insert into public.stalls (
 );
 
 insert into public.stall_ordering_settings (
-  stall_id, organization_id, dine_in_enabled, print_module_enabled,
+  stall_id, organization_id, dine_in_enabled, delivery_module_enabled, print_module_enabled,
   payment_module_enabled, discount_module_enabled, discount_approval_threshold_bps,
   enabled_locales, created_at, updated_at
 ) values (
   '22222222-2222-4222-8222-222222222222',
   '11111111-1111-4111-8111-111111111111',
+  true,
   true,
   true,
   true,

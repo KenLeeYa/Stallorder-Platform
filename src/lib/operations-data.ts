@@ -1,6 +1,11 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  buildOperationsPageMeta,
+  type OperationsPageRequest,
+} from "@/lib/operations-pagination";
 
 export type OperationsFilters = {
   stallId?: string;
@@ -26,12 +31,17 @@ export async function getOperationsConsoleData({
   auditStallIds,
   canViewAudit,
   filters,
+  pagination,
 }: {
   organizationId: string;
   alertStallIds: string[];
   auditStallIds: string[];
   canViewAudit: boolean;
   filters: OperationsFilters;
+  pagination: {
+    alerts: OperationsPageRequest;
+    auditLogs: OperationsPageRequest;
+  };
 }) {
   if (alertStallIds.length > 0) {
     await prisma.$queryRaw`select public.refresh_operational_alerts(${organizationId}::uuid)`;
@@ -44,45 +54,65 @@ export async function getOperationsConsoleData({
     : auditStallIds;
   const auditQuery = filters.auditQuery?.trim().slice(0, 80);
 
-  const alerts = selectedAlertStallIds.length === 0 ? [] : await prisma.operationalAlert.findMany({
-      where: {
-        organizationId,
-        stallId: { in: selectedAlertStallIds },
-        status: filters.alertStatus && filters.alertStatus !== "ALL" ? filters.alertStatus : undefined,
-        severity: filters.alertSeverity && filters.alertSeverity !== "ALL" ? filters.alertSeverity : undefined,
-      },
+  const alertWhere: Prisma.OperationalAlertWhereInput | null = selectedAlertStallIds.length === 0
+    ? null
+    : {
+      organizationId,
+      stallId: { in: selectedAlertStallIds },
+      status: filters.alertStatus && filters.alertStatus !== "ALL" ? filters.alertStatus : undefined,
+      severity: filters.alertSeverity && filters.alertSeverity !== "ALL" ? filters.alertSeverity : undefined,
+    };
+  const auditWhere: Prisma.AuditLogWhereInput | null = !canViewAudit
+    ? null
+    : {
+      organizationId,
+      OR: [
+        { stallId: null },
+        ...(selectedAuditStallIds.length > 0 ? [{ stallId: { in: selectedAuditStallIds } }] : []),
+      ],
+      outcome: filters.auditOutcome && filters.auditOutcome !== "ALL" ? filters.auditOutcome : undefined,
+      createdAt: { gte: startOfDate(filters.dateFrom), lte: endOfDate(filters.dateTo) },
+      ...(auditQuery ? {
+        AND: [{
+          OR: [
+            { action: { contains: auditQuery, mode: "insensitive" as const } },
+            { entityType: { contains: auditQuery, mode: "insensitive" as const } },
+            { requestId: { contains: auditQuery, mode: "insensitive" as const } },
+          ],
+        }],
+      } : {}),
+    };
+
+  const [alertTotal, auditTotal] = await Promise.all([
+    alertWhere ? prisma.operationalAlert.count({ where: alertWhere }) : Promise.resolve(0),
+    auditWhere ? prisma.auditLog.count({ where: auditWhere }) : Promise.resolve(0),
+  ]);
+  const alertPagination = buildOperationsPageMeta(alertTotal, pagination.alerts);
+  const auditPagination = buildOperationsPageMeta(auditTotal, pagination.auditLogs);
+
+  const [alerts, auditLogs] = await Promise.all([
+    alertWhere ? prisma.operationalAlert.findMany({
+      where: alertWhere,
       include: { stall: { select: { name: true } } },
       orderBy: [{ status: "asc" }, { detectedAt: "desc" }],
-      take: 100,
-    });
-  const auditLogs = !canViewAudit ? [] : await prisma.auditLog.findMany({
-      where: {
-        organizationId,
-        OR: [
-          { stallId: null },
-          ...(selectedAuditStallIds.length > 0 ? [{ stallId: { in: selectedAuditStallIds } }] : []),
-        ],
-        outcome: filters.auditOutcome && filters.auditOutcome !== "ALL" ? filters.auditOutcome : undefined,
-        createdAt: { gte: startOfDate(filters.dateFrom), lte: endOfDate(filters.dateTo) },
-        ...(auditQuery ? {
-          AND: [{
-            OR: [
-              { action: { contains: auditQuery, mode: "insensitive" as const } },
-              { entityType: { contains: auditQuery, mode: "insensitive" as const } },
-              { requestId: { contains: auditQuery, mode: "insensitive" as const } },
-            ],
-          }],
-        } : {}),
-      },
+      skip: (alertPagination.page - 1) * alertPagination.pageSize,
+      take: alertPagination.pageSize,
+    }) : Promise.resolve([]),
+    auditWhere ? prisma.auditLog.findMany({
+      where: auditWhere,
       include: {
         stall: { select: { name: true } },
         actor: { select: { displayName: true, email: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: 100,
-    });
+      skip: (auditPagination.page - 1) * auditPagination.pageSize,
+      take: auditPagination.pageSize,
+    }) : Promise.resolve([]),
+  ]);
 
   return {
+    alertPagination,
+    auditPagination,
     alerts: alerts.map((alert) => ({
       id: alert.id,
       stallId: alert.stallId,

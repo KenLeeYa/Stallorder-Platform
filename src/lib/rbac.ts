@@ -2,6 +2,7 @@ import type { OrderStatus, UserRole } from "@prisma/client";
 
 export type Permission =
   | "VIEW_ORDERS"
+  | "CREATE_ORDERS"
   | "UPDATE_ORDERS"
   | "CHECKOUT_ORDERS"
   | "MANAGE_PRINT_QUEUE"
@@ -24,6 +25,7 @@ export type Permission =
 const rolePermissions: Record<UserRole, readonly Permission[]> = {
   PLATFORM_ADMIN: [
     "VIEW_ORDERS",
+    "CREATE_ORDERS",
     "UPDATE_ORDERS",
     "CHECKOUT_ORDERS",
     "MANAGE_PRINT_QUEUE",
@@ -47,6 +49,7 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
   MERCHANT_MANAGER: [],
   ORGANIZATION_OWNER: [
     "VIEW_ORDERS",
+    "CREATE_ORDERS",
     "UPDATE_ORDERS",
     "CHECKOUT_ORDERS",
     "MANAGE_PRINT_QUEUE",
@@ -67,6 +70,7 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
   ],
   ORGANIZATION_ADMIN: [
     "VIEW_ORDERS",
+    "CREATE_ORDERS",
     "UPDATE_ORDERS",
     "CHECKOUT_ORDERS",
     "MANAGE_PRINT_QUEUE",
@@ -86,6 +90,7 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
   FINANCE_VIEWER: ["VIEW_REPORTS"],
   STALL_MANAGER: [
     "VIEW_ORDERS",
+    "CREATE_ORDERS",
     "UPDATE_ORDERS",
     "CHECKOUT_ORDERS",
     "MANAGE_PRINT_QUEUE",
@@ -99,7 +104,7 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STALL",
     "MANAGE_OPERATIONAL_ALERTS",
   ],
-  STAFF: ["VIEW_ORDERS", "UPDATE_ORDERS", "CHECKOUT_ORDERS", "MANAGE_PRINT_QUEUE", "MANAGE_CASH_SHIFT", "VIEW_DINING_FLOOR"],
+  STAFF: ["VIEW_ORDERS", "CREATE_ORDERS", "UPDATE_ORDERS", "CHECKOUT_ORDERS", "MANAGE_PRINT_QUEUE", "MANAGE_CASH_SHIFT", "VIEW_DINING_FLOOR"],
   KITCHEN: ["VIEW_ORDERS", "UPDATE_ORDERS", "MANAGE_PRINT_QUEUE", "VIEW_DINING_FLOOR"],
 };
 

@@ -88,6 +88,7 @@ export default async function DiningFloorPage({ params }: PageProps) {
       }))}
       initialOrders={orders.map((order) => ({
         ...order,
+        fulfillmentType: "DINE_IN" as const,
         createdAt: order.createdAt.toISOString(),
       }))}
       account={{ displayName: principal.user.displayName, role }}

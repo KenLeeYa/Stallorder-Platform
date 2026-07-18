@@ -16,7 +16,7 @@ async function verifyCollapsibleHeader(page: Page, title: string) {
   await expect.poll(() => details.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(initiallyOpen);
 }
 
-test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", async ({ browser, page }) => {
+test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", async ({ browser, page }, testInfo) => {
   test.setTimeout(120_000);
   await page.goto("/login");
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
@@ -87,12 +87,22 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
 
   await expect(page.getByRole("switch", { name: /內用桌位/ })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("switch", { name: /訂單列印/ })).toHaveAttribute("aria-checked", "true");
+  for (const moduleName of ["內用桌位", "線上外送", "訂單列印", "多元付款", "結帳折扣"]) {
+    await expect(page.getByRole("switch", { name: new RegExp(moduleName) }).locator("svg")).toHaveCount(1);
+  }
+  await page.locator("[data-module-switch-grid]").screenshot({ path: testInfo.outputPath("module-switch-icons.png") });
   const localeSection = page.locator('details[aria-label="QR 點餐語系"]');
   if (!(await localeSection.evaluate((element) => (element as HTMLDetailsElement).open))) {
     await localeSection.locator("summary").click();
   }
   const traditionalChineseSwitch = localeSection.getByRole("switch", { name: /繁體中文/ });
   const japaneseSwitch = localeSection.getByRole("switch", { name: /日文/ });
+  for (const [locale, flagPath] of Object.entries({ "zh-TW": "/flags/tw.svg", en: "/flags/us.svg", ja: "/flags/jp.svg", ko: "/flags/kr.svg", vi: "/flags/vn.svg", th: "/flags/th.svg" })) {
+    const flag = localeSection.locator(`[data-locale-flag="${locale}"]`);
+    await expect(flag).toBeVisible();
+    await expect(flag).toHaveAttribute("src", new RegExp(flagPath.replace("/", "\\/")));
+  }
+  await localeSection.locator("[data-locale-switch-grid]").screenshot({ path: testInfo.outputPath("locale-flags.png") });
   await expect(traditionalChineseSwitch).toBeDisabled();
   await expect(traditionalChineseSwitch).toHaveAttribute("aria-checked", "true");
   const japaneseInitiallyEnabled = await japaneseSwitch.getAttribute("aria-checked") === "true";
@@ -115,8 +125,10 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
     try {
       const japanesePage = await japaneseContext.newPage();
       await japanesePage.goto("/q/demo-aming-chicken-qr-2026-rotate-me");
-      await expect(japanesePage.getByLabel("點餐語言")).toHaveValue("zh-TW");
-      await expect(japanesePage.getByLabel("點餐語言").locator('option[value="ja"]')).toHaveCount(0);
+      const languageMenu = japanesePage.getByRole("button", { name: "點餐語言" });
+      await expect(languageMenu).toHaveAttribute("data-current-locale", "zh-TW");
+      await languageMenu.click();
+      await expect(japanesePage.getByRole("option", { name: "日本語", exact: true })).toHaveCount(0);
     } finally {
       await japaneseContext.close();
     }

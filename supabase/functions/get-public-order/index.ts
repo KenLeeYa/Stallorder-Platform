@@ -71,13 +71,13 @@ Deno.serve(async (request) => {
       fulfillmentType?: string;
       pickupCodeLength?: number;
     };
-    const pickupCode = stored.fulfillmentType === "DINE_IN"
-      ? null
-      : (await derivePublicOrderTokens(
+    const pickupCode = stored.fulfillmentType === "TAKEOUT"
+      ? (await derivePublicOrderTokens(
         stored.orderId,
         requireEnv("TOKEN_DERIVATION_SECRET"),
         stored.pickupCodeLength === 6 ? 6 : 3,
-      )).pickupCode;
+      )).pickupCode
+      : null;
     const orderContext = await admin.from("orders")
       .select("stall_id, dining_table_id")
       .eq("id", stored.orderId)

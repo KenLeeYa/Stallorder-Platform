@@ -42,7 +42,7 @@ export default function RootLayout({
       lang="zh-Hant-TW"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-stone-50 text-stone-950">
+      <body suppressHydrationWarning className="min-h-full bg-stone-50 text-stone-950">
         <PwaRuntime>{children}</PwaRuntime>
       </body>
     </html>

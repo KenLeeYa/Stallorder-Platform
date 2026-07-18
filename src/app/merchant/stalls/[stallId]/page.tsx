@@ -52,6 +52,7 @@ export default async function EditStallPage({ params }: PageProps) {
         <StallBusinessHoursManager stallId={stall.id} initialHours={businessHours} />
         <StallModulesManager
           stallId={stall.id}
+          stallSlug={stall.slug}
           appUrl={process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}
           initialState={moduleState}
         />

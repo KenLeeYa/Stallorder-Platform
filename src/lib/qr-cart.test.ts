@@ -12,6 +12,8 @@ describe("QR 購物車復原", () => {
     const raw = serializeQrCartDraft({
       customerName: "王小明",
       customerNote: "123456789",
+      customerPhone: "0912345678",
+      deliveryAddress: "台北市測試路 1 號",
       quantities: { p1: 8, p2: 3, removed: 1 },
       noteSelections: { p1: ["o1", "invalid", "o1"] },
     }, 1_000);
@@ -19,6 +21,8 @@ describe("QR 購物車復原", () => {
     expect(restoreQrCartDraft(raw, products, limits, 2_000)).toMatchObject({
       customerName: "王小明",
       customerNote: "12345",
+      customerPhone: "0912345678",
+      deliveryAddress: "台北市測試路 1 號",
       quantities: { p1: 3, p2: 1 },
       noteSelections: { p1: ["o1"] },
     });
