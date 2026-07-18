@@ -10,12 +10,21 @@ import {
 
 const originalTrustedIpHeader = process.env.TRUSTED_CLIENT_IP_HEADER;
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+const originalTrustedAppOrigins = process.env.TRUSTED_APP_ORIGINS;
+const originalVercelProjectProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+const originalVercelUrl = process.env.VERCEL_URL;
 
 afterEach(() => {
   if (originalTrustedIpHeader === undefined) delete process.env.TRUSTED_CLIENT_IP_HEADER;
   else process.env.TRUSTED_CLIENT_IP_HEADER = originalTrustedIpHeader;
   if (originalAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
   else process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
+  if (originalTrustedAppOrigins === undefined) delete process.env.TRUSTED_APP_ORIGINS;
+  else process.env.TRUSTED_APP_ORIGINS = originalTrustedAppOrigins;
+  if (originalVercelProjectProductionUrl === undefined) delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  else process.env.VERCEL_PROJECT_PRODUCTION_URL = originalVercelProjectProductionUrl;
+  if (originalVercelUrl === undefined) delete process.env.VERCEL_URL;
+  else process.env.VERCEL_URL = originalVercelUrl;
 });
 
 describe("安全工具", () => {
@@ -50,6 +59,41 @@ describe("安全工具", () => {
     });
     expect(isTrustedOrigin(trusted)).toBe(true);
     expect(isTrustedOrigin(untrusted)).toBe(false);
+  });
+
+  it("允許暫時設定多個受信任正式 Origin，但仍拒絕非 allowlist 來源", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://app.qidaigo.com";
+    process.env.TRUSTED_APP_ORIGINS = "https://stallorder-platform.vercel.app";
+
+    const primary = new Request("https://stallorder-platform.vercel.app/api/test", {
+      headers: { origin: "https://app.qidaigo.com", "sec-fetch-site": "same-origin" },
+    });
+    const temporaryAlias = new Request("https://stallorder-platform.vercel.app/api/test", {
+      headers: { origin: "https://stallorder-platform.vercel.app", "sec-fetch-site": "same-origin" },
+    });
+    const untrusted = new Request("https://stallorder-platform.vercel.app/api/test", {
+      headers: { origin: "https://evil.example", "sec-fetch-site": "same-origin" },
+    });
+
+    expect(isTrustedOrigin(primary)).toBe(true);
+    expect(isTrustedOrigin(temporaryAlias)).toBe(true);
+    expect(isTrustedOrigin(untrusted)).toBe(false);
+  });
+
+  it("允許 Vercel runtime 提供的 production 與 deployment origin", () => {
+    process.env.NEXT_PUBLIC_APP_URL = "https://app.qidaigo.com";
+    process.env.VERCEL_PROJECT_PRODUCTION_URL = "stallorder-platform.vercel.app";
+    process.env.VERCEL_URL = "stallorder-platform-aevukq9eb-ada76145-8663s-projects.vercel.app";
+
+    const productionAlias = new Request("https://stallorder-platform.vercel.app/api/test", {
+      headers: { origin: "https://stallorder-platform.vercel.app", "sec-fetch-site": "same-origin" },
+    });
+    const deploymentUrl = new Request("https://stallorder-platform-aevukq9eb-ada76145-8663s-projects.vercel.app/api/test", {
+      headers: { origin: "https://stallorder-platform-aevukq9eb-ada76145-8663s-projects.vercel.app", "sec-fetch-site": "same-origin" },
+    });
+
+    expect(isTrustedOrigin(productionAlias)).toBe(true);
+    expect(isTrustedOrigin(deploymentUrl)).toBe(true);
   });
 
   it("只信任明確設定且格式正確的代理 IP 標頭", () => {

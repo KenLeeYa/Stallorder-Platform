@@ -43,6 +43,9 @@ yarn-error.log*
 !.env.example
 !supabase/functions/.env.example
 
+# local-only secret sync bundles
+/.secrets/
+
 # Supabase CLI local state
 /supabase/.branches/
 /supabase/.temp/
@@ -53,3 +56,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.env*

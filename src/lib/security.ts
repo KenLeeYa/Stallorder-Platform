@@ -113,14 +113,23 @@ export function isTrustedOrigin(request: Request) {
 
   if (!suppliedOrigin) return false;
 
-  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (configuredUrl) {
+  const configuredOrigins = [
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : undefined,
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+    ...(process.env.TRUSTED_APP_ORIGINS?.split(",") ?? []),
+  ];
+  const trustedOrigins = configuredOrigins.flatMap((value) => {
+    const trimmed = value?.trim();
+    if (!trimmed) return [];
     try {
-      return suppliedOrigin === new URL(configuredUrl).origin;
+      return [new URL(trimmed).origin];
     } catch {
-      return false;
+      return [];
     }
-  }
+  });
+
+  if (trustedOrigins.length > 0) return trustedOrigins.includes(suppliedOrigin);
 
   return suppliedOrigin === new URL(request.url).origin;
 }
