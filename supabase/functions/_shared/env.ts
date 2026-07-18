@@ -12,6 +12,11 @@ export function getServiceRoleKey() {
 
 export function getAllowedOrigins() {
   const configured = Deno.env.get("PUBLIC_APP_ORIGINS")
-    ?? "http://localhost:3000,http://127.0.0.1:3000";
+    ?? [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "https://stallorder-platform.vercel.app",
+      "https://app.qidaigo.com",
+    ].join(",");
   return configured.split(",").map((value) => value.trim()).filter(Boolean);
 }

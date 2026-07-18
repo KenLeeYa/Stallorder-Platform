@@ -20,9 +20,7 @@ export function getOrCreateDeviceId() {
 }
 
 export function publicEdgeUrl(functionName: string) {
-  const configured = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL
-    || "http://127.0.0.1:54321/functions/v1";
-  return `${configured.replace(/\/$/, "")}/${functionName}`;
+  return `/api/public-order/${functionName}`;
 }
 
 export async function parseEdgeResponse(response: Response) {
