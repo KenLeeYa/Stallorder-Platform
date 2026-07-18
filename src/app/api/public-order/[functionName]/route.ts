@@ -34,7 +34,7 @@ export async function POST(
     method: "POST",
     headers: {
       "content-type": request.headers.get("content-type") ?? "application/json",
-      origin: "http://localhost:3000",
+      origin: process.env.PUBLIC_ORDER_FUNCTION_ORIGIN || "https://app.qidaigo.com",
     },
     body: await request.text(),
     cache: "no-store",
