@@ -45,4 +45,15 @@ CDN response 無法由目前 Next tag 立即 purge，最差可能在 15 秒 fres
 - Playwright：匿名公開菜單 header、private bypass、菜單可先顯示、order session 未完成前不能提交。
 - Deployment：連續請求同一路徑檢查 `X-Vercel-Cache` MISS/HIT、`Age`、三組 Cache-Control header 與無 `Set-Cookie`。
 
-P1 Preview 實際結果會寫入 `docs/performance/P1_MEASUREMENT.md` 與 `performance-results/p1.json`。
+## P1 Preview 驗證
+
+`dpl_3GScetHXocLoeJwhrA2Jyey54JYx`（commit `61a006f`、Function region `hnd1`）實測：
+
+| 情境 | HTTP | `X-Vercel-Cache` | `Cache-Control` | Shared CDN header |
+| --- | ---: | --- | --- | --- |
+| 匿名第一次 | 200 | `MISS` | `public, max-age=0, must-revalidate` | 有 |
+| 匿名第二次 | 200 | `HIT` | `public, max-age=0, must-revalidate` | 有，`Age` 遞增 |
+| 帶 Cookie | 200 | `MISS` | `private, no-store, max-age=0` | 無 |
+| 帶 Authorization | 200 | `BYPASS` | `private, no-store, max-age=0` | 無 |
+
+四種情境均沒有應用程式 `Set-Cookie`。完整 P1 數據位於 `docs/performance/P1_MEASUREMENT.md` 與 `performance-results/p1.json`。
