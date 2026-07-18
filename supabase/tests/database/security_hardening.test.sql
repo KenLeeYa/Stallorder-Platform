@@ -178,11 +178,11 @@ insert into public.orders (
 
 insert into public.invoices (
   id, organization_id, subscription_id, invoice_number, status, currency,
-  billing_period_start, billing_period_end, subtotal, total
+  billing_period_start, billing_period_end, subtotal, total_amount, amount_due, due_at
 ) select
   'ca000000-0000-4000-8000-000000000001', subscription.organization_id,
-  subscription.id, 'HARDENING-INVOICE-001', 'ISSUED', 'TWD',
-  current_date, current_date + 1, 100, 100
+  subscription.id, 'HARDENING-INVOICE-001', 'OPEN', 'TWD',
+  current_date, current_date + 1, 100, 100, 100, now() + interval '1 day'
 from public.subscriptions subscription
 where subscription.organization_id = '11111111-1111-4111-8111-111111111111';
 

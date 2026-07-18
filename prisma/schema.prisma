@@ -249,6 +249,11 @@ model Organization {
   invoices                      Invoice[]
   invoiceLineItems              InvoiceLineItem[]
   usageEvents                   UsageEvent[]
+  subscriptionItems             SubscriptionItem[]
+  manualPaymentRecords          ManualPaymentRecord[]
+  billingUsageSummaries         BillingUsageSummary[]
+  billingNotifications          BillingNotification[]
+  notificationOutbox            NotificationOutbox[]
   invitations                   OrganizationInvitation[]
   publicOrderAttempts           PublicOrderAttempt[]
   publicRateLimitBuckets        PublicRateLimitBucket[]
@@ -340,6 +345,9 @@ model Profile {
   auditLogs                AuditLog[]
   recordedPayments         Payment[]
   approvedAdditionalStalls AdditionalStallApproval[] @relation("AdditionalStallApprover")
+  createdPlanVersions      PlanVersion[]              @relation("PlanVersionCreatedBy")
+  recordedManualPayments   ManualPaymentRecord[]      @relation("ManualPaymentRecordedBy")
+  verifiedManualPayments   ManualPaymentRecord[]      @relation("ManualPaymentVerifiedBy")
   sentInvitations          OrganizationInvitation[]  @relation("InvitationSender")
   orderItemBatchActions    OrderItemBatchAction[]
   requestedPrintJobs       PrintJob[]                @relation("PrintJobRequestedBy")
@@ -506,27 +514,137 @@ model Plan {
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")
   subscriptions        Subscription[]
+  versions             PlanVersion[]
 
   @@map("plans")
+}
+
+model PlanVersion {
+  id                       String            @id @default(uuid()) @db.Uuid
+  planId                   String            @map("plan_id") @db.Uuid
+  version                  Int
+  displayName              String            @map("display_name")
+  billingInterval          String            @map("billing_interval")
+  basePrice                Int               @map("base_price")
+  annualPrice              Int?              @map("annual_price")
+  currency                 String            @default("TWD")
+  trialDays                Int?              @map("trial_days")
+  includedStalls           Int               @map("included_stalls")
+  maxStalls                Int?              @map("max_stalls")
+  additionalStallPrice     Int?              @map("additional_stall_price")
+  maxStaff                 Int?              @map("max_staff")
+  maxProducts              Int?              @map("max_products")
+  maxQrCodes               Int?              @map("max_qr_codes")
+  includedOrders           Int?              @map("included_orders")
+  reportRetentionDays      Int?              @map("report_retention_days")
+  overagePolicy            String            @map("overage_policy")
+  emergencyHardCapEnabled  Boolean           @default(false) @map("emergency_hard_cap_enabled")
+  emergencyHardCapOrders   Int?              @map("emergency_hard_cap_orders")
+  isPublic                 Boolean           @default(true) @map("is_public")
+  requiresQuote            Boolean           @default(false) @map("requires_quote")
+  effectiveFrom            DateTime          @default(now()) @map("effective_from")
+  effectiveUntil           DateTime?         @map("effective_until")
+  createdAt                DateTime          @default(now()) @map("created_at")
+  createdById              String?           @map("created_by") @db.Uuid
+  plan                     Plan              @relation(fields: [planId], references: [id], onDelete: Restrict)
+  createdBy                Profile?          @relation("PlanVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  entitlements             PlanEntitlement[]
+  subscriptions            Subscription[]
+
+  @@unique([planId, version])
+  @@index([planId, effectiveFrom(sort: Desc), effectiveUntil])
+  @@map("plan_versions")
+}
+
+model PlanEntitlement {
+  id                String      @id @default(uuid()) @db.Uuid
+  planVersionId     String      @map("plan_version_id") @db.Uuid
+  featureCode       String      @map("feature_code")
+  isEnabled         Boolean     @default(true) @map("is_enabled")
+  limitValue        Int?        @map("limit_value")
+  configurationJson Json?       @map("configuration_json")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  planVersion       PlanVersion @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([planVersionId, featureCode])
+  @@index([featureCode, isEnabled, planVersionId])
+  @@map("plan_entitlements")
 }
 
 model Subscription {
   id                  String                    @id @default(uuid()) @db.Uuid
   organizationId      String                    @unique @map("organization_id") @db.Uuid
   planId              String                    @map("plan_id") @db.Uuid
+  planVersionId       String                    @map("plan_version_id") @db.Uuid
   status              String                    @default("TRIALING")
+  billingInterval     String                    @default("MONTHLY") @map("billing_interval")
   billingPeriodStart  DateTime                  @map("billing_period_start") @db.Date
   billingPeriodEnd    DateTime                  @map("billing_period_end") @db.Date
+  trialStartedAt      DateTime?                 @map("trial_started_at")
+  trialEndsAt         DateTime?                 @map("trial_ends_at")
+  paymentDueAt        DateTime?                 @map("payment_due_at")
+  pastDueAt           DateTime?                 @map("past_due_at")
+  gracePeriodEndsAt   DateTime?                 @map("grace_period_ends_at")
+  suspendedAt         DateTime?                 @map("suspended_at")
   cancelAtPeriodEnd   Boolean                   @default(false) @map("cancel_at_period_end")
+  cancelledAt         DateTime?                 @map("cancelled_at")
+  reactivatedAt       DateTime?                 @map("reactivated_at")
   createdAt           DateTime                  @default(now()) @map("created_at")
   updatedAt           DateTime                  @updatedAt @map("updated_at")
   organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   plan                Plan                      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  planVersion         PlanVersion               @relation(fields: [planVersionId], references: [id], onDelete: Restrict)
   additionalApprovals AdditionalStallApproval[]
   invoices            Invoice[]
+  items               SubscriptionItem[]
 
   @@index([planId, status])
+  @@index([planVersionId, status])
   @@map("subscriptions")
+}
+
+model AddOnCatalog {
+  id                     String   @id @default(uuid()) @db.Uuid
+  code                   String   @unique
+  displayName            String   @map("display_name")
+  description            String   @default("")
+  billingType            String   @map("billing_type")
+  unitPrice              Int      @map("unit_price")
+  currency               String   @default("TWD")
+  featureCode            String?  @map("feature_code")
+  availabilityStatus     String   @default("MANUAL_APPROVAL_REQUIRED") @map("availability_status")
+  isActive               Boolean  @default(true) @map("is_active")
+  isPublic               Boolean  @default(true) @map("is_public")
+  requiresManualApproval Boolean  @default(true) @map("requires_manual_approval")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("add_on_catalog")
+}
+
+model SubscriptionItem {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  subscriptionId String       @map("subscription_id") @db.Uuid
+  itemType       String       @map("item_type")
+  referenceId    String?      @map("reference_id")
+  code           String
+  description    String
+  quantity       Int
+  unitPrice      Int          @map("unit_price")
+  currency       String       @default("TWD")
+  status         String       @default("ACTIVE")
+  startsAt       DateTime     @default(now()) @map("starts_at")
+  endsAt         DateTime?    @map("ends_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, status, startsAt])
+  @@index([organizationId, code, status])
+  @@map("subscription_items")
 }
 
 model AdditionalStallApproval {
@@ -554,23 +672,32 @@ model Invoice {
   id                 String            @id @default(uuid()) @db.Uuid
   organizationId     String            @map("organization_id") @db.Uuid
   subscriptionId     String            @map("subscription_id") @db.Uuid
-  invoiceNumber      String            @unique @map("invoice_number")
+  invoiceNumber      String            @unique @default(dbgenerated("next_invoice_number()")) @map("invoice_number")
   status             String            @default("DRAFT")
   currency           String            @default("TWD")
   billingPeriodStart DateTime          @map("billing_period_start") @db.Date
   billingPeriodEnd   DateTime          @map("billing_period_end") @db.Date
   subtotal           Int               @default(0)
-  total              Int               @default(0)
+  discountAmount     Int               @default(0) @map("discount_amount")
+  taxAmount          Int               @default(0) @map("tax_amount")
+  totalAmount        Int               @default(0) @map("total_amount")
+  amountPaid         Int               @default(0) @map("amount_paid")
+  amountDue          Int               @default(0) @map("amount_due")
   issuedAt           DateTime?         @map("issued_at")
+  dueAt              DateTime          @map("due_at")
   paidAt             DateTime?         @map("paid_at")
+  voidedAt           DateTime?         @map("voided_at")
+  cancelledAt        DateTime?         @map("cancelled_at")
   createdAt          DateTime          @default(now()) @map("created_at")
   updatedAt          DateTime          @updatedAt @map("updated_at")
   organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   subscription       Subscription      @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
   lineItems          InvoiceLineItem[]
+  manualPayments     ManualPaymentRecord[]
 
   @@unique([organizationId, billingPeriodStart, billingPeriodEnd])
   @@index([organizationId, status, createdAt(sort: Desc)])
+  @@index([status, dueAt])
   @@map("invoices")
 }
 
@@ -578,19 +705,52 @@ model InvoiceLineItem {
   id             String       @id @default(uuid()) @db.Uuid
   organizationId String       @map("organization_id") @db.Uuid
   invoiceId      String       @map("invoice_id") @db.Uuid
-  lineType       String       @map("line_type")
+  itemType       String       @map("item_type")
+  code           String
   description    String
   quantity       Int
-  unitAmount     Int          @map("unit_amount")
-  amount         Int
+  unitPrice      Int          @map("unit_price")
+  subtotal       Int
   referenceId    String?      @map("reference_id")
+  metadataJson   Json?        @map("metadata_json")
   createdAt      DateTime     @default(now()) @map("created_at")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId, createdAt])
-  @@index([organizationId, lineType, createdAt])
+  @@index([organizationId, itemType, createdAt])
   @@map("invoice_line_items")
+}
+
+model ManualPaymentRecord {
+  id                    String       @id @default(uuid()) @db.Uuid
+  organizationId        String       @map("organization_id") @db.Uuid
+  invoiceId             String       @map("invoice_id") @db.Uuid
+  paymentMethod         String       @map("payment_method")
+  amount                Int
+  currency              String       @default("TWD")
+  referenceNumber       String?      @map("reference_number")
+  bankLastFive          String?      @map("bank_last_five")
+  receivedAt            DateTime     @map("received_at")
+  recordedByProfileId   String       @map("recorded_by_profile_id") @db.Uuid
+  verifiedByProfileId   String?      @map("verified_by_profile_id") @db.Uuid
+  verificationStatus    String       @default("PENDING_VERIFICATION") @map("verification_status")
+  note                  String?
+  idempotencyKey        String       @map("idempotency_key")
+  verifiedAt            DateTime?    @map("verified_at")
+  rejectedAt            DateTime?    @map("rejected_at")
+  voidedAt              DateTime?    @map("voided_at")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice               Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  recordedBy            Profile      @relation("ManualPaymentRecordedBy", fields: [recordedByProfileId], references: [id], onDelete: Restrict)
+  verifiedBy            Profile?     @relation("ManualPaymentVerifiedBy", fields: [verifiedByProfileId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([invoiceId, verificationStatus, createdAt])
+  @@index([organizationId, verificationStatus, receivedAt(sort: Desc)])
+  @@map("manual_payment_records")
 }
 
 model UsageEvent {
@@ -600,6 +760,7 @@ model UsageEvent {
   eventType      String       @map("event_type")
   quantity       Int
   billingPeriod  DateTime     @map("billing_period") @db.Date
+  referenceType  String?      @map("reference_type")
   referenceId    String?      @map("reference_id")
   occurredAt     DateTime     @default(now()) @map("occurred_at")
   createdAt      DateTime     @default(now()) @map("created_at")
@@ -609,6 +770,79 @@ model UsageEvent {
   @@index([organizationId, billingPeriod, eventType])
   @@index([stallId, billingPeriod, eventType])
   @@map("usage_events")
+}
+
+model BillingUsageSummary {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @map("organization_id") @db.Uuid
+  billingPeriod      DateTime     @map("billing_period") @db.Date
+  billableOrderCount Int          @default(0) @map("billable_order_count")
+  activeStallCount   Int          @default(0) @map("active_stall_count")
+  activeStaffCount   Int          @default(0) @map("active_staff_count")
+  qrCodeCount        Int          @default(0) @map("qr_code_count")
+  csvExportCount     Int          @default(0) @map("csv_export_count")
+  storageBytes       BigInt?      @map("storage_bytes")
+  calculatedAt       DateTime     @default(now()) @map("calculated_at")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, billingPeriod])
+  @@index([billingPeriod, billableOrderCount(sort: Desc)])
+  @@map("billing_usage_summaries")
+}
+
+model BillingFeatureFlag {
+  code        String   @id
+  isEnabled   Boolean  @default(false) @map("is_enabled")
+  phase       Int
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("billing_feature_flags")
+}
+
+model BillingNotification {
+  id               String               @id @default(uuid()) @db.Uuid
+  organizationId   String               @map("organization_id") @db.Uuid
+  notificationType String               @map("notification_type")
+  severity         String               @default("INFO")
+  status           String               @default("UNREAD")
+  title            String
+  message          String
+  entityType       String?              @map("entity_type")
+  entityId         String?              @map("entity_id") @db.Uuid
+  dedupeKey        String?              @map("dedupe_key")
+  metadataJson     Json?                @map("metadata_json")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  readAt           DateTime?            @map("read_at")
+  dismissedAt      DateTime?            @map("dismissed_at")
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  outbox           NotificationOutbox[]
+
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@map("billing_notifications")
+}
+
+model NotificationOutbox {
+  id                    String              @id @default(uuid()) @db.Uuid
+  organizationId        String              @map("organization_id") @db.Uuid
+  billingNotificationId String              @map("billing_notification_id") @db.Uuid
+  channel               String
+  status                String              @default("PENDING")
+  availableAt           DateTime            @default(now()) @map("available_at")
+  deliveredAt           DateTime?           @map("delivered_at")
+  attemptCount          Int                 @default(0) @map("attempt_count")
+  lastErrorCode         String?             @map("last_error_code")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  organization          Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  billingNotification   BillingNotification @relation(fields: [billingNotificationId], references: [id], onDelete: Cascade)
+
+  @@unique([billingNotificationId, channel])
+  @@index([status, availableAt])
+  @@map("notification_outbox")
 }
 
 model OrganizationInvitation {

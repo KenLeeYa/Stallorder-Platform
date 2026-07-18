@@ -101,17 +101,27 @@ export async function POST(request: Request) {
           phone: data.phone,
         },
       });
-      const litePlan = await transaction.plan.findUniqueOrThrow({ where: { code: "LITE" } });
-      const billingPeriodStart = new Date(new Date().toISOString().slice(0, 7) + "-01T00:00:00.000Z");
-      const billingPeriodEnd = new Date(billingPeriodStart);
-      billingPeriodEnd.setUTCMonth(billingPeriodEnd.getUTCMonth() + 1);
+      const trialPlan = await transaction.plan.findUniqueOrThrow({ where: { code: "TRIAL" } });
+      const trialVersion = await transaction.planVersion.findFirstOrThrow({
+        where: { planId: trialPlan.id, effectiveFrom: { lte: new Date() }, OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: new Date() } }] },
+        orderBy: { version: "desc" },
+      });
+      const trialStartedAt = new Date();
+      const trialEndsAt = new Date(trialStartedAt.getTime() + (trialVersion.trialDays ?? 14) * 86_400_000);
+      const billingPeriodStart = new Date(trialStartedAt.toISOString().slice(0, 10) + "T00:00:00.000Z");
+      const billingPeriodEnd = new Date(trialEndsAt.toISOString().slice(0, 10) + "T00:00:00.000Z");
       await transaction.subscription.create({
         data: {
           organizationId: organization.id,
-          planId: litePlan.id,
+          planId: trialPlan.id,
+          planVersionId: trialVersion.id,
           status: "TRIALING",
+          billingInterval: "TRIAL",
           billingPeriodStart,
           billingPeriodEnd,
+          trialStartedAt,
+          trialEndsAt,
+          paymentDueAt: trialEndsAt,
         },
       });
       const stall = await transaction.stall.create({

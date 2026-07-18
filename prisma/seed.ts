@@ -458,18 +458,33 @@ async function main() {
   }
 
   const proPlan = await prisma.plan.findUniqueOrThrow({ where: { code: "PRO" } });
+  const proPlanVersion = await prisma.planVersion.findFirstOrThrow({
+    where: { planId: proPlan.id, effectiveFrom: { lte: new Date() }, OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: new Date() } }] },
+    orderBy: { version: "desc" },
+  });
   const billingPeriodStart = new Date(new Date().toISOString().slice(0, 7) + "-01T00:00:00.000Z");
   const billingPeriodEnd = new Date(billingPeriodStart);
   billingPeriodEnd.setUTCMonth(billingPeriodEnd.getUTCMonth() + 1);
   await prisma.subscription.upsert({
     where: { organizationId: organization.id },
-    update: { planId: proPlan.id, status: "ACTIVE", billingPeriodStart, billingPeriodEnd },
-    create: {
-      organizationId: organization.id,
+    update: {
       planId: proPlan.id,
+      planVersionId: proPlanVersion.id,
+      billingInterval: "MONTHLY",
       status: "ACTIVE",
       billingPeriodStart,
       billingPeriodEnd,
+      paymentDueAt: billingPeriodEnd,
+    },
+    create: {
+      organizationId: organization.id,
+      planId: proPlan.id,
+      planVersionId: proPlanVersion.id,
+      billingInterval: "MONTHLY",
+      status: "ACTIVE",
+      billingPeriodStart,
+      billingPeriodEnd,
+      paymentDueAt: billingPeriodEnd,
     },
   });
 }

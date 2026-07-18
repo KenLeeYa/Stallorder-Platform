@@ -24,12 +24,12 @@ export default async function MerchantSubscriptionPage({ searchParams }: PagePro
           currency={workspace.defaultCurrency}
           canApprove={principal.user.platformRole === "PLATFORM_ADMIN"}
           data={{
-            plan: { code: overview.subscription.plan.code, name: overview.subscription.plan.displayName, basePrice: overview.subscription.plan.basePrice, includedStalls: overview.subscription.plan.includedStalls, additionalStallPrice: overview.subscription.plan.additionalStallPrice, maxStalls: overview.subscription.plan.maxStalls },
+            plan: { code: overview.subscription.plan.code, name: overview.subscription.planVersion.displayName, basePrice: overview.subscription.planVersion.basePrice, includedStalls: overview.subscription.planVersion.includedStalls, additionalStallPrice: overview.subscription.planVersion.additionalStallPrice, maxStalls: overview.subscription.planVersion.maxStalls },
             subscription: { status: overview.subscription.status, periodStart: overview.subscription.billingPeriodStart.toISOString().slice(0, 10), periodEnd: overview.subscription.billingPeriodEnd.toISOString().slice(0, 10) },
             usage: overview.usage,
             estimate: overview.estimate,
             approvals: overview.subscription.additionalApprovals.map((approval) => ({ id: approval.id, quantity: approval.quantity, unitPrice: approval.unitPrice, reason: approval.reason, effectiveAt: approval.effectiveAt.toISOString().slice(0, 10) })),
-            invoices: overview.subscription.invoices.map((invoice) => ({ id: invoice.id, number: invoice.invoiceNumber, status: invoice.status, total: invoice.total, periodStart: invoice.billingPeriodStart.toISOString().slice(0, 10), lineItems: invoice.lineItems.map((item) => ({ id: item.id, description: item.description, amount: item.amount })) })),
+            invoices: overview.subscription.invoices.map((invoice) => ({ id: invoice.id, number: invoice.invoiceNumber, status: invoice.status, total: invoice.totalAmount, periodStart: invoice.billingPeriodStart.toISOString().slice(0, 10), lineItems: invoice.lineItems.map((item) => ({ id: item.id, description: item.description, amount: item.subtotal })) })),
           }}
         />
       </div>

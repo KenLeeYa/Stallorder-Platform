@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
@@ -35,10 +34,10 @@ export async function POST(request: Request, context: RouteContext) {
       await transaction.$queryRaw`select id from public.subscriptions where organization_id = ${organizationId}::uuid for update`;
       const subscription = await transaction.subscription.findUnique({
         where: { organizationId },
-        include: { plan: true },
+        include: { planVersion: true },
       });
       if (!subscription) throw new Error("SUBSCRIPTION_REQUIRED");
-      const unitPrice = subscription.plan.additionalStallPrice ?? parsed.data.unitPrice;
+      const unitPrice = subscription.planVersion.additionalStallPrice ?? parsed.data.unitPrice;
       if (unitPrice === undefined) throw new Error("UNIT_PRICE_REQUIRED");
 
       const existing = await transaction.additionalStallApproval.aggregate({
@@ -47,8 +46,8 @@ export async function POST(request: Request, context: RouteContext) {
       });
       const existingQuantity = existing._sum.quantity ?? 0;
       if (
-        subscription.plan.maxStalls !== null
-        && subscription.plan.includedStalls + existingQuantity + parsed.data.quantity > subscription.plan.maxStalls
+        subscription.planVersion.maxStalls !== null
+        && subscription.planVersion.includedStalls + existingQuantity + parsed.data.quantity > subscription.planVersion.maxStalls
       ) throw new Error("PLAN_STALL_LIMIT");
 
       const approval = await transaction.additionalStallApproval.create({
@@ -73,30 +72,26 @@ export async function POST(request: Request, context: RouteContext) {
         create: {
           organizationId,
           subscriptionId: subscription.id,
-          invoiceNumber: `SO-${subscription.billingPeriodStart.toISOString().slice(0, 7).replace("-", "")}-${randomBytes(4).toString("hex").toUpperCase()}`,
           currency: authorization.workspace.defaultCurrency,
           billingPeriodStart: subscription.billingPeriodStart,
           billingPeriodEnd: subscription.billingPeriodEnd,
+          dueAt: subscription.paymentDueAt ?? subscription.billingPeriodEnd,
         },
       });
       await transaction.invoiceLineItem.create({
         data: {
           organizationId,
           invoiceId: invoice.id,
-          lineType: "ADDITIONAL_STALL",
+          itemType: "ADDITIONAL_STALL",
+          code: "ADDITIONAL_STALL",
           description: `額外攤位核准 ${parsed.data.quantity} 個`,
           quantity: parsed.data.quantity,
-          unitAmount: unitPrice,
-          amount: parsed.data.quantity * unitPrice,
+          unitPrice,
+          subtotal: parsed.data.quantity * unitPrice,
           referenceId: approval.id,
         },
       });
-      const totals = await transaction.invoiceLineItem.aggregate({
-        where: { invoiceId: invoice.id },
-        _sum: { amount: true },
-      });
-      const total = totals._sum.amount ?? 0;
-      await transaction.invoice.update({ where: { id: invoice.id }, data: { subtotal: total, total } });
+      const updatedInvoice = await transaction.invoice.findUniqueOrThrow({ where: { id: invoice.id } });
       await transaction.auditLog.create({
         data: {
           organizationId,
@@ -111,7 +106,7 @@ export async function POST(request: Request, context: RouteContext) {
           afterJson: { approvedQuantity: existingQuantity + parsed.data.quantity, unitPrice, invoiceId: invoice.id },
         },
       });
-      return { approval, invoiceId: invoice.id, invoiceTotal: total };
+      return { approval, invoiceId: invoice.id, invoiceTotal: updatedInvoice.totalAmount };
     });
 
     return NextResponse.json(result, {
