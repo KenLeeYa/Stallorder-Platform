@@ -10,29 +10,37 @@ import { hashClientIp } from "@/lib/security";
 import { createStaffOrderSchema } from "@/lib/staff-order-contract";
 import { createStaffOrder, StaffOrderCreateError } from "@/lib/staff-order-create";
 import { StaffCheckoutError } from "@/lib/staff-checkout";
+import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
+import { createRequestId } from "@/lib/security";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
 
 export async function GET(request: Request, context: RouteContext) {
+  const requestId = createRequestId();
+  const timing = createPerformanceTiming({ route: "/api/stalls/:stallSlug/orders", requestId });
   const { stallSlug } = await context.params;
-  const authorization = await authorizeApiRequest(request, stallSlug, "VIEW_ORDERS");
-  if (!authorization.ok) return authorization.response;
+  const authorization = await timing.measure(
+    "authMs",
+    () => authorizeApiRequest(request, stallSlug, "VIEW_ORDERS", requestId),
+  );
+  if (!authorization.ok) return finalizePerformanceResponse(authorization.response, timing);
 
-  await prisma.$queryRaw`select public.expire_unconfirmed_orders()`;
-  const statuses = authorization.role === "KITCHEN"
-    ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
-    : activeOrderStatuses;
-  const orders = await prisma.order.findMany({
-    where: { stallId: authorization.stall.id, status: { in: [...statuses] } },
-    orderBy: { createdAt: "asc" },
-    take: 50,
-    select: staffOrderSelect,
+  const orders = await timing.measure("dbMs", async () => {
+    const statuses = authorization.role === "KITCHEN"
+      ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
+      : activeOrderStatuses;
+    return prisma.order.findMany({
+      where: { stallId: authorization.stall.id, status: { in: [...statuses] } },
+      orderBy: { createdAt: "asc" },
+      take: 50,
+      select: staffOrderSelect,
+    });
   });
 
-  return NextResponse.json(
+  return finalizePerformanceResponse(NextResponse.json(
     { orders: orders.map(serializeStaffOrder) },
     { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
-  );
+  ), timing);
 }
 
 export async function POST(request: Request, context: RouteContext) {

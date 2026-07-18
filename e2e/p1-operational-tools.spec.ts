@@ -93,8 +93,8 @@ test.describe("P1 營運功能", () => {
     test.setTimeout(180_000);
     await login(page, "staff@stallorder.test");
     await page.goto("/staff/aming-chicken/cash");
-    await page.getByLabel("開班金額").fill("2000");
-    await page.getByLabel("備註（選填）").fill("P1 E2E 班次");
+    await page.getByLabel("開班金額").filter({ visible: true }).fill("2000");
+    await page.getByLabel("備註（選填）").filter({ visible: true }).fill("P1 E2E 班次");
     await page.getByRole("button", { name: "開始班次" }).click();
     await expect(page.getByText("班次進行中", { exact: true })).toBeVisible();
     await page.getByLabel("金額", { exact: true }).fill("500");
@@ -110,7 +110,7 @@ test.describe("P1 營運功能", () => {
     const secondOrderNo = await createDineInOrder(secondCustomer, "P1 E2E 同桌乙", "Sweet Potato Fries");
 
     await page.goto("/staff/aming-chicken");
-    await page.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 同桌");
+    await page.getByPlaceholder("搜尋桌號、訂單編號或顧客").filter({ visible: true }).fill("P1 E2E 同桌");
     for (const customerName of ["P1 E2E 同桌甲", "P1 E2E 同桌乙"]) {
       const order = page.getByRole("article").filter({ hasText: customerName });
       await order.getByRole("button", { name: "確認接單" }).click();
@@ -173,7 +173,7 @@ test.describe("P1 營運功能", () => {
     const cancelCustomer = await cancelContext.newPage();
     const cancelledOrderNo = await createDineInOrder(cancelCustomer, "P1 E2E 取消單", "Deep-Fried Chicken Cutlet");
     await page.goto("/staff/aming-chicken");
-    await page.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 取消單");
+    await page.getByPlaceholder("搜尋桌號、訂單編號或顧客").filter({ visible: true }).fill("P1 E2E 取消單");
     const cancelledOrder = page.getByRole("article").filter({ hasText: "P1 E2E 取消單" });
     await cancelledOrder.getByRole("button", { name: "取消訂單" }).click();
     const cancellation = page.getByRole("alertdialog", { name: "確認取消訂單？" });
@@ -227,9 +227,15 @@ test.describe("P1 營運功能", () => {
 
 async function login(page: Page, email: string) {
   await page.goto("/login");
-  await page.getByLabel("電子郵件").fill(email);
-  await page.getByLabel("密碼").fill(password);
-  await page.getByRole("button", { name: "登入", exact: true }).click();
+  const origin = new URL(page.url()).origin;
+  const loginResponse = await page.request.post("/api/auth/login", {
+    data: { email, password },
+    headers: { origin },
+    timeout: 30_000,
+  });
+  expect(loginResponse.status()).toBe(200);
+  const result = await loginResponse.json() as { next: string };
+  await page.goto(result.next);
   await expect(page).toHaveURL(/\/merchant\/dashboard|\/staff\//);
 }
 

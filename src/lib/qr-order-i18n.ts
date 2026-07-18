@@ -443,6 +443,20 @@ export function resolvePreferredQrLocale(preferredLocales: readonly string[], su
   return "zh-TW";
 }
 
+export function preserveSupportedQrLocale(
+  currentLocale: QrLocale,
+  preferredLocales: readonly string[],
+  supportedLocales: readonly string[],
+) {
+  const available = new Set<QrLocale>(["zh-TW"]);
+  supportedLocales.forEach((locale) => {
+    if (isQrLocale(locale)) available.add(locale);
+  });
+  return available.has(currentLocale)
+    ? currentLocale
+    : resolvePreferredQrLocale(preferredLocales, supportedLocales);
+}
+
 export function localizedQrCategory(locale: QrLocale, category: string) {
   return categoryTranslations[category]?.[locale] ?? category;
 }

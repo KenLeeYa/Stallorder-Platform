@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { UserRole } from "@prisma/client";
+import { Prisma, type UserRole } from "@prisma/client";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 import { hashClientIp } from "@/lib/security";
 import { applyStallTemplateSchema, getStallTemplatePreview, loadStallTemplateData } from "@/lib/stall-template";
+import { invalidatePublicMenu } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ stallId: string }> };
 
@@ -105,30 +106,46 @@ export async function POST(request: Request, context: RouteContext) {
         where: { organizationId, stallId, productId: { notIn: sourceProductIds } },
         data: { isEnabled: false, isSoldOut: false, availableFrom: null, availableUntil: null },
       });
-      for (const item of source.stallProducts) {
-        await transaction.stallProduct.upsert({
-          where: { stallId_productId: { stallId, productId: item.productId } },
-          create: {
-            organizationId,
-            stallId,
-            productId: item.productId,
-            priceOverride: item.priceOverride,
-            isEnabled: item.isEnabled,
-            isSoldOut: item.isSoldOut,
-            availableFrom: item.availableFrom,
-            availableUntil: item.availableUntil,
-            sortOrder: item.sortOrder,
-          },
-          update: {
-            priceOverride: item.priceOverride,
-            isEnabled: item.isEnabled,
-            isSoldOut: item.isSoldOut,
-            availableFrom: item.availableFrom,
-            availableUntil: item.availableUntil,
-            sortOrder: item.sortOrder,
-          },
-        });
-      }
+      await transaction.$executeRaw(Prisma.sql`
+        insert into public.stall_products (
+          id,
+          organization_id,
+          stall_id,
+          product_id,
+          price_override,
+          is_enabled,
+          is_sold_out,
+          available_from,
+          available_until,
+          sort_order,
+          created_at,
+          updated_at
+        )
+        select
+          gen_random_uuid(),
+          ${organizationId}::uuid,
+          ${stallId}::uuid,
+          source.product_id,
+          source.price_override,
+          source.is_enabled,
+          source.is_sold_out,
+          source.available_from,
+          source.available_until,
+          source.sort_order,
+          now(),
+          now()
+        from public.stall_products source
+        where source.organization_id = ${organizationId}::uuid
+          and source.stall_id = ${parsed.data.sourceStallId}::uuid
+        on conflict (stall_id, product_id) do update set
+          price_override = excluded.price_override,
+          is_enabled = excluded.is_enabled,
+          is_sold_out = excluded.is_sold_out,
+          available_from = excluded.available_from,
+          available_until = excluded.available_until,
+          sort_order = excluded.sort_order,
+          updated_at = now()
+      `);
     }
     if (parsed.data.sections.includes("BUSINESS_HOURS")) {
       await transaction.stallBusinessHour.deleteMany({ where: { organizationId, stallId } });
@@ -159,6 +176,7 @@ export async function POST(request: Request, context: RouteContext) {
     ipHash: hashClientIp(request),
     metadata: { sourceStallId: parsed.data.sourceStallId, sections: parsed.data.sections.join(",") },
   });
+  invalidatePublicMenu(stallId);
   return NextResponse.json(
     { preview: await getStallTemplatePreview(parsed.data.sourceStallId, stallId, organizationId) },
     { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },

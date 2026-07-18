@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(9);
+select plan(10);
 
 select ok(
   to_regnamespace('internal') is not null,
@@ -33,15 +33,24 @@ select ok(
 );
 
 select ok(
-  exists (
+  not exists (
     select 1
     from cron.job
     where jobname = 'invoke-vercel-preview-process-orders'
-      and schedule = '*/5 * * * *'
-      and command = 'select internal.invoke_vercel_preview_cron();'
+  ),
+  'duplicate Vercel process-orders cron job is not scheduled'
+);
+
+select ok(
+  exists (
+    select 1
+    from cron.job
+    where jobname = 'stallorder-expire-unconfirmed-orders'
+      and schedule = '* * * * *'
+      and command = 'select public.expire_unconfirmed_orders()'
       and active
   ),
-  'preview process-orders cron job is active every five minutes'
+  'database-native order expiry cron remains active every minute'
 );
 
 select ok(

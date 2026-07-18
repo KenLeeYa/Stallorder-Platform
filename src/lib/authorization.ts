@@ -74,8 +74,12 @@ export async function requirePagePermission(stallSlug: string, permission: Permi
   return { principal, ...access };
 }
 
-export async function authorizeApiRequest(request: Request, stallSlug: string, permission: Permission) {
-  const requestId = createRequestId();
+export async function authorizeApiRequest(
+  request: Request,
+  stallSlug: string,
+  permission: Permission,
+  requestId = createRequestId(),
+) {
   const principal = await getRequestPrincipal(request);
   if (!principal) {
     return {
@@ -162,8 +166,8 @@ export async function authorizeOrganizationApiRequest(
   organizationId: string,
   permission: Permission,
   includeStallRoles = false,
+  requestId = createRequestId(),
 ) {
-  const requestId = createRequestId();
   const principal = await getRequestPrincipal(request);
   if (!principal) {
     return {

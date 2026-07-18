@@ -4,6 +4,7 @@ import { authorizeCatalogMutation } from "@/lib/catalog-api";
 import { productUpdateSchema } from "@/lib/catalog-validation";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { invalidateOrganizationPublicMenus, invalidatePublicMenu } from "@/lib/public-menu";
 import { hashClientIp } from "@/lib/security";
 
 type RouteContext = { params: Promise<{ stallSlug: string; productId: string }> };
@@ -83,6 +84,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       isAvailable: updated.assignment ? updated.assignment.isEnabled && !updated.assignment.isSoldOut : false,
     },
   });
+  if (availabilityOnly) {
+    invalidatePublicMenu(authorization.stall.id);
+  } else {
+    await invalidateOrganizationPublicMenus(authorization.stall.organizationId);
+  }
 
   return NextResponse.json(
     {
@@ -129,6 +135,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     actorProfileId: authorization.principal.user.id,
     ipHash: hashClientIp(request),
   });
+  await invalidateOrganizationPublicMenus(authorization.stall.organizationId);
 
   return new Response(null, {
     status: 204,

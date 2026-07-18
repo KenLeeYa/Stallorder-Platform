@@ -8,16 +8,22 @@ import { cancellationMatchesOrder, orderStatusUpdateSchema } from "@/lib/order-s
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { canTransitionOrder, hasPermission } from "@/lib/rbac";
-import { hashClientIp } from "@/lib/security";
+import { createRequestId, hashClientIp } from "@/lib/security";
 import { resolveStaffCheckout, StaffCheckoutError } from "@/lib/staff-checkout";
+import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 
 type RouteContext = { params: Promise<{ stallSlug: string; orderId: string }> };
 class TransitionConflict extends Error {}
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const requestId = createRequestId();
+  const timing = createPerformanceTiming({ route: "/api/stalls/:stallSlug/orders/:orderId", requestId });
   const { stallSlug, orderId } = await context.params;
-  const authorization = await authorizeApiRequest(request, stallSlug, "UPDATE_ORDERS");
-  if (!authorization.ok) return authorization.response;
+  const authorization = await timing.measure(
+    "authMs",
+    () => authorizeApiRequest(request, stallSlug, "UPDATE_ORDERS", requestId),
+  );
+  if (!authorization.ok) return finalizePerformanceResponse(authorization.response, timing);
 
   if (!validateCsrf(request, authorization.principal)) {
     await recordAuditEvent({
@@ -46,10 +52,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  await prisma.$queryRaw`select public.expire_unconfirmed_orders()`;
-  const order = await prisma.order.findFirst({
+  const order = await timing.measure("dbMs", () => prisma.order.findFirst({
     where: { id: orderId, stallId: authorization.stall.id },
-  });
+  }));
   if (!order) {
     return NextResponse.json(
       { error: "找不到此訂單。" },
@@ -106,7 +111,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   let checkout: Awaited<ReturnType<typeof resolveStaffCheckout>> | null = null;
 
   if (nextStatus === "COMPLETED") {
-    const incompleteItemCount = await prisma.orderItem.count({
+    const incompleteItemCount = await timing.measure("dbMs", () => prisma.orderItem.count({
       where: {
         orderId: order.id,
         stallId: order.stallId,
@@ -114,7 +119,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           ? { not: "SERVED" }
           : { notIn: ["READY", "SERVED"] },
       },
-    });
+    }));
     if (incompleteItemCount > 0) {
       return NextResponse.json(
         { error: order.fulfillmentType === "DINE_IN" ? "仍有餐點尚未出餐。" : "仍有餐點尚未完成製作。" },
@@ -123,16 +128,17 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
-  if (nextStatus === "COMPLETED" && order.paymentStatus === "UNPAID") {
+  if (parsed.data.status === "COMPLETED" && order.paymentStatus === "UNPAID") {
     try {
-      checkout = await resolveStaffCheckout({
+      const checkoutRequest = parsed.data;
+      checkout = await timing.measure("dbMs", () => resolveStaffCheckout({
         organizationId: order.organizationId,
         stallId: order.stallId,
         subtotals: [order.subtotal],
         actorProfileId: authorization.principal.user.id,
         actorRoles: authorization.roles,
-        request: parsed.data,
-      });
+        request: checkoutRequest,
+      }));
     } catch (error) {
       if (error instanceof DiscountApprovalError) {
         await recordAuditEvent({
@@ -156,7 +162,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const now = new Date();
   try {
-    const updatedOrder = await prisma.$transaction(async (transaction) => {
+    const updatedOrder = await timing.measure("dbMs", () => prisma.$transaction(async (transaction) => {
       const changed = await transaction.order.updateMany({
         where: {
           id: order.id,
@@ -225,9 +231,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         where: { id: order.id },
         select: staffOrderSelect,
       });
-    });
+    }));
 
-    await recordAuditEvent({
+    await timing.measure("dbMs", () => recordAuditEvent({
       action: nextStatus === "COMPLETED"
         ? order.paymentStatus === "PAID" ? "ORDER_COMPLETED_AFTER_PREPAYMENT" : "CHECKOUT_COMPLETED"
         : "ORDER_STATUS_CHANGED",
@@ -247,17 +253,17 @@ export async function PATCH(request: Request, context: RouteContext) {
         cancellationReason: cancellation?.cancellationReason ?? null,
         total: checkout?.total ?? null,
       },
-    });
-    return NextResponse.json(
+    }));
+    return finalizePerformanceResponse(NextResponse.json(
       { order: updatedOrder },
       { headers: { "x-request-id": authorization.requestId } },
-    );
+    ), timing);
   } catch (error) {
     if (!(error instanceof TransitionConflict)) throw error;
-    return NextResponse.json(
+    return finalizePerformanceResponse(NextResponse.json(
       { error: "訂單已被其他人更新或確認期限已過，請重新整理。" },
       { status: 409, headers: { "x-request-id": authorization.requestId } },
-    );
+    ), timing);
   }
 }
 

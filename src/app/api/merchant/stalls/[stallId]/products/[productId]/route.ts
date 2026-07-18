@@ -7,6 +7,7 @@ import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
 import { effectiveProductPrice } from "@/lib/shared-catalog";
+import { invalidatePublicMenu } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ stallId: string; productId: string }> };
 
@@ -103,6 +104,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       ),
     },
   });
+  invalidatePublicMenu(stallId);
 
   return NextResponse.json(
     {

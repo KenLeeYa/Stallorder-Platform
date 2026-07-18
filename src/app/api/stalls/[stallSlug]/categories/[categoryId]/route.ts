@@ -5,6 +5,7 @@ import { authorizeCatalogMutation } from "@/lib/catalog-api";
 import { categoryUpdateSchema } from "@/lib/catalog-validation";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { invalidateOrganizationPublicMenus } from "@/lib/public-menu";
 import { hashClientIp } from "@/lib/security";
 
 type RouteContext = { params: Promise<{ stallSlug: string; categoryId: string }> };
@@ -54,6 +55,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       actorProfileId: authorization.principal.user.id,
       ipHash: hashClientIp(request),
     });
+    await invalidateOrganizationPublicMenus(authorization.stall.organizationId);
     return NextResponse.json(
       { category },
       { headers: { "x-request-id": authorization.requestId } },
@@ -102,6 +104,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     actorProfileId: authorization.principal.user.id,
     ipHash: hashClientIp(request),
   });
+  await invalidateOrganizationPublicMenus(authorization.stall.organizationId);
   return new Response(null, {
     status: 204,
     headers: { "x-request-id": authorization.requestId },

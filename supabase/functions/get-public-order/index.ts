@@ -10,14 +10,22 @@ import {
 } from "../_shared/http.ts";
 import { getPublicOrderSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
+import { createEdgePerformanceTiming, finalizeEdgeResponse } from "../_shared/performance.ts";
 
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
+  const timing = createEdgePerformanceTiming({ route: "/functions/v1/get-public-order", requestId });
   let corsHeaders: Record<string, string> = {};
+  const respond = (body: unknown, status: number) => finalizeEdgeResponse(
+    jsonResponse(body, status, corsHeaders, requestId),
+    timing,
+  );
 
   try {
     corsHeaders = getCorsHeaders(request, getAllowedOrigins());
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+    if (request.method === "OPTIONS") {
+      return finalizeEdgeResponse(new Response(null, { status: 204, headers: corsHeaders }), timing);
+    }
     if (request.method !== "POST") throw new HttpInputError("METHOD_NOT_ALLOWED", 405);
 
     const parsed = getPublicOrderSchema.safeParse(await readBoundedJson(request, 8_000));
@@ -31,7 +39,7 @@ Deno.serve(async (request) => {
     ]);
 
     const admin = createServiceClient();
-    const { data: globalGateResult, error: globalGateError } = await admin.rpc(
+    const { data: globalGateResult, error: globalGateError } = await timing.measure("dbMs", () => admin.rpc(
       "check_global_public_request_gate",
       {
         p_scope: "TRACKING",
@@ -40,22 +48,21 @@ Deno.serve(async (request) => {
         p_behavior_hash: behaviorHash,
         p_request_id: requestId,
       },
-    );
+    ));
     if (globalGateError) throw globalGateError;
     const globalGate = globalGateResult as { ok: boolean; code?: string };
     if (!globalGate.ok) {
       const code = globalGate.code ?? "RATE_LIMITED";
-      return jsonResponse({ error: errorMessage(code), code }, 429, corsHeaders, requestId);
+      return respond({ error: errorMessage(code), code }, 429);
     }
 
-    await admin.rpc("expire_unconfirmed_orders");
-    const { data, error } = await admin.rpc("get_public_order", {
+    const { data, error } = await timing.measure("dbMs", () => admin.rpc("get_public_order", {
       p_tracking_token_hash: trackingHash,
       p_device_hash: deviceHash,
-    });
+    }));
     if (error) throw error;
     if (!data) {
-      await admin.rpc("record_public_order_attempt", {
+      await timing.measure("dbMs", () => admin.rpc("record_public_order_attempt", {
         p_request_id: requestId,
         p_event_type: "TRACKING_READ",
         p_outcome: "DENIED",
@@ -63,8 +70,8 @@ Deno.serve(async (request) => {
         p_ip_hash: ipHash,
         p_device_hash: deviceHash,
         p_order_session_hash: trackingHash,
-      });
-      return jsonResponse({ error: errorMessage("ORDER_NOT_FOUND"), code: "ORDER_NOT_FOUND" }, 404, corsHeaders, requestId);
+      }));
+      return respond({ error: errorMessage("ORDER_NOT_FOUND"), code: "ORDER_NOT_FOUND" }, 404);
     }
     const stored = data as Record<string, unknown> & {
       orderId: string;
@@ -78,37 +85,39 @@ Deno.serve(async (request) => {
         stored.pickupCodeLength === 6 ? 6 : 3,
       )).pickupCode
       : null;
-    const orderContext = await admin.from("orders")
+    const orderContext = await timing.measure("dbMs", () => admin.from("orders")
       .select("stall_id, dining_table_id")
       .eq("id", stored.orderId)
-      .single();
+      .single());
     if (orderContext.error) throw orderContext.error;
-    const settingsQuery = await admin.from("stall_ordering_settings")
-      .select("estimated_wait_minutes")
-      .eq("stall_id", orderContext.data.stall_id)
-      .single();
-    if (settingsQuery.error) throw settingsQuery.error;
-    const lastTableOrderQuery = orderContext.data.dining_table_id
-      ? await admin.from("orders")
-        .select("created_at")
+    const [settingsQuery, lastTableOrderQuery] = await timing.measure("dbMs", () => Promise.all([
+      admin.from("stall_ordering_settings")
+        .select("estimated_wait_minutes")
         .eq("stall_id", orderContext.data.stall_id)
-        .eq("dining_table_id", orderContext.data.dining_table_id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      : { data: null, error: null };
+        .single(),
+      orderContext.data.dining_table_id
+        ? admin.from("orders")
+          .select("created_at")
+          .eq("stall_id", orderContext.data.stall_id)
+          .eq("dining_table_id", orderContext.data.dining_table_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]));
+    if (settingsQuery.error) throw settingsQuery.error;
     if (lastTableOrderQuery.error) throw lastTableOrderQuery.error;
     const publicOrder: Record<string, unknown> = { ...stored };
     delete publicOrder.orderId;
     delete publicOrder.pickupCodeLength;
-    return jsonResponse({
+    return respond({
       order: {
         ...publicOrder,
         pickupVerificationCode: pickupCode,
         estimatedWaitMinutes: settingsQuery.data.estimated_wait_minutes,
         lastTableOrderAt: lastTableOrderQuery.data?.created_at ?? null,
       },
-    }, 200, corsHeaders, requestId);
+    }, 200);
   } catch (error) {
     const code = error instanceof HttpInputError ? error.code : "ORDER_CREATE_ERROR";
     const status = error instanceof HttpInputError ? error.status : 500;
@@ -123,6 +132,6 @@ Deno.serve(async (request) => {
         detail,
       }));
     }
-    return jsonResponse({ error: errorMessage(code), code }, status, corsHeaders, requestId);
+    return respond({ error: errorMessage(code), code }, status);
   }
 });

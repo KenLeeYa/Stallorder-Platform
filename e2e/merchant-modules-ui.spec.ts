@@ -186,8 +186,8 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(page.getByRole("button", { name: "日", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "週", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "月", exact: true })).toBeVisible();
-  await expect(page.getByText("00:00", { exact: true })).toBeVisible();
-  await expect(page.getByText("23:00", { exact: true })).toBeVisible();
+  await expect(page.getByText("00:00", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("23:00", { exact: true }).first()).toBeVisible();
 
   await page.goto("/merchant/aming-chicken");
   await expect(page.getByRole("button", { name: "批次售完" })).toBeVisible();

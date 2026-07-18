@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
+import { createRequestId } from "@/lib/security";
 
 const ALLOWED_FUNCTIONS = new Set([
   "create-order-session",
@@ -55,14 +57,20 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ functionName: string }> },
 ) {
+  const requestId = createRequestId();
+  const timing = createPerformanceTiming({ route: "/api/public-order/:functionName", requestId });
   const { functionName } = await params;
   if (!ALLOWED_FUNCTIONS.has(functionName)) {
-    return NextResponse.json({ error: "找不到此公開點餐服務。", code: "FUNCTION_NOT_FOUND" }, { status: 404 });
+    return finalizePerformanceResponse(
+      NextResponse.json({ error: "找不到此公開點餐服務。", code: "FUNCTION_NOT_FOUND" }, { status: 404 }),
+      timing,
+    );
   }
 
   const clientIp = trustedClientIp(request);
+  const requestBody = await request.text();
 
-  const upstream = await fetch(`${publicFunctionsBaseUrl()}/${functionName}`, {
+  const upstream = await timing.measure("externalApiMs", () => fetch(`${publicFunctionsBaseUrl()}/${functionName}`, {
     method: "POST",
     headers: {
       "content-type": request.headers.get("content-type") ?? "application/json",
@@ -70,16 +78,16 @@ export async function POST(
       ...publicFunctionGatewayHeaders(),
       ...(clientIp ? { "x-real-ip": clientIp, "cf-connecting-ip": clientIp } : {}),
     },
-    body: await request.text(),
+    body: requestBody,
     cache: "no-store",
-  });
+  }));
   const responseBody = await upstream.text();
-  return new NextResponse(responseBody, {
+  return finalizePerformanceResponse(new NextResponse(responseBody, {
     status: upstream.status,
     headers: {
       "content-type": upstream.headers.get("content-type") ?? "application/json",
       "cache-control": "no-store",
       "x-upstream-request-id": upstream.headers.get("x-request-id") ?? "",
     },
-  });
+  }), timing);
 }

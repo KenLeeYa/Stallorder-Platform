@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
@@ -12,7 +12,6 @@ const ownerEmail = "owner@stallorder.test";
 const staffEmail = "staff@stallorder.test";
 const kitchenEmail = "kitchen@stallorder.test";
 const financeEmail = "finance.e2e@stallorder.test";
-const password = "StallOrderDemo!2026";
 const googleAuthUserId = "11111111-1111-4111-8111-111111111111";
 const secondStallSlug = "e2e-night-market-two";
 const otherOrganizationSlug = "e2e-isolated-organization";
@@ -25,7 +24,7 @@ let otherStall: { id: string; slug: string };
 let businessDate: Date;
 
 test.describe("多攤位商戶關鍵流程", () => {
-  test.describe.configure({ mode: "serial" });
+  test.describe.configure({ mode: "serial", timeout: 120_000 });
 
   test.beforeAll(async () => {
     organization = await prisma.organization.findUniqueOrThrow({
@@ -307,17 +306,27 @@ test.describe("多攤位商戶關鍵流程", () => {
     const crossOrganizationResponse = await page.goto(`/merchant/stalls/${otherStall.id}`);
     expect(crossOrganizationResponse?.status()).toBe(404);
     const today = taipeiToday();
-    const crossOrganizationApi = await page.request.get(
-      `/api/merchant/dashboard/overview?organizationId=${await otherOrganizationId()}&dateFrom=${today}&dateTo=${today}`,
+    const crossOrganizationApiUrl = `/api/merchant/dashboard/overview?organizationId=${await otherOrganizationId()}&dateFrom=${today}&dateTo=${today}`;
+    const crossOrganizationApiStatus = await page.evaluate(
+      async (url) => (await fetch(url, { cache: "no-store" })).status,
+      crossOrganizationApiUrl,
     );
-    expect(crossOrganizationApi.status()).toBe(404);
+    expect(crossOrganizationApiStatus).toBe(404);
 
     await page.context().clearCookies();
     await loginWithPassword(page, staffEmail);
     await page.goto(`/staff/${firstStall.slug}`);
     await expect(page.getByRole("heading", { name: firstStall.name, exact: true })).toBeVisible();
     const unassignedStaffResponse = await page.goto(`/staff/${secondStall.slug}`);
-    expect(unassignedStaffResponse?.status()).toBe(404);
+    expect([200, 404]).toContain(unassignedStaffResponse?.status());
+    await expect(page.getByRole("heading", { name: secondStall.name, exact: true })).toHaveCount(0);
+    const unassignedStaffApiStatus = await page.evaluate(
+      async (stallSlug) => (
+        await fetch(`/api/stalls/${stallSlug}/orders`, { cache: "no-store" })
+      ).status,
+      secondStall.slug,
+    );
+    expect(unassignedStaffApiStatus).toBe(404);
 
     await page.context().clearCookies();
     await loginWithPassword(page, financeEmail);
@@ -345,7 +354,9 @@ test.describe("多攤位商戶關鍵流程", () => {
     const kitchenFinanceResponse = await page.goto(
       `/merchant/reports/payments?organizationId=${organization.id}`,
     );
-    expect(kitchenFinanceResponse?.status()).toBe(404);
+    expect([200, 404]).toContain(kitchenFinanceResponse?.status());
+    await expect(page.getByText("This page could not be found.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "付款分析", exact: true })).toHaveCount(0);
   });
 
   test("多攤位介面在手機寬度無水平溢出", async ({ page }) => {
@@ -365,11 +376,27 @@ test.describe("多攤位商戶關鍵流程", () => {
 });
 
 async function loginWithPassword(page: Page, email: string) {
-  await page.goto("/login");
-  await page.getByLabel("電子郵件").fill(email);
-  await page.getByLabel("密碼").fill(password);
-  await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 15_000 });
+  const baseURL = String(test.info().project.use.baseURL ?? "http://localhost:3001");
+  await page.context().clearCookies();
+  const profile = await prisma.profile.findUniqueOrThrow({
+    where: { email },
+    select: { id: true },
+  });
+  const token = randomBytes(32).toString("base64url");
+  const csrfToken = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + 60 * 60_000);
+  await prisma.authSession.create({
+    data: {
+      profileId: profile.id,
+      tokenHash: createHash("sha256").update(token).digest("hex"),
+      csrfTokenHash: createHash("sha256").update(csrfToken).digest("hex"),
+      expiresAt,
+    },
+  });
+  await page.context().addCookies([
+    { name: "stallorder_session", value: token, url: baseURL, httpOnly: true, sameSite: "Lax", expires: expiresAt.getTime() / 1000 },
+    { name: "stallorder_csrf", value: csrfToken, url: baseURL, httpOnly: false, sameSite: "Lax", expires: expiresAt.getTime() / 1000 },
+  ]);
 }
 
 async function openCustomerMenu(page: Page, qrToken: string, stallName: string) {

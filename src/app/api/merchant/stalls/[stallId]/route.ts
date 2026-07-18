@@ -7,6 +7,7 @@ import { evaluateStallCreation } from "@/lib/billing";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { updateStallSchema } from "@/lib/stall-validation";
+import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ stallId: string }> };
 
@@ -143,6 +144,12 @@ export async function PATCH(request: Request, context: RouteContext) {
         isActive: stall.isActive,
       },
     });
+    const qrCodes = await prisma.qrCode.findMany({
+      where: { stallId, organizationId: authorization.workspace.id },
+      select: { token: true },
+    });
+    invalidatePublicMenu(stallId);
+    for (const qrCode of qrCodes) invalidatePublicQrToken(qrCode.token);
     return NextResponse.json(
       { stall },
       { headers: { "x-request-id": authorization.requestId } },

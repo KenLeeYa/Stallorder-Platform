@@ -9,6 +9,14 @@
 
 API 回應的 `x-request-id` 可關聯應用日誌與資料庫安全事件。不得寫入 raw token、密碼、完整 IP、取餐碼、顧客電話或備註。
 
+## 效能計時
+
+`src/lib/performance-timing.ts` 與 `supabase/functions/_shared/performance.ts` 只記錄固定 route 名稱、request ID、HTTP status 與可量測耗時：`totalMs`、`authMs`、`dbMs`、`dbConnectMs`、`edgeFunctionMs`、`turnstileMs`、`renderMs`、`externalApiMs`。回應另提供相同分類的 `Server-Timing`。
+
+目前至少涵蓋 health、login、merchant dashboard、staff order list、公開 QR session、公開建單、公開訂單追蹤與 checkout。所有計時均在 `finally`／完成路徑收斂，不得把 token、URL query、request body 或客戶欄位加入 performance fields。
+
+建議 warning threshold：health 300 ms、order session 800 ms、staff list 1,000 ms、dashboard／order submit 1,500 ms；5xx 一律以 error level。`DATABASE_CONNECTION_PROFILE` 只能輸出 pooler 設定的布林狀態，禁止輸出連線字串。
+
 ## 必要指標與告警
 
 - 5 分鐘 `INVALID_TURNSTILE`、`RATE_LIMITED`、`SESSION_REPLAYED` 或 `QR_SESSION_MISMATCH` 超過正常基線時告警。

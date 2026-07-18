@@ -11,14 +11,22 @@ import {
 } from "../_shared/http.ts";
 import { issueOrderSessionSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
+import { createEdgePerformanceTiming, finalizeEdgeResponse } from "../_shared/performance.ts";
 
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
+  const timing = createEdgePerformanceTiming({ route: "/functions/v1/create-order-session", requestId });
   let corsHeaders: Record<string, string> = {};
+  const respond = (body: unknown, status: number) => finalizeEdgeResponse(
+    jsonResponse(body, status, corsHeaders, requestId),
+    timing,
+  );
 
   try {
     corsHeaders = getCorsHeaders(request, getAllowedOrigins());
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+    if (request.method === "OPTIONS") {
+      return finalizeEdgeResponse(new Response(null, { status: 204, headers: corsHeaders }), timing);
+    }
     if (request.method !== "POST") throw new HttpInputError("METHOD_NOT_ALLOWED", 405);
 
     const parsed = issueOrderSessionSchema.safeParse(await readBoundedJson(request));
@@ -34,7 +42,7 @@ Deno.serve(async (request) => {
     ]);
 
     const admin = createServiceClient();
-    const { data: globalGateResult, error: globalGateError } = await admin.rpc(
+    const { data: globalGateResult, error: globalGateError } = await timing.measure("dbMs", () => admin.rpc(
       "check_global_public_request_gate",
       {
         p_scope: "SESSION",
@@ -43,17 +51,15 @@ Deno.serve(async (request) => {
         p_behavior_hash: behaviorHash,
         p_request_id: requestId,
       },
-    );
+    ));
     if (globalGateError) throw globalGateError;
     const globalGate = globalGateResult as { ok: boolean; code?: string };
     if (!globalGate.ok) {
       const code = globalGate.code ?? "RATE_LIMITED";
-      return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
+      return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const { error: expirationError } = await admin.rpc("expire_unconfirmed_orders");
-    if (expirationError) throw expirationError;
-    const { data: resumableOrder, error: resumableOrderError } = await admin.rpc(
+    const { data: resumableOrder, error: resumableOrderError } = await timing.measure("dbMs", () => admin.rpc(
       parsed.data.orderingMode === "DELIVERY"
         ? "lookup_resumable_public_delivery_order"
         : "lookup_resumable_public_order",
@@ -65,7 +71,7 @@ Deno.serve(async (request) => {
         p_behavior_hash: behaviorHash,
         p_request_id: requestId,
       },
-    );
+    ));
     if (resumableOrderError) throw resumableOrderError;
     if (resumableOrder) {
       const recovered = resumableOrder as { order_id: string; order_status: string };
@@ -73,18 +79,18 @@ Deno.serve(async (request) => {
         recovered.order_id,
         requireEnv("TOKEN_DERIVATION_SECRET"),
       );
-      return jsonResponse({
+      return respond({
         resumeOrder: {
           trackingToken,
           orderStatus: recovered.order_status,
         },
-      }, 200, corsHeaders, requestId);
+      }, 200);
     }
 
     const sessionToken = randomToken(32);
     const sessionTokenHash = await sha256Hex(sessionToken);
 
-    const { data: sessionResult, error: sessionError } = await admin.rpc("issue_order_session", {
+    const { data: sessionResult, error: sessionError } = await timing.measure("dbMs", () => admin.rpc("issue_order_session", {
       p_qr_token: parsed.data.qrToken,
       p_session_token_hash: sessionTokenHash,
       p_ip_hash: ipHash,
@@ -92,22 +98,22 @@ Deno.serve(async (request) => {
       p_qr_token_hash: qrTokenHash,
       p_behavior_hash: behaviorHash,
       p_request_id: requestId,
-    });
+    }));
     if (sessionError) throw sessionError;
 
     const result = sessionResult as { ok: boolean; code?: string; stall_id?: string; qr_code_id?: string; order_session_id?: string; expires_at?: string };
     if (!result.ok || !result.stall_id || !result.qr_code_id || !result.order_session_id || !result.expires_at) {
       const code = result.code ?? "ORDER_CREATE_ERROR";
-      return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
+      return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const { error: orderingModeError } = await admin.from("order_sessions")
+    const { error: orderingModeError } = await timing.measure("dbMs", () => admin.from("order_sessions")
       .update({ ordering_mode: parsed.data.orderingMode })
       .eq("id", result.order_session_id)
-      .eq("status", "ACTIVE");
+      .eq("status", "ACTIVE"));
     if (orderingModeError) throw orderingModeError;
 
-    const [stallQuery, stallProductsQuery, settingsQuery, qrQuery] = await Promise.all([
+    const [stallQuery, stallProductsQuery, settingsQuery, qrQuery] = await timing.measure("dbMs", () => Promise.all([
       admin.from("stalls")
         .select("organization_id, name, slug, location, currency")
         .eq("id", result.stall_id)
@@ -127,7 +133,7 @@ Deno.serve(async (request) => {
         .select("dining_table_id")
         .eq("id", result.qr_code_id)
         .single(),
-    ]);
+    ]));
 
     if (stallQuery.error || stallProductsQuery.error || settingsQuery.error || qrQuery.error) {
       throw stallQuery.error ?? stallProductsQuery.error ?? settingsQuery.error ?? qrQuery.error;
@@ -137,19 +143,19 @@ Deno.serve(async (request) => {
       parsed.data.orderingMode === "DELIVERY"
       && (qrQuery.data.dining_table_id || !settingsQuery.data.delivery_module_enabled)
     ) {
-      await admin.from("order_sessions")
+      await timing.measure("dbMs", () => admin.from("order_sessions")
         .update({ status: "REVOKED", revoked_at: new Date().toISOString() })
         .eq("id", result.order_session_id)
-        .eq("status", "ACTIVE");
+        .eq("status", "ACTIVE"));
       throw new HttpInputError("DELIVERY_UNAVAILABLE", 409);
     }
 
     const tableQuery = qrQuery.data.dining_table_id
-      ? await admin.from("dining_tables")
+      ? await timing.measure("dbMs", () => admin.from("dining_tables")
         .select("id, label, code, is_active")
         .eq("id", qrQuery.data.dining_table_id)
         .eq("stall_id", result.stall_id)
-        .single()
+        .single())
       : { data: null, error: null };
     if (tableQuery.error) throw tableQuery.error;
     if (tableQuery.data && (!tableQuery.data.is_active || !settingsQuery.data.dine_in_enabled)) {
@@ -157,13 +163,13 @@ Deno.serve(async (request) => {
     }
 
     const lastTableOrderQuery = tableQuery.data
-      ? await admin.from("orders")
+      ? await timing.measure("dbMs", () => admin.from("orders")
         .select("created_at")
         .eq("stall_id", result.stall_id)
         .eq("dining_table_id", tableQuery.data.id)
         .order("created_at", { ascending: false })
         .limit(1)
-        .maybeSingle()
+        .maybeSingle())
       : { data: null, error: null };
     if (lastTableOrderQuery.error) throw lastTableOrderQuery.error;
 
@@ -175,7 +181,7 @@ Deno.serve(async (request) => {
       && (!assignment.available_until || Date.parse(assignment.available_until) > now)
     ));
     const productIds = availableAssignments.map((assignment) => assignment.product_id);
-    const [productsQuery, categoriesQuery, translationsQuery] = await Promise.all([
+    const [productsQuery, categoriesQuery, translationsQuery] = await timing.measure("dbMs", () => Promise.all([
       productIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : admin.from("products")
@@ -198,7 +204,7 @@ Deno.serve(async (request) => {
           .in("product_id", productIds)
           .in("locale", enabledLocales)
           .limit(500),
-    ]);
+    ]));
 
     if (productsQuery.error || categoriesQuery.error || translationsQuery.error) {
       throw productsQuery.error ?? categoriesQuery.error ?? translationsQuery.error;
@@ -206,17 +212,17 @@ Deno.serve(async (request) => {
 
     const noteAssignmentsQuery = productIds.length === 0
       ? { data: [], error: null }
-      : await admin.from("product_note_group_assignments")
+      : await timing.measure("dbMs", () => admin.from("product_note_group_assignments")
         .select("product_id, note_group_id, sort_order")
         .eq("organization_id", stallQuery.data.organization_id)
         .eq("is_active", true)
         .in("product_id", productIds)
         .order("sort_order", { ascending: true })
-        .limit(500);
+        .limit(500));
     if (noteAssignmentsQuery.error) throw noteAssignmentsQuery.error;
 
     const noteGroupIds = [...new Set(noteAssignmentsQuery.data.map((assignment) => assignment.note_group_id))];
-    const [noteGroupsQuery, noteOptionsQuery, noteGroupTranslationsQuery] = await Promise.all([
+    const [noteGroupsQuery, noteOptionsQuery, noteGroupTranslationsQuery] = await timing.measure("dbMs", () => Promise.all([
       noteGroupIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : admin.from("product_note_groups")
@@ -243,7 +249,7 @@ Deno.serve(async (request) => {
           .in("note_group_id", noteGroupIds)
           .in("locale", enabledLocales)
           .limit(500),
-    ]);
+    ]));
     if (noteGroupsQuery.error || noteOptionsQuery.error || noteGroupTranslationsQuery.error) {
       throw noteGroupsQuery.error ?? noteOptionsQuery.error ?? noteGroupTranslationsQuery.error;
     }
@@ -251,18 +257,49 @@ Deno.serve(async (request) => {
     const noteOptionIds = noteOptionsQuery.data.map((option) => option.id);
     const noteOptionTranslationsQuery = noteOptionIds.length === 0
       ? { data: [], error: null }
-      : await admin.from("product_note_option_translations")
+      : await timing.measure("dbMs", () => admin.from("product_note_option_translations")
         .select("note_option_id, locale, name")
         .eq("organization_id", stallQuery.data.organization_id)
         .in("note_option_id", noteOptionIds)
         .in("locale", enabledLocales)
-        .limit(2_500);
+        .limit(2_500));
     if (noteOptionTranslationsQuery.error) throw noteOptionTranslationsQuery.error;
 
     const categoriesById = new Map(categoriesQuery.data.map((category) => [category.id, category]));
     const assignmentsByProductId = new Map(
       availableAssignments.map((assignment) => [assignment.product_id, assignment]),
     );
+    const translationsByProductId = new Map<string, typeof translationsQuery.data>();
+    for (const translation of translationsQuery.data) {
+      const translations = translationsByProductId.get(translation.product_id);
+      if (translations) translations.push(translation);
+      else translationsByProductId.set(translation.product_id, [translation]);
+    }
+    const noteAssignmentsByProductId = new Map<string, typeof noteAssignmentsQuery.data>();
+    for (const assignment of noteAssignmentsQuery.data) {
+      const assignments = noteAssignmentsByProductId.get(assignment.product_id);
+      if (assignments) assignments.push(assignment);
+      else noteAssignmentsByProductId.set(assignment.product_id, [assignment]);
+    }
+    const noteGroupsById = new Map(noteGroupsQuery.data.map((group) => [group.id, group]));
+    const noteGroupTranslationsById = new Map<string, typeof noteGroupTranslationsQuery.data>();
+    for (const translation of noteGroupTranslationsQuery.data) {
+      const translations = noteGroupTranslationsById.get(translation.note_group_id);
+      if (translations) translations.push(translation);
+      else noteGroupTranslationsById.set(translation.note_group_id, [translation]);
+    }
+    const noteOptionsByGroupId = new Map<string, typeof noteOptionsQuery.data>();
+    for (const option of noteOptionsQuery.data) {
+      const options = noteOptionsByGroupId.get(option.note_group_id);
+      if (options) options.push(option);
+      else noteOptionsByGroupId.set(option.note_group_id, [option]);
+    }
+    const noteOptionTranslationsById = new Map<string, typeof noteOptionTranslationsQuery.data>();
+    for (const translation of noteOptionTranslationsQuery.data) {
+      const translations = noteOptionTranslationsById.get(translation.note_option_id);
+      if (translations) translations.push(translation);
+      else noteOptionTranslationsById.set(translation.note_option_id, [translation]);
+    }
     const productsWithSortOrder = productsQuery.data
       .flatMap((product) => {
         const category = categoriesById.get(product.category_id);
@@ -272,13 +309,11 @@ Deno.serve(async (request) => {
           name: product.name,
           description: product.description,
           imageUrl: product.image_url,
-          translations: translationsQuery.data
-            .filter((translation) => translation.product_id === product.id)
+          translations: (translationsByProductId.get(product.id) ?? [])
             .map((translation) => ({ locale: translation.locale, name: translation.name, description: translation.description })),
-          noteGroups: noteAssignmentsQuery.data
-            .filter((assignment) => assignment.product_id === product.id)
+          noteGroups: (noteAssignmentsByProductId.get(product.id) ?? [])
             .flatMap((assignment) => {
-              const noteGroup = noteGroupsQuery.data.find((group) => group.id === assignment.note_group_id);
+              const noteGroup = noteGroupsById.get(assignment.note_group_id);
               if (!noteGroup) return [];
               return [{
                 id: noteGroup.id,
@@ -288,18 +323,15 @@ Deno.serve(async (request) => {
                 minSelections: noteGroup.min_selections,
                 maxSelections: noteGroup.max_selections,
                 sortOrder: assignment.sort_order || noteGroup.sort_order,
-                translations: noteGroupTranslationsQuery.data
-                  .filter((translation) => translation.note_group_id === noteGroup.id)
+                translations: (noteGroupTranslationsById.get(noteGroup.id) ?? [])
                   .map((translation) => ({ locale: translation.locale, name: translation.name })),
-                options: noteOptionsQuery.data
-                  .filter((option) => option.note_group_id === noteGroup.id)
+                options: (noteOptionsByGroupId.get(noteGroup.id) ?? [])
                   .map((option) => ({
                     id: option.id,
                     name: option.name,
                     priceDelta: option.price_delta,
                     sortOrder: option.sort_order,
-                    translations: noteOptionTranslationsQuery.data
-                      .filter((translation) => translation.note_option_id === option.id)
+                    translations: (noteOptionTranslationsById.get(option.id) ?? [])
                       .map((translation) => ({ locale: translation.locale, name: translation.name })),
                   })),
               }];
@@ -325,7 +357,7 @@ Deno.serve(async (request) => {
     }));
 
     const settings = settingsQuery.data;
-    return jsonResponse({
+    return respond({
       orderSessionToken: sessionToken,
       expiresAt: result.expires_at,
       stall: {
@@ -348,7 +380,7 @@ Deno.serve(async (request) => {
         maxTotalQuantity: settings.max_total_quantity,
         maxNoteLength: settings.max_note_length,
       },
-    }, 201, corsHeaders, requestId);
+    }, 201);
   } catch (error) {
     const code = error instanceof HttpInputError ? error.code : "ORDER_CREATE_ERROR";
     const status = error instanceof HttpInputError ? error.status : 500;
@@ -363,6 +395,6 @@ Deno.serve(async (request) => {
         detail,
       }));
     }
-    return jsonResponse({ error: errorMessage(code), code }, status, corsHeaders, requestId);
+    return respond({ error: errorMessage(code), code }, status);
   }
 });

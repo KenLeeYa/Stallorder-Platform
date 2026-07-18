@@ -7,6 +7,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
+import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
 
 const settingsSchema = z.object({
   orderSessionTtlSeconds: z.number().int().min(60).max(1800),
@@ -55,18 +56,24 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const token = randomBytes(32).toString("base64url");
   const now = new Date();
-  const previousState = await prisma.stall.findFirstOrThrow({
-    where: { id: authorization.stall.id, organizationId: authorization.stall.organizationId },
-    select: {
-      orderingState: true,
-      isSoldOut: true,
-      qrCodes: {
-        orderBy: { tokenVersion: "desc" },
-        take: 1,
-        select: { state: true, tokenVersion: true },
+  const [previousState, qrTokensBefore] = await Promise.all([
+    prisma.stall.findFirstOrThrow({
+      where: { id: authorization.stall.id, organizationId: authorization.stall.organizationId },
+      select: {
+        orderingState: true,
+        isSoldOut: true,
+        qrCodes: {
+          orderBy: { tokenVersion: "desc" },
+          take: 1,
+          select: { state: true, tokenVersion: true },
+        },
       },
-    },
-  });
+    }),
+    prisma.qrCode.findMany({
+      where: { stallId: authorization.stall.id, organizationId: authorization.stall.organizationId },
+      select: { token: true },
+    }),
+  ]);
   const state = await prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`
       select id
@@ -176,6 +183,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         : null,
     },
   });
+  invalidatePublicMenu(authorization.stall.id);
+  for (const qrCode of qrTokensBefore) invalidatePublicQrToken(qrCode.token);
+  if (state.qrCodes[0]) invalidatePublicQrToken(state.qrCodes[0].token);
 
   return NextResponse.json(
     { state: { ...state, qrCode: state.qrCodes[0] ?? null, qrCodes: undefined } },

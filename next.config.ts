@@ -10,6 +10,20 @@ const publicEdgeOrigin = (() => {
     return "http://127.0.0.1:54321";
   }
 })();
+const productImageRemotePatterns = (() => {
+  try {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return [];
+    const url = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL);
+    return [{
+      protocol: url.protocol.slice(0, -1) as "http" | "https",
+      hostname: url.hostname,
+      port: url.port,
+      pathname: "/storage/v1/object/public/product-images/**",
+    }];
+  } catch {
+    return [];
+  }
+})();
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com${isProduction ? "" : " 'unsafe-eval'"}`,
@@ -26,6 +40,10 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
+  images: {
+    formats: ["image/avif", "image/webp"],
+    remotePatterns: productImageRemotePatterns,
+  },
   async headers() {
     return [
       {

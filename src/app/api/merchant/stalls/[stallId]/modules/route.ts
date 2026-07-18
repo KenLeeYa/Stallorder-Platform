@@ -8,6 +8,7 @@ import { initialFloorPosition } from "@/lib/dining-floor-layout";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp, createOpaqueToken } from "@/lib/security";
 import { getStallModuleState, stallModuleCommandSchema } from "@/lib/stall-modules";
+import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ stallId: string }> };
 
@@ -35,6 +36,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   const organizationId = authorization.workspace.id;
   const command = parsed.data;
   try {
+    const qrTokensBefore = await prisma.qrCode.findMany({
+      where: { stallId, organizationId },
+      select: { token: true },
+    });
     const entityId = await prisma.$transaction(async (transaction) => {
       if (command.operation === "UPDATE_MODULES") {
         await transaction.stallOrderingSettings.update({
@@ -225,6 +230,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       ipHash: hashClientIp(request),
       metadata: { operation: command.operation },
     });
+    invalidatePublicMenu(stallId);
+    for (const qrCode of qrTokensBefore) invalidatePublicQrToken(qrCode.token);
     return NextResponse.json(
       { state: await getStallModuleState(stallId, organizationId) },
       { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },

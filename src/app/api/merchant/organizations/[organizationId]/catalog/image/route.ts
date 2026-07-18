@@ -1,18 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { hasExpectedImageSignature, type SupportedImageMime } from "@/lib/image-upload";
 import { hashClientIp } from "@/lib/security";
 
-const allowedTypes = new Map([
-  ["image/jpeg", "jpg"],
-  ["image/png", "png"],
-  ["image/webp", "webp"],
-]);
+const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxFileSize = 5 * 1024 * 1024;
+
+export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ organizationId: string }> };
 
@@ -41,11 +40,28 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "圖片內容與檔案格式不符。" }, { status: 400 });
   }
 
-  const extension = allowedTypes.get(file.type)!;
-  const objectPath = `${organizationId}/${randomUUID()}.${extension}`;
+  let optimizedBytes: Buffer;
+  try {
+    optimizedBytes = await sharp(bytes, { failOn: "error", limitInputPixels: 40_000_000 })
+      .rotate()
+      .resize({ width: 800, height: 800, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 80, effort: 4 })
+      .toBuffer();
+    if (optimizedBytes.byteLength > 500_000) {
+      optimizedBytes = await sharp(bytes, { failOn: "error", limitInputPixels: 40_000_000 })
+        .rotate()
+        .resize({ width: 800, height: 800, fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 68, effort: 4 })
+        .toBuffer();
+    }
+  } catch {
+    return NextResponse.json({ error: "圖片無法解析或尺寸過大。" }, { status: 400 });
+  }
+
+  const objectPath = `${organizationId}/${randomUUID()}.webp`;
   const admin = createClient(supabaseUrl, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const upload = await admin.storage.from("product-images").upload(objectPath, bytes, {
-    contentType: file.type,
+  const upload = await admin.storage.from("product-images").upload(objectPath, optimizedBytes, {
+    contentType: "image/webp",
     upsert: false,
     cacheControl: "31536000",
   });
@@ -61,7 +77,7 @@ export async function POST(request: Request, context: RouteContext) {
     outcome: "SUCCESS",
     requestId: authorization.requestId,
     ipHash: hashClientIp(request),
-    metadata: { contentType: file.type, size: file.size },
+    metadata: { contentType: "image/webp", originalSize: file.size, optimizedSize: optimizedBytes.byteLength },
   });
   return NextResponse.json({ imageUrl: data.publicUrl }, { status: 201, headers: { "x-request-id": authorization.requestId } });
 }
