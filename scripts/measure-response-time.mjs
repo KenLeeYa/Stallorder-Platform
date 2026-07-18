@@ -52,7 +52,7 @@ const routes = [
     label: "/q/:qrToken",
     path: qrToken ? `/q/${encodeURIComponent(qrToken)}` : null,
     skipReason: qrToken ? null : "未提供 PERFORMANCE_QR_TOKEN",
-    budget: { browserLcpP75Ms: 2_500 },
+    budget: { browserLcpP75Ms: 2_500, orderSessionMs: 800 },
   },
   ...(publicMenuPath
     ? [{ label: "/api/public/stalls/:stallSlug/menu", path: publicMenuPath, budget: { totalP75Ms: 500 } }]
@@ -454,7 +454,7 @@ async function measureBrowserProfile({ browser, origin, routePath, contextOption
       waitUntil: "load",
       timeout: navigationTimeoutMs,
     });
-    if (orderSessionResponse) await orderSessionResponse;
+    const orderSessionResult = orderSessionResponse ? await orderSessionResponse : null;
     await page.waitForTimeout(250);
     const metrics = await page.evaluate(() => {
       const navigation = performance.getEntriesByType("navigation")[0];
@@ -493,16 +493,22 @@ async function measureBrowserProfile({ browser, origin, routePath, contextOption
       };
     });
 
+    const normalizedMetrics = Object.fromEntries(Object.entries(metrics).map(([key, value]) => [
+      key,
+      typeof value === "number"
+        ? round(value)
+        : key === "externalRequests" && Array.isArray(value)
+          ? value.map((entry) => ({ ...entry, durationMs: round(entry.durationMs) }))
+          : value,
+    ]));
+    if (orderSessionResult && Array.isArray(normalizedMetrics.externalRequests)) {
+      const orderSession = normalizedMetrics.externalRequests.find((entry) => entry.route === "create-order-session");
+      if (orderSession) orderSession.status = orderSessionResult.status();
+    }
+
     return {
       status: response?.status() ?? null,
-      ...Object.fromEntries(Object.entries(metrics).map(([key, value]) => [
-        key,
-        typeof value === "number"
-          ? round(value)
-          : key === "externalRequests" && Array.isArray(value)
-            ? value.map((entry) => ({ ...entry, durationMs: round(entry.durationMs) }))
-            : value,
-      ])),
+      ...normalizedMetrics,
     };
   } catch (error) {
     return { error: error instanceof Error ? error.name : "NavigationError" };
@@ -598,6 +604,16 @@ function evaluateBudgets(routeResult) {
   if (budget.browserLcpP75Ms && Number.isFinite(mobileLcp) && mobileLcp > budget.browserLcpP75Ms) {
     warnings.push(`合成 Android LCP ${mobileLcp}ms 超過 ${budget.browserLcpP75Ms}ms 預算`);
   }
+  for (const [profileName, profile] of Object.entries(routeResult.browser?.profiles ?? {})) {
+    const orderSession = profile.externalRequests?.find((request) => request.route === "create-order-session");
+    if (!orderSession) continue;
+    if (!Number.isInteger(orderSession.status) || orderSession.status < 200 || orderSession.status >= 300) {
+      warnings.push(`${profileName} order session 回應狀態 ${orderSession.status ?? "未知"}`);
+    }
+    if (budget.orderSessionMs && Number.isFinite(orderSession.durationMs) && orderSession.durationMs > budget.orderSessionMs) {
+      warnings.push(`${profileName} order session ${orderSession.durationMs}ms 超過 ${budget.orderSessionMs}ms 預算`);
+    }
+  }
   return warnings;
 }
 
@@ -667,7 +683,10 @@ function renderMarkdown(measurement) {
     if (route.status !== "measured" || route.browser?.status !== "measured") continue;
     for (const [profileName, profile] of Object.entries(route.browser.profiles)) {
       const orderSession = profile.externalRequests?.find((request) => request.route === "create-order-session");
-      lines.push(`| ${route.route} | ${profileName} | ${formatMs(profile.ttfbMs)} | ${formatMs(profile.fcpMs)} | ${formatMs(profile.lcpMs)} | ${formatBytes(profile.javascriptTransferBytes)} | ${formatBytes(profile.imageTransferBytes)} | ${formatMs(orderSession?.durationMs)} |`);
+      const orderSessionSummary = orderSession
+        ? `${formatMs(orderSession.durationMs)}（HTTP ${orderSession.status ?? "未知"}）`
+        : "-";
+      lines.push(`| ${route.route} | ${profileName} | ${formatMs(profile.ttfbMs)} | ${formatMs(profile.fcpMs)} | ${formatMs(profile.lcpMs)} | ${formatBytes(profile.javascriptTransferBytes)} | ${formatBytes(profile.imageTransferBytes)} | ${orderSessionSummary} |`);
     }
   }
 
