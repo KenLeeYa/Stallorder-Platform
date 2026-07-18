@@ -29,9 +29,9 @@
 
 ## 部署驗證
 
-Preview deployment `dpl_6pFaHauh8vibRwUmYXH5QLzQeitF`（commit `777df7c015b3c148438ebb0ea2a11d43f49fb7ec`）已由 Vercel Deployment API 確認 `regions` 僅有 `hnd1`。`/api/health` response 的 `x-vercel-id` 亦為 `hkg1::hnd1::*`，分別代表入口 Edge PoP 與 Function 執行區。
+驗證用 Preview deployment `dpl_EczGfwK49GD2RYjeQgbjxebdxYvj`（commit `89202ac46ac92e0a4474930f5a11cd30bf929d2f`）已由 Vercel Deployment API 確認 `regions` 僅有 `hnd1`。`/api/health` response 的 `x-vercel-id` 亦為 `hkg1::hnd1::*`，分別代表入口 Edge PoP 與 Function 執行區。
 
-同一量測腳本的 health warm P75 從修改前 Production 1,006.6 ms 降至 Preview 131.7 ms，改善 86.9%。Runtime log 顯示實際 `dbMs` 約 12.7-19.5 ms，支持跨區往返是原始主要瓶頸，而不是 SQL 本身。
+同一量測腳本的 health warm P75 從修改前 Production 1,006.6 ms 降至 Preview 126.3 ms，改善 87.5%。Runtime warm log 顯示實際 `dbMs` 約 15.5-25.5 ms，支持跨區往返是原始主要瓶頸，而不是 SQL 本身。
 
 ## 回復方式
 

@@ -3,7 +3,7 @@
 ## 比較方法
 
 - Before：Production commit `d62dd89f6760285f34ce41306263c16256459183`。
-- After：本分支 Preview deployment `dpl_6pFaHauh8vibRwUmYXH5QLzQeitF`，commit `777df7c015b3c148438ebb0ea2a11d43f49fb7ec`。
+- After：本分支 Preview deployment `dpl_EczGfwK49GD2RYjeQgbjxebdxYvj`，commit `89202ac46ac92e0a4474930f5a11cd30bf929d2f`。
 - 工具：`scripts/measure-production-performance.mjs`，同一組 routes、sample count、測試帳號權限與 synthetic mobile 設定。
 - Production 僅執行 read-only route；不建立正式訂單。
 - 完整原始結果保存於 `performance-results.json`；不保存 response body、Cookie 或 credential。
@@ -26,15 +26,17 @@ Preview 為乾淨 Staging DB，沒有 demo owner 或 demo QR；未複製 Product
 
 | Route | Cold total | Warm P75 | 改善率 |
 | --- | ---: | ---: | ---: |
-| `/` | 125.5 ms | 30.5 ms | 89.1% |
-| `/api/health` | 166.4 ms | 131.7 ms | 86.9% |
+| `/` | 100.6 ms | 47.1 ms | 83.2% |
+| `/api/health` | 195.6 ms | 126.3 ms | 87.5% |
 | `/q/:qrToken` | 未量測 | 未量測 | Staging 無測試 QR |
 | `/staff/:stallSlug` | 未量測 | 未量測 | Staging 無測試帳號／攤位 |
-| `/merchant/dashboard` | 122.3 ms | 150.3 ms | 僅匿名 307，不與已登入基準比較 |
+| `/merchant/dashboard` | 140.0 ms | 148.5 ms | 僅匿名 307，不與已登入基準比較 |
 
 After Function region：`hnd1`，已由 Vercel Deployment API 確認。入口 Edge PoP：`hkg1`。
 
-Preview health runtime logs 顯示 `totalMs` 約 13.4-20.0 ms、`dbMs` 約 12.7-19.5 ms；HTTP 剩餘時間主要是台灣到 Vercel Edge／Function 的網路與平台開銷。Runtime 亦確認 Supavisor、6543、`pgbouncer=true` 與 5432 migration 連線；`connection_limit` 尚未配置，列為環境後續項目。
+Preview health runtime warm logs 顯示 `totalMs` 約 16.2-26.3 ms、`dbMs` 約 15.5-25.5 ms；HTTP 剩餘時間主要是台灣到 Vercel Edge／Function 的網路與平台開銷。首次冷連線樣本為 `totalMs=315.9`、`dbMs=309.6`。Runtime 亦確認 Supavisor、6543、`pgbouncer=true` 與 5432 migration 連線；`connection_limit` 尚未配置，列為環境後續項目。
+
+公開訂單 proxy 在 Staging QA 時發現並修正 Cloudflare 保留 header 衝突；修正後 smoke 已由 Cloudflare Error 1000 變為 Edge Function v2 的 `404 QR_NOT_FOUND`，附有效 upstream request ID。此路徑的 `externalApiMs` 樣本約 280.9-1,600.1 ms，顯示 Supabase Edge cold start／首次呼叫仍是後續優化重點。
 
 ## 本機 production build 對照
 
