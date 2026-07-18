@@ -29,6 +29,7 @@ const qrToken = process.env.PERFORMANCE_QR_TOKEN?.trim();
 const staffPath = normalizeOptionalPath(process.env.PERFORMANCE_STAFF_PATH);
 const kitchenPath = normalizeOptionalPath(process.env.PERFORMANCE_KITCHEN_PATH);
 const reportsPath = normalizeOptionalPath(process.env.PERFORMANCE_REPORTS_PATH);
+const publicMenuPath = normalizeOptionalPath(process.env.PERFORMANCE_PUBLIC_MENU_PATH);
 const loginEmail = process.env.PERFORMANCE_LOGIN_EMAIL?.trim();
 const loginPassword = process.env.PERFORMANCE_LOGIN_PASSWORD;
 const vercelBypassSecret = process.env.PERFORMANCE_VERCEL_BYPASS_SECRET?.trim();
@@ -53,6 +54,9 @@ const routes = [
     skipReason: qrToken ? null : "未提供 PERFORMANCE_QR_TOKEN",
     budget: { browserLcpP75Ms: 2_500 },
   },
+  ...(publicMenuPath
+    ? [{ label: "/api/public/stalls/:stallSlug/menu", path: publicMenuPath, budget: { totalP75Ms: 500 } }]
+    : []),
   { label: "/staff/orders", path: "/staff/orders", budget: { totalP75Ms: 1_000 } },
   ...(staffPath
     ? [{ label: "/staff/:stallSlug（實際路由）", path: staffPath, budget: { totalP75Ms: 1_000 } }]

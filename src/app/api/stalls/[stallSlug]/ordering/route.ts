@@ -6,6 +6,7 @@ import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
 import { hashClientIp } from "@/lib/security";
 
 const settingsSchema = z.object({
@@ -66,6 +67,13 @@ export async function PATCH(request: Request, context: RouteContext) {
         select: { state: true, tokenVersion: true },
       },
     },
+  });
+  const qrTokensBefore = await prisma.qrCode.findMany({
+    where: {
+      stallId: authorization.stall.id,
+      organizationId: authorization.stall.organizationId,
+    },
+    select: { token: true },
   });
   const state = await prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`
@@ -176,6 +184,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         : null,
     },
   });
+  invalidatePublicMenu(authorization.stall.id);
+  for (const qrCode of qrTokensBefore) invalidatePublicQrToken(qrCode.token);
+  if (state.qrCodes[0]) invalidatePublicQrToken(state.qrCodes[0].token);
 
   return NextResponse.json(
     { state: { ...state, qrCode: state.qrCodes[0] ?? null, qrCodes: undefined } },

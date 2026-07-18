@@ -2,6 +2,7 @@ import { ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
 import { QrOrderFlow } from "@/components/qr-order-flow";
 import { prisma } from "@/lib/prisma";
+import { getCachedPublicMenuForQrToken } from "@/lib/public-menu";
 
 export const dynamic = "force-dynamic";
 export const metadata = { robots: { index: false, follow: false } };
@@ -46,5 +47,6 @@ export default async function DeliveryOrderPage({ params }: PageProps) {
     );
   }
 
-  return <QrOrderFlow qrToken={qrToken} orderingMode="DELIVERY" />;
+  const initialMenu = await getCachedPublicMenuForQrToken(qrToken, "DELIVERY");
+  return <QrOrderFlow qrToken={qrToken} orderingMode="DELIVERY" initialMenu={initialMenu} />;
 }

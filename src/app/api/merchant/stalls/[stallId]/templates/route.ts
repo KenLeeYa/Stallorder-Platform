@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 import { hashClientIp } from "@/lib/security";
 import { applyStallTemplateSchema, getStallTemplatePreview, loadStallTemplateData } from "@/lib/stall-template";
+import { invalidatePublicMenu } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ stallId: string }> };
 
@@ -159,6 +160,7 @@ export async function POST(request: Request, context: RouteContext) {
     ipHash: hashClientIp(request),
     metadata: { sourceStallId: parsed.data.sourceStallId, sections: parsed.data.sections.join(",") },
   });
+  invalidatePublicMenu(stallId);
   return NextResponse.json(
     { preview: await getStallTemplatePreview(parsed.data.sourceStallId, stallId, organizationId) },
     { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },

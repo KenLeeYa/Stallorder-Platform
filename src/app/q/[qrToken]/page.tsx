@@ -1,5 +1,6 @@
 import { QrOrderFlow } from "@/components/qr-order-flow";
 import { createPerformanceTiming } from "@/lib/performance-timing";
+import { getCachedPublicMenuForQrToken } from "@/lib/public-menu";
 import { createRequestId } from "@/lib/security";
 
 type PageProps = { params: Promise<{ qrToken: string }> };
@@ -11,7 +12,11 @@ export default async function QrOrderPage({ params }: PageProps) {
   });
   const renderStartedAt = timing.start();
   const { qrToken } = await params;
+  const initialMenu = await timing.measureDb(
+    () => getCachedPublicMenuForQrToken(qrToken),
+    0,
+  );
   timing.addSince("renderMs", renderStartedAt);
   timing.finish({ status: 200 });
-  return <QrOrderFlow qrToken={qrToken} />;
+  return <QrOrderFlow qrToken={qrToken} initialMenu={initialMenu} />;
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   localizedPublicOrderError,
   localizedQrCategory,
+  preserveSupportedQrLocale,
   resolvePreferredQrLocale,
 } from "./qr-order-i18n";
 
@@ -27,6 +28,11 @@ describe("QR 點餐瀏覽器語系", () => {
   it("商家未提供瀏覽器語系時回到繁體中文", () => {
     expect(resolvePreferredQrLocale(["ja-JP"], ["en"])).toBe("zh-TW");
     expect(resolvePreferredQrLocale(["fr-FR"], allTranslations)).toBe("zh-TW");
+  });
+
+  it("order session 完成時保留使用者已選且受支援的語系", () => {
+    expect(preserveSupportedQrLocale("en", ["zh-TW"], ["en", "ja"])).toBe("en");
+    expect(preserveSupportedQrLocale("ko", ["ja-JP"], ["en", "ja"])).toBe("ja");
   });
 });
 

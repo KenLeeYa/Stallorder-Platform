@@ -7,6 +7,7 @@ import { getOrganizationCatalog } from "@/lib/catalog-data";
 import { validateCsrf } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
+import { invalidatePublicMenus } from "@/lib/public-menu";
 
 const maxCsvSize = 2 * 1024 * 1024;
 type RouteContext = { params: Promise<{ organizationId: string }> };
@@ -157,6 +158,7 @@ export async function POST(request: Request, context: RouteContext) {
       ipHash: hashClientIp(request),
       metadata: { rowCount: validRows.length, skippedCount: errors.length },
     });
+    invalidatePublicMenus(authorizedStalls.map((stall) => stall.id));
     return NextResponse.json({
       importedCount: validRows.length,
       skippedCount: errors.length,

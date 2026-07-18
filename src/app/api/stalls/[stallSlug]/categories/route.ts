@@ -5,6 +5,7 @@ import { authorizeCatalogMutation } from "@/lib/catalog-api";
 import { categoryInputSchema } from "@/lib/catalog-validation";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { invalidatePublicMenu } from "@/lib/public-menu";
 import { hashClientIp } from "@/lib/security";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
@@ -41,6 +42,7 @@ export async function POST(request: Request, context: RouteContext) {
       actorProfileId: authorization.principal.user.id,
       ipHash: hashClientIp(request),
     });
+    invalidatePublicMenu(authorization.stall.id);
     return NextResponse.json(
       { category },
       { status: 201, headers: { "x-request-id": authorization.requestId } },

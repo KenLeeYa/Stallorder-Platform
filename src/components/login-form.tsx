@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 import { LogIn } from "lucide-react";
 
 const oauthErrorMessages: Record<string, string> = {
@@ -12,14 +12,25 @@ const oauthErrorMessages: Record<string, string> = {
 };
 
 export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: string; googleEnabled: boolean; oauthError?: string }) {
-  const [error, setError] = useState(oauthError ? oauthErrorMessages[oauthError] ?? "Google 登入失敗。" : "");
+  const locationSearch = useSyncExternalStore(subscribeToLocation, readLocationSearch, () => "");
+  const searchParams = new URLSearchParams(locationSearch);
+  const requestedNext = searchParams.get("next");
+  const requestedNextPath = nextPath ?? (
+    requestedNext && requestedNext.length <= 500 ? requestedNext : undefined
+  );
+  const requestedOauthError = oauthError ?? searchParams.get("oauthError") ?? undefined;
+  const urlError = requestedOauthError
+    ? oauthErrorMessages[requestedOauthError] ?? "Google 登入失敗。"
+    : "";
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const error = submissionError ?? urlError;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
 
-    setError("");
+    setSubmissionError("");
     setIsSubmitting(true);
     try {
       const response = await fetch("/api/auth/login", {
@@ -28,17 +39,17 @@ export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: 
         body: JSON.stringify({
           email: formData.get("email"),
           password: formData.get("password"),
-          next: nextPath,
+          next: requestedNextPath,
         }),
       });
       const result = await response.json();
       if (!response.ok) {
-        setError(result.error ?? "目前無法登入，請稍後再試。");
+        setSubmissionError(result.error ?? "目前無法登入，請稍後再試。");
         return;
       }
       window.location.assign(result.next);
     } catch {
-      setError("目前無法連線，請確認網路後重試。");
+      setSubmissionError("目前無法連線，請確認網路後重試。");
     } finally {
       setIsSubmitting(false);
     }
@@ -87,9 +98,18 @@ export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: 
       {googleEnabled ? (
         <>
           <div className="my-5 flex items-center gap-3 text-xs text-stone-500"><span className="h-px flex-1 bg-stone-200" /><span>或</span><span className="h-px flex-1 bg-stone-200" /></div>
-          <a href={`/auth/google${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ""}`} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 hover:bg-stone-50"><LogIn className="h-4 w-4" />使用 Google 登入</a>
+          <a href={`/auth/google${requestedNextPath ? `?next=${encodeURIComponent(requestedNextPath)}` : ""}`} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 hover:bg-stone-50"><LogIn className="h-4 w-4" />使用 Google 登入</a>
         </>
       ) : null}
     </form>
   );
+}
+
+function subscribeToLocation(callback: () => void) {
+  window.addEventListener("popstate", callback);
+  return () => window.removeEventListener("popstate", callback);
+}
+
+function readLocationSearch() {
+  return window.location.search;
 }
