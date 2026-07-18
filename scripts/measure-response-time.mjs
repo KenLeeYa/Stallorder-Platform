@@ -32,6 +32,7 @@ const reportsPath = normalizeOptionalPath(process.env.PERFORMANCE_REPORTS_PATH);
 const loginEmail = process.env.PERFORMANCE_LOGIN_EMAIL?.trim();
 const loginPassword = process.env.PERFORMANCE_LOGIN_PASSWORD;
 const vercelBypassSecret = process.env.PERFORMANCE_VERCEL_BYPASS_SECRET?.trim();
+const vercelOidcToken = process.env.PERFORMANCE_VERCEL_OIDC_TOKEN?.trim();
 const vercelShareUrl = parseOptionalSameOriginUrl(
   process.env.PERFORMANCE_VERCEL_SHARE_URL,
   baseUrl.origin,
@@ -88,6 +89,7 @@ const result = {
   requestRuns: runs,
   authentication: loginEmail ? "provided" : "not_provided",
   deploymentProtectionBypass: vercelBypassSecret ? "provided" : "not_provided",
+  deploymentProtectionTrustedOidc: vercelOidcToken ? "provided" : "not_provided",
   deploymentProtectionShare: vercelShareUrl ? "provided" : "not_provided",
   privacy: {
     responseBodiesStored: false,
@@ -113,6 +115,7 @@ if ((loginEmail && loginPassword) || vercelShareUrl) {
     loginEmail,
     loginPassword,
     vercelBypassSecret,
+    vercelOidcToken,
     vercelShareUrl,
   );
 }
@@ -139,6 +142,7 @@ for (const route of routes) {
         timeoutMs,
         cookieHeader: cookieHeaderForUrl(authenticationState?.cookies ?? [], baseUrl.origin),
         vercelBypassSecret,
+        vercelOidcToken,
         agent,
       }));
     }
@@ -152,6 +156,7 @@ for (const route of routes) {
     timeoutMs,
     storageState: authenticationState,
     vercelBypassSecret,
+    vercelOidcToken,
   });
 
   const routeResult = {
@@ -185,12 +190,13 @@ console.log(JSON.stringify({
   markdownOutputPath,
 }));
 
-async function establishAccessState(origin, email, password, bypassSecret, shareUrl) {
+async function establishAccessState(origin, email, password, bypassSecret, oidcToken, shareUrl) {
   const context = await playwrightRequest.newContext({
     baseURL: origin,
     extraHTTPHeaders: {
       origin,
       ...(bypassSecret ? { "x-vercel-protection-bypass": bypassSecret } : {}),
+      ...(oidcToken ? { "x-vercel-trusted-oidc-idp-token": oidcToken } : {}),
     },
   });
 
@@ -240,6 +246,7 @@ async function measureHttpRequest({
   timeoutMs: requestTimeoutMs,
   cookieHeader,
   vercelBypassSecret: bypassSecret,
+  vercelOidcToken: oidcToken,
   agent,
 }) {
   const headers = {
@@ -249,6 +256,7 @@ async function measureHttpRequest({
   if (coldLike) headers["cache-control"] = "no-cache";
   if (cookieHeader) headers.cookie = cookieHeader;
   if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret;
+  if (oidcToken) headers["x-vercel-trusted-oidc-idp-token"] = oidcToken;
 
   const startedAt = performance.now();
   try {
@@ -344,6 +352,7 @@ async function measureBrowserRoute({
   timeoutMs: navigationTimeoutMs,
   storageState,
   vercelBypassSecret: bypassSecret,
+  vercelOidcToken: oidcToken,
 }) {
   let browser;
   try {
@@ -362,9 +371,7 @@ async function measureBrowserRoute({
         contextOptions: {
           viewport: { width: 1440, height: 900 },
           storageState,
-          extraHTTPHeaders: bypassSecret
-            ? { "x-vercel-protection-bypass": bypassSecret }
-            : undefined,
+          extraHTTPHeaders: deploymentProtectionHeaders(bypassSecret, oidcToken),
         },
       },
       {
@@ -376,9 +383,7 @@ async function measureBrowserRoute({
           hasTouch: true,
           userAgent: "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36",
           storageState,
-          extraHTTPHeaders: bypassSecret
-            ? { "x-vercel-protection-bypass": bypassSecret }
-            : undefined,
+          extraHTTPHeaders: deploymentProtectionHeaders(bypassSecret, oidcToken),
         },
         network: {
           latency: 80,
@@ -402,6 +407,14 @@ async function measureBrowserRoute({
   } finally {
     await browser.close();
   }
+}
+
+function deploymentProtectionHeaders(bypassSecret, oidcToken) {
+  const headers = {
+    ...(bypassSecret ? { "x-vercel-protection-bypass": bypassSecret } : {}),
+    ...(oidcToken ? { "x-vercel-trusted-oidc-idp-token": oidcToken } : {}),
+  };
+  return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
 async function measureBrowserProfile({ browser, origin, routePath, contextOptions, network, navigationTimeoutMs }) {

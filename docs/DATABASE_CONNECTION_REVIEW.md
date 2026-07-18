@@ -61,4 +61,18 @@ hasConnectionLimit
 
 ## P0 驗證狀態
 
-部署前：env 名稱與 scope 已確認；實際值因 Sensitive 保護不可讀回。部署後結果將記錄於本文件與 `docs/REGION_ALIGNMENT.md`。
+Preview `dpl_4wCYqFrnuvm9NsFTp65VzFMtrvwE` 的 private runtime log 已驗證：
+
+| 檢查 | 結果 |
+| --- | --- |
+| `DATABASE_URL` 已設定且為 PostgreSQL URL | 是 |
+| Runtime 使用 Supabase Supavisor | 是 |
+| Runtime 使用 Transaction Pooler `6543` | 是 |
+| Prisma pooling compatibility `pgbouncer=true` | 是 |
+| Runtime URL 明確設定 `connection_limit` | 否 |
+| `DIRECT_URL` 已設定且為 PostgreSQL URL | 是 |
+| Migration URL 使用 `5432` | 是 |
+
+Runtime log 只包含上述布林值，未讀取或輸出任何連線字串。`connection_limit` 缺少不會否定 Transaction Pooler 已正確使用，但應依 Supabase 方案連線額度在 Dashboard 決定明確值，不在程式碼猜測或自動改寫 Secret。
+
+Vercel authenticated API 已確認 Production／Preview 都有 Sensitive 變數名稱；由於值不可讀回，目前仍無法從本機證明 Preview URL 一定屬於 Staging project、Production URL 一定屬於 Production project。這項環境來源對應保留為部署前人工 Dashboard 複核，不以猜測標示完成。
