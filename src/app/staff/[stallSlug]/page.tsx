@@ -4,23 +4,29 @@ import { requirePagePermission } from "@/lib/authorization";
 import { hasPermission } from "@/lib/rbac";
 import { getStaffOrderCatalog } from "@/lib/staff-order-catalog";
 import { StaffOrderBoard } from "@/components/staff-order-board";
+import { createPerformanceTiming } from "@/lib/performance-timing";
+import { createRequestId } from "@/lib/security";
 
 type PageProps = {
   params: Promise<{ stallSlug: string }>;
 };
 
 export default async function StaffPage({ params }: PageProps) {
+  const requestId = createRequestId();
+  const timing = createPerformanceTiming({ route: "/staff/:stallSlug", requestId });
   const { stallSlug } = await params;
-  const { stall, principal, role } = await requirePagePermission(
-    stallSlug,
-    "VIEW_ORDERS",
-    `/staff/${stallSlug}`,
+  const { stall, principal, role } = await timing.measure(
+    "authMs",
+    () => timing.measureDb(
+      () => requirePagePermission(stallSlug, "VIEW_ORDERS", `/staff/${stallSlug}`),
+      4,
+    ),
   );
-  await prisma.$queryRaw`select public.expire_unconfirmed_orders()`;
+  await timing.measureDb(() => prisma.$queryRaw`select public.expire_unconfirmed_orders()`);
   const statuses = role === "KITCHEN"
     ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
     : activeOrderStatuses;
-  const [orders, settings, paymentOptions, discountOptions, orderCatalog, serverClock] = await Promise.all([
+  const [orders, settings, paymentOptions, discountOptions, orderCatalog, serverClock] = await timing.measureDb(() => Promise.all([
     prisma.order.findMany({
       where: {
         stallId: stall.id,
@@ -54,7 +60,8 @@ export default async function StaffPage({ params }: PageProps) {
       ? getStaffOrderCatalog(stall.id, stall.organizationId)
       : Promise.resolve(null),
     prisma.$queryRaw<Array<{ now: Date }>>`select now() as now`,
-  ]);
+  ]), 6);
+  timing.finish({ status: 200 });
 
   return (
     <StaffOrderBoard

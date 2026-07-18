@@ -5,14 +5,23 @@ import { prisma } from "@/lib/prisma";
 import { ReportFilters, ReportNavigation } from "@/components/report-navigation";
 import { getCancellationReasonReport, getHourlySalesReport } from "@/lib/report-data";
 import { requireReportScope } from "@/lib/report-scope";
+import { createPerformanceTiming } from "@/lib/performance-timing";
+import { createRequestId } from "@/lib/security";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string | string[]; dateFrom?: string; dateTo?: string }> };
 
 export default async function ReportOverviewPage({ searchParams }: PageProps) {
+  const timing = createPerformanceTiming({
+    route: "/merchant/reports/overview",
+    requestId: createRequestId(),
+  });
   const query = await searchParams;
-  const scope = await requireReportScope(query);
+  const scope = await timing.measure(
+    "authMs",
+    () => timing.measureDb(() => requireReportScope(query), 4),
+  );
   const stallIds = scope.stalls.map((stall) => stall.id);
-  const [rows, hourRows, cancellationRows] = await Promise.all([
+  const [rows, hourRows, cancellationRows] = await timing.measureDb(() => Promise.all([
     prisma.dailyStallSummary.findMany({
       where: {
         organizationId: scope.workspace.id,
@@ -23,7 +32,8 @@ export default async function ReportOverviewPage({ searchParams }: PageProps) {
     }),
     getHourlySalesReport(scope.workspace.id, stallIds, scope.dateFrom, scope.dateTo),
     getCancellationReasonReport(scope.workspace.id, stallIds, scope.dateFrom, scope.dateTo),
-  ]);
+  ]), 3);
+  timing.finish({ status: 200 });
   const total = aggregateDailyMetrics(rows);
   const daily = [...new Set(rows.map((row) => row.businessDate.toISOString().slice(0, 10)))].map((businessDate) => ({
     businessDate,
