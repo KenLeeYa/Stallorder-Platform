@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { RouteLoadingSkeleton } from "@/components/route-loading-skeleton";
 import { aggregateDailyMetrics } from "@/lib/dashboard-metrics";
 import { cancellationReasonLabels } from "@/lib/cancellation-reasons";
 import { formatMoney } from "@/lib/money";
@@ -20,6 +22,20 @@ export default async function ReportOverviewPage({ searchParams }: PageProps) {
     "authMs",
     () => timing.measureDb(() => requireReportScope(query), 4),
   );
+  return (
+    <Suspense fallback={<RouteLoadingSkeleton variant="reports" />}>
+      <ReportOverviewContent scope={scope} timing={timing} />
+    </Suspense>
+  );
+}
+
+async function ReportOverviewContent({
+  scope,
+  timing,
+}: {
+  scope: Awaited<ReturnType<typeof requireReportScope>>;
+  timing: ReturnType<typeof createPerformanceTiming>;
+}) {
   const stallIds = scope.stalls.map((stall) => stall.id);
   const [rows, hourRows, cancellationRows] = await timing.measureDb(() => Promise.all([
     prisma.dailyStallSummary.findMany({

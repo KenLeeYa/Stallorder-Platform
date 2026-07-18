@@ -147,6 +147,15 @@ src/app/api/stalls/[stallSlug]/print-jobs/route.ts
 - `next.config.ts` 尚未限制 Supabase Storage `remotePatterns`。
 - `"use client"` 集中在互動管理元件；P3 應以 bundle evidence 下移邊界，不大規模重寫。
 
+P3 保留上述修改前證據，並採取以下最小修正：
+
+- 本機上傳在 Node.js route 內限制 40MP 解碼、旋轉、縮至最大 800px，轉成 WebP；合成 1.95 MB JPEG 的驗證輸出為 179 KB（縮減 90.8%）。
+- 只有目前環境 Supabase `product-images` 公開 bucket 的窄路徑進入 `next/image` proxy；商戶外部 HTTPS 圖片維持 lazy `<img>`，不擴大 server-side fetch allowlist。
+- QR、翻譯預覽與商品編輯預覽均固定 width／height、responsive sizes 並 lazy load，沒有把所有圖片設為 priority。
+- 店員頁先使用既有同源 SSE；SSE 失敗才動態載入 Supabase Realtime。多攤位儀表板先顯示 overview，再載入 Realtime，避免 `@supabase/ssr` 阻塞首屏 bundle。
+- Turnstile 元件在顧客開始選餐後才動態載入；送單仍要求有效 token 並由 Edge Function 伺服器驗證。
+- 公開 QR／外送頁使用 route-level `loading.tsx`；店員與報表則先完成授權，再進入明確的 Suspense boundary，避免未授權 `notFound()` 因提早串流而失去 HTTP 404 語意。
+
 ## 日誌、觀測與測試
 
 - `src/lib/audit.ts` 已提供安全結構化稽核日誌，但沒有 route timing breakdown。

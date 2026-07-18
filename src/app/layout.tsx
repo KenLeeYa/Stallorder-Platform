@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PwaRuntime } from "@/components/pwa-runtime";
+import { VercelPerformanceMonitoring } from "@/components/vercel-performance-monitoring";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -44,6 +45,7 @@ export default function RootLayout({
     >
       <body suppressHydrationWarning className="min-h-full bg-stone-50 text-stone-950">
         <PwaRuntime>{children}</PwaRuntime>
+        {process.env.VERCEL === "1" ? <VercelPerformanceMonitoring /> : null}
       </body>
     </html>
   );

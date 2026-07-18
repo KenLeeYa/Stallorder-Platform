@@ -11,6 +11,8 @@ API 回應的 `x-request-id` 可關聯應用日誌與資料庫安全事件。不
 
 效能路徑使用 `src/lib/performance-timing.ts` 與 `supabase/functions/_shared/performance.ts` 輸出 `request_completed` 單行 JSON。允許欄位為 `route`、`requestId`、`status`、`totalMs`、`authMs`、`sessionMs`、`dbMs`、`dbQueryCount`、`edgeFunctionMs`、`turnstileMs`、`externalApiMs` 與 `renderMs`；未量到的欄位省略，不以總時間猜測。`Server-Timing` 供受控效能測試使用，但不得包含 tenant、stall、token 或個資。
 
+Vercel 部署另外啟用 Analytics 與 Speed Insights。送出前必須經 `src/lib/performance-url-redaction.ts` 移除 capability token、stall 識別值、query string 與 hash；詳細檢查方式見 `docs/VERCEL_PERFORMANCE_OBSERVABILITY.md`。
+
 ## 必要指標與告警
 
 - 5 分鐘 `INVALID_TURNSTILE`、`RATE_LIMITED`、`SESSION_REPLAYED` 或 `QR_SESSION_MISMATCH` 超過正常基線時告警。

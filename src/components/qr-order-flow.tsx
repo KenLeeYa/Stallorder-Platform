@@ -1,9 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clock3, History, Minus, Plus, Send, ShieldCheck } from "lucide-react";
+import { ProductImage } from "@/components/product-image";
 import { QrLanguageSelector } from "@/components/qr-language-selector";
-import { TurnstileWidget } from "@/components/turnstile-widget";
 import { deliveryOrderMessages, localizedDeliveryOrderError } from "@/lib/delivery-order-i18n";
 import { formatMoney } from "@/lib/money";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
@@ -26,6 +27,11 @@ import {
   resolvePreferredQrLocale,
   type QrLocale,
 } from "@/lib/qr-order-i18n";
+
+const TurnstileWidget = dynamic(
+  () => import("@/components/turnstile-widget").then((module) => module.TurnstileWidget),
+  { ssr: false, loading: () => <div className="min-h-16 w-full" aria-hidden="true" /> },
+);
 
 type OrderSession = PublicMenu & {
   orderSessionToken: string;
@@ -55,6 +61,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const [customerNote, setCustomerNote] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [turnstileRequested, setTurnstileRequested] = useState(false);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(!initialMenu);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -217,6 +224,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       setMessage(copy.quantityLimit);
       return;
     }
+    if (next > 0) setTurnstileRequested(true);
     setMessage("");
     setQuantities((values) => ({ ...values, [productId]: Math.max(0, next) }));
     if (next <= 0) {
@@ -355,7 +363,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
                 {session.products.filter((product) => product.category === category).map((product) => (
                   <article key={product.id} className="rounded-lg border border-stone-200 bg-white p-4">
                     <div className="flex items-center gap-4">
-                      {product.imageUrl ? <div role="img" aria-label={copy.productImage(localizedProduct(product).name)} className="h-20 w-20 shrink-0 rounded-md bg-cover bg-center" style={{ backgroundImage: `url("${product.imageUrl.replaceAll('"', "%22")}")` }} /> : null}
+                      {product.imageUrl ? <ProductImage src={product.imageUrl} alt={copy.productImage(localizedProduct(product).name)} width={80} height={80} sizes="80px" className="h-20 w-20 shrink-0 rounded-md object-cover" /> : null}
                       <div className="min-w-0 flex-1">
                         <h3 className="font-semibold">{localizedProduct(product).name}</h3>
                         <p className="mt-1 text-sm leading-6 text-stone-600">{localizedProduct(product).description}</p>
@@ -416,14 +424,16 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           <span className="text-sm text-stone-600">{copy.itemCount(totalQuantity)}</span>
           <strong>{formatMoney(total, session.stall.currency, locale)}</strong>
         </div>
-        <div className="mt-4">
-          <TurnstileWidget
-            resetKey={turnstileResetKey}
-            locale={locale}
-            label={copy.securityVerification}
-            missingKeyMessage={copy.securityNotConfigured}
-            onToken={handleTurnstileToken}
-          />
+        <div className="mt-4 min-h-16">
+          {turnstileRequested ? (
+            <TurnstileWidget
+              resetKey={turnstileResetKey}
+              locale={locale}
+              label={copy.securityVerification}
+              missingKeyMessage={copy.securityNotConfigured}
+              onToken={handleTurnstileToken}
+            />
+          ) : null}
         </div>
         <button type="button" disabled={!sessionReady || isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0} onClick={submitOrder} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-4 w-4" />

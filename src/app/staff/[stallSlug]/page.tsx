@@ -1,9 +1,11 @@
+import { Suspense } from "react";
+import { RouteLoadingSkeleton } from "@/components/route-loading-skeleton";
+import { StaffOrderBoard } from "@/components/staff-order-board";
+import { requirePagePermission } from "@/lib/authorization";
 import { prisma } from "@/lib/prisma";
 import { activeOrderStatuses, serializeStaffOrder, staffOrderSelect } from "@/lib/orders";
-import { requirePagePermission } from "@/lib/authorization";
 import { hasPermission } from "@/lib/rbac";
 import { getStaffOrderCatalog } from "@/lib/staff-order-catalog";
-import { StaffOrderBoard } from "@/components/staff-order-board";
 import { createPerformanceTiming } from "@/lib/performance-timing";
 import { createRequestId } from "@/lib/security";
 
@@ -15,13 +17,25 @@ export default async function StaffPage({ params }: PageProps) {
   const requestId = createRequestId();
   const timing = createPerformanceTiming({ route: "/staff/:stallSlug", requestId });
   const { stallSlug } = await params;
-  const { stall, principal, role } = await timing.measure(
+  const authorization = await timing.measure(
     "authMs",
     () => timing.measureDb(
       () => requirePagePermission(stallSlug, "VIEW_ORDERS", `/staff/${stallSlug}`),
       4,
     ),
   );
+  return (
+    <Suspense fallback={<RouteLoadingSkeleton variant="orders" />}>
+      <StaffOrderContent {...authorization} timing={timing} />
+    </Suspense>
+  );
+}
+
+type StaffOrderContentProps = Awaited<ReturnType<typeof requirePagePermission>> & {
+  timing: ReturnType<typeof createPerformanceTiming>;
+};
+
+async function StaffOrderContent({ stall, principal, role, timing }: StaffOrderContentProps) {
   const statuses = role === "KITCHEN"
     ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
     : activeOrderStatuses;
