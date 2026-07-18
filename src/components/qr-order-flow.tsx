@@ -7,7 +7,7 @@ import { TurnstileWidget } from "@/components/turnstile-widget";
 import { deliveryOrderMessages, localizedDeliveryOrderError } from "@/lib/delivery-order-i18n";
 import { formatMoney } from "@/lib/money";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
-import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeUrl } from "@/lib/public-order-client";
+import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeHeaders, publicEdgeUrl } from "@/lib/public-order-client";
 import { qrCartStorageKey, restoreQrCartDraft, serializeQrCartDraft } from "@/lib/qr-cart";
 import {
   isQrLocale,
@@ -118,7 +118,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
 
     void fetch(publicEdgeUrl("create-order-session"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...publicEdgeHeaders() },
       body: JSON.stringify({ qrToken, deviceId: currentDeviceId, orderingMode }),
       cache: "no-store",
     }).then(async (response) => {
@@ -302,7 +302,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
     try {
       const response = await fetch(publicEdgeUrl("create-public-order"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...publicEdgeHeaders() },
         body: JSON.stringify({
           qrToken,
           orderSessionToken: session.orderSessionToken,

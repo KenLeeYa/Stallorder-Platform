@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, Clock3, RefreshCw } from "lucide-react";
-import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeUrl } from "@/lib/public-order-client";
+import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeHeaders, publicEdgeUrl } from "@/lib/public-order-client";
 
 type PublicOrder = {
   orderNo: string;
@@ -57,7 +57,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
     try {
       const response = await fetch(publicEdgeUrl("get-public-order"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...publicEdgeHeaders() },
         body: JSON.stringify({ trackingToken, deviceId: getOrCreateDeviceId() }),
         cache: "no-store",
       });

@@ -20,7 +20,20 @@ export function getOrCreateDeviceId() {
 }
 
 export function publicEdgeUrl(functionName: string) {
+  const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.trim().replace(/\/$/, "");
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
+  if (functionsUrl && publishableKey) return `${functionsUrl}/${functionName}`;
   return `/api/public-order/${functionName}`;
+}
+
+export function publicEdgeHeaders(): Record<string, string> {
+  const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.trim();
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
+  if (!functionsUrl || !publishableKey) return {};
+  return {
+    apikey: publishableKey,
+    authorization: `Bearer ${publishableKey}`,
+  };
 }
 
 export async function parseEdgeResponse(response: Response) {
