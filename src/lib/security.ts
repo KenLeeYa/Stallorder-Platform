@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from
 import { isIP } from "node:net";
 
 const LOCAL_IP_HASH_SECRET = "stallorder-development-ip-hash-secret";
+const TEMPORARY_PRODUCTION_TEST_ORIGINS = ["https://stallorder-platform.vercel.app"];
 
 export function createOpaqueToken() {
   return randomBytes(32).toString("base64url");
@@ -118,6 +119,7 @@ export function isTrustedOrigin(request: Request) {
     process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : undefined,
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
     ...(process.env.TRUSTED_APP_ORIGINS?.split(",") ?? []),
+    ...(process.env.NODE_ENV === "production" ? TEMPORARY_PRODUCTION_TEST_ORIGINS : []),
   ];
   const trustedOrigins = configuredOrigins.flatMap((value) => {
     const trimmed = value?.trim();
