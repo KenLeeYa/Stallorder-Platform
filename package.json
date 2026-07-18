@@ -20,6 +20,7 @@
     "prisma:validate": "prisma validate",
     "production:check": "node scripts/production-readiness.mjs",
     "production:smoke": "node scripts/production-smoke-test.mjs",
+    "performance:measure": "node scripts/measure-response-time.mjs",
     "domain:migration": "node scripts/cloudflare-domain-migration.mjs",
     "domain:migration:apply": "node scripts/cloudflare-domain-migration.mjs --apply",
     "registrar:nameservers": "node scripts/godaddy-nameserver-migration.mjs",
