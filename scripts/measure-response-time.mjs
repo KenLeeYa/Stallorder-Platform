@@ -590,6 +590,15 @@ function percentile(sorted, percentileValue) {
 
 function evaluateBudgets(routeResult) {
   const warnings = [];
+  if (routeResult.coldLike?.error) {
+    warnings.push("cold-like HTTP 要求失敗");
+  }
+  if ((routeResult.warm?.errors ?? 0) > 0) {
+    warnings.push(`${routeResult.warm.errors} 筆 warm HTTP 要求失敗`);
+  }
+  for (const [profileName, profile] of Object.entries(routeResult.browser?.profiles ?? {})) {
+    if (profile?.error) warnings.push(`${profileName} 瀏覽器量測失敗`);
+  }
   const budget = routeResult.budget;
   if (!budget) return warnings;
   const warmTtfb = routeResult.warm?.ttfbMs?.p75;

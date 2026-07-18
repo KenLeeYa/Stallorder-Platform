@@ -110,7 +110,7 @@ test.describe("P1 營運功能", () => {
     const secondOrderNo = await createDineInOrder(secondCustomer, "P1 E2E 同桌乙", "Sweet Potato Fries");
 
     await page.goto("/staff/aming-chicken");
-    await page.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 同桌");
+    await page.getByRole("main").getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 同桌");
     for (const customerName of ["P1 E2E 同桌甲", "P1 E2E 同桌乙"]) {
       const order = page.getByRole("article").filter({ hasText: customerName });
       await order.getByRole("button", { name: "確認接單" }).click();
@@ -173,8 +173,9 @@ test.describe("P1 營運功能", () => {
     const cancelCustomer = await cancelContext.newPage();
     const cancelledOrderNo = await createDineInOrder(cancelCustomer, "P1 E2E 取消單", "Deep-Fried Chicken Cutlet");
     await page.goto("/staff/aming-chicken");
-    await page.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 取消單");
-    const cancelledOrder = page.getByRole("article").filter({ hasText: "P1 E2E 取消單" });
+    const cancellationMain = page.getByRole("main");
+    await cancellationMain.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 取消單");
+    const cancelledOrder = cancellationMain.getByRole("article").filter({ hasText: "P1 E2E 取消單" });
     await cancelledOrder.getByRole("button", { name: "取消訂單" }).click();
     const cancellation = page.getByRole("alertdialog", { name: "確認取消訂單？" });
     await cancellation.getByLabel("取消原因").selectOption("SOLD_OUT");
