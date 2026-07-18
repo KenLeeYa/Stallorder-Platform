@@ -85,6 +85,7 @@ export function MultiStallDashboard({
   currency,
   stalls,
   canManageOrdering,
+  multiStallEnabled,
   initialSelectedStallIds,
 }: {
   organizationId: string;
@@ -92,13 +93,16 @@ export function MultiStallDashboard({
   currency: string;
   stalls: StallOption[];
   canManageOrdering: boolean;
+  multiStallEnabled: boolean;
   initialSelectedStallIds?: string[];
 }) {
   const today = useMemo(() => taipeiToday(), []);
   const [preset, setPreset] = useState<DatePreset>("TODAY");
   const [dateRange, setDateRange] = useState({ dateFrom: today, dateTo: today });
   const [selectedStallIds, setSelectedStallIds] = useState(
-    initialSelectedStallIds?.length ? initialSelectedStallIds : stalls.filter((stall) => stall.isActive).map((stall) => stall.id),
+    initialSelectedStallIds?.length
+      ? initialSelectedStallIds
+      : stalls.filter((stall) => stall.isActive).map((stall) => stall.id).slice(0, multiStallEnabled ? undefined : 1),
   );
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -240,6 +244,10 @@ export function MultiStallDashboard({
   }
 
   function toggleStall(stallId: string) {
+    if (!multiStallEnabled) {
+      setSelectedStallIds([stallId]);
+      return;
+    }
     setSelectedStallIds((current) => current.includes(stallId)
       ? current.filter((id) => id !== stallId)
       : [...current, stallId]);
@@ -284,11 +292,12 @@ export function MultiStallDashboard({
           </div>
           <details className="border-y border-stone-200 py-2">
             <summary className="cursor-pointer list-none py-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">攤位範圍 · 已選 {selectedStallIds.length} 個</summary>
-            <label className="flex min-h-10 items-center gap-2 border-t border-stone-100 text-sm"><input type="checkbox" checked={stalls.length > 0 && stalls.every((stall) => selectedStallIds.includes(stall.id))} onChange={(event) => setSelectedStallIds(event.target.checked ? stalls.map((stall) => stall.id) : [])} />全部攤位</label>
+            {multiStallEnabled ? <label className="flex min-h-10 items-center gap-2 border-t border-stone-100 text-sm"><input type="checkbox" checked={stalls.length > 0 && stalls.every((stall) => selectedStallIds.includes(stall.id))} onChange={(event) => setSelectedStallIds(event.target.checked ? stalls.map((stall) => stall.id) : [])} />全部攤位</label> : null}
             {stalls.map((stall) => <label key={stall.id} className="flex min-h-10 items-center gap-2 border-t border-stone-100 text-sm"><input type="checkbox" checked={selectedStallIds.includes(stall.id)} onChange={() => toggleStall(stall.id)} />{stall.name}</label>)}
           </details>
         </div>
-        {canManageOrdering ? (
+        {!multiStallEnabled && stalls.length > 1 ? <p className="mt-4 border-y border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">目前方案僅支援單攤位檢視；升級後可同時比較與批次管理多個攤位。</p> : null}
+        {canManageOrdering && multiStallEnabled ? (
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-4">
             <button type="button" disabled={selectedStallIds.length === 0 || batchRunning} onClick={() => setPendingBatchAction("PAUSE")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-amber-300 px-3 text-sm font-semibold text-amber-900 disabled:opacity-50"><Pause className="h-4 w-4" />暫停已選攤位</button>
             <button type="button" disabled={selectedStallIds.length === 0 || batchRunning} onClick={() => setPendingBatchAction("RESUME")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-emerald-300 px-3 text-sm font-semibold text-emerald-800 disabled:opacity-50"><Play className="h-4 w-4" />恢復已選攤位</button>

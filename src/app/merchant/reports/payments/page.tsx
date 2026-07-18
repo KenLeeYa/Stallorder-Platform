@@ -1,14 +1,22 @@
 import { ReportFilters, ReportNavigation } from "@/components/report-navigation";
+import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { aggregateDailyMetrics } from "@/lib/dashboard-metrics";
 import { formatMoney } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { getPaymentMethodReport } from "@/lib/report-data";
 import { requireReportScope } from "@/lib/report-scope";
+import { getFeatureAccess } from "@/server/billing/feature-access";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string | string[]; dateFrom?: string; dateTo?: string }> };
 
 export default async function PaymentReportPage({ searchParams }: PageProps) {
   const scope = await requireReportScope(await searchParams);
+  const featureAccess = await getFeatureAccess(scope.workspace.id, "PAYMENT_REPORT", {
+    requireUsableSubscription: false,
+  });
+  if (!featureAccess.allowed) {
+    return <FeatureUpgradeNotice title="付款分析尚未開放" message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} />;
+  }
   const stallIds = scope.stalls.map((stall) => stall.id);
   const [rows, paymentRows] = await Promise.all([
     prisma.dailyStallSummary.findMany({ where: { organizationId: scope.workspace.id, stallId: { in: stallIds }, businessDate: { gte: new Date(`${scope.dateFrom}T00:00:00Z`), lte: new Date(`${scope.dateTo}T00:00:00Z`) } } }),

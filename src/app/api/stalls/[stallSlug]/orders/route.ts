@@ -10,6 +10,8 @@ import { hashClientIp } from "@/lib/security";
 import { createStaffOrderSchema } from "@/lib/staff-order-contract";
 import { createStaffOrder, StaffOrderCreateError } from "@/lib/staff-order-create";
 import { StaffCheckoutError } from "@/lib/staff-checkout";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
 
@@ -57,6 +59,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   try {
+    await entitlementService.assertLimitAvailable(authorization.stall.organizationId, "ORDERS", 1);
     const result = await createStaffOrder({
       organizationId: authorization.stall.organizationId,
       stallId: authorization.stall.id,
@@ -89,6 +92,8 @@ export async function POST(request: Request, context: RouteContext) {
       },
     );
   } catch (error) {
+    const entitlementResponse = entitlementErrorResponse(error, authorization.requestId);
+    if (entitlementResponse) return entitlementResponse;
     const response = staffOrderErrorResponse(error, authorization.requestId);
     if (response) return response;
     await recordAuditEvent({

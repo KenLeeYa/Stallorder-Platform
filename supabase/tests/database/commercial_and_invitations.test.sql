@@ -132,6 +132,13 @@ insert into public.organizations (
   '91000000-0000-4000-8000-000000000001', '其他商務組織', 'other-commercial-org',
   '其他商務組織', 'ACTIVE', 'other-commercial@stallorder.test', '0900-100-001', now()
 );
+insert into public.subscriptions (
+  id, organization_id, plan_id, status, billing_period_start, billing_period_end
+) select
+  '93000000-0000-4000-8000-000000000001',
+  '91000000-0000-4000-8000-000000000001', id, 'ACTIVE',
+  date_trunc('month', now())::date, (date_trunc('month', now()) + interval '1 month')::date
+from public.plans where code = 'STANDARD';
 insert into public.stalls (
   id, organization_id, name, slug, code, address, currency, timezone,
   is_active, business_status, ordering_enabled, updated_at
@@ -140,13 +147,6 @@ insert into public.stalls (
   '91000000-0000-4000-8000-000000000001', '其他商務攤位', 'other-commercial-stall',
   'OTHER-COMM', '測試地址', 'TWD', 'Asia/Taipei', true, 'OPEN', true, now()
 );
-insert into public.subscriptions (
-  id, organization_id, plan_id, status, billing_period_start, billing_period_end
-) select
-  '93000000-0000-4000-8000-000000000001',
-  '91000000-0000-4000-8000-000000000001', id, 'ACTIVE',
-  date_trunc('month', now())::date, (date_trunc('month', now()) + interval '1 month')::date
-from public.plans where code = 'STANDARD';
 
 insert into public.organization_invitations (
   id, organization_id, email, role, token_hash, expires_at

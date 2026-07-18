@@ -1,9 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { ReportScheduleManager } from "@/components/report-schedule-manager";
+import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { hasPermission } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getReportScheduleManagementData, reportDeliveryMode } from "@/lib/report-schedule-data";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
+import { getFeatureAccess } from "@/server/billing/feature-access";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string }> };
 
@@ -13,6 +15,16 @@ export default async function ReportSchedulesPage({ searchParams }: PageProps) {
   if (!organizationId && workspaces.length > 1) redirect("/select-organization");
   const workspace = requireWorkspaceOrganization(workspaces, organizationId);
   if (!workspace.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES"))) notFound();
+  const featureAccess = await getFeatureAccess(workspace.id, "SCHEDULED_REPORTS");
+  if (!featureAccess.allowed) {
+    return (
+      <FeatureUpgradeNotice
+        title="排程報表尚未開放"
+        message={featureAccess.message}
+        billingHref={`/merchant/subscription?organizationId=${workspace.id}`}
+      />
+    );
+  }
   const [schedules, organization] = await Promise.all([
     getReportScheduleManagementData(workspace.id),
     prisma.organization.findUnique({ where: { id: workspace.id }, select: { email: true } }),

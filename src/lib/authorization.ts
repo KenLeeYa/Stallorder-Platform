@@ -15,13 +15,26 @@ import {
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp } from "@/lib/security";
 import { getWorkspaceAccess } from "@/lib/workspace";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
+
+const kitchenFeaturePermissions = new Set<Permission>([
+  "VIEW_ORDERS",
+  "UPDATE_ORDERS",
+  "MANAGE_PRINT_QUEUE",
+  "VIEW_DINING_FLOOR",
+]);
 
 export async function findStallAccess(principal: SessionPrincipal, stallSlug: string) {
   const stall = await prisma.stall.findFirst({
     where: {
       slug: stallSlug,
       isActive: true,
-      organization: { status: { in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] } },
+      organization: {
+        status: {
+          in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD", "SUSPENDED", "CANCELLED"],
+        },
+      },
     },
     include: { organization: true },
   });
@@ -152,6 +165,16 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
         { status: 403, headers: { "x-request-id": requestId } },
       ),
     };
+  }
+
+  if (access.role === "KITCHEN" && kitchenFeaturePermissions.has(permission)) {
+    try {
+      await entitlementService.assertFeatureIncluded(access.stall.organizationId, "KITCHEN_VIEW");
+    } catch (error) {
+      const response = entitlementErrorResponse(error, requestId);
+      if (response) return { ok: false as const, response };
+      throw error;
+    }
   }
 
   return { ok: true as const, requestId, principal, ...access };

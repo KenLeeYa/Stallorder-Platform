@@ -138,6 +138,13 @@ insert into public.organizations (
   '91111111-1111-4111-8111-111111111150', '即時隔離組織', 'realtime-isolation-org',
   '即時隔離組織', 'ACTIVE', 'realtime-isolation@stallorder.test', '0900-111-150', now()
 );
+insert into public.subscriptions (
+  id, organization_id, plan_id, status, billing_period_start, billing_period_end
+) select
+  '93333333-3333-4333-8333-333333333350',
+  '91111111-1111-4111-8111-111111111150', id, 'ACTIVE',
+  date_trunc('month', now())::date, (date_trunc('month', now()) + interval '1 month')::date
+from public.plans where code = 'STANDARD';
 insert into public.stalls (
   id, organization_id, name, slug, code, address, currency, timezone,
   is_active, business_status, ordering_enabled, updated_at

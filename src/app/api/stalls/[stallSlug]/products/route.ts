@@ -5,6 +5,8 @@ import { productInputSchema } from "@/lib/catalog-validation";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
 
@@ -32,6 +34,14 @@ export async function POST(request: Request, context: RouteContext) {
       { error: "找不到指定分類。" },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
+  }
+
+  try {
+    await entitlementService.assertLimitAvailable(authorization.stall.organizationId, "PRODUCTS", 1);
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
   }
 
   const product = await prisma.$transaction(async (transaction) => {

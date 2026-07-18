@@ -1,12 +1,20 @@
 import { ReportFilters, ReportNavigation } from "@/components/report-navigation";
+import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { formatMoney } from "@/lib/money";
 import { getProductAndHourlyReport } from "@/lib/report-data";
 import { requireReportScope } from "@/lib/report-scope";
+import { getFeatureAccess } from "@/server/billing/feature-access";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string | string[]; dateFrom?: string; dateTo?: string }> };
 
 export default async function ProductReportPage({ searchParams }: PageProps) {
   const scope = await requireReportScope(await searchParams);
+  const featureAccess = await getFeatureAccess(scope.workspace.id, "PRODUCT_SALES_REPORT", {
+    requireUsableSubscription: false,
+  });
+  if (!featureAccess.allowed) {
+    return <FeatureUpgradeNotice title="商品銷售報表尚未開放" message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} />;
+  }
   const report = await getProductAndHourlyReport(scope.workspace.id, scope.stalls.map((stall) => stall.id), scope.dateFrom, scope.dateTo);
   const organizationProducts = new Map<string, { quantity: number; revenue: number }>();
   for (const row of report.products) { const current = organizationProducts.get(row.productName) ?? { quantity: 0, revenue: 0 }; organizationProducts.set(row.productName, { quantity: current.quantity + row.quantity, revenue: current.revenue + row.revenue }); }

@@ -4,6 +4,8 @@ import { requirePagePermission } from "@/lib/authorization";
 import { hasPermission } from "@/lib/rbac";
 import { getStaffOrderCatalog } from "@/lib/staff-order-catalog";
 import { StaffOrderBoard } from "@/components/staff-order-board";
+import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
+import { getFeatureAccess } from "@/server/billing/feature-access";
 
 type PageProps = {
   params: Promise<{ stallSlug: string }>;
@@ -16,6 +18,14 @@ export default async function StaffPage({ params }: PageProps) {
     "VIEW_ORDERS",
     `/staff/${stallSlug}`,
   );
+  if (role === "KITCHEN") {
+    const access = await getFeatureAccess(stall.organizationId, "KITCHEN_VIEW", {
+      requireUsableSubscription: false,
+    });
+    if (!access.allowed) {
+      return <FeatureUpgradeNotice title="廚房檢視尚未開放" message={access.message} />;
+    }
+  }
   await prisma.$queryRaw`select public.expire_unconfirmed_orders()`;
   const statuses = role === "KITCHEN"
     ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")

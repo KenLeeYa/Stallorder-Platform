@@ -8,6 +8,8 @@ import { initialFloorPosition } from "@/lib/dining-floor-layout";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp, createOpaqueToken } from "@/lib/security";
 import { getStallModuleState, stallModuleCommandSchema } from "@/lib/stall-modules";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ stallId: string }> };
 
@@ -35,6 +37,35 @@ export async function PATCH(request: Request, context: RouteContext) {
   const organizationId = authorization.workspace.id;
   const command = parsed.data;
   try {
+    if (command.operation === "CREATE_TABLE") {
+      await entitlementService.assertLimitAvailable(organizationId, "QR_CODES", 1);
+    } else if (command.operation === "ROTATE_TABLE_QR") {
+      await entitlementService.assertLimitAvailable(organizationId, "QR_CODES", 0);
+    } else if (command.operation === "UPDATE_MODULES" && command.deliveryModuleEnabled) {
+      const existingDeliveryQr = await prisma.qrCode.findFirst({
+        where: {
+          stallId,
+          organizationId,
+          diningTableId: null,
+          state: { in: ["ACTIVE", "PAUSED"] },
+        },
+        select: { id: true },
+      });
+      await entitlementService.assertLimitAvailable(
+        organizationId,
+        "QR_CODES",
+        existingDeliveryQr ? 0 : 1,
+      );
+    }
+    if (command.operation === "UPDATE_MODULES" && command.printModuleEnabled) {
+      const existingSettings = await prisma.stallOrderingSettings.findUnique({
+        where: { stallId },
+        select: { printModuleEnabled: true },
+      });
+      if (!existingSettings?.printModuleEnabled) {
+        await entitlementService.assertFeatureEnabled(organizationId, "PRINTER_INTEGRATION");
+      }
+    }
     const entityId = await prisma.$transaction(async (transaction) => {
       if (command.operation === "UPDATE_MODULES") {
         await transaction.stallOrderingSettings.update({
@@ -230,6 +261,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
     );
   } catch (error) {
+    const entitlementResponse = entitlementErrorResponse(error, authorization.requestId);
+    if (entitlementResponse) return entitlementResponse;
     const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
     const notFound = error instanceof ModuleNotFoundError;
     const activeOrders = error instanceof ActiveTableOrdersError;

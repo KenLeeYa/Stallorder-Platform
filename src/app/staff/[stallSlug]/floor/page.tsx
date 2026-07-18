@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { DiningFloorBoard } from "@/components/dining-floor-board";
+import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { requirePagePermission } from "@/lib/authorization";
 import { activeOrderStatuses } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import { getFeatureAccess } from "@/server/billing/feature-access";
 
 type PageProps = {
   params: Promise<{ stallSlug: string }>;
@@ -15,6 +17,15 @@ export default async function DiningFloorPage({ params }: PageProps) {
     "VIEW_DINING_FLOOR",
     `/staff/${stallSlug}/floor`,
   );
+
+  if (role === "KITCHEN") {
+    const access = await getFeatureAccess(stall.organizationId, "KITCHEN_VIEW", {
+      requireUsableSubscription: false,
+    });
+    if (!access.allowed) {
+      return <FeatureUpgradeNotice title="廚房桌位檢視尚未開放" message={access.message} />;
+    }
+  }
 
   const settings = await prisma.stallOrderingSettings.findUnique({
     where: { stallId: stall.id },

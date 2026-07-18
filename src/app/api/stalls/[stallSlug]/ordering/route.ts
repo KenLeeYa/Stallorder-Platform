@@ -7,6 +7,8 @@ import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 const settingsSchema = z.object({
   orderSessionTtlSeconds: z.number().int().min(60).max(1800),
@@ -51,6 +53,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       { error: parsed.error.issues[0]?.message ?? "控制指令格式不正確。" },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
+  }
+
+  if (parsed.data.action === "ROTATE_QR") {
+    try {
+      await entitlementService.assertLimitAvailable(authorization.stall.organizationId, "QR_CODES", 0);
+    } catch (error) {
+      const response = entitlementErrorResponse(error, authorization.requestId);
+      if (response) return response;
+      throw error;
+    }
   }
 
   const token = randomBytes(32).toString("base64url");

@@ -150,6 +150,15 @@ export function errorMessage(code: string) {
     ORDER_CONFLICT: "訂單發生衝突，請重新掃描後再試。",
     ORDER_CREATE_ERROR: "目前無法建立訂單，請稍後再試。",
     ORDER_NOT_FOUND: "找不到此訂單。",
+    FEATURE_NOT_INCLUDED: "目前方案未包含此功能，請聯絡商家確認服務方案。",
+    PLAN_LIMIT_REACHED: "目前方案的使用上限已達，請聯絡商家處理。",
+    SUBSCRIPTION_NOT_ACTIVE: "商家訂閱目前不可使用，請稍後再試。",
+    SUBSCRIPTION_SUSPENDED: "商家訂閱目前已停權，暫時無法接受新訂單。",
+    TRIAL_EXPIRED: "商家試用期已結束，暫時無法接受新訂單。",
+    TRIAL_ORDER_LIMIT_REACHED: "商家試用訂單額度已用完，暫時無法接受新訂單。",
+    ADDITIONAL_STALL_APPROVAL_REQUIRED: "商家尚未完成攤位額度核准。",
+    ORDER_PACKAGE_REQUIRED: "商家目前無法接受更多訂單，請稍後再試。",
+    UPGRADE_REQUIRED: "商家目前方案無法使用此服務。",
   };
   return messages[code] ?? "目前無法處理此操作。";
 }
@@ -160,6 +169,8 @@ export function statusForCode(code: string) {
   if (code === "RATE_LIMITED" || code === "TOO_MANY_PENDING_ORDERS") return 429;
   if (code === "TURNSTILE_UNAVAILABLE") return 503;
   if (["ORDER_CONFLICT"].includes(code)) return 409;
+  if (["FEATURE_NOT_INCLUDED", "SUBSCRIPTION_NOT_ACTIVE", "SUBSCRIPTION_SUSPENDED", "TRIAL_EXPIRED", "UPGRADE_REQUIRED"].includes(code)) return 403;
+  if (["PLAN_LIMIT_REACHED", "TRIAL_ORDER_LIMIT_REACHED", "ADDITIONAL_STALL_APPROVAL_REQUIRED", "ORDER_PACKAGE_REQUIRED"].includes(code)) return 409;
   if (["INVALID_PRODUCT_NOTES", "INVALID_DELIVERY_DETAILS"].includes(code)) return 422;
   if (["ORDER_CREATE_ERROR"].includes(code)) return 500;
   return 400;

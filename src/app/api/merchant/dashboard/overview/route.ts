@@ -3,6 +3,8 @@ import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { getDashboardOverview } from "@/lib/dashboard-data";
 import { dashboardQuerySchema } from "@/lib/dashboard-validation";
 import { hasPermission } from "@/lib/rbac";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 const allowedQueryKeys = new Set(["organizationId", "stallId", "dateFrom", "dateTo"]);
 
@@ -42,6 +44,18 @@ export async function GET(request: Request) {
       { error: "攤位範圍包含未授權資源。" },
       { status: 403, headers: { "x-request-id": authorization.requestId } },
     );
+  }
+  if (requestedIds.length > 1) {
+    try {
+      await entitlementService.assertFeatureIncluded(
+        authorization.workspace.id,
+        "MULTI_STALL_DASHBOARD",
+      );
+    } catch (error) {
+      const response = entitlementErrorResponse(error, authorization.requestId);
+      if (response) return response;
+      throw error;
+    }
   }
 
   const overview = await getDashboardOverview({

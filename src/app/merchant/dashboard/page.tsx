@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { MultiStallDashboard } from "@/components/multi-stall-dashboard";
 import { authorizedStallIdsForPermission } from "@/lib/rbac";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
+import { getFeatureAccess } from "@/server/billing/feature-access";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string | string[] }> };
 
@@ -13,9 +14,15 @@ export default async function MerchantDashboardPage({ searchParams }: PageProps)
   const reportStallIds = new Set(authorizedStallIdsForPermission(workspace.stalls, "VIEW_REPORTS"));
   const reportStalls = workspace.stalls.filter((stall) => reportStallIds.has(stall.id));
   if (reportStalls.length === 0) notFound();
+  const multiStallAccess = await getFeatureAccess(workspace.id, "MULTI_STALL_DASHBOARD", {
+    requireUsableSubscription: false,
+  });
 
   const requestedStallIds = typeof stallId === "string" ? [stallId] : stallId ?? [];
-  const initialSelectedStallIds = requestedStallIds.filter((id) => reportStallIds.has(id));
+  const authorizedSelection = requestedStallIds.filter((id) => reportStallIds.has(id));
+  const initialSelectedStallIds = multiStallAccess.allowed
+    ? authorizedSelection
+    : authorizedSelection.slice(0, 1);
 
   return (
     <MultiStallDashboard
@@ -31,6 +38,7 @@ export default async function MerchantDashboardPage({ searchParams }: PageProps)
         isActive: stall.isActive,
       }))}
       canManageOrdering={authorizedStallIdsForPermission(reportStalls, "MANAGE_ORDERING").length > 0}
+      multiStallEnabled={multiStallAccess.allowed}
       initialSelectedStallIds={initialSelectedStallIds}
     />
   );

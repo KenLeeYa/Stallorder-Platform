@@ -6,6 +6,8 @@ import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { nextScheduledRun, reportScheduleInputSchema } from "@/lib/report-scheduling";
 import { hashClientIp } from "@/lib/security";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ organizationId: string; scheduleId: string }> };
 
@@ -15,6 +17,13 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json({ error: "安全驗證已失效，請重新整理後再試。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
+  }
+  try {
+    await entitlementService.assertFeatureEnabled(organizationId, "SCHEDULED_REPORTS");
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
   }
   const body = await readJson(request, authorization.requestId);
   if (body.error) return body.error;
@@ -54,6 +63,13 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json({ error: "安全驗證已失效，請重新整理後再試。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
+  }
+  try {
+    await entitlementService.assertFeatureEnabled(organizationId, "SCHEDULED_REPORTS");
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
   }
   const update = await prisma.reportSchedule.updateMany({
     where: { id: scheduleId, organizationId, archivedAt: null },

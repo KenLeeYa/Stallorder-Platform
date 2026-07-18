@@ -7,6 +7,8 @@ import { getOrganizationCatalog } from "@/lib/catalog-data";
 import { validateCsrf } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 const maxCsvSize = 2 * 1024 * 1024;
 type RouteContext = { params: Promise<{ organizationId: string }> };
@@ -35,9 +37,10 @@ export async function POST(request: Request, context: RouteContext) {
   const requestedProductIds = [...new Set(parsed.rows.map((item) => item.row.id).filter(Boolean))];
   const existingProducts = requestedProductIds.length > 0 ? await prisma.product.findMany({
     where: { organizationId, id: { in: requestedProductIds } },
-    select: { id: true },
+    select: { id: true, isActive: true },
   }) : [];
   const existingProductIds = new Set(existingProducts.map((product) => product.id));
+  const existingProductActivity = new Map(existingProducts.map((product) => [product.id, product.isActive]));
   const seenProductIds = new Set<string>();
   const errors: CatalogCsvRowError[] = [...parsed.errors];
   const validRows = parsed.rows.flatMap((item) => {
@@ -79,6 +82,10 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   try {
+    const activeProductDelta = validRows.filter((row) => (
+      row.isActive && (!row.id || existingProductActivity.get(row.id) === false)
+    )).length;
+    await entitlementService.assertLimitAvailable(organizationId, "PRODUCTS", activeProductDelta);
     await prisma.$transaction(async (transaction) => {
       const categoryCache = new Map<string, string>();
       const groupCache = new Map<string, string>();
@@ -164,6 +171,8 @@ export async function POST(request: Request, context: RouteContext) {
       catalog: await getOrganizationCatalog(organizationId, authorizedStalls.map((stall) => stall.id)),
     }, { headers: { "x-request-id": authorization.requestId } });
   } catch (error) {
+    const entitlementResponse = entitlementErrorResponse(error, authorization.requestId);
+    if (entitlementResponse) return entitlementResponse;
     const missing = error instanceof CatalogImportNotFoundError;
     const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
     return NextResponse.json({

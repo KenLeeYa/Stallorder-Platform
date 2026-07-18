@@ -97,7 +97,11 @@ export async function POST(request: Request) {
       organizationMemberships: {
         where: {
           isActive: true,
-          organization: { status: { in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] } },
+          organization: {
+            status: {
+              in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD", "SUSPENDED", "CANCELLED"],
+            },
+          },
         },
         include: {
           organization: {
@@ -114,7 +118,11 @@ export async function POST(request: Request) {
           isActive: true,
           stall: {
             isActive: true,
-            organization: { status: { in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] } },
+            organization: {
+              status: {
+                in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD", "SUSPENDED", "CANCELLED"],
+              },
+            },
           },
         },
         include: { stall: true },

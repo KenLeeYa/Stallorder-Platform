@@ -7,7 +7,14 @@ import { prisma } from "@/lib/prisma";
 import { defaultPathForRole } from "@/lib/auth";
 import { resolvePrimaryRole } from "@/lib/rbac";
 
-const accessibleOrganizationStatuses = ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] as const;
+const accessibleOrganizationStatuses = [
+  "TRIALING",
+  "ACTIVE",
+  "PAST_DUE",
+  "GRACE_PERIOD",
+  "SUSPENDED",
+  "CANCELLED",
+] as const;
 
 export type WorkspaceStall = {
   id: string;

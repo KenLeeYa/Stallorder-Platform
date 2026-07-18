@@ -1,14 +1,23 @@
 import Link from "next/link";
 import { ReportFilters, ReportNavigation } from "@/components/report-navigation";
+import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { aggregateDailyMetrics } from "@/lib/dashboard-metrics";
 import { formatMoney } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { requireReportScope } from "@/lib/report-scope";
+import { getFeatureAccess } from "@/server/billing/feature-access";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string | string[]; dateFrom?: string; dateTo?: string }> };
 
 export default async function StallComparisonPage({ searchParams }: PageProps) {
   const scope = await requireReportScope(await searchParams);
+  const featureCode = scope.stalls.length > 1 ? "MULTI_STALL_DASHBOARD" : "BASIC_REPORTS";
+  const featureAccess = await getFeatureAccess(scope.workspace.id, featureCode, {
+    requireUsableSubscription: false,
+  });
+  if (!featureAccess.allowed) {
+    return <FeatureUpgradeNotice title="攤位比較尚未開放" message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} />;
+  }
   const rows = await prisma.dailyStallSummary.findMany({ where: { organizationId: scope.workspace.id, stallId: { in: scope.stalls.map((stall) => stall.id) }, businessDate: { gte: new Date(`${scope.dateFrom}T00:00:00Z`), lte: new Date(`${scope.dateTo}T00:00:00Z`) } } });
   const metrics = scope.stalls.map((stall) => ({ stall, metric: aggregateDailyMetrics(rows.filter((row) => row.stallId === stall.id)) })).sort((a, b) => b.metric.totalSales - a.metric.totalSales);
   return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-7 md:px-8">

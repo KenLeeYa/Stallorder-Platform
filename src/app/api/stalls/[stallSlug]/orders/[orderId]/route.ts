@@ -10,6 +10,12 @@ import { prisma } from "@/lib/prisma";
 import { canTransitionOrder, hasPermission } from "@/lib/rbac";
 import { hashClientIp } from "@/lib/security";
 import { resolveStaffCheckout, StaffCheckoutError } from "@/lib/staff-checkout";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import {
+  canContinueOrderDuringSuspension,
+  EntitlementError,
+  entitlementService,
+} from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ stallSlug: string; orderId: string }> };
 class TransitionConflict extends Error {}
@@ -59,6 +65,22 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const nextStatus = parsed.data.status;
   const cancellation = parsed.data.status === "CANCELLED" ? parsed.data : null;
+  try {
+    const subscription = await entitlementService.getSubscriptionContext(order.organizationId);
+    if (!subscription || subscription.status === "CANCELLED") {
+      throw new EntitlementError("SUBSCRIPTION_NOT_ACTIVE");
+    }
+    if (
+      subscription.status === "SUSPENDED"
+      && !canContinueOrderDuringSuspension(order.status, nextStatus)
+    ) {
+      throw new EntitlementError("SUBSCRIPTION_SUSPENDED");
+    }
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
+  }
   if (
     nextStatus === "CANCELLED"
     && !cancellationMatchesOrder(parsed.data.confirmationOrderNo, order.orderNo)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getGatewayClientIp } from "./http";
+import { errorMessage, getGatewayClientIp, statusForCode } from "./http";
 
 describe("Edge 用戶端 IP", () => {
   it("只讀取部署時指定的可信標頭", () => {
@@ -19,5 +19,17 @@ describe("Edge 用戶端 IP", () => {
     expect(getGatewayClientIp(new Request("https://order.example", {
       headers: { "x-real-ip": "attacker-controlled" },
     }), "x-real-ip")).toBe("unknown");
+  });
+});
+
+describe("Edge 訂閱錯誤", () => {
+  it("回傳安全且可操作的公開訊息", () => {
+    expect(errorMessage("SUBSCRIPTION_SUSPENDED")).toContain("停權");
+    expect(errorMessage("TRIAL_ORDER_LIMIT_REACHED")).not.toContain("organization");
+  });
+
+  it("使用一致的 HTTP 狀態碼", () => {
+    expect(statusForCode("SUBSCRIPTION_SUSPENDED")).toBe(403);
+    expect(statusForCode("TRIAL_ORDER_LIMIT_REACHED")).toBe(409);
   });
 });

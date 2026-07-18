@@ -8,6 +8,8 @@ import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
 import { resolveStaffCheckout, StaffCheckoutError } from "@/lib/staff-checkout";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { EntitlementError, entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
 class TableCheckoutConflict extends Error {}
@@ -87,6 +89,19 @@ export async function PATCH(request: Request, context: RouteContext) {
       { error: "同桌仍有餐點尚未出餐。" },
       { status: 409, headers: { "x-request-id": authorization.requestId } },
     );
+  }
+
+  try {
+    const subscription = await entitlementService.getSubscriptionContext(
+      authorization.stall.organizationId,
+    );
+    if (!subscription || subscription.status === "CANCELLED") {
+      throw new EntitlementError("SUBSCRIPTION_NOT_ACTIVE");
+    }
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
   }
 
   let checkout: Awaited<ReturnType<typeof resolveStaffCheckout>>;

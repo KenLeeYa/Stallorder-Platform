@@ -8,6 +8,8 @@ import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { getCancellationReasonReport, getPaymentMethodReport } from "@/lib/report-data";
 import { hashClientIp } from "@/lib/security";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 export async function POST(request: Request) {
   const body = await readJson(request);
@@ -33,7 +35,13 @@ export async function POST(request: Request) {
       { status: 403, headers: { "x-request-id": authorization.requestId } },
     );
   }
-
+  try {
+    await entitlementService.assertFeatureEnabled(authorization.workspace.id, "CSV_EXPORT");
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
+  }
   const authorizedStallIds = new Set(authorization.authorizedStallIds);
   const availableStalls = authorization.workspace.stalls.filter(
     (stall) => stall.isActive && authorizedStallIds.has(stall.id),
