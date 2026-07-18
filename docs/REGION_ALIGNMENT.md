@@ -29,7 +29,9 @@
 
 ## 部署驗證
 
-Preview 部署後必須由 Vercel Deployment API 確認 `regions` 等於 `hnd1`，不能只依瀏覽器 header 推測。量測同一組 read-only routes，並將結果填入 `docs/PERFORMANCE_RESULTS.md`。
+Preview deployment `dpl_6pFaHauh8vibRwUmYXH5QLzQeitF`（commit `777df7c015b3c148438ebb0ea2a11d43f49fb7ec`）已由 Vercel Deployment API 確認 `regions` 僅有 `hnd1`。`/api/health` response 的 `x-vercel-id` 亦為 `hkg1::hnd1::*`，分別代表入口 Edge PoP 與 Function 執行區。
+
+同一量測腳本的 health warm P75 從修改前 Production 1,006.6 ms 降至 Preview 131.7 ms，改善 86.9%。Runtime log 顯示實際 `dbMs` 約 12.7-19.5 ms，支持跨區往返是原始主要瓶頸，而不是 SQL 本身。
 
 ## 回復方式
 

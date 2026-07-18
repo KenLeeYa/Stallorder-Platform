@@ -3,7 +3,7 @@
 ## 比較方法
 
 - Before：Production commit `d62dd89f6760285f34ce41306263c16256459183`。
-- After：本分支 Preview／Staging，待部署後記錄 immutable deployment URL 與 commit。
+- After：本分支 Preview deployment `dpl_6pFaHauh8vibRwUmYXH5QLzQeitF`，commit `777df7c015b3c148438ebb0ea2a11d43f49fb7ec`。
 - 工具：`scripts/measure-production-performance.mjs`，同一組 routes、sample count、測試帳號權限與 synthetic mobile 設定。
 - Production 僅執行 read-only route；不建立正式訂單。
 - 完整原始結果保存於 `performance-results.json`；不保存 response body、Cookie 或 credential。
@@ -22,17 +22,19 @@ Function region：`iad1`。Supabase：`ap-northeast-1`。
 
 ## Preview／Staging 修改後
 
-部署與完整驗證尚未執行。本節只能由實際 Vercel deployment API、runtime logs 與同一量測腳本填寫，不以本機推估。
+Preview 為乾淨 Staging DB，沒有 demo owner 或 demo QR；未複製 Production 資料，也未建立假訂單。因此已量測匿名／唯讀路由與 DB health，受驗證的實際 staff、dashboard 與 QR 路由保留本機 production build 結果，不把 redirect／404 shell 當成已驗證改善。
 
 | Route | Cold total | Warm P75 | 改善率 |
 | --- | ---: | ---: | ---: |
-| `/` | pending | pending | pending |
-| `/api/health` | pending | pending | pending |
-| `/q/:qrToken` | pending | pending | pending |
-| `/staff/:stallSlug` | pending | pending | pending |
-| `/merchant/dashboard` | pending | pending | pending |
+| `/` | 125.5 ms | 30.5 ms | 89.1% |
+| `/api/health` | 166.4 ms | 131.7 ms | 86.9% |
+| `/q/:qrToken` | 未量測 | 未量測 | Staging 無測試 QR |
+| `/staff/:stallSlug` | 未量測 | 未量測 | Staging 無測試帳號／攤位 |
+| `/merchant/dashboard` | 122.3 ms | 150.3 ms | 僅匿名 307，不與已登入基準比較 |
 
-After Function region：pending，接受條件為 `hnd1`。
+After Function region：`hnd1`，已由 Vercel Deployment API 確認。入口 Edge PoP：`hkg1`。
+
+Preview health runtime logs 顯示 `totalMs` 約 13.4-20.0 ms、`dbMs` 約 12.7-19.5 ms；HTTP 剩餘時間主要是台灣到 Vercel Edge／Function 的網路與平台開銷。Runtime 亦確認 Supavisor、6543、`pgbouncer=true` 與 5432 migration 連線；`connection_limit` 尚未配置，列為環境後續項目。
 
 ## 本機 production build 對照
 

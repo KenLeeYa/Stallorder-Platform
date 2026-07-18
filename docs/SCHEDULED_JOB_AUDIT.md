@@ -14,7 +14,7 @@
 
 ## 變更
 
-`20260718150717_disable_duplicate_vercel_order_expiry_cron.sql` 先確認 DB-native job 存在且 active，才 unschedule 重複 Vercel job；若前置條件不成立會 fail closed。內部函式與 Vault 設定不刪除，保留可回復性。店員 request path 不再同步維護逾期狀態。
+`20260718181009_disable_duplicate_vercel_order_expiry_cron.sql` 先確認 DB-native job 存在且 active，才 unschedule 重複 Vercel job；若前置條件不成立會 fail closed。內部函式與 Vault 設定不刪除，保留可回復性。店員 request path 不再同步維護逾期狀態。
 
 責任切分：
 
@@ -27,6 +27,8 @@
 ## 驗證與回復
 
 Database test 必須確認重複 job 不存在、每分鐘 DB-native job 仍 active、公開角色不能執行內部 scheduler。緊急回復：
+
+Staging 已實際套用版本 `20260718181009`；套用後只保留 active 的 `stallorder-expire-unconfirmed-orders`，`invoke-vercel-preview-process-orders` 已不存在。
 
 ```sql
 select cron.schedule(

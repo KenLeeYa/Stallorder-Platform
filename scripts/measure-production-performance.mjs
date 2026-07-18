@@ -24,6 +24,11 @@ const qrToken = process.env.PERFORMANCE_QR_TOKEN?.trim();
 const staffPath = normalizeOptionalPath(process.env.PERFORMANCE_STAFF_PATH);
 const loginEmail = process.env.PERFORMANCE_LOGIN_EMAIL?.trim();
 const loginPassword = process.env.PERFORMANCE_LOGIN_PASSWORD;
+const vercelBypassSecret = process.env.PERFORMANCE_VERCEL_BYPASS_SECRET?.trim();
+const vercelShareUrl = parseOptionalSameOriginUrl(
+  process.env.PERFORMANCE_VERCEL_SHARE_URL,
+  baseUrl.origin,
+);
 
 if (Boolean(loginEmail) !== Boolean(loginPassword)) {
   throw new Error("PERFORMANCE_LOGIN_EMAIL 與 PERFORMANCE_LOGIN_PASSWORD 必須同時提供或同時省略。");
@@ -64,6 +69,8 @@ const result = {
   targetOrigin: baseUrl.origin,
   requestRuns: runs,
   authentication: loginEmail ? "provided" : "not_provided",
+  deploymentProtectionBypass: vercelBypassSecret ? "provided" : "not_provided",
+  deploymentProtectionShare: vercelShareUrl ? "provided" : "not_provided",
   privacy: {
     responseBodiesStored: false,
     credentialsStored: false,
@@ -81,8 +88,14 @@ const result = {
 };
 
 let authenticationState;
-if (loginEmail && loginPassword) {
-  authenticationState = await authenticate(baseUrl.origin, loginEmail, loginPassword);
+if ((loginEmail && loginPassword) || vercelShareUrl) {
+  authenticationState = await establishAccessState(
+    baseUrl.origin,
+    loginEmail,
+    loginPassword,
+    vercelBypassSecret,
+    vercelShareUrl,
+  );
 }
 
 for (const route of routes) {
@@ -102,6 +115,7 @@ for (const route of routes) {
       coldLike: index === 0,
       timeoutMs,
       cookieHeader: cookieHeaderForUrl(authenticationState?.cookies ?? [], baseUrl.origin),
+      vercelBypassSecret,
     }));
   }
 
@@ -110,6 +124,7 @@ for (const route of routes) {
     routePath: route.path,
     timeoutMs,
     storageState: authenticationState,
+    vercelBypassSecret,
   });
 
   const routeResult = {
@@ -143,19 +158,30 @@ console.log(JSON.stringify({
   markdownOutputPath,
 }));
 
-async function authenticate(origin, email, password) {
+async function establishAccessState(origin, email, password, bypassSecret, shareUrl) {
   const context = await playwrightRequest.newContext({
     baseURL: origin,
-    extraHTTPHeaders: { origin },
+    extraHTTPHeaders: {
+      origin,
+      ...(bypassSecret ? { "x-vercel-protection-bypass": bypassSecret } : {}),
+    },
   });
 
   try {
-    const response = await context.post("/api/auth/login", {
-      data: { email, password },
-      timeout: timeoutMs,
-    });
-    if (!response.ok()) {
-      throw new Error(`效能量測登入失敗（HTTP ${response.status()}）。`);
+    if (shareUrl) {
+      const shareResponse = await context.get(shareUrl.toString(), { timeout: timeoutMs });
+      if (!shareResponse.ok()) {
+        throw new Error(`無法建立 Preview 存取狀態（HTTP ${shareResponse.status()}）。`);
+      }
+    }
+    if (email && password) {
+      const response = await context.post("/api/auth/login", {
+        data: { email, password },
+        timeout: timeoutMs,
+      });
+      if (!response.ok()) {
+        throw new Error(`效能量測登入失敗（HTTP ${response.status()}）。`);
+      }
     }
     return context.storageState();
   } finally {
@@ -163,7 +189,31 @@ async function authenticate(origin, email, password) {
   }
 }
 
-async function measureHttpRequest({ url, coldLike, timeoutMs: requestTimeoutMs, cookieHeader }) {
+function parseOptionalSameOriginUrl(value, expectedOrigin) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error("PERFORMANCE_VERCEL_SHARE_URL 必須是有效的 HTTPS URL。");
+  }
+  if (parsed.protocol !== "https:" || parsed.origin !== expectedOrigin) {
+    throw new Error("PERFORMANCE_VERCEL_SHARE_URL 必須與 PERFORMANCE_BASE_URL 使用相同來源。");
+  }
+  if (!parsed.searchParams.has("_vercel_share")) {
+    throw new Error("PERFORMANCE_VERCEL_SHARE_URL 缺少短效分享參數。");
+  }
+  return parsed;
+}
+
+async function measureHttpRequest({
+  url,
+  coldLike,
+  timeoutMs: requestTimeoutMs,
+  cookieHeader,
+  vercelBypassSecret: bypassSecret,
+}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
   const headers = {
@@ -172,6 +222,7 @@ async function measureHttpRequest({ url, coldLike, timeoutMs: requestTimeoutMs, 
   };
   if (coldLike) headers["cache-control"] = "no-cache";
   if (cookieHeader) headers.cookie = cookieHeader;
+  if (bypassSecret) headers["x-vercel-protection-bypass"] = bypassSecret;
 
   const startedAt = performance.now();
   try {
@@ -206,7 +257,13 @@ async function measureHttpRequest({ url, coldLike, timeoutMs: requestTimeoutMs, 
   }
 }
 
-async function measureBrowserRoute({ origin, routePath, timeoutMs: navigationTimeoutMs, storageState }) {
+async function measureBrowserRoute({
+  origin,
+  routePath,
+  timeoutMs: navigationTimeoutMs,
+  storageState,
+  vercelBypassSecret: bypassSecret,
+}) {
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
@@ -221,7 +278,13 @@ async function measureBrowserRoute({ origin, routePath, timeoutMs: navigationTim
     const profiles = [
       {
         name: "desktop",
-        contextOptions: { viewport: { width: 1440, height: 900 }, storageState },
+        contextOptions: {
+          viewport: { width: 1440, height: 900 },
+          storageState,
+          extraHTTPHeaders: bypassSecret
+            ? { "x-vercel-protection-bypass": bypassSecret }
+            : undefined,
+        },
       },
       {
         name: "android_mobile_synthetic_tw",
@@ -232,6 +295,9 @@ async function measureBrowserRoute({ origin, routePath, timeoutMs: navigationTim
           hasTouch: true,
           userAgent: "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36",
           storageState,
+          extraHTTPHeaders: bypassSecret
+            ? { "x-vercel-protection-bypass": bypassSecret }
+            : undefined,
         },
         network: {
           latency: 80,

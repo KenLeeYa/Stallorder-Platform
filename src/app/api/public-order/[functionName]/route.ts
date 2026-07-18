@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
+import {
+  publicOrderUpstreamIpHeaders,
+  trustedPublicOrderClientIp,
+} from "@/lib/public-order-proxy-headers";
 import { createRequestId } from "@/lib/security";
 
 const ALLOWED_FUNCTIONS = new Set([
@@ -40,15 +44,6 @@ function publicFunctionGatewayHeaders() {
   };
 }
 
-function trustedClientIp(request: Request) {
-  const candidate = (
-    request.headers.get("x-vercel-forwarded-for")
-    || request.headers.get("x-real-ip")
-    || request.headers.get("x-forwarded-for")
-  )?.trim();
-  return candidate && !candidate.includes(",") ? candidate : null;
-}
-
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204 });
 }
@@ -67,7 +62,7 @@ export async function POST(
     );
   }
 
-  const clientIp = trustedClientIp(request);
+  const clientIp = trustedPublicOrderClientIp(request);
   const requestBody = await request.text();
 
   const upstream = await timing.measure("externalApiMs", () => fetch(`${publicFunctionsBaseUrl()}/${functionName}`, {
@@ -76,7 +71,7 @@ export async function POST(
       "content-type": request.headers.get("content-type") ?? "application/json",
       origin: publicFunctionOrigin(),
       ...publicFunctionGatewayHeaders(),
-      ...(clientIp ? { "x-real-ip": clientIp, "cf-connecting-ip": clientIp } : {}),
+      ...publicOrderUpstreamIpHeaders(clientIp),
     },
     body: requestBody,
     cache: "no-store",

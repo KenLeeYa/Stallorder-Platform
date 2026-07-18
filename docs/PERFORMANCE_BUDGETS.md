@@ -16,6 +16,8 @@
 
 `scripts/measure-production-performance.mjs` 會對可量測 HTTP route 產生 warning，但目前不因 Internet latency 直接使 CI 失敗。第一筆 `Cache-Control: no-cache` 是 cold-like，不宣稱一定為真正 Function cold start。
 
+受 Vercel Deployment Protection 保護的 Preview 可透過環境變數提供 `PERFORMANCE_VERCEL_SHARE_URL`（短效同來源 share URL）或 `PERFORMANCE_VERCEL_BYPASS_SECRET`。腳本只用來取得 Cookie／header，不會把 URL、token 或 secret 寫入 JSON、Markdown 或 console；這些值不得加入 `.env.example`、Git 或 CI artifact。
+
 ## Deterministic budgets
 
 可在 CI 穩定阻擋的項目：

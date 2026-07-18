@@ -113,6 +113,7 @@ Vercel Deployment API 確認正式 Function 為 `iad1`；Supabase Management API
 - 原流程：`src/components/qr-order-flow.tsx` 首次 mount 後才呼叫 `create-order-session`，Edge 回應同時包含 Session 與完整菜單。
 - 新流程：`src/app/q/[qrToken]/page.tsx` 先取得短 TTL 公開菜單；Client 同步顯示菜單並平行建立 Session／Turnstile。
 - 訂單只可由 `supabase/functions/create-public-order/index.ts` 建立；價格、供應、QR 狀態、Turnstile、Rate Limit、Session 與 Idempotency 均維持伺服器驗證。
+- Staging 驗證發現 `src/app/api/public-order/[functionName]/route.ts` 對 Supabase Cloudflare 入口自行設定保留的 `cf-connecting-ip`，可重現 Cloudflare Error 1000。Proxy 現在 Production 只信任 Vercel 的單一 `x-vercel-forwarded-for`，並僅以上游自訂 `x-real-ip` 傳給 Edge Function；rate-limit IP 維度保留且不可由一般 client header 覆寫。
 
 ### 商家儀表板
 
