@@ -110,13 +110,11 @@ Deno.serve(async (request) => {
       return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const { error: orderingModeError } = await timing.measureDb(() => admin.from("order_sessions")
-      .update({ ordering_mode: parsed.data.orderingMode })
-      .eq("id", result.order_session_id)
-      .eq("status", "ACTIVE"));
-    if (orderingModeError) throw orderingModeError;
-
-    const [stallQuery, stallProductsQuery, settingsQuery, qrQuery] = await timing.measureDb(() => Promise.all([
+    const [orderingModeQuery, stallQuery, stallProductsQuery, settingsQuery, qrQuery] = await timing.measureDb(() => Promise.all([
+      admin.from("order_sessions")
+        .update({ ordering_mode: parsed.data.orderingMode })
+        .eq("id", result.order_session_id)
+        .eq("status", "ACTIVE"),
       admin.from("stalls")
         .select("organization_id, name, slug, location, currency")
         .eq("id", result.stall_id)
@@ -136,10 +134,10 @@ Deno.serve(async (request) => {
         .select("dining_table_id")
         .eq("id", result.qr_code_id)
         .single(),
-    ]), 4);
+    ]), 5);
 
-    if (stallQuery.error || stallProductsQuery.error || settingsQuery.error || qrQuery.error) {
-      throw stallQuery.error ?? stallProductsQuery.error ?? settingsQuery.error ?? qrQuery.error;
+    if (orderingModeQuery.error || stallQuery.error || stallProductsQuery.error || settingsQuery.error || qrQuery.error) {
+      throw orderingModeQuery.error ?? stallQuery.error ?? stallProductsQuery.error ?? settingsQuery.error ?? qrQuery.error;
     }
 
     if (
@@ -163,6 +161,13 @@ Deno.serve(async (request) => {
     if (tableQuery.error) throw tableQuery.error;
     if (tableQuery.data && (!tableQuery.data.is_active || !settingsQuery.data.dine_in_enabled)) {
       throw new HttpInputError("TABLE_UNAVAILABLE", 409);
+    }
+
+    if (!parsed.data.includeMenu) {
+      return respond({
+        orderSessionToken: sessionToken,
+        expiresAt: result.expires_at,
+      }, 201);
     }
 
     const lastTableOrderQuery = tableQuery.data

@@ -29,6 +29,8 @@ CSV 套用的資料庫呼叫上限由約 `O(列數 × (語系數 + 攤位數))` 
 
 Edge Function 的菜單組裝也預先建立商品、翻譯、註記群組與選項索引，將重複 `filter`/`find` 掃描改為 Map lookup；這不改變資料庫查詢或官方價格驗證。
 
+當 QR/外送頁面已取得 P1 的伺服器端快取菜單時，`QrOrderFlow` 會要求 `includeMenu: false`。Edge Function 仍依序執行 global gate、續接訂單、QR session 發行、ordering mode、QR/攤位/設定及桌位驗證，但不再重傳同一份商品、翻譯與註記資料。本機實際 QR 流程的 session `dbQueryCount` 由 16–18 降為 8；沒有初始菜單的相容客戶端仍可使用預設 `includeMenu: true` 取得完整資料。建立訂單時仍由 `create-public-order` 重新讀取官方價格、售罄、註記與數量限制。
+
 ## 到期訂單掃描
 
 下列 request path 不再額外呼叫 `expire_unconfirmed_orders()`：

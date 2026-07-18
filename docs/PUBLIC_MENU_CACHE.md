@@ -4,7 +4,7 @@
 
 1. `/q/[qrToken]` 在伺服器讀取短效 QR context 與菜單 Data Cache。
 2. 若 QR 與攤位目前可用，HTML 先顯示公開菜單。
-3. Client 同步建立一次性短效 order session；完成前提交按鈕停用。
+3. Client 同步建立一次性短效 order session；已有初始菜單時 Edge 只回傳 session 憑證，完成前提交按鈕停用。
 4. `create-public-order` Edge Function 仍重新驗證 QR/session、rate limit、Turnstile、價格、售罄、註記與數量限制。
 5. Cache payload 永遠不是下單或付款的權威資料。
 

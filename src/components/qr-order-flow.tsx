@@ -85,7 +85,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     void fetch(publicEdgeUrl("create-order-session"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...publicEdgeHeaders() },
-      body: JSON.stringify({ qrToken, deviceId: currentDeviceId, orderingMode }),
+      body: JSON.stringify({ qrToken, deviceId: currentDeviceId, orderingMode, includeMenu: !initialMenu }),
       cache: "no-store",
     }).then(async (response) => {
       const payload = await parseEdgeResponse(response);
@@ -101,7 +101,9 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         window.location.replace(`/order/${encodeURIComponent(trackingToken)}`);
         return;
       }
-      const orderSession = payload as unknown as OrderSession;
+      const orderSession = initialMenu
+        ? { ...initialMenu, ...payload } as OrderSession
+        : payload as unknown as OrderSession;
       setLocale((currentLocale) => preserveSupportedQrLocale(
         currentLocale,
         preferredLocales,
@@ -130,7 +132,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     }).catch((error: unknown) => {
       setMessage(error instanceof LocalizedOrderError ? error.message : qrOrderMessages[browserLocale].networkError);
     }).finally(() => setIsLoading(false));
-  }, [orderingMode, qrToken]);
+  }, [initialMenu, orderingMode, qrToken]);
 
   useEffect(() => {
     document.documentElement.lang = locale;
