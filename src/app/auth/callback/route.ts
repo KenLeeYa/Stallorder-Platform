@@ -82,16 +82,18 @@ export async function GET(request: Request) {
       });
     }), 3);
 
-    const workspaces = await timing.measureDb(
-      () => getWorkspaceAccess(profile.id, profile.platformRole),
-      3,
-    );
+    const [workspaces, session] = await Promise.all([
+      timing.measureDb(
+        () => getWorkspaceAccess(profile.id, profile.platformRole),
+        3,
+      ),
+      timing.measure(
+        "sessionMs",
+        () => timing.measureDb(() => createSession(profile.id), 2),
+      ),
+    ]);
     const fallback = workspaces.length > 0 ? getDefaultWorkspacePath(workspaces) : "/onboarding?oauth=1";
     const next = requestedNext || fallback;
-    const session = await timing.measure(
-      "sessionMs",
-      () => timing.measureDb(() => createSession(profile.id), 2),
-    );
     const response = NextResponse.redirect(`${appOrigin}${next}`);
     setSessionCookies(response, session);
     await timing.measureDb(() => recordAuditEvent({

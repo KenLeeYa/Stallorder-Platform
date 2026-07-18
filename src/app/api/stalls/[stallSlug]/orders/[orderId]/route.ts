@@ -68,7 +68,6 @@ async function handlePatch(
     );
   }
 
-  await timing.measureDb(() => prisma.$queryRaw`select public.expire_unconfirmed_orders()`);
   const order = await timing.measureDb(() => prisma.order.findFirst({
     where: { id: orderId, stallId: authorization.stall.id },
   }));

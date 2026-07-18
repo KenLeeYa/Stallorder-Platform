@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { DailyStallSummary, OperationalAlert } from "@prisma/client";
 import { aggregateDailyMetrics } from "@/lib/dashboard-metrics";
 import { prisma } from "@/lib/prisma";
 import type { WorkspaceStall } from "@/lib/workspace";
@@ -18,35 +19,47 @@ export async function getDashboardOverview({
   dateTo: string;
 }) {
   const stallIds = stalls.map((stall) => stall.id);
-  if (alertStallIds.length > 0) {
-    await prisma.$queryRaw`select public.refresh_operational_alerts(${organizationId}::uuid)`;
-  }
-  const [rows, alerts] = await Promise.all([
-    stallIds.length === 0 ? [] : prisma.dailyStallSummary.findMany({
-      where: {
-        organizationId,
-        stallId: { in: stallIds },
-        businessDate: {
-          gte: new Date(`${dateFrom}T00:00:00.000Z`),
-          lte: new Date(`${dateTo}T00:00:00.000Z`),
+  const summaryRowsPromise: Promise<DailyStallSummary[]> = stallIds.length === 0
+    ? Promise.resolve([])
+    : prisma.dailyStallSummary.findMany({
+        where: {
+          organizationId,
+          stallId: { in: stallIds },
+          businessDate: {
+            gte: new Date(`${dateFrom}T00:00:00.000Z`),
+            lte: new Date(`${dateTo}T00:00:00.000Z`),
+          },
         },
-      },
-      orderBy: [{ businessDate: "asc" }, { stallId: "asc" }],
-    }),
-    alertStallIds.length === 0 ? [] : prisma.operationalAlert.findMany({
-      where: {
-        organizationId,
-        stallId: { in: alertStallIds },
-        status: { in: ["ACTIVE", "ACKNOWLEDGED"] },
-      },
-      orderBy: [{ severity: "desc" }, { detectedAt: "desc" }],
-      take: 20,
-    }),
+        orderBy: [{ businessDate: "asc" }, { stallId: "asc" }],
+      });
+  const alertsPromise: Promise<OperationalAlert[]> = alertStallIds.length === 0
+    ? Promise.resolve([])
+    : (async () => {
+        await prisma.$queryRaw`select public.refresh_operational_alerts(${organizationId}::uuid)`;
+        return prisma.operationalAlert.findMany({
+          where: {
+            organizationId,
+            stallId: { in: alertStallIds },
+            status: { in: ["ACTIVE", "ACKNOWLEDGED"] },
+          },
+          orderBy: [{ severity: "desc" }, { detectedAt: "desc" }],
+          take: 20,
+        });
+      })();
+  const [rows, alerts] = await Promise.all([
+    summaryRowsPromise,
+    alertsPromise,
   ]);
 
   const overall = aggregateDailyMetrics(rows);
+  const rowsByStallId = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const stallRows = rowsByStallId.get(row.stallId);
+    if (stallRows) stallRows.push(row);
+    else rowsByStallId.set(row.stallId, [row]);
+  }
   const stallMetrics = stalls.map((stall) => {
-    const metric = aggregateDailyMetrics(rows.filter((row) => row.stallId === stall.id));
+    const metric = aggregateDailyMetrics(rowsByStallId.get(stall.id) ?? []);
     return {
       stallId: stall.id,
       stallName: stall.name,
@@ -65,6 +78,7 @@ export async function getDashboardOverview({
     const key = row.businessDate.toISOString().slice(0, 10);
     trendRows.set(key, [...(trendRows.get(key) ?? []), row]);
   }
+  const stallNamesById = new Map(stalls.map((stall) => [stall.id, stall.name]));
 
   return {
     generatedAt: new Date().toISOString(),
@@ -84,7 +98,7 @@ export async function getDashboardOverview({
     )).map((alert) => ({
       id: alert.id,
       stallId: alert.stallId,
-      stallName: stalls.find((stall) => stall.id === alert.stallId)?.name ?? "攤位",
+      stallName: stallNamesById.get(alert.stallId) ?? "攤位",
       alertType: alert.alertType,
       severity: alert.severity,
       message: alert.message,

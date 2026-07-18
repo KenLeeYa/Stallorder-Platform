@@ -59,10 +59,6 @@ Deno.serve(async (request) => {
       return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const { error: expirationError } = await timing.measureDb(
-      () => admin.rpc("expire_unconfirmed_orders"),
-    );
-    if (expirationError) throw expirationError;
     const { data: resumableOrder, error: resumableOrderError } = await timing.measureDb(() => admin.rpc(
       parsed.data.orderingMode === "DELIVERY"
         ? "lookup_resumable_public_delivery_order"
@@ -188,7 +184,7 @@ Deno.serve(async (request) => {
       && (!assignment.available_until || Date.parse(assignment.available_until) > now)
     ));
     const productIds = availableAssignments.map((assignment) => assignment.product_id);
-    const [productsQuery, categoriesQuery, translationsQuery] = await timing.measureDb(() => Promise.all([
+    const [productsQuery, categoriesQuery, translationsQuery, noteAssignmentsQuery] = await timing.measureDb(() => Promise.all([
       productIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : admin.from("products")
@@ -211,22 +207,20 @@ Deno.serve(async (request) => {
           .in("product_id", productIds)
           .in("locale", enabledLocales)
           .limit(500),
-    ]), productIds.length === 0 ? 1 : 3);
+      productIds.length === 0
+        ? Promise.resolve({ data: [], error: null })
+        : admin.from("product_note_group_assignments")
+          .select("product_id, note_group_id, sort_order")
+          .eq("organization_id", stallQuery.data.organization_id)
+          .eq("is_active", true)
+          .in("product_id", productIds)
+          .order("sort_order", { ascending: true })
+          .limit(500),
+    ]), productIds.length === 0 ? 1 : 4);
 
-    if (productsQuery.error || categoriesQuery.error || translationsQuery.error) {
-      throw productsQuery.error ?? categoriesQuery.error ?? translationsQuery.error;
+    if (productsQuery.error || categoriesQuery.error || translationsQuery.error || noteAssignmentsQuery.error) {
+      throw productsQuery.error ?? categoriesQuery.error ?? translationsQuery.error ?? noteAssignmentsQuery.error;
     }
-
-    const noteAssignmentsQuery = productIds.length === 0
-      ? { data: [], error: null }
-      : await timing.measureDb(() => admin.from("product_note_group_assignments")
-        .select("product_id, note_group_id, sort_order")
-        .eq("organization_id", stallQuery.data.organization_id)
-        .eq("is_active", true)
-        .in("product_id", productIds)
-        .order("sort_order", { ascending: true })
-        .limit(500));
-    if (noteAssignmentsQuery.error) throw noteAssignmentsQuery.error;
 
     const noteGroupIds = [...new Set(noteAssignmentsQuery.data.map((assignment) => assignment.note_group_id))];
     const [noteGroupsQuery, noteOptionsQuery, noteGroupTranslationsQuery] = await timing.measureDb(() => Promise.all([
@@ -276,6 +270,37 @@ Deno.serve(async (request) => {
     const assignmentsByProductId = new Map(
       availableAssignments.map((assignment) => [assignment.product_id, assignment]),
     );
+    const productTranslationsByProductId = new Map<string, typeof translationsQuery.data>();
+    for (const translation of translationsQuery.data) {
+      const translations = productTranslationsByProductId.get(translation.product_id);
+      if (translations) translations.push(translation);
+      else productTranslationsByProductId.set(translation.product_id, [translation]);
+    }
+    const noteAssignmentsByProductId = new Map<string, typeof noteAssignmentsQuery.data>();
+    for (const assignment of noteAssignmentsQuery.data) {
+      const assignments = noteAssignmentsByProductId.get(assignment.product_id);
+      if (assignments) assignments.push(assignment);
+      else noteAssignmentsByProductId.set(assignment.product_id, [assignment]);
+    }
+    const noteGroupsById = new Map(noteGroupsQuery.data.map((group) => [group.id, group]));
+    const noteGroupTranslationsByGroupId = new Map<string, typeof noteGroupTranslationsQuery.data>();
+    for (const translation of noteGroupTranslationsQuery.data) {
+      const translations = noteGroupTranslationsByGroupId.get(translation.note_group_id);
+      if (translations) translations.push(translation);
+      else noteGroupTranslationsByGroupId.set(translation.note_group_id, [translation]);
+    }
+    const noteOptionsByGroupId = new Map<string, typeof noteOptionsQuery.data>();
+    for (const option of noteOptionsQuery.data) {
+      const options = noteOptionsByGroupId.get(option.note_group_id);
+      if (options) options.push(option);
+      else noteOptionsByGroupId.set(option.note_group_id, [option]);
+    }
+    const noteOptionTranslationsByOptionId = new Map<string, typeof noteOptionTranslationsQuery.data>();
+    for (const translation of noteOptionTranslationsQuery.data) {
+      const translations = noteOptionTranslationsByOptionId.get(translation.note_option_id);
+      if (translations) translations.push(translation);
+      else noteOptionTranslationsByOptionId.set(translation.note_option_id, [translation]);
+    }
     const productsWithSortOrder = productsQuery.data
       .flatMap((product) => {
         const category = categoriesById.get(product.category_id);
@@ -285,13 +310,11 @@ Deno.serve(async (request) => {
           name: product.name,
           description: product.description,
           imageUrl: product.image_url,
-          translations: translationsQuery.data
-            .filter((translation) => translation.product_id === product.id)
+          translations: (productTranslationsByProductId.get(product.id) ?? [])
             .map((translation) => ({ locale: translation.locale, name: translation.name, description: translation.description })),
-          noteGroups: noteAssignmentsQuery.data
-            .filter((assignment) => assignment.product_id === product.id)
+          noteGroups: (noteAssignmentsByProductId.get(product.id) ?? [])
             .flatMap((assignment) => {
-              const noteGroup = noteGroupsQuery.data.find((group) => group.id === assignment.note_group_id);
+              const noteGroup = noteGroupsById.get(assignment.note_group_id);
               if (!noteGroup) return [];
               return [{
                 id: noteGroup.id,
@@ -301,18 +324,15 @@ Deno.serve(async (request) => {
                 minSelections: noteGroup.min_selections,
                 maxSelections: noteGroup.max_selections,
                 sortOrder: assignment.sort_order || noteGroup.sort_order,
-                translations: noteGroupTranslationsQuery.data
-                  .filter((translation) => translation.note_group_id === noteGroup.id)
+                translations: (noteGroupTranslationsByGroupId.get(noteGroup.id) ?? [])
                   .map((translation) => ({ locale: translation.locale, name: translation.name })),
-                options: noteOptionsQuery.data
-                  .filter((option) => option.note_group_id === noteGroup.id)
+                options: (noteOptionsByGroupId.get(noteGroup.id) ?? [])
                   .map((option) => ({
                     id: option.id,
                     name: option.name,
                     priceDelta: option.price_delta,
                     sortOrder: option.sort_order,
-                    translations: noteOptionTranslationsQuery.data
-                      .filter((translation) => translation.note_option_id === option.id)
+                    translations: (noteOptionTranslationsByOptionId.get(option.id) ?? [])
                       .map((translation) => ({ locale: translation.locale, name: translation.name })),
                   })),
               }];

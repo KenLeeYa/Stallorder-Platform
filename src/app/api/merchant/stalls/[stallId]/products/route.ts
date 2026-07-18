@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
@@ -56,34 +57,47 @@ export async function PATCH(request: Request, context: RouteContext) {
         select: { id: true },
       });
       if (!source) throw new StallCatalogConflict("SOURCE_DENIED");
-      const assignments = await transaction.stallProduct.findMany({
-        where: { stallId: source.id, organizationId },
-      });
-      for (const assignment of assignments) {
-        await transaction.stallProduct.upsert({
-          where: { stallId_productId: { stallId, productId: assignment.productId } },
-          create: {
-            organizationId,
-            stallId,
-            productId: assignment.productId,
-            priceOverride: assignment.priceOverride,
-            isEnabled: assignment.isEnabled,
-            isSoldOut: assignment.isSoldOut,
-            sortOrder: assignment.sortOrder,
-            availableFrom: assignment.availableFrom,
-            availableUntil: assignment.availableUntil,
-          },
-          update: {
-            priceOverride: assignment.priceOverride,
-            isEnabled: assignment.isEnabled,
-            isSoldOut: assignment.isSoldOut,
-            sortOrder: assignment.sortOrder,
-            availableFrom: assignment.availableFrom,
-            availableUntil: assignment.availableUntil,
-          },
-        });
-      }
-      return assignments.length;
+      return transaction.$executeRaw(Prisma.sql`
+        insert into public.stall_products (
+          id,
+          organization_id,
+          stall_id,
+          product_id,
+          price_override,
+          is_enabled,
+          is_sold_out,
+          available_from,
+          available_until,
+          sort_order,
+          created_at,
+          updated_at
+        )
+        select
+          gen_random_uuid(),
+          ${organizationId}::uuid,
+          ${stallId}::uuid,
+          source.product_id,
+          source.price_override,
+          source.is_enabled,
+          source.is_sold_out,
+          source.available_from,
+          source.available_until,
+          source.sort_order,
+          now(),
+          now()
+        from public.stall_products source
+        where source.organization_id = ${organizationId}::uuid
+          and source.stall_id = ${source.id}::uuid
+        on conflict (stall_id, product_id) do update set
+          price_override = excluded.price_override,
+          is_enabled = excluded.is_enabled,
+          is_sold_out = excluded.is_sold_out,
+          available_from = excluded.available_from,
+          available_until = excluded.available_until,
+          sort_order = excluded.sort_order,
+          updated_at = now()
+        where stall_products.organization_id = excluded.organization_id
+      `);
     });
 
     await recordAuditEvent({

@@ -56,7 +56,6 @@ Deno.serve(async (request) => {
       return respond({ error: errorMessage(code), code }, 429);
     }
 
-    await timing.measureDb(() => admin.rpc("expire_unconfirmed_orders"));
     const { data, error } = await timing.measureDb(() => admin.rpc("get_public_order", {
       p_tracking_token_hash: trackingHash,
       p_device_hash: deviceHash,
@@ -91,21 +90,24 @@ Deno.serve(async (request) => {
       .eq("id", stored.orderId)
       .single());
     if (orderContext.error) throw orderContext.error;
-    const settingsQuery = await timing.measureDb(() => admin.from("stall_ordering_settings")
-      .select("estimated_wait_minutes")
-      .eq("stall_id", orderContext.data.stall_id)
-      .single());
-    if (settingsQuery.error) throw settingsQuery.error;
-    const lastTableOrderQuery = orderContext.data.dining_table_id
-      ? await timing.measureDb(() => admin.from("orders")
-        .select("created_at")
+    const [settingsQuery, lastTableOrderQuery] = await timing.measureDb(() => Promise.all([
+      admin.from("stall_ordering_settings")
+        .select("estimated_wait_minutes")
         .eq("stall_id", orderContext.data.stall_id)
-        .eq("dining_table_id", orderContext.data.dining_table_id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle())
-      : { data: null, error: null };
-    if (lastTableOrderQuery.error) throw lastTableOrderQuery.error;
+        .single(),
+      orderContext.data.dining_table_id
+        ? admin.from("orders")
+          .select("created_at")
+          .eq("stall_id", orderContext.data.stall_id)
+          .eq("dining_table_id", orderContext.data.dining_table_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]), orderContext.data.dining_table_id ? 2 : 1);
+    if (settingsQuery.error || lastTableOrderQuery.error) {
+      throw settingsQuery.error ?? lastTableOrderQuery.error;
+    }
     const publicOrder: Record<string, unknown> = { ...stored };
     delete publicOrder.orderId;
     delete publicOrder.pickupCodeLength;

@@ -157,14 +157,16 @@ export async function POST(request: Request) {
     ));
   }
 
-  const session = await timing.measure(
-    "sessionMs",
-    () => timing.measureDb(() => createSession(profile.id), 2),
-  );
-  const workspaces = await timing.measureDb(
-    () => getWorkspaceAccess(profile.id, profile.platformRole),
-    3,
-  );
+  const [session, workspaces] = await Promise.all([
+    timing.measure(
+      "sessionMs",
+      () => timing.measureDb(() => createSession(profile.id), 2),
+    ),
+    timing.measureDb(
+      () => getWorkspaceAccess(profile.id, profile.platformRole),
+      3,
+    ),
+  ]);
   const fallbackPath = workspaces.length > 0
     ? getDefaultWorkspacePath(workspaces)
     : stallMembership
@@ -176,19 +178,21 @@ export async function POST(request: Request) {
   );
   setSessionCookies(response, session);
 
-  await timing.measureDb(() => recordAuditEvent({
-    organizationId: workspaces[0]?.id ?? organizationMembership?.organizationId ?? stallMembership?.organizationId,
-    action: "LOGIN_SUCCESS",
-    entityType: "AUTH",
-    outcome: "SUCCESS",
-    requestId,
-    actorProfileId: profile.id,
-    stallId: stallMembership?.stallId,
-    ipHash,
-  }));
-  await timing.measureDb(() => prisma.profile.update({
-    where: { id: profile.id },
-    data: { lastLoginAt: new Date() },
-  }));
+  await timing.measureDb(() => Promise.all([
+    recordAuditEvent({
+      organizationId: workspaces[0]?.id ?? organizationMembership?.organizationId ?? stallMembership?.organizationId,
+      action: "LOGIN_SUCCESS",
+      entityType: "AUTH",
+      outcome: "SUCCESS",
+      requestId,
+      actorProfileId: profile.id,
+      stallId: stallMembership?.stallId,
+      ipHash,
+    }),
+    prisma.profile.update({
+      where: { id: profile.id },
+      data: { lastLoginAt: new Date() },
+    }),
+  ]), 2);
   return finalize(response);
 }

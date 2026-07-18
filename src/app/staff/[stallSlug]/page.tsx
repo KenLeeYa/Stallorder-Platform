@@ -22,7 +22,6 @@ export default async function StaffPage({ params }: PageProps) {
       4,
     ),
   );
-  await timing.measureDb(() => prisma.$queryRaw`select public.expire_unconfirmed_orders()`);
   const statuses = role === "KITCHEN"
     ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
     : activeOrderStatuses;
