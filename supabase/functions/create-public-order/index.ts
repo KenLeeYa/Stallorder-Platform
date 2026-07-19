@@ -12,6 +12,7 @@ import {
 import { createPublicOrderSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
 import { verifyTurnstile } from "../_shared/turnstile.ts";
+import { createEdgePerformanceTiming, finalizeEdgeResponse } from "../_shared/performance.ts";
 
 type StoredOrder = {
   order_id: string;
@@ -77,11 +78,18 @@ function publicOrderResponse(order: StoredOrder, trackingToken: string, pickupCo
 
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
+  const timing = createEdgePerformanceTiming({ route: "/functions/v1/create-public-order", requestId });
   let corsHeaders: Record<string, string> = {};
+  const respond = (body: unknown, status: number) => finalizeEdgeResponse(
+    jsonResponse(body, status, corsHeaders, requestId),
+    timing,
+  );
 
   try {
     corsHeaders = getCorsHeaders(request, getAllowedOrigins());
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+    if (request.method === "OPTIONS") {
+      return finalizeEdgeResponse(new Response(null, { status: 204, headers: corsHeaders }), timing);
+    }
     if (request.method !== "POST") throw new HttpInputError("METHOD_NOT_ALLOWED", 405);
 
     const parsed = createPublicOrderSchema.safeParse(await readBoundedJson(request));
@@ -105,7 +113,7 @@ Deno.serve(async (request) => {
     ]);
 
     const admin = createServiceClient();
-    const { data: globalGateResult, error: globalGateError } = await admin.rpc(
+    const { data: globalGateResult, error: globalGateError } = await timing.measureDb(() => admin.rpc(
       "check_global_public_request_gate",
       {
         p_scope: "ORDER",
@@ -114,61 +122,61 @@ Deno.serve(async (request) => {
         p_behavior_hash: behaviorHash,
         p_request_id: requestId,
       },
-    );
+    ));
     if (globalGateError) throw globalGateError;
     const globalGate = globalGateResult as { ok: boolean; code?: string };
     if (!globalGate.ok) {
       const code = globalGate.code ?? "RATE_LIMITED";
-      return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
+      return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const { data: sessionContext, error: sessionContextError } = await admin.from("order_sessions")
+    const { data: sessionContext, error: sessionContextError } = await timing.measureDb(() => admin.from("order_sessions")
       .select("ordering_mode")
       .eq("token_hash", sessionHash)
-      .maybeSingle();
+      .maybeSingle());
     if (sessionContextError) throw sessionContextError;
     if (!sessionContext) {
       const code = "SESSION_NOT_FOUND";
-      await safeRecordSubmissionFailure(admin, {
+      await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
         requestId, code, ipHash, deviceHash, qrTokenHash, sessionHash, behaviorHash, idempotencyHash,
-      });
-      return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
+      }));
+      return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
     if (sessionContext.ordering_mode !== input.orderingMode) {
       const code = "ORDER_MODE_CONFLICT";
-      await safeRecordSubmissionFailure(admin, {
+      await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
         requestId, code, ipHash, deviceHash, qrTokenHash, sessionHash, behaviorHash, idempotencyHash,
-      });
-      return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
+      }));
+      return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const { data: existing, error: existingError } = await admin.rpc("lookup_public_order_idempotency", {
+    const { data: existing, error: existingError } = await timing.measureDb(() => admin.rpc("lookup_public_order_idempotency", {
       p_session_token_hash: sessionHash,
       p_idempotency_key: input.idempotencyKey,
-    });
+    }));
     if (existingError) throw existingError;
     if (existing) {
       const order = existing as StoredOrder;
       const tokens = await derivePublicOrderTokens(order.order_id, tokenSecret);
-      return jsonResponse(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200, corsHeaders, requestId);
+      return respond(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200);
     }
 
-    const { data: gateResult, error: gateError } = await admin.rpc("check_public_order_submission_gate", {
+    const { data: gateResult, error: gateError } = await timing.measureDb(() => admin.rpc("check_public_order_submission_gate", {
       p_session_token_hash: sessionHash,
       p_ip_hash: ipHash,
       p_device_hash: deviceHash,
       p_qr_token_hash: qrTokenHash,
       p_behavior_hash: behaviorHash,
       p_request_id: requestId,
-    });
+    }));
     if (gateError) throw gateError;
     const gate = gateResult as { ok: boolean; code?: string };
     if (!gate.ok) {
       const code = gate.code ?? "RATE_LIMITED";
-      return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
+      return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const turnstile = await verifyTurnstile({
+    const turnstile = await timing.measure("turnstileMs", () => verifyTurnstile({
       token: input.turnstileToken,
       remoteIp: clientIp,
       idempotencyKey: crypto.randomUUID(),
@@ -177,9 +185,9 @@ Deno.serve(async (request) => {
       expectedAction: "public_order",
       allowTestKeys: Deno.env.get("TURNSTILE_ALLOW_TEST_KEYS") === "true",
       environment: Deno.env.get("APP_ENV")?.trim() || "development",
-    });
+    }));
     if (!turnstile.ok) {
-      await safeRecordSubmissionFailure(admin, {
+      await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
         requestId,
         code: turnstile.code,
         ipHash,
@@ -188,7 +196,7 @@ Deno.serve(async (request) => {
         sessionHash,
         behaviorHash,
         idempotencyHash,
-      });
+      }));
       console.warn(JSON.stringify({
         level: "warn",
         event: "TURNSTILE_REJECTED",
@@ -196,11 +204,9 @@ Deno.serve(async (request) => {
         reason: turnstile.code,
         errors: turnstile.errors.slice(0, 5),
       }));
-      return jsonResponse(
+      return respond(
         { error: errorMessage(turnstile.code), code: turnstile.code },
         statusForCode(turnstile.code),
-        corsHeaders,
-        requestId,
       );
     }
 
@@ -236,14 +242,14 @@ Deno.serve(async (request) => {
         p_delivery_address: input.deliveryAddress,
       } : {}),
     };
-    const { data: createResult, error: createError } = await admin.rpc(
+    const { data: createResult, error: createError } = await timing.measureDb(() => admin.rpc(
       input.orderingMode === "DELIVERY" ? "create_public_delivery_order" : "create_public_order",
       createArguments,
-    );
+    ));
     if (createError) {
       if (createError.message.includes("TOO_MANY_PENDING_ORDERS")) {
         const code = "TOO_MANY_PENDING_ORDERS";
-        await safeRecordSubmissionFailure(admin, {
+        await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
           requestId,
           code,
           ipHash,
@@ -252,12 +258,10 @@ Deno.serve(async (request) => {
           sessionHash,
           behaviorHash,
           idempotencyHash,
-        });
-        return jsonResponse(
+        }));
+        return respond(
           { error: errorMessage(code), code },
           statusForCode(code),
-          corsHeaders,
-          requestId,
         );
       }
       throw createError;
@@ -266,17 +270,15 @@ Deno.serve(async (request) => {
     const result = createResult as { ok: boolean; code?: string; idempotent_replay?: boolean; order?: StoredOrder };
     if (!result.ok || !result.order) {
       const code = result.code ?? "ORDER_CREATE_ERROR";
-      return jsonResponse({ error: errorMessage(code), code }, statusForCode(code), corsHeaders, requestId);
+      return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
     const finalTokens = result.order.order_id === orderId
       ? provisionalTokens
       : await derivePublicOrderTokens(result.order.order_id, tokenSecret);
-    return jsonResponse(
+    return respond(
       publicOrderResponse(result.order, finalTokens.trackingToken, finalTokens.pickupCode),
       result.idempotent_replay ? 200 : 201,
-      corsHeaders,
-      requestId,
     );
   } catch (error) {
     const code = error instanceof HttpInputError ? error.code : "ORDER_CREATE_ERROR";
@@ -292,6 +294,6 @@ Deno.serve(async (request) => {
         detail,
       }));
     }
-    return jsonResponse({ error: errorMessage(code), code }, status, corsHeaders, requestId);
+    return respond({ error: errorMessage(code), code }, status);
   }
 });

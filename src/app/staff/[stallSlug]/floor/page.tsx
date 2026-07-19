@@ -22,7 +22,6 @@ export default async function DiningFloorPage({ params }: PageProps) {
   });
   if (!settings?.dineInEnabled) notFound();
 
-  await prisma.$queryRaw`select public.expire_unconfirmed_orders()`;
   const statuses = role === "KITCHEN"
     ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
     : activeOrderStatuses;

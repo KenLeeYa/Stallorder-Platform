@@ -9,12 +9,19 @@
 
 API 回應的 `x-request-id` 可關聯應用日誌與資料庫安全事件。不得寫入 raw token、密碼、完整 IP、取餐碼、顧客電話或備註。
 
+效能路徑使用 `src/lib/performance-timing.ts` 與 `supabase/functions/_shared/performance.ts` 輸出 `request_completed` 單行 JSON。允許欄位為 `route`、`requestId`、`status`、`totalMs`、`authMs`、`sessionMs`、`dbMs`、`dbQueryCount`、`edgeFunctionMs`、`turnstileMs`、`externalApiMs` 與 `renderMs`；未量到的欄位省略，不以總時間猜測。`Server-Timing` 供受控效能測試使用，但不得包含 tenant、stall、token 或個資。
+
+Vercel 部署另外啟用 Analytics 與 Speed Insights。送出前必須經 `src/lib/performance-url-redaction.ts` 移除 capability token、stall 識別值、query string 與 hash；詳細檢查方式見 `docs/VERCEL_PERFORMANCE_OBSERVABILITY.md`。
+
 ## 必要指標與告警
 
 - 5 分鐘 `INVALID_TURNSTILE`、`RATE_LIMITED`、`SESSION_REPLAYED` 或 `QR_SESSION_MISMATCH` 超過正常基線時告警。
 - 同一 stall 的拒絕率超過 20%，或同一 IP／device hash 在 5 分鐘觸發 20 次拒絕時告警。
 - 任一 `AUDIT_WRITE_FAILED`、`PUBLIC_ORDER_EDGE_FAILED`、`ORDER_SESSION_EDGE_FAILED` 或 `HEALTH_CHECK_FAILED` 立即告警。
 - `/api/health` 連續三次非 200、Edge 5xx 比率超過 1%、P95 超過 1 秒時通知值班人員。
+- `/api/health` warm P75 超過 300 ms、order-session 超過 800 ms、order submission 超過 1.5 秒時告警；先分辨 `dbMs`、`turnstileMs` 與 `externalApiMs`，不要只看總時間。
+- Staff／Kitchen list warm P75 超過 1 秒、Merchant dashboard 超過 1.5 秒或單次 `dbQueryCount` 非預期上升時告警。
+- Runtime `DATABASE_CONNECTION_PROFILE` 任一必要布林值變為 false 時告警，但禁止輸出原始連線字串。
 - 監控 PostgreSQL CPU、連線、磁碟、WAL、備份、cron 執行與 `public_rate_limit_buckets`／`auth_sessions` 資料量。
 - 監控待確認訂單逾時率；異常升高通常表示攤位端離線或通知流程失效。
 

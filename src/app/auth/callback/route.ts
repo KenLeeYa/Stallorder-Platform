@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSession, setSessionCookies } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { resolveOAuthLinkProfile } from "@/lib/oauth-linking";
+import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { prisma } from "@/lib/prisma";
 import { createRequestId, hashClientIp, sanitizeRedirectPath } from "@/lib/security";
 import { createSupabaseAuthClient } from "@/lib/supabase-auth";
@@ -25,17 +26,22 @@ function cleanAvatarUrl(value: unknown) {
 
 export async function GET(request: Request) {
   const requestId = createRequestId();
+  const timing = createPerformanceTiming({ route: "/auth/callback", requestId });
+  const finalize = <T extends Response>(response: T) => finalizePerformanceResponse(response, timing);
   const requestUrl = new URL(request.url);
   const appOrigin = process.env.NEXT_PUBLIC_APP_URL
     ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin
     : requestUrl.origin;
   const code = requestUrl.searchParams.get("code");
   const requestedNext = sanitizeRedirectPath(requestUrl.searchParams.get("next"), "");
-  if (!code) return NextResponse.redirect(`${appOrigin}/login?oauthError=callback-failed`);
+  if (!code) return finalize(NextResponse.redirect(`${appOrigin}/login?oauthError=callback-failed`));
 
   try {
-    const supabase = await createSupabaseAuthClient();
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    const supabase = await timing.measure("sessionMs", () => createSupabaseAuthClient());
+    const { data, error } = await timing.measure(
+      "externalApiMs",
+      () => supabase.auth.exchangeCodeForSession(code),
+    );
     const authUser = data.user;
     const providers = Array.isArray(authUser?.app_metadata.providers)
       ? authUser.app_metadata.providers
@@ -45,7 +51,7 @@ export async function GET(request: Request) {
       throw new Error("OAUTH_IDENTITY_INVALID");
     }
 
-    const profile = await prisma.$transaction(async (transaction) => {
+    const profile = await timing.measureDb(() => prisma.$transaction(async (transaction) => {
       const [byAuthId, byEmail] = await Promise.all([
         transaction.profile.findUnique({ where: { authUserId: authUser.id } }),
         transaction.profile.findUnique({ where: { email } }),
@@ -74,15 +80,23 @@ export async function GET(request: Request) {
           lastLoginAt: new Date(),
         },
       });
-    });
+    }), 3);
 
-    const workspaces = await getWorkspaceAccess(profile.id, profile.platformRole);
+    const [workspaces, session] = await Promise.all([
+      timing.measureDb(
+        () => getWorkspaceAccess(profile.id, profile.platformRole),
+        3,
+      ),
+      timing.measure(
+        "sessionMs",
+        () => timing.measureDb(() => createSession(profile.id), 2),
+      ),
+    ]);
     const fallback = workspaces.length > 0 ? getDefaultWorkspacePath(workspaces) : "/onboarding?oauth=1";
     const next = requestedNext || fallback;
-    const session = await createSession(profile.id);
     const response = NextResponse.redirect(`${appOrigin}${next}`);
     setSessionCookies(response, session);
-    await recordAuditEvent({
+    await timing.measureDb(() => recordAuditEvent({
       organizationId: workspaces[0]?.id,
       stallId: workspaces[0]?.stalls[0]?.id,
       actorProfileId: profile.id,
@@ -91,10 +105,12 @@ export async function GET(request: Request) {
       outcome: "SUCCESS",
       requestId,
       ipHash: hashClientIp(request),
-    });
-    return response;
+    }));
+    return finalize(response);
   } catch (error) {
     const conflict = error instanceof Error && error.message === "OAUTH_ACCOUNT_CONFLICT";
-    return NextResponse.redirect(`${appOrigin}/login?oauthError=${conflict ? "account-conflict" : "callback-failed"}`);
+    return finalize(NextResponse.redirect(
+      `${appOrigin}/login?oauthError=${conflict ? "account-conflict" : "callback-failed"}`,
+    ));
   }
 }

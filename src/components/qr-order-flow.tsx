@@ -1,14 +1,21 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clock3, History, Minus, Plus, Send, ShieldCheck } from "lucide-react";
+import { ProductImage } from "@/components/product-image";
 import { QrLanguageSelector } from "@/components/qr-language-selector";
-import { TurnstileWidget } from "@/components/turnstile-widget";
 import { deliveryOrderMessages, localizedDeliveryOrderError } from "@/lib/delivery-order-i18n";
 import { formatMoney } from "@/lib/money";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
 import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeHeaders, publicEdgeUrl } from "@/lib/public-order-client";
 import { qrCartStorageKey, restoreQrCartDraft, serializeQrCartDraft } from "@/lib/qr-cart";
+import type {
+  PublicMenu,
+  PublicMenuNoteGroup as NoteGroup,
+  PublicMenuNoteOption as NoteOption,
+  PublicMenuProduct as Product,
+} from "@/lib/public-menu-types";
 import {
   isQrLocale,
   localizedPublicOrderError,
@@ -16,72 +23,36 @@ import {
   QR_LOCALES,
   QR_LOCALE_STORAGE_KEY,
   qrOrderMessages,
+  preserveSupportedQrLocale,
   resolvePreferredQrLocale,
   type QrLocale,
 } from "@/lib/qr-order-i18n";
 
-type NoteOption = {
-  id: string;
-  name: string;
-  priceDelta: number;
-  sortOrder: number;
-  translations: Array<{ locale: string; name: string }>;
-};
-type NoteGroup = {
-  id: string;
-  name: string;
-  selectionMode: "SINGLE" | "MULTIPLE";
-  isRequired: boolean;
-  minSelections: number;
-  maxSelections: number | null;
-  sortOrder: number;
-  translations: Array<{ locale: string; name: string }>;
-  options: NoteOption[];
-};
+const TurnstileWidget = dynamic(
+  () => import("@/components/turnstile-widget").then((module) => module.TurnstileWidget),
+  { ssr: false, loading: () => <div className="min-h-16 w-full" aria-hidden="true" /> },
+);
 
-type Product = {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  category: string;
-  imageUrl: string | null;
-  translations: Array<{ locale: string; name: string; description: string }>;
-  noteGroups: NoteGroup[];
-};
-
-type OrderSession = {
+type OrderSession = PublicMenu & {
   orderSessionToken: string;
   expiresAt: string;
-  stall: {
-    name: string;
-    slug: string;
-    location: string;
-    currency: string;
-    fulfillmentType: "TAKEOUT" | "DINE_IN" | "DELIVERY";
-    table: { id: string; code: string; label: string } | null;
-  };
-  products: Product[];
-  supportedLocales: string[];
-  estimatedWaitMinutes: number;
-  lastTableOrderAt: string | null;
-  limits: {
-    maxItemQuantity: number;
-    maxUniqueProducts: number;
-    maxTotalQuantity: number;
-    maxNoteLength: number;
-  };
 };
 
-type Props = { qrToken: string; orderingMode?: "DEFAULT" | "DELIVERY" };
+type Props = {
+  qrToken: string;
+  orderingMode?: "DEFAULT" | "DELIVERY";
+  initialMenu?: PublicMenu | null;
+};
 
 class LocalizedOrderError extends Error {}
 
-export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
+export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = null }: Props) {
   const startedRef = useRef(false);
   const idempotencyRef = useRef<{ key: string; fingerprint: string } | null>(null);
   const [deviceId, setDeviceId] = useState("");
-  const [session, setSession] = useState<OrderSession | null>(null);
+  const [session, setSession] = useState<OrderSession | null>(initialMenu
+    ? { ...initialMenu, orderSessionToken: "", expiresAt: "" }
+    : null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [noteSelections, setNoteSelections] = useState<Record<string, string[]>>({});
   const [customerName, setCustomerName] = useState("");
@@ -90,8 +61,9 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
   const [customerNote, setCustomerNote] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [turnstileRequested, setTurnstileRequested] = useState(false);
   const [message, setMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!initialMenu);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
   const [locale, setLocale] = useState<QrLocale>("zh-TW");
@@ -99,6 +71,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
   const [cartRestored, setCartRestored] = useState(false);
   const copy = qrOrderMessages[locale];
   const deliveryCopy = deliveryOrderMessages[locale];
+  const sessionReady = Boolean(session?.orderSessionToken && session.expiresAt);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -119,7 +92,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
     void fetch(publicEdgeUrl("create-order-session"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...publicEdgeHeaders() },
-      body: JSON.stringify({ qrToken, deviceId: currentDeviceId, orderingMode }),
+      body: JSON.stringify({ qrToken, deviceId: currentDeviceId, orderingMode, includeMenu: !initialMenu }),
       cache: "no-store",
     }).then(async (response) => {
       const payload = await parseEdgeResponse(response);
@@ -135,15 +108,14 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
         window.location.replace(`/order/${encodeURIComponent(trackingToken)}`);
         return;
       }
-      const orderSession = payload as unknown as OrderSession;
-      const availableLocales = new Set<QrLocale>(["zh-TW"]);
-      orderSession.supportedLocales.forEach((supportedLocale) => {
-        if (isQrLocale(supportedLocale)) availableLocales.add(supportedLocale);
-      });
-      const selectedLocale = storedLocale && availableLocales.has(storedLocale)
-        ? storedLocale
-        : resolvePreferredQrLocale(preferredLocales, orderSession.supportedLocales);
-      setLocale(selectedLocale);
+      const orderSession = initialMenu
+        ? { ...initialMenu, ...payload } as OrderSession
+        : payload as unknown as OrderSession;
+      setLocale((currentLocale) => preserveSupportedQrLocale(
+        currentLocale,
+        preferredLocales,
+        orderSession.supportedLocales,
+      ));
       try {
         const restored = restoreQrCartDraft(
           window.localStorage.getItem(qrCartStorageKey(qrToken, orderingMode)),
@@ -167,14 +139,14 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
     }).catch((error: unknown) => {
       setMessage(error instanceof LocalizedOrderError ? error.message : qrOrderMessages[browserLocale].networkError);
     }).finally(() => setIsLoading(false));
-  }, [orderingMode, qrToken]);
+  }, [initialMenu, orderingMode, qrToken]);
 
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
 
   useEffect(() => {
-    if (!session) return;
+    if (!session?.expiresAt) return;
     const updateRemaining = () => {
       setSecondsRemaining(Math.max(0, Math.ceil((new Date(session.expiresAt).getTime() - Date.now()) / 1000)));
     };
@@ -252,6 +224,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
       setMessage(copy.quantityLimit);
       return;
     }
+    if (next > 0) setTurnstileRequested(true);
     setMessage("");
     setQuantities((values) => ({ ...values, [productId]: Math.max(0, next) }));
     if (next <= 0) {
@@ -272,8 +245,8 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
   }
 
   async function submitOrder() {
-    if (!session || !deviceId || !turnstileToken || selectedItems.length === 0) {
-      setMessage(!turnstileToken ? copy.securityRequired : copy.selectAtLeastOne);
+    if (!sessionReady || !session || !deviceId || !turnstileToken || selectedItems.length === 0) {
+      setMessage(!sessionReady ? copy.sessionLoading : !turnstileToken ? copy.securityRequired : copy.selectAtLeastOne);
       return;
     }
     if (secondsRemaining <= 0) {
@@ -372,7 +345,9 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
         <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? copy.dineIn(session.stall.table?.label ?? "") : session.stall.fulfillmentType === "DELIVERY" ? deliveryCopy.delivery : copy.takeout}</p>
         <div className="mt-3 inline-flex items-center gap-2 text-sm text-stone-600">
           <Clock3 className="h-4 w-4" />
-          {copy.timeRemaining(Math.floor(secondsRemaining / 60), String(secondsRemaining % 60).padStart(2, "0"))}
+          {sessionReady
+            ? copy.timeRemaining(Math.floor(secondsRemaining / 60), String(secondsRemaining % 60).padStart(2, "0"))
+            : copy.sessionLoading}
         </div>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-y border-stone-200 py-3 text-sm text-stone-700">
           <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{copy.estimatedWait(session.estimatedWaitMinutes)}</span>
@@ -388,7 +363,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
                 {session.products.filter((product) => product.category === category).map((product) => (
                   <article key={product.id} className="rounded-lg border border-stone-200 bg-white p-4">
                     <div className="flex items-center gap-4">
-                      {product.imageUrl ? <div role="img" aria-label={copy.productImage(localizedProduct(product).name)} className="h-20 w-20 shrink-0 rounded-md bg-cover bg-center" style={{ backgroundImage: `url("${product.imageUrl.replaceAll('"', "%22")}")` }} /> : null}
+                      {product.imageUrl ? <ProductImage src={product.imageUrl} alt={copy.productImage(localizedProduct(product).name)} width={80} height={80} sizes="80px" className="h-20 w-20 shrink-0 rounded-md object-cover" /> : null}
                       <div className="min-w-0 flex-1">
                         <h3 className="font-semibold">{localizedProduct(product).name}</h3>
                         <p className="mt-1 text-sm leading-6 text-stone-600">{localizedProduct(product).description}</p>
@@ -449,16 +424,18 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT" }: Props) {
           <span className="text-sm text-stone-600">{copy.itemCount(totalQuantity)}</span>
           <strong>{formatMoney(total, session.stall.currency, locale)}</strong>
         </div>
-        <div className="mt-4">
-          <TurnstileWidget
-            resetKey={turnstileResetKey}
-            locale={locale}
-            label={copy.securityVerification}
-            missingKeyMessage={copy.securityNotConfigured}
-            onToken={handleTurnstileToken}
-          />
+        <div className="mt-4 min-h-16">
+          {turnstileRequested ? (
+            <TurnstileWidget
+              resetKey={turnstileResetKey}
+              locale={locale}
+              label={copy.securityVerification}
+              missingKeyMessage={copy.securityNotConfigured}
+              onToken={handleTurnstileToken}
+            />
+          ) : null}
         </div>
-        <button type="button" disabled={isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0} onClick={submitOrder} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" disabled={!sessionReady || isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0} onClick={submitOrder} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-4 w-4" />
           {isSubmitting ? copy.submitting : copy.submitOrder}
         </button>

@@ -4,6 +4,7 @@ export const issueOrderSessionSchema = z.object({
   qrToken: z.string().trim().min(24).max(200),
   deviceId: z.string().uuid(),
   orderingMode: z.enum(["DEFAULT", "DELIVERY"]).default("DEFAULT"),
+  includeMenu: z.boolean().default(true),
 });
 
 export const createPublicOrderSchema = z.object({

@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { getOrganizationProductNotes } from "@/lib/product-note-data";
 import { productNoteCommandSchema } from "@/lib/product-note-validation";
 import { hashClientIp } from "@/lib/security";
+import { invalidatePublicMenus } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ organizationId: string }> };
 
@@ -208,6 +209,7 @@ export async function POST(request: Request, context: RouteContext) {
       after: toAuditJson(command),
       metadata: "productIds" in command ? { assignedProductCount: command.productIds.length } : undefined,
     });
+    invalidatePublicMenus(authorization.workspace.stalls.map((stall) => stall.id));
 
     return NextResponse.json(
       { noteGroups: await getOrganizationProductNotes(organizationId) },

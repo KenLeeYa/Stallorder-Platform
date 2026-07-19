@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
-import { createOptionalSupabaseBrowserClient, isSupabaseBrowserConfigured } from "@/lib/supabase-browser";
 
 type StallOption = {
   id: string;
@@ -105,13 +104,12 @@ export function MultiStallDashboard({
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("sales");
-  const [realtimeState, setRealtimeState] = useState<RealtimeState>(() => (
-    isSupabaseBrowserConfigured() ? "CONNECTING" : "FALLBACK"
-  ));
+  const [realtimeState, setRealtimeState] = useState<RealtimeState>("CONNECTING");
   const [pendingBatchAction, setPendingBatchAction] = useState<BatchAction | null>(null);
   const [batchRunning, setBatchRunning] = useState(false);
   const [controlMessage, setControlMessage] = useState("");
   const [updatingAlertId, setUpdatingAlertId] = useState<string | null>(null);
+  const overviewReady = overview !== null;
 
   const loadOverview = useCallback(async (quiet = false) => {
     if (selectedStallIds.length === 0) {
@@ -152,42 +150,56 @@ export function MultiStallDashboard({
   }, [loadOverview]);
 
   useEffect(() => {
-    const supabase = createOptionalSupabaseBrowserClient();
-    if (!supabase) return;
-
-    const channel = supabase
-      .channel(`organization:${organizationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "operational_events",
-          filter: `organization_id=eq.${organizationId}`,
-        },
-        () => void loadOverview(true),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "operational_alerts",
-          filter: `organization_id=eq.${organizationId}`,
-        },
-        () => void loadOverview(true),
-      )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") setRealtimeState("LIVE");
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+    if (!overviewReady) return;
+    let disposed = false;
+    let removeChannel: (() => void) | null = null;
+    const connectTimer = window.setTimeout(() => {
+      void import("@/lib/supabase-browser").then(({ createOptionalSupabaseBrowserClient }) => {
+        if (disposed) return;
+        const supabase = createOptionalSupabaseBrowserClient();
+        if (!supabase) {
           setRealtimeState("FALLBACK");
+          return;
         }
+        const channel = supabase
+          .channel(`organization:${organizationId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "operational_events",
+              filter: `organization_id=eq.${organizationId}`,
+            },
+            () => void loadOverview(true),
+          )
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "operational_alerts",
+              filter: `organization_id=eq.${organizationId}`,
+            },
+            () => void loadOverview(true),
+          )
+          .subscribe((status) => {
+            if (status === "SUBSCRIBED") setRealtimeState("LIVE");
+            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+              setRealtimeState("FALLBACK");
+            }
+          });
+        removeChannel = () => void supabase.removeChannel(channel);
+      }).catch(() => {
+        if (!disposed) setRealtimeState("FALLBACK");
       });
-
+    }, 500);
     return () => {
-      void supabase.removeChannel(channel);
+      disposed = true;
+      window.clearTimeout(connectTimer);
+      removeChannel?.();
     };
-  }, [loadOverview, organizationId]);
+  }, [loadOverview, organizationId, overviewReady]);
 
   async function executeBatchAction() {
     if (!pendingBatchAction || selectedStallIds.length === 0) return;
@@ -299,7 +311,7 @@ export function MultiStallDashboard({
 
       {error ? <div role="alert" className="mt-5 flex items-center gap-2 border-y border-red-200 py-3 text-sm font-medium text-red-800"><CircleAlert className="h-4 w-4" />{error}</div> : null}
       {controlMessage ? <p role="status" className="mt-4 border-y border-stone-200 py-3 text-sm font-medium text-stone-700">{controlMessage}</p> : null}
-      {loading && !overview ? <p className="py-12 text-center text-sm text-stone-500">正在載入營運資料...</p> : null}
+      {loading && !overview ? <DashboardDataSkeleton /> : null}
 
       {overview?.alerts.length ? (
         <section className="border-b border-stone-200 py-5" aria-labelledby="operational-alerts-title">
@@ -363,6 +375,20 @@ export function MultiStallDashboard({
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return <div className="flex min-h-28 items-center gap-3 border-t border-stone-200 py-5 first:border-t-0 sm:px-4 lg:border-t-0 lg:border-r lg:last:border-r-0">{<span className="text-teal-700 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>}<div><div className="text-sm text-stone-500">{label}</div><div className="mt-1 text-xl font-semibold">{value}</div></div></div>;
+}
+
+function DashboardDataSkeleton() {
+  return (
+    <section aria-busy="true" className="grid border-b border-stone-200 py-5 sm:grid-cols-2 lg:grid-cols-4">
+      <span className="sr-only">正在載入營運資料</span>
+      {Array.from({ length: 8 }, (_, index) => (
+        <div key={index} className="min-h-28 animate-pulse border-t border-stone-200 py-5 sm:px-4 lg:border-t-0">
+          <div className="h-3 w-20 rounded bg-stone-200" />
+          <div className="mt-3 h-7 w-28 rounded bg-stone-100" />
+        </div>
+      ))}
+    </section>
+  );
 }
 
 function MobileMetric({ label, value }: { label: string; value: string }) {

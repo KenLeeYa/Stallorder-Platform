@@ -8,6 +8,7 @@ import { initialFloorPosition } from "@/lib/dining-floor-layout";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp, createOpaqueToken } from "@/lib/security";
 import { getStallModuleState, stallModuleCommandSchema } from "@/lib/stall-modules";
+import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ stallId: string }> };
 
@@ -35,6 +36,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   const organizationId = authorization.workspace.id;
   const command = parsed.data;
   try {
+    const qrTokensBefore = await prisma.qrCode.findMany({
+      where: { stallId, organizationId },
+      select: { token: true },
+    });
     const entityId = await prisma.$transaction(async (transaction) => {
       if (command.operation === "UPDATE_MODULES") {
         await transaction.stallOrderingSettings.update({
@@ -130,17 +135,27 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
 
       if (command.operation === "UPDATE_TABLE_LAYOUT") {
-        const tableIds = command.tables.map((table) => table.tableId);
-        const ownedTableCount = await transaction.diningTable.count({
-          where: { id: { in: tableIds }, stallId, organizationId },
-        });
-        if (ownedTableCount !== tableIds.length) throw new ModuleNotFoundError();
-        for (const table of command.tables) {
-          await transaction.diningTable.update({
-            where: { id: table.tableId },
-            data: { layoutX: table.layoutX, layoutY: table.layoutY },
-          });
-        }
+        const layouts = command.tables.map((table) => ({
+          table_id: table.tableId,
+          layout_x: table.layoutX,
+          layout_y: table.layoutY,
+        }));
+        const updatedCount = await transaction.$executeRaw(Prisma.sql`
+          update public.dining_tables as dining_table
+          set
+            layout_x = layout.layout_x,
+            layout_y = layout.layout_y,
+            updated_at = now()
+          from jsonb_to_recordset(${JSON.stringify(layouts)}::jsonb) as layout(
+            table_id uuid,
+            layout_x smallint,
+            layout_y smallint
+          )
+          where dining_table.id = layout.table_id
+            and dining_table.stall_id = ${stallId}::uuid
+            and dining_table.organization_id = ${organizationId}::uuid
+        `);
+        if (updatedCount !== command.tables.length) throw new ModuleNotFoundError();
         return stallId;
       }
 
@@ -225,6 +240,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       ipHash: hashClientIp(request),
       metadata: { operation: command.operation },
     });
+    invalidatePublicMenu(stallId);
+    for (const qrCode of qrTokensBefore) invalidatePublicQrToken(qrCode.token);
     return NextResponse.json(
       { state: await getStallModuleState(stallId, organizationId) },
       { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
