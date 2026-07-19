@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-18T22:18:53.595Z",
+  "phase": "production-domain-dns-failure",
+  "sourceRevision": "d62dd89f6760285f34ce41306263c16256459183",
+  "functionRegion": "iad1",
+  "targetOrigin": "https://app.qidaigo.com",
+  "requestRuns": 3,
+  "authentication": "not_provided",
+  "deploymentProtectionBypass": "not_provided",
+  "deploymentProtectionTrustedOidc": "not_provided",
+  "deploymentProtectionShare": "not_provided",
+  "privacy": {
+    "responseBodiesStored": false,
+    "credentialsStored": false,
+    "cookiesStored": false,
+    "rawQrTokensStored": false
+  },
+  "methodology": {
+    "coldLike": "每條路由的第一個要求帶 Cache-Control: no-cache；不保證觸發真正的 Serverless cold start。",
+    "warm": "同一程序內重複要求，統計最小值、中位數、P75、P95 與最大值。",
+    "mobileNetwork": "合成 Android 行動網路：80ms RTT、4 Mbps 下載、1.5 Mbps 上傳。",
+    "browserTrace": "Playwright Navigation/Resource Timing；未保存頁面內容。",
+    "networkTiming": "每條路由使用獨立 keep-alive agent；第一筆通常可量到 DNS、TCP 與 TLS，重用連線時保留為 null。"
+  },
+  "routes": [
+    {
+      "route": "/",
+      "status": "measured",
+      "httpStatus": null,
+      "redirectLocationPresent": false,
+      "coldLike": {
+        "kind": "cold_like",
+        "error": "getaddrinfo EAI_AGAIN app.qidaigo.com"
+      },
+      "warm": {
+        "sampleCount": 0,
+        "statusCodes": [],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": null,
+        "totalMs": null,
+        "responseBytes": null,
+        "serverTiming": null,
+        "cacheStatuses": [],
+        "vercelEdgePops": [],
+        "errors": 2
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "error": "Error"
+          },
+          "android_mobile_synthetic_tw": {
+            "error": "Error"
+          }
+        }
+      },
+      "budget": {
+        "ttfbP75Ms": 300
+      },
+      "budgetWarnings": [
+        "cold-like HTTP 要求失敗",
+        "2 筆 warm HTTP 要求失敗",
+        "desktop 瀏覽器量測失敗",
+        "android_mobile_synthetic_tw 瀏覽器量測失敗"
+      ]
+    },
+    {
+      "route": "/login",
+      "status": "measured",
+      "httpStatus": null,
+      "redirectLocationPresent": false,
+      "coldLike": {
+        "kind": "cold_like",
+        "error": "getaddrinfo ENOTFOUND app.qidaigo.com"
+      },
+      "warm": {
+        "sampleCount": 0,
+        "statusCodes": [],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": null,
+        "totalMs": null,
+        "responseBytes": null,
+        "serverTiming": null,
+        "cacheStatuses": [],
+        "vercelEdgePops": [],
+        "errors": 2
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "error": "Error"
+          },
+          "android_mobile_synthetic_tw": {
+            "error": "Error"
+          }
+        }
+      },
+      "budget": {
+        "ttfbP75Ms": 500
+      },
+      "budgetWarnings": [
+        "cold-like HTTP 要求失敗",
+        "2 筆 warm HTTP 要求失敗",
+        "desktop 瀏覽器量測失敗",
+        "android_mobile_synthetic_tw 瀏覽器量測失敗"
+      ]
+    },
+    {
+      "route": "/onboarding",
+      "status": "measured",
+      "httpStatus": null,
+      "redirectLocationPresent": false,
+      "coldLike": {
+        "kind": "cold_like",
+        "error": "getaddrinfo ENOTFOUND app.qidaigo.com"
+      },
+      "warm": {
+        "sampleCount": 0,
+        "statusCodes": [],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": null,
+        "totalMs": null,
+        "responseBytes": null,
+        "serverTiming": null,
+        "cacheStatuses": [],
+        "vercelEdgePops": [],
+        "errors": 2
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "error": "Error"
+          },
+          "android_mobile_synthetic_tw": {
+            "error": "Error"
+          }
+        }
+      },
+      "budget": null,
+      "budgetWarnings": [
+        "cold-like HTTP 要求失敗",
+        "2 筆 warm HTTP 要求失敗",
+        "desktop 瀏覽器量測失敗",
+        "android_mobile_synthetic_tw 瀏覽器量測失敗"
+      ]
+    },
+    {
+      "route": "/api/health",
+      "status": "measured",
+      "httpStatus": null,
+      "redirectLocationPresent": false,
+      "coldLike": {
+        "kind": "cold_like",
+        "error": "getaddrinfo ENOTFOUND app.qidaigo.com"
+      },
+      "warm": {
+        "sampleCount": 0,
+        "statusCodes": [],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": null,
+        "totalMs": null,
+        "responseBytes": null,
+        "serverTiming": null,
+        "cacheStatuses": [],
+        "vercelEdgePops": [],
+        "errors": 2
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "error": "Error"
+          },
+          "android_mobile_synthetic_tw": {
+            "error": "Error"
+          }
+        }
+      },
+      "budget": {
+        "totalP75Ms": 300
+      },
+      "budgetWarnings": [
+        "cold-like HTTP 要求失敗",
+        "2 筆 warm HTTP 要求失敗",
+        "desktop 瀏覽器量測失敗",
+        "android_mobile_synthetic_tw 瀏覽器量測失敗"
+      ]
+    },
+    {
+      "route": "/q/:qrToken",
+      "status": "skipped",
+      "reason": "未提供 PERFORMANCE_QR_TOKEN"
+    },
+    {
+      "route": "/staff/orders",
+      "status": "measured",
+      "httpStatus": null,
+      "redirectLocationPresent": false,
+      "coldLike": {
+        "kind": "cold_like",
+        "error": "getaddrinfo EAI_AGAIN app.qidaigo.com"
+      },
+      "warm": {
+        "sampleCount": 0,
+        "statusCodes": [],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": null,
+        "totalMs": null,
+        "responseBytes": null,
+        "serverTiming": null,
+        "cacheStatuses": [],
+        "vercelEdgePops": [],
+        "errors": 2
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "error": "Error"
+          },
+          "android_mobile_synthetic_tw": {
+            "error": "Error"
+          }
+        }
+      },
+      "budget": {
+        "totalP75Ms": 1000
+      },
+      "budgetWarnings": [
+        "cold-like HTTP 要求失敗",
+        "2 筆 warm HTTP 要求失敗",
+        "desktop 瀏覽器量測失敗",
+        "android_mobile_synthetic_tw 瀏覽器量測失敗"
+      ]
+    },
+    {
+      "route": "/merchant/dashboard",
+      "status": "measured",
+      "httpStatus": null,
+      "redirectLocationPresent": false,
+      "coldLike": {
+        "kind": "cold_like",
+        "error": "getaddrinfo ENOTFOUND app.qidaigo.com"
+      },
+      "warm": {
+        "sampleCount": 0,
+        "statusCodes": [],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": null,
+        "totalMs": null,
+        "responseBytes": null,
+        "serverTiming": null,
+        "cacheStatuses": [],
+        "vercelEdgePops": [],
+        "errors": 2
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "error": "Error"
+          },
+          "android_mobile_synthetic_tw": {
+            "error": "Error"
+          }
+        }
+      },
+      "budget": {
+        "totalP75Ms": 1500
+      },
+      "budgetWarnings": [
+        "cold-like HTTP 要求失敗",
+        "2 筆 warm HTTP 要求失敗",
+        "desktop 瀏覽器量測失敗",
+        "android_mobile_synthetic_tw 瀏覽器量測失敗"
+      ]
+    }
+  ],
+  "warnings": [
+    "/: cold-like HTTP 要求失敗",
+    "/: 2 筆 warm HTTP 要求失敗",
+    "/: desktop 瀏覽器量測失敗",
+    "/: android_mobile_synthetic_tw 瀏覽器量測失敗",
+    "/login: cold-like HTTP 要求失敗",
+    "/login: 2 筆 warm HTTP 要求失敗",
+    "/login: desktop 瀏覽器量測失敗",
+    "/login: android_mobile_synthetic_tw 瀏覽器量測失敗",
+    "/onboarding: cold-like HTTP 要求失敗",
+    "/onboarding: 2 筆 warm HTTP 要求失敗",
+    "/onboarding: desktop 瀏覽器量測失敗",
+    "/onboarding: android_mobile_synthetic_tw 瀏覽器量測失敗",
+    "/api/health: cold-like HTTP 要求失敗",
+    "/api/health: 2 筆 warm HTTP 要求失敗",
+    "/api/health: desktop 瀏覽器量測失敗",
+    "/api/health: android_mobile_synthetic_tw 瀏覽器量測失敗",
+    "/staff/orders: cold-like HTTP 要求失敗",
+    "/staff/orders: 2 筆 warm HTTP 要求失敗",
+    "/staff/orders: desktop 瀏覽器量測失敗",
+    "/staff/orders: android_mobile_synthetic_tw 瀏覽器量測失敗",
+    "/merchant/dashboard: cold-like HTTP 要求失敗",
+    "/merchant/dashboard: 2 筆 warm HTTP 要求失敗",
+    "/merchant/dashboard: desktop 瀏覽器量測失敗",
+    "/merchant/dashboard: android_mobile_synthetic_tw 瀏覽器量測失敗"
+  ]
+}

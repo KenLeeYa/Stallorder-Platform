@@ -14,7 +14,6 @@ import { canTransitionOrderItem } from "@/lib/order-item-status";
 import { orderItemStatusLabels, orderStatusLabels, paymentStatusLabels, staffStatusOptions, type StaffOrderDto } from "@/lib/orders";
 import { isCompletePickupCode, normalizePickupCode } from "@/lib/pickup-code";
 import { canTransitionOrder, hasPermission, roleLabels } from "@/lib/rbac";
-import { createOptionalSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
 
 type OrderWithItems = StaffOrderDto;
@@ -494,11 +493,13 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
 
   useEffect(() => {
     let eventSource: EventSource | null = null;
-    const supabase = createOptionalSupabaseBrowserClient();
     let realtimeConnected = false;
     let sseConnected = false;
+    let realtimeLoadStarted = false;
+    let removeRealtimeChannel: (() => void) | null = null;
     let fallbackTimer: number | null = null;
     let fallbackStatusTimer: number | null = null;
+    let disposed = false;
 
     const refreshSilently = () => void refreshOrders(true);
     const stopFallback = () => {
@@ -526,11 +527,56 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") refreshSilently();
     };
+    const stopRealtime = () => {
+      removeRealtimeChannel?.();
+      removeRealtimeChannel = null;
+      realtimeConnected = false;
+      realtimeLoadStarted = false;
+    };
+    const startRealtimeFallback = async () => {
+      if (disposed || sseConnected || realtimeLoadStarted) return;
+      realtimeLoadStarted = true;
+      try {
+        const { createOptionalSupabaseBrowserClient } = await import("@/lib/supabase-browser");
+        if (disposed || sseConnected) return;
+        const supabase = createOptionalSupabaseBrowserClient();
+        if (!supabase) return;
+        const channel = supabase
+          .channel(`stall:${stall.id}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "operational_events",
+              filter: `stall_id=eq.${stall.id}`,
+            },
+            refreshSilently,
+          )
+          .subscribe((status) => {
+            if (status === "SUBSCRIBED") {
+              realtimeConnected = true;
+              stopFallback();
+              setLiveConnection("connected");
+              refreshSilently();
+            }
+            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+              realtimeConnected = false;
+              if (!sseConnected) startFallback();
+            }
+          });
+        removeRealtimeChannel = () => void supabase.removeChannel(channel);
+      } catch {
+        realtimeLoadStarted = false;
+        if (!sseConnected) startFallback();
+      }
+    };
 
     if ("EventSource" in window) {
       eventSource = new EventSource(`/api/stalls/${stall.slug}/orders/stream`);
       eventSource.onopen = () => {
         sseConnected = true;
+        stopRealtime();
         stopFallback();
         setLiveConnection("connected");
         refreshSilently();
@@ -538,42 +584,22 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
       eventSource.addEventListener("orders", refreshSilently);
       eventSource.onerror = () => {
         sseConnected = false;
-        if (!realtimeConnected) startFallback();
+        if (!realtimeConnected) {
+          void startRealtimeFallback();
+          startFallback();
+        }
       };
     } else {
+      void startRealtimeFallback();
       startFallback();
     }
-
-    const realtimeChannel = supabase
-      ?.channel(`stall:${stall.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "operational_events",
-          filter: `stall_id=eq.${stall.id}`,
-        },
-        refreshSilently,
-      )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          realtimeConnected = true;
-          stopFallback();
-          setLiveConnection("connected");
-          refreshSilently();
-        }
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-          realtimeConnected = false;
-          if (!sseConnected) startFallback();
-        }
-      });
 
     const safetyTimer = window.setInterval(refreshSilently, 30_000);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
+      disposed = true;
       eventSource?.close();
-      if (supabase && realtimeChannel) void supabase.removeChannel(realtimeChannel);
+      stopRealtime();
       stopFallback();
       window.clearInterval(safetyTimer);
       document.removeEventListener("visibilitychange", handleVisibilityChange);

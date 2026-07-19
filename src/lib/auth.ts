@@ -3,6 +3,7 @@ import "server-only";
 import type { NextResponse } from "next/server";
 import type { UserRole } from "@prisma/client";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { createOpaqueToken, getCookieValue, hashToken } from "@/lib/security";
 
@@ -52,10 +53,10 @@ export async function getRequestPrincipal(request: Request) {
   return findPrincipal(getCookieValue(request, SESSION_COOKIE));
 }
 
-export async function getPagePrincipal() {
+export const getPagePrincipal = cache(async function getPagePrincipal() {
   const cookieStore = await cookies();
   return findPrincipal(cookieStore.get(SESSION_COOKIE)?.value ?? null);
-}
+});
 
 export async function createSession(profileId: string) {
   const token = createOpaqueToken();

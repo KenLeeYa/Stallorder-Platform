@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
+import { invalidatePublicMenus } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ organizationId: string }> };
 
@@ -367,6 +368,7 @@ export async function POST(request: Request, context: RouteContext) {
       after,
       metadata: "stallIds" in command ? { assignedStallCount: command.stallIds.length } : undefined,
     });
+    invalidatePublicMenus(authorizedStallIds);
 
     return NextResponse.json(
       { catalog: await getOrganizationCatalog(organizationId, authorizedStallIds) },

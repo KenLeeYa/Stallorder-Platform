@@ -7,6 +7,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { readJson } from "@/lib/http";
 import { validateCsrf } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
+import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp, isTrustedOrigin } from "@/lib/security";
 
@@ -20,8 +21,21 @@ const onboardingSchema = z.object({
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
+  const timing = createPerformanceTiming({ route: "/api/onboarding", requestId });
+  const response = await handlePost(request, requestId, timing);
+  return finalizePerformanceResponse(response, timing);
+}
+
+async function handlePost(
+  request: Request,
+  requestId: string,
+  timing: ReturnType<typeof createPerformanceTiming>,
+) {
   const ipHash = hashClientIp(request);
-  const principal = await getRequestPrincipal(request);
+  const principal = await timing.measure(
+    "sessionMs",
+    () => timing.measureDb(() => getRequestPrincipal(request)),
+  );
   if (!isTrustedOrigin(request)) {
     return NextResponse.json(
       { error: "無法驗證申請來源。" },
@@ -41,20 +55,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const rateLimit = await checkRateLimit({
+  const rateLimit = await timing.measureDb(() => checkRateLimit({
     scope: "merchant-onboarding",
     identifier: ipHash,
     limit: 5,
     windowMs: 60 * 60_000,
-  });
+  }));
   if (!rateLimit.allowed) {
-    await recordAuditEvent({
+    await timing.measureDb(() => recordAuditEvent({
       action: "RATE_LIMIT_HIT",
       entityType: "ONBOARDING",
       outcome: "DENIED",
       requestId,
       ipHash,
-    });
+    }));
     return NextResponse.json(
       { error: "申請次數過多，請稍後再試。" },
       {
@@ -76,7 +90,7 @@ export async function POST(request: Request) {
 
   const data = parsed.data;
   try {
-    const result = await prisma.$transaction(async (transaction) => {
+    const result = await timing.measureDb(() => prisma.$transaction(async (transaction) => {
       const existingProfile = await transaction.profile.findUnique({ where: { id: principal.user.id } });
       if (!existingProfile?.isActive || existingProfile.authUserId !== principal.user.authUserId) {
         throw new Error("PROFILE_NOT_AVAILABLE");
@@ -177,7 +191,7 @@ export async function POST(request: Request) {
         },
       });
       return { organization, stall, profile: existingProfile };
-    });
+    }), 11);
 
     const response = NextResponse.json(
       {
@@ -186,7 +200,7 @@ export async function POST(request: Request) {
       },
       { status: 201, headers: { "x-request-id": requestId } },
     );
-    await recordAuditEvent({
+    await timing.measureDb(() => recordAuditEvent({
       organizationId: result.organization.id,
       action: "MERCHANT_ONBOARDING_COMPLETED",
       entityType: "STALL",
@@ -196,7 +210,7 @@ export async function POST(request: Request) {
       stallId: result.stall.id,
       actorProfileId: result.profile.id,
       ipHash,
-    });
+    }));
     return response;
   } catch (error) {
     const conflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";

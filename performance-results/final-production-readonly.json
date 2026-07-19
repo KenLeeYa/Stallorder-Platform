@@ -1,0 +1,690 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-18T22:19:11.040Z",
+  "phase": "final-production-readonly",
+  "sourceRevision": "d62dd89f6760285f34ce41306263c16256459183",
+  "functionRegion": "iad1",
+  "targetOrigin": "https://stallorder-platform.vercel.app",
+  "requestRuns": 6,
+  "authentication": "not_provided",
+  "deploymentProtectionBypass": "not_provided",
+  "deploymentProtectionTrustedOidc": "not_provided",
+  "deploymentProtectionShare": "not_provided",
+  "privacy": {
+    "responseBodiesStored": false,
+    "credentialsStored": false,
+    "cookiesStored": false,
+    "rawQrTokensStored": false
+  },
+  "methodology": {
+    "coldLike": "每條路由的第一個要求帶 Cache-Control: no-cache；不保證觸發真正的 Serverless cold start。",
+    "warm": "同一程序內重複要求，統計最小值、中位數、P75、P95 與最大值。",
+    "mobileNetwork": "合成 Android 行動網路：80ms RTT、4 Mbps 下載、1.5 Mbps 上傳。",
+    "browserTrace": "Playwright Navigation/Resource Timing；未保存頁面內容。",
+    "networkTiming": "每條路由使用獨立 keep-alive agent；第一筆通常可量到 DNS、TCP 與 TLS，重用連線時保留為 null。"
+  },
+  "routes": [
+    {
+      "route": "/",
+      "status": "measured",
+      "httpStatus": 200,
+      "redirectLocationPresent": false,
+      "coldLike": {
+        "kind": "cold_like",
+        "status": 200,
+        "dnsMs": 15,
+        "tcpMs": 8.2,
+        "tlsMs": 37.1,
+        "connectionMs": 60.3,
+        "ttfbMs": 1485.4,
+        "totalMs": 1494.6,
+        "responseBytes": 21975,
+        "htmlBytes": 21975,
+        "redirectLocationPresent": false,
+        "serverTiming": null,
+        "cacheHeaders": {
+          "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate",
+          "vercelCdnCacheControl": null,
+          "cdnCacheControl": null,
+          "age": "0",
+          "vercelCache": "MISS",
+          "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+          "setCookiePresent": false
+        },
+        "vercelCache": "MISS",
+        "vercelEdgePop": "hkg1"
+      },
+      "warm": {
+        "sampleCount": 5,
+        "statusCodes": [
+          200
+        ],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": {
+          "min": 250.1,
+          "median": 258.5,
+          "p75": 258.7,
+          "p95": 261.8,
+          "max": 262.6
+        },
+        "totalMs": {
+          "min": 251,
+          "median": 260.3,
+          "p75": 262.1,
+          "p95": 265.9,
+          "max": 266.8
+        },
+        "responseBytes": {
+          "min": 21975,
+          "median": 21975,
+          "p75": 21975,
+          "p95": 21975,
+          "max": 21975
+        },
+        "serverTiming": null,
+        "cacheStatuses": [
+          "MISS"
+        ],
+        "vercelEdgePops": [
+          "hkg1"
+        ],
+        "errors": 0
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "status": 200,
+            "ttfbMs": 20.3,
+            "totalMs": 720.1,
+            "fcpMs": null,
+            "lcpMs": null,
+            "htmlTransferBytes": 5395,
+            "javascriptTransferBytes": 159207,
+            "javascriptDecodedBytes": 526890,
+            "imageTransferBytes": 0,
+            "resourceCount": 12,
+            "scriptCount": 9,
+            "imageCount": 0,
+            "externalRequests": []
+          },
+          "android_mobile_synthetic_tw": {
+            "status": 200,
+            "ttfbMs": 19.6,
+            "totalMs": 924.3,
+            "fcpMs": 772,
+            "lcpMs": 772,
+            "htmlTransferBytes": 5395,
+            "javascriptTransferBytes": 159207,
+            "javascriptDecodedBytes": 526890,
+            "imageTransferBytes": 0,
+            "resourceCount": 12,
+            "scriptCount": 9,
+            "imageCount": 0,
+            "externalRequests": []
+          }
+        }
+      },
+      "budget": {
+        "ttfbP75Ms": 300
+      },
+      "budgetWarnings": []
+    },
+    {
+      "route": "/login",
+      "status": "measured",
+      "httpStatus": 200,
+      "redirectLocationPresent": false,
+      "coldLike": {
+        "kind": "cold_like",
+        "status": 200,
+        "dnsMs": 0.4,
+        "tcpMs": 5.1,
+        "tlsMs": 36.4,
+        "connectionMs": 41.8,
+        "ttfbMs": 305.1,
+        "totalMs": 306.8,
+        "responseBytes": 12490,
+        "htmlBytes": 12490,
+        "redirectLocationPresent": false,
+        "serverTiming": null,
+        "cacheHeaders": {
+          "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate",
+          "vercelCdnCacheControl": null,
+          "cdnCacheControl": null,
+          "age": "0",
+          "vercelCache": "MISS",
+          "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+          "setCookiePresent": false
+        },
+        "vercelCache": "MISS",
+        "vercelEdgePop": "hkg1"
+      },
+      "warm": {
+        "sampleCount": 5,
+        "statusCodes": [
+          200
+        ],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": {
+          "min": 242.7,
+          "median": 250.3,
+          "p75": 251.8,
+          "p95": 255,
+          "max": 255.8
+        },
+        "totalMs": {
+          "min": 244.6,
+          "median": 252.5,
+          "p75": 255,
+          "p95": 256.5,
+          "max": 256.9
+        },
+        "responseBytes": {
+          "min": 12490,
+          "median": 12490,
+          "p75": 12490,
+          "p95": 12490,
+          "max": 12490
+        },
+        "serverTiming": null,
+        "cacheStatuses": [
+          "MISS"
+        ],
+        "vercelEdgePops": [
+          "hkg1"
+        ],
+        "errors": 0
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "status": 200,
+            "ttfbMs": 18.8,
+            "totalMs": 682.3,
+            "fcpMs": 720,
+            "lcpMs": 720,
+            "htmlTransferBytes": 3929,
+            "javascriptTransferBytes": 160764,
+            "javascriptDecodedBytes": 530171,
+            "imageTransferBytes": 0,
+            "resourceCount": 12,
+            "scriptCount": 9,
+            "imageCount": 0,
+            "externalRequests": []
+          },
+          "android_mobile_synthetic_tw": {
+            "status": 200,
+            "ttfbMs": 20.3,
+            "totalMs": 934,
+            "fcpMs": 796,
+            "lcpMs": 796,
+            "htmlTransferBytes": 3929,
+            "javascriptTransferBytes": 160764,
+            "javascriptDecodedBytes": 530171,
+            "imageTransferBytes": 0,
+            "resourceCount": 12,
+            "scriptCount": 9,
+            "imageCount": 0,
+            "externalRequests": []
+          }
+        }
+      },
+      "budget": {
+        "ttfbP75Ms": 500
+      },
+      "budgetWarnings": []
+    },
+    {
+      "route": "/onboarding",
+      "status": "measured",
+      "httpStatus": 307,
+      "redirectLocationPresent": true,
+      "coldLike": {
+        "kind": "cold_like",
+        "status": 307,
+        "dnsMs": 0.3,
+        "tcpMs": 7.3,
+        "tlsMs": 37,
+        "connectionMs": 44.7,
+        "ttfbMs": 296.1,
+        "totalMs": 296.8,
+        "responseBytes": 8789,
+        "htmlBytes": 8789,
+        "redirectLocationPresent": true,
+        "serverTiming": null,
+        "cacheHeaders": {
+          "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate",
+          "vercelCdnCacheControl": null,
+          "cdnCacheControl": null,
+          "age": "0",
+          "vercelCache": "MISS",
+          "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+          "setCookiePresent": false
+        },
+        "vercelCache": "MISS",
+        "vercelEdgePop": "hkg1"
+      },
+      "warm": {
+        "sampleCount": 5,
+        "statusCodes": [
+          307
+        ],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": {
+          "min": 252.8,
+          "median": 255.4,
+          "p75": 262.5,
+          "p95": 271.4,
+          "max": 273.6
+        },
+        "totalMs": {
+          "min": 253.5,
+          "median": 257.3,
+          "p75": 264.2,
+          "p95": 272.8,
+          "max": 274.9
+        },
+        "responseBytes": {
+          "min": 8789,
+          "median": 8789,
+          "p75": 8789,
+          "p95": 8789,
+          "max": 8789
+        },
+        "serverTiming": null,
+        "cacheStatuses": [
+          "MISS"
+        ],
+        "vercelEdgePops": [
+          "hkg1"
+        ],
+        "errors": 0
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "status": 200,
+            "ttfbMs": 19.7,
+            "totalMs": 947.7,
+            "fcpMs": 1004,
+            "lcpMs": 1004,
+            "htmlTransferBytes": 3971,
+            "javascriptTransferBytes": 160764,
+            "javascriptDecodedBytes": 530171,
+            "imageTransferBytes": 0,
+            "resourceCount": 12,
+            "scriptCount": 9,
+            "imageCount": 0,
+            "externalRequests": []
+          },
+          "android_mobile_synthetic_tw": {
+            "status": 200,
+            "ttfbMs": 19.3,
+            "totalMs": 1206.1,
+            "fcpMs": 1088,
+            "lcpMs": 1088,
+            "htmlTransferBytes": 3971,
+            "javascriptTransferBytes": 160764,
+            "javascriptDecodedBytes": 530171,
+            "imageTransferBytes": 0,
+            "resourceCount": 12,
+            "scriptCount": 9,
+            "imageCount": 0,
+            "externalRequests": []
+          }
+        }
+      },
+      "budget": null,
+      "budgetWarnings": []
+    },
+    {
+      "route": "/api/health",
+      "status": "measured",
+      "httpStatus": 200,
+      "redirectLocationPresent": false,
+      "coldLike": {
+        "kind": "cold_like",
+        "status": 200,
+        "dnsMs": 0.4,
+        "tcpMs": 6.8,
+        "tlsMs": 36.9,
+        "connectionMs": 44.2,
+        "ttfbMs": 1022.4,
+        "totalMs": 1022.7,
+        "responseBytes": 54,
+        "htmlBytes": 0,
+        "redirectLocationPresent": false,
+        "serverTiming": null,
+        "cacheHeaders": {
+          "cacheControl": "no-store",
+          "vercelCdnCacheControl": null,
+          "cdnCacheControl": null,
+          "age": "0",
+          "vercelCache": "MISS",
+          "vary": null,
+          "setCookiePresent": false
+        },
+        "vercelCache": "MISS",
+        "vercelEdgePop": "hkg1"
+      },
+      "warm": {
+        "sampleCount": 5,
+        "statusCodes": [
+          200
+        ],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": {
+          "min": 968.7,
+          "median": 977,
+          "p75": 983.2,
+          "p95": 1090.5,
+          "max": 1117.3
+        },
+        "totalMs": {
+          "min": 968.7,
+          "median": 977.1,
+          "p75": 983.3,
+          "p95": 1090.6,
+          "max": 1117.4
+        },
+        "responseBytes": {
+          "min": 54,
+          "median": 54,
+          "p75": 54,
+          "p95": 54,
+          "max": 54
+        },
+        "serverTiming": null,
+        "cacheStatuses": [
+          "MISS"
+        ],
+        "vercelEdgePops": [
+          "hkg1"
+        ],
+        "errors": 0
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "status": 200,
+            "ttfbMs": 22.1,
+            "totalMs": 1351.6,
+            "fcpMs": 1356,
+            "lcpMs": 1356,
+            "htmlTransferBytes": 362,
+            "javascriptTransferBytes": 0,
+            "javascriptDecodedBytes": 0,
+            "imageTransferBytes": 0,
+            "resourceCount": 0,
+            "scriptCount": 0,
+            "imageCount": 0,
+            "externalRequests": []
+          },
+          "android_mobile_synthetic_tw": {
+            "status": 200,
+            "ttfbMs": 20.4,
+            "totalMs": 1107.3,
+            "fcpMs": 1112,
+            "lcpMs": 1112,
+            "htmlTransferBytes": 363,
+            "javascriptTransferBytes": 0,
+            "javascriptDecodedBytes": 0,
+            "imageTransferBytes": 0,
+            "resourceCount": 0,
+            "scriptCount": 0,
+            "imageCount": 0,
+            "externalRequests": []
+          }
+        }
+      },
+      "budget": {
+        "totalP75Ms": 300
+      },
+      "budgetWarnings": [
+        "暖要求總時間 P75 983.3ms 超過 300ms 預算"
+      ]
+    },
+    {
+      "route": "/q/:qrToken",
+      "status": "skipped",
+      "reason": "未提供 PERFORMANCE_QR_TOKEN"
+    },
+    {
+      "route": "/staff/orders",
+      "status": "measured",
+      "httpStatus": 307,
+      "redirectLocationPresent": true,
+      "coldLike": {
+        "kind": "cold_like",
+        "status": 307,
+        "dnsMs": 0.4,
+        "tcpMs": 6.9,
+        "tlsMs": 35.6,
+        "connectionMs": 42.9,
+        "ttfbMs": 366.7,
+        "totalMs": 367.2,
+        "responseBytes": 9517,
+        "htmlBytes": 9517,
+        "redirectLocationPresent": true,
+        "serverTiming": null,
+        "cacheHeaders": {
+          "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate",
+          "vercelCdnCacheControl": null,
+          "cdnCacheControl": null,
+          "age": "0",
+          "vercelCache": "MISS",
+          "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+          "setCookiePresent": false
+        },
+        "vercelCache": "MISS",
+        "vercelEdgePop": "hkg1"
+      },
+      "warm": {
+        "sampleCount": 5,
+        "statusCodes": [
+          307
+        ],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": {
+          "min": 244.9,
+          "median": 250.6,
+          "p75": 252,
+          "p95": 259.7,
+          "max": 261.6
+        },
+        "totalMs": {
+          "min": 245,
+          "median": 251.3,
+          "p75": 253,
+          "p95": 260.4,
+          "max": 262.3
+        },
+        "responseBytes": {
+          "min": 9517,
+          "median": 9517,
+          "p75": 9517,
+          "p95": 9517,
+          "max": 9517
+        },
+        "serverTiming": null,
+        "cacheStatuses": [
+          "MISS"
+        ],
+        "vercelEdgePops": [
+          "hkg1"
+        ],
+        "errors": 0
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "status": 200,
+            "ttfbMs": 19.4,
+            "totalMs": 967.3,
+            "fcpMs": 968,
+            "lcpMs": 968,
+            "htmlTransferBytes": 3985,
+            "javascriptTransferBytes": 160764,
+            "javascriptDecodedBytes": 530171,
+            "imageTransferBytes": 0,
+            "resourceCount": 13,
+            "scriptCount": 9,
+            "imageCount": 0,
+            "externalRequests": []
+          },
+          "android_mobile_synthetic_tw": {
+            "status": 200,
+            "ttfbMs": 20.8,
+            "totalMs": 1206.1,
+            "fcpMs": 1084,
+            "lcpMs": 1084,
+            "htmlTransferBytes": 3985,
+            "javascriptTransferBytes": 160764,
+            "javascriptDecodedBytes": 530171,
+            "imageTransferBytes": 0,
+            "resourceCount": 12,
+            "scriptCount": 9,
+            "imageCount": 0,
+            "externalRequests": []
+          }
+        }
+      },
+      "budget": {
+        "totalP75Ms": 1000
+      },
+      "budgetWarnings": []
+    },
+    {
+      "route": "/merchant/dashboard",
+      "status": "measured",
+      "httpStatus": 307,
+      "redirectLocationPresent": true,
+      "coldLike": {
+        "kind": "cold_like",
+        "status": 307,
+        "dnsMs": 0.4,
+        "tcpMs": 5.2,
+        "tlsMs": 36.4,
+        "connectionMs": 42,
+        "ttfbMs": 300.8,
+        "totalMs": 301.5,
+        "responseBytes": 9197,
+        "htmlBytes": 9197,
+        "redirectLocationPresent": true,
+        "serverTiming": null,
+        "cacheHeaders": {
+          "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate",
+          "vercelCdnCacheControl": null,
+          "cdnCacheControl": null,
+          "age": "0",
+          "vercelCache": "MISS",
+          "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+          "setCookiePresent": false
+        },
+        "vercelCache": "MISS",
+        "vercelEdgePop": "hkg1"
+      },
+      "warm": {
+        "sampleCount": 5,
+        "statusCodes": [
+          307
+        ],
+        "dnsMs": null,
+        "connectionMs": null,
+        "tcpMs": null,
+        "tlsMs": null,
+        "ttfbMs": {
+          "min": 240.4,
+          "median": 252.4,
+          "p75": 253.1,
+          "p95": 253.3,
+          "max": 253.3
+        },
+        "totalMs": {
+          "min": 241.1,
+          "median": 253.2,
+          "p75": 253.6,
+          "p95": 253.8,
+          "max": 253.8
+        },
+        "responseBytes": {
+          "min": 9197,
+          "median": 9197,
+          "p75": 9197,
+          "p95": 9197,
+          "max": 9197
+        },
+        "serverTiming": null,
+        "cacheStatuses": [
+          "MISS"
+        ],
+        "vercelEdgePops": [
+          "hkg1"
+        ],
+        "errors": 0
+      },
+      "browser": {
+        "status": "measured",
+        "profiles": {
+          "desktop": {
+            "status": 200,
+            "ttfbMs": 19.6,
+            "totalMs": 923.9,
+            "fcpMs": 972,
+            "lcpMs": 972,
+            "htmlTransferBytes": 3929,
+            "javascriptTransferBytes": 160764,
+            "javascriptDecodedBytes": 530171,
+            "imageTransferBytes": 0,
+            "resourceCount": 12,
+            "scriptCount": 9,
+            "imageCount": 0,
+            "externalRequests": []
+          },
+          "android_mobile_synthetic_tw": {
+            "status": 200,
+            "ttfbMs": 18.7,
+            "totalMs": 1392.3,
+            "fcpMs": 1280,
+            "lcpMs": 1280,
+            "htmlTransferBytes": 3929,
+            "javascriptTransferBytes": 160764,
+            "javascriptDecodedBytes": 530171,
+            "imageTransferBytes": 0,
+            "resourceCount": 13,
+            "scriptCount": 9,
+            "imageCount": 0,
+            "externalRequests": []
+          }
+        }
+      },
+      "budget": {
+        "totalP75Ms": 1500
+      },
+      "budgetWarnings": []
+    }
+  ],
+  "warnings": [
+    "/api/health: 暖要求總時間 P75 983.3ms 超過 300ms 預算"
+  ]
+}

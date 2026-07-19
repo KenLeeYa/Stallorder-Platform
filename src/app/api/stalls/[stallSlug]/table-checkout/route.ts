@@ -6,7 +6,8 @@ import { validateCsrf } from "@/lib/csrf";
 import { DiscountApprovalError } from "@/lib/discount-approval";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { hashClientIp } from "@/lib/security";
+import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
+import { createRequestId, hashClientIp } from "@/lib/security";
 import { resolveStaffCheckout, StaffCheckoutError } from "@/lib/staff-checkout";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { EntitlementError, entitlementService } from "@/server/billing/entitlement-service";
@@ -27,8 +28,26 @@ const tableCheckoutSchema = z.object({
 }).strict();
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const requestId = createRequestId();
+  const timing = createPerformanceTiming({ route: "/api/stalls/:stallSlug/table-checkout", requestId });
+  const response = await handlePatch(request, context, requestId, timing);
+  return finalizePerformanceResponse(response, timing);
+}
+
+async function handlePatch(
+  request: Request,
+  context: RouteContext,
+  requestId: string,
+  timing: ReturnType<typeof createPerformanceTiming>,
+) {
   const { stallSlug } = await context.params;
-  const authorization = await authorizeApiRequest(request, stallSlug, "CHECKOUT_ORDERS");
+  const authorization = await timing.measure(
+    "authMs",
+    () => timing.measureDb(
+      () => authorizeApiRequest(request, stallSlug, "CHECKOUT_ORDERS", requestId),
+      4,
+    ),
+  );
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json(
@@ -47,7 +66,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  const orders = await prisma.order.findMany({
+  const orders = await timing.measureDb(() => prisma.order.findMany({
     where: {
       id: { in: parsed.data.orderIds },
       organizationId: authorization.stall.organizationId,
@@ -66,7 +85,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       subtotal: true,
       items: { select: { status: true } },
     },
-  });
+  }));
   if (orders.length !== parsed.data.orderIds.length) {
     return NextResponse.json(
       { error: "部分訂單不存在或不屬於此攤位。" },
@@ -106,17 +125,20 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   let checkout: Awaited<ReturnType<typeof resolveStaffCheckout>>;
   try {
-    checkout = await resolveStaffCheckout({
-      organizationId: authorization.stall.organizationId,
-      stallId: authorization.stall.id,
-      subtotals: orders.map((order) => order.subtotal),
-      actorProfileId: authorization.principal.user.id,
-      actorRoles: authorization.roles,
-      request: parsed.data,
-    });
+    checkout = await timing.measure(
+      "authMs",
+      () => timing.measureDb(() => resolveStaffCheckout({
+        organizationId: authorization.stall.organizationId,
+        stallId: authorization.stall.id,
+        subtotals: orders.map((order) => order.subtotal),
+        actorProfileId: authorization.principal.user.id,
+        actorRoles: authorization.roles,
+        request: parsed.data,
+      }), 4),
+    );
   } catch (error) {
     if (error instanceof DiscountApprovalError) {
-      await recordAuditEvent({
+      await timing.measureDb(() => recordAuditEvent({
         organizationId: authorization.stall.organizationId,
         stallId: authorization.stall.id,
         actorProfileId: authorization.principal.user.id,
@@ -127,7 +149,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         requestId: authorization.requestId,
         ipHash: hashClientIp(request),
         metadata: { reason: error.code, orderCount: orders.length },
-      });
+      }));
     }
     const response = checkoutErrorResponse(error, authorization.requestId);
     if (response) return response;
@@ -136,7 +158,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const now = new Date();
   try {
-    const checkoutGroup = await prisma.$transaction(async (transaction) => {
+    const checkoutGroup = await timing.measureDb(() => prisma.$transaction(async (transaction) => {
       const group = await transaction.checkoutGroup.create({
         data: {
           organizationId: authorization.stall.organizationId,
@@ -204,9 +226,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         });
       }
       return group;
-    });
+    }), 1 + orders.length * 3);
 
-    await recordAuditEvent({
+    await timing.measureDb(() => recordAuditEvent({
       organizationId: authorization.stall.organizationId,
       stallId: authorization.stall.id,
       actorProfileId: authorization.principal.user.id,
@@ -224,7 +246,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         discountApprovedBy: checkout.discountApprovedById,
         total: checkout.total,
       },
-    });
+    }));
     return NextResponse.json(
       { checkoutGroupId: checkoutGroup.id, orderIds: orders.map((order) => order.id) },
       { headers: { "x-request-id": authorization.requestId } },

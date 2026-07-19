@@ -5,6 +5,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { batchOrderingSchema, orderingStateForBatchAction } from "@/lib/operational-control";
 import { prisma } from "@/lib/prisma";
+import { invalidatePublicMenus, invalidatePublicQrToken } from "@/lib/public-menu";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
@@ -114,6 +115,13 @@ export async function POST(request: Request, context: RouteContext) {
       { status: error instanceof Error && error.message === "BATCH_SCOPE_CHANGED" ? 409 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }
+
+  const qrCodes = await prisma.qrCode.findMany({
+    where: { organizationId, stallId: { in: parsed.data.stallIds } },
+    select: { token: true },
+  });
+  invalidatePublicMenus(parsed.data.stallIds);
+  for (const qrCode of qrCodes) invalidatePublicQrToken(qrCode.token);
 
   return NextResponse.json(
     { action: parsed.data.action, updatedCount: results.length, results },

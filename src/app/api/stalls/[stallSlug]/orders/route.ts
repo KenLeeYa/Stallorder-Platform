@@ -20,7 +20,6 @@ export async function GET(request: Request, context: RouteContext) {
   const authorization = await authorizeApiRequest(request, stallSlug, "VIEW_ORDERS");
   if (!authorization.ok) return authorization.response;
 
-  await prisma.$queryRaw`select public.expire_unconfirmed_orders()`;
   const statuses = authorization.role === "KITCHEN"
     ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
     : activeOrderStatuses;

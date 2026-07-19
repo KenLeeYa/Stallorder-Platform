@@ -5,13 +5,20 @@ import { dashboardQuerySchema } from "@/lib/dashboard-validation";
 import { hasPermission } from "@/lib/rbac";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
+import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
+import { createRequestId } from "@/lib/security";
 
 const allowedQueryKeys = new Set(["organizationId", "stallId", "dateFrom", "dateTo"]);
 
 export async function GET(request: Request) {
+  const requestId = createRequestId();
+  const timing = createPerformanceTiming({ route: "/api/merchant/dashboard/overview", requestId });
   const url = new URL(request.url);
   if ([...url.searchParams.keys()].some((key) => !allowedQueryKeys.has(key))) {
-    return NextResponse.json({ error: "查詢參數不正確。" }, { status: 400 });
+    return finalizePerformanceResponse(
+      NextResponse.json({ error: "查詢參數不正確。" }, { status: 400 }),
+      timing,
+    );
   }
   const parsed = dashboardQuerySchema.safeParse({
     organizationId: url.searchParams.get("organizationId"),
@@ -20,16 +27,23 @@ export async function GET(request: Request) {
     dateTo: url.searchParams.get("dateTo"),
   });
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "查詢條件不正確。" }, { status: 400 });
+    return finalizePerformanceResponse(
+      NextResponse.json({ error: parsed.error.issues[0]?.message ?? "查詢條件不正確。" }, { status: 400 }),
+      timing,
+    );
   }
 
-  const authorization = await authorizeOrganizationApiRequest(
-    request,
-    parsed.data.organizationId,
-    "VIEW_REPORTS",
-    true,
+  const authorization = await timing.measure(
+    "authMs",
+    () => timing.measureDb(() => authorizeOrganizationApiRequest(
+      request,
+      parsed.data.organizationId,
+      "VIEW_REPORTS",
+      true,
+      requestId,
+    ), 4),
   );
-  if (!authorization.ok) return authorization.response;
+  if (!authorization.ok) return finalizePerformanceResponse(authorization.response, timing);
 
   const authorizedStallIds = new Set(authorization.authorizedStallIds);
   const availableStalls = authorization.workspace.stalls.filter(
@@ -40,10 +54,10 @@ export async function GET(request: Request) {
     : availableStalls.map((stall) => stall.id);
   const allowedIds = new Set(availableStalls.map((stall) => stall.id));
   if (requestedIds.some((stallId) => !allowedIds.has(stallId))) {
-    return NextResponse.json(
+    return finalizePerformanceResponse(NextResponse.json(
       { error: "攤位範圍包含未授權資源。" },
       { status: 403, headers: { "x-request-id": authorization.requestId } },
-    );
+    ), timing);
   }
   if (requestedIds.length > 1) {
     try {
@@ -58,7 +72,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const overview = await getDashboardOverview({
+  const overview = await timing.measureDb(() => getDashboardOverview({
     organizationId: authorization.workspace.id,
     stalls: availableStalls.filter((stall) => requestedIds.includes(stall.id)),
     alertStallIds: availableStalls
@@ -67,11 +81,11 @@ export async function GET(request: Request) {
       .map((stall) => stall.id),
     dateFrom: parsed.data.dateFrom,
     dateTo: parsed.data.dateTo,
-  });
-  return NextResponse.json(overview, {
+  }), 3);
+  return finalizePerformanceResponse(NextResponse.json(overview, {
     headers: {
       "cache-control": "private, no-store",
       "x-request-id": authorization.requestId,
     },
-  });
+  }), timing);
 }

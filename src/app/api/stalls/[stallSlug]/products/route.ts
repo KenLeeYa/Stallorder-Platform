@@ -4,6 +4,7 @@ import { authorizeCatalogMutation } from "@/lib/catalog-api";
 import { productInputSchema } from "@/lib/catalog-validation";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { invalidatePublicMenu } from "@/lib/public-menu";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
@@ -78,6 +79,7 @@ export async function POST(request: Request, context: RouteContext) {
     ipHash: hashClientIp(request),
     metadata: { categoryId: product.categoryId, price: product.defaultPrice },
   });
+  invalidatePublicMenu(authorization.stall.id);
 
   return NextResponse.json(
     { product: { ...product, price: product.defaultPrice, isAvailable: parsed.data.isAvailable } },

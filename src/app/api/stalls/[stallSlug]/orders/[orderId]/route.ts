@@ -7,8 +7,9 @@ import { readJson } from "@/lib/http";
 import { cancellationMatchesOrder, orderStatusUpdateSchema } from "@/lib/order-status-update";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { canTransitionOrder, hasPermission } from "@/lib/rbac";
-import { hashClientIp } from "@/lib/security";
+import { createRequestId, hashClientIp } from "@/lib/security";
 import { resolveStaffCheckout, StaffCheckoutError } from "@/lib/staff-checkout";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import {
@@ -21,12 +22,33 @@ type RouteContext = { params: Promise<{ stallSlug: string; orderId: string }> };
 class TransitionConflict extends Error {}
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const requestId = createRequestId();
+  const timing = createPerformanceTiming({
+    route: "/api/stalls/:stallSlug/orders/:orderId",
+    requestId,
+  });
+  const response = await handlePatch(request, context, requestId, timing);
+  return finalizePerformanceResponse(response, timing);
+}
+
+async function handlePatch(
+  request: Request,
+  context: RouteContext,
+  requestId: string,
+  timing: ReturnType<typeof createPerformanceTiming>,
+) {
   const { stallSlug, orderId } = await context.params;
-  const authorization = await authorizeApiRequest(request, stallSlug, "UPDATE_ORDERS");
+  const authorization = await timing.measure(
+    "authMs",
+    () => timing.measureDb(
+      () => authorizeApiRequest(request, stallSlug, "UPDATE_ORDERS", requestId),
+      4,
+    ),
+  );
   if (!authorization.ok) return authorization.response;
 
   if (!validateCsrf(request, authorization.principal)) {
-    await recordAuditEvent({
+    await timing.measureDb(() => recordAuditEvent({
       action: "CSRF_VALIDATION_FAILED",
       entityType: "ORDER",
       entityId: orderId,
@@ -35,7 +57,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       stallId: authorization.stall.id,
       actorProfileId: authorization.principal.user.id,
       ipHash: hashClientIp(request),
-    });
+    }));
     return NextResponse.json(
       { error: "安全驗證已失效，請重新整理後再試。" },
       { status: 403, headers: { "x-request-id": authorization.requestId } },
@@ -52,10 +74,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  await prisma.$queryRaw`select public.expire_unconfirmed_orders()`;
-  const order = await prisma.order.findFirst({
+  const order = await timing.measureDb(() => prisma.order.findFirst({
     where: { id: orderId, stallId: authorization.stall.id },
-  });
+  }));
   if (!order) {
     return NextResponse.json(
       { error: "找不到此訂單。" },
@@ -85,7 +106,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     nextStatus === "CANCELLED"
     && !cancellationMatchesOrder(parsed.data.confirmationOrderNo, order.orderNo)
   ) {
-    await recordAuditEvent({
+    await timing.measureDb(() => recordAuditEvent({
       action: "ORDER_CANCELLATION_CONFIRMATION_FAILED",
       entityType: "ORDER",
       entityId: order.id,
@@ -94,7 +115,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       stallId: authorization.stall.id,
       actorProfileId: authorization.principal.user.id,
       ipHash: hashClientIp(request),
-    });
+    }));
     return NextResponse.json(
       { error: "取消確認資料與目前訂單不符，訂單未取消。" },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
@@ -128,7 +149,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   let checkout: Awaited<ReturnType<typeof resolveStaffCheckout>> | null = null;
 
   if (nextStatus === "COMPLETED") {
-    const incompleteItemCount = await prisma.orderItem.count({
+    const incompleteItemCount = await timing.measureDb(() => prisma.orderItem.count({
       where: {
         orderId: order.id,
         stallId: order.stallId,
@@ -136,7 +157,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           ? { not: "SERVED" }
           : { notIn: ["READY", "SERVED"] },
       },
-    });
+    }));
     if (incompleteItemCount > 0) {
       return NextResponse.json(
         { error: order.fulfillmentType === "DINE_IN" ? "仍有餐點尚未出餐。" : "仍有餐點尚未完成製作。" },
@@ -145,19 +166,20 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
-  if (nextStatus === "COMPLETED" && order.paymentStatus === "UNPAID") {
+  if (parsed.data.status === "COMPLETED" && order.paymentStatus === "UNPAID") {
+    const checkoutRequest = parsed.data;
     try {
-      checkout = await resolveStaffCheckout({
+      checkout = await timing.measureDb(() => resolveStaffCheckout({
         organizationId: order.organizationId,
         stallId: order.stallId,
         subtotals: [order.subtotal],
         actorProfileId: authorization.principal.user.id,
         actorRoles: authorization.roles,
-        request: parsed.data,
-      });
+        request: checkoutRequest,
+      }), 4);
     } catch (error) {
       if (error instanceof DiscountApprovalError) {
-        await recordAuditEvent({
+        await timing.measureDb(() => recordAuditEvent({
           organizationId: order.organizationId,
           stallId: order.stallId,
           actorProfileId: authorization.principal.user.id,
@@ -168,7 +190,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           requestId: authorization.requestId,
           ipHash: hashClientIp(request),
           metadata: { reason: error.code },
-        });
+        }));
       }
       const response = checkoutErrorResponse(error, authorization.requestId);
       if (response) return response;
@@ -178,7 +200,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const now = new Date();
   try {
-    const updatedOrder = await prisma.$transaction(async (transaction) => {
+    const updatedOrder = await timing.measureDb(() => prisma.$transaction(async (transaction) => {
       const changed = await transaction.order.updateMany({
         where: {
           id: order.id,
@@ -247,9 +269,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         where: { id: order.id },
         select: staffOrderSelect,
       });
-    });
+    }), nextStatus === "COMPLETED" && order.paymentStatus === "UNPAID" ? 4 : 3);
 
-    await recordAuditEvent({
+    await timing.measureDb(() => recordAuditEvent({
       action: nextStatus === "COMPLETED"
         ? order.paymentStatus === "PAID" ? "ORDER_COMPLETED_AFTER_PREPAYMENT" : "CHECKOUT_COMPLETED"
         : "ORDER_STATUS_CHANGED",
@@ -269,7 +291,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         cancellationReason: cancellation?.cancellationReason ?? null,
         total: checkout?.total ?? null,
       },
-    });
+    }));
     return NextResponse.json(
       { order: updatedOrder },
       { headers: { "x-request-id": authorization.requestId } },

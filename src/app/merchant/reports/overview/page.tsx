@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { RouteLoadingSkeleton } from "@/components/route-loading-skeleton";
 import { aggregateDailyMetrics } from "@/lib/dashboard-metrics";
 import { cancellationReasonLabels } from "@/lib/cancellation-reasons";
 import { formatMoney } from "@/lib/money";
@@ -7,20 +9,46 @@ import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { getCancellationReasonReport, getHourlySalesReport } from "@/lib/report-data";
 import { requireReportScope } from "@/lib/report-scope";
 import { getFeatureAccess } from "@/server/billing/feature-access";
+import { createPerformanceTiming } from "@/lib/performance-timing";
+import { createRequestId } from "@/lib/security";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string | string[]; dateFrom?: string; dateTo?: string }> };
 
 export default async function ReportOverviewPage({ searchParams }: PageProps) {
-  const query = await searchParams;
-  const scope = await requireReportScope(query);
-  const featureAccess = await getFeatureAccess(scope.workspace.id, "BASIC_REPORTS", {
-    requireUsableSubscription: false,
+  const timing = createPerformanceTiming({
+    route: "/merchant/reports/overview",
+    requestId: createRequestId(),
   });
+  const query = await searchParams;
+  const scope = await timing.measure(
+    "authMs",
+    () => timing.measureDb(() => requireReportScope(query), 4),
+  );
+  const featureAccess = await timing.measureDb(() => getFeatureAccess(
+    scope.workspace.id,
+    "BASIC_REPORTS",
+    { requireUsableSubscription: false },
+  ));
   if (!featureAccess.allowed) {
+    timing.finish({ status: 200 });
     return <FeatureUpgradeNotice message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} />;
   }
+  return (
+    <Suspense fallback={<RouteLoadingSkeleton variant="reports" />}>
+      <ReportOverviewContent scope={scope} timing={timing} />
+    </Suspense>
+  );
+}
+
+async function ReportOverviewContent({
+  scope,
+  timing,
+}: {
+  scope: Awaited<ReturnType<typeof requireReportScope>>;
+  timing: ReturnType<typeof createPerformanceTiming>;
+}) {
   const stallIds = scope.stalls.map((stall) => stall.id);
-  const [rows, hourRows, cancellationRows] = await Promise.all([
+  const [rows, hourRows, cancellationRows] = await timing.measureDb(() => Promise.all([
     prisma.dailyStallSummary.findMany({
       where: {
         organizationId: scope.workspace.id,
@@ -31,7 +59,8 @@ export default async function ReportOverviewPage({ searchParams }: PageProps) {
     }),
     getHourlySalesReport(scope.workspace.id, stallIds, scope.dateFrom, scope.dateTo),
     getCancellationReasonReport(scope.workspace.id, stallIds, scope.dateFrom, scope.dateTo),
-  ]);
+  ]), 3);
+  timing.finish({ status: 200 });
   const total = aggregateDailyMetrics(rows);
   const daily = [...new Set(rows.map((row) => row.businessDate.toISOString().slice(0, 10)))].map((businessDate) => ({
     businessDate,

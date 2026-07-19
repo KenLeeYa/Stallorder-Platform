@@ -2,6 +2,7 @@ import "server-only";
 
 import type { OrganizationStatus, UserRole } from "@prisma/client";
 import { notFound, redirect } from "next/navigation";
+import { cache } from "react";
 import { getPagePrincipal } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { defaultPathForRole } from "@/lib/auth";
@@ -40,7 +41,10 @@ export type WorkspaceOrganization = {
   stalls: WorkspaceStall[];
 };
 
-export async function getWorkspaceAccess(profileId: string, platformRole: UserRole | null) {
+export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
+  profileId: string,
+  platformRole: UserRole | null,
+) {
   const [organizationMemberships, stallMemberships] = await Promise.all([
     prisma.organizationMembership.findMany({
       where: { profileId, isActive: true },
@@ -74,10 +78,25 @@ export async function getWorkspaceAccess(profileId: string, platformRole: UserRo
     orderBy: { createdAt: "asc" },
   });
 
+  const organizationMembershipsByOrganization = new Map<string, typeof organizationMemberships>();
+  for (const membership of organizationMemberships) {
+    const memberships = organizationMembershipsByOrganization.get(membership.organizationId);
+    if (memberships) memberships.push(membership);
+    else organizationMembershipsByOrganization.set(membership.organizationId, [membership]);
+  }
+  const stallMembershipsByOrganization = new Map<string, typeof stallMemberships>();
+  const stallRolesByStall = new Map<string, UserRole[]>();
+  for (const membership of stallMemberships) {
+    const organizationStallMemberships = stallMembershipsByOrganization.get(membership.organizationId);
+    if (organizationStallMemberships) organizationStallMemberships.push(membership);
+    else stallMembershipsByOrganization.set(membership.organizationId, [membership]);
+    const roles = stallRolesByStall.get(membership.stallId);
+    if (roles) roles.push(membership.role);
+    else stallRolesByStall.set(membership.stallId, [membership.role]);
+  }
+
   return organizations.map((organization): WorkspaceOrganization => {
-    const organizationAccess = organizationMemberships.filter(
-      (membership) => membership.organizationId === organization.id,
-    );
+    const organizationAccess = organizationMembershipsByOrganization.get(organization.id) ?? [];
     const organizationRoles = platformRole === "PLATFORM_ADMIN"
       ? ["PLATFORM_ADMIN" as UserRole]
       : [...new Set(organizationAccess.map((membership) => membership.role))];
@@ -86,8 +105,7 @@ export async function getWorkspaceAccess(profileId: string, platformRole: UserRo
         (membership) => membership.role === "ORGANIZATION_OWNER" || membership.allStalls,
       );
     const assignedStallIds = new Set(
-      stallMemberships
-        .filter((membership) => membership.organizationId === organization.id)
+      (stallMembershipsByOrganization.get(organization.id) ?? [])
         .map((membership) => membership.stallId),
     );
 
@@ -104,9 +122,7 @@ export async function getWorkspaceAccess(profileId: string, platformRole: UserRo
         isActive: stall.isActive,
         roles: [...new Set([
           ...organizationRoles,
-          ...stallMemberships
-            .filter((membership) => membership.stallId === stall.id)
-            .map((membership) => membership.role),
+          ...(stallRolesByStall.get(stall.id) ?? []),
         ])],
       }));
 
@@ -122,7 +138,7 @@ export async function getWorkspaceAccess(profileId: string, platformRole: UserRo
       stalls,
     };
   });
-}
+});
 
 export function getDefaultWorkspacePath(workspaces: WorkspaceOrganization[]) {
   if (workspaces.length === 0) return "/onboarding";
@@ -138,14 +154,14 @@ export function getDefaultWorkspacePath(workspaces: WorkspaceOrganization[]) {
   return role ? defaultPathForRole(role, stall.slug) : "/select-stall";
 }
 
-export async function requireWorkspacePage() {
+export const requireWorkspacePage = cache(async function requireWorkspacePage() {
   const principal = await getPagePrincipal();
   if (!principal) redirect("/login");
 
   const workspaces = await getWorkspaceAccess(principal.user.id, principal.user.platformRole);
   if (workspaces.length === 0) redirect("/onboarding");
   return { principal, workspaces };
-}
+});
 
 export function requireWorkspaceOrganization(
   workspaces: WorkspaceOrganization[],

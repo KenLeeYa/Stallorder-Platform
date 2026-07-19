@@ -10,6 +10,7 @@ import { productNoteCommandSchema } from "@/lib/product-note-validation";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
+import { invalidatePublicMenus } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ organizationId: string }> };
 
@@ -217,6 +218,7 @@ export async function POST(request: Request, context: RouteContext) {
       after: toAuditJson(command),
       metadata: "productIds" in command ? { assignedProductCount: command.productIds.length } : undefined,
     });
+    invalidatePublicMenus(authorization.workspace.stalls.map((stall) => stall.id));
 
     return NextResponse.json(
       { noteGroups: await getOrganizationProductNotes(organizationId) },

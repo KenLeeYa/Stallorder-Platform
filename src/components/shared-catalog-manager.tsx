@@ -18,6 +18,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { ProductImage } from "@/components/product-image";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
 import { buildCatalogCsvErrorReport, type CatalogCsvRowError } from "@/lib/catalog-csv";
 import { formatMoney } from "@/lib/money";
@@ -407,7 +408,7 @@ export function SharedCatalogManager({
               <label className="text-sm font-medium text-stone-700">圖片網址<input type="url" maxLength={2000} value={productDraft.imageUrl ?? ""} onChange={(event) => setProductDraft({ ...productDraft, imageUrl: event.target.value || null })} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>
               <label className="mt-6 inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><ImageUp className="h-4 w-4" />本機上傳<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadProductImage(file); event.currentTarget.value = ""; }} /></label>
             </div>
-            {productDraft.imageUrl ? <div role="img" aria-label={`${productDraft.name || "商品"}圖片預覽`} className="h-36 rounded-md border border-stone-200 bg-cover bg-center sm:col-span-2" style={{ backgroundImage: `url("${productDraft.imageUrl.replaceAll('"', "%22")}")` }} /> : null}
+            {productDraft.imageUrl ? <div className="h-36 overflow-hidden rounded-md border border-stone-200 sm:col-span-2"><ProductImage src={productDraft.imageUrl} alt={`${productDraft.name || "商品"}圖片預覽`} width={800} height={450} sizes="(max-width: 640px) 100vw, 50vw" className="h-full w-full object-cover" /></div> : null}
             <fieldset className="border-t border-stone-200 pt-4 sm:col-span-2">
               <legend className="flex items-center gap-2 text-sm font-semibold"><Languages className="h-4 w-4" />商品翻譯</legend>
               <div className="mt-3 grid gap-4">

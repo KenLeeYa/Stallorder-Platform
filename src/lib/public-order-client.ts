@@ -22,18 +22,23 @@ export function getOrCreateDeviceId() {
 export function publicEdgeUrl(functionName: string) {
   const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.trim().replace(/\/$/, "");
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
-  if (functionsUrl && publishableKey) return `${functionsUrl}/${functionName}`;
+  if (functionsUrl && publishableKey && canCallEdgeDirectly()) return `${functionsUrl}/${functionName}`;
   return `/api/public-order/${functionName}`;
 }
 
 export function publicEdgeHeaders(): Record<string, string> {
   const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.trim();
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
-  if (!functionsUrl || !publishableKey) return {};
+  if (!functionsUrl || !publishableKey || !canCallEdgeDirectly()) return {};
   return {
     apikey: publishableKey,
     authorization: `Bearer ${publishableKey}`,
   };
+}
+
+function canCallEdgeDirectly() {
+  if (typeof window === "undefined") return true;
+  return !window.location.hostname.toLowerCase().endsWith(".vercel.app");
 }
 
 export async function parseEdgeResponse(response: Response) {
