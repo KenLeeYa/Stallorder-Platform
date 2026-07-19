@@ -769,15 +769,24 @@ export class BillingWorkflowService {
     return billingTransaction(async (transaction) => {
       const subscription = await transaction.subscription.findUnique({ where: { id: subscriptionId } });
       if (!subscription) throw new BillingWorkflowError("SUBSCRIPTION_NOT_FOUND");
-      const result = await transaction.$queryRaw<Array<{ rebuild_billing_usage_summary: number }>>`
-        select public.rebuild_billing_usage_summary(
-          ${subscription.organizationId}::uuid,
-          ${billingPeriod}::date,
-          ${context.actorProfileId}::uuid,
-          ${context.requestId}
-        )
+      const result = await transaction.$queryRaw<Array<{ billable_order_count: number }>>`
+        select (rebuilt.summary).billable_order_count::integer as billable_order_count
+        from (
+          select public.rebuild_billing_usage_summary(
+            ${subscription.organizationId}::uuid,
+            ${billingPeriod}::date,
+            ${context.actorProfileId}::uuid,
+            ${context.requestId}
+          ) as summary
+        ) rebuilt
       `;
-      return result[0]?.rebuild_billing_usage_summary ?? 0;
+      await transaction.$queryRaw<Array<{ warnings_created: number }>>`
+        select public.reconcile_billing_usage_warnings(
+          ${subscription.organizationId}::uuid,
+          ${billingPeriod}::date
+        )::integer as warnings_created
+      `;
+      return result[0]?.billable_order_count ?? 0;
     });
   }
 }
