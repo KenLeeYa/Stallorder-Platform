@@ -19,17 +19,19 @@ export async function getDashboardOverview({
   dateTo: string;
 }) {
   const stallIds = stalls.map((stall) => stall.id);
-  const summaryRowsPromise: Promise<DailyStallSummary[]> = stallIds.length === 0 ? Promise.resolve([]) : prisma.dailyStallSummary.findMany({
-    where: {
-      organizationId,
-      stallId: { in: stallIds },
-      businessDate: {
-        gte: new Date(`${dateFrom}T00:00:00.000Z`),
-        lte: new Date(`${dateTo}T00:00:00.000Z`),
-      },
-    },
-    orderBy: [{ businessDate: "asc" }, { stallId: "asc" }],
-  });
+  const summaryRowsPromise: Promise<DailyStallSummary[]> = stallIds.length === 0
+    ? Promise.resolve([])
+    : prisma.dailyStallSummary.findMany({
+        where: {
+          organizationId,
+          stallId: { in: stallIds },
+          businessDate: {
+            gte: new Date(`${dateFrom}T00:00:00.000Z`),
+            lte: new Date(`${dateTo}T00:00:00.000Z`),
+          },
+        },
+        orderBy: [{ businessDate: "asc" }, { stallId: "asc" }],
+      });
   const alertsPromise: Promise<OperationalAlert[]> = alertStallIds.length === 0
     ? Promise.resolve([])
     : (async () => {

@@ -2,6 +2,10 @@ const sensitivePathPatterns = [
   { pattern: /^\/q\/[^/]+/, replacement: "/q/:qrToken" },
   { pattern: /^\/order\/[^/]+/, replacement: "/order/:trackingToken" },
   { pattern: /^\/invite\/[^/]+/, replacement: "/invite/:invitationToken" },
+  { pattern: /^\/staff\/[^/]+/, replacement: "/staff/:stallSlug" },
+  { pattern: /^\/delivery\/[^/]+/, replacement: "/delivery/:stallSlug" },
+  { pattern: /^\/s\/[^/]+/, replacement: "/s/:stallSlug" },
+  { pattern: /^\/merchant\/stalls\/[^/]+/, replacement: "/merchant/stalls/:stallId" },
 ];
 
 export function redactPerformanceUrl(value: string) {

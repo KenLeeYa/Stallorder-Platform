@@ -26,51 +26,52 @@ const loginSchema = z.object({
 export async function POST(request: Request) {
   const requestId = createRequestId();
   const timing = createPerformanceTiming({ route: "/api/auth/login", requestId });
+  const finalize = <T extends Response>(response: T) => finalizePerformanceResponse(response, timing);
   const ipHash = hashClientIp(request);
 
   if (!isTrustedOrigin(request)) {
-    await timing.measure("dbMs", () => recordAuditEvent({
+    await timing.measureDb(() => recordAuditEvent({
       action: "LOGIN_REJECTED_ORIGIN",
       entityType: "AUTH",
       outcome: "DENIED",
       requestId,
       ipHash,
     }));
-    return finalizePerformanceResponse(NextResponse.json(
+    return finalize(NextResponse.json(
       { error: "無法驗證登入來源。" },
       { status: 403, headers: { "x-request-id": requestId } },
-    ), timing);
+    ));
   }
 
   const body = await readJson(request, requestId);
-  if (body.error) return finalizePerformanceResponse(body.error, timing);
+  if (body.error) return finalize(body.error);
   const parsed = loginSchema.safeParse(body.data);
   if (!parsed.success) {
-    return finalizePerformanceResponse(NextResponse.json(
+    return finalize(NextResponse.json(
       { error: "電子郵件或密碼格式不正確。" },
       { status: 400, headers: { "x-request-id": requestId } },
-    ), timing);
+    ));
   }
 
   if (!isLocalQaLoginRateLimitDisabled()) {
     const accountHash = hashToken(parsed.data.email);
     const [ipLimit, ipAccountLimit, accountLimit] = await timing.measure(
       "authMs",
-      () => timing.measure("dbMs", () => Promise.all([
-        checkRateLimit({ scope: "login-ip", identifier: ipHash, limit: 20, windowMs: 15 * 60_000 }),
-        checkRateLimit({
-          scope: "login-ip-account",
-          identifier: `${ipHash}:${accountHash}`,
-          limit: 5,
-          windowMs: 15 * 60_000,
-        }),
-        checkRateLimit({
-          scope: "login-account",
-          identifier: accountHash,
-          limit: 5,
-          windowMs: 15 * 60_000,
-        }),
-      ])),
+      () => timing.measureDb(() => Promise.all([
+      checkRateLimit({ scope: "login-ip", identifier: ipHash, limit: 20, windowMs: 15 * 60_000 }),
+      checkRateLimit({
+        scope: "login-ip-account",
+        identifier: `${ipHash}:${accountHash}`,
+        limit: 5,
+        windowMs: 15 * 60_000,
+      }),
+      checkRateLimit({
+        scope: "login-account",
+        identifier: accountHash,
+        limit: 5,
+        windowMs: 15 * 60_000,
+      }),
+      ]), 3),
     );
     const limited = !ipLimit.allowed
       ? ipLimit
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
         ? ipAccountLimit
         : !accountLimit.allowed ? accountLimit : null;
     if (limited) {
-      await timing.measure("dbMs", () => recordAuditEvent({
+      await timing.measureDb(() => recordAuditEvent({
         action: "RATE_LIMIT_HIT",
         entityType: "AUTH",
         outcome: "DENIED",
@@ -86,17 +87,17 @@ export async function POST(request: Request) {
         ipHash,
         metadata: { scope: "login" },
       }));
-      return finalizePerformanceResponse(NextResponse.json(
+      return finalize(NextResponse.json(
         { error: "登入嘗試次數過多，請稍後再試。" },
         {
           status: 429,
           headers: { "retry-after": String(limited.retryAfterSeconds), "x-request-id": requestId },
         },
-      ), timing);
+      ));
     }
   }
 
-  const profile = await timing.measure("dbMs", () => prisma.profile.findUnique({
+  const profile = await timing.measureDb(() => prisma.profile.findUnique({
     where: { email: parsed.data.email },
     include: {
       organizationMemberships: {
@@ -141,7 +142,7 @@ export async function POST(request: Request) {
     || !passwordValid
     || (!organizationMembership && !stallMembership && profile.platformRole !== "PLATFORM_ADMIN")
   ) {
-    await timing.measure("dbMs", () => recordAuditEvent({
+    await timing.measureDb(() => recordAuditEvent({
       action: "LOGIN_FAILURE",
       entityType: "AUTH",
       outcome: "FAILURE",
@@ -150,16 +151,22 @@ export async function POST(request: Request) {
       stallId: stallMembership?.stallId,
       ipHash,
     }));
-    return finalizePerformanceResponse(NextResponse.json(
+    return finalize(NextResponse.json(
       { error: "電子郵件或密碼不正確。" },
       { status: 401, headers: { "x-request-id": requestId } },
-    ), timing);
+    ));
   }
 
-  const [session, workspaces] = await timing.measure("dbMs", () => Promise.all([
-    createSession(profile.id),
-    getWorkspaceAccess(profile.id, profile.platformRole),
-  ]));
+  const [session, workspaces] = await Promise.all([
+    timing.measure(
+      "sessionMs",
+      () => timing.measureDb(() => createSession(profile.id), 2),
+    ),
+    timing.measureDb(
+      () => getWorkspaceAccess(profile.id, profile.platformRole),
+      3,
+    ),
+  ]);
   const fallbackPath = workspaces.length > 0
     ? getDefaultWorkspacePath(workspaces)
     : stallMembership
@@ -171,7 +178,7 @@ export async function POST(request: Request) {
   );
   setSessionCookies(response, session);
 
-  await timing.measure("dbMs", () => Promise.all([
+  await timing.measureDb(() => Promise.all([
     recordAuditEvent({
       organizationId: workspaces[0]?.id ?? organizationMembership?.organizationId ?? stallMembership?.organizationId,
       action: "LOGIN_SUCCESS",
@@ -182,7 +189,10 @@ export async function POST(request: Request) {
       stallId: stallMembership?.stallId,
       ipHash,
     }),
-    prisma.profile.update({ where: { id: profile.id }, data: { lastLoginAt: new Date() } }),
-  ]));
-  return finalizePerformanceResponse(response, timing);
+    prisma.profile.update({
+      where: { id: profile.id },
+      data: { lastLoginAt: new Date() },
+    }),
+  ]), 2);
+  return finalize(response);
 }

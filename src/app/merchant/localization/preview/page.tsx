@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Eye, ImageOff } from "lucide-react";
 import { LocaleFlag } from "@/components/locale-flag";
+import { ProductImage } from "@/components/product-image";
 import { getLocalizedStallPreview } from "@/lib/localization-data";
 import { formatMoney } from "@/lib/money";
 import { hasPermission } from "@/lib/rbac";
@@ -48,7 +48,7 @@ export default async function LocalizationPreviewPage({ searchParams }: PageProp
             {products.filter((item) => item.category === category).map((item) => (
               <article key={item.product.id} className="rounded-md border border-stone-200 bg-white p-4">
                 <div className="relative aspect-[16/10] overflow-hidden rounded bg-stone-100">
-                  {item.product.imageUrl ? <Image src={item.product.imageUrl} alt={copy.productImage(item.localizedName)} fill sizes="(max-width: 640px) 100vw, 50vw" className="object-cover" unoptimized /> : <div className="grid h-full place-items-center text-stone-400"><ImageOff className="h-8 w-8" /></div>}
+                  {item.product.imageUrl ? <ProductImage src={item.product.imageUrl} alt={copy.productImage(item.localizedName)} width={800} height={500} sizes="(max-width: 640px) 100vw, 50vw" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-stone-400"><ImageOff className="h-8 w-8" /></div>}
                   {item.isSoldOut ? <span className="absolute inset-x-0 bottom-0 bg-stone-900/90 px-3 py-2 text-center text-sm font-semibold text-white">售罄</span> : null}
                 </div>
                 <div className="mt-3 flex items-start justify-between gap-3"><div><h3 className="font-semibold">{item.localizedName}</h3>{item.localizedDescription ? <p className="mt-1 text-sm leading-5 text-stone-600">{item.localizedDescription}</p> : null}</div><span className="shrink-0 font-semibold text-teal-800">{formatMoney(item.priceOverride ?? item.product.defaultPrice, stall.currency)}</span></div>

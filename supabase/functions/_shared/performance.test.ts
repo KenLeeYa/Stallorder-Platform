@@ -12,11 +12,11 @@ describe("Edge Function performance timing", () => {
       logger,
     });
 
-    await timing.measure("dbMs", async () => true);
+    await timing.measureDb(async () => true);
     const response = finalizeEdgeResponse(new Response(null, { status: 200 }), timing);
 
     expect(response.headers.get("server-timing")).toBe(
-      "total;dur=30, edge-function;dur=30, db;dur=15",
+      "total;dur=30, edge-function;dur=30, db-query-count;dur=1, db;dur=15",
     );
     expect(logger).toHaveBeenCalledWith({
       level: "info",
@@ -26,6 +26,7 @@ describe("Edge Function performance timing", () => {
       status: 200,
       totalMs: 30,
       edgeFunctionMs: 30,
+      dbQueryCount: 1,
       dbMs: 15,
     });
   });

@@ -6,8 +6,8 @@ import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { hashClientIp } from "@/lib/security";
 import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
+import { hashClientIp } from "@/lib/security";
 
 const settingsSchema = z.object({
   orderSessionTtlSeconds: z.number().int().min(60).max(1800),
@@ -56,24 +56,25 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const token = randomBytes(32).toString("base64url");
   const now = new Date();
-  const [previousState, qrTokensBefore] = await Promise.all([
-    prisma.stall.findFirstOrThrow({
-      where: { id: authorization.stall.id, organizationId: authorization.stall.organizationId },
-      select: {
-        orderingState: true,
-        isSoldOut: true,
-        qrCodes: {
-          orderBy: { tokenVersion: "desc" },
-          take: 1,
-          select: { state: true, tokenVersion: true },
-        },
+  const previousState = await prisma.stall.findFirstOrThrow({
+    where: { id: authorization.stall.id, organizationId: authorization.stall.organizationId },
+    select: {
+      orderingState: true,
+      isSoldOut: true,
+      qrCodes: {
+        orderBy: { tokenVersion: "desc" },
+        take: 1,
+        select: { state: true, tokenVersion: true },
       },
-    }),
-    prisma.qrCode.findMany({
-      where: { stallId: authorization.stall.id, organizationId: authorization.stall.organizationId },
-      select: { token: true },
-    }),
-  ]);
+    },
+  });
+  const qrTokensBefore = await prisma.qrCode.findMany({
+    where: {
+      stallId: authorization.stall.id,
+      organizationId: authorization.stall.organizationId,
+    },
+    select: { token: true },
+  });
   const state = await prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`
       select id

@@ -2,11 +2,12 @@ import "server-only";
 
 import { revalidateTag, unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { publicMenuCacheTag, publicQrCacheTag } from "@/lib/public-menu-cache-tags";
+import { publicQrCacheTag, stallMenuCacheTag } from "@/lib/cache-tags";
 import type { PublicMenu } from "@/lib/public-menu-types";
 
-const QR_CONTEXT_TTL_SECONDS = 30;
+const QR_CONTEXT_TTL_SECONDS = 15;
 const PUBLIC_MENU_TTL_SECONDS = 45;
+const ACTIVE_ORGANIZATION_STATUSES = ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] as const;
 
 type OrderingMode = "DEFAULT" | "DELIVERY";
 
@@ -21,15 +22,7 @@ export async function getCachedPublicMenuForQrToken(
     { revalidate: QR_CONTEXT_TTL_SECONDS, tags: [qrTag] },
   );
   const context = await getQrContext();
-  if (!context || context.state !== "ACTIVE") return null;
-  if (context.expiresAt && new Date(context.expiresAt) <= new Date()) return null;
-  if (
-    !context.stall.isActive
-    || !context.stall.orderingEnabled
-    || context.stall.businessStatus !== "OPEN"
-    || context.stall.orderingState !== "OPEN"
-    || context.stall.isSoldOut
-  ) return null;
+  if (!context || !publicQrContextIsAvailable(context)) return null;
 
   const settings = context.stall.orderingSettings;
   if (!settings) return null;
@@ -39,13 +32,7 @@ export async function getCachedPublicMenuForQrToken(
     return null;
   }
 
-  const menuTag = publicMenuCacheTag(context.stallId);
-  const getMenu = unstable_cache(
-    () => loadStallMenu(context.stallId),
-    ["public-stall-menu", context.stallId],
-    { revalidate: PUBLIC_MENU_TTL_SECONDS, tags: [menuTag] },
-  );
-  const menu = await getMenu();
+  const menu = await getCachedStallMenu(context.stallId);
   if (!menu) return null;
 
   return {
@@ -65,8 +52,42 @@ export async function getCachedPublicMenuForQrToken(
   };
 }
 
+export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promise<PublicMenu | null> {
+  const stall = await prisma.stall.findUnique({
+    where: { slug: stallSlug },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      location: true,
+      currency: true,
+      isActive: true,
+      orderingEnabled: true,
+      businessStatus: true,
+      orderingState: true,
+      isSoldOut: true,
+      organization: { select: { status: true } },
+    },
+  });
+  if (!stall || !publicStallIsAvailable(stall)) return null;
+
+  const menu = await getCachedStallMenu(stall.id);
+  if (!menu) return null;
+  return {
+    ...menu,
+    stall: {
+      name: stall.name,
+      slug: stall.slug,
+      location: stall.location,
+      currency: stall.currency,
+      fulfillmentType: "TAKEOUT",
+      table: null,
+    },
+  };
+}
+
 export function invalidatePublicMenu(stallId: string) {
-  revalidateTag(publicMenuCacheTag(stallId), { expire: 0 });
+  revalidateTag(stallMenuCacheTag(stallId), { expire: 0 });
 }
 
 export function invalidatePublicMenus(stallIds: readonly string[]) {
@@ -83,6 +104,16 @@ export async function invalidateOrganizationPublicMenus(organizationId: string) 
 
 export function invalidatePublicQrToken(qrToken: string) {
   revalidateTag(publicQrCacheTag(qrToken), { expire: 0 });
+}
+
+async function getCachedStallMenu(stallId: string) {
+  const tag = stallMenuCacheTag(stallId);
+  const getMenu = unstable_cache(
+    () => loadStallMenu(stallId),
+    ["public-stall-menu", stallId],
+    { revalidate: PUBLIC_MENU_TTL_SECONDS, tags: [tag] },
+  );
+  return getMenu();
 }
 
 async function loadQrContext(qrToken: string) {
@@ -104,6 +135,7 @@ async function loadQrContext(qrToken: string) {
           businessStatus: true,
           orderingState: true,
           isSoldOut: true,
+          organization: { select: { status: true } },
           orderingSettings: {
             select: { dineInEnabled: true, deliveryModuleEnabled: true },
           },
@@ -116,6 +148,30 @@ async function loadQrContext(qrToken: string) {
     ...qrCode,
     expiresAt: qrCode.expiresAt?.toISOString() ?? null,
   };
+}
+
+function publicQrContextIsAvailable(context: NonNullable<Awaited<ReturnType<typeof loadQrContext>>>) {
+  return context.state === "ACTIVE"
+    && (!context.expiresAt || Date.parse(context.expiresAt) > Date.now())
+    && publicStallIsAvailable(context.stall);
+}
+
+function publicStallIsAvailable(stall: {
+  isActive: boolean;
+  orderingEnabled: boolean;
+  businessStatus: string;
+  orderingState: string;
+  isSoldOut: boolean;
+  organization: { status: string };
+}) {
+  return stall.isActive
+    && stall.orderingEnabled
+    && stall.businessStatus === "OPEN"
+    && stall.orderingState === "OPEN"
+    && !stall.isSoldOut
+    && ACTIVE_ORGANIZATION_STATUSES.includes(
+      stall.organization.status as (typeof ACTIVE_ORGANIZATION_STATUSES)[number],
+    );
 }
 
 async function loadStallMenu(stallId: string): Promise<Omit<PublicMenu, "stall"> | null> {

@@ -96,6 +96,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           available_until = excluded.available_until,
           sort_order = excluded.sort_order,
           updated_at = now()
+        where stall_products.organization_id = excluded.organization_id
       `);
     });
 

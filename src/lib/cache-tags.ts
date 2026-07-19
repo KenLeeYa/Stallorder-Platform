@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export function publicMenuCacheTag(stallId: string) {
+export function stallMenuCacheTag(stallId: string) {
   return `stall-menu:${stallId}`;
 }
 

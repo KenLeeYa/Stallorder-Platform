@@ -2,6 +2,7 @@ import { performance } from "node:perf_hooks";
 
 export type PerformanceTimingField =
   | "authMs"
+  | "sessionMs"
   | "dbMs"
   | "dbConnectMs"
   | "edgeFunctionMs"
@@ -29,6 +30,7 @@ type FinishOptions = {
 
 const serverTimingNames: Record<PerformanceTimingField, string> = {
   authMs: "auth",
+  sessionMs: "session",
   dbMs: "db",
   dbConnectMs: "db-connect",
   edgeFunctionMs: "edge-function",
@@ -42,6 +44,7 @@ export function createPerformanceTiming(options: PerformanceTimingOptions) {
   const logger = options.logger ?? logPerformanceEvent;
   const startedAt = now();
   const durations: Partial<Record<PerformanceTimingField, number>> = {};
+  let dbQueryCount = 0;
   let completed: { totalMs: number; serverTiming: string } | null = null;
 
   function add(field: PerformanceTimingField, durationMs: number) {
@@ -56,6 +59,11 @@ export function createPerformanceTiming(options: PerformanceTimingOptions) {
     } finally {
       add(field, now() - operationStartedAt);
     }
+  }
+
+  async function measureDb<T>(operation: () => Promise<T>, queryCount = 1) {
+    if (Number.isSafeInteger(queryCount) && queryCount > 0) dbQueryCount += queryCount;
+    return measure("dbMs", operation);
   }
 
   function start() {
@@ -75,6 +83,7 @@ export function createPerformanceTiming(options: PerformanceTimingOptions) {
     );
     const serverTiming = [
       `total;dur=${totalMs}`,
+      ...(dbQueryCount > 0 ? [`db-query-count;dur=${dbQueryCount}`] : []),
       ...Object.entries(roundedDurations).map(
         ([field, duration]) => `${serverTimingNames[field as PerformanceTimingField]};dur=${duration}`,
       ),
@@ -85,13 +94,14 @@ export function createPerformanceTiming(options: PerformanceTimingOptions) {
       requestId: options.requestId,
       status,
       totalMs,
+      ...(dbQueryCount > 0 ? { dbQueryCount } : {}),
       ...roundedDurations,
     });
     completed = { totalMs, serverTiming };
     return completed;
   }
 
-  return { add, addSince, finish, measure, start };
+  return { add, addSince, finish, measure, measureDb, start };
 }
 
 export function finalizePerformanceResponse<T extends Response>(

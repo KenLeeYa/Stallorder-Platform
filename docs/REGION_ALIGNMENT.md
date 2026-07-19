@@ -2,21 +2,18 @@
 
 ## 修改前證據
 
-調查基準版本 `d62dd89f6760285f34ce41306263c16256459183`：
+- Production deployment：`dpl_ALPBiwEDtjhPAxYi1zKD5qQkVEJW`。
+- Vercel Deployment API：`regions=["iad1"]`。
+- Production commit：`d62dd89f6760285f34ce41306263c16256459183`。
+- Supabase Production：Tokyo `ap-northeast-1`。
+- 主要使用者：台灣。
+- `/api/health` warm P75：`1006.6 ms`；單一 `SELECT 1` 已超過 1 秒。
 
-| 項目 | 已驗證值 | 證據來源 |
-| --- | --- | --- |
-| Vercel project | `stallorder-platform` | Vercel authenticated project API |
-| Production deployment | `dpl_ALPBiwEDtjhPAxYi1zKD5qQkVEJW` | Vercel deployment API |
-| Function region | `iad1` | Deployment `regions` 欄位 |
-| Supabase production region | `ap-northeast-1` | Supabase Management API |
-| 主要使用者 | 台灣 | 產品部署需求 |
+這組證據支持 Vercel Washington D.C. 到 Supabase Tokyo 的跨區 round trip 是 P0 瓶頸；不是以地理位置猜測。
 
-`x-vercel-id` 量到的 `hkg1` 是 Vercel Edge ingress PoP，不是 Function region。正式站 `/api/health` 修改前 cold 1,045.4 ms、warm P75 1,006.6 ms；同時間 `pg_stat_statements` 顯示大多數應用 SQL 執行低於 5 ms，因此 IAD 到東京的跨區連線與多次往返是已驗證的主要高延遲來源。
+## P0 設定
 
-## 修改
-
-`vercel.json` 保留 schema 並指定單一 Tokyo region：
+`vercel.json` 保留 schema 並只指定：
 
 ```json
 {
@@ -25,14 +22,35 @@
 }
 ```
 
-資料庫仍為東京單區，故本階段不配置多個 Function region。
+PostgreSQL 是單一 Tokyo region，因此本階段不設定多個 Function regions。
 
-## 部署驗證
+## 部署後驗證
 
-驗證用 Preview deployment `dpl_EczGfwK49GD2RYjeQgbjxebdxYvj`（commit `89202ac46ac92e0a4474930f5a11cd30bf929d2f`）已由 Vercel Deployment API 確認 `regions` 僅有 `hnd1`。`/api/health` response 的 `x-vercel-id` 亦為 `hkg1::hnd1::*`，分別代表入口 Edge PoP 與 Function 執行區。
+- Preview deployment：`dpl_4wCYqFrnuvm9NsFTp65VzFMtrvwE`，狀態 `READY`。
+- Commit：`4f537374d37fae836bd670bb7c1dea15904337b8`。
+- Vercel Deployment API：`regions=["hnd1"]`。
+- `vercel inspect`：Node.js Function build 顯示 `[hnd1]`。
+- 量測入口 `x-vercel-id` PoP：`hkg1`；這是 CDN 入口，不等同 Function region。
+- `/api/health`：200 JSON，`Cache-Control: no-store`，不是 Deployment Protection HTML。
+- Preview 保護以短效 Vercel OIDC trusted-source header 通過；量測輸出不保存 token。
 
-同一量測腳本的 health warm P75 從修改前 Production 1,006.6 ms 降至 Preview 126.3 ms，改善 87.5%。Runtime warm log 顯示實際 `dbMs` 約 15.5-25.5 ms，支持跨區往返是原始主要瓶頸，而不是 SQL 本身。
+| 指標 | Production baseline (`iad1`) | P0 Preview (`hnd1`) | 改善 |
+| --- | ---: | ---: | ---: |
+| `/api/health` cold-like TTFB | 1038.5 ms | 179.9 ms | 82.7% |
+| `/api/health` warm total P75 | 1006.6 ms | 115.3 ms | 88.5% |
+| `/` warm total P75 | 255.4 ms | 111.9 ms | 56.2% |
+| `/login` warm total P75 | 264.8 ms | 100.6 ms | 62.0% |
+| `/onboarding` warm total P75 | 253.0 ms | 103.8 ms | 59.0% |
+
+完整方法與樣本在 `performance-results/p0.json` 與 `docs/performance/P0_MEASUREMENT.md`。Baseline 是既有 Production，P0 是受保護 Preview；兩者使用相同台灣端腳本與 run count，但部署環境不同，因此頁面數值只作方向性比較。`/api/health` 的單一 DB round trip 與 Deployment API region 是區域改善的主要因果證據。
+
+Vercel 外部回應未保留應用設定的 `Server-Timing`，但 Runtime Logs 中 15 筆 health `request_completed` 顯示 `totalMs` 平均 13.7 ms、`dbMs` 平均 13.2 ms，證明應用內計時已生效；外部 TTFB 另包含 CDN 與網路成本。
 
 ## 回復方式
 
-若 `hnd1` 發生平台相容性問題，回復此變更 commit 或移除 `regions` 後重新部署；資料庫、DNS 與 secret 不需變更。回復前後都要保留 deployment ID 與 read-only smoke 結果。
+若 `hnd1` 發生平台相容或可用性問題：
+
+1. 將 `vercel.json` 的 `regions` 回復為上一個已驗證設定。
+2. 建立 Preview 並執行 health、login、QR read-only smoke。
+3. 回復 Production alias 至上一個 READY deployment。
+4. 不變更 Supabase region、RLS、連線 Secret 或 public order security controls。

@@ -126,21 +126,20 @@ export async function POST(request: Request, context: RouteContext) {
           skipDuplicates: true,
         });
       }
-      const groups = await transaction.productGroup.findMany({
-        where: { organizationId, categoryId: { in: [...new Set(requestedGroups.map((group) => group.categoryId))] } },
-        select: { id: true, categoryId: true, name: true },
-      });
+      const groups = requestedGroups.length > 0
+        ? await transaction.productGroup.findMany({
+          where: {
+            organizationId,
+            categoryId: { in: [...new Set(requestedGroups.map((group) => group.categoryId))] },
+          },
+          select: { id: true, categoryId: true, name: true },
+        })
+        : [];
       const groupsByName = new Map(groups.map((group) => [groupKey(group.categoryId, group.name), group.id]));
       const missingGroup = requestedGroups.find((group) => !groupsByName.has(groupKey(group.categoryId, group.name)));
       if (missingGroup) throw new CatalogImportReferenceError("GROUP", missingGroup.name);
 
-      await upsertImportedProducts(
-        transaction,
-        organizationId,
-        importRows,
-        categoriesByName,
-        groupsByName,
-      );
+      await upsertImportedProducts(transaction, organizationId, importRows, categoriesByName, groupsByName);
       await updateImportedTranslations(transaction, organizationId, importRows);
       await updateImportedStallAssignments(
         transaction,
@@ -237,7 +236,7 @@ async function upsertImportedProducts(
     };
   });
 
-  await transaction.$executeRaw(Prisma.sql`
+  const changedCount = await transaction.$executeRaw(Prisma.sql`
     insert into public.products (
       id, organization_id, category_id, group_id, name, description,
       default_price, image_url, sort_order, is_active, created_at, updated_at
@@ -278,6 +277,9 @@ async function upsertImportedProducts(
       updated_at = now()
     where products.organization_id = excluded.organization_id
   `);
+  if (changedCount !== rows.length) {
+    throw new CatalogImportNotFoundError(rows[0].productId);
+  }
 }
 
 async function updateImportedTranslations(
@@ -378,7 +380,7 @@ async function updateImportedStallAssignments(
   `);
 
   if (assignments.length > 0) {
-    await transaction.$executeRaw(Prisma.sql`
+    const changedCount = await transaction.$executeRaw(Prisma.sql`
       insert into public.stall_products (
         id, organization_id, stall_id, product_id, sort_order, created_at, updated_at
       )
@@ -398,5 +400,8 @@ async function updateImportedStallAssignments(
         updated_at = now()
       where stall_products.organization_id = excluded.organization_id
     `);
+    if (changedCount !== assignments.length) {
+      throw new CatalogImportNotFoundError(assignments[0].product_id);
+    }
   }
 }

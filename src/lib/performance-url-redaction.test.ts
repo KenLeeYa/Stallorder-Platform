@@ -6,7 +6,9 @@ describe("performance URL redaction", () => {
     ["https://app.example/q/printed-token?language=zh", "https://app.example/q/:qrToken"],
     ["https://app.example/order/tracking-token", "https://app.example/order/:trackingToken"],
     ["https://app.example/invite/invitation-token#details", "https://app.example/invite/:invitationToken"],
-  ])("redacts capability URLs", (input, expected) => {
+    ["https://app.example/staff/night-market/orders", "https://app.example/staff/:stallSlug/orders"],
+    ["https://app.example/merchant/stalls/stall-id/dashboard", "https://app.example/merchant/stalls/:stallId/dashboard"],
+  ])("redacts capability and tenant URLs", (input, expected) => {
     expect(redactPerformanceUrl(input)).toBe(expected);
   });
 

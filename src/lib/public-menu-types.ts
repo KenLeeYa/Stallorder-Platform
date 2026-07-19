@@ -41,7 +41,7 @@ export type PublicMenu = {
   products: PublicMenuProduct[];
   supportedLocales: string[];
   estimatedWaitMinutes: number;
-  lastTableOrderAt: null;
+  lastTableOrderAt: string | null;
   limits: {
     maxItemQuantity: number;
     maxUniqueProducts: number;

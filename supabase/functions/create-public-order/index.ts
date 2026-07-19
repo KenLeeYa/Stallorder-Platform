@@ -113,7 +113,7 @@ Deno.serve(async (request) => {
     ]);
 
     const admin = createServiceClient();
-    const { data: globalGateResult, error: globalGateError } = await timing.measure("dbMs", () => admin.rpc(
+    const { data: globalGateResult, error: globalGateError } = await timing.measureDb(() => admin.rpc(
       "check_global_public_request_gate",
       {
         p_scope: "ORDER",
@@ -130,27 +130,27 @@ Deno.serve(async (request) => {
       return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const { data: sessionContext, error: sessionContextError } = await timing.measure("dbMs", () => admin.from("order_sessions")
+    const { data: sessionContext, error: sessionContextError } = await timing.measureDb(() => admin.from("order_sessions")
       .select("ordering_mode")
       .eq("token_hash", sessionHash)
       .maybeSingle());
     if (sessionContextError) throw sessionContextError;
     if (!sessionContext) {
       const code = "SESSION_NOT_FOUND";
-      await timing.measure("dbMs", () => safeRecordSubmissionFailure(admin, {
+      await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
         requestId, code, ipHash, deviceHash, qrTokenHash, sessionHash, behaviorHash, idempotencyHash,
       }));
       return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
     if (sessionContext.ordering_mode !== input.orderingMode) {
       const code = "ORDER_MODE_CONFLICT";
-      await timing.measure("dbMs", () => safeRecordSubmissionFailure(admin, {
+      await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
         requestId, code, ipHash, deviceHash, qrTokenHash, sessionHash, behaviorHash, idempotencyHash,
       }));
       return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const { data: existing, error: existingError } = await timing.measure("dbMs", () => admin.rpc("lookup_public_order_idempotency", {
+    const { data: existing, error: existingError } = await timing.measureDb(() => admin.rpc("lookup_public_order_idempotency", {
       p_session_token_hash: sessionHash,
       p_idempotency_key: input.idempotencyKey,
     }));
@@ -161,7 +161,7 @@ Deno.serve(async (request) => {
       return respond(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200);
     }
 
-    const { data: gateResult, error: gateError } = await timing.measure("dbMs", () => admin.rpc("check_public_order_submission_gate", {
+    const { data: gateResult, error: gateError } = await timing.measureDb(() => admin.rpc("check_public_order_submission_gate", {
       p_session_token_hash: sessionHash,
       p_ip_hash: ipHash,
       p_device_hash: deviceHash,
@@ -187,7 +187,7 @@ Deno.serve(async (request) => {
       environment: Deno.env.get("APP_ENV")?.trim() || "development",
     }));
     if (!turnstile.ok) {
-      await timing.measure("dbMs", () => safeRecordSubmissionFailure(admin, {
+      await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
         requestId,
         code: turnstile.code,
         ipHash,
@@ -242,14 +242,14 @@ Deno.serve(async (request) => {
         p_delivery_address: input.deliveryAddress,
       } : {}),
     };
-    const { data: createResult, error: createError } = await timing.measure("dbMs", () => admin.rpc(
+    const { data: createResult, error: createError } = await timing.measureDb(() => admin.rpc(
       input.orderingMode === "DELIVERY" ? "create_public_delivery_order" : "create_public_order",
       createArguments,
     ));
     if (createError) {
       if (createError.message.includes("TOO_MANY_PENDING_ORDERS")) {
         const code = "TOO_MANY_PENDING_ORDERS";
-        await timing.measure("dbMs", () => safeRecordSubmissionFailure(admin, {
+        await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
           requestId,
           code,
           ipHash,

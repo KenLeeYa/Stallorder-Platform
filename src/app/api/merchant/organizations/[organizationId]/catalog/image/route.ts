@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import sharp from "sharp";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { hasExpectedImageSignature, type SupportedImageMime } from "@/lib/image-upload";
+import { optimizeProductImage } from "@/lib/product-image-processing";
 import { hashClientIp } from "@/lib/security";
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -42,18 +42,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   let optimizedBytes: Buffer;
   try {
-    optimizedBytes = await sharp(bytes, { failOn: "error", limitInputPixels: 40_000_000 })
-      .rotate()
-      .resize({ width: 800, height: 800, fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 80, effort: 4 })
-      .toBuffer();
-    if (optimizedBytes.byteLength > 500_000) {
-      optimizedBytes = await sharp(bytes, { failOn: "error", limitInputPixels: 40_000_000 })
-        .rotate()
-        .resize({ width: 800, height: 800, fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 68, effort: 4 })
-        .toBuffer();
-    }
+    optimizedBytes = await optimizeProductImage(bytes);
   } catch {
     return NextResponse.json({ error: "圖片無法解析或尺寸過大。" }, { status: 400 });
   }
@@ -77,7 +66,12 @@ export async function POST(request: Request, context: RouteContext) {
     outcome: "SUCCESS",
     requestId: authorization.requestId,
     ipHash: hashClientIp(request),
-    metadata: { contentType: "image/webp", originalSize: file.size, optimizedSize: optimizedBytes.byteLength },
+    metadata: {
+      contentType: "image/webp",
+      sourceContentType: file.type,
+      originalSize: file.size,
+      optimizedSize: optimizedBytes.byteLength,
+    },
   });
   return NextResponse.json({ imageUrl: data.publicUrl }, { status: 201, headers: { "x-request-id": authorization.requestId } });
 }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { publicMenuCacheTag, publicQrCacheTag } from "./public-menu-cache-tags";
+import { publicQrCacheTag, stallMenuCacheTag } from "./cache-tags";
 
-describe("public menu cache tags", () => {
-  it("uses the stall id for menu invalidation", () => {
-    expect(publicMenuCacheTag("stall-id")).toBe("stall-menu:stall-id");
+describe("public cache tags", () => {
+  it("uses one stable tag per stall menu", () => {
+    expect(stallMenuCacheTag("stall-id")).toBe("stall-menu:stall-id");
   });
 
   it("never places a raw QR token in a cache tag", () => {

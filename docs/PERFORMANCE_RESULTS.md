@@ -1,72 +1,111 @@
-# StallOrder 效能改善結果
+# StallOrder 效能最佳化結果
 
-## 比較方法
+## 範圍與發布狀態
 
-- Before：Production commit `d62dd89f6760285f34ce41306263c16256459183`。
-- After：本分支 Preview deployment `dpl_EczGfwK49GD2RYjeQgbjxebdxYvj`，commit `89202ac46ac92e0a4474930f5a11cd30bf929d2f`。
-- 工具：`scripts/measure-production-performance.mjs`，同一組 routes、sample count、測試帳號權限與 synthetic mobile 設定。
-- Production 僅執行 read-only route；不建立正式訂單。
-- 完整原始結果保存於 `performance-results.json`；不保存 response body、Cookie 或 credential。
+- 分支：`performance/cache-and-response-optimization`。
+- 比較基準：Production commit `d62dd89f6760285f34ce41306263c16256459183`。
+- 最終 runtime Preview：`dpl_9nCd4XNKGjnFWvW3rpabM4TQHzV7`，commit `7ce1182e2e395cf8a69d8d8b31bf19a58cc8aa40`，Vercel API 驗證 `READY`、`regions=["hnd1"]`。
+- 目前 Production 仍是 `d62dd89f`、deployment `dpl_ALPBiwEDtjhPAxYi1zKD5qQkVEJW`、`regions=["iad1"]`；本分支尚未合併，也沒有直接改 production alias。
+- Supabase Production 與 Staging 均為 Tokyo `ap-northeast-1`。
+- `app.qidaigo.com` 在最終檢查時沒有可解析 DNS record；Vercel production hostname 可用。失敗證據位於 `docs/performance/PRODUCTION_DOMAIN_DNS_FAILURE.md`。
 
-## 修改前
+## 已確認瓶頸
 
-| Route | Cold total | Warm P75 | 判讀 |
-| --- | ---: | ---: | --- |
-| `/` | 297.2 ms | 279.8 ms | 正常 |
-| `/api/health` | 1,045.4 ms | 1,006.6 ms | 跨區單 DB round trip 過高 |
-| `/q/:qrToken` page shell | 287.6 ms | 258.8 ms | Shell 快，但菜單原先等待 client Edge response |
-| `/staff/:stallSlug` | 5,911.3 ms | 6,641.9 ms | 多輪 auth／DB／maintenance 往返 |
-| `/merchant/dashboard` | 3,681.3 ms | 5,212.9 ms | session/workspace 重複與 serial query |
+1. Production `iad1` 到 Supabase Tokyo 的跨區 DB round trip：原始 `/api/health` warm P75 約 1,005 ms，Preview `hnd1` 約 114 ms。
+2. 公開首頁與登入頁原本為 Dynamic/MISS；改成 Static 與 CDN cache 後 warm P75 約 23 ms。
+3. QR session 在已取得伺服器菜單時仍重查並回傳完整菜單；`includeMenu=false` 後 query count 由 16 至 18 降為 8。
+4. 到期訂單同時被 pg_cron、舊 Preview cron 與 request path 掃描；Production `pg_stat_statements` 顯示 expiry function 3,892 calls、總計 26,485 ms。
+5. Staff 與 dashboard 初始 bundle 同步載入 Supabase Realtime；改成 SSE/延後 fallback 後各減少約 56.6 KB。
+6. 剩餘長尾主要在 Supabase Edge cold start、Vercel deployment cold/queue 與外部網路，不以單次總時間猜測為 PostgreSQL 問題。
 
-Function region：`iad1`。Supabase：`ap-northeast-1`。
+## 階段結果
 
-## Preview／Staging 修改後
+| 階段 | 主要變更 | 獨立量測結論 |
+| --- | --- | --- |
+| Baseline | 安全量測工具、架構稽核 | Production health warm P75 1,006.6 ms；Production region `iad1` |
+| P0 | `hnd1`、pooler/Prisma/timing | health warm P75 115.3 ms，較基準改善 88.5% |
+| P1 | Static public routes、Data/CDN cache、invalidation | `/`、`/login` anonymous cache HIT；公開菜單 warm total P75 25.1 ms |
+| P2 | query waterfall、N+1、expiry ownership | QR session query 16–18 -> 8；staff/dashboard/report Preview warm P75 266.9/200.4/222.1 ms |
+| P3 | image、bundle、lazy loading、Suspense、RUM | staff/dashboard 初始 JS 各約 -56.6 KB；mobile LCP 972 -> 792 ms、1,148 -> 744 ms |
+| P4 | 文件提案 | 沒有 runtime/DNS/Worker 變更；不建立第二套量測假象 |
 
-Preview 為乾淨 Staging DB，沒有 demo owner 或 demo QR；未複製 Production 資料，也未建立假訂單。因此已量測匿名／唯讀路由與 DB health，受驗證的實際 staff、dashboard 與 QR 路由保留本機 production build 結果，不把 redirect／404 shell 當成已驗證改善。
+各輪原始 JSON 與 Markdown 位於 `performance-results/`、`docs/performance/`。P3 保留首次部署與暖機確認兩輪；以下 after 使用暖機確認值。
 
-| Route | Cold total | Warm P75 | 改善率 |
-| --- | ---: | ---: | ---: |
-| `/` | 100.6 ms | 47.1 ms | 83.2% |
-| `/api/health` | 195.6 ms | 126.3 ms | 87.5% |
-| `/q/:qrToken` | 未量測 | 未量測 | Staging 無測試 QR |
-| `/staff/:stallSlug` | 未量測 | 未量測 | Staging 無測試帳號／攤位 |
-| `/merchant/dashboard` | 140.0 ms | 148.5 ms | 僅匿名 307，不與已登入基準比較 |
+## Before/After
 
-After Function region：`hnd1`，已由 Vercel Deployment API 確認。入口 Edge PoP：`hkg1`。
+公開路由 before 取初始 Production baseline；QR 與實際 authenticated routes 因基準未提供測試憑證，使用最早完整的 P1 authenticated measurement。Cold-like 是第一筆 `no-cache` 要求，不保證每次都觸發真正 Function cold start。
 
-Preview health runtime warm logs 顯示 `totalMs` 約 16.2-26.3 ms、`dbMs` 約 15.5-25.5 ms；HTTP 剩餘時間主要是台灣到 Vercel Edge／Function 的網路與平台開銷。首次冷連線樣本為 `totalMs=315.9`、`dbMs=309.6`。Runtime 亦確認 Supavisor、6543、`pgbouncer=true` 與 5432 migration 連線；`connection_limit` 尚未配置，列為環境後續項目。
+| 路由 | Cold TTFB before | Cold TTFB after | Warm median before | Warm median after | Warm P75 before | Warm P75 after | Cache |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `/` | 341.0 ms | 77.9 ms | 252.1 ms | 22.9 ms | 252.2 ms | 23.4 ms | MISS -> HIT |
+| `/login` | 294.9 ms | 67.1 ms | 256.7 ms | 22.5 ms | 258.3 ms | 22.8 ms | MISS -> HIT |
+| `/onboarding` | 302.0 ms | 321.3 ms | 251.6 ms | 134.3 ms | 252.1 ms | 134.5 ms | private MISS |
+| `/api/health` | 1,038.5 ms | 161.4 ms | 1,000.0 ms | 111.8 ms | 1,004.8 ms | 113.6 ms | no-store |
+| `/q/:qrToken` | 379.9 ms | 250.5 ms | 124.4 ms | 121.6 ms | 126.6 ms | 135.3 ms | private MISS |
+| public menu API | 285.2 ms | 200.5 ms | 141.3 ms | 127.7 ms | 146.0 ms | 130.0 ms | anonymous HIT；auth/cookie BYPASS |
+| `/staff/:stallSlug` | 374.9 ms | 250.7 ms | 246.2 ms | 187.1 ms | 246.3 ms | 189.5 ms | private MISS |
+| `/merchant/dashboard` | 629.5 ms | 249.4 ms | 184.8 ms | 183.0 ms | 185.3 ms | 185.2 ms | private MISS |
+| `/merchant/reports` | 706.0 ms | 572.6 ms | 190.2 ms | 167.4 ms | 199.7 ms | 174.9 ms | private MISS |
 
-公開訂單 proxy 在 Staging QA 時發現並修正 Cloudflare 保留 header 衝突；修正後 smoke 已由 Cloudflare Error 1000 變為 Edge Function v2 的 `404 QR_NOT_FOUND`，附有效 upstream request ID。此路徑的 `externalApiMs` 樣本約 280.9-1,600.1 ms，顯示 Supabase Edge cold start／首次呼叫仍是後續優化重點。
+`/onboarding` cold-like 未改善，但 warm P75 明顯下降；不把 cold sample 波動隱藏。P3 首輪 public menu 曾有 15.5 秒連線離群值，而應用層同時間僅 25.2 至 42.9 ms，第二輪恢復，因此沒有回退程式碼。
 
-## 本機 production build 對照
+## Cache 與 Rendering
 
-2026-07-19 以 `next start`、本機 Supabase、同一量測腳本及 6 次 request 執行。此結果用來確認程式端改善與效能預算，不拿來取代 Vercel／Supabase 跨區前後比較。
+- Build 最終確認 `/`、`/login`、`/offline`、`/staff/login` 為 Static；authenticated、QR、tracking 與 API 保持 Dynamic。
+- `/` 使用 Vercel/CDN 長效 shared cache；`/login` 使用較短 shared cache。
+- public menu 只在 anonymous、無 cookie、無 Authorization 時回 shared-cache headers；cookie/auth 測試均為 private bypass。
+- 菜單 Data Cache 使用 stable tag helper，商品、分類、價格、註記、供應、售罄、攤位與接單狀態修改都會失效。
+- QR HTML、order session、order creation、tracking、staff、merchant、payment、pickup code、health 與 audit 不公開快取。
+- `create-public-order` 仍重讀官方價格與可售狀態，UI cache 不是交易真實來源。
 
-| Route | Cold total | Warm P75 | Warm TTFB P75 | Android LCP |
-| --- | ---: | ---: | ---: | ---: |
-| `/` | 498.6 ms | 110.3 ms | 68.8 ms | 852 ms |
-| `/api/health` | 14.8 ms | 15.8 ms | 15.3 ms | 204 ms |
-| `/q/:qrToken` | 107.3 ms | 33.8 ms | 28.6 ms | 620 ms |
-| `/staff/:stallSlug` | 278.7 ms | 116.7 ms | 23.1 ms | 576 ms |
-| `/merchant/dashboard` | 112.9 ms | 66.1 ms | 52.0 ms | 940 ms |
+## Database 與排程
 
-- 8 條量測路由均未觸發伺服器端 budget warning。
-- QR 頁的 `create-order-session` 外部呼叫在桌面樣本為 342.8 ms、Android 樣本為 148.3 ms；它已與可快取菜單首屏分離，但仍是後續可觀測項目。
-- `/staff/:stallSlug` 與 dashboard 的桌面 LCP 單次樣本受本機 Chromium 啟動／排程影響，因此以 Preview Speed Insights 與重複樣本作正式判讀。
+- Runtime `DATABASE_URL` 已由安全布林 profile 驗證為 Supabase Transaction Pooler、port 6543、`pgbouncer=true`；`DIRECT_URL` 為 5432 migration/admin 路徑。
+- Production/Preview 的 Sensitive env 名稱存在，但值無法讀回；Preview -> Staging、Production -> Production 的來源對應仍需在 Vercel Dashboard 人工複核。
+- `src/lib/prisma.ts` 是 lazy singleton；request path 沒有額外 `new PrismaClient()`。
+- 登入、OAuth、dashboard、QR session 與 public tracking 的獨立查詢已平行化；CSV、商品供應與桌位座標的 N+1 改成 set-based SQL。
+- 沒有新增 index：目前 pg_stat/query-plan 證據不足，避免盲目增加 write/storage 成本。
+- 新 migration 會在確認 native expiry pg_cron active 後移除重複 Preview cron；request path 不再執行全域 expiry scan。此 migration 尚未套用 Production。
 
-## 已實作改善
+## 前端交付
 
-- Vercel 單一 `hnd1` region。
-- Prisma lazy singleton 與安全 pooler profile。
-- API／Edge structured timing 與 Server-Timing。
-- 公開菜單短 TTL cache、完整 mutation invalidation、首屏與安全 session 初始化分離。
-- React request cache、獨立查詢平行化、移除 request-path maintenance。
-- 多攤位 catalog copy 由 N+1 upsert 改為單一 set-based DML。
-- WebP 商品圖、受限 Next Image、loading skeleton、Analytics 與 Speed Insights。
+- 商品上傳會 rotate、限制 40 MP、縮到 800 x 800 內並輸出 WebP；1,948,131 B 測試 JPEG 轉為 179,346 B，縮減 90.8%。
+- 只對核准的 Supabase `product-images` public path 使用 `next/image`；外部 HTTPS URL 不由 server proxy，採 lazy、no-referrer 圖片。
+- Staff 先用同源 SSE，失敗才 dynamic import Realtime；dashboard 在初始 overview 後延遲載入 Realtime。
+- Turnstile widget 在開始選購後才載入，但 server-side Turnstile 驗證、rate limit、QR session、idempotency 與價格驗證未改。
+- Vercel Analytics/Speed Insights 已掛載並去識別 URL。Preview 未觀察到遙測 request，需在 Production 儀表板確認開始收樣。
 
-## 尚待量測
+## 驗證結果
 
-- Preview 真實 Function duration 與 dbMs。
-- Edge Function session／Turnstile breakdown。
-- 修改後 JS／image transfer 與 mobile LCP。
-- 一個完整營業週期的 Supabase connections、CPU 與 Vercel P75／P95。
+| 驗證 | 結果 |
+| --- | --- |
+| `npm ci` | 通過；Prisma Client 產生成功 |
+| `npm run lint` | 通過 |
+| `npm run typecheck` | 通過 |
+| `npm test` | 46 files、178 tests 通過 |
+| `npm run db:test` | 16 files、264 pgTAP tests 通過 |
+| `npx supabase db lint --level warning` | 0 schema warning/error |
+| `npm run build` | 通過；33 static pages 產生完成 |
+| `npm run test:e2e` | 30/30 通過 |
+| `npm audit --audit-level=moderate` | 0 vulnerability |
+| Pixel 7 Preview QA | QR/dashboard 無 overflow；商品圖載入；登入成功；0 hydration error |
+| Local production build measurement | 8 routes；0 warning；QR session HTTP 201 |
+| Production read-only control | Vercel hostname 可用；舊版 health warm P75 983.3 ms |
+
+E2E 因 React 19/Next streaming 會保留隱藏 route tree，兩個 strict locator 改為只查目前可存取的 `main`；截圖確認沒有可見重複 UI。Staging 隔離 QA 組織與 profile 已清除。
+
+## 安全回歸
+
+- pgTAP 持續驗證 RLS、跨 tenant/stall 拒絕、匿名不可直接寫 order 與 QR abuse controls。
+- Playwright 驗證跨組織 dashboard 404、跨攤位 order 403、公開 cache auth/cookie bypass、Turnstile 測試提交與 recovery。
+- RLS、RBAC、CSRF、Google OAuth、session、Turnstile、rate limit、QR one-time session、idempotency、server-side price、state machine、audit 與 pickup protection 均未停用。
+- 量測產物未保存 response body、cookie、密碼、session、Authorization、Vercel share URL 或原始 QR token。
+
+## 已知限制與下一步
+
+1. P3 confirmation 的 order-session desktop 為 1,174.5 ms，仍高於 800 ms；mobile 767.8 ms。下一輪應優先觀察 Supabase Edge cold start，不先引入 Redis/read replica。
+2. Preview 分享環境觀察到 2 筆 CSP console error，但 0 hydration/network error；正式 hostname 修復後需在無 Vercel share injection 的環境複驗。
+3. `app.qidaigo.com` DNS 目前無 record，是正式手機測試的獨立阻擋項；不得以改程式掩蓋。
+4. 組織直接 cascade 刪除會因既有 membership usage-event trigger 順序造成 FK 錯誤；本次 QA 清理以先刪 membership 完成。這是非本次效能範圍的資料生命週期缺口，應另開修正。
+5. PR 通過後依序：人工複核 env scope、套用 Production cron migration、部署三個已驗證 Edge Function 版本、部署 Vercel Production、修復/驗證 DNS 與 TLS、跑 production smoke，再觀察至少一個營業週期。
+6. P4 Cloudflare Worker 只在 `docs/FUTURE_CLOUDFLARE_MENU_CACHE.md` 提案，沒有部署、沒有 full-site proxy，也不應在現有 Vercel cache 已達標時實作。

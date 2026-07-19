@@ -78,7 +78,7 @@ export async function authorizeApiRequest(
   request: Request,
   stallSlug: string,
   permission: Permission,
-  requestId = createRequestId(),
+  requestId: string = createRequestId(),
 ) {
   const principal = await getRequestPrincipal(request);
   if (!principal) {
@@ -166,7 +166,7 @@ export async function authorizeOrganizationApiRequest(
   organizationId: string,
   permission: Permission,
   includeStallRoles = false,
-  requestId = createRequestId(),
+  requestId: string = createRequestId(),
 ) {
   const principal = await getRequestPrincipal(request);
   if (!principal) {

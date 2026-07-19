@@ -20,7 +20,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   test.setTimeout(180_000);
   const customerName = `內用 QA ${Date.now()}`;
   await page.goto(`/q/${tableQrToken}`);
-  await expect(page.getByText("內用 · A1 桌", { exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText("內用 · A1 桌", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "點餐語言" }).click();
   await page.getByRole("option", { name: "English", exact: true }).click();
@@ -49,9 +49,10 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   const staffPage = await staffContext.newPage();
   await login(staffPage, "staff@stallorder.test");
   await staffPage.goto("/staff/aming-chicken");
-  await expect(staffPage.getByRole("switch", { name: /新訂單提醒/ })).toBeVisible();
-  await staffPage.getByPlaceholder("搜尋桌號、訂單編號或顧客").filter({ visible: true }).fill("A1");
-  const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
+  const staffMain = staffPage.getByRole("main");
+  await expect(staffMain.getByRole("switch", { name: /新訂單提醒/ })).toBeVisible();
+  await staffMain.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("A1");
+  const staffOrder = staffMain.getByRole("article").filter({ hasText: customerName });
   await expect(staffOrder).toContainText("內用 · A1 桌");
   await staffOrder.getByRole("button", { name: "確認接單" }).click();
   await expect(staffOrder).toContainText("已確認");

@@ -1,4 +1,4 @@
-export type EdgePerformanceField = "dbMs" | "turnstileMs" | "externalApiMs";
+export type EdgePerformanceField = "sessionMs" | "dbMs" | "turnstileMs" | "externalApiMs";
 
 type Options = {
   route: string;
@@ -8,6 +8,7 @@ type Options = {
 };
 
 const serverTimingNames: Record<EdgePerformanceField, string> = {
+  sessionMs: "session",
   dbMs: "db",
   turnstileMs: "turnstile",
   externalApiMs: "external-api",
@@ -18,6 +19,7 @@ export function createEdgePerformanceTiming(options: Options) {
   const logger = options.logger ?? ((record) => console.info(JSON.stringify(record)));
   const startedAt = now();
   const durations: Partial<Record<EdgePerformanceField, number>> = {};
+  let dbQueryCount = 0;
   let completed: { totalMs: number; serverTiming: string } | null = null;
 
   async function measure<T>(field: EdgePerformanceField, operation: () => Promise<T>) {
@@ -29,6 +31,11 @@ export function createEdgePerformanceTiming(options: Options) {
     }
   }
 
+  async function measureDb<T>(operation: () => Promise<T>, queryCount = 1) {
+    if (Number.isSafeInteger(queryCount) && queryCount > 0) dbQueryCount += queryCount;
+    return measure("dbMs", operation);
+  }
+
   function finish(status: number) {
     if (completed) return completed;
     const totalMs = round(now() - startedAt);
@@ -38,6 +45,7 @@ export function createEdgePerformanceTiming(options: Options) {
     const serverTiming = [
       `total;dur=${totalMs}`,
       `edge-function;dur=${totalMs}`,
+      ...(dbQueryCount > 0 ? [`db-query-count;dur=${dbQueryCount}`] : []),
       ...Object.entries(roundedDurations).map(
         ([field, duration]) => `${serverTimingNames[field as EdgePerformanceField]};dur=${duration}`,
       ),
@@ -51,13 +59,14 @@ export function createEdgePerformanceTiming(options: Options) {
       status,
       totalMs,
       edgeFunctionMs: totalMs,
+      ...(dbQueryCount > 0 ? { dbQueryCount } : {}),
       ...roundedDurations,
     });
     completed = { totalMs, serverTiming };
     return completed;
   }
 
-  return { finish, measure };
+  return { finish, measure, measureDb };
 }
 
 export function finalizeEdgeResponse(

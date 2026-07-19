@@ -33,13 +33,13 @@ export async function GET(request: Request) {
 
   const authorization = await timing.measure(
     "authMs",
-    () => authorizeOrganizationApiRequest(
+    () => timing.measureDb(() => authorizeOrganizationApiRequest(
       request,
       parsed.data.organizationId,
       "VIEW_REPORTS",
       true,
       requestId,
-    ),
+    ), 4),
   );
   if (!authorization.ok) return finalizePerformanceResponse(authorization.response, timing);
 
@@ -58,16 +58,16 @@ export async function GET(request: Request) {
     ), timing);
   }
 
-  const overview = await timing.measure("dbMs", () => getDashboardOverview({
-      organizationId: authorization.workspace.id,
-      stalls: availableStalls.filter((stall) => requestedIds.includes(stall.id)),
-      alertStallIds: availableStalls
-        .filter((stall) => requestedIds.includes(stall.id))
-        .filter((stall) => [...authorization.workspace.roles, ...stall.roles].some((role) => hasPermission(role, "MANAGE_ORDERING")))
-        .map((stall) => stall.id),
-      dateFrom: parsed.data.dateFrom,
-      dateTo: parsed.data.dateTo,
-    }));
+  const overview = await timing.measureDb(() => getDashboardOverview({
+    organizationId: authorization.workspace.id,
+    stalls: availableStalls.filter((stall) => requestedIds.includes(stall.id)),
+    alertStallIds: availableStalls
+      .filter((stall) => requestedIds.includes(stall.id))
+      .filter((stall) => [...authorization.workspace.roles, ...stall.roles].some((role) => hasPermission(role, "MANAGE_ORDERING")))
+      .map((stall) => stall.id),
+    dateFrom: parsed.data.dateFrom,
+    dateTo: parsed.data.dateTo,
+  }), 3);
   return finalizePerformanceResponse(NextResponse.json(overview, {
     headers: {
       "cache-control": "private, no-store",

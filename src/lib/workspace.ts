@@ -96,7 +96,7 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
     const hasAllStallAccess = platformRole === "PLATFORM_ADMIN"
       || organizationAccess.some(
         (membership) => membership.role === "ORGANIZATION_OWNER" || membership.allStalls,
-    );
+      );
     const assignedStallIds = new Set(
       (stallMembershipsByOrganization.get(organization.id) ?? [])
         .map((membership) => membership.stallId),

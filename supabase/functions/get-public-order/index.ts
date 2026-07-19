@@ -39,7 +39,7 @@ Deno.serve(async (request) => {
     ]);
 
     const admin = createServiceClient();
-    const { data: globalGateResult, error: globalGateError } = await timing.measure("dbMs", () => admin.rpc(
+    const { data: globalGateResult, error: globalGateError } = await timing.measureDb(() => admin.rpc(
       "check_global_public_request_gate",
       {
         p_scope: "TRACKING",
@@ -56,13 +56,13 @@ Deno.serve(async (request) => {
       return respond({ error: errorMessage(code), code }, 429);
     }
 
-    const { data, error } = await timing.measure("dbMs", () => admin.rpc("get_public_order", {
+    const { data, error } = await timing.measureDb(() => admin.rpc("get_public_order", {
       p_tracking_token_hash: trackingHash,
       p_device_hash: deviceHash,
     }));
     if (error) throw error;
     if (!data) {
-      await timing.measure("dbMs", () => admin.rpc("record_public_order_attempt", {
+      await timing.measureDb(() => admin.rpc("record_public_order_attempt", {
         p_request_id: requestId,
         p_event_type: "TRACKING_READ",
         p_outcome: "DENIED",
@@ -85,12 +85,12 @@ Deno.serve(async (request) => {
         stored.pickupCodeLength === 6 ? 6 : 3,
       )).pickupCode
       : null;
-    const orderContext = await timing.measure("dbMs", () => admin.from("orders")
+    const orderContext = await timing.measureDb(() => admin.from("orders")
       .select("stall_id, dining_table_id")
       .eq("id", stored.orderId)
       .single());
     if (orderContext.error) throw orderContext.error;
-    const [settingsQuery, lastTableOrderQuery] = await timing.measure("dbMs", () => Promise.all([
+    const [settingsQuery, lastTableOrderQuery] = await timing.measureDb(() => Promise.all([
       admin.from("stall_ordering_settings")
         .select("estimated_wait_minutes")
         .eq("stall_id", orderContext.data.stall_id)
@@ -104,9 +104,10 @@ Deno.serve(async (request) => {
           .limit(1)
           .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
-    ]));
-    if (settingsQuery.error) throw settingsQuery.error;
-    if (lastTableOrderQuery.error) throw lastTableOrderQuery.error;
+    ]), orderContext.data.dining_table_id ? 2 : 1);
+    if (settingsQuery.error || lastTableOrderQuery.error) {
+      throw settingsQuery.error ?? lastTableOrderQuery.error;
+    }
     const publicOrder: Record<string, unknown> = { ...stored };
     delete publicOrder.orderId;
     delete publicOrder.pickupCodeLength;

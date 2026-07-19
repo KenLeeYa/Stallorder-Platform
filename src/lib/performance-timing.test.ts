@@ -12,15 +12,19 @@ describe("performance timing", () => {
       logger,
     });
 
-    await timing.measure("dbMs", async () => "result");
+    await timing.measureDb(async () => "result");
     const finished = timing.finish({ status: 200 });
 
-    expect(finished).toEqual({ totalMs: 60, serverTiming: "total;dur=60, db;dur=25" });
+    expect(finished).toEqual({
+      totalMs: 60,
+      serverTiming: "total;dur=60, db-query-count;dur=1, db;dur=25",
+    });
     expect(logger).toHaveBeenCalledWith("info", "request_completed", {
       route: "/api/example",
       requestId: "request-id",
       status: 200,
       totalMs: 60,
+      dbQueryCount: 1,
       dbMs: 25,
     });
   });
