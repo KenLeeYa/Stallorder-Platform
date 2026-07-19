@@ -124,9 +124,9 @@ export function MerchantWorkspaceHeader({
               <ScrollText className="h-5 w-5" /><span className="sr-only">稽核與營運警示</span>
             </Link>
           ) : null}
-          {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER") ? (
-            <Link title="訂閱與用量" href={`/merchant/subscription?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-              <CreditCard className="h-5 w-5" /><span className="sr-only">訂閱與用量</span>
+          {workspace?.roles.some((role) => hasPermission(role, "VIEW_BILLING")) ? (
+            <Link title="訂閱與帳務" href={`/merchant/billing?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <CreditCard className="h-5 w-5" /><span className="sr-only">訂閱與帳務</span>
             </Link>
           ) : null}
           {workspace?.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES")) ? (
