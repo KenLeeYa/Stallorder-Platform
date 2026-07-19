@@ -179,7 +179,7 @@ export async function POST(request: Request, context: RouteContext) {
         },
       });
       return { approval, invoiceId: invoice.id, invoiceTotal: updatedInvoice.totalAmount };
-    });
+    }, { maxWait: 5_000, timeout: 20_000 });
 
     return NextResponse.json(result, {
       status: 201,

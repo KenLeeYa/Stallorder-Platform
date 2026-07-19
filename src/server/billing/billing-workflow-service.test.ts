@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { billingPeriod, billingWorkflowErrorFromUnknown, isManualRenewalTooEarly } from "./billing-workflow-service";
+import {
+  billingPeriod,
+  billingTransactionOptions,
+  billingWorkflowErrorFromUnknown,
+  isManualRenewalTooEarly,
+} from "./billing-workflow-service";
+
+describe("billingTransactionOptions", () => {
+  it("allows trusted manual billing workflows to finish across the staging database region", () => {
+    expect(billingTransactionOptions).toEqual({ maxWait: 5_000, timeout: 20_000 });
+  });
+});
 
 describe("billingPeriod", () => {
   it("creates exact UTC monthly periods without floating money or time math", () => {

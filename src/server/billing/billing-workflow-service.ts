@@ -64,6 +64,17 @@ type AuditContext = {
   ipHash?: string;
 };
 
+export const billingTransactionOptions = {
+  maxWait: 5_000,
+  timeout: 20_000,
+} as const;
+
+function billingTransaction<T>(
+  operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+) {
+  return prisma.$transaction(operation, billingTransactionOptions);
+}
+
 type ManualPaymentInput = {
   invoiceId: string;
   paymentMethod: "BANK_TRANSFER" | "CASH" | "LINE_PAY_MANUAL" | "OTHER";
@@ -82,7 +93,7 @@ export class BillingWorkflowService {
     context: AuditContext,
   ) {
     try {
-      return await prisma.$transaction(async (transaction) => {
+      return await billingTransaction(async (transaction) => {
         const [subscription, planVersion] = await Promise.all([
           transaction.subscription.findUnique({ where: { organizationId } }),
           transaction.planVersion.findFirst({
@@ -135,7 +146,7 @@ export class BillingWorkflowService {
     context: AuditContext,
   ) {
     try {
-      return await prisma.$transaction(async (transaction) => {
+      return await billingTransaction(async (transaction) => {
         const subscription = await transaction.subscription.findUnique({ where: { organizationId } });
         if (!subscription) throw new BillingWorkflowError("SUBSCRIPTION_NOT_FOUND");
         const request = await transaction.billingChangeRequest.create({
@@ -163,7 +174,7 @@ export class BillingWorkflowService {
   }
 
   async rejectBillingChangeRequest(requestId: string, note: string, context: AuditContext) {
-    return prisma.$transaction(async (transaction) => {
+    return billingTransaction(async (transaction) => {
       await transaction.$queryRaw`select id from public.billing_change_requests where id = ${requestId}::uuid for update`;
       const request = await transaction.billingChangeRequest.findUnique({ where: { id: requestId } });
       if (!request) throw new BillingWorkflowError("REQUEST_NOT_FOUND");
@@ -207,7 +218,7 @@ export class BillingWorkflowService {
     },
     context: AuditContext,
   ) {
-    return prisma.$transaction(async (transaction) => {
+    return billingTransaction(async (transaction) => {
       await lockSubscription(transaction, input.organizationId);
       const [subscription, version] = await Promise.all([
         transaction.subscription.findUnique({ where: { organizationId: input.organizationId } }),
@@ -320,7 +331,7 @@ export class BillingWorkflowService {
     input: ManualPaymentInput,
     context: AuditContext,
   ) {
-    return prisma.$transaction(async (transaction) => {
+    return billingTransaction(async (transaction) => {
       const existing = await transaction.manualPaymentRecord.findUnique({
         where: { organizationId_idempotencyKey: { organizationId, idempotencyKey: input.idempotencyKey } },
       });
@@ -378,7 +389,7 @@ export class BillingWorkflowService {
   }
 
   async verifyManualPayment(paymentId: string, note: string, context: AuditContext) {
-    return prisma.$transaction(async (transaction) => {
+    return billingTransaction(async (transaction) => {
       await lockPayment(transaction, paymentId);
       const payment = await transaction.manualPaymentRecord.findUnique({ where: { id: paymentId } });
       if (!payment) throw new BillingWorkflowError("PAYMENT_NOT_FOUND");
@@ -447,7 +458,7 @@ export class BillingWorkflowService {
   }
 
   async rejectManualPayment(paymentId: string, note: string, context: AuditContext) {
-    return prisma.$transaction(async (transaction) => {
+    return billingTransaction(async (transaction) => {
       await lockPayment(transaction, paymentId);
       const payment = await transaction.manualPaymentRecord.findUnique({ where: { id: paymentId } });
       if (!payment) throw new BillingWorkflowError("PAYMENT_NOT_FOUND");
@@ -489,7 +500,7 @@ export class BillingWorkflowService {
       | { itemType: "CUSTOM_SERVICE" | "CREDIT" | "DISCOUNT"; code: string; description: string; quantity: number; unitPrice: number; reason: string },
     context: AuditContext,
   ) {
-    return prisma.$transaction(async (transaction) => {
+    return billingTransaction(async (transaction) => {
       await lockInvoice(transaction, invoiceId);
       const invoice = await transaction.invoice.findUnique({ where: { id: invoiceId } });
       if (!invoice) throw new BillingWorkflowError("INVOICE_NOT_FOUND");
@@ -574,7 +585,7 @@ export class BillingWorkflowService {
   }
 
   async voidInvoice(invoiceId: string, reason: string, context: AuditContext) {
-    return prisma.$transaction(async (transaction) => {
+    return billingTransaction(async (transaction) => {
       await lockInvoice(transaction, invoiceId);
       const invoice = await transaction.invoice.findUnique({
         where: { id: invoiceId },
@@ -626,7 +637,7 @@ export class BillingWorkflowService {
     input: { reason: string; days?: number },
     context: AuditContext,
   ) {
-    return prisma.$transaction(async (transaction) => {
+    return billingTransaction(async (transaction) => {
       await transaction.$queryRaw`select id from public.subscriptions where id = ${subscriptionId}::uuid for update`;
       const subscription = await transaction.subscription.findUnique({ where: { id: subscriptionId } });
       if (!subscription) throw new BillingWorkflowError("SUBSCRIPTION_NOT_FOUND");
@@ -700,7 +711,7 @@ export class BillingWorkflowService {
     input: { code: string; quantity: number; reason: string },
     context: AuditContext,
   ) {
-    return prisma.$transaction(async (transaction) => {
+    return billingTransaction(async (transaction) => {
       await transaction.$queryRaw`select id from public.subscriptions where id = ${subscriptionId}::uuid for update`;
       const [subscription, catalog] = await Promise.all([
         transaction.subscription.findUnique({ where: { id: subscriptionId }, include: { plan: true } }),
@@ -755,7 +766,7 @@ export class BillingWorkflowService {
   }
 
   async rebuildUsageSummary(subscriptionId: string, billingPeriod: Date, context: AuditContext) {
-    return prisma.$transaction(async (transaction) => {
+    return billingTransaction(async (transaction) => {
       const subscription = await transaction.subscription.findUnique({ where: { id: subscriptionId } });
       if (!subscription) throw new BillingWorkflowError("SUBSCRIPTION_NOT_FOUND");
       const result = await transaction.$queryRaw<Array<{ rebuild_billing_usage_summary: number }>>`
