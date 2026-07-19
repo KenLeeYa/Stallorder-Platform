@@ -27,13 +27,16 @@ export async function createStaffOrder(input: {
   actorProfileId: string;
   actorRoles: readonly UserRole[];
   request: CreateStaffOrderInput;
+  creationMode?: "STAFF_POS" | "SETUP_TEST";
 }) {
-  const deviceHash = hashToken(`staff-order:${input.actorProfileId}`);
+  const creationMode = input.creationMode ?? "STAFF_POS";
+  const source = creationMode === "SETUP_TEST" ? "MERCHANT_SETUP_TEST" : "STAFF_POS";
+  const deviceHash = hashToken(`staff-order:${input.actorProfileId}:${creationMode}`);
   const existing = await prisma.order.findFirst({
     where: {
       stallId: input.stallId,
       idempotencyKey: input.request.idempotencyKey,
-      source: "STAFF_POS",
+      source,
       deviceHash,
     },
     select: staffOrderSelect,
@@ -41,7 +44,7 @@ export async function createStaffOrder(input: {
   if (existing) return { order: existing, idempotent: true };
 
   const prepared = await prepareOrder(prisma, input.organizationId, input.stallId, input.request);
-  const checkout = input.request.paymentTiming === "PAY_NOW"
+  const checkout = creationMode === "STAFF_POS" && input.request.paymentTiming === "PAY_NOW"
     ? await resolveStaffCheckout({
         organizationId: input.organizationId,
         stallId: input.stallId,
@@ -87,6 +90,8 @@ export async function createStaffOrder(input: {
       });
       const orderNo = `${businessDateRow.business_date.toISOString().slice(2, 10).replaceAll("-", "")}-${String(counter.nextValue - 1).padStart(3, "0")}`;
       const total = checkout?.total ?? prepared.subtotal;
+      const isSetupTest = creationMode === "SETUP_TEST";
+      const initialStatus = isSetupTest ? "WAITING_CONFIRMATION" : "CONFIRMED";
 
       return transaction.order.create({
         data: {
@@ -95,7 +100,8 @@ export async function createStaffOrder(input: {
           orderNo,
           trackingTokenHash: hashToken(createOpaqueToken()),
           idempotencyKey: input.request.idempotencyKey,
-          source: "STAFF_POS",
+          source,
+          isTest: isSetupTest,
           customerName: input.request.customerName || "現場顧客",
           customerPhone: input.request.customerPhone || null,
           deliveryAddress: input.request.fulfillmentType === "DELIVERY"
@@ -105,8 +111,8 @@ export async function createStaffOrder(input: {
           diningTableId: prepared.diningTableId,
           fulfillmentType: input.request.fulfillmentType,
           note: input.request.customerNote || null,
-          status: "CONFIRMED",
-          paymentStatus: checkout ? "PAID" : "UNPAID",
+          status: initialStatus,
+          paymentStatus: isSetupTest || checkout ? "PAID" : "UNPAID",
           subtotal: prepared.subtotal,
           discountAmount: checkout?.discountAmount ?? 0,
           discountOptionId: checkout?.discountOptionId,
@@ -118,9 +124,11 @@ export async function createStaffOrder(input: {
           total,
           deviceHash,
           pickupCodeHash: null,
-          confirmationExpiresAt: createdAt,
-          confirmedAt: createdAt,
-          paidAt: checkout ? createdAt : null,
+          confirmationExpiresAt: isSetupTest
+            ? new Date(createdAt.getTime() + prepared.unconfirmedOrderTimeoutSeconds * 1000)
+            : createdAt,
+          confirmedAt: isSetupTest ? null : createdAt,
+          paidAt: isSetupTest || checkout ? createdAt : null,
           items: {
             create: prepared.items.map((item) => ({
               organizationId: input.organizationId,
@@ -149,9 +157,9 @@ export async function createStaffOrder(input: {
             create: {
               organizationId: input.organizationId,
               stallId: input.stallId,
-              eventType: checkout ? "STAFF_ORDER_CREATED_PAID" : "STAFF_ORDER_CREATED",
+              eventType: isSetupTest ? "MERCHANT_SETUP_TEST_ORDER_CREATED" : checkout ? "STAFF_ORDER_CREATED_PAID" : "STAFF_ORDER_CREATED",
               previousStatus: null,
-              newStatus: "CONFIRMED",
+              newStatus: initialStatus,
               createdBy: input.actorProfileId,
             },
           },
@@ -183,7 +191,7 @@ export async function createStaffOrder(input: {
         where: {
           stallId: input.stallId,
           idempotencyKey: input.request.idempotencyKey,
-          source: "STAFF_POS",
+          source,
           deviceHash,
         },
         select: staffOrderSelect,
@@ -206,6 +214,7 @@ async function prepareOrder(
     client.stallOrderingSettings.findUnique({
       where: { stallId },
       select: {
+        unconfirmedOrderTimeoutSeconds: true,
         dineInEnabled: true,
         deliveryModuleEnabled: true,
         maxItemQuantity: true,
@@ -325,6 +334,7 @@ async function prepareOrder(
   });
 
   return {
+    unconfirmedOrderTimeoutSeconds: settings.unconfirmedOrderTimeoutSeconds,
     diningTableId,
     tableLabel,
     subtotal: items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),

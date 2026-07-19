@@ -6,6 +6,7 @@ export const staffOrderSelect = {
   id: true,
   orderNo: true,
   source: true,
+  isTest: true,
   customerName: true,
   customerPhone: true,
   deliveryAddress: true,
@@ -47,6 +48,7 @@ export type StaffOrderDto = {
   id: string;
   orderNo: string;
   source: string;
+  isTest: boolean;
   customerName: string;
   customerPhone: string | null;
   deliveryAddress: string | null;

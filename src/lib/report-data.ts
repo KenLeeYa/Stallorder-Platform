@@ -29,6 +29,7 @@ export async function getProductAndHourlyReport(
       join public.stalls stall on stall.id = item.stall_id
       where item.organization_id = ${organizationId}::uuid
         and item.stall_id in (${scopedIds})
+        and not order_record.is_test
         and order_record.status = 'COMPLETED'::public.order_status
         and public.stall_business_date(stall.id, order_record.completed_at) between ${dateFrom}::date and ${dateTo}::date
       group by item.stall_id, stall.name, item.name
@@ -68,6 +69,7 @@ export async function getHourlySalesReport(
     join public.stalls stall on stall.id = order_record.stall_id
     where order_record.organization_id = ${organizationId}::uuid
       and order_record.stall_id in (${scopedIds})
+      and not order_record.is_test
       and order_record.status = 'COMPLETED'::public.order_status
       and public.stall_business_date(stall.id, order_record.completed_at) between ${dateFrom}::date and ${dateTo}::date
     group by order_record.stall_id, stall.name, sale_hour
@@ -98,9 +100,11 @@ export async function getPaymentMethodReport(
       count(*)::bigint as payment_count,
       sum(payment.amount)::bigint as amount
     from public.payments payment
+    join public.orders order_record on order_record.id = payment.order_id
     join public.stalls stall on stall.id = payment.stall_id
     where payment.organization_id = ${organizationId}::uuid
       and payment.stall_id in (${scopedIds})
+      and not order_record.is_test
       and payment.status = 'PAID'::public.payment_status
       and public.stall_business_date(stall.id, payment.paid_at) between ${dateFrom}::date and ${dateTo}::date
     group by payment.stall_id, stall.name, payment.method_label
@@ -133,6 +137,7 @@ export async function getCancellationReasonReport(
     join public.stalls stall on stall.id = order_record.stall_id
     where order_record.organization_id = ${organizationId}::uuid
       and order_record.stall_id in (${scopedIds})
+      and not order_record.is_test
       and order_record.status = 'CANCELLED'::public.order_status
       and public.stall_business_date(stall.id, coalesce(order_record.cancelled_at, order_record.updated_at))
         between ${dateFrom}::date and ${dateTo}::date

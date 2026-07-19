@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { BadgeDollarSign, ChartNoAxesCombined, CreditCard, FileText, Layers3, PackageCheck } from "lucide-react";
+import { BadgeDollarSign, ChartNoAxesCombined, ClipboardList, CreditCard, FileText, Layers3, PackageCheck } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 
 const items = [
+  { href: "/admin/merchant-applications", label: "商家申請", icon: ClipboardList },
   { href: "/admin/billing", label: "帳務總覽", icon: BadgeDollarSign },
   { href: "/admin/subscriptions", label: "訂閱", icon: CreditCard },
   { href: "/admin/invoices", label: "帳單", icon: FileText },

@@ -222,4 +222,13 @@ async function cleanup() {
 
 function monthStart(value: Date) { return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1)); }
 function assertLocalDatabase() { const value = process.env.DATABASE_URL; if (!value) throw new Error("E2E 必須設定 DATABASE_URL"); const hostname = new URL(value).hostname; if (!["127.0.0.1", "localhost"].includes(hostname)) throw new Error(`拒絕在非本機資料庫執行 E2E：${hostname}`); }
-function loadLocalEnv() { const content = readFileSync(resolve(process.cwd(), ".env"), "utf8"); for (const line of content.split(/\r?\n/)) { const match = line.match(/^([A-Z0-9_]+)=(.*)$/); if (!match || process.env[match[1]]) continue; const value = match[2].trim(); process.env[match[1]] = value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value; } }
+function loadLocalEnv() {
+  let content: string;
+  try {
+    content = readFileSync(resolve(process.cwd(), ".env"), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  for (const line of content.split(/\r?\n/)) { const match = line.match(/^([A-Z0-9_]+)=(.*)$/); if (!match || process.env[match[1]]) continue; const value = match[2].trim(); process.env[match[1]] = value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value; }
+}

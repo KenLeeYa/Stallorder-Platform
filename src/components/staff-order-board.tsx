@@ -862,7 +862,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xs font-semibold text-stone-500">訂單 {order.orderNo}</div>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-500"><span>訂單 {order.orderNo}</span>{order.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">開店測試訂單</span> : null}</div>
                 <h2 className="mt-1 font-semibold">{order.customerName}</h2>
                 <p className="mt-1 text-sm text-stone-500">
                   {order.fulfillmentType === "DINE_IN"
@@ -956,7 +956,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
               <span className="text-sm text-stone-600">{paymentStatusLabels[order.paymentStatus]}</span>
             </div>
 
-            {modules.print ? (
+            {modules.print && !order.isTest ? (
               <button
                 type="button"
                 onClick={() => void printOrder(order.id)}

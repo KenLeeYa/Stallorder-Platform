@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, Building2, CalendarClock, CreditCard, FileChartColumn, Languages, Package, ScrollText, Store, Users } from "lucide-react";
+import { BarChart3, Building2, CalendarClock, CreditCard, FileChartColumn, Languages, Package, Rocket, ScrollText, Store, Users } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
 import { hasPermission } from "@/lib/rbac";
@@ -92,6 +92,11 @@ export function MerchantWorkspaceHeader({
         </label>
 
         <nav className="flex w-full min-w-0 items-center gap-1 overflow-x-auto md:w-auto" aria-label="商戶功能">
+          {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER") ? (
+            <Link title="開店設定" href={`/merchant/setup?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <Rocket className="h-5 w-5" /><span className="sr-only">開店設定</span>
+            </Link>
+          ) : null}
           <Link title="儀表板" href={`/merchant/dashboard?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
             <BarChart3 className="h-5 w-5" /><span className="sr-only">儀表板</span>
           </Link>

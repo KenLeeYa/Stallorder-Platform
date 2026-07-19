@@ -433,7 +433,13 @@ function assertLocalDatabase() {
 }
 
 function loadLocalEnv() {
-  const content = readFileSync(resolve(process.cwd(), ".env"), "utf8");
+  let content: string;
+  try {
+    content = readFileSync(resolve(process.cwd(), ".env"), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
   for (const line of content.split(/\r?\n/)) {
     const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
     if (!match || process.env[match[1]]) continue;

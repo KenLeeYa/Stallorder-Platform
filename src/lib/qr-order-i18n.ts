@@ -15,6 +15,8 @@ type ErrorMessageKey =
   | "orderLimits"
   | "productUnavailable"
   | "pendingLimit"
+  | "trialOrderLimit"
+  | "subscriptionSuspended"
   | "orderFailed";
 
 export type QrOrderMessages = {
@@ -109,6 +111,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       orderLimits: "訂單內容超過攤位限制，請調整後再試。",
       productUnavailable: "部分商品已售完或無法供應。",
       pendingLimit: "此裝置尚有過多待確認訂單。",
+      trialOrderLimit: "試用訂單額度已用完，請洽商家人員。",
+      subscriptionSuspended: "商家訂閱已停權，暫時無法接受新訂單。",
       orderFailed: "目前無法建立或查詢訂單，請稍後再試。",
     },
   },
@@ -162,6 +166,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       orderLimits: "The order exceeds this stall's limits. Adjust it and try again.",
       productUnavailable: "Some products are sold out or unavailable.",
       pendingLimit: "This device already has too many orders awaiting confirmation.",
+      trialOrderLimit: "This trial has reached its order limit. Please ask the merchant for assistance.",
+      subscriptionSuspended: "This merchant subscription is suspended and cannot accept new orders.",
       orderFailed: "Unable to create or retrieve the order right now. Try again shortly.",
     },
   },
@@ -215,6 +221,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       orderLimits: "注文内容が店舗の上限を超えています。数量を調整してください。",
       productUnavailable: "一部の商品は売り切れ、または提供できません。",
       pendingLimit: "この端末には確認待ちの注文が多すぎます。",
+      trialOrderLimit: "トライアルの注文上限に達しました。店舗スタッフにお問い合わせください。",
+      subscriptionSuspended: "店舗の契約が停止中のため、新しい注文を受け付けられません。",
       orderFailed: "現在、注文を作成または確認できません。しばらくしてからお試しください。",
     },
   },
@@ -268,6 +276,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       orderLimits: "주문 내용이 매장 한도를 초과했습니다. 수량을 조정해 주세요.",
       productUnavailable: "일부 상품이 품절되었거나 주문할 수 없습니다.",
       pendingLimit: "이 기기에 확인 대기 중인 주문이 너무 많습니다.",
+      trialOrderLimit: "체험 주문 한도에 도달했습니다. 매장 직원에게 문의해 주세요.",
+      subscriptionSuspended: "매장 구독이 정지되어 새 주문을 받을 수 없습니다.",
       orderFailed: "현재 주문을 생성하거나 조회할 수 없습니다. 잠시 후 다시 시도해 주세요.",
     },
   },
@@ -321,6 +331,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       orderLimits: "Đơn hàng vượt quá giới hạn của quầy. Vui lòng điều chỉnh số lượng.",
       productUnavailable: "Một số món đã hết hoặc hiện không phục vụ.",
       pendingLimit: "Thiết bị này đang có quá nhiều đơn chờ xác nhận.",
+      trialOrderLimit: "Gói dùng thử đã đạt giới hạn đơn hàng. Vui lòng liên hệ nhân viên cửa hàng.",
+      subscriptionSuspended: "Gói đăng ký của cửa hàng đã bị tạm ngưng nên chưa thể nhận đơn mới.",
       orderFailed: "Hiện không thể tạo hoặc tra cứu đơn hàng. Vui lòng thử lại sau.",
     },
   },
@@ -374,6 +386,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       orderLimits: "คำสั่งซื้อเกินขีดจำกัดของร้าน โปรดปรับจำนวนแล้วลองอีกครั้ง",
       productUnavailable: "สินค้าบางรายการหมดหรือไม่พร้อมจำหน่าย",
       pendingLimit: "อุปกรณ์นี้มีคำสั่งซื้อที่รอยืนยันมากเกินไป",
+      trialOrderLimit: "คำสั่งซื้อช่วงทดลองใช้ถึงขีดจำกัดแล้ว โปรดติดต่อพนักงานร้าน",
+      subscriptionSuspended: "การสมัครใช้บริการของร้านถูกระงับ จึงยังไม่สามารถรับคำสั่งซื้อใหม่ได้",
       orderFailed: "ไม่สามารถสร้างหรือค้นหาคำสั่งซื้อได้ในขณะนี้ โปรดลองอีกครั้งในภายหลัง",
     },
   },
@@ -416,6 +430,8 @@ const errorMessageKeys: Record<string, ErrorMessageKey> = {
   PRODUCT_UNAVAILABLE: "productUnavailable",
   INVALID_PRODUCT_NOTES: "selectionInvalid",
   TOO_MANY_PENDING_ORDERS: "pendingLimit",
+  TRIAL_ORDER_LIMIT_REACHED: "trialOrderLimit",
+  SUBSCRIPTION_SUSPENDED: "subscriptionSuspended",
   ORDER_CONFLICT: "orderFailed",
   ORDER_CREATE_ERROR: "orderFailed",
   ORDER_NOT_FOUND: "orderFailed",

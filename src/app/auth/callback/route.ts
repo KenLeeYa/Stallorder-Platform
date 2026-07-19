@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { createRequestId, hashClientIp, sanitizeRedirectPath } from "@/lib/security";
 import { createSupabaseAuthClient } from "@/lib/supabase-auth";
 import { getDefaultWorkspacePath, getWorkspaceAccess } from "@/lib/workspace";
+import { getPendingMerchantSetupPath } from "@/server/merchant-applications/merchant-setup-service";
 
 function cleanDisplayName(value: unknown, email: string) {
   if (typeof value !== "string") return email.split("@")[0].slice(0, 80);
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
       });
     }), 3);
 
-    const [workspaces, session] = await Promise.all([
+    const [workspaces, session, pendingSetupPath] = await Promise.all([
       timing.measureDb(
         () => getWorkspaceAccess(profile.id, profile.platformRole),
         3,
@@ -91,10 +92,13 @@ export async function GET(request: Request) {
         "sessionMs",
         () => timing.measureDb(() => createSession(profile.id), 2),
       ),
+      timing.measureDb(() => getPendingMerchantSetupPath(profile.id)),
     ]);
     const fallback = profile.platformRole === "PLATFORM_ADMIN"
       ? "/admin/billing"
-      : workspaces.length > 0
+      : pendingSetupPath
+        ? pendingSetupPath
+        : workspaces.length > 0
         ? getDefaultWorkspacePath(workspaces)
         : "/onboarding?oauth=1";
     const next = requestedNext || fallback;

@@ -102,6 +102,48 @@ enum AuditOutcome {
   @@map("audit_outcome")
 }
 
+enum MerchantApplicationStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_REVIEW
+  NEEDS_INFO
+  APPROVED
+  REJECTED
+  WITHDRAWN
+  EXPIRED
+
+  @@map("merchant_application_status")
+}
+
+enum MerchantApplicationRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  BLOCKED
+
+  @@map("merchant_application_risk_level")
+}
+
+enum MerchantBusinessType {
+  NIGHT_MARKET_STALL
+  FOOD_TRUCK
+  MARKET_STALL
+  POPUP_STORE
+  SMALL_RESTAURANT
+  BEVERAGE_SHOP
+  OTHER
+
+  @@map("merchant_business_type")
+}
+
+enum PreferredContactMethod {
+  PHONE
+  LINE
+  EMAIL
+
+  @@map("preferred_contact_method")
+}
+
 enum QrCodeState {
   ACTIVE
   PAUSED
@@ -271,6 +313,8 @@ model Organization {
   checkoutGroups                CheckoutGroup[]
   reportSchedules               ReportSchedule[]
   reportDeliveries              ReportDelivery[]
+  approvedMerchantApplication   MerchantApplication?
+  merchantSetupProgress         MerchantSetupProgress?
 
   @@map("organizations")
 }
@@ -325,6 +369,7 @@ model Stall {
   cashShifts             CashShift[]
   cashMovements          CashMovement[]
   checkoutGroups         CheckoutGroup[]
+  merchantSetupProgress  MerchantSetupProgress?
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -366,6 +411,12 @@ model Profile {
   cancelledOrders          Order[]                   @relation("OrderCancelledBy")
   createdReportSchedules   ReportSchedule[]          @relation("ReportScheduleCreatedBy")
   updatedReportSchedules   ReportSchedule[]          @relation("ReportScheduleUpdatedBy")
+  merchantApplications     MerchantApplication[]             @relation("MerchantApplicationApplicant")
+  assignedApplications     MerchantApplication[]             @relation("MerchantApplicationAssignedReviewer")
+  reviewedApplications     MerchantApplication[]             @relation("MerchantApplicationReviewer")
+  applicationNotifications MerchantApplicationNotification[]
+  completedMerchantSetups  MerchantSetupProgress[]           @relation("MerchantSetupCompletedBy")
+  activatedMerchantSetups  MerchantSetupProgress[]           @relation("MerchantSetupActivatedBy")
 
   @@map("profiles")
 }
@@ -447,6 +498,127 @@ model AuditLog {
   @@index([actorProfileId, createdAt])
   @@index([action, createdAt])
   @@map("audit_logs")
+}
+
+model MerchantApplication {
+  id                             String                            @id @default(uuid()) @db.Uuid
+  applicationNumber              String                            @unique @default(dbgenerated("next_merchant_application_number()")) @map("application_number")
+  applicantProfileId             String                            @map("applicant_profile_id") @db.Uuid
+  applicantEmail                 String                            @map("applicant_email")
+  applicantDisplayName           String                            @map("applicant_display_name")
+  merchantName                   String?                           @map("merchant_name")
+  businessType                   MerchantBusinessType?             @map("business_type")
+  businessRegistrationNumber     String?                           @map("business_registration_number")
+  businessRegistrationNumberHash String?                           @map("business_registration_number_hash")
+  contactName                    String?                           @map("contact_name")
+  phone                          String?
+  phoneHash                      String?                           @map("phone_hash")
+  businessPhone                  String?                           @map("business_phone")
+  lineId                         String?                           @map("line_id")
+  preferredContactMethod         PreferredContactMethod?           @map("preferred_contact_method")
+  businessAddress                String?                           @map("business_address")
+  city                           String?
+  merchantDescription            String?                           @map("merchant_description")
+  stallName                      String?                           @map("stall_name")
+  stallLocation                  String?                           @map("stall_location")
+  requestedSlug                  String?                           @map("requested_slug")
+  estimatedDailyOrders           Int?                              @map("estimated_daily_orders")
+  expectedStartDate              DateTime?                         @map("expected_start_date") @db.Date
+  needsMultipleStaff             Boolean                           @default(false) @map("needs_multiple_staff")
+  needsKitchenView               Boolean                           @default(false) @map("needs_kitchen_view")
+  requestedPlanCode              String                            @default("TRIAL") @map("requested_plan_code")
+  status                         MerchantApplicationStatus         @default(DRAFT)
+  riskLevel                      MerchantApplicationRiskLevel      @default(LOW) @map("risk_level")
+  riskReasonsJson                Json?                             @map("risk_reasons_json")
+  publicReviewNote               String?                           @map("public_review_note")
+  internalReviewNote             String?                           @map("internal_review_note")
+  currentStep                    Int                               @default(1) @map("current_step")
+  termsAccepted                  Boolean                           @default(false) @map("terms_accepted")
+  privacyAccepted                Boolean                           @default(false) @map("privacy_accepted")
+  dataProcessingAccepted         Boolean                           @default(false) @map("data_processing_accepted")
+  informationConfirmed           Boolean                           @default(false) @map("information_confirmed")
+  consentedAt                    DateTime?                         @map("consented_at")
+  submissionIpHash               String?                           @map("submission_ip_hash")
+  submissionDeviceHash           String?                           @map("submission_device_hash")
+  submittedAt                    DateTime?                         @map("submitted_at")
+  assignedReviewerProfileId      String?                           @map("assigned_reviewer_profile_id") @db.Uuid
+  reviewedAt                     DateTime?                         @map("reviewed_at")
+  reviewedByProfileId            String?                           @map("reviewed_by_profile_id") @db.Uuid
+  approvedAt                     DateTime?                         @map("approved_at")
+  approvedOrganizationId         String?                           @unique @map("approved_organization_id") @db.Uuid
+  rejectedAt                     DateTime?                         @map("rejected_at")
+  withdrawnAt                    DateTime?                         @map("withdrawn_at")
+  expiresAt                      DateTime?                         @map("expires_at")
+  reapplicationAllowed           Boolean                           @default(false) @map("reapplication_allowed")
+  createdAt                      DateTime                          @default(now()) @map("created_at")
+  updatedAt                      DateTime                          @updatedAt @map("updated_at")
+  applicant                      Profile                           @relation("MerchantApplicationApplicant", fields: [applicantProfileId], references: [id], onDelete: Restrict)
+  assignedReviewer               Profile?                          @relation("MerchantApplicationAssignedReviewer", fields: [assignedReviewerProfileId], references: [id], onDelete: SetNull)
+  reviewedBy                     Profile?                          @relation("MerchantApplicationReviewer", fields: [reviewedByProfileId], references: [id], onDelete: SetNull)
+  approvedOrganization           Organization?                     @relation(fields: [approvedOrganizationId], references: [id], onDelete: SetNull)
+  notifications                  MerchantApplicationNotification[]
+  setupProgress                  MerchantSetupProgress?
+
+  @@index([applicantProfileId, status, createdAt(sort: Desc)])
+  @@index([status, submittedAt, createdAt])
+  @@index([assignedReviewerProfileId, status, submittedAt])
+  @@index([phoneHash, status])
+  @@index([businessRegistrationNumberHash, status])
+  @@index([requestedSlug, status])
+  @@map("merchant_applications")
+}
+
+model MerchantApplicationNotification {
+  id            String              @id @default(uuid()) @db.Uuid
+  applicationId String              @map("application_id") @db.Uuid
+  profileId     String              @map("profile_id") @db.Uuid
+  type          String
+  title         String
+  message       String
+  readAt        DateTime?           @map("read_at")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  application   MerchantApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  profile       Profile             @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, readAt, createdAt(sort: Desc)])
+  @@index([applicationId, createdAt(sort: Desc)])
+  @@map("merchant_application_notifications")
+}
+
+model MerchantSetupProgress {
+  id                       String              @id @default(uuid()) @db.Uuid
+  applicationId            String              @unique @map("application_id") @db.Uuid
+  organizationId           String              @unique @map("organization_id") @db.Uuid
+  stallId                  String              @unique @map("stall_id") @db.Uuid
+  qrCodeId                 String              @unique @map("qr_code_id") @db.Uuid
+  currentStep              Int                 @default(1) @map("current_step")
+  merchantProfileCompleted Boolean             @default(false) @map("merchant_profile_completed")
+  stallProfileCompleted    Boolean             @default(false) @map("stall_profile_completed")
+  catalogCompleted         Boolean             @default(false) @map("catalog_completed")
+  paymentOptionsCompleted  Boolean             @default(false) @map("payment_options_completed")
+  teamSetupCompleted       Boolean             @default(false) @map("team_setup_completed")
+  qrPreviewCompleted       Boolean             @default(false) @map("qr_preview_completed")
+  testOrderCompleted       Boolean             @default(false) @map("test_order_completed")
+  testOrderId              String?             @unique @map("test_order_id") @db.Uuid
+  goLiveCompleted          Boolean             @default(false) @map("go_live_completed")
+  testOrderCompletedAt     DateTime?           @map("test_order_completed_at")
+  goLiveCompletedAt        DateTime?           @map("go_live_completed_at")
+  completedAt              DateTime?           @map("completed_at")
+  completedByProfileId     String?             @map("completed_by_profile_id") @db.Uuid
+  activatedByProfileId     String?             @map("activated_by_profile_id") @db.Uuid
+  createdAt                DateTime            @default(now()) @map("created_at")
+  updatedAt                DateTime            @updatedAt @map("updated_at")
+  application              MerchantApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  organization             Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                    Stall               @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  qrCode                   QrCode              @relation(fields: [qrCodeId], references: [id], onDelete: Restrict)
+  testOrder                Order?              @relation("MerchantSetupTestOrder", fields: [testOrderId], references: [id], onDelete: Restrict)
+  completedBy              Profile?            @relation("MerchantSetupCompletedBy", fields: [completedByProfileId], references: [id], onDelete: SetNull)
+  activatedBy              Profile?            @relation("MerchantSetupActivatedBy", fields: [activatedByProfileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, goLiveCompleted])
+  @@index([stallId, testOrderCompleted])
+  @@map("merchant_setup_progress")
 }
 
 model ReportSchedule {
@@ -1221,6 +1393,7 @@ model QrCode {
   diningTable         DiningTable?         @relation(fields: [diningTableId], references: [id], onDelete: Cascade)
   orderSessions       OrderSession[]
   publicOrderAttempts PublicOrderAttempt[]
+  merchantSetupProgress MerchantSetupProgress?
 
   @@index([organizationId, stallId])
   @@index([diningTableId, state])
@@ -1381,6 +1554,7 @@ model Order {
   trackingTokenHash        String              @unique @map("tracking_token_hash")
   idempotencyKey           String              @map("idempotency_key") @db.Uuid
   source                   String              @default("QR_MENU")
+  isTest                   Boolean                @default(false) @map("is_test")
   customerName             String              @map("customer_name")
   customerPhone            String?             @map("customer_phone")
   deliveryAddress          String?             @map("delivery_address")
@@ -1427,6 +1601,7 @@ model Order {
   orderSession             OrderSession?
   payment                  Payment?
   printJobs                PrintJob[]
+  merchantSetupProgress    MerchantSetupProgress? @relation("MerchantSetupTestOrder")
 
   @@unique([stallId, orderNo])
   @@unique([stallId, idempotencyKey])

@@ -16,6 +16,7 @@ import {
   sanitizeRedirectPath,
 } from "@/lib/security";
 import { getDefaultWorkspacePath, getWorkspaceAccess } from "@/lib/workspace";
+import { getPendingMerchantSetupPath } from "@/server/merchant-applications/merchant-setup-service";
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(120).transform((value) => value.toLowerCase()),
@@ -165,7 +166,7 @@ export async function POST(request: Request) {
     ));
   }
 
-  const [session, workspaces] = await Promise.all([
+  const [session, workspaces, pendingSetupPath] = await Promise.all([
     timing.measure(
       "sessionMs",
       () => timing.measureDb(() => createSession(profile.id), 2),
@@ -174,10 +175,13 @@ export async function POST(request: Request) {
       () => getWorkspaceAccess(profile.id, profile.platformRole),
       3,
     ),
+    timing.measureDb(() => getPendingMerchantSetupPath(profile.id)),
   ]);
   const fallbackPath = profile.platformRole === "PLATFORM_ADMIN"
     ? "/admin/billing"
-    : workspaces.length > 0
+    : pendingSetupPath
+      ? pendingSetupPath
+      : workspaces.length > 0
       ? getDefaultWorkspacePath(workspaces)
     : stallMembership
       ? defaultPathForRole(stallMembership.role, stallMembership.stall.slug)
