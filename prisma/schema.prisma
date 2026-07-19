@@ -255,6 +255,9 @@ model Organization {
   billingNotifications          BillingNotification[]
   notificationOutbox            NotificationOutbox[]
   billingChangeRequests         BillingChangeRequest[]
+  paymentProviderCustomers      PaymentProviderCustomer[]
+  paymentAttempts               PaymentAttempt[]
+  taxDocuments                  TaxDocument[]
   invitations                   OrganizationInvitation[]
   publicOrderAttempts           PublicOrderAttempt[]
   publicRateLimitBuckets        PublicRateLimitBucket[]
@@ -700,7 +703,10 @@ model Invoice {
   lineItems          InvoiceLineItem[]
   manualPayments     ManualPaymentRecord[]
   billingChangeRequests BillingChangeRequest[]
+  paymentAttempts       PaymentAttempt[]
+  taxDocuments          TaxDocument[]
 
+  @@unique([id, organizationId], map: "invoices_id_organization_future_provider_idx")
   @@unique([organizationId, billingPeriodStart, billingPeriodEnd])
   @@index([organizationId, status, createdAt(sort: Desc)])
   @@index([status, dueAt])
@@ -749,7 +755,7 @@ model ManualPaymentRecord {
   createdAt             DateTime     @default(now()) @map("created_at")
   updatedAt             DateTime     @updatedAt @map("updated_at")
   organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  invoice               Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  invoice               Invoice      @relation(fields: [invoiceId, organizationId], references: [id, organizationId], onDelete: Restrict)
   recordedBy            Profile      @relation("ManualPaymentRecordedBy", fields: [recordedByProfileId], references: [id], onDelete: Restrict)
   verifiedBy            Profile?     @relation("ManualPaymentVerifiedBy", fields: [verifiedByProfileId], references: [id], onDelete: Restrict)
 
@@ -836,6 +842,99 @@ model BillingFeatureFlag {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("billing_feature_flags")
+}
+
+model PaymentProviderCustomer {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @map("organization_id") @db.Uuid
+  provider           String
+  providerCustomerId String       @map("provider_customer_id")
+  status             String       @default("ACTIVE")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@unique([provider, providerCustomerId])
+  @@map("payment_provider_customers")
+}
+
+model PaymentAttempt {
+  id                    String       @id @default(uuid()) @db.Uuid
+  organizationId        String       @map("organization_id") @db.Uuid
+  invoiceId             String       @map("invoice_id") @db.Uuid
+  provider              String
+  providerTransactionId String?      @map("provider_transaction_id")
+  amount                Int
+  currency              String
+  status                String       @default("CREATED")
+  failureCode           String?      @map("failure_code")
+  failureMessage        String?      @map("failure_message")
+  attemptedAt           DateTime     @default(now()) @map("attempted_at")
+  completedAt           DateTime?    @map("completed_at")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice               Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId, status, attemptedAt(sort: Desc)])
+  @@index([organizationId, status, attemptedAt(sort: Desc)])
+  @@map("payment_attempts")
+}
+
+model BillingWebhookEvent {
+  id               String    @id @default(uuid()) @db.Uuid
+  provider         String
+  providerEventId  String    @map("provider_event_id")
+  eventType        String    @map("event_type")
+  payloadHash      String    @map("payload_hash")
+  processingStatus String    @default("RECEIVED") @map("processing_status")
+  receivedAt       DateTime  @default(now()) @map("received_at")
+  processedAt      DateTime? @map("processed_at")
+  failureReason    String?   @map("failure_reason")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@unique([provider, providerEventId])
+  @@index([processingStatus, receivedAt])
+  @@map("billing_webhook_events")
+}
+
+model TaxDocument {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @map("organization_id") @db.Uuid
+  invoiceId          String             @map("invoice_id") @db.Uuid
+  provider           String?
+  documentType       String             @map("document_type")
+  taxId              String?            @map("tax_id")
+  carrierType        String?            @map("carrier_type")
+  carrierValueHash   String?            @map("carrier_value_hash")
+  status             String             @default("CREATED")
+  providerDocumentId String?            @map("provider_document_id")
+  issuedAt           DateTime?          @map("issued_at")
+  voidedAt           DateTime?          @map("voided_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice            Invoice            @relation(fields: [invoiceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  events             TaxDocumentEvent[]
+
+  @@index([invoiceId, status, createdAt(sort: Desc)])
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@map("tax_documents")
+}
+
+model TaxDocumentEvent {
+  id              String      @id @default(uuid()) @db.Uuid
+  taxDocumentId   String      @map("tax_document_id") @db.Uuid
+  eventType       String      @map("event_type")
+  providerEventId String?     @map("provider_event_id")
+  status          String
+  occurredAt      DateTime    @default(now()) @map("occurred_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  taxDocument     TaxDocument @relation(fields: [taxDocumentId], references: [id], onDelete: Cascade)
+
+  @@index([taxDocumentId, createdAt])
+  @@map("tax_document_events")
 }
 
 model BillingNotification {
