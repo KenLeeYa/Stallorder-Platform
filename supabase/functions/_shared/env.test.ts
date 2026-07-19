@@ -10,6 +10,7 @@ describe("Edge Function Origin 白名單", () => {
       "http://127.0.0.1:3000",
       "https://stallorder-platform.vercel.app",
       "https://app.qidaigo.com",
+      "https://staging.qidaigo.com",
     ]));
   });
 
@@ -20,6 +21,7 @@ describe("Edge Function Origin 白名單", () => {
       "https://preview.example.com",
       "https://stallorder-platform.vercel.app",
       "https://app.qidaigo.com",
+      "https://staging.qidaigo.com",
     ]);
   });
 });
