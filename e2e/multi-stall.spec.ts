@@ -108,6 +108,25 @@ test.describe("多攤位商戶關鍵流程", () => {
         phone: "0900-000-099",
       },
     });
+    const isolatedPlanVersion = await prisma.planVersion.findFirstOrThrow({
+      where: { plan: { code: "TRIAL" }, effectiveUntil: null },
+      select: { id: true, planId: true },
+    });
+    const isolatedBillingPeriodStart = new Date();
+    isolatedBillingPeriodStart.setUTCHours(0, 0, 0, 0);
+    const isolatedBillingPeriodEnd = new Date(isolatedBillingPeriodStart);
+    isolatedBillingPeriodEnd.setUTCDate(isolatedBillingPeriodEnd.getUTCDate() + 30);
+    await prisma.subscription.create({
+      data: {
+        organizationId: isolatedOrganization.id,
+        planId: isolatedPlanVersion.planId,
+        planVersionId: isolatedPlanVersion.id,
+        status: "ACTIVE",
+        billingInterval: "MONTHLY",
+        billingPeriodStart: isolatedBillingPeriodStart,
+        billingPeriodEnd: isolatedBillingPeriodEnd,
+      },
+    });
     otherStall = await prisma.stall.create({
       data: {
         organizationId: isolatedOrganization.id,

@@ -143,7 +143,10 @@ test("LINE 固定外送網址建立受保護 session 並顯示外送欄位", asy
   const submit = page.getByRole("button", { name: "送出訂單", exact: true });
   await expect(submit).toBeEnabled({ timeout: 15_000 });
   const createResponsePromise = page.waitForResponse((response) => (
-    response.url().endsWith("/api/public-order/create-public-order")
+    (
+      response.url().endsWith("/api/public-order/create-public-order")
+      || response.url().endsWith("/functions/v1/create-public-order")
+    )
     && response.request().method() === "POST"
   ));
   await submit.click();
