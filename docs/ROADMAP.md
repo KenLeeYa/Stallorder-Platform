@@ -39,3 +39,11 @@
 - 方案 add-on 與更完整平台管理介面。
 
 每項工作都必須維持單一 SaaS、多租戶 RLS、歷史資料不回算、可信後端與完整 audit。具體 acceptance criteria 見 [MULTI_STALL_GITHUB_ISSUES.md](MULTI_STALL_GITHUB_ISSUES.md)。
+
+## 商業帳務路線
+
+- Phase 1：人工帳務、方案／權益、用量與停權流程進入 release validation。
+- Phase 2：完成 Provider／電子發票申請、sandbox、合規與安全 gate 後才可逐租戶 canary。
+- Phase 3：先定義會計與指標，再實作 proration、portal、進階 analytics 與合作夥伴帳務。
+
+詳見 [PHASE_2_BILLING_ROADMAP.md](PHASE_2_BILLING_ROADMAP.md) 與 [PHASE_3_BILLING_ROADMAP.md](PHASE_3_BILLING_ROADMAP.md)。

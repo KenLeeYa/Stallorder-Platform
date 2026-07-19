@@ -101,3 +101,10 @@ P4 之前必須在 Staging 完成：
 7. Paid plan 80/90/100/110% 只警告、不在 100% 突然停止接單。
 8. RLS cross-organization、Finance Viewer read-only、Staff/Kitchen deny、Anonymous deny。
 
+## Staging Gate 結果（2026-07-19）
+
+- P0～P3 migration 與 P4 future-provider migration 已套用至 Staging；Production 未套用。
+- Invoice、四種人工付款、部分付款、完整付款啟用、停權、恢復與用量重建已通過。
+- Trial 99／100 筆邊界與到期、Paid 2,200／2,000 soft quota 及四級 warning 已通過。
+- P4 五張表均 FORCE RLS、service-only；外部 flags 全部 false；disabled webhook 不處理資料。
+- Preview 瀏覽器直連 Staging Edge Function 仍受既有 CORS／DNS 限制；不得放寬 CORS，Production 前需完成該環境 smoke test。

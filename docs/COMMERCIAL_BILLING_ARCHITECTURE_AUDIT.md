@@ -107,3 +107,11 @@
 | `npm test` | 35 files / 138 tests 通過 |
 | `npm run build` | Next.js production build 通過 |
 
+## 實作後狀態
+
+- P1：Plan Version、Entitlement、Add-on、Subscription Item、Invoice、Manual Payment、Usage Summary 與 Feature Flag 已新增。
+- P2：中央權益引擎、交易式數量限制、Trial 硬限制、Paid soft quota 與 suspension gate 已接入。
+- P3：Merchant／Platform Admin 帳務 UI、人工付款、Invoice、啟用、停權、通知與 audit 已完成。
+- P4：Billing／Electronic Invoice Adapter、Webhook fail-closed route 與五張 service-only future table 已完成，外部服務仍停用。
+
+完整現況見 [COMMERCIAL_BILLING_ARCHITECTURE.md](COMMERCIAL_BILLING_ARCHITECTURE.md)。

@@ -50,3 +50,11 @@ StallOrder（攤點通）讓夜市、市集、餐車與小型餐飲商戶用現�
 P0 完成 OAuth/定價部署；P1 modifier 共用化、摘要/帳務自動對帳與更多 alert detector；P2 以真實流量資料決定 partition、retention、queue 或 organization summary table。不得在沒有量測前加入額外基礎設施。
 
 詳細工作見 [ROADMAP.md](ROADMAP.md) 與 [MULTI_STALL_GITHUB_ISSUES.md](MULTI_STALL_GITHUB_ISSUES.md)。
+
+## 商業帳務里程碑
+
+- Phase 1：版本化方案、權益引擎、Trial 硬限制、付費軟額度、人工 Invoice／付款、訂閱狀態與通知已實作。
+- Phase 2：Payment Provider、Webhook、電子發票、Email、自動續約與催收只保留停用架構。
+- Phase 3：Coupon、proration、進階 billing analytics、reseller／partner 與多 Provider 尚未啟用。
+
+架構與 release gate 見 [COMMERCIAL_BILLING_ARCHITECTURE.md](COMMERCIAL_BILLING_ARCHITECTURE.md) 及 [BILLING_TEST_PLAN.md](BILLING_TEST_PLAN.md)。

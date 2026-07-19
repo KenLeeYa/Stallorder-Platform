@@ -136,3 +136,10 @@ npm audit --audit-level=moderate
 - [Supabase 報表排程 Cron](docs/SUPABASE_REPORT_DELIVERY_CRON.md)
 - [qidaigo.com 正式部署](docs/PRODUCTION_DEPLOYMENT_QIDAIGO.md)
 - [Go-Live Checklist](docs/GO_LIVE_CHECKLIST.md)
+- [商業帳務架構](docs/COMMERCIAL_BILLING_ARCHITECTURE.md)
+- [人工帳務操作](docs/MANUAL_BILLING_OPERATIONS.md)
+- [帳務測試計畫](docs/BILLING_TEST_PLAN.md)
+
+## 商業帳務
+
+Phase 1 提供版本化方案、14 天試用、方案權益與限制、人工 Invoice／付款審核、訂閱啟用／停權、用量警示及商家／平台管理介面。ECPay、NewebPay、自動續約、Email 帳務通知與電子發票目前僅有 fail-closed 架構，全部停用且不會呼叫外部服務。

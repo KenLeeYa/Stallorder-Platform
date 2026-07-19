@@ -50,3 +50,7 @@ Lite 限一攤；Standard 與 Pro 支援額外攤位；Enterprise 可依合約�
 - Merchant retention 與 support incidents。
 
 指標必須以 organization/stall scope 聚合，不跨租戶暴露；用量統計不得把同一人跨 membership 重複計數。
+
+## Phase 1 收費模式
+
+方案以不可回溯修改的 Plan Version 保存，支援 Trial、Lite、Standard、Pro 與需報價的 Enterprise。Phase 1 由人工 Invoice、銀行轉帳／現金／人工 LINE Pay 對帳；付費用量超額採不中斷營業的軟限制。自動扣款、電子發票、MRR／ARR／churn 仍為後續階段，不能列為目前營收自動化能力。

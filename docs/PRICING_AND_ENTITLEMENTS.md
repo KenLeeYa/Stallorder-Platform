@@ -67,3 +67,7 @@ Approval 保存當下 unit price，避免後續 plan 改價回算既有 invoice�
 - Finance 只能讀；商戶不能自行授予 platform approval。
 
 更多計價與對帳細節見 [MULTI_STALL_PRICING.md](MULTI_STALL_PRICING.md)。
+
+## 版本化與執行來源
+
+正式價格、年繳價格、included orders、上限與 feature codes 均以 `plan_versions`／`plan_entitlements` 為準，React 與 API 不以方案名稱判斷授權。既有訂閱鎖定特定版本；調價建立新版本。完整矩陣與超額行為見 [PLAN_AND_ENTITLEMENT_MODEL.md](PLAN_AND_ENTITLEMENT_MODEL.md) 及 [USAGE_METERING.md](USAGE_METERING.md)。

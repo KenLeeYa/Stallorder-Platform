@@ -64,3 +64,7 @@ Profile 不保存固定 tenant。Membership 可讓一人屬於多個組織/攤�
 ## 擴充規則
 
 新增 organization-owned table 必須有 scope、FK/index、RLS/grant、scope trigger、audit/usage（如適用）與跨 tenant pgTAP。只有量測證明需要時，才加入 organization summary、partition、queue 或 cache。
+
+## 商業帳務邊界
+
+Plan Version 與 Entitlement Engine 決定功能與限制；Provider 只能收款與回報。Invoice、付款驗證、Subscription、Usage Event 與 audit 由可信 server transaction 管理。Future Provider／Tax tables 採複合 tenant FK、FORCE RLS 與 service-only grants，詳見 [COMMERCIAL_BILLING_ARCHITECTURE.md](COMMERCIAL_BILLING_ARCHITECTURE.md) 與 [BILLING_RLS.md](BILLING_RLS.md)。
