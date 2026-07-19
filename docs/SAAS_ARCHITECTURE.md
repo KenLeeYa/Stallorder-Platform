@@ -68,3 +68,7 @@ Profile 不保存固定 tenant。Membership 可讓一人屬於多個組織/攤�
 ## 商業帳務邊界
 
 Plan Version 與 Entitlement Engine 決定功能與限制；Provider 只能收款與回報。Invoice、付款驗證、Subscription、Usage Event 與 audit 由可信 server transaction 管理。Future Provider／Tax tables 採複合 tenant FK、FORCE RLS 與 service-only grants，詳見 [COMMERCIAL_BILLING_ARCHITECTURE.md](COMMERCIAL_BILLING_ARCHITECTURE.md) 與 [BILLING_RLS.md](BILLING_RLS.md)。
+
+## 商家申請邊界
+
+申請資料在核准前不屬於任何 Organization，並由 applicant profile RLS 隔離。Platform Admin 核准才以單一交易建立 Organization、Owner、Trial、CLOSED Stall 與 PAUSED QR。測試訂單完成不會自動開店；只有 Organization Owner 的明確 Go-live transaction 可開放 QR。詳見 [MERCHANT_APPLICATION_ARCHITECTURE.md](MERCHANT_APPLICATION_ARCHITECTURE.md)。

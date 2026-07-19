@@ -16,6 +16,14 @@
 5. Scoped Realtime、SSE/polling fallback、operational alerts/batch controls。
 6. Plans、subscription、additional stall approval、invoice/usage、invitation。
 
+## 已完成：商家申請 P0-P2
+
+- 申請送件只建立 application，不建立 Organization。
+- Platform Admin 人工審核與原子 Trial provisioning。
+- 核准後 QR 維持 PAUSED、Stall 維持 CLOSED。
+- 設定精靈、非計費測試訂單與 Owner 明確 Go-live。
+- 申請／設定 RLS、audit、rate limit、pgTAP 與 Playwright 回歸。
+
 ## 發布準備
 
 - 完整 migration/pgTAP/unit/build/Playwright/security scan。
@@ -35,7 +43,7 @@
 
 - 50 攤/組織及活動尖峰 load test。
 - 依量測決定 event retention、partition、cache、queue、organization summary。
-- 隱私保存、資料匯出/刪除與商戶自助維運。
+- 隱私保存、資料匯出/刪除與商家自助維運。
 - 方案 add-on 與更完整平台管理介面。
 
 每項工作都必須維持單一 SaaS、多租戶 RLS、歷史資料不回算、可信後端與完整 audit。具體 acceptance criteria 見 [MULTI_STALL_GITHUB_ISSUES.md](MULTI_STALL_GITHUB_ISSUES.md)。
@@ -47,3 +55,5 @@
 - Phase 3：先定義會計與指標，再實作 proration、portal、進階 analytics 與合作夥伴帳務。
 
 詳見 [PHASE_2_BILLING_ROADMAP.md](PHASE_2_BILLING_ROADMAP.md) 與 [PHASE_3_BILLING_ROADMAP.md](PHASE_3_BILLING_ROADMAP.md)。
+
+商家申請自動化仍停用；後續 gate 見 [PHASE_2_MERCHANT_APPLICATION_ROADMAP.md](PHASE_2_MERCHANT_APPLICATION_ROADMAP.md) 與 [PHASE_3_MERCHANT_APPLICATION_ROADMAP.md](PHASE_3_MERCHANT_APPLICATION_ROADMAP.md)。

@@ -5,7 +5,7 @@
 - 夜市與市集多攤品牌
 - 餐車、快閃店、活動型攤位
 - 一至數十個小型門市/攤位的餐飲經營者
-- 仍以現金與現場取餐為主、不需要大型 POS 的商戶
+- 仍以現金與現場取餐為主、不需要大型 POS 的商家
 
 ## 價值
 
@@ -33,7 +33,7 @@ Lite 限一攤；Standard 與 Pro 支援額外攤位；Enterprise 可依合約�
 - 尖峰 QR/session 與 Realtime fan-out；以限流、summary、篩選訂閱控制。
 - 現金付款有對帳風險；用 pickup verification、payment records、daily summary 與 alerts 降低。
 - Abuse/假單風險；用 one-use session、Turnstile、多維限制與 staff confirmation。
-- 商戶離線/忙碌風險；用 pause/close、pending alerts、Realtime fallback。
+- 商家離線/忙碌風險；用 pause/close、pending alerts、Realtime fallback。
 
 ## 方案治理
 
@@ -41,6 +41,7 @@ Lite 限一攤；Standard 與 Pro 支援額外攤位；Enterprise 可依合約�
 
 ## 產品指標
 
+- 商家申請送件／補件／核准轉換、核准至完成測試訂單與 Go-live 時間。
 - Activated organizations、active stalls、完成 onboarding 時間。
 - QR session→order conversion、Turnstile/rate-limit rejection。
 - Waiting confirmation time、expired/cancelled/unpaid rate。
