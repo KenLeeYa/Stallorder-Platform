@@ -158,8 +158,10 @@ export async function POST(request: Request) {
 
   const session = await createSession(profile.id);
   const workspaces = await getWorkspaceAccess(profile.id, profile.platformRole);
-  const fallbackPath = workspaces.length > 0
-    ? getDefaultWorkspacePath(workspaces)
+  const fallbackPath = profile.platformRole === "PLATFORM_ADMIN"
+    ? "/admin/billing"
+    : workspaces.length > 0
+      ? getDefaultWorkspacePath(workspaces)
     : stallMembership
       ? defaultPathForRole(stallMembership.role, stallMembership.stall.slug)
       : "/";

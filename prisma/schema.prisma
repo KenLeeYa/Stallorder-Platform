@@ -254,6 +254,7 @@ model Organization {
   billingUsageSummaries         BillingUsageSummary[]
   billingNotifications          BillingNotification[]
   notificationOutbox            NotificationOutbox[]
+  billingChangeRequests         BillingChangeRequest[]
   invitations                   OrganizationInvitation[]
   publicOrderAttempts           PublicOrderAttempt[]
   publicRateLimitBuckets        PublicRateLimitBucket[]
@@ -348,6 +349,8 @@ model Profile {
   createdPlanVersions      PlanVersion[]              @relation("PlanVersionCreatedBy")
   recordedManualPayments   ManualPaymentRecord[]      @relation("ManualPaymentRecordedBy")
   verifiedManualPayments   ManualPaymentRecord[]      @relation("ManualPaymentVerifiedBy")
+  requestedBillingChanges  BillingChangeRequest[]     @relation("BillingChangeRequestedBy")
+  decidedBillingChanges    BillingChangeRequest[]     @relation("BillingChangeDecidedBy")
   sentInvitations          OrganizationInvitation[]  @relation("InvitationSender")
   orderItemBatchActions    OrderItemBatchAction[]
   requestedPrintJobs       PrintJob[]                @relation("PrintJobRequestedBy")
@@ -550,6 +553,7 @@ model PlanVersion {
   createdBy                Profile?          @relation("PlanVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   entitlements             PlanEntitlement[]
   subscriptions            Subscription[]
+  billingChangeRequests    BillingChangeRequest[]
 
   @@unique([planId, version])
   @@index([planId, effectiveFrom(sort: Desc), effectiveUntil])
@@ -598,6 +602,7 @@ model Subscription {
   additionalApprovals AdditionalStallApproval[]
   invoices            Invoice[]
   items               SubscriptionItem[]
+  billingChangeRequests BillingChangeRequest[]
 
   @@index([planId, status])
   @@index([planVersionId, status])
@@ -694,6 +699,7 @@ model Invoice {
   subscription       Subscription      @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
   lineItems          InvoiceLineItem[]
   manualPayments     ManualPaymentRecord[]
+  billingChangeRequests BillingChangeRequest[]
 
   @@unique([organizationId, billingPeriodStart, billingPeriodEnd])
   @@index([organizationId, status, createdAt(sort: Desc)])
@@ -751,6 +757,35 @@ model ManualPaymentRecord {
   @@index([invoiceId, verificationStatus, createdAt])
   @@index([organizationId, verificationStatus, receivedAt(sort: Desc)])
   @@map("manual_payment_records")
+}
+
+model BillingChangeRequest {
+  id                     String       @id @default(uuid()) @db.Uuid
+  organizationId         String       @map("organization_id") @db.Uuid
+  subscriptionId         String       @map("subscription_id") @db.Uuid
+  requestType            String       @map("request_type")
+  status                 String       @default("PENDING")
+  requestedPlanVersionId String?      @map("requested_plan_version_id") @db.Uuid
+  requestedBillingInterval String?    @map("requested_billing_interval")
+  requestedQuantity      Int?         @map("requested_quantity")
+  reason                 String       @default("")
+  requestedByProfileId   String       @map("requested_by_profile_id") @db.Uuid
+  decidedByProfileId     String?      @map("decided_by_profile_id") @db.Uuid
+  decisionNote           String?      @map("decision_note")
+  invoiceId              String?      @map("invoice_id") @db.Uuid
+  decidedAt              DateTime?    @map("decided_at")
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt              DateTime     @updatedAt @map("updated_at")
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription           Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  requestedPlanVersion   PlanVersion? @relation(fields: [requestedPlanVersionId], references: [id], onDelete: Restrict)
+  requestedBy            Profile      @relation("BillingChangeRequestedBy", fields: [requestedByProfileId], references: [id], onDelete: Restrict)
+  decidedBy              Profile?     @relation("BillingChangeDecidedBy", fields: [decidedByProfileId], references: [id], onDelete: Restrict)
+  invoice                Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([status, requestType, createdAt])
+  @@map("billing_change_requests")
 }
 
 model UsageEvent {

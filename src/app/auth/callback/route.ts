@@ -77,7 +77,11 @@ export async function GET(request: Request) {
     });
 
     const workspaces = await getWorkspaceAccess(profile.id, profile.platformRole);
-    const fallback = workspaces.length > 0 ? getDefaultWorkspacePath(workspaces) : "/onboarding?oauth=1";
+    const fallback = profile.platformRole === "PLATFORM_ADMIN"
+      ? "/admin/billing"
+      : workspaces.length > 0
+        ? getDefaultWorkspacePath(workspaces)
+        : "/onboarding?oauth=1";
     const next = requestedNext || fallback;
     const session = await createSession(profile.id);
     const response = NextResponse.redirect(`${appOrigin}${next}`);

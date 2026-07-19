@@ -180,6 +180,60 @@ export async function authorizeApiRequest(request: Request, stallSlug: string, p
   return { ok: true as const, requestId, principal, ...access };
 }
 
+export async function requirePlatformAdminPage(returnPath = "/admin/billing") {
+  const principal = await getPagePrincipal();
+  if (!principal) redirect(`/login?next=${encodeURIComponent(returnPath)}`);
+  if (principal.user.platformRole !== "PLATFORM_ADMIN") notFound();
+  return principal;
+}
+
+export async function authorizePlatformAdminApiRequest(request: Request) {
+  const requestId = createRequestId();
+  const principal = await getRequestPrincipal(request);
+  if (!principal) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "請先登入。" },
+        { status: 401, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+  const apiLimit = await checkRateLimit({
+    scope: "platform-billing-api",
+    identifier: principal.user.id,
+    limit: 180,
+    windowMs: 5 * 60_000,
+  });
+  if (!apiLimit.allowed) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "操作過於頻繁，請稍後再試。" },
+        { status: 429, headers: { "retry-after": String(apiLimit.retryAfterSeconds), "x-request-id": requestId } },
+      ),
+    };
+  }
+  if (principal.user.platformRole !== "PLATFORM_ADMIN") {
+    await recordAuditEvent({
+      action: "AUTHORIZATION_DENIED",
+      entityType: "PLATFORM_BILLING",
+      outcome: "DENIED",
+      requestId,
+      actorProfileId: principal.user.id,
+      ipHash: hashClientIp(request),
+    });
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "找不到指定資源。" },
+        { status: 404, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+  return { ok: true as const, principal, requestId };
+}
+
 export async function authorizeOrganizationApiRequest(
   request: Request,
   organizationId: string,

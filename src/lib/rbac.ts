@@ -16,6 +16,7 @@ export type Permission =
   | "MANAGE_STALL"
   | "MANAGE_ORGANIZATION"
   | "MANAGE_SUBSCRIPTION"
+  | "VIEW_BILLING"
   | "MANAGE_SHARED_PRODUCTS"
   | "VIEW_AUDIT_LOGS"
   | "MANAGE_OPERATIONAL_ALERTS"
@@ -39,6 +40,7 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STALL",
     "MANAGE_ORGANIZATION",
     "MANAGE_SUBSCRIPTION",
+    "VIEW_BILLING",
     "MANAGE_SHARED_PRODUCTS",
     "VIEW_AUDIT_LOGS",
     "MANAGE_OPERATIONAL_ALERTS",
@@ -63,6 +65,7 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STALL",
     "MANAGE_ORGANIZATION",
     "MANAGE_SUBSCRIPTION",
+    "VIEW_BILLING",
     "MANAGE_SHARED_PRODUCTS",
     "VIEW_AUDIT_LOGS",
     "MANAGE_OPERATIONAL_ALERTS",
@@ -86,8 +89,9 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "VIEW_AUDIT_LOGS",
     "MANAGE_OPERATIONAL_ALERTS",
     "MANAGE_REPORT_SCHEDULES",
+    "VIEW_BILLING",
   ],
-  FINANCE_VIEWER: ["VIEW_REPORTS"],
+  FINANCE_VIEWER: ["VIEW_REPORTS", "VIEW_BILLING"],
   STALL_MANAGER: [
     "VIEW_ORDERS",
     "CREATE_ORDERS",
