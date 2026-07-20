@@ -23,6 +23,8 @@ const permissionFeatureCodes = new Map<Permission, string>([
   ["UPDATE_PRODUCTION_TASKS", "KDS"],
   ["MANAGE_KDS", "KDS"],
   ["MANAGE_CDS", "CDS"],
+  ["MANAGE_CAPACITY", "WAIT_TIME_QUOTE"],
+  ["OPERATE_CAPACITY", "WAIT_TIME_QUOTE"],
 ]);
 
 export async function findStallAccess(principal: SessionPrincipal, stallSlug: string) {

@@ -329,6 +329,9 @@ model Organization {
   kitchenStationAssignments     KitchenStationAssignment[]
   productionTasks               OrderProductionTask[]
   pickupDisplaySettings         PickupDisplaySettings[]
+  capacitySettings              StallCapacitySettings[]
+  productCapacityRules          ProductCapacityRule[]
+  capacityEvents                CapacityEvent[]
 
   @@map("organizations")
 }
@@ -388,6 +391,9 @@ model Stall {
   kitchenStationAssignments KitchenStationAssignment[]
   productionTasks        OrderProductionTask[]
   pickupDisplaySettings  PickupDisplaySettings?
+  capacitySettings       StallCapacitySettings?
+  productCapacityRules   ProductCapacityRule[]
+  capacityEvents         CapacityEvent[]
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -1257,6 +1263,7 @@ model Product {
   translations         ProductTranslation[]
   noteGroupAssignments ProductNoteGroupAssignment[]
   kitchenStationAssignments KitchenStationAssignment[]
+  capacityRules         ProductCapacityRule[]
 
   @@index([organizationId, categoryId, sortOrder])
   @@index([organizationId, groupId])
@@ -1484,6 +1491,78 @@ model PickupDisplaySettings {
   @@map("pickup_display_settings")
 }
 
+model StallCapacitySettings {
+  id                               String          @id @default(uuid()) @db.Uuid
+  organizationId                   String          @map("organization_id") @db.Uuid
+  stallId                          String          @unique @map("stall_id") @db.Uuid
+  windowMinutes                    Int             @default(15) @map("window_minutes")
+  maxOrdersPerWindow               Int             @default(20) @map("max_orders_per_window")
+  maxItemsPerWindow                Int             @default(60) @map("max_items_per_window")
+  warningUtilizationPercent        Int             @default(75) @map("warning_utilization_percent")
+  pauseUtilizationPercent          Int             @default(100) @map("pause_utilization_percent")
+  defaultPrepMinutes               Int             @default(10) @map("default_prep_minutes")
+  minimumQuoteMinutes              Int             @default(5) @map("minimum_quote_minutes")
+  maximumQuoteMinutes              Int             @default(120) @map("maximum_quote_minutes")
+  quoteBufferMinutes               Int             @default(3) @map("quote_buffer_minutes")
+  acknowledgmentThresholdMinutes   Int             @default(30) @map("acknowledgment_threshold_minutes")
+  manualWaitMinutes                Int?            @map("manual_wait_minutes")
+  autoPauseEnabled                 Boolean         @default(false) @map("auto_pause_enabled")
+  autoResumeEnabled                Boolean         @default(false) @map("auto_resume_enabled")
+  pauseSource                      String          @default("NONE") @map("pause_source")
+  isActive                         Boolean         @default(true) @map("is_active")
+  lastCalculatedAt                 DateTime?       @map("last_calculated_at")
+  createdAt                        DateTime        @default(now()) @map("created_at")
+  updatedAt                        DateTime        @updatedAt @map("updated_at")
+  organization                     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                            Stall           @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, stallId, isActive])
+  @@map("stall_capacity_settings")
+}
+
+model ProductCapacityRule {
+  id                   String       @id @default(uuid()) @db.Uuid
+  organizationId       String       @map("organization_id") @db.Uuid
+  stallId              String       @map("stall_id") @db.Uuid
+  productId            String       @map("product_id") @db.Uuid
+  capacityWeight       Decimal      @default(1) @map("capacity_weight") @db.Decimal(8, 2)
+  prepMinutes          Int          @default(10) @map("prep_minutes")
+  maxQuantityPerWindow Int?         @map("max_quantity_per_window")
+  isActive             Boolean      @default(true) @map("is_active")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  product              Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([stallId, productId])
+  @@index([organizationId, stallId, isActive])
+  @@index([productId, stallId])
+  @@map("product_capacity_rules")
+}
+
+model CapacityEvent {
+  id                   String       @id @default(uuid()) @db.Uuid
+  organizationId       String       @map("organization_id") @db.Uuid
+  stallId              String       @map("stall_id") @db.Uuid
+  eventType            String       @map("event_type")
+  windowStart          DateTime     @map("window_start")
+  windowEnd            DateTime     @map("window_end")
+  orderCount           Int          @default(0) @map("order_count")
+  itemCount            Int          @default(0) @map("item_count")
+  weightedLoad         Decimal      @default(0) @map("weighted_load") @db.Decimal(12, 2)
+  estimatedWaitMinutes Int          @default(0) @map("estimated_wait_minutes")
+  reason               String
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@index([stallId, createdAt(sort: Desc)])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("capacity_events")
+}
+
 model StallBusinessHour {
   id             String       @id @default(uuid()) @db.Uuid
   organizationId String       @map("organization_id") @db.Uuid
@@ -1635,6 +1714,8 @@ model Order {
   cancellationDetail       String?             @map("cancellation_detail")
   cancelledAt              DateTime?           @map("cancelled_at")
   cancelledById            String?             @map("cancelled_by") @db.Uuid
+  quotedWaitMinutes        Int?                @map("quoted_wait_minutes")
+  quotedReadyAt            DateTime?           @map("quoted_ready_at")
   createdAt                DateTime            @default(now()) @map("created_at")
   updatedAt                DateTime            @updatedAt @map("updated_at")
   paidAt                   DateTime?           @map("paid_at")
@@ -1660,6 +1741,7 @@ model Order {
   @@index([stallId, createdAt])
   @@index([confirmationExpiresAt, status])
   @@index([stallId, cancellationReason, cancelledAt])
+  @@index([stallId, status, updatedAt(sort: Desc)])
   @@map("orders")
 }
 

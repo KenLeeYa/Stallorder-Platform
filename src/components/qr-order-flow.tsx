@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Clock3, History, Minus, Plus, Send, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Clock3, History, Minus, Plus, Send, ShieldCheck } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
 import { QrLanguageSelector } from "@/components/qr-language-selector";
 import { deliveryOrderMessages, localizedDeliveryOrderError } from "@/lib/delivery-order-i18n";
@@ -59,6 +59,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [customerNote, setCustomerNote] = useState("");
+  const [waitAcknowledged, setWaitAcknowledged] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [turnstileRequested, setTurnstileRequested] = useState(false);
@@ -253,6 +254,10 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       setMessage(copy.sessionExpired);
       return;
     }
+    if (session.requiresWaitAcknowledgment && !waitAcknowledged) {
+      setMessage(copy.waitAcknowledgmentRequired);
+      return;
+    }
     if (orderingMode === "DELIVERY" && (customerPhone.trim().length < 6 || !deliveryAddress.trim())) {
       setMessage(deliveryCopy.detailsRequired);
       return;
@@ -265,7 +270,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       return;
     }
 
-    const fingerprint = JSON.stringify({ orderingMode, customerName, customerPhone, deliveryAddress, customerNote, selectedItems });
+    const fingerprint = JSON.stringify({ orderingMode, customerName, customerPhone, deliveryAddress, customerNote, selectedItems, waitAcknowledged });
     if (!idempotencyRef.current || idempotencyRef.current.fingerprint !== fingerprint) {
       idempotencyRef.current = { key: crypto.randomUUID(), fingerprint };
     }
@@ -285,6 +290,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           customerPhone,
           deliveryAddress,
           customerNote,
+          waitAcknowledged,
           orderingMode,
           items: selectedItems,
           turnstileToken,
@@ -293,6 +299,19 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       const payload = await parseEdgeResponse(response);
       if (!response.ok) {
         const code = String(payload.code ?? "");
+        if (code === "WAIT_ACKNOWLEDGMENT_REQUIRED") {
+          const capacity = payload.capacity && typeof payload.capacity === "object"
+            ? payload.capacity as Record<string, unknown>
+            : null;
+          setSession((current) => current ? {
+            ...current,
+            estimatedWaitMinutes: Number(capacity?.estimatedWaitMaxMinutes ?? current.estimatedWaitMinutes),
+            estimatedWaitMinMinutes: Number(capacity?.estimatedWaitMinMinutes ?? current.estimatedWaitMinMinutes),
+            estimatedWaitMaxMinutes: Number(capacity?.estimatedWaitMaxMinutes ?? current.estimatedWaitMaxMinutes),
+            requiresWaitAcknowledgment: true,
+          } : current);
+          setWaitAcknowledged(false);
+        }
         if (code === "INVALID_TURNSTILE") {
           idempotencyRef.current = null;
           setTurnstileToken(null);
@@ -350,7 +369,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
             : copy.sessionLoading}
         </div>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-y border-stone-200 py-3 text-sm text-stone-700">
-          <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{copy.estimatedWait(session.estimatedWaitMinutes)}</span>
+          <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{copy.estimatedWaitRange(session.estimatedWaitMinMinutes, session.estimatedWaitMaxMinutes)}</span>
           {session.lastTableOrderAt ? <span className="inline-flex items-center gap-2"><History className="h-4 w-4 text-stone-500" />{copy.lastTableOrder(new Date(session.lastTableOrderAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }))}</span> : null}
         </div>
         {cartRestored ? <p role="status" className="mt-3 text-sm font-medium text-emerald-800">{copy.cartRestored}</p> : null}
@@ -424,6 +443,21 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           <span className="text-sm text-stone-600">{copy.itemCount(totalQuantity)}</span>
           <strong>{formatMoney(total, session.stall.currency, locale)}</strong>
         </div>
+        {session.requiresWaitAcknowledgment ? (
+          <label className="mt-4 flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 shrink-0"
+              checked={waitAcknowledged}
+              onChange={(event) => {
+                setWaitAcknowledged(event.target.checked);
+                setMessage("");
+              }}
+            />
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{copy.waitAcknowledgment(session.estimatedWaitMinMinutes, session.estimatedWaitMaxMinutes)}</span>
+          </label>
+        ) : null}
         <div className="mt-4 min-h-16">
           {turnstileRequested ? (
             <TurnstileWidget
@@ -435,7 +469,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
             />
           ) : null}
         </div>
-        <button type="button" disabled={!sessionReady || isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0} onClick={submitOrder} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" disabled={!sessionReady || isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0 || (session.requiresWaitAcknowledgment && !waitAcknowledged)} onClick={submitOrder} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-4 w-4" />
           {isSubmitting ? copy.submitting : copy.submitOrder}
         </button>

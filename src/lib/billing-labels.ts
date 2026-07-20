@@ -43,6 +43,8 @@ export const billingFeatureLabels: Record<string, string> = {
   KITCHEN_VIEW: "廚房檢視",
   KDS: "廚房生產看板",
   CDS: "顧客取餐顯示",
+  WAIT_TIME_QUOTE: "等候時間預估",
+  CAPACITY_CONTROL: "產能與自動接單控制",
   STAFF_ROLES: "員工角色",
   MULTIPLE_QR_CODES: "多組 QR Code",
   MULTI_STALL_BASIC: "多攤位管理",

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { revalidateTag, unstable_cache } from "next/cache";
+import { calculateCapacitySnapshot } from "@/lib/capacity";
 import { prisma } from "@/lib/prisma";
 import { publicQrCacheTag, stallMenuCacheTag } from "@/lib/cache-tags";
 import type { PublicMenu } from "@/lib/public-menu-types";
@@ -32,11 +33,19 @@ export async function getCachedPublicMenuForQrToken(
     return null;
   }
 
-  const menu = await getCachedStallMenu(context.stallId);
+  const [menu, capacity] = await Promise.all([
+    getCachedStallMenu(context.stallId),
+    calculateCapacitySnapshot(context.stallId),
+  ]);
   if (!menu) return null;
 
   return {
     ...menu,
+    estimatedWaitMinutes: capacity.quoteMaxMinutes,
+    estimatedWaitMinMinutes: capacity.quoteMinMinutes,
+    estimatedWaitMaxMinutes: capacity.quoteMaxMinutes,
+    waitAcknowledgmentThresholdMinutes: capacity.acknowledgmentThresholdMinutes,
+    requiresWaitAcknowledgment: capacity.requiresAcknowledgment,
     stall: {
       name: context.stall.name,
       slug: context.stall.slug,
@@ -71,10 +80,18 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
   });
   if (!stall || !publicStallIsAvailable(stall)) return null;
 
-  const menu = await getCachedStallMenu(stall.id);
+  const [menu, capacity] = await Promise.all([
+    getCachedStallMenu(stall.id),
+    calculateCapacitySnapshot(stall.id),
+  ]);
   if (!menu) return null;
   return {
     ...menu,
+    estimatedWaitMinutes: capacity.quoteMaxMinutes,
+    estimatedWaitMinMinutes: capacity.quoteMinMinutes,
+    estimatedWaitMaxMinutes: capacity.quoteMaxMinutes,
+    waitAcknowledgmentThresholdMinutes: capacity.acknowledgmentThresholdMinutes,
+    requiresWaitAcknowledgment: capacity.requiresAcknowledgment,
     stall: {
       name: stall.name,
       slug: stall.slug,
@@ -285,6 +302,10 @@ async function loadStallMenu(stallId: string): Promise<Omit<PublicMenu, "stall">
     })),
     supportedLocales: settings.enabledLocales,
     estimatedWaitMinutes: settings.estimatedWaitMinutes,
+    estimatedWaitMinMinutes: settings.estimatedWaitMinutes,
+    estimatedWaitMaxMinutes: settings.estimatedWaitMinutes,
+    waitAcknowledgmentThresholdMinutes: null,
+    requiresWaitAcknowledgment: false,
     lastTableOrderAt: null,
     limits: {
       maxItemQuantity: settings.maxItemQuantity,

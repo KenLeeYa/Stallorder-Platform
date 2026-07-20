@@ -16,6 +16,7 @@ export const createPublicOrderSchema = z.object({
   customerPhone: z.string().trim().max(30).optional().default(""),
   deliveryAddress: z.string().trim().max(300).optional().default(""),
   customerNote: z.string().trim().max(1000).optional().default(""),
+  waitAcknowledged: z.boolean().default(false),
   orderingMode: z.enum(["DEFAULT", "DELIVERY"]).default("DEFAULT"),
   items: z.array(z.object({
     productId: z.string().uuid(),

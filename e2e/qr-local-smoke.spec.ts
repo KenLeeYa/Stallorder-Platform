@@ -10,9 +10,16 @@ test("本機 QA 可透過示範 QR 建立點餐 session", async ({ page }) => {
 
   await page.goto(`/q/${demoQrToken}`);
 
-  expect((await sessionResponse).status()).toBe(201);
+  const response = await sessionResponse;
+  expect(response.status()).toBe(201);
+  const session = await response.json();
+  expect(session.estimatedWaitMinMinutes).toBeGreaterThanOrEqual(0);
+  expect(session.estimatedWaitMaxMinutes).toBeGreaterThanOrEqual(session.estimatedWaitMinMinutes);
   await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
-  await expect(page.getByText(/目前預估等候約 15 分鐘/)).toBeVisible();
+  const waitText = session.estimatedWaitMinMinutes === session.estimatedWaitMaxMinutes
+    ? `目前預估等候約 ${session.estimatedWaitMaxMinutes} 分鐘`
+    : `目前預估等候時間：${session.estimatedWaitMinMinutes}～${session.estimatedWaitMaxMinutes} 分鐘`;
+  await expect(page.getByText(waitText, { exact: true })).toBeVisible();
   const product = page.getByRole("article").filter({ hasText: "香酥雞排" });
   await expect(product).toContainText("95");
   await product.getByRole("button", { name: "增加 香酥雞排" }).click();

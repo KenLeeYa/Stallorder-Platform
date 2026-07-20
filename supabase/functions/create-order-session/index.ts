@@ -92,7 +92,7 @@ Deno.serve(async (request) => {
 
     const { data: sessionResult, error: sessionError } = await timing.measure(
       "sessionMs",
-      () => timing.measureDb(() => admin.rpc("issue_order_session", {
+      () => timing.measureDb(() => admin.rpc("issue_order_session_with_capacity", {
         p_qr_token: parsed.data.qrToken,
         p_session_token_hash: sessionTokenHash,
         p_ip_hash: ipHash,
@@ -104,7 +104,20 @@ Deno.serve(async (request) => {
     );
     if (sessionError) throw sessionError;
 
-    const result = sessionResult as { ok: boolean; code?: string; stall_id?: string; qr_code_id?: string; order_session_id?: string; expires_at?: string };
+    const result = sessionResult as {
+      ok: boolean;
+      code?: string;
+      stall_id?: string;
+      qr_code_id?: string;
+      order_session_id?: string;
+      expires_at?: string;
+      capacity?: {
+        quote_min_minutes?: number;
+        quote_max_minutes?: number;
+        acknowledgment_threshold_minutes?: number;
+        requires_acknowledgment?: boolean;
+      };
+    };
     if (!result.ok || !result.stall_id || !result.qr_code_id || !result.order_session_id || !result.expires_at) {
       const code = result.code ?? "ORDER_CREATE_ERROR";
       return respond({ error: errorMessage(code), code }, statusForCode(code));
@@ -167,6 +180,12 @@ Deno.serve(async (request) => {
       return respond({
         orderSessionToken: sessionToken,
         expiresAt: result.expires_at,
+        estimatedWaitMinutes: result.capacity?.quote_max_minutes ?? null,
+        estimatedWaitMinMinutes: result.capacity?.quote_min_minutes ?? null,
+        estimatedWaitMaxMinutes: result.capacity?.quote_max_minutes ?? null,
+        waitAcknowledgmentThresholdMinutes:
+          result.capacity?.acknowledgment_threshold_minutes ?? null,
+        requiresWaitAcknowledgment: result.capacity?.requires_acknowledgment === true,
       }, 201);
     }
 
@@ -378,7 +397,14 @@ Deno.serve(async (request) => {
       },
       products,
       supportedLocales: enabledLocales,
-      estimatedWaitMinutes: settings.estimated_wait_minutes,
+      estimatedWaitMinutes: result.capacity?.quote_max_minutes ?? settings.estimated_wait_minutes,
+      estimatedWaitMinMinutes:
+        result.capacity?.quote_min_minutes ?? settings.estimated_wait_minutes,
+      estimatedWaitMaxMinutes:
+        result.capacity?.quote_max_minutes ?? settings.estimated_wait_minutes,
+      waitAcknowledgmentThresholdMinutes:
+        result.capacity?.acknowledgment_threshold_minutes ?? null,
+      requiresWaitAcknowledgment: result.capacity?.requires_acknowledgment === true,
       lastTableOrderAt: lastTableOrderQuery.data?.created_at ?? null,
       limits: {
         maxItemQuantity: settings.max_item_quantity,

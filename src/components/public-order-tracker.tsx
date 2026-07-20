@@ -19,6 +19,8 @@ type PublicOrder = {
   customerPhone: string | null;
   deliveryAddress: string | null;
   estimatedWaitMinutes: number;
+  quotedWaitMinutes: number | null;
+  quotedReadyAt: string | null;
   lastTableOrderAt: string | null;
   items: Array<{
     id: string;
@@ -117,7 +119,12 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
           <div className="mt-5 rounded-md bg-stone-50 px-4 py-3 text-sm text-stone-700">
             {order.orderStatus === "READY" || order.orderStatus === "COMPLETED"
               ? order.fulfillmentType === "DELIVERY" ? "餐點已完成，請留意店家後續配送與聯絡。" : "餐點已完成，請依畫面狀態取餐或等候出餐。"
-              : order.estimatedWaitMinutes > 0 ? `目前預估等候約 ${order.estimatedWaitMinutes} 分鐘。` : "目前可立即處理。"}
+              : (order.quotedWaitMinutes ?? order.estimatedWaitMinutes) > 0
+                ? `訂單成立時預估等候約 ${order.quotedWaitMinutes ?? order.estimatedWaitMinutes} 分鐘。`
+                : "目前可立即處理。"}
+            {order.quotedReadyAt && !["READY", "COMPLETED", "CANCELLED", "EXPIRED"].includes(order.orderStatus)
+              ? <div className="mt-1 text-xs text-stone-500">原預估完成時間：{new Date(order.quotedReadyAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}</div>
+              : null}
             {order.fulfillmentType === "DINE_IN" && order.lastTableOrderAt ? <div className="mt-1 text-xs text-stone-500">同桌最近追加點餐：{new Date(order.lastTableOrderAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}</div> : null}
           </div>
           <div className="mt-6 divide-y divide-stone-100 border-y border-stone-200">{order.items.map((item) => <div key={item.id} className="grid gap-2 py-3 text-sm sm:grid-cols-[1fr_auto]"><div><span>{item.quantity} × {item.name}</span>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{item.noteOptions.map((noteOption) => `${noteOption.groupName}：${noteOption.optionName}`).join("、")}</p> : null}{item.note ? <p className="mt-1 text-xs text-stone-500">備註：{item.note}</p> : null}</div><span className="font-medium text-stone-600">{itemStatusLabels[item.status]}</span></div>)}</div>

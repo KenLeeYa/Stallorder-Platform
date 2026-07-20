@@ -8,6 +8,7 @@ import { hasPermission } from "@/lib/rbac";
 import { getStaffOrderCatalog } from "@/lib/staff-order-catalog";
 import { createPerformanceTiming } from "@/lib/performance-timing";
 import { createRequestId } from "@/lib/security";
+import { getStaffCapacityData } from "@/lib/capacity";
 
 type PageProps = {
   params: Promise<{ stallSlug: string }>;
@@ -35,8 +36,9 @@ type StaffOrderContentProps = Awaited<ReturnType<typeof requirePagePermission>> 
   timing: ReturnType<typeof createPerformanceTiming>;
 };
 
-async function StaffOrderContent({ stall, principal, role, timing }: StaffOrderContentProps) {
-  const [orders, settings, paymentOptions, discountOptions, orderCatalog, serverClock] = await timing.measureDb(() => Promise.all([
+async function StaffOrderContent({ stall, principal, role, roles, timing }: StaffOrderContentProps) {
+  const canOperateCapacity = roles.some((candidate) => hasPermission(candidate, "OPERATE_CAPACITY"));
+  const [orders, settings, paymentOptions, discountOptions, orderCatalog, capacity, serverClock] = await timing.measureDb(() => Promise.all([
     prisma.order.findMany({
       where: {
         stallId: stall.id,
@@ -69,8 +71,11 @@ async function StaffOrderContent({ stall, principal, role, timing }: StaffOrderC
     hasPermission(role, "CREATE_ORDERS")
       ? getStaffOrderCatalog(stall.id, stall.organizationId)
       : Promise.resolve(null),
+    canOperateCapacity
+      ? getStaffCapacityData(stall.organizationId, stall.id)
+      : Promise.resolve(null),
     prisma.$queryRaw<Array<{ now: Date }>>`select now() as now`,
-  ]), 6);
+  ]), 7);
   timing.finish({ status: 200 });
 
   return (
@@ -90,6 +95,7 @@ async function StaffOrderContent({ stall, principal, role, timing }: StaffOrderC
       paymentOptions={paymentOptions}
       discountOptions={discountOptions}
       orderCatalog={orderCatalog}
+      capacity={capacity}
     />
   );
 }

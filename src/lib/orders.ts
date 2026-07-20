@@ -24,6 +24,8 @@ export const staffOrderSelect = {
   pickupVerifiedAt: true,
   pickupVerificationMethod: true,
   confirmationExpiresAt: true,
+  quotedWaitMinutes: true,
+  quotedReadyAt: true,
   createdAt: true,
   items: {
     select: {
@@ -66,6 +68,8 @@ export type StaffOrderDto = {
   pickupVerifiedAt: string | null;
   pickupVerificationMethod: "CODE" | "MANUAL" | null;
   confirmationExpiresAt: string;
+  quotedWaitMinutes: number | null;
+  quotedReadyAt: string | null;
   createdAt: string;
   items: Array<{
     id: string;
@@ -89,6 +93,7 @@ export function serializeStaffOrder(order: Prisma.OrderGetPayload<{ select: type
       ? "CODE"
       : order.pickupVerificationMethod === "MANUAL" ? "MANUAL" : null,
     confirmationExpiresAt: order.confirmationExpiresAt.toISOString(),
+    quotedReadyAt: order.quotedReadyAt?.toISOString() ?? null,
     createdAt: order.createdAt.toISOString(),
     items: order.items.map((item) => ({
       ...item,

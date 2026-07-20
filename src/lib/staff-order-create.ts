@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Prisma, type PrismaClient, type UserRole } from "@prisma/client";
+import { calculateCapacitySnapshot } from "@/lib/capacity";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import type { CreateStaffOrderInput } from "@/lib/staff-order-contract";
@@ -54,6 +55,10 @@ export async function createStaffOrder(input: {
         request: input.request.checkout ?? {},
       })
     : null;
+  const capacity = await calculateCapacitySnapshot(
+    input.stallId,
+    input.request.items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+  );
   const createdAt = new Date();
 
   try {
@@ -93,7 +98,7 @@ export async function createStaffOrder(input: {
       const isSetupTest = creationMode === "SETUP_TEST";
       const initialStatus = isSetupTest ? "WAITING_CONFIRMATION" : "CONFIRMED";
 
-      return transaction.order.create({
+      const order = await transaction.order.create({
         data: {
           organizationId: input.organizationId,
           stallId: input.stallId,
@@ -122,6 +127,8 @@ export async function createStaffOrder(input: {
           discountApprovedById: checkout?.discountApprovedById,
           discountApprovalReason: checkout?.discountApprovalReason,
           total,
+          quotedWaitMinutes: capacity.quoteMaxMinutes,
+          quotedReadyAt: new Date(createdAt.getTime() + capacity.quoteMaxMinutes * 60_000),
           deviceHash,
           pickupCodeHash: null,
           confirmationExpiresAt: isSetupTest
@@ -181,6 +188,14 @@ export async function createStaffOrder(input: {
         },
         select: staffOrderSelect,
       });
+      await transaction.$queryRaw`
+        select public.refresh_stall_capacity(
+          ${input.stallId}::uuid,
+          true,
+          'STAFF_ORDER_CREATED'
+        )
+      `;
+      return order;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     return { order, idempotent: false };

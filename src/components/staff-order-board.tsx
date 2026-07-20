@@ -7,6 +7,8 @@ import { CheckCheck, CheckCircle2, ChefHat, KeyRound, ListChecks, LoaderCircle, 
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
+import { StaffCapacityControl } from "@/components/staff-capacity-control";
+import type { StaffCapacityData } from "@/lib/capacity-contract";
 import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
@@ -27,6 +29,7 @@ type Props = {
   paymentOptions: Array<{ id: string; name: string; kind: PaymentOptionKind }>;
   discountOptions: Array<{ id: string; name: string; rateBps: number }>;
   orderCatalog: StaffOrderCatalog | null;
+  capacity: StaffCapacityData | null;
 };
 
 type StaffStatus = (typeof staffStatusOptions)[number]["value"];
@@ -52,7 +55,7 @@ type CheckoutRequest = {
 };
 type UndoBatch = { actionId: string; undoExpiresAt: string; itemCount: number };
 
-export function StaffOrderBoard({ stall, initialOrders, initialNow, account, modules, paymentOptions, discountOptions, orderCatalog }: Props) {
+export function StaffOrderBoard({ stall, initialOrders, initialNow, account, modules, paymentOptions, discountOptions, orderCatalog, capacity }: Props) {
   const knownOrderIdsRef = useRef(new Set(initialOrders.map((order) => order.id)));
   const alertsEnabledRef = useRef(false);
   const [orders, setOrders] = useState(initialOrders);
@@ -784,6 +787,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
         </div>
       </div>
       {message ? <p role="status" className={`mt-4 text-sm print:hidden ${/(無法|失敗|中斷|錯誤|期限|找不到)/.test(message) ? "text-red-700" : "text-emerald-700"}`}>{message}</p> : null}
+      {capacity ? <StaffCapacityControl stallSlug={stall.slug} initialData={capacity} /> : null}
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <label className="relative block w-full sm:max-w-sm">

@@ -118,7 +118,9 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   expect(generalOrderStatus).toBe(403);
 
   await page.getByRole("button", { name: "品項", exact: true }).click();
-  const itemAggregate = page.getByRole("article").filter({ hasText: productName });
+  const itemAggregate = page.getByRole("article")
+    .filter({ hasText: productName })
+    .filter({ hasText: "切小塊" });
   await expect(itemAggregate).toBeVisible();
   await expect(itemAggregate.getByText(/^× \d+$/)).toBeVisible();
   await page.getByRole("button", { name: "工作站", exact: true }).click();

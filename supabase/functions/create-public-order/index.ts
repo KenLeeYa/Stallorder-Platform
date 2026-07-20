@@ -22,6 +22,8 @@ type StoredOrder = {
   total_amount: number;
   fulfillment_type?: string;
   pickup_required?: boolean;
+  quoted_wait_minutes?: number | null;
+  quoted_ready_at?: string | null;
   created_at: string;
 };
 
@@ -72,6 +74,8 @@ function publicOrderResponse(order: StoredOrder, trackingToken: string, pickupCo
     orderStatus: order.order_status,
     paymentStatus: order.payment_status,
     totalAmount: order.total_amount,
+    quotedWaitMinutes: order.quoted_wait_minutes ?? null,
+    quotedReadyAt: order.quoted_ready_at ?? null,
     createdAt: order.created_at,
   };
 }
@@ -172,6 +176,13 @@ Deno.serve(async (request) => {
     if (existingError) throw existingError;
     if (existing) {
       const order = existing as StoredOrder;
+      const { data: quote, error: quoteError } = await timing.measureDb(() => admin.from("orders")
+        .select("quoted_wait_minutes, quoted_ready_at")
+        .eq("id", order.order_id)
+        .single());
+      if (quoteError) throw quoteError;
+      order.quoted_wait_minutes = quote.quoted_wait_minutes;
+      order.quoted_ready_at = quote.quoted_ready_at;
       const tokens = await derivePublicOrderTokens(order.order_id, tokenSecret);
       await timing.measureDb(() => persistPickupCodeDisplay(admin, order, tokens.pickupCode));
       return respond(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200);
@@ -253,13 +264,16 @@ Deno.serve(async (request) => {
       p_tracking_token_hash: trackingTokenHash,
       p_pickup_code_hash: pickupCodeHash,
       p_request_id: requestId,
+      p_wait_acknowledged: input.waitAcknowledged,
       ...(input.orderingMode === "DELIVERY" ? {
         p_customer_phone: input.customerPhone,
         p_delivery_address: input.deliveryAddress,
       } : {}),
     };
     const { data: createResult, error: createError } = await timing.measureDb(() => admin.rpc(
-      input.orderingMode === "DELIVERY" ? "create_public_delivery_order" : "create_public_order",
+      input.orderingMode === "DELIVERY"
+        ? "create_public_delivery_order_with_capacity"
+        : "create_public_order_with_capacity",
       createArguments,
     ));
     if (createError) {
@@ -283,10 +297,31 @@ Deno.serve(async (request) => {
       throw createError;
     }
 
-    const result = createResult as { ok: boolean; code?: string; idempotent_replay?: boolean; order?: StoredOrder };
+    const result = createResult as {
+      ok: boolean;
+      code?: string;
+      idempotent_replay?: boolean;
+      order?: StoredOrder;
+      capacity?: {
+        quote_min_minutes?: number;
+        quote_max_minutes?: number;
+        requires_acknowledgment?: boolean;
+      };
+    };
     if (!result.ok || !result.order) {
       const code = result.code ?? "ORDER_CREATE_ERROR";
-      return respond({ error: errorMessage(code), code }, statusForCode(code));
+      return respond({
+        error: errorMessage(code),
+        code,
+        ...(result.capacity ? {
+          capacity: {
+            estimatedWaitMinMinutes: result.capacity.quote_min_minutes ?? null,
+            estimatedWaitMaxMinutes: result.capacity.quote_max_minutes ?? null,
+            requiresWaitAcknowledgment:
+              result.capacity.requires_acknowledgment === true,
+          },
+        } : {}),
+      }, statusForCode(code));
     }
 
     const finalTokens = result.order.order_id === orderId

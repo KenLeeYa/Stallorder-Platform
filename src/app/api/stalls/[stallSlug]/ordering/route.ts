@@ -105,11 +105,19 @@ export async function PATCH(request: Request, context: RouteContext) {
     switch (parsed.data.action) {
       case "PAUSE":
         await transaction.stall.update({ where: { id: stall.id }, data: { orderingState: "PAUSED" } });
+        await transaction.stallCapacitySettings.updateMany({
+          where: { organizationId: stall.organizationId, stallId: stall.id },
+          data: { pauseSource: "MANUAL" },
+        });
         await transaction.qrCode.updateMany({ where: { stallId: stall.id, state: "ACTIVE" }, data: { state: "PAUSED" } });
         await transaction.orderSession.updateMany({ where: { stallId: stall.id, status: "ACTIVE" }, data: { status: "REVOKED", revokedAt: now } });
         break;
       case "RESUME":
         await transaction.stall.update({ where: { id: stall.id }, data: { orderingState: "OPEN" } });
+        await transaction.stallCapacitySettings.updateMany({
+          where: { organizationId: stall.organizationId, stallId: stall.id },
+          data: { pauseSource: "NONE" },
+        });
         await transaction.qrCode.updateMany({
           where: { stallId: stall.id, state: "PAUSED", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
           data: { state: "ACTIVE" },
@@ -117,10 +125,18 @@ export async function PATCH(request: Request, context: RouteContext) {
         break;
       case "CLOSE":
         await transaction.stall.update({ where: { id: stall.id }, data: { orderingState: "CLOSED" } });
+        await transaction.stallCapacitySettings.updateMany({
+          where: { organizationId: stall.organizationId, stallId: stall.id },
+          data: { pauseSource: "MANUAL" },
+        });
         await transaction.orderSession.updateMany({ where: { stallId: stall.id, status: "ACTIVE" }, data: { status: "REVOKED", revokedAt: now } });
         break;
       case "OPEN":
         await transaction.stall.update({ where: { id: stall.id }, data: { orderingState: "OPEN" } });
+        await transaction.stallCapacitySettings.updateMany({
+          where: { organizationId: stall.organizationId, stallId: stall.id },
+          data: { pauseSource: "NONE" },
+        });
         break;
       case "MARK_SOLD_OUT":
         await transaction.stall.update({ where: { id: stall.id }, data: { isSoldOut: true } });
