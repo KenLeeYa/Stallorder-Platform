@@ -26,7 +26,7 @@ describe("RBAC", () => {
 
   it("店員與廚房可查看桌位平面圖", () => {
     expect(hasPermission("STAFF", "VIEW_DINING_FLOOR")).toBe(true);
-    expect(hasPermission("KITCHEN", "VIEW_DINING_FLOOR")).toBe(true);
+    expect(hasPermission("KITCHEN", "VIEW_DINING_FLOOR")).toBe(false);
   });
 
   it("只有前台營運角色可建立店員代點訂單", () => {
@@ -39,7 +39,7 @@ describe("RBAC", () => {
 
   it("營運權限區分列印、現金交班與折扣核准", () => {
     expect(hasPermission("STAFF", "MANAGE_PRINT_QUEUE")).toBe(true);
-    expect(hasPermission("KITCHEN", "MANAGE_PRINT_QUEUE")).toBe(true);
+    expect(hasPermission("KITCHEN", "MANAGE_PRINT_QUEUE")).toBe(false);
     expect(hasPermission("STAFF", "MANAGE_CASH_SHIFT")).toBe(true);
     expect(hasPermission("KITCHEN", "MANAGE_CASH_SHIFT")).toBe(false);
     expect(hasPermission("STALL_MANAGER", "APPROVE_DISCOUNT")).toBe(true);
@@ -63,11 +63,25 @@ describe("RBAC", () => {
     expect(resolvePrimaryRole(["KITCHEN", "ORGANIZATION_ADMIN"])).toBe("ORGANIZATION_ADMIN");
   });
 
-  it("廚房只能推進製作與可取餐狀態", () => {
-    expect(canTransitionOrder("CONFIRMED", "PREPARING", "KITCHEN")).toBe(true);
-    expect(canTransitionOrder("PREPARING", "READY", "KITCHEN")).toBe(true);
+  it("廚房不能繞過 KDS 直接修改共用訂單狀態", () => {
+    expect(canTransitionOrder("CONFIRMED", "PREPARING", "KITCHEN")).toBe(false);
+    expect(canTransitionOrder("PREPARING", "PACKING", "KITCHEN")).toBe(false);
+    expect(canTransitionOrder("PACKING", "READY", "KITCHEN")).toBe(false);
+    expect(canTransitionOrder("PREPARING", "READY", "KITCHEN")).toBe(false);
     expect(canTransitionOrder("READY", "COMPLETED", "KITCHEN")).toBe(false);
     expect(canTransitionOrder("CONFIRMED", "CANCELLED", "KITCHEN")).toBe(false);
+  });
+
+  it("KDS 權限不會洩漏財務或設定操作給廚房角色", () => {
+    expect(hasPermission("KITCHEN", "VIEW_KDS")).toBe(true);
+    expect(hasPermission("KITCHEN", "UPDATE_PRODUCTION_TASKS")).toBe(true);
+    expect(hasPermission("KITCHEN", "MANAGE_KDS")).toBe(false);
+    expect(hasPermission("KITCHEN", "VIEW_ORDERS")).toBe(false);
+    expect(hasPermission("KITCHEN", "MANAGE_PRINT_QUEUE")).toBe(false);
+    expect(hasPermission("KITCHEN", "VIEW_DINING_FLOOR")).toBe(false);
+    expect(hasPermission("KITCHEN", "VIEW_REPORTS")).toBe(false);
+    expect(hasPermission("KITCHEN", "MANAGE_CASH_SHIFT")).toBe(false);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_KDS")).toBe(true);
   });
 
   it("拒絕跳過或反向訂單狀態", () => {

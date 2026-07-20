@@ -325,8 +325,8 @@ export function calculateUsageWarningLevels(used: number, limit: number) {
 }
 
 export function canContinueOrderDuringSuspension(currentStatus: string, nextStatus: string) {
-  return ["CONFIRMED", "PREPARING", "READY"].includes(currentStatus)
-    && ["PREPARING", "READY", "COMPLETED", "CANCELLED"].includes(nextStatus);
+  return ["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(currentStatus)
+    && ["PREPARING", "PACKING", "READY", "COMPLETED", "CANCELLED"].includes(nextStatus);
 }
 
 export function entitlementErrorFromUnknown(error: unknown) {

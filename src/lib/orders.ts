@@ -1,6 +1,6 @@
 import type { FulfillmentType, OrderItemStatus, OrderStatus, Prisma } from "@prisma/client";
 
-export const activeOrderStatuses = ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "READY"] as const;
+export const activeOrderStatuses = ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "PACKING", "READY"] as const;
 
 export const staffOrderSelect = {
   id: true,
@@ -102,6 +102,7 @@ export function serializeStaffOrder(order: Prisma.OrderGetPayload<{ select: type
 export const staffStatusOptions = [
   { value: "CONFIRMED", label: "確認接單" },
   { value: "PREPARING", label: "開始製作" },
+  { value: "PACKING", label: "包裝中" },
   { value: "READY", label: "可取餐" },
   { value: "COMPLETED", label: "完成訂單" },
   { value: "CANCELLED", label: "取消訂單" },
@@ -111,6 +112,7 @@ export const orderStatusLabels = {
   WAITING_CONFIRMATION: "待確認",
   CONFIRMED: "已確認",
   PREPARING: "製作中",
+  PACKING: "包裝中",
   READY: "可取餐",
   COMPLETED: "已完成",
   CANCELLED: "已取消",

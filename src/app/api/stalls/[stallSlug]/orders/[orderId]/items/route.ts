@@ -64,7 +64,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         include: { items: { select: { id: true, status: true } } },
       });
       if (!order) throw new BulkItemTransitionConflict("NOT_FOUND");
-      if (!["CONFIRMED", "PREPARING", "READY"].includes(order.status)) {
+      if (!["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.status)) {
         throw new BulkItemTransitionConflict("ORDER_STATUS");
       }
 

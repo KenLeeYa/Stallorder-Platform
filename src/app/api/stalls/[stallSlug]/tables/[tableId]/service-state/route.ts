@@ -44,7 +44,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       const activeOrders = await transaction.order.count({
         where: {
           diningTableId: table.id,
-          status: { in: ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "READY"] },
+          status: { in: ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "PACKING", "READY"] },
         },
       });
       if (activeOrders > 0) throw new TableStateConflict("ACTIVE_ORDERS");

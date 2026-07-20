@@ -1,10 +1,8 @@
 import { notFound } from "next/navigation";
 import { DiningFloorBoard } from "@/components/dining-floor-board";
-import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { requirePagePermission } from "@/lib/authorization";
 import { activeOrderStatuses } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
-import { getFeatureAccess } from "@/server/billing/feature-access";
 
 type PageProps = {
   params: Promise<{ stallSlug: string }>;
@@ -18,24 +16,12 @@ export default async function DiningFloorPage({ params }: PageProps) {
     `/staff/${stallSlug}/floor`,
   );
 
-  if (role === "KITCHEN") {
-    const access = await getFeatureAccess(stall.organizationId, "KITCHEN_VIEW", {
-      requireUsableSubscription: false,
-    });
-    if (!access.allowed) {
-      return <FeatureUpgradeNotice title="廚房桌位檢視尚未開放" message={access.message} />;
-    }
-  }
-
   const settings = await prisma.stallOrderingSettings.findUnique({
     where: { stallId: stall.id },
     select: { dineInEnabled: true },
   });
   if (!settings?.dineInEnabled) notFound();
 
-  const statuses = role === "KITCHEN"
-    ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
-    : activeOrderStatuses;
   const [tables, orders] = await Promise.all([
     prisma.diningTable.findMany({
       where: { stallId: stall.id, organizationId: stall.organizationId },
@@ -57,7 +43,7 @@ export default async function DiningFloorPage({ params }: PageProps) {
         stallId: stall.id,
         fulfillmentType: "DINE_IN",
         diningTableId: { not: null },
-        status: { in: [...statuses] },
+        status: { in: [...activeOrderStatuses] },
       },
       orderBy: { createdAt: "asc" },
       take: 50,

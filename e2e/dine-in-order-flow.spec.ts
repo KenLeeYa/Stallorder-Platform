@@ -13,7 +13,7 @@ async function login(page: Page, email: string) {
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await loginResponse).status()).toBe(200);
-  await expect(page).toHaveURL(/\/merchant\/dashboard|\/staff\//);
+  await expect(page).toHaveURL(/\/merchant\/dashboard|\/staff\/|\/kitchen\?/);
 }
 
 test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ browser, page }) => {
@@ -37,6 +37,8 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await page.getByRole("button", { name: "Place order", exact: true }).click();
   expect((await createResponse).status()).toBe(201);
   await expect(page).toHaveURL(/\/order\//);
+  const orderNumberLabel = await page.getByText(/^訂單 /).first().innerText();
+  const orderNo = orderNumberLabel.replace(/^訂單 /, "");
   await expect(page.getByText("內用桌位", { exact: true })).toBeVisible();
   await expect(page.getByText("A1 桌", { exact: true })).toBeVisible();
   await expect(page.getByText("取餐驗證碼", { exact: true })).toHaveCount(0);
@@ -60,24 +62,14 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   const kitchenContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
   const kitchenPage = await kitchenContext.newPage();
   await login(kitchenPage, "kitchen@stallorder.test");
-  await kitchenPage.goto("/staff/aming-chicken");
-  const kitchenOrder = kitchenPage.getByRole("article").filter({ hasText: customerName });
-  await kitchenPage.getByRole("button", { name: "同品項彙總" }).click();
-  await expect(kitchenPage.getByText(/來源：.*A1 桌/).first()).toBeVisible();
-  await kitchenPage.getByRole("button", { name: "訂單票" }).click();
-  const selectableItems = kitchenOrder.getByRole("checkbox", { name: /選取/ });
-  await expect(selectableItems).toHaveCount(2);
-  await selectableItems.nth(0).check();
-  await selectableItems.nth(1).check();
-  await kitchenPage.getByRole("button", { name: "批次開始製作", exact: true }).click();
-  await kitchenPage.getByRole("button", { name: "復原", exact: true }).click();
-  await expect(kitchenPage.getByText("已復原上一筆批次餐點操作。")).toBeVisible();
-  await kitchenOrder.getByRole("button", { name: "全部開始製作（2）", exact: true }).click();
-  await expect(kitchenOrder).toContainText("製作中");
-  await kitchenOrder.getByRole("button", { name: "全部餐點完成（2）", exact: true }).click();
-  await expect(kitchenOrder).toContainText("已完成餐點");
-  await expect(kitchenOrder.getByRole("button", { name: "標記已出餐" })).toHaveCount(0);
-  await expect(kitchenOrder.getByRole("button", { name: /全部標記已出餐/ })).toHaveCount(0);
+  const kitchenOrder = kitchenPage.getByRole("article").filter({ hasText: "#" + orderNo });
+  await expect(kitchenOrder).toBeVisible();
+  await expect(kitchenOrder).toContainText("內用 A1 桌 · QR 點餐");
+  await kitchenOrder.getByRole("button", { name: "開始製作", exact: true }).first().click();
+  await expect(kitchenOrder.getByText("製作中", { exact: true }).first()).toBeVisible();
+  await kitchenOrder.getByRole("button", { name: "整單完成", exact: true }).click();
+  await expect(kitchenOrder.getByText("已完成", { exact: true })).toHaveCount(2);
+  await expect(kitchenOrder.getByRole("button", { name: "退回待製作", exact: true })).toHaveCount(0);
 
   await expect(staffOrder).toContainText("已完成餐點", { timeout: 10_000 });
   await staffPage.getByRole("link", { name: "桌位平面圖" }).click();

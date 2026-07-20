@@ -21,6 +21,9 @@ export type Permission =
   | "VIEW_AUDIT_LOGS"
   | "MANAGE_OPERATIONAL_ALERTS"
   | "MANAGE_REPORT_SCHEDULES"
+  | "VIEW_KDS"
+  | "UPDATE_PRODUCTION_TASKS"
+  | "MANAGE_KDS"
   | "PLATFORM_ADMIN";
 
 const rolePermissions: Record<UserRole, readonly Permission[]> = {
@@ -45,6 +48,9 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "VIEW_AUDIT_LOGS",
     "MANAGE_OPERATIONAL_ALERTS",
     "MANAGE_REPORT_SCHEDULES",
+    "VIEW_KDS",
+    "UPDATE_PRODUCTION_TASKS",
+    "MANAGE_KDS",
     "PLATFORM_ADMIN",
   ],
   MERCHANT_OWNER: [],
@@ -70,6 +76,9 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "VIEW_AUDIT_LOGS",
     "MANAGE_OPERATIONAL_ALERTS",
     "MANAGE_REPORT_SCHEDULES",
+    "VIEW_KDS",
+    "UPDATE_PRODUCTION_TASKS",
+    "MANAGE_KDS",
   ],
   ORGANIZATION_ADMIN: [
     "VIEW_ORDERS",
@@ -90,6 +99,9 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_OPERATIONAL_ALERTS",
     "MANAGE_REPORT_SCHEDULES",
     "VIEW_BILLING",
+    "VIEW_KDS",
+    "UPDATE_PRODUCTION_TASKS",
+    "MANAGE_KDS",
   ],
   FINANCE_VIEWER: ["VIEW_REPORTS", "VIEW_BILLING"],
   STALL_MANAGER: [
@@ -107,9 +119,12 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STAFF",
     "MANAGE_STALL",
     "MANAGE_OPERATIONAL_ALERTS",
+    "VIEW_KDS",
+    "UPDATE_PRODUCTION_TASKS",
+    "MANAGE_KDS",
   ],
   STAFF: ["VIEW_ORDERS", "CREATE_ORDERS", "UPDATE_ORDERS", "CHECKOUT_ORDERS", "MANAGE_PRINT_QUEUE", "MANAGE_CASH_SHIFT", "VIEW_DINING_FLOOR"],
-  KITCHEN: ["VIEW_ORDERS", "UPDATE_ORDERS", "MANAGE_PRINT_QUEUE", "VIEW_DINING_FLOOR"],
+  KITCHEN: ["VIEW_KDS", "UPDATE_PRODUCTION_TASKS"],
 };
 
 const primaryRoleOrder: readonly UserRole[] = [
@@ -126,8 +141,9 @@ const primaryRoleOrder: readonly UserRole[] = [
 
 const allowedOrderTransitions: Record<OrderStatus, readonly OrderStatus[]> = {
   WAITING_CONFIRMATION: ["CONFIRMED", "CANCELLED"],
-  CONFIRMED: ["PREPARING", "CANCELLED"],
-  PREPARING: ["READY", "CANCELLED"],
+  CONFIRMED: ["PREPARING", "PACKING", "READY", "CANCELLED"],
+  PREPARING: ["PACKING", "READY", "CANCELLED"],
+  PACKING: ["READY", "CANCELLED"],
   READY: ["COMPLETED", "CANCELLED"],
   COMPLETED: [],
   CANCELLED: [],
@@ -155,7 +171,6 @@ export function resolvePrimaryRole(roles: readonly UserRole[]) {
 export function canTransitionOrder(current: OrderStatus, next: OrderStatus, role: UserRole) {
   if (!hasPermission(role, "UPDATE_ORDERS")) return false;
   if (!allowedOrderTransitions[current].includes(next)) return false;
-  if (role === "KITCHEN") return next === "PREPARING" || next === "READY";
   return true;
 }
 

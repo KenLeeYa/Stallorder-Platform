@@ -107,7 +107,7 @@ async function applyBatchUpdate(
       },
     });
     if (items.length !== itemIds.length) throw new BatchConflict("NOT_FOUND");
-    if (items.some((item) => !["CONFIRMED", "PREPARING", "READY"].includes(item.order.status)
+    if (items.some((item) => !["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(item.order.status)
       || !canTransitionOrderItem(item.status, targetStatus, authorization.role))) {
       throw new BatchConflict("INVALID_TRANSITION");
     }

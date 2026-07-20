@@ -20,11 +20,8 @@ export async function GET(request: Request, context: RouteContext) {
   const authorization = await authorizeApiRequest(request, stallSlug, "VIEW_ORDERS");
   if (!authorization.ok) return authorization.response;
 
-  const statuses = authorization.role === "KITCHEN"
-    ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
-    : activeOrderStatuses;
   const orders = await prisma.order.findMany({
-    where: { stallId: authorization.stall.id, status: { in: [...statuses] } },
+    where: { stallId: authorization.stall.id, status: { in: [...activeOrderStatuses] } },
     orderBy: { createdAt: "asc" },
     take: 50,
     select: staffOrderSelect,

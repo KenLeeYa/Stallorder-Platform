@@ -23,6 +23,7 @@ enum OrderStatus {
   WAITING_CONFIRMATION
   CONFIRMED
   PREPARING
+  PACKING
   READY
   COMPLETED
   CANCELLED
@@ -62,6 +63,15 @@ enum OrderItemStatus {
   SERVED
 
   @@map("order_item_status")
+}
+
+enum KitchenTaskStatus {
+  PENDING
+  PREPARING
+  COMPLETED
+  CANCELLED
+
+  @@map("kitchen_task_status")
 }
 
 enum ProductNoteSelectionMode {
@@ -315,6 +325,9 @@ model Organization {
   reportDeliveries              ReportDelivery[]
   approvedMerchantApplication   MerchantApplication?
   merchantSetupProgress         MerchantSetupProgress?
+  kitchenStations               KitchenStation[]
+  kitchenStationAssignments     KitchenStationAssignment[]
+  productionTasks               OrderProductionTask[]
 
   @@map("organizations")
 }
@@ -370,6 +383,9 @@ model Stall {
   cashMovements          CashMovement[]
   checkoutGroups         CheckoutGroup[]
   merchantSetupProgress  MerchantSetupProgress?
+  kitchenStations        KitchenStation[]
+  kitchenStationAssignments KitchenStationAssignment[]
+  productionTasks        OrderProductionTask[]
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -417,6 +433,7 @@ model Profile {
   applicationNotifications MerchantApplicationNotification[]
   completedMerchantSetups  MerchantSetupProgress[]           @relation("MerchantSetupCompletedBy")
   activatedMerchantSetups  MerchantSetupProgress[]           @relation("MerchantSetupActivatedBy")
+  assignedProductionTasks  OrderProductionTask[]
 
   @@map("profiles")
 }
@@ -1194,6 +1211,7 @@ model ProductCategory {
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   groups         ProductGroup[]
   products       Product[]
+  kitchenStationAssignments KitchenStationAssignment[]
 
   @@index([organizationId, sortOrder])
   @@map("product_categories")
@@ -1236,6 +1254,7 @@ model Product {
   orderItems           OrderItem[]
   translations         ProductTranslation[]
   noteGroupAssignments ProductNoteGroupAssignment[]
+  kitchenStationAssignments KitchenStationAssignment[]
 
   @@index([organizationId, categoryId, sortOrder])
   @@index([organizationId, groupId])
@@ -1427,6 +1446,9 @@ model StallOrderingSettings {
   estimatedWaitMinutes           Int          @default(15) @map("estimated_wait_minutes")
   businessDayCutoffHour          Int          @default(0) @map("business_day_cutoff_hour") @db.SmallInt
   enabledLocales                 String[]     @default(["zh-TW", "en", "ja", "ko", "vi", "th"]) @map("enabled_locales")
+  kdsWarningMinutes              Int          @default(5) @map("kds_warning_minutes")
+  kdsCriticalMinutes             Int          @default(10) @map("kds_critical_minutes")
+  kdsDefaultView                 String       @default("ORDER") @map("kds_default_view")
   createdAt                      DateTime     @default(now()) @map("created_at")
   updatedAt                      DateTime     @updatedAt @map("updated_at")
   organization                   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1575,6 +1597,7 @@ model Order {
   total                    Int
   deviceHash               String              @map("device_hash")
   pickupCodeHash           String?             @map("pickup_code_hash")
+  pickupCodeDisplay        String?             @map("pickup_code_display")
   pickupCodeLength         Int                 @default(3) @map("pickup_code_length") @db.SmallInt
   pickupVerifiedAt         DateTime?           @map("pickup_verified_at")
   pickupVerificationMethod String?             @map("pickup_verification_method")
@@ -1602,6 +1625,7 @@ model Order {
   payment                  Payment?
   printJobs                PrintJob[]
   merchantSetupProgress    MerchantSetupProgress? @relation("MerchantSetupTestOrder")
+  productionTasks          OrderProductionTask[]
 
   @@unique([stallId, orderNo])
   @@unique([stallId, idempotencyKey])
@@ -1825,10 +1849,79 @@ model OrderItem {
   order          Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product        Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
   noteOptions    OrderItemNoteOption[]
+  productionTask OrderProductionTask?
 
   @@index([organizationId, stallId])
   @@index([orderId])
   @@map("order_items")
+}
+
+model KitchenStation {
+  id              String                     @id @default(uuid()) @db.Uuid
+  organizationId  String                     @map("organization_id") @db.Uuid
+  stallId         String                     @map("stall_id") @db.Uuid
+  name            String
+  code            String
+  description     String?
+  sortOrder       Int                        @default(0) @map("sort_order")
+  isActive        Boolean                    @default(true) @map("is_active")
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+  organization    Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall           Stall                      @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  assignments     KitchenStationAssignment[]
+  productionTasks OrderProductionTask[]
+
+  @@unique([stallId, code])
+  @@index([organizationId, stallId, isActive, sortOrder])
+  @@map("kitchen_stations")
+}
+
+model KitchenStationAssignment {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  stallId        String           @map("stall_id") @db.Uuid
+  stationId      String           @map("station_id") @db.Uuid
+  categoryId     String?          @map("category_id") @db.Uuid
+  productId      String?          @map("product_id") @db.Uuid
+  isActive       Boolean          @default(true) @map("is_active")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall            @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  station        KitchenStation   @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  category       ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  product        Product?         @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, stallId, stationId, isActive])
+  @@map("kitchen_station_assignments")
+}
+
+model OrderProductionTask {
+  id                  String            @id @default(uuid()) @db.Uuid
+  organizationId      String            @map("organization_id") @db.Uuid
+  stallId             String            @map("stall_id") @db.Uuid
+  orderId             String            @map("order_id") @db.Uuid
+  orderItemId         String            @unique @map("order_item_id") @db.Uuid
+  stationId           String            @map("station_id") @db.Uuid
+  status              KitchenTaskStatus @default(PENDING)
+  quantity            Int
+  startedAt           DateTime?         @map("started_at")
+  completedAt         DateTime?         @map("completed_at")
+  assignedToProfileId String?           @map("assigned_to_profile_id") @db.Uuid
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall               Stall             @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  order               Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem           OrderItem         @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  station             KitchenStation    @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  assignedTo          Profile?          @relation(fields: [assignedToProfileId], references: [id], onDelete: SetNull)
+
+  @@index([stallId, status, stationId, createdAt])
+  @@index([orderId, status, createdAt])
+  @@index([assignedToProfileId, status])
+  @@map("order_production_tasks")
 }
 
 model OrderItemNoteOption {

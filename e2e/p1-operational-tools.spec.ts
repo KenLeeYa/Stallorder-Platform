@@ -16,6 +16,7 @@ const targetSlug = "p1-template-target";
 let sourceStallId = "";
 let targetStallId = "";
 let highDiscountId = "";
+let additionalStallApprovalId = "";
 
 test.describe("P1 營運功能", () => {
   test.describe.configure({ mode: "serial" });
@@ -28,6 +29,20 @@ test.describe("P1 營運功能", () => {
     await prisma.orderSession.deleteMany({ where: { order: { customerName: { startsWith: "P1 E2E" } } } });
     await prisma.order.deleteMany({ where: { stallId: primaryStallId, customerName: { startsWith: "P1 E2E" } } });
     await prisma.cashShift.deleteMany({ where: { stallId: primaryStallId, note: { startsWith: "P1 E2E" } } });
+
+    const subscription = await prisma.subscription.findUniqueOrThrow({
+      where: { organizationId },
+      select: { id: true },
+    });
+    additionalStallApprovalId = (await prisma.additionalStallApproval.create({
+      data: {
+        organizationId,
+        subscriptionId: subscription.id,
+        quantity: 2,
+        unitPrice: 0,
+        reason: "P1 E2E fixture",
+      },
+    })).id;
 
     const product = await prisma.product.findFirstOrThrow({ where: { organizationId, name: "香酥雞排" } });
     const source = await prisma.stall.create({
@@ -86,6 +101,9 @@ test.describe("P1 營運功能", () => {
     await prisma.cashShift.deleteMany({ where: { stallId: primaryStallId, note: { startsWith: "P1 E2E" } } });
     if (highDiscountId) await prisma.discountOption.deleteMany({ where: { id: highDiscountId } });
     await prisma.stall.deleteMany({ where: { id: { in: [sourceStallId, targetStallId].filter(Boolean) } } });
+    if (additionalStallApprovalId) {
+      await prisma.additionalStallApproval.deleteMany({ where: { id: additionalStallApprovalId } });
+    }
     await prisma.$disconnect();
   });
 

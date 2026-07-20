@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const nonCompletionStatus = z.enum(["CONFIRMED", "PREPARING", "READY"]);
+const nonCompletionStatus = z.enum(["CONFIRMED", "PREPARING", "PACKING", "READY"]);
 
 export const orderStatusUpdateSchema = z.discriminatedUnion("status", [
   z.object({ status: nonCompletionStatus }).strict(),

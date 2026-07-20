@@ -194,7 +194,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         const existing = await transaction.diningTable.findFirst({ where: { id: command.tableId, stallId, organizationId } });
         if (!existing) throw new ModuleNotFoundError();
         const activeOrders = await transaction.order.count({
-          where: { diningTableId: existing.id, status: { in: ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "READY"] } },
+          where: { diningTableId: existing.id, status: { in: ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "PACKING", "READY"] } },
         });
         if (activeOrders > 0) throw new ActiveTableOrdersError();
         await transaction.diningTable.delete({ where: { id: existing.id } });

@@ -6,8 +6,6 @@ import { prisma } from "@/lib/prisma";
 import { activeOrderStatuses, serializeStaffOrder, staffOrderSelect } from "@/lib/orders";
 import { hasPermission } from "@/lib/rbac";
 import { getStaffOrderCatalog } from "@/lib/staff-order-catalog";
-import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
-import { getFeatureAccess } from "@/server/billing/feature-access";
 import { createPerformanceTiming } from "@/lib/performance-timing";
 import { createRequestId } from "@/lib/security";
 
@@ -26,19 +24,6 @@ export default async function StaffPage({ params }: PageProps) {
       4,
     ),
   );
-  if (authorization.role === "KITCHEN") {
-    const access = await timing.measureDb(() => getFeatureAccess(
-      authorization.stall.organizationId,
-      "KITCHEN_VIEW",
-      {
-      requireUsableSubscription: false,
-      },
-    ));
-    if (!access.allowed) {
-      timing.finish({ status: 200 });
-      return <FeatureUpgradeNotice title="廚房檢視尚未開放" message={access.message} />;
-    }
-  }
   return (
     <Suspense fallback={<RouteLoadingSkeleton variant="orders" />}>
       <StaffOrderContent {...authorization} timing={timing} />
@@ -51,14 +36,11 @@ type StaffOrderContentProps = Awaited<ReturnType<typeof requirePagePermission>> 
 };
 
 async function StaffOrderContent({ stall, principal, role, timing }: StaffOrderContentProps) {
-  const statuses = role === "KITCHEN"
-    ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
-    : activeOrderStatuses;
   const [orders, settings, paymentOptions, discountOptions, orderCatalog, serverClock] = await timing.measureDb(() => Promise.all([
     prisma.order.findMany({
       where: {
         stallId: stall.id,
-        status: { in: [...statuses] },
+        status: { in: [...activeOrderStatuses] },
       },
       orderBy: { createdAt: "asc" },
       select: staffOrderSelect,

@@ -6,7 +6,7 @@ import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeHeaders, publicEdgeUr
 
 type PublicOrder = {
   orderNo: string;
-  orderStatus: "WAITING_CONFIRMATION" | "CONFIRMED" | "PREPARING" | "READY" | "COMPLETED" | "CANCELLED" | "EXPIRED";
+  orderStatus: "WAITING_CONFIRMATION" | "CONFIRMED" | "PREPARING" | "PACKING" | "READY" | "COMPLETED" | "CANCELLED" | "EXPIRED";
   paymentStatus: "UNPAID" | "PAID" | "REFUNDED";
   totalAmount: number;
   createdAt: string;
@@ -41,6 +41,7 @@ const statusLabels: Record<PublicOrder["orderStatus"], string> = {
   WAITING_CONFIRMATION: "等待攤位確認",
   CONFIRMED: "攤位已確認",
   PREPARING: "製作中",
+  PACKING: "包裝中",
   READY: "可取餐",
   COMPLETED: "已完成",
   CANCELLED: "已取消",

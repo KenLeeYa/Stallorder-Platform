@@ -12,8 +12,9 @@ export function canTransitionOrderItem(
   next: OrderItemStatus,
   role: UserRole,
 ) {
+  if (role === "KITCHEN") return false;
   if (nextItemStatus[current] !== next) return false;
-  return role === "KITCHEN" ? next !== "SERVED" : true;
+  return true;
 }
 
 export function deriveOrderStatusFromItems(
@@ -22,6 +23,7 @@ export function deriveOrderStatusFromItems(
 ): OrderStatus {
   if (itemStatuses.length === 0 || current === "WAITING_CONFIRMATION") return current;
   if (itemStatuses.every((status) => status === "READY" || status === "SERVED")) return "READY";
+  if (current === "PACKING") return "PACKING";
   if (itemStatuses.some((status) => status !== "PENDING")) return "PREPARING";
   return "CONFIRMED";
 }

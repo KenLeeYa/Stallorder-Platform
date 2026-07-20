@@ -24,3 +24,13 @@ input,
 textarea {
   outline-color: #0f766e;
 }
+
+.form-input {
+  width: 100%;
+  min-width: 0;
+  height: 2.75rem;
+  border: 1px solid #d6d3d1;
+  border-radius: 0.375rem;
+  padding: 0 0.75rem;
+  background: #fff;
+}

@@ -41,6 +41,7 @@ export const billingFeatureLabels: Record<string, string> = {
   CSV_EXPORT: "CSV 匯出",
   MODIFIERS: "商品註記與加價",
   KITCHEN_VIEW: "廚房檢視",
+  KDS: "廚房生產看板",
   STAFF_ROLES: "員工角色",
   MULTIPLE_QR_CODES: "多組 QR Code",
   MULTI_STALL_BASIC: "多攤位管理",

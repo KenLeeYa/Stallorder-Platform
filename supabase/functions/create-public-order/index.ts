@@ -76,6 +76,21 @@ function publicOrderResponse(order: StoredOrder, trackingToken: string, pickupCo
   };
 }
 
+async function persistPickupCodeDisplay(
+  admin: ReturnType<typeof createServiceClient>,
+  order: StoredOrder,
+  pickupCode: string,
+) {
+  const fulfillmentType = order.fulfillment_type ?? "TAKEOUT";
+  const pickupRequired = order.pickup_required === true
+    || (order.pickup_required === undefined && fulfillmentType === "TAKEOUT");
+  if (!pickupRequired) return;
+  const { error } = await admin.from("orders")
+    .update({ pickup_code_display: pickupCode })
+    .eq("id", order.order_id);
+  if (error) throw error;
+}
+
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
   const timing = createEdgePerformanceTiming({ route: "/functions/v1/create-public-order", requestId });
@@ -158,6 +173,7 @@ Deno.serve(async (request) => {
     if (existing) {
       const order = existing as StoredOrder;
       const tokens = await derivePublicOrderTokens(order.order_id, tokenSecret);
+      await timing.measureDb(() => persistPickupCodeDisplay(admin, order, tokens.pickupCode));
       return respond(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200);
     }
 
@@ -276,6 +292,7 @@ Deno.serve(async (request) => {
     const finalTokens = result.order.order_id === orderId
       ? provisionalTokens
       : await derivePublicOrderTokens(result.order.order_id, tokenSecret);
+    await timing.measureDb(() => persistPickupCodeDisplay(admin, result.order!, finalTokens.pickupCode));
     return respond(
       publicOrderResponse(result.order, finalTokens.trackingToken, finalTokens.pickupCode),
       result.idempotent_replay ? 200 : 201,
