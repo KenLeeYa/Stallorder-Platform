@@ -13,6 +13,7 @@ export function LogoutButton() {
     setIsSubmitting(true);
     const response = await fetch("/api/auth/logout", { method: "POST", headers: csrfHeaders() });
     if (response.ok) {
+      window.localStorage.removeItem("stallorder.organization.preference");
       router.push("/login");
       router.refresh();
       return;

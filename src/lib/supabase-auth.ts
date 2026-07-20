@@ -10,6 +10,11 @@ export function isSupabaseAuthConfigured() {
   );
 }
 
+export function isGoogleLoginEnabled() {
+  return process.env.NEXT_PUBLIC_GOOGLE_LOGIN_ENABLED === "true"
+    && isSupabaseAuthConfigured();
+}
+
 export async function createSupabaseAuthClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;

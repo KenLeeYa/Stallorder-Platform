@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSession, setSessionCookies } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { resolveOAuthLinkProfile } from "@/lib/oauth-linking";
+import { resolveOAuthDestination } from "@/lib/oauth-redirect";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { prisma } from "@/lib/prisma";
 import { createRequestId, hashClientIp, sanitizeRedirectPath } from "@/lib/security";
@@ -58,6 +59,7 @@ export async function GET(request: Request) {
       ]);
       const existing = resolveOAuthLinkProfile(authUser.id, byAuthId, byEmail);
       if (existing) {
+        if (!existing.isActive) throw new Error("OAUTH_ACCOUNT_DISABLED");
         return transaction.profile.update({
           where: { id: existing.id },
           data: {
@@ -92,8 +94,22 @@ export async function GET(request: Request) {
         () => timing.measureDb(() => createSession(profile.id), 2),
       ),
     ]);
-    const fallback = workspaces.length > 0 ? getDefaultWorkspacePath(workspaces) : "/onboarding?oauth=1";
-    const next = requestedNext || fallback;
+    const financeWorkspace = workspaces.length === 1
+      && workspaces[0].roles.length > 0
+      && workspaces[0].roles.every((role) => role === "FINANCE_VIEWER")
+      ? workspaces[0]
+      : null;
+    const fallback = profile.platformRole === "PLATFORM_ADMIN"
+      ? "/admin"
+      : financeWorkspace
+        ? `/merchant/reports/overview?organizationId=${financeWorkspace.id}`
+        : workspaces.length > 0 ? getDefaultWorkspacePath(workspaces) : "/onboarding?oauth=1";
+    const next = resolveOAuthDestination(
+      requestedNext,
+      fallback,
+      profile.platformRole,
+      workspaces,
+    );
     const response = NextResponse.redirect(`${appOrigin}${next}`);
     setSessionCookies(response, session);
     await timing.measureDb(() => recordAuditEvent({
@@ -109,8 +125,9 @@ export async function GET(request: Request) {
     return finalize(response);
   } catch (error) {
     const conflict = error instanceof Error && error.message === "OAUTH_ACCOUNT_CONFLICT";
+    const disabled = error instanceof Error && error.message === "OAUTH_ACCOUNT_DISABLED";
     return finalize(NextResponse.redirect(
-      `${appOrigin}/login?oauthError=${conflict ? "account-conflict" : "callback-failed"}`,
+      `${appOrigin}/login?oauthError=${conflict ? "account-conflict" : disabled ? "account-disabled" : "callback-failed"}`,
     ));
   }
 }

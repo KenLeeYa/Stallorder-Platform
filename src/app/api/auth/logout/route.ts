@@ -20,7 +20,16 @@ export async function POST(request: Request) {
     const supabase = await createSupabaseAuthClient();
     await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
   }
-  const response = NextResponse.json({ ok: true }, { headers: { "x-request-id": requestId } });
+  const response = NextResponse.json(
+    { ok: true },
+    {
+      headers: {
+        "cache-control": "no-store",
+        "clear-site-data": '"cache"',
+        "x-request-id": requestId,
+      },
+    },
+  );
   clearSessionCookies(response);
   await recordAuditEvent({
     action: "LOGOUT",

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { createRequestId, hashClientIp, sanitizeRedirectPath } from "@/lib/security";
-import { createSupabaseAuthClient, isSupabaseAuthConfigured } from "@/lib/supabase-auth";
+import { createSupabaseAuthClient, isGoogleLoginEnabled } from "@/lib/supabase-auth";
 
 export async function GET(request: Request) {
   const requestId = createRequestId();
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin
     : requestUrl.origin;
 
-  if (!isSupabaseAuthConfigured()) {
+  if (!isGoogleLoginEnabled()) {
     return finalize(NextResponse.redirect(`${appOrigin}/login?oauthError=not-configured`));
   }
 
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     const redirectTo = `${appOrigin}/auth/callback?next=${encodeURIComponent(next)}`;
     const { data, error } = await timing.measure("externalApiMs", () => supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo },
+      options: { redirectTo, scopes: "openid email profile" },
     }));
     if (error || !data.url) throw error ?? new Error("OAUTH_REDIRECT_MISSING");
     return finalize(NextResponse.redirect(data.url, { headers: { "x-request-id": requestId } }));

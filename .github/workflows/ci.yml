@@ -52,6 +52,8 @@ jobs:
         run: npx supabase db lint --local --level warning --fail-on warning
       - name: Production guardrails
         run: npm run production:check
+      - name: Google OAuth guardrails
+        run: npm run oauth:verify
       - name: Build
         run: npm run build
       - name: Dependency audit

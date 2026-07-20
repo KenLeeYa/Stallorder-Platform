@@ -9,6 +9,7 @@ const oauthErrorMessages: Record<string, string> = {
   "start-failed": "目前無法啟動 Google 登入。",
   "callback-failed": "Google 登入驗證失敗，請重新嘗試。",
   "account-conflict": "此 Email 已連結至其他登入身分，請聯絡管理員。",
+  "account-disabled": "此帳號已停用，請聯絡管理員。",
 };
 
 export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: string; googleEnabled: boolean; oauthError?: string }) {
@@ -24,6 +25,7 @@ export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: 
     : "";
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const error = submissionError ?? urlError;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -53,6 +55,14 @@ export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: 
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function startGoogleLogin() {
+    if (isGoogleSubmitting || isSubmitting) return;
+    setSubmissionError("");
+    setIsGoogleSubmitting(true);
+    const query = requestedNextPath ? `?next=${encodeURIComponent(requestedNextPath)}` : "";
+    window.location.assign(`/auth/google${query}`);
   }
 
   return (
@@ -98,7 +108,15 @@ export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: 
       {googleEnabled ? (
         <>
           <div className="my-5 flex items-center gap-3 text-xs text-stone-500"><span className="h-px flex-1 bg-stone-200" /><span>或</span><span className="h-px flex-1 bg-stone-200" /></div>
-          <a href={`/auth/google${requestedNextPath ? `?next=${encodeURIComponent(requestedNextPath)}` : ""}`} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 hover:bg-stone-50"><LogIn className="h-4 w-4" />使用 Google 登入</a>
+          <button
+            type="button"
+            onClick={startGoogleLogin}
+            disabled={isGoogleSubmitting || isSubmitting}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <LogIn className="h-4 w-4" />
+            {isGoogleSubmitting ? "正在前往 Google..." : "使用 Google 帳號登入"}
+          </button>
         </>
       ) : null}
     </form>

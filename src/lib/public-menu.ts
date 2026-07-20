@@ -18,7 +18,7 @@ export async function getCachedPublicMenuForQrToken(
   const qrTag = publicQrCacheTag(qrToken);
   const getQrContext = unstable_cache(
     () => loadQrContext(qrToken),
-    ["public-qr-context", qrTag],
+    ["public-qr-context-v2", qrTag],
     { revalidate: QR_CONTEXT_TTL_SECONDS, tags: [qrTag] },
   );
   const context = await getQrContext();
@@ -162,15 +162,16 @@ function publicStallIsAvailable(stall: {
   businessStatus: string;
   orderingState: string;
   isSoldOut: boolean;
-  organization: { status: string };
+  organization?: { status: string } | null;
 }) {
   return stall.isActive
     && stall.orderingEnabled
     && stall.businessStatus === "OPEN"
     && stall.orderingState === "OPEN"
     && !stall.isSoldOut
+    && Boolean(stall.organization)
     && ACTIVE_ORGANIZATION_STATUSES.includes(
-      stall.organization.status as (typeof ACTIVE_ORGANIZATION_STATUSES)[number],
+      stall.organization!.status as (typeof ACTIVE_ORGANIZATION_STATUSES)[number],
     );
 }
 

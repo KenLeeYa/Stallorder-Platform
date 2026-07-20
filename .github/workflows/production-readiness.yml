@@ -40,6 +40,7 @@ jobs:
       - run: npm ci
       - run: npm run prisma:generate
       - run: npm run production:check
+      - run: npm run oauth:verify
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test

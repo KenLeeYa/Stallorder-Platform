@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { LoginForm } from "@/components/login-form";
-import { isSupabaseAuthConfigured } from "@/lib/supabase-auth";
+import { isGoogleLoginEnabled } from "@/lib/supabase-auth";
 
 export default function LoginPage() {
-  const googleEnabled = isSupabaseAuthConfigured();
+  const googleEnabled = isGoogleLoginEnabled();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-8">

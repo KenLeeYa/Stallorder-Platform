@@ -19,6 +19,7 @@
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "production:check": "node scripts/production-readiness.mjs",
+    "oauth:verify": "node scripts/verify-google-oauth-config.mjs",
     "production:smoke": "node scripts/production-smoke-test.mjs",
     "performance:measure": "node scripts/measure-response-time.mjs",
     "domain:migration": "node scripts/cloudflare-domain-migration.mjs",
