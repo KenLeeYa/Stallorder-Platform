@@ -328,6 +328,7 @@ model Organization {
   kitchenStations               KitchenStation[]
   kitchenStationAssignments     KitchenStationAssignment[]
   productionTasks               OrderProductionTask[]
+  pickupDisplaySettings         PickupDisplaySettings[]
 
   @@map("organizations")
 }
@@ -386,6 +387,7 @@ model Stall {
   kitchenStations        KitchenStation[]
   kitchenStationAssignments KitchenStationAssignment[]
   productionTasks        OrderProductionTask[]
+  pickupDisplaySettings  PickupDisplaySettings?
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -1456,6 +1458,30 @@ model StallOrderingSettings {
 
   @@index([organizationId])
   @@map("stall_ordering_settings")
+}
+
+model PickupDisplaySettings {
+  id                        String       @id @default(uuid()) @db.Uuid
+  organizationId            String       @map("organization_id") @db.Uuid
+  stallId                   String       @unique @map("stall_id") @db.Uuid
+  displayTokenHash          String?      @unique @map("display_token_hash")
+  showCustomerName          Boolean      @default(false) @map("show_customer_name")
+  showPickupCode            Boolean      @default(true) @map("show_pickup_code")
+  maskPickupCode            Boolean      @default(false) @map("mask_pickup_code")
+  readyRetentionMinutes     Int          @default(30) @map("ready_retention_minutes")
+  preparingRetentionMinutes Int          @default(180) @map("preparing_retention_minutes")
+  enableVoice               Boolean      @default(false) @map("enable_voice")
+  voiceLocale               String       @default("zh-TW") @map("voice_locale")
+  announcementText          String?      @map("announcement_text")
+  themeJson                 Json?        @map("theme_json")
+  isActive                  Boolean      @default(false) @map("is_active")
+  createdAt                 DateTime     @default(now()) @map("created_at")
+  updatedAt                 DateTime     @updatedAt @map("updated_at")
+  organization              Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                     Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, stallId, isActive])
+  @@map("pickup_display_settings")
 }
 
 model StallBusinessHour {

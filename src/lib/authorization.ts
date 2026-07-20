@@ -18,10 +18,11 @@ import { getWorkspaceAccess } from "@/lib/workspace";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
 
-const kdsFeaturePermissions = new Set<Permission>([
-  "VIEW_KDS",
-  "UPDATE_PRODUCTION_TASKS",
-  "MANAGE_KDS",
+const permissionFeatureCodes = new Map<Permission, string>([
+  ["VIEW_KDS", "KDS"],
+  ["UPDATE_PRODUCTION_TASKS", "KDS"],
+  ["MANAGE_KDS", "KDS"],
+  ["MANAGE_CDS", "CDS"],
 ]);
 
 export async function findStallAccess(principal: SessionPrincipal, stallSlug: string) {
@@ -170,9 +171,10 @@ export async function authorizeApiRequest(
     };
   }
 
-  if (kdsFeaturePermissions.has(permission)) {
+  const featureCode = permissionFeatureCodes.get(permission);
+  if (featureCode) {
     try {
-      await entitlementService.assertFeatureIncluded(access.stall.organizationId, "KDS");
+      await entitlementService.assertFeatureIncluded(access.stall.organizationId, featureCode);
     } catch (error) {
       const response = entitlementErrorResponse(error, requestId);
       if (response) return { ok: false as const, response };

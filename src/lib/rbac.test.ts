@@ -84,6 +84,15 @@ describe("RBAC", () => {
     expect(hasPermission("STALL_MANAGER", "MANAGE_KDS")).toBe(true);
   });
 
+  it("CDS 設定僅開放組織管理者與攤位經理", () => {
+    expect(hasPermission("ORGANIZATION_OWNER", "MANAGE_CDS")).toBe(true);
+    expect(hasPermission("ORGANIZATION_ADMIN", "MANAGE_CDS")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_CDS")).toBe(true);
+    expect(hasPermission("FINANCE_VIEWER", "MANAGE_CDS")).toBe(false);
+    expect(hasPermission("STAFF", "MANAGE_CDS")).toBe(false);
+    expect(hasPermission("KITCHEN", "MANAGE_CDS")).toBe(false);
+  });
+
   it("拒絕跳過或反向訂單狀態", () => {
     expect(canTransitionOrder("WAITING_CONFIRMATION", "READY", "STAFF")).toBe(false);
     expect(canTransitionOrder("WAITING_CONFIRMATION", "CONFIRMED", "STAFF")).toBe(true);
