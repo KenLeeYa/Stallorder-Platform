@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 const stallId = "22222222-2222-4222-8222-222222222222";
 const createdOrderIds: string[] = [];
 let originalDeliveryEnabled = false;
+let cashShiftId = "";
 
 async function login(page: Page) {
   await page.goto("/login");
@@ -15,20 +16,37 @@ async function login(page: Page) {
 }
 
 test.beforeAll(async () => {
-  const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({
-    where: { stallId },
-    select: { deliveryModuleEnabled: true },
-  });
+  const [settings, owner] = await Promise.all([
+    prisma.stallOrderingSettings.findUniqueOrThrow({
+      where: { stallId },
+      select: { deliveryModuleEnabled: true },
+    }),
+    prisma.profile.findUniqueOrThrow({ where: { email: "owner@stallorder.test" }, select: { id: true } }),
+  ]);
   originalDeliveryEnabled = settings.deliveryModuleEnabled;
   await prisma.stallOrderingSettings.update({
     where: { stallId },
     data: { deliveryModuleEnabled: true },
   });
+  const shift = await prisma.cashShift.create({
+    data: {
+      organizationId: "11111111-1111-4111-8111-111111111111",
+      stallId,
+      openingAmount: 0,
+      openedById: owner.id,
+      note: "Staff POS E2E 班次",
+    },
+  });
+  cashShiftId = shift.id;
 });
 
 test.afterAll(async () => {
   if (createdOrderIds.length > 0) {
     await prisma.order.deleteMany({ where: { id: { in: createdOrderIds } } });
+  }
+  if (cashShiftId) {
+    await prisma.cashShiftReview.deleteMany({ where: { cashShiftId } });
+    await prisma.cashShift.deleteMany({ where: { id: cashShiftId } });
   }
   await prisma.stallOrderingSettings.update({
     where: { stallId },
@@ -102,6 +120,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   });
   expect(stored.pickupCodeHash).toBeNull();
   expect(stored.payment?.status).toBe("PAID");
+  expect(stored.payment?.cashShiftId).toBe(cashShiftId);
   expect(stored.printJobs[0]?.status).toBe("PENDING");
   await page.screenshot({ path: testInfo.outputPath("staff-pos-mobile.png"), fullPage: true });
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);

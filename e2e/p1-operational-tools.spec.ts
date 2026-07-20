@@ -117,8 +117,13 @@ test.describe("P1 營運功能", () => {
     await expect(page.getByText("班次進行中", { exact: true })).toBeVisible();
     await page.getByLabel("金額", { exact: true }).fill("500");
     await page.getByLabel("原因", { exact: true }).fill("P1 E2E 備用金");
+    const movementResponse = page.waitForResponse((response) => (
+      response.url().endsWith("/api/stalls/aming-chicken/cash-shifts")
+      && response.request().method() === "POST"
+    ));
     await page.getByRole("button", { name: "新增紀錄" }).click();
-    await expect(page.getByText("P1 E2E 備用金", { exact: true })).toBeVisible();
+    expect((await movementResponse).status()).toBe(200);
+    await expect(page.getByText(/P1 E2E 備用金/)).toBeVisible();
 
     const firstContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
     const secondContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
@@ -182,10 +187,11 @@ test.describe("P1 營運功能", () => {
     await expect(page.getByText("$2,606", { exact: true })).toBeVisible();
     await page.getByLabel("實際盤點金額").fill("2606");
     await expect(page.getByText("帳款相符", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "完成交班" }).click();
-    await expect(page.getByText("尚無已完成的交班紀錄。")).toHaveCount(0);
-    const closedShift = await prisma.cashShift.findFirstOrThrow({ where: { stallId: primaryStallId, note: "P1 E2E 班次" }, orderBy: { openedAt: "desc" } });
-    expect(closedShift.varianceAmount).toBe(0);
+    await page.getByRole("button", { name: "送出交班複核" }).click();
+    await expect(page.getByText("等待複核", { exact: true })).toBeVisible();
+    const pendingShift = await prisma.cashShift.findFirstOrThrow({ where: { stallId: primaryStallId, note: "P1 E2E 班次" }, orderBy: { openedAt: "desc" } });
+    expect(pendingShift.status).toBe("CLOSING");
+    expect(pendingShift.varianceAmount).toBe(0);
 
     const cancelContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
     const cancelCustomer = await cancelContext.newPage();

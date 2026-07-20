@@ -7,6 +7,7 @@ select plan(18);
 delete from public.operational_alerts;
 delete from public.operational_events;
 delete from public.payments;
+delete from public.cash_shifts;
 delete from public.order_sessions;
 delete from public.orders;
 
@@ -55,12 +56,23 @@ select is(
   '確認訂單會產生 ORDER_CONFIRMED 事件'
 );
 
+insert into public.cash_shifts (
+  id, organization_id, stall_id, opening_amount, opened_by
+) values (
+  '74000000-0000-4000-8000-000000000051',
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  0,
+  '55555555-5555-4555-8555-555555555551'
+);
+
 insert into public.payments (
-  organization_id, stall_id, order_id, amount, method, status, paid_at
+  organization_id, stall_id, order_id, cash_shift_id, amount, method, status, paid_at
 ) values (
   '11111111-1111-4111-8111-111111111111',
   '22222222-2222-4222-8222-222222222222',
-  '70000000-0000-4000-8000-000000000051', 180, 'CASH', 'PAID', now()
+  '70000000-0000-4000-8000-000000000051',
+  '74000000-0000-4000-8000-000000000051', 180, 'CASH', 'PAID', now()
 );
 select is(
   (select count(*)::integer from public.operational_events where event_type = 'PAYMENT_RECORDED'),

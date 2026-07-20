@@ -41,6 +41,11 @@ describe("RBAC", () => {
     expect(hasPermission("STAFF", "MANAGE_PRINT_QUEUE")).toBe(true);
     expect(hasPermission("KITCHEN", "MANAGE_PRINT_QUEUE")).toBe(false);
     expect(hasPermission("STAFF", "MANAGE_CASH_SHIFT")).toBe(true);
+    expect(hasPermission("STAFF", "VIEW_CASH_SHIFT")).toBe(true);
+    expect(hasPermission("STAFF", "REVIEW_CASH_SHIFT")).toBe(false);
+    expect(hasPermission("FINANCE_VIEWER", "VIEW_CASH_SHIFT")).toBe(true);
+    expect(hasPermission("FINANCE_VIEWER", "MANAGE_CASH_SHIFT")).toBe(false);
+    expect(hasPermission("STALL_MANAGER", "REVIEW_CASH_SHIFT")).toBe(true);
     expect(hasPermission("KITCHEN", "MANAGE_CASH_SHIFT")).toBe(false);
     expect(hasPermission("STALL_MANAGER", "APPROVE_DISCOUNT")).toBe(true);
     expect(hasPermission("STAFF", "APPROVE_DISCOUNT")).toBe(false);

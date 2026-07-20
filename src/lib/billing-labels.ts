@@ -45,6 +45,8 @@ export const billingFeatureLabels: Record<string, string> = {
   CDS: "顧客取餐顯示",
   WAIT_TIME_QUOTE: "等候時間預估",
   CAPACITY_CONTROL: "產能與自動接單控制",
+  CASH_SHIFT: "現金交班",
+  CASH_RECONCILIATION: "現金短溢收複核",
   STAFF_ROLES: "員工角色",
   MULTIPLE_QR_CODES: "多組 QR Code",
   MULTI_STALL_BASIC: "多攤位管理",

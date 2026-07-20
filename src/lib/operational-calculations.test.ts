@@ -8,7 +8,9 @@ describe("P1 營運計算", () => {
       cashSales: 3_500,
       cashIn: 500,
       cashOut: 300,
-    })).toBe(5_700);
+      cashRefund: 200,
+      correction: -100,
+    })).toBe(5_400);
   });
 
   it("只有折扣超過門檻時要求經理核准", () => {

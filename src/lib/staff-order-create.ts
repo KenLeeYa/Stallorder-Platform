@@ -2,6 +2,10 @@ import "server-only";
 
 import { Prisma, type PrismaClient, type UserRole } from "@prisma/client";
 import { calculateCapacitySnapshot } from "@/lib/capacity";
+import {
+  CashShiftOperationError,
+  requireOpenCashShift,
+} from "@/lib/cash-shifts";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import type { CreateStaffOrderInput } from "@/lib/staff-order-contract";
@@ -17,6 +21,7 @@ export class StaffOrderCreateError extends Error {
     | "INVALID_PRODUCT_NOTES"
     | "TABLE_UNAVAILABLE"
     | "DELIVERY_UNAVAILABLE"
+    | "ACTIVE_SHIFT_REQUIRED"
     | "ORDER_CONFLICT") {
     super(code);
   }
@@ -97,6 +102,9 @@ export async function createStaffOrder(input: {
       const total = checkout?.total ?? prepared.subtotal;
       const isSetupTest = creationMode === "SETUP_TEST";
       const initialStatus = isSetupTest ? "WAITING_CONFIRMATION" : "CONFIRMED";
+      const cashShiftId = checkout?.method === "CASH"
+        ? await requireOpenCashShift(transaction, input.organizationId, input.stallId)
+        : null;
 
       const order = await transaction.order.create({
         data: {
@@ -177,6 +185,7 @@ export async function createStaffOrder(input: {
               paymentOptionId: checkout.paymentOptionId,
               amount: checkout.total,
               method: checkout.method,
+              cashShiftId,
               status: "PAID",
               methodLabel: checkout.methodLabel,
               cashReceived: checkout.cashReceived,
@@ -201,6 +210,9 @@ export async function createStaffOrder(input: {
     return { order, idempotent: false };
   } catch (error) {
     if (error instanceof StaffOrderCreateError) throw error;
+    if (error instanceof CashShiftOperationError && error.code === "ACTIVE_SHIFT_REQUIRED") {
+      throw new StaffOrderCreateError("ACTIVE_SHIFT_REQUIRED");
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       const replay = await prisma.order.findFirst({
         where: {

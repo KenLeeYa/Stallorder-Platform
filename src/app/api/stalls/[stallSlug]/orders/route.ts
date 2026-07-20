@@ -118,11 +118,12 @@ function staffOrderErrorResponse(error: unknown, requestId: string) {
       INVALID_PRODUCT_NOTES: "商品註記未符合必選或數量限制。",
       TABLE_UNAVAILABLE: "內用桌位已停用或不存在。",
       DELIVERY_UNAVAILABLE: "此攤位尚未開啟外送模組。",
+      ACTIVE_SHIFT_REQUIRED: "現金交易前必須先開啟現金班次。",
       ORDER_CONFLICT: "訂單編號或防重複識別發生衝突，請重新送出。",
     };
     return NextResponse.json(
       { error: messages[error.code], code: error.code },
-      { status: error.code === "ORDER_CONFLICT" ? 409 : 400, headers },
+      { status: error.code === "ORDER_CONFLICT" || error.code === "ACTIVE_SHIFT_REQUIRED" ? 409 : 400, headers },
     );
   }
   if (error instanceof StaffCheckoutError) {

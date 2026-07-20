@@ -6,7 +6,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { dashboardQuerySchema } from "@/lib/dashboard-validation";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { getCancellationReasonReport, getPaymentMethodReport } from "@/lib/report-data";
+import { getCancellationReasonReport, getCashShiftReport, getPaymentMethodReport } from "@/lib/report-data";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const [summaries, paymentMethods, cancellationReasons] = await Promise.all([
+  const [summaries, paymentMethods, cancellationReasons, cashShifts] = await Promise.all([
     prisma.dailyStallSummary.findMany({
       where: {
         organizationId: authorization.workspace.id,
@@ -77,6 +77,12 @@ export async function POST(request: Request) {
       parsed.data.dateTo,
     ),
     getCancellationReasonReport(
+      authorization.workspace.id,
+      requestedIds,
+      parsed.data.dateFrom,
+      parsed.data.dateTo,
+    ),
+    getCashShiftReport(
       authorization.workspace.id,
       requestedIds,
       parsed.data.dateFrom,
@@ -113,7 +119,7 @@ export async function POST(request: Request) {
           dateFrom: parsed.data.dateFrom,
           dateTo: parsed.data.dateTo,
           stallIds: requestedIds,
-          rowCount: summaries.length,
+          rowCount: summaries.length + paymentMethods.length + cancellationReasons.length + cashShifts.length,
           format: "CSV",
         },
       },
@@ -161,6 +167,28 @@ export async function POST(request: Request) {
       cancellation.stallName,
       cancellationReasonLabels[cancellation.reason],
       cancellation.count,
+    ]),
+    [],
+    ["現金交班明細"],
+    ["攤位代碼", "攤位", "開班時間", "結班時間", "狀態", "開班金額", "現金銷售", "現金退款", "現金收入", "現金支出", "帳務更正", "系統應有", "實際盤點", "短溢收", "開班人員", "結班人員", "最近複核"],
+    ...cashShifts.map((shift) => [
+      stallCodes.get(shift.stallId) ?? "",
+      shift.stallName,
+      shift.openedAt.toISOString(),
+      shift.closedAt?.toISOString() ?? "",
+      shift.status,
+      shift.openingAmount,
+      shift.cashSales,
+      shift.cashRefunds,
+      shift.cashIn,
+      shift.cashOut,
+      shift.corrections,
+      shift.expectedAmount,
+      shift.actualAmount ?? "",
+      shift.differenceAmount ?? "",
+      shift.openedByName,
+      shift.closedByName ?? "",
+      shift.latestReviewDecision ?? "",
     ]),
   ]);
   const filename = `stallorder-report-${parsed.data.dateFrom}-${parsed.data.dateTo}.csv`;

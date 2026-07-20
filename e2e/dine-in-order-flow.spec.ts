@@ -1,7 +1,76 @@
 import { expect, test, type Page } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 
 const password = "StallOrderDemo!2026";
 const tableQrToken = "demo-aming-chicken-table-a1-qr-2026";
+const prisma = new PrismaClient();
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "22222222-2222-4222-8222-222222222222";
+const customerName = `內用 QA ${Date.now()}`;
+let cashShiftId = "";
+let originalAcknowledgmentThresholdMinutes = 30;
+
+test.beforeAll(async () => {
+  await prisma.order.deleteMany({
+    where: { stallId, customerName: { startsWith: "內用 QA " } },
+  });
+  const staleShifts = await prisma.cashShift.findMany({
+    where: { stallId, note: "Dine-in E2E 班次" },
+    select: { id: true },
+  });
+  const staleShiftIds = staleShifts.map((shift) => shift.id);
+  if (staleShiftIds.length > 0) {
+    await prisma.cashShiftReview.deleteMany({ where: { cashShiftId: { in: staleShiftIds } } });
+    await prisma.cashShift.deleteMany({ where: { id: { in: staleShiftIds } } });
+  }
+  await prisma.diningTable.update({
+    where: { stallId_code: { stallId, code: "A1" } },
+    data: { serviceState: "EMPTY", seatedAt: null },
+  });
+  const capacity = await prisma.stallCapacitySettings.findUniqueOrThrow({
+    where: { stallId },
+    select: { acknowledgmentThresholdMinutes: true },
+  });
+  originalAcknowledgmentThresholdMinutes = capacity.acknowledgmentThresholdMinutes;
+  await prisma.stallCapacitySettings.update({
+    where: { stallId },
+    data: { acknowledgmentThresholdMinutes: 1 },
+  });
+  const staff = await prisma.profile.findUniqueOrThrow({
+    where: { email: "staff@stallorder.test" },
+    select: { id: true },
+  });
+  const shift = await prisma.cashShift.create({
+    data: {
+      organizationId,
+      stallId,
+      openingAmount: 0,
+      openedById: staff.id,
+      note: "Dine-in E2E 班次",
+    },
+  });
+  cashShiftId = shift.id;
+});
+
+test.afterAll(async () => {
+  try {
+    await prisma.order.deleteMany({ where: { stallId, customerName } });
+    if (cashShiftId) {
+      await prisma.cashShiftReview.deleteMany({ where: { cashShiftId } });
+      await prisma.cashShift.deleteMany({ where: { id: cashShiftId } });
+    }
+    await prisma.diningTable.update({
+      where: { stallId_code: { stallId, code: "A1" } },
+      data: { serviceState: "EMPTY", seatedAt: null },
+    });
+    await prisma.stallCapacitySettings.update({
+      where: { stallId },
+      data: { acknowledgmentThresholdMinutes: originalAcknowledgmentThresholdMinutes },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+});
 
 async function login(page: Page, email: string) {
   await page.goto("/login");
@@ -18,7 +87,6 @@ async function login(page: Page, email: string) {
 
 test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ browser, page }) => {
   test.setTimeout(180_000);
-  const customerName = `內用 QA ${Date.now()}`;
   await page.goto(`/q/${tableQrToken}`);
   await expect(page.getByRole("main").getByText("內用 · A1 桌", { exact: true })).toBeVisible();
 
@@ -28,6 +96,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await page.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet" }).click();
   await page.getByRole("button", { name: "Increase Sweet Potato Fries" }).click();
   await page.getByLabel("Customer name").fill(customerName);
+  await page.getByRole("checkbox", { name: /I understand the estimated wait/ }).check();
   await expect(page.getByRole("button", { name: "Place order", exact: true })).toBeEnabled({ timeout: 15_000 });
 
   const createResponse = page.waitForResponse((response) => (
@@ -95,8 +164,18 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await checkout.getByRole("button", { name: "$500" }).click();
   await expect(checkout).toContainText("$135");
   await expect(checkout).toContainText("$365");
+  const checkoutResponse = staffPage.waitForResponse((response) => (
+    response.url().includes("/api/stalls/aming-chicken/orders/")
+    && response.request().method() === "PATCH"
+  ));
   await checkout.getByRole("button", { name: "完成訂單", exact: true }).click();
+  expect((await checkoutResponse).status()).toBe(200);
   await expect(staffOrder).toHaveCount(0);
+  const completedOrder = await prisma.order.findFirstOrThrow({
+    where: { stallId, customerName },
+    include: { payment: true },
+  });
+  expect(completedOrder.payment?.cashShiftId).toBe(cashShiftId);
 
   await staffPage.goto("/staff/aming-chicken/floor");
   const cleaningTable = staffPage.getByRole("button", { name: /A1 桌，待清潔/ });

@@ -219,16 +219,30 @@ enum PrintJobStatus {
 
 enum CashShiftStatus {
   OPEN
+  CLOSING
+  REVIEW_REQUIRED
   CLOSED
 
   @@map("cash_shift_status")
 }
 
 enum CashMovementType {
+  OPENING_FLOAT
+  CASH_SALE
+  CASH_REFUND
   CASH_IN
   CASH_OUT
+  CORRECTION
 
   @@map("cash_movement_type")
+}
+
+enum CashShiftReviewDecision {
+  APPROVED
+  REJECTED
+  ADJUSTMENT_REQUIRED
+
+  @@map("cash_shift_review_decision")
 }
 
 enum PublicAttemptOutcome {
@@ -320,6 +334,7 @@ model Organization {
   printJobs                     PrintJob[]
   cashShifts                    CashShift[]
   cashMovements                 CashMovement[]
+  cashShiftReviews              CashShiftReview[]
   checkoutGroups                CheckoutGroup[]
   reportSchedules               ReportSchedule[]
   reportDeliveries              ReportDelivery[]
@@ -385,6 +400,7 @@ model Stall {
   printJobs              PrintJob[]
   cashShifts             CashShift[]
   cashMovements          CashMovement[]
+  cashShiftReviews       CashShiftReview[]
   checkoutGroups         CheckoutGroup[]
   merchantSetupProgress  MerchantSetupProgress?
   kitchenStations        KitchenStation[]
@@ -429,6 +445,7 @@ model Profile {
   openedCashShifts         CashShift[]               @relation("CashShiftOpenedBy")
   closedCashShifts         CashShift[]               @relation("CashShiftClosedBy")
   cashMovements            CashMovement[]
+  cashShiftReviews         CashShiftReview[]
   checkoutGroups           CheckoutGroup[]
   discountAppliedOrders    Order[]                   @relation("DiscountAppliedBy")
   discountApprovedOrders   Order[]                   @relation("DiscountApprovedBy")
@@ -1752,6 +1769,7 @@ model Payment {
   orderId         String         @unique @map("order_id") @db.Uuid
   checkoutGroupId String?        @map("checkout_group_id") @db.Uuid
   paymentOptionId String?        @map("payment_option_id") @db.Uuid
+  cashShiftId     String?        @map("cash_shift_id") @db.Uuid
   amount          Int
   method          PaymentMethod  @default(CASH)
   status          PaymentStatus  @default(PAID)
@@ -1768,12 +1786,14 @@ model Payment {
   order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
   checkoutGroup   CheckoutGroup? @relation(fields: [checkoutGroupId], references: [id], onDelete: SetNull)
   paymentOption   PaymentOption? @relation(fields: [paymentOptionId], references: [id], onDelete: SetNull)
+  cashShift       CashShift?     @relation(fields: [cashShiftId], references: [id], onDelete: Restrict)
   recordedBy      Profile?       @relation(fields: [recordedById], references: [id], onDelete: SetNull)
 
   @@index([organizationId, stallId, paidAt])
   @@index([status, method, paidAt])
   @@index([recordedById, paidAt])
   @@index([checkoutGroupId])
+  @@index([cashShiftId, status, paidAt])
   @@map("payments")
 }
 
@@ -1880,9 +1900,12 @@ model CashShift {
   openedBy             Profile         @relation("CashShiftOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
   closedBy             Profile?        @relation("CashShiftClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
   movements            CashMovement[]
+  payments             Payment[]
+  reviews              CashShiftReview[]
 
   @@index([organizationId, stallId, openedAt(sort: Desc)])
   @@index([stallId, status])
+  @@index([organizationId, status, closedAt(sort: Desc)])
   @@map("cash_shifts")
 }
 
@@ -1894,8 +1917,11 @@ model CashMovement {
   type           CashMovementType
   amount         Int
   reason         String
+  referenceType  String?          @map("reference_type")
+  referenceId    String?          @map("reference_id") @db.Uuid
   recordedById   String           @map("recorded_by") @db.Uuid
   createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall          Stall            @relation(fields: [stallId], references: [id], onDelete: Cascade)
   cashShift      CashShift        @relation(fields: [cashShiftId], references: [id], onDelete: Cascade)
@@ -1904,6 +1930,28 @@ model CashMovement {
   @@index([organizationId, stallId, createdAt(sort: Desc)])
   @@index([cashShiftId, createdAt])
   @@map("cash_movements")
+}
+
+model CashShiftReview {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  organizationId      String                  @map("organization_id") @db.Uuid
+  stallId             String                  @map("stall_id") @db.Uuid
+  cashShiftId         String                  @map("cash_shift_id") @db.Uuid
+  reviewedByProfileId String                  @map("reviewed_by_profile_id") @db.Uuid
+  decision            CashShiftReviewDecision
+  comment             String?
+  reviewedAt          DateTime                @default(now()) @map("reviewed_at")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+  organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall               Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  cashShift           CashShift               @relation(fields: [cashShiftId], references: [id], onDelete: Restrict)
+  reviewedBy          Profile                 @relation(fields: [reviewedByProfileId], references: [id], onDelete: Restrict)
+
+  @@index([cashShiftId, reviewedAt(sort: Desc)])
+  @@index([organizationId, stallId, reviewedAt(sort: Desc)])
+  @@index([reviewedByProfileId, reviewedAt(sort: Desc)])
+  @@map("cash_shift_reviews")
 }
 
 model DailyStallSummary {
