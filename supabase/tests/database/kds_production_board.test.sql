@@ -309,7 +309,7 @@ select
   lpad(series_no::text, 3, '0'),
   now() + interval '10 minutes',
   now(),
-  now() - make_interval(mins => series_no),
+  now(),
   now()
 from generate_series(1, 10) as series_no;
 
