@@ -24,6 +24,9 @@ Vercel 部署另外啟用 Analytics 與 Speed Insights。送出前必須經 `src
 - Runtime `DATABASE_CONNECTION_PROFILE` 任一必要布林值變為 false 時告警，但禁止輸出原始連線字串。
 - 監控 PostgreSQL CPU、連線、磁碟、WAL、備份、cron 執行與 `public_rate_limit_buckets`／`auth_sessions` 資料量。
 - 監控待確認訂單逾時率；異常升高通常表示攤位端離線或通知流程失效。
+- `LINE_NOTIFICATION_FAILED` 會保留 structured log；不可重試或第五次失敗時建立 `LINE_NOTIFICATION_FAILURE` 營運警示。
+- `notification_jobs` 的 `PROCESSING` 超過 10 分鐘視為失效 lease，worker 會改回可重試狀態。
+- 最舊 `PENDING` 通知超過 5 分鐘時，檢查 `stallorder-notification-jobs` cron、Vault URL／Cron secret、Vercel Protection bypass 與 LINE API。
 
 ## 查詢範例
 

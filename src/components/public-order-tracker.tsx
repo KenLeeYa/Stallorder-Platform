@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, Clock3, RefreshCw } from "lucide-react";
+import { LineNotificationControls } from "@/components/line-notification-controls";
 import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeHeaders, publicEdgeUrl } from "@/lib/public-order-client";
 
 type PublicOrder = {
@@ -129,6 +130,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
           </div>
           <div className="mt-6 divide-y divide-stone-100 border-y border-stone-200">{order.items.map((item) => <div key={item.id} className="grid gap-2 py-3 text-sm sm:grid-cols-[1fr_auto]"><div><span>{item.quantity} × {item.name}</span>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{item.noteOptions.map((noteOption) => `${noteOption.groupName}：${noteOption.optionName}`).join("、")}</p> : null}{item.note ? <p className="mt-1 text-xs text-stone-500">備註：{item.note}</p> : null}</div><span className="font-medium text-stone-600">{itemStatusLabels[item.status]}</span></div>)}</div>
           {order.fulfillmentType === "TAKEOUT" ? <p className="mt-5 text-sm leading-6 text-stone-600">請在取餐時向攤位人員出示驗證碼。訂單確認前不會開始製作。</p> : null}
+          <LineNotificationControls trackingToken={trackingToken} />
         </section>
       ) : null}
     </main>

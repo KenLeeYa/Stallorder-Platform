@@ -16,6 +16,8 @@ Production 在稽核時有三個 active jobs：
 | `stallorder-expire-unconfirmed-orders` | 每分鐘 | 資料庫內訂單到期 | 保留，正確 owner |
 | `invoke-vercel-preview-process-orders` | 每 5 分鐘 | 再次呼叫訂單到期流程 | 重複，且 Production 不應依賴 Preview URL |
 | `stallorder-report-deliveries` | 每 5 分鐘 | 鎖定並處理報告寄送 | 保留，具不同責任 |
+| `stallorder-notification-jobs` | 每 1 分鐘 | 呼叫 Vercel 處理 LINE 非同步通知工作 | 保留，外部供應商工作且使用唯一工作鍵防重複 |
+| `stallorder-line-link-session-cleanup` | 每 5 分鐘 | 清除逾時 LINE OAuth session 與 Vault 暫存 secret | 保留，純資料庫安全維護 |
 
 Staging 已只有訂單到期與報告寄送，重複的 Preview job 已不存在。
 

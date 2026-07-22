@@ -31,6 +31,7 @@ const permissionFeatureCodes = new Map<Permission, string>([
   ["MANAGE_STALL_LOCATIONS", "STALL_LOCATION"],
   ["MANAGE_STALL_SCHEDULES", "STALL_SCHEDULE"],
   ["MANAGE_MARKET_EVENTS", "STALL_SCHEDULE"],
+  ["MANAGE_LINE_INTEGRATION", "LINE_NOTIFICATIONS"],
 ]);
 
 export async function findStallAccess(principal: SessionPrincipal, stallSlug: string) {

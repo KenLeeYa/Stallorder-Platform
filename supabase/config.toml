@@ -65,3 +65,9 @@ verify_jwt = false
 
 [functions.get-public-order]
 verify_jwt = false
+
+[functions.manage-line-link]
+verify_jwt = false
+
+[functions.prepare-reorder]
+verify_jwt = false

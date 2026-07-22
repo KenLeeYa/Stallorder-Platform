@@ -25,6 +25,10 @@ export async function sha256Hex(value: string) {
   return toHex(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
 }
 
+export async function sha256Base64Url(value: string) {
+  return toBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
+}
+
 export async function hmacHex(secret: string, value: string) {
   return toHex(await hmacBytes(secret, value));
 }

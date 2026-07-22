@@ -49,4 +49,17 @@ export const getPublicOrderSchema = z.object({
   deviceId: z.string().uuid(),
 });
 
+const trackedOrderIdentitySchema = z.object({
+  trackingToken: z.string().min(40).max(200),
+  deviceId: z.string().uuid(),
+});
+
+export const manageLineLinkSchema = z.discriminatedUnion("action", [
+  trackedOrderIdentitySchema.extend({ action: z.literal("STATUS") }).strict(),
+  trackedOrderIdentitySchema.extend({ action: z.literal("START") }).strict(),
+  trackedOrderIdentitySchema.extend({ action: z.literal("REVOKE") }).strict(),
+]);
+
+export const prepareReorderSchema = trackedOrderIdentitySchema.strict();
+
 export type PublicOrderInput = z.infer<typeof createPublicOrderSchema>;

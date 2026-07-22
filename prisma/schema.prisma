@@ -199,6 +199,50 @@ enum StallScheduleStatus {
   @@map("stall_schedule_status")
 }
 
+enum NotificationProvider {
+  LINE
+  IN_APP
+  EMAIL
+  WEB_PUSH
+
+  @@map("notification_provider")
+}
+
+enum NotificationIntegrationStatus {
+  DISABLED
+  ACTIVE
+  ERROR
+
+  @@map("notification_integration_status")
+}
+
+enum CustomerConsentStatus {
+  PENDING
+  GRANTED
+  REVOKED
+
+  @@map("customer_consent_status")
+}
+
+enum NotificationJobStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+
+  @@map("notification_job_status")
+}
+
+enum LineLinkSessionStatus {
+  ACTIVE
+  CONSUMED
+  EXPIRED
+  REVOKED
+
+  @@map("line_link_session_status")
+}
+
 enum DiningTableServiceState {
   EMPTY
   OCCUPIED
@@ -360,6 +404,11 @@ model Organization {
   stallLocations                StallLocation[]
   marketEvents                  MarketEvent[]
   stallSchedules                StallSchedule[]
+  notificationIntegrations      NotificationIntegration[]
+  customerContactLinks          CustomerContactLink[]
+  notificationJobs              NotificationJob[]
+  lineLinkSessions              LineLinkSession[]
+  lineWebhookEvents             LineWebhookEvent[]
 
   @@map("organizations")
 }
@@ -425,6 +474,11 @@ model Stall {
   capacityEvents         CapacityEvent[]
   locations              StallLocation[]
   schedules              StallSchedule[]
+  notificationIntegrations NotificationIntegration[]
+  customerContactLinks   CustomerContactLink[]
+  notificationJobs       NotificationJob[]
+  lineLinkSessions       LineLinkSession[]
+  lineWebhookEvents      LineWebhookEvent[]
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -1873,6 +1927,9 @@ model Order {
   printJobs                PrintJob[]
   merchantSetupProgress    MerchantSetupProgress? @relation("MerchantSetupTestOrder")
   productionTasks          OrderProductionTask[]
+  customerContactLinks     CustomerContactLink[]
+  notificationJobs         NotificationJob[]
+  lineLinkSessions         LineLinkSession[]
 
   @@unique([stallId, orderNo])
   @@unique([stallId, idempotencyKey])
@@ -2365,4 +2422,125 @@ model StallOrderCounter {
   @@id([stallId, businessDate])
   @@index([organizationId, businessDate])
   @@map("stall_order_counters")
+}
+
+model NotificationIntegration {
+  id               String                        @id @default(uuid()) @db.Uuid
+  organizationId   String                        @map("organization_id") @db.Uuid
+  stallId          String?                       @map("stall_id") @db.Uuid
+  provider         NotificationProvider
+  status           NotificationIntegrationStatus @default(DISABLED)
+  publicIdentifier String?                       @map("public_identifier")
+  secretReference  String?                       @map("secret_reference") @db.Uuid
+  settingsJson     Json                          @default("{}") @map("settings_json")
+  createdAt        DateTime                      @default(now()) @map("created_at")
+  updatedAt        DateTime                      @updatedAt @map("updated_at")
+  organization     Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall            Stall?                        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  contactLinks     CustomerContactLink[]
+  jobs             NotificationJob[]
+  linkSessions     LineLinkSession[]
+  webhookEvents    LineWebhookEvent[]
+
+  @@unique([stallId, provider])
+  @@index([organizationId, provider, status])
+  @@map("notification_integrations")
+}
+
+model CustomerContactLink {
+  id                          String                  @id @default(uuid()) @db.Uuid
+  organizationId              String                  @map("organization_id") @db.Uuid
+  stallId                     String                  @map("stall_id") @db.Uuid
+  integrationId               String                  @map("integration_id") @db.Uuid
+  customerReferenceId         String                  @map("customer_reference_id") @db.Uuid
+  provider                    NotificationProvider
+  providerUserIdHash          String                  @map("provider_user_id_hash")
+  providerUserSecretReference String                  @map("provider_user_secret_reference") @db.Uuid
+  consentStatus               CustomerConsentStatus   @default(PENDING) @map("consent_status")
+  consentedAt                 DateTime?               @map("consented_at")
+  revokedAt                   DateTime?               @map("revoked_at")
+  createdAt                   DateTime                @default(now()) @map("created_at")
+  updatedAt                   DateTime                @updatedAt @map("updated_at")
+  organization                Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                       Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  integration                 NotificationIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  order                       Order                   @relation(fields: [customerReferenceId], references: [id], onDelete: Cascade)
+  jobs                        NotificationJob[]
+
+  @@unique([customerReferenceId, provider])
+  @@index([organizationId, stallId, provider, consentStatus])
+  @@index([providerUserIdHash, provider])
+  @@map("customer_contact_links")
+}
+
+model NotificationJob {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  organizationId     String                  @map("organization_id") @db.Uuid
+  stallId            String                  @map("stall_id") @db.Uuid
+  integrationId      String                  @map("integration_id") @db.Uuid
+  contactLinkId      String                  @map("contact_link_id") @db.Uuid
+  orderId            String?                 @map("order_id") @db.Uuid
+  provider           NotificationProvider
+  templateCode       String                  @map("template_code")
+  recipientReference String                  @map("recipient_reference") @db.Uuid
+  status             NotificationJobStatus   @default(PENDING)
+  attemptCount       Int                     @default(0) @map("attempt_count")
+  nextAttemptAt      DateTime?               @map("next_attempt_at")
+  lastErrorCode      String?                 @map("last_error_code")
+  providerMessageId  String?                 @map("provider_message_id")
+  sentAt             DateTime?               @map("sent_at")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall              Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  integration        NotificationIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  contactLink        CustomerContactLink     @relation(fields: [contactLinkId], references: [id], onDelete: Cascade)
+  order              Order?                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, provider, templateCode])
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([organizationId, stallId, createdAt(sort: Desc)])
+  @@map("notification_jobs")
+}
+
+model LineLinkSession {
+  id                       String                  @id @default(uuid()) @db.Uuid
+  organizationId           String                  @map("organization_id") @db.Uuid
+  stallId                  String                  @map("stall_id") @db.Uuid
+  integrationId            String                  @map("integration_id") @db.Uuid
+  orderId                  String                  @map("order_id") @db.Uuid
+  stateHash                String                  @unique @map("state_hash")
+  ephemeralSecretReference String                  @map("ephemeral_secret_reference") @db.Uuid
+  status                   LineLinkSessionStatus   @default(ACTIVE)
+  expiresAt                DateTime                @map("expires_at")
+  consumedAt               DateTime?               @map("consumed_at")
+  createdAt                DateTime                @default(now()) @map("created_at")
+  updatedAt                DateTime                @updatedAt @map("updated_at")
+  organization             Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                    Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  integration              NotificationIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  order                    Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, status, expiresAt])
+  @@index([integrationId, status, expiresAt])
+  @@map("line_link_sessions")
+}
+
+model LineWebhookEvent {
+  id                String                  @id @default(uuid()) @db.Uuid
+  organizationId    String                  @map("organization_id") @db.Uuid
+  stallId           String                  @map("stall_id") @db.Uuid
+  integrationId     String                  @map("integration_id") @db.Uuid
+  providerEventHash String                  @unique @map("provider_event_hash")
+  eventType         String                  @map("event_type")
+  receivedAt        DateTime                @default(now()) @map("received_at")
+  processedAt       DateTime?               @map("processed_at")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall             Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  integration       NotificationIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId, receivedAt(sort: Desc)])
+  @@map("line_webhook_events")
 }

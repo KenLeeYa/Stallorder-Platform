@@ -109,6 +109,15 @@ describe("RBAC", () => {
     expect(hasPermission("FINANCE_VIEWER", "MANAGE_MARKET_EVENTS")).toBe(false);
   });
 
+  it("LINE 整合只允許組織管理者與攤位經理設定", () => {
+    expect(hasPermission("ORGANIZATION_OWNER", "MANAGE_LINE_INTEGRATION")).toBe(true);
+    expect(hasPermission("ORGANIZATION_ADMIN", "MANAGE_LINE_INTEGRATION")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_LINE_INTEGRATION")).toBe(true);
+    expect(hasPermission("FINANCE_VIEWER", "MANAGE_LINE_INTEGRATION")).toBe(false);
+    expect(hasPermission("STAFF", "MANAGE_LINE_INTEGRATION")).toBe(false);
+    expect(hasPermission("KITCHEN", "MANAGE_LINE_INTEGRATION")).toBe(false);
+  });
+
   it("區分容量規則管理與現場操作權限", () => {
     expect(hasPermission("ORGANIZATION_OWNER", "MANAGE_CAPACITY")).toBe(true);
     expect(hasPermission("ORGANIZATION_ADMIN", "MANAGE_CAPACITY")).toBe(true);
