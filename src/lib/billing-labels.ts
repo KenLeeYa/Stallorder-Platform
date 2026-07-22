@@ -47,6 +47,8 @@ export const billingFeatureLabels: Record<string, string> = {
   CAPACITY_CONTROL: "產能與自動接單控制",
   CASH_SHIFT: "現金交班",
   CASH_RECONCILIATION: "現金短溢收複核",
+  STALL_LOCATION: "出攤地點",
+  STALL_SCHEDULE: "出攤行程與活動",
   STAFF_ROLES: "員工角色",
   MULTIPLE_QR_CODES: "多組 QR Code",
   MULTI_STALL_BASIC: "多攤位管理",

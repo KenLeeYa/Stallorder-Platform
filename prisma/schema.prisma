@@ -189,6 +189,16 @@ enum StallBusinessStatus {
   @@map("stall_business_status")
 }
 
+enum StallScheduleStatus {
+  SCHEDULED
+  OPEN
+  DELAYED
+  CANCELLED
+  COMPLETED
+
+  @@map("stall_schedule_status")
+}
+
 enum DiningTableServiceState {
   EMPTY
   OCCUPIED
@@ -347,6 +357,9 @@ model Organization {
   capacitySettings              StallCapacitySettings[]
   productCapacityRules          ProductCapacityRule[]
   capacityEvents                CapacityEvent[]
+  stallLocations                StallLocation[]
+  marketEvents                  MarketEvent[]
+  stallSchedules                StallSchedule[]
 
   @@map("organizations")
 }
@@ -410,6 +423,8 @@ model Stall {
   capacitySettings       StallCapacitySettings?
   productCapacityRules   ProductCapacityRule[]
   capacityEvents         CapacityEvent[]
+  locations              StallLocation[]
+  schedules              StallSchedule[]
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -1426,6 +1441,10 @@ model QrCode {
   organizationId      String               @map("organization_id") @db.Uuid
   stallId             String               @map("stall_id") @db.Uuid
   diningTableId       String?              @map("dining_table_id") @db.Uuid
+  locationId          String?              @map("location_id") @db.Uuid
+  marketEventId       String?              @map("market_event_id") @db.Uuid
+  stallScheduleId     String?              @map("stall_schedule_id") @db.Uuid
+  fulfillmentTypeContext FulfillmentType?  @map("fulfillment_type_context")
   token               String               @unique
   label               String
   state               QrCodeState          @default(ACTIVE)
@@ -1436,12 +1455,18 @@ model QrCode {
   organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall               Stall                @relation(fields: [stallId], references: [id], onDelete: Cascade)
   diningTable         DiningTable?         @relation(fields: [diningTableId], references: [id], onDelete: Cascade)
+  location            StallLocation?       @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  marketEvent         MarketEvent?         @relation(fields: [marketEventId], references: [id], onDelete: Restrict)
+  stallSchedule       StallSchedule?       @relation(fields: [stallScheduleId], references: [id], onDelete: Restrict)
   orderSessions       OrderSession[]
   publicOrderAttempts PublicOrderAttempt[]
   merchantSetupProgress MerchantSetupProgress?
 
   @@index([organizationId, stallId])
   @@index([diningTableId, state])
+  @@index([stallScheduleId, state])
+  @@index([locationId, state])
+  @@index([marketEventId, state])
   @@index([stallId, state])
   @@map("qr_codes")
 }
@@ -1598,6 +1623,90 @@ model StallBusinessHour {
   @@map("stall_business_hours")
 }
 
+model StallLocation {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  stallId        String         @map("stall_id") @db.Uuid
+  name           String
+  address        String
+  latitude       Decimal?       @db.Decimal(9, 6)
+  longitude      Decimal?       @db.Decimal(10, 6)
+  mapUrl         String?        @map("map_url")
+  instructions   String?
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall          @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  schedules      StallSchedule[]
+  qrCodes        QrCode[]
+  orderSessions  OrderSession[]
+  orders         Order[]
+
+  @@unique([stallId, name])
+  @@index([organizationId, stallId, isActive])
+  @@map("stall_locations")
+}
+
+model MarketEvent {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  name           String
+  slug           String
+  description    String?
+  venueName      String         @map("venue_name")
+  address        String
+  latitude       Decimal?       @db.Decimal(9, 6)
+  longitude      Decimal?       @db.Decimal(10, 6)
+  startsAt       DateTime       @map("starts_at")
+  endsAt         DateTime       @map("ends_at")
+  organizer      String?
+  publicUrl      String?        @map("public_url")
+  isPublic       Boolean        @default(true) @map("is_public")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  schedules      StallSchedule[]
+  qrCodes        QrCode[]
+  orderSessions  OrderSession[]
+  orders         Order[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, startsAt, endsAt])
+  @@map("market_events")
+}
+
+model StallSchedule {
+  id                  String              @id @default(uuid()) @db.Uuid
+  organizationId      String              @map("organization_id") @db.Uuid
+  stallId             String              @map("stall_id") @db.Uuid
+  locationId          String?             @map("location_id") @db.Uuid
+  marketEventId       String?             @map("market_event_id") @db.Uuid
+  startsAt            DateTime            @map("starts_at")
+  endsAt              DateTime            @map("ends_at")
+  orderingOpensAt     DateTime?           @map("ordering_opens_at")
+  orderingClosesAt    DateTime?           @map("ordering_closes_at")
+  status              StallScheduleStatus @default(SCHEDULED)
+  specialNotice       String?             @map("special_notice")
+  menuOverrideId      String?             @map("menu_override_id") @db.Uuid
+  autoOpenEnabled     Boolean             @default(false) @map("auto_open_enabled")
+  autoCloseEnabled    Boolean             @default(false) @map("auto_close_enabled")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall               Stall               @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  location            StallLocation?      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  marketEvent         MarketEvent?        @relation(fields: [marketEventId], references: [id], onDelete: Restrict)
+  qrCodes             QrCode[]
+  orderSessions       OrderSession[]
+  orders              Order[]
+
+  @@index([organizationId, stallId, startsAt])
+  @@index([stallId, status, orderingOpensAt, orderingClosesAt])
+  @@index([marketEventId, startsAt])
+  @@map("stall_schedules")
+}
+
 model DiningTable {
   id             String                  @id @default(uuid()) @db.Uuid
   organizationId String                  @map("organization_id") @db.Uuid
@@ -1678,15 +1787,23 @@ model OrderSession {
   revokedAt      DateTime?          @map("revoked_at")
   orderId        String?            @unique @map("order_id") @db.Uuid
   orderingMode   String             @default("DEFAULT") @map("ordering_mode")
+  locationId     String?            @map("location_id") @db.Uuid
+  marketEventId  String?            @map("market_event_id") @db.Uuid
+  stallScheduleId String?           @map("stall_schedule_id") @db.Uuid
+  fulfillmentTypeContext FulfillmentType? @map("fulfillment_type_context")
   createdAt      DateTime           @default(now()) @map("created_at")
   organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall          Stall              @relation(fields: [stallId], references: [id], onDelete: Cascade)
   qrCode         QrCode             @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
   order          Order?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  location       StallLocation?     @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  marketEvent    MarketEvent?       @relation(fields: [marketEventId], references: [id], onDelete: Restrict)
+  stallSchedule  StallSchedule?     @relation(fields: [stallScheduleId], references: [id], onDelete: Restrict)
 
   @@index([organizationId])
   @@index([stallId, status, expiresAt])
   @@index([deviceHash, status])
+  @@index([stallScheduleId, status, expiresAt])
   @@map("order_sessions")
 }
 
@@ -1705,6 +1822,9 @@ model Order {
   tableLabel               String?             @map("table_label")
   diningTableId            String?             @map("dining_table_id") @db.Uuid
   fulfillmentType          FulfillmentType     @default(TAKEOUT) @map("fulfillment_type")
+  locationId               String?             @map("location_id") @db.Uuid
+  marketEventId            String?             @map("market_event_id") @db.Uuid
+  stallScheduleId          String?             @map("stall_schedule_id") @db.Uuid
   note                     String?
   status                   OrderStatus         @default(WAITING_CONFIRMATION)
   paymentStatus            PaymentStatus       @default(UNPAID) @map("payment_status")
@@ -1739,6 +1859,9 @@ model Order {
   organization             Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall                    Stall               @relation(fields: [stallId], references: [id], onDelete: Cascade)
   diningTable              DiningTable?        @relation(fields: [diningTableId], references: [id], onDelete: SetNull)
+  location                 StallLocation?      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  marketEvent              MarketEvent?        @relation(fields: [marketEventId], references: [id], onDelete: Restrict)
+  stallSchedule            StallSchedule?      @relation(fields: [stallScheduleId], references: [id], onDelete: Restrict)
   discountOption           DiscountOption?     @relation(fields: [discountOptionId], references: [id], onDelete: SetNull)
   discountAppliedBy        Profile?            @relation("DiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
   discountApprovedBy       Profile?            @relation("DiscountApprovedBy", fields: [discountApprovedById], references: [id], onDelete: SetNull)
@@ -1759,6 +1882,8 @@ model Order {
   @@index([confirmationExpiresAt, status])
   @@index([stallId, cancellationReason, cancelledAt])
   @@index([stallId, status, updatedAt(sort: Desc)])
+  @@index([stallScheduleId, createdAt(sort: Desc)])
+  @@index([locationId, createdAt(sort: Desc)])
   @@map("orders")
 }
 

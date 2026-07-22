@@ -149,6 +149,12 @@ export function errorMessage(code: string) {
     TOO_MANY_PENDING_ORDERS: "此裝置尚有過多待確認訂單。",
     CAPACITY_PAUSED: "目前訂單較多，已暫停接受公開點餐。",
     PRODUCT_CAPACITY_EXCEEDED: "部分商品在目前時段已達供應上限，請調整數量。",
+    LOCATION_UNAVAILABLE: "此出攤地點目前無法使用。",
+    EVENT_NOT_ACTIVE: "此市集活動尚未開始或目前無法接單。",
+    EVENT_EXPIRED: "此市集活動已結束，請查看最新出攤行程。",
+    SCHEDULE_NOT_ACTIVE: "此出攤行程尚未開放點餐。",
+    SCHEDULE_CLOSED: "此出攤行程已停止接單。",
+    SCHEDULE_CONTEXT_MISMATCH: "點餐行程已變更，請重新掃描 QR Code。",
     WAIT_ACKNOWLEDGMENT_REQUIRED: "請先確認目前預估等候時間。",
     ORDER_CONFLICT: "訂單發生衝突，請重新掃描後再試。",
     ORDER_CREATE_ERROR: "目前無法建立訂單，請稍後再試。",
@@ -168,7 +174,7 @@ export function errorMessage(code: string) {
 
 export function statusForCode(code: string) {
   if (["QR_NOT_FOUND", "SESSION_NOT_FOUND", "ORDER_NOT_FOUND"].includes(code)) return 404;
-  if (["QR_REVOKED", "QR_PAUSED", "QR_EXPIRED", "QR_NOT_ACTIVE", "QR_SESSION_MISMATCH", "STALL_CLOSED", "ORDERING_PAUSED", "STALL_SOLD_OUT", "TENANT_INACTIVE", "SESSION_EXPIRED", "SESSION_REPLAYED", "SESSION_DEVICE_MISMATCH", "DELIVERY_UNAVAILABLE", "ORDER_MODE_CONFLICT", "CAPACITY_PAUSED", "PRODUCT_CAPACITY_EXCEEDED"].includes(code)) return 409;
+  if (["QR_REVOKED", "QR_PAUSED", "QR_EXPIRED", "QR_NOT_ACTIVE", "QR_SESSION_MISMATCH", "STALL_CLOSED", "ORDERING_PAUSED", "STALL_SOLD_OUT", "TENANT_INACTIVE", "SESSION_EXPIRED", "SESSION_REPLAYED", "SESSION_DEVICE_MISMATCH", "DELIVERY_UNAVAILABLE", "ORDER_MODE_CONFLICT", "CAPACITY_PAUSED", "PRODUCT_CAPACITY_EXCEEDED", "LOCATION_UNAVAILABLE", "EVENT_NOT_ACTIVE", "EVENT_EXPIRED", "SCHEDULE_NOT_ACTIVE", "SCHEDULE_CLOSED", "SCHEDULE_CONTEXT_MISMATCH"].includes(code)) return 409;
   if (code === "RATE_LIMITED" || code === "TOO_MANY_PENDING_ORDERS") return 429;
   if (code === "TURNSTILE_UNAVAILABLE") return 503;
   if (["ORDER_CONFLICT"].includes(code)) return 409;

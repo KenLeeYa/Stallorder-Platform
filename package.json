@@ -43,7 +43,7 @@
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "lucide-react": "^0.562.0",
-    "next": "16.2.10",
+    "next": "16.2.11",
     "papaparse": "^5.5.4",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
@@ -61,7 +61,7 @@
     "concurrently": "^10.0.3",
     "cross-env": "^10.1.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.2.11",
     "prisma": "^6.19.0",
     "supabase": "^2.109.1",
     "tailwindcss": "^4",
@@ -73,6 +73,8 @@
     "seed": "tsx prisma/seed.ts"
   },
   "overrides": {
-    "postcss": "^8.5.10"
+    "postcss": "^8.5.10",
+    "sharp": "^0.35.3",
+    "shell-quote": "^1.10.0"
   }
 }

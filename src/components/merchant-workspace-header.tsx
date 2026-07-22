@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, Building2, CalendarClock, CreditCard, FileChartColumn, Languages, Package, Rocket, ScrollText, Store, Users } from "lucide-react";
+import { BarChart3, Building2, CalendarClock, CalendarDays, CreditCard, FileChartColumn, Languages, Package, Rocket, ScrollText, Store, Users } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
 import { hasPermission } from "@/lib/rbac";
@@ -115,6 +115,9 @@ export function MerchantWorkspaceHeader({
               </Link>
               <Link title="翻譯完整度" href={`/merchant/localization?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
                 <Languages className="h-5 w-5" /><span className="sr-only">翻譯完整度</span>
+              </Link>
+              <Link title="市集活動" href={`/merchant/events?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+                <CalendarDays className="h-5 w-5" /><span className="sr-only">市集活動</span>
               </Link>
             </>
           ) : null}

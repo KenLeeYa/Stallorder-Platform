@@ -28,6 +28,9 @@ const permissionFeatureCodes = new Map<Permission, string>([
   ["VIEW_CASH_SHIFT", "CASH_SHIFT"],
   ["MANAGE_CASH_SHIFT", "CASH_SHIFT"],
   ["REVIEW_CASH_SHIFT", "CASH_RECONCILIATION"],
+  ["MANAGE_STALL_LOCATIONS", "STALL_LOCATION"],
+  ["MANAGE_STALL_SCHEDULES", "STALL_SCHEDULE"],
+  ["MANAGE_MARKET_EVENTS", "STALL_SCHEDULE"],
 ]);
 
 export async function findStallAccess(principal: SessionPrincipal, stallSlug: string) {

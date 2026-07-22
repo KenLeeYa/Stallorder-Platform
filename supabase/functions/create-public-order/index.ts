@@ -272,8 +272,8 @@ Deno.serve(async (request) => {
     };
     const { data: createResult, error: createError } = await timing.measureDb(() => admin.rpc(
       input.orderingMode === "DELIVERY"
-        ? "create_public_delivery_order_with_capacity"
-        : "create_public_order_with_capacity",
+        ? "create_public_delivery_order_with_schedule"
+        : "create_public_order_with_schedule",
       createArguments,
     ));
     if (createError) {

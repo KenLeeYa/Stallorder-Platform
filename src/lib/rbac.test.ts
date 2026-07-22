@@ -98,6 +98,17 @@ describe("RBAC", () => {
     expect(hasPermission("KITCHEN", "MANAGE_CDS")).toBe(false);
   });
 
+  it("出攤地點與排程限管理角色，活動維持組織層級管理", () => {
+    expect(hasPermission("ORGANIZATION_OWNER", "MANAGE_STALL_LOCATIONS")).toBe(true);
+    expect(hasPermission("ORGANIZATION_ADMIN", "MANAGE_STALL_SCHEDULES")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_STALL_LOCATIONS")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_STALL_SCHEDULES")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_MARKET_EVENTS")).toBe(false);
+    expect(hasPermission("STAFF", "MANAGE_STALL_SCHEDULES")).toBe(false);
+    expect(hasPermission("KITCHEN", "MANAGE_STALL_LOCATIONS")).toBe(false);
+    expect(hasPermission("FINANCE_VIEWER", "MANAGE_MARKET_EVENTS")).toBe(false);
+  });
+
   it("區分容量規則管理與現場操作權限", () => {
     expect(hasPermission("ORGANIZATION_OWNER", "MANAGE_CAPACITY")).toBe(true);
     expect(hasPermission("ORGANIZATION_ADMIN", "MANAGE_CAPACITY")).toBe(true);

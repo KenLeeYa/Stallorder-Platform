@@ -92,7 +92,7 @@ Deno.serve(async (request) => {
 
     const { data: sessionResult, error: sessionError } = await timing.measure(
       "sessionMs",
-      () => timing.measureDb(() => admin.rpc("issue_order_session_with_capacity", {
+      () => timing.measureDb(() => admin.rpc("issue_order_session_with_schedule", {
         p_qr_token: parsed.data.qrToken,
         p_session_token_hash: sessionTokenHash,
         p_ip_hash: ipHash,
@@ -100,6 +100,7 @@ Deno.serve(async (request) => {
         p_qr_token_hash: qrTokenHash,
         p_behavior_hash: behaviorHash,
         p_request_id: requestId,
+        p_ordering_mode: parsed.data.orderingMode,
       })),
     );
     if (sessionError) throw sessionError;
