@@ -30,6 +30,26 @@ const server = createServer(async (request, response) => {
     }
     const callback = new URL(redirectTo);
     const next = callback.searchParams.get("next");
+    if (next === null) {
+      const ownerCallback = new URL(callback);
+      ownerCallback.searchParams.set("code", "stallorder-e2e-google-code");
+      const platformAdminCallback = new URL(callback);
+      platformAdminCallback.searchParams.set("code", "stallorder-e2e-platform-admin-code");
+      response.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      response.end(`<!doctype html>
+        <html lang="zh-Hant">
+          <head><meta charset="utf-8"><title>選擇測試帳號</title></head>
+          <body>
+            <h1>選擇測試帳號</h1>
+            <a href="${platformAdminCallback.toString()}">${platformAdminEmail}</a>
+            <a href="${ownerCallback.toString()}">${ownerEmail}</a>
+          </body>
+        </html>`);
+      return;
+    }
     callback.searchParams.set(
       "code",
       next === "/onboarding"
