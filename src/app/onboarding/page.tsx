@@ -10,7 +10,7 @@ import {
 
 export default async function OnboardingPage() {
   const principal = await getPagePrincipal();
-  if (!principal?.user.authUserId) redirect("/login?next=%2Fonboarding");
+  if (!principal?.user.authUserId) redirect("/auth/google?next=%2Fonboarding");
   const data = await loadOnboardingData(principal.user.id, principal.user.email, principal.user.platformRole);
   if (data.workspacePath) redirect(data.workspacePath);
   if (data.application?.status === "NEEDS_INFO") redirect("/onboarding/edit");
