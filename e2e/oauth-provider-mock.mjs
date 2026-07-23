@@ -5,6 +5,7 @@ loadLocalEnv();
 
 const port = 55431;
 const ownerEmail = "owner@stallorder.test";
+const onboardingEmail = "onboarding.application.e2e@stallorder.test";
 const prisma = new PrismaClient();
 
 const server = createServer(async (request, response) => {
@@ -22,7 +23,12 @@ const server = createServer(async (request, response) => {
       return;
     }
     const callback = new URL(redirectTo);
-    callback.searchParams.set("code", "stallorder-e2e-google-code");
+    callback.searchParams.set(
+      "code",
+      callback.searchParams.get("next") === "/onboarding"
+        ? "stallorder-e2e-onboarding-code"
+        : "stallorder-e2e-google-code",
+    );
     response.writeHead(302, { location: callback.toString() });
     response.end();
     return;
@@ -30,11 +36,17 @@ const server = createServer(async (request, response) => {
 
   if (url.pathname === "/auth/v1/token" && request.method === "POST") {
     const body = await readJson(request);
-    if (url.searchParams.get("grant_type") === "pkce" && body.auth_code !== "stallorder-e2e-google-code") {
+    const email = body.auth_code === "stallorder-e2e-onboarding-code"
+      ? onboardingEmail
+      : ownerEmail;
+    if (
+      url.searchParams.get("grant_type") === "pkce"
+      && !["stallorder-e2e-google-code", "stallorder-e2e-onboarding-code"].includes(body.auth_code)
+    ) {
       sendJson(response, 400, { error: "invalid_grant" });
       return;
     }
-    sendJson(response, 200, await sessionPayload());
+    sendJson(response, 200, await sessionPayload(email));
     return;
   }
 
@@ -57,19 +69,19 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   });
 }
 
-async function sessionPayload() {
+async function sessionPayload(email = ownerEmail) {
   const profile = await prisma.profile.findUniqueOrThrow({
-    where: { email: ownerEmail },
+    where: { email },
     select: { authUserId: true, displayName: true },
   });
-  if (!profile.authUserId) throw new Error("E2E owner is not linked to an auth user");
+  if (!profile.authUserId) throw new Error("E2E profile is not linked to an auth user");
 
   const now = new Date().toISOString();
   const user = {
     id: profile.authUserId,
     aud: "authenticated",
     role: "authenticated",
-    email: ownerEmail,
+    email,
     email_confirmed_at: now,
     confirmed_at: now,
     last_sign_in_at: now,
