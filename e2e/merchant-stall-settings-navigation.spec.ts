@@ -13,6 +13,19 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
   await expect(page).toHaveURL(/\/merchant\/dashboard/, { timeout: 30_000 });
 
   await page.goto(`/merchant/stalls/${stallId}`);
+  const [brandBox, organizationBox, scopeBox] = await Promise.all([
+    page.getByRole("link", { name: "攤點通", exact: true }).boundingBox(),
+    page.getByLabel("選擇組織").boundingBox(),
+    page.getByLabel("選擇攤位範圍").boundingBox(),
+  ]);
+  expect(brandBox).not.toBeNull();
+  expect(organizationBox).not.toBeNull();
+  expect(scopeBox).not.toBeNull();
+  expect(organizationBox!.y).toBeGreaterThan(brandBox!.y + brandBox!.height);
+  expect(Math.abs(organizationBox!.y - scopeBox!.y)).toBeLessThanOrEqual(1);
+  expect(scopeBox!.x).toBeGreaterThan(organizationBox!.x);
+  expect(Math.abs(organizationBox!.width - scopeBox!.width)).toBeLessThanOrEqual(1);
+
   for (const heading of ["攤位設定", "營運工具", "組織管理"]) {
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }

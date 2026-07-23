@@ -59,37 +59,39 @@ export function MerchantWorkspaceHeader({
   return (
     <header className="sticky top-0 z-30 border-b border-stone-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 md:px-8">
-        <Link href="/merchant/dashboard" className="mr-auto inline-flex min-h-11 items-center gap-2 font-semibold text-stone-950">
+        <Link href="/merchant/dashboard" className="inline-flex min-h-11 w-full items-center gap-2 font-semibold text-stone-950 md:mr-auto md:w-auto">
           <Store className="h-5 w-5 text-teal-700" />
           攤點通
         </Link>
 
-        <label className="min-w-0 text-xs font-medium text-stone-500">
-          組織
-          <select
-            aria-label="選擇組織"
-            value={workspace?.id ?? ""}
-            onChange={(event) => selectOrganization(event.target.value)}
-            className="mt-1 block h-10 max-w-[190px] rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900"
-          >
-            {workspaces.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>{candidate.businessName}</option>
-            ))}
-          </select>
-        </label>
+        <div className="grid w-full min-w-0 grid-cols-2 gap-3 md:contents">
+          <label className="block min-w-0 text-xs font-medium text-stone-500">
+            組織
+            <select
+              aria-label="選擇組織"
+              value={workspace?.id ?? ""}
+              onChange={(event) => selectOrganization(event.target.value)}
+              className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[190px]"
+            >
+              {workspaces.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>{candidate.businessName}</option>
+              ))}
+            </select>
+          </label>
 
-        <label className="min-w-0 text-xs font-medium text-stone-500">
-          檢視範圍
-          <select
-            aria-label="選擇攤位範圍"
-            value={selectedScope}
-            onChange={(event) => selectScope(event.target.value)}
-            className="mt-1 block h-10 max-w-[190px] rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900"
-          >
-            {workspace?.canUseAllStalls ? <option value="ALL_STALLS">全部攤位</option> : null}
-            {activeStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}
-          </select>
-        </label>
+          <label className="block min-w-0 text-xs font-medium text-stone-500">
+            檢視範圍
+            <select
+              aria-label="選擇攤位範圍"
+              value={selectedScope}
+              onChange={(event) => selectScope(event.target.value)}
+              className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[190px]"
+            >
+              {workspace?.canUseAllStalls ? <option value="ALL_STALLS">全部攤位</option> : null}
+              {activeStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}
+            </select>
+          </label>
+        </div>
 
         <nav className="flex w-full min-w-0 items-center gap-1 overflow-x-auto md:w-auto" aria-label="商戶功能">
           {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER") ? (
