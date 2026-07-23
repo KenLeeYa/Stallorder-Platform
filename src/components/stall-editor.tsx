@@ -29,10 +29,12 @@ export function StallEditor({
   organizationId,
   stallId,
   initial,
+  section = "all",
 }: {
   organizationId: string;
   stallId?: string;
   initial: StallDraft;
+  section?: "all" | SaveSection;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState(initial);
@@ -134,7 +136,7 @@ export function StallEditor({
 
   return (
     <div className="border-t border-stone-200">
-      <details open data-settings-section data-settings-scope="stall-basic" data-settings-search="基本資料 名稱 代碼 說明 地址 電話 時區 幣別" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
+      {section !== "operations" ? <details open data-settings-section data-settings-scope="stall-basic" data-settings-search="基本資料 名稱 代碼 說明 地址 電話 時區 幣別" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
         <CollapsibleSectionSummary icon={Store} title="基本資料" description={basicDirty ? "有尚未儲存的變更" : undefined} />
         <form onSubmit={submitBasic} className="pb-7">
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -153,9 +155,9 @@ export function StallEditor({
             {savingSection === "basic" ? "儲存中..." : isEditing ? "儲存基本資料" : "建立攤位"}
           </button>
         </form>
-      </details>
+      </details> : null}
 
-      {isEditing ? (
+      {isEditing && section !== "basic" ? (
         <details open data-settings-section data-settings-scope="stall-operations" data-settings-search="營運狀態 營業 顧客點餐 啟用 攤位" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
           <CollapsibleSectionSummary icon={Activity} title="營運狀態" description={operationsDirty ? "有尚未儲存的變更" : undefined} />
           <form onSubmit={submitOperations} className="pb-7">

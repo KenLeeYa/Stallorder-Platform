@@ -217,9 +217,8 @@ test.describe("P1 營運功能", () => {
 
   test("多攤位範本先顯示差異再套用全部營運設定", async ({ page }) => {
     await login(page, "owner@stallorder.test");
-    await page.goto(`/merchant/stalls/${targetStallId}`);
-    await expect(page.getByText("營業時間", { exact: true })).toBeVisible();
-    await page.getByText("多攤位範本", { exact: true }).click();
+    await page.goto(`/merchant/stalls/${targetStallId}/settings/templates`);
+    await expect(page.getByRole("heading", { name: "多攤位範本", exact: true })).toBeVisible();
     const template = page.locator("details").filter({ hasText: "多攤位範本" }).last();
     await template.getByLabel("來源攤位").selectOption(sourceStallId);
     await template.getByRole("button", { name: "比較差異" }).click();
