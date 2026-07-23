@@ -120,10 +120,14 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     expect(organization.stalls[0].qrCodes[0].state).toBe("PAUSED");
     expect(organization.merchantSetupProgress?.goLiveCompleted).toBe(false);
 
+    await page.goto(`/merchant/dashboard?organizationId=${organizationId}`);
+    await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);
+
     await page.context().clearCookies();
     await login(page, applicantEmail);
     await expect(page).toHaveURL(new RegExp(`/merchant/setup\\?organizationId=${organizationId}`));
     await expect(page.getByRole("heading", { name: "開店設定" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "開店設定" })).toBeVisible();
 
     for (const label of ["商家資料", "攤位資料", "商品目錄", "付款方式", "團隊成員", "QR 預覽"]) {
       const step = page.getByRole("article").filter({ hasText: label });
@@ -170,6 +174,12 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     expect(live.stall.orderingState).toBe("OPEN");
     expect(live.stall.orderingEnabled).toBe(true);
     expect(live.qrCode.state).toBe("ACTIVE");
+
+    await prisma.merchantSetupProgress.delete({ where: { organizationId } });
+    await page.goto(`/merchant/setup?organizationId=${organizationId}`);
+    await expect(page.getByRole("heading", { name: "目前沒有待完成的開店流程" })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("link", { name: "管理攤位" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);
   });
 });
 
