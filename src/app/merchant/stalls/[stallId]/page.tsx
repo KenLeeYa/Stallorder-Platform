@@ -99,16 +99,16 @@ export default async function EditStallPage({ params }: PageProps) {
         <h2 id="organization-settings-title" className="text-lg font-semibold">組織管理</h2>
         <div className="mt-4 flex flex-wrap gap-2">
           {canManageLocalization ? (
-            <SettingsLink href={`/merchant/localization?organizationId=${workspace.id}`} icon={Languages} label="翻譯完整度" />
+            <SettingsLink href={`/merchant/localization?organizationId=${workspace.id}&stallId=${stall.id}`} icon={Languages} label="翻譯完整度" />
           ) : null}
           {canManageEvents ? (
-            <SettingsLink href={`/merchant/events?organizationId=${workspace.id}`} icon={CalendarDays} label="市集活動" />
+            <SettingsLink href={`/merchant/events?organizationId=${workspace.id}&stallId=${stall.id}`} icon={CalendarDays} label="市集活動" />
           ) : null}
           {canManageTeam ? (
-            <SettingsLink href={`/merchant/team?organizationId=${workspace.id}`} icon={Users} label="團隊與權限" />
+            <SettingsLink href={`/merchant/team?organizationId=${workspace.id}&stallId=${stall.id}`} icon={Users} label="團隊與權限" />
           ) : null}
           {canManageReportSchedules ? (
-            <SettingsLink href={`/merchant/report-schedules?organizationId=${workspace.id}`} icon={CalendarClock} label="排程寄送" />
+            <SettingsLink href={`/merchant/report-schedules?organizationId=${workspace.id}&stallId=${stall.id}`} icon={CalendarClock} label="排程寄送" />
           ) : null}
         </div>
       </section>

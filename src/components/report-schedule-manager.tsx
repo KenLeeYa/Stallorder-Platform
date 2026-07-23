@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, MailCheck, Pencil, Play, Plus, Save, Trash2, X } from "lucide-react";
+import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatTaipeiDateTime } from "@/lib/date-time";
 import { reportScheduleTypeLabels, type ScheduledReportType } from "@/lib/report-scheduling";
@@ -45,12 +46,14 @@ export function ReportScheduleManager({
   stalls,
   initialSchedules,
   deliveryMode,
+  returnStallId,
 }: {
   organizationId: string;
   organizationEmail: string;
   stalls: Array<{ id: string; name: string }>;
   initialSchedules: Schedule[];
   deliveryMode: "CONFIGURED" | "SIMULATED" | "MISSING";
+  returnStallId?: string;
 }) {
   const router = useRouter();
   const [archivedScheduleIds, setArchivedScheduleIds] = useState<string[]>([]);
@@ -152,6 +155,11 @@ export function ReportScheduleManager({
   const editing = Boolean(draft);
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-6xl px-4 py-7 md:px-8">
+      {returnStallId ? (
+        <div className="mb-4">
+          <StallSettingsBackLink stallId={returnStallId} />
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 pb-5">
         <div><div className="flex items-center gap-2 text-teal-800"><CalendarClock className="h-5 w-5" /><span className="text-sm font-semibold">自動報表</span></div><h1 className="mt-2 text-3xl font-semibold">排程寄送</h1><p className="mt-2 text-sm text-stone-600">自動寄送日報、週報及付款差異報告。</p></div>
         {!editing ? <button type="button" onClick={() => { setDraft(newDraft()); setEditingId(null); }} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" />新增排程</button> : null}

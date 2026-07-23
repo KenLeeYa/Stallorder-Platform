@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Languages, Search } from "lucide-react";
 import { LocaleFlag } from "@/components/locale-flag";
+import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { QR_LOCALES, qrOrderMessages, type QrLocale } from "@/lib/qr-order-i18n";
 import type { TranslationCoverage, TranslationEntityType } from "@/lib/translation-completeness";
 
@@ -18,10 +19,12 @@ export function LocalizationDashboard({
   organizationId,
   coverage,
   stalls,
+  returnStallId,
 }: {
   organizationId: string;
   coverage: TranslationCoverage[];
   stalls: Array<{ id: string; name: string; enabledLocales: string[] }>;
+  returnStallId?: string;
 }) {
   const [locale, setLocale] = useState<QrLocale>("en");
   const [entityType, setEntityType] = useState<TranslationEntityType | "ALL">("ALL");
@@ -38,6 +41,11 @@ export function LocalizationDashboard({
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-6xl px-4 py-7 md:px-8">
+      {returnStallId ? (
+        <div className="mb-4">
+          <StallSettingsBackLink stallId={returnStallId} />
+        </div>
+      ) : null}
       <div className="border-b border-stone-200 pb-5">
         <div className="flex items-center gap-2 text-teal-800"><Languages className="h-5 w-5" /><span className="text-sm font-semibold">多語系品質</span></div>
         <h1 className="mt-2 text-3xl font-semibold">翻譯完整度</h1>

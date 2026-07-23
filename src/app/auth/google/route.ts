@@ -33,7 +33,10 @@ export async function GET(request: Request) {
     const redirectTo = `${appOrigin}/auth/callback?next=${encodeURIComponent(next)}`;
     const { data, error } = await timing.measure("externalApiMs", () => supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo },
+      options: {
+        redirectTo,
+        queryParams: { prompt: "select_account" },
+      },
     }));
     if (error || !data.url) throw error ?? new Error("OAUTH_REDIRECT_MISSING");
     return finalize(NextResponse.redirect(data.url, { headers: { "x-request-id": requestId } }));
