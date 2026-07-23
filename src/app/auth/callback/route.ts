@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createSession, setSessionCookies } from "@/lib/auth";
-import { recordAuditEvent } from "@/lib/audit";
+import { logEvent, recordAuditEvent } from "@/lib/audit";
 import { resolveOAuthLinkProfile } from "@/lib/oauth-linking";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
+import { isStagingPlatformAdminBootstrapEmail } from "@/lib/platform-admin-bootstrap";
 import { prisma } from "@/lib/prisma";
 import { createRequestId, hashClientIp, sanitizeRedirectPath } from "@/lib/security";
 import { createSupabaseAuthClient } from "@/lib/supabase-auth";
@@ -51,36 +52,78 @@ export async function GET(request: Request) {
     if (error || !authUser || !email || !authUser.email_confirmed_at || !providers.includes("google")) {
       throw new Error("OAUTH_IDENTITY_INVALID");
     }
+    const bootstrapPlatformAdmin = isStagingPlatformAdminBootstrapEmail(email);
 
     const profile = await timing.measureDb(() => prisma.$transaction(async (transaction) => {
       const [byAuthId, byEmail] = await Promise.all([
         transaction.profile.findUnique({ where: { authUserId: authUser.id } }),
         transaction.profile.findUnique({ where: { email } }),
       ]);
-      const existing = resolveOAuthLinkProfile(authUser.id, byAuthId, byEmail);
-      if (existing) {
-        return transaction.profile.update({
+      const existing = resolveOAuthLinkProfile(authUser.id, byAuthId, byEmail, {
+        allowPasswordProfileLink: bootstrapPlatformAdmin,
+      });
+      if (bootstrapPlatformAdmin && existing && existing.email.trim().toLowerCase() !== email) {
+        throw new Error("OAUTH_ACCOUNT_CONFLICT");
+      }
+
+      const shouldAuditBootstrap = bootstrapPlatformAdmin && (
+        !existing
+        || existing.authUserId !== authUser.id
+        || existing.platformRole !== "PLATFORM_ADMIN"
+        || !existing.isActive
+      );
+
+      const profile = existing
+        ? await transaction.profile.update({
           where: { id: existing.id },
           data: {
             authUserId: authUser.id,
             avatarUrl: existing.avatarUrl ?? cleanAvatarUrl(authUser.user_metadata.avatar_url),
+            ...(bootstrapPlatformAdmin ? { isActive: true, platformRole: "PLATFORM_ADMIN" as const } : {}),
             lastLoginAt: new Date(),
+          },
+        })
+        : await transaction.profile.create({
+          data: {
+            authUserId: authUser.id,
+            email,
+            displayName: cleanDisplayName(
+              authUser.user_metadata.full_name ?? authUser.user_metadata.name,
+              email,
+            ),
+            avatarUrl: cleanAvatarUrl(authUser.user_metadata.avatar_url),
+            ...(bootstrapPlatformAdmin ? { platformRole: "PLATFORM_ADMIN" as const } : {}),
+            lastLoginAt: new Date(),
+          },
+        });
+
+      if (shouldAuditBootstrap) {
+        await transaction.auditLog.create({
+          data: {
+            actorProfileId: profile.id,
+            action: "PLATFORM_ADMIN_BOOTSTRAPPED",
+            entityType: "PROFILE",
+            entityId: profile.id,
+            outcome: "SUCCESS",
+            requestId,
+            metadata: JSON.stringify({ source: "verified-google-staging-allowlist" }),
+            ...(existing ? {
+              beforeJson: {
+                authLinked: Boolean(existing.authUserId),
+                isActive: existing.isActive,
+                platformRole: existing.platformRole,
+              },
+            } : {}),
+            afterJson: {
+              authLinked: Boolean(profile.authUserId),
+              isActive: profile.isActive,
+              platformRole: profile.platformRole,
+            },
           },
         });
       }
 
-      return transaction.profile.create({
-        data: {
-          authUserId: authUser.id,
-          email,
-          displayName: cleanDisplayName(
-            authUser.user_metadata.full_name ?? authUser.user_metadata.name,
-            email,
-          ),
-          avatarUrl: cleanAvatarUrl(authUser.user_metadata.avatar_url),
-          lastLoginAt: new Date(),
-        },
-      });
+      return profile;
     }), 3);
 
     const [workspaces, session, pendingSetupPath] = await Promise.all([
@@ -117,6 +160,10 @@ export async function GET(request: Request) {
     return finalize(response);
   } catch (error) {
     const conflict = error instanceof Error && error.message === "OAUTH_ACCOUNT_CONFLICT";
+    logEvent("warn", "GOOGLE_LOGIN_FAILURE", {
+      requestId,
+      reason: conflict ? "ACCOUNT_CONFLICT" : "CALLBACK_FAILED",
+    });
     return finalize(NextResponse.redirect(
       `${appOrigin}/login?oauthError=${conflict ? "account-conflict" : "callback-failed"}`,
     ));

@@ -40,3 +40,11 @@ is_sold_out=false
 - 至少兩人確認 emergency pause、QR revoke／rotate、sold-out、close ordering。
 - 將第一位 owner 的復原方式、值班聯絡、backup／rollback 權限存放在組織核准的密碼／事件管理系統，不放 Git。
 - 完成 [GO_LIVE_CHECKLIST.md](./GO_LIVE_CHECKLIST.md) 後才讓正式 QR 進入 ACTIVE。
+
+## Staging Google 平台管理員復原
+
+`STAGING_PLATFORM_ADMIN_BOOTSTRAP_EMAILS` 僅供 Vercel `Preview` 環境的 `staging` 分支使用。Google 回呼必須同時確認已驗證 Email、Google provider、精確 Email 允許清單及既有 Auth 綁定沒有衝突，才可建立或恢復 `PLATFORM_ADMIN`；每次實際變更都會寫入 `PLATFORM_ADMIN_BOOTSTRAPPED` 稽核紀錄。
+
+- 不可將此變數套用至 Production。
+- 不可使用萬用字元、網域或部分字串授權。
+- 完成指定帳號首次登入及管理後台驗收後，移除 Staging 允許清單並重新部署。

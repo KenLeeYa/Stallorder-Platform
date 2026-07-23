@@ -99,6 +99,7 @@ export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: 
         <>
           <div className="my-5 flex items-center gap-3 text-xs text-stone-500"><span className="h-px flex-1 bg-stone-200" /><span>或</span><span className="h-px flex-1 bg-stone-200" /></div>
           <a href={`/auth/google${requestedNextPath ? `?next=${encodeURIComponent(requestedNextPath)}` : ""}`} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 hover:bg-stone-50"><LogIn className="h-4 w-4" />使用 Google 登入</a>
+          <p className="mt-3 text-center text-xs text-stone-500">平台管理員請使用已授權的 Google 帳號登入。</p>
         </>
       ) : null}
     </form>

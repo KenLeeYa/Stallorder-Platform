@@ -7,14 +7,15 @@ import { getReportScheduleManagementData, reportDeliveryMode } from "@/lib/repor
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 import { getFeatureAccess } from "@/server/billing/feature-access";
 
-type PageProps = { searchParams: Promise<{ organizationId?: string }> };
+type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string }> };
 
 export default async function ReportSchedulesPage({ searchParams }: PageProps) {
-  const { organizationId } = await searchParams;
+  const { organizationId, stallId } = await searchParams;
   const { workspaces } = await requireWorkspacePage();
   if (!organizationId && workspaces.length > 1) redirect("/select-organization");
   const workspace = requireWorkspaceOrganization(workspaces, organizationId);
   if (!workspace.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES"))) notFound();
+  const returnStallId = workspace.stalls.some((stall) => stall.id === stallId) ? stallId : undefined;
   const featureAccess = await getFeatureAccess(workspace.id, "SCHEDULED_REPORTS");
   if (!featureAccess.allowed) {
     return (
@@ -22,6 +23,7 @@ export default async function ReportSchedulesPage({ searchParams }: PageProps) {
         title="排程報表尚未開放"
         message={featureAccess.message}
         billingHref={`/merchant/subscription?organizationId=${workspace.id}`}
+        returnStallId={returnStallId}
       />
     );
   }
@@ -37,6 +39,7 @@ export default async function ReportSchedulesPage({ searchParams }: PageProps) {
       stalls={workspace.stalls.filter((stall) => stall.isActive).map((stall) => ({ id: stall.id, name: stall.name }))}
       initialSchedules={schedules}
       deliveryMode={reportDeliveryMode()}
+      returnStallId={returnStallId}
     />
   );
 }

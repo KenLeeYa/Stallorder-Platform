@@ -1,14 +1,15 @@
 import { notFound, redirect } from "next/navigation";
 import { OrganizationInvitationManager } from "@/components/organization-invitation-manager";
 import { OrganizationMembershipManager } from "@/components/organization-membership-manager";
+import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { prisma } from "@/lib/prisma";
 import { authorizedStallIdsForPermission, roleLabels } from "@/lib/rbac";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 
-type PageProps = { searchParams: Promise<{ organizationId?: string }> };
+type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string }> };
 
 export default async function MerchantTeamPage({ searchParams }: PageProps) {
-  const { organizationId } = await searchParams;
+  const { organizationId, stallId } = await searchParams;
   const { workspaces } = await requireWorkspacePage();
   if (!organizationId && workspaces.length > 1) redirect("/select-organization");
   const workspace = requireWorkspaceOrganization(workspaces, organizationId);
@@ -18,6 +19,7 @@ export default async function MerchantTeamPage({ searchParams }: PageProps) {
   ));
   const canManage = canManageOrganizationTeam || authorizedStallIds.length > 0;
   if (!canManage) notFound();
+  const returnStallId = workspace.stalls.some((stall) => stall.id === stallId) ? stallId : undefined;
 
   const invitationScope = canManageOrganizationTeam
     ? { organizationId: workspace.id }
@@ -63,6 +65,11 @@ export default async function MerchantTeamPage({ searchParams }: PageProps) {
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
+      {returnStallId ? (
+        <div className="mb-4">
+          <StallSettingsBackLink stallId={returnStallId} />
+        </div>
+      ) : null}
       <div className="border-b border-stone-200 pb-6"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 text-3xl font-semibold">團隊與權限</h1></div>
 
       <OrganizationInvitationManager
