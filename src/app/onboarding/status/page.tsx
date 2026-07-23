@@ -8,7 +8,7 @@ import { getApplicantApplication } from "@/server/merchant-applications/merchant
 
 export default async function MerchantApplicationStatusPage() {
   const principal = await getPagePrincipal();
-  if (!principal?.user.authUserId) redirect("/login?next=%2Fonboarding%2Fstatus");
+  if (!principal?.user.authUserId) redirect("/auth/google?next=%2Fonboarding%2Fstatus");
   const application = await getApplicantApplication(principal.user.id);
   if (!application) redirect("/onboarding");
   if (application.status === "DRAFT") redirect("/onboarding");

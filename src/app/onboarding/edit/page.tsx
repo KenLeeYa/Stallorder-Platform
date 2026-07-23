@@ -9,7 +9,7 @@ import {
 
 export default async function EditMerchantApplicationPage() {
   const principal = await getPagePrincipal();
-  if (!principal?.user.authUserId) redirect("/login?next=%2Fonboarding%2Fedit");
+  if (!principal?.user.authUserId) redirect("/auth/google?next=%2Fonboarding%2Fedit");
   const data = await loadOnboardingData(principal.user.id, principal.user.email, principal.user.platformRole);
   if (data.workspacePath) redirect(data.workspacePath);
   if (data.application?.status !== "NEEDS_INFO") redirect(data.application ? "/onboarding/status" : "/onboarding");
