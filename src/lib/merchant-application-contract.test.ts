@@ -44,11 +44,11 @@ describe("merchant application contract", () => {
     }).success).toBe(false);
   });
 
-  it("enforces the public slug format", () => {
+  it.each(["Invalid Slug", "-test-stall", "test-stall-"])("enforces the public identifier format: %s", (requestedSlug) => {
     expect(merchantApplicationCommandSchema.safeParse({
       intent: "SUBMIT",
       currentStep: 4,
-      data: { ...completeApplication, requestedSlug: "Invalid Slug" },
+      data: { ...completeApplication, requestedSlug },
     }).success).toBe(false);
   });
 });

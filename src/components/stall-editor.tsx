@@ -4,7 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, Plus, Save, Store } from "lucide-react";
 import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
+import { PublicIdentifierInputHint } from "@/components/public-identifier-input-hint";
 import { csrfHeaders } from "@/lib/csrf-client";
+import {
+  PUBLIC_IDENTIFIER_MAX_LENGTH,
+  PUBLIC_IDENTIFIER_MIN_LENGTH,
+  PUBLIC_IDENTIFIER_PATTERN,
+} from "@/lib/public-identifier";
 import { useUnsavedSettings } from "@/lib/unsaved-settings";
 
 type StallDraft = {
@@ -142,7 +148,23 @@ export function StallEditor({
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-medium">攤位名稱<input value={draft.name} onChange={(event) => update("name", event.target.value)} required maxLength={80} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
             <label className="text-sm font-medium">攤位代碼<input value={draft.code} onChange={(event) => update("code", event.target.value.toUpperCase())} required maxLength={30} pattern="[A-Za-z0-9-]+" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5 uppercase" /></label>
-            {!isEditing ? <label className="text-sm font-medium sm:col-span-2">網址代稱<input value={draft.slug ?? ""} onChange={(event) => update("slug", event.target.value.toLowerCase())} required minLength={3} maxLength={50} pattern="[a-z0-9-]+" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label> : null}
+            {!isEditing ? (
+              <label className="text-sm font-medium sm:col-span-2">
+                公開識別名稱
+                <PublicIdentifierInputHint hintId="new-stall-public-identifier-rules">
+                  <input
+                    value={draft.slug ?? ""}
+                    onChange={(event) => update("slug", event.target.value.toLowerCase())}
+                    required
+                    minLength={PUBLIC_IDENTIFIER_MIN_LENGTH}
+                    maxLength={PUBLIC_IDENTIFIER_MAX_LENGTH}
+                    pattern={PUBLIC_IDENTIFIER_PATTERN}
+                    aria-describedby="new-stall-public-identifier-rules"
+                    className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5"
+                  />
+                </PublicIdentifierInputHint>
+              </label>
+            ) : null}
             <label className="text-sm font-medium sm:col-span-2">說明<textarea value={draft.description} onChange={(event) => update("description", event.target.value)} maxLength={500} rows={3} className="mt-1.5 w-full resize-y rounded-md border border-stone-300 px-3 py-2.5" /></label>
             <label className="text-sm font-medium sm:col-span-2">地址<input value={draft.address} onChange={(event) => update("address", event.target.value)} required maxLength={200} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
             <label className="text-sm font-medium">電話<input value={draft.phone} onChange={(event) => update("phone", event.target.value)} maxLength={30} autoComplete="tel" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>

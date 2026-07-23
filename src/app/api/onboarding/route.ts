@@ -6,6 +6,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { merchantApplicationCommandSchema } from "@/lib/merchant-application-contract";
 import { prisma } from "@/lib/prisma";
+import { isValidPublicIdentifier } from "@/lib/public-identifier";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp, isTrustedOrigin } from "@/lib/security";
 import { hashApplicationIdentifier } from "@/server/merchant-applications/application-identifiers";
@@ -28,11 +29,11 @@ export async function GET(request: Request) {
   }
 
   const requestUrl = new URL(request.url);
-  const slug = requestUrl.searchParams.get("slug")?.trim().toLowerCase();
+  const slug = requestUrl.searchParams.get("slug")?.trim();
   if (slug !== undefined) {
-    if (!/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(slug)) {
+    if (!isValidPublicIdentifier(slug)) {
       return NextResponse.json(
-        { available: false, error: "網址代稱格式不正確。" },
+        { available: false, error: "公開識別名稱格式不正確。" },
         { status: 400, headers: { "x-request-id": requestId } },
       );
     }
@@ -265,7 +266,7 @@ function merchantApplicationErrorResponse(error: unknown, requestId: string) {
   }
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
     return NextResponse.json(
-      { error: "已有相同申請或網址代稱，請重新整理後確認。" },
+      { error: "已有相同申請或公開識別名稱，請重新整理後確認。" },
       { status: 409, headers: { "x-request-id": requestId } },
     );
   }

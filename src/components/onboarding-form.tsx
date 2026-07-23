@@ -3,8 +3,15 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Check, ChevronLeft, ChevronRight, ClipboardCheck, MapPin, Save, UserRound } from "lucide-react";
+import { PublicIdentifierInputHint } from "@/components/public-identifier-input-hint";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { merchantBusinessTypeLabels, merchantBusinessTypes } from "@/lib/merchant-application-contract";
+import {
+  isValidPublicIdentifier,
+  PUBLIC_IDENTIFIER_MAX_LENGTH,
+  PUBLIC_IDENTIFIER_MIN_LENGTH,
+  PUBLIC_IDENTIFIER_PATTERN,
+} from "@/lib/public-identifier";
 
 type InitialValues = {
   phone?: string | null;
@@ -130,7 +137,7 @@ export function OnboardingForm({
       return;
     }
     if (slugState === "taken") {
-      setError("此網址代稱已被使用，請更換後再送出。");
+      setError("此公開識別名稱已被使用，請更換後再送出。");
       return;
     }
     setIsSubmitting(true);
@@ -186,7 +193,7 @@ export function OnboardingForm({
   async function checkSlug() {
     const slug = state.requestedSlug.trim().toLowerCase();
     update("requestedSlug", slug);
-    if (!/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(slug)) {
+    if (!isValidPublicIdentifier(slug)) {
       setSlugState("taken");
       return;
     }
@@ -285,7 +292,26 @@ function StallStep({ state, update, slugState, checkSlug }: StepProps & { slugSt
     <Field label="主要營業地點"><input required value={state.stallLocation} onChange={(event) => update("stallLocation", event.target.value)} maxLength={200} className={inputClass} /></Field>
     <Field label="預計開始日期"><input type="date" value={state.expectedStartDate} onChange={(event) => update("expectedStartDate", event.target.value)} className={inputClass} /></Field>
     <Field label="預估每日訂單"><input type="number" min={0} max={100000} value={state.estimatedDailyOrders} onChange={(event) => update("estimatedDailyOrders", event.target.value)} className={inputClass} /></Field>
-    <Field label="公開網址代稱" full><input required value={state.requestedSlug} onChange={(event) => update("requestedSlug", event.target.value.toLowerCase())} onBlur={() => void checkSlug()} pattern="[a-z0-9][a-z0-9-]{1,48}[a-z0-9]" minLength={3} maxLength={50} className={inputClass} aria-describedby="slug-state" /><p id="slug-state" className={`mt-1 text-xs ${slugState === "available" ? "text-teal-700" : slugState === "taken" ? "text-red-700" : "text-stone-500"}`}>{slugState === "checking" ? "檢查中..." : slugState === "available" ? "此網址可使用" : slugState === "taken" ? "格式不正確或已被使用" : "僅限小寫英文字母、數字與連字號"}</p></Field>
+    <Field label="公開識別名稱" full>
+      <PublicIdentifierInputHint hintId="onboarding-public-identifier-rules">
+        <input
+          required
+          value={state.requestedSlug}
+          onChange={(event) => update("requestedSlug", event.target.value.toLowerCase())}
+          onBlur={() => void checkSlug()}
+          pattern={PUBLIC_IDENTIFIER_PATTERN}
+          minLength={PUBLIC_IDENTIFIER_MIN_LENGTH}
+          maxLength={PUBLIC_IDENTIFIER_MAX_LENGTH}
+          className={inputClass}
+          aria-describedby={slugState === "idle" ? "onboarding-public-identifier-rules" : "onboarding-public-identifier-rules slug-state"}
+        />
+      </PublicIdentifierInputHint>
+      {slugState !== "idle" ? (
+        <p id="slug-state" aria-live="polite" className={`mt-1 text-xs ${slugState === "available" ? "text-teal-700" : slugState === "taken" ? "text-red-700" : "text-stone-500"}`}>
+          {slugState === "checking" ? "檢查中..." : slugState === "available" ? "此公開識別名稱可使用" : "格式不正確或已被使用"}
+        </p>
+      ) : null}
+    </Field>
     <Toggle label="需要多位員工" checked={state.needsMultipleStaff} onChange={(checked) => update("needsMultipleStaff", checked)} />
     <Toggle label="需要廚房畫面" checked={state.needsKitchenView} onChange={(checked) => update("needsKitchenView", checked)} />
   </div>;

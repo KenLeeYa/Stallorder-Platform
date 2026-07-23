@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  PUBLIC_IDENTIFIER_MAX_LENGTH,
+  PUBLIC_IDENTIFIER_MIN_LENGTH,
+  PUBLIC_IDENTIFIER_REGEX,
+} from "./public-identifier";
 
 const timezoneSchema = z.string().trim().min(1).max(64).refine((value) => {
   try {
@@ -21,7 +26,12 @@ const stallFields = {
 
 export const createStallSchema = z.object({
   ...stallFields,
-  slug: z.string().trim().min(3).max(50).regex(/^[a-z0-9-]+$/),
+  slug: z
+    .string()
+    .trim()
+    .min(PUBLIC_IDENTIFIER_MIN_LENGTH)
+    .max(PUBLIC_IDENTIFIER_MAX_LENGTH)
+    .regex(PUBLIC_IDENTIFIER_REGEX),
 }).strict();
 
 const updateStallOperationsSchema = z.object({

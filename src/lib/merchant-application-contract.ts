@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  PUBLIC_IDENTIFIER_MAX_LENGTH,
+  PUBLIC_IDENTIFIER_MIN_LENGTH,
+  PUBLIC_IDENTIFIER_REGEX,
+} from "./public-identifier";
 
 const nullableText = (maxLength: number) => z.string().trim().max(maxLength).nullable();
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
@@ -29,7 +34,12 @@ export const merchantApplicationFieldsSchema = z.object({
   merchantDescription: nullableText(1000),
   stallName: z.string().trim().min(2).max(120),
   stallLocation: z.string().trim().min(2).max(200),
-  requestedSlug: z.string().trim().min(3).max(50).regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/),
+  requestedSlug: z
+    .string()
+    .trim()
+    .min(PUBLIC_IDENTIFIER_MIN_LENGTH)
+    .max(PUBLIC_IDENTIFIER_MAX_LENGTH)
+    .regex(PUBLIC_IDENTIFIER_REGEX),
   estimatedDailyOrders: z.number().int().min(0).max(100_000).nullable(),
   expectedStartDate: dateString,
   needsMultipleStaff: z.boolean(),
