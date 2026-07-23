@@ -1,20 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { catalogCsvHeaders } from "../src/lib/catalog-csv";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
-
-async function verifyCollapsibleHeader(page: Page, title: string) {
-  const heading = page.getByRole("heading", { name: title, exact: true });
-  const summary = heading.locator("xpath=ancestor::summary[1]");
-  const details = summary.locator("xpath=..");
-  await expect(summary.locator("svg").first()).toBeVisible();
-  const initiallyOpen = await details.evaluate((element) => (element as HTMLDetailsElement).open);
-  await summary.click();
-  await expect.poll(() => details.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(!initiallyOpen);
-  await summary.click();
-  await expect.poll(() => details.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(initiallyOpen);
-}
 
 test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", async ({ browser, page }, testInfo) => {
   test.setTimeout(120_000);
@@ -29,35 +17,37 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(page).toHaveURL(/\/merchant\/dashboard/, { timeout: 30_000 });
 
   await page.goto(`/merchant/stalls/${stallId}`);
-  await expect(page.getByRole("heading", { name: "營運模組與內用桌位" })).toBeVisible();
-  for (const title of [
+  for (const title of ["攤位設定", "營運工具", "組織管理"]) {
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  }
+  for (const label of [
     "基本資料",
     "營運狀態",
+    "營業時間",
     "營運模組與內用桌位",
-    "QR 點餐語系",
-    "內用桌位與專屬 QR",
-    "桌位平面配置",
-    "付款方式",
-    "結帳折扣",
+    "多攤位範本",
     "攤位成員",
+    "CDS 取餐顯示",
+    "產能與等候時間",
+    "常用地點",
+    "出攤行程",
+    "LINE 通知",
+    "翻譯完整度",
+    "市集活動",
+    "團隊與權限",
+    "排程寄送",
   ]) {
-    await verifyCollapsibleHeader(page, title);
+    await expect(page.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
-  await page.getByRole("button", { name: "全部收合" }).click();
-  await expect.poll(() => page.locator("details[open]").count()).toBe(0);
-  await page.getByRole("button", { name: "全部展開" }).click();
-  await expect.poll(() => page.locator("details[open]").count()).toBeGreaterThan(5);
-  const settingsSearch = page.getByPlaceholder("搜尋設定");
-  await settingsSearch.fill("付款方式");
-  await expect(page.getByRole("heading", { name: "付款方式" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "基本資料" })).toBeHidden();
-  await settingsSearch.fill("");
+  await expect(page.getByRole("link", { name: "現金交班報表", exact: true })).toHaveCount(0);
+
+  await page.getByRole("link", { name: "基本資料", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/settings/basic$`));
+  await expect(page.getByRole("heading", { name: "基本資料", exact: true })).toBeVisible();
   const phoneInput = page.getByLabel("電話", { exact: true });
   const originalPhone = await phoneInput.inputValue();
   await phoneInput.fill(`${originalPhone}0`);
-  await expect(page.getByText("1 個區段尚未儲存", { exact: true })).toBeVisible();
   await phoneInput.fill(originalPhone);
-  await expect(page.getByText("1 個區段尚未儲存", { exact: true })).toHaveCount(0);
 
   const basicSaveResponse = page.waitForResponse((response) => (
     response.url().endsWith(`/api/merchant/stalls/${stallId}`)
@@ -72,6 +62,8 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   expect(basicResponse.request().postDataJSON().operation).toBe("UPDATE_BASIC");
   await expect(page.getByText("基本資料已更新。", { exact: true })).toBeVisible();
 
+  await page.goto(`/merchant/stalls/${stallId}/settings/operations`);
+  await expect(page.getByRole("heading", { name: "營運狀態", exact: true })).toBeVisible();
   const operationsSaveResponse = page.waitForResponse((response) => (
     response.url().endsWith(`/api/merchant/stalls/${stallId}`)
     && response.request().method() === "PATCH"
@@ -85,6 +77,8 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   expect(operationsResponse.request().postDataJSON().operation).toBe("UPDATE_OPERATIONS");
   await expect(page.getByText("營運狀態已更新。", { exact: true })).toBeVisible();
 
+  await page.goto(`/merchant/stalls/${stallId}/settings/modules`);
+  await expect(page.getByRole("heading", { name: "營運模組與內用桌位", exact: true })).toBeVisible();
   await expect(page.getByRole("switch", { name: /內用桌位/ })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("switch", { name: /訂單列印/ })).toHaveAttribute("aria-checked", "true");
   for (const moduleName of ["內用桌位", "線上外送", "訂單列印", "多元付款", "結帳折扣"]) {

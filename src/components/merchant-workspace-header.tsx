@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, Building2, CalendarClock, CalendarDays, CreditCard, FileChartColumn, Languages, Package, Rocket, ScrollText, Store, Users } from "lucide-react";
+import { BarChart3, Building2, CreditCard, FileChartColumn, Package, Rocket, ScrollText, Store } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
 import { hasPermission } from "@/lib/rbac";
@@ -109,21 +109,10 @@ export function MerchantWorkspaceHeader({
             <Building2 className="h-5 w-5" /><span className="sr-only">管理攤位</span>
           </Link>
           {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN") ? (
-            <>
-              <Link title="共用商品" href={`/merchant/catalog?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-                <Package className="h-5 w-5" /><span className="sr-only">共用商品</span>
-              </Link>
-              <Link title="翻譯完整度" href={`/merchant/localization?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-                <Languages className="h-5 w-5" /><span className="sr-only">翻譯完整度</span>
-              </Link>
-              <Link title="市集活動" href={`/merchant/events?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-                <CalendarDays className="h-5 w-5" /><span className="sr-only">市集活動</span>
-              </Link>
-            </>
+            <Link title="共用商品" href={`/merchant/catalog?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <Package className="h-5 w-5" /><span className="sr-only">共用商品</span>
+            </Link>
           ) : null}
-          <Link title="團隊" href={`/merchant/team?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-            <Users className="h-5 w-5" /><span className="sr-only">團隊</span>
-          </Link>
           {workspace && (
             workspace.roles.some((role) => hasPermission(role, "VIEW_AUDIT_LOGS"))
             || workspace.stalls.some((stall) => stall.roles.some((role) => hasPermission(role, "MANAGE_OPERATIONAL_ALERTS")))
@@ -135,11 +124,6 @@ export function MerchantWorkspaceHeader({
           {workspace?.roles.some((role) => hasPermission(role, "VIEW_BILLING")) ? (
             <Link title="訂閱與帳務" href={`/merchant/billing?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
               <CreditCard className="h-5 w-5" /><span className="sr-only">訂閱與帳務</span>
-            </Link>
-          ) : null}
-          {workspace?.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES")) ? (
-            <Link title="報表排程" href={`/merchant/report-schedules?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-              <CalendarClock className="h-5 w-5" /><span className="sr-only">報表排程</span>
             </Link>
           ) : null}
         </nav>

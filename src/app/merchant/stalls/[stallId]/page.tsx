@@ -1,68 +1,117 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarRange, Gauge, MapPinned, MessageCircle, MonitorUp, WalletCards } from "lucide-react";
-import { StallEditor } from "@/components/stall-editor";
-import { StallModulesManager } from "@/components/stall-modules-manager";
-import { StallTeamManager } from "@/components/stall-team-manager";
-import { StallSettingsShell } from "@/components/stall-settings-shell";
-import { StallBusinessHoursManager } from "@/components/stall-business-hours-manager";
-import { StallTemplateCopyManager } from "@/components/stall-template-copy-manager";
-import { prisma } from "@/lib/prisma";
+import {
+  Activity,
+  ArrowLeft,
+  CalendarClock,
+  CalendarDays,
+  CalendarRange,
+  Clock3,
+  Copy,
+  Gauge,
+  Languages,
+  MapPinned,
+  MessageCircle,
+  MonitorUp,
+  SlidersHorizontal,
+  Store,
+  UserRoundCog,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { hasPermission } from "@/lib/rbac";
-import { getStallModuleState } from "@/lib/stall-modules";
 import { requireWorkspacePage } from "@/lib/workspace";
 
 type PageProps = { params: Promise<{ stallId: string }> };
+
+function SettingsLink({
+  href,
+  icon: Icon,
+  label,
+}: {
+  href: string;
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex min-h-12 max-w-full items-center gap-2 rounded-md border border-stone-300 bg-white px-3 py-2.5 text-sm font-semibold text-stone-900 transition-colors hover:border-teal-600 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+    >
+      <Icon className="h-4 w-4 shrink-0 text-teal-700" />
+      <span className="min-w-0">{label}</span>
+    </Link>
+  );
+}
 
 export default async function EditStallPage({ params }: PageProps) {
   const { stallId } = await params;
   const { workspaces } = await requireWorkspacePage();
   const workspace = workspaces.find((candidate) => candidate.stalls.some((stall) => stall.id === stallId));
-  const workspaceStall = workspace?.stalls.find((stall) => stall.id === stallId);
-  if (!workspace || !workspaceStall) notFound();
-  const roles = [...new Set([...workspace.roles, ...workspaceStall.roles])];
+  const stall = workspace?.stalls.find((candidate) => candidate.id === stallId);
+  if (!workspace || !stall) notFound();
+
+  const roles = [...new Set([...workspace.roles, ...stall.roles])];
   if (!roles.some((role) => hasPermission(role, "MANAGE_STALL"))) notFound();
 
-  const [stall, moduleState, businessHours] = await Promise.all([
-    prisma.stall.findUnique({
-      where: { id: stallId, organizationId: workspace.id },
-      include: {
-        memberships: {
-          orderBy: { createdAt: "asc" },
-          include: { profile: { select: { id: true, displayName: true, email: true } } },
-        },
-      },
-    }),
-    getStallModuleState(stallId, workspace.id),
-    prisma.stallBusinessHour.findMany({
-      where: { stallId, organizationId: workspace.id },
-      orderBy: { dayOfWeek: "asc" },
-      select: { dayOfWeek: true, opensAt: true, closesAt: true, isClosed: true },
-    }),
-  ]);
-  if (!stall) notFound();
+  const canManageLocalization = workspace.roles.some((role) => hasPermission(role, "MANAGE_SHARED_PRODUCTS"));
+  const canManageEvents = workspace.roles.some((role) => hasPermission(role, "MANAGE_MARKET_EVENTS"));
+  const canManageTeam = roles.some((role) => hasPermission(role, "MANAGE_STAFF"));
+  const canManageReportSchedules = workspace.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES"));
 
   return (
-    <main className="mx-auto min-h-[calc(100vh-76px)] max-w-3xl px-4 py-7 md:px-8">
-      <Link href={`/merchant/stalls?organizationId=${workspace.id}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800"><ArrowLeft className="h-4 w-4" />返回攤位管理</Link>
-      <div className="mt-4 border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 text-3xl font-semibold">{stall.name}</h1><p className="mt-2 text-sm text-stone-500">{stall.slug}</p><div className="mt-4 flex flex-wrap gap-2"><Link href={`/merchant/stalls/${stall.id}/display`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MonitorUp className="h-4 w-4" />CDS 取餐顯示</Link><Link href={`/merchant/stalls/${stall.id}/capacity`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Gauge className="h-4 w-4" />產能與等候時間</Link><Link href={`/merchant/stalls/${stall.id}/cash-shifts`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><WalletCards className="h-4 w-4" />現金交班報表</Link><Link href={`/merchant/stalls/${stall.id}/locations`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MapPinned className="h-4 w-4" />常用地點</Link><Link href={`/merchant/stalls/${stall.id}/schedule`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><CalendarRange className="h-4 w-4" />出攤行程</Link><Link href={`/merchant/stalls/${stall.id}/line`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MessageCircle className="h-4 w-4" />LINE 通知</Link></div></div>
-      <div className="py-7">
-        <StallSettingsShell>
-        <StallEditor organizationId={workspace.id} stallId={stall.id} initial={{ name: stall.name, code: stall.code, description: stall.description, address: stall.address, phone: stall.phone, timezone: stall.timezone, currency: stall.currency, businessStatus: stall.businessStatus, orderingEnabled: stall.orderingEnabled, isActive: stall.isActive }} />
-        <StallBusinessHoursManager stallId={stall.id} initialHours={businessHours} />
-        <StallModulesManager
-          stallId={stall.id}
-          stallSlug={stall.slug}
-          appUrl={process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}
-          initialState={moduleState}
-        />
-        <StallTemplateCopyManager
-          stallId={stall.id}
-          sourceStalls={workspace.stalls.filter((candidate) => candidate.id !== stall.id && [...workspace.roles, ...candidate.roles].some((role) => hasPermission(role, "MANAGE_STALL"))).map((candidate) => ({ id: candidate.id, name: candidate.name }))}
-        />
-        <StallTeamManager stallId={stall.id} initialMemberships={stall.memberships.map((membership) => ({ id: membership.id, role: membership.role as "STALL_MANAGER" | "STAFF" | "KITCHEN", isActive: membership.isActive, profile: membership.profile }))} />
-        </StallSettingsShell>
-      </div>
+    <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
+      <Link href={`/merchant/stalls?organizationId=${workspace.id}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800">
+        <ArrowLeft className="h-4 w-4" />
+        返回攤位管理
+      </Link>
+
+      <header className="mt-4 border-b border-stone-200 pb-5">
+        <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
+        <h1 className="mt-1 text-3xl font-semibold">{stall.name}</h1>
+        <p className="mt-2 text-sm text-stone-500">{stall.slug}</p>
+      </header>
+
+      <section aria-labelledby="stall-settings-title" className="border-b border-stone-200 py-6">
+        <h2 id="stall-settings-title" className="text-lg font-semibold">攤位設定</h2>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <SettingsLink href={`/merchant/stalls/${stall.id}/settings/basic`} icon={Store} label="基本資料" />
+          <SettingsLink href={`/merchant/stalls/${stall.id}/settings/operations`} icon={Activity} label="營運狀態" />
+          <SettingsLink href={`/merchant/stalls/${stall.id}/settings/business-hours`} icon={Clock3} label="營業時間" />
+          <SettingsLink href={`/merchant/stalls/${stall.id}/settings/modules`} icon={SlidersHorizontal} label="營運模組與內用桌位" />
+          <SettingsLink href={`/merchant/stalls/${stall.id}/settings/templates`} icon={Copy} label="多攤位範本" />
+          <SettingsLink href={`/merchant/stalls/${stall.id}/settings/members`} icon={UserRoundCog} label="攤位成員" />
+        </div>
+      </section>
+
+      <section aria-labelledby="operational-tools-title" className="border-b border-stone-200 py-6">
+        <h2 id="operational-tools-title" className="text-lg font-semibold">營運工具</h2>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <SettingsLink href={`/merchant/stalls/${stall.id}/display`} icon={MonitorUp} label="CDS 取餐顯示" />
+          <SettingsLink href={`/merchant/stalls/${stall.id}/capacity`} icon={Gauge} label="產能與等候時間" />
+          <SettingsLink href={`/merchant/stalls/${stall.id}/locations`} icon={MapPinned} label="常用地點" />
+          <SettingsLink href={`/merchant/stalls/${stall.id}/schedule`} icon={CalendarRange} label="出攤行程" />
+          <SettingsLink href={`/merchant/stalls/${stall.id}/line`} icon={MessageCircle} label="LINE 通知" />
+        </div>
+      </section>
+
+      <section aria-labelledby="organization-settings-title" className="py-6">
+        <h2 id="organization-settings-title" className="text-lg font-semibold">組織管理</h2>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {canManageLocalization ? (
+            <SettingsLink href={`/merchant/localization?organizationId=${workspace.id}`} icon={Languages} label="翻譯完整度" />
+          ) : null}
+          {canManageEvents ? (
+            <SettingsLink href={`/merchant/events?organizationId=${workspace.id}`} icon={CalendarDays} label="市集活動" />
+          ) : null}
+          {canManageTeam ? (
+            <SettingsLink href={`/merchant/team?organizationId=${workspace.id}`} icon={Users} label="團隊與權限" />
+          ) : null}
+          {canManageReportSchedules ? (
+            <SettingsLink href={`/merchant/report-schedules?organizationId=${workspace.id}`} icon={CalendarClock} label="排程寄送" />
+          ) : null}
+        </div>
+      </section>
     </main>
   );
 }
