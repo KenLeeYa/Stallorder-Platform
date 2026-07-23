@@ -89,7 +89,7 @@ export async function POST(request: Request, context: RouteContext) {
     };
     const entitlementMessage = entitlementMessages[entitlementCode];
     return NextResponse.json(
-      { error: conflict ? "攤位代碼或網址代稱已被使用。" : entitlementMessage ?? "目前無法建立攤位。" },
+      { error: conflict ? "攤位代碼或公開識別名稱已被使用。" : entitlementMessage ?? "目前無法建立攤位。" },
       { status: conflict || entitlementMessage ? 409 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }

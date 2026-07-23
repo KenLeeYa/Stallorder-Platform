@@ -65,14 +65,35 @@ test.describe("商家申請表單流程", () => {
     await page.getByLabel("第一個攤位名稱").fill(`測試攤位 ${runId}`);
     await page.getByLabel("主要營業地點").fill("測試夜市");
     await page.getByLabel("預估每日訂單").fill("30");
+    const publicIdentifierInput = page.getByLabel("公開識別名稱");
+    const publicIdentifierHint = page.getByRole("tooltip", { name: "公開識別名稱規則" });
+    await expect(publicIdentifierHint).toHaveCSS("opacity", "0");
+    await publicIdentifierInput.hover();
+    await expect(publicIdentifierHint).toHaveCSS("opacity", "1");
+    for (const rule of [
+      "只能使用小寫英文字母 a-z",
+      "可使用數字 0-9",
+      "可使用連字號 -",
+      "長度 3～50 字元",
+      "第一個與最後一個字元必須是英文字母或數字",
+      "不可和其他攤位重複",
+    ]) {
+      await expect(publicIdentifierHint).toContainText(rule);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.mouse.move(0, 0);
+    await publicIdentifierInput.focus();
+    await expect(publicIdentifierHint).toHaveCSS("opacity", "1");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
     const slugResponse = page.waitForResponse((response) => (
       response.url().includes(`/api/onboarding?slug=${requestedSlug}`)
       && response.request().method() === "GET"
     ));
-    await page.getByLabel("公開網址代稱").fill(requestedSlug);
-    await page.getByLabel("公開網址代稱").press("Tab");
+    await publicIdentifierInput.fill(requestedSlug);
+    await publicIdentifierInput.press("Tab");
     expect((await slugResponse).status()).toBe(200);
-    await expect(page.getByText("此網址可使用")).toBeVisible();
+    await expect(page.getByText("此公開識別名稱可使用")).toBeVisible();
     await advanceToNextStep(page);
 
     for (const consent of [
