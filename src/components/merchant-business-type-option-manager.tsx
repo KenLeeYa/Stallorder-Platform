@@ -129,7 +129,7 @@ export function MerchantBusinessTypeOptionManager({ initialOptions }: { initialO
         </div>
         <div className="mt-4 grid gap-4">
           <Field label="代碼">
-            <input required value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))} maxLength={40} pattern="[A-Z][A-Z0-9_]{1,39}" className={inputClass} />
+            <input type="text" required value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))} maxLength={40} pattern="[A-Z][A-Z0-9_]{1,39}" className={inputClass} />
           </Field>
           <Field label="對應申請欄位">
             <select value={form.legacyType} onChange={(event) => setForm((current) => ({ ...current, legacyType: event.target.value as FormState["legacyType"] }))} className={inputClass}>
@@ -137,7 +137,7 @@ export function MerchantBusinessTypeOptionManager({ initialOptions }: { initialO
             </select>
           </Field>
           <Field label="顯示名稱">
-            <input required value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} maxLength={80} className={inputClass} />
+            <input type="text" required value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} maxLength={80} className={inputClass} />
           </Field>
           <Field label="說明">
             <textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} maxLength={300} rows={3} className={inputClass} />
