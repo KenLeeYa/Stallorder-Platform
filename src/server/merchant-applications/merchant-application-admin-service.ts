@@ -53,7 +53,26 @@ export async function getMerchantApplicationForAdmin(applicationId: string) {
   return prisma.merchantApplication.findUnique({
     where: { id: applicationId },
     include: {
-      applicant: { select: { id: true, displayName: true, email: true, isActive: true, authUserId: true } },
+      applicant: {
+        select: {
+          id: true,
+          displayName: true,
+          email: true,
+          isActive: true,
+          authUserId: true,
+          merchantApplications: {
+            orderBy: { createdAt: "desc" },
+            take: 20,
+            select: {
+              id: true,
+              applicationNumber: true,
+              merchantName: true,
+              status: true,
+              createdAt: true,
+            },
+          },
+        },
+      },
       assignedReviewer: { select: { id: true, displayName: true } },
       reviewedBy: { select: { id: true, displayName: true } },
       approvedOrganization: {

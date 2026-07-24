@@ -30,3 +30,10 @@ export function assertMerchantApplicationTransition(
     throw new Error("MERCHANT_APPLICATION_TRANSITION_INVALID");
   }
 }
+
+export function canStartMerchantReapplication(
+  status: MerchantApplicationStatus,
+  reapplicationAllowed: boolean,
+) {
+  return status === "WITHDRAWN" || (status === "REJECTED" && reapplicationAllowed);
+}
