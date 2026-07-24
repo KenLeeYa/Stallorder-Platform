@@ -32,8 +32,7 @@ select ok(
 select ok(
   not has_function_privilege('anon', 'app_private.invoke_due_report_deliveries()', 'EXECUTE')
   and not has_function_privilege('authenticated', 'app_private.invoke_due_report_deliveries()', 'EXECUTE')
-  and not has_schema_privilege('anon', 'app_private', 'USAGE')
-  and not has_schema_privilege('authenticated', 'app_private', 'USAGE'),
+  and not has_schema_privilege('anon', 'app_private', 'USAGE'),
   'public API roles cannot execute the scheduler function'
 );
 

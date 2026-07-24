@@ -287,12 +287,12 @@ select throws_like(
 
 select set_config('request.jwt.claim.sub', 'c3000000-0000-4000-8000-000000000001', true);
 select ok(
-  not public.can_view_orders('22222222-2222-4222-8222-222222222222'),
+  not app_private.can_view_orders('22222222-2222-4222-8222-222222222222'),
   '財務檢視者不具訂單讀取權限'
 );
 select set_config('request.jwt.claim.sub', 'c4000000-0000-4000-8000-000000000001', true);
 select ok(
-  public.can_view_orders('22222222-2222-4222-8222-222222222222'),
+  app_private.can_view_orders('22222222-2222-4222-8222-222222222222'),
   '已指派店員保留訂單讀取權限'
 );
 

@@ -131,7 +131,7 @@ select is(
   '非全攤位組織管理員只看得到已指派攤位'
 );
 select ok(
-  public.has_stall_role(
+  app_private.has_stall_role(
     '82222222-2222-4222-8222-222222222222',
     array['STALL_MANAGER'::public.user_role]
   ),
@@ -181,7 +181,7 @@ select is(
   '廚房角色不可存取組織財務與管理稽核資料'
 );
 select ok(
-  not public.has_organization_role(
+  not app_private.has_organization_role(
     '11111111-1111-4111-8111-111111111111',
     array['FINANCE_VIEWER'::public.user_role]
   ),
