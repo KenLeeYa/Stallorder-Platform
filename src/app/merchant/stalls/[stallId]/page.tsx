@@ -10,9 +10,11 @@ import {
   Copy,
   Gauge,
   Languages,
+  ListTree,
   MapPinned,
   MessageCircle,
   MonitorUp,
+  Settings2,
   SlidersHorizontal,
   Store,
   UserRoundCog,
@@ -87,6 +89,8 @@ export default async function EditStallPage({ params }: PageProps) {
       <section aria-labelledby="operational-tools-title" className="border-b border-stone-200 py-6">
         <h2 id="operational-tools-title" className="text-lg font-semibold">營運工具</h2>
         <div className="mt-4 flex flex-wrap gap-2">
+          <SettingsLink href={`/merchant/stalls/${stall.id}/kitchen/stations`} icon={ListTree} label="KDS 工作站" />
+          <SettingsLink href={`/merchant/stalls/${stall.id}/kitchen/settings`} icon={Settings2} label="KDS 設定" />
           <SettingsLink href={`/merchant/stalls/${stall.id}/display`} icon={MonitorUp} label="CDS 取餐顯示" />
           <SettingsLink href={`/merchant/stalls/${stall.id}/capacity`} icon={Gauge} label="產能與等候時間" />
           <SettingsLink href={`/merchant/stalls/${stall.id}/locations`} icon={MapPinned} label="常用地點" />
