@@ -56,9 +56,9 @@ export function ManualPaymentForm({ organizationId, invoiceId, amountDue, curren
         <label className="text-sm font-medium">付款方式<select value={method} onChange={(event) => setMethod(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3"><option value="BANK_TRANSFER">銀行轉帳</option><option value="CASH">現金</option><option value="LINE_PAY_MANUAL">LINE Pay 人工紀錄</option><option value="OTHER">其他</option></select></label>
         <label className="text-sm font-medium">付款金額<input name="amount" type="number" min="1" max={amountDue} defaultValue={amountDue} required className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
         <label className="text-sm font-medium">付款時間<input name="receivedAt" type="datetime-local" required defaultValue={localDateTime()} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
-        <label className="text-sm font-medium">付款參考編號<input name="referenceNumber" maxLength={120} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
-        {method === "BANK_TRANSFER" ? <label className="text-sm font-medium">轉出帳號末五碼<input name="bankLastFive" inputMode="numeric" pattern="[0-9]{5}" maxLength={5} required className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3" /></label> : null}
-        <label className="text-sm font-medium">備註<input name="note" maxLength={1000} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
+        <label className="text-sm font-medium">付款參考編號<input type="text" name="referenceNumber" maxLength={120} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
+        {method === "BANK_TRANSFER" ? <label className="text-sm font-medium">轉出帳號末五碼<input type="text" name="bankLastFive" inputMode="numeric" pattern="[0-9]{5}" maxLength={5} required className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3" /></label> : null}
+        <label className="text-sm font-medium">備註<input type="text" name="note" maxLength={1000} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
         <button type="submit" disabled={saving} className="inline-flex min-h-11 items-center justify-center rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50 sm:col-span-2">{saving ? "送出中..." : "送出付款資料"}</button>
       </form>
       {message ? <p role="status" className="mt-4 border-y border-stone-200 py-3 text-sm font-medium">{message}</p> : null}

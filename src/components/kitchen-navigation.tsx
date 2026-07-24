@@ -33,7 +33,7 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage }:
               <select id="kitchen-stall" name="stall" defaultValue={stall.slug} className="h-10 rounded-md border border-stone-300 bg-white px-3 text-sm">
                 {availableStalls.map((candidate) => <option key={candidate.slug} value={candidate.slug}>{candidate.name}</option>)}
               </select>
-              <button className="h-10 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white">切換</button>
+              <button type="submit" className="h-11 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white">切換</button>
             </form>
           ) : null}
         </div>

@@ -146,13 +146,13 @@ export function StallEditor({
         <CollapsibleSectionSummary icon={Store} title="基本資料" description={basicDirty ? "有尚未儲存的變更" : undefined} />
         <form onSubmit={submitBasic} className="pb-7">
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium">攤位名稱<input value={draft.name} onChange={(event) => update("name", event.target.value)} required maxLength={80} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
-            <label className="text-sm font-medium">攤位代碼<input value={draft.code} onChange={(event) => update("code", event.target.value.toUpperCase())} required maxLength={30} pattern="[A-Za-z0-9-]+" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5 uppercase" /></label>
+            <label className="text-sm font-medium">攤位名稱<input type="text" value={draft.name} onChange={(event) => update("name", event.target.value)} required maxLength={80} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
+            <label className="text-sm font-medium">攤位代碼<input type="text" value={draft.code} onChange={(event) => update("code", event.target.value.toUpperCase())} required maxLength={30} pattern="[A-Za-z0-9-]+" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5 uppercase" /></label>
             {!isEditing ? (
               <label className="text-sm font-medium sm:col-span-2">
                 公開識別名稱
                 <PublicIdentifierInputHint hintId="new-stall-public-identifier-rules">
-                  <input
+                  <input type="text"
                     value={draft.slug ?? ""}
                     onChange={(event) => update("slug", event.target.value.toLowerCase())}
                     required
@@ -166,8 +166,8 @@ export function StallEditor({
               </label>
             ) : null}
             <label className="text-sm font-medium sm:col-span-2">說明<textarea value={draft.description} onChange={(event) => update("description", event.target.value)} maxLength={500} rows={3} className="mt-1.5 w-full resize-y rounded-md border border-stone-300 px-3 py-2.5" /></label>
-            <label className="text-sm font-medium sm:col-span-2">地址<input value={draft.address} onChange={(event) => update("address", event.target.value)} required maxLength={200} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
-            <label className="text-sm font-medium">電話<input value={draft.phone} onChange={(event) => update("phone", event.target.value)} maxLength={30} autoComplete="tel" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
+            <label className="text-sm font-medium sm:col-span-2">地址<input type="text" value={draft.address} onChange={(event) => update("address", event.target.value)} required maxLength={200} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
+            <label className="text-sm font-medium">電話<input type="tel" inputMode="tel" value={draft.phone} onChange={(event) => update("phone", event.target.value)} maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" autoComplete="tel" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
             <label className="text-sm font-medium">時區<select value={draft.timezone} onChange={(event) => update("timezone", event.target.value)} className="mt-1.5 h-11 w-full rounded-md border border-stone-300 bg-white px-3"><option value="Asia/Taipei">Asia/Taipei</option><option value="Asia/Tokyo">Asia/Tokyo</option><option value="Asia/Hong_Kong">Asia/Hong_Kong</option></select></label>
             <label className="text-sm font-medium">幣別<select value={draft.currency} onChange={(event) => update("currency", event.target.value)} className="mt-1.5 h-11 w-full rounded-md border border-stone-300 bg-white px-3"><option value="TWD">TWD</option><option value="JPY">JPY</option><option value="HKD">HKD</option></select></label>
           </div>

@@ -55,9 +55,9 @@ export function KitchenStationsManager({ stallSlug, initialData }: { stallSlug: 
       <section className="border-b border-stone-200 py-6">
         <div className="flex items-center justify-between gap-3"><h3 className="text-lg font-semibold">新增工作站</h3><span className="text-sm text-stone-500">{data.stations.length} / {data.maxStations ?? "不限"}</span></div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <Field label="名稱"><input value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className="form-input" placeholder="炸台" /></Field>
-          <Field label="代碼"><input value={draft.code} maxLength={32} onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "") })} className="form-input font-mono" placeholder="FRY" /></Field>
-          <Field label="說明"><input value={draft.description} maxLength={300} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="form-input" placeholder="油炸類餐點" /></Field>
+          <Field label="名稱"><input type="text" value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className="form-input" placeholder="炸台" /></Field>
+          <Field label="代碼"><input type="text" value={draft.code} maxLength={32} onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "") })} className="form-input font-mono" placeholder="FRY" /></Field>
+          <Field label="說明"><input type="text" value={draft.description} maxLength={300} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="form-input" placeholder="油炸類餐點" /></Field>
           <Field label="排序"><input type="number" min={0} max={10000} value={draft.sortOrder} onChange={(event) => setDraft({ ...draft, sortOrder: Number(event.target.value) })} className="form-input" /></Field>
         </div>
         <button type="button" disabled={busy || !draft.name.trim() || !draft.code.trim()} onClick={() => void createStation()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}新增工作站</button>
@@ -82,9 +82,9 @@ function StationEditor({ station, categories, products, busy, mutate }: { statio
     <section className="rounded-md border border-stone-200 bg-white p-4 md:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-semibold">{station.name}</h3><p className="mt-1 font-mono text-xs text-stone-500">{station.code} · {station.taskCount} 筆歷史工作</p></div><span className={`rounded-full px-2 py-1 text-xs font-semibold ${station.isActive ? "bg-emerald-100 text-emerald-800" : "bg-stone-200 text-stone-600"}`}>{station.isActive ? "啟用" : "停用"}</span></div>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <Field label="名稱"><input value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className="form-input" /></Field>
-        <Field label="代碼"><input value={draft.code} disabled={station.code === "DEFAULT"} maxLength={32} onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "") })} className="form-input font-mono disabled:bg-stone-100" /></Field>
-        <Field label="說明"><input value={draft.description} maxLength={300} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="form-input" /></Field>
+        <Field label="名稱"><input type="text" value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className="form-input" /></Field>
+        <Field label="代碼"><input type="text" value={draft.code} disabled={station.code === "DEFAULT"} maxLength={32} onChange={(event) => setDraft({ ...draft, code: event.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "") })} className="form-input font-mono disabled:bg-stone-100" /></Field>
+        <Field label="說明"><input type="text" value={draft.description} maxLength={300} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="form-input" /></Field>
         <Field label="排序"><input type="number" min={0} max={10000} value={draft.sortOrder} onChange={(event) => setDraft({ ...draft, sortOrder: Number(event.target.value) })} className="form-input" /></Field>
       </div>
       <label className="mt-3 flex min-h-11 items-center gap-3 text-sm font-medium"><input type="checkbox" checked={draft.isActive} onChange={(event) => setDraft({ ...draft, isActive: event.target.checked })} />啟用此工作站</label>

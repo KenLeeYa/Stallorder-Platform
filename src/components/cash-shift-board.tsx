@@ -375,15 +375,15 @@ function StatusBadge({ status }: { status: ShiftStatus }) {
 }
 
 function MoneyInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="text-xs font-semibold text-stone-600">{label}<input inputMode="numeric" value={value} onChange={(event) => onChange(event.target.value.replace(/\D/g, "").slice(0, 9))} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>;
+  return <label className="text-xs font-semibold text-stone-600">{label}<input type="text" inputMode="numeric" maxLength={9} pattern="[0-9]{0,9}" value={value} onChange={(event) => onChange(event.target.value.replace(/\D/g, "").slice(0, 9))} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>;
 }
 
 function SignedMoneyInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="text-xs font-semibold text-stone-600">{label}<input inputMode="numeric" value={value} onChange={(event) => { const raw = event.target.value; const sign = raw.startsWith("-") ? "-" : ""; onChange(`${sign}${raw.replace(/\D/g, "").slice(0, 9)}`); }} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>;
+  return <label className="text-xs font-semibold text-stone-600">{label}<input type="text" inputMode="numeric" maxLength={10} pattern="-?[0-9]{0,9}" value={value} onChange={(event) => { const raw = event.target.value; const sign = raw.startsWith("-") ? "-" : ""; onChange(`${sign}${raw.replace(/\D/g, "").slice(0, 9)}`); }} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>;
 }
 
 function TextInput({ label, value, onChange, maxLength }: { label: string; value: string; onChange: (value: string) => void; maxLength: number }) {
-  return <label className="text-xs font-semibold text-stone-600">{label}<input value={value} maxLength={maxLength} onChange={(event) => onChange(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>;
+  return <label className="text-xs font-semibold text-stone-600">{label}<input type="text" value={value} maxLength={maxLength} onChange={(event) => onChange(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>;
 }
 
 function formatSignedMoney(amount: number, currency: string) {

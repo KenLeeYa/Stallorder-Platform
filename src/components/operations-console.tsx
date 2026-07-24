@@ -151,7 +151,7 @@ export function OperationsConsole({
             <FilterSelect label="稽核結果" name="auditOutcome" defaultValue={filters.auditOutcome ?? "ALL"}><option value="ALL">全部</option><option value="SUCCESS">成功</option><option value="DENIED">拒絕</option><option value="FAILURE">失敗</option></FilterSelect>
             <FilterInput label="開始日期" type="date" name="dateFrom" defaultValue={filters.dateFrom} />
             <FilterInput label="結束日期" type="date" name="dateTo" defaultValue={filters.dateTo} />
-            <label className="text-xs font-semibold text-stone-600 md:col-span-2">搜尋稽核<input name="auditQuery" defaultValue={filters.auditQuery} maxLength={80} placeholder="操作、資料類型或 Request ID" className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>
+            <label className="text-xs font-semibold text-stone-600 md:col-span-2">搜尋稽核<input type="text" name="auditQuery" defaultValue={filters.auditQuery} maxLength={80} placeholder="操作、資料類型或 Request ID" className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>
           </>
         ) : null}
         <div className="flex items-end gap-2"><button type="submit" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white">套用篩選</button><button type="button" title="重新整理" onClick={() => router.refresh()} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300"><RefreshCw className="h-4 w-4" /></button></div>
@@ -234,7 +234,7 @@ function FilterSelect({ label, children, ...props }: React.SelectHTMLAttributes<
 }
 
 function FilterInput({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
-  return <label className="text-xs font-semibold text-stone-600">{label}<input {...props} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-2 text-sm" /></label>;
+  return <label className="text-xs font-semibold text-stone-600">{label}<input type="text" maxLength={80} {...props} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-2 text-sm" /></label>;
 }
 
 function formatAuditPayload(log: AuditLog) {

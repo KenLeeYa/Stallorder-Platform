@@ -94,20 +94,20 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
 
         <div className="mt-5 grid grid-cols-2 gap-2">
           {ordering.orderingState === "PAUSED" ? (
-            <button disabled={isSaving} onClick={() => void runControl("RESUME")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold"><Play className="h-4 w-4" />恢復</button>
+            <button type="button" disabled={isSaving} onClick={() => void runControl("RESUME")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold"><Play className="h-4 w-4" />恢復</button>
           ) : (
-            <button disabled={isSaving} onClick={() => void runControl("PAUSE")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold"><Pause className="h-4 w-4" />暫停</button>
+            <button type="button" disabled={isSaving} onClick={() => void runControl("PAUSE")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold"><Pause className="h-4 w-4" />暫停</button>
           )}
           {ordering.orderingState === "CLOSED" ? (
-            <button disabled={isSaving} onClick={() => void runControl("OPEN")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold"><Play className="h-4 w-4" />開放</button>
+            <button type="button" disabled={isSaving} onClick={() => void runControl("OPEN")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold"><Play className="h-4 w-4" />開放</button>
           ) : (
-            <button disabled={isSaving} onClick={() => void runControl("CLOSE")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold"><CircleStop className="h-4 w-4" />關閉</button>
+            <button type="button" disabled={isSaving} onClick={() => void runControl("CLOSE")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold"><CircleStop className="h-4 w-4" />關閉</button>
           )}
-          <button disabled={isSaving} onClick={() => void runControl(ordering.isSoldOut ? "MARK_AVAILABLE" : "MARK_SOLD_OUT")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold">
+          <button type="button" disabled={isSaving} onClick={() => void runControl(ordering.isSoldOut ? "MARK_AVAILABLE" : "MARK_SOLD_OUT")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold">
             {ordering.isSoldOut ? <PackageCheck className="h-4 w-4" /> : <PackageX className="h-4 w-4" />}{ordering.isSoldOut ? "恢復供應" : "全攤售完"}
           </button>
-          <button disabled={isSaving} onClick={() => void runControl("ROTATE_QR")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold"><RotateCw className="h-4 w-4" />輪替 QR</button>
-          <button disabled={isSaving || !ordering.qrCode || ordering.qrCode.state === "REVOKED"} onClick={() => void runControl("REVOKE_QR")} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-800 disabled:opacity-40"><Ban className="h-4 w-4" />撤銷目前 QR</button>
+          <button type="button" disabled={isSaving} onClick={() => void runControl("ROTATE_QR")} className="inline-flex items-center justify-center gap-2 rounded-md border border-stone-300 px-3 py-2 text-sm font-semibold"><RotateCw className="h-4 w-4" />輪替 QR</button>
+          <button type="button" disabled={isSaving || !ordering.qrCode || ordering.qrCode.state === "REVOKED"} onClick={() => void runControl("REVOKE_QR")} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-800 disabled:opacity-40"><Ban className="h-4 w-4" />撤銷目前 QR</button>
         </div>
         <Link href={`/merchant/${stall.slug}/reports`} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-teal-800"><BarChart3 className="h-4 w-4" />查看每日報表</Link>
         {sharedCatalogUrl ? <Link href={sharedCatalogUrl} className="mt-3 flex items-center gap-2 text-sm font-semibold text-teal-800"><Package className="h-4 w-4" />管理共用商品主檔</Link> : null}
@@ -142,7 +142,7 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
               <label key={key} className="text-sm font-medium text-stone-700">{label}<input type="number" min={min} max={max} value={limits[key]} onChange={(event) => updateLimit(key, event.target.value)} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm" /></label>
             ))}
             </div>
-            <button disabled={isSaving} onClick={() => void requestOrderingUpdate({ action: "UPDATE_LIMITS", settings: limits })} className="mt-4 inline-flex items-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存限制</button>
+            <button type="button" disabled={isSaving} onClick={() => void requestOrderingUpdate({ action: "UPDATE_LIMITS", settings: limits })} className="mt-4 inline-flex items-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存限制</button>
           </div>
         </details>
       </div>

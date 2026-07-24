@@ -43,21 +43,48 @@ export default async function MerchantApplicationsAdminPage({
         <FilterSelect name="submitted" label="送出時間" value={value(query.submitted)}>
           <option value="TODAY">今天</option><option value="OLDER_THAN_2_DAYS">超過 2 天</option>
         </FilterSelect>
-        <div className="flex items-end gap-2"><button className="min-h-11 bg-teal-700 px-4 text-sm font-semibold text-white">套用</button><Link href="/admin/merchant-applications" className="inline-flex min-h-11 items-center px-3 text-sm font-semibold text-stone-700">清除</Link></div>
+        <div className="flex items-end gap-2"><button type="submit" className="min-h-11 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white">套用</button><Link href="/admin/merchant-applications" className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-stone-700">清除</Link></div>
       </form>
-      <div className="mt-5 overflow-x-auto border-y border-stone-200">
+      <div data-testid="merchant-applications-mobile-list" className="mt-5 grid gap-3 md:hidden">
+        {applications.map((application) => (
+          <article key={application.id} className="rounded-md border border-stone-200 bg-white p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-teal-800">{application.applicationNumber}</p>
+                <h2 className="mt-1 break-words text-lg font-semibold">{application.merchantName ?? "未填寫"}</h2>
+                <p className="mt-1 break-all text-sm text-stone-500">{application.applicantDisplayName} · {application.applicantEmail}</p>
+              </div>
+              <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${application.riskLevel === "HIGH" || application.riskLevel === "BLOCKED" ? "bg-red-50 text-red-800" : application.riskLevel === "MEDIUM" ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}>風險 {riskLabel(application.riskLevel)}</span>
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              <MobileDetail label="狀態" value={merchantApplicationStatusLabels[application.status]} />
+              <MobileDetail label="送出日期" value={formatDate(application.submittedAt)} />
+              <MobileDetail label="營業類型" value={application.businessType ? merchantBusinessTypeLabels[application.businessType] : "-"} />
+              <MobileDetail label="預估日訂單" value={String(application.estimatedDailyOrders ?? "-")} />
+              <MobileDetail label="方案" value={application.requestedPlanCode} />
+              <MobileDetail label="審核人" value={application.assignedReviewer?.displayName ?? "未指派"} />
+            </dl>
+            <Link href={`/admin/merchant-applications/${application.id}`} className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md border border-teal-700 px-4 text-sm font-semibold text-teal-800">{applicationActionLabel(application.status)}</Link>
+          </article>
+        ))}
+      </div>
+      <div data-testid="merchant-applications-desktop-table" className="mt-5 hidden overflow-x-auto border-y border-stone-200 md:block">
         <table className="w-full min-w-[1320px] text-left text-sm">
           <thead className="bg-stone-50 text-stone-600"><tr><th className="px-3 py-3">申請編號</th><th className="px-3 py-3">商家</th><th className="px-3 py-3">申請者</th><th className="px-3 py-3">電話</th><th className="px-3 py-3">類型</th><th className="px-3 py-3">方案</th><th className="px-3 py-3 text-right">日訂單</th><th className="px-3 py-3">狀態</th><th className="px-3 py-3">風險</th><th className="px-3 py-3">送出日期</th><th className="px-3 py-3">審核人</th><th className="px-3 py-3 text-right">操作</th></tr></thead>
           <tbody className="divide-y divide-stone-200">{applications.map((application) => <tr key={application.id}><td className="px-3 py-4 font-semibold">{application.applicationNumber}</td><td className="px-3 py-4">{application.merchantName ?? "未填寫"}</td><td className="px-3 py-4"><span className="block">{application.applicantDisplayName}</span><span className="text-xs text-stone-500">{application.applicantEmail}</span></td><td className="px-3 py-4">{application.phone ?? "-"}</td><td className="px-3 py-4">{application.businessType ? merchantBusinessTypeLabels[application.businessType] : "-"}</td><td className="px-3 py-4">{application.requestedPlanCode}</td><td className="px-3 py-4 text-right">{application.estimatedDailyOrders ?? "-"}</td><td className="px-3 py-4">{merchantApplicationStatusLabels[application.status]}</td><td className="px-3 py-4 font-semibold">{riskLabel(application.riskLevel)}</td><td className="px-3 py-4">{formatDate(application.submittedAt)}</td><td className="px-3 py-4">{application.assignedReviewer?.displayName ?? "未指派"}</td><td className="px-3 py-4 text-right"><Link href={`/admin/merchant-applications/${application.id}`} className="font-semibold text-teal-800">{applicationActionLabel(application.status)}</Link></td></tr>)}</tbody>
         </table>
-        {applications.length === 0 ? <p className="px-3 py-8 text-sm text-stone-500">目前沒有符合條件的申請。</p> : null}
       </div>
+      {applications.length === 0 ? <p className="mt-5 border-y border-stone-200 px-3 py-8 text-sm text-stone-500">目前沒有符合條件的申請。</p> : null}
     </main>
   );
 }
 
 function FilterSelect({ name, label, value: selected, children }: { name: string; label: string; value: string; children: React.ReactNode }) {
   return <label className="text-sm font-medium"><span className="mb-1 block">{label}</span><select name={name} defaultValue={selected} className="min-h-11 w-full border border-stone-300 bg-white px-3"><option value="">全部</option>{children}</select></label>;
+}
+
+function MobileDetail({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0"><dt className="text-xs font-semibold text-stone-500">{label}</dt><dd className="mt-1 break-words">{value}</dd></div>;
 }
 
 function parseFilters(query: Record<string, string | string[] | undefined>): MerchantApplicationListFilter {

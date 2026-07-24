@@ -3,6 +3,25 @@ import { expect, test } from "@playwright/test";
 const ownerEmail = "owner@stallorder.test";
 const password = "StallOrderDemo!2026";
 
+test("手機登入欄位具備正確語意、焦點與無水平溢位", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  await page.goto("/login");
+
+  const email = page.locator('input[name="email"]');
+  const passwordInput = page.locator('input[name="password"]');
+  const submit = page.locator('button[type="submit"]');
+
+  await expect(email).toHaveAttribute("type", "email");
+  await expect(email).toHaveAttribute("maxlength", "120");
+  await expect(passwordInput).toHaveAttribute("type", "password");
+  await expect(passwordInput).toHaveAttribute("maxlength", "128");
+  expect((await submit.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".skip-link")).toBeFocused();
+});
+
 test("示範 Owner 可登入並建立有效 session", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("電子郵件").fill(ownerEmail);

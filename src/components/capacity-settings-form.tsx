@@ -186,7 +186,7 @@ export function CapacitySettingsForm({
 
       <details className="border-b border-stone-200 pb-6" open>
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-xl font-semibold"><AlertTriangle className="h-5 w-5 text-teal-700" />現場覆寫</summary>
-        <label className="mt-4 block text-sm font-medium">操作原因<input value={reason} maxLength={200} onChange={(event) => setReason(event.target.value)} placeholder="例如：人力不足、恢復正常" className="form-input mt-1" /></label>
+        <label className="mt-4 block text-sm font-medium">操作原因<input type="text" value={reason} maxLength={200} onChange={(event) => setReason(event.target.value)} placeholder="例如：人力不足、恢復正常" className="form-input mt-1" /></label>
         <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,240px)_1fr] sm:items-end">
           <label className="text-sm font-medium">手動等候時間（分鐘）<input type="number" min={0} max={480} value={manualWait} onChange={(event) => setManualWait(event.target.value)} placeholder="留空使用自動計算" className="form-input mt-1" /></label>
           <div className="flex flex-wrap gap-2">

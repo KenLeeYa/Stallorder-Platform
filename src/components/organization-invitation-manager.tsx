@@ -183,7 +183,7 @@ export function OrganizationInvitationManager({
         <div className="mt-5 border-y border-emerald-200 bg-emerald-50 py-4">
           <p className="text-sm font-semibold text-emerald-900">一次性邀請連結</p>
           <div className="mt-2 flex gap-2">
-            <input
+            <input type="text"
               aria-label="一次性邀請連結"
               readOnly
               value={acceptanceUrl}

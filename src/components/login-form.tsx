@@ -71,6 +71,7 @@ export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: 
             name="email"
             type="email"
             autoComplete="username"
+            maxLength={120}
             required
             className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5"
           />
@@ -81,6 +82,7 @@ export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: 
             name="password"
             type="password"
             autoComplete="current-password"
+            maxLength={128}
             required
             className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5"
           />

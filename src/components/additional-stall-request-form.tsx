@@ -35,7 +35,7 @@ export function AdditionalStallRequestForm({ organizationId }: { organizationId:
       <h2 className="text-xl font-semibold">申請額外攤位</h2>
       <form action={submit} className="mt-4 grid gap-3 sm:grid-cols-[120px_minmax(220px,1fr)_auto] sm:items-end">
         <label className="text-sm font-medium">數量<input name="quantity" type="number" min="1" max="100" defaultValue="1" required className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
-        <label className="text-sm font-medium">原因<input name="reason" minLength={2} maxLength={500} defaultValue="營運擴充申請" required className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
+        <label className="text-sm font-medium">原因<input type="text" name="reason" minLength={2} maxLength={500} defaultValue="營運擴充申請" required className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
         <button type="submit" disabled={saving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Plus className="h-4 w-4" />{saving ? "送出中..." : "送出申請"}</button>
       </form>
       {message ? <p role="status" className="mt-4 text-sm font-medium">{message}</p> : null}

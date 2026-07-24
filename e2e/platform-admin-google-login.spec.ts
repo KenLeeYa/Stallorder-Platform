@@ -107,6 +107,12 @@ test.describe("Staging 平台管理員 Google 登入", () => {
     })).toBe(1);
     expect(await prisma.authSession.count({ where: { profileId } })).toBeGreaterThan(0);
 
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/admin/merchant-applications");
+    await expect(page.getByTestId("merchant-applications-mobile-list")).toHaveCSS("display", "grid");
+    await expect(page.getByTestId("merchant-applications-desktop-table")).toBeHidden();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+
     const logoutResponse = page.waitForResponse((response) => (
       response.url().endsWith("/api/auth/logout")
       && response.request().method() === "POST"
