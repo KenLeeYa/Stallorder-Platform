@@ -3,7 +3,17 @@ import { NextResponse } from "next/server";
 export async function readJson(request: Request, requestId?: string) {
   const headers = requestId ? { "x-request-id": requestId } : undefined;
   const maxBytes = 32_000;
+  const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
   const contentLength = Number(request.headers.get("content-length") ?? 0);
+
+  if (contentType !== "application/json") {
+    return {
+      error: NextResponse.json(
+        { error: "Content-Type 必須為 application/json。" },
+        { status: 415, headers },
+      ),
+    };
+  }
 
   if (contentLength > maxBytes) {
     return { error: NextResponse.json({ error: "請求內容過大。" }, { status: 413, headers }) };

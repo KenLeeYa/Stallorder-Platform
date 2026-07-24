@@ -5,10 +5,11 @@ import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { recordAuditEvent } from "@/lib/audit";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
-import { evaluateStallCreation } from "@/lib/billing";
 import { defaultBusinessHours } from "@/lib/business-hours";
 import { prisma } from "@/lib/prisma";
 import { createStallSchema } from "@/lib/stall-validation";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ organizationId: string }> };
 
@@ -38,34 +39,8 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   try {
+    await entitlementService.assertLimitAvailable(organizationId, "STALLS", 1);
     const stall = await prisma.$transaction(async (transaction) => {
-      await transaction.$queryRaw`select id from public.subscriptions where organization_id = ${organizationId}::uuid for update`;
-      const subscription = await transaction.subscription.findUnique({
-        where: { organizationId },
-        include: { plan: true },
-      });
-      if (!subscription) throw new Error("SUBSCRIPTION_REQUIRED");
-      const [currentActiveStalls, approvalTotal] = await Promise.all([
-        transaction.stall.count({ where: { organizationId, isActive: true } }),
-        transaction.additionalStallApproval.aggregate({
-          where: {
-            organizationId,
-            status: "APPROVED",
-            effectiveAt: { lte: new Date() },
-            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-          },
-          _sum: { quantity: true },
-        }),
-      ]);
-      const entitlement = evaluateStallCreation({
-        subscriptionStatus: subscription.status,
-        currentActiveStalls,
-        includedStalls: subscription.plan.includedStalls,
-        maxStalls: subscription.plan.maxStalls,
-        approvedAdditionalStalls: approvalTotal._sum.quantity ?? 0,
-      });
-      if (!entitlement.allowed) throw new Error(entitlement.code);
-
       return transaction.stall.create({
         data: {
           organizationId,
@@ -102,6 +77,8 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 201, headers: { "x-request-id": authorization.requestId } },
     );
   } catch (error) {
+    const entitlementResponse = entitlementErrorResponse(error, authorization.requestId);
+    if (entitlementResponse) return entitlementResponse;
     const conflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
     const entitlementCode = error instanceof Error ? error.message : "";
     const entitlementMessages: Record<string, string> = {
@@ -112,7 +89,7 @@ export async function POST(request: Request, context: RouteContext) {
     };
     const entitlementMessage = entitlementMessages[entitlementCode];
     return NextResponse.json(
-      { error: conflict ? "攤位代碼或網址代稱已被使用。" : entitlementMessage ?? "目前無法建立攤位。" },
+      { error: conflict ? "攤位代碼或公開識別名稱已被使用。" : entitlementMessage ?? "目前無法建立攤位。" },
       { status: conflict || entitlementMessage ? 409 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }

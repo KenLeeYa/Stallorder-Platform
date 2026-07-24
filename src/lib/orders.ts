@@ -1,11 +1,12 @@
 import type { FulfillmentType, OrderItemStatus, OrderStatus, Prisma } from "@prisma/client";
 
-export const activeOrderStatuses = ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "READY"] as const;
+export const activeOrderStatuses = ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "PACKING", "READY"] as const;
 
 export const staffOrderSelect = {
   id: true,
   orderNo: true,
   source: true,
+  isTest: true,
   customerName: true,
   customerPhone: true,
   deliveryAddress: true,
@@ -23,6 +24,8 @@ export const staffOrderSelect = {
   pickupVerifiedAt: true,
   pickupVerificationMethod: true,
   confirmationExpiresAt: true,
+  quotedWaitMinutes: true,
+  quotedReadyAt: true,
   createdAt: true,
   items: {
     select: {
@@ -47,6 +50,7 @@ export type StaffOrderDto = {
   id: string;
   orderNo: string;
   source: string;
+  isTest: boolean;
   customerName: string;
   customerPhone: string | null;
   deliveryAddress: string | null;
@@ -64,6 +68,8 @@ export type StaffOrderDto = {
   pickupVerifiedAt: string | null;
   pickupVerificationMethod: "CODE" | "MANUAL" | null;
   confirmationExpiresAt: string;
+  quotedWaitMinutes: number | null;
+  quotedReadyAt: string | null;
   createdAt: string;
   items: Array<{
     id: string;
@@ -87,6 +93,7 @@ export function serializeStaffOrder(order: Prisma.OrderGetPayload<{ select: type
       ? "CODE"
       : order.pickupVerificationMethod === "MANUAL" ? "MANUAL" : null,
     confirmationExpiresAt: order.confirmationExpiresAt.toISOString(),
+    quotedReadyAt: order.quotedReadyAt?.toISOString() ?? null,
     createdAt: order.createdAt.toISOString(),
     items: order.items.map((item) => ({
       ...item,
@@ -100,6 +107,7 @@ export function serializeStaffOrder(order: Prisma.OrderGetPayload<{ select: type
 export const staffStatusOptions = [
   { value: "CONFIRMED", label: "確認接單" },
   { value: "PREPARING", label: "開始製作" },
+  { value: "PACKING", label: "包裝中" },
   { value: "READY", label: "可取餐" },
   { value: "COMPLETED", label: "完成訂單" },
   { value: "CANCELLED", label: "取消訂單" },
@@ -109,6 +117,7 @@ export const orderStatusLabels = {
   WAITING_CONFIRMATION: "待確認",
   CONFIRMED: "已確認",
   PREPARING: "製作中",
+  PACKING: "包裝中",
   READY: "可取餐",
   COMPLETED: "已完成",
   CANCELLED: "已取消",

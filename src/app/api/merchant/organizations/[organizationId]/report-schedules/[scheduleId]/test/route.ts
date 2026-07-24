@@ -4,6 +4,8 @@ import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { createTestReportDelivery } from "@/lib/report-delivery";
 import { hashClientIp } from "@/lib/security";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ organizationId: string; scheduleId: string }> };
 
@@ -13,6 +15,13 @@ export async function POST(request: Request, context: RouteContext) {
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json({ error: "安全驗證已失效，請重新整理後再試。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
+  }
+  try {
+    await entitlementService.assertFeatureEnabled(organizationId, "SCHEDULED_REPORTS");
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
   }
   try {
     const result = await createTestReportDelivery(scheduleId, organizationId);

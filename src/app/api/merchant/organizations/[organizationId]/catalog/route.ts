@@ -8,6 +8,8 @@ import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 import { invalidatePublicMenus } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ organizationId: string }> };
@@ -103,6 +105,11 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   try {
+    if (command.operation === "CREATE_PRODUCT" || command.operation === "CLONE_PRODUCT") {
+      await entitlementService.assertLimitAvailable(organizationId, "PRODUCTS", 1);
+    } else {
+      await entitlementService.assertSubscriptionUsable(organizationId);
+    }
     const result = await prisma.$transaction(async (transaction) => {
       if (command.operation === "CREATE_CATEGORY") {
         return transaction.productCategory.create({
@@ -368,6 +375,8 @@ export async function POST(request: Request, context: RouteContext) {
       { headers: { "x-request-id": authorization.requestId } },
     );
   } catch (error) {
+    const entitlementResponse = entitlementErrorResponse(error, authorization.requestId);
+    if (entitlementResponse) return entitlementResponse;
     const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
     const notFound = error instanceof CatalogNotFoundError;
     return NextResponse.json(

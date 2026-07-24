@@ -15,13 +15,35 @@ import {
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp } from "@/lib/security";
 import { getWorkspaceAccess } from "@/lib/workspace";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
+
+const permissionFeatureCodes = new Map<Permission, string>([
+  ["VIEW_KDS", "KDS"],
+  ["UPDATE_PRODUCTION_TASKS", "KDS"],
+  ["MANAGE_KDS", "KDS"],
+  ["MANAGE_CDS", "CDS"],
+  ["MANAGE_CAPACITY", "WAIT_TIME_QUOTE"],
+  ["OPERATE_CAPACITY", "WAIT_TIME_QUOTE"],
+  ["VIEW_CASH_SHIFT", "CASH_SHIFT"],
+  ["MANAGE_CASH_SHIFT", "CASH_SHIFT"],
+  ["REVIEW_CASH_SHIFT", "CASH_RECONCILIATION"],
+  ["MANAGE_STALL_LOCATIONS", "STALL_LOCATION"],
+  ["MANAGE_STALL_SCHEDULES", "STALL_SCHEDULE"],
+  ["MANAGE_MARKET_EVENTS", "STALL_SCHEDULE"],
+  ["MANAGE_LINE_INTEGRATION", "LINE_NOTIFICATIONS"],
+]);
 
 export async function findStallAccess(principal: SessionPrincipal, stallSlug: string) {
   const stall = await prisma.stall.findFirst({
     where: {
       slug: stallSlug,
       isActive: true,
-      organization: { status: { in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] } },
+      organization: {
+        status: {
+          in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD", "SUSPENDED", "CANCELLED"],
+        },
+      },
     },
     include: { organization: true },
   });
@@ -158,7 +180,72 @@ export async function authorizeApiRequest(
     };
   }
 
+  const featureCode = permissionFeatureCodes.get(permission);
+  if (featureCode) {
+    try {
+      await entitlementService.assertFeatureIncluded(access.stall.organizationId, featureCode);
+    } catch (error) {
+      const response = entitlementErrorResponse(error, requestId);
+      if (response) return { ok: false as const, response };
+      throw error;
+    }
+  }
+
   return { ok: true as const, requestId, principal, ...access };
+}
+
+export async function requirePlatformAdminPage(returnPath = "/admin/billing") {
+  const principal = await getPagePrincipal();
+  if (!principal) redirect(`/login?next=${encodeURIComponent(returnPath)}`);
+  if (principal.user.platformRole !== "PLATFORM_ADMIN") notFound();
+  return principal;
+}
+
+export async function authorizePlatformAdminApiRequest(request: Request) {
+  const requestId = createRequestId();
+  const principal = await getRequestPrincipal(request);
+  if (!principal) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "請先登入。" },
+        { status: 401, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+  const apiLimit = await checkRateLimit({
+    scope: "platform-billing-api",
+    identifier: principal.user.id,
+    limit: 180,
+    windowMs: 5 * 60_000,
+  });
+  if (!apiLimit.allowed) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "操作過於頻繁，請稍後再試。" },
+        { status: 429, headers: { "retry-after": String(apiLimit.retryAfterSeconds), "x-request-id": requestId } },
+      ),
+    };
+  }
+  if (principal.user.platformRole !== "PLATFORM_ADMIN") {
+    await recordAuditEvent({
+      action: "AUTHORIZATION_DENIED",
+      entityType: "PLATFORM_BILLING",
+      outcome: "DENIED",
+      requestId,
+      actorProfileId: principal.user.id,
+      ipHash: hashClientIp(request),
+    });
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "找不到指定資源。" },
+        { status: 404, headers: { "x-request-id": requestId } },
+      ),
+    };
+  }
+  return { ok: true as const, principal, requestId };
 }
 
 export async function authorizeOrganizationApiRequest(

@@ -3,6 +3,8 @@ import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { catalogCsvHeaders, catalogCsvTranslationColumns } from "@/lib/catalog-csv";
 import { createCsv } from "@/lib/csv";
 import { prisma } from "@/lib/prisma";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ organizationId: string }> };
 
@@ -10,6 +12,13 @@ export async function GET(request: Request, context: RouteContext) {
   const { organizationId } = await context.params;
   const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_SHARED_PRODUCTS");
   if (!authorization.ok) return authorization.response;
+  try {
+    await entitlementService.assertFeatureEnabled(organizationId, "CSV_EXPORT");
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
+  }
 
   const products = await prisma.product.findMany({
     where: { organizationId },

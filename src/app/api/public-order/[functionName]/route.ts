@@ -10,6 +10,8 @@ const ALLOWED_FUNCTIONS = new Set([
   "create-order-session",
   "create-public-order",
   "get-public-order",
+  "manage-line-link",
+  "prepare-reorder",
 ]);
 
 export const dynamic = "force-dynamic";

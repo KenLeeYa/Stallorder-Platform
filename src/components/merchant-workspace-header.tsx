@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, Building2, CalendarClock, CreditCard, FileChartColumn, Languages, Package, ScrollText, Store, Users } from "lucide-react";
+import { BarChart3, Building2, CreditCard, FileChartColumn, Package, Rocket, ScrollText, Store } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
 import { hasPermission } from "@/lib/rbac";
@@ -59,39 +59,50 @@ export function MerchantWorkspaceHeader({
   return (
     <header className="sticky top-0 z-30 border-b border-stone-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 md:px-8">
-        <Link href="/merchant/dashboard" className="mr-auto inline-flex min-h-11 items-center gap-2 font-semibold text-stone-950">
+        <Link href="/merchant/dashboard" className="inline-flex min-h-11 w-full items-center gap-2 font-semibold text-stone-950 md:mr-auto md:w-auto">
           <Store className="h-5 w-5 text-teal-700" />
           攤點通
         </Link>
 
-        <label className="min-w-0 text-xs font-medium text-stone-500">
-          組織
-          <select
-            aria-label="選擇組織"
-            value={workspace?.id ?? ""}
-            onChange={(event) => selectOrganization(event.target.value)}
-            className="mt-1 block h-10 max-w-[190px] rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900"
-          >
-            {workspaces.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>{candidate.businessName}</option>
-            ))}
-          </select>
-        </label>
+        <div className="grid w-full min-w-0 grid-cols-2 gap-3 md:contents">
+          <label className="block min-w-0 text-xs font-medium text-stone-500">
+            組織
+            <select
+              aria-label="選擇組織"
+              value={workspace?.id ?? ""}
+              onChange={(event) => selectOrganization(event.target.value)}
+              className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[190px]"
+            >
+              {workspaces.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>{candidate.businessName}</option>
+              ))}
+            </select>
+          </label>
 
-        <label className="min-w-0 text-xs font-medium text-stone-500">
-          檢視範圍
-          <select
-            aria-label="選擇攤位範圍"
-            value={selectedScope}
-            onChange={(event) => selectScope(event.target.value)}
-            className="mt-1 block h-10 max-w-[190px] rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900"
-          >
-            {workspace?.canUseAllStalls ? <option value="ALL_STALLS">全部攤位</option> : null}
-            {activeStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}
-          </select>
-        </label>
+          <label className="block min-w-0 text-xs font-medium text-stone-500">
+            檢視範圍
+            <select
+              aria-label="選擇攤位範圍"
+              value={selectedScope}
+              onChange={(event) => selectScope(event.target.value)}
+              className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[190px]"
+            >
+              {workspace?.canUseAllStalls ? <option value="ALL_STALLS">全部攤位</option> : null}
+              {activeStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}
+            </select>
+          </label>
+        </div>
 
         <nav className="flex w-full min-w-0 items-center gap-1 overflow-x-auto md:w-auto" aria-label="商戶功能">
+          {workspace?.roles.includes("ORGANIZATION_OWNER") && workspace.merchantSetupState ? (
+            <Link
+              title={`開店設定（${workspace.merchantSetupState === "COMPLETED" ? "已完成" : "進行中"}）`}
+              href={`/merchant/setup?organizationId=${workspace.id}`}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100"
+            >
+              <Rocket className="h-5 w-5" /><span className="sr-only">開店設定</span>
+            </Link>
+          ) : null}
           <Link title="儀表板" href={`/merchant/dashboard?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
             <BarChart3 className="h-5 w-5" /><span className="sr-only">儀表板</span>
           </Link>
@@ -104,18 +115,10 @@ export function MerchantWorkspaceHeader({
             <Building2 className="h-5 w-5" /><span className="sr-only">管理攤位</span>
           </Link>
           {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN") ? (
-            <>
-              <Link title="共用商品" href={`/merchant/catalog?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-                <Package className="h-5 w-5" /><span className="sr-only">共用商品</span>
-              </Link>
-              <Link title="翻譯完整度" href={`/merchant/localization?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-                <Languages className="h-5 w-5" /><span className="sr-only">翻譯完整度</span>
-              </Link>
-            </>
+            <Link title="共用商品" href={`/merchant/catalog?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <Package className="h-5 w-5" /><span className="sr-only">共用商品</span>
+            </Link>
           ) : null}
-          <Link title="團隊" href={`/merchant/team?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-            <Users className="h-5 w-5" /><span className="sr-only">團隊</span>
-          </Link>
           {workspace && (
             workspace.roles.some((role) => hasPermission(role, "VIEW_AUDIT_LOGS"))
             || workspace.stalls.some((stall) => stall.roles.some((role) => hasPermission(role, "MANAGE_OPERATIONAL_ALERTS")))
@@ -124,14 +127,9 @@ export function MerchantWorkspaceHeader({
               <ScrollText className="h-5 w-5" /><span className="sr-only">稽核與營運警示</span>
             </Link>
           ) : null}
-          {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER") ? (
-            <Link title="訂閱與用量" href={`/merchant/subscription?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-              <CreditCard className="h-5 w-5" /><span className="sr-only">訂閱與用量</span>
-            </Link>
-          ) : null}
-          {workspace?.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES")) ? (
-            <Link title="報表排程" href={`/merchant/report-schedules?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-              <CalendarClock className="h-5 w-5" /><span className="sr-only">報表排程</span>
+          {workspace?.roles.some((role) => hasPermission(role, "VIEW_BILLING")) ? (
+            <Link title="訂閱與帳務" href={`/merchant/billing?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <CreditCard className="h-5 w-5" /><span className="sr-only">訂閱與帳務</span>
             </Link>
           ) : null}
         </nav>

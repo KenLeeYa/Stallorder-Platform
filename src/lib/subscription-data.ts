@@ -8,6 +8,7 @@ export async function getSubscriptionOverview(organizationId: string) {
     where: { organizationId },
     include: {
       plan: true,
+      planVersion: { include: { entitlements: { orderBy: { featureCode: "asc" } } } },
       additionalApprovals: {
         where: { status: "APPROVED", effectiveAt: { lte: new Date() }, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
         orderBy: { effectiveAt: "asc" },
@@ -25,7 +26,7 @@ export async function getSubscriptionOverview(organizationId: string) {
     prisma.stall.count({ where: { organizationId, isActive: true } }),
     prisma.qrCode.count({ where: { organizationId } }),
     prisma.usageEvent.aggregate({
-      where: { organizationId, billingPeriod: subscription.billingPeriodStart, eventType: "ORDER_CREATED" },
+      where: { organizationId, billingPeriod: subscription.billingPeriodStart, eventType: "BILLABLE_ORDER_COMPLETED" },
       _sum: { quantity: true },
     }),
     prisma.usageEvent.aggregate({
@@ -45,14 +46,14 @@ export async function getSubscriptionOverview(organizationId: string) {
   ]);
   const orderCount = orderUsage._sum.quantity ?? 0;
   const estimate = calculateBillingEstimate({
-    basePrice: subscription.plan.basePrice,
+    basePrice: subscription.planVersion.basePrice,
     activeStalls,
-    includedStalls: subscription.plan.includedStalls,
-    defaultAdditionalStallPrice: subscription.plan.additionalStallPrice,
+    includedStalls: subscription.planVersion.includedStalls,
+    defaultAdditionalStallPrice: subscription.planVersion.additionalStallPrice,
     approvals: subscription.additionalApprovals.map((approval) => ({ quantity: approval.quantity, unitPrice: approval.unitPrice })),
     orderCount,
-    includedOrders: subscription.plan.includedOrders,
-    excessOrderPrice: subscription.plan.excessOrderPrice,
+    includedOrders: subscription.planVersion.includedOrders,
+    excessOrderPrice: 0,
   });
 
   return {

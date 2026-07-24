@@ -6,6 +6,8 @@ import { recordAuditEvent } from "@/lib/audit";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 const membershipSchema = z.object({
   email: z.string().trim().email().max(120).transform((value) => value.toLowerCase()),
@@ -72,6 +74,17 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   try {
+    const existingMembership = await prisma.stallMembership.findUnique({
+      where: {
+        stallId_profileId_role: { stallId, profileId: profile.id, role: parsed.data.role },
+      },
+      select: { isActive: true },
+    });
+    await entitlementService.assertLimitAvailable(
+      authorization.workspace.id,
+      "STAFF",
+      existingMembership?.isActive ? 0 : 1,
+    );
     const membership = await prisma.stallMembership.upsert({
       where: {
         stallId_profileId_role: { stallId, profileId: profile.id, role: parsed.data.role },
@@ -106,6 +119,8 @@ export async function POST(request: Request, context: RouteContext) {
       { status: 201, headers: { "x-request-id": authorization.requestId } },
     );
   } catch (error) {
+    const entitlementResponse = entitlementErrorResponse(error, authorization.requestId);
+    if (entitlementResponse) return entitlementResponse;
     const conflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
     return NextResponse.json(
       { error: conflict ? "此成員已具有相同角色。" : "目前無法指派成員。" },

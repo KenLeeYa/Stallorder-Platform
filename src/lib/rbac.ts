@@ -6,7 +6,9 @@ export type Permission =
   | "UPDATE_ORDERS"
   | "CHECKOUT_ORDERS"
   | "MANAGE_PRINT_QUEUE"
+  | "VIEW_CASH_SHIFT"
   | "MANAGE_CASH_SHIFT"
+  | "REVIEW_CASH_SHIFT"
   | "APPROVE_DISCOUNT"
   | "VIEW_DINING_FLOOR"
   | "MANAGE_PRODUCTS"
@@ -16,10 +18,21 @@ export type Permission =
   | "MANAGE_STALL"
   | "MANAGE_ORGANIZATION"
   | "MANAGE_SUBSCRIPTION"
+  | "VIEW_BILLING"
   | "MANAGE_SHARED_PRODUCTS"
   | "VIEW_AUDIT_LOGS"
   | "MANAGE_OPERATIONAL_ALERTS"
   | "MANAGE_REPORT_SCHEDULES"
+  | "VIEW_KDS"
+  | "UPDATE_PRODUCTION_TASKS"
+  | "MANAGE_KDS"
+  | "MANAGE_CDS"
+  | "MANAGE_CAPACITY"
+  | "OPERATE_CAPACITY"
+  | "MANAGE_STALL_LOCATIONS"
+  | "MANAGE_STALL_SCHEDULES"
+  | "MANAGE_MARKET_EVENTS"
+  | "MANAGE_LINE_INTEGRATION"
   | "PLATFORM_ADMIN";
 
 const rolePermissions: Record<UserRole, readonly Permission[]> = {
@@ -29,7 +42,9 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "UPDATE_ORDERS",
     "CHECKOUT_ORDERS",
     "MANAGE_PRINT_QUEUE",
+    "VIEW_CASH_SHIFT",
     "MANAGE_CASH_SHIFT",
+    "REVIEW_CASH_SHIFT",
     "APPROVE_DISCOUNT",
     "VIEW_DINING_FLOOR",
     "MANAGE_PRODUCTS",
@@ -39,10 +54,21 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STALL",
     "MANAGE_ORGANIZATION",
     "MANAGE_SUBSCRIPTION",
+    "VIEW_BILLING",
     "MANAGE_SHARED_PRODUCTS",
     "VIEW_AUDIT_LOGS",
     "MANAGE_OPERATIONAL_ALERTS",
     "MANAGE_REPORT_SCHEDULES",
+    "VIEW_KDS",
+    "UPDATE_PRODUCTION_TASKS",
+    "MANAGE_KDS",
+    "MANAGE_CDS",
+    "MANAGE_CAPACITY",
+    "OPERATE_CAPACITY",
+    "MANAGE_STALL_LOCATIONS",
+    "MANAGE_STALL_SCHEDULES",
+    "MANAGE_MARKET_EVENTS",
+    "MANAGE_LINE_INTEGRATION",
     "PLATFORM_ADMIN",
   ],
   MERCHANT_OWNER: [],
@@ -53,7 +79,9 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "UPDATE_ORDERS",
     "CHECKOUT_ORDERS",
     "MANAGE_PRINT_QUEUE",
+    "VIEW_CASH_SHIFT",
     "MANAGE_CASH_SHIFT",
+    "REVIEW_CASH_SHIFT",
     "APPROVE_DISCOUNT",
     "VIEW_DINING_FLOOR",
     "MANAGE_PRODUCTS",
@@ -63,10 +91,21 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STALL",
     "MANAGE_ORGANIZATION",
     "MANAGE_SUBSCRIPTION",
+    "VIEW_BILLING",
     "MANAGE_SHARED_PRODUCTS",
     "VIEW_AUDIT_LOGS",
     "MANAGE_OPERATIONAL_ALERTS",
     "MANAGE_REPORT_SCHEDULES",
+    "VIEW_KDS",
+    "UPDATE_PRODUCTION_TASKS",
+    "MANAGE_KDS",
+    "MANAGE_CDS",
+    "MANAGE_CAPACITY",
+    "OPERATE_CAPACITY",
+    "MANAGE_STALL_LOCATIONS",
+    "MANAGE_STALL_SCHEDULES",
+    "MANAGE_MARKET_EVENTS",
+    "MANAGE_LINE_INTEGRATION",
   ],
   ORGANIZATION_ADMIN: [
     "VIEW_ORDERS",
@@ -74,7 +113,9 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "UPDATE_ORDERS",
     "CHECKOUT_ORDERS",
     "MANAGE_PRINT_QUEUE",
+    "VIEW_CASH_SHIFT",
     "MANAGE_CASH_SHIFT",
+    "REVIEW_CASH_SHIFT",
     "APPROVE_DISCOUNT",
     "VIEW_DINING_FLOOR",
     "MANAGE_PRODUCTS",
@@ -86,15 +127,28 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "VIEW_AUDIT_LOGS",
     "MANAGE_OPERATIONAL_ALERTS",
     "MANAGE_REPORT_SCHEDULES",
+    "VIEW_BILLING",
+    "VIEW_KDS",
+    "UPDATE_PRODUCTION_TASKS",
+    "MANAGE_KDS",
+    "MANAGE_CDS",
+    "MANAGE_CAPACITY",
+    "OPERATE_CAPACITY",
+    "MANAGE_STALL_LOCATIONS",
+    "MANAGE_STALL_SCHEDULES",
+    "MANAGE_MARKET_EVENTS",
+    "MANAGE_LINE_INTEGRATION",
   ],
-  FINANCE_VIEWER: ["VIEW_REPORTS"],
+  FINANCE_VIEWER: ["VIEW_REPORTS", "VIEW_BILLING", "VIEW_CASH_SHIFT"],
   STALL_MANAGER: [
     "VIEW_ORDERS",
     "CREATE_ORDERS",
     "UPDATE_ORDERS",
     "CHECKOUT_ORDERS",
     "MANAGE_PRINT_QUEUE",
+    "VIEW_CASH_SHIFT",
     "MANAGE_CASH_SHIFT",
+    "REVIEW_CASH_SHIFT",
     "APPROVE_DISCOUNT",
     "VIEW_DINING_FLOOR",
     "MANAGE_PRODUCTS",
@@ -103,9 +157,18 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STAFF",
     "MANAGE_STALL",
     "MANAGE_OPERATIONAL_ALERTS",
+    "VIEW_KDS",
+    "UPDATE_PRODUCTION_TASKS",
+    "MANAGE_KDS",
+    "MANAGE_CDS",
+    "MANAGE_CAPACITY",
+    "OPERATE_CAPACITY",
+    "MANAGE_STALL_LOCATIONS",
+    "MANAGE_STALL_SCHEDULES",
+    "MANAGE_LINE_INTEGRATION",
   ],
-  STAFF: ["VIEW_ORDERS", "CREATE_ORDERS", "UPDATE_ORDERS", "CHECKOUT_ORDERS", "MANAGE_PRINT_QUEUE", "MANAGE_CASH_SHIFT", "VIEW_DINING_FLOOR"],
-  KITCHEN: ["VIEW_ORDERS", "UPDATE_ORDERS", "MANAGE_PRINT_QUEUE", "VIEW_DINING_FLOOR"],
+  STAFF: ["VIEW_ORDERS", "CREATE_ORDERS", "UPDATE_ORDERS", "CHECKOUT_ORDERS", "MANAGE_PRINT_QUEUE", "VIEW_CASH_SHIFT", "MANAGE_CASH_SHIFT", "VIEW_DINING_FLOOR", "OPERATE_CAPACITY"],
+  KITCHEN: ["VIEW_KDS", "UPDATE_PRODUCTION_TASKS"],
 };
 
 const primaryRoleOrder: readonly UserRole[] = [
@@ -122,8 +185,9 @@ const primaryRoleOrder: readonly UserRole[] = [
 
 const allowedOrderTransitions: Record<OrderStatus, readonly OrderStatus[]> = {
   WAITING_CONFIRMATION: ["CONFIRMED", "CANCELLED"],
-  CONFIRMED: ["PREPARING", "CANCELLED"],
-  PREPARING: ["READY", "CANCELLED"],
+  CONFIRMED: ["PREPARING", "PACKING", "READY", "CANCELLED"],
+  PREPARING: ["PACKING", "READY", "CANCELLED"],
+  PACKING: ["READY", "CANCELLED"],
   READY: ["COMPLETED", "CANCELLED"],
   COMPLETED: [],
   CANCELLED: [],
@@ -151,7 +215,6 @@ export function resolvePrimaryRole(roles: readonly UserRole[]) {
 export function canTransitionOrder(current: OrderStatus, next: OrderStatus, role: UserRole) {
   if (!hasPermission(role, "UPDATE_ORDERS")) return false;
   if (!allowedOrderTransitions[current].includes(next)) return false;
-  if (role === "KITCHEN") return next === "PREPARING" || next === "READY";
   return true;
 }
 

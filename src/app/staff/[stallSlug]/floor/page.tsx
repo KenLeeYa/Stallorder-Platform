@@ -22,9 +22,6 @@ export default async function DiningFloorPage({ params }: PageProps) {
   });
   if (!settings?.dineInEnabled) notFound();
 
-  const statuses = role === "KITCHEN"
-    ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
-    : activeOrderStatuses;
   const [tables, orders] = await Promise.all([
     prisma.diningTable.findMany({
       where: { stallId: stall.id, organizationId: stall.organizationId },
@@ -46,7 +43,7 @@ export default async function DiningFloorPage({ params }: PageProps) {
         stallId: stall.id,
         fulfillmentType: "DINE_IN",
         diningTableId: { not: null },
-        status: { in: [...statuses] },
+        status: { in: [...activeOrderStatuses] },
       },
       orderBy: { createdAt: "asc" },
       take: 50,

@@ -2,7 +2,18 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Clock3, History, Minus, Plus, Send, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  Clock3,
+  History,
+  Minus,
+  Plus,
+  Send,
+  ShieldCheck,
+  ShoppingCart,
+  X,
+} from "lucide-react";
 import { ProductImage } from "@/components/product-image";
 import { QrLanguageSelector } from "@/components/qr-language-selector";
 import { deliveryOrderMessages, localizedDeliveryOrderError } from "@/lib/delivery-order-i18n";
@@ -45,6 +56,7 @@ type Props = {
 };
 
 class LocalizedOrderError extends Error {}
+const PHONE_NUMBER = /^\+?[0-9][0-9 ().-]{5,29}$/;
 
 export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = null }: Props) {
   const startedRef = useRef(false);
@@ -59,6 +71,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [customerNote, setCustomerNote] = useState("");
+  const [waitAcknowledged, setWaitAcknowledged] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [turnstileRequested, setTurnstileRequested] = useState(false);
@@ -69,9 +82,19 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const [locale, setLocale] = useState<QrLocale>("zh-TW");
   const [cartReady, setCartReady] = useState(false);
   const [cartRestored, setCartRestored] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const copy = qrOrderMessages[locale];
   const deliveryCopy = deliveryOrderMessages[locale];
   const sessionReady = Boolean(session?.orderSessionToken && session.expiresAt);
+
+  useEffect(() => {
+    if (!cartOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [cartOpen]);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -253,7 +276,11 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       setMessage(copy.sessionExpired);
       return;
     }
-    if (orderingMode === "DELIVERY" && (customerPhone.trim().length < 6 || !deliveryAddress.trim())) {
+    if (session.requiresWaitAcknowledgment && !waitAcknowledged) {
+      setMessage(copy.waitAcknowledgmentRequired);
+      return;
+    }
+    if (orderingMode === "DELIVERY" && (!PHONE_NUMBER.test(customerPhone.trim()) || !deliveryAddress.trim())) {
       setMessage(deliveryCopy.detailsRequired);
       return;
     }
@@ -265,7 +292,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       return;
     }
 
-    const fingerprint = JSON.stringify({ orderingMode, customerName, customerPhone, deliveryAddress, customerNote, selectedItems });
+    const fingerprint = JSON.stringify({ orderingMode, customerName, customerPhone, deliveryAddress, customerNote, selectedItems, waitAcknowledged });
     if (!idempotencyRef.current || idempotencyRef.current.fingerprint !== fingerprint) {
       idempotencyRef.current = { key: crypto.randomUUID(), fingerprint };
     }
@@ -285,6 +312,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           customerPhone,
           deliveryAddress,
           customerNote,
+          waitAcknowledged,
           orderingMode,
           items: selectedItems,
           turnstileToken,
@@ -293,6 +321,19 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       const payload = await parseEdgeResponse(response);
       if (!response.ok) {
         const code = String(payload.code ?? "");
+        if (code === "WAIT_ACKNOWLEDGMENT_REQUIRED") {
+          const capacity = payload.capacity && typeof payload.capacity === "object"
+            ? payload.capacity as Record<string, unknown>
+            : null;
+          setSession((current) => current ? {
+            ...current,
+            estimatedWaitMinutes: Number(capacity?.estimatedWaitMaxMinutes ?? current.estimatedWaitMinutes),
+            estimatedWaitMinMinutes: Number(capacity?.estimatedWaitMinMinutes ?? current.estimatedWaitMinMinutes),
+            estimatedWaitMaxMinutes: Number(capacity?.estimatedWaitMaxMinutes ?? current.estimatedWaitMaxMinutes),
+            requiresWaitAcknowledgment: true,
+          } : current);
+          setWaitAcknowledged(false);
+        }
         if (code === "INVALID_TURNSTILE") {
           idempotencyRef.current = null;
           setTurnstileToken(null);
@@ -334,9 +375,110 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const availableLocales = QR_LOCALES.filter((candidate) => (
     candidate === "zh-TW" || session.supportedLocales.includes(candidate)
   ));
+  const cartPanel = (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="qr-cart-heading" className="text-lg font-semibold">{copy.yourOrder}</h2>
+        <button
+          type="button"
+          title={copy.close}
+          aria-label={copy.close}
+          onClick={() => setCartOpen(false)}
+          className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 md:hidden"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="mt-4 space-y-3">
+        <input
+          type="text"
+          autoComplete="name"
+          enterKeyHint="next"
+          aria-label={copy.customerName}
+          className="form-input"
+          placeholder={copy.customerNamePlaceholder}
+          maxLength={50}
+          value={customerName}
+          onChange={(event) => setCustomerName(event.target.value)}
+        />
+        {session.stall.fulfillmentType === "DELIVERY" ? (
+          <>
+            <input
+              required
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              enterKeyHint="next"
+              aria-label={deliveryCopy.phone}
+              className="form-input"
+              placeholder={deliveryCopy.phonePlaceholder}
+              maxLength={30}
+              pattern="\+?[0-9][0-9 ().-]{5,29}"
+              value={customerPhone}
+              onChange={(event) => setCustomerPhone(event.target.value)}
+            />
+            <textarea
+              required
+              autoComplete="street-address"
+              aria-label={deliveryCopy.address}
+              className="form-input min-h-24"
+              placeholder={deliveryCopy.addressPlaceholder}
+              maxLength={300}
+              value={deliveryAddress}
+              onChange={(event) => setDeliveryAddress(event.target.value)}
+            />
+          </>
+        ) : null}
+        <textarea
+          aria-label={copy.orderNote}
+          className="form-input min-h-20"
+          placeholder={copy.orderNotePlaceholder(session.limits.maxNoteLength)}
+          maxLength={session.limits.maxNoteLength}
+          value={customerNote}
+          onChange={(event) => setCustomerNote(event.target.value)}
+        />
+      </div>
+      <div className="mt-5 flex items-center justify-between border-t border-stone-200 pt-4">
+        <span className="text-sm text-stone-600">{copy.itemCount(totalQuantity)}</span>
+        <strong>{formatMoney(total, session.stall.currency, locale)}</strong>
+      </div>
+      {session.requiresWaitAcknowledgment ? (
+        <label className="mt-4 flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+          <input
+            type="checkbox"
+            className="mt-1 shrink-0"
+            checked={waitAcknowledged}
+            onChange={(event) => {
+              setWaitAcknowledged(event.target.checked);
+              setMessage("");
+            }}
+          />
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{copy.waitAcknowledgment(session.estimatedWaitMinMinutes, session.estimatedWaitMaxMinutes)}</span>
+        </label>
+      ) : null}
+      <div className="mt-4 min-h-16">
+        {turnstileRequested ? (
+          <TurnstileWidget
+            resetKey={turnstileResetKey}
+            locale={locale}
+            label={copy.securityVerification}
+            missingKeyMessage={copy.securityNotConfigured}
+            onToken={handleTurnstileToken}
+          />
+        ) : null}
+      </div>
+      <button type="button" disabled={!sessionReady || isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0 || (session.requiresWaitAcknowledgment && !waitAcknowledged)} onClick={submitOrder} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+        <Send className="h-4 w-4" />
+        {isSubmitting ? copy.submitting : copy.submitOrder}
+      </button>
+      <p className="mt-3 text-xs leading-5 text-stone-500">{copy.confirmationNotice}</p>
+      {message ? <p role="alert" className="mt-3 text-sm text-red-700">{message}</p> : null}
+    </>
+  );
 
   return (
-    <main className="mx-auto grid min-h-screen max-w-5xl gap-6 px-4 py-5 md:grid-cols-[minmax(0,1fr)_340px] md:px-8">
+    <main className="mx-auto grid min-h-screen max-w-5xl gap-6 px-4 py-5 pb-28 md:grid-cols-[minmax(0,1fr)_340px] md:px-8 md:pb-5">
       <section>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><p className="text-sm font-medium text-teal-800">{session.stall.location}</p><h1 className="mt-1 text-3xl font-semibold">{session.stall.name}</h1></div>
@@ -350,31 +492,39 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
             : copy.sessionLoading}
         </div>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-y border-stone-200 py-3 text-sm text-stone-700">
-          <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{copy.estimatedWait(session.estimatedWaitMinutes)}</span>
+          <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{copy.estimatedWaitRange(session.estimatedWaitMinMinutes, session.estimatedWaitMaxMinutes)}</span>
           {session.lastTableOrderAt ? <span className="inline-flex items-center gap-2"><History className="h-4 w-4 text-stone-500" />{copy.lastTableOrder(new Date(session.lastTableOrderAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }))}</span> : null}
         </div>
         {cartRestored ? <p role="status" className="mt-3 text-sm font-medium text-emerald-800">{copy.cartRestored}</p> : null}
 
+        <nav aria-label={copy.categoryNavigation} className="sticky top-0 z-20 -mx-4 mt-5 flex gap-2 overflow-x-auto border-y border-stone-200 bg-stone-50/95 px-4 py-2 backdrop-blur md:static md:mx-0 md:border-x-0 md:bg-transparent md:px-0">
+          {categories.map((category, index) => (
+            <a key={category} href={`#qr-category-${index}`} className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700">
+              {localizedQrCategory(locale, category)}
+            </a>
+          ))}
+        </nav>
+
         <div className="mt-6 space-y-7">
-          {categories.map((category) => (
-            <section key={category}>
+          {categories.map((category, categoryIndex) => (
+            <section key={category} id={`qr-category-${categoryIndex}`} className="scroll-mt-16">
               <h2 className="mb-3 text-sm font-semibold text-stone-500">{localizedQrCategory(locale, category)}</h2>
               <div className="grid gap-3">
                 {session.products.filter((product) => product.category === category).map((product) => (
                   <article key={product.id} className="rounded-lg border border-stone-200 bg-white p-4">
-                    <div className="flex items-center gap-4">
-                      {product.imageUrl ? <ProductImage src={product.imageUrl} alt={copy.productImage(localizedProduct(product).name)} width={80} height={80} sizes="80px" className="h-20 w-20 shrink-0 rounded-md object-cover" /> : null}
+                    <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:gap-4">
+                      {product.imageUrl ? <ProductImage src={product.imageUrl} alt={copy.productImage(localizedProduct(product).name)} width={80} height={80} sizes="(max-width: 639px) 64px, 80px" className="h-16 w-16 shrink-0 rounded-md object-cover sm:h-20 sm:w-20" /> : <div aria-hidden="true" className="h-16 w-16 rounded-md bg-stone-100 sm:h-20 sm:w-20" />}
                       <div className="min-w-0 flex-1">
                         <h3 className="font-semibold">{localizedProduct(product).name}</h3>
                         <p className="mt-1 text-sm leading-6 text-stone-600">{localizedProduct(product).description}</p>
                         <p className="mt-2 font-semibold">{formatMoney(Math.max(0, product.price + notePriceAdjustment(product.noteGroups, noteSelections[product.id] ?? [])), session.stall.currency, locale)}</p>
                       </div>
-                      <div className="grid grid-cols-[40px_28px_40px] items-center gap-2">
-                        <button type="button" title={copy.decrease(localizedProduct(product).name)} aria-label={copy.decrease(localizedProduct(product).name)} disabled={!quantities[product.id]} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) - 1)} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
+                      <div className="col-span-2 grid grid-cols-[44px_32px_44px] items-center justify-self-end gap-2 sm:col-span-1">
+                        <button type="button" title={copy.decrease(localizedProduct(product).name)} aria-label={copy.decrease(localizedProduct(product).name)} disabled={!quantities[product.id]} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
                           <Minus className="h-4 w-4" />
                         </button>
                         <span className="text-center font-semibold">{quantities[product.id] ?? 0}</span>
-                        <button type="button" title={copy.increase(localizedProduct(product).name)} aria-label={copy.increase(localizedProduct(product).name)} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) + 1)} className="grid h-10 w-10 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
+                        <button type="button" title={copy.increase(localizedProduct(product).name)} aria-label={copy.increase(localizedProduct(product).name)} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
                           <Plus className="h-4 w-4" />
                         </button>
                       </div>
@@ -408,40 +558,23 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         </div>
       </section>
 
-      <aside className="h-fit rounded-lg border border-stone-200 bg-white p-5 md:sticky md:top-5">
-        <h2 className="text-lg font-semibold">{copy.yourOrder}</h2>
-        <div className="mt-4 space-y-3">
-          <input aria-label={copy.customerName} className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" placeholder={copy.customerNamePlaceholder} maxLength={50} value={customerName} onChange={(event) => setCustomerName(event.target.value)} />
-          {session.stall.fulfillmentType === "DELIVERY" ? (
-            <>
-              <input required aria-label={deliveryCopy.phone} className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" placeholder={deliveryCopy.phonePlaceholder} maxLength={30} value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} />
-              <textarea required aria-label={deliveryCopy.address} className="min-h-20 w-full rounded-md border border-stone-300 px-3 py-2 text-sm" placeholder={deliveryCopy.addressPlaceholder} maxLength={300} value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} />
-            </>
-          ) : null}
-          <textarea aria-label={copy.orderNote} className="min-h-20 w-full rounded-md border border-stone-300 px-3 py-2 text-sm" placeholder={copy.orderNotePlaceholder(session.limits.maxNoteLength)} maxLength={session.limits.maxNoteLength} value={customerNote} onChange={(event) => setCustomerNote(event.target.value)} />
-        </div>
-        <div className="mt-5 flex items-center justify-between border-t border-stone-200 pt-4">
-          <span className="text-sm text-stone-600">{copy.itemCount(totalQuantity)}</span>
-          <strong>{formatMoney(total, session.stall.currency, locale)}</strong>
-        </div>
-        <div className="mt-4 min-h-16">
-          {turnstileRequested ? (
-            <TurnstileWidget
-              resetKey={turnstileResetKey}
-              locale={locale}
-              label={copy.securityVerification}
-              missingKeyMessage={copy.securityNotConfigured}
-              onToken={handleTurnstileToken}
-            />
-          ) : null}
-        </div>
-        <button type="button" disabled={!sessionReady || isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0} onClick={submitOrder} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
-          <Send className="h-4 w-4" />
-          {isSubmitting ? copy.submitting : copy.submitOrder}
-        </button>
-        <p className="mt-3 text-xs leading-5 text-stone-500">{copy.confirmationNotice}</p>
-        {message ? <p role="alert" className="mt-3 text-sm text-red-700">{message}</p> : null}
+      {cartOpen ? <button type="button" aria-label={copy.close} onClick={() => setCartOpen(false)} className="fixed inset-0 z-30 bg-black/45 md:hidden" /> : null}
+      <aside
+        data-testid="qr-cart-panel"
+        role={cartOpen ? "dialog" : undefined}
+        aria-modal={cartOpen ? true : undefined}
+        aria-labelledby="qr-cart-heading"
+        className={`${cartOpen ? "safe-area-bottom fixed inset-x-0 bottom-0 z-40 max-h-[88dvh] overflow-y-auto rounded-t-lg border-t border-stone-200 shadow-2xl" : "hidden"} bg-white p-5 md:sticky md:top-5 md:block md:h-fit md:max-h-none md:overflow-visible md:rounded-lg md:border md:shadow-none`}
+      >
+        {cartPanel}
       </aside>
+      {totalQuantity > 0 && !cartOpen ? (
+        <button data-testid="qr-mobile-cart-summary" type="button" onClick={() => setCartOpen(true)} className="safe-area-bottom fixed inset-x-3 bottom-0 z-30 flex min-h-16 items-center gap-3 rounded-t-lg bg-stone-900 px-4 pt-3 text-left text-white shadow-2xl md:hidden">
+          <ShoppingCart className="h-5 w-5 shrink-0" />
+          <span className="min-w-0 flex-1"><span className="block text-xs text-stone-300">{copy.itemCount(totalQuantity)}</span><strong>{formatMoney(total, session.stall.currency, locale)}</strong></span>
+          <span className="inline-flex items-center gap-1 text-sm font-semibold">{copy.viewOrder}<ChevronDown className="h-4 w-4 rotate-180" /></span>
+        </button>
+      ) : null}
     </main>
   );
 }

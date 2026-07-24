@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const timing = createPerformanceTiming({ route: "/auth/google", requestId });
   const finalize = <T extends Response>(response: T) => finalizePerformanceResponse(response, timing);
   const requestUrl = new URL(request.url);
-  const next = sanitizeRedirectPath(requestUrl.searchParams.get("next"), "/");
+  const next = sanitizeRedirectPath(requestUrl.searchParams.get("next"), "");
   const appOrigin = process.env.NEXT_PUBLIC_APP_URL
     ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin
     : requestUrl.origin;
@@ -30,10 +30,14 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await timing.measure("sessionMs", () => createSupabaseAuthClient());
-    const redirectTo = `${appOrigin}/auth/callback?next=${encodeURIComponent(next)}`;
+    const callbackUrl = new URL("/auth/callback", appOrigin);
+    if (next) callbackUrl.searchParams.set("next", next);
     const { data, error } = await timing.measure("externalApiMs", () => supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo },
+      options: {
+        redirectTo: callbackUrl.toString(),
+        queryParams: { prompt: "select_account" },
+      },
     }));
     if (error || !data.url) throw error ?? new Error("OAUTH_REDIRECT_MISSING");
     return finalize(NextResponse.redirect(data.url, { headers: { "x-request-id": requestId } }));

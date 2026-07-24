@@ -7,6 +7,8 @@ import { batchOrderingSchema, orderingStateForBatchAction } from "@/lib/operatio
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicMenus, invalidatePublicQrToken } from "@/lib/public-menu";
 import { hashClientIp } from "@/lib/security";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ organizationId: string }> };
 
@@ -23,6 +25,13 @@ export async function POST(request: Request, context: RouteContext) {
       { error: "安全驗證已失效，請重新整理後再試。" },
       { status: 403, headers: { "x-request-id": authorization.requestId } },
     );
+  }
+  try {
+    await entitlementService.assertFeatureEnabled(organizationId, "BULK_STALL_CONTROL");
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
   }
 
   const body = await readJson(request, authorization.requestId);

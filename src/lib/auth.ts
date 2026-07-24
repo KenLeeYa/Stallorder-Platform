@@ -108,7 +108,9 @@ export function clearSessionCookies(response: NextResponse) {
 }
 
 export function defaultPathForRole(role: UserRole, stallSlug: string) {
-  if (role === "STAFF" || role === "KITCHEN") return `/staff/${stallSlug}`;
+  if (role === "PLATFORM_ADMIN") return "/admin/billing";
+  if (role === "KITCHEN") return `/kitchen?stall=${encodeURIComponent(stallSlug)}`;
+  if (role === "STAFF") return `/staff/${stallSlug}`;
   if (role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN" || role === "FINANCE_VIEWER") {
     return "/merchant/dashboard";
   }

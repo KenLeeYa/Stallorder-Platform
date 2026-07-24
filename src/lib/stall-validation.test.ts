@@ -27,6 +27,10 @@ describe("攤位資料驗證", () => {
     expect(createStallSchema.safeParse({ ...validCreate, timezone: "Taipei/Unknown" }).success).toBe(false);
   });
 
+  it.each(["-stall", "stall-", "STALL", "攤位一號"])("拒絕無效公開識別名稱：%s", (slug) => {
+    expect(createStallSchema.safeParse({ ...validCreate, slug }).success).toBe(false);
+  });
+
   it("停用攤位必須提供明確確認值", () => {
     const update = {
       operation: "UPDATE_OPERATIONS" as const,

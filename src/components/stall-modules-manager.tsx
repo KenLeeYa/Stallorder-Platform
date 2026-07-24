@@ -181,7 +181,7 @@ export function StallModulesManager({
         <CollapsibleSectionSummary icon={Truck} title="外送與 LINE 連結" description="固定網址可放入 LINE 官方帳號的關鍵字自動回覆。" level={3} />
         <div className="pb-6">
           {!state.settings.deliveryModuleEnabled ? <p className="mb-3 text-sm text-amber-800">請先開啟並儲存「線上外送」模組，顧客才能使用此連結。</p> : null}
-          <label className="block text-xs font-semibold text-stone-600">顧客外送網址<div className="mt-1 flex gap-2"><input readOnly value={deliveryUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製外送網址" onClick={() => void navigator.clipboard.writeText(deliveryUrl)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
+          <label className="block text-xs font-semibold text-stone-600">顧客外送網址<div className="mt-1 flex gap-2"><input type="text" readOnly value={deliveryUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製外送網址" onClick={() => void navigator.clipboard.writeText(deliveryUrl)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
           <label className="mt-4 block text-xs font-semibold text-stone-600">LINE 自動回覆內容<textarea readOnly value={lineReply} className="mt-1 min-h-24 w-full rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm" /></label>
           <button type="button" onClick={() => void navigator.clipboard.writeText(lineReply)} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MessageCircle className="h-4 w-4" />複製 LINE 回覆內容</button>
         </div>
@@ -287,7 +287,7 @@ function ModuleSwitch({ label, icon, checked, disabled = false, onChange }: { la
 }
 
 function TextInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="text-xs font-medium text-stone-600">{label}<input value={value} onChange={(event) => onChange(event.target.value)} maxLength={50} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-2 text-sm" /></label>;
+  return <label className="text-xs font-medium text-stone-600">{label}<input type="text" value={value} onChange={(event) => onChange(event.target.value)} maxLength={50} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-2 text-sm" /></label>;
 }
 
 function NumberInput({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {

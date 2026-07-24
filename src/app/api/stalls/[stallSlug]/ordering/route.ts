@@ -8,6 +8,8 @@ import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
 import { hashClientIp } from "@/lib/security";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 const settingsSchema = z.object({
   orderSessionTtlSeconds: z.number().int().min(60).max(1800),
@@ -54,6 +56,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
+  if (parsed.data.action === "ROTATE_QR") {
+    try {
+      await entitlementService.assertLimitAvailable(authorization.stall.organizationId, "QR_CODES", 0);
+    } catch (error) {
+      const response = entitlementErrorResponse(error, authorization.requestId);
+      if (response) return response;
+      throw error;
+    }
+  }
+
   const token = randomBytes(32).toString("base64url");
   const now = new Date();
   const previousState = await prisma.stall.findFirstOrThrow({
@@ -93,11 +105,19 @@ export async function PATCH(request: Request, context: RouteContext) {
     switch (parsed.data.action) {
       case "PAUSE":
         await transaction.stall.update({ where: { id: stall.id }, data: { orderingState: "PAUSED" } });
+        await transaction.stallCapacitySettings.updateMany({
+          where: { organizationId: stall.organizationId, stallId: stall.id },
+          data: { pauseSource: "MANUAL" },
+        });
         await transaction.qrCode.updateMany({ where: { stallId: stall.id, state: "ACTIVE" }, data: { state: "PAUSED" } });
         await transaction.orderSession.updateMany({ where: { stallId: stall.id, status: "ACTIVE" }, data: { status: "REVOKED", revokedAt: now } });
         break;
       case "RESUME":
         await transaction.stall.update({ where: { id: stall.id }, data: { orderingState: "OPEN" } });
+        await transaction.stallCapacitySettings.updateMany({
+          where: { organizationId: stall.organizationId, stallId: stall.id },
+          data: { pauseSource: "NONE" },
+        });
         await transaction.qrCode.updateMany({
           where: { stallId: stall.id, state: "PAUSED", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
           data: { state: "ACTIVE" },
@@ -105,10 +125,18 @@ export async function PATCH(request: Request, context: RouteContext) {
         break;
       case "CLOSE":
         await transaction.stall.update({ where: { id: stall.id }, data: { orderingState: "CLOSED" } });
+        await transaction.stallCapacitySettings.updateMany({
+          where: { organizationId: stall.organizationId, stallId: stall.id },
+          data: { pauseSource: "MANUAL" },
+        });
         await transaction.orderSession.updateMany({ where: { stallId: stall.id, status: "ACTIVE" }, data: { status: "REVOKED", revokedAt: now } });
         break;
       case "OPEN":
         await transaction.stall.update({ where: { id: stall.id }, data: { orderingState: "OPEN" } });
+        await transaction.stallCapacitySettings.updateMany({
+          where: { organizationId: stall.organizationId, stallId: stall.id },
+          data: { pauseSource: "NONE" },
+        });
         break;
       case "MARK_SOLD_OUT":
         await transaction.stall.update({ where: { id: stall.id }, data: { isSoldOut: true } });

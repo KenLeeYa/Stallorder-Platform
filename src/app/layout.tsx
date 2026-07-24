@@ -44,7 +44,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full bg-stone-50 text-stone-950">
-        <PwaRuntime>{children}</PwaRuntime>
+        <a href="#main-content" className="skip-link">跳至主要內容</a>
+        <PwaRuntime>
+          <div id="main-content" tabIndex={-1}>{children}</div>
+        </PwaRuntime>
         {process.env.VERCEL === "1" ? <VercelPerformanceMonitoring /> : null}
       </body>
     </html>

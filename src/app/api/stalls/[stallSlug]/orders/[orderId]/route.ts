@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
+import { CashShiftOperationError, requireOpenCashShift } from "@/lib/cash-shifts";
 import { validateCsrf } from "@/lib/csrf";
 import { DiscountApprovalError } from "@/lib/discount-approval";
 import { readJson } from "@/lib/http";
@@ -11,6 +12,12 @@ import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/perf
 import { canTransitionOrder, hasPermission } from "@/lib/rbac";
 import { createRequestId, hashClientIp } from "@/lib/security";
 import { resolveStaffCheckout, StaffCheckoutError } from "@/lib/staff-checkout";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import {
+  canContinueOrderDuringSuspension,
+  EntitlementError,
+  entitlementService,
+} from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ stallSlug: string; orderId: string }> };
 class TransitionConflict extends Error {}
@@ -80,6 +87,22 @@ async function handlePatch(
 
   const nextStatus = parsed.data.status;
   const cancellation = parsed.data.status === "CANCELLED" ? parsed.data : null;
+  try {
+    const subscription = await entitlementService.getSubscriptionContext(order.organizationId);
+    if (!subscription || subscription.status === "CANCELLED") {
+      throw new EntitlementError("SUBSCRIPTION_NOT_ACTIVE");
+    }
+    if (
+      subscription.status === "SUSPENDED"
+      && !canContinueOrderDuringSuspension(order.status, nextStatus)
+    ) {
+      throw new EntitlementError("SUBSCRIPTION_SUSPENDED");
+    }
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
+  }
   if (
     nextStatus === "CANCELLED"
     && !cancellationMatchesOrder(parsed.data.confirmationOrderNo, order.orderNo)
@@ -179,6 +202,9 @@ async function handlePatch(
   const now = new Date();
   try {
     const updatedOrder = await timing.measureDb(() => prisma.$transaction(async (transaction) => {
+      const cashShiftId = checkout?.method === "CASH"
+        ? await requireOpenCashShift(transaction, order.organizationId, order.stallId)
+        : null;
       const changed = await transaction.order.updateMany({
         where: {
           id: order.id,
@@ -220,6 +246,7 @@ async function handlePatch(
             paymentOptionId: checkout.paymentOptionId,
             amount: checkout.total,
             method: checkout.method,
+            cashShiftId,
             status: "PAID",
             methodLabel: checkout.methodLabel,
             cashReceived: checkout.cashReceived,
@@ -275,6 +302,8 @@ async function handlePatch(
       { headers: { "x-request-id": authorization.requestId } },
     );
   } catch (error) {
+    const checkoutResponse = checkoutErrorResponse(error, authorization.requestId);
+    if (checkoutResponse) return checkoutResponse;
     if (!(error instanceof TransitionConflict)) throw error;
     return NextResponse.json(
       { error: "訂單已被其他人更新或確認期限已過，請重新整理。" },
@@ -285,6 +314,12 @@ async function handlePatch(
 
 function checkoutErrorResponse(error: unknown, requestId: string) {
   const headers = { "x-request-id": requestId };
+  if (error instanceof CashShiftOperationError && error.code === "ACTIVE_SHIFT_REQUIRED") {
+    return NextResponse.json(
+      { error: "現金交易前必須先開啟現金班次。", code: error.code },
+      { status: 409, headers },
+    );
+  }
   if (error instanceof StaffCheckoutError) {
     const messages: Record<StaffCheckoutError["code"], string> = {
       PAYMENT_REQUIRED: "請選擇付款方式。",

@@ -5,8 +5,10 @@ import { cancellationReasonLabels } from "@/lib/cancellation-reasons";
 import { formatMoney } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { ReportFilters, ReportNavigation } from "@/components/report-navigation";
+import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { getCancellationReasonReport, getHourlySalesReport } from "@/lib/report-data";
 import { requireReportScope } from "@/lib/report-scope";
+import { getFeatureAccess } from "@/server/billing/feature-access";
 import { createPerformanceTiming } from "@/lib/performance-timing";
 import { createRequestId } from "@/lib/security";
 
@@ -22,6 +24,15 @@ export default async function ReportOverviewPage({ searchParams }: PageProps) {
     "authMs",
     () => timing.measureDb(() => requireReportScope(query), 4),
   );
+  const featureAccess = await timing.measureDb(() => getFeatureAccess(
+    scope.workspace.id,
+    "BASIC_REPORTS",
+    { requireUsableSubscription: false },
+  ));
+  if (!featureAccess.allowed) {
+    timing.finish({ status: 200 });
+    return <FeatureUpgradeNotice message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} />;
+  }
   return (
     <Suspense fallback={<RouteLoadingSkeleton variant="reports" />}>
       <ReportOverviewContent scope={scope} timing={timing} />

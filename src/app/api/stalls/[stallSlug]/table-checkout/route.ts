@@ -2,6 +2,7 @@ import { z } from "zod";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
+import { CashShiftOperationError, requireOpenCashShift } from "@/lib/cash-shifts";
 import { validateCsrf } from "@/lib/csrf";
 import { DiscountApprovalError } from "@/lib/discount-approval";
 import { readJson } from "@/lib/http";
@@ -9,6 +10,8 @@ import { prisma } from "@/lib/prisma";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { createRequestId, hashClientIp } from "@/lib/security";
 import { resolveStaffCheckout, StaffCheckoutError } from "@/lib/staff-checkout";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { EntitlementError, entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
 class TableCheckoutConflict extends Error {}
@@ -108,6 +111,19 @@ async function handlePatch(
     );
   }
 
+  try {
+    const subscription = await entitlementService.getSubscriptionContext(
+      authorization.stall.organizationId,
+    );
+    if (!subscription || subscription.status === "CANCELLED") {
+      throw new EntitlementError("SUBSCRIPTION_NOT_ACTIVE");
+    }
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
+  }
+
   let checkout: Awaited<ReturnType<typeof resolveStaffCheckout>>;
   try {
     checkout = await timing.measure(
@@ -144,6 +160,13 @@ async function handlePatch(
   const now = new Date();
   try {
     const checkoutGroup = await timing.measureDb(() => prisma.$transaction(async (transaction) => {
+      const cashShiftId = checkout.method === "CASH"
+        ? await requireOpenCashShift(
+            transaction,
+            authorization.stall.organizationId,
+            authorization.stall.id,
+          )
+        : null;
       const group = await transaction.checkoutGroup.create({
         data: {
           organizationId: authorization.stall.organizationId,
@@ -192,6 +215,7 @@ async function handlePatch(
             paymentOptionId: checkout.paymentOptionId,
             amount: amount.total,
             method: checkout.method,
+            cashShiftId,
             status: "PAID",
             methodLabel: checkout.methodLabel,
             recordedById: authorization.principal.user.id,
@@ -237,6 +261,8 @@ async function handlePatch(
       { headers: { "x-request-id": authorization.requestId } },
     );
   } catch (error) {
+    const checkoutResponse = checkoutErrorResponse(error, authorization.requestId);
+    if (checkoutResponse) return checkoutResponse;
     if (!(error instanceof TableCheckoutConflict)) throw error;
     return NextResponse.json(
       { error: "同桌訂單已被其他人更新，請重新載入後再結帳。" },
@@ -247,6 +273,12 @@ async function handlePatch(
 
 function checkoutErrorResponse(error: unknown, requestId: string) {
   const headers = { "x-request-id": requestId };
+  if (error instanceof CashShiftOperationError && error.code === "ACTIVE_SHIFT_REQUIRED") {
+    return NextResponse.json(
+      { error: "現金交易前必須先開啟現金班次。", code: error.code },
+      { status: 409, headers },
+    );
+  }
   if (error instanceof StaffCheckoutError) {
     const messages: Record<StaffCheckoutError["code"], string> = {
       PAYMENT_REQUIRED: "請選擇付款方式。",

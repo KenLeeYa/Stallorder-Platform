@@ -5,6 +5,9 @@ loadLocalEnv();
 
 const port = 55431;
 const ownerEmail = "owner@stallorder.test";
+const onboardingEmail = "onboarding.application.e2e@stallorder.test";
+const platformAdminEmail = "platform.admin.e2e@stallorder.test";
+const platformAdminAuthUserId = "a9000000-0000-4000-8000-000000000001";
 const prisma = new PrismaClient();
 
 const server = createServer(async (request, response) => {
@@ -17,12 +20,44 @@ const server = createServer(async (request, response) => {
 
   if (url.pathname === "/auth/v1/authorize") {
     const redirectTo = url.searchParams.get("redirect_to");
-    if (url.searchParams.get("provider") !== "google" || !redirectTo) {
+    if (
+      url.searchParams.get("provider") !== "google"
+      || url.searchParams.get("prompt") !== "select_account"
+      || !redirectTo
+    ) {
       sendJson(response, 400, { error: "invalid oauth request" });
       return;
     }
     const callback = new URL(redirectTo);
-    callback.searchParams.set("code", "stallorder-e2e-google-code");
+    const next = callback.searchParams.get("next");
+    if (next === null) {
+      const ownerCallback = new URL(callback);
+      ownerCallback.searchParams.set("code", "stallorder-e2e-google-code");
+      const platformAdminCallback = new URL(callback);
+      platformAdminCallback.searchParams.set("code", "stallorder-e2e-platform-admin-code");
+      response.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      response.end(`<!doctype html>
+        <html lang="zh-Hant">
+          <head><meta charset="utf-8"><title>選擇測試帳號</title></head>
+          <body>
+            <h1>選擇測試帳號</h1>
+            <a href="${platformAdminCallback.toString()}">${platformAdminEmail}</a>
+            <a href="${ownerCallback.toString()}">${ownerEmail}</a>
+          </body>
+        </html>`);
+      return;
+    }
+    callback.searchParams.set(
+      "code",
+      next === "/onboarding"
+        ? "stallorder-e2e-onboarding-code"
+        : next === "/admin/billing"
+          ? "stallorder-e2e-platform-admin-code"
+        : "stallorder-e2e-google-code",
+    );
     response.writeHead(302, { location: callback.toString() });
     response.end();
     return;
@@ -30,17 +65,37 @@ const server = createServer(async (request, response) => {
 
   if (url.pathname === "/auth/v1/token" && request.method === "POST") {
     const body = await readJson(request);
-    if (url.searchParams.get("grant_type") === "pkce" && body.auth_code !== "stallorder-e2e-google-code") {
+    const email = body.auth_code === "stallorder-e2e-onboarding-code"
+      ? onboardingEmail
+      : body.auth_code === "stallorder-e2e-platform-admin-code"
+        ? platformAdminEmail
+        : ownerEmail;
+    if (
+      url.searchParams.get("grant_type") === "pkce"
+      && ![
+        "stallorder-e2e-google-code",
+        "stallorder-e2e-onboarding-code",
+        "stallorder-e2e-platform-admin-code",
+      ].includes(body.auth_code)
+    ) {
       sendJson(response, 400, { error: "invalid_grant" });
       return;
     }
-    sendJson(response, 200, await sessionPayload());
+    try {
+      sendJson(response, 200, await sessionPayload(email));
+    } catch {
+      sendJson(response, 400, { error: "invalid_grant" });
+    }
     return;
   }
 
   if (url.pathname === "/auth/v1/user") {
-    const session = await sessionPayload();
-    sendJson(response, 200, session.user);
+    try {
+      const session = await sessionPayload();
+      sendJson(response, 200, session.user);
+    } catch {
+      sendJson(response, 401, { error: "invalid_token" });
+    }
     return;
   }
 
@@ -57,19 +112,22 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   });
 }
 
-async function sessionPayload() {
+async function sessionPayload(email = ownerEmail) {
   const profile = await prisma.profile.findUniqueOrThrow({
-    where: { email: ownerEmail },
+    where: { email },
     select: { authUserId: true, displayName: true },
   });
-  if (!profile.authUserId) throw new Error("E2E owner is not linked to an auth user");
+  const authUserId = email === platformAdminEmail
+    ? platformAdminAuthUserId
+    : profile.authUserId;
+  if (!authUserId) throw new Error("E2E profile is not linked to an auth user");
 
   const now = new Date().toISOString();
   const user = {
-    id: profile.authUserId,
+    id: authUserId,
     aud: "authenticated",
     role: "authenticated",
-    email: ownerEmail,
+    email,
     email_confirmed_at: now,
     confirmed_at: now,
     last_sign_in_at: now,

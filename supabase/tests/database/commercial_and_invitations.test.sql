@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(39);
 
-select is((select count(*)::integer from public.plans), 4, '建立四種資料庫方案');
+select is((select count(*)::integer from public.plans), 5, '建立試用與四種付費資料庫方案');
 select is(
   (select included_stalls::text || ':' || coalesce(additional_stall_price::text, 'DISABLED') || ':' || max_stalls::text from public.plans where code = 'LITE'),
   '1:DISABLED:1',
@@ -132,6 +132,13 @@ insert into public.organizations (
   '91000000-0000-4000-8000-000000000001', '其他商務組織', 'other-commercial-org',
   '其他商務組織', 'ACTIVE', 'other-commercial@stallorder.test', '0900-100-001', now()
 );
+insert into public.subscriptions (
+  id, organization_id, plan_id, status, billing_period_start, billing_period_end
+) select
+  '93000000-0000-4000-8000-000000000001',
+  '91000000-0000-4000-8000-000000000001', id, 'ACTIVE',
+  date_trunc('month', now())::date, (date_trunc('month', now()) + interval '1 month')::date
+from public.plans where code = 'STANDARD';
 insert into public.stalls (
   id, organization_id, name, slug, code, address, currency, timezone,
   is_active, business_status, ordering_enabled, updated_at
@@ -140,13 +147,6 @@ insert into public.stalls (
   '91000000-0000-4000-8000-000000000001', '其他商務攤位', 'other-commercial-stall',
   'OTHER-COMM', '測試地址', 'TWD', 'Asia/Taipei', true, 'OPEN', true, now()
 );
-insert into public.subscriptions (
-  id, organization_id, plan_id, status, billing_period_start, billing_period_end
-) select
-  '93000000-0000-4000-8000-000000000001',
-  '91000000-0000-4000-8000-000000000001', id, 'ACTIVE',
-  date_trunc('month', now())::date, (date_trunc('month', now()) + interval '1 month')::date
-from public.plans where code = 'STANDARD';
 
 insert into public.organization_invitations (
   id, organization_id, email, role, token_hash, expires_at
@@ -220,35 +220,37 @@ select throws_ok(
 
 insert into public.invoices (
   id, organization_id, subscription_id, invoice_number, status, currency,
-  billing_period_start, billing_period_end, subtotal, total
+  billing_period_start, billing_period_end, subtotal, total_amount, amount_due, due_at
 ) select
   '76700000-0000-4000-8000-000000000001', organization_id, id,
-  'INV-COMM-001', 'DRAFT', 'TWD', billing_period_start, billing_period_end, 199, 199
+  'INV-COMM-001', 'DRAFT', 'TWD', billing_period_start, billing_period_end,
+  199, 199, 199, now() + interval '14 days'
 from public.subscriptions where organization_id = '11111111-1111-4111-8111-111111111111';
 insert into public.invoices (
   id, organization_id, subscription_id, invoice_number, status, currency,
-  billing_period_start, billing_period_end, subtotal, total
+  billing_period_start, billing_period_end, subtotal, total_amount, amount_due, due_at
 ) select
   '76700000-0000-4000-8000-000000000002', organization_id, id,
-  'INV-COMM-OTHER', 'DRAFT', 'TWD', billing_period_start, billing_period_end, 299, 299
+  'INV-COMM-OTHER', 'DRAFT', 'TWD', billing_period_start, billing_period_end,
+  299, 299, 299, now() + interval '14 days'
 from public.subscriptions where organization_id = '91000000-0000-4000-8000-000000000001';
 select lives_ok(
   $$insert into public.invoice_line_items (
-      organization_id, invoice_id, line_type, description, quantity, unit_amount, amount
+      organization_id, invoice_id, item_type, code, description, quantity, unit_price, subtotal
     ) values (
       '11111111-1111-4111-8111-111111111111',
       '76700000-0000-4000-8000-000000000001',
-      'ADDITIONAL_STALL', '額外攤位', 1, 199, 199
+      'ADDITIONAL_STALL', 'ADDITIONAL_STALL', '額外攤位', 1, 199, 199
     )$$,
   '正確的發票明細金額可寫入'
 );
 select throws_ok(
   $$insert into public.invoice_line_items (
-      organization_id, invoice_id, line_type, description, quantity, unit_amount, amount
+      organization_id, invoice_id, item_type, code, description, quantity, unit_price, subtotal
     ) values (
       '11111111-1111-4111-8111-111111111111',
       '76700000-0000-4000-8000-000000000001',
-      'ADDITIONAL_STALL', '錯誤金額', 2, 199, 199
+      'ADDITIONAL_STALL', 'ADDITIONAL_STALL', '錯誤金額', 2, 199, 199
     )$$,
   '23514', null,
   '發票明細金額必須等於數量乘單價'
@@ -256,9 +258,9 @@ select throws_ok(
 select throws_ok(
   $$insert into public.invoices (
       organization_id, subscription_id, invoice_number, status, currency,
-      billing_period_start, billing_period_end, subtotal, total
+      billing_period_start, billing_period_end, subtotal, total_amount, amount_due, due_at
     ) select organization_id, id, 'INV-BAD-TOTAL', 'DRAFT', 'TWD',
-      date '2030-01-01', date '2030-02-01', 200, 100
+      date '2030-01-01', date '2030-02-01', 200, 100, 100, now() + interval '14 days'
     from public.subscriptions where organization_id = '11111111-1111-4111-8111-111111111111'$$,
   '23514', null,
   '發票總額不得低於小計'

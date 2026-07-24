@@ -39,7 +39,7 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: `cross-env NEXT_PUBLIC_APP_URL=${appUrl} NEXT_PUBLIC_SUPABASE_URL=${oauthMockUrl} CRON_SECRET=e2e-cron-secret REPORT_DELIVERY_MODE=simulate next dev -p 3001`,
+      command: `cross-env NEXT_PUBLIC_APP_URL=${appUrl} NEXT_PUBLIC_SUPABASE_URL=${oauthMockUrl} LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT=true CRON_SECRET=e2e-cron-secret REPORT_DELIVERY_MODE=simulate VERCEL_ENV=preview VERCEL_GIT_COMMIT_REF=staging STAGING_PLATFORM_ADMIN_BOOTSTRAP_EMAILS=platform.admin.e2e@stallorder.test next dev -p 3001`,
       url: `${appUrl}/api/health`,
       reuseExistingServer: false,
       timeout: 120_000,

@@ -4,7 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, Plus, Save, Store } from "lucide-react";
 import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
+import { PublicIdentifierInputHint } from "@/components/public-identifier-input-hint";
 import { csrfHeaders } from "@/lib/csrf-client";
+import {
+  PUBLIC_IDENTIFIER_MAX_LENGTH,
+  PUBLIC_IDENTIFIER_MIN_LENGTH,
+  PUBLIC_IDENTIFIER_PATTERN,
+} from "@/lib/public-identifier";
 import { useUnsavedSettings } from "@/lib/unsaved-settings";
 
 type StallDraft = {
@@ -29,10 +35,12 @@ export function StallEditor({
   organizationId,
   stallId,
   initial,
+  section = "all",
 }: {
   organizationId: string;
   stallId?: string;
   initial: StallDraft;
+  section?: "all" | SaveSection;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState(initial);
@@ -134,16 +142,32 @@ export function StallEditor({
 
   return (
     <div className="border-t border-stone-200">
-      <details open data-settings-section data-settings-scope="stall-basic" data-settings-search="基本資料 名稱 代碼 說明 地址 電話 時區 幣別" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
+      {section !== "operations" ? <details open data-settings-section data-settings-scope="stall-basic" data-settings-search="基本資料 名稱 代碼 說明 地址 電話 時區 幣別" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
         <CollapsibleSectionSummary icon={Store} title="基本資料" description={basicDirty ? "有尚未儲存的變更" : undefined} />
         <form onSubmit={submitBasic} className="pb-7">
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium">攤位名稱<input value={draft.name} onChange={(event) => update("name", event.target.value)} required maxLength={80} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
-            <label className="text-sm font-medium">攤位代碼<input value={draft.code} onChange={(event) => update("code", event.target.value.toUpperCase())} required maxLength={30} pattern="[A-Za-z0-9-]+" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5 uppercase" /></label>
-            {!isEditing ? <label className="text-sm font-medium sm:col-span-2">網址代稱<input value={draft.slug ?? ""} onChange={(event) => update("slug", event.target.value.toLowerCase())} required minLength={3} maxLength={50} pattern="[a-z0-9-]+" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label> : null}
+            <label className="text-sm font-medium">攤位名稱<input type="text" value={draft.name} onChange={(event) => update("name", event.target.value)} required maxLength={80} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
+            <label className="text-sm font-medium">攤位代碼<input type="text" value={draft.code} onChange={(event) => update("code", event.target.value.toUpperCase())} required maxLength={30} pattern="[A-Za-z0-9-]+" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5 uppercase" /></label>
+            {!isEditing ? (
+              <label className="text-sm font-medium sm:col-span-2">
+                公開識別名稱
+                <PublicIdentifierInputHint hintId="new-stall-public-identifier-rules">
+                  <input type="text"
+                    value={draft.slug ?? ""}
+                    onChange={(event) => update("slug", event.target.value.toLowerCase())}
+                    required
+                    minLength={PUBLIC_IDENTIFIER_MIN_LENGTH}
+                    maxLength={PUBLIC_IDENTIFIER_MAX_LENGTH}
+                    pattern={PUBLIC_IDENTIFIER_PATTERN}
+                    aria-describedby="new-stall-public-identifier-rules"
+                    className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5"
+                  />
+                </PublicIdentifierInputHint>
+              </label>
+            ) : null}
             <label className="text-sm font-medium sm:col-span-2">說明<textarea value={draft.description} onChange={(event) => update("description", event.target.value)} maxLength={500} rows={3} className="mt-1.5 w-full resize-y rounded-md border border-stone-300 px-3 py-2.5" /></label>
-            <label className="text-sm font-medium sm:col-span-2">地址<input value={draft.address} onChange={(event) => update("address", event.target.value)} required maxLength={200} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
-            <label className="text-sm font-medium">電話<input value={draft.phone} onChange={(event) => update("phone", event.target.value)} maxLength={30} autoComplete="tel" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
+            <label className="text-sm font-medium sm:col-span-2">地址<input type="text" value={draft.address} onChange={(event) => update("address", event.target.value)} required maxLength={200} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
+            <label className="text-sm font-medium">電話<input type="tel" inputMode="tel" value={draft.phone} onChange={(event) => update("phone", event.target.value)} maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" autoComplete="tel" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
             <label className="text-sm font-medium">時區<select value={draft.timezone} onChange={(event) => update("timezone", event.target.value)} className="mt-1.5 h-11 w-full rounded-md border border-stone-300 bg-white px-3"><option value="Asia/Taipei">Asia/Taipei</option><option value="Asia/Tokyo">Asia/Tokyo</option><option value="Asia/Hong_Kong">Asia/Hong_Kong</option></select></label>
             <label className="text-sm font-medium">幣別<select value={draft.currency} onChange={(event) => update("currency", event.target.value)} className="mt-1.5 h-11 w-full rounded-md border border-stone-300 bg-white px-3"><option value="TWD">TWD</option><option value="JPY">JPY</option><option value="HKD">HKD</option></select></label>
           </div>
@@ -153,9 +177,9 @@ export function StallEditor({
             {savingSection === "basic" ? "儲存中..." : isEditing ? "儲存基本資料" : "建立攤位"}
           </button>
         </form>
-      </details>
+      </details> : null}
 
-      {isEditing ? (
+      {isEditing && section !== "basic" ? (
         <details open data-settings-section data-settings-scope="stall-operations" data-settings-search="營運狀態 營業 顧客點餐 啟用 攤位" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
           <CollapsibleSectionSummary icon={Activity} title="營運狀態" description={operationsDirty ? "有尚未儲存的變更" : undefined} />
           <form onSubmit={submitOperations} className="pb-7">

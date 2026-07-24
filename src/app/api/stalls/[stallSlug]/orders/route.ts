@@ -10,6 +10,8 @@ import { hashClientIp } from "@/lib/security";
 import { createStaffOrderSchema } from "@/lib/staff-order-contract";
 import { createStaffOrder, StaffOrderCreateError } from "@/lib/staff-order-create";
 import { StaffCheckoutError } from "@/lib/staff-checkout";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
 
@@ -18,11 +20,8 @@ export async function GET(request: Request, context: RouteContext) {
   const authorization = await authorizeApiRequest(request, stallSlug, "VIEW_ORDERS");
   if (!authorization.ok) return authorization.response;
 
-  const statuses = authorization.role === "KITCHEN"
-    ? activeOrderStatuses.filter((status) => status !== "WAITING_CONFIRMATION")
-    : activeOrderStatuses;
   const orders = await prisma.order.findMany({
-    where: { stallId: authorization.stall.id, status: { in: [...statuses] } },
+    where: { stallId: authorization.stall.id, status: { in: [...activeOrderStatuses] } },
     orderBy: { createdAt: "asc" },
     take: 50,
     select: staffOrderSelect,
@@ -56,6 +55,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   try {
+    await entitlementService.assertLimitAvailable(authorization.stall.organizationId, "ORDERS", 1);
     const result = await createStaffOrder({
       organizationId: authorization.stall.organizationId,
       stallId: authorization.stall.id,
@@ -88,6 +88,8 @@ export async function POST(request: Request, context: RouteContext) {
       },
     );
   } catch (error) {
+    const entitlementResponse = entitlementErrorResponse(error, authorization.requestId);
+    if (entitlementResponse) return entitlementResponse;
     const response = staffOrderErrorResponse(error, authorization.requestId);
     if (response) return response;
     await recordAuditEvent({
@@ -116,11 +118,12 @@ function staffOrderErrorResponse(error: unknown, requestId: string) {
       INVALID_PRODUCT_NOTES: "商品註記未符合必選或數量限制。",
       TABLE_UNAVAILABLE: "內用桌位已停用或不存在。",
       DELIVERY_UNAVAILABLE: "此攤位尚未開啟外送模組。",
+      ACTIVE_SHIFT_REQUIRED: "現金交易前必須先開啟現金班次。",
       ORDER_CONFLICT: "訂單編號或防重複識別發生衝突，請重新送出。",
     };
     return NextResponse.json(
       { error: messages[error.code], code: error.code },
-      { status: error.code === "ORDER_CONFLICT" ? 409 : 400, headers },
+      { status: error.code === "ORDER_CONFLICT" || error.code === "ACTIVE_SHIFT_REQUIRED" ? 409 : 400, headers },
     );
   }
   if (error instanceof StaffCheckoutError) {

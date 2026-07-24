@@ -64,6 +64,12 @@ Approval 保存當下 unit price，避免後續 plan 改價回算既有 invoice�
 - Max stalls 永遠優先阻擋。
 - 並行建立不越界。
 - Invoice line/total、usage dedupe 與 audit 正確。
-- Finance 只能讀；商戶不能自行授予 platform approval。
+- Finance 只能讀；商家不能自行授予 platform approval。
 
 更多計價與對帳細節見 [MULTI_STALL_PRICING.md](MULTI_STALL_PRICING.md)。
+
+## 版本化與執行來源
+
+正式價格、年繳價格、included orders、上限與 feature codes 均以 `plan_versions`／`plan_entitlements` 為準，React 與 API 不以方案名稱判斷授權。既有訂閱鎖定特定版本；調價建立新版本。完整矩陣與超額行為見 [PLAN_AND_ENTITLEMENT_MODEL.md](PLAN_AND_ENTITLEMENT_MODEL.md) 及 [USAGE_METERING.md](USAGE_METERING.md)。
+
+Trial 從商家申請核准時起算。設定精靈的 `is_test=true` 訂單不計入 included orders、Invoice 用量或一般營收；正式 Go-live 後才按既有 Plan Version 與 Entitlement 規則計量。

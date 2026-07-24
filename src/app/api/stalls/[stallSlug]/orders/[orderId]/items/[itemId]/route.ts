@@ -61,7 +61,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         include: { items: { select: { id: true, status: true } } },
       });
       if (!order) throw new ItemTransitionConflict("NOT_FOUND");
-      if (!["CONFIRMED", "PREPARING", "READY"].includes(order.status)) {
+      if (!["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.status)) {
         throw new ItemTransitionConflict("ORDER_STATUS");
       }
 

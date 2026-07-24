@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
@@ -35,10 +34,24 @@ export async function POST(request: Request, context: RouteContext) {
       await transaction.$queryRaw`select id from public.subscriptions where organization_id = ${organizationId}::uuid for update`;
       const subscription = await transaction.subscription.findUnique({
         where: { organizationId },
-        include: { plan: true },
+        include: { planVersion: true },
       });
       if (!subscription) throw new Error("SUBSCRIPTION_REQUIRED");
-      const unitPrice = subscription.plan.additionalStallPrice ?? parsed.data.unitPrice;
+      const changeRequest = parsed.data.changeRequestId
+        ? await transaction.billingChangeRequest.findFirst({
+            where: {
+              id: parsed.data.changeRequestId,
+              organizationId,
+              subscriptionId: subscription.id,
+              requestType: "ADDITIONAL_STALL",
+              status: "PENDING",
+            },
+          })
+        : null;
+      if (parsed.data.changeRequestId && (!changeRequest || changeRequest.requestedQuantity !== parsed.data.quantity)) {
+        throw new Error("REQUEST_NOT_FOUND");
+      }
+      const unitPrice = subscription.planVersion.additionalStallPrice ?? parsed.data.unitPrice;
       if (unitPrice === undefined) throw new Error("UNIT_PRICE_REQUIRED");
 
       const existing = await transaction.additionalStallApproval.aggregate({
@@ -47,8 +60,8 @@ export async function POST(request: Request, context: RouteContext) {
       });
       const existingQuantity = existing._sum.quantity ?? 0;
       if (
-        subscription.plan.maxStalls !== null
-        && subscription.plan.includedStalls + existingQuantity + parsed.data.quantity > subscription.plan.maxStalls
+        subscription.planVersion.maxStalls !== null
+        && subscription.planVersion.includedStalls + existingQuantity + parsed.data.quantity > subscription.planVersion.maxStalls
       ) throw new Error("PLAN_STALL_LIMIT");
 
       const approval = await transaction.additionalStallApproval.create({
@@ -61,42 +74,96 @@ export async function POST(request: Request, context: RouteContext) {
           reason: parsed.data.reason,
         },
       });
+      let billingPeriodStart = subscription.billingPeriodStart;
+      let billingPeriodEnd = subscription.billingPeriodEnd;
+      const currentInvoice = await transaction.invoice.findUnique({
+        where: { organizationId_billingPeriodStart_billingPeriodEnd: { organizationId, billingPeriodStart, billingPeriodEnd } },
+      });
+      if (currentInvoice && !["DRAFT", "OPEN", "OVERDUE"].includes(currentInvoice.status)) {
+        const duration = billingPeriodEnd.getTime() - billingPeriodStart.getTime();
+        billingPeriodStart = billingPeriodEnd;
+        billingPeriodEnd = new Date(billingPeriodEnd.getTime() + duration);
+      }
       const invoice = await transaction.invoice.upsert({
         where: {
           organizationId_billingPeriodStart_billingPeriodEnd: {
             organizationId,
-            billingPeriodStart: subscription.billingPeriodStart,
-            billingPeriodEnd: subscription.billingPeriodEnd,
+            billingPeriodStart,
+            billingPeriodEnd,
           },
         },
         update: {},
         create: {
           organizationId,
           subscriptionId: subscription.id,
-          invoiceNumber: `SO-${subscription.billingPeriodStart.toISOString().slice(0, 7).replace("-", "")}-${randomBytes(4).toString("hex").toUpperCase()}`,
           currency: authorization.workspace.defaultCurrency,
-          billingPeriodStart: subscription.billingPeriodStart,
-          billingPeriodEnd: subscription.billingPeriodEnd,
+          billingPeriodStart,
+          billingPeriodEnd,
+          dueAt: subscription.paymentDueAt ?? billingPeriodEnd,
+        },
+      });
+      await transaction.subscriptionItem.create({
+        data: {
+          organizationId,
+          subscriptionId: subscription.id,
+          itemType: "ADDITIONAL_STALL",
+          referenceId: approval.id,
+          code: "ADDITIONAL_STALL",
+          description: `額外攤位 ${parsed.data.quantity} 個`,
+          quantity: parsed.data.quantity,
+          unitPrice,
+          currency: authorization.workspace.defaultCurrency,
+          startsAt: approval.effectiveAt,
+          endsAt: approval.expiresAt,
         },
       });
       await transaction.invoiceLineItem.create({
         data: {
           organizationId,
           invoiceId: invoice.id,
-          lineType: "ADDITIONAL_STALL",
+          itemType: "ADDITIONAL_STALL",
+          code: "ADDITIONAL_STALL",
           description: `額外攤位核准 ${parsed.data.quantity} 個`,
           quantity: parsed.data.quantity,
-          unitAmount: unitPrice,
-          amount: parsed.data.quantity * unitPrice,
+          unitPrice,
+          subtotal: parsed.data.quantity * unitPrice,
           referenceId: approval.id,
         },
       });
-      const totals = await transaction.invoiceLineItem.aggregate({
-        where: { invoiceId: invoice.id },
-        _sum: { amount: true },
+      const updatedInvoice = await transaction.invoice.update({
+        where: { id: invoice.id },
+        data: { status: "OPEN", issuedAt: invoice.issuedAt ?? new Date() },
       });
-      const total = totals._sum.amount ?? 0;
-      await transaction.invoice.update({ where: { id: invoice.id }, data: { subtotal: total, total } });
+      if (changeRequest) {
+        await transaction.billingChangeRequest.update({
+          where: { id: changeRequest.id },
+          data: {
+            status: "APPROVED",
+            decidedByProfileId: authorization.principal.user.id,
+            decisionNote: parsed.data.reason,
+            decidedAt: new Date(),
+            invoiceId: invoice.id,
+          },
+        });
+      }
+      const notification = await transaction.billingNotification.create({
+        data: {
+          organizationId,
+          notificationType: "ADDITIONAL_STALL_APPROVED",
+          title: "額外攤位申請已核准",
+          message: `已核准 ${parsed.data.quantity} 個額外攤位，費用已加入帳單 ${invoice.invoiceNumber}。`,
+          entityType: "ADDITIONAL_STALL_APPROVAL",
+          entityId: approval.id,
+          dedupeKey: `additional-stall-approved:${approval.id}`,
+        },
+      });
+      await transaction.notificationOutbox.create({
+        data: {
+          organizationId,
+          billingNotificationId: notification.id,
+          channel: "IN_APP",
+        },
+      });
       await transaction.auditLog.create({
         data: {
           organizationId,
@@ -108,11 +175,11 @@ export async function POST(request: Request, context: RouteContext) {
           requestId: authorization.requestId,
           ipHash: hashClientIp(request),
           beforeJson: { approvedQuantity: existingQuantity },
-          afterJson: { approvedQuantity: existingQuantity + parsed.data.quantity, unitPrice, invoiceId: invoice.id },
+          afterJson: { approvedQuantity: existingQuantity + parsed.data.quantity, unitPrice, invoiceId: invoice.id, changeRequestId: changeRequest?.id ?? null },
         },
       });
-      return { approval, invoiceId: invoice.id, invoiceTotal: total };
-    });
+      return { approval, invoiceId: invoice.id, invoiceTotal: updatedInvoice.totalAmount };
+    }, { maxWait: 5_000, timeout: 20_000 });
 
     return NextResponse.json(result, {
       status: 201,
@@ -124,6 +191,7 @@ export async function POST(request: Request, context: RouteContext) {
       SUBSCRIPTION_REQUIRED: "此組織尚未建立訂閱。",
       UNIT_PRICE_REQUIRED: "Enterprise 方案必須指定額外攤位單價。",
       PLAN_STALL_LIMIT: "核准後會超過方案攤位上限。",
+      REQUEST_NOT_FOUND: "找不到相符的待審核額外攤位申請。",
     };
     return NextResponse.json(
       { error: messages[code] ?? "目前無法核准額外攤位。" },

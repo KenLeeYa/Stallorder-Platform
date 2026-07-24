@@ -245,8 +245,10 @@ select ok(
     where table_schema = 'public'
       and grantee = 'authenticated'
       and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
+      and not (table_name = 'manual_payment_records' and privilege_type = 'INSERT')
+      and not (table_name = 'billing_change_requests' and privilege_type = 'INSERT')
   ),
-  'authenticated 也必須經受信任後端執行所有寫入'
+  'authenticated 除自身待驗證付款與帳務申請送審外，必須經受信任後端執行寫入'
 );
 select ok(
   not has_function_privilege(

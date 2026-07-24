@@ -6,6 +6,14 @@ import {
   resolvePreferredQrLocale,
 } from "./qr-order-i18n";
 
+describe("commercial QR errors", () => {
+  it("localizes the trial order hard limit", () => {
+    expect(localizedPublicOrderError("zh-TW", "TRIAL_ORDER_LIMIT_REACHED")).toContain("試用訂單額度已用完");
+    expect(localizedPublicOrderError("en", "TRIAL_ORDER_LIMIT_REACHED")).toContain("trial");
+    expect(localizedPublicOrderError("zh-TW", "SUBSCRIPTION_SUSPENDED")).toContain("訂閱已停權");
+  });
+});
+
 const allTranslations = ["en", "ja", "ko", "vi", "th"];
 
 describe("QR 點餐瀏覽器語系", () => {

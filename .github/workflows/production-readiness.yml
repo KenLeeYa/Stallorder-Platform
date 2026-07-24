@@ -41,6 +41,7 @@ jobs:
       - run: npm run prisma:generate
       - run: npm run production:check
       - run: npm run lint
+      - run: npm run ui:audit
       - run: npm run typecheck
       - run: npm test
       - run: npx supabase start

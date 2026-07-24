@@ -23,6 +23,7 @@ enum OrderStatus {
   WAITING_CONFIRMATION
   CONFIRMED
   PREPARING
+  PACKING
   READY
   COMPLETED
   CANCELLED
@@ -64,6 +65,15 @@ enum OrderItemStatus {
   @@map("order_item_status")
 }
 
+enum KitchenTaskStatus {
+  PENDING
+  PREPARING
+  COMPLETED
+  CANCELLED
+
+  @@map("kitchen_task_status")
+}
+
 enum ProductNoteSelectionMode {
   SINGLE
   MULTIPLE
@@ -102,6 +112,48 @@ enum AuditOutcome {
   @@map("audit_outcome")
 }
 
+enum MerchantApplicationStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_REVIEW
+  NEEDS_INFO
+  APPROVED
+  REJECTED
+  WITHDRAWN
+  EXPIRED
+
+  @@map("merchant_application_status")
+}
+
+enum MerchantApplicationRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  BLOCKED
+
+  @@map("merchant_application_risk_level")
+}
+
+enum MerchantBusinessType {
+  NIGHT_MARKET_STALL
+  FOOD_TRUCK
+  MARKET_STALL
+  POPUP_STORE
+  SMALL_RESTAURANT
+  BEVERAGE_SHOP
+  OTHER
+
+  @@map("merchant_business_type")
+}
+
+enum PreferredContactMethod {
+  PHONE
+  LINE
+  EMAIL
+
+  @@map("preferred_contact_method")
+}
+
 enum QrCodeState {
   ACTIVE
   PAUSED
@@ -137,6 +189,60 @@ enum StallBusinessStatus {
   @@map("stall_business_status")
 }
 
+enum StallScheduleStatus {
+  SCHEDULED
+  OPEN
+  DELAYED
+  CANCELLED
+  COMPLETED
+
+  @@map("stall_schedule_status")
+}
+
+enum NotificationProvider {
+  LINE
+  IN_APP
+  EMAIL
+  WEB_PUSH
+
+  @@map("notification_provider")
+}
+
+enum NotificationIntegrationStatus {
+  DISABLED
+  ACTIVE
+  ERROR
+
+  @@map("notification_integration_status")
+}
+
+enum CustomerConsentStatus {
+  PENDING
+  GRANTED
+  REVOKED
+
+  @@map("customer_consent_status")
+}
+
+enum NotificationJobStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+
+  @@map("notification_job_status")
+}
+
+enum LineLinkSessionStatus {
+  ACTIVE
+  CONSUMED
+  EXPIRED
+  REVOKED
+
+  @@map("line_link_session_status")
+}
+
 enum DiningTableServiceState {
   EMPTY
   OCCUPIED
@@ -167,16 +273,30 @@ enum PrintJobStatus {
 
 enum CashShiftStatus {
   OPEN
+  CLOSING
+  REVIEW_REQUIRED
   CLOSED
 
   @@map("cash_shift_status")
 }
 
 enum CashMovementType {
+  OPENING_FLOAT
+  CASH_SALE
+  CASH_REFUND
   CASH_IN
   CASH_OUT
+  CORRECTION
 
   @@map("cash_movement_type")
+}
+
+enum CashShiftReviewDecision {
+  APPROVED
+  REJECTED
+  ADJUSTMENT_REQUIRED
+
+  @@map("cash_shift_review_decision")
 }
 
 enum PublicAttemptOutcome {
@@ -249,6 +369,15 @@ model Organization {
   invoices                      Invoice[]
   invoiceLineItems              InvoiceLineItem[]
   usageEvents                   UsageEvent[]
+  subscriptionItems             SubscriptionItem[]
+  manualPaymentRecords          ManualPaymentRecord[]
+  billingUsageSummaries         BillingUsageSummary[]
+  billingNotifications          BillingNotification[]
+  notificationOutbox            NotificationOutbox[]
+  billingChangeRequests         BillingChangeRequest[]
+  paymentProviderCustomers      PaymentProviderCustomer[]
+  paymentAttempts               PaymentAttempt[]
+  taxDocuments                  TaxDocument[]
   invitations                   OrganizationInvitation[]
   publicOrderAttempts           PublicOrderAttempt[]
   publicRateLimitBuckets        PublicRateLimitBucket[]
@@ -259,9 +388,27 @@ model Organization {
   printJobs                     PrintJob[]
   cashShifts                    CashShift[]
   cashMovements                 CashMovement[]
+  cashShiftReviews              CashShiftReview[]
   checkoutGroups                CheckoutGroup[]
   reportSchedules               ReportSchedule[]
   reportDeliveries              ReportDelivery[]
+  approvedMerchantApplication   MerchantApplication?
+  merchantSetupProgress         MerchantSetupProgress?
+  kitchenStations               KitchenStation[]
+  kitchenStationAssignments     KitchenStationAssignment[]
+  productionTasks               OrderProductionTask[]
+  pickupDisplaySettings         PickupDisplaySettings[]
+  capacitySettings              StallCapacitySettings[]
+  productCapacityRules          ProductCapacityRule[]
+  capacityEvents                CapacityEvent[]
+  stallLocations                StallLocation[]
+  marketEvents                  MarketEvent[]
+  stallSchedules                StallSchedule[]
+  notificationIntegrations      NotificationIntegration[]
+  customerContactLinks          CustomerContactLink[]
+  notificationJobs              NotificationJob[]
+  lineLinkSessions              LineLinkSession[]
+  lineWebhookEvents             LineWebhookEvent[]
 
   @@map("organizations")
 }
@@ -315,7 +462,23 @@ model Stall {
   printJobs              PrintJob[]
   cashShifts             CashShift[]
   cashMovements          CashMovement[]
+  cashShiftReviews       CashShiftReview[]
   checkoutGroups         CheckoutGroup[]
+  merchantSetupProgress  MerchantSetupProgress?
+  kitchenStations        KitchenStation[]
+  kitchenStationAssignments KitchenStationAssignment[]
+  productionTasks        OrderProductionTask[]
+  pickupDisplaySettings  PickupDisplaySettings?
+  capacitySettings       StallCapacitySettings?
+  productCapacityRules   ProductCapacityRule[]
+  capacityEvents         CapacityEvent[]
+  locations              StallLocation[]
+  schedules              StallSchedule[]
+  notificationIntegrations NotificationIntegration[]
+  customerContactLinks   CustomerContactLink[]
+  notificationJobs       NotificationJob[]
+  lineLinkSessions       LineLinkSession[]
+  lineWebhookEvents      LineWebhookEvent[]
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -340,18 +503,31 @@ model Profile {
   auditLogs                AuditLog[]
   recordedPayments         Payment[]
   approvedAdditionalStalls AdditionalStallApproval[] @relation("AdditionalStallApprover")
+  createdPlanVersions      PlanVersion[]              @relation("PlanVersionCreatedBy")
+  recordedManualPayments   ManualPaymentRecord[]      @relation("ManualPaymentRecordedBy")
+  verifiedManualPayments   ManualPaymentRecord[]      @relation("ManualPaymentVerifiedBy")
+  requestedBillingChanges  BillingChangeRequest[]     @relation("BillingChangeRequestedBy")
+  decidedBillingChanges    BillingChangeRequest[]     @relation("BillingChangeDecidedBy")
   sentInvitations          OrganizationInvitation[]  @relation("InvitationSender")
   orderItemBatchActions    OrderItemBatchAction[]
   requestedPrintJobs       PrintJob[]                @relation("PrintJobRequestedBy")
   openedCashShifts         CashShift[]               @relation("CashShiftOpenedBy")
   closedCashShifts         CashShift[]               @relation("CashShiftClosedBy")
   cashMovements            CashMovement[]
+  cashShiftReviews         CashShiftReview[]
   checkoutGroups           CheckoutGroup[]
   discountAppliedOrders    Order[]                   @relation("DiscountAppliedBy")
   discountApprovedOrders   Order[]                   @relation("DiscountApprovedBy")
   cancelledOrders          Order[]                   @relation("OrderCancelledBy")
   createdReportSchedules   ReportSchedule[]          @relation("ReportScheduleCreatedBy")
   updatedReportSchedules   ReportSchedule[]          @relation("ReportScheduleUpdatedBy")
+  merchantApplications     MerchantApplication[]             @relation("MerchantApplicationApplicant")
+  assignedApplications     MerchantApplication[]             @relation("MerchantApplicationAssignedReviewer")
+  reviewedApplications     MerchantApplication[]             @relation("MerchantApplicationReviewer")
+  applicationNotifications MerchantApplicationNotification[]
+  completedMerchantSetups  MerchantSetupProgress[]           @relation("MerchantSetupCompletedBy")
+  activatedMerchantSetups  MerchantSetupProgress[]           @relation("MerchantSetupActivatedBy")
+  assignedProductionTasks  OrderProductionTask[]
 
   @@map("profiles")
 }
@@ -435,6 +611,127 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model MerchantApplication {
+  id                             String                            @id @default(uuid()) @db.Uuid
+  applicationNumber              String                            @unique @default(dbgenerated("next_merchant_application_number()")) @map("application_number")
+  applicantProfileId             String                            @map("applicant_profile_id") @db.Uuid
+  applicantEmail                 String                            @map("applicant_email")
+  applicantDisplayName           String                            @map("applicant_display_name")
+  merchantName                   String?                           @map("merchant_name")
+  businessType                   MerchantBusinessType?             @map("business_type")
+  businessRegistrationNumber     String?                           @map("business_registration_number")
+  businessRegistrationNumberHash String?                           @map("business_registration_number_hash")
+  contactName                    String?                           @map("contact_name")
+  phone                          String?
+  phoneHash                      String?                           @map("phone_hash")
+  businessPhone                  String?                           @map("business_phone")
+  lineId                         String?                           @map("line_id")
+  preferredContactMethod         PreferredContactMethod?           @map("preferred_contact_method")
+  businessAddress                String?                           @map("business_address")
+  city                           String?
+  merchantDescription            String?                           @map("merchant_description")
+  stallName                      String?                           @map("stall_name")
+  stallLocation                  String?                           @map("stall_location")
+  requestedSlug                  String?                           @map("requested_slug")
+  estimatedDailyOrders           Int?                              @map("estimated_daily_orders")
+  expectedStartDate              DateTime?                         @map("expected_start_date") @db.Date
+  needsMultipleStaff             Boolean                           @default(false) @map("needs_multiple_staff")
+  needsKitchenView               Boolean                           @default(false) @map("needs_kitchen_view")
+  requestedPlanCode              String                            @default("TRIAL") @map("requested_plan_code")
+  status                         MerchantApplicationStatus         @default(DRAFT)
+  riskLevel                      MerchantApplicationRiskLevel      @default(LOW) @map("risk_level")
+  riskReasonsJson                Json?                             @map("risk_reasons_json")
+  publicReviewNote               String?                           @map("public_review_note")
+  internalReviewNote             String?                           @map("internal_review_note")
+  currentStep                    Int                               @default(1) @map("current_step")
+  termsAccepted                  Boolean                           @default(false) @map("terms_accepted")
+  privacyAccepted                Boolean                           @default(false) @map("privacy_accepted")
+  dataProcessingAccepted         Boolean                           @default(false) @map("data_processing_accepted")
+  informationConfirmed           Boolean                           @default(false) @map("information_confirmed")
+  consentedAt                    DateTime?                         @map("consented_at")
+  submissionIpHash               String?                           @map("submission_ip_hash")
+  submissionDeviceHash           String?                           @map("submission_device_hash")
+  submittedAt                    DateTime?                         @map("submitted_at")
+  assignedReviewerProfileId      String?                           @map("assigned_reviewer_profile_id") @db.Uuid
+  reviewedAt                     DateTime?                         @map("reviewed_at")
+  reviewedByProfileId            String?                           @map("reviewed_by_profile_id") @db.Uuid
+  approvedAt                     DateTime?                         @map("approved_at")
+  approvedOrganizationId         String?                           @unique @map("approved_organization_id") @db.Uuid
+  rejectedAt                     DateTime?                         @map("rejected_at")
+  withdrawnAt                    DateTime?                         @map("withdrawn_at")
+  expiresAt                      DateTime?                         @map("expires_at")
+  reapplicationAllowed           Boolean                           @default(false) @map("reapplication_allowed")
+  createdAt                      DateTime                          @default(now()) @map("created_at")
+  updatedAt                      DateTime                          @updatedAt @map("updated_at")
+  applicant                      Profile                           @relation("MerchantApplicationApplicant", fields: [applicantProfileId], references: [id], onDelete: Restrict)
+  assignedReviewer               Profile?                          @relation("MerchantApplicationAssignedReviewer", fields: [assignedReviewerProfileId], references: [id], onDelete: SetNull)
+  reviewedBy                     Profile?                          @relation("MerchantApplicationReviewer", fields: [reviewedByProfileId], references: [id], onDelete: SetNull)
+  approvedOrganization           Organization?                     @relation(fields: [approvedOrganizationId], references: [id], onDelete: SetNull)
+  notifications                  MerchantApplicationNotification[]
+  setupProgress                  MerchantSetupProgress?
+
+  @@index([applicantProfileId, status, createdAt(sort: Desc)])
+  @@index([status, submittedAt, createdAt])
+  @@index([assignedReviewerProfileId, status, submittedAt])
+  @@index([phoneHash, status])
+  @@index([businessRegistrationNumberHash, status])
+  @@index([requestedSlug, status])
+  @@map("merchant_applications")
+}
+
+model MerchantApplicationNotification {
+  id            String              @id @default(uuid()) @db.Uuid
+  applicationId String              @map("application_id") @db.Uuid
+  profileId     String              @map("profile_id") @db.Uuid
+  type          String
+  title         String
+  message       String
+  readAt        DateTime?           @map("read_at")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  application   MerchantApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  profile       Profile             @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, readAt, createdAt(sort: Desc)])
+  @@index([applicationId, createdAt(sort: Desc)])
+  @@map("merchant_application_notifications")
+}
+
+model MerchantSetupProgress {
+  id                       String              @id @default(uuid()) @db.Uuid
+  applicationId            String              @unique @map("application_id") @db.Uuid
+  organizationId           String              @unique @map("organization_id") @db.Uuid
+  stallId                  String              @unique @map("stall_id") @db.Uuid
+  qrCodeId                 String              @unique @map("qr_code_id") @db.Uuid
+  currentStep              Int                 @default(1) @map("current_step")
+  merchantProfileCompleted Boolean             @default(false) @map("merchant_profile_completed")
+  stallProfileCompleted    Boolean             @default(false) @map("stall_profile_completed")
+  catalogCompleted         Boolean             @default(false) @map("catalog_completed")
+  paymentOptionsCompleted  Boolean             @default(false) @map("payment_options_completed")
+  teamSetupCompleted       Boolean             @default(false) @map("team_setup_completed")
+  qrPreviewCompleted       Boolean             @default(false) @map("qr_preview_completed")
+  testOrderCompleted       Boolean             @default(false) @map("test_order_completed")
+  testOrderId              String?             @unique @map("test_order_id") @db.Uuid
+  goLiveCompleted          Boolean             @default(false) @map("go_live_completed")
+  testOrderCompletedAt     DateTime?           @map("test_order_completed_at")
+  goLiveCompletedAt        DateTime?           @map("go_live_completed_at")
+  completedAt              DateTime?           @map("completed_at")
+  completedByProfileId     String?             @map("completed_by_profile_id") @db.Uuid
+  activatedByProfileId     String?             @map("activated_by_profile_id") @db.Uuid
+  createdAt                DateTime            @default(now()) @map("created_at")
+  updatedAt                DateTime            @updatedAt @map("updated_at")
+  application              MerchantApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  organization             Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                    Stall               @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  qrCode                   QrCode              @relation(fields: [qrCodeId], references: [id], onDelete: Restrict)
+  testOrder                Order?              @relation("MerchantSetupTestOrder", fields: [testOrderId], references: [id], onDelete: Restrict)
+  completedBy              Profile?            @relation("MerchantSetupCompletedBy", fields: [completedByProfileId], references: [id], onDelete: SetNull)
+  activatedBy              Profile?            @relation("MerchantSetupActivatedBy", fields: [activatedByProfileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, goLiveCompleted])
+  @@index([stallId, testOrderCompleted])
+  @@map("merchant_setup_progress")
+}
+
 model ReportSchedule {
   id             String             @id @default(uuid()) @db.Uuid
   organizationId String             @map("organization_id") @db.Uuid
@@ -506,27 +803,139 @@ model Plan {
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")
   subscriptions        Subscription[]
+  versions             PlanVersion[]
 
   @@map("plans")
+}
+
+model PlanVersion {
+  id                       String            @id @default(uuid()) @db.Uuid
+  planId                   String            @map("plan_id") @db.Uuid
+  version                  Int
+  displayName              String            @map("display_name")
+  billingInterval          String            @map("billing_interval")
+  basePrice                Int               @map("base_price")
+  annualPrice              Int?              @map("annual_price")
+  currency                 String            @default("TWD")
+  trialDays                Int?              @map("trial_days")
+  includedStalls           Int               @map("included_stalls")
+  maxStalls                Int?              @map("max_stalls")
+  additionalStallPrice     Int?              @map("additional_stall_price")
+  maxStaff                 Int?              @map("max_staff")
+  maxProducts              Int?              @map("max_products")
+  maxQrCodes               Int?              @map("max_qr_codes")
+  includedOrders           Int?              @map("included_orders")
+  reportRetentionDays      Int?              @map("report_retention_days")
+  overagePolicy            String            @map("overage_policy")
+  emergencyHardCapEnabled  Boolean           @default(false) @map("emergency_hard_cap_enabled")
+  emergencyHardCapOrders   Int?              @map("emergency_hard_cap_orders")
+  isPublic                 Boolean           @default(true) @map("is_public")
+  requiresQuote            Boolean           @default(false) @map("requires_quote")
+  effectiveFrom            DateTime          @default(now()) @map("effective_from")
+  effectiveUntil           DateTime?         @map("effective_until")
+  createdAt                DateTime          @default(now()) @map("created_at")
+  createdById              String?           @map("created_by") @db.Uuid
+  plan                     Plan              @relation(fields: [planId], references: [id], onDelete: Restrict)
+  createdBy                Profile?          @relation("PlanVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  entitlements             PlanEntitlement[]
+  subscriptions            Subscription[]
+  billingChangeRequests    BillingChangeRequest[]
+
+  @@unique([planId, version])
+  @@index([planId, effectiveFrom(sort: Desc), effectiveUntil])
+  @@map("plan_versions")
+}
+
+model PlanEntitlement {
+  id                String      @id @default(uuid()) @db.Uuid
+  planVersionId     String      @map("plan_version_id") @db.Uuid
+  featureCode       String      @map("feature_code")
+  isEnabled         Boolean     @default(true) @map("is_enabled")
+  limitValue        Int?        @map("limit_value")
+  configurationJson Json?       @map("configuration_json")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  planVersion       PlanVersion @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([planVersionId, featureCode])
+  @@index([featureCode, isEnabled, planVersionId])
+  @@map("plan_entitlements")
 }
 
 model Subscription {
   id                  String                    @id @default(uuid()) @db.Uuid
   organizationId      String                    @unique @map("organization_id") @db.Uuid
   planId              String                    @map("plan_id") @db.Uuid
+  planVersionId       String                    @map("plan_version_id") @db.Uuid
   status              String                    @default("TRIALING")
+  billingInterval     String                    @default("MONTHLY") @map("billing_interval")
   billingPeriodStart  DateTime                  @map("billing_period_start") @db.Date
   billingPeriodEnd    DateTime                  @map("billing_period_end") @db.Date
+  trialStartedAt      DateTime?                 @map("trial_started_at")
+  trialEndsAt         DateTime?                 @map("trial_ends_at")
+  paymentDueAt        DateTime?                 @map("payment_due_at")
+  pastDueAt           DateTime?                 @map("past_due_at")
+  gracePeriodEndsAt   DateTime?                 @map("grace_period_ends_at")
+  suspendedAt         DateTime?                 @map("suspended_at")
   cancelAtPeriodEnd   Boolean                   @default(false) @map("cancel_at_period_end")
+  cancelledAt         DateTime?                 @map("cancelled_at")
+  reactivatedAt       DateTime?                 @map("reactivated_at")
   createdAt           DateTime                  @default(now()) @map("created_at")
   updatedAt           DateTime                  @updatedAt @map("updated_at")
   organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   plan                Plan                      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  planVersion         PlanVersion               @relation(fields: [planVersionId], references: [id], onDelete: Restrict)
   additionalApprovals AdditionalStallApproval[]
   invoices            Invoice[]
+  items               SubscriptionItem[]
+  billingChangeRequests BillingChangeRequest[]
 
   @@index([planId, status])
+  @@index([planVersionId, status])
   @@map("subscriptions")
+}
+
+model AddOnCatalog {
+  id                     String   @id @default(uuid()) @db.Uuid
+  code                   String   @unique
+  displayName            String   @map("display_name")
+  description            String   @default("")
+  billingType            String   @map("billing_type")
+  unitPrice              Int      @map("unit_price")
+  currency               String   @default("TWD")
+  featureCode            String?  @map("feature_code")
+  availabilityStatus     String   @default("MANUAL_APPROVAL_REQUIRED") @map("availability_status")
+  isActive               Boolean  @default(true) @map("is_active")
+  isPublic               Boolean  @default(true) @map("is_public")
+  requiresManualApproval Boolean  @default(true) @map("requires_manual_approval")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("add_on_catalog")
+}
+
+model SubscriptionItem {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  subscriptionId String       @map("subscription_id") @db.Uuid
+  itemType       String       @map("item_type")
+  referenceId    String?      @map("reference_id")
+  code           String
+  description    String
+  quantity       Int
+  unitPrice      Int          @map("unit_price")
+  currency       String       @default("TWD")
+  status         String       @default("ACTIVE")
+  startsAt       DateTime     @default(now()) @map("starts_at")
+  endsAt         DateTime?    @map("ends_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, status, startsAt])
+  @@index([organizationId, code, status])
+  @@map("subscription_items")
 }
 
 model AdditionalStallApproval {
@@ -554,23 +963,36 @@ model Invoice {
   id                 String            @id @default(uuid()) @db.Uuid
   organizationId     String            @map("organization_id") @db.Uuid
   subscriptionId     String            @map("subscription_id") @db.Uuid
-  invoiceNumber      String            @unique @map("invoice_number")
+  invoiceNumber      String            @unique @default(dbgenerated("next_invoice_number()")) @map("invoice_number")
   status             String            @default("DRAFT")
   currency           String            @default("TWD")
   billingPeriodStart DateTime          @map("billing_period_start") @db.Date
   billingPeriodEnd   DateTime          @map("billing_period_end") @db.Date
   subtotal           Int               @default(0)
-  total              Int               @default(0)
+  discountAmount     Int               @default(0) @map("discount_amount")
+  taxAmount          Int               @default(0) @map("tax_amount")
+  totalAmount        Int               @default(0) @map("total_amount")
+  amountPaid         Int               @default(0) @map("amount_paid")
+  amountDue          Int               @default(0) @map("amount_due")
   issuedAt           DateTime?         @map("issued_at")
+  dueAt              DateTime          @map("due_at")
   paidAt             DateTime?         @map("paid_at")
+  voidedAt           DateTime?         @map("voided_at")
+  cancelledAt        DateTime?         @map("cancelled_at")
   createdAt          DateTime          @default(now()) @map("created_at")
   updatedAt          DateTime          @updatedAt @map("updated_at")
   organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   subscription       Subscription      @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
   lineItems          InvoiceLineItem[]
+  manualPayments     ManualPaymentRecord[]
+  billingChangeRequests BillingChangeRequest[]
+  paymentAttempts       PaymentAttempt[]
+  taxDocuments          TaxDocument[]
 
+  @@unique([id, organizationId], map: "invoices_id_organization_future_provider_idx")
   @@unique([organizationId, billingPeriodStart, billingPeriodEnd])
   @@index([organizationId, status, createdAt(sort: Desc)])
+  @@index([status, dueAt])
   @@map("invoices")
 }
 
@@ -578,19 +1000,81 @@ model InvoiceLineItem {
   id             String       @id @default(uuid()) @db.Uuid
   organizationId String       @map("organization_id") @db.Uuid
   invoiceId      String       @map("invoice_id") @db.Uuid
-  lineType       String       @map("line_type")
+  itemType       String       @map("item_type")
+  code           String
   description    String
   quantity       Int
-  unitAmount     Int          @map("unit_amount")
-  amount         Int
+  unitPrice      Int          @map("unit_price")
+  subtotal       Int
   referenceId    String?      @map("reference_id")
+  metadataJson   Json?        @map("metadata_json")
   createdAt      DateTime     @default(now()) @map("created_at")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId, createdAt])
-  @@index([organizationId, lineType, createdAt])
+  @@index([organizationId, itemType, createdAt])
   @@map("invoice_line_items")
+}
+
+model ManualPaymentRecord {
+  id                    String       @id @default(uuid()) @db.Uuid
+  organizationId        String       @map("organization_id") @db.Uuid
+  invoiceId             String       @map("invoice_id") @db.Uuid
+  paymentMethod         String       @map("payment_method")
+  amount                Int
+  currency              String       @default("TWD")
+  referenceNumber       String?      @map("reference_number")
+  bankLastFive          String?      @map("bank_last_five")
+  receivedAt            DateTime     @map("received_at")
+  recordedByProfileId   String       @map("recorded_by_profile_id") @db.Uuid
+  verifiedByProfileId   String?      @map("verified_by_profile_id") @db.Uuid
+  verificationStatus    String       @default("PENDING_VERIFICATION") @map("verification_status")
+  note                  String?
+  idempotencyKey        String       @map("idempotency_key")
+  verifiedAt            DateTime?    @map("verified_at")
+  rejectedAt            DateTime?    @map("rejected_at")
+  voidedAt              DateTime?    @map("voided_at")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice               Invoice      @relation(fields: [invoiceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  recordedBy            Profile      @relation("ManualPaymentRecordedBy", fields: [recordedByProfileId], references: [id], onDelete: Restrict)
+  verifiedBy            Profile?     @relation("ManualPaymentVerifiedBy", fields: [verifiedByProfileId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([invoiceId, verificationStatus, createdAt])
+  @@index([organizationId, verificationStatus, receivedAt(sort: Desc)])
+  @@map("manual_payment_records")
+}
+
+model BillingChangeRequest {
+  id                     String       @id @default(uuid()) @db.Uuid
+  organizationId         String       @map("organization_id") @db.Uuid
+  subscriptionId         String       @map("subscription_id") @db.Uuid
+  requestType            String       @map("request_type")
+  status                 String       @default("PENDING")
+  requestedPlanVersionId String?      @map("requested_plan_version_id") @db.Uuid
+  requestedBillingInterval String?    @map("requested_billing_interval")
+  requestedQuantity      Int?         @map("requested_quantity")
+  reason                 String       @default("")
+  requestedByProfileId   String       @map("requested_by_profile_id") @db.Uuid
+  decidedByProfileId     String?      @map("decided_by_profile_id") @db.Uuid
+  decisionNote           String?      @map("decision_note")
+  invoiceId              String?      @map("invoice_id") @db.Uuid
+  decidedAt              DateTime?    @map("decided_at")
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt              DateTime     @updatedAt @map("updated_at")
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription           Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  requestedPlanVersion   PlanVersion? @relation(fields: [requestedPlanVersionId], references: [id], onDelete: Restrict)
+  requestedBy            Profile      @relation("BillingChangeRequestedBy", fields: [requestedByProfileId], references: [id], onDelete: Restrict)
+  decidedBy              Profile?     @relation("BillingChangeDecidedBy", fields: [decidedByProfileId], references: [id], onDelete: Restrict)
+  invoice                Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([status, requestType, createdAt])
+  @@map("billing_change_requests")
 }
 
 model UsageEvent {
@@ -600,6 +1084,7 @@ model UsageEvent {
   eventType      String       @map("event_type")
   quantity       Int
   billingPeriod  DateTime     @map("billing_period") @db.Date
+  referenceType  String?      @map("reference_type")
   referenceId    String?      @map("reference_id")
   occurredAt     DateTime     @default(now()) @map("occurred_at")
   createdAt      DateTime     @default(now()) @map("created_at")
@@ -609,6 +1094,172 @@ model UsageEvent {
   @@index([organizationId, billingPeriod, eventType])
   @@index([stallId, billingPeriod, eventType])
   @@map("usage_events")
+}
+
+model BillingUsageSummary {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @map("organization_id") @db.Uuid
+  billingPeriod      DateTime     @map("billing_period") @db.Date
+  billableOrderCount Int          @default(0) @map("billable_order_count")
+  activeStallCount   Int          @default(0) @map("active_stall_count")
+  activeStaffCount   Int          @default(0) @map("active_staff_count")
+  qrCodeCount        Int          @default(0) @map("qr_code_count")
+  csvExportCount     Int          @default(0) @map("csv_export_count")
+  storageBytes       BigInt?      @map("storage_bytes")
+  calculatedAt       DateTime     @default(now()) @map("calculated_at")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, billingPeriod])
+  @@index([billingPeriod, billableOrderCount(sort: Desc)])
+  @@map("billing_usage_summaries")
+}
+
+model BillingFeatureFlag {
+  code        String   @id
+  isEnabled   Boolean  @default(false) @map("is_enabled")
+  phase       Int
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("billing_feature_flags")
+}
+
+model PaymentProviderCustomer {
+  id                 String       @id @default(uuid()) @db.Uuid
+  organizationId     String       @map("organization_id") @db.Uuid
+  provider           String
+  providerCustomerId String       @map("provider_customer_id")
+  status             String       @default("ACTIVE")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider])
+  @@unique([provider, providerCustomerId])
+  @@map("payment_provider_customers")
+}
+
+model PaymentAttempt {
+  id                    String       @id @default(uuid()) @db.Uuid
+  organizationId        String       @map("organization_id") @db.Uuid
+  invoiceId             String       @map("invoice_id") @db.Uuid
+  provider              String
+  providerTransactionId String?      @map("provider_transaction_id")
+  amount                Int
+  currency              String
+  status                String       @default("CREATED")
+  failureCode           String?      @map("failure_code")
+  failureMessage        String?      @map("failure_message")
+  attemptedAt           DateTime     @default(now()) @map("attempted_at")
+  completedAt           DateTime?    @map("completed_at")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice               Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId, status, attemptedAt(sort: Desc)])
+  @@index([organizationId, status, attemptedAt(sort: Desc)])
+  @@map("payment_attempts")
+}
+
+model BillingWebhookEvent {
+  id               String    @id @default(uuid()) @db.Uuid
+  provider         String
+  providerEventId  String    @map("provider_event_id")
+  eventType        String    @map("event_type")
+  payloadHash      String    @map("payload_hash")
+  processingStatus String    @default("RECEIVED") @map("processing_status")
+  receivedAt       DateTime  @default(now()) @map("received_at")
+  processedAt      DateTime? @map("processed_at")
+  failureReason    String?   @map("failure_reason")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@unique([provider, providerEventId])
+  @@index([processingStatus, receivedAt])
+  @@map("billing_webhook_events")
+}
+
+model TaxDocument {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @map("organization_id") @db.Uuid
+  invoiceId          String             @map("invoice_id") @db.Uuid
+  provider           String?
+  documentType       String             @map("document_type")
+  taxId              String?            @map("tax_id")
+  carrierType        String?            @map("carrier_type")
+  carrierValueHash   String?            @map("carrier_value_hash")
+  status             String             @default("CREATED")
+  providerDocumentId String?            @map("provider_document_id")
+  issuedAt           DateTime?          @map("issued_at")
+  voidedAt           DateTime?          @map("voided_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice            Invoice            @relation(fields: [invoiceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  events             TaxDocumentEvent[]
+
+  @@index([invoiceId, status, createdAt(sort: Desc)])
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@map("tax_documents")
+}
+
+model TaxDocumentEvent {
+  id              String      @id @default(uuid()) @db.Uuid
+  taxDocumentId   String      @map("tax_document_id") @db.Uuid
+  eventType       String      @map("event_type")
+  providerEventId String?     @map("provider_event_id")
+  status          String
+  occurredAt      DateTime    @default(now()) @map("occurred_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  taxDocument     TaxDocument @relation(fields: [taxDocumentId], references: [id], onDelete: Cascade)
+
+  @@index([taxDocumentId, createdAt])
+  @@map("tax_document_events")
+}
+
+model BillingNotification {
+  id               String               @id @default(uuid()) @db.Uuid
+  organizationId   String               @map("organization_id") @db.Uuid
+  notificationType String               @map("notification_type")
+  severity         String               @default("INFO")
+  status           String               @default("UNREAD")
+  title            String
+  message          String
+  entityType       String?              @map("entity_type")
+  entityId         String?              @map("entity_id") @db.Uuid
+  dedupeKey        String?              @map("dedupe_key")
+  metadataJson     Json?                @map("metadata_json")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  readAt           DateTime?            @map("read_at")
+  dismissedAt      DateTime?            @map("dismissed_at")
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  outbox           NotificationOutbox[]
+
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@map("billing_notifications")
+}
+
+model NotificationOutbox {
+  id                    String              @id @default(uuid()) @db.Uuid
+  organizationId        String              @map("organization_id") @db.Uuid
+  billingNotificationId String              @map("billing_notification_id") @db.Uuid
+  channel               String
+  status                String              @default("PENDING")
+  availableAt           DateTime            @default(now()) @map("available_at")
+  deliveredAt           DateTime?           @map("delivered_at")
+  attemptCount          Int                 @default(0) @map("attempt_count")
+  lastErrorCode         String?             @map("last_error_code")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  organization          Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  billingNotification   BillingNotification @relation(fields: [billingNotificationId], references: [id], onDelete: Cascade)
+
+  @@unique([billingNotificationId, channel])
+  @@index([status, availableAt])
+  @@map("notification_outbox")
 }
 
 model OrganizationInvitation {
@@ -654,6 +1305,7 @@ model ProductCategory {
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   groups         ProductGroup[]
   products       Product[]
+  kitchenStationAssignments KitchenStationAssignment[]
 
   @@index([organizationId, sortOrder])
   @@map("product_categories")
@@ -696,6 +1348,8 @@ model Product {
   orderItems           OrderItem[]
   translations         ProductTranslation[]
   noteGroupAssignments ProductNoteGroupAssignment[]
+  kitchenStationAssignments KitchenStationAssignment[]
+  capacityRules         ProductCapacityRule[]
 
   @@index([organizationId, categoryId, sortOrder])
   @@index([organizationId, groupId])
@@ -841,6 +1495,10 @@ model QrCode {
   organizationId      String               @map("organization_id") @db.Uuid
   stallId             String               @map("stall_id") @db.Uuid
   diningTableId       String?              @map("dining_table_id") @db.Uuid
+  locationId          String?              @map("location_id") @db.Uuid
+  marketEventId       String?              @map("market_event_id") @db.Uuid
+  stallScheduleId     String?              @map("stall_schedule_id") @db.Uuid
+  fulfillmentTypeContext FulfillmentType?  @map("fulfillment_type_context")
   token               String               @unique
   label               String
   state               QrCodeState          @default(ACTIVE)
@@ -851,11 +1509,18 @@ model QrCode {
   organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall               Stall                @relation(fields: [stallId], references: [id], onDelete: Cascade)
   diningTable         DiningTable?         @relation(fields: [diningTableId], references: [id], onDelete: Cascade)
+  location            StallLocation?       @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  marketEvent         MarketEvent?         @relation(fields: [marketEventId], references: [id], onDelete: Restrict)
+  stallSchedule       StallSchedule?       @relation(fields: [stallScheduleId], references: [id], onDelete: Restrict)
   orderSessions       OrderSession[]
   publicOrderAttempts PublicOrderAttempt[]
+  merchantSetupProgress MerchantSetupProgress?
 
   @@index([organizationId, stallId])
   @@index([diningTableId, state])
+  @@index([stallScheduleId, state])
+  @@index([locationId, state])
+  @@index([marketEventId, state])
   @@index([stallId, state])
   @@map("qr_codes")
 }
@@ -886,6 +1551,9 @@ model StallOrderingSettings {
   estimatedWaitMinutes           Int          @default(15) @map("estimated_wait_minutes")
   businessDayCutoffHour          Int          @default(0) @map("business_day_cutoff_hour") @db.SmallInt
   enabledLocales                 String[]     @default(["zh-TW", "en", "ja", "ko", "vi", "th"]) @map("enabled_locales")
+  kdsWarningMinutes              Int          @default(5) @map("kds_warning_minutes")
+  kdsCriticalMinutes             Int          @default(10) @map("kds_critical_minutes")
+  kdsDefaultView                 String       @default("ORDER") @map("kds_default_view")
   createdAt                      DateTime     @default(now()) @map("created_at")
   updatedAt                      DateTime     @updatedAt @map("updated_at")
   organization                   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -893,6 +1561,102 @@ model StallOrderingSettings {
 
   @@index([organizationId])
   @@map("stall_ordering_settings")
+}
+
+model PickupDisplaySettings {
+  id                        String       @id @default(uuid()) @db.Uuid
+  organizationId            String       @map("organization_id") @db.Uuid
+  stallId                   String       @unique @map("stall_id") @db.Uuid
+  displayTokenHash          String?      @unique @map("display_token_hash")
+  showCustomerName          Boolean      @default(false) @map("show_customer_name")
+  showPickupCode            Boolean      @default(true) @map("show_pickup_code")
+  maskPickupCode            Boolean      @default(false) @map("mask_pickup_code")
+  readyRetentionMinutes     Int          @default(30) @map("ready_retention_minutes")
+  preparingRetentionMinutes Int          @default(180) @map("preparing_retention_minutes")
+  enableVoice               Boolean      @default(false) @map("enable_voice")
+  voiceLocale               String       @default("zh-TW") @map("voice_locale")
+  announcementText          String?      @map("announcement_text")
+  themeJson                 Json?        @map("theme_json")
+  isActive                  Boolean      @default(false) @map("is_active")
+  createdAt                 DateTime     @default(now()) @map("created_at")
+  updatedAt                 DateTime     @updatedAt @map("updated_at")
+  organization              Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                     Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, stallId, isActive])
+  @@map("pickup_display_settings")
+}
+
+model StallCapacitySettings {
+  id                               String          @id @default(uuid()) @db.Uuid
+  organizationId                   String          @map("organization_id") @db.Uuid
+  stallId                          String          @unique @map("stall_id") @db.Uuid
+  windowMinutes                    Int             @default(15) @map("window_minutes")
+  maxOrdersPerWindow               Int             @default(20) @map("max_orders_per_window")
+  maxItemsPerWindow                Int             @default(60) @map("max_items_per_window")
+  warningUtilizationPercent        Int             @default(75) @map("warning_utilization_percent")
+  pauseUtilizationPercent          Int             @default(100) @map("pause_utilization_percent")
+  defaultPrepMinutes               Int             @default(10) @map("default_prep_minutes")
+  minimumQuoteMinutes              Int             @default(5) @map("minimum_quote_minutes")
+  maximumQuoteMinutes              Int             @default(120) @map("maximum_quote_minutes")
+  quoteBufferMinutes               Int             @default(3) @map("quote_buffer_minutes")
+  acknowledgmentThresholdMinutes   Int             @default(30) @map("acknowledgment_threshold_minutes")
+  manualWaitMinutes                Int?            @map("manual_wait_minutes")
+  autoPauseEnabled                 Boolean         @default(false) @map("auto_pause_enabled")
+  autoResumeEnabled                Boolean         @default(false) @map("auto_resume_enabled")
+  pauseSource                      String          @default("NONE") @map("pause_source")
+  isActive                         Boolean         @default(true) @map("is_active")
+  lastCalculatedAt                 DateTime?       @map("last_calculated_at")
+  createdAt                        DateTime        @default(now()) @map("created_at")
+  updatedAt                        DateTime        @updatedAt @map("updated_at")
+  organization                     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                            Stall           @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, stallId, isActive])
+  @@map("stall_capacity_settings")
+}
+
+model ProductCapacityRule {
+  id                   String       @id @default(uuid()) @db.Uuid
+  organizationId       String       @map("organization_id") @db.Uuid
+  stallId              String       @map("stall_id") @db.Uuid
+  productId            String       @map("product_id") @db.Uuid
+  capacityWeight       Decimal      @default(1) @map("capacity_weight") @db.Decimal(8, 2)
+  prepMinutes          Int          @default(10) @map("prep_minutes")
+  maxQuantityPerWindow Int?         @map("max_quantity_per_window")
+  isActive             Boolean      @default(true) @map("is_active")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  product              Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([stallId, productId])
+  @@index([organizationId, stallId, isActive])
+  @@index([productId, stallId])
+  @@map("product_capacity_rules")
+}
+
+model CapacityEvent {
+  id                   String       @id @default(uuid()) @db.Uuid
+  organizationId       String       @map("organization_id") @db.Uuid
+  stallId              String       @map("stall_id") @db.Uuid
+  eventType            String       @map("event_type")
+  windowStart          DateTime     @map("window_start")
+  windowEnd            DateTime     @map("window_end")
+  orderCount           Int          @default(0) @map("order_count")
+  itemCount            Int          @default(0) @map("item_count")
+  weightedLoad         Decimal      @default(0) @map("weighted_load") @db.Decimal(12, 2)
+  estimatedWaitMinutes Int          @default(0) @map("estimated_wait_minutes")
+  reason               String
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@index([stallId, createdAt(sort: Desc)])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("capacity_events")
 }
 
 model StallBusinessHour {
@@ -911,6 +1675,90 @@ model StallBusinessHour {
   @@unique([stallId, dayOfWeek])
   @@index([organizationId, stallId])
   @@map("stall_business_hours")
+}
+
+model StallLocation {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  stallId        String         @map("stall_id") @db.Uuid
+  name           String
+  address        String
+  latitude       Decimal?       @db.Decimal(9, 6)
+  longitude      Decimal?       @db.Decimal(10, 6)
+  mapUrl         String?        @map("map_url")
+  instructions   String?
+  isActive       Boolean        @default(true) @map("is_active")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall          @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  schedules      StallSchedule[]
+  qrCodes        QrCode[]
+  orderSessions  OrderSession[]
+  orders         Order[]
+
+  @@unique([stallId, name])
+  @@index([organizationId, stallId, isActive])
+  @@map("stall_locations")
+}
+
+model MarketEvent {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  name           String
+  slug           String
+  description    String?
+  venueName      String         @map("venue_name")
+  address        String
+  latitude       Decimal?       @db.Decimal(9, 6)
+  longitude      Decimal?       @db.Decimal(10, 6)
+  startsAt       DateTime       @map("starts_at")
+  endsAt         DateTime       @map("ends_at")
+  organizer      String?
+  publicUrl      String?        @map("public_url")
+  isPublic       Boolean        @default(true) @map("is_public")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  schedules      StallSchedule[]
+  qrCodes        QrCode[]
+  orderSessions  OrderSession[]
+  orders         Order[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, startsAt, endsAt])
+  @@map("market_events")
+}
+
+model StallSchedule {
+  id                  String              @id @default(uuid()) @db.Uuid
+  organizationId      String              @map("organization_id") @db.Uuid
+  stallId             String              @map("stall_id") @db.Uuid
+  locationId          String?             @map("location_id") @db.Uuid
+  marketEventId       String?             @map("market_event_id") @db.Uuid
+  startsAt            DateTime            @map("starts_at")
+  endsAt              DateTime            @map("ends_at")
+  orderingOpensAt     DateTime?           @map("ordering_opens_at")
+  orderingClosesAt    DateTime?           @map("ordering_closes_at")
+  status              StallScheduleStatus @default(SCHEDULED)
+  specialNotice       String?             @map("special_notice")
+  menuOverrideId      String?             @map("menu_override_id") @db.Uuid
+  autoOpenEnabled     Boolean             @default(false) @map("auto_open_enabled")
+  autoCloseEnabled    Boolean             @default(false) @map("auto_close_enabled")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall               Stall               @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  location            StallLocation?      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  marketEvent         MarketEvent?        @relation(fields: [marketEventId], references: [id], onDelete: Restrict)
+  qrCodes             QrCode[]
+  orderSessions       OrderSession[]
+  orders              Order[]
+
+  @@index([organizationId, stallId, startsAt])
+  @@index([stallId, status, orderingOpensAt, orderingClosesAt])
+  @@index([marketEventId, startsAt])
+  @@map("stall_schedules")
 }
 
 model DiningTable {
@@ -993,15 +1841,23 @@ model OrderSession {
   revokedAt      DateTime?          @map("revoked_at")
   orderId        String?            @unique @map("order_id") @db.Uuid
   orderingMode   String             @default("DEFAULT") @map("ordering_mode")
+  locationId     String?            @map("location_id") @db.Uuid
+  marketEventId  String?            @map("market_event_id") @db.Uuid
+  stallScheduleId String?           @map("stall_schedule_id") @db.Uuid
+  fulfillmentTypeContext FulfillmentType? @map("fulfillment_type_context")
   createdAt      DateTime           @default(now()) @map("created_at")
   organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall          Stall              @relation(fields: [stallId], references: [id], onDelete: Cascade)
   qrCode         QrCode             @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
   order          Order?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  location       StallLocation?     @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  marketEvent    MarketEvent?       @relation(fields: [marketEventId], references: [id], onDelete: Restrict)
+  stallSchedule  StallSchedule?     @relation(fields: [stallScheduleId], references: [id], onDelete: Restrict)
 
   @@index([organizationId])
   @@index([stallId, status, expiresAt])
   @@index([deviceHash, status])
+  @@index([stallScheduleId, status, expiresAt])
   @@map("order_sessions")
 }
 
@@ -1013,12 +1869,16 @@ model Order {
   trackingTokenHash        String              @unique @map("tracking_token_hash")
   idempotencyKey           String              @map("idempotency_key") @db.Uuid
   source                   String              @default("QR_MENU")
+  isTest                   Boolean                @default(false) @map("is_test")
   customerName             String              @map("customer_name")
   customerPhone            String?             @map("customer_phone")
   deliveryAddress          String?             @map("delivery_address")
   tableLabel               String?             @map("table_label")
   diningTableId            String?             @map("dining_table_id") @db.Uuid
   fulfillmentType          FulfillmentType     @default(TAKEOUT) @map("fulfillment_type")
+  locationId               String?             @map("location_id") @db.Uuid
+  marketEventId            String?             @map("market_event_id") @db.Uuid
+  stallScheduleId          String?             @map("stall_schedule_id") @db.Uuid
   note                     String?
   status                   OrderStatus         @default(WAITING_CONFIRMATION)
   paymentStatus            PaymentStatus       @default(UNPAID) @map("payment_status")
@@ -1033,6 +1893,7 @@ model Order {
   total                    Int
   deviceHash               String              @map("device_hash")
   pickupCodeHash           String?             @map("pickup_code_hash")
+  pickupCodeDisplay        String?             @map("pickup_code_display")
   pickupCodeLength         Int                 @default(3) @map("pickup_code_length") @db.SmallInt
   pickupVerifiedAt         DateTime?           @map("pickup_verified_at")
   pickupVerificationMethod String?             @map("pickup_verification_method")
@@ -1044,12 +1905,17 @@ model Order {
   cancellationDetail       String?             @map("cancellation_detail")
   cancelledAt              DateTime?           @map("cancelled_at")
   cancelledById            String?             @map("cancelled_by") @db.Uuid
+  quotedWaitMinutes        Int?                @map("quoted_wait_minutes")
+  quotedReadyAt            DateTime?           @map("quoted_ready_at")
   createdAt                DateTime            @default(now()) @map("created_at")
   updatedAt                DateTime            @updatedAt @map("updated_at")
   paidAt                   DateTime?           @map("paid_at")
   organization             Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall                    Stall               @relation(fields: [stallId], references: [id], onDelete: Cascade)
   diningTable              DiningTable?        @relation(fields: [diningTableId], references: [id], onDelete: SetNull)
+  location                 StallLocation?      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  marketEvent              MarketEvent?        @relation(fields: [marketEventId], references: [id], onDelete: Restrict)
+  stallSchedule            StallSchedule?      @relation(fields: [stallScheduleId], references: [id], onDelete: Restrict)
   discountOption           DiscountOption?     @relation(fields: [discountOptionId], references: [id], onDelete: SetNull)
   discountAppliedBy        Profile?            @relation("DiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
   discountApprovedBy       Profile?            @relation("DiscountApprovedBy", fields: [discountApprovedById], references: [id], onDelete: SetNull)
@@ -1059,6 +1925,11 @@ model Order {
   orderSession             OrderSession?
   payment                  Payment?
   printJobs                PrintJob[]
+  merchantSetupProgress    MerchantSetupProgress? @relation("MerchantSetupTestOrder")
+  productionTasks          OrderProductionTask[]
+  customerContactLinks     CustomerContactLink[]
+  notificationJobs         NotificationJob[]
+  lineLinkSessions         LineLinkSession[]
 
   @@unique([stallId, orderNo])
   @@unique([stallId, idempotencyKey])
@@ -1067,6 +1938,9 @@ model Order {
   @@index([stallId, createdAt])
   @@index([confirmationExpiresAt, status])
   @@index([stallId, cancellationReason, cancelledAt])
+  @@index([stallId, status, updatedAt(sort: Desc)])
+  @@index([stallScheduleId, createdAt(sort: Desc)])
+  @@index([locationId, createdAt(sort: Desc)])
   @@map("orders")
 }
 
@@ -1077,6 +1951,7 @@ model Payment {
   orderId         String         @unique @map("order_id") @db.Uuid
   checkoutGroupId String?        @map("checkout_group_id") @db.Uuid
   paymentOptionId String?        @map("payment_option_id") @db.Uuid
+  cashShiftId     String?        @map("cash_shift_id") @db.Uuid
   amount          Int
   method          PaymentMethod  @default(CASH)
   status          PaymentStatus  @default(PAID)
@@ -1093,12 +1968,14 @@ model Payment {
   order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
   checkoutGroup   CheckoutGroup? @relation(fields: [checkoutGroupId], references: [id], onDelete: SetNull)
   paymentOption   PaymentOption? @relation(fields: [paymentOptionId], references: [id], onDelete: SetNull)
+  cashShift       CashShift?     @relation(fields: [cashShiftId], references: [id], onDelete: Restrict)
   recordedBy      Profile?       @relation(fields: [recordedById], references: [id], onDelete: SetNull)
 
   @@index([organizationId, stallId, paidAt])
   @@index([status, method, paidAt])
   @@index([recordedById, paidAt])
   @@index([checkoutGroupId])
+  @@index([cashShiftId, status, paidAt])
   @@map("payments")
 }
 
@@ -1205,9 +2082,12 @@ model CashShift {
   openedBy             Profile         @relation("CashShiftOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
   closedBy             Profile?        @relation("CashShiftClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
   movements            CashMovement[]
+  payments             Payment[]
+  reviews              CashShiftReview[]
 
   @@index([organizationId, stallId, openedAt(sort: Desc)])
   @@index([stallId, status])
+  @@index([organizationId, status, closedAt(sort: Desc)])
   @@map("cash_shifts")
 }
 
@@ -1219,8 +2099,11 @@ model CashMovement {
   type           CashMovementType
   amount         Int
   reason         String
+  referenceType  String?          @map("reference_type")
+  referenceId    String?          @map("reference_id") @db.Uuid
   recordedById   String           @map("recorded_by") @db.Uuid
   createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall          Stall            @relation(fields: [stallId], references: [id], onDelete: Cascade)
   cashShift      CashShift        @relation(fields: [cashShiftId], references: [id], onDelete: Cascade)
@@ -1229,6 +2112,28 @@ model CashMovement {
   @@index([organizationId, stallId, createdAt(sort: Desc)])
   @@index([cashShiftId, createdAt])
   @@map("cash_movements")
+}
+
+model CashShiftReview {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  organizationId      String                  @map("organization_id") @db.Uuid
+  stallId             String                  @map("stall_id") @db.Uuid
+  cashShiftId         String                  @map("cash_shift_id") @db.Uuid
+  reviewedByProfileId String                  @map("reviewed_by_profile_id") @db.Uuid
+  decision            CashShiftReviewDecision
+  comment             String?
+  reviewedAt          DateTime                @default(now()) @map("reviewed_at")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+  organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall               Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  cashShift           CashShift               @relation(fields: [cashShiftId], references: [id], onDelete: Restrict)
+  reviewedBy          Profile                 @relation(fields: [reviewedByProfileId], references: [id], onDelete: Restrict)
+
+  @@index([cashShiftId, reviewedAt(sort: Desc)])
+  @@index([organizationId, stallId, reviewedAt(sort: Desc)])
+  @@index([reviewedByProfileId, reviewedAt(sort: Desc)])
+  @@map("cash_shift_reviews")
 }
 
 model DailyStallSummary {
@@ -1282,10 +2187,79 @@ model OrderItem {
   order          Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product        Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
   noteOptions    OrderItemNoteOption[]
+  productionTask OrderProductionTask?
 
   @@index([organizationId, stallId])
   @@index([orderId])
   @@map("order_items")
+}
+
+model KitchenStation {
+  id              String                     @id @default(uuid()) @db.Uuid
+  organizationId  String                     @map("organization_id") @db.Uuid
+  stallId         String                     @map("stall_id") @db.Uuid
+  name            String
+  code            String
+  description     String?
+  sortOrder       Int                        @default(0) @map("sort_order")
+  isActive        Boolean                    @default(true) @map("is_active")
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+  organization    Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall           Stall                      @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  assignments     KitchenStationAssignment[]
+  productionTasks OrderProductionTask[]
+
+  @@unique([stallId, code])
+  @@index([organizationId, stallId, isActive, sortOrder])
+  @@map("kitchen_stations")
+}
+
+model KitchenStationAssignment {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  stallId        String           @map("stall_id") @db.Uuid
+  stationId      String           @map("station_id") @db.Uuid
+  categoryId     String?          @map("category_id") @db.Uuid
+  productId      String?          @map("product_id") @db.Uuid
+  isActive       Boolean          @default(true) @map("is_active")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall            @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  station        KitchenStation   @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  category       ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  product        Product?         @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, stallId, stationId, isActive])
+  @@map("kitchen_station_assignments")
+}
+
+model OrderProductionTask {
+  id                  String            @id @default(uuid()) @db.Uuid
+  organizationId      String            @map("organization_id") @db.Uuid
+  stallId             String            @map("stall_id") @db.Uuid
+  orderId             String            @map("order_id") @db.Uuid
+  orderItemId         String            @unique @map("order_item_id") @db.Uuid
+  stationId           String            @map("station_id") @db.Uuid
+  status              KitchenTaskStatus @default(PENDING)
+  quantity            Int
+  startedAt           DateTime?         @map("started_at")
+  completedAt         DateTime?         @map("completed_at")
+  assignedToProfileId String?           @map("assigned_to_profile_id") @db.Uuid
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall               Stall             @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  order               Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem           OrderItem         @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  station             KitchenStation    @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  assignedTo          Profile?          @relation(fields: [assignedToProfileId], references: [id], onDelete: SetNull)
+
+  @@index([stallId, status, stationId, createdAt])
+  @@index([orderId, status, createdAt])
+  @@index([assignedToProfileId, status])
+  @@map("order_production_tasks")
 }
 
 model OrderItemNoteOption {
@@ -1448,4 +2422,125 @@ model StallOrderCounter {
   @@id([stallId, businessDate])
   @@index([organizationId, businessDate])
   @@map("stall_order_counters")
+}
+
+model NotificationIntegration {
+  id               String                        @id @default(uuid()) @db.Uuid
+  organizationId   String                        @map("organization_id") @db.Uuid
+  stallId          String?                       @map("stall_id") @db.Uuid
+  provider         NotificationProvider
+  status           NotificationIntegrationStatus @default(DISABLED)
+  publicIdentifier String?                       @map("public_identifier")
+  secretReference  String?                       @map("secret_reference") @db.Uuid
+  settingsJson     Json                          @default("{}") @map("settings_json")
+  createdAt        DateTime                      @default(now()) @map("created_at")
+  updatedAt        DateTime                      @updatedAt @map("updated_at")
+  organization     Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall            Stall?                        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  contactLinks     CustomerContactLink[]
+  jobs             NotificationJob[]
+  linkSessions     LineLinkSession[]
+  webhookEvents    LineWebhookEvent[]
+
+  @@unique([stallId, provider])
+  @@index([organizationId, provider, status])
+  @@map("notification_integrations")
+}
+
+model CustomerContactLink {
+  id                          String                  @id @default(uuid()) @db.Uuid
+  organizationId              String                  @map("organization_id") @db.Uuid
+  stallId                     String                  @map("stall_id") @db.Uuid
+  integrationId               String                  @map("integration_id") @db.Uuid
+  customerReferenceId         String                  @map("customer_reference_id") @db.Uuid
+  provider                    NotificationProvider
+  providerUserIdHash          String                  @map("provider_user_id_hash")
+  providerUserSecretReference String                  @map("provider_user_secret_reference") @db.Uuid
+  consentStatus               CustomerConsentStatus   @default(PENDING) @map("consent_status")
+  consentedAt                 DateTime?               @map("consented_at")
+  revokedAt                   DateTime?               @map("revoked_at")
+  createdAt                   DateTime                @default(now()) @map("created_at")
+  updatedAt                   DateTime                @updatedAt @map("updated_at")
+  organization                Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                       Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  integration                 NotificationIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  order                       Order                   @relation(fields: [customerReferenceId], references: [id], onDelete: Cascade)
+  jobs                        NotificationJob[]
+
+  @@unique([customerReferenceId, provider])
+  @@index([organizationId, stallId, provider, consentStatus])
+  @@index([providerUserIdHash, provider])
+  @@map("customer_contact_links")
+}
+
+model NotificationJob {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  organizationId     String                  @map("organization_id") @db.Uuid
+  stallId            String                  @map("stall_id") @db.Uuid
+  integrationId      String                  @map("integration_id") @db.Uuid
+  contactLinkId      String                  @map("contact_link_id") @db.Uuid
+  orderId            String?                 @map("order_id") @db.Uuid
+  provider           NotificationProvider
+  templateCode       String                  @map("template_code")
+  recipientReference String                  @map("recipient_reference") @db.Uuid
+  status             NotificationJobStatus   @default(PENDING)
+  attemptCount       Int                     @default(0) @map("attempt_count")
+  nextAttemptAt      DateTime?               @map("next_attempt_at")
+  lastErrorCode      String?                 @map("last_error_code")
+  providerMessageId  String?                 @map("provider_message_id")
+  sentAt             DateTime?               @map("sent_at")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall              Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  integration        NotificationIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  contactLink        CustomerContactLink     @relation(fields: [contactLinkId], references: [id], onDelete: Cascade)
+  order              Order?                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, provider, templateCode])
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([organizationId, stallId, createdAt(sort: Desc)])
+  @@map("notification_jobs")
+}
+
+model LineLinkSession {
+  id                       String                  @id @default(uuid()) @db.Uuid
+  organizationId           String                  @map("organization_id") @db.Uuid
+  stallId                  String                  @map("stall_id") @db.Uuid
+  integrationId            String                  @map("integration_id") @db.Uuid
+  orderId                  String                  @map("order_id") @db.Uuid
+  stateHash                String                  @unique @map("state_hash")
+  ephemeralSecretReference String                  @map("ephemeral_secret_reference") @db.Uuid
+  status                   LineLinkSessionStatus   @default(ACTIVE)
+  expiresAt                DateTime                @map("expires_at")
+  consumedAt               DateTime?               @map("consumed_at")
+  createdAt                DateTime                @default(now()) @map("created_at")
+  updatedAt                DateTime                @updatedAt @map("updated_at")
+  organization             Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                    Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  integration              NotificationIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  order                    Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, status, expiresAt])
+  @@index([integrationId, status, expiresAt])
+  @@map("line_link_sessions")
+}
+
+model LineWebhookEvent {
+  id                String                  @id @default(uuid()) @db.Uuid
+  organizationId    String                  @map("organization_id") @db.Uuid
+  stallId           String                  @map("stall_id") @db.Uuid
+  integrationId     String                  @map("integration_id") @db.Uuid
+  providerEventHash String                  @unique @map("provider_event_hash")
+  eventType         String                  @map("event_type")
+  receivedAt        DateTime                @default(now()) @map("received_at")
+  processedAt       DateTime?               @map("processed_at")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall             Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  integration       NotificationIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId, receivedAt(sort: Desc)])
+  @@map("line_webhook_events")
 }

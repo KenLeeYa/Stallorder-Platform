@@ -1,12 +1,13 @@
 # StallOrder 攤點通
 
-StallOrder 是供夜市攤位、餐車、市集商戶、快閃店與小型餐飲業者使用的多租戶 QR 點餐 SaaS。每個部署環境以一套前端、一個獨立 Supabase 專案及一個 PostgreSQL 資料庫服務多個組織；每個組織可管理多個攤位，資料以 `organization_id` 與 `stall_id` 分層，並由 PostgreSQL RLS 強制隔離。
+StallOrder 是供夜市攤位、餐車、市集商家、快閃店與小型餐飲業者使用的多租戶 QR 點餐 SaaS。每個部署環境以一套前端、一個獨立 Supabase 專案及一個 PostgreSQL 資料庫服務多個組織；每個組織可管理多個攤位，資料以 `organization_id` 與 `stall_id` 分層，並由 PostgreSQL RLS 強制隔離。
 
 預設語系為台灣繁體中文，時區為 `Asia/Taipei`，幣別為 `TWD`。
 
 ## 已完成範圍
 
 - Google OAuth/Supabase Auth 身分連結，以及資料庫式八小時應用 session
+- Google-linked 商家申請、人工審核、Trial 原子核准、設定精靈、測試訂單與 Owner 明確 Go-live
 - 組織與攤位分層 RBAC、CSRF、登入/API rate limiting 與結構化稽核
 - `ORGANIZATION_OWNER`、`ORGANIZATION_ADMIN`、`FINANCE_VIEWER`
 - `STALL_MANAGER`、`STAFF`、`KITCHEN`
@@ -18,7 +19,7 @@ StallOrder 是供夜市攤位、餐車、市集商戶、快閃店與小型餐飲
 - 高熵、雜湊儲存、七日到期、一次性且比對 Google 驗證 Email 的團隊邀請
 - 靜態 QR、10 分鐘短效單次 session、Turnstile 伺服器驗證與多維防濫用限流
 - `WAITING_CONFIRMATION` 接單、未確認逾時、即時員工看板、防誤取消、三位取餐碼與人工現金結帳
-- 32 張公開業務表啟用且強制 RLS；匿名客戶端不能直接寫入訂單
+- 35 張公開業務表啟用且強制 RLS；匿名客戶端不能直接寫入訂單或商家申請
 
 ## 架構摘要
 
@@ -47,6 +48,10 @@ StallOrder
 ```text
 /select-organization                  組織選擇
 /select-stall                         攤位選擇
+/onboarding                           商家申請
+/onboarding/status                    申請狀態與補件入口
+/admin/merchant-applications          平台人工審核
+/merchant/setup                       核准後設定、測試與受控開店
 /merchant/dashboard                  多攤位儀表板
 /merchant/stalls                     攤位管理
 /merchant/catalog                    組織共用商品
@@ -136,3 +141,13 @@ npm audit --audit-level=moderate
 - [Supabase 報表排程 Cron](docs/SUPABASE_REPORT_DELIVERY_CRON.md)
 - [qidaigo.com 正式部署](docs/PRODUCTION_DEPLOYMENT_QIDAIGO.md)
 - [Go-Live Checklist](docs/GO_LIVE_CHECKLIST.md)
+- [商業帳務架構](docs/COMMERCIAL_BILLING_ARCHITECTURE.md)
+- [商家申請架構](docs/MERCHANT_APPLICATION_ARCHITECTURE.md)
+- [商家審核操作](docs/MERCHANT_APPLICATION_REVIEW_OPERATIONS.md)
+- [商家設定精靈](docs/MERCHANT_SETUP_WIZARD.md)
+- [人工帳務操作](docs/MANUAL_BILLING_OPERATIONS.md)
+- [帳務測試計畫](docs/BILLING_TEST_PLAN.md)
+
+## 商業帳務
+
+Phase 1 先由人工審核核准商家，建立 PAUSED QR／CLOSED Stall 的 Trial 工作區；完成設定與測試訂單後仍須 Owner 明確開放。之後沿用版本化方案、權益與限制、人工 Invoice／付款審核、訂閱啟用／停權及用量警示。ECPay、NewebPay、自動續約、Email 帳務通知與電子發票目前僅有 fail-closed 架構，全部停用且不會呼叫外部服務。

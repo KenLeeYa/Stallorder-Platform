@@ -5,6 +5,7 @@ set local search_path = public, extensions;
 select plan(11);
 
 delete from public.payments;
+delete from public.cash_shifts;
 delete from public.order_sessions;
 delete from public.orders;
 delete from public.daily_stall_summaries;
@@ -62,12 +63,23 @@ select is(
   '完成訂單計入淨銷售額'
 );
 
+insert into public.cash_shifts (
+  id, organization_id, stall_id, opening_amount, opened_by
+) values (
+  '74000000-0000-4000-8000-000000000041',
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  0,
+  '55555555-5555-4555-8555-555555555551'
+);
+
 insert into public.payments (
-  organization_id, stall_id, order_id, amount, method, status, paid_at
+  organization_id, stall_id, order_id, cash_shift_id, amount, method, status, paid_at
 ) values (
   '11111111-1111-4111-8111-111111111111',
   '22222222-2222-4222-8222-222222222222',
   '70000000-0000-4000-8000-000000000041',
+  '74000000-0000-4000-8000-000000000041',
   180,
   'CASH',
   'PAID',
@@ -117,7 +129,7 @@ select throws_like(
       '22222222-2222-4222-8222-222222222222',
       '70000000-0000-4000-8000-000000000041',
       180,
-      'CASH',
+      'OTHER',
       'PAID'
     )$$,
   '%PAYMENT_SCOPE_MISMATCH%',

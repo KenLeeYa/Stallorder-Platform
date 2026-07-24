@@ -6,12 +6,13 @@ import { ReportExportButton } from "@/components/report-export-button";
 
 type Stall = { id: string; name: string };
 
-export function ReportNavigation({ organizationId, active }: { organizationId: string; active: "overview" | "stalls" | "products" | "payments" }) {
+export function ReportNavigation({ organizationId, active }: { organizationId: string; active: "overview" | "stalls" | "products" | "payments" | "cash-shifts" }) {
   const items = [
     ["overview", "趨勢總覽"],
     ["stalls", "攤位比較"],
     ["products", "商品分析"],
     ["payments", "付款分析"],
+    ["cash-shifts", "現金交班"],
   ] as const;
   return <nav aria-label="報表分類" className="flex gap-1 overflow-x-auto border-b border-stone-200">{items.map(([key, label]) => <Link key={key} href={`/merchant/reports/${key}?organizationId=${organizationId}`} className={`shrink-0 border-b-2 px-3 py-3 text-sm font-semibold ${active === key ? "border-teal-700 text-teal-800" : "border-transparent text-stone-600"}`}>{label}</Link>)}</nav>;
 }

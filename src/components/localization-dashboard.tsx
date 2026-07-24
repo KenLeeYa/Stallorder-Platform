@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Languages, Search } from "lucide-react";
 import { LocaleFlag } from "@/components/locale-flag";
+import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { QR_LOCALES, qrOrderMessages, type QrLocale } from "@/lib/qr-order-i18n";
 import type { TranslationCoverage, TranslationEntityType } from "@/lib/translation-completeness";
 
@@ -18,10 +19,12 @@ export function LocalizationDashboard({
   organizationId,
   coverage,
   stalls,
+  returnStallId,
 }: {
   organizationId: string;
   coverage: TranslationCoverage[];
   stalls: Array<{ id: string; name: string; enabledLocales: string[] }>;
+  returnStallId?: string;
 }) {
   const [locale, setLocale] = useState<QrLocale>("en");
   const [entityType, setEntityType] = useState<TranslationEntityType | "ALL">("ALL");
@@ -38,6 +41,11 @@ export function LocalizationDashboard({
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-6xl px-4 py-7 md:px-8">
+      {returnStallId ? (
+        <div className="mb-4">
+          <StallSettingsBackLink stallId={returnStallId} />
+        </div>
+      ) : null}
       <div className="border-b border-stone-200 pb-5">
         <div className="flex items-center gap-2 text-teal-800"><Languages className="h-5 w-5" /><span className="text-sm font-semibold">多語系品質</span></div>
         <h1 className="mt-2 text-3xl font-semibold">翻譯完整度</h1>
@@ -64,7 +72,7 @@ export function LocalizationDashboard({
             <Link href={`/merchant/catalog?organizationId=${organizationId}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-teal-800">前往編輯翻譯<ExternalLink className="h-4 w-4" /></Link>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
-            <label className="relative"><span className="sr-only">搜尋缺漏項目</span><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-stone-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋原文名稱" className="h-10 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" /></label>
+            <label className="relative"><span className="sr-only">搜尋缺漏項目</span><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><input type="search" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋原文名稱" className="h-11 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" /></label>
             <select aria-label="缺漏類型" value={entityType} onChange={(event) => setEntityType(event.target.value as TranslationEntityType | "ALL")} className="h-10 rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="ALL">全部類型</option>{Object.entries(entityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           </div>
           <div className="mt-4 divide-y divide-stone-100 border-y border-stone-200">

@@ -72,7 +72,7 @@ test("QR 依瀏覽器語系自動切換並保留手動選擇", async ({ browser 
     await page.goto(`/q/${takeoutQrToken}`);
     await expect(page.locator("html")).toHaveAttribute("lang", "ja");
     await expect(page.getByRole("button", { name: "メニュー言語" })).toHaveAttribute("data-current-locale", "ja");
-    await expect(page.getByText("揚げ物", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "揚げ物", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "台湾風鶏の唐揚げ" })).toBeVisible();
 
     await page.getByRole("button", { name: "台湾風鶏の唐揚げを増やす" }).click();
@@ -105,7 +105,7 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await page.getByLabel(/加蛋/).check();
   await page.getByLabel("顧客稱呼").fill(customerName);
   await page.getByLabel("訂單備註").fill("胡椒少一點");
-  await expect(page.getByText("$90", { exact: true }).last()).toBeVisible();
+  await expect(page.getByTestId("qr-cart-panel").getByText("$90", { exact: true }).last()).toBeVisible();
   await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeEnabled({ timeout: 20_000 });
 
   const createResponse = page.waitForResponse((response) => (

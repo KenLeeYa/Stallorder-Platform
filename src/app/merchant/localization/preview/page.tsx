@@ -58,7 +58,7 @@ export default async function LocalizationPreviewPage({ searchParams }: PageProp
           </div>
         </section>
       ))}
-      <p className="py-8 text-center text-sm text-stone-500">此頁僅供商戶檢查翻譯與版面，不會建立訂單。</p>
+      <p className="py-8 text-center text-sm text-stone-500">此頁僅供商家檢查翻譯與版面，不會建立訂單。</p>
     </main>
   );
 }

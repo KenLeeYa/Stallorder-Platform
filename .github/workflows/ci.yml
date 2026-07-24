@@ -38,6 +38,8 @@ jobs:
         run: npm run prisma:generate
       - name: Lint
         run: npm run lint
+      - name: UI control audit
+        run: npm run ui:audit
       - name: Typecheck
         run: npm run typecheck
       - name: Unit tests

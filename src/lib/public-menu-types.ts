@@ -41,6 +41,10 @@ export type PublicMenu = {
   products: PublicMenuProduct[];
   supportedLocales: string[];
   estimatedWaitMinutes: number;
+  estimatedWaitMinMinutes: number;
+  estimatedWaitMaxMinutes: number;
+  waitAcknowledgmentThresholdMinutes: number | null;
+  requiresWaitAcknowledgment: boolean;
   lastTableOrderAt: string | null;
   limits: {
     maxItemQuantity: number;

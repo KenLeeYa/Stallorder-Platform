@@ -1,4 +1,14 @@
 import { z } from "zod";
+import {
+  PUBLIC_IDENTIFIER_MAX_LENGTH,
+  PUBLIC_IDENTIFIER_MIN_LENGTH,
+  PUBLIC_IDENTIFIER_REGEX,
+} from "./public-identifier";
+import {
+  multilineText,
+  optionalPhoneNumberSchema,
+  singleLineText,
+} from "./input-validation";
 
 const timezoneSchema = z.string().trim().min(1).max(64).refine((value) => {
   try {
@@ -10,18 +20,23 @@ const timezoneSchema = z.string().trim().min(1).max(64).refine((value) => {
 }, "時區格式不正確");
 
 const stallFields = {
-  name: z.string().trim().min(2).max(80),
+  name: singleLineText({ minimum: 2, maximum: 80 }),
   code: z.string().trim().min(2).max(30).regex(/^[A-Za-z0-9-]+$/).transform((value) => value.toUpperCase()),
-  description: z.string().trim().max(500),
-  address: z.string().trim().min(2).max(200),
-  phone: z.string().trim().max(30),
+  description: multilineText({ maximum: 500 }),
+  address: singleLineText({ minimum: 2, maximum: 200 }),
+  phone: optionalPhoneNumberSchema,
   timezone: timezoneSchema,
   currency: z.string().trim().regex(/^[A-Za-z]{3}$/).transform((value) => value.toUpperCase()),
 };
 
 export const createStallSchema = z.object({
   ...stallFields,
-  slug: z.string().trim().min(3).max(50).regex(/^[a-z0-9-]+$/),
+  slug: z
+    .string()
+    .trim()
+    .min(PUBLIC_IDENTIFIER_MIN_LENGTH)
+    .max(PUBLIC_IDENTIFIER_MAX_LENGTH)
+    .regex(PUBLIC_IDENTIFIER_REGEX),
 }).strict();
 
 const updateStallOperationsSchema = z.object({

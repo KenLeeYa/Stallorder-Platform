@@ -7,6 +7,13 @@ export function calculateCashExpected(input: {
   cashSales: number;
   cashIn: number;
   cashOut: number;
+  cashRefund?: number;
+  correction?: number;
 }) {
-  return input.openingAmount + input.cashSales + input.cashIn - input.cashOut;
+  return input.openingAmount
+    + input.cashSales
+    + input.cashIn
+    - input.cashOut
+    - (input.cashRefund ?? 0)
+    + (input.correction ?? 0);
 }

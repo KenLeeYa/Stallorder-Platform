@@ -8,6 +8,8 @@ import { initialFloorPosition } from "@/lib/dining-floor-layout";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp, createOpaqueToken } from "@/lib/security";
 import { getStallModuleState, stallModuleCommandSchema } from "@/lib/stall-modules";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ stallId: string }> };
@@ -36,6 +38,35 @@ export async function PATCH(request: Request, context: RouteContext) {
   const organizationId = authorization.workspace.id;
   const command = parsed.data;
   try {
+    if (command.operation === "CREATE_TABLE") {
+      await entitlementService.assertLimitAvailable(organizationId, "QR_CODES", 1);
+    } else if (command.operation === "ROTATE_TABLE_QR") {
+      await entitlementService.assertLimitAvailable(organizationId, "QR_CODES", 0);
+    } else if (command.operation === "UPDATE_MODULES" && command.deliveryModuleEnabled) {
+      const existingDeliveryQr = await prisma.qrCode.findFirst({
+        where: {
+          stallId,
+          organizationId,
+          diningTableId: null,
+          state: { in: ["ACTIVE", "PAUSED"] },
+        },
+        select: { id: true },
+      });
+      await entitlementService.assertLimitAvailable(
+        organizationId,
+        "QR_CODES",
+        existingDeliveryQr ? 0 : 1,
+      );
+    }
+    if (command.operation === "UPDATE_MODULES" && command.printModuleEnabled) {
+      const existingSettings = await prisma.stallOrderingSettings.findUnique({
+        where: { stallId },
+        select: { printModuleEnabled: true },
+      });
+      if (!existingSettings?.printModuleEnabled) {
+        await entitlementService.assertFeatureEnabled(organizationId, "PRINTER_INTEGRATION");
+      }
+    }
     const qrTokensBefore = await prisma.qrCode.findMany({
       where: { stallId, organizationId },
       select: { token: true },
@@ -163,7 +194,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         const existing = await transaction.diningTable.findFirst({ where: { id: command.tableId, stallId, organizationId } });
         if (!existing) throw new ModuleNotFoundError();
         const activeOrders = await transaction.order.count({
-          where: { diningTableId: existing.id, status: { in: ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "READY"] } },
+          where: { diningTableId: existing.id, status: { in: ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "PACKING", "READY"] } },
         });
         if (activeOrders > 0) throw new ActiveTableOrdersError();
         await transaction.diningTable.delete({ where: { id: existing.id } });
@@ -247,6 +278,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
     );
   } catch (error) {
+    const entitlementResponse = entitlementErrorResponse(error, authorization.requestId);
+    if (entitlementResponse) return entitlementResponse;
     const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
     const notFound = error instanceof ModuleNotFoundError;
     const activeOrders = error instanceof ActiveTableOrdersError;

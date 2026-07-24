@@ -2,29 +2,52 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
-import { cashShiftCommandSchema, getCashShiftRuntimeTotals, getCashShiftState } from "@/lib/cash-shifts";
+import {
+  CashShiftOperationError,
+  cashShiftCommandSchema,
+  executeCashShiftCommand,
+  getCashShiftState,
+} from "@/lib/cash-shifts";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
-import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
 import { hashClientIp } from "@/lib/security";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { getFeatureAccess } from "@/server/billing/feature-access";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
-class CashShiftNotFoundError extends Error {}
-class CashShiftConflictError extends Error {}
 
 export async function GET(request: Request, context: RouteContext) {
   const { stallSlug } = await context.params;
-  const authorization = await authorizeApiRequest(request, stallSlug, "MANAGE_CASH_SHIFT");
+  const authorization = await authorizeApiRequest(request, stallSlug, "VIEW_CASH_SHIFT");
   if (!authorization.ok) return authorization.response;
-  return NextResponse.json(
-    { state: await getCashShiftState(authorization.stall.id, authorization.stall.organizationId) },
-    { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
-  );
+  const organizationId = authorization.stall.organizationId;
+  try {
+    await entitlementService.assertFeatureEnabled(organizationId, "CASH_SHIFT");
+    const reconciliation = await getFeatureAccess(organizationId, "CASH_RECONCILIATION");
+    return NextResponse.json(
+      {
+        state: await getCashShiftState(authorization.stall.id, organizationId),
+        permissions: {
+          canManage: authorization.roles.some((role) => hasPermission(role, "MANAGE_CASH_SHIFT")),
+          canReview: reconciliation.allowed
+            && authorization.roles.some((role) => hasPermission(role, "REVIEW_CASH_SHIFT")),
+          reconciliationEnabled: reconciliation.allowed,
+        },
+      },
+      { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
+    );
+  } catch (error) {
+    const response = entitlementErrorResponse(error, authorization.requestId);
+    if (response) return response;
+    throw error;
+  }
 }
 
 export async function POST(request: Request, context: RouteContext) {
   const { stallSlug } = await context.params;
-  const authorization = await authorizeApiRequest(request, stallSlug, "MANAGE_CASH_SHIFT");
+  const authorization = await authorizeApiRequest(request, stallSlug, "VIEW_CASH_SHIFT");
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json(
@@ -43,85 +66,95 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const command = parsed.data;
+  const reviewOperation = command.operation === "REVIEW" || command.operation === "ADJUST";
+  const permission = reviewOperation ? "REVIEW_CASH_SHIFT" : "MANAGE_CASH_SHIFT";
+  if (!authorization.roles.some((role) => hasPermission(role, permission))) {
+    await recordAuditEvent({
+      organizationId: authorization.stall.organizationId,
+      stallId: authorization.stall.id,
+      actorProfileId: authorization.principal.user.id,
+      action: "AUTHORIZATION_DENIED",
+      entityType: "CASH_SHIFT",
+      outcome: "DENIED",
+      requestId: authorization.requestId,
+      ipHash: hashClientIp(request),
+      metadata: { permission, operation: command.operation },
+    });
+    return NextResponse.json(
+      { error: "您的角色沒有執行此操作的權限。" },
+      { status: 403, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+
   const organizationId = authorization.stall.organizationId;
   const stallId = authorization.stall.id;
   try {
-    const shiftId = await prisma.$transaction(async (transaction) => {
-      if (command.operation === "OPEN") {
-        const shift = await transaction.cashShift.create({
-          data: {
-            organizationId,
-            stallId,
-            openingAmount: command.openingAmount,
-            note: command.note ?? null,
-            openedById: authorization.principal.user.id,
-          },
-        });
-        return shift.id;
-      }
+    await entitlementService.assertFeatureEnabled(organizationId, "CASH_SHIFT");
+    const reconciliation = await getFeatureAccess(organizationId, "CASH_RECONCILIATION");
+    if (reviewOperation && !reconciliation.allowed) {
+      return NextResponse.json(
+        { error: reconciliation.message },
+        { status: 403, headers: { "x-request-id": authorization.requestId } },
+      );
+    }
 
-      await transaction.$queryRaw`select id from public.cash_shifts where id = ${command.shiftId}::uuid for update`;
-      const shift = await transaction.cashShift.findFirst({
-        where: { id: command.shiftId, organizationId, stallId },
-      });
-      if (!shift) throw new CashShiftNotFoundError();
-      if (shift.status !== "OPEN") throw new CashShiftConflictError();
-
-      if (command.operation === "MOVE") {
-        await transaction.cashMovement.create({
-          data: {
-            organizationId,
-            stallId,
-            cashShiftId: shift.id,
-            type: command.type,
-            amount: command.amount,
-            reason: command.reason,
-            recordedById: authorization.principal.user.id,
-          },
-        });
-        return shift.id;
-      }
-
-      const totals = await getCashShiftRuntimeTotals(transaction, shift);
-      const changed = await transaction.cashShift.updateMany({
-        where: { id: shift.id, status: "OPEN" },
-        data: {
-          status: "CLOSED",
-          systemExpectedAmount: totals.expectedAmount,
-          countedAmount: command.countedAmount,
-          varianceAmount: command.countedAmount - totals.expectedAmount,
-          note: command.note ?? shift.note,
-          closedById: authorization.principal.user.id,
-          closedAt: new Date(),
-        },
-      });
-      if (changed.count !== 1) throw new CashShiftConflictError();
-      return shift.id;
+    const result = await executeCashShiftCommand({
+      organizationId,
+      stallId,
+      actorProfileId: authorization.principal.user.id,
+      reconciliationEnabled: reconciliation.allowed,
+      command,
     });
 
     await recordAuditEvent({
       organizationId,
       stallId,
       actorProfileId: authorization.principal.user.id,
-      action: `CASH_SHIFT_${command.operation}`,
-      entityType: command.operation === "MOVE" ? "CASH_MOVEMENT" : "CASH_SHIFT",
-      entityId: shiftId,
+      action: result.action,
+      entityType: result.entityType,
+      entityId: result.entityId,
       outcome: "SUCCESS",
       requestId: authorization.requestId,
       ipHash: hashClientIp(request),
-      metadata: command.operation === "MOVE" ? { type: command.type, amount: command.amount, reason: command.reason } : undefined,
+      metadata: result.metadata,
     });
     return NextResponse.json(
-      { state: await getCashShiftState(stallId, organizationId) },
+      {
+        state: await getCashShiftState(stallId, organizationId),
+        permissions: {
+          canManage: authorization.roles.some((role) => hasPermission(role, "MANAGE_CASH_SHIFT")),
+          canReview: reconciliation.allowed
+            && authorization.roles.some((role) => hasPermission(role, "REVIEW_CASH_SHIFT")),
+          reconciliationEnabled: reconciliation.allowed,
+        },
+      },
       { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
     );
   } catch (error) {
-    const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
-    const notFound = error instanceof CashShiftNotFoundError;
-    const conflict = error instanceof CashShiftConflictError;
+    const entitlementResponse = entitlementErrorResponse(error, authorization.requestId);
+    if (entitlementResponse) return entitlementResponse;
+    return cashShiftErrorResponse(error, authorization.requestId);
+  }
+}
+
+function cashShiftErrorResponse(error: unknown, requestId: string) {
+  const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+  if (error instanceof CashShiftOperationError) {
+    const messages: Record<CashShiftOperationError["code"], string> = {
+      SHIFT_NOT_FOUND: "找不到指定的現金班次。",
+      SHIFT_NOT_OPEN: "此現金班次已不在開班狀態，請重新整理。",
+      SHIFT_NOT_REVIEWABLE: "此現金班次目前不可複核或更正。",
+      PAYMENT_NOT_FOUND: "找不到指定的現金付款。",
+      PAYMENT_NOT_REFUNDABLE: "此付款已退款或不可再退款。",
+      ACTIVE_SHIFT_REQUIRED: "現金交易前必須先開啟現金班次。",
+    };
     return NextResponse.json(
-      { error: duplicate ? "此攤位已有進行中的現金班次。" : notFound ? "找不到指定的現金班次。" : conflict ? "現金班次已由其他人關閉，請重新整理。" : "目前無法更新現金交班資料。" },
-      { status: duplicate || conflict ? 409 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
+      { error: messages[error.code], code: error.code },
+      { status: error.code === "SHIFT_NOT_FOUND" || error.code === "PAYMENT_NOT_FOUND" ? 404 : 409, headers: { "x-request-id": requestId } },
     );
   }
+  return NextResponse.json(
+    { error: duplicate ? "此攤位已有進行中的現金班次。" : "目前無法更新現金交班資料。" },
+    { status: duplicate ? 409 : 500, headers: { "x-request-id": requestId } },
+  );
 }

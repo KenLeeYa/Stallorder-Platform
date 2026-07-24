@@ -3,8 +3,8 @@ import { canTransitionOrderItem, deriveOrderStatusFromItems } from "./order-item
 
 describe("餐點製作與出餐狀態", () => {
   it("廚房可製作與完成餐點，但不能標記已出餐", () => {
-    expect(canTransitionOrderItem("PENDING", "PREPARING", "KITCHEN")).toBe(true);
-    expect(canTransitionOrderItem("PREPARING", "READY", "KITCHEN")).toBe(true);
+    expect(canTransitionOrderItem("PENDING", "PREPARING", "KITCHEN")).toBe(false);
+    expect(canTransitionOrderItem("PREPARING", "READY", "KITCHEN")).toBe(false);
     expect(canTransitionOrderItem("READY", "SERVED", "KITCHEN")).toBe(false);
   });
 

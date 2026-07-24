@@ -7,6 +7,7 @@ type ErrorMessageKey =
   | "invalidRequest"
   | "qrUnavailable"
   | "orderingUnavailable"
+  | "capacityPaused"
   | "sessionInvalid"
   | "rateLimited"
   | "securityFailed"
@@ -14,7 +15,10 @@ type ErrorMessageKey =
   | "selectionInvalid"
   | "orderLimits"
   | "productUnavailable"
+  | "waitAcknowledgment"
   | "pendingLimit"
+  | "trialOrderLimit"
+  | "subscriptionSuspended"
   | "orderFailed";
 
 export type QrOrderMessages = {
@@ -28,6 +32,9 @@ export type QrOrderMessages = {
   takeout: string;
   timeRemaining: (minutes: number, seconds: string) => string;
   estimatedWait: (minutes: number) => string;
+  estimatedWaitRange: (minimumMinutes: number, maximumMinutes: number) => string;
+  waitAcknowledgment: (minimumMinutes: number, maximumMinutes: number) => string;
+  waitAcknowledgmentRequired: string;
   lastTableOrder: (time: string) => string;
   cartRestored: string;
   productImage: (name: string) => string;
@@ -39,6 +46,9 @@ export type QrOrderMessages = {
   maxSelections: (count: number) => string;
   noSelection: string;
   yourOrder: string;
+  viewOrder: string;
+  close: string;
+  categoryNavigation: string;
   customerName: string;
   customerNamePlaceholder: string;
   orderNote: string;
@@ -70,6 +80,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     takeout: "外帶取餐",
     timeRemaining: (minutes, seconds) => `點餐時間剩餘 ${minutes}:${seconds}`,
     estimatedWait: (minutes) => minutes > 0 ? `目前預估等候約 ${minutes} 分鐘` : "目前可立即處理",
+    estimatedWaitRange: (minimum, maximum) => minimum === maximum
+      ? `目前預估等候約 ${maximum} 分鐘`
+      : `目前預估等候時間：${minimum}～${maximum} 分鐘`,
+    waitAcknowledgment: (minimum, maximum) => `我已了解目前預估等候時間為 ${minimum === maximum ? `${maximum}` : `${minimum}～${maximum}`} 分鐘。`,
+    waitAcknowledgmentRequired: "請先確認目前預估等候時間。",
     lastTableOrder: (time) => `此桌最近追加點餐：${time}`,
     cartRestored: "已恢復上次尚未送出的點餐內容。",
     productImage: (name) => `${name}圖片`,
@@ -81,6 +96,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `最多 ${count} 項`,
     noSelection: "不選擇",
     yourOrder: "您的訂單",
+    viewOrder: "查看訂單",
+    close: "關閉",
+    categoryNavigation: "商品分類",
     customerName: "顧客稱呼",
     customerNamePlaceholder: "稱呼（選填）",
     orderNote: "訂單備註",
@@ -101,6 +119,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "訂單資料不正確，請重新確認。",
       qrUnavailable: "此 QR Code 目前無法使用，請洽詢店員。",
       orderingUnavailable: "攤位目前暫停或關閉點餐。",
+      capacityPaused: "目前訂單較多，暫停接單，請稍後再試。",
       sessionInvalid: "點餐工作階段已失效，請重新掃描 QR Code。",
       rateLimited: "操作過於頻繁，請稍後再試。",
       securityFailed: "安全驗證失敗，請重新完成驗證。",
@@ -108,7 +127,10 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       selectionInvalid: "商品選項不完整或已變更，請重新確認。",
       orderLimits: "訂單內容超過攤位限制，請調整後再試。",
       productUnavailable: "部分商品已售完或無法供應。",
+      waitAcknowledgment: "請先確認目前預估等候時間，再送出訂單。",
       pendingLimit: "此裝置尚有過多待確認訂單。",
+      trialOrderLimit: "試用訂單額度已用完，請洽商家人員。",
+      subscriptionSuspended: "商家訂閱已停權，暫時無法接受新訂單。",
       orderFailed: "目前無法建立或查詢訂單，請稍後再試。",
     },
   },
@@ -123,6 +145,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     takeout: "Takeout",
     timeRemaining: (minutes, seconds) => `Time remaining ${minutes}:${seconds}`,
     estimatedWait: (minutes) => minutes > 0 ? `Estimated wait: about ${minutes} minutes` : "Ready to prepare now",
+    estimatedWaitRange: (minimum, maximum) => minimum === maximum
+      ? `Estimated wait: about ${maximum} minutes`
+      : `Estimated wait: ${minimum}–${maximum} minutes`,
+    waitAcknowledgment: (minimum, maximum) => `I understand the estimated wait is ${minimum === maximum ? `${maximum}` : `${minimum}–${maximum}`} minutes.`,
+    waitAcknowledgmentRequired: "Confirm the estimated wait before placing your order.",
     lastTableOrder: (time) => `Latest order for this table: ${time}`,
     cartRestored: "Your unsent cart has been restored.",
     productImage: (name) => `${name} image`,
@@ -134,6 +161,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `Up to ${count}`,
     noSelection: "None",
     yourOrder: "Your order",
+    viewOrder: "View order",
+    close: "Close",
+    categoryNavigation: "Menu categories",
     customerName: "Customer name",
     customerNamePlaceholder: "Name (optional)",
     orderNote: "Order notes",
@@ -154,6 +184,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "The order details are invalid. Review them and try again.",
       qrUnavailable: "This QR code is unavailable. Please ask a staff member for help.",
       orderingUnavailable: "This stall is not accepting orders right now.",
+      capacityPaused: "Order volume is currently high. Ordering is paused; please try again shortly.",
       sessionInvalid: "Your ordering session is no longer valid. Scan the QR code again.",
       rateLimited: "Too many attempts. Please wait and try again.",
       securityFailed: "Security verification failed. Complete the check again.",
@@ -161,7 +192,10 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       selectionInvalid: "Some product options are incomplete or have changed. Review your selections.",
       orderLimits: "The order exceeds this stall's limits. Adjust it and try again.",
       productUnavailable: "Some products are sold out or unavailable.",
+      waitAcknowledgment: "Confirm the current estimated wait before placing your order.",
       pendingLimit: "This device already has too many orders awaiting confirmation.",
+      trialOrderLimit: "This trial has reached its order limit. Please ask the merchant for assistance.",
+      subscriptionSuspended: "This merchant subscription is suspended and cannot accept new orders.",
       orderFailed: "Unable to create or retrieve the order right now. Try again shortly.",
     },
   },
@@ -176,6 +210,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     takeout: "テイクアウト",
     timeRemaining: (minutes, seconds) => `注文可能時間 残り ${minutes}:${seconds}`,
     estimatedWait: (minutes) => minutes > 0 ? `現在の待ち時間目安：約${minutes}分` : "ただいますぐに調理可能です",
+    estimatedWaitRange: (minimum, maximum) => minimum === maximum
+      ? `現在の待ち時間目安：約${maximum}分`
+      : `現在の待ち時間目安：${minimum}～${maximum}分`,
+    waitAcknowledgment: (minimum, maximum) => `待ち時間の目安が${minimum === maximum ? `${maximum}` : `${minimum}～${maximum}`}分であることを確認しました。`,
+    waitAcknowledgmentRequired: "待ち時間の目安をご確認ください。",
     lastTableOrder: (time) => `このテーブルの最終追加注文：${time}`,
     cartRestored: "未送信のカート内容を復元しました。",
     productImage: (name) => `${name}の画像`,
@@ -187,6 +226,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `最大${count}個`,
     noSelection: "選択しない",
     yourOrder: "ご注文",
+    viewOrder: "注文内容を見る",
+    close: "閉じる",
+    categoryNavigation: "メニューカテゴリー",
     customerName: "お名前",
     customerNamePlaceholder: "お名前（任意）",
     orderNote: "注文メモ",
@@ -207,6 +249,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "注文内容が正しくありません。確認して再度お試しください。",
       qrUnavailable: "このQRコードはご利用いただけません。スタッフにお尋ねください。",
       orderingUnavailable: "この店舗は現在注文を受け付けていません。",
+      capacityPaused: "現在注文が集中しているため、受付を一時停止しています。しばらくしてからお試しください。",
       sessionInvalid: "注文セッションが無効です。QRコードを再度読み取ってください。",
       rateLimited: "操作回数が多すぎます。しばらくしてから再度お試しください。",
       securityFailed: "セキュリティ認証に失敗しました。もう一度認証してください。",
@@ -214,7 +257,10 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       selectionInvalid: "商品のオプションが未選択、または変更されています。選択内容をご確認ください。",
       orderLimits: "注文内容が店舗の上限を超えています。数量を調整してください。",
       productUnavailable: "一部の商品は売り切れ、または提供できません。",
+      waitAcknowledgment: "現在の待ち時間の目安を確認してから注文を送信してください。",
       pendingLimit: "この端末には確認待ちの注文が多すぎます。",
+      trialOrderLimit: "トライアルの注文上限に達しました。店舗スタッフにお問い合わせください。",
+      subscriptionSuspended: "店舗の契約が停止中のため、新しい注文を受け付けられません。",
       orderFailed: "現在、注文を作成または確認できません。しばらくしてからお試しください。",
     },
   },
@@ -229,6 +275,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     takeout: "포장 주문",
     timeRemaining: (minutes, seconds) => `주문 가능 시간 ${minutes}:${seconds}`,
     estimatedWait: (minutes) => minutes > 0 ? `현재 예상 대기 시간: 약 ${minutes}분` : "현재 바로 준비할 수 있습니다",
+    estimatedWaitRange: (minimum, maximum) => minimum === maximum
+      ? `현재 예상 대기 시간: 약 ${maximum}분`
+      : `현재 예상 대기 시간: ${minimum}~${maximum}분`,
+    waitAcknowledgment: (minimum, maximum) => `예상 대기 시간이 ${minimum === maximum ? `${maximum}` : `${minimum}~${maximum}`}분임을 확인했습니다.`,
+    waitAcknowledgmentRequired: "예상 대기 시간을 먼저 확인해 주세요.",
     lastTableOrder: (time) => `이 테이블의 최근 추가 주문: ${time}`,
     cartRestored: "전송하지 않은 장바구니를 복원했습니다.",
     productImage: (name) => `${name} 이미지`,
@@ -240,6 +291,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `최대 ${count}개`,
     noSelection: "선택 안 함",
     yourOrder: "주문 내역",
+    viewOrder: "주문 내역 보기",
+    close: "닫기",
+    categoryNavigation: "메뉴 카테고리",
     customerName: "고객명",
     customerNamePlaceholder: "이름 (선택)",
     orderNote: "요청 사항",
@@ -260,6 +314,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "주문 정보가 올바르지 않습니다. 다시 확인해 주세요.",
       qrUnavailable: "이 QR 코드를 사용할 수 없습니다. 직원에게 문의해 주세요.",
       orderingUnavailable: "이 매장은 현재 주문을 받고 있지 않습니다.",
+      capacityPaused: "현재 주문이 많아 주문 접수를 잠시 중단했습니다. 잠시 후 다시 시도해 주세요.",
       sessionInvalid: "주문 세션이 유효하지 않습니다. QR 코드를 다시 스캔해 주세요.",
       rateLimited: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
       securityFailed: "보안 인증에 실패했습니다. 다시 인증해 주세요.",
@@ -267,7 +322,10 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       selectionInvalid: "상품 옵션이 누락되었거나 변경되었습니다. 선택 내용을 확인해 주세요.",
       orderLimits: "주문 내용이 매장 한도를 초과했습니다. 수량을 조정해 주세요.",
       productUnavailable: "일부 상품이 품절되었거나 주문할 수 없습니다.",
+      waitAcknowledgment: "현재 예상 대기 시간을 확인한 후 주문해 주세요.",
       pendingLimit: "이 기기에 확인 대기 중인 주문이 너무 많습니다.",
+      trialOrderLimit: "체험 주문 한도에 도달했습니다. 매장 직원에게 문의해 주세요.",
+      subscriptionSuspended: "매장 구독이 정지되어 새 주문을 받을 수 없습니다.",
       orderFailed: "현재 주문을 생성하거나 조회할 수 없습니다. 잠시 후 다시 시도해 주세요.",
     },
   },
@@ -282,6 +340,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     takeout: "Mang đi",
     timeRemaining: (minutes, seconds) => `Thời gian đặt món còn lại ${minutes}:${seconds}`,
     estimatedWait: (minutes) => minutes > 0 ? `Thời gian chờ dự kiến: khoảng ${minutes} phút` : "Có thể chuẩn bị ngay",
+    estimatedWaitRange: (minimum, maximum) => minimum === maximum
+      ? `Thời gian chờ dự kiến: khoảng ${maximum} phút`
+      : `Thời gian chờ dự kiến: ${minimum}–${maximum} phút`,
+    waitAcknowledgment: (minimum, maximum) => `Tôi xác nhận thời gian chờ dự kiến là ${minimum === maximum ? `${maximum}` : `${minimum}–${maximum}`} phút.`,
+    waitAcknowledgmentRequired: "Vui lòng xác nhận thời gian chờ dự kiến.",
     lastTableOrder: (time) => `Lần gọi thêm gần nhất của bàn này: ${time}`,
     cartRestored: "Đã khôi phục giỏ hàng chưa gửi.",
     productImage: (name) => `Hình ảnh ${name}`,
@@ -293,6 +356,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `Tối đa ${count} lựa chọn`,
     noSelection: "Không chọn",
     yourOrder: "Đơn hàng của bạn",
+    viewOrder: "Xem đơn hàng",
+    close: "Đóng",
+    categoryNavigation: "Danh mục món",
     customerName: "Tên khách hàng",
     customerNamePlaceholder: "Tên (không bắt buộc)",
     orderNote: "Ghi chú đơn hàng",
@@ -313,6 +379,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "Thông tin đơn hàng không hợp lệ. Vui lòng kiểm tra lại.",
       qrUnavailable: "Mã QR này không khả dụng. Vui lòng liên hệ nhân viên.",
       orderingUnavailable: "Quầy hiện không nhận đơn hàng.",
+      capacityPaused: "Hiện có nhiều đơn hàng nên quầy tạm ngừng nhận đơn. Vui lòng thử lại sau.",
       sessionInvalid: "Phiên đặt món không còn hiệu lực. Vui lòng quét lại mã QR.",
       rateLimited: "Bạn thao tác quá thường xuyên. Vui lòng thử lại sau.",
       securityFailed: "Xác minh bảo mật thất bại. Vui lòng xác minh lại.",
@@ -320,7 +387,10 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       selectionInvalid: "Một số tùy chọn món ăn còn thiếu hoặc đã thay đổi. Vui lòng kiểm tra lại.",
       orderLimits: "Đơn hàng vượt quá giới hạn của quầy. Vui lòng điều chỉnh số lượng.",
       productUnavailable: "Một số món đã hết hoặc hiện không phục vụ.",
+      waitAcknowledgment: "Vui lòng xác nhận thời gian chờ hiện tại trước khi gửi đơn.",
       pendingLimit: "Thiết bị này đang có quá nhiều đơn chờ xác nhận.",
+      trialOrderLimit: "Gói dùng thử đã đạt giới hạn đơn hàng. Vui lòng liên hệ nhân viên cửa hàng.",
+      subscriptionSuspended: "Gói đăng ký của cửa hàng đã bị tạm ngưng nên chưa thể nhận đơn mới.",
       orderFailed: "Hiện không thể tạo hoặc tra cứu đơn hàng. Vui lòng thử lại sau.",
     },
   },
@@ -335,6 +405,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     takeout: "สั่งกลับบ้าน",
     timeRemaining: (minutes, seconds) => `เวลาสั่งอาหารคงเหลือ ${minutes}:${seconds}`,
     estimatedWait: (minutes) => minutes > 0 ? `เวลารอโดยประมาณ ${minutes} นาที` : "สามารถเริ่มเตรียมได้ทันที",
+    estimatedWaitRange: (minimum, maximum) => minimum === maximum
+      ? `เวลารอโดยประมาณ ${maximum} นาที`
+      : `เวลารอโดยประมาณ ${minimum}–${maximum} นาที`,
+    waitAcknowledgment: (minimum, maximum) => `ฉันรับทราบว่าเวลารอโดยประมาณคือ ${minimum === maximum ? `${maximum}` : `${minimum}–${maximum}`} นาที`,
+    waitAcknowledgmentRequired: "โปรดยืนยันเวลารอโดยประมาณก่อนส่งคำสั่งซื้อ",
     lastTableOrder: (time) => `เวลาสั่งเพิ่มล่าสุดของโต๊ะนี้: ${time}`,
     cartRestored: "กู้คืนรายการในตะกร้าที่ยังไม่ได้ส่งแล้ว",
     productImage: (name) => `รูปภาพ ${name}`,
@@ -346,6 +421,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `เลือกได้สูงสุด ${count} รายการ`,
     noSelection: "ไม่เลือก",
     yourOrder: "รายการสั่งซื้อของคุณ",
+    viewOrder: "ดูรายการสั่งซื้อ",
+    close: "ปิด",
+    categoryNavigation: "หมวดหมู่เมนู",
     customerName: "ชื่อลูกค้า",
     customerNamePlaceholder: "ชื่อ (ไม่บังคับ)",
     orderNote: "หมายเหตุคำสั่งซื้อ",
@@ -366,6 +444,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "ข้อมูลคำสั่งซื้อไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง",
       qrUnavailable: "ไม่สามารถใช้ QR Code นี้ได้ โปรดสอบถามพนักงาน",
       orderingUnavailable: "ร้านยังไม่รับคำสั่งซื้อในขณะนี้",
+      capacityPaused: "ขณะนี้มีคำสั่งซื้อจำนวนมาก ร้านจึงหยุดรับออร์เดอร์ชั่วคราว โปรดลองอีกครั้งภายหลัง",
       sessionInvalid: "เซสชันการสั่งซื้อไม่ถูกต้อง โปรดสแกน QR Code อีกครั้ง",
       rateLimited: "มีการทำรายการบ่อยเกินไป โปรดลองอีกครั้งในภายหลัง",
       securityFailed: "การยืนยันความปลอดภัยล้มเหลว โปรดยืนยันอีกครั้ง",
@@ -373,7 +452,10 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       selectionInvalid: "ตัวเลือกสินค้าบางรายการไม่ครบหรือมีการเปลี่ยนแปลง โปรดตรวจสอบอีกครั้ง",
       orderLimits: "คำสั่งซื้อเกินขีดจำกัดของร้าน โปรดปรับจำนวนแล้วลองอีกครั้ง",
       productUnavailable: "สินค้าบางรายการหมดหรือไม่พร้อมจำหน่าย",
+      waitAcknowledgment: "โปรดยืนยันเวลารอโดยประมาณก่อนส่งคำสั่งซื้อ",
       pendingLimit: "อุปกรณ์นี้มีคำสั่งซื้อที่รอยืนยันมากเกินไป",
+      trialOrderLimit: "คำสั่งซื้อช่วงทดลองใช้ถึงขีดจำกัดแล้ว โปรดติดต่อพนักงานร้าน",
+      subscriptionSuspended: "การสมัครใช้บริการของร้านถูกระงับ จึงยังไม่สามารถรับคำสั่งซื้อใหม่ได้",
       orderFailed: "ไม่สามารถสร้างหรือค้นหาคำสั่งซื้อได้ในขณะนี้ โปรดลองอีกครั้งในภายหลัง",
     },
   },
@@ -414,8 +496,13 @@ const errorMessageKeys: Record<string, ErrorMessageKey> = {
   EXCESSIVE_ITEM_QUANTITY: "orderLimits",
   NOTE_TOO_LONG: "orderLimits",
   PRODUCT_UNAVAILABLE: "productUnavailable",
+  PRODUCT_CAPACITY_EXCEEDED: "productUnavailable",
+  CAPACITY_PAUSED: "capacityPaused",
+  WAIT_ACKNOWLEDGMENT_REQUIRED: "waitAcknowledgment",
   INVALID_PRODUCT_NOTES: "selectionInvalid",
   TOO_MANY_PENDING_ORDERS: "pendingLimit",
+  TRIAL_ORDER_LIMIT_REACHED: "trialOrderLimit",
+  SUBSCRIPTION_SUSPENDED: "subscriptionSuspended",
   ORDER_CONFLICT: "orderFailed",
   ORDER_CREATE_ERROR: "orderFailed",
   ORDER_NOT_FOUND: "orderFailed",

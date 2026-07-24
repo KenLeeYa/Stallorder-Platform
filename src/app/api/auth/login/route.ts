@@ -16,12 +16,13 @@ import {
   sanitizeRedirectPath,
 } from "@/lib/security";
 import { getDefaultWorkspacePath, getWorkspaceAccess } from "@/lib/workspace";
+import { getPendingMerchantSetupPath } from "@/server/merchant-applications/merchant-setup-service";
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(120).transform((value) => value.toLowerCase()),
   password: z.string().min(1).max(128),
   next: z.string().max(500).optional(),
-});
+}).strict();
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
@@ -103,7 +104,11 @@ export async function POST(request: Request) {
       organizationMemberships: {
         where: {
           isActive: true,
-          organization: { status: { in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] } },
+          organization: {
+            status: {
+              in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD", "SUSPENDED", "CANCELLED"],
+            },
+          },
         },
         include: {
           organization: {
@@ -120,7 +125,11 @@ export async function POST(request: Request) {
           isActive: true,
           stall: {
             isActive: true,
-            organization: { status: { in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] } },
+            organization: {
+              status: {
+                in: ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD", "SUSPENDED", "CANCELLED"],
+              },
+            },
           },
         },
         include: { stall: true },
@@ -157,7 +166,7 @@ export async function POST(request: Request) {
     ));
   }
 
-  const [session, workspaces] = await Promise.all([
+  const [session, workspaces, pendingSetupPath] = await Promise.all([
     timing.measure(
       "sessionMs",
       () => timing.measureDb(() => createSession(profile.id), 2),
@@ -166,9 +175,14 @@ export async function POST(request: Request) {
       () => getWorkspaceAccess(profile.id, profile.platformRole),
       3,
     ),
+    timing.measureDb(() => getPendingMerchantSetupPath(profile.id)),
   ]);
-  const fallbackPath = workspaces.length > 0
-    ? getDefaultWorkspacePath(workspaces)
+  const fallbackPath = profile.platformRole === "PLATFORM_ADMIN"
+    ? "/admin/billing"
+    : pendingSetupPath
+      ? pendingSetupPath
+      : workspaces.length > 0
+      ? getDefaultWorkspacePath(workspaces)
     : stallMembership
       ? defaultPathForRole(stallMembership.role, stallMembership.stall.slug)
       : "/";

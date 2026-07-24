@@ -8,7 +8,14 @@ import { prisma } from "@/lib/prisma";
 import { defaultPathForRole } from "@/lib/auth";
 import { resolvePrimaryRole } from "@/lib/rbac";
 
-const accessibleOrganizationStatuses = ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] as const;
+const accessibleOrganizationStatuses = [
+  "TRIALING",
+  "ACTIVE",
+  "PAST_DUE",
+  "GRACE_PERIOD",
+  "SUSPENDED",
+  "CANCELLED",
+] as const;
 
 export type WorkspaceStall = {
   id: string;
@@ -29,6 +36,7 @@ export type WorkspaceOrganization = {
   slug: string;
   status: OrganizationStatus;
   defaultCurrency: string;
+  merchantSetupState: "IN_PROGRESS" | "COMPLETED" | null;
   roles: UserRole[];
   canUseAllStalls: boolean;
   stalls: WorkspaceStall[];
@@ -64,6 +72,9 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
       status: { in: [...accessibleOrganizationStatuses] },
     },
     include: {
+      merchantSetupProgress: {
+        select: { goLiveCompleted: true },
+      },
       stalls: {
         orderBy: [{ name: "asc" }, { createdAt: "asc" }],
       },
@@ -126,6 +137,11 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
       slug: organization.slug,
       status: organization.status,
       defaultCurrency: organization.defaultCurrency,
+      merchantSetupState: organization.merchantSetupProgress
+        ? organization.merchantSetupProgress.goLiveCompleted
+          ? "COMPLETED"
+          : "IN_PROGRESS"
+        : null,
       roles: organizationRoles,
       canUseAllStalls: hasAllStallAccess,
       stalls,

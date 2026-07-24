@@ -7,6 +7,8 @@ import { CheckCheck, CheckCircle2, ChefHat, KeyRound, ListChecks, LoaderCircle, 
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
+import { StaffCapacityControl } from "@/components/staff-capacity-control";
+import type { StaffCapacityData } from "@/lib/capacity-contract";
 import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
@@ -27,6 +29,7 @@ type Props = {
   paymentOptions: Array<{ id: string; name: string; kind: PaymentOptionKind }>;
   discountOptions: Array<{ id: string; name: string; rateBps: number }>;
   orderCatalog: StaffOrderCatalog | null;
+  capacity: StaffCapacityData | null;
 };
 
 type StaffStatus = (typeof staffStatusOptions)[number]["value"];
@@ -52,7 +55,7 @@ type CheckoutRequest = {
 };
 type UndoBatch = { actionId: string; undoExpiresAt: string; itemCount: number };
 
-export function StaffOrderBoard({ stall, initialOrders, initialNow, account, modules, paymentOptions, discountOptions, orderCatalog }: Props) {
+export function StaffOrderBoard({ stall, initialOrders, initialNow, account, modules, paymentOptions, discountOptions, orderCatalog, capacity }: Props) {
   const knownOrderIdsRef = useRef(new Set(initialOrders.map((order) => order.id)));
   const alertsEnabledRef = useRef(false);
   const [orders, setOrders] = useState(initialOrders);
@@ -784,12 +787,13 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
         </div>
       </div>
       {message ? <p role="status" className={`mt-4 text-sm print:hidden ${/(無法|失敗|中斷|錯誤|期限|找不到)/.test(message) ? "text-red-700" : "text-emerald-700"}`}>{message}</p> : null}
+      {capacity ? <StaffCapacityControl stallSlug={stall.slug} initialData={capacity} /> : null}
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <label className="relative block w-full sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-stone-400" />
           <span className="sr-only">搜尋桌號或訂單編號</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋桌號、訂單編號或顧客" className="h-10 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" />
+          <input type="search" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋桌號、訂單編號或顧客" className="h-11 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" />
         </label>
         {account.role === "KITCHEN" ? (
           <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label="廚房檢視模式">
@@ -862,7 +866,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xs font-semibold text-stone-500">訂單 {order.orderNo}</div>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-500"><span>訂單 {order.orderNo}</span>{order.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">開店測試訂單</span> : null}</div>
                 <h2 className="mt-1 font-semibold">{order.customerName}</h2>
                 <p className="mt-1 text-sm text-stone-500">
                   {order.fulfillmentType === "DINE_IN"
@@ -956,7 +960,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
               <span className="text-sm text-stone-600">{paymentStatusLabels[order.paymentStatus]}</span>
             </div>
 
-            {modules.print ? (
+            {modules.print && !order.isTest ? (
               <button
                 type="button"
                 onClick={() => void printOrder(order.id)}
@@ -975,7 +979,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
               ) : (
                 <div className="mt-4">
                   <div className="relative">
-                    <input
+                    <input type="text"
                       inputMode="numeric"
                       autoComplete="one-time-code"
                       aria-label={`${order.pickupCodeLength === 6 ? "六" : "三"}位數取餐碼`}
@@ -1149,7 +1153,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
             {checkoutNeedsApproval ? (
               <div className="mt-5 rounded-md border border-amber-300 bg-amber-50 p-4">
                 <div className="flex items-start gap-2"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" /><div><h3 className="text-sm font-semibold text-amber-950">此折扣超過店員免核准門檻</h3><p className="mt-1 text-xs text-amber-900">請填寫原因；店員另須由經理輸入帳號密碼驗證。</p></div></div>
-                <label className="mt-3 block text-xs font-semibold text-stone-700">折扣原因<input value={discountApprovalReason} maxLength={200} onChange={(event) => setDiscountApprovalReason(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label>
+                <label className="mt-3 block text-xs font-semibold text-stone-700">折扣原因<input type="text" value={discountApprovalReason} maxLength={200} onChange={(event) => setDiscountApprovalReason(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label>
                 {!operatorCanApproveDiscount ? <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-stone-700">經理帳號<input type="email" autoComplete="username" value={managerEmail} maxLength={254} onChange={(event) => setManagerEmail(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label><label className="text-xs font-semibold text-stone-700">經理密碼<input type="password" autoComplete="current-password" value={managerPassword} maxLength={128} onChange={(event) => setManagerPassword(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label></div> : <p className="mt-3 text-xs font-semibold text-emerald-800">您的角色可直接核准，系統仍會記錄操作員與原因。</p>}
               </div>
             ) : null}
@@ -1163,9 +1167,11 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
             {checkoutUsesCash ? (
               <div className="mt-5">
                 <label className="text-xs font-semibold text-stone-600" htmlFor="cash-received">客戶實收金額</label>
-                <input
+                <input type="text"
                   id="cash-received"
                   inputMode="numeric"
+                  maxLength={9}
+                  pattern="[0-9]{0,9}"
                   value={cashReceived}
                   onChange={(event) => setCashReceived(event.target.value.replace(/\D/g, "").slice(0, 9))}
                   placeholder={String(checkoutTotal)}
@@ -1278,8 +1284,9 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
             </label>
             <label className="mt-4 block text-xs font-semibold text-stone-600">
               輸入完整訂單編號以確認
-              <input
+              <input type="text"
                 value={pendingManualPickup.confirmationOrderNo}
+                maxLength={30}
                 onChange={(event) => setPendingManualPickup((current) => current ? {
                   ...current,
                   confirmationOrderNo: event.target.value.trim().slice(0, 30),

@@ -16,6 +16,7 @@ const targetSlug = "p1-template-target";
 let sourceStallId = "";
 let targetStallId = "";
 let highDiscountId = "";
+let additionalStallApprovalId = "";
 
 test.describe("P1 營運功能", () => {
   test.describe.configure({ mode: "serial" });
@@ -28,6 +29,20 @@ test.describe("P1 營運功能", () => {
     await prisma.orderSession.deleteMany({ where: { order: { customerName: { startsWith: "P1 E2E" } } } });
     await prisma.order.deleteMany({ where: { stallId: primaryStallId, customerName: { startsWith: "P1 E2E" } } });
     await prisma.cashShift.deleteMany({ where: { stallId: primaryStallId, note: { startsWith: "P1 E2E" } } });
+
+    const subscription = await prisma.subscription.findUniqueOrThrow({
+      where: { organizationId },
+      select: { id: true },
+    });
+    additionalStallApprovalId = (await prisma.additionalStallApproval.create({
+      data: {
+        organizationId,
+        subscriptionId: subscription.id,
+        quantity: 2,
+        unitPrice: 0,
+        reason: "P1 E2E fixture",
+      },
+    })).id;
 
     const product = await prisma.product.findFirstOrThrow({ where: { organizationId, name: "香酥雞排" } });
     const source = await prisma.stall.create({
@@ -86,6 +101,9 @@ test.describe("P1 營運功能", () => {
     await prisma.cashShift.deleteMany({ where: { stallId: primaryStallId, note: { startsWith: "P1 E2E" } } });
     if (highDiscountId) await prisma.discountOption.deleteMany({ where: { id: highDiscountId } });
     await prisma.stall.deleteMany({ where: { id: { in: [sourceStallId, targetStallId].filter(Boolean) } } });
+    if (additionalStallApprovalId) {
+      await prisma.additionalStallApproval.deleteMany({ where: { id: additionalStallApprovalId } });
+    }
     await prisma.$disconnect();
   });
 
@@ -99,8 +117,13 @@ test.describe("P1 營運功能", () => {
     await expect(page.getByText("班次進行中", { exact: true })).toBeVisible();
     await page.getByLabel("金額", { exact: true }).fill("500");
     await page.getByLabel("原因", { exact: true }).fill("P1 E2E 備用金");
+    const movementResponse = page.waitForResponse((response) => (
+      response.url().endsWith("/api/stalls/aming-chicken/cash-shifts")
+      && response.request().method() === "POST"
+    ));
     await page.getByRole("button", { name: "新增紀錄" }).click();
-    await expect(page.getByText("P1 E2E 備用金", { exact: true })).toBeVisible();
+    expect((await movementResponse).status()).toBe(200);
+    await expect(page.getByText(/P1 E2E 備用金/)).toBeVisible();
 
     const firstContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
     const secondContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
@@ -164,10 +187,11 @@ test.describe("P1 營運功能", () => {
     await expect(page.getByText("$2,606", { exact: true })).toBeVisible();
     await page.getByLabel("實際盤點金額").fill("2606");
     await expect(page.getByText("帳款相符", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "完成交班" }).click();
-    await expect(page.getByText("尚無已完成的交班紀錄。")).toHaveCount(0);
-    const closedShift = await prisma.cashShift.findFirstOrThrow({ where: { stallId: primaryStallId, note: "P1 E2E 班次" }, orderBy: { openedAt: "desc" } });
-    expect(closedShift.varianceAmount).toBe(0);
+    await page.getByRole("button", { name: "送出交班複核" }).click();
+    await expect(page.getByText("等待複核", { exact: true })).toBeVisible();
+    const pendingShift = await prisma.cashShift.findFirstOrThrow({ where: { stallId: primaryStallId, note: "P1 E2E 班次" }, orderBy: { openedAt: "desc" } });
+    expect(pendingShift.status).toBe("CLOSING");
+    expect(pendingShift.varianceAmount).toBe(0);
 
     const cancelContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
     const cancelCustomer = await cancelContext.newPage();
@@ -193,9 +217,8 @@ test.describe("P1 營運功能", () => {
 
   test("多攤位範本先顯示差異再套用全部營運設定", async ({ page }) => {
     await login(page, "owner@stallorder.test");
-    await page.goto(`/merchant/stalls/${targetStallId}`);
-    await expect(page.getByText("營業時間", { exact: true })).toBeVisible();
-    await page.getByText("多攤位範本", { exact: true }).click();
+    await page.goto(`/merchant/stalls/${targetStallId}/settings/templates`);
+    await expect(page.getByRole("heading", { name: "多攤位範本", exact: true })).toBeVisible();
     const template = page.locator("details").filter({ hasText: "多攤位範本" }).last();
     await template.getByLabel("來源攤位").selectOption(sourceStallId);
     await template.getByRole("button", { name: "比較差異" }).click();
@@ -257,7 +280,13 @@ function assertLocalDatabase() {
 }
 
 function loadLocalEnv() {
-  const content = readFileSync(resolve(process.cwd(), ".env"), "utf8");
+  let content: string;
+  try {
+    content = readFileSync(resolve(process.cwd(), ".env"), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
   for (const line of content.split(/\r?\n/)) {
     const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
     if (!match || process.env[match[1]]) continue;

@@ -59,9 +59,13 @@
 ## Bootstrap 與功能
 
 - [ ] PLATFORM_ADMIN bootstrap audited
-- [ ] First Organization／Merchant／Stall／owner created
+- [ ] Google-linked 申請送出後未建立 Organization／Stall／Subscription／QR
+- [ ] Platform Admin 核准交易只建立一個 Organization、Owner 與 Trial Subscription
 - [ ] Initial stall was CLOSED, ordering disabled and QR PAUSED
-- [ ] Production QR tested, then explicitly activated
+- [ ] 設定測試訂單為 `is_test=true`、`WAITING_CONFIRMATION`，且未進用量／營收／付款對帳
+- [ ] 測試訂單完成前 Go-live 被拒絕；完成後仍未自動開放
+- [ ] Organization Owner 明確確認後，QR 才轉 ACTIVE 且 Stall 才轉 OPEN
+- [ ] Applicant／Organization／Stall RLS 與 internal review note 隔離通過
 - [ ] Staff confirmation and Realtime new-order flow tested
 - [ ] Kitchen item／batch workflow tested
 - [ ] Dine-in table／additional order／served／cleaning flow tested
@@ -92,3 +96,14 @@
 - [ ] Merchant operations owner approval
 - [ ] Security／data owner approval
 - [ ] Go-live time and rollback window recorded
+
+## 商業帳務 Production Gate
+
+- [ ] 四個 commercial billing migrations 已先在 Staging 驗證，Production 尚未套用前不得勾選
+- [ ] Trial 期限／100 筆硬限制與 paid soft quota 已以核准測試組織驗證
+- [ ] Invoice 部分付款、完整付款、拒絕、啟用、停權、恢復與 audit 已通過
+- [ ] Owner／Finance／Admin／Staff／Kitchen／Anonymous RLS 正反案例通過
+- [ ] ECPay、NewebPay、自動帳務、Email 與電子發票 flags 全部為 false
+- [ ] Disabled webhook 回 404，沒有 future table 寫入或外部 request
+- [ ] Production migration 備份、維護窗、監控、rollback owner 與核准人已記錄
+- [ ] 依 [BILLING_TEST_PLAN.md](BILLING_TEST_PLAN.md) 完成正式 release gate

@@ -84,6 +84,7 @@ export function MultiStallDashboard({
   currency,
   stalls,
   canManageOrdering,
+  multiStallEnabled,
   initialSelectedStallIds,
 }: {
   organizationId: string;
@@ -91,13 +92,16 @@ export function MultiStallDashboard({
   currency: string;
   stalls: StallOption[];
   canManageOrdering: boolean;
+  multiStallEnabled: boolean;
   initialSelectedStallIds?: string[];
 }) {
   const today = useMemo(() => taipeiToday(), []);
   const [preset, setPreset] = useState<DatePreset>("TODAY");
   const [dateRange, setDateRange] = useState({ dateFrom: today, dateTo: today });
   const [selectedStallIds, setSelectedStallIds] = useState(
-    initialSelectedStallIds?.length ? initialSelectedStallIds : stalls.filter((stall) => stall.isActive).map((stall) => stall.id),
+    initialSelectedStallIds?.length
+      ? initialSelectedStallIds
+      : stalls.filter((stall) => stall.isActive).map((stall) => stall.id).slice(0, multiStallEnabled ? undefined : 1),
   );
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -252,6 +256,10 @@ export function MultiStallDashboard({
   }
 
   function toggleStall(stallId: string) {
+    if (!multiStallEnabled) {
+      setSelectedStallIds([stallId]);
+      return;
+    }
     setSelectedStallIds((current) => current.includes(stallId)
       ? current.filter((id) => id !== stallId)
       : [...current, stallId]);
@@ -296,11 +304,12 @@ export function MultiStallDashboard({
           </div>
           <details className="border-y border-stone-200 py-2">
             <summary className="cursor-pointer list-none py-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">攤位範圍 · 已選 {selectedStallIds.length} 個</summary>
-            <label className="flex min-h-10 items-center gap-2 border-t border-stone-100 text-sm"><input type="checkbox" checked={stalls.length > 0 && stalls.every((stall) => selectedStallIds.includes(stall.id))} onChange={(event) => setSelectedStallIds(event.target.checked ? stalls.map((stall) => stall.id) : [])} />全部攤位</label>
+            {multiStallEnabled ? <label className="flex min-h-10 items-center gap-2 border-t border-stone-100 text-sm"><input type="checkbox" checked={stalls.length > 0 && stalls.every((stall) => selectedStallIds.includes(stall.id))} onChange={(event) => setSelectedStallIds(event.target.checked ? stalls.map((stall) => stall.id) : [])} />全部攤位</label> : null}
             {stalls.map((stall) => <label key={stall.id} className="flex min-h-10 items-center gap-2 border-t border-stone-100 text-sm"><input type="checkbox" checked={selectedStallIds.includes(stall.id)} onChange={() => toggleStall(stall.id)} />{stall.name}</label>)}
           </details>
         </div>
-        {canManageOrdering ? (
+        {!multiStallEnabled && stalls.length > 1 ? <p className="mt-4 border-y border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">目前方案僅支援單攤位檢視；升級後可同時比較與批次管理多個攤位。</p> : null}
+        {canManageOrdering && multiStallEnabled ? (
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-4">
             <button type="button" disabled={selectedStallIds.length === 0 || batchRunning} onClick={() => setPendingBatchAction("PAUSE")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-amber-300 px-3 text-sm font-semibold text-amber-900 disabled:opacity-50"><Pause className="h-4 w-4" />暫停已選攤位</button>
             <button type="button" disabled={selectedStallIds.length === 0 || batchRunning} onClick={() => setPendingBatchAction("RESUME")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-emerald-300 px-3 text-sm font-semibold text-emerald-800 disabled:opacity-50"><Play className="h-4 w-4" />恢復已選攤位</button>
@@ -347,7 +356,7 @@ export function MultiStallDashboard({
         </section>
 
         <section className="py-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-xl font-semibold">攤位比較</h2><p className="mt-1 text-xs text-stone-500">更新時間 {new Date(overview.generatedAt).toLocaleString("zh-TW")}</p></div><div className="flex gap-2"><label className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-stone-400" /><input aria-label="搜尋攤位" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋攤位" className="h-10 rounded-md border border-stone-300 pl-9 pr-3 text-sm" /></label><select aria-label="排序攤位" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="h-10 rounded-md border border-stone-300 bg-white px-2 text-sm"><option value="sales">銷售額</option><option value="orders">訂單數</option><option value="pending">待處理</option><option value="name">攤位名稱</option></select></div></div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-xl font-semibold">攤位比較</h2><p className="mt-1 text-xs text-stone-500">更新時間 {new Date(overview.generatedAt).toLocaleString("zh-TW")}</p></div><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"><label className="relative min-w-0"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><input type="search" aria-label="搜尋攤位" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋攤位" className="h-11 w-full min-w-0 rounded-md border border-stone-300 pl-9 pr-3 text-sm" /></label><select aria-label="排序攤位" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="h-11 rounded-md border border-stone-300 bg-white px-2 text-sm"><option value="sales">銷售額</option><option value="orders">訂單數</option><option value="pending">待處理</option><option value="name">攤位名稱</option></select></div></div>
 
           <div className="mt-4 hidden md:block">
             <table className="w-full table-fixed border-y border-stone-200 text-left text-xs"><thead className="text-stone-500"><tr><th className="w-[15%] py-3">攤位</th><th>狀態</th><th>訂單</th><th>完成</th><th>銷售額</th><th>客單價</th><th>待處理</th><th>未付款</th><th>取消率</th><th className="w-[13%]">最後訂單</th></tr></thead><tbody>{visibleStalls.map((stall) => <tr key={stall.stallId} className="border-t border-stone-100"><td className="py-4 pr-2"><Link href={`/merchant/stalls/${stall.stallId}/dashboard`} className="font-semibold text-teal-800">{stall.stallName}</Link><div className="mt-1 text-stone-400">{stall.stallCode}</div></td><td><Status status={stall.businessStatus} /></td><td>{stall.orderCount}</td><td>{stall.completedOrderCount}</td><td>{formatMoney(stall.totalSales, currency)}</td><td>{formatMoney(stall.averageOrderValue, currency)}</td><td>{stall.pendingOrderCount}</td><td>{stall.unpaidOrderCount}</td><td>{percent(stall.cancellationRate)}</td><td>{stall.lastOrderAt ? new Date(stall.lastOrderAt).toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}</td></tr>)}</tbody></table>

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { revalidateTag, unstable_cache } from "next/cache";
+import { calculateCapacitySnapshot } from "@/lib/capacity";
 import { prisma } from "@/lib/prisma";
 import { publicQrCacheTag, stallMenuCacheTag } from "@/lib/cache-tags";
 import type { PublicMenu } from "@/lib/public-menu-types";
@@ -24,6 +25,11 @@ export async function getCachedPublicMenuForQrToken(
   const context = await getQrContext();
   if (!context || !publicQrContextIsAvailable(context)) return null;
 
+  if (
+    (orderingMode === "DELIVERY" && context.fulfillmentTypeContext && context.fulfillmentTypeContext !== "DELIVERY")
+    || (orderingMode === "DEFAULT" && context.fulfillmentTypeContext === "DELIVERY")
+  ) return null;
+
   const settings = context.stall.orderingSettings;
   if (!settings) return null;
   if (orderingMode === "DELIVERY") {
@@ -32,19 +38,26 @@ export async function getCachedPublicMenuForQrToken(
     return null;
   }
 
-  const menu = await getCachedStallMenu(context.stallId);
+  const [menu, capacity] = await Promise.all([
+    getCachedStallMenu(context.stallId),
+    calculateCapacitySnapshot(context.stallId),
+  ]);
   if (!menu) return null;
 
   return {
     ...menu,
+    estimatedWaitMinutes: capacity.quoteMaxMinutes,
+    estimatedWaitMinMinutes: capacity.quoteMinMinutes,
+    estimatedWaitMaxMinutes: capacity.quoteMaxMinutes,
+    waitAcknowledgmentThresholdMinutes: capacity.acknowledgmentThresholdMinutes,
+    requiresWaitAcknowledgment: capacity.requiresAcknowledgment,
     stall: {
       name: context.stall.name,
       slug: context.stall.slug,
-      location: context.stall.location,
+      location: context.location?.name ?? context.stall.location,
       currency: context.stall.currency,
-      fulfillmentType: orderingMode === "DELIVERY"
-        ? "DELIVERY"
-        : context.diningTable ? "DINE_IN" : "TAKEOUT",
+      fulfillmentType: context.fulfillmentTypeContext
+        ?? (orderingMode === "DELIVERY" ? "DELIVERY" : context.diningTable ? "DINE_IN" : "TAKEOUT"),
       table: context.diningTable
         ? { id: context.diningTable.id, code: context.diningTable.code, label: context.diningTable.label }
         : null,
@@ -71,10 +84,18 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
   });
   if (!stall || !publicStallIsAvailable(stall)) return null;
 
-  const menu = await getCachedStallMenu(stall.id);
+  const [menu, capacity] = await Promise.all([
+    getCachedStallMenu(stall.id),
+    calculateCapacitySnapshot(stall.id),
+  ]);
   if (!menu) return null;
   return {
     ...menu,
+    estimatedWaitMinutes: capacity.quoteMaxMinutes,
+    estimatedWaitMinMinutes: capacity.quoteMinMinutes,
+    estimatedWaitMaxMinutes: capacity.quoteMaxMinutes,
+    waitAcknowledgmentThresholdMinutes: capacity.acknowledgmentThresholdMinutes,
+    requiresWaitAcknowledgment: capacity.requiresAcknowledgment,
     stall: {
       name: stall.name,
       slug: stall.slug,
@@ -123,7 +144,19 @@ async function loadQrContext(qrToken: string) {
       stallId: true,
       state: true,
       expiresAt: true,
+      fulfillmentTypeContext: true,
       diningTable: { select: { id: true, code: true, label: true, isActive: true } },
+      location: { select: { name: true, isActive: true } },
+      marketEvent: { select: { startsAt: true, endsAt: true } },
+      stallSchedule: {
+        select: {
+          status: true,
+          startsAt: true,
+          endsAt: true,
+          orderingOpensAt: true,
+          orderingClosesAt: true,
+        },
+      },
       stall: {
         select: {
           name: true,
@@ -147,12 +180,36 @@ async function loadQrContext(qrToken: string) {
   return {
     ...qrCode,
     expiresAt: qrCode.expiresAt?.toISOString() ?? null,
+    marketEvent: qrCode.marketEvent ? {
+      startsAt: qrCode.marketEvent.startsAt.toISOString(),
+      endsAt: qrCode.marketEvent.endsAt.toISOString(),
+    } : null,
+    stallSchedule: qrCode.stallSchedule ? {
+      ...qrCode.stallSchedule,
+      startsAt: qrCode.stallSchedule.startsAt.toISOString(),
+      endsAt: qrCode.stallSchedule.endsAt.toISOString(),
+      orderingOpensAt: qrCode.stallSchedule.orderingOpensAt?.toISOString() ?? null,
+      orderingClosesAt: qrCode.stallSchedule.orderingClosesAt?.toISOString() ?? null,
+    } : null,
   };
 }
 
 function publicQrContextIsAvailable(context: NonNullable<Awaited<ReturnType<typeof loadQrContext>>>) {
+  const now = Date.now();
+  const schedule = context.stallSchedule;
+  const event = context.marketEvent;
   return context.state === "ACTIVE"
     && (!context.expiresAt || Date.parse(context.expiresAt) > Date.now())
+    && (!context.location || context.location.isActive)
+    && (!schedule || (
+      schedule.status === "OPEN"
+      && Date.parse(schedule.orderingOpensAt ?? schedule.startsAt) <= now
+      && Date.parse(schedule.orderingClosesAt ?? schedule.endsAt) > now
+    ))
+    && (!event || (
+      Date.parse(event.endsAt) > now
+      && (schedule || Date.parse(event.startsAt) <= now)
+    ))
     && publicStallIsAvailable(context.stall);
 }
 
@@ -285,6 +342,10 @@ async function loadStallMenu(stallId: string): Promise<Omit<PublicMenu, "stall">
     })),
     supportedLocales: settings.enabledLocales,
     estimatedWaitMinutes: settings.estimatedWaitMinutes,
+    estimatedWaitMinMinutes: settings.estimatedWaitMinutes,
+    estimatedWaitMaxMinutes: settings.estimatedWaitMinutes,
+    waitAcknowledgmentThresholdMinutes: null,
+    requiresWaitAcknowledgment: false,
     lastTableOrderAt: null,
     limits: {
       maxItemQuantity: settings.maxItemQuantity,

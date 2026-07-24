@@ -86,7 +86,7 @@ Deno.serve(async (request) => {
       )).pickupCode
       : null;
     const orderContext = await timing.measureDb(() => admin.from("orders")
-      .select("stall_id, dining_table_id")
+      .select("stall_id, dining_table_id, quoted_wait_minutes, quoted_ready_at")
       .eq("id", stored.orderId)
       .single());
     if (orderContext.error) throw orderContext.error;
@@ -115,7 +115,10 @@ Deno.serve(async (request) => {
       order: {
         ...publicOrder,
         pickupVerificationCode: pickupCode,
-        estimatedWaitMinutes: settingsQuery.data.estimated_wait_minutes,
+        estimatedWaitMinutes:
+          orderContext.data.quoted_wait_minutes ?? settingsQuery.data.estimated_wait_minutes,
+        quotedWaitMinutes: orderContext.data.quoted_wait_minutes,
+        quotedReadyAt: orderContext.data.quoted_ready_at,
         lastTableOrderAt: lastTableOrderQuery.data?.created_at ?? null,
       },
     }, 200);

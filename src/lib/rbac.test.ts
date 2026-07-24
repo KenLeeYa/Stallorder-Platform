@@ -26,7 +26,7 @@ describe("RBAC", () => {
 
   it("店員與廚房可查看桌位平面圖", () => {
     expect(hasPermission("STAFF", "VIEW_DINING_FLOOR")).toBe(true);
-    expect(hasPermission("KITCHEN", "VIEW_DINING_FLOOR")).toBe(true);
+    expect(hasPermission("KITCHEN", "VIEW_DINING_FLOOR")).toBe(false);
   });
 
   it("只有前台營運角色可建立店員代點訂單", () => {
@@ -39,8 +39,13 @@ describe("RBAC", () => {
 
   it("營運權限區分列印、現金交班與折扣核准", () => {
     expect(hasPermission("STAFF", "MANAGE_PRINT_QUEUE")).toBe(true);
-    expect(hasPermission("KITCHEN", "MANAGE_PRINT_QUEUE")).toBe(true);
+    expect(hasPermission("KITCHEN", "MANAGE_PRINT_QUEUE")).toBe(false);
     expect(hasPermission("STAFF", "MANAGE_CASH_SHIFT")).toBe(true);
+    expect(hasPermission("STAFF", "VIEW_CASH_SHIFT")).toBe(true);
+    expect(hasPermission("STAFF", "REVIEW_CASH_SHIFT")).toBe(false);
+    expect(hasPermission("FINANCE_VIEWER", "VIEW_CASH_SHIFT")).toBe(true);
+    expect(hasPermission("FINANCE_VIEWER", "MANAGE_CASH_SHIFT")).toBe(false);
+    expect(hasPermission("STALL_MANAGER", "REVIEW_CASH_SHIFT")).toBe(true);
     expect(hasPermission("KITCHEN", "MANAGE_CASH_SHIFT")).toBe(false);
     expect(hasPermission("STALL_MANAGER", "APPROVE_DISCOUNT")).toBe(true);
     expect(hasPermission("STAFF", "APPROVE_DISCOUNT")).toBe(false);
@@ -63,11 +68,64 @@ describe("RBAC", () => {
     expect(resolvePrimaryRole(["KITCHEN", "ORGANIZATION_ADMIN"])).toBe("ORGANIZATION_ADMIN");
   });
 
-  it("廚房只能推進製作與可取餐狀態", () => {
-    expect(canTransitionOrder("CONFIRMED", "PREPARING", "KITCHEN")).toBe(true);
-    expect(canTransitionOrder("PREPARING", "READY", "KITCHEN")).toBe(true);
+  it("廚房不能繞過 KDS 直接修改共用訂單狀態", () => {
+    expect(canTransitionOrder("CONFIRMED", "PREPARING", "KITCHEN")).toBe(false);
+    expect(canTransitionOrder("PREPARING", "PACKING", "KITCHEN")).toBe(false);
+    expect(canTransitionOrder("PACKING", "READY", "KITCHEN")).toBe(false);
+    expect(canTransitionOrder("PREPARING", "READY", "KITCHEN")).toBe(false);
     expect(canTransitionOrder("READY", "COMPLETED", "KITCHEN")).toBe(false);
     expect(canTransitionOrder("CONFIRMED", "CANCELLED", "KITCHEN")).toBe(false);
+  });
+
+  it("KDS 權限不會洩漏財務或設定操作給廚房角色", () => {
+    expect(hasPermission("KITCHEN", "VIEW_KDS")).toBe(true);
+    expect(hasPermission("KITCHEN", "UPDATE_PRODUCTION_TASKS")).toBe(true);
+    expect(hasPermission("KITCHEN", "MANAGE_KDS")).toBe(false);
+    expect(hasPermission("KITCHEN", "VIEW_ORDERS")).toBe(false);
+    expect(hasPermission("KITCHEN", "MANAGE_PRINT_QUEUE")).toBe(false);
+    expect(hasPermission("KITCHEN", "VIEW_DINING_FLOOR")).toBe(false);
+    expect(hasPermission("KITCHEN", "VIEW_REPORTS")).toBe(false);
+    expect(hasPermission("KITCHEN", "MANAGE_CASH_SHIFT")).toBe(false);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_KDS")).toBe(true);
+  });
+
+  it("CDS 設定僅開放組織管理者與攤位經理", () => {
+    expect(hasPermission("ORGANIZATION_OWNER", "MANAGE_CDS")).toBe(true);
+    expect(hasPermission("ORGANIZATION_ADMIN", "MANAGE_CDS")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_CDS")).toBe(true);
+    expect(hasPermission("FINANCE_VIEWER", "MANAGE_CDS")).toBe(false);
+    expect(hasPermission("STAFF", "MANAGE_CDS")).toBe(false);
+    expect(hasPermission("KITCHEN", "MANAGE_CDS")).toBe(false);
+  });
+
+  it("出攤地點與排程限管理角色，活動維持組織層級管理", () => {
+    expect(hasPermission("ORGANIZATION_OWNER", "MANAGE_STALL_LOCATIONS")).toBe(true);
+    expect(hasPermission("ORGANIZATION_ADMIN", "MANAGE_STALL_SCHEDULES")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_STALL_LOCATIONS")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_STALL_SCHEDULES")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_MARKET_EVENTS")).toBe(false);
+    expect(hasPermission("STAFF", "MANAGE_STALL_SCHEDULES")).toBe(false);
+    expect(hasPermission("KITCHEN", "MANAGE_STALL_LOCATIONS")).toBe(false);
+    expect(hasPermission("FINANCE_VIEWER", "MANAGE_MARKET_EVENTS")).toBe(false);
+  });
+
+  it("LINE 整合只允許組織管理者與攤位經理設定", () => {
+    expect(hasPermission("ORGANIZATION_OWNER", "MANAGE_LINE_INTEGRATION")).toBe(true);
+    expect(hasPermission("ORGANIZATION_ADMIN", "MANAGE_LINE_INTEGRATION")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_LINE_INTEGRATION")).toBe(true);
+    expect(hasPermission("FINANCE_VIEWER", "MANAGE_LINE_INTEGRATION")).toBe(false);
+    expect(hasPermission("STAFF", "MANAGE_LINE_INTEGRATION")).toBe(false);
+    expect(hasPermission("KITCHEN", "MANAGE_LINE_INTEGRATION")).toBe(false);
+  });
+
+  it("區分容量規則管理與現場操作權限", () => {
+    expect(hasPermission("ORGANIZATION_OWNER", "MANAGE_CAPACITY")).toBe(true);
+    expect(hasPermission("ORGANIZATION_ADMIN", "MANAGE_CAPACITY")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_CAPACITY")).toBe(true);
+    expect(hasPermission("STAFF", "MANAGE_CAPACITY")).toBe(false);
+    expect(hasPermission("STAFF", "OPERATE_CAPACITY")).toBe(true);
+    expect(hasPermission("KITCHEN", "OPERATE_CAPACITY")).toBe(false);
+    expect(hasPermission("FINANCE_VIEWER", "OPERATE_CAPACITY")).toBe(false);
   });
 
   it("拒絕跳過或反向訂單狀態", () => {

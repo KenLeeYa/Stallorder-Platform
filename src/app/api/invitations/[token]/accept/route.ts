@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp, hashToken } from "@/lib/security";
 import { createSupabaseAuthClient, isSupabaseAuthConfigured } from "@/lib/supabase-auth";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { EntitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -93,6 +95,35 @@ export async function POST(request: Request, context: RouteContext) {
         throw new Error("INVITATION_EMAIL_MISMATCH");
       }
 
+      const existingMembership = invitation.stallId
+        ? await transaction.stallMembership.findUnique({
+          where: {
+            stallId_profileId_role: {
+              stallId: invitation.stallId,
+              profileId: principal.user.id,
+              role: invitation.role,
+            },
+          },
+          select: { isActive: true },
+        })
+        : await transaction.organizationMembership.findUnique({
+          where: {
+            organizationId_profileId_role: {
+              organizationId: invitation.organizationId,
+              profileId: principal.user.id,
+              role: invitation.role,
+            },
+          },
+          select: { isActive: true },
+        });
+      if (invitation.role !== "ORGANIZATION_OWNER") {
+        await new EntitlementService(transaction).assertLimitAvailable(
+          invitation.organizationId,
+          "STAFF",
+          existingMembership?.isActive ? 0 : 1,
+        );
+      }
+
       let membershipId: string;
       if (invitation.stallId) {
         const membership = await transaction.stallMembership.upsert({
@@ -176,6 +207,8 @@ export async function POST(request: Request, context: RouteContext) {
       headers: { "cache-control": "no-store", "x-request-id": requestId },
     });
   } catch (caughtError) {
+    const entitlementResponse = entitlementErrorResponse(caughtError, requestId);
+    if (entitlementResponse) return entitlementResponse;
     const code = caughtError instanceof Error ? caughtError.message : "";
     if (code === "INVITATION_EXPIRED") {
       await prisma.organizationInvitation.updateMany({

@@ -108,6 +108,25 @@ test.describe("多攤位商戶關鍵流程", () => {
         phone: "0900-000-099",
       },
     });
+    const isolatedPlanVersion = await prisma.planVersion.findFirstOrThrow({
+      where: { plan: { code: "TRIAL" }, effectiveUntil: null },
+      select: { id: true, planId: true },
+    });
+    const isolatedBillingPeriodStart = new Date();
+    isolatedBillingPeriodStart.setUTCHours(0, 0, 0, 0);
+    const isolatedBillingPeriodEnd = new Date(isolatedBillingPeriodStart);
+    isolatedBillingPeriodEnd.setUTCDate(isolatedBillingPeriodEnd.getUTCDate() + 30);
+    await prisma.subscription.create({
+      data: {
+        organizationId: isolatedOrganization.id,
+        planId: isolatedPlanVersion.planId,
+        planVersionId: isolatedPlanVersion.id,
+        status: "ACTIVE",
+        billingInterval: "MONTHLY",
+        billingPeriodStart: isolatedBillingPeriodStart,
+        billingPeriodEnd: isolatedBillingPeriodEnd,
+      },
+    });
     otherStall = await prisma.stall.create({
       data: {
         organizationId: isolatedOrganization.id,
@@ -165,7 +184,7 @@ test.describe("多攤位商戶關鍵流程", () => {
     await page.goto(`/merchant/stalls/new?organizationId=${organization.id}`);
     await page.getByLabel("攤位名稱").fill("E2E 夜市二號攤");
     await page.getByLabel("攤位代碼").fill("E2E-02");
-    await page.getByLabel("網址代稱").fill(secondStallSlug);
+    await page.getByLabel("公開識別名稱").fill(secondStallSlug);
     await page.getByLabel("說明").fill("多攤位自動驗收測試");
     await page.getByLabel("地址").fill("台北市測試夜市二區");
     await page.getByLabel("電話").fill("0900-000-002");
@@ -414,7 +433,13 @@ function assertLocalDatabase() {
 }
 
 function loadLocalEnv() {
-  const content = readFileSync(resolve(process.cwd(), ".env"), "utf8");
+  let content: string;
+  try {
+    content = readFileSync(resolve(process.cwd(), ".env"), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
   for (const line of content.split(/\r?\n/)) {
     const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
     if (!match || process.env[match[1]]) continue;
