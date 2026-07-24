@@ -4,12 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Remote environment to validate without applying migrations
+        description: Remote environment to validate or migrate
         required: true
         type: choice
         options:
           - staging
           - production
+      apply_migrations:
+        description: Apply pending migrations after the dry-run succeeds
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -82,5 +87,11 @@ jobs:
         run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
       - name: Detect pending or divergent migrations
         run: supabase db push --linked --dry-run --password "$SUPABASE_DB_PASSWORD"
+      - name: Apply pending migrations
+        if: inputs.apply_migrations
+        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD"
+      - name: Verify applied migration history
+        if: inputs.apply_migrations
+        run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
       - name: Lint remote database
         run: supabase db lint --linked --level warning --fail-on warning
