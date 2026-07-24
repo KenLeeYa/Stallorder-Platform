@@ -49,7 +49,7 @@ export function KitchenStationsManager({ stallSlug, initialData }: { stallSlug: 
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-6 md:px-6">
+    <div className="mx-auto max-w-5xl">
       <div className="border-b border-stone-200 pb-5"><h2 className="text-2xl font-semibold">工作站與品項分流</h2><p className="mt-2 text-sm text-stone-600">商品指定優先於分類；未分派品項會進入綜合工作站。</p></div>
       {message ? <p role="alert" className="mt-4 border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{message}</p> : null}
       <section className="border-b border-stone-200 py-6">
@@ -66,7 +66,7 @@ export function KitchenStationsManager({ stallSlug, initialData }: { stallSlug: 
       <div className="space-y-5 py-6">
         {data.stations.map((station) => <StationEditor key={station.id} station={station} categories={data.categories} products={data.products} busy={busy} mutate={mutate} />)}
       </div>
-    </main>
+    </div>
   );
 }
 

@@ -30,6 +30,10 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
   await expect(page.getByRole("link", { name: "現金交班報表", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "KDS 工作站", exact: true }))
+    .toHaveAttribute("href", `/merchant/stalls/${stallId}/kitchen/stations`);
+  await expect(page.getByRole("link", { name: "KDS 設定", exact: true }))
+    .toHaveAttribute("href", `/merchant/stalls/${stallId}/kitchen/settings`);
 
   const sectionLinks = [
     ["基本資料", "basic"],

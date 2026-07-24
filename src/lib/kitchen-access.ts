@@ -24,3 +24,18 @@ export async function requireKitchenPage(
   await entitlementService.assertFeatureEnabled(authorization.stall.organizationId, "KDS");
   return { ...authorization, availableStalls };
 }
+
+export async function requireKitchenManagementPage(stallId: string) {
+  const { workspaces } = await requireWorkspacePage();
+  const workspace = workspaces.find((candidate) => (
+    candidate.stalls.some((stall) => stall.id === stallId)
+  ));
+  const stall = workspace?.stalls.find((candidate) => candidate.id === stallId);
+  if (!workspace || !stall) notFound();
+
+  const roles = [...new Set([...workspace.roles, ...stall.roles])];
+  if (!roles.some((role) => hasPermission(role, "MANAGE_KDS"))) notFound();
+
+  await entitlementService.assertFeatureEnabled(workspace.id, "KDS");
+  return { workspace, stall, roles };
+}
