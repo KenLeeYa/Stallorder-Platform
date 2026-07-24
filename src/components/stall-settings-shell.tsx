@@ -78,7 +78,7 @@ export function StallSettingsShell({
   return (
     <div ref={rootRef}>
       {showToolbar ? <div className="mb-5 flex flex-col gap-3 border-y border-stone-200 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <label className="relative block w-full sm:max-w-sm"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-stone-400" /><span className="sr-only">搜尋攤位設定</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋設定" className="h-10 w-full rounded-md border border-stone-300 pl-9 pr-3 text-sm" /></label>
+        <label className="relative block w-full sm:max-w-sm"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><span className="sr-only">搜尋攤位設定</span><input type="search" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋設定" className="h-11 w-full rounded-md border border-stone-300 pl-9 pr-3 text-sm" /></label>
         <div className="flex flex-wrap items-center gap-2">
           {dirty ? <span role="status" className="mr-1 text-xs font-semibold text-amber-800">{dirtyScopes.size} 個區段尚未儲存</span> : null}
           <button type="button" onClick={() => setAllDetails(true)} className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-semibold"><ChevronsUpDown className="h-4 w-4" />全部展開</button>

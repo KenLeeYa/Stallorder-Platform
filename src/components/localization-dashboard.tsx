@@ -72,7 +72,7 @@ export function LocalizationDashboard({
             <Link href={`/merchant/catalog?organizationId=${organizationId}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-teal-800">前往編輯翻譯<ExternalLink className="h-4 w-4" /></Link>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
-            <label className="relative"><span className="sr-only">搜尋缺漏項目</span><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-stone-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋原文名稱" className="h-10 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" /></label>
+            <label className="relative"><span className="sr-only">搜尋缺漏項目</span><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><input type="search" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋原文名稱" className="h-11 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" /></label>
             <select aria-label="缺漏類型" value={entityType} onChange={(event) => setEntityType(event.target.value as TranslationEntityType | "ALL")} className="h-10 rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="ALL">全部類型</option>{Object.entries(entityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           </div>
           <div className="mt-4 divide-y divide-stone-100 border-y border-stone-200">

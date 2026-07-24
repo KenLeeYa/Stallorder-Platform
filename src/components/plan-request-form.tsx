@@ -67,7 +67,7 @@ export function PlanRequestForm({ organizationId, plans }: { organizationId: str
           </details>
           <form action={(formData) => requestPlan(plan, formData)} className="mt-4 space-y-3">
             <label className="block text-sm font-medium">付款週期<select name="billingInterval" className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3"><option value="MONTHLY">月繳</option>{plan.annualPrice !== null ? <option value="ANNUAL">年繳 {formatMoney(plan.annualPrice, plan.currency)}</option> : null}</select></label>
-            <label className="block text-sm font-medium">申請原因<input name="reason" required minLength={2} maxLength={500} defaultValue="申請升級營運方案" className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3" /></label>
+            <label className="block text-sm font-medium">申請原因<input type="text" name="reason" required minLength={2} maxLength={500} defaultValue="申請升級營運方案" className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3" /></label>
             <button type="submit" disabled={saving !== null} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Send className="h-4 w-4" />{saving === plan.id ? "送出中..." : "申請此方案"}</button>
           </form>
         </article>

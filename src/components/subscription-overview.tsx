@@ -92,7 +92,7 @@ export function SubscriptionOverview({ organizationId, currency, canApprove, dat
           <form action={approve} className="mt-4 grid gap-3 lg:grid-cols-[120px_180px_minmax(0,1fr)_auto]">
             <label className="text-sm font-medium">核准數量<input name="quantity" type="number" min="1" max="100" defaultValue="1" required className="mt-1.5 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
             <label className="text-sm font-medium">單價（Enterprise）<input name="unitPrice" type="number" min="0" max="1000000" className="mt-1.5 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
-            <label className="text-sm font-medium">核准原因<input name="reason" required minLength={2} maxLength={500} className="mt-1.5 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
+            <label className="text-sm font-medium">核准原因<input type="text" name="reason" required minLength={2} maxLength={500} className="mt-1.5 h-11 w-full rounded-md border border-stone-300 px-3" /></label>
             <button type="submit" disabled={saving} className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Plus className="h-4 w-4" />{saving ? "核准中..." : "核准"}</button>
           </form>
         </section>

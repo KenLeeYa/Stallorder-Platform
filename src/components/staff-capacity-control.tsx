@@ -96,7 +96,7 @@ export function StaffCapacityControl({
           </div>
           <label className="mt-4 block text-sm font-medium">
             操作原因
-            <input
+            <input type="text"
               value={reason}
               maxLength={200}
               onChange={(event) => setReason(event.target.value)}

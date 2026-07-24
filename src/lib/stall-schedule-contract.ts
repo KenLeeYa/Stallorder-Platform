@@ -1,18 +1,23 @@
 import { z } from "zod";
+import { multilineText, singleLineText } from "./input-validation";
 
 const uuid = z.string().uuid();
-const optionalText = (maximum: number) => z.string().trim().max(maximum).nullable();
+const optionalText = (maximum: number) => multilineText({ maximum }).nullable();
 const httpsUrl = z.string().trim().url().max(500).refine(
   (value) => value.startsWith("https://"),
   "網址必須使用 HTTPS。",
 ).nullable();
 const coordinate = z.number().finite();
 const timestamp = z.string().datetime({ offset: true });
-const reason = z.string().trim().min(3, "請填寫至少 3 個字的操作原因。").max(300);
+const reason = multilineText({
+  minimum: 3,
+  maximum: 300,
+  requiredMessage: "請填寫至少 3 個字的操作原因。",
+});
 
 const locationFields = {
-  name: z.string().trim().min(1, "請填寫地點名稱。").max(100),
-  address: z.string().trim().min(1, "請填寫地址。").max(300),
+  name: singleLineText({ minimum: 1, maximum: 100, requiredMessage: "請填寫地點名稱。" }),
+  address: singleLineText({ minimum: 1, maximum: 300, requiredMessage: "請填寫地址。" }),
   latitude: coordinate.min(-90).max(90).nullable(),
   longitude: coordinate.min(-180).max(180).nullable(),
   mapUrl: httpsUrl,
@@ -45,14 +50,14 @@ export const stallLocationCommandSchema = z.union([
 ]);
 
 const eventFields = {
-  name: z.string().trim().min(1, "請填寫活動名稱。").max(150),
+  name: singleLineText({ minimum: 1, maximum: 150, requiredMessage: "請填寫活動名稱。" }),
   slug: z.string().trim().min(1).max(100).regex(
     /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
     "活動代稱只能使用小寫英數字與連字號。",
   ),
   description: optionalText(1000),
-  venueName: z.string().trim().min(1, "請填寫場地名稱。").max(150),
-  address: z.string().trim().min(1, "請填寫活動地址。").max(300),
+  venueName: singleLineText({ minimum: 1, maximum: 150, requiredMessage: "請填寫場地名稱。" }),
+  address: singleLineText({ minimum: 1, maximum: 300, requiredMessage: "請填寫活動地址。" }),
   latitude: coordinate.min(-90).max(90).nullable(),
   longitude: coordinate.min(-180).max(180).nullable(),
   startsAt: timestamp,

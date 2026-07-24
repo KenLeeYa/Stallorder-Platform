@@ -46,6 +46,9 @@ export type QrOrderMessages = {
   maxSelections: (count: number) => string;
   noSelection: string;
   yourOrder: string;
+  viewOrder: string;
+  close: string;
+  categoryNavigation: string;
   customerName: string;
   customerNamePlaceholder: string;
   orderNote: string;
@@ -93,6 +96,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `最多 ${count} 項`,
     noSelection: "不選擇",
     yourOrder: "您的訂單",
+    viewOrder: "查看訂單",
+    close: "關閉",
+    categoryNavigation: "商品分類",
     customerName: "顧客稱呼",
     customerNamePlaceholder: "稱呼（選填）",
     orderNote: "訂單備註",
@@ -155,6 +161,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `Up to ${count}`,
     noSelection: "None",
     yourOrder: "Your order",
+    viewOrder: "View order",
+    close: "Close",
+    categoryNavigation: "Menu categories",
     customerName: "Customer name",
     customerNamePlaceholder: "Name (optional)",
     orderNote: "Order notes",
@@ -217,6 +226,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `最大${count}個`,
     noSelection: "選択しない",
     yourOrder: "ご注文",
+    viewOrder: "注文内容を見る",
+    close: "閉じる",
+    categoryNavigation: "メニューカテゴリー",
     customerName: "お名前",
     customerNamePlaceholder: "お名前（任意）",
     orderNote: "注文メモ",
@@ -279,6 +291,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `최대 ${count}개`,
     noSelection: "선택 안 함",
     yourOrder: "주문 내역",
+    viewOrder: "주문 내역 보기",
+    close: "닫기",
+    categoryNavigation: "메뉴 카테고리",
     customerName: "고객명",
     customerNamePlaceholder: "이름 (선택)",
     orderNote: "요청 사항",
@@ -341,6 +356,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `Tối đa ${count} lựa chọn`,
     noSelection: "Không chọn",
     yourOrder: "Đơn hàng của bạn",
+    viewOrder: "Xem đơn hàng",
+    close: "Đóng",
+    categoryNavigation: "Danh mục món",
     customerName: "Tên khách hàng",
     customerNamePlaceholder: "Tên (không bắt buộc)",
     orderNote: "Ghi chú đơn hàng",
@@ -403,6 +421,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     maxSelections: (count) => `เลือกได้สูงสุด ${count} รายการ`,
     noSelection: "ไม่เลือก",
     yourOrder: "รายการสั่งซื้อของคุณ",
+    viewOrder: "ดูรายการสั่งซื้อ",
+    close: "ปิด",
+    categoryNavigation: "หมวดหมู่เมนู",
     customerName: "ชื่อลูกค้า",
     customerNamePlaceholder: "ชื่อ (ไม่บังคับ)",
     orderNote: "หมายเหตุคำสั่งซื้อ",

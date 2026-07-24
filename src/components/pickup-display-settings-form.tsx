@@ -119,7 +119,7 @@ export function PickupDisplaySettingsForm({
           <Toggle label="啟用取餐顯示" checked={settings.isActive} onChange={(isActive) => setSettings({ ...settings, isActive })} />
         </div>
         <div className="mt-5 grid gap-5 sm:grid-cols-[1fr_auto] sm:items-center">
-          <label className="text-sm font-medium">公開網址<div className="mt-1 flex gap-2"><input readOnly value={publicUrl} className="form-input min-w-0 flex-1 bg-stone-50" /><CopyButton value={publicUrl} label="複製公開網址" /></div></label>
+          <label className="text-sm font-medium">公開網址<div className="mt-1 flex gap-2"><input type="text" readOnly value={publicUrl} className="form-input min-w-0 flex-1 bg-stone-50" /><CopyButton value={publicUrl} label="複製公開網址" /></div></label>
           <div className="flex items-center gap-3">
             <QRCodeSVG value={publicUrl} size={88} level="M" />
             <a href={publicUrl} target="_blank" rel="noreferrer" className="grid h-11 w-11 place-items-center rounded-md border border-stone-300" title="預覽公開顯示"><ExternalLink className="h-4 w-4" /></a>
@@ -144,8 +144,8 @@ export function PickupDisplaySettingsForm({
         <h2 className="flex items-center gap-2 text-xl font-semibold"><Volume2 className="h-5 w-5 text-teal-700" />語音與跑馬公告</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Toggle label="啟用完成語音" checked={settings.enableVoice} disabled={!settings.voiceAvailable} onChange={(enableVoice) => setSettings({ ...settings, enableVoice })} />
-          <label className="text-sm font-medium">語音語系<input value={settings.voiceLocale} maxLength={35} onChange={(event) => setSettings({ ...settings, voiceLocale: event.target.value })} className="form-input mt-1" /></label>
-          <label className="text-sm font-medium sm:col-span-2">公告內容<input value={settings.announcementText} maxLength={300} onChange={(event) => setSettings({ ...settings, announcementText: event.target.value })} className="form-input mt-1" /></label>
+          <label className="text-sm font-medium">語音語系<input type="text" value={settings.voiceLocale} maxLength={35} onChange={(event) => setSettings({ ...settings, voiceLocale: event.target.value })} className="form-input mt-1" /></label>
+          <label className="text-sm font-medium sm:col-span-2">公告內容<input type="text" value={settings.announcementText} maxLength={300} onChange={(event) => setSettings({ ...settings, announcementText: event.target.value })} className="form-input mt-1" /></label>
         </div>
         {!settings.voiceAvailable ? <p className="mt-3 text-sm text-stone-500">目前方案未包含語音播報。</p> : null}
       </section>
@@ -153,8 +153,8 @@ export function PickupDisplaySettingsForm({
       <section className="border-b border-stone-200 pb-7">
         <h2 className="text-xl font-semibold">品牌外觀</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-medium">自訂標誌網址<input value={settings.theme.logoUrl} maxLength={2000} onChange={(event) => setSettings({ ...settings, theme: { ...settings.theme, logoUrl: event.target.value } })} className="form-input mt-1" /></label>
-          <label className="text-sm font-medium">背景圖片網址<input value={settings.theme.backgroundImageUrl} maxLength={2000} onChange={(event) => setSettings({ ...settings, theme: { ...settings.theme, backgroundImageUrl: event.target.value } })} className="form-input mt-1" /></label>
+          <label className="text-sm font-medium">自訂標誌網址<input type="text" value={settings.theme.logoUrl} maxLength={2000} onChange={(event) => setSettings({ ...settings, theme: { ...settings.theme, logoUrl: event.target.value } })} className="form-input mt-1" /></label>
+          <label className="text-sm font-medium">背景圖片網址<input type="text" value={settings.theme.backgroundImageUrl} maxLength={2000} onChange={(event) => setSettings({ ...settings, theme: { ...settings.theme, backgroundImageUrl: event.target.value } })} className="form-input mt-1" /></label>
           <label className="text-sm font-medium">主色<div className="mt-1 flex h-11 items-center gap-3 rounded-md border border-stone-300 bg-white px-3"><input type="color" value={settings.theme.accentColor} onChange={(event) => setSettings({ ...settings, theme: { ...settings.theme, accentColor: event.target.value } })} className="h-7 w-9 cursor-pointer border-0 bg-transparent p-0" /><span className="font-mono text-xs">{settings.theme.accentColor}</span></div></label>
         </div>
       </section>
@@ -167,7 +167,7 @@ export function PickupDisplaySettingsForm({
             <button type="button" disabled={busy || !settings.tokenConfigured} onClick={() => void revokeToken()} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-300 px-3 text-sm font-semibold text-red-700 disabled:opacity-50"><ShieldX className="h-4 w-4" />撤銷</button>
           </div>
         </div>
-        {tokenUrl ? <div className="mt-5 grid gap-5 sm:grid-cols-[1fr_auto] sm:items-center"><label className="text-sm font-medium">新 Token 網址<div className="mt-1 flex gap-2"><input readOnly value={tokenUrl} className="form-input min-w-0 flex-1 bg-stone-50" /><CopyButton value={tokenUrl} label="複製 Token 網址" /></div></label><QRCodeSVG value={tokenUrl} size={88} level="M" /></div> : null}
+        {tokenUrl ? <div className="mt-5 grid gap-5 sm:grid-cols-[1fr_auto] sm:items-center"><label className="text-sm font-medium">新 Token 網址<div className="mt-1 flex gap-2"><input type="text" readOnly value={tokenUrl} className="form-input min-w-0 flex-1 bg-stone-50" /><CopyButton value={tokenUrl} label="複製 Token 網址" /></div></label><QRCodeSVG value={tokenUrl} size={88} level="M" /></div> : null}
       </section>
 
       <div className="flex flex-wrap items-center gap-4">

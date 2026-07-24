@@ -194,6 +194,7 @@ test.describe.serial("產能與等候時間", () => {
     await expect(page.getByText("目前預估等候約 35 分鐘", { exact: true })).toBeVisible();
     const product = page.getByRole("article").filter({ hasText: "香酥雞排" });
     await product.getByRole("button", { name: "增加 香酥雞排" }).click();
+    await page.getByTestId("qr-mobile-cart-summary").click();
 
     const submit = page.getByRole("button", { name: "送出訂單", exact: true });
     const acknowledgement = page.getByRole("checkbox", { name: /我已了解目前預估等候時間為 35 分鐘/ });

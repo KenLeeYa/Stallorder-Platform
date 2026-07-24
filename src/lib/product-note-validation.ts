@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { supportedProductLocales } from "./catalog-validation";
+import { singleLineText } from "./input-validation";
 
 const uuid = z.string().uuid();
-const name = z.string().trim().min(1).max(80);
+const name = singleLineText({ minimum: 1, maximum: 80 });
 const sortOrder = z.number().int().min(0).max(10_000);
 const translations = z.array(z.object({
   locale: z.enum(supportedProductLocales),
-  name: z.string().trim().min(1).max(120),
+  name: singleLineText({ minimum: 1, maximum: 120 }),
 }).strict()).max(supportedProductLocales.length).refine(
   (items) => new Set(items.map((item) => item.locale)).size === items.length,
   { message: "翻譯語系不可重複。" },

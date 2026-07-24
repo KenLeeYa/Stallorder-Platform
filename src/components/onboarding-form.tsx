@@ -274,34 +274,34 @@ function ApplicantStep({ profile, state, update }: StepProps & { profile: { disp
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-stone-100" aria-hidden="true"><UserRound className="h-7 w-7 text-stone-500" /></span>
       <div><strong>{profile.displayName}</strong><p className="text-sm text-stone-500">{profile.email}</p><p className="mt-1 text-xs text-teal-800">已驗證 Google 身分</p></div>
     </div>
-    <Field label="聯絡電話"><input required value={state.phone} onChange={(event) => update("phone", event.target.value)} autoComplete="tel" maxLength={30} className={inputClass} /></Field>
-    <Field label="LINE ID（選填）"><input value={state.lineId} onChange={(event) => update("lineId", event.target.value)} maxLength={80} className={inputClass} /></Field>
+    <Field label="聯絡電話"><input type="tel" inputMode="tel" required value={state.phone} onChange={(event) => update("phone", event.target.value)} autoComplete="tel" maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" className={inputClass} /></Field>
+    <Field label="LINE ID（選填）"><input type="text" value={state.lineId} onChange={(event) => update("lineId", event.target.value)} maxLength={80} className={inputClass} /></Field>
     <Field label="偏好聯絡方式"><select value={state.preferredContactMethod} onChange={(event) => update("preferredContactMethod", event.target.value as FormState["preferredContactMethod"])} className={inputClass}><option value="PHONE">電話</option><option value="LINE">LINE</option><option value="EMAIL">電子郵件</option></select></Field>
   </div>;
 }
 
 function MerchantStep({ state, update }: StepProps) {
   return <div className="grid gap-4 md:grid-cols-2">
-    <Field label="商家或品牌名稱"><input required value={state.merchantName} onChange={(event) => update("merchantName", event.target.value)} maxLength={120} className={inputClass} /></Field>
+    <Field label="商家或品牌名稱"><input type="text" required value={state.merchantName} onChange={(event) => update("merchantName", event.target.value)} maxLength={120} className={inputClass} /></Field>
     <Field label="營業類型"><select value={state.businessType} onChange={(event) => update("businessType", event.target.value as FormState["businessType"])} className={inputClass}>{merchantBusinessTypes.map((type) => <option key={type} value={type}>{merchantBusinessTypeLabels[type]}</option>)}</select></Field>
-    <Field label="統一編號（選填）"><input value={state.businessRegistrationNumber} onChange={(event) => update("businessRegistrationNumber", event.target.value)} maxLength={30} className={inputClass} /></Field>
-    <Field label="負責聯絡人"><input required value={state.contactName} onChange={(event) => update("contactName", event.target.value)} maxLength={80} className={inputClass} /></Field>
-    <Field label="商家電話"><input required value={state.businessPhone} onChange={(event) => update("businessPhone", event.target.value)} autoComplete="tel" maxLength={30} className={inputClass} /></Field>
-    <Field label="縣市"><input required value={state.city} onChange={(event) => update("city", event.target.value)} maxLength={40} className={inputClass} /></Field>
-    <Field label="商家地址" full><input required value={state.businessAddress} onChange={(event) => update("businessAddress", event.target.value)} maxLength={200} className={inputClass} /></Field>
+    <Field label="統一編號（選填）"><input type="text" value={state.businessRegistrationNumber} onChange={(event) => update("businessRegistrationNumber", event.target.value)} maxLength={30} className={inputClass} /></Field>
+    <Field label="負責聯絡人"><input type="text" required value={state.contactName} onChange={(event) => update("contactName", event.target.value)} maxLength={80} className={inputClass} /></Field>
+    <Field label="商家電話"><input type="tel" inputMode="tel" required value={state.businessPhone} onChange={(event) => update("businessPhone", event.target.value)} autoComplete="tel" maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" className={inputClass} /></Field>
+    <Field label="縣市"><input type="text" required value={state.city} onChange={(event) => update("city", event.target.value)} maxLength={40} className={inputClass} /></Field>
+    <Field label="商家地址" full><input type="text" required value={state.businessAddress} onChange={(event) => update("businessAddress", event.target.value)} maxLength={200} className={inputClass} /></Field>
     <Field label="商家簡介（選填）" full><textarea value={state.merchantDescription} onChange={(event) => update("merchantDescription", event.target.value)} maxLength={1000} rows={4} className={inputClass} /></Field>
   </div>;
 }
 
 function StallStep({ state, update, slugState, checkSlug }: StepProps & { slugState: string; checkSlug(): Promise<void> }) {
   return <div className="grid gap-4 md:grid-cols-2">
-    <Field label="第一個攤位名稱"><input required value={state.stallName} onChange={(event) => update("stallName", event.target.value)} maxLength={120} className={inputClass} /></Field>
-    <Field label="主要營業地點"><input required value={state.stallLocation} onChange={(event) => update("stallLocation", event.target.value)} maxLength={200} className={inputClass} /></Field>
+    <Field label="第一個攤位名稱"><input type="text" required value={state.stallName} onChange={(event) => update("stallName", event.target.value)} maxLength={120} className={inputClass} /></Field>
+    <Field label="主要營業地點"><input type="text" required value={state.stallLocation} onChange={(event) => update("stallLocation", event.target.value)} maxLength={200} className={inputClass} /></Field>
     <Field label="預計開始日期"><input type="date" value={state.expectedStartDate} onChange={(event) => update("expectedStartDate", event.target.value)} className={inputClass} /></Field>
     <Field label="預估每日訂單"><input type="number" min={0} max={100000} value={state.estimatedDailyOrders} onChange={(event) => update("estimatedDailyOrders", event.target.value)} className={inputClass} /></Field>
     <Field label="公開識別名稱" full>
       <PublicIdentifierInputHint hintId="onboarding-public-identifier-rules">
-        <input
+        <input type="text"
           required
           value={state.requestedSlug}
           onChange={(event) => update("requestedSlug", event.target.value.toLowerCase())}

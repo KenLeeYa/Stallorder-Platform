@@ -4,8 +4,13 @@ import {
   PUBLIC_IDENTIFIER_MIN_LENGTH,
   PUBLIC_IDENTIFIER_REGEX,
 } from "./public-identifier";
+import {
+  multilineText,
+  phoneNumberSchema,
+  singleLineText,
+} from "./input-validation";
 
-const nullableText = (maxLength: number) => z.string().trim().max(maxLength).nullable();
+const nullableText = (maxLength: number) => multilineText({ maximum: maxLength }).nullable();
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
 
 export const merchantBusinessTypes = [
@@ -21,19 +26,19 @@ export const merchantBusinessTypes = [
 export const preferredContactMethods = ["PHONE", "LINE", "EMAIL"] as const;
 
 export const merchantApplicationFieldsSchema = z.object({
-  phone: z.string().trim().min(6).max(30),
-  lineId: nullableText(80),
+  phone: phoneNumberSchema,
+  lineId: singleLineText({ maximum: 80 }).nullable(),
   preferredContactMethod: z.enum(preferredContactMethods),
-  merchantName: z.string().trim().min(2).max(120),
+  merchantName: singleLineText({ minimum: 2, maximum: 120 }),
   businessType: z.enum(merchantBusinessTypes),
-  businessRegistrationNumber: nullableText(30),
-  contactName: z.string().trim().min(2).max(80),
-  businessPhone: z.string().trim().min(6).max(30),
-  businessAddress: z.string().trim().min(5).max(200),
-  city: z.string().trim().min(2).max(40),
+  businessRegistrationNumber: singleLineText({ maximum: 30 }).nullable(),
+  contactName: singleLineText({ minimum: 2, maximum: 80 }),
+  businessPhone: phoneNumberSchema,
+  businessAddress: singleLineText({ minimum: 5, maximum: 200 }),
+  city: singleLineText({ minimum: 2, maximum: 40 }),
   merchantDescription: nullableText(1000),
-  stallName: z.string().trim().min(2).max(120),
-  stallLocation: z.string().trim().min(2).max(200),
+  stallName: singleLineText({ minimum: 2, maximum: 120 }),
+  stallLocation: singleLineText({ minimum: 2, maximum: 200 }),
   requestedSlug: z
     .string()
     .trim()
@@ -77,10 +82,10 @@ export const merchantApplicationCommandSchema = z.discriminatedUnion("intent", [
 
 export const merchantApplicationAdminCommandSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("ASSIGN_REVIEWER"), reviewerProfileId: z.string().uuid() }).strict(),
-  z.object({ action: z.literal("ADD_INTERNAL_NOTE"), internalReviewNote: z.string().trim().min(3).max(2000) }).strict(),
+  z.object({ action: z.literal("ADD_INTERNAL_NOTE"), internalReviewNote: multilineText({ minimum: 3, maximum: 2000 }) }).strict(),
   z.object({
     action: z.literal("REQUEST_INFO"),
-    publicReviewNote: z.string().trim().min(3).max(1000),
+    publicReviewNote: multilineText({ minimum: 3, maximum: 1000 }),
     internalReviewNote: nullableText(2000).optional(),
   }).strict(),
   z.object({
@@ -89,7 +94,7 @@ export const merchantApplicationAdminCommandSchema = z.discriminatedUnion("actio
   }).strict(),
   z.object({
     action: z.literal("REJECT"),
-    publicReviewNote: z.string().trim().min(3).max(1000),
+    publicReviewNote: multilineText({ minimum: 3, maximum: 1000 }),
     internalReviewNote: nullableText(2000).optional(),
     reapplicationAllowed: z.boolean().default(false),
   }).strict(),
@@ -97,11 +102,11 @@ export const merchantApplicationAdminCommandSchema = z.discriminatedUnion("actio
   z.object({
     action: z.literal("MARK_RISK"),
     riskLevel: z.enum(["LOW", "MEDIUM", "HIGH", "BLOCKED"]),
-    reason: z.string().trim().min(3).max(500),
+    reason: multilineText({ minimum: 3, maximum: 500 }),
   }).strict(),
   z.object({
     action: z.literal("BLOCK_SOURCE"),
-    reason: z.string().trim().min(3).max(500),
+    reason: multilineText({ minimum: 3, maximum: 500 }),
   }).strict(),
   z.object({
     action: z.literal("WITHDRAW"),

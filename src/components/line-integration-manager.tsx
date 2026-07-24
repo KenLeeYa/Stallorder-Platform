@@ -122,15 +122,15 @@ export function LineIntegrationManager({
           <div><h2 className="text-lg font-semibold">整合狀態</h2><p className="mt-1 text-sm text-stone-600">{data.status === "ACTIVE" ? "已啟用" : data.status === "ERROR" ? "需要檢查" : "未啟用"}</p></div>
           <span className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold ${data.status === "ACTIVE" ? "bg-emerald-50 text-emerald-800" : "bg-stone-100 text-stone-700"}`}><span className={`h-2.5 w-2.5 rounded-full ${data.status === "ACTIVE" ? "bg-emerald-600" : "bg-stone-400"}`} />{data.status === "ACTIVE" ? "啟用" : "停用"}</span>
         </div>
-        {webhookUrl ? <div className="mt-5"><label className="text-sm font-medium" htmlFor="line-webhook-url">Webhook URL</label><div className="mt-2 flex gap-2"><input id="line-webhook-url" readOnly value={webhookUrl} className="min-h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製 Webhook URL" aria-label="複製 Webhook URL" onClick={() => void copyWebhook()} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300">{copied ? <Check className="h-4 w-4 text-emerald-700" /> : <Copy className="h-4 w-4" />}</button></div></div> : null}
+        {webhookUrl ? <div className="mt-5"><label className="text-sm font-medium" htmlFor="line-webhook-url">Webhook URL</label><div className="mt-2 flex gap-2"><input type="text" id="line-webhook-url" readOnly value={webhookUrl} className="min-h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製 Webhook URL" aria-label="複製 Webhook URL" onClick={() => void copyWebhook()} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300">{copied ? <Check className="h-4 w-4 text-emerald-700" /> : <Copy className="h-4 w-4" />}</button></div></div> : null}
       </section>
 
       <section>
         <h2 className="text-lg font-semibold">LINE Channel</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label="LINE Login Channel ID"><input value={channelId} onChange={(event) => setChannelId(event.target.value)} inputMode="numeric" autoComplete="off" className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" /></Field>
-          <Field label="顯示名稱"><input value={settings.displayName} onChange={(event) => setSettings((current) => ({ ...current, displayName: event.target.value }))} maxLength={80} className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" /></Field>
-          <Field label="LINE 官方帳號網址（選填）"><input value={settings.officialAccountUrl} onChange={(event) => setSettings((current) => ({ ...current, officialAccountUrl: event.target.value }))} type="url" placeholder="https://lin.ee/..." className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" /></Field>
+          <Field label="LINE Login Channel ID"><input type="text" value={channelId} onChange={(event) => setChannelId(event.target.value.replace(/\D/g, "").slice(0, 30))} inputMode="numeric" autoComplete="off" minLength={5} maxLength={30} pattern="[0-9]{5,30}" className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" /></Field>
+          <Field label="顯示名稱"><input type="text" value={settings.displayName} onChange={(event) => setSettings((current) => ({ ...current, displayName: event.target.value }))} maxLength={80} className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" /></Field>
+          <Field label="LINE 官方帳號網址（選填）"><input value={settings.officialAccountUrl} onChange={(event) => setSettings((current) => ({ ...current, officialAccountUrl: event.target.value }))} type="url" maxLength={500} placeholder="https://lin.ee/..." className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" /></Field>
         </div>
       </section>
 
@@ -165,7 +165,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function SecretInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return <input type="password" value={value} onChange={(event) => onChange(event.target.value)} autoComplete="new-password" className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" />;
+  return <input type="password" value={value} maxLength={4096} onChange={(event) => onChange(event.target.value)} autoComplete="new-password" className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" />;
 }
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {

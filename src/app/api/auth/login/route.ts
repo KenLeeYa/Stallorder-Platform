@@ -22,7 +22,7 @@ const loginSchema = z.object({
   email: z.string().trim().email().max(120).transform((value) => value.toLowerCase()),
   password: z.string().min(1).max(128),
   next: z.string().max(500).optional(),
-});
+}).strict();
 
 export async function POST(request: Request) {
   const requestId = createRequestId();

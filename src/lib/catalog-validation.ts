@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { multilineText, singleLineText } from "./input-validation";
 
 export const productInputSchema = z.object({
   categoryId: z.string().uuid(),
-  name: z.string().trim().min(1).max(80),
-  description: z.string().trim().max(500),
+  name: singleLineText({ minimum: 1, maximum: 80 }),
+  description: multilineText({ maximum: 500 }),
   price: z.number().int().min(0).max(10_000_000),
   sortOrder: z.number().int().min(0).max(10_000),
   isAvailable: z.boolean(),
@@ -15,7 +16,7 @@ export const productUpdateSchema = productInputSchema.partial().refine(
 );
 
 export const categoryInputSchema = z.object({
-  name: z.string().trim().min(1).max(50),
+  name: singleLineText({ minimum: 1, maximum: 50 }),
   sortOrder: z.number().int().min(0).max(10_000),
   isActive: z.boolean(),
 }).strict();
@@ -25,7 +26,7 @@ export const categoryUpdateSchema = categoryInputSchema.partial().refine(
   { message: "至少需要一個更新欄位。" },
 );
 
-const catalogName = z.string().trim().min(1).max(80);
+const catalogName = singleLineText({ minimum: 1, maximum: 80 });
 const sortOrder = z.number().int().min(0).max(10_000);
 const uuid = z.string().uuid();
 const stallIds = z.array(uuid).max(100).refine(
@@ -35,8 +36,8 @@ const stallIds = z.array(uuid).max(100).refine(
 export const supportedProductLocales = ["en", "ja", "ko", "vi", "th"] as const;
 const productTranslations = z.array(z.object({
   locale: z.enum(supportedProductLocales),
-  name: z.string().trim().min(1).max(120),
-  description: z.string().trim().max(500),
+  name: singleLineText({ minimum: 1, maximum: 120 }),
+  description: multilineText({ maximum: 500 }),
 }).strict()).max(supportedProductLocales.length).refine(
   (translations) => new Set(translations.map((translation) => translation.locale)).size === translations.length,
   { message: "商品翻譯語系不可重複。" },
@@ -74,7 +75,7 @@ export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
     categoryId: uuid,
     groupId: uuid.nullable(),
     name: catalogName,
-    description: z.string().trim().max(500),
+    description: multilineText({ maximum: 500 }),
     defaultPrice: z.number().int().min(0).max(10_000_000),
     imageUrl: z.string().url().max(2_000).nullable(),
     sortOrder,
@@ -87,7 +88,7 @@ export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
     categoryId: uuid,
     groupId: uuid.nullable(),
     name: catalogName,
-    description: z.string().trim().max(500),
+    description: multilineText({ maximum: 500 }),
     defaultPrice: z.number().int().min(0).max(10_000_000),
     imageUrl: z.string().url().max(2_000).nullable(),
     sortOrder,

@@ -81,13 +81,21 @@ const server = createServer(async (request, response) => {
       sendJson(response, 400, { error: "invalid_grant" });
       return;
     }
-    sendJson(response, 200, await sessionPayload(email));
+    try {
+      sendJson(response, 200, await sessionPayload(email));
+    } catch {
+      sendJson(response, 400, { error: "invalid_grant" });
+    }
     return;
   }
 
   if (url.pathname === "/auth/v1/user") {
-    const session = await sessionPayload();
-    sendJson(response, 200, session.user);
+    try {
+      const session = await sessionPayload();
+      sendJson(response, 200, session.user);
+    } catch {
+      sendJson(response, 401, { error: "invalid_token" });
+    }
     return;
   }
 
