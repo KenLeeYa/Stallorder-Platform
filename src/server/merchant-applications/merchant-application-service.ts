@@ -10,7 +10,10 @@ import {
   normalizeRegistrationNumber,
 } from "./application-identifiers";
 import { classifyMerchantApplicationRisk, type MerchantApplicationRiskReason } from "./application-risk";
-import { assertMerchantApplicationTransition } from "./application-state";
+import {
+  assertMerchantApplicationTransition,
+  canStartMerchantReapplication,
+} from "./application-state";
 
 export const merchantApplicationPublicSelect = {
   id: true,
@@ -142,7 +145,9 @@ export async function saveMerchantApplicationDraft(input: {
     if (existing && !["DRAFT", "NEEDS_INFO"].includes(existing.status)) {
       throw new MerchantApplicationError("APPLICATION_PENDING");
     }
-    if (!existing) await assertReapplicationAllowed(transaction, profile.id);
+    const reapplicationSource = existing
+      ? null
+      : await findReapplicationSource(transaction, profile.id);
 
     const data = applicationData(input.data);
     const application = existing
@@ -158,6 +163,7 @@ export async function saveMerchantApplicationDraft(input: {
             applicantDisplayName: profile.displayName,
             currentStep: input.currentStep,
             submissionDeviceHash: hashToken(`merchant-application:${input.identity.sessionId}`),
+            ...copyApplicationDataForReapplication(reapplicationSource),
             ...data,
           },
           select: merchantApplicationPublicSelect,
@@ -165,13 +171,20 @@ export async function saveMerchantApplicationDraft(input: {
 
     await transaction.auditLog.create({
       data: {
-        action: existing ? "MERCHANT_APPLICATION_DRAFT_UPDATED" : "MERCHANT_APPLICATION_DRAFTED",
+        action: existing
+          ? "MERCHANT_APPLICATION_DRAFT_UPDATED"
+          : reapplicationSource
+            ? "MERCHANT_APPLICATION_REAPPLICATION_STARTED"
+            : "MERCHANT_APPLICATION_DRAFTED",
         entityType: "MERCHANT_APPLICATION",
         entityId: application.id,
         actorProfileId: profile.id,
         outcome: "SUCCESS",
         requestId: input.audit.requestId,
         ipHash: input.audit.ipHash,
+        beforeJson: reapplicationSource
+          ? { applicationId: reapplicationSource.id, status: reapplicationSource.status }
+          : undefined,
         afterJson: { status: application.status, currentStep: application.currentStep },
       },
     });
@@ -201,7 +214,7 @@ export async function submitMerchantApplication(input: {
       throw new MerchantApplicationError("APPLICATION_PENDING");
     }
     if (!application) {
-      await assertReapplicationAllowed(transaction, profile.id);
+      await findReapplicationSource(transaction, profile.id);
       application = await transaction.merchantApplication.create({
         data: {
           applicantProfileId: profile.id,
@@ -349,15 +362,50 @@ async function findActiveApplication(transaction: Prisma.TransactionClient, prof
   });
 }
 
-async function assertReapplicationAllowed(transaction: Prisma.TransactionClient, profileId: string) {
-  const latestRejected = await transaction.merchantApplication.findFirst({
-    where: { applicantProfileId: profileId, status: "REJECTED" },
-    orderBy: { rejectedAt: "desc" },
-    select: { reapplicationAllowed: true },
+async function findReapplicationSource(transaction: Prisma.TransactionClient, profileId: string) {
+  const latestApplication = await transaction.merchantApplication.findFirst({
+    where: { applicantProfileId: profileId },
+    orderBy: { createdAt: "desc" },
   });
-  if (latestRejected && !latestRejected.reapplicationAllowed) {
+  if (latestApplication?.status === "REJECTED" && !latestApplication.reapplicationAllowed) {
     throw new MerchantApplicationError("REAPPLICATION_NOT_ALLOWED");
   }
+  if (!latestApplication || !canStartMerchantReapplication(
+    latestApplication.status,
+    latestApplication.reapplicationAllowed,
+  )) {
+    return null;
+  }
+  return latestApplication;
+}
+
+function copyApplicationDataForReapplication(
+  application: Awaited<ReturnType<typeof findReapplicationSource>>,
+): WritableApplicationData {
+  if (!application) return {};
+  return {
+    phone: application.phone,
+    phoneHash: application.phoneHash,
+    businessRegistrationNumber: application.businessRegistrationNumber,
+    businessRegistrationNumberHash: application.businessRegistrationNumberHash,
+    expectedStartDate: application.expectedStartDate,
+    lineId: application.lineId,
+    preferredContactMethod: application.preferredContactMethod,
+    merchantName: application.merchantName,
+    businessType: application.businessType,
+    contactName: application.contactName,
+    businessPhone: application.businessPhone,
+    businessAddress: application.businessAddress,
+    city: application.city,
+    merchantDescription: application.merchantDescription,
+    stallName: application.stallName,
+    stallLocation: application.stallLocation,
+    requestedSlug: application.requestedSlug,
+    estimatedDailyOrders: application.estimatedDailyOrders,
+    needsMultipleStaff: application.needsMultipleStaff,
+    needsKitchenView: application.needsKitchenView,
+    requestedPlanCode: application.requestedPlanCode,
+  };
 }
 
 async function findDuplicateRiskReasons(

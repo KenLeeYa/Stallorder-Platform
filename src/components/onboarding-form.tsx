@@ -85,11 +85,13 @@ export function OnboardingForm({
   initialValues,
   trial,
   needsInfoNote,
+  isReapplication = false,
 }: {
   authenticatedProfile: { displayName: string; email: string; avatarUrl: string | null };
   initialValues?: InitialValues | null;
   trial: Trial;
   needsInfoNote?: string | null;
+  isReapplication?: boolean;
 }) {
   const router = useRouter();
   const [step, setStep] = useState(Math.min(initialValues?.currentStep ?? 1, 4));
@@ -214,8 +216,12 @@ export function OnboardingForm({
         <div className="flex items-center gap-3">
           <ActiveIcon className="h-6 w-6 text-teal-700" />
           <div>
-            <h1 className="text-2xl font-semibold">商家申請</h1>
-            <p className="text-sm text-stone-600">送出後由平台人工審核，不會立即建立商家工作區。</p>
+            <h1 className="text-2xl font-semibold">{isReapplication ? "重新申請商家" : "商家申請"}</h1>
+            <p className="text-sm text-stone-600">
+              {isReapplication
+                ? "已帶入前次資料；送出後會建立新的申請編號並重新進入人工審核。"
+                : "送出後由平台人工審核，不會立即建立商家工作區。"}
+            </p>
           </div>
         </div>
         <div className="mt-5 grid grid-cols-4 border border-stone-200" aria-label="申請進度">
@@ -233,6 +239,7 @@ export function OnboardingForm({
         </div>
       </header>
 
+      {isReapplication ? <p role="status" className="mt-5 border-l-4 border-teal-600 bg-teal-50 px-4 py-3 text-sm text-teal-950">前次申請會保留為歷史紀錄，不會被修改或重新開啟。請重新確認資料與同意事項後再送出。</p> : null}
       {needsInfoNote ? <p className="mt-5 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950">平台補件說明：{needsInfoNote}</p> : null}
 
       <section className="min-h-[420px] py-6">

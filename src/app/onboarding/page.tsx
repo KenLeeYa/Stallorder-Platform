@@ -7,6 +7,7 @@ import {
   loadOnboardingData,
   serializeApplicationInitialValues,
 } from "@/server/merchant-applications/onboarding-page-data";
+import { canStartMerchantReapplication } from "@/server/merchant-applications/application-state";
 
 export default async function OnboardingPage() {
   const principal = await getPagePrincipal();
@@ -14,11 +15,16 @@ export default async function OnboardingPage() {
   const data = await loadOnboardingData(principal.user.id, principal.user.email, principal.user.platformRole);
   if (data.workspacePath) redirect(data.workspacePath);
   if (data.application?.status === "NEEDS_INFO") redirect("/onboarding/edit");
-  if (["SUBMITTED", "PENDING_REVIEW", "APPROVED", "REJECTED", "WITHDRAWN", "EXPIRED"].includes(data.application?.status ?? "")) {
+  const isReapplication = data.application
+    ? canStartMerchantReapplication(data.application.status, data.application.reapplicationAllowed)
+    : false;
+  if (data.application && !isReapplication && data.application.status !== "DRAFT") {
     redirect("/onboarding/status");
   }
+  const initialValues = serializeApplicationInitialValues(data.application);
+  if (isReapplication && initialValues) initialValues.currentStep = 1;
   return <OnboardingShell>
-    {data.pendingInvitation ? <InvitationPriority /> : <OnboardingForm authenticatedProfile={data.profile} initialValues={serializeApplicationInitialValues(data.application)} trial={data.trial} />}
+    {data.pendingInvitation ? <InvitationPriority /> : <OnboardingForm authenticatedProfile={data.profile} initialValues={initialValues} trial={data.trial} isReapplication={isReapplication} />}
   </OnboardingShell>;
 }
 
