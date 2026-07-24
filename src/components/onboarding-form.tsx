@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Building2, Check, ChevronLeft, ChevronRight, ClipboardCheck, MapPin, Save, UserRound } from "lucide-react";
 import { PublicIdentifierInputHint } from "@/components/public-identifier-input-hint";
 import { csrfHeaders } from "@/lib/csrf-client";
+import type { MerchantBusinessTypeOptionDto } from "@/lib/merchant-business-type-options";
 import { merchantBusinessTypeLabels, merchantBusinessTypes } from "@/lib/merchant-application-contract";
 import {
   isValidPublicIdentifier,
@@ -12,6 +13,7 @@ import {
   PUBLIC_IDENTIFIER_MIN_LENGTH,
   PUBLIC_IDENTIFIER_PATTERN,
 } from "@/lib/public-identifier";
+import { taiwanCityOptions } from "@/lib/taiwan-address";
 
 type InitialValues = {
   phone?: string | null;
@@ -84,12 +86,14 @@ export function OnboardingForm({
   authenticatedProfile,
   initialValues,
   trial,
+  businessTypeOptions,
   needsInfoNote,
   isReapplication = false,
 }: {
   authenticatedProfile: { displayName: string; email: string; avatarUrl: string | null };
   initialValues?: InitialValues | null;
   trial: Trial;
+  businessTypeOptions?: MerchantBusinessTypeOptionDto[];
   needsInfoNote?: string | null;
   isReapplication?: boolean;
 }) {
@@ -244,7 +248,7 @@ export function OnboardingForm({
 
       <section className="min-h-[420px] py-6">
         {step === 1 ? <ApplicantStep profile={authenticatedProfile} state={state} update={update} /> : null}
-        {step === 2 ? <MerchantStep state={state} update={update} /> : null}
+        {step === 2 ? <MerchantStep state={state} update={update} businessTypeOptions={businessTypeOptions ?? []} /> : null}
         {step === 3 ? <StallStep state={state} update={update} slugState={slugState} checkSlug={checkSlug} /> : null}
         {step === 4 ? <ConsentStep state={state} update={update} trial={trial} /> : null}
       </section>
@@ -280,14 +284,23 @@ function ApplicantStep({ profile, state, update }: StepProps & { profile: { disp
   </div>;
 }
 
-function MerchantStep({ state, update }: StepProps) {
+function MerchantStep({ state, update, businessTypeOptions }: StepProps & { businessTypeOptions: MerchantBusinessTypeOptionDto[] }) {
+  const options = businessTypeOptions.length
+    ? businessTypeOptions
+    : merchantBusinessTypes.map((type, index) => ({
+        code: type,
+        legacyType: type,
+        name: merchantBusinessTypeLabels[type],
+        sortOrder: index,
+        isActive: true,
+      }));
   return <div className="grid gap-4 md:grid-cols-2">
     <Field label="商家或品牌名稱"><input type="text" required value={state.merchantName} onChange={(event) => update("merchantName", event.target.value)} maxLength={120} className={inputClass} /></Field>
-    <Field label="營業類型"><select value={state.businessType} onChange={(event) => update("businessType", event.target.value as FormState["businessType"])} className={inputClass}>{merchantBusinessTypes.map((type) => <option key={type} value={type}>{merchantBusinessTypeLabels[type]}</option>)}</select></Field>
+    <Field label="營業類型"><select value={state.businessType} onChange={(event) => update("businessType", event.target.value as FormState["businessType"])} className={inputClass}>{options.map((option) => <option key={option.code} value={option.legacyType}>{option.name}</option>)}</select></Field>
     <Field label="統一編號（選填）"><input type="text" value={state.businessRegistrationNumber} onChange={(event) => update("businessRegistrationNumber", event.target.value)} maxLength={30} className={inputClass} /></Field>
     <Field label="負責聯絡人"><input type="text" required value={state.contactName} onChange={(event) => update("contactName", event.target.value)} maxLength={80} className={inputClass} /></Field>
     <Field label="商家電話"><input type="tel" inputMode="tel" required value={state.businessPhone} onChange={(event) => update("businessPhone", event.target.value)} autoComplete="tel" maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" className={inputClass} /></Field>
-    <Field label="縣市"><input type="text" required value={state.city} onChange={(event) => update("city", event.target.value)} maxLength={40} className={inputClass} /></Field>
+    <Field label="縣市"><select required value={state.city} onChange={(event) => update("city", event.target.value)} className={inputClass}><option value="">請選擇縣市</option>{taiwanCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></Field>
     <Field label="商家地址" full><input type="text" required value={state.businessAddress} onChange={(event) => update("businessAddress", event.target.value)} maxLength={200} className={inputClass} /></Field>
     <Field label="商家簡介（選填）" full><textarea value={state.merchantDescription} onChange={(event) => update("merchantDescription", event.target.value)} maxLength={1000} rows={4} className={inputClass} /></Field>
   </div>;

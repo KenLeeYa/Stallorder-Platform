@@ -16,6 +16,8 @@ export default async function CashShiftPage({ params }: PageProps) {
       title="現金交班目前無法使用"
       message={cashShiftAccess.message}
       billingHref={`/merchant/subscription?organizationId=${stall.organizationId}`}
+      returnHref={`/staff/${stallSlug}`}
+      returnLabel="返回店員畫面"
     />;
   }
   const reconciliationAccess = await getFeatureAccess(stall.organizationId, "CASH_RECONCILIATION");

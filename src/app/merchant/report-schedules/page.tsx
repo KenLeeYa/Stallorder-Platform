@@ -23,6 +23,8 @@ export default async function ReportSchedulesPage({ searchParams }: PageProps) {
         title="排程報表尚未開放"
         message={featureAccess.message}
         billingHref={`/merchant/subscription?organizationId=${workspace.id}`}
+        returnHref={`/merchant/stalls?organizationId=${workspace.id}`}
+        returnLabel="返回管理攤位"
         returnStallId={returnStallId}
       />
     );
