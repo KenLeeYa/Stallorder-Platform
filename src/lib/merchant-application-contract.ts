@@ -9,6 +9,7 @@ import {
   phoneNumberSchema,
   singleLineText,
 } from "./input-validation";
+import { isTaiwanCity } from "./taiwan-address";
 
 const nullableText = (maxLength: number) => multilineText({ maximum: maxLength }).nullable();
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
@@ -35,7 +36,7 @@ export const merchantApplicationFieldsSchema = z.object({
   contactName: singleLineText({ minimum: 2, maximum: 80 }),
   businessPhone: phoneNumberSchema,
   businessAddress: singleLineText({ minimum: 5, maximum: 200 }),
-  city: singleLineText({ minimum: 2, maximum: 40 }),
+  city: singleLineText({ minimum: 2, maximum: 40 }).refine(isTaiwanCity, "請選擇有效的縣市。"),
   merchantDescription: nullableText(1000),
   stallName: singleLineText({ minimum: 2, maximum: 120 }),
   stallLocation: singleLineText({ minimum: 2, maximum: 200 }),

@@ -12,7 +12,7 @@ import { canStartMerchantReapplication } from "@/server/merchant-applications/ap
 export default async function OnboardingPage() {
   const principal = await getPagePrincipal();
   if (!principal?.user.authUserId) redirect("/auth/google?next=%2Fonboarding");
-  const data = await loadOnboardingData(principal.user.id, principal.user.email, principal.user.platformRole);
+  const data = await loadOnboardingData(principal.user.id, principal.user.email);
   if (data.workspacePath) redirect(data.workspacePath);
   if (data.application?.status === "NEEDS_INFO") redirect("/onboarding/edit");
   const isReapplication = data.application
@@ -24,7 +24,7 @@ export default async function OnboardingPage() {
   const initialValues = serializeApplicationInitialValues(data.application);
   if (isReapplication && initialValues) initialValues.currentStep = 1;
   return <OnboardingShell>
-    {data.pendingInvitation ? <InvitationPriority /> : <OnboardingForm authenticatedProfile={data.profile} initialValues={initialValues} trial={data.trial} isReapplication={isReapplication} />}
+    {data.pendingInvitation ? <InvitationPriority /> : <OnboardingForm authenticatedProfile={data.profile} initialValues={initialValues} trial={data.trial} businessTypeOptions={data.businessTypeOptions} isReapplication={isReapplication} />}
   </OnboardingShell>;
 }
 

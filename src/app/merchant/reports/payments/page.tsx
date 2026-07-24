@@ -15,7 +15,7 @@ export default async function PaymentReportPage({ searchParams }: PageProps) {
     requireUsableSubscription: false,
   });
   if (!featureAccess.allowed) {
-    return <FeatureUpgradeNotice title="付款分析尚未開放" message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} />;
+    return <FeatureUpgradeNotice title="付款分析尚未開放" message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} returnHref={`/merchant/reports/overview?organizationId=${scope.workspace.id}`} returnLabel="返回銷售趨勢總覽" />;
   }
   const stallIds = scope.stalls.map((stall) => stall.id);
   const [rows, paymentRows] = await Promise.all([

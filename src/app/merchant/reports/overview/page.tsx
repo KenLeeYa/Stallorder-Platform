@@ -31,7 +31,7 @@ export default async function ReportOverviewPage({ searchParams }: PageProps) {
   ));
   if (!featureAccess.allowed) {
     timing.finish({ status: 200 });
-    return <FeatureUpgradeNotice message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} />;
+    return <FeatureUpgradeNotice message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} returnHref={`/merchant/dashboard?organizationId=${scope.workspace.id}`} returnLabel="返回營運總覽" />;
   }
   return (
     <Suspense fallback={<RouteLoadingSkeleton variant="reports" />}>

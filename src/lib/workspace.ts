@@ -149,6 +149,10 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
   });
 });
 
+export const getMemberWorkspaceAccess = cache(async function getMemberWorkspaceAccess(profileId: string) {
+  return getWorkspaceAccess(profileId, null);
+});
+
 export function getDefaultWorkspacePath(workspaces: WorkspaceOrganization[]) {
   if (workspaces.length === 0) return "/onboarding";
   if (workspaces.length > 1) return "/select-organization";
@@ -168,6 +172,15 @@ export const requireWorkspacePage = cache(async function requireWorkspacePage() 
   if (!principal) redirect("/login");
 
   const workspaces = await getWorkspaceAccess(principal.user.id, principal.user.platformRole);
+  if (workspaces.length === 0) redirect("/onboarding");
+  return { principal, workspaces };
+});
+
+export const requireMemberWorkspacePage = cache(async function requireMemberWorkspacePage() {
+  const principal = await getPagePrincipal();
+  if (!principal) redirect("/login");
+
+  const workspaces = await getMemberWorkspaceAccess(principal.user.id);
   if (workspaces.length === 0) redirect("/onboarding");
   return { principal, workspaces };
 });

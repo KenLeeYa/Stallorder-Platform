@@ -16,7 +16,7 @@ export default async function StallComparisonPage({ searchParams }: PageProps) {
     requireUsableSubscription: false,
   });
   if (!featureAccess.allowed) {
-    return <FeatureUpgradeNotice title="攤位比較尚未開放" message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} />;
+    return <FeatureUpgradeNotice title="攤位比較尚未開放" message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} returnHref={`/merchant/reports/overview?organizationId=${scope.workspace.id}`} returnLabel="返回銷售趨勢總覽" />;
   }
   const rows = await prisma.dailyStallSummary.findMany({ where: { organizationId: scope.workspace.id, stallId: { in: scope.stalls.map((stall) => stall.id) }, businessDate: { gte: new Date(`${scope.dateFrom}T00:00:00Z`), lte: new Date(`${scope.dateTo}T00:00:00Z`) } } });
   const metrics = scope.stalls.map((stall) => ({ stall, metric: aggregateDailyMetrics(rows.filter((row) => row.stallId === stall.id)) })).sort((a, b) => b.metric.totalSales - a.metric.totalSales);

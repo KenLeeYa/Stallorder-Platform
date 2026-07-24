@@ -11,7 +11,7 @@ const completeApplication = {
   contactName: "測試負責人",
   businessPhone: "0912345678",
   businessAddress: "台北市測試路 1 號",
-  city: "台北市",
+  city: "臺北市",
   merchantDescription: null,
   stallName: "測試攤位",
   stallLocation: "測試夜市",

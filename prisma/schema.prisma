@@ -696,6 +696,25 @@ model MerchantApplicationNotification {
   @@map("merchant_application_notifications")
 }
 
+model MerchantBusinessTypeOption {
+  id            String                @id @default(uuid()) @db.Uuid
+  code          String                @unique
+  legacyType    MerchantBusinessType? @unique @map("legacy_type")
+  name          String
+  description   String?
+  sortOrder     Int                   @default(0) @map("sort_order")
+  isActive      Boolean               @default(true) @map("is_active")
+  archivedAt    DateTime?             @map("archived_at")
+  createdById   String?               @map("created_by") @db.Uuid
+  updatedById   String?               @map("updated_by") @db.Uuid
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+
+  @@index([isActive, sortOrder])
+  @@index([archivedAt])
+  @@map("merchant_business_type_options")
+}
+
 model MerchantSetupProgress {
   id                       String              @id @default(uuid()) @db.Uuid
   applicationId            String              @unique @map("application_id") @db.Uuid
