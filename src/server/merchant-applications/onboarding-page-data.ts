@@ -1,13 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { getDefaultWorkspacePath, getWorkspaceAccess } from "@/lib/workspace";
+import { getDefaultWorkspacePath, getMemberWorkspaceAccess } from "@/lib/workspace";
+import { listActiveMerchantBusinessTypeOptions } from "@/server/merchant-applications/business-type-option-service";
 import { getApplicantApplication } from "@/server/merchant-applications/merchant-application-service";
 import { getPendingMerchantSetupPath } from "@/server/merchant-applications/merchant-setup-service";
 
-type PlatformRole = Parameters<typeof getWorkspaceAccess>[1];
-
-export async function loadOnboardingData(profileId: string, email: string, platformRole: PlatformRole) {
+export async function loadOnboardingData(profileId: string, email: string) {
   const now = new Date();
-  const [profile, application, trial, workspaces, pendingInvitation, pendingSetupPath] = await Promise.all([
+  const [profile, application, trial, workspaces, pendingInvitation, pendingSetupPath, businessTypeOptions] = await Promise.all([
     prisma.profile.findUniqueOrThrow({
       where: { id: profileId },
       select: { displayName: true, email: true, avatarUrl: true },
@@ -31,11 +30,12 @@ export async function loadOnboardingData(profileId: string, email: string, platf
         overagePolicy: true,
       },
     }),
-    getWorkspaceAccess(profileId, platformRole),
+    getMemberWorkspaceAccess(profileId),
     prisma.organizationInvitation.count({
       where: { email, status: "PENDING", expiresAt: { gt: now } },
     }),
     getPendingMerchantSetupPath(profileId),
+    listActiveMerchantBusinessTypeOptions(),
   ]);
 
   return {
@@ -43,6 +43,7 @@ export async function loadOnboardingData(profileId: string, email: string, platf
     application,
     trial,
     pendingInvitation: pendingInvitation > 0,
+    businessTypeOptions,
     workspacePath: pendingSetupPath ?? (workspaces.length > 0 ? getDefaultWorkspacePath(workspaces) : null),
   };
 }

@@ -3,17 +3,32 @@ import { ChefHat, ListTree, Settings2 } from "lucide-react";
 
 type Props = {
   active: "BOARD" | "STATIONS" | "SETTINGS";
-  stall: { slug: string; name: string };
+  stall: { id: string; slug: string; name: string };
   availableStalls: Array<{ slug: string; name: string }>;
   canManage: boolean;
 };
 
 export function KitchenNavigation({ active, stall, availableStalls, canManage }: Props) {
   const links = [
-    { key: "BOARD" as const, href: "/kitchen", label: "生產看板", icon: ChefHat },
+    {
+      key: "BOARD" as const,
+      href: `/kitchen?stall=${encodeURIComponent(stall.slug)}`,
+      label: "生產看板",
+      icon: ChefHat,
+    },
     ...(canManage ? [
-      { key: "STATIONS" as const, href: "/kitchen/stations", label: "工作站", icon: ListTree },
-      { key: "SETTINGS" as const, href: "/kitchen/settings", label: "設定", icon: Settings2 },
+      {
+        key: "STATIONS" as const,
+        href: `/merchant/stalls/${stall.id}/kitchen/stations`,
+        label: "工作站設定",
+        icon: ListTree,
+      },
+      {
+        key: "SETTINGS" as const,
+        href: `/merchant/stalls/${stall.id}/kitchen/settings`,
+        label: "KDS 設定",
+        icon: Settings2,
+      },
     ] : []),
   ];
   return (
@@ -41,7 +56,7 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage }:
           {links.map(({ key, href, label, icon: Icon }) => (
             <Link
               key={key}
-              href={`${href}?stall=${encodeURIComponent(stall.slug)}`}
+              href={href}
               className={`inline-flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-semibold ${active === key ? "border-teal-700 text-teal-800" : "border-transparent text-stone-600 hover:text-stone-950"}`}
             >
               <Icon className="h-4 w-4" />{label}

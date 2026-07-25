@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Building2, ChevronRight } from "lucide-react";
-import { requireWorkspacePage } from "@/lib/workspace";
+import { requireMemberWorkspacePage } from "@/lib/workspace";
 
 export default async function SelectOrganizationPage() {
-  const { workspaces } = await requireWorkspacePage();
+  const { workspaces } = await requireMemberWorkspacePage();
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-4 py-10 md:px-8">

@@ -1,4 +1,5 @@
 import { ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { QrOrderFlow } from "@/components/qr-order-flow";
 import { prisma } from "@/lib/prisma";
@@ -43,6 +44,7 @@ export default async function DeliveryOrderPage({ params }: PageProps) {
         <p className="mt-3 text-sm leading-6 text-stone-600">
           {stall.name} 目前無法接受外送訂單，請稍後再試或直接聯絡店家。
         </p>
+        <Link href="/" className="mt-5 inline-flex min-h-10 items-center rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-900">返回首頁</Link>
       </main>
     );
   }

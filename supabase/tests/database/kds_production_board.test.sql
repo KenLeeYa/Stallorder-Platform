@@ -408,12 +408,12 @@ select is(
   'cross-stall production task access is isolated'
 );
 select is(
-  public.can_view_orders('22222222-2222-4222-8222-222222222222'),
+  app_private.can_view_orders('22222222-2222-4222-8222-222222222222'),
   false,
   'kitchen cannot use the general order RLS boundary'
 );
 select is(
-  public.can_view_kds('22222222-2222-4222-8222-222222222222'),
+  app_private.can_view_kds('22222222-2222-4222-8222-222222222222'),
   true,
   'kitchen can use the dedicated KDS RLS boundary'
 );
@@ -426,7 +426,7 @@ select is(
   'staff cannot read KDS configuration directly'
 );
 select is(
-  public.can_view_orders('22222222-2222-4222-8222-222222222222'),
+  app_private.can_view_orders('22222222-2222-4222-8222-222222222222'),
   true,
   'staff keeps the general order RLS access required for operations'
 );

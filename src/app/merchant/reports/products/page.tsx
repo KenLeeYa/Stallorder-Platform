@@ -13,7 +13,7 @@ export default async function ProductReportPage({ searchParams }: PageProps) {
     requireUsableSubscription: false,
   });
   if (!featureAccess.allowed) {
-    return <FeatureUpgradeNotice title="商品銷售報表尚未開放" message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} />;
+    return <FeatureUpgradeNotice title="商品銷售報表尚未開放" message={featureAccess.message} billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`} returnHref={`/merchant/reports/overview?organizationId=${scope.workspace.id}`} returnLabel="返回銷售趨勢總覽" />;
   }
   const report = await getProductAndHourlyReport(scope.workspace.id, scope.stalls.map((stall) => stall.id), scope.dateFrom, scope.dateTo);
   const organizationProducts = new Map<string, { quantity: number; revenue: number }>();

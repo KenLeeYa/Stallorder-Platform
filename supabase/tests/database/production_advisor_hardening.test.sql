@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(8);
+select plan(17);
 
 select ok(
   not exists (
@@ -97,6 +97,161 @@ select is(
   ),
   42::bigint,
   'all foreign key support indexes exist'
+);
+
+select is(
+  (
+    select count(*)
+    from pg_proc function_record
+    join pg_namespace function_schema
+      on function_schema.oid = function_record.pronamespace
+    where function_schema.nspname = 'app_private'
+      and function_record.proname = any (array[
+        'can_access_organization_catalog',
+        'can_access_stall',
+        'can_manage_stall',
+        'can_view_cash_shift',
+        'can_view_kds',
+        'can_view_orders',
+        'can_view_stall_financials',
+        'current_profile_id',
+        'effective_stall_product_price',
+        'has_organization_role',
+        'has_organization_wide_staff_access',
+        'has_stall_role',
+        'is_current_profile',
+        'is_organization_member',
+        'is_platform_admin',
+        'stall_business_date'
+      ])
+      and function_record.prosecdef
+  ),
+  16::bigint,
+  'authorization helpers remain SECURITY DEFINER outside exposed schemas'
+);
+
+select is(
+  (
+    select count(*)
+    from pg_proc function_record
+    join pg_namespace function_schema
+      on function_schema.oid = function_record.pronamespace
+    where function_schema.nspname = 'public'
+      and function_record.proname = any (array[
+        'can_access_organization_catalog',
+        'can_access_stall',
+        'can_manage_stall',
+        'can_view_cash_shift',
+        'can_view_kds',
+        'can_view_orders',
+        'can_view_stall_financials',
+        'current_profile_id',
+        'effective_stall_product_price',
+        'has_organization_role',
+        'has_organization_wide_staff_access',
+        'has_stall_role',
+        'is_current_profile',
+        'is_organization_member',
+        'is_platform_admin',
+        'stall_business_date'
+      ])
+      and function_record.prosecdef
+  ),
+  0::bigint,
+  'no authorization SECURITY DEFINER helper remains in public'
+);
+
+select is(
+  (
+    select count(*)
+    from pg_proc function_record
+    join pg_namespace function_schema
+      on function_schema.oid = function_record.pronamespace
+    where function_schema.nspname = 'public'
+      and function_record.proname in (
+        'effective_stall_product_price',
+        'stall_business_date'
+      )
+      and not function_record.prosecdef
+  ),
+  2::bigint,
+  'public compatibility helpers use caller privileges'
+);
+
+select ok(
+  has_schema_privilege('authenticated', 'app_private', 'USAGE'),
+  'authenticated RLS evaluation can resolve private helpers'
+);
+
+select ok(
+  not has_schema_privilege('anon', 'app_private', 'USAGE'),
+  'anonymous callers cannot resolve private helpers'
+);
+
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'app_private.invoke_due_notification_jobs()',
+    'EXECUTE'
+  ),
+  'granting private schema usage does not expose internal job processors'
+);
+
+select is(
+  (
+    select count(*)
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'merchant_applications'
+      and cmd = 'SELECT'
+      and 'authenticated' = any (roles)
+  ),
+  1::bigint,
+  'merchant applications have one authenticated permissive SELECT policy'
+);
+
+select is(
+  (
+    select count(*)
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'merchant_application_notifications'
+      and cmd = 'SELECT'
+      and 'authenticated' = any (roles)
+  ),
+  1::bigint,
+  'merchant notifications have one authenticated permissive SELECT policy'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_proc function_record
+    join pg_namespace function_schema
+      on function_schema.oid = function_record.pronamespace
+    where function_schema.nspname in ('public', 'graphql_public')
+      and function_record.prosecdef
+      and has_function_privilege('authenticated', function_record.oid, 'EXECUTE')
+      and function_record.proname = any (array[
+        'can_access_organization_catalog',
+        'can_access_stall',
+        'can_manage_stall',
+        'can_view_cash_shift',
+        'can_view_kds',
+        'can_view_orders',
+        'can_view_stall_financials',
+        'current_profile_id',
+        'effective_stall_product_price',
+        'has_organization_role',
+        'has_organization_wide_staff_access',
+        'has_stall_role',
+        'is_current_profile',
+        'is_organization_member',
+        'is_platform_admin',
+        'stall_business_date'
+      ])
+  ),
+  'authenticated users have no executable authorization definer in exposed schemas'
 );
 
 select * from finish();

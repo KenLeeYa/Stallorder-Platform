@@ -1,16 +1,20 @@
 import Link from "next/link";
-import { LockKeyhole } from "lucide-react";
+import { ArrowLeft, LockKeyhole } from "lucide-react";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 
 export function FeatureUpgradeNotice({
-  title = "目前方案未包含此功能",
+  title = "此功能尚未開放",
   message = "請由組織擁有者至訂閱與帳務頁面確認可用方案。",
   billingHref,
+  returnHref,
+  returnLabel = "返回上一頁",
   returnStallId,
 }: {
   title?: string;
   message?: string;
   billingHref?: string;
+  returnHref?: string;
+  returnLabel?: string;
   returnStallId?: string;
 }) {
   return (
@@ -26,14 +30,24 @@ export function FeatureUpgradeNotice({
           <div>
             <h1 className="text-xl font-semibold text-amber-950">{title}</h1>
             <p className="mt-2 text-sm text-amber-900">{message}</p>
-            {billingHref ? (
-              <Link
-                href={billingHref}
-                className="mt-4 inline-flex min-h-10 items-center rounded-md bg-stone-900 px-4 text-sm font-semibold text-white"
-              >
-                查看訂閱與帳務
-              </Link>
-            ) : null}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {returnHref ? (
+                <Link
+                  href={returnHref}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900"
+                >
+                  <ArrowLeft className="h-4 w-4" />{returnLabel}
+                </Link>
+              ) : null}
+              {billingHref ? (
+                <Link
+                  href={billingHref}
+                  className="inline-flex min-h-10 items-center rounded-md bg-stone-900 px-4 text-sm font-semibold text-white"
+                >
+                  查看訂閱與帳務
+                </Link>
+              ) : null}
+            </div>
           </div>
         </div>
       </section>

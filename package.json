@@ -28,6 +28,8 @@
     "registrar:nameservers:apply": "node scripts/godaddy-nameserver-migration.mjs --apply",
     "secrets:sync": "node scripts/sync-local-secrets.mjs",
     "secrets:sync:apply": "node scripts/sync-local-secrets.mjs --apply",
+    "platform:pro:check": "node scripts/apply-pro-platform-settings.mjs --check",
+    "platform:pro:apply": "node scripts/apply-pro-platform-settings.mjs --apply",
     "db:start": "supabase start",
     "db:push": "supabase db push",
     "db:seed": "cross-env ALLOW_DEMO_SEED=true tsx prisma/seed.ts",
@@ -74,6 +76,8 @@
     "seed": "tsx prisma/seed.ts"
   },
   "overrides": {
+    "brace-expansion": "5.0.8",
+    "minimatch": "10.2.5",
     "postcss": "^8.5.10",
     "sharp": "^0.35.3",
     "shell-quote": "^1.10.0"
