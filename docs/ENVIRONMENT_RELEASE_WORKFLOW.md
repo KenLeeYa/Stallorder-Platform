@@ -60,3 +60,19 @@ projects unless the provider explicitly requires one project-level value.
   migration or run a remote reset.
 - If Staging validation fails, stop before opening or merging the
   `staging`-to-`main` Pull Request.
+
+## Out-of-order migration recovery
+
+The standard workflow rejects a local migration whose version is older than the
+latest remote migration. If a reviewed environment accidentally skipped that
+specific migration:
+
+1. Confirm the remote migration list and the exact missing local file.
+2. Confirm the full local reset, database tests and database lint pass.
+3. Manually run `Production Readiness` for that environment with
+   `apply_migrations=true` and `include_all_migrations=true`.
+4. Review the dry-run output before the apply step proceeds.
+5. Re-run the standard workflow without `include_all_migrations`.
+
+Never enable this recovery option for an unknown remote-only migration or an
+unreviewed migration file.
