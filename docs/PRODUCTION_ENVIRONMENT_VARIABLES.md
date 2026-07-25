@@ -45,10 +45,15 @@
 `staging` 與 `production` Environment 各自設定：
 
 - Secret `SUPABASE_ACCESS_TOKEN`
-- Secret `SUPABASE_DB_PASSWORD`
 - Variable `SUPABASE_PROJECT_REF`
 
-`production-readiness.yml` 只做 migration list、dry-run 與 lint，不自動套 Production migration。Production Environment 應設定必要 reviewer。
+`production-readiness.yml` uses the access token to obtain a short-lived
+Postgres login role through the linked IPv4 Supavisor endpoint. A long-lived
+`SUPABASE_DB_PASSWORD` secret is not required by this workflow.
+
+`production-readiness.yml` 預設只做 migration list、dry-run 與 lint；只有手動選擇
+`apply_migrations=true` 且前置檢查全部成功時，才會套用 Production migration。
+Production Environment 應設定必要 reviewer。
 
 ## Supabase Auth provider
 
