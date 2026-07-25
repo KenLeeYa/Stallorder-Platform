@@ -19,6 +19,11 @@ on:
         required: true
         type: boolean
         default: false
+      include_all_migrations:
+        description: Allow reviewed local migrations older than the remote head
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -105,10 +110,17 @@ jobs:
       - name: Compare migration history
         run: supabase migration list --linked
       - name: Detect pending or divergent migrations
+        if: ${{ !inputs.include_all_migrations }}
         run: supabase db push --linked --dry-run
+      - name: Detect reviewed out-of-order migrations
+        if: inputs.include_all_migrations
+        run: supabase db push --linked --dry-run --include-all
       - name: Apply pending migrations
-        if: github.event_name == 'push' || inputs.apply_migrations
+        if: (github.event_name == 'push' || inputs.apply_migrations) && !inputs.include_all_migrations
         run: supabase db push --linked
+      - name: Apply reviewed out-of-order migrations
+        if: inputs.apply_migrations && inputs.include_all_migrations
+        run: supabase db push --linked --include-all
       - name: Verify applied migration history
         if: github.event_name == 'push' || inputs.apply_migrations
         run: supabase migration list --linked
