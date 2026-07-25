@@ -1,7 +1,13 @@
 const baseUrl = new URL(process.env.PRODUCTION_BASE_URL ?? "https://app.qidaigo.com");
 const allowHttp = process.env.SMOKE_ALLOW_HTTP === "true";
 const skipDomainRedirects = process.env.SMOKE_SKIP_DOMAIN_REDIRECTS === "true";
-const requestHeaders = { "user-agent": "StallOrder-Production-Smoke/1.0" };
+const vercelAutomationBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
+const requestHeaders = {
+  "user-agent": "StallOrder-Production-Smoke/1.0",
+  ...(vercelAutomationBypassSecret
+    ? { "x-vercel-protection-bypass": vercelAutomationBypassSecret }
+    : {}),
+};
 const results = [];
 
 function record(name, ok, detail) {
