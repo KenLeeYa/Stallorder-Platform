@@ -317,6 +317,25 @@ test.describe("多攤位商戶關鍵流程", () => {
     await expect(page.getByRole("link", { name: firstStall.name, exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: secondStall.name, exact: true })).toBeVisible();
 
+    const workMode = page.getByLabel("切換工作模式");
+    await expect(workMode).toHaveValue(`merchant:${organization.id}`);
+    await expect(workMode.locator(`option[value="staff:${firstStall.id}"]`)).toHaveText(`店員 · ${firstStall.name}`);
+    await expect(workMode.locator(`option[value="kitchen:${firstStall.id}"]`)).toHaveText(`廚房 · ${firstStall.name}`);
+
+    await workMode.selectOption(`staff:${firstStall.id}`);
+    await expect(page).toHaveURL(new RegExp(`/staff/${firstStall.slug}$`));
+    await expect(page.getByRole("heading", { name: firstStall.name, exact: true })).toBeVisible();
+    await expect(page.getByLabel("切換工作模式")).toHaveValue(`staff:${firstStall.id}`);
+
+    await page.getByLabel("切換工作模式").selectOption(`kitchen:${firstStall.id}`);
+    await expect(page).toHaveURL(new RegExp(`/kitchen\\?stall=${firstStall.slug}$`));
+    await expect(page.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
+    await expect(page.getByLabel("切換工作模式")).toHaveValue(`kitchen:${firstStall.id}`);
+
+    await page.getByLabel("切換工作模式").selectOption(`merchant:${organization.id}`);
+    await expect(page).toHaveURL(new RegExp(`/merchant/dashboard\\?organizationId=${organization.id}$`));
+    await expect(page.getByRole("heading", { name: organization.businessName, exact: true })).toBeVisible();
+
     await page.goto(`/merchant/dashboard?organizationId=${organization.id}&stallId=${secondStall.id}`);
     await expect(page.locator("details").filter({ hasText: "攤位範圍" }).locator("summary")).toContainText("已選 1 個");
     const comparisonTable = page.getByRole("table");
@@ -335,6 +354,7 @@ test.describe("多攤位商戶關鍵流程", () => {
     await loginWithPassword(page, staffEmail);
     await page.goto(`/staff/${firstStall.slug}`);
     await expect(page.getByRole("heading", { name: firstStall.name, exact: true })).toBeVisible();
+    await expect(page.getByLabel("切換工作模式")).toHaveCount(0);
     const unassignedStaffResponse = await page.goto(`/staff/${secondStall.slug}`);
     expect(unassignedStaffResponse?.status()).toBe(404);
 
@@ -361,6 +381,9 @@ test.describe("多攤位商戶關鍵流程", () => {
 
     await page.context().clearCookies();
     await loginWithPassword(page, kitchenEmail);
+    await page.goto(`/kitchen?stall=${firstStall.slug}`);
+    await expect(page.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
+    await expect(page.getByLabel("切換工作模式")).toHaveCount(0);
     const kitchenFinanceResponse = await page.goto(
       `/merchant/reports/payments?organizationId=${organization.id}`,
     );

@@ -9,6 +9,7 @@ import { getStaffOrderCatalog } from "@/lib/staff-order-catalog";
 import { createPerformanceTiming } from "@/lib/performance-timing";
 import { createRequestId } from "@/lib/security";
 import { getStaffCapacityData } from "@/lib/capacity";
+import { buildWorkModeDestinations } from "@/lib/work-mode";
 
 type PageProps = {
   params: Promise<{ stallSlug: string }>;
@@ -77,10 +78,28 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
     prisma.$queryRaw<Array<{ now: Date }>>`select now() as now`,
   ]), 7);
   timing.finish({ status: 200 });
+  const workModeDestinations = buildWorkModeDestinations([{
+    id: stall.organizationId,
+    businessName: stall.organization.businessName,
+    roles,
+    stalls: [{
+      id: stall.id,
+      name: stall.name,
+      slug: stall.slug,
+      isActive: stall.isActive,
+      roles,
+    }],
+  }]);
 
   return (
     <StaffOrderBoard
-      stall={{ id: stall.id, slug: stall.slug, name: stall.name, currency: stall.currency }}
+      stall={{
+        id: stall.id,
+        organizationId: stall.organizationId,
+        slug: stall.slug,
+        name: stall.name,
+        currency: stall.currency,
+      }}
       initialOrders={orders.map(serializeStaffOrder)}
       initialNow={serverClock[0].now.getTime()}
       account={{ displayName: principal.user.displayName, role }}
@@ -96,6 +115,7 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
       discountOptions={discountOptions}
       orderCatalog={orderCatalog}
       capacity={capacity}
+      workModeDestinations={workModeDestinations}
     />
   );
 }

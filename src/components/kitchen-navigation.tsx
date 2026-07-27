@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { ChefHat, ListTree, Settings2 } from "lucide-react";
+import { WorkModeSwitcher } from "@/components/work-mode-switcher";
+import type { WorkModeDestination } from "@/lib/work-mode";
 
 type Props = {
   active: "BOARD" | "STATIONS" | "SETTINGS";
-  stall: { id: string; slug: string; name: string };
+  stall: { id: string; organizationId: string; slug: string; name: string };
   availableStalls: Array<{ slug: string; name: string }>;
   canManage: boolean;
+  workModeDestinations: WorkModeDestination[];
 };
 
-export function KitchenNavigation({ active, stall, availableStalls, canManage }: Props) {
+export function KitchenNavigation({ active, stall, availableStalls, canManage, workModeDestinations }: Props) {
   const links = [
     {
       key: "BOARD" as const,
@@ -42,15 +45,26 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage }:
               <p className="truncate text-sm text-stone-600">{stall.name}</p>
             </div>
           </div>
-          {availableStalls.length > 1 ? (
-            <form method="get" className="flex items-center gap-2">
-              <label className="sr-only" htmlFor="kitchen-stall">切換攤位</label>
-              <select id="kitchen-stall" name="stall" defaultValue={stall.slug} className="h-10 rounded-md border border-stone-300 bg-white px-3 text-sm">
-                {availableStalls.map((candidate) => <option key={candidate.slug} value={candidate.slug}>{candidate.name}</option>)}
-              </select>
-              <button type="submit" className="h-11 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white">切換</button>
-            </form>
-          ) : null}
+          <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
+            <WorkModeSwitcher
+              destinations={workModeDestinations}
+              currentMode="KITCHEN"
+              organizationId={stall.organizationId}
+              stallId={stall.id}
+              className="w-full sm:w-auto"
+            />
+            {availableStalls.length > 1 ? (
+              <form method="get" className="flex items-end gap-2">
+                <label className="block min-w-0 text-xs font-medium text-stone-500" htmlFor="kitchen-stall">
+                  廚房攤位
+                  <select id="kitchen-stall" name="stall" defaultValue={stall.slug} className="mt-1 block h-10 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-900">
+                    {availableStalls.map((candidate) => <option key={candidate.slug} value={candidate.slug}>{candidate.name}</option>)}
+                  </select>
+                </label>
+                <button type="submit" className="h-10 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white">切換</button>
+              </form>
+            ) : null}
+          </div>
         </div>
         <nav className="mt-4 flex gap-1 overflow-x-auto" aria-label="KDS 導覽">
           {links.map(({ key, href, label, icon: Icon }) => (
