@@ -61,7 +61,7 @@ export function LoginForm({ nextPath, googleEnabled, oauthError }: { nextPath?: 
         <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-md bg-teal-50 text-teal-800">
           <LogIn className="h-5 w-5" />
         </div>
-        <h1 className="text-2xl font-semibold">登入 StallOrder</h1>
+        <h1 className="text-2xl font-semibold">登入攤點通</h1>
         <p className="mt-2 text-sm text-stone-600">商戶、店員與廚房人員共用此登入入口。</p>
       </div>
       <div className="space-y-4">

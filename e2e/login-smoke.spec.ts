@@ -7,6 +7,9 @@ test("手機登入欄位具備正確語意、焦點與無水平溢位", async ({
   await page.setViewportSize({ width: 360, height: 740 });
   await page.goto("/login");
 
+  await expect(page.getByRole("heading", { name: "登入攤點通" })).toBeVisible();
+  await expect(page.getByText("StallOrder", { exact: true })).toHaveCount(0);
+
   const email = page.locator('input[name="email"]');
   const passwordInput = page.locator('input[name="password"]');
   const submit = page.locator('button[type="submit"]');
