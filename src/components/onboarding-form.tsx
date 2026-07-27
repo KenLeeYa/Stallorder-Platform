@@ -507,8 +507,20 @@ function StallStep({
         依商家名稱重新產生
       </button>
     </div>
-    <Toggle label="需要多位員工" checked={state.needsMultipleStaff} onChange={(checked) => update("needsMultipleStaff", checked)} />
-    <Toggle label="需要廚房畫面" checked={state.needsKitchenView} onChange={(checked) => update("needsKitchenView", checked)} />
+    <Toggle
+      id="needs-multiple-staff"
+      label="預計邀請其他員工共同使用"
+      description="開通後可邀請店員、廚房人員或管理者使用各自帳號。"
+      checked={state.needsMultipleStaff}
+      onChange={(checked) => update("needsMultipleStaff", checked)}
+    />
+    <Toggle
+      id="needs-kitchen-view"
+      label="預計使用廚房生產看板（KDS）"
+      description="開通後可在廚房看板接收訂單，並更新製作與完成狀態。"
+      checked={state.needsKitchenView}
+      onChange={(checked) => update("needsKitchenView", checked)}
+    />
   </div>;
 }
 
@@ -542,8 +554,14 @@ function Field({ field, label, error, full, children }: { field: keyof FormState
   return <label className={`block text-sm font-medium text-stone-800 ${full ? "md:col-span-2" : ""}`}><span className="mb-1.5 block">{label}</span>{children}{error ? <span id={fieldErrorId(field)} role="alert" className="mt-1.5 block text-xs font-medium text-red-700">{error}</span> : null}</label>;
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange(value: boolean): void }) {
-  return <label className="flex min-h-12 items-center gap-3 border border-stone-200 px-3 text-sm font-medium"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 accent-teal-700" />{label}</label>;
+function Toggle({ id, label, description, checked, onChange }: { id: string; label: string; description: string; checked: boolean; onChange(value: boolean): void }) {
+  return <label htmlFor={id} className="flex min-h-12 items-start gap-3 border border-stone-200 px-3 py-3">
+    <input id={id} type="checkbox" aria-labelledby={`${id}-label`} aria-describedby={`${id}-description`} checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-teal-700" />
+    <span className="min-w-0">
+      <span id={`${id}-label`} className="block text-sm font-medium text-stone-900">{label}</span>
+      <span id={`${id}-description`} className="mt-1 block text-xs leading-5 text-stone-600">{description}</span>
+    </span>
+  </label>;
 }
 
 function Consent({ field, label, checked, error, onChange }: { field: keyof FormState; label: string; checked: boolean; error?: string; onChange(value: boolean): void }) {

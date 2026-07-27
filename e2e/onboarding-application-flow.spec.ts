@@ -100,6 +100,10 @@ test.describe("商家申請表單流程", () => {
     await page.mouse.move(0, 0);
     await publicIdentifierInput.focus();
     await expect(publicIdentifierHint).toHaveCSS("opacity", "1");
+    await expect(page.getByLabel("預計邀請其他員工共同使用", { exact: true })).toBeVisible();
+    await expect(page.getByText("開通後可邀請店員、廚房人員或管理者使用各自帳號。", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("預計使用廚房生產看板（KDS）", { exact: true })).toBeVisible();
+    await expect(page.getByText("開通後可在廚房看板接收訂單，並更新製作與完成狀態。", { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
     await publicIdentifierInput.fill(requestedSlug);
