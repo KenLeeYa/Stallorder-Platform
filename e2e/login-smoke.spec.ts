@@ -9,6 +9,8 @@ test("手機登入欄位具備正確語意、焦點與無水平溢位", async ({
 
   await expect(page.getByRole("heading", { name: "登入攤點通" })).toBeVisible();
   await expect(page.getByText("StallOrder", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("已註冊商家請使用 Google 帳號登入。", { exact: true })).toBeVisible();
+  await expect(page.getByText(/平台管理員請使用/)).toHaveCount(0);
 
   const email = page.locator('input[name="email"]');
   const passwordInput = page.locator('input[name="password"]');
