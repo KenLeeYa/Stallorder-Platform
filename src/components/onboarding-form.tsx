@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Check, ChevronLeft, ChevronRight, ClipboardCheck, MapPin, Save, UserRound } from "lucide-react";
 import { PublicIdentifierInputHint } from "@/components/public-identifier-input-hint";
 import { csrfHeaders } from "@/lib/csrf-client";
 import type { MerchantBusinessTypeOptionDto } from "@/lib/merchant-business-type-options";
-import { merchantBusinessTypeLabels, merchantBusinessTypes } from "@/lib/merchant-application-contract";
+import {
+  merchantApplicationFieldLabels,
+  merchantBusinessTypeLabels,
+  merchantBusinessTypes,
+} from "@/lib/merchant-application-contract";
 import {
   isValidPublicIdentifier,
   PUBLIC_IDENTIFIER_MAX_LENGTH,
@@ -75,6 +79,8 @@ type FormState = {
   informationConfirmed: boolean;
 };
 
+type FieldErrors = Partial<Record<keyof FormState, string>>;
+
 const steps = [
   { label: "申請人", icon: UserRound },
   { label: "商家資料", icon: Building2 },
@@ -98,8 +104,10 @@ export function OnboardingForm({
   isReapplication?: boolean;
 }) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [step, setStep] = useState(Math.min(initialValues?.currentStep ?? 1, 4));
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [notice, setNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [slugState, setSlugState] = useState<"idle" | "checking" | "available" | "taken">("idle");
@@ -131,6 +139,31 @@ export function OnboardingForm({
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((current) => ({ ...current, [key]: value }));
+    setFieldErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function showResponseError(result: unknown, fallback: string) {
+    const response = isRecord(result) ? result : {};
+    const nextFieldErrors = parseFieldErrors(response.fieldErrors);
+    setFieldErrors(nextFieldErrors);
+    setError(typeof response.error === "string" ? response.error : fallback);
+    focusFirstInvalidField(formRef.current, nextFieldErrors);
+  }
+
+  function handleInvalid(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement)) return;
+    if (!isFormField(target.name)) return;
+    const message = nativeValidationMessage(target.name, target);
+    setFieldErrors((current) => ({ ...current, [target.name]: message }));
+    setError("請檢查標示欄位後再繼續。");
+    requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>(":invalid")?.focus());
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -144,6 +177,9 @@ export function OnboardingForm({
     }
     if (slugState === "taken") {
       setError("此公開識別名稱已被使用，請更換後再送出。");
+      const nextFieldErrors = { requestedSlug: "此公開識別名稱格式不正確或已被其他攤位使用。" };
+      setFieldErrors(nextFieldErrors);
+      focusFirstInvalidField(formRef.current, nextFieldErrors);
       return;
     }
     setIsSubmitting(true);
@@ -155,7 +191,7 @@ export function OnboardingForm({
       });
       const result = await response.json();
       if (!response.ok) {
-        setError(result.error ?? "目前無法送出商家申請，請稍後再試。");
+        showResponseError(result, "目前無法送出商家申請，請稍後再試。");
         if (result.next) router.push(result.next);
         return;
       }
@@ -182,7 +218,7 @@ export function OnboardingForm({
       });
       const result = await response.json();
       if (!response.ok) {
-        setError(result.error ?? "目前無法儲存草稿。");
+        showResponseError(result, "目前無法儲存草稿。");
         if (result.next) router.push(result.next);
         return false;
       }
@@ -201,13 +237,26 @@ export function OnboardingForm({
     update("requestedSlug", slug);
     if (!isValidPublicIdentifier(slug)) {
       setSlugState("taken");
+      setFieldErrors((current) => ({
+        ...current,
+        requestedSlug: "公開識別名稱只能使用小寫英文字母、數字與連字號，且首尾必須是英文字母或數字。",
+      }));
       return;
     }
     setSlugState("checking");
     try {
       const response = await fetch(`/api/onboarding?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
       const result = await response.json();
-      setSlugState(response.ok && result.available ? "available" : "taken");
+      const available = response.ok && result.available;
+      setSlugState(available ? "available" : "taken");
+      setFieldErrors((current) => {
+        const next = { ...current };
+        if (available) delete next.requestedSlug;
+        else next.requestedSlug = typeof result.error === "string"
+          ? result.error
+          : "此公開識別名稱已被其他攤位使用，請更換後再試。";
+        return next;
+      });
     } catch {
       setSlugState("idle");
     }
@@ -215,7 +264,7 @@ export function OnboardingForm({
 
   const ActiveIcon = steps[step - 1].icon;
   return (
-    <form onSubmit={submit} className="mx-auto max-w-3xl border-y border-stone-200 bg-white py-6 sm:border sm:p-6">
+    <form ref={formRef} onSubmit={submit} onInvalid={handleInvalid} className="mx-auto max-w-3xl border-y border-stone-200 bg-white py-6 sm:border sm:p-6">
       <header className="border-b border-stone-200 pb-5">
         <div className="flex items-center gap-3">
           <ActiveIcon className="h-6 w-6 text-teal-700" />
@@ -247,10 +296,10 @@ export function OnboardingForm({
       {needsInfoNote ? <p className="mt-5 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950">平台補件說明：{needsInfoNote}</p> : null}
 
       <section className="min-h-[420px] py-6">
-        {step === 1 ? <ApplicantStep profile={authenticatedProfile} state={state} update={update} /> : null}
-        {step === 2 ? <MerchantStep state={state} update={update} businessTypeOptions={businessTypeOptions ?? []} /> : null}
-        {step === 3 ? <StallStep state={state} update={update} slugState={slugState} checkSlug={checkSlug} /> : null}
-        {step === 4 ? <ConsentStep state={state} update={update} trial={trial} /> : null}
+        {step === 1 ? <ApplicantStep profile={authenticatedProfile} state={state} update={update} fieldErrors={fieldErrors} /> : null}
+        {step === 2 ? <MerchantStep state={state} update={update} fieldErrors={fieldErrors} businessTypeOptions={businessTypeOptions ?? []} /> : null}
+        {step === 3 ? <StallStep state={state} update={update} fieldErrors={fieldErrors} slugState={slugState} checkSlug={checkSlug} /> : null}
+        {step === 4 ? <ConsentStep state={state} update={update} fieldErrors={fieldErrors} trial={trial} /> : null}
       </section>
 
       {error ? <p role="alert" className="mb-4 text-sm font-medium text-red-700">{error}</p> : null}
@@ -272,19 +321,19 @@ export function OnboardingForm({
   );
 }
 
-function ApplicantStep({ profile, state, update }: StepProps & { profile: { displayName: string; email: string; avatarUrl: string | null } }) {
+function ApplicantStep({ profile, state, update, fieldErrors }: StepProps & { profile: { displayName: string; email: string; avatarUrl: string | null } }) {
   return <div className="grid gap-5">
     <div className="flex items-center gap-4 border-b border-stone-200 pb-4">
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-stone-100" aria-hidden="true"><UserRound className="h-7 w-7 text-stone-500" /></span>
       <div><strong>{profile.displayName}</strong><p className="text-sm text-stone-500">{profile.email}</p><p className="mt-1 text-xs text-teal-800">已驗證 Google 身分</p></div>
     </div>
-    <Field label="聯絡電話"><input type="tel" inputMode="tel" required value={state.phone} onChange={(event) => update("phone", event.target.value)} autoComplete="tel" maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" className={inputClass} /></Field>
-    <Field label="LINE ID（選填）"><input type="text" value={state.lineId} onChange={(event) => update("lineId", event.target.value)} maxLength={80} className={inputClass} /></Field>
-    <Field label="偏好聯絡方式"><select value={state.preferredContactMethod} onChange={(event) => update("preferredContactMethod", event.target.value as FormState["preferredContactMethod"])} className={inputClass}><option value="PHONE">電話</option><option value="LINE">LINE</option><option value="EMAIL">電子郵件</option></select></Field>
+    <Field field="phone" label="聯絡電話" error={fieldErrors.phone}><input {...fieldValidationProps("phone", fieldErrors)} type="tel" inputMode="tel" required value={state.phone} onChange={(event) => update("phone", event.target.value)} autoComplete="tel" minLength={6} maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" className={inputClass} /></Field>
+    <Field field="lineId" label="LINE ID（選填）" error={fieldErrors.lineId}><input {...fieldValidationProps("lineId", fieldErrors)} type="text" value={state.lineId} onChange={(event) => update("lineId", event.target.value)} maxLength={80} className={inputClass} /></Field>
+    <Field field="preferredContactMethod" label="偏好聯絡方式" error={fieldErrors.preferredContactMethod}><select {...fieldValidationProps("preferredContactMethod", fieldErrors)} value={state.preferredContactMethod} onChange={(event) => update("preferredContactMethod", event.target.value as FormState["preferredContactMethod"])} className={inputClass}><option value="PHONE">電話</option><option value="LINE">LINE</option><option value="EMAIL">電子郵件</option></select></Field>
   </div>;
 }
 
-function MerchantStep({ state, update, businessTypeOptions }: StepProps & { businessTypeOptions: MerchantBusinessTypeOptionDto[] }) {
+function MerchantStep({ state, update, fieldErrors, businessTypeOptions }: StepProps & { businessTypeOptions: MerchantBusinessTypeOptionDto[] }) {
   const options = businessTypeOptions.length
     ? businessTypeOptions
     : merchantBusinessTypes.map((type, index) => ({
@@ -295,26 +344,31 @@ function MerchantStep({ state, update, businessTypeOptions }: StepProps & { busi
         isActive: true,
       }));
   return <div className="grid gap-4 md:grid-cols-2">
-    <Field label="商家或品牌名稱"><input type="text" required value={state.merchantName} onChange={(event) => update("merchantName", event.target.value)} maxLength={120} className={inputClass} /></Field>
-    <Field label="營業類型"><select value={state.businessType} onChange={(event) => update("businessType", event.target.value as FormState["businessType"])} className={inputClass}>{options.map((option) => <option key={option.code} value={option.legacyType}>{option.name}</option>)}</select></Field>
-    <Field label="統一編號（選填）"><input type="text" value={state.businessRegistrationNumber} onChange={(event) => update("businessRegistrationNumber", event.target.value)} maxLength={30} className={inputClass} /></Field>
-    <Field label="負責聯絡人"><input type="text" required value={state.contactName} onChange={(event) => update("contactName", event.target.value)} maxLength={80} className={inputClass} /></Field>
-    <Field label="商家電話"><input type="tel" inputMode="tel" required value={state.businessPhone} onChange={(event) => update("businessPhone", event.target.value)} autoComplete="tel" maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" className={inputClass} /></Field>
-    <Field label="縣市"><select required value={state.city} onChange={(event) => update("city", event.target.value)} className={inputClass}><option value="">請選擇縣市</option>{taiwanCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></Field>
-    <Field label="商家地址" full><input type="text" required value={state.businessAddress} onChange={(event) => update("businessAddress", event.target.value)} maxLength={200} className={inputClass} /></Field>
-    <Field label="商家簡介（選填）" full><textarea value={state.merchantDescription} onChange={(event) => update("merchantDescription", event.target.value)} maxLength={1000} rows={4} className={inputClass} /></Field>
+    <Field field="merchantName" label="商家或品牌名稱" error={fieldErrors.merchantName}><input {...fieldValidationProps("merchantName", fieldErrors)} type="text" required value={state.merchantName} onChange={(event) => update("merchantName", event.target.value)} minLength={2} maxLength={120} className={inputClass} /></Field>
+    <Field field="businessType" label="營業類型" error={fieldErrors.businessType}><select {...fieldValidationProps("businessType", fieldErrors)} value={state.businessType} onChange={(event) => update("businessType", event.target.value as FormState["businessType"])} className={inputClass}>{options.map((option) => <option key={option.code} value={option.legacyType}>{option.name}</option>)}</select></Field>
+    <Field field="businessRegistrationNumber" label="統一編號（選填）" error={fieldErrors.businessRegistrationNumber}><input {...fieldValidationProps("businessRegistrationNumber", fieldErrors)} type="text" value={state.businessRegistrationNumber} onChange={(event) => update("businessRegistrationNumber", event.target.value)} maxLength={30} className={inputClass} /></Field>
+    <Field field="contactName" label="負責聯絡人" error={fieldErrors.contactName}><input {...fieldValidationProps("contactName", fieldErrors)} type="text" required value={state.contactName} onChange={(event) => update("contactName", event.target.value)} minLength={2} maxLength={80} className={inputClass} /></Field>
+    <Field field="businessPhone" label="商家電話" error={fieldErrors.businessPhone}><input {...fieldValidationProps("businessPhone", fieldErrors)} type="tel" inputMode="tel" required value={state.businessPhone} onChange={(event) => update("businessPhone", event.target.value)} autoComplete="tel" minLength={6} maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" className={inputClass} /></Field>
+    <Field field="city" label="縣市" error={fieldErrors.city}><select {...fieldValidationProps("city", fieldErrors)} required value={state.city} onChange={(event) => update("city", event.target.value)} className={inputClass}><option value="">請選擇縣市</option>{taiwanCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></Field>
+    <Field field="businessAddress" label="商家地址" error={fieldErrors.businessAddress} full><input {...fieldValidationProps("businessAddress", fieldErrors)} type="text" required value={state.businessAddress} onChange={(event) => update("businessAddress", event.target.value)} minLength={5} maxLength={200} className={inputClass} /></Field>
+    <Field field="merchantDescription" label="商家簡介（選填）" error={fieldErrors.merchantDescription} full><textarea {...fieldValidationProps("merchantDescription", fieldErrors)} value={state.merchantDescription} onChange={(event) => update("merchantDescription", event.target.value)} maxLength={1000} rows={4} className={inputClass} /></Field>
   </div>;
 }
 
-function StallStep({ state, update, slugState, checkSlug }: StepProps & { slugState: string; checkSlug(): Promise<void> }) {
+function StallStep({ state, update, fieldErrors, slugState, checkSlug }: StepProps & { slugState: string; checkSlug(): Promise<void> }) {
   return <div className="grid gap-4 md:grid-cols-2">
-    <Field label="第一個攤位名稱"><input type="text" required value={state.stallName} onChange={(event) => update("stallName", event.target.value)} maxLength={120} className={inputClass} /></Field>
-    <Field label="主要營業地點"><input type="text" required value={state.stallLocation} onChange={(event) => update("stallLocation", event.target.value)} maxLength={200} className={inputClass} /></Field>
-    <Field label="預計開始日期"><input type="date" value={state.expectedStartDate} onChange={(event) => update("expectedStartDate", event.target.value)} className={inputClass} /></Field>
-    <Field label="預估每日訂單"><input type="number" min={0} max={100000} value={state.estimatedDailyOrders} onChange={(event) => update("estimatedDailyOrders", event.target.value)} className={inputClass} /></Field>
-    <Field label="公開識別名稱" full>
+    <Field field="stallName" label="第一個攤位名稱" error={fieldErrors.stallName}><input {...fieldValidationProps("stallName", fieldErrors)} type="text" required value={state.stallName} onChange={(event) => update("stallName", event.target.value)} minLength={2} maxLength={120} className={inputClass} /></Field>
+    <Field field="stallLocation" label="主要營業地點" error={fieldErrors.stallLocation}><input {...fieldValidationProps("stallLocation", fieldErrors)} type="text" required value={state.stallLocation} onChange={(event) => update("stallLocation", event.target.value)} minLength={2} maxLength={200} className={inputClass} /></Field>
+    <Field field="expectedStartDate" label="預計開始日期" error={fieldErrors.expectedStartDate}><input {...fieldValidationProps("expectedStartDate", fieldErrors)} type="date" value={state.expectedStartDate} onChange={(event) => update("expectedStartDate", event.target.value)} className={inputClass} /></Field>
+    <Field field="estimatedDailyOrders" label="預估每日訂單" error={fieldErrors.estimatedDailyOrders}><input {...fieldValidationProps("estimatedDailyOrders", fieldErrors)} type="number" min={0} max={100000} value={state.estimatedDailyOrders} onChange={(event) => update("estimatedDailyOrders", event.target.value)} className={inputClass} /></Field>
+    <Field field="requestedSlug" label="公開識別名稱" error={fieldErrors.requestedSlug} full>
       <PublicIdentifierInputHint hintId="onboarding-public-identifier-rules">
         <input type="text"
+          {...fieldValidationProps(
+            "requestedSlug",
+            fieldErrors,
+            slugState === "idle" ? "onboarding-public-identifier-rules" : "onboarding-public-identifier-rules slug-state",
+          )}
           required
           value={state.requestedSlug}
           onChange={(event) => update("requestedSlug", event.target.value.toLowerCase())}
@@ -323,7 +377,6 @@ function StallStep({ state, update, slugState, checkSlug }: StepProps & { slugSt
           minLength={PUBLIC_IDENTIFIER_MIN_LENGTH}
           maxLength={PUBLIC_IDENTIFIER_MAX_LENGTH}
           className={inputClass}
-          aria-describedby={slugState === "idle" ? "onboarding-public-identifier-rules" : "onboarding-public-identifier-rules slug-state"}
         />
       </PublicIdentifierInputHint>
       {slugState !== "idle" ? (
@@ -337,7 +390,7 @@ function StallStep({ state, update, slugState, checkSlug }: StepProps & { slugSt
   </div>;
 }
 
-function ConsentStep({ state, update, trial }: StepProps & { trial: Trial }) {
+function ConsentStep({ state, update, fieldErrors, trial }: StepProps & { trial: Trial }) {
   return <div className="space-y-6">
     <section className="border-y border-stone-200 bg-stone-50 py-4">
       <h2 className="font-semibold">{trial.displayName}</h2>
@@ -352,27 +405,27 @@ function ConsentStep({ state, update, trial }: StepProps & { trial: Trial }) {
       <p className="mt-3 text-xs text-stone-500">試用期從平台核准日起算；核准後仍需完成設定與測試訂單才會開放接單。</p>
     </section>
     <div className="space-y-3">
-      <Consent label="我同意服務條款" checked={state.termsAccepted} onChange={(checked) => update("termsAccepted", checked)} />
-      <Consent label="我同意隱私權政策" checked={state.privacyAccepted} onChange={(checked) => update("privacyAccepted", checked)} />
-      <Consent label="我同意資料處理告知事項" checked={state.dataProcessingAccepted} onChange={(checked) => update("dataProcessingAccepted", checked)} />
-      <Consent label="我確認上述申請資料正確" checked={state.informationConfirmed} onChange={(checked) => update("informationConfirmed", checked)} />
+      <Consent field="termsAccepted" label="我同意服務條款" checked={state.termsAccepted} error={fieldErrors.termsAccepted} onChange={(checked) => update("termsAccepted", checked)} />
+      <Consent field="privacyAccepted" label="我同意隱私權政策" checked={state.privacyAccepted} error={fieldErrors.privacyAccepted} onChange={(checked) => update("privacyAccepted", checked)} />
+      <Consent field="dataProcessingAccepted" label="我同意資料處理告知事項" checked={state.dataProcessingAccepted} error={fieldErrors.dataProcessingAccepted} onChange={(checked) => update("dataProcessingAccepted", checked)} />
+      <Consent field="informationConfirmed" label="我確認上述申請資料正確" checked={state.informationConfirmed} error={fieldErrors.informationConfirmed} onChange={(checked) => update("informationConfirmed", checked)} />
     </div>
   </div>;
 }
 
-type StepProps = { state: FormState; update<K extends keyof FormState>(key: K, value: FormState[K]): void };
+type StepProps = { state: FormState; fieldErrors: FieldErrors; update<K extends keyof FormState>(key: K, value: FormState[K]): void };
 const inputClass = "min-h-11 w-full border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100";
 
-function Field({ label, full, children }: { label: string; full?: boolean; children: React.ReactNode }) {
-  return <label className={`block text-sm font-medium text-stone-800 ${full ? "md:col-span-2" : ""}`}><span className="mb-1.5 block">{label}</span>{children}</label>;
+function Field({ field, label, error, full, children }: { field: keyof FormState; label: string; error?: string; full?: boolean; children: React.ReactNode }) {
+  return <label className={`block text-sm font-medium text-stone-800 ${full ? "md:col-span-2" : ""}`}><span className="mb-1.5 block">{label}</span>{children}{error ? <span id={fieldErrorId(field)} role="alert" className="mt-1.5 block text-xs font-medium text-red-700">{error}</span> : null}</label>;
 }
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange(value: boolean): void }) {
   return <label className="flex min-h-12 items-center gap-3 border border-stone-200 px-3 text-sm font-medium"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 accent-teal-700" />{label}</label>;
 }
 
-function Consent({ label, checked, onChange }: { label: string; checked: boolean; onChange(value: boolean): void }) {
-  return <label className="flex items-start gap-3 text-sm"><input required type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 h-5 w-5 accent-teal-700" /><span>{label}</span></label>;
+function Consent({ field, label, checked, error, onChange }: { field: keyof FormState; label: string; checked: boolean; error?: string; onChange(value: boolean): void }) {
+  return <div><label className="flex items-start gap-3 text-sm"><input {...fieldValidationProps(field, error ? { [field]: error } : {})} required type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 h-5 w-5 accent-teal-700" /><span>{label}</span></label>{error ? <p id={fieldErrorId(field)} role="alert" className="ml-8 mt-1 text-xs font-medium text-red-700">{error}</p> : null}</div>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -432,4 +485,70 @@ function optionalText(value: string) {
 
 function numberOrNull(value: string) {
   return value.trim() ? Number(value) : null;
+}
+
+function fieldErrorId(field: keyof FormState) {
+  return `onboarding-${field}-error`;
+}
+
+function fieldValidationProps(field: keyof FormState, fieldErrors: FieldErrors, describedBy?: string) {
+  const error = fieldErrors[field];
+  return {
+    name: field,
+    "aria-invalid": error ? true : undefined,
+    "aria-describedby": [describedBy, error ? fieldErrorId(field) : null].filter(Boolean).join(" ") || undefined,
+  };
+}
+
+function parseFieldErrors(value: unknown): FieldErrors {
+  if (!isRecord(value)) return {};
+  const fieldErrors: FieldErrors = {};
+  for (const [field, message] of Object.entries(value)) {
+    if (isFormField(field) && typeof message === "string" && message.trim()) {
+      fieldErrors[field] = message;
+    }
+  }
+  return fieldErrors;
+}
+
+function isFormField(field: string): field is keyof FormState {
+  return Object.prototype.hasOwnProperty.call(merchantApplicationFieldLabels, field);
+}
+
+function nativeValidationMessage(
+  field: keyof FormState,
+  target: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+) {
+  const label = merchantApplicationFieldLabels[field];
+  if (target.validity.valueMissing) {
+    return target instanceof HTMLInputElement && target.type === "checkbox"
+      ? `請勾選「${label}」。`
+      : `請填寫「${label}」。`;
+  }
+  if (target.validity.tooShort && target instanceof HTMLInputElement) {
+    return `「${label}」至少需要 ${target.minLength} 個字元。`;
+  }
+  if (target.validity.tooLong) return `「${label}」輸入內容過長。`;
+  if (target.validity.patternMismatch) {
+    return field === "requestedSlug"
+      ? "公開識別名稱只能使用小寫英文字母、數字與連字號，且首尾必須是英文字母或數字。"
+      : `「${label}」格式不正確，請確認後再試。`;
+  }
+  if (target.validity.rangeUnderflow || target.validity.rangeOverflow || target.validity.badInput) {
+    return `「${label}」的數值不在允許範圍內。`;
+  }
+  return `「${label}」的格式或內容不符合輸入要求。`;
+}
+
+function focusFirstInvalidField(form: HTMLFormElement | null, fieldErrors: FieldErrors) {
+  const firstField = Object.keys(fieldErrors).find(isFormField);
+  if (!firstField) return;
+  requestAnimationFrame(() => {
+    const control = form?.elements.namedItem(firstField);
+    if (control instanceof HTMLElement) control.focus();
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

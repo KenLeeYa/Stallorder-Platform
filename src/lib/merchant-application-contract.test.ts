@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { merchantApplicationCommandSchema } from "./merchant-application-contract";
+import {
+  getMerchantApplicationFieldErrors,
+  merchantApplicationCommandSchema,
+} from "./merchant-application-contract";
 
 const completeApplication = {
   phone: "0912345678",
@@ -50,5 +53,19 @@ describe("merchant application contract", () => {
       currentStep: 4,
       data: { ...completeApplication, requestedSlug },
     }).success).toBe(false);
+  });
+
+  it("returns the field name and a specific message for an invalid draft field", () => {
+    const result = merchantApplicationCommandSchema.safeParse({
+      intent: "SAVE_DRAFT",
+      currentStep: 2,
+      data: { merchantName: "測" },
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(getMerchantApplicationFieldErrors(result.error)).toEqual({
+      merchantName: "商家或品牌名稱至少需要 2 個字元。",
+    });
   });
 });

@@ -12,10 +12,10 @@ export default function Home() {
               StallOrder
             </div>
             <h1 className="max-w-3xl text-5xl font-semibold tracking-normal text-stone-950 md:text-7xl">
-              StallOrder 攤位點餐
+              攤點通
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-600">
-              顧客掃描桌位或外帶 QR Code 點餐，員工用手機連動廚房與出餐，並以啟用的付款方式完成訂單；每個商戶的商品、訂單與銷售報表皆獨立隔離。
+              從顧客 QR Code 點餐、店員接單、廚房出餐到付款與銷售報表，協助商家用手機掌握現場營運，快速完成每日開店與結帳。
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
