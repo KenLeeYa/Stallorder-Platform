@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "StallOrder 攤位點餐",
-  description: "為夜市攤位、餐車與小型餐飲商戶打造的多租戶 QR Code 點餐 SaaS。",
+  title: "攤點通｜行動點餐與攤位營運",
+  description: "協助夜市攤位、餐車與小型餐飲商家管理 QR Code 點餐、出餐、付款與銷售報表。",
   applicationName: "StallOrder",
   manifest: "/manifest.webmanifest",
   appleWebApp: {

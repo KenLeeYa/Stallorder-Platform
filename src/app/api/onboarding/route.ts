@@ -4,7 +4,11 @@ import { getRequestPrincipal } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
-import { merchantApplicationCommandSchema } from "@/lib/merchant-application-contract";
+import {
+  getMerchantApplicationFieldErrors,
+  merchantApplicationCommandSchema,
+  merchantApplicationFieldLabels,
+} from "@/lib/merchant-application-contract";
 import { prisma } from "@/lib/prisma";
 import { isValidPublicIdentifier } from "@/lib/public-identifier";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -137,8 +141,16 @@ export async function POST(request: Request) {
   if (body.error) return body.error;
   const parsed = merchantApplicationCommandSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getMerchantApplicationFieldErrors(parsed.error);
+    const invalidFields = Object.keys(fieldErrors)
+      .map((field) => merchantApplicationFieldLabels[field as keyof typeof merchantApplicationFieldLabels]);
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "申請資料格式不正確。" },
+      {
+        error: invalidFields.length
+          ? `請檢查以下欄位：${invalidFields.join("、")}。`
+          : parsed.error.issues[0]?.message ?? "申請資料格式不正確。",
+        fieldErrors,
+      },
       { status: 400, headers: { "x-request-id": requestId } },
     );
   }

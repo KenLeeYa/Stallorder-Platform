@@ -53,12 +53,16 @@ test.describe("商家申請表單流程", () => {
     await expect(page.getByText("已驗證 Google 身分")).toBeVisible();
     await expect(page.getByText("送出後由平台人工審核，不會立即建立商家工作區。")).toBeVisible();
 
+    await page.getByRole("button", { name: "下一步" }).click();
+    await expect(page.getByText("請填寫「聯絡電話」。", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("聯絡電話")).toBeFocused();
+
     await page.getByLabel("聯絡電話").fill("0912345678");
     await advanceToNextStep(page);
 
     await page.getByLabel("商家或品牌名稱").fill(merchantName);
     await page.getByLabel("商家電話").fill("0223456789");
-    await page.getByLabel("縣市").fill("台北市");
+    await page.getByLabel("縣市").selectOption("臺北市");
     await page.getByLabel("商家地址").fill("台北市測試路 1 號");
     await advanceToNextStep(page);
 
