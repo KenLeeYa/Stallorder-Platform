@@ -6,7 +6,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BarChart3, Building2, CreditCard, FileChartColumn, Package, Rocket, ScrollText, Store } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
+import { WorkModeSwitcher } from "@/components/work-mode-switcher";
 import { hasPermission } from "@/lib/rbac";
+import { buildWorkModeDestinations } from "@/lib/work-mode";
 import type { WorkspaceOrganization } from "@/lib/workspace";
 
 const ORGANIZATION_STORAGE_KEY = "stallorder.organization.preference";
@@ -36,6 +38,10 @@ export function MerchantWorkspaceHeader({
     [organizationId, workspaces],
   );
   const activeStalls = workspace?.stalls.filter((stall) => stall.isActive) ?? [];
+  const workModeDestinations = useMemo(
+    () => buildWorkModeDestinations(workspaces),
+    [workspaces],
+  );
   const selectedScope = pathStall?.id
     ?? (workspace?.canUseAllStalls ? "ALL_STALLS" : activeStalls[0]?.id ?? "");
 
@@ -91,6 +97,15 @@ export function MerchantWorkspaceHeader({
               {activeStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}
             </select>
           </label>
+
+          {workspace ? (
+            <WorkModeSwitcher
+              destinations={workModeDestinations}
+              currentMode="MERCHANT"
+              organizationId={workspace.id}
+              className="col-span-2 md:col-span-1"
+            />
+          ) : null}
         </div>
 
         <nav className="flex w-full min-w-0 items-center gap-1 overflow-x-auto md:w-auto" aria-label="商戶功能">

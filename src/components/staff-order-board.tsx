@@ -8,6 +8,7 @@ import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
 import { StaffCapacityControl } from "@/components/staff-capacity-control";
+import { WorkModeSwitcher } from "@/components/work-mode-switcher";
 import type { StaffCapacityData } from "@/lib/capacity-contract";
 import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { csrfHeaders } from "@/lib/csrf-client";
@@ -17,11 +18,12 @@ import { orderItemStatusLabels, orderStatusLabels, paymentStatusLabels, staffSta
 import { isCompletePickupCode, normalizePickupCode } from "@/lib/pickup-code";
 import { canTransitionOrder, hasPermission, roleLabels } from "@/lib/rbac";
 import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
+import type { WorkModeDestination } from "@/lib/work-mode";
 
 type OrderWithItems = StaffOrderDto;
 
 type Props = {
-  stall: { id: string; slug: string; name: string; currency: string };
+  stall: { id: string; organizationId: string; slug: string; name: string; currency: string };
   initialOrders: OrderWithItems[];
   initialNow: number;
   account: { displayName: string; role: UserRole };
@@ -30,6 +32,7 @@ type Props = {
   discountOptions: Array<{ id: string; name: string; rateBps: number }>;
   orderCatalog: StaffOrderCatalog | null;
   capacity: StaffCapacityData | null;
+  workModeDestinations: WorkModeDestination[];
 };
 
 type StaffStatus = (typeof staffStatusOptions)[number]["value"];
@@ -55,7 +58,7 @@ type CheckoutRequest = {
 };
 type UndoBatch = { actionId: string; undoExpiresAt: string; itemCount: number };
 
-export function StaffOrderBoard({ stall, initialOrders, initialNow, account, modules, paymentOptions, discountOptions, orderCatalog, capacity }: Props) {
+export function StaffOrderBoard({ stall, initialOrders, initialNow, account, modules, paymentOptions, discountOptions, orderCatalog, capacity, workModeDestinations }: Props) {
   const knownOrderIdsRef = useRef(new Set(initialOrders.map((order) => order.id)));
   const alertsEnabledRef = useRef(false);
   const [orders, setOrders] = useState(initialOrders);
@@ -743,6 +746,13 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
           <p className="mt-1 text-xs text-stone-500">{account.displayName} · {roleLabels[account.role]}</p>
         </div>
         <div className="flex w-full flex-wrap justify-start gap-2 sm:w-auto sm:justify-end">
+          <WorkModeSwitcher
+            destinations={workModeDestinations}
+            currentMode="STAFF"
+            organizationId={stall.organizationId}
+            stallId={stall.id}
+            className="w-full sm:w-auto"
+          />
           {orderCatalog && hasPermission(account.role, "CREATE_ORDERS") ? (
             <button type="button" onClick={() => setComposerOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white">
               <ShoppingCart className="h-4 w-4" />
