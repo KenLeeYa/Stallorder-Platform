@@ -87,6 +87,16 @@ test("KDS 即時事件流使用獨立權限邊界", async ({ page }) => {
 
 test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    const sentinel = new EventTarget() as EventTarget & { release: () => Promise<void> };
+    sentinel.release = async () => {
+      sentinel.dispatchEvent(new Event("release"));
+    };
+    Object.defineProperty(navigator, "wakeLock", {
+      configurable: true,
+      value: { request: async () => sentinel },
+    });
+  });
   let blockKitchenStream = true;
   await page.route("**/api/stalls/*/kitchen/stream", (route) => (
     blockKitchenStream ? route.abort() : route.continue()
@@ -95,6 +105,24 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   await expect(page).toHaveURL(/\/kitchen\?stall=aming-chicken/);
   await expect(page.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
   await expect(page.getByText("輪詢備援", { exact: true })).toBeVisible();
+  const board = page.locator("main").last();
+  const soundButton = board.getByTitle("開啟新訂單聲音與震動");
+  await expect(soundButton).toBeVisible();
+  await soundButton.click();
+  await expect(board.getByTitle("關閉新訂單聲音與震動")).toBeVisible();
+  expect(await page.evaluate(() => window.localStorage.getItem("stallorder_kitchen_order_alerts"))).toBe("enabled");
+  const wakeButton = board.getByTitle("開啟螢幕保持喚醒");
+  await expect(wakeButton).toBeVisible();
+  await wakeButton.click();
+  await expect(board.getByTitle("關閉螢幕保持喚醒")).toBeVisible();
+  const refreshResponse = page.waitForResponse((response) => (
+    response.url().endsWith("/api/stalls/aming-chicken/kitchen/board")
+    && response.request().method() === "GET"
+  ));
+  await board.getByTitle("重新整理").click();
+  expect((await refreshResponse).status()).toBe(200);
+  await expect(board.getByTitle("登出")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   blockKitchenStream = false;
   await expect(page.getByText("即時連線", { exact: true })).toBeVisible({ timeout: 10_000 });
   const orderCard = page.getByRole("article").filter({ hasText: "#" + orderNo });
@@ -138,6 +166,9 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   await page.goto(`/merchant/stalls/${stallId}/kitchen/stations`);
   await expect(page.getByText("404", { exact: true }).last()).toBeVisible();
   await expect(page.getByRole("heading", { name: "工作站與品項分流" })).toHaveCount(0);
+  await page.goto("/kitchen?stall=aming-chicken");
+  await page.locator("main").last().getByTitle("登出").click();
+  await expect(page).toHaveURL(/\/login$/);
 });
 
 test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
