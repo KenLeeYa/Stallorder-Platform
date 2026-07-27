@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { generatePublicIdentifierSuggestion } from "../src/lib/public-identifier-suggestion";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -12,6 +13,7 @@ const authUserId = randomUUID();
 const runId = authUserId.slice(0, 8);
 const applicantEmail = "onboarding.application.e2e@stallorder.test";
 const merchantName = `申請流程測試商家 ${runId}`;
+const updatedMerchantName = `${merchantName} 更新`;
 const requestedSlug = `onboarding-flow-${runId}`;
 let profileId = "";
 
@@ -47,6 +49,14 @@ test.describe("商家申請表單流程", () => {
     await prisma.$disconnect();
   });
 
+  test("未登入不可產生公開識別名稱建議", async ({ request }) => {
+    const response = await request.get(
+      `/api/onboarding/public-identifier-suggestion?merchantName=${encodeURIComponent("測試商家")}`,
+    );
+    expect(response.status()).toBe(401);
+    expect(response.headers()["cache-control"]).toBe("no-store");
+  });
+
   test("已驗證且尚無商戶的帳號可送出申請，但不會直接建立組織", async ({ page }) => {
     await loginForOnboarding(page);
     await expect(page.getByRole("heading", { name: "商家申請" })).toBeVisible();
@@ -70,6 +80,8 @@ test.describe("商家申請表單流程", () => {
     await page.getByLabel("主要營業地點").fill("測試夜市");
     await page.getByLabel("預估每日訂單").fill("30");
     const publicIdentifierInput = page.getByLabel("公開識別名稱");
+    await expect(publicIdentifierInput).toHaveValue(generatePublicIdentifierSuggestion(merchantName));
+    await expect(page.getByText("已依商家名稱自動產生，可直接使用或自行修改。")).toBeVisible();
     const publicIdentifierHint = page.getByRole("tooltip", { name: "公開識別名稱規則" });
     await expect(publicIdentifierHint).toHaveCSS("opacity", "0");
     await publicIdentifierInput.hover();
@@ -90,11 +102,17 @@ test.describe("商家申請表單流程", () => {
     await expect(publicIdentifierHint).toHaveCSS("opacity", "1");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
+    await publicIdentifierInput.fill(requestedSlug);
+    await expect(page.getByText("目前使用自行修改的名稱，系統不會覆蓋。")).toBeVisible();
+    await page.getByRole("button", { name: "上一步" }).click();
+    await page.getByLabel("商家或品牌名稱").fill(updatedMerchantName);
+    await advanceToNextStep(page);
+    await expect(publicIdentifierInput).toHaveValue(requestedSlug);
+
     const slugResponse = page.waitForResponse((response) => (
       response.url().includes(`/api/onboarding?slug=${requestedSlug}`)
       && response.request().method() === "GET"
     ));
-    await publicIdentifierInput.fill(requestedSlug);
     await publicIdentifierInput.press("Tab");
     expect((await slugResponse).status()).toBe(200);
     await expect(page.getByText("此公開識別名稱可使用")).toBeVisible();
@@ -116,7 +134,7 @@ test.describe("商家申請表單流程", () => {
     await page.getByRole("button", { name: "送出商家申請" }).click();
     expect((await submitResponse).status()).toBe(201);
     await expect(page).toHaveURL(/\/onboarding\/status$/);
-    await expect(page.getByRole("heading", { name: merchantName })).toBeVisible();
+    await expect(page.getByRole("heading", { name: updatedMerchantName })).toBeVisible();
     await expect(page.getByText("等待審核", { exact: true })).toBeVisible();
 
     const application = await prisma.merchantApplication.findFirstOrThrow({

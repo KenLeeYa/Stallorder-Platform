@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Check, ChevronLeft, ChevronRight, ClipboardCheck, MapPin, Save, UserRound } from "lucide-react";
+import { Building2, Check, ChevronLeft, ChevronRight, ClipboardCheck, MapPin, RefreshCw, Save, UserRound } from "lucide-react";
 import { PublicIdentifierInputHint } from "@/components/public-identifier-input-hint";
 import { csrfHeaders } from "@/lib/csrf-client";
 import type { MerchantBusinessTypeOptionDto } from "@/lib/merchant-business-type-options";
@@ -111,6 +111,10 @@ export function OnboardingForm({
   const [notice, setNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [slugState, setSlugState] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(Boolean(initialValues?.requestedSlug?.trim()));
+  const [isGeneratingSlug, setIsGeneratingSlug] = useState(false);
+  const [slugSuggestionError, setSlugSuggestionError] = useState("");
+  const slugSuggestionRequestRef = useRef(0);
   const [state, setState] = useState<FormState>({
     phone: initialValues?.phone ?? "",
     lineId: initialValues?.lineId ?? "",
@@ -147,6 +151,78 @@ export function OnboardingForm({
     });
   }
 
+  function updateMerchantName(merchantName: string) {
+    slugSuggestionRequestRef.current += 1;
+    setIsGeneratingSlug(false);
+    setState((current) => ({
+      ...current,
+      merchantName,
+      requestedSlug: isSlugManuallyEdited
+        ? current.requestedSlug
+        : "",
+    }));
+    setSlugState("idle");
+    setSlugSuggestionError("");
+    clearFieldErrors(["merchantName", ...(isSlugManuallyEdited ? [] : ["requestedSlug" as const])]);
+  }
+
+  function updateRequestedSlug(requestedSlug: string) {
+    slugSuggestionRequestRef.current += 1;
+    setIsSlugManuallyEdited(true);
+    setIsGeneratingSlug(false);
+    setSlugState("idle");
+    setSlugSuggestionError("");
+    update("requestedSlug", requestedSlug.toLowerCase());
+  }
+
+  function regenerateRequestedSlug() {
+    setIsSlugManuallyEdited(false);
+    setSlugState("idle");
+    void requestSlugSuggestion();
+  }
+
+  async function requestSlugSuggestion() {
+    const merchantName = state.merchantName.trim();
+    if (merchantName.length < 2) return;
+
+    const requestVersion = slugSuggestionRequestRef.current + 1;
+    slugSuggestionRequestRef.current = requestVersion;
+    setIsGeneratingSlug(true);
+    setSlugSuggestionError("");
+    try {
+      const response = await fetch(
+        `/api/onboarding/public-identifier-suggestion?merchantName=${encodeURIComponent(merchantName)}`,
+        { cache: "no-store" },
+      );
+      const result = await response.json();
+      if (!response.ok || typeof result.suggestion !== "string") {
+        throw new Error(typeof result.error === "string" ? result.error : "目前無法自動產生公開識別名稱。");
+      }
+      if (slugSuggestionRequestRef.current !== requestVersion) return;
+      setState((current) => ({ ...current, requestedSlug: result.suggestion }));
+      setSlugState("idle");
+      clearFieldErrors(["requestedSlug"]);
+    } catch (suggestionError) {
+      if (slugSuggestionRequestRef.current !== requestVersion) return;
+      setSlugSuggestionError(
+        suggestionError instanceof Error
+          ? suggestionError.message
+          : "目前無法自動產生，請自行輸入公開識別名稱。",
+      );
+    } finally {
+      if (slugSuggestionRequestRef.current === requestVersion) setIsGeneratingSlug(false);
+    }
+  }
+
+  function clearFieldErrors(fields: Array<keyof FormState>) {
+    setFieldErrors((current) => {
+      if (!fields.some((field) => current[field])) return current;
+      const next = { ...current };
+      for (const field of fields) delete next[field];
+      return next;
+    });
+  }
+
   function showResponseError(result: unknown, fallback: string) {
     const response = isRecord(result) ? result : {};
     const nextFieldErrors = parseFieldErrors(response.fieldErrors);
@@ -172,7 +248,11 @@ export function OnboardingForm({
     setNotice("");
     if (step < 4) {
       const saved = await saveDraft(step);
-      if (saved) setStep((current) => Math.min(4, current + 1));
+      if (saved) {
+        const nextStep = Math.min(4, step + 1);
+        setStep(nextStep);
+        if (nextStep === 3 && !isSlugManuallyEdited) void requestSlugSuggestion();
+      }
       return;
     }
     if (slugState === "taken") {
@@ -297,8 +377,8 @@ export function OnboardingForm({
 
       <section className="min-h-[420px] py-6">
         {step === 1 ? <ApplicantStep profile={authenticatedProfile} state={state} update={update} fieldErrors={fieldErrors} /> : null}
-        {step === 2 ? <MerchantStep state={state} update={update} fieldErrors={fieldErrors} businessTypeOptions={businessTypeOptions ?? []} /> : null}
-        {step === 3 ? <StallStep state={state} update={update} fieldErrors={fieldErrors} slugState={slugState} checkSlug={checkSlug} /> : null}
+        {step === 2 ? <MerchantStep state={state} update={update} updateMerchantName={updateMerchantName} fieldErrors={fieldErrors} businessTypeOptions={businessTypeOptions ?? []} /> : null}
+        {step === 3 ? <StallStep state={state} update={update} updateRequestedSlug={updateRequestedSlug} regenerateRequestedSlug={regenerateRequestedSlug} isSlugManuallyEdited={isSlugManuallyEdited} isGeneratingSlug={isGeneratingSlug} slugSuggestionError={slugSuggestionError} fieldErrors={fieldErrors} slugState={slugState} checkSlug={checkSlug} /> : null}
         {step === 4 ? <ConsentStep state={state} update={update} fieldErrors={fieldErrors} trial={trial} /> : null}
       </section>
 
@@ -333,7 +413,10 @@ function ApplicantStep({ profile, state, update, fieldErrors }: StepProps & { pr
   </div>;
 }
 
-function MerchantStep({ state, update, fieldErrors, businessTypeOptions }: StepProps & { businessTypeOptions: MerchantBusinessTypeOptionDto[] }) {
+function MerchantStep({ state, update, updateMerchantName, fieldErrors, businessTypeOptions }: StepProps & {
+  businessTypeOptions: MerchantBusinessTypeOptionDto[];
+  updateMerchantName(merchantName: string): void;
+}) {
   const options = businessTypeOptions.length
     ? businessTypeOptions
     : merchantBusinessTypes.map((type, index) => ({
@@ -344,7 +427,7 @@ function MerchantStep({ state, update, fieldErrors, businessTypeOptions }: StepP
         isActive: true,
       }));
   return <div className="grid gap-4 md:grid-cols-2">
-    <Field field="merchantName" label="商家或品牌名稱" error={fieldErrors.merchantName}><input {...fieldValidationProps("merchantName", fieldErrors)} type="text" required value={state.merchantName} onChange={(event) => update("merchantName", event.target.value)} minLength={2} maxLength={120} className={inputClass} /></Field>
+    <Field field="merchantName" label="商家或品牌名稱" error={fieldErrors.merchantName}><input {...fieldValidationProps("merchantName", fieldErrors)} type="text" required value={state.merchantName} onChange={(event) => updateMerchantName(event.target.value)} minLength={2} maxLength={120} className={inputClass} /></Field>
     <Field field="businessType" label="營業類型" error={fieldErrors.businessType}><select {...fieldValidationProps("businessType", fieldErrors)} value={state.businessType} onChange={(event) => update("businessType", event.target.value as FormState["businessType"])} className={inputClass}>{options.map((option) => <option key={option.code} value={option.legacyType}>{option.name}</option>)}</select></Field>
     <Field field="businessRegistrationNumber" label="統一編號（選填）" error={fieldErrors.businessRegistrationNumber}><input {...fieldValidationProps("businessRegistrationNumber", fieldErrors)} type="text" value={state.businessRegistrationNumber} onChange={(event) => update("businessRegistrationNumber", event.target.value)} maxLength={30} className={inputClass} /></Field>
     <Field field="contactName" label="負責聯絡人" error={fieldErrors.contactName}><input {...fieldValidationProps("contactName", fieldErrors)} type="text" required value={state.contactName} onChange={(event) => update("contactName", event.target.value)} minLength={2} maxLength={80} className={inputClass} /></Field>
@@ -355,7 +438,26 @@ function MerchantStep({ state, update, fieldErrors, businessTypeOptions }: StepP
   </div>;
 }
 
-function StallStep({ state, update, fieldErrors, slugState, checkSlug }: StepProps & { slugState: string; checkSlug(): Promise<void> }) {
+function StallStep({
+  state,
+  update,
+  updateRequestedSlug,
+  regenerateRequestedSlug,
+  isSlugManuallyEdited,
+  isGeneratingSlug,
+  slugSuggestionError,
+  fieldErrors,
+  slugState,
+  checkSlug,
+}: StepProps & {
+  updateRequestedSlug(requestedSlug: string): void;
+  regenerateRequestedSlug(): void;
+  isSlugManuallyEdited: boolean;
+  isGeneratingSlug: boolean;
+  slugSuggestionError: string;
+  slugState: string;
+  checkSlug(): Promise<void>;
+}) {
   return <div className="grid gap-4 md:grid-cols-2">
     <Field field="stallName" label="第一個攤位名稱" error={fieldErrors.stallName}><input {...fieldValidationProps("stallName", fieldErrors)} type="text" required value={state.stallName} onChange={(event) => update("stallName", event.target.value)} minLength={2} maxLength={120} className={inputClass} /></Field>
     <Field field="stallLocation" label="主要營業地點" error={fieldErrors.stallLocation}><input {...fieldValidationProps("stallLocation", fieldErrors)} type="text" required value={state.stallLocation} onChange={(event) => update("stallLocation", event.target.value)} minLength={2} maxLength={200} className={inputClass} /></Field>
@@ -371,7 +473,7 @@ function StallStep({ state, update, fieldErrors, slugState, checkSlug }: StepPro
           )}
           required
           value={state.requestedSlug}
-          onChange={(event) => update("requestedSlug", event.target.value.toLowerCase())}
+          onChange={(event) => updateRequestedSlug(event.target.value)}
           onBlur={() => void checkSlug()}
           pattern={PUBLIC_IDENTIFIER_PATTERN}
           minLength={PUBLIC_IDENTIFIER_MIN_LENGTH}
@@ -385,6 +487,26 @@ function StallStep({ state, update, fieldErrors, slugState, checkSlug }: StepPro
         </p>
       ) : null}
     </Field>
+    <div className="-mt-2 flex flex-wrap items-center justify-between gap-2 md:col-span-2">
+      <p className="text-xs text-stone-600">
+        {isGeneratingSlug
+          ? "正在依商家名稱產生建議..."
+          : slugSuggestionError
+            ? slugSuggestionError
+            : isSlugManuallyEdited
+              ? "目前使用自行修改的名稱，系統不會覆蓋。"
+              : "已依商家名稱自動產生，可直接使用或自行修改。"}
+      </p>
+      <button
+        type="button"
+        disabled={isGeneratingSlug || state.merchantName.trim().length < 2}
+        onClick={regenerateRequestedSlug}
+        className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-xs font-semibold text-stone-800 disabled:opacity-50"
+      >
+        <RefreshCw className="h-3.5 w-3.5" />
+        依商家名稱重新產生
+      </button>
+    </div>
     <Toggle label="需要多位員工" checked={state.needsMultipleStaff} onChange={(checked) => update("needsMultipleStaff", checked)} />
     <Toggle label="需要廚房畫面" checked={state.needsKitchenView} onChange={(checked) => update("needsKitchenView", checked)} />
   </div>;
