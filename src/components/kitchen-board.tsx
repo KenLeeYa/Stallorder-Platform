@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UserRole } from "@prisma/client";
 import {
   CheckCheck,
@@ -14,9 +14,13 @@ import {
   RefreshCw,
   RotateCcw,
   Rows3,
+  Volume2,
+  VolumeX,
   Wifi,
   WifiOff,
 } from "lucide-react";
+import { LogoutButton } from "@/components/logout-button";
+import { PwaControls } from "@/components/pwa-controls";
 import { csrfHeaders } from "@/lib/csrf-client";
 import {
   aggregateKitchenItems,
@@ -47,6 +51,8 @@ const orderStatusLabels: Record<KitchenBoardTask["orderStatus"], string> = {
 };
 
 export function KitchenBoard({ stall, initialData, role }: Props) {
+  const knownOrderIdsRef = useRef(new Set(initialData.tasks.map((task) => task.orderId)));
+  const alertsEnabledRef = useRef(false);
   const [data, setData] = useState(initialData);
   const [mode, setMode] = useState<KitchenBoardMode>(initialData.settings.defaultView);
   const [stationId, setStationId] = useState(initialData.stations[0]?.id ?? "");
@@ -54,22 +60,43 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
   const [connection, setConnection] = useState<"CONNECTING" | "CONNECTED" | "FALLBACK">("CONNECTING");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [alertsEnabled, setAlertsEnabled] = useState(false);
+
+  const notifyNewOrders = useCallback((count: number) => {
+    if (!alertsEnabledRef.current) return;
+    if ("vibrate" in navigator) navigator.vibrate([180, 80, 180]);
+    playNotificationTone();
+    setMessage(count === 1 ? "收到 1 筆新廚房訂單。" : `收到 ${count} 筆新廚房訂單。`);
+  }, []);
 
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setBusyId("refresh");
     try {
       const response = await fetch(`/api/stalls/${stall.slug}/kitchen/board`, { cache: "no-store" });
-      const payload = await response.json();
+      const payload: BoardData & { error?: string } = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "無法重新載入生產看板。");
+      const nextOrderIds = new Set(payload.tasks.map((task) => task.orderId));
+      const newOrderCount = [...nextOrderIds].filter((orderId) => !knownOrderIdsRef.current.has(orderId)).length;
+      nextOrderIds.forEach((orderId) => knownOrderIdsRef.current.add(orderId));
       setData(payload);
       setNow(Date.parse(payload.serverNow));
       setMessage("");
+      if (newOrderCount > 0) notifyNewOrders(newOrderCount);
     } catch (error) {
       if (!silent) setMessage(error instanceof Error ? error.message : "無法重新載入生產看板。");
     } finally {
       if (!silent) setBusyId(null);
     }
-  }, [stall.slug]);
+  }, [notifyNewOrders, stall.slug]);
+
+  useEffect(() => {
+    const preferenceTimer = window.setTimeout(() => {
+      const enabled = window.localStorage.getItem("stallorder_kitchen_order_alerts") === "enabled";
+      alertsEnabledRef.current = enabled;
+      setAlertsEnabled(enabled);
+    }, 0);
+    return () => window.clearTimeout(preferenceTimer);
+  }, []);
 
   useEffect(() => {
     const clock = window.setInterval(() => setNow((current) => current + 1_000), 1_000);
@@ -108,6 +135,14 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
     }
   }
 
+  function toggleAlerts() {
+    const next = !alertsEnabledRef.current;
+    alertsEnabledRef.current = next;
+    setAlertsEnabled(next);
+    window.localStorage.setItem("stallorder_kitchen_order_alerts", next ? "enabled" : "disabled");
+    if (next) playNotificationTone();
+  }
+
   const visibleTasks = mode === "STATION" && stationId
     ? data.tasks.filter((task) => task.station.id === stationId)
     : data.tasks;
@@ -123,14 +158,21 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
           <ModeButton active={mode === "ITEM"} icon={ListChecks} label="品項" onClick={() => setMode("ITEM")} />
           <ModeButton active={mode === "STATION"} icon={ChefHat} label="工作站" onClick={() => setMode("STATION")} />
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex min-h-9 items-center gap-2 text-sm font-medium ${connection === "CONNECTED" ? "text-emerald-700" : "text-amber-700"}`}>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span title={connection === "CONNECTED" ? "廚房即時更新已連線" : "即時連線未就緒，已啟用 12 秒輪詢備援"} className={`inline-flex min-h-10 items-center gap-2 text-sm font-medium ${connection === "CONNECTED" ? "text-emerald-700" : "text-amber-700"}`}>
             {connection === "CONNECTED" ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-            {connection === "CONNECTED" ? "即時連線" : connection === "CONNECTING" ? "連線中" : "輪詢備援"}
+            <span>{connection === "CONNECTED" ? "即時連線" : connection === "CONNECTING" ? "連線中" : "輪詢備援"}</span>
           </span>
+          <button type="button" role="switch" aria-checked={alertsEnabled} onClick={toggleAlerts} title={alertsEnabled ? "關閉新訂單聲音與震動" : "開啟新訂單聲音與震動"} className={`grid h-11 w-11 place-items-center rounded-md border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
+            {alertsEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+            <span className="sr-only">{alertsEnabled ? "新訂單提醒已開啟" : "新訂單提醒已關閉"}</span>
+          </button>
+          <PwaControls showWakeLock />
           <button type="button" title="重新整理" disabled={busyId !== null} onClick={() => void refresh()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-50">
             <RefreshCw className={`h-5 w-5 ${busyId === "refresh" ? "animate-spin" : ""}`} />
+            <span className="sr-only">重新整理</span>
           </button>
+          <LogoutButton />
         </div>
       </div>
 
@@ -315,4 +357,26 @@ function sourceLabel(source: string) {
   if (source === "STAFF_POS") return "店員點餐";
   if (source.includes("DELIVERY")) return "線上外送";
   return "現場訂單";
+}
+
+function playNotificationTone() {
+  try {
+    const AudioContextClass = window.AudioContext
+      ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.frequency.setValueAtTime(880, context.currentTime);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.24);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.25);
+    oscillator.addEventListener("ended", () => void context.close(), { once: true });
+  } catch {
+    // Mobile browsers can block audio until the user enables alerts.
+  }
 }
