@@ -129,6 +129,22 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     await expect(page.getByRole("heading", { name: "開店設定" })).toBeVisible();
     await expect(page.getByRole("link", { name: "開店設定" })).toBeVisible();
 
+    const merchantProfileStep = page.getByRole("article").filter({ hasText: "商家資料" });
+    const stallProfileStep = page.getByRole("article").filter({ hasText: "攤位資料" });
+    const paymentStep = page.getByRole("article").filter({ hasText: "付款方式" });
+    await expect(merchantProfileStep.getByRole("link", { name: "前往設定" })).toHaveAttribute(
+      "href",
+      `/merchant/organization?organizationId=${organizationId}`,
+    );
+    await expect(stallProfileStep.getByRole("link", { name: "前往設定" })).toHaveAttribute(
+      "href",
+      new RegExp(`/merchant/stalls/.+/settings/basic$`),
+    );
+    await expect(paymentStep.getByRole("link", { name: "前往設定" })).toHaveAttribute(
+      "href",
+      new RegExp(`/merchant/stalls/.+/settings/modules#payment-options$`),
+    );
+
     for (const label of ["商家資料", "攤位資料", "商品目錄", "付款方式", "團隊成員", "QR 預覽"]) {
       const step = page.getByRole("article").filter({ hasText: label });
       const button = step.getByRole("button", { name: "確認完成" });

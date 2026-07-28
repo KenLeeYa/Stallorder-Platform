@@ -54,6 +54,7 @@ const literalSecretPatterns = [
   { name: "Supabase secret key", pattern: /sb_secret_[A-Za-z0-9_-]{20,}/g },
   { name: "GitHub token", pattern: /gh(?:p|o|s|u|r)_[A-Za-z0-9]{30,}/g },
   { name: "Google OAuth client secret", pattern: /GOCSPX-[A-Za-z0-9_-]{20,}/g },
+  { name: "OpenAI API key", pattern: /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/g },
   { name: "service-role JWT", pattern: /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g },
 ];
 

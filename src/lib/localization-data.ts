@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { QR_LOCALES } from "@/lib/qr-order-i18n";
+import { mergeEnabledLocales, normalizeEnabledLocales } from "@/lib/enabled-locales";
 import { calculateTranslationCoverage } from "@/lib/translation-completeness";
 
 export async function getLocalizationOverview(organizationId: string, stallIds: string[]) {
@@ -47,14 +47,27 @@ export async function getLocalizationOverview(organizationId: string, stallIds: 
     }),
   ]);
 
-  return {
-    coverage: calculateTranslationCoverage(QR_LOCALES, products, noteGroups),
-    stalls: stalls.map((stall) => ({
+  const normalizedStalls = stalls.map((stall) => ({
       id: stall.id,
       name: stall.name,
-      enabledLocales: stall.orderingSettings?.enabledLocales ?? ["zh-TW"],
-    })),
+      enabledLocales: normalizeEnabledLocales(stall.orderingSettings?.enabledLocales),
+    }));
+  const enabledLocales = mergeEnabledLocales(normalizedStalls.map((stall) => stall.enabledLocales));
+
+  return {
+    coverage: calculateTranslationCoverage(enabledLocales, products, noteGroups),
+    stalls: normalizedStalls,
   };
+}
+
+export async function getOrganizationEnabledLocales(organizationId: string, stallIds: string[]) {
+  const stalls = await prisma.stall.findMany({
+    where: { organizationId, id: { in: stallIds }, isActive: true },
+    select: { orderingSettings: { select: { enabledLocales: true } } },
+  });
+  return mergeEnabledLocales(
+    stalls.map((stall) => normalizeEnabledLocales(stall.orderingSettings?.enabledLocales)),
+  );
 }
 
 export async function getLocalizedStallPreview(organizationId: string, stallId: string) {

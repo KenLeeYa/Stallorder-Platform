@@ -5,7 +5,7 @@ const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 
 test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", async ({ browser, page }, testInfo) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   await page.goto("/login");
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
@@ -32,6 +32,7 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
     "常用地點",
     "出攤行程",
     "LINE 通知",
+    "商家資料",
     "翻譯完整度",
     "市集活動",
     "團隊與權限",
@@ -79,6 +80,19 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
 
   await page.goto(`/merchant/stalls/${stallId}/settings/modules`);
   await expect(page.getByRole("heading", { name: "營運模組與內用桌位", exact: true })).toBeVisible();
+  const moduleSections = page.locator("details[data-module-section]");
+  await expect(moduleSections).toHaveCount(7);
+  await expect.poll(async () => moduleSections.evaluateAll((sections) => (
+    sections.every((section) => (section as HTMLDetailsElement).open)
+  ))).toBe(true);
+  await page.getByRole("button", { name: "全部縮合", exact: true }).click();
+  await expect.poll(async () => moduleSections.evaluateAll((sections) => (
+    sections.every((section) => !(section as HTMLDetailsElement).open)
+  ))).toBe(true);
+  await page.getByRole("button", { name: "全部展開", exact: true }).click();
+  await expect.poll(async () => moduleSections.evaluateAll((sections) => (
+    sections.every((section) => (section as HTMLDetailsElement).open)
+  ))).toBe(true);
   await expect(page.getByRole("switch", { name: /內用桌位/ })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("switch", { name: /訂單列印/ })).toHaveAttribute("aria-checked", "true");
   for (const moduleName of ["內用桌位", "線上外送", "訂單列印", "多元付款", "結帳折扣"]) {
@@ -125,6 +139,36 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
       await expect(japanesePage.getByRole("option", { name: "日本語", exact: true })).toHaveCount(0);
     } finally {
       await japaneseContext.close();
+    }
+
+    const localizationPage = await page.context().newPage();
+    try {
+      await localizationPage.goto(`/merchant/catalog?organizationId=${organizationId}`);
+      const aiTranslationButton = localizationPage.getByRole("button", { name: "一鍵補齊翻譯" });
+      await expect(aiTranslationButton).toBeDisabled();
+      await expect(aiTranslationButton).toHaveAttribute("title", "AI 翻譯尚未完成伺服器設定");
+      await localizationPage.getByRole("button", { name: "編輯 香酥雞排" }).click();
+      const productEditor = localizationPage.getByRole("dialog", { name: "編輯商品" });
+      await expect(productEditor.getByLabel("英文名稱")).toBeVisible();
+      await expect(productEditor.getByLabel("英文名稱")).not.toHaveAttribute("required");
+      await expect(productEditor.getByLabel("日文名稱")).toHaveCount(0);
+      await productEditor.getByRole("button", { name: "關閉" }).click();
+
+      await localizationPage.getByRole("button", { name: "編輯 辣度" }).click();
+      const noteEditor = localizationPage.getByRole("dialog", { name: "編輯註記群組" });
+      await noteEditor.getByText("多語名稱", { exact: true }).click();
+      await expect(noteEditor.getByLabel("英文", { exact: true })).toBeVisible();
+      await expect(noteEditor.getByLabel("日文", { exact: true })).toHaveCount(0);
+      await noteEditor.getByRole("button", { name: "關閉" }).click();
+
+      await localizationPage.goto(`/merchant/localization?organizationId=${organizationId}`);
+      await expect(localizationPage.getByText("日本語", { exact: true })).toHaveCount(0);
+      const disabledPreview = await localizationPage.request.get(
+        `/merchant/localization/preview?organizationId=${organizationId}&stallId=${stallId}&locale=ja`,
+      );
+      expect(disabledPreview.status()).toBe(404);
+    } finally {
+      await localizationPage.close();
     }
   } finally {
     if (japaneseChanged) {

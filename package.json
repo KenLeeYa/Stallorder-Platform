@@ -49,6 +49,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.562.0",
     "next": "16.2.11",
+    "openai": "7.0.0",
     "papaparse": "^5.5.4",
     "pinyin-pro": "^3.28.2",
     "qrcode.react": "^4.2.0",

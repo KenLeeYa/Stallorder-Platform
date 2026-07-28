@@ -1,8 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { SharedCatalogManager } from "@/components/shared-catalog-manager";
 import { getOrganizationCatalog } from "@/lib/catalog-data";
+import { getEnabledTranslationLocales } from "@/lib/enabled-locales";
+import { getOrganizationEnabledLocales } from "@/lib/localization-data";
 import { getOrganizationProductNotes } from "@/lib/product-note-data";
 import { hasPermission } from "@/lib/rbac";
+import { isCatalogAiTranslationConfigured } from "@/server/localization/openai-catalog-translation-provider";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string }> };
@@ -14,12 +17,14 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
   const workspace = requireWorkspaceOrganization(workspaces, organizationId);
   if (!workspace.roles.some((role) => hasPermission(role, "MANAGE_SHARED_PRODUCTS"))) notFound();
 
-  const [catalog, noteGroups] = await Promise.all([
+  const authorizedStallIds = workspace.stalls.map((stall) => stall.id);
+  const [catalog, noteGroups, enabledLocales] = await Promise.all([
     getOrganizationCatalog(
       workspace.id,
-      workspace.stalls.map((stall) => stall.id),
+      authorizedStallIds,
     ),
     getOrganizationProductNotes(workspace.id),
+    getOrganizationEnabledLocales(workspace.id, authorizedStallIds),
   ]);
 
   return (
@@ -34,6 +39,8 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
         }))}
         initialCatalog={catalog}
         initialNoteGroups={noteGroups}
+        enabledTranslationLocales={getEnabledTranslationLocales(enabledLocales)}
+        aiTranslationConfigured={isCatalogAiTranslationConfigured()}
       />
     </main>
   );

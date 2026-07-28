@@ -5,7 +5,8 @@ import Link from "next/link";
 import { ExternalLink, Languages, Search } from "lucide-react";
 import { LocaleFlag } from "@/components/locale-flag";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
-import { QR_LOCALES, qrOrderMessages, type QrLocale } from "@/lib/qr-order-i18n";
+import { normalizeEnabledLocales } from "@/lib/enabled-locales";
+import { qrOrderMessages, type QrLocale } from "@/lib/qr-order-i18n";
 import type { TranslationCoverage, TranslationEntityType } from "@/lib/translation-completeness";
 
 const entityLabels: Record<TranslationEntityType, string> = {
@@ -26,10 +27,15 @@ export function LocalizationDashboard({
   stalls: Array<{ id: string; name: string; enabledLocales: string[] }>;
   returnStallId?: string;
 }) {
-  const [locale, setLocale] = useState<QrLocale>("en");
+  const initialLocale = coverage.find((item) => item.locale !== "zh-TW")?.locale
+    ?? coverage[0]?.locale
+    ?? "zh-TW";
+  const [locale, setLocale] = useState<QrLocale>(initialLocale);
   const [entityType, setEntityType] = useState<TranslationEntityType | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const [stallId, setStallId] = useState(stalls[0]?.id ?? "");
+  const selectedStall = stalls.find((stall) => stall.id === stallId);
+  const previewLocales = normalizeEnabledLocales(selectedStall?.enabledLocales);
   const current = coverage.find((item) => item.locale === locale) ?? coverage[0];
   const missing = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("zh-TW");
@@ -86,11 +92,7 @@ export function LocalizationDashboard({
           <p className="mt-1 text-sm text-stone-500">預覽不會建立點餐 Session，也不能送出訂單。</p>
           <label className="mt-4 block text-sm font-medium">預覽攤位<select value={stallId} onChange={(event) => setStallId(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3">{stalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}</select></label>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            {QR_LOCALES.map((previewLocale) => {
-              const selectedStall = stalls.find((stall) => stall.id === stallId);
-              const enabled = previewLocale === "zh-TW" || selectedStall?.enabledLocales.includes(previewLocale);
-              return <Link key={previewLocale} target="_blank" rel="noopener noreferrer" href={`/merchant/localization/preview?organizationId=${organizationId}&stallId=${stallId}&locale=${previewLocale}`} className={`inline-flex min-h-11 items-center justify-between gap-2 rounded-md border px-3 text-sm font-semibold ${enabled ? "border-stone-300 bg-white text-stone-900" : "border-stone-200 bg-stone-100 text-stone-500"}`}><span className="inline-flex min-w-0 items-center gap-2"><LocaleFlag locale={previewLocale} /><span className="truncate">{qrOrderMessages[previewLocale].localeName}</span></span><ExternalLink className="h-3.5 w-3.5 shrink-0" /></Link>;
-            })}
+            {previewLocales.map((previewLocale) => <Link key={previewLocale} target="_blank" rel="noopener noreferrer" href={`/merchant/localization/preview?organizationId=${organizationId}&stallId=${stallId}&locale=${previewLocale}`} className="inline-flex min-h-11 items-center justify-between gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-900"><span className="inline-flex min-w-0 items-center gap-2"><LocaleFlag locale={previewLocale} /><span className="truncate">{qrOrderMessages[previewLocale].localeName}</span></span><ExternalLink className="h-3.5 w-3.5 shrink-0" /></Link>)}
           </div>
         </aside>
       </section>
