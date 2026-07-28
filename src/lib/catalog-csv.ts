@@ -1,36 +1,12 @@
 import Papa from "papaparse";
 import { z } from "zod";
+import {
+  catalogCsvHeaders,
+  catalogCsvTranslationColumns,
+  type CatalogCsvRowError,
+} from "@/lib/catalog-csv-client";
 
-export const catalogCsvHeaders = [
-  "id",
-  "category",
-  "group",
-  "name",
-  "description",
-  "price",
-  "imageUrl",
-  "sortOrder",
-  "isActive",
-  "stallCodes",
-  "name_en",
-  "description_en",
-  "name_ja",
-  "description_ja",
-  "name_ko",
-  "description_ko",
-  "name_vi",
-  "description_vi",
-  "name_th",
-  "description_th",
-] as const;
-
-export const catalogCsvTranslationColumns = [
-  { locale: "en", name: "name_en", description: "description_en" },
-  { locale: "ja", name: "name_ja", description: "description_ja" },
-  { locale: "ko", name: "name_ko", description: "description_ko" },
-  { locale: "vi", name: "name_vi", description: "description_vi" },
-  { locale: "th", name: "name_th", description: "description_th" },
-] as const;
+export * from "@/lib/catalog-csv-client";
 
 const catalogCsvRowSchema = z.object({
   id: z.union([z.literal(""), z.string().uuid()]),
@@ -66,11 +42,6 @@ const catalogCsvRowSchema = z.object({
 });
 
 export type CatalogCsvRow = z.infer<typeof catalogCsvRowSchema>;
-export type CatalogCsvRowError = {
-  line: number;
-  error: string;
-  values: Record<string, string>;
-};
 
 export function getCatalogCsvTranslations(row: CatalogCsvRow) {
   return catalogCsvTranslationColumns.map((columns) => ({
@@ -122,12 +93,4 @@ export function parseCatalogCsvPreview(text: string) {
     rows.push({ line: index + 2, row: row.data, values: normalized });
   }
   return { ok: true as const, rows, errors, totalRows: parsed.data.length };
-}
-
-export function buildCatalogCsvErrorReport(errors: CatalogCsvRowError[]) {
-  return Papa.unparse(errors.map((error) => ({
-    line: error.line,
-    error: error.error,
-    ...Object.fromEntries(catalogCsvHeaders.map((header) => [header, error.values[header] ?? ""])),
-  })), { columns: ["line", "error", ...catalogCsvHeaders] });
 }

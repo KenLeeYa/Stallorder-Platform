@@ -4,7 +4,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Archive, Plus, Save } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import type { MerchantBusinessTypeOptionDto } from "@/lib/merchant-business-type-options";
-import { merchantBusinessTypeLabels, merchantBusinessTypes } from "@/lib/merchant-application-contract";
+import { merchantBusinessTypeLabels, merchantBusinessTypes } from "@/lib/merchant-application-options";
 
 type Option = MerchantBusinessTypeOptionDto & {
   archivedAt?: string | Date | null;

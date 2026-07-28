@@ -1,28 +1,43 @@
 import "server-only";
 
 import { notFound } from "next/navigation";
-import { requirePagePermission } from "@/lib/authorization";
-import { hasPermission, type Permission } from "@/lib/rbac";
+import { hasPermission, resolvePrimaryRole, type Permission } from "@/lib/rbac";
 import { requireWorkspacePage } from "@/lib/workspace";
 import { entitlementService } from "@/server/billing/entitlement-service";
 
 export async function requireKitchenPage(
   requestedStallSlug: string | undefined,
   permission: Permission,
-  returnPath: string,
 ) {
-  const { workspaces } = await requireWorkspacePage();
-  const availableStalls = workspaces.flatMap((workspace) => workspace.stalls)
+  const { principal, workspaces } = await requireWorkspacePage();
+  const candidates = workspaces.flatMap((workspace) => workspace.stalls
     .filter((stall) => stall.isActive && stall.roles.some((role) => hasPermission(role, permission)))
-    .map((stall) => ({ id: stall.id, slug: stall.slug, name: stall.name }));
+    .map((stall) => ({ workspace, stall })));
+  const availableStalls = candidates.map(({ stall }) => ({
+    id: stall.id,
+    slug: stall.slug,
+    name: stall.name,
+  }));
   const selected = requestedStallSlug
-    ? availableStalls.find((stall) => stall.slug === requestedStallSlug)
-    : availableStalls[0];
+    ? candidates.find(({ stall }) => stall.slug === requestedStallSlug)
+    : candidates[0];
   if (!selected) notFound();
 
-  const authorization = await requirePagePermission(selected.slug, permission, returnPath);
-  await entitlementService.assertFeatureEnabled(authorization.stall.organizationId, "KDS");
-  return { ...authorization, availableStalls };
+  const roles = selected.stall.roles;
+  const role = resolvePrimaryRole(roles);
+  if (!role) notFound();
+
+  await entitlementService.assertFeatureEnabled(selected.workspace.id, "KDS");
+  return {
+    principal,
+    role,
+    roles,
+    stall: {
+      ...selected.stall,
+      organization: { businessName: selected.workspace.businessName },
+    },
+    availableStalls,
+  };
 }
 
 export async function requireKitchenManagementPage(stallId: string) {

@@ -71,12 +71,27 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
       id: organizationIds ? { in: organizationIds } : undefined,
       status: { in: [...accessibleOrganizationStatuses] },
     },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      businessName: true,
+      slug: true,
+      status: true,
+      defaultCurrency: true,
       merchantSetupProgress: {
         select: { goLiveCompleted: true },
       },
       stalls: {
         orderBy: [{ name: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          code: true,
+          businessStatus: true,
+          orderingEnabled: true,
+          isActive: true,
+        },
       },
     },
     orderBy: { createdAt: "asc" },

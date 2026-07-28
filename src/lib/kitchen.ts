@@ -66,7 +66,7 @@ export async function getKitchenBoardData(
   stallId: string,
   stationId?: string,
 ) {
-  const [, settings, stations, tasks, clock] = await Promise.all([
+  const [, settings, stations, tasks] = await Promise.all([
     prisma.$queryRaw`select public.refresh_kds_operational_alerts(
       ${organizationId}::uuid,
       ${stallId}::uuid
@@ -105,7 +105,6 @@ export async function getKitchenBoardData(
       orderBy: [{ order: { createdAt: "asc" } }, { createdAt: "asc" }],
       include: kitchenTaskInclude,
     }),
-    prisma.$queryRaw<Array<{ now: Date }>>`select now() as now`,
   ]);
 
   return {
@@ -116,7 +115,7 @@ export async function getKitchenBoardData(
     },
     stations,
     tasks: tasks.map(serializeKitchenTask),
-    serverNow: (clock[0]?.now ?? new Date()).toISOString(),
+    serverNow: new Date().toISOString(),
   };
 }
 

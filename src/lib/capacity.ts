@@ -376,8 +376,11 @@ export async function applyCapacityOperationalCommand(input: {
 }
 
 async function getCapacityEntitlementCapabilities(organizationId: string) {
-  await entitlementService.assertFeatureEnabled(organizationId, "WAIT_TIME_QUOTE");
-  const entitlements = await entitlementService.getEffectiveEntitlements(organizationId);
+  const entitlements = await entitlementService.getUsableEntitlements(organizationId);
+  const waitTimeQuote = entitlements.find((entitlement) => (
+    entitlement.featureCode === "WAIT_TIME_QUOTE" && entitlement.isEnabled
+  ));
+  if (!waitTimeQuote) throw new EntitlementError("FEATURE_NOT_INCLUDED");
   const capacity = entitlements.find((entitlement) => (
     entitlement.featureCode === "CAPACITY_CONTROL" && entitlement.isEnabled
   ));

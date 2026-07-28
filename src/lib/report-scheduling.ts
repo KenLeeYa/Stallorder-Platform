@@ -1,7 +1,10 @@
 import { z } from "zod";
+import {
+  reportScheduleTypes,
+  type ScheduledReportType,
+} from "@/lib/report-schedule-contract";
 
-export const reportScheduleTypes = ["DAILY_SALES", "WEEKLY_SALES", "PAYMENT_VARIANCE"] as const;
-export type ScheduledReportType = (typeof reportScheduleTypes)[number];
+export * from "@/lib/report-schedule-contract";
 
 const email = z.string().trim().email().max(254).transform((value) => value.toLowerCase());
 
@@ -123,9 +126,3 @@ export function reportPeriodForRun(reportType: ScheduledReportType, runAt: Date,
 function localDateString(parts: Pick<ZonedParts, "year" | "month" | "day">) {
   return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
 }
-
-export const reportScheduleTypeLabels: Record<ScheduledReportType, string> = {
-  DAILY_SALES: "每日銷售日報",
-  WEEKLY_SALES: "每週營運週報",
-  PAYMENT_VARIANCE: "付款差異報告",
-};

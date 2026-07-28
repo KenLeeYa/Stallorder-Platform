@@ -74,6 +74,19 @@ export type BillingPeriodUsage = {
 };
 
 type BillingDatabase = Prisma.TransactionClient;
+type FeatureSubscriptionContext = {
+  status: string;
+  trialEndsAt: Date | null;
+  planVersion: {
+    entitlements: Array<{
+      featureCode: string;
+      isEnabled: boolean;
+      limitValue: number | null;
+      configurationJson: Prisma.JsonValue | null;
+    }>;
+  };
+  items: Array<{ code: string }>;
+};
 
 export class EntitlementService {
   constructor(private readonly database: BillingDatabase = prisma as unknown as BillingDatabase) {}
@@ -110,6 +123,16 @@ export class EntitlementService {
 
   async getEffectiveEntitlements(organizationId: string) {
     const context = await this.requireContext(organizationId);
+    return this.getEffectiveEntitlementsForContext(context);
+  }
+
+  async getUsableEntitlements(organizationId: string) {
+    const context = await this.requireContext(organizationId);
+    this.ensureSubscriptionUsable(context);
+    return this.getEffectiveEntitlementsForContext(context);
+  }
+
+  private async getEffectiveEntitlementsForContext(context: SubscriptionContext) {
     const effective = new Map<string, EffectiveEntitlement>();
 
     for (const entitlement of context.planVersion.entitlements) {
@@ -151,24 +174,16 @@ export class EntitlementService {
 
   async assertSubscriptionUsable(organizationId: string) {
     const context = await this.requireContext(organizationId);
-    const code = evaluateSubscriptionUsability({
-      status: context.status,
-      trialEndsAt: context.trialEndsAt,
-    });
-    if (code) throw new EntitlementError(code);
+    this.ensureSubscriptionUsable(context);
     return context;
   }
 
   async assertFeatureEnabled(organizationId: string, featureCode: string) {
-    await this.assertSubscriptionUsable(organizationId);
-    return this.assertFeatureIncluded(organizationId, featureCode);
+    return this.requireFeatureEntitlement(organizationId, featureCode, true);
   }
 
   async assertFeatureIncluded(organizationId: string, featureCode: string) {
-    const entitlements = await this.getEffectiveEntitlements(organizationId);
-    const entitlement = entitlements.find((candidate) => candidate.featureCode === featureCode);
-    if (!entitlement?.isEnabled) throw new EntitlementError("FEATURE_NOT_INCLUDED");
-    return entitlement;
+    return this.requireFeatureEntitlement(organizationId, featureCode, false);
   }
 
   async assertLimitAvailable(
@@ -298,6 +313,96 @@ export class EntitlementService {
     const context = await this.getSubscriptionContext(organizationId);
     if (!context) throw new EntitlementError("SUBSCRIPTION_NOT_ACTIVE");
     return context;
+  }
+
+  private async requireFeatureEntitlement(
+    organizationId: string,
+    featureCode: string,
+    requireUsableSubscription: boolean,
+  ) {
+    const context = await this.getFeatureSubscriptionContext(organizationId, featureCode);
+    if (!context) throw new EntitlementError("SUBSCRIPTION_NOT_ACTIVE");
+    if (requireUsableSubscription) this.ensureSubscriptionUsable(context);
+
+    const planEntitlement = context.planVersion.entitlements[0];
+    if (planEntitlement?.isEnabled) {
+      return {
+        featureCode: planEntitlement.featureCode,
+        isEnabled: true,
+        limitValue: planEntitlement.limitValue,
+        configuration: planEntitlement.configurationJson,
+        source: "PLAN",
+      } satisfies EffectiveEntitlement;
+    }
+
+    const itemCodes = context.items.map((item) => item.code);
+    if (itemCodes.length > 0) {
+      const addOn = await this.database.addOnCatalog.findFirst({
+        where: {
+          code: { in: itemCodes },
+          featureCode,
+          isActive: true,
+          availabilityStatus: { in: ["ENABLED", "MANUAL_APPROVAL_REQUIRED"] },
+        },
+        select: { featureCode: true },
+      });
+      if (addOn?.featureCode) {
+        return {
+          featureCode: addOn.featureCode,
+          isEnabled: true,
+          limitValue: null,
+          configuration: null,
+          source: "ADD_ON",
+        } satisfies EffectiveEntitlement;
+      }
+    }
+
+    throw new EntitlementError("FEATURE_NOT_INCLUDED");
+  }
+
+  private async getFeatureSubscriptionContext(
+    organizationId: string,
+    featureCode: string,
+  ): Promise<FeatureSubscriptionContext | null> {
+    const now = new Date();
+    return this.database.subscription.findUnique({
+      where: { organizationId },
+      select: {
+        status: true,
+        trialEndsAt: true,
+        planVersion: {
+          select: {
+            entitlements: {
+              where: { featureCode },
+              select: {
+                featureCode: true,
+                isEnabled: true,
+                limitValue: true,
+                configurationJson: true,
+              },
+              take: 1,
+            },
+          },
+        },
+        items: {
+          where: {
+            itemType: "ADD_ON",
+            status: "ACTIVE",
+            startsAt: { lte: now },
+            OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+          },
+          select: { code: true },
+        },
+      },
+    });
+  }
+
+  private ensureSubscriptionUsable(context: { status: string; trialEndsAt: Date | null }) {
+    const code = evaluateSubscriptionUsability({
+      status: context.status,
+      trialEndsAt: context.trialEndsAt,
+    });
+    if (code) throw new EntitlementError(code);
   }
 }
 

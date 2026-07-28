@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
-import { buildCatalogCsvErrorReport, type CatalogCsvRowError } from "@/lib/catalog-csv";
+import { buildCatalogCsvErrorReport, type CatalogCsvRowError } from "@/lib/catalog-csv-client";
 import { formatMoney } from "@/lib/money";
 import { ProductNoteGroupsManager, type ProductNoteGroupView } from "@/components/product-note-groups-manager";
 

@@ -100,9 +100,9 @@ export async function getDashboardOverview({
       stallId: alert.stallId,
       stallName: stallNamesById.get(alert.stallId) ?? "攤位",
       alertType: alert.alertType,
-      severity: alert.severity,
+      severity: alert.severity as "INFO" | "WARNING" | "CRITICAL",
       message: alert.message,
-      status: alert.status,
+      status: alert.status as "ACTIVE" | "ACKNOWLEDGED",
       detectedAt: alert.detectedAt.toISOString(),
     })),
     trends: [...trendRows.entries()].map(([businessDate, dayRows]) => ({

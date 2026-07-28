@@ -1,5 +1,9 @@
 # StallOrder 效能最佳化結果
 
+> 2026-07-28 的最新深度優化與量測請以
+> `docs/performance/DEEP_ACCESS_OPTIMIZATION_20260728.md` 為準。本文件以下內容保留
+> 前一輪 P0 至 P4 的歷史基準，不代表目前 DNS、Production region 或測試數量。
+
 ## 範圍與發布狀態
 
 - 分支：`performance/cache-and-response-optimization`。
