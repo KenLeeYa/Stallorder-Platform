@@ -83,7 +83,7 @@ test.describe("Staging 平台管理員 Google 登入", () => {
     await expect(page).toHaveURL(/^http:\/\/127\.0\.0\.1:55431\/auth\/v1\/authorize/);
     await page.getByRole("link", { name: email, exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/billing$/, { timeout: 20_000 });
-    await expect(page.getByRole("link", { name: "攤點通平台管理", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "平台管理後台", exact: true })).toBeVisible();
     const hasSecureApplicationSession = (await page.context().cookies()).some(
       (cookie) => cookie.name === "stallorder_session"
         && cookie.httpOnly
