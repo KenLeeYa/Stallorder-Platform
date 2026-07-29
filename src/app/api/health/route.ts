@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { logEvent } from "@/lib/audit";
 import { inspectDirectDatabaseConnection, inspectRuntimeDatabaseConnection } from "@/lib/database-connection-profile";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
-import { prisma } from "@/lib/prisma";
 import { createRequestId } from "@/lib/security";
+import { checkPrimaryDatabaseHealth } from "@/server/resilience/health-service";
 
 export async function GET() {
   const requestId = createRequestId();
@@ -22,17 +22,21 @@ export async function GET() {
     directValid: directConnection.validPostgresUrl,
     directMigrationPort: directConnection.usesMigrationPort,
   });
-  try {
-    await timing.measureDb(() => prisma.$queryRaw`SELECT 1`);
-    return finalizePerformanceResponse(NextResponse.json(
-      { status: "ok", timestamp: new Date().toISOString() },
-      { headers: { "cache-control": "no-store", "x-request-id": requestId } },
-    ), timing);
-  } catch {
+  const health = await timing.measureDb(checkPrimaryDatabaseHealth);
+  const available = health.status === "HEALTHY" || health.status === "DEGRADED";
+  if (!available) {
     logEvent("error", "HEALTH_CHECK_FAILED", { requestId });
-    return finalizePerformanceResponse(NextResponse.json(
-      { status: "unavailable", timestamp: new Date().toISOString() },
-      { status: 503, headers: { "cache-control": "no-store", "x-request-id": requestId } },
-    ), timing);
   }
+
+  return finalizePerformanceResponse(NextResponse.json(
+    {
+      status: available ? "ok" : "unavailable",
+      health: health.status,
+      timestamp: health.checkedAt,
+    },
+    {
+      status: available ? 200 : 503,
+      headers: { "cache-control": "no-store", "x-request-id": requestId },
+    },
+  ), timing);
 }

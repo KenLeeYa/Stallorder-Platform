@@ -2,6 +2,10 @@
 
 核心原則：先止血、保留證據、避免資料破壞。Database schema 優先 forward-fix；沒有已驗證備份與事故指揮核准，不做 destructive rollback。
 
+韌性功能發生回歸時，先透過受稽核的 server-side feature flag 停止 rollout，
+再判斷是否回滾 Vercel deployment。不得只改前端開關，也不得以
+`BACKEND_ACTIVE_TARGET=DR` 單獨啟用 DR。
+
 ## 立即止血
 
 1. 由 merchant emergency controls 將受影響 stall `ordering_state=PAUSED` 或 `CLOSED`、`ordering_enabled=false`。

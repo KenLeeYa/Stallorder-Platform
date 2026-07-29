@@ -5,7 +5,10 @@
 - Next.js `audit_logs`：登入、授權、CSRF、商戶控制、商品、狀態更新、取餐碼與現金結帳事件。
 - Supabase `public_order_attempts`：session 發行、submission gate、Turnstile、建單與 tracking 拒絕／允許事件。
 - Next.js 與 Edge stdout：單行 JSON，包含 `timestamp`／level、event、requestId 與不具敏感性的識別欄位。
-- `GET /api/health`：最小資料庫查詢；成功 200，失敗 503，不回傳例外或連線資訊。
+- `GET /api/health`：向下相容的 Primary DB readiness；成功 200，失敗 503，不回傳例外或連線資訊。
+- `GET /api/health/primary` 與 `/api/health/dr`：公開最小狀態；未設定 DR 時明確回傳 `UNKNOWN`，不假設健康。
+- `GET /api/health/dependencies`：僅 Platform Admin 可讀的依賴明細；未授權者不執行探針。
+- `GET /api/availability/config`：公開且無敏感資料的 active backend／promotion epoch／服務可用狀態，CDN 最長快取 2 秒。
 
 API 回應的 `x-request-id` 可關聯應用日誌與資料庫安全事件。不得寫入 raw token、密碼、完整 IP、取餐碼、顧客電話或備註。
 
@@ -24,6 +27,9 @@ Vercel 部署另外啟用 Analytics 與 Speed Insights。送出前必須經 `src
 - 同一 stall 的拒絕率超過 20%，或同一 IP／device hash 在 5 分鐘觸發 20 次拒絕時告警。
 - 任一 `AUDIT_WRITE_FAILED`、`PUBLIC_ORDER_EDGE_FAILED`、`ORDER_SESSION_EDGE_FAILED` 或 `HEALTH_CHECK_FAILED` 立即告警。
 - `/api/health` 連續三次非 200、Edge 5xx 比率超過 1%、P95 超過 1 秒時通知值班人員。
+- Primary DB probe 超過 800 ms 標記 `DEGRADED`；2.5 秒未完成標記 `UNAVAILABLE`。
+- `BACKEND_ACTIVE_TARGET=DR` 但 `DR_FAILOVER_ENABLED=false` 時，`/api/availability/config` 必須維持 `PRIMARY` 並回傳 `DEGRADED_SAFE`。
+- `DR_HEALTH_CHECK_COMPLETED`、`DEPENDENCY_HEALTH_CHECK_COMPLETED` 或 `AVAILABILITY_CONFIG_RESOLUTION_FAILED` 出現非健康狀態時告警；不可把 `UNKNOWN` 當作成功證據。
 - `/api/health` warm P75 超過 300 ms、order-session 超過 800 ms、order submission 超過 1.5 秒時告警；先分辨 `dbMs`、`turnstileMs` 與 `externalApiMs`，不要只看總時間。
 - Staff／Kitchen list warm P75 超過 1 秒、Merchant dashboard 超過 1.5 秒或單次 `dbQueryCount` 非預期上升時告警。
 - Runtime `DATABASE_CONNECTION_PROFILE` 任一必要布林值變為 false 時告警，但禁止輸出原始連線字串。
