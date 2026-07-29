@@ -144,8 +144,17 @@ jobs:
             echo "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$supabase_url/functions/v1"
           } >> "$GITHUB_ENV"
 
-      - name: Apply reviewed migrations to isolated database
-        run: supabase db push --db-url "$EPHEMERAL_DATABASE_URL" --include-all --yes
+      - name: Apply reviewed migrations and synthetic fixtures
+        run: |
+          test "${{ steps.preview.outputs.branch_ref }}" != "$SUPABASE_PARENT_PROJECT_REF" || {
+            echo "::error::Refusing to seed the parent Supabase project."
+            exit 1
+          }
+          supabase db push \
+            --db-url "$EPHEMERAL_DATABASE_URL" \
+            --include-all \
+            --include-seed \
+            --yes
 
       - name: Verify isolated migration history
         run: supabase migration list --db-url "$EPHEMERAL_DATABASE_URL"

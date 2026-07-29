@@ -43,6 +43,7 @@ Same-repository Pull Request
 -> create or reuse a data-less Supabase Preview Branch
 -> mask generated credentials
 -> apply all reviewed migrations through session mode
+-> load deterministic synthetic fixtures only after verifying the branch is not the parent
 -> compare migration history
 -> run pgTAP
 -> run database lint
