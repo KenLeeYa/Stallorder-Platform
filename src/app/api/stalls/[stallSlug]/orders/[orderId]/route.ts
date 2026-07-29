@@ -18,6 +18,11 @@ import {
   EntitlementError,
   entitlementService,
 } from "@/server/billing/entitlement-service";
+import {
+  acknowledgeExternalOrderBeforeTransition,
+  persistExternalOrderTransition,
+} from "@/server/delivery-platforms/external-order-status-service";
+import { DeliveryPlatformError } from "@/server/delivery-platforms/delivery-platform-errors";
 
 type RouteContext = { params: Promise<{ stallSlug: string; orderId: string }> };
 class TransitionConflict extends Error {}
@@ -199,6 +204,30 @@ async function handlePatch(
     }
   }
 
+  let externalTransition: Awaited<ReturnType<typeof acknowledgeExternalOrderBeforeTransition>>;
+  try {
+    externalTransition = await timing.measureDb(() => acknowledgeExternalOrderBeforeTransition({
+      orderId: order.id,
+      nextStatus,
+    }));
+  } catch (error) {
+    if (error instanceof DeliveryPlatformError) {
+      return NextResponse.json(
+        {
+          error: error.retryable
+            ? "外送平台暫時無法確認此操作，訂單狀態尚未變更，請稍後再試。"
+            : "目前無法變更此外送訂單，請確認外送平台連線與功能狀態。",
+          code: error.code,
+        },
+        {
+          status: error.retryable ? 503 : 409,
+          headers: { "x-request-id": authorization.requestId },
+        },
+      );
+    }
+    throw error;
+  }
+
   const now = new Date();
   try {
     const updatedOrder = await timing.measureDb(() => prisma.$transaction(async (transaction) => {
@@ -270,6 +299,11 @@ async function handlePatch(
           createdBy: authorization.principal.user.id,
         },
       });
+      await persistExternalOrderTransition(
+        transaction,
+        externalTransition,
+        nextStatus,
+      );
       return transaction.order.findUniqueOrThrow({
         where: { id: order.id },
         select: staffOrderSelect,

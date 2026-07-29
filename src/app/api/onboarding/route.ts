@@ -14,6 +14,7 @@ import { isValidPublicIdentifier } from "@/lib/public-identifier";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp, isTrustedOrigin } from "@/lib/security";
 import { hashApplicationIdentifier } from "@/server/merchant-applications/application-identifiers";
+import { hasActiveOAuthIdentity } from "@/server/auth/oauth/profile-identity";
 import {
   getApplicantApplication,
   MerchantApplicationError,
@@ -26,9 +27,12 @@ export async function GET(request: Request) {
   const requestId = createRequestId();
   const principal = await getRequestPrincipal(request);
   const profileEmail = principal?.user.email;
-  if (!principal?.user.authUserId || !profileEmail) {
+  const hasOAuthIdentity = principal
+    ? await hasActiveOAuthIdentity(principal.user.id)
+    : false;
+  if (!principal || (!principal.user.authUserId && !hasOAuthIdentity) || !profileEmail) {
     return NextResponse.json(
-      { error: "商家申請需要已驗證的 Google 帳號與聯絡電子郵件。" },
+      { error: "商家申請需要已驗證的登入身分與聯絡電子郵件。" },
       { status: 401, headers: { "x-request-id": requestId } },
     );
   }
@@ -118,9 +122,12 @@ export async function POST(request: Request) {
       { status: 403, headers: { "x-request-id": requestId } },
     );
   }
-  if (!principal?.user.authUserId || !profileEmail) {
+  const hasOAuthIdentity = principal
+    ? await hasActiveOAuthIdentity(principal.user.id)
+    : false;
+  if (!principal || (!principal.user.authUserId && !hasOAuthIdentity) || !profileEmail) {
     return NextResponse.json(
-      { error: "商家申請需要已驗證的 Google 帳號與聯絡電子郵件。" },
+      { error: "商家申請需要已驗證的登入身分與聯絡電子郵件。" },
       { status: 401, headers: { "x-request-id": requestId } },
     );
   }
@@ -264,7 +271,7 @@ export async function POST(request: Request) {
 function merchantApplicationErrorResponse(error: unknown, requestId: string) {
   if (error instanceof MerchantApplicationError) {
     const messages: Record<MerchantApplicationError["code"], { status: number; error: string; next?: string }> = {
-      PROFILE_NOT_GOOGLE_LINKED: { status: 403, error: "商家申請必須使用已驗證的 Google 帳號。" },
+      PROFILE_NOT_GOOGLE_LINKED: { status: 403, error: "商家申請必須使用已驗證的登入身分。" },
       PROFILE_CONTACT_EMAIL_REQUIRED: { status: 403, error: "商家申請需要聯絡電子郵件，請先完成帳號資料。" },
       PROFILE_ALREADY_ONBOARDED: { status: 409, error: "此帳號已有組織或攤位權限。", next: "/select-organization" },
       INVITATION_PENDING: { status: 409, error: "此信箱已有待接受邀請，請先使用邀請連結加入工作區。" },

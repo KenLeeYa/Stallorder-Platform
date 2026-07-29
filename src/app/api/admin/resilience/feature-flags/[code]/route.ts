@@ -20,6 +20,7 @@ const errorMessages: Record<string, string> = {
   RESILIENCE_FLAG_EXPIRY_NOT_FUTURE: "到期時間必須晚於目前時間。",
   RESILIENCE_EMERGENCY_EXPIRY_REQUIRED: "緊急旗標必須設定自動到期時間。",
   RESILIENCE_EMERGENCY_EXPIRY_TOO_LONG: "緊急旗標最長只能啟用 24 小時。",
+  OAUTH_MIGRATION_GATE_BLOCKED: "仍有高權限或密碼帳號尚未完成 OAuth 綁定，不得啟用 OAuth-only 登入。",
 };
 
 export async function PUT(

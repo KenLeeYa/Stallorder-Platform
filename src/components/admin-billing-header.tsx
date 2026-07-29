@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BadgeDollarSign, ChartNoAxesCombined, ClipboardList, CreditCard, FileText, Layers3, PackageCheck, Store } from "lucide-react";
+import { BadgeDollarSign, ChartNoAxesCombined, ClipboardList, CreditCard, FileText, Layers3, PackageCheck, Store, Truck } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 
 const items = [
@@ -11,6 +11,7 @@ const items = [
   { href: "/admin/merchant-business-types", label: "營業類型", icon: Store },
   { href: "/admin/plans", label: "方案目錄", icon: Layers3 },
   { href: "/admin/usage", label: "用量", icon: ChartNoAxesCombined },
+  { href: "/admin/delivery-integrations", label: "外送整合", icon: Truck },
 ] as const;
 
 export function AdminBillingHeader({ displayName }: { displayName: string }) {

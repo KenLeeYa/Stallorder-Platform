@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { OnboardingForm } from "@/components/onboarding-form";
 import { OnboardingShell } from "@/components/onboarding-shell";
 import { getPagePrincipal } from "@/lib/auth";
+import { hasActiveOAuthIdentity } from "@/server/auth/oauth/profile-identity";
 import {
   loadOnboardingData,
   serializeApplicationInitialValues,
@@ -9,7 +10,12 @@ import {
 
 export default async function EditMerchantApplicationPage() {
   const principal = await getPagePrincipal();
-  if (!principal?.user.authUserId) redirect("/auth/google?next=%2Fonboarding%2Fedit");
+  const hasOAuthIdentity = principal
+    ? await hasActiveOAuthIdentity(principal.user.id)
+    : false;
+  if (!principal || (!principal.user.authUserId && !hasOAuthIdentity)) {
+    redirect("/login?next=%2Fonboarding%2Fedit");
+  }
   const data = await loadOnboardingData(principal.user.id, principal.user.email);
   if (data.workspacePath) redirect(data.workspacePath);
   if (data.application?.status !== "NEEDS_INFO") redirect(data.application ? "/onboarding/status" : "/onboarding");

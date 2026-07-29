@@ -7,6 +7,7 @@ import { createRequestId, hashClientIp, hashToken } from "@/lib/security";
 import { createSupabaseAuthClient, isSupabaseAuthConfigured } from "@/lib/supabase-auth";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { EntitlementService } from "@/server/billing/entitlement-service";
+import { hasVerifiedOAuthEmailIdentity } from "@/server/auth/oauth/profile-identity";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -16,7 +17,7 @@ export async function POST(request: Request, context: RouteContext) {
   const principal = await getRequestPrincipal(request);
   if (!principal) {
     return NextResponse.json(
-      { error: "請先使用受邀的 Google 帳號登入。" },
+      { error: "請先使用受邀且已驗證電子郵件的帳號登入。" },
       { status: 401, headers: { "x-request-id": requestId } },
     );
   }
@@ -45,30 +46,42 @@ export async function POST(request: Request, context: RouteContext) {
       },
     );
   }
-  if (!/^[A-Za-z0-9_-]{40,100}$/.test(token) || !principal.user.authUserId || !isSupabaseAuthConfigured()) {
+  if (!/^[A-Za-z0-9_-]{40,100}$/.test(token)) {
     return NextResponse.json(
-      { error: "此邀請只能由已驗證的 Google 帳號接受。" },
+      { error: "邀請連結格式不正確。" },
       { status: 403, headers: { "x-request-id": requestId } },
     );
   }
 
-  const supabase = await createSupabaseAuthClient();
-  const { data, error } = await supabase.auth.getUser();
-  const authUser = data.user;
-  const providers = Array.isArray(authUser?.app_metadata.providers)
-    ? authUser.app_metadata.providers
-    : [authUser?.app_metadata.provider];
-  const verifiedEmail = authUser?.email?.trim().toLowerCase();
-  if (
-    error
-    || !authUser
-    || authUser.id !== principal.user.authUserId
-    || !verifiedEmail
-    || !authUser.email_confirmed_at
-    || !providers.includes("google")
-  ) {
+  let verifiedEmail: string | null = null;
+  if (principal.user.authUserId && isSupabaseAuthConfigured()) {
+    const supabase = await createSupabaseAuthClient();
+    const { data, error } = await supabase.auth.getUser();
+    const authUser = data.user;
+    const providers = Array.isArray(authUser?.app_metadata.providers)
+      ? authUser.app_metadata.providers
+      : [authUser?.app_metadata.provider];
+    const legacyEmail = authUser?.email?.trim().toLowerCase();
+    if (
+      !error
+      && authUser
+      && authUser.id === principal.user.authUserId
+      && legacyEmail
+      && authUser.email_confirmed_at
+      && providers.includes("google")
+    ) {
+      verifiedEmail = legacyEmail;
+    }
+  }
+  if (!verifiedEmail && await hasVerifiedOAuthEmailIdentity(
+    principal.user.id,
+    principal.user.email,
+  )) {
+    verifiedEmail = principal.user.email?.trim().toLowerCase() ?? null;
+  }
+  if (!verifiedEmail) {
     return NextResponse.json(
-      { error: "無法驗證 Google 帳號，請重新登入。" },
+      { error: "無法驗證登入帳號的電子郵件，請重新登入。" },
       { status: 403, headers: { "x-request-id": requestId } },
     );
   }
@@ -220,7 +233,7 @@ export async function POST(request: Request, context: RouteContext) {
     const messages: Record<string, string> = {
       INVITATION_UNAVAILABLE: "此邀請不存在、已失效或已被使用。",
       INVITATION_EXPIRED: "此邀請已過期，請聯絡管理員重新邀請。",
-      INVITATION_EMAIL_MISMATCH: "目前 Google 帳號的 Email 與邀請不符。",
+      INVITATION_EMAIL_MISMATCH: "目前登入帳號的 Email 與邀請不符。",
     };
     return NextResponse.json(
       { error: messages[code] ?? "目前無法接受邀請。" },

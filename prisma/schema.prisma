@@ -1962,7 +1962,19 @@ model Order {
   idempotencyKey           String              @map("idempotency_key") @db.Uuid
   source                   String              @default("QR_MENU")
   origin                   OrderOrigin         @default(ONLINE_QR)
-  isTest                   Boolean                @default(false) @map("is_test")
+  isTest                   Boolean             @default(false) @map("is_test")
+  externalProvider         String?             @map("external_provider")
+  externalOrderId          String?             @map("external_order_id")
+  externalOrderNumber      String?             @map("external_order_number")
+  externalStoreId          String?             @map("external_store_id")
+  externalPaymentStatus    String?             @map("external_payment_status")
+  externalSubtotalAmount   Int?                @map("external_subtotal_amount")
+  externalTotalAmount      Int?                @map("external_total_amount")
+  merchantReceivableAmount Int?                @map("merchant_receivable_amount")
+  platformDiscountAmount   Int?                @map("platform_discount_amount")
+  merchantDiscountAmount   Int?                @map("merchant_discount_amount")
+  scheduledPickupAt        DateTime?           @map("scheduled_pickup_at")
+  riderPickupAt            DateTime?           @map("rider_pickup_at")
   customerName             String              @map("customer_name")
   customerPhone            String?             @map("customer_phone")
   deliveryAddress          String?             @map("delivery_address")
@@ -2047,6 +2059,7 @@ model Order {
   @@index([locationId, createdAt(sort: Desc)])
   @@unique([sourceDeviceId, offlineOrderId])
   @@index([stallId, sourceDeviceId, syncedAt(sort: Desc)])
+  @@index([stallId, externalProvider, createdAt(sort: Desc)])
   @@map("orders")
 }
 
@@ -2809,6 +2822,231 @@ model OAuthTransaction {
   @@index([expiresAt])
   @@index([currentProfileId, createdAt(sort: Desc)])
   @@map("oauth_transactions")
+}
+
+model OAuthProviderEvent {
+  id                  String    @id @default(uuid()) @db.Uuid
+  provider            String
+  eventHash           String    @unique @map("event_hash")
+  providerSubjectHash String    @map("provider_subject_hash")
+  eventType           String    @map("event_type")
+  status              String    @default("RECEIVED")
+  failureCode         String?   @map("failure_code")
+  receivedAt          DateTime  @default(now()) @map("received_at")
+  processedAt         DateTime? @map("processed_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  @@index([provider, receivedAt(sort: Desc)])
+  @@index([status, receivedAt])
+  @@map("oauth_provider_events")
+}
+
+model DeliveryPlatformConnection {
+  id                        String    @id @default(uuid()) @db.Uuid
+  organizationId            String    @map("organization_id") @db.Uuid
+  stallId                   String    @map("stall_id") @db.Uuid
+  provider                  String
+  status                    String    @default("DRAFT")
+  externalChainId           String?   @map("external_chain_id")
+  externalStoreId           String?   @map("external_store_id")
+  externalStoreName         String?   @map("external_store_name")
+  externalAccountReference  String?   @map("external_account_reference")
+  credentialReference       String?   @map("credential_reference")
+  oauthStateHash            String?   @map("oauth_state_hash")
+  oauthPkceVerifierReference String?  @map("oauth_pkce_verifier_reference")
+  oauthExpiresAt            DateTime? @map("oauth_expires_at")
+  providerMetadataJson      Json      @default("{}") @map("provider_metadata_json")
+  capabilitiesJson          Json      @default("[]") @map("capabilities_json")
+  connectedByProfileId      String?   @map("connected_by_profile_id") @db.Uuid
+  reviewedByProfileId       String?   @map("reviewed_by_profile_id") @db.Uuid
+  connectedAt               DateTime? @map("connected_at")
+  activatedAt               DateTime? @map("activated_at")
+  pausedAt                  DateTime? @map("paused_at")
+  disconnectedAt            DateTime? @map("disconnected_at")
+  lastHealthCheckAt         DateTime? @map("last_health_check_at")
+  lastSuccessfulSyncAt      DateTime? @map("last_successful_sync_at")
+  lastErrorCode             String?   @map("last_error_code")
+  lastErrorAt               DateTime? @map("last_error_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  @@unique([id, organizationId, stallId, provider], map: "delivery_connections_scope_key")
+  @@index([organizationId, status, updatedAt(sort: Desc)])
+  @@index([stallId, status, updatedAt(sort: Desc)])
+  @@map("delivery_platform_connections")
+}
+
+model DeliveryPlatformConnectionRequest {
+  id                        String    @id @default(uuid()) @db.Uuid
+  organizationId            String    @map("organization_id") @db.Uuid
+  stallId                   String    @map("stall_id") @db.Uuid
+  provider                  String
+  requestedByProfileId      String    @map("requested_by_profile_id") @db.Uuid
+  merchantContactName       String    @map("merchant_contact_name")
+  merchantContactEmail      String    @map("merchant_contact_email")
+  merchantContactPhone      String?   @map("merchant_contact_phone")
+  externalVendorCode        String?   @map("external_vendor_code")
+  externalChainCode         String?   @map("external_chain_code")
+  currentProvider           String?   @map("current_provider")
+  requestedCapabilitiesJson Json      @default("[]") @map("requested_capabilities_json")
+  status                    String    @default("DRAFT")
+  merchantNote              String?   @map("merchant_note")
+  adminNote                 String?   @map("admin_note")
+  submittedAt               DateTime? @map("submitted_at")
+  reviewedAt                DateTime? @map("reviewed_at")
+  reviewedByProfileId       String?   @map("reviewed_by_profile_id") @db.Uuid
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, submittedAt, createdAt])
+  @@index([organizationId, updatedAt(sort: Desc)])
+  @@map("delivery_platform_connection_requests")
+}
+
+model ExternalStoreMapping {
+  id                  String    @id @default(uuid()) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  stallId             String    @map("stall_id") @db.Uuid
+  connectionId        String    @map("connection_id") @db.Uuid
+  provider            String
+  externalChainId     String?   @map("external_chain_id")
+  externalStoreId     String    @map("external_store_id")
+  externalStoreName   String    @map("external_store_name")
+  mappingStatus       String    @default("UNVERIFIED") @map("mapping_status")
+  verifiedAt          DateTime? @map("verified_at")
+  verifiedByProfileId String?   @map("verified_by_profile_id") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@unique([connectionId, externalStoreId])
+  @@index([stallId, mappingStatus, updatedAt(sort: Desc)])
+  @@map("external_store_mappings")
+}
+
+model ExternalMenuMapping {
+  id                   String    @id @default(uuid()) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  stallId              String    @map("stall_id") @db.Uuid
+  connectionId         String    @map("connection_id") @db.Uuid
+  provider             String
+  internalEntityType   String    @map("internal_entity_type")
+  internalEntityId     String    @map("internal_entity_id") @db.Uuid
+  externalEntityId     String    @map("external_entity_id")
+  externalParentId     String?   @map("external_parent_id")
+  mappingStatus        String    @default("UNMAPPED") @map("mapping_status")
+  providerSnapshotJson Json?     @map("provider_snapshot_json")
+  lastSyncedAt         DateTime? @map("last_synced_at")
+  lastErrorCode        String?   @map("last_error_code")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@unique([connectionId, internalEntityType, internalEntityId])
+  @@unique([connectionId, internalEntityType, externalEntityId])
+  @@index([connectionId, mappingStatus, internalEntityType])
+  @@index([stallId, updatedAt(sort: Desc)])
+  @@map("external_menu_mappings")
+}
+
+model ExternalOrder {
+  id                        String    @id @default(uuid()) @db.Uuid
+  organizationId            String    @map("organization_id") @db.Uuid
+  stallId                   String    @map("stall_id") @db.Uuid
+  connectionId              String    @map("connection_id") @db.Uuid
+  provider                  String
+  externalOrderId           String    @map("external_order_id")
+  externalOrderNumber       String?   @map("external_order_number")
+  internalOrderId           String?   @unique @map("internal_order_id") @db.Uuid
+  externalStoreId           String    @map("external_store_id")
+  externalStatus            String    @map("external_status")
+  processingStatus          String    @default("RECEIVED") @map("processing_status")
+  currency                  String    @default("TWD")
+  externalSubtotalAmount    Int?      @map("external_subtotal_amount")
+  externalDiscountAmount    Int?      @map("external_discount_amount")
+  merchantDiscountAmount    Int?      @map("merchant_discount_amount")
+  platformDiscountAmount    Int?      @map("platform_discount_amount")
+  externalDeliveryFeeAmount Int?      @map("external_delivery_fee_amount")
+  externalServiceFeeAmount  Int?      @map("external_service_fee_amount")
+  externalTaxAmount         Int?      @map("external_tax_amount")
+  externalTotalAmount       Int?      @map("external_total_amount")
+  merchantReceivableAmount  Int?      @map("merchant_receivable_amount")
+  scheduledPickupAt         DateTime? @map("scheduled_pickup_at")
+  riderPickupAt             DateTime? @map("rider_pickup_at")
+  receivedAt                DateTime  @default(now()) @map("received_at")
+  acceptedAt                DateTime? @map("accepted_at")
+  rejectedAt                DateTime? @map("rejected_at")
+  completedAt               DateTime? @map("completed_at")
+  cancelledAt               DateTime? @map("cancelled_at")
+  lastSyncedAt              DateTime? @map("last_synced_at")
+  payloadReference          String?   @map("payload_reference")
+  payloadHash               String    @map("payload_hash")
+  receivedViaCircuit        String    @default("UNKNOWN") @map("received_via_circuit")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  @@unique([provider, externalOrderId])
+  @@index([stallId, processingStatus, receivedAt(sort: Desc)])
+  @@index([connectionId, receivedAt(sort: Desc)])
+  @@map("external_orders")
+}
+
+model DeliveryWebhookEvent {
+  id                   String    @id @default(uuid()) @db.Uuid
+  provider             String
+  connectionId         String?   @map("connection_id") @db.Uuid
+  organizationId       String?   @map("organization_id") @db.Uuid
+  stallId              String?   @map("stall_id") @db.Uuid
+  externalEventId      String?   @map("external_event_id")
+  eventType            String    @map("event_type")
+  signatureValid       Boolean   @map("signature_valid")
+  replayKey            String    @map("replay_key")
+  payloadHash          String    @map("payload_hash")
+  payloadReference     String?   @map("payload_reference")
+  receivedViaCircuit   String    @default("UNKNOWN") @map("received_via_circuit")
+  processingStatus     String    @default("RECEIVED") @map("processing_status")
+  attemptCount         Int       @default(0) @map("attempt_count")
+  receivedAt           DateTime  @default(now()) @map("received_at")
+  processedAt          DateTime? @map("processed_at")
+  nextAttemptAt        DateTime? @map("next_attempt_at")
+  lastErrorCode        String?   @map("last_error_code")
+  lastErrorMessageSafe String?   @map("last_error_message_safe")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@unique([provider, replayKey])
+  @@index([processingStatus, nextAttemptAt, receivedAt])
+  @@index([connectionId, receivedAt(sort: Desc)])
+  @@map("delivery_webhook_events")
+}
+
+model DeliverySyncJob {
+  id                   String    @id @default(uuid()) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  stallId              String    @map("stall_id") @db.Uuid
+  connectionId         String    @map("connection_id") @db.Uuid
+  provider             String
+  jobType              String    @map("job_type")
+  status               String    @default("PENDING")
+  priority             Int       @default(100) @db.SmallInt
+  deduplicationKey     String    @map("deduplication_key")
+  requestedViaCircuit  String    @default("UNKNOWN") @map("requested_via_circuit")
+  claimedByWorker      String?   @map("claimed_by_worker")
+  attemptCount         Int       @default(0) @map("attempt_count")
+  maxAttempts          Int       @default(5) @map("max_attempts")
+  scheduledAt          DateTime  @default(now()) @map("scheduled_at")
+  startedAt            DateTime? @map("started_at")
+  completedAt          DateTime? @map("completed_at")
+  nextAttemptAt        DateTime? @map("next_attempt_at")
+  lastErrorCode        String?   @map("last_error_code")
+  lastErrorMessageSafe String?   @map("last_error_message_safe")
+  inputJson            Json      @default("{}") @map("input_json")
+  resultJson           Json?     @map("result_json")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@unique([provider, deduplicationKey])
+  @@index([status, scheduledAt, priority, createdAt])
+  @@index([connectionId, createdAt(sort: Desc)])
+  @@map("delivery_sync_jobs")
 }
 
 model StorageObjectManifest {

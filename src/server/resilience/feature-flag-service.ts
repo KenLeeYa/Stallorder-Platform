@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { logEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { getOAuthMigrationReadiness } from "@/server/auth/oauth/migration-readiness";
 
 export const resilienceFeatureFlagCodes = [
   "DUAL_ORDER_INTAKE_ENABLED",
@@ -19,6 +20,25 @@ export const resilienceFeatureFlagCodes = [
   "ROLLING_RELEASE_ENABLED",
   "LOCAL_EDGE_GATEWAY_ENABLED",
   "EMERGENCY_QR_DEGRADED_MODE",
+  "OAUTH_IDENTITY_FOUNDATION_ENABLED",
+  "OAUTH_GOOGLE_ENABLED",
+  "OAUTH_LINE_ENABLED",
+  "OAUTH_APPLE_ENABLED",
+  "OAUTH_ONLY_LOGIN_UI_ENABLED",
+  "OAUTH_IDENTITY_LINKING_ENABLED",
+  "OAUTH_MOCK_PROVIDER_ENABLED",
+  "DELIVERY_PLATFORM_FOUNDATION_ENABLED",
+  "DELIVERY_PLATFORM_UI_ENABLED",
+  "DELIVERY_EXTERNAL_ORDER_IMPORT_ENABLED",
+  "DELIVERY_PROVIDER_ACTIONS_ENABLED",
+  "DELIVERY_MENU_SYNC_ENABLED",
+  "DELIVERY_MOCK_PROVIDER_ENABLED",
+  "UBER_EATS_INTEGRATION_ENABLED",
+  "UBER_EATS_OAUTH_ENABLED",
+  "UBER_EATS_API_ENABLED",
+  "FOODPANDA_INTEGRATION_ENABLED",
+  "FOODPANDA_PARTNER_API_ENABLED",
+  "FOODPANDA_WEBHOOK_ENABLED",
 ] as const;
 
 export type ResilienceFeatureFlagCode = (typeof resilienceFeatureFlagCodes)[number];
@@ -36,6 +56,25 @@ export const resilienceFeatureFlagDefaults: Record<ResilienceFeatureFlagCode, bo
   ROLLING_RELEASE_ENABLED: false,
   LOCAL_EDGE_GATEWAY_ENABLED: false,
   EMERGENCY_QR_DEGRADED_MODE: false,
+  OAUTH_IDENTITY_FOUNDATION_ENABLED: false,
+  OAUTH_GOOGLE_ENABLED: false,
+  OAUTH_LINE_ENABLED: false,
+  OAUTH_APPLE_ENABLED: false,
+  OAUTH_ONLY_LOGIN_UI_ENABLED: false,
+  OAUTH_IDENTITY_LINKING_ENABLED: false,
+  OAUTH_MOCK_PROVIDER_ENABLED: false,
+  DELIVERY_PLATFORM_FOUNDATION_ENABLED: false,
+  DELIVERY_PLATFORM_UI_ENABLED: false,
+  DELIVERY_EXTERNAL_ORDER_IMPORT_ENABLED: false,
+  DELIVERY_PROVIDER_ACTIONS_ENABLED: false,
+  DELIVERY_MENU_SYNC_ENABLED: false,
+  DELIVERY_MOCK_PROVIDER_ENABLED: false,
+  UBER_EATS_INTEGRATION_ENABLED: false,
+  UBER_EATS_OAUTH_ENABLED: false,
+  UBER_EATS_API_ENABLED: false,
+  FOODPANDA_INTEGRATION_ENABLED: false,
+  FOODPANDA_PARTNER_API_ENABLED: false,
+  FOODPANDA_WEBHOOK_ENABLED: false,
 };
 
 export const resilienceFlagScopeTypes = [
@@ -339,6 +378,10 @@ export async function setResilienceFeatureFlagOverride(
   if (!flag) throw new Error("RESILIENCE_FLAG_NOT_FOUND");
   if (code === "LOCAL_EDGE_GATEWAY_ENABLED" && command.enabled) {
     throw new Error("RESILIENCE_FUTURE_FLAG_LOCKED");
+  }
+  if (code === "OAUTH_ONLY_LOGIN_UI_ENABLED" && command.enabled) {
+    const readiness = await getOAuthMigrationReadiness();
+    if (!readiness.readyForOAuthOnly) throw new Error("OAUTH_MIGRATION_GATE_BLOCKED");
   }
 
   const now = new Date();

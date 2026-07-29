@@ -44,7 +44,17 @@ export async function approveMerchantApplication(
 
       const application = await transaction.merchantApplication.findUnique({
         where: { id: applicationId },
-        include: { applicant: true },
+        include: {
+          applicant: {
+            include: {
+              authIdentities: {
+                where: { revokedAt: null },
+                select: { id: true },
+                take: 1,
+              },
+            },
+          },
+        },
       });
       if (!application) throw new MerchantApprovalError("APPLICATION_NOT_FOUND");
       if (application.status === "APPROVED" && application.approvedOrganizationId) {
@@ -60,7 +70,10 @@ export async function approveMerchantApplication(
       if (application.riskLevel === "BLOCKED") {
         throw new MerchantApprovalError("APPLICATION_RISK_BLOCKED");
       }
-      if (!application.applicant.isActive || !application.applicant.authUserId) {
+      if (
+        !application.applicant.isActive
+        || (!application.applicant.authUserId && application.applicant.authIdentities.length === 0)
+      ) {
         throw new MerchantApprovalError("APPLICANT_NOT_ELIGIBLE");
       }
 

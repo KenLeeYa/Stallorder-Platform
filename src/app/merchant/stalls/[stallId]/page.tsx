@@ -19,12 +19,14 @@ import {
   SlidersHorizontal,
   Store,
   TabletSmartphone,
+  Truck,
   UserRoundCog,
   Users,
   type LucideIcon,
 } from "lucide-react";
 import { hasPermission } from "@/lib/rbac";
 import { requireWorkspacePage } from "@/lib/workspace";
+import { resolveDeliveryFeatureState } from "@/server/delivery-platforms/delivery-feature-flags";
 
 type PageProps = { params: Promise<{ stallId: string }> };
 
@@ -62,6 +64,13 @@ export default async function EditStallPage({ params }: PageProps) {
   const canManageEvents = workspace.roles.some((role) => hasPermission(role, "MANAGE_MARKET_EVENTS"));
   const canManageTeam = roles.some((role) => hasPermission(role, "MANAGE_STAFF"));
   const canManageReportSchedules = workspace.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES"));
+  const deliveryFeatureState = await resolveDeliveryFeatureState("UBER_EATS", {
+    organizationId: workspace.id,
+    stallId: stall.id,
+  });
+  const canManageDelivery = roles.some(
+    (role) => hasPermission(role, "MANAGE_DELIVERY_INTEGRATIONS"),
+  ) && deliveryFeatureState.foundation && deliveryFeatureState.ui;
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
@@ -98,6 +107,9 @@ export default async function EditStallPage({ params }: PageProps) {
           <SettingsLink href={`/merchant/stalls/${stall.id}/locations`} icon={MapPinned} label="常用地點" />
           <SettingsLink href={`/merchant/stalls/${stall.id}/schedule`} icon={CalendarRange} label="出攤行程" />
           <SettingsLink href={`/merchant/stalls/${stall.id}/line`} icon={MessageCircle} label="LINE 通知" />
+          {canManageDelivery ? (
+            <SettingsLink href={`/merchant/integrations/delivery?stallId=${stall.id}`} icon={Truck} label="外送平台整合" />
+          ) : null}
           <SettingsLink href={`/merchant/stalls/${stall.id}/offline`} icon={TabletSmartphone} label="離線裝置" />
         </div>
       </section>

@@ -56,7 +56,7 @@ export const merchantApplicationPublicSelect = {
 
 type ApplicationIdentity = {
   profileId: string;
-  authUserId: string;
+  authUserId: string | null;
   email: string;
   displayName: string;
   sessionId: string;
@@ -336,7 +336,21 @@ export async function withdrawMerchantApplication(input: {
 
 async function requireApplicantEligibility(transaction: Prisma.TransactionClient, identity: ApplicationIdentity) {
   const profile = await transaction.profile.findUnique({ where: { id: identity.profileId } });
-  if (!profile?.isActive || !profile.authUserId || profile.authUserId !== identity.authUserId) {
+  const legacyIdentityMatches = Boolean(
+    profile?.authUserId
+    && identity.authUserId
+    && profile.authUserId === identity.authUserId,
+  );
+  const directIdentity = profile
+    ? await transaction.authIdentity.findFirst({
+        where: {
+          profileId: profile.id,
+          revokedAt: null,
+        },
+        select: { id: true },
+      })
+    : null;
+  if (!profile?.isActive || (!legacyIdentityMatches && !directIdentity)) {
     throw new MerchantApplicationError("PROFILE_NOT_GOOGLE_LINKED");
   }
   if (!profile.email) {
