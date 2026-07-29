@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { MerchantSetupBackLink } from "@/components/merchant-setup-back-link";
 import { OrganizationInvitationManager } from "@/components/organization-invitation-manager";
 import { OrganizationMembershipManager } from "@/components/organization-membership-manager";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
@@ -6,10 +7,10 @@ import { prisma } from "@/lib/prisma";
 import { authorizedStallIdsForPermission, roleLabels } from "@/lib/rbac";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 
-type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string }> };
+type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string; source?: string }> };
 
 export default async function MerchantTeamPage({ searchParams }: PageProps) {
-  const { organizationId, stallId } = await searchParams;
+  const { organizationId, stallId, source } = await searchParams;
   const { workspaces } = await requireWorkspacePage();
   if (!organizationId && workspaces.length > 1) redirect("/select-organization");
   const workspace = requireWorkspaceOrganization(workspaces, organizationId);
@@ -65,7 +66,11 @@ export default async function MerchantTeamPage({ searchParams }: PageProps) {
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
-      {returnStallId ? (
+      {source === "setup" ? (
+        <div className="mb-4">
+          <MerchantSetupBackLink organizationId={workspace.id} />
+        </div>
+      ) : returnStallId ? (
         <div className="mb-4">
           <StallSettingsBackLink stallId={returnStallId} />
         </div>

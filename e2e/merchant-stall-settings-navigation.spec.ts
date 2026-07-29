@@ -55,6 +55,7 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
   }
 
   const organizationLinks = [
+    ["商家資料", "organization"],
     ["翻譯完整度", "localization"],
     ["市集活動", "events"],
     ["團隊與權限", "team"],

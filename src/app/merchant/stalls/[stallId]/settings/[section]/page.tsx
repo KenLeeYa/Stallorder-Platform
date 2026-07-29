@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { MerchantSetupBackLink } from "@/components/merchant-setup-back-link";
+import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { StallBusinessHoursManager } from "@/components/stall-business-hours-manager";
 import { StallEditor } from "@/components/stall-editor";
 import { StallModulesManager } from "@/components/stall-modules-manager";
@@ -25,14 +25,16 @@ const sectionLabels = {
 type SettingsSection = keyof typeof sectionLabels;
 type PageProps = {
   params: Promise<{ stallId: string; section: string }>;
+  searchParams: Promise<{ source?: string }>;
 };
 
 function isSettingsSection(value: string): value is SettingsSection {
   return value in sectionLabels;
 }
 
-export default async function StallSettingsSectionPage({ params }: PageProps) {
+export default async function StallSettingsSectionPage({ params, searchParams }: PageProps) {
   const { stallId, section: rawSection } = await params;
+  const { source } = await searchParams;
   if (!isSettingsSection(rawSection)) notFound();
 
   const { workspaces } = await requireWorkspacePage();
@@ -135,10 +137,9 @@ export default async function StallSettingsSectionPage({ params }: PageProps) {
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-4xl px-4 py-7 md:px-8">
-      <Link href={`/merchant/stalls/${stall.id}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800">
-        <ArrowLeft className="h-4 w-4" />
-        返回攤位設定
-      </Link>
+      {source === "setup"
+        ? <MerchantSetupBackLink organizationId={workspace.id} />
+        : <StallSettingsBackLink stallId={stall.id} />}
       <header className="mt-4 border-b border-stone-200 pb-5">
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <h1 className="mt-1 text-3xl font-semibold">{stall.name}</h1>
