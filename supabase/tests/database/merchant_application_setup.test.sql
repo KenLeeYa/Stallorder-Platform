@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(17);
+select plan(19);
 
 select ok(
   (select relrowsecurity and relforcerowsecurity from pg_class where oid = 'public.merchant_applications'::regclass),
@@ -142,6 +142,24 @@ select throws_like(
   $$delete from public.orders where id = 'e5000000-0000-4000-8000-000000000001'$$,
   '%merchant_setup_progress_test_order_id_fkey%',
   'linked setup test order is retained as audit evidence'
+);
+
+delete from public.stall_ordering_settings
+where stall_id = '22222222-2222-4222-8222-222222222222';
+insert into public.stall_ordering_settings (organization_id, stall_id)
+values (
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222'
+);
+select is(
+  (select dine_in_enabled from public.stall_ordering_settings where stall_id = '22222222-2222-4222-8222-222222222222'),
+  false,
+  'new stall ordering settings keep dine-in disabled'
+);
+select is(
+  (select enabled_locales from public.stall_ordering_settings where stall_id = '22222222-2222-4222-8222-222222222222'),
+  array['zh-TW']::text[],
+  'new stall ordering settings enable only Traditional Chinese'
 );
 
 select * from finish();

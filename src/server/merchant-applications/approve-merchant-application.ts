@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
+import { newStallOrderingSettings } from "@/lib/new-stall-ordering-defaults";
 import { prisma } from "@/lib/prisma";
 
 export type MerchantApprovalErrorCode =
@@ -167,7 +168,7 @@ export async function approveMerchantApplication(
           businessStatus: "CLOSED",
           orderingState: "CLOSED",
           orderingEnabled: false,
-          orderingSettings: { create: { organizationId: organization.id } },
+          orderingSettings: { create: newStallOrderingSettings(organization.id) },
         },
       });
       const qrCode = await transaction.qrCode.create({

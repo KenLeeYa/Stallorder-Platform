@@ -1561,7 +1561,7 @@ model StallOrderingSettings {
   maxSessionsPerQrWindow         Int          @default(100) @map("max_sessions_per_qr_window")
   maxSessionsPerStallWindow      Int          @default(500) @map("max_sessions_per_stall_window")
   maxBehaviorFrequency           Int          @default(4) @map("max_behavior_frequency")
-  dineInEnabled                  Boolean      @default(true) @map("dine_in_enabled")
+  dineInEnabled                  Boolean      @default(false) @map("dine_in_enabled")
   deliveryModuleEnabled          Boolean      @default(false) @map("delivery_module_enabled")
   printModuleEnabled             Boolean      @default(false) @map("print_module_enabled")
   paymentModuleEnabled           Boolean      @default(true) @map("payment_module_enabled")
@@ -1569,7 +1569,7 @@ model StallOrderingSettings {
   discountApprovalThresholdBps   Int          @default(8000) @map("discount_approval_threshold_bps")
   estimatedWaitMinutes           Int          @default(15) @map("estimated_wait_minutes")
   businessDayCutoffHour          Int          @default(0) @map("business_day_cutoff_hour") @db.SmallInt
-  enabledLocales                 String[]     @default(["zh-TW", "en", "ja", "ko", "vi", "th"]) @map("enabled_locales")
+  enabledLocales                 String[]     @default(["zh-TW"]) @map("enabled_locales")
   kdsWarningMinutes              Int          @default(5) @map("kds_warning_minutes")
   kdsCriticalMinutes             Int          @default(10) @map("kds_critical_minutes")
   kdsDefaultView                 String       @default("ORDER") @map("kds_default_view")

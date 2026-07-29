@@ -6,6 +6,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { defaultBusinessHours } from "@/lib/business-hours";
+import { newStallOrderingSettings } from "@/lib/new-stall-ordering-defaults";
 import { prisma } from "@/lib/prisma";
 import { createStallSchema } from "@/lib/stall-validation";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
@@ -46,7 +47,7 @@ export async function POST(request: Request, context: RouteContext) {
           organizationId,
           ...parsed.data,
           location: parsed.data.address,
-          orderingSettings: { create: { organizationId } },
+          orderingSettings: { create: newStallOrderingSettings(organizationId) },
           businessHours: { create: defaultBusinessHours.map((hour) => ({ organizationId, ...hour })) },
           qrCodes: {
             create: {

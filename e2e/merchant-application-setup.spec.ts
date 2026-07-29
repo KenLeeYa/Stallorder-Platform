@@ -104,7 +104,11 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
       where: { id: applicationId },
       include: {
         approvedOrganization: {
-          include: { subscription: true, stalls: { include: { qrCodes: true } }, merchantSetupProgress: true },
+          include: {
+            subscription: true,
+            stalls: { include: { qrCodes: true, orderingSettings: true, paymentOptions: true } },
+            merchantSetupProgress: true,
+          },
         },
       },
     });
@@ -118,6 +122,17 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     expect(organization.stalls[0].orderingEnabled).toBe(false);
     expect(organization.stalls[0].businessStatus).toBe("CLOSED");
     expect(organization.stalls[0].qrCodes[0].state).toBe("PAUSED");
+    expect(organization.stalls[0].orderingSettings).toMatchObject({
+      dineInEnabled: false,
+      deliveryModuleEnabled: false,
+      printModuleEnabled: false,
+      paymentModuleEnabled: true,
+      discountModuleEnabled: false,
+      enabledLocales: ["zh-TW"],
+    });
+    expect(organization.stalls[0].paymentOptions).toEqual([
+      expect.objectContaining({ code: "CASH", kind: "CASH", isEnabled: true }),
+    ]);
     expect(organization.merchantSetupProgress?.goLiveCompleted).toBe(false);
 
     await page.goto(`/merchant/dashboard?organizationId=${organizationId}`);
@@ -134,16 +149,27 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     const paymentStep = page.getByRole("article").filter({ hasText: "付款方式" });
     await expect(merchantProfileStep.getByRole("link", { name: "前往設定" })).toHaveAttribute(
       "href",
-      `/merchant/organization?organizationId=${organizationId}`,
+      `/merchant/organization?organizationId=${organizationId}&source=setup`,
     );
     await expect(stallProfileStep.getByRole("link", { name: "前往設定" })).toHaveAttribute(
       "href",
-      new RegExp(`/merchant/stalls/.+/settings/basic$`),
+      new RegExp(`/merchant/stalls/.+/settings/basic\\?source=setup$`),
     );
     await expect(paymentStep.getByRole("link", { name: "前往設定" })).toHaveAttribute(
       "href",
-      new RegExp(`/merchant/stalls/.+/settings/modules#payment-options$`),
+      new RegExp(`/merchant/stalls/.+/settings/modules\\?source=setup#payment-options$`),
     );
+
+    for (const label of ["商家資料", "攤位資料", "商品目錄", "付款方式", "團隊成員", "QR 預覽"]) {
+      const step = page.getByRole("article").filter({ hasText: label });
+      const href = await step.getByRole("link", { name: "前往設定" }).getAttribute("href");
+      if (!href) throw new Error(`${label} 缺少設定連結`);
+      await page.goto(href);
+      const backLink = page.getByRole("link", { name: "返回開店設定", exact: true });
+      await expect(backLink).toHaveAttribute("href", `/merchant/setup?organizationId=${organizationId}`);
+      await backLink.click();
+      await expect(page).toHaveURL(new RegExp(`/merchant/setup\\?organizationId=${organizationId}$`));
+    }
 
     for (const label of ["商家資料", "攤位資料", "商品目錄", "付款方式", "團隊成員", "QR 預覽"]) {
       const step = page.getByRole("article").filter({ hasText: label });
