@@ -6,6 +6,7 @@ import type {
 import { buildAvailabilityConfig } from "./availability-config-service";
 
 const availabilityCodes = [
+  "DUAL_ORDER_INTAKE_ENABLED",
   "DR_FAILOVER_ENABLED",
   "OFFLINE_POS_ENABLED",
   "LINE_PAY_ENABLED",
@@ -38,6 +39,7 @@ describe("availability config", () => {
       mode: "NORMAL_PRIMARY",
       activeBackend: "PRIMARY",
       promotionEpoch: 1,
+      orderIntake: "EDGE_PRIMARY",
       qrOrdering: "AVAILABLE",
       staffOnline: "AVAILABLE",
       offlinePos: "MAINTENANCE",
@@ -89,5 +91,13 @@ describe("availability config", () => {
 
     expect(result.activeBackend).toBe("PRIMARY");
     expect(result.qrOrdering).toBe("DEGRADED");
+  });
+
+  it("exposes only the safe dual-intake mode when the rollout flag is enabled", () => {
+    const result = buildAvailabilityConfig(flags({
+      DUAL_ORDER_INTAKE_ENABLED: true,
+    }));
+
+    expect(result.orderIntake).toBe("DUAL");
   });
 });

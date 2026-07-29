@@ -19,7 +19,11 @@ import { QrLanguageSelector } from "@/components/qr-language-selector";
 import { deliveryOrderMessages, localizedDeliveryOrderError } from "@/lib/delivery-order-i18n";
 import { formatMoney } from "@/lib/money";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
-import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeHeaders, publicEdgeUrl } from "@/lib/public-order-client";
+import {
+  getOrCreateDeviceId,
+  parseEdgeResponse,
+  requestPublicOrder,
+} from "@/lib/public-order-client";
 import { qrCartStorageKey, restoreQrCartDraft, serializeQrCartDraft } from "@/lib/qr-cart";
 import type {
   PublicMenu,
@@ -60,7 +64,12 @@ const PHONE_NUMBER = /^\+?[0-9][0-9 ().-]{5,29}$/;
 
 export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = null }: Props) {
   const startedRef = useRef(false);
-  const idempotencyRef = useRef<{ key: string; fingerprint: string } | null>(null);
+  const idempotencyRef = useRef<{
+    key: string;
+    clientOrderId: string;
+    turnstileIdempotencyKey: string;
+    fingerprint: string;
+  } | null>(null);
   const [deviceId, setDeviceId] = useState("");
   const [session, setSession] = useState<OrderSession | null>(initialMenu
     ? { ...initialMenu, orderSessionToken: "", expiresAt: "" }
@@ -112,11 +121,12 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     setLocale(browserLocale);
     setDeviceId(currentDeviceId);
 
-    void fetch(publicEdgeUrl("create-order-session"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...publicEdgeHeaders() },
-      body: JSON.stringify({ qrToken, deviceId: currentDeviceId, orderingMode, includeMenu: !initialMenu }),
-      cache: "no-store",
+    void requestPublicOrder("create-order-session", {
+      qrToken,
+      deviceId: currentDeviceId,
+      sessionRequestId: crypto.randomUUID(),
+      orderingMode,
+      includeMenu: !initialMenu,
     }).then(async (response) => {
       const payload = await parseEdgeResponse(response);
       if (!response.ok) {
@@ -294,29 +304,32 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
 
     const fingerprint = JSON.stringify({ orderingMode, customerName, customerPhone, deliveryAddress, customerNote, selectedItems, waitAcknowledged });
     if (!idempotencyRef.current || idempotencyRef.current.fingerprint !== fingerprint) {
-      idempotencyRef.current = { key: crypto.randomUUID(), fingerprint };
+      idempotencyRef.current = {
+        key: crypto.randomUUID(),
+        clientOrderId: crypto.randomUUID(),
+        turnstileIdempotencyKey: crypto.randomUUID(),
+        fingerprint,
+      };
     }
 
     setMessage("");
     setIsSubmitting(true);
     try {
-      const response = await fetch(publicEdgeUrl("create-public-order"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...publicEdgeHeaders() },
-        body: JSON.stringify({
-          qrToken,
-          orderSessionToken: session.orderSessionToken,
-          deviceId,
-          idempotencyKey: idempotencyRef.current.key,
-          customerName,
-          customerPhone,
-          deliveryAddress,
-          customerNote,
-          waitAcknowledged,
-          orderingMode,
-          items: selectedItems,
-          turnstileToken,
-        }),
+      const response = await requestPublicOrder("create-public-order", {
+        qrToken,
+        orderSessionToken: session.orderSessionToken,
+        deviceId,
+        idempotencyKey: idempotencyRef.current.key,
+        clientOrderId: idempotencyRef.current.clientOrderId,
+        turnstileIdempotencyKey: idempotencyRef.current.turnstileIdempotencyKey,
+        customerName,
+        customerPhone,
+        deliveryAddress,
+        customerNote,
+        waitAcknowledged,
+        orderingMode,
+        items: selectedItems,
+        turnstileToken,
       });
       const payload = await parseEdgeResponse(response);
       if (!response.ok) {

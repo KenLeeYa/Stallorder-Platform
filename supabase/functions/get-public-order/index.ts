@@ -7,6 +7,7 @@ import {
   HttpInputError,
   jsonResponse,
   readBoundedJson,
+  assertSupportedPublicOrderProtocol,
 } from "../_shared/http.ts";
 import { getPublicOrderSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
@@ -27,6 +28,7 @@ Deno.serve(async (request) => {
       return finalizeEdgeResponse(new Response(null, { status: 204, headers: corsHeaders }), timing);
     }
     if (request.method !== "POST") throw new HttpInputError("METHOD_NOT_ALLOWED", 405);
+    assertSupportedPublicOrderProtocol(request);
 
     const parsed = getPublicOrderSchema.safeParse(await readBoundedJson(request, 8_000));
     if (!parsed.success) throw new HttpInputError("INVALID_REQUEST", 400);

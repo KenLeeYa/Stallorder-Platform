@@ -8,6 +8,7 @@ import {
   jsonResponse,
   readBoundedJson,
   statusForCode,
+  assertSupportedPublicOrderProtocol,
 } from "../_shared/http.ts";
 import { createPublicOrderSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
@@ -110,6 +111,7 @@ Deno.serve(async (request) => {
       return finalizeEdgeResponse(new Response(null, { status: 204, headers: corsHeaders }), timing);
     }
     if (request.method !== "POST") throw new HttpInputError("METHOD_NOT_ALLOWED", 405);
+    assertSupportedPublicOrderProtocol(request);
 
     const parsed = createPublicOrderSchema.safeParse(await readBoundedJson(request));
     if (!parsed.success) throw new HttpInputError("INVALID_REQUEST", 400);
@@ -206,7 +208,7 @@ Deno.serve(async (request) => {
     const turnstile = await timing.measure("turnstileMs", () => verifyTurnstile({
       token: input.turnstileToken,
       remoteIp: clientIp,
-      idempotencyKey: crypto.randomUUID(),
+      idempotencyKey: input.turnstileIdempotencyKey ?? crypto.randomUUID(),
       secret: requireEnv("TURNSTILE_SECRET_KEY"),
       expectedHostname: Deno.env.get("TURNSTILE_EXPECTED_HOSTNAME")?.trim() || undefined,
       expectedAction: "public_order",
@@ -237,7 +239,7 @@ Deno.serve(async (request) => {
       );
     }
 
-    const orderId = crypto.randomUUID();
+    const orderId = input.clientOrderId ?? crypto.randomUUID();
     const provisionalTokens = await derivePublicOrderTokens(orderId, tokenSecret);
     const [trackingTokenHash, pickupCodeHash] = await Promise.all([
       sha256Hex(provisionalTokens.trackingToken),

@@ -52,3 +52,15 @@
 ## 恢復服務
 
 完成 root cause、修正驗證、RLS／smoke／monitoring、積壓訂單處理與 stakeholder 核准後，先單一測試攤位，再分批恢復 ordering。事故報告不得包含 credentials 或顧客敏感資料。
+## 雙路徑訂單快速回復
+
+若新公開訂單 B 路徑出現異常：
+
+1. 由平台管理員將 `DUAL_ORDER_INTAKE_ENABLED` 關閉並填寫原因。
+2. 確認 `/api/availability/config` 回傳 `orderIntake=EDGE_PRIMARY`。
+3. 確認直接呼叫 Circuit B 回傳 503 且沒有建立 session／order。
+4. 監控既有 Supabase Edge Circuit A 的成功率、Turnstile 與限流。
+5. 保留 migration；只有在所有新版流量停止後才評估移除向下相容 RPC。
+
+關閉旗標不會停用既有 QR 點餐，也不會改變訂單狀態、價格計算、RLS、
+Turnstile 或 idempotency。

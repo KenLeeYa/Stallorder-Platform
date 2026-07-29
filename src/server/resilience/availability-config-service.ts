@@ -22,6 +22,7 @@ export type AvailabilityConfig = {
   mode: "NORMAL_PRIMARY" | "NORMAL_DR" | "DEGRADED_SAFE";
   activeBackend: ActiveBackend;
   promotionEpoch: number;
+  orderIntake: "EDGE_PRIMARY" | "DUAL";
   qrOrdering: AvailabilityServiceStatus;
   staffOnline: AvailabilityServiceStatus;
   offlinePos: AvailabilityServiceStatus;
@@ -31,6 +32,7 @@ export type AvailabilityConfig = {
 };
 
 const availabilityFlagCodes = [
+  "DUAL_ORDER_INTAKE_ENABLED",
   "DR_FAILOVER_ENABLED",
   "OFFLINE_POS_ENABLED",
   "LINE_PAY_ENABLED",
@@ -68,6 +70,7 @@ export function buildAvailabilityConfig(
         : "NORMAL_PRIMARY",
     activeBackend,
     promotionEpoch: parsePromotionEpoch(options.promotionEpoch),
+    orderIntake: flags.DUAL_ORDER_INTAKE_ENABLED.enabled ? "DUAL" : "EDGE_PRIMARY",
     qrOrdering: flags.EMERGENCY_QR_DEGRADED_MODE.enabled ? "DEGRADED" : "AVAILABLE",
     staffOnline: configurationMismatch ? "DEGRADED" : "AVAILABLE",
     offlinePos: flags.OFFLINE_POS_ENABLED.enabled ? "AVAILABLE" : "MAINTENANCE",
@@ -82,6 +85,7 @@ function safeUnavailableConfig(now = new Date()): AvailabilityConfig {
     mode: "DEGRADED_SAFE",
     activeBackend: "PRIMARY",
     promotionEpoch: parsePromotionEpoch(process.env.PROMOTION_EPOCH),
+    orderIntake: "EDGE_PRIMARY",
     qrOrdering: "UNAVAILABLE",
     staffOnline: "UNAVAILABLE",
     offlinePos: "UNAVAILABLE",
@@ -91,9 +95,15 @@ function safeUnavailableConfig(now = new Date()): AvailabilityConfig {
   };
 }
 
-export async function getAvailabilityConfig(requestId: string) {
+export async function getAvailabilityConfig(
+  requestId: string,
+  context: { deviceId?: string } = {},
+) {
   try {
-    const flags = await resolveResilienceFeatureFlags(availabilityFlagCodes);
+    const flags = await resolveResilienceFeatureFlags(availabilityFlagCodes, {
+      deviceId: context.deviceId,
+      rolloutKey: context.deviceId,
+    });
     return buildAvailabilityConfig(flags as AvailabilityFlagMap, {
       requestedBackend: process.env.BACKEND_ACTIVE_TARGET,
       promotionEpoch: process.env.PROMOTION_EPOCH,

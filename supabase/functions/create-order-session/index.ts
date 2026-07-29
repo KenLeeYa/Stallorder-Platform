@@ -1,4 +1,9 @@
-import { derivePublicOrderTokens, hmacHex, randomToken, sha256Hex } from "../_shared/crypto.ts";
+import {
+  deriveOrderSessionToken,
+  derivePublicOrderTokens,
+  hmacHex,
+  sha256Hex,
+} from "../_shared/crypto.ts";
 import { getAllowedOrigins, requireEnv } from "../_shared/env.ts";
 import {
   errorMessage,
@@ -8,6 +13,7 @@ import {
   jsonResponse,
   readBoundedJson,
   statusForCode,
+  assertSupportedPublicOrderProtocol,
 } from "../_shared/http.ts";
 import { issueOrderSessionSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
@@ -28,6 +34,7 @@ Deno.serve(async (request) => {
       return finalizeEdgeResponse(new Response(null, { status: 204, headers: corsHeaders }), timing);
     }
     if (request.method !== "POST") throw new HttpInputError("METHOD_NOT_ALLOWED", 405);
+    assertSupportedPublicOrderProtocol(request);
 
     const parsed = issueOrderSessionSchema.safeParse(await readBoundedJson(request));
     if (!parsed.success) throw new HttpInputError("INVALID_REQUEST", 400);
@@ -87,12 +94,17 @@ Deno.serve(async (request) => {
       }, 200);
     }
 
-    const sessionToken = randomToken(32);
+    const sessionToken = await deriveOrderSessionToken(
+      parsed.data.sessionRequestId ?? crypto.randomUUID(),
+      parsed.data.qrToken,
+      parsed.data.deviceId,
+      requireEnv("TOKEN_DERIVATION_SECRET"),
+    );
     const sessionTokenHash = await sha256Hex(sessionToken);
 
     const { data: sessionResult, error: sessionError } = await timing.measure(
       "sessionMs",
-      () => timing.measureDb(() => admin.rpc("issue_order_session_with_schedule", {
+      () => timing.measureDb(() => admin.rpc("issue_idempotent_order_session_with_schedule", {
         p_qr_token: parsed.data.qrToken,
         p_session_token_hash: sessionTokenHash,
         p_ip_hash: ipHash,
@@ -118,17 +130,14 @@ Deno.serve(async (request) => {
         acknowledgment_threshold_minutes?: number;
         requires_acknowledgment?: boolean;
       };
+      idempotent_replay?: boolean;
     };
     if (!result.ok || !result.stall_id || !result.qr_code_id || !result.order_session_id || !result.expires_at) {
       const code = result.code ?? "ORDER_CREATE_ERROR";
       return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const [orderingModeQuery, stallQuery, stallProductsQuery, settingsQuery, qrQuery] = await timing.measureDb(() => Promise.all([
-      admin.from("order_sessions")
-        .update({ ordering_mode: parsed.data.orderingMode })
-        .eq("id", result.order_session_id)
-        .eq("status", "ACTIVE"),
+    const [stallQuery, stallProductsQuery, settingsQuery, qrQuery] = await timing.measureDb(() => Promise.all([
       admin.from("stalls")
         .select("organization_id, name, slug, location, currency")
         .eq("id", result.stall_id)
@@ -148,10 +157,10 @@ Deno.serve(async (request) => {
         .select("dining_table_id")
         .eq("id", result.qr_code_id)
         .single(),
-    ]), 5);
+    ]), 4);
 
-    if (orderingModeQuery.error || stallQuery.error || stallProductsQuery.error || settingsQuery.error || qrQuery.error) {
-      throw orderingModeQuery.error ?? stallQuery.error ?? stallProductsQuery.error ?? settingsQuery.error ?? qrQuery.error;
+    if (stallQuery.error || stallProductsQuery.error || settingsQuery.error || qrQuery.error) {
+      throw stallQuery.error ?? stallProductsQuery.error ?? settingsQuery.error ?? qrQuery.error;
     }
 
     if (
@@ -187,7 +196,7 @@ Deno.serve(async (request) => {
         waitAcknowledgmentThresholdMinutes:
           result.capacity?.acknowledgment_threshold_minutes ?? null,
         requiresWaitAcknowledgment: result.capacity?.requires_acknowledgment === true,
-      }, 201);
+      }, result.idempotent_replay ? 200 : 201);
     }
 
     const lastTableOrderQuery = tableQuery.data
@@ -413,7 +422,7 @@ Deno.serve(async (request) => {
         maxTotalQuantity: settings.max_total_quantity,
         maxNoteLength: settings.max_note_length,
       },
-    }, 201);
+    }, result.idempotent_replay ? 200 : 201);
   } catch (error) {
     const code = error instanceof HttpInputError ? error.code : "ORDER_CREATE_ERROR";
     const status = error instanceof HttpInputError ? error.status : 500;

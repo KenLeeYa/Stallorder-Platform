@@ -66,3 +66,24 @@ group by stall_id;
 - 商務 audit log 建議至少保存 180 天，實際期限依所在地法規與商戶合約設定。
 - 日誌平台應限制維運人員權限、開啟靜態加密，並對查詢與匯出保留稽核紀錄。
 - 每季演練：撤銷 QR、輪替 QR、關閉攤位、Turnstile 故障、資料庫故障、備份還原及 secret 輪替。
+## 雙路徑公開訂單
+
+結構化事件：
+
+- `PUBLIC_ORDER_CIRCUIT_FALLBACK`
+- `PUBLIC_ORDER_CIRCUIT_B_COMPLETED`
+- `ORDER_SESSION_CIRCUIT_B_FAILED`
+- `PUBLIC_ORDER_CIRCUIT_B_FAILED`
+- `PUBLIC_ORDER_TRACKING_CIRCUIT_B_FAILED`
+
+建議告警：
+
+- 5 分鐘 fallback rate 超過公開訂單請求的 5%：warning
+- 5 分鐘 fallback rate 超過 20%：critical
+- Circuit B HTTP 5xx 連續 3 次：critical
+- A、B 同時無法建立 session：critical
+- idempotent replay 突增但 A transport timeout 同步增加：warning
+
+只能記錄 operation、circuit、固定 reason code、status、request ID 與
+latency。不得記錄 QR raw token、session／tracking token、Turnstile token、
+pickup code、顧客電話、地址或備註。

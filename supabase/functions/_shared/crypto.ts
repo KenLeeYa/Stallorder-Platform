@@ -49,3 +49,16 @@ export async function derivePublicOrderTokens(orderId: string, secret: string, p
     pickupCode: pickupNumber.toString().padStart(pickupCodeLength, "0"),
   };
 }
+
+export async function deriveOrderSessionToken(
+  sessionRequestId: string,
+  qrToken: string,
+  deviceId: string,
+  secret: string,
+) {
+  const bytes = await hmacBytes(
+    secret,
+    `session:${sessionRequestId}:${qrToken}:${deviceId}`,
+  );
+  return `stos_${toBase64Url(bytes)}`;
+}
