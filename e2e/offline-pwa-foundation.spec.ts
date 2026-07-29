@@ -63,7 +63,7 @@ test.describe("P4 離線 PWA 基礎", () => {
       locale: "zh-TW",
       timezoneId: "Asia/Taipei",
     });
-    const staffPage = await staffContext.newPage();
+    let staffPage = await staffContext.newPage();
     const ownerPage = await ownerContext.newPage();
     let offlineIdempotencyKey: string | null = null;
 
@@ -238,7 +238,10 @@ test.describe("P4 離線 PWA 基礎", () => {
       if (!localIdentity) throw new Error("離線訂單未寫入本機冪等鍵");
       offlineIdempotencyKey = localIdentity;
 
-      await staffPage.reload({ waitUntil: "domcontentloaded" });
+      expect(await serviceWorkerPendingRecords(staffPage)).toBeGreaterThan(0);
+      await staffPage.close();
+      staffPage = await staffContext.newPage();
+      await staffPage.goto("/offline", { waitUntil: "domcontentloaded" });
       const persistedCard = staffPage.getByTestId("offline-order-card").filter({
         hasText: localNumber,
       });
@@ -302,6 +305,7 @@ test.describe("P4 離線 PWA 基礎", () => {
         timeout: 30_000,
       });
       expect(syncPayload).toBeTruthy();
+      expect(await serviceWorkerPendingRecords(staffPage)).toBe(0);
 
       const importedOrders = await prisma.order.findMany({
         where: {
@@ -355,6 +359,28 @@ test.describe("P4 離線 PWA 基礎", () => {
     }
   });
 });
+
+async function serviceWorkerPendingRecords(page: Page) {
+  return page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.ready;
+    const worker = navigator.serviceWorker.controller ?? registration.active;
+    if (!worker) throw new Error("Service Worker 尚未控制頁面");
+    return new Promise<number>((resolvePending, reject) => {
+      const timeout = window.setTimeout(() => {
+        navigator.serviceWorker.removeEventListener("message", onMessage);
+        reject(new Error("Service Worker 安全檢查逾時"));
+      }, 5_000);
+      const onMessage = (event: MessageEvent) => {
+        if (event.data?.type !== "SW_UPDATE_SAFETY") return;
+        window.clearTimeout(timeout);
+        navigator.serviceWorker.removeEventListener("message", onMessage);
+        resolvePending(Number(event.data.pendingRecords));
+      };
+      navigator.serviceWorker.addEventListener("message", onMessage);
+      worker.postMessage({ type: "CHECK_UPDATE_SAFETY" });
+    });
+  });
+}
 
 async function cleanupSyncedOfflineOrder(idempotencyKey: string) {
   const orders = await prisma.order.findMany({

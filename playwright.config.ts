@@ -7,6 +7,12 @@ try {
   if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 }
 
+try {
+  loadEnvFile("supabase/functions/e2e-runtime.defaults");
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+}
+
 const appUrl = process.env.PLAYWRIGHT_APP_URL ?? "http://localhost:3001";
 const oauthMockUrl = "http://127.0.0.1:55431";
 const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === "true";
