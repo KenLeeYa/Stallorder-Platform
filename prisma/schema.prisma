@@ -611,6 +611,42 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model ResilienceFeatureFlag {
+  id             String                          @id @default(uuid()) @db.Uuid
+  code           String                          @unique
+  description    String                          @default("")
+  defaultEnabled Boolean                         @default(false) @map("default_enabled")
+  isEmergency    Boolean                         @default(false) @map("is_emergency")
+  createdAt      DateTime                        @default(now()) @map("created_at")
+  updatedAt      DateTime                        @updatedAt @map("updated_at")
+  overrides      ResilienceFeatureFlagOverride[]
+
+  @@map("resilience_feature_flags")
+}
+
+model ResilienceFeatureFlagOverride {
+  id                 String                @id @default(uuid()) @db.Uuid
+  flagId             String                @map("flag_id") @db.Uuid
+  scopeType          String                @map("scope_type")
+  organizationId     String?               @map("organization_id") @db.Uuid
+  stallId            String?               @map("stall_id") @db.Uuid
+  deviceId           String?               @map("device_id") @db.Uuid
+  enabled            Boolean
+  rolloutPercentage  Int?                  @map("rollout_percentage") @db.SmallInt
+  expiresAt          DateTime?             @map("expires_at")
+  reason             String
+  createdByProfileId String?               @map("created_by_profile_id") @db.Uuid
+  updatedByProfileId String?               @map("updated_by_profile_id") @db.Uuid
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+  flag               ResilienceFeatureFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+
+  @@index([flagId, scopeType, expiresAt])
+  @@index([organizationId, flagId])
+  @@index([stallId, flagId])
+  @@map("resilience_feature_flag_overrides")
+}
+
 model MerchantApplication {
   id                             String                            @id @default(uuid()) @db.Uuid
   applicationNumber              String                            @unique @default(dbgenerated("next_merchant_application_number()")) @map("application_number")
