@@ -1,0 +1,205 @@
+name: Ephemeral Preview Validation
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - closed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ephemeral-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.action != 'closed' &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: Preview
+    env:
+      DO_NOT_TRACK: "1"
+      SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
+      PREVIEW_BRANCH_NAME: ${{ github.event_name == 'pull_request' && format('pr-{0}-resilience', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      ALLOW_DEMO_SEED: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Validate isolated environment configuration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          test -n "${SUPABASE_ACCESS_TOKEN:-}" || {
+            echo "::error::Preview environment is missing SUPABASE_ACCESS_TOKEN."
+            exit 1
+          }
+          test -n "${SUPABASE_PARENT_PROJECT_REF:-}" || {
+            echo "::error::Preview environment is missing SUPABASE_PARENT_PROJECT_REF."
+            exit 1
+          }
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create or reuse data-less Preview Branch
+        id: preview
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PR_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          branches="$(supabase branches list \
+            --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+            --output json \
+            --log-level error)"
+          branch_ref="$(
+            jq -r --arg name "$PREVIEW_BRANCH_NAME" \
+              '.[] | select(.name == $name) | .project_ref' <<<"$branches"
+          )"
+
+          if [ -z "$branch_ref" ]; then
+            supabase branches create "$PREVIEW_BRANCH_NAME" \
+              --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+              --region ap-northeast-1 \
+              --size micro \
+              --git-branch "$PR_GIT_BRANCH" \
+              --log-level error >/dev/null
+          fi
+
+          for attempt in $(seq 1 30); do
+            branches="$(supabase branches list \
+              --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+              --output json \
+              --log-level error)"
+            branch_ref="$(
+              jq -r --arg name "$PREVIEW_BRANCH_NAME" \
+                '.[] | select(.name == $name and .with_data == false) | .project_ref' <<<"$branches"
+            )"
+            if [ -n "$branch_ref" ] && [ "$branch_ref" != "$SUPABASE_PARENT_PROJECT_REF" ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          test -n "$branch_ref" && test "$branch_ref" != "$SUPABASE_PARENT_PROJECT_REF" || {
+            echo "::error::Data-less Preview Branch did not become available."
+            exit 1
+          }
+          echo "branch_ref=$branch_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Load and mask Preview Branch configuration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          config="$(
+            supabase branches get "$PREVIEW_BRANCH_NAME" \
+              --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+              --output json \
+              --log-level error
+          )"
+          transaction_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
+          supabase_url="$(jq -r '.SUPABASE_URL' <<<"$config")"
+          anon_key="$(jq -r '.SUPABASE_ANON_KEY' <<<"$config")"
+          session_url="${transaction_url/:6543\//:5432\/}"
+
+          for value in "$transaction_url" "$session_url" "$supabase_url" "$anon_key"; do
+            test -n "$value" && test "$value" != "null" || {
+              echo "::error::Preview Branch configuration is incomplete."
+              exit 1
+            }
+            echo "::add-mask::$value"
+          done
+
+          {
+            echo "DATABASE_URL=$transaction_url"
+            echo "DIRECT_URL=$session_url"
+            echo "EPHEMERAL_DATABASE_URL=$session_url"
+            echo "NEXT_PUBLIC_SUPABASE_URL=$supabase_url"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon_key"
+            echo "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$supabase_url/functions/v1"
+          } >> "$GITHUB_ENV"
+
+      - name: Apply reviewed migrations to isolated database
+        run: supabase db push --db-url "$EPHEMERAL_DATABASE_URL" --include-all --yes
+
+      - name: Verify isolated migration history
+        run: supabase migration list --db-url "$EPHEMERAL_DATABASE_URL"
+
+      - name: Run isolated database tests
+        run: supabase test db supabase/tests/database --db-url "$EPHEMERAL_DATABASE_URL"
+
+      - name: Lint isolated database
+        run: supabase db lint --db-url "$EPHEMERAL_DATABASE_URL" --level warning --fail-on warning
+
+      - name: Deploy Edge Functions to isolated branch
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy --project-ref "${{ steps.preview.outputs.branch_ref }}" --use-api
+
+      - name: Generate Prisma Client
+        run: npm run prisma:generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build against isolated configuration
+        run: npm run build
+
+      - name: Remove manual Preview Branch
+        if: always() && github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase branches delete "$PREVIEW_BRANCH_NAME" \
+            --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+            --yes \
+            --log-level error || true
+
+  cleanup:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: Preview
+    env:
+      DO_NOT_TRACK: "1"
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
+      PREVIEW_BRANCH_NAME: pr-${{ github.event.pull_request.number }}-resilience
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Remove closed Pull Request Preview Branch
+        run: |
+          test -n "${SUPABASE_ACCESS_TOKEN:-}" || exit 0
+          test -n "${SUPABASE_PARENT_PROJECT_REF:-}" || exit 0
+          supabase branches delete "$PREVIEW_BRANCH_NAME" \
+            --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+            --yes \
+            --log-level error || true
