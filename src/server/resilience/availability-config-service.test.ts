@@ -72,6 +72,8 @@ describe("availability config", () => {
     }), {
       requestedBackend: "DR",
       promotionEpoch: "8",
+      linePayStatus: "AVAILABLE",
+      jkoPayStatus: "AVAILABLE",
     });
 
     expect(result).toMatchObject({
@@ -91,6 +93,31 @@ describe("availability config", () => {
 
     expect(result.activeBackend).toBe("PRIMARY");
     expect(result.qrOrdering).toBe("DEGRADED");
+  });
+
+  it("fails QR writes closed when the current backend is not writable", () => {
+    const result = buildAvailabilityConfig(flags({
+      OFFLINE_POS_ENABLED: true,
+    }), {
+      backendWritable: false,
+    });
+
+    expect(result).toMatchObject({
+      mode: "DEGRADED_SAFE",
+      qrOrdering: "UNAVAILABLE",
+      staffOnline: "DEGRADED",
+      offlinePos: "AVAILABLE",
+    });
+  });
+
+  it("does not infer provider health from an enabled flag", () => {
+    const result = buildAvailabilityConfig(flags({
+      LINE_PAY_ENABLED: true,
+      JKOPAY_ENABLED: true,
+    }));
+
+    expect(result.linePay).toBe("UNKNOWN");
+    expect(result.jkoPay).toBe("UNKNOWN");
   });
 
   it("exposes only the safe dual-intake mode when the rollout flag is enabled", () => {

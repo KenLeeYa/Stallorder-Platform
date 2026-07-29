@@ -9,6 +9,7 @@ import {
   History,
   Minus,
   Plus,
+  RefreshCw,
   Send,
   ShieldCheck,
   ShoppingCart,
@@ -20,9 +21,11 @@ import { deliveryOrderMessages, localizedDeliveryOrderError } from "@/lib/delive
 import { formatMoney } from "@/lib/money";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
 import {
+  getPublicAvailability,
   getOrCreateDeviceId,
   parseEdgeResponse,
   requestPublicOrder,
+  type PublicAvailabilityStatus,
 } from "@/lib/public-order-client";
 import { qrCartStorageKey, restoreQrCartDraft, serializeQrCartDraft } from "@/lib/qr-cart";
 import type {
@@ -64,6 +67,12 @@ const PHONE_NUMBER = /^\+?[0-9][0-9 ().-]{5,29}$/;
 
 export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = null }: Props) {
   const startedRef = useRef(false);
+  const sessionReadyRef = useRef(false);
+  const sessionRequestIdRef = useRef<string | null>(null);
+  const preferredLocalesRef = useRef<readonly string[]>(["zh-TW"]);
+  const availabilityTargetRef = useRef<string | null>(null);
+  const availabilityStatusRef = useRef<PublicAvailabilityStatus | "CHECKING">("CHECKING");
+  const refreshAvailabilityRef = useRef<() => void>(() => undefined);
   const idempotencyRef = useRef<{
     key: string;
     clientOrderId: string;
@@ -92,47 +101,47 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const [cartReady, setCartReady] = useState(false);
   const [cartRestored, setCartRestored] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [orderingAvailability, setOrderingAvailability] = useState<
+    PublicAvailabilityStatus | "CHECKING"
+  >("CHECKING");
+  const [availabilityRefreshing, setAvailabilityRefreshing] = useState(false);
   const copy = qrOrderMessages[locale];
   const deliveryCopy = deliveryOrderMessages[locale];
   const sessionReady = Boolean(session?.orderSessionToken && session.expiresAt);
+  const orderingEnabled = orderingAvailability === "AVAILABLE" && sessionReady;
+  const degradedMode = orderingAvailability !== "AVAILABLE"
+    && orderingAvailability !== "CHECKING";
 
-  useEffect(() => {
-    if (!cartOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [cartOpen]);
+  const updateOrderingAvailability = useCallback((
+    status: PublicAvailabilityStatus | "CHECKING",
+  ) => {
+    availabilityStatusRef.current = status;
+    setOrderingAvailability(status);
+  }, []);
 
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    const currentDeviceId = getOrCreateDeviceId();
-    const preferredLocales = navigator.languages.length > 0 ? navigator.languages : [navigator.language];
-    let storedLocale: QrLocale | null = null;
+  const startOrderSession = useCallback(async (
+    currentDeviceId: string,
+    browserLocale: QrLocale,
+    preferredLocales: readonly string[],
+  ) => {
+    if (!sessionRequestIdRef.current) sessionRequestIdRef.current = crypto.randomUUID();
+    setIsLoading(!initialMenu);
     try {
-      const stored = window.localStorage.getItem(QR_LOCALE_STORAGE_KEY);
-      storedLocale = stored && isQrLocale(stored) ? stored : null;
-    } catch {
-      storedLocale = null;
-    }
-    const browserLocale = storedLocale ?? resolvePreferredQrLocale(preferredLocales, QR_LOCALES);
-    setLocale(browserLocale);
-    setDeviceId(currentDeviceId);
-
-    void requestPublicOrder("create-order-session", {
-      qrToken,
-      deviceId: currentDeviceId,
-      sessionRequestId: crypto.randomUUID(),
-      orderingMode,
-      includeMenu: !initialMenu,
-    }).then(async (response) => {
+      const response = await requestPublicOrder("create-order-session", {
+        qrToken,
+        deviceId: currentDeviceId,
+        sessionRequestId: sessionRequestIdRef.current,
+        orderingMode,
+        includeMenu: !initialMenu,
+      });
       const payload = await parseEdgeResponse(response);
       if (!response.ok) {
         const code = String(payload.code ?? "");
+        if (code === "QR_ORDERING_DEGRADED") updateOrderingAvailability("DEGRADED");
+        if (code === "QR_ORDERING_UNAVAILABLE") updateOrderingAvailability("UNAVAILABLE");
         throw new LocalizedOrderError(
-          localizedDeliveryOrderError(browserLocale, code) ?? localizedPublicOrderError(browserLocale, code),
+          localizedDeliveryOrderError(browserLocale, code)
+          ?? localizedPublicOrderError(browserLocale, code),
         );
       }
       if (payload.resumeOrder && typeof payload.resumeOrder === "object") {
@@ -167,12 +176,111 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       } catch {
         // Restricted browser storage must not block ordering.
       }
+      sessionReadyRef.current = true;
+      if (
+        availabilityStatusRef.current === "CHECKING"
+        || availabilityStatusRef.current === "UNKNOWN"
+      ) {
+        updateOrderingAvailability("AVAILABLE");
+      }
       setSession(orderSession);
       setCartReady(true);
-    }).catch((error: unknown) => {
-      setMessage(error instanceof LocalizedOrderError ? error.message : qrOrderMessages[browserLocale].networkError);
-    }).finally(() => setIsLoading(false));
-  }, [initialMenu, orderingMode, qrToken]);
+      setMessage("");
+    } catch (error) {
+      sessionReadyRef.current = false;
+      if (initialMenu && availabilityStatusRef.current === "CHECKING") {
+        updateOrderingAvailability("UNAVAILABLE");
+      }
+      setMessage(error instanceof LocalizedOrderError
+        ? error.message
+        : qrOrderMessages[browserLocale].networkError);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [initialMenu, orderingMode, qrToken, updateOrderingAvailability]);
+
+  useEffect(() => {
+    if (!cartOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [cartOpen]);
+
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    const currentDeviceId = getOrCreateDeviceId();
+    const preferredLocales = navigator.languages.length > 0 ? navigator.languages : [navigator.language];
+    preferredLocalesRef.current = preferredLocales;
+    let storedLocale: QrLocale | null = null;
+    try {
+      const stored = window.localStorage.getItem(QR_LOCALE_STORAGE_KEY);
+      storedLocale = stored && isQrLocale(stored) ? stored : null;
+    } catch {
+      storedLocale = null;
+    }
+    const browserLocale = storedLocale ?? resolvePreferredQrLocale(preferredLocales, QR_LOCALES);
+    setLocale(browserLocale);
+    setDeviceId(currentDeviceId);
+    void startOrderSession(currentDeviceId, browserLocale, preferredLocales);
+  }, [startOrderSession]);
+
+  useEffect(() => {
+    if (!deviceId) return;
+    let disposed = false;
+
+    const refreshAvailability = async (retrySession = false) => {
+      setAvailabilityRefreshing(true);
+      const config = await getPublicAvailability(deviceId, { forceRefresh: true });
+      if (disposed) return;
+      setAvailabilityRefreshing(false);
+      if (!config) {
+        if (!sessionReadyRef.current) updateOrderingAvailability("UNAVAILABLE");
+        return;
+      }
+
+      const target = `${config.activeBackend}:${config.promotionEpoch}`;
+      const targetChanged = availabilityTargetRef.current !== null
+        && availabilityTargetRef.current !== target;
+      availabilityTargetRef.current = target;
+
+      if (config.qrOrdering !== "AVAILABLE") {
+        sessionReadyRef.current = false;
+        setSession((current) => current ? {
+          ...current,
+          orderSessionToken: "",
+          expiresAt: "",
+        } : current);
+        setSecondsRemaining(0);
+        setTurnstileToken(null);
+        setTurnstileRequested(false);
+        updateOrderingAvailability(config.qrOrdering);
+        return;
+      }
+
+      const shouldStartSession = retrySession
+        || targetChanged
+        || availabilityStatusRef.current === "DEGRADED"
+        || availabilityStatusRef.current === "UNAVAILABLE"
+        || availabilityStatusRef.current === "MAINTENANCE";
+      updateOrderingAvailability("AVAILABLE");
+      if (shouldStartSession) {
+        if (targetChanged) sessionRequestIdRef.current = crypto.randomUUID();
+        await startOrderSession(deviceId, locale, preferredLocalesRef.current);
+      }
+    };
+
+    refreshAvailabilityRef.current = () => void refreshAvailability(true);
+    void refreshAvailability();
+    const timer = window.setInterval(() => void refreshAvailability(), 10_000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      refreshAvailabilityRef.current = () => undefined;
+    };
+  }, [deviceId, locale, startOrderSession, updateOrderingAvailability]);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -247,7 +355,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   }, []);
 
   function updateQuantity(productId: string, next: number) {
-    if (!session) return;
+    if (!session || !orderingEnabled) return;
     const current = quantities[productId] ?? 0;
     const allowedIncrease = next <= current
       || (next <= session.limits.maxItemQuantity
@@ -270,6 +378,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   }
 
   function selectNoteOption(productId: string, group: NoteGroup, optionId: string | null) {
+    if (!orderingEnabled) return;
     setMessage("");
     setNoteSelections((values) => ({
       ...values,
@@ -278,6 +387,10 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   }
 
   async function submitOrder() {
+    if (!orderingEnabled) {
+      setMessage(copy.degradedMessage);
+      return;
+    }
     if (!sessionReady || !session || !deviceId || !turnstileToken || selectedItems.length === 0) {
       setMessage(!sessionReady ? copy.sessionLoading : !turnstileToken ? copy.securityRequired : copy.selectAtLeastOne);
       return;
@@ -412,6 +525,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           placeholder={copy.customerNamePlaceholder}
           maxLength={50}
           value={customerName}
+          disabled={!orderingEnabled}
           onChange={(event) => setCustomerName(event.target.value)}
         />
         {session.stall.fulfillmentType === "DELIVERY" ? (
@@ -428,6 +542,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
               maxLength={30}
               pattern="\+?[0-9][0-9 ().-]{5,29}"
               value={customerPhone}
+              disabled={!orderingEnabled}
               onChange={(event) => setCustomerPhone(event.target.value)}
             />
             <textarea
@@ -438,6 +553,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
               placeholder={deliveryCopy.addressPlaceholder}
               maxLength={300}
               value={deliveryAddress}
+              disabled={!orderingEnabled}
               onChange={(event) => setDeliveryAddress(event.target.value)}
             />
           </>
@@ -448,6 +564,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           placeholder={copy.orderNotePlaceholder(session.limits.maxNoteLength)}
           maxLength={session.limits.maxNoteLength}
           value={customerNote}
+          disabled={!orderingEnabled}
           onChange={(event) => setCustomerNote(event.target.value)}
         />
       </div>
@@ -461,6 +578,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
             type="checkbox"
             className="mt-1 shrink-0"
             checked={waitAcknowledged}
+            disabled={!orderingEnabled}
             onChange={(event) => {
               setWaitAcknowledged(event.target.checked);
               setMessage("");
@@ -471,7 +589,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         </label>
       ) : null}
       <div className="mt-4 min-h-16">
-        {turnstileRequested ? (
+        {turnstileRequested && orderingEnabled ? (
           <TurnstileWidget
             resetKey={turnstileResetKey}
             locale={locale}
@@ -481,7 +599,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           />
         ) : null}
       </div>
-      <button type="button" disabled={!sessionReady || isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0 || (session.requiresWaitAcknowledgment && !waitAcknowledged)} onClick={submitOrder} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+      <button type="button" disabled={!orderingEnabled || isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0 || (session.requiresWaitAcknowledgment && !waitAcknowledged)} onClick={submitOrder} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
         <Send className="h-4 w-4" />
         {isSubmitting ? copy.submitting : copy.submitOrder}
       </button>
@@ -498,11 +616,31 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           <QrLanguageSelector locale={locale} locales={availableLocales} label={copy.language} menuLabel={copy.menuLanguage} onChange={changeLocale} />
         </div>
         <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? copy.dineIn(session.stall.table?.label ?? "") : session.stall.fulfillmentType === "DELIVERY" ? deliveryCopy.delivery : copy.takeout}</p>
+        {degradedMode ? (
+          <div role="alert" className="mt-4 border-y border-amber-300 bg-amber-50 px-3 py-4 text-amber-950">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h2 className="font-semibold">{copy.degradedTitle}</h2>
+                <p className="mt-1 text-sm leading-6">{copy.degradedMessage}</p>
+              </div>
+              <button
+                type="button"
+                disabled={availabilityRefreshing}
+                onClick={() => refreshAvailabilityRef.current()}
+                className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border border-amber-400 bg-white px-3 text-xs font-semibold disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${availabilityRefreshing ? "animate-spin" : ""}`} />
+                <span className="hidden sm:inline">{copy.retryAvailability}</span>
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="mt-3 inline-flex items-center gap-2 text-sm text-stone-600">
           <Clock3 className="h-4 w-4" />
           {sessionReady
             ? copy.timeRemaining(Math.floor(secondsRemaining / 60), String(secondsRemaining % 60).padStart(2, "0"))
-            : copy.sessionLoading}
+            : degradedMode ? copy.degradedTitle : copy.sessionLoading}
         </div>
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-y border-stone-200 py-3 text-sm text-stone-700">
           <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{copy.estimatedWaitRange(session.estimatedWaitMinMinutes, session.estimatedWaitMaxMinutes)}</span>
@@ -533,11 +671,11 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
                         <p className="mt-2 font-semibold">{formatMoney(Math.max(0, product.price + notePriceAdjustment(product.noteGroups, noteSelections[product.id] ?? [])), session.stall.currency, locale)}</p>
                       </div>
                       <div className="col-span-2 grid grid-cols-[44px_32px_44px] items-center justify-self-end gap-2 sm:col-span-1">
-                        <button type="button" title={copy.decrease(localizedProduct(product).name)} aria-label={copy.decrease(localizedProduct(product).name)} disabled={!quantities[product.id]} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
+                        <button type="button" title={copy.decrease(localizedProduct(product).name)} aria-label={copy.decrease(localizedProduct(product).name)} disabled={!orderingEnabled || !quantities[product.id]} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
                           <Minus className="h-4 w-4" />
                         </button>
                         <span className="text-center font-semibold">{quantities[product.id] ?? 0}</span>
-                        <button type="button" title={copy.increase(localizedProduct(product).name)} aria-label={copy.increase(localizedProduct(product).name)} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
+                        <button type="button" title={copy.increase(localizedProduct(product).name)} aria-label={copy.increase(localizedProduct(product).name)} disabled={!orderingEnabled} onClick={() => updateQuantity(product.id, (quantities[product.id] ?? 0) + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
                           <Plus className="h-4 w-4" />
                         </button>
                       </div>
@@ -552,10 +690,10 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
                             <fieldset key={group.id}>
                               <legend className="text-sm font-semibold text-stone-700">{localizedGroupName(group)}{group.isRequired ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.selectionMode === "SINGLE" ? copy.singleChoice : group.maxSelections ? copy.maxSelections(group.maxSelections) : copy.multipleChoice}</span></legend>
                               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-                                {group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-9 items-center gap-2 text-sm"><input type="radio" name={`note-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectNoteOption(product.id, group, null)} />{copy.noSelection}</label> : null}
+                                {group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-9 items-center gap-2 text-sm"><input type="radio" name={`note-${product.id}-${group.id}`} checked={selectedCount === 0} disabled={!orderingEnabled} onChange={() => selectNoteOption(product.id, group, null)} />{copy.noSelection}</label> : null}
                                 {group.options.map((option) => {
                                   const checked = (noteSelections[product.id] ?? []).includes(option.id);
-                                  return <label key={option.id} className="inline-flex min-h-9 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`note-${product.id}-${group.id}`} checked={checked} disabled={group.selectionMode === "MULTIPLE" && maximumReached && !checked} onChange={() => selectNoteOption(product.id, group, option.id)} /><span>{localizedOptionName(option)}</span>{option.priceDelta !== 0 ? <span className="text-xs text-stone-500">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, session.stall.currency, locale)}</span> : null}</label>;
+                                  return <label key={option.id} className="inline-flex min-h-9 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`note-${product.id}-${group.id}`} checked={checked} disabled={!orderingEnabled || (group.selectionMode === "MULTIPLE" && maximumReached && !checked)} onChange={() => selectNoteOption(product.id, group, option.id)} /><span>{localizedOptionName(option)}</span>{option.priceDelta !== 0 ? <span className="text-xs text-stone-500">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, session.stall.currency, locale)}</span> : null}</label>;
                                 })}
                               </div>
                             </fieldset>

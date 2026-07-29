@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   verifyTurnstile: vi.fn(),
   getCachedPublicMenuForQrToken: vi.fn(),
   checkGlobalPublicRequestGate: vi.fn(),
+  checkPublicOrderIntakeAvailability: vi.fn(),
   checkPublicOrderSubmissionGate: vi.fn(),
   createPublicOrderWithSchedule: vi.fn(),
   getLastDiningTableOrder: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock("@/lib/public-menu", () => ({
 
 vi.mock("@/server/public-order/trusted-rpc-repository", () => ({
   checkGlobalPublicRequestGate: mocks.checkGlobalPublicRequestGate,
+  checkPublicOrderIntakeAvailability: mocks.checkPublicOrderIntakeAvailability,
   checkPublicOrderSubmissionGate: mocks.checkPublicOrderSubmissionGate,
   createPublicOrderWithSchedule: mocks.createPublicOrderWithSchedule,
   getLastDiningTableOrder: mocks.getLastDiningTableOrder,
@@ -88,6 +90,8 @@ describe("Circuit B public order service", () => {
       DUAL_ORDER_INTAKE_ENABLED: { enabled: true },
     });
     mocks.checkGlobalPublicRequestGate.mockResolvedValue({ ok: true });
+    mocks.checkPublicOrderIntakeAvailability.mockResolvedValue({ ok: true });
+    mocks.lookupResumablePublicOrder.mockResolvedValue(null);
     mocks.getOrderSessionMode.mockResolvedValue({
       id: "66666666-6666-4666-8666-666666666666",
       organizationId: "77777777-7777-4777-8777-777777777777",
@@ -125,6 +129,85 @@ describe("Circuit B public order service", () => {
     expect(mocks.checkGlobalPublicRequestGate).not.toHaveBeenCalled();
   });
 
+  it("blocks a new session during emergency degraded mode after checking for a resumable order", async () => {
+    mocks.checkPublicOrderIntakeAvailability.mockResolvedValue({
+      ok: false,
+      code: "QR_ORDERING_DEGRADED",
+    });
+    const { issueOrderSessionThroughCircuitB } = await import("./circuit-b-service");
+
+    await expect(issueOrderSessionThroughCircuitB({
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      sessionRequestId: "22222222-2222-4222-8222-222222222222",
+      orderingMode: "DEFAULT",
+      includeMenu: false,
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    })).rejects.toMatchObject({
+      code: "QR_ORDERING_DEGRADED",
+      status: 503,
+    });
+    expect(mocks.lookupResumablePublicOrder).toHaveBeenCalledOnce();
+    expect(mocks.issueIdempotentOrderSession).not.toHaveBeenCalled();
+  });
+
+  it("returns a resumable order during emergency degraded mode", async () => {
+    mocks.checkPublicOrderIntakeAvailability.mockResolvedValue({
+      ok: false,
+      code: "QR_ORDERING_DEGRADED",
+    });
+    mocks.lookupResumablePublicOrder.mockResolvedValue({
+      order_id: "33333333-3333-4333-8333-333333333333",
+      order_status: "WAITING_CONFIRMATION",
+    });
+    const { issueOrderSessionThroughCircuitB } = await import("./circuit-b-service");
+
+    const result = await issueOrderSessionThroughCircuitB({
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      sessionRequestId: "22222222-2222-4222-8222-222222222222",
+      orderingMode: "DEFAULT",
+      includeMenu: false,
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({
+      resumeOrder: { orderStatus: "WAITING_CONFIRMATION" },
+    });
+    expect(mocks.issueIdempotentOrderSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects a sealed backend before any rate-limit write", async () => {
+    mocks.checkPublicOrderIntakeAvailability.mockResolvedValue({
+      ok: false,
+      code: "QR_ORDERING_UNAVAILABLE",
+    });
+    const { issueOrderSessionThroughCircuitB } = await import("./circuit-b-service");
+
+    await expect(issueOrderSessionThroughCircuitB({
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      sessionRequestId: "22222222-2222-4222-8222-222222222222",
+      orderingMode: "DEFAULT",
+      includeMenu: false,
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    })).rejects.toMatchObject({
+      code: "QR_ORDERING_UNAVAILABLE",
+      status: 503,
+    });
+    expect(mocks.checkGlobalPublicRequestGate).not.toHaveBeenCalled();
+  });
+
   it("records invalid Turnstile and never reaches the trusted create-order RPC", async () => {
     mocks.verifyTurnstile.mockResolvedValue({
       ok: false,
@@ -152,6 +235,10 @@ describe("Circuit B public order service", () => {
   });
 
   it("returns the prior order for an idempotent replay without reusing Turnstile", async () => {
+    mocks.checkPublicOrderIntakeAvailability.mockResolvedValue({
+      ok: false,
+      code: "QR_ORDERING_DEGRADED",
+    });
     mocks.lookupPublicOrderIdempotency.mockResolvedValue({
       order_id: "33333333-3333-4333-8333-333333333333",
       order_no: "A001",

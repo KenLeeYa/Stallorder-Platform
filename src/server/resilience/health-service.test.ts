@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyDatabaseLatency,
   probeDatabase,
+  providerDependency,
   summarizeCoreHealth,
   unknownDependency,
   type DependencyHealth,
@@ -74,6 +75,17 @@ describe("resilience health service", () => {
       status: "UNKNOWN",
       latencyMs: null,
       reasonCode: "NOT_CONFIGURED",
+    });
+  });
+
+  it("maps provider availability without treating configuration as health", () => {
+    expect(providerDependency("linePay", "AVAILABLE")).toMatchObject({
+      status: "HEALTHY",
+      reasonCode: null,
+    });
+    expect(providerDependency("linePay", "UNKNOWN")).toMatchObject({
+      status: "UNKNOWN",
+      reasonCode: "PROVIDER_UNKNOWN",
     });
   });
 });

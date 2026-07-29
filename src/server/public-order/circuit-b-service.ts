@@ -19,6 +19,7 @@ import { statusForCode } from "../../../supabase/functions/_shared/public-order-
 import { resolveResilienceFeatureFlags } from "@/server/resilience/feature-flag-service";
 import {
   checkGlobalPublicRequestGate,
+  checkPublicOrderIntakeAvailability,
   checkPublicOrderSubmissionGate,
   createPublicOrderWithSchedule,
   getLastDiningTableOrder,
@@ -57,6 +58,12 @@ function requireSecret(name: "ABUSE_HASH_SECRET" | "TOKEN_DERIVATION_SECRET" | "
 function gateError(gate: { ok: boolean; code?: string } | null) {
   if (gate?.ok) return;
   const code = gate?.code ?? "RATE_LIMITED";
+  throw new PublicOrderCircuitError(code, statusForCode(code));
+}
+
+function intakeError(gate: { ok: boolean; code?: string } | null) {
+  if (gate?.ok) return;
+  const code = gate?.code ?? "QR_ORDERING_UNAVAILABLE";
   throw new PublicOrderCircuitError(code, statusForCode(code));
 }
 
@@ -133,6 +140,11 @@ export async function issueOrderSessionThroughCircuitB(
     qrToken: input.qrToken,
     behavior: `scan:${input.orderingMode}:${context.clientIp}:${input.deviceId}:${input.qrToken}`,
   });
+  const intake = await context.timing.measureDb(
+    () => checkPublicOrderIntakeAvailability(input.qrToken, input.deviceId),
+  );
+  if (intake?.code === "QR_ORDERING_UNAVAILABLE") intakeError(intake);
+
   const globalGate = await context.timing.measureDb(() => checkGlobalPublicRequestGate({
     scope: "SESSION",
     ipHash: hashes.ipHash,
@@ -166,6 +178,7 @@ export async function issueOrderSessionThroughCircuitB(
       },
     };
   }
+  intakeError(intake);
 
   const sessionToken = await deriveOrderSessionToken(
     input.sessionRequestId ?? randomUUID(),
@@ -311,6 +324,11 @@ export async function createOrderThroughCircuitB(
     idempotencyHash,
   };
 
+  const intake = await context.timing.measureDb(
+    () => checkPublicOrderIntakeAvailability(input.qrToken, input.deviceId),
+  );
+  if (intake?.code === "QR_ORDERING_UNAVAILABLE") intakeError(intake);
+
   const globalGate = await context.timing.measureDb(() => checkGlobalPublicRequestGate({
     scope: "ORDER",
     ipHash: hashes.ipHash,
@@ -350,6 +368,7 @@ export async function createOrderThroughCircuitB(
       body: publicOrderResponse(existing, tokens.trackingToken, tokens.pickupCode),
     };
   }
+  intakeError(intake);
 
   const submissionGate = await context.timing.measureDb(() => checkPublicOrderSubmissionGate({
     sessionTokenHash: sessionHash,

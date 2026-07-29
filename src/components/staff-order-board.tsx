@@ -39,7 +39,7 @@ type Props = {
 };
 
 type StaffStatus = (typeof staffStatusOptions)[number]["value"];
-type LiveConnectionState = "connecting" | "connected" | "fallback";
+type LiveConnectionState = "connecting" | "sse" | "realtime" | "polling";
 type PendingCancellation = Pick<OrderWithItems, "id" | "orderNo" | "customerName"> & {
   reason: CancellationReason;
   detail: string;
@@ -589,6 +589,9 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
     let disposed = false;
 
     const refreshSilently = () => void refreshOrders(true);
+    const refreshBackendAvailability = () => {
+      void fetch("/api/availability/config", { cache: "no-store" }).catch(() => undefined);
+    };
     const stopFallback = () => {
       if (fallbackTimer !== null) {
         window.clearInterval(fallbackTimer);
@@ -606,7 +609,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
       }
       if (fallbackStatusTimer === null) {
         fallbackStatusTimer = window.setTimeout(() => {
-          if (!realtimeConnected && !sseConnected) setLiveConnection("fallback");
+          if (!realtimeConnected && !sseConnected) setLiveConnection("polling");
           fallbackStatusTimer = null;
         }, 4_000);
       }
@@ -644,7 +647,8 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
             if (status === "SUBSCRIBED") {
               realtimeConnected = true;
               stopFallback();
-              setLiveConnection("connected");
+              setLiveConnection("realtime");
+              refreshBackendAvailability();
               refreshSilently();
             }
             if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
@@ -665,7 +669,8 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
         sseConnected = true;
         stopRealtime();
         stopFallback();
-        setLiveConnection("connected");
+        setLiveConnection("sse");
+        refreshBackendAvailability();
         refreshSilently();
       };
       eventSource.addEventListener("orders", refreshSilently);
@@ -862,13 +867,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
               <span className="hidden lg:inline">現金交班</span>
             </Link>
           ) : null}
-          <span
-            className={`inline-flex h-10 items-center gap-1.5 text-xs font-medium ${liveConnection === "connected" ? "text-emerald-700" : "text-amber-700"}`}
-            title={liveConnection === "connected" ? "即時更新已連線" : "即時連線中斷，已啟用自動更新備援"}
-          >
-            {liveConnection === "connected" ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-            <span className="hidden sm:inline">{liveConnection === "connected" ? "即時更新中" : "自動更新中"}</span>
-          </span>
+          <LiveConnectionBadge state={liveConnection} />
           <button type="button" role="switch" aria-checked={alertsEnabled} onClick={toggleAlerts} title={alertsEnabled ? "關閉新訂單聲音與震動" : "開啟新訂單聲音與震動"} className={`inline-flex h-10 w-10 items-center justify-center rounded-md border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
             {alertsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
             <span className="sr-only">{alertsEnabled ? "新訂單提醒已開啟" : "新訂單提醒已關閉"}</span>
@@ -1502,6 +1501,35 @@ function mergeStaffOrders(
   offlineOrders.forEach((order) => merged.set(order.id, order));
   return [...merged.values()]
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
+function LiveConnectionBadge({ state }: { state: LiveConnectionState }) {
+  const connected = state === "sse" || state === "realtime";
+  const label = state === "sse"
+    ? "SSE 即時"
+    : state === "realtime"
+      ? "Realtime 備援"
+      : state === "polling"
+        ? "5 秒輪詢"
+        : "連線中";
+  const title = state === "sse"
+    ? "已連上授權 SSE，事件只觸發重新取得伺服器資料"
+    : state === "realtime"
+      ? "SSE 未就緒，已切換 Supabase Realtime 通知"
+      : state === "polling"
+        ? "SSE 與 Realtime 未就緒，已啟用 5 秒輪詢"
+        : "正在建立即時更新連線";
+
+  return (
+    <span
+      role="status"
+      className={`inline-flex h-10 items-center gap-1.5 text-xs font-medium ${connected ? "text-emerald-700" : "text-amber-700"}`}
+      title={title}
+    >
+      {connected ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+      <span className="hidden sm:inline">{label}</span>
+    </span>
+  );
 }
 
 function ItemStatusButton({

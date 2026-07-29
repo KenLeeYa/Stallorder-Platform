@@ -99,6 +99,8 @@ describe("requestPublicOrder", () => {
     [429, "RATE_LIMITED"],
     [400, "INVALID_TURNSTILE"],
     [503, "TURNSTILE_UNAVAILABLE"],
+    [503, "QR_ORDERING_DEGRADED"],
+    [503, "QR_ORDERING_UNAVAILABLE"],
   ])("does not fall back for business rejection %s %s", async (status, code) => {
     configureDirectEdge();
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
@@ -156,5 +158,60 @@ describe("requestPublicOrder", () => {
     expect(fetchImpl.mock.calls.map(([input]) => String(input))).toContain(
       "/api/public/order-session",
     );
+  });
+});
+
+describe("getPublicAvailability", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  it("parses only the bounded public availability contract", async () => {
+    const fetchImpl = vi.fn(async () => Response.json({
+      mode: "NORMAL_DR",
+      activeBackend: "DR",
+      promotionEpoch: 4,
+      orderIntake: "DUAL",
+      qrOrdering: "AVAILABLE",
+      staffOnline: "DEGRADED",
+      offlinePos: "AVAILABLE",
+      linePay: "UNAVAILABLE",
+      jkoPay: "AVAILABLE",
+      updatedAt: "2026-07-29T00:00:00.000Z",
+      databaseUrl: "must-not-be-copied",
+    }));
+    const { getPublicAvailability } = await import("./public-order-client");
+
+    const result = await getPublicAvailability(
+      "11111111-1111-4111-8111-111111111111",
+      { fetchImpl, forceRefresh: true },
+    );
+
+    expect(result).toEqual({
+      mode: "NORMAL_DR",
+      activeBackend: "DR",
+      promotionEpoch: 4,
+      orderIntake: "DUAL",
+      qrOrdering: "AVAILABLE",
+      staffOnline: "DEGRADED",
+      offlinePos: "AVAILABLE",
+      linePay: "UNAVAILABLE",
+      jkoPay: "AVAILABLE",
+      updatedAt: "2026-07-29T00:00:00.000Z",
+    });
+    expect(JSON.stringify(result)).not.toContain("databaseUrl");
+  });
+
+  it("fails closed when the availability endpoint cannot be reached", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("network unavailable");
+    });
+    const { getPublicAvailability } = await import("./public-order-client");
+
+    await expect(getPublicAvailability(
+      "11111111-1111-4111-8111-111111111111",
+      { fetchImpl, forceRefresh: true },
+    )).resolves.toBeNull();
   });
 });

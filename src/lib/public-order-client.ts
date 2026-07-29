@@ -5,7 +5,11 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0
 const PUBLIC_ORDER_PROTOCOL_VERSION = "1";
 const CIRCUIT_TIMEOUT_MS = 4_000;
 const AVAILABILITY_CACHE_MS = 2_000;
-const NO_FALLBACK_CODES = new Set(["TURNSTILE_UNAVAILABLE"]);
+const NO_FALLBACK_CODES = new Set([
+  "TURNSTILE_UNAVAILABLE",
+  "QR_ORDERING_DEGRADED",
+  "QR_ORDERING_UNAVAILABLE",
+]);
 
 export type PublicOrderOperation =
   | "create-order-session"
@@ -18,14 +22,34 @@ type PublicOrderRequestOptions = {
   now?: () => number;
 };
 
+export type PublicAvailabilityStatus =
+  | "AVAILABLE"
+  | "DEGRADED"
+  | "UNAVAILABLE"
+  | "MAINTENANCE"
+  | "UNKNOWN";
+
+export type PublicAvailabilityConfig = {
+  mode: "NORMAL_PRIMARY" | "NORMAL_DR" | "DEGRADED_SAFE" | "UNKNOWN";
+  activeBackend: "PRIMARY" | "DR" | "UNKNOWN";
+  promotionEpoch: number;
+  orderIntake: "EDGE_PRIMARY" | "DUAL";
+  qrOrdering: PublicAvailabilityStatus;
+  staffOnline: PublicAvailabilityStatus;
+  offlinePos: PublicAvailabilityStatus;
+  linePay: PublicAvailabilityStatus;
+  jkoPay: PublicAvailabilityStatus;
+  updatedAt: string | null;
+};
+
 type AvailabilityCache = {
   expiresAt: number;
-  dualOrderIntake: boolean;
+  config: PublicAvailabilityConfig | null;
 };
 
 const operationBreakers = new Map<PublicOrderOperation, PublicOrderCircuitBreaker>();
 let availabilityCache: AvailabilityCache | null = null;
-let availabilityRequest: Promise<boolean> | null = null;
+let availabilityRequest: Promise<PublicAvailabilityConfig | null> | null = null;
 
 export function getOrCreateDeviceId() {
   const existing = document.cookie
@@ -232,10 +256,56 @@ async function infrastructureResponse(response: Response) {
   return !NO_FALLBACK_CODES.has(code);
 }
 
-function resolveDualOrderIntake(fetchImpl: typeof fetch, deviceId: string) {
+const availabilityStatuses = new Set<PublicAvailabilityStatus>([
+  "AVAILABLE",
+  "DEGRADED",
+  "UNAVAILABLE",
+  "MAINTENANCE",
+  "UNKNOWN",
+]);
+
+function availabilityStatus(value: unknown): PublicAvailabilityStatus {
+  return typeof value === "string" && availabilityStatuses.has(value as PublicAvailabilityStatus)
+    ? value as PublicAvailabilityStatus
+    : "UNKNOWN";
+}
+
+function parseAvailabilityConfig(payload: unknown): PublicAvailabilityConfig | null {
+  if (!payload || typeof payload !== "object") return null;
+  const value = payload as Record<string, unknown>;
+  return {
+    mode: value.mode === "NORMAL_PRIMARY" || value.mode === "NORMAL_DR" || value.mode === "DEGRADED_SAFE"
+      ? value.mode
+      : "UNKNOWN",
+    activeBackend: value.activeBackend === "PRIMARY" || value.activeBackend === "DR"
+      ? value.activeBackend
+      : "UNKNOWN",
+    promotionEpoch: typeof value.promotionEpoch === "number"
+      && Number.isSafeInteger(value.promotionEpoch)
+      && value.promotionEpoch >= 1
+      ? value.promotionEpoch
+      : 1,
+    orderIntake: value.orderIntake === "DUAL" ? "DUAL" : "EDGE_PRIMARY",
+    qrOrdering: availabilityStatus(value.qrOrdering),
+    staffOnline: availabilityStatus(value.staffOnline),
+    offlinePos: availabilityStatus(value.offlinePos),
+    linePay: availabilityStatus(value.linePay),
+    jkoPay: availabilityStatus(value.jkoPay),
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : null,
+  };
+}
+
+export function getPublicAvailability(
+  deviceId: string,
+  options: {
+    fetchImpl?: typeof fetch;
+    forceRefresh?: boolean;
+  } = {},
+) {
+  const fetchImpl = options.fetchImpl ?? fetch;
   const now = Date.now();
-  if (availabilityCache && availabilityCache.expiresAt > now) {
-    return Promise.resolve(availabilityCache.dualOrderIntake);
+  if (!options.forceRefresh && availabilityCache && availabilityCache.expiresAt > now) {
+    return Promise.resolve(availabilityCache.config);
   }
   if (availabilityRequest) return availabilityRequest;
 
@@ -245,21 +315,23 @@ function resolveDualOrderIntake(fetchImpl: typeof fetch, deviceId: string) {
     cache: "no-store",
     signal: AbortSignal.timeout(2_000),
   }).then(async (response) => {
-    if (!response.ok) return false;
-    const payload = await response.json().catch(() => null) as {
-      orderIntake?: unknown;
-    } | null;
-    return payload?.orderIntake === "DUAL";
-  }).catch(() => false).then((dualOrderIntake) => {
+    if (!response.ok) return null;
+    return parseAvailabilityConfig(await response.json().catch(() => null));
+  }).catch(() => null).then((config) => {
     availabilityCache = {
       expiresAt: Date.now() + AVAILABILITY_CACHE_MS,
-      dualOrderIntake,
+      config,
     };
-    return dualOrderIntake;
+    return config;
   }).finally(() => {
     availabilityRequest = null;
   });
   return availabilityRequest;
+}
+
+function resolveDualOrderIntake(fetchImpl: typeof fetch, deviceId: string) {
+  return getPublicAvailability(deviceId, { fetchImpl })
+    .then((config) => config?.orderIntake === "DUAL");
 }
 
 function logCircuitFallback(

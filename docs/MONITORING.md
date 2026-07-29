@@ -88,6 +88,31 @@ group by stall_id;
 latency。不得記錄 QR raw token、session／tracking token、Turnstile token、
 pickup code、顧客電話、地址或備註。
 
+## QR 降級與前台連線
+
+- 監控 `QR_ORDERING_DEGRADED` 與 `QR_ORDERING_UNAVAILABLE` 的 503 比率；兩者
+  是受控拒絕，不應觸發 Circuit A 與 Circuit B 之間的無效重試。
+- `GET /api/availability/config` 的 `activeBackend` 或 `promotionEpoch` 改變時，
+  QR 頁面必須建立新 session，不得沿用切換前 session。
+- Staff 訂單看板應顯示 `SSE 即時`、`Realtime 備援`、`5 秒輪詢` 或
+  `連線中`；任何備援模式持續超過 60 秒時告警。
+- Service Worker 僅快取成功載入的公開菜單頁、公開菜單快照與穩定商品圖片。
+  不得快取訂單 mutation、訂單追蹤、pickup code、付款或 authenticated
+  response。
+- 降級期間顧客只能查看菜單，畫面與伺服器都必須拒絕新 session／新訂單，
+  且不得顯示假成功。
+
+## 付款供應商狀態
+
+- LINE Pay 與街口支付只接受明確的
+  `AVAILABLE|DEGRADED|UNAVAILABLE|MAINTENANCE|UNKNOWN`。
+- 功能未開啟時回傳 `MAINTENANCE`；功能開啟但缺少可信狀態時回傳
+  `UNKNOWN`，不得把憑證存在視為健康。
+- 只有 `AVAILABLE` 可建立新的線上付款；其他狀態保留現金／人工付款。
+- 兩個線上供應商皆非 `AVAILABLE` 時發出營運告警，但不可因此阻止訂單建立。
+- 現階段狀態不是實際付款探針。未來 Adapter 必須以簽章驗證、event
+  idempotency 與查詢供應商結果更新狀態。
+
 ## DR 與 Storage
 
 - DR 設定完成後，至少每分鐘呼叫受保護的

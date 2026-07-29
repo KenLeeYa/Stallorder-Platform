@@ -1,11 +1,13 @@
 import "server-only";
 
 import { logEvent } from "@/lib/audit";
+import { prisma } from "@/lib/prisma";
 import {
   resolveResilienceFeatureFlags,
   type ResilienceFeatureFlagCode,
   type ResilienceFlagState,
 } from "@/server/resilience/feature-flag-service";
+import { resolvePaymentProviderStatus } from "@/server/resilience/payment-provider-health";
 
 export const availabilityServiceStatuses = [
   "AVAILABLE",
@@ -52,6 +54,9 @@ export function buildAvailabilityConfig(
   options: {
     requestedBackend?: string;
     promotionEpoch?: string;
+    backendWritable?: boolean;
+    linePayStatus?: string;
+    jkoPayStatus?: string;
     now?: Date;
   } = {},
 ): AvailabilityConfig {
@@ -61,9 +66,10 @@ export function buildAvailabilityConfig(
   const drAllowed = flags.DR_FAILOVER_ENABLED.enabled;
   const activeBackend: ActiveBackend = requestedBackend === "DR" && drAllowed ? "DR" : "PRIMARY";
   const configurationMismatch = requestedBackend === "DR" && !drAllowed;
+  const backendUnavailable = options.backendWritable === false;
 
   return {
-    mode: configurationMismatch
+    mode: configurationMismatch || backendUnavailable
       ? "DEGRADED_SAFE"
       : activeBackend === "DR"
         ? "NORMAL_DR"
@@ -71,11 +77,19 @@ export function buildAvailabilityConfig(
     activeBackend,
     promotionEpoch: parsePromotionEpoch(options.promotionEpoch),
     orderIntake: flags.DUAL_ORDER_INTAKE_ENABLED.enabled ? "DUAL" : "EDGE_PRIMARY",
-    qrOrdering: flags.EMERGENCY_QR_DEGRADED_MODE.enabled ? "DEGRADED" : "AVAILABLE",
-    staffOnline: configurationMismatch ? "DEGRADED" : "AVAILABLE",
+    qrOrdering: backendUnavailable
+      ? "UNAVAILABLE"
+      : flags.EMERGENCY_QR_DEGRADED_MODE.enabled ? "DEGRADED" : "AVAILABLE",
+    staffOnline: configurationMismatch || backendUnavailable ? "DEGRADED" : "AVAILABLE",
     offlinePos: flags.OFFLINE_POS_ENABLED.enabled ? "AVAILABLE" : "MAINTENANCE",
-    linePay: flags.LINE_PAY_ENABLED.enabled ? "AVAILABLE" : "MAINTENANCE",
-    jkoPay: flags.JKOPAY_ENABLED.enabled ? "AVAILABLE" : "MAINTENANCE",
+    linePay: resolvePaymentProviderStatus(
+      flags.LINE_PAY_ENABLED.enabled,
+      options.linePayStatus,
+    ),
+    jkoPay: resolvePaymentProviderStatus(
+      flags.JKOPAY_ENABLED.enabled,
+      options.jkoPayStatus,
+    ),
     updatedAt: (options.now ?? new Date()).toISOString(),
   };
 }
@@ -100,13 +114,30 @@ export async function getAvailabilityConfig(
   context: { deviceId?: string } = {},
 ) {
   try {
-    const flags = await resolveResilienceFeatureFlags(availabilityFlagCodes, {
-      deviceId: context.deviceId,
-      rolloutKey: context.deviceId,
-    });
+    const [flags, runtime] = await Promise.all([
+      resolveResilienceFeatureFlags(availabilityFlagCodes, {
+        deviceId: context.deviceId,
+        rolloutKey: context.deviceId,
+      }),
+      prisma.backendRuntimeState.findFirst({
+        where: { isCurrent: true },
+        select: {
+          backendRole: true,
+          writesEnabled: true,
+          enforcementEnabled: true,
+        },
+      }),
+    ]);
+    const backendWritable = Boolean(runtime) && (
+      !runtime?.enforcementEnabled
+      || (runtime.backendRole === "ACTIVE_WRITER" && runtime.writesEnabled)
+    );
     return buildAvailabilityConfig(flags as AvailabilityFlagMap, {
       requestedBackend: process.env.BACKEND_ACTIVE_TARGET,
       promotionEpoch: process.env.PROMOTION_EPOCH,
+      backendWritable,
+      linePayStatus: process.env.LINE_PAY_OPERATIONAL_STATUS,
+      jkoPayStatus: process.env.JKOPAY_OPERATIONAL_STATUS,
     });
   } catch {
     logEvent("error", "AVAILABILITY_CONFIG_RESOLUTION_FAILED", { requestId });

@@ -2,6 +2,7 @@ import "server-only";
 
 import { performance } from "node:perf_hooks";
 import { prisma } from "@/lib/prisma";
+import { getAvailabilityConfig } from "@/server/resilience/availability-config-service";
 import { getDrPrismaClient, isDrDatabaseConfigured } from "@/server/resilience/database-targets";
 
 export const healthStatuses = [
@@ -92,6 +93,20 @@ export function unknownDependency(key: string, reasonCode = "PROBE_NOT_IMPLEMENT
   };
 }
 
+export function providerDependency(
+  key: string,
+  status: "AVAILABLE" | "DEGRADED" | "UNAVAILABLE" | "MAINTENANCE" | "UNKNOWN",
+): DependencyHealth {
+  const mappedStatus: HealthStatus = status === "AVAILABLE" ? "HEALTHY" : status;
+  return {
+    key,
+    status: mappedStatus,
+    checkedAt: new Date().toISOString(),
+    latencyMs: null,
+    reasonCode: mappedStatus === "HEALTHY" ? null : `PROVIDER_${mappedStatus}`,
+  };
+}
+
 export async function checkPrimaryDatabaseHealth() {
   return probeDatabase(
     "primaryDatabase",
@@ -173,10 +188,11 @@ export function summarizeCoreHealth(
 }
 
 export async function getDependencyHealthSnapshot() {
-  const [primary, dr, replication] = await Promise.all([
+  const [primary, dr, replication, availability] = await Promise.all([
     checkPrimaryDatabaseHealth(),
     checkDrDatabaseHealth(),
     checkReplicationHealth(),
+    getAvailabilityConfig("dependency-health"),
   ]);
   const checkedAt = new Date().toISOString();
   const dependencies: DependencyHealth[] = [
@@ -196,8 +212,8 @@ export async function getDependencyHealthSnapshot() {
     unknownDependency("sse"),
     unknownDependency("storageMirror"),
     unknownDependency("turnstile", "EDGE_MANAGED"),
-    unknownDependency("linePay", "NOT_ENABLED"),
-    unknownDependency("jkoPay", "NOT_ENABLED"),
+    providerDependency("linePay", availability.linePay),
+    providerDependency("jkoPay", availability.jkoPay),
     unknownDependency(
       "reportDelivery",
       process.env.REPORT_DELIVERY_MODE === "simulate" ? "SIMULATION_MODE" : "PROBE_NOT_IMPLEMENTED",

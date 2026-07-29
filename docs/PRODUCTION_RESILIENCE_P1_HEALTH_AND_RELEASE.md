@@ -32,8 +32,8 @@ It returns only:
 
 The response contains no database URL, Supabase project ref, credential,
 customer data or internal topology. Its CDN lifetime is two seconds. The
-Service Worker already skips every `/api/*` request, so it cannot retain an old
-backend target.
+Service Worker does not cache the availability endpoint, order mutations,
+tracking or payment responses, so it cannot retain an old backend target.
 
 `BACKEND_ACTIVE_TARGET=DR` is ignored unless the audited
 `DR_FAILOVER_ENABLED` flag is active. A mismatch returns `DEGRADED_SAFE` and
@@ -81,6 +81,12 @@ implemented:
 - report delivery provider
 
 Configuration presence is not reported as provider health.
+
+P7 adds an explicit operational status input for LINE Pay and JKO Pay. This is
+still not a live transaction probe: a disabled flag is `MAINTENANCE`, an enabled
+flag without a trusted status is `UNKNOWN`, and only an explicit `AVAILABLE`
+status permits a new online payment flow. See
+`docs/PAYMENT_PROVIDER_FAILOVER.md`.
 
 ## Feature flags
 
@@ -194,6 +200,8 @@ The full canary and persistent Staging exit controls are in
 BACKEND_ACTIVE_TARGET=PRIMARY
 PROMOTION_EPOCH=1
 DR_DATABASE_URL=<server-only runtime pooler placeholder>
+LINE_PAY_OPERATIONAL_STATUS=MAINTENANCE
+JKOPAY_OPERATIONAL_STATUS=MAINTENANCE
 ```
 
 `DR_DATABASE_URL` remains empty until an approved DR project exists. It must
@@ -212,3 +220,12 @@ P1 verification includes:
 - Platform Admin dependency authorization;
 - DR target fail-closed behavior;
 - public response secret-field regression tests.
+
+P7 extends verification with:
+
+- server-side QR intake gating for both public order circuits;
+- service-role-only RPC grants and flag precedence tests;
+- cached public menu read-only behavior during an outage;
+- session refresh after backend or promotion epoch changes;
+- staff SSE, Realtime and polling status visibility;
+- conservative payment-provider fallback.

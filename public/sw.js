@@ -1,4 +1,4 @@
-const CACHE_NAME = "stallorder-shell-v3";
+const CACHE_NAME = "stallorder-shell-v4";
 const OFFLINE_URL = "/offline";
 const OFFLINE_DB_NAME = "stallorder-offline-pos";
 const SHELL_ASSETS = [
@@ -147,6 +147,19 @@ async function staleWhileRevalidate(request) {
   return cached ?? network;
 }
 
+async function networkFirstPublicMenuNavigation(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  try {
+    const response = await fetch(request);
+    if (response.ok) await cache.put(request, response.clone());
+    if (response.status >= 500 && cached) return cached;
+    return response;
+  } catch {
+    return cached ?? caches.match(OFFLINE_URL);
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
@@ -155,7 +168,11 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)));
+    const isPublicMenuNavigation = /^\/q\/[^/]+$/.test(url.pathname)
+      || /^\/delivery\/[^/]+$/.test(url.pathname);
+    event.respondWith(isPublicMenuNavigation
+      ? networkFirstPublicMenuNavigation(request)
+      : fetch(request).catch(() => caches.match(OFFLINE_URL)));
     return;
   }
 

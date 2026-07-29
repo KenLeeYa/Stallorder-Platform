@@ -134,6 +134,20 @@ Deno.serve(async (request) => {
     ]);
 
     const admin = createServiceClient();
+    const { data: intakeResult, error: intakeError } = await timing.measureDb(() => admin.rpc(
+      "check_public_order_intake_availability",
+      {
+        p_qr_token: input.qrToken,
+        p_device_id: input.deviceId,
+      },
+    ));
+    if (intakeError) throw intakeError;
+    const intake = intakeResult as { ok: boolean; code?: string };
+    if (!intake.ok && intake.code === "QR_ORDERING_UNAVAILABLE") {
+      const code = intake.code;
+      return respond({ error: errorMessage(code), code }, statusForCode(code));
+    }
+
     const { data: globalGateResult, error: globalGateError } = await timing.measureDb(() => admin.rpc(
       "check_global_public_request_gate",
       {
@@ -188,6 +202,10 @@ Deno.serve(async (request) => {
       const tokens = await derivePublicOrderTokens(order.order_id, tokenSecret);
       await timing.measureDb(() => persistPickupCodeDisplay(admin, order, tokens.pickupCode));
       return respond(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200);
+    }
+    if (!intake.ok) {
+      const code = intake.code ?? "QR_ORDERING_UNAVAILABLE";
+      return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
     const { data: gateResult, error: gateError } = await timing.measureDb(() => admin.rpc("check_public_order_submission_gate", {

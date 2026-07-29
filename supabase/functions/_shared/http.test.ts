@@ -31,5 +31,7 @@ describe("Edge 訂閱錯誤", () => {
   it("使用一致的 HTTP 狀態碼", () => {
     expect(statusForCode("SUBSCRIPTION_SUSPENDED")).toBe(403);
     expect(statusForCode("TRIAL_ORDER_LIMIT_REACHED")).toBe(409);
+    expect(statusForCode("QR_ORDERING_DEGRADED")).toBe(503);
+    expect(statusForCode("QR_ORDERING_UNAVAILABLE")).toBe(503);
   });
 });

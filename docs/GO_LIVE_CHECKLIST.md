@@ -31,6 +31,10 @@
 - [ ] Invalid／expired／replayed／wrong-hostname／wrong-action tests pass
 - [ ] Emergency pause／resume／revoke／rotate／sold-out／close tested
 - [ ] Production test QR uses high entropy and database stores only hash
+- [ ] `EMERGENCY_QR_DEGRADED_MODE` 保留菜單只讀，新 session／新訂單皆回傳 503
+- [ ] Backend 被 fence 時顯示櫃台點餐指引，且不顯示假成功
+- [ ] `activeBackend`／`promotionEpoch` 變更後建立新 session，不沿用舊 session
+- [ ] 公開菜單離線快取不含訂單 mutation、追蹤、付款、pickup code、session 或顧客資料
 
 ## Vercel 與網域
 
@@ -71,6 +75,9 @@
 - [ ] Dine-in table／additional order／served／cleaning flow tested
 - [ ] Takeout three-digit pickup verification tested
 - [ ] Cash checkout／change／discount approval／payment reconciliation tested
+- [ ] 線上付款只在供應商明確 `AVAILABLE` 時提供
+- [ ] 兩個線上付款供應商不可用時仍可建立訂單並使用現金／人工付款
+- [ ] 人工付款不會被標記為 provider-confirmed
 - [ ] Cancel confirmation and cancellation reason tested
 - [ ] Product／modifier price／sold-out／import preview tested
 - [ ] Print queue／retry／reprint／offline alert tested
@@ -93,6 +100,8 @@
 - [ ] Offline 舊 epoch queue 同步後無 canonical duplicate
 - [ ] Primary failback、DR demotion 與單向複寫重建已演練
 - [ ] Failover／failback requester、approver 與事故證據保存流程已核准
+- [ ] Staff 訂單看板已驗證 SSE、Realtime、5 秒輪詢狀態與自動復原
+- [ ] QR、Turnstile、Edge、Vercel、付款供應商與雙 backend 故障矩陣已演練
 
 ## 最終核准
 

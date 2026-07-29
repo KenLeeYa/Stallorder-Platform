@@ -44,6 +44,11 @@ export type OrderCreateResult = {
   };
 };
 
+export type PublicOrderIntakeAvailability = {
+  ok: boolean;
+  code?: "QR_ORDERING_DEGRADED" | "QR_ORDERING_UNAVAILABLE";
+};
+
 async function jsonResult<T>(query: Prisma.Sql) {
   const rows = await prisma.$queryRaw<Array<{ result: T | null }>>(query);
   return rows[0]?.result ?? null;
@@ -91,6 +96,18 @@ export function lookupResumablePublicOrder(input: {
     : jsonResult<{ order_id: string; order_status: string }>(Prisma.sql`
         select public.lookup_resumable_public_order(${argumentsSql}) as result
       `);
+}
+
+export function checkPublicOrderIntakeAvailability(
+  qrToken: string,
+  deviceId: string,
+) {
+  return jsonResult<PublicOrderIntakeAvailability>(Prisma.sql`
+    select public.check_public_order_intake_availability(
+      ${qrToken}::text,
+      ${deviceId}::uuid
+    ) as result
+  `);
 }
 
 export function issueIdempotentOrderSession(input: {
