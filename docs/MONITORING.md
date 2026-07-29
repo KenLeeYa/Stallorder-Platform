@@ -147,3 +147,33 @@ pickup code、顧客電話、地址或備註。
   Client 端錯誤只顯示固定代碼。
 - 日誌不得包含 Permit、Session／CSRF token、完整 customer contact、備註、
   pickup code、付款 reference、資料庫 URL 或 provider credential。
+
+## 統一 OAuth 與外送平台
+
+### OAuth
+
+- 追蹤 `OAUTH_LOGIN_STARTED`、`OAUTH_LOGIN_SUCCEEDED`、`OAUTH_LOGIN_FAILED`、
+  `OAUTH_IDENTITY_LINKED`、`OAUTH_IDENTITY_UNLINKED`、`OAUTH_SESSION_REUSED` 與
+  `OAUTH_PROVIDER_EVENT_REJECTED`。
+- 同一 Provider 每 5 分鐘登入失敗超過 20 次或失敗率超過 20% 時告警；Apple
+  Server-to-Server event 驗證失敗、Production 出現 Mock Provider，或已撤銷
+  Identity 仍建立 Session 時一律視為 critical。
+- callback 與 Mock authorize 路徑不得記錄 query string；平台 access log 亦應
+  開啟 URL query redaction。
+
+### 外送平台
+
+- 追蹤 `DELIVERY_WEBHOOK_ACCEPTED`、`DELIVERY_WEBHOOK_REJECTED`、
+  `DELIVERY_WEBHOOK_DUPLICATE`、`DELIVERY_JOB_RETRY_SCHEDULED`、
+  `DELIVERY_JOB_SUCCEEDED`、`DELIVERY_JOB_DEAD_LETTER` 與
+  `DELIVERY_ORDER_MAPPING_REQUIRED`。
+- 同一 Provider 每分鐘 Webhook 驗證拒絕超過 5 次為 warning；重播比例在
+  15 分鐘內超過 20%、任何 dead-letter job、Production 出現 Mock Connection，
+  或跨組織／跨攤位 scope 驗證失敗均為 critical。
+- `PENDING_RECONCILIATION` 超過 10 分鐘、待人工商品對應超過 5 筆，或同步工作
+  連續 15 分鐘沒有成功紀錄時通知攤位管理者。
+- 佇列重試採 1、5、15、60、360 分鐘退避；`PROCESSING` lease 逾時應回收，
+  但不得建立第二筆相同 idempotency key 的工作。
+- 日誌只記錄 Provider、固定錯誤分類、request ID、耗時與內部雜湊識別，不得
+  記錄 OAuth code/state、Webhook signature、原始 payload、顧客姓名／電話／
+  地址、外送員資料、Provider token、Client Secret 或完整外部訂單編號。
