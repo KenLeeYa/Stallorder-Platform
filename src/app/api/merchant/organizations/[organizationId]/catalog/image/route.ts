@@ -64,6 +64,7 @@ export async function POST(request: Request, context: RouteContext) {
       organizationId,
       bucket: "product-images",
       objectPath,
+      contentType: "image/webp",
       primaryChecksum,
       primaryUpdatedAt: new Date(),
     });

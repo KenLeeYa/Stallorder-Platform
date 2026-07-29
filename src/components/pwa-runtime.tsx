@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { CircleAlert, WifiOff } from "lucide-react";
+import { CircleAlert, RefreshCw, WifiOff } from "lucide-react";
 
 type NetworkQuality = "GOOD" | "POOR" | "OFFLINE";
 
@@ -41,6 +41,9 @@ type PwaContextValue = {
   wakeLockSupported: boolean;
   wakeLockActive: boolean;
   toggleWakeLock: () => Promise<boolean>;
+  updateAvailable: boolean;
+  updateBlocked: boolean;
+  applyServiceWorkerUpdate: () => void;
 };
 
 const PwaContext = createContext<PwaContextValue | null>(null);
@@ -70,8 +73,12 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [wakeLockSupported, setWakeLockSupported] = useState(false);
   const [wakeLockActive, setWakeLockActive] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateBlocked, setUpdateBlocked] = useState(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const wakeLockRequestedRef = useRef(false);
+  const waitingWorkerRef = useRef<ServiceWorker | null>(null);
+  const applyingUpdateRef = useRef(false);
 
   const updateConnection = useCallback(() => {
     const nextOnline = navigator.onLine;
@@ -138,9 +145,58 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
     return choice.outcome === "accepted";
   }, [installPrompt]);
 
+  const applyServiceWorkerUpdate = useCallback(() => {
+    const worker = waitingWorkerRef.current;
+    if (!worker) return;
+    applyingUpdateRef.current = true;
+    setUpdateBlocked(false);
+    worker.postMessage({ type: "ACTIVATE_UPDATE" });
+  }, []);
+
   useEffect(() => {
+    let disposed = false;
+    let serviceWorkerUpdateTimer: number | null = null;
+    const onServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === "SW_UPDATE_AVAILABLE") setUpdateAvailable(true);
+      if (event.data?.type === "SW_UPDATE_SAFETY") {
+        setUpdateBlocked((event.data.pendingRecords ?? 0) > 0);
+      }
+      if (event.data?.type === "SW_UPDATE_BLOCKED") {
+        applyingUpdateRef.current = false;
+        setUpdateBlocked(true);
+        setUpdateAvailable(true);
+      }
+    };
+    const onControllerChange = () => {
+      if (applyingUpdateRef.current) window.location.reload();
+    };
+
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      navigator.serviceWorker.addEventListener("message", onServiceWorkerMessage);
+      navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+      void navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((registration) => {
+        if (disposed) return;
+        const markWaiting = (worker: ServiceWorker) => {
+          waitingWorkerRef.current = worker;
+          setUpdateAvailable(true);
+          worker.postMessage({ type: "CHECK_UPDATE_SAFETY" });
+        };
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          markWaiting(registration.waiting);
+        }
+        registration.addEventListener("updatefound", () => {
+          const worker = registration.installing;
+          worker?.addEventListener("statechange", () => {
+            if (worker.state === "installed" && navigator.serviceWorker.controller) {
+              markWaiting(worker);
+            }
+          });
+        });
+        serviceWorkerUpdateTimer = window.setInterval(
+          () => void registration.update(),
+          60 * 60_000,
+        );
+      });
     }
 
     const captureInstallPrompt = (event: Event) => {
@@ -157,13 +213,17 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
     const initialCheck = window.setTimeout(() => void measureConnection(), 0);
     const timer = window.setInterval(() => void measureConnection(), 30_000);
     return () => {
+      disposed = true;
       window.clearTimeout(initialCheck);
       window.clearInterval(timer);
+      if (serviceWorkerUpdateTimer !== null) window.clearInterval(serviceWorkerUpdateTimer);
       window.removeEventListener("online", updateConnection);
       window.removeEventListener("offline", updateConnection);
       window.removeEventListener("beforeinstallprompt", captureInstallPrompt);
       window.removeEventListener("appinstalled", clearInstallPrompt);
       connection?.removeEventListener("change", updateConnection);
+      navigator.serviceWorker?.removeEventListener("message", onServiceWorkerMessage);
+      navigator.serviceWorker?.removeEventListener("controllerchange", onControllerChange);
     };
   }, [measureConnection, updateConnection]);
 
@@ -191,7 +251,11 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const restoreWakeLock = () => {
-      if (document.visibilityState === "visible" && wakeLockRequestedRef.current && !wakeLockRef.current) {
+      if (
+        document.visibilityState === "visible"
+        && wakeLockRequestedRef.current
+        && !wakeLockRef.current
+      ) {
         void requestWakeLock();
       }
     };
@@ -210,16 +274,55 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
     wakeLockSupported,
     wakeLockActive,
     toggleWakeLock,
-  }), [effectiveType, installPrompt, latencyMs, online, quality, requestInstall, toggleWakeLock, wakeLockActive, wakeLockSupported]);
+    updateAvailable,
+    updateBlocked,
+    applyServiceWorkerUpdate,
+  }), [
+    applyServiceWorkerUpdate,
+    effectiveType,
+    installPrompt,
+    latencyMs,
+    online,
+    quality,
+    requestInstall,
+    toggleWakeLock,
+    updateAvailable,
+    updateBlocked,
+    wakeLockActive,
+    wakeLockSupported,
+  ]);
 
   return (
     <PwaContext.Provider value={value}>
       {quality !== "GOOD" ? (
-        <div role="status" className={`sticky top-0 z-50 flex min-h-9 items-center justify-center gap-2 px-4 py-2 text-center text-xs font-semibold ${quality === "OFFLINE" ? "bg-red-700 text-white" : "bg-amber-100 text-amber-950"}`}>
-          {quality === "OFFLINE" ? <WifiOff className="h-4 w-4 shrink-0" /> : <CircleAlert className="h-4 w-4 shrink-0" />}
+        <div
+          role="status"
+          className={`sticky top-0 z-50 flex min-h-9 items-center justify-center gap-2 px-4 py-2 text-center text-xs font-semibold ${
+            quality === "OFFLINE" ? "bg-red-700 text-white" : "bg-amber-100 text-amber-950"
+          }`}
+        >
           {quality === "OFFLINE"
-            ? "目前離線：僅供檢視，訂單與營運操作不會被暫存或送出。"
-            : `網路品質較差${latencyMs ? `（約 ${latencyMs}ms）` : ""}，操作結果可能延遲。`}
+            ? <WifiOff className="h-4 w-4 shrink-0" />
+            : <CircleAlert className="h-4 w-4 shrink-0" />}
+          {quality === "OFFLINE"
+            ? "目前離線：僅供檢視；線上寫入已暫停，僅核准的離線 Leader 可使用離線點餐。"
+            : `網路品質不穩定${latencyMs ? `（約 ${latencyMs}ms）` : ""}，資料同步可能延遲。`}
+        </div>
+      ) : null}
+      {updateAvailable ? (
+        <div
+          role="status"
+          className="sticky top-0 z-50 flex min-h-10 flex-wrap items-center justify-center gap-3 bg-emerald-50 px-4 py-2 text-center text-xs font-semibold text-emerald-950"
+        >
+          <span>{updateBlocked ? "尚有未同步資料，完成同步後才能安全更新。" : "系統更新已就緒。"}</span>
+          <button
+            type="button"
+            className="inline-flex min-h-9 items-center gap-2 border border-emerald-800 bg-white px-3 py-1.5 text-emerald-950"
+            onClick={applyServiceWorkerUpdate}
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            安全更新
+          </button>
         </div>
       ) : null}
       {children}

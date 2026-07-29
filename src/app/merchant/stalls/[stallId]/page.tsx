@@ -18,6 +18,7 @@ import {
   Settings2,
   SlidersHorizontal,
   Store,
+  TabletSmartphone,
   UserRoundCog,
   Users,
   type LucideIcon,
@@ -97,6 +98,7 @@ export default async function EditStallPage({ params }: PageProps) {
           <SettingsLink href={`/merchant/stalls/${stall.id}/locations`} icon={MapPinned} label="常用地點" />
           <SettingsLink href={`/merchant/stalls/${stall.id}/schedule`} icon={CalendarRange} label="出攤行程" />
           <SettingsLink href={`/merchant/stalls/${stall.id}/line`} icon={MessageCircle} label="LINE 通知" />
+          <SettingsLink href={`/merchant/stalls/${stall.id}/offline`} icon={TabletSmartphone} label="離線裝置" />
         </div>
       </section>
 

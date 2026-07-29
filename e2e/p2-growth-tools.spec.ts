@@ -38,7 +38,9 @@ test.describe("P2 後續成長功能", () => {
     expect(serviceWorkerResponse.ok()).toBe(true);
     const serviceWorker = await serviceWorkerResponse.text();
     expect(serviceWorker).toContain('if (request.method !== "GET") return');
-    expect(serviceWorker).not.toContain("sync");
+    expect(serviceWorker).toContain('const OFFLINE_DB_NAME = "stallorder-offline-pos"');
+    expect(serviceWorker).toContain('event.data?.type === "ACTIVATE_UPDATE"');
+    expect(serviceWorker).toContain("countUnsynchronizedRecords");
 
     await page.addInitScript(() => {
       const sentinel = new EventTarget() as EventTarget & { released: boolean; release: () => Promise<void> };

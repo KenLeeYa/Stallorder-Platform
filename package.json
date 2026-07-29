@@ -13,7 +13,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:e2e": "concurrently --kill-others --success command-1 \"npm run functions:serve\" \"playwright test\"",
+    "test:e2e": "concurrently --kill-others --success command-1 \"npm run functions:serve:e2e\" \"playwright test\"",
     "typecheck": "tsc --noEmit",
     "ui:audit": "node scripts/audit-ui-controls.mjs",
     "local:doctor": "node scripts/local-dev-doctor.mjs",
@@ -37,7 +37,8 @@
     "db:seed": "cross-env ALLOW_DEMO_SEED=true tsx prisma/seed.ts",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
-    "functions:serve": "supabase functions serve --env-file supabase/functions/.env --no-verify-jwt"
+    "functions:serve": "supabase functions serve --env-file supabase/functions/.env --no-verify-jwt",
+    "functions:serve:e2e": "supabase functions serve --env-file supabase/functions/e2e-runtime.defaults --no-verify-jwt"
   },
   "dependencies": {
     "@pinyin-pro/data": "^1.3.1",

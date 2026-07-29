@@ -97,10 +97,13 @@ requireCondition(
 );
 
 const runtimeConfigurationFiles = files.filter((file) =>
-  file === "vercel.json"
-  || file.startsWith(".github/workflows/")
-  || file === "scripts/production-smoke-test.mjs"
-  || file.startsWith("src/"),
+  (
+    file === "vercel.json"
+    || file.startsWith(".github/workflows/")
+    || file === "scripts/production-smoke-test.mjs"
+    || file.startsWith("src/")
+  )
+  && !/\.test\.[cm]?[jt]sx?$/.test(file),
 );
 for (const file of runtimeConfigurationFiles) {
   const content = read(file);

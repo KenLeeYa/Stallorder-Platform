@@ -12,11 +12,12 @@ type StorageReplicationInput = {
   organizationId: string | null;
   bucket: string;
   objectPath: string;
+  contentType: string;
   primaryChecksum: string;
   primaryUpdatedAt: Date;
 };
 
-function assertStorageObjectReference(bucket: string, objectPath: string) {
+function assertStorageObjectReference(bucket: string, objectPath: string, contentType: string) {
   if (!/^[a-z0-9][a-z0-9._-]{1,62}$/.test(bucket)) {
     throw new Error("STORAGE_BUCKET_INVALID");
   }
@@ -27,6 +28,9 @@ function assertStorageObjectReference(bucket: string, objectPath: string) {
     || /[\u0000-\u001f\u007f]/.test(objectPath)
   ) {
     throw new Error("STORAGE_OBJECT_PATH_INVALID");
+  }
+  if (!/^[a-z0-9][a-z0-9.+-]+\/[a-z0-9][a-z0-9.+-]+$/.test(contentType)) {
+    throw new Error("STORAGE_CONTENT_TYPE_INVALID");
   }
 }
 
@@ -39,12 +43,29 @@ export function storageReplicationRetryDelayMs(attempt: number) {
 }
 
 export async function enqueueStorageReplication(input: StorageReplicationInput) {
-  assertStorageObjectReference(input.bucket, input.objectPath);
+  assertStorageObjectReference(input.bucket, input.objectPath, input.contentType);
   if (!/^[a-f0-9]{64}$/.test(input.primaryChecksum)) {
     throw new Error("STORAGE_CHECKSUM_INVALID");
   }
 
   return prisma.$transaction(async (transaction) => {
+    const existing = await transaction.storageObjectManifest.findUnique({
+      where: {
+        bucket_objectPath: {
+          bucket: input.bucket,
+          objectPath: input.objectPath,
+        },
+      },
+    });
+    if (
+      existing
+      && existing.primaryChecksum === input.primaryChecksum
+      && existing.contentType === input.contentType
+      && ["PENDING", "PROCESSING", "MIRRORED"].includes(existing.replicationStatus)
+    ) {
+      return existing.id;
+    }
+
     const manifest = await transaction.storageObjectManifest.upsert({
       where: {
         bucket_objectPath: {
@@ -56,12 +77,14 @@ export async function enqueueStorageReplication(input: StorageReplicationInput) 
         organizationId: input.organizationId,
         bucket: input.bucket,
         objectPath: input.objectPath,
+        contentType: input.contentType,
         primaryChecksum: input.primaryChecksum,
         primaryUpdatedAt: input.primaryUpdatedAt,
         replicationStatus: "PENDING",
       },
       update: {
         organizationId: input.organizationId,
+        contentType: input.contentType,
         primaryChecksum: input.primaryChecksum,
         primaryUpdatedAt: input.primaryUpdatedAt,
         replicationStatus: "PENDING",
@@ -120,11 +143,55 @@ async function downloadObject(client: SupabaseClient, bucket: string, objectPath
   return new Uint8Array(await result.data.arrayBuffer());
 }
 
+export async function publishImmutableStorageObject(input: {
+  organizationId: string | null;
+  bucket: string;
+  objectPath: string;
+  contentType: string;
+  bytes: Uint8Array;
+}) {
+  assertStorageObjectReference(input.bucket, input.objectPath, input.contentType);
+  if (input.bytes.byteLength === 0 || input.bytes.byteLength > MAX_OBJECT_BYTES) {
+    throw new Error("SOURCE_OBJECT_TOO_LARGE");
+  }
+
+  const { primary } = storageClients();
+  if (!primary) throw new Error("PRIMARY_STORAGE_NOT_CONFIGURED");
+  const checksum = sha256Hex(input.bytes);
+  const upload = await primary.storage.from(input.bucket).upload(
+    input.objectPath,
+    input.bytes,
+    {
+      upsert: false,
+      cacheControl: "31536000",
+      contentType: input.contentType,
+    },
+  );
+
+  if (upload.error) {
+    const existing = await downloadObject(primary, input.bucket, input.objectPath);
+    if (sha256Hex(existing) !== checksum) {
+      throw new Error("IMMUTABLE_OBJECT_COLLISION");
+    }
+  }
+
+  await enqueueStorageReplication({
+    organizationId: input.organizationId,
+    bucket: input.bucket,
+    objectPath: input.objectPath,
+    contentType: input.contentType,
+    primaryChecksum: checksum,
+    primaryUpdatedAt: new Date(),
+  });
+  return { checksum, objectPath: input.objectPath };
+}
+
 async function mirrorObject(
   primary: SupabaseClient,
   dr: SupabaseClient,
   bucket: string,
   objectPath: string,
+  contentType: string,
   expectedChecksum: string,
 ) {
   const source = await downloadObject(primary, bucket, objectPath);
@@ -134,7 +201,7 @@ async function mirrorObject(
   const upload = await dr.storage.from(bucket).upload(objectPath, source, {
     upsert: true,
     cacheControl: "31536000",
-    contentType: "image/webp",
+    contentType,
   });
   if (upload.error) throw new Error("TARGET_UPLOAD_FAILED");
   const mirrored = await downloadObject(dr, bucket, objectPath);
@@ -199,6 +266,7 @@ export async function processStorageReplicationJobs(limit = 10) {
         clients.dr,
         candidate.manifest.bucket,
         candidate.manifest.objectPath,
+        candidate.manifest.contentType,
         candidate.manifest.primaryChecksum,
       );
       await prisma.$transaction([

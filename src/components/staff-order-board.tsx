@@ -5,6 +5,7 @@ import type { CancellationReason, OrderItemStatus, OrderStatus, PaymentOptionKin
 import Link from "next/link";
 import { CheckCheck, CheckCircle2, ChefHat, KeyRound, ListChecks, LoaderCircle, MapPinned, PackageCheck, Play, Printer, RefreshCw, Search, ShoppingCart, TriangleAlert, Truck, Undo2, Volume2, VolumeX, WalletCards, Wifi, WifiOff, X } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
+import { OfflineBootstrapControl } from "@/components/offline-bootstrap-control";
 import { PwaControls } from "@/components/pwa-controls";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
 import { StaffCapacityControl } from "@/components/staff-capacity-control";
@@ -33,6 +34,7 @@ type Props = {
   orderCatalog: StaffOrderCatalog | null;
   capacity: StaffCapacityData | null;
   workModeDestinations: WorkModeDestination[];
+  appVersion: string;
 };
 
 type StaffStatus = (typeof staffStatusOptions)[number]["value"];
@@ -58,7 +60,7 @@ type CheckoutRequest = {
 };
 type UndoBatch = { actionId: string; undoExpiresAt: string; itemCount: number };
 
-export function StaffOrderBoard({ stall, initialOrders, initialNow, account, modules, paymentOptions, discountOptions, orderCatalog, capacity, workModeDestinations }: Props) {
+export function StaffOrderBoard({ stall, initialOrders, initialNow, account, modules, paymentOptions, discountOptions, orderCatalog, capacity, workModeDestinations, appVersion }: Props) {
   const knownOrderIdsRef = useRef(new Set(initialOrders.map((order) => order.id)));
   const alertsEnabledRef = useRef(false);
   const [orders, setOrders] = useState(initialOrders);
@@ -789,6 +791,11 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
             <span className="sr-only">{alertsEnabled ? "新訂單提醒已開啟" : "新訂單提醒已關閉"}</span>
           </button>
           <PwaControls showWakeLock />
+          <OfflineBootstrapControl
+            stallId={stall.id}
+            stallSlug={stall.slug}
+            appVersion={appVersion}
+          />
           <button type="button" onClick={() => void refreshOrders()} title="重新整理" className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-stone-300 bg-white">
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             <span className="sr-only">重新整理</span>
