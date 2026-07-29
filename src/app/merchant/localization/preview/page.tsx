@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Eye, ImageOff } from "lucide-react";
 import { LocaleFlag } from "@/components/locale-flag";
 import { ProductImage } from "@/components/product-image";
+import { normalizeEnabledLocales } from "@/lib/enabled-locales";
 import { getLocalizedStallPreview } from "@/lib/localization-data";
 import { formatMoney } from "@/lib/money";
 import { hasPermission } from "@/lib/rbac";
@@ -22,6 +23,7 @@ export default async function LocalizationPreviewPage({ searchParams }: PageProp
   const stall = await getLocalizedStallPreview(workspace.id, stallId);
   if (!stall) notFound();
   const locale = rawLocale;
+  if (!normalizeEnabledLocales(stall.orderingSettings?.enabledLocales).includes(locale)) notFound();
   const copy = qrOrderMessages[locale];
   const products = stall.stallProducts.map((item) => {
     const translation = item.product.translations.find((candidate) => candidate.locale === locale);

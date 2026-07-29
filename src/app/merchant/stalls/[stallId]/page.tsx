@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   Activity,
   ArrowLeft,
+  Building2,
   CalendarClock,
   CalendarDays,
   CalendarRange,
@@ -102,6 +103,9 @@ export default async function EditStallPage({ params }: PageProps) {
       <section aria-labelledby="organization-settings-title" className="py-6">
         <h2 id="organization-settings-title" className="text-lg font-semibold">組織管理</h2>
         <div className="mt-4 flex flex-wrap gap-2">
+          {workspace.roles.some((role) => hasPermission(role, "MANAGE_ORGANIZATION")) ? (
+            <SettingsLink href={`/merchant/organization?organizationId=${workspace.id}`} icon={Building2} label="商家資料" />
+          ) : null}
           {canManageLocalization ? (
             <SettingsLink href={`/merchant/localization?organizationId=${workspace.id}&stallId=${stall.id}`} icon={Languages} label="翻譯完整度" />
           ) : null}

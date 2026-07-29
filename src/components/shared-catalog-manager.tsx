@@ -13,6 +13,7 @@ import {
   Pencil,
   Plus,
   Save,
+  Sparkles,
   Store,
   Trash2,
   Upload,
@@ -20,7 +21,11 @@ import {
 } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
-import { buildCatalogCsvErrorReport, type CatalogCsvRowError } from "@/lib/catalog-csv";
+import { buildCatalogCsvErrorReport, type CatalogCsvRowError } from "@/lib/catalog-csv-client";
+import {
+  getTranslationLocaleOptions,
+  type TranslationLocale,
+} from "@/lib/enabled-locales";
 import { formatMoney } from "@/lib/money";
 import { ProductNoteGroupsManager, type ProductNoteGroupView } from "@/components/product-note-groups-manager";
 
@@ -61,28 +66,26 @@ type ImportPreview = {
   errors: CatalogCsvRowError[];
 };
 
-const translationOptions = [
-  { locale: "en", label: "英文" },
-  { locale: "ja", label: "日文" },
-  { locale: "ko", label: "韓文" },
-  { locale: "vi", label: "越南文" },
-  { locale: "th", label: "泰文" },
-] as const;
-
 export function SharedCatalogManager({
   organizationId,
   currency,
   stalls,
   initialCatalog,
   initialNoteGroups,
+  enabledTranslationLocales,
+  aiTranslationConfigured,
 }: {
   organizationId: string;
   currency: string;
   stalls: Stall[];
   initialCatalog: Catalog;
   initialNoteGroups: ProductNoteGroupView[];
+  enabledTranslationLocales: TranslationLocale[];
+  aiTranslationConfigured: boolean;
 }) {
   const [catalog, setCatalog] = useState(initialCatalog);
+  const [noteGroups, setNoteGroups] = useState(initialNoteGroups);
+  const [noteGroupsRevision, setNoteGroupsRevision] = useState(0);
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null);
   const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
   const [productDraft, setProductDraft] = useState<ProductDraft | null>(null);
@@ -91,6 +94,8 @@ export function SharedCatalogManager({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [aiTranslating, setAiTranslating] = useState(false);
+  const translationOptions = getTranslationLocaleOptions(enabledTranslationLocales);
 
   const sortedCategories = useMemo(
     () => [...catalog.categories].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-TW")),
@@ -116,6 +121,40 @@ export function SharedCatalogManager({
       return false;
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function translateMissingContent() {
+    const confirmed = window.confirm(
+      "將把已啟用商品與註記的繁體中文名稱、說明傳送至 OpenAI，補齊目前啟用語系的缺漏翻譯。既有人工翻譯不會被覆蓋。確定執行？",
+    );
+    if (!confirmed) return;
+    setAiTranslating(true);
+    setMessage("");
+    try {
+      const response = await fetch(
+        `/api/merchant/organizations/${organizationId}/catalog/translate`,
+        {
+          method: "POST",
+          headers: csrfHeaders(),
+          body: JSON.stringify({ mode: "MISSING_ONLY" }),
+        },
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "目前無法完成 AI 翻譯。");
+      setCatalog(payload.catalog);
+      setNoteGroups(payload.noteGroups);
+      setNoteGroupsRevision((current) => current + 1);
+      const translatedFields = Number(payload.summary?.translatedFields ?? 0);
+      setMessage(
+        translatedFields > 0
+          ? `AI 翻譯已完成，共補齊 ${translatedFields} 個缺漏欄位。`
+          : "目前啟用的語系皆已完成翻譯。",
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "目前無法完成 AI 翻譯。");
+    } finally {
+      setAiTranslating(false);
     }
   }
 
@@ -342,6 +381,16 @@ export function SharedCatalogManager({
           <p className="mt-2 text-sm text-stone-600">一次建立分類、群組與商品，再分派到一個或多個攤位。</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={!aiTranslationConfigured || translationOptions.length === 0 || busy || aiTranslating}
+            title={aiTranslationConfigured ? "只補齊已啟用語系的缺漏內容" : "AI 翻譯尚未完成伺服器設定"}
+            onClick={() => void translateMissingContent()}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-teal-800 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <Sparkles className="h-4 w-4" />
+            {aiTranslating ? "翻譯中…" : "一鍵補齊翻譯"}
+          </button>
           <a href={`/api/merchant/organizations/${organizationId}/catalog/export`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Download className="h-4 w-4" />匯出 CSV</a>
           <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Upload className="h-4 w-4" />匯入 CSV<input type="file" accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewCatalogImport(file); event.currentTarget.value = ""; }} /></label>
           <button type="button" onClick={() => setCategoryDraft({ name: "", sortOrder: catalog.categories.length + 1, isActive: true })} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Plus className="h-4 w-4" />分類</button>
@@ -409,15 +458,15 @@ export function SharedCatalogManager({
               <label className="mt-6 inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><ImageUp className="h-4 w-4" />本機上傳<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadProductImage(file); event.currentTarget.value = ""; }} /></label>
             </div>
             {productDraft.imageUrl ? <div className="h-36 overflow-hidden rounded-md border border-stone-200 sm:col-span-2"><ProductImage src={productDraft.imageUrl} alt={`${productDraft.name || "商品"}圖片預覽`} width={800} height={450} sizes="(max-width: 640px) 100vw, 50vw" className="h-full w-full object-cover" /></div> : null}
-            <fieldset className="border-t border-stone-200 pt-4 sm:col-span-2">
+            {translationOptions.length > 0 ? <fieldset className="border-t border-stone-200 pt-4 sm:col-span-2">
               <legend className="flex items-center gap-2 text-sm font-semibold"><Languages className="h-4 w-4" />商品翻譯</legend>
               <div className="mt-3 grid gap-4">
                 {translationOptions.map((option) => {
                   const translation = productDraft.translations.find((item) => item.locale === option.locale) ?? { locale: option.locale, name: "", description: "" };
-                  return <div key={option.locale} className="grid gap-2 sm:grid-cols-2"><TextField label={`${option.label}名稱`} value={translation.name} onChange={(name) => updateTranslation(option.locale, { name })} /><label className="text-sm font-medium text-stone-700">{option.label}說明<textarea rows={2} maxLength={500} value={translation.description} onChange={(event) => updateTranslation(option.locale, { description: event.target.value })} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label></div>;
+                  return <div key={option.locale} className="grid gap-2 sm:grid-cols-2"><TextField label={`${option.label}名稱`} value={translation.name} required={false} onChange={(name) => updateTranslation(option.locale, { name })} /><label className="text-sm font-medium text-stone-700">{option.label}說明<textarea rows={2} maxLength={500} value={translation.description} onChange={(event) => updateTranslation(option.locale, { description: event.target.value })} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label></div>;
                 })}
               </div>
-            </fieldset>
+            </fieldset> : null}
             {!productDraft.id ? <StallChecks stalls={stalls} selected={productDraft.stallIds} onChange={(stallIds) => setProductDraft({ ...productDraft, stallIds })} /> : <CheckField label="啟用商品主檔" checked={productDraft.isActive} onChange={(isActive) => setProductDraft({ ...productDraft, isActive })} />}
             <SubmitButton busy={busy} wide />
           </form>
@@ -435,6 +484,7 @@ export function SharedCatalogManager({
 
       {assignmentProduct ? <Editor title={`分派「${assignmentProduct.name}」`} onClose={() => setAssignmentProduct(null)}><StallChecks stalls={stalls} selected={assignmentStallIds} onChange={setAssignmentStallIds} /><button type="button" disabled={busy} onClick={() => void saveAssignments()} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存分派</button></Editor> : null}
       <ProductNoteGroupsManager
+        key={noteGroupsRevision}
         organizationId={organizationId}
         currency={currency}
         products={catalog.products.map((product) => ({
@@ -443,7 +493,8 @@ export function SharedCatalogManager({
           categoryName: catalog.categories.find((category) => category.id === product.categoryId)?.name ?? "未分類",
           isActive: product.isActive,
         }))}
-        initialNoteGroups={initialNoteGroups}
+        initialNoteGroups={noteGroups}
+        enabledTranslationLocales={enabledTranslationLocales}
       />
     </section>
   );
@@ -466,8 +517,8 @@ function IconButton({ label, danger = false, onClick, children }: { label: strin
   return <button type="button" title={label} aria-label={label} onClick={onClick} className={`grid h-10 w-10 shrink-0 place-items-center rounded-md hover:bg-stone-100 ${danger ? "text-red-700" : "text-stone-600"}`}>{children}</button>;
 }
 
-function TextField({ label, value, onChange, wide = false }: { label: string; value: string; onChange: (value: string) => void; wide?: boolean }) {
-  return <label className={`text-sm font-medium text-stone-700 ${wide ? "sm:col-span-2" : ""}`}>{label}<input type="text" required maxLength={80} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>;
+function TextField({ label, value, onChange, wide = false, required = true }: { label: string; value: string; onChange: (value: string) => void; wide?: boolean; required?: boolean }) {
+  return <label className={`text-sm font-medium text-stone-700 ${wide ? "sm:col-span-2" : ""}`}>{label}<input type="text" required={required} maxLength={80} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>;
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {

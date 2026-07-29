@@ -3,6 +3,10 @@
 import { type FormEvent, useMemo, useState } from "react";
 import { Check, Eye, EyeOff, MessageSquareText, Pencil, Plus, Trash2, X } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
+import {
+  getTranslationLocaleOptions,
+  type TranslationLocale,
+} from "@/lib/enabled-locales";
 import { formatMoney } from "@/lib/money";
 
 type Translation = { locale: string; name: string };
@@ -34,30 +38,25 @@ type GroupDraft = Omit<ProductNoteGroupView, "id" | "assignments" | "options"> &
 };
 type OptionDraft = Omit<NoteOption, "id"> & { id?: string; noteGroupId: string };
 
-const translationOptions = [
-  { locale: "en", label: "英文" },
-  { locale: "ja", label: "日文" },
-  { locale: "ko", label: "韓文" },
-  { locale: "vi", label: "越南文" },
-  { locale: "th", label: "泰文" },
-] as const;
-
 export function ProductNoteGroupsManager({
   organizationId,
   currency,
   products,
   initialNoteGroups,
+  enabledTranslationLocales,
 }: {
   organizationId: string;
   currency: string;
   products: ProductRef[];
   initialNoteGroups: ProductNoteGroupView[];
+  enabledTranslationLocales: TranslationLocale[];
 }) {
   const [groups, setGroups] = useState(initialNoteGroups);
   const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
   const [optionDraft, setOptionDraft] = useState<OptionDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const translationOptions = getTranslationLocaleOptions(enabledTranslationLocales);
   const sortedGroups = useMemo(
     () => [...groups].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "zh-TW")),
     [groups],
@@ -244,7 +243,7 @@ export function ProductNoteGroupsManager({
             <NumberField label="排序" value={groupDraft.sortOrder} onChange={(sortOrder) => setGroupDraft({ ...groupDraft, sortOrder })} />
             <div className="grid content-center gap-2"><CheckField label="顧客必須選擇" checked={groupDraft.isRequired} onChange={(isRequired) => setGroupDraft({ ...groupDraft, isRequired, minSelections: isRequired ? Math.max(1, groupDraft.minSelections) : 0 })} /><CheckField label="啟用群組" checked={groupDraft.isActive} onChange={(isActive) => setGroupDraft({ ...groupDraft, isActive })} /></div>
             <fieldset className="sm:col-span-2"><legend className="text-sm font-semibold text-stone-700">指派商品</legend><div className="mt-2 max-h-56 overflow-y-auto border-y border-stone-200">{productsByCategory.map(([categoryName, categoryProducts]) => <details key={categoryName} open><summary className="cursor-pointer py-2 text-sm font-semibold">{categoryName}</summary><div className="pb-2 pl-3">{categoryProducts.map((product) => <label key={product.id} className="flex min-h-9 items-center gap-2 text-sm"><input type="checkbox" checked={groupDraft.productIds.includes(product.id)} onChange={(event) => setGroupDraft({ ...groupDraft, productIds: event.target.checked ? [...groupDraft.productIds, product.id] : groupDraft.productIds.filter((id) => id !== product.id) })} />{product.name}{!product.isActive ? <span className="text-xs text-stone-500">（已停用）</span> : null}</label>)}</div></details>)}</div></fieldset>
-            <TranslationFields translations={groupDraft.translations} onChange={(translations) => setGroupDraft({ ...groupDraft, translations })} />
+            <TranslationFields translations={groupDraft.translations} options={translationOptions} onChange={(translations) => setGroupDraft({ ...groupDraft, translations })} />
             <SubmitButton busy={busy} />
           </form>
         </Editor>
@@ -257,7 +256,7 @@ export function ProductNoteGroupsManager({
             <SignedNumberField label="價格調整" value={optionDraft.priceDelta} onChange={(priceDelta) => setOptionDraft({ ...optionDraft, priceDelta })} />
             <NumberField label="排序" value={optionDraft.sortOrder} onChange={(sortOrder) => setOptionDraft({ ...optionDraft, sortOrder })} />
             <CheckField label="啟用選項" checked={optionDraft.isActive} onChange={(isActive) => setOptionDraft({ ...optionDraft, isActive })} />
-            <TranslationFields translations={optionDraft.translations} onChange={(translations) => setOptionDraft({ ...optionDraft, translations })} />
+            <TranslationFields translations={optionDraft.translations} options={translationOptions} onChange={(translations) => setOptionDraft({ ...optionDraft, translations })} />
             <SubmitButton busy={busy} />
           </form>
         </Editor>
@@ -266,8 +265,9 @@ export function ProductNoteGroupsManager({
   );
 }
 
-function TranslationFields({ translations, onChange }: { translations: Translation[]; onChange: (items: Translation[]) => void }) {
-  return <details className="border-t border-stone-200 pt-3 sm:col-span-2"><summary className="cursor-pointer text-sm font-semibold">多語名稱</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{translationOptions.map((option) => { const current = translations.find((item) => item.locale === option.locale)?.name ?? ""; return <label key={option.locale} className="text-sm font-medium text-stone-700">{option.label}<input type="text" maxLength={120} value={current} onChange={(event) => { const next = translations.filter((item) => item.locale !== option.locale); if (event.target.value) next.push({ locale: option.locale, name: event.target.value }); onChange(next); }} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>; })}</div></details>;
+function TranslationFields({ translations, options, onChange }: { translations: Translation[]; options: ReturnType<typeof getTranslationLocaleOptions>; onChange: (items: Translation[]) => void }) {
+  if (options.length === 0) return null;
+  return <details className="border-t border-stone-200 pt-3 sm:col-span-2"><summary className="cursor-pointer text-sm font-semibold">多語名稱</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{options.map((option) => { const current = translations.find((item) => item.locale === option.locale)?.name ?? ""; return <label key={option.locale} className="text-sm font-medium text-stone-700">{option.label}<input type="text" maxLength={120} value={current} onChange={(event) => { const next = translations.filter((item) => item.locale !== option.locale); if (event.target.value) next.push({ locale: option.locale, name: event.target.value }); onChange(next); }} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>; })}</div></details>;
 }
 
 function Editor({ title, onClose, wide = false, children }: { title: string; onClose: () => void; wide?: boolean; children: React.ReactNode }) {

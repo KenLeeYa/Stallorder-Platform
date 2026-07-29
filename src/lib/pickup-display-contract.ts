@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "@/lib/pickup-display-client";
+
 const httpsOrRelativeUrlSchema = z.string().trim().max(2000).refine((value) => {
   if (value.startsWith("/") && !value.startsWith("//")) return true;
   try {
@@ -37,35 +39,6 @@ export const pickupDisplayCommandSchema = z.discriminatedUnion("operation", [
 export type PickupDisplayTheme = z.infer<typeof pickupDisplayThemeSchema>;
 export type PickupDisplaySettingsInput = z.infer<typeof pickupDisplaySettingsSchema>;
 
-export type PickupDisplayOrder = {
-  orderNo: string;
-  pickupCode: string | null;
-  customerName: string | null;
-  status: "PREPARING" | "READY";
-  readyAt: string | null;
-};
-
-export type PublicPickupDisplay = {
-  stall: {
-    name: string;
-    slug: string;
-    logoUrl: string | null;
-    backgroundImageUrl: string | null;
-  };
-  appearance: {
-    accentColor: string;
-    announcementText: string | null;
-  };
-  voice: {
-    enabled: boolean;
-    locale: string;
-  };
-  menuUrl: string | null;
-  preparing: PickupDisplayOrder[];
-  ready: PickupDisplayOrder[];
-  refreshedAt: string;
-};
-
 export type PickupDisplayManagerSettings = PickupDisplaySettingsInput & {
   tokenConfigured: boolean;
   voiceAvailable: boolean;
@@ -74,40 +47,6 @@ export type PickupDisplayManagerSettings = PickupDisplaySettingsInput & {
 export function normalizePickupDisplayTheme(value: unknown): PickupDisplayTheme {
   const parsed = pickupDisplayThemeSchema.safeParse(value ?? {});
   return parsed.success ? parsed.data : pickupDisplayThemeSchema.parse({});
-}
-
-export function pickupCodeForDisplay(
-  pickupCode: string | null,
-  showPickupCode: boolean,
-  maskPickupCode: boolean,
-) {
-  if (!showPickupCode || !pickupCode) return null;
-  if (!maskPickupCode) return pickupCode;
-  if (pickupCode.length === 1) return "•";
-  return `${"•".repeat(pickupCode.length - 1)}${pickupCode.slice(-1)}`;
-}
-
-export function pickupAnnouncementKey(order: PickupDisplayOrder) {
-  return `${order.orderNo}:${order.readyAt ?? "ready"}`;
-}
-
-export function collectUnannouncedReadyOrders(
-  orders: readonly PickupDisplayOrder[],
-  announcedKeys: readonly string[],
-) {
-  const known = new Set(announcedKeys);
-  const unannounced = orders.filter((order) => !known.has(pickupAnnouncementKey(order)));
-  const nextKeys = [
-    ...announcedKeys,
-    ...unannounced.map(pickupAnnouncementKey),
-  ].slice(-200);
-  return { unannounced, nextKeys };
-}
-
-export function pickupVoiceMessage(order: PickupDisplayOrder) {
-  return order.pickupCode
-    ? `${order.orderNo} 號餐點已完成，請憑取餐碼 ${order.pickupCode} 至櫃台取餐。`
-    : `${order.orderNo} 號餐點已完成，請至櫃台取餐。`;
 }
 
 export function cdsVoiceAvailable(configuration: unknown) {

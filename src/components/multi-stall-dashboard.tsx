@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUpDown,
@@ -20,6 +20,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { formatTaipeiDateTime } from "@/lib/date-time";
 import { formatMoney } from "@/lib/money";
 
 type StallOption = {
@@ -86,6 +87,8 @@ export function MultiStallDashboard({
   canManageOrdering,
   multiStallEnabled,
   initialSelectedStallIds,
+  initialDateRange,
+  initialOverview,
 }: {
   organizationId: string;
   organizationName: string;
@@ -94,17 +97,19 @@ export function MultiStallDashboard({
   canManageOrdering: boolean;
   multiStallEnabled: boolean;
   initialSelectedStallIds?: string[];
+  initialDateRange?: { dateFrom: string; dateTo: string };
+  initialOverview?: Overview;
 }) {
   const today = useMemo(() => taipeiToday(), []);
   const [preset, setPreset] = useState<DatePreset>("TODAY");
-  const [dateRange, setDateRange] = useState({ dateFrom: today, dateTo: today });
+  const [dateRange, setDateRange] = useState(initialDateRange ?? { dateFrom: today, dateTo: today });
   const [selectedStallIds, setSelectedStallIds] = useState(
     initialSelectedStallIds?.length
       ? initialSelectedStallIds
       : stalls.filter((stall) => stall.isActive).map((stall) => stall.id).slice(0, multiStallEnabled ? undefined : 1),
   );
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState<Overview | null>(initialOverview ?? null);
+  const [loading, setLoading] = useState(!initialOverview);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("sales");
@@ -113,6 +118,7 @@ export function MultiStallDashboard({
   const [batchRunning, setBatchRunning] = useState(false);
   const [controlMessage, setControlMessage] = useState("");
   const [updatingAlertId, setUpdatingAlertId] = useState<string | null>(null);
+  const skipInitialLoadRef = useRef(Boolean(initialOverview));
   const overviewReady = overview !== null;
 
   const loadOverview = useCallback(async (quiet = false) => {
@@ -145,10 +151,14 @@ export function MultiStallDashboard({
   }, [dateRange, organizationId, selectedStallIds]);
 
   useEffect(() => {
-    const initialLoad = window.setTimeout(() => void loadOverview(), 0);
+    const shouldSkipInitialLoad = skipInitialLoadRef.current;
+    skipInitialLoadRef.current = false;
+    const initialLoad = shouldSkipInitialLoad
+      ? null
+      : window.setTimeout(() => void loadOverview(), 0);
     const polling = window.setInterval(() => void loadOverview(true), 45_000);
     return () => {
-      window.clearTimeout(initialLoad);
+      if (initialLoad !== null) window.clearTimeout(initialLoad);
       window.clearInterval(polling);
     };
   }, [loadOverview]);
@@ -356,10 +366,10 @@ export function MultiStallDashboard({
         </section>
 
         <section className="py-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-xl font-semibold">攤位比較</h2><p className="mt-1 text-xs text-stone-500">更新時間 {new Date(overview.generatedAt).toLocaleString("zh-TW")}</p></div><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"><label className="relative min-w-0"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><input type="search" aria-label="搜尋攤位" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋攤位" className="h-11 w-full min-w-0 rounded-md border border-stone-300 pl-9 pr-3 text-sm" /></label><select aria-label="排序攤位" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="h-11 rounded-md border border-stone-300 bg-white px-2 text-sm"><option value="sales">銷售額</option><option value="orders">訂單數</option><option value="pending">待處理</option><option value="name">攤位名稱</option></select></div></div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-xl font-semibold">攤位比較</h2><p className="mt-1 text-xs text-stone-500">更新時間 {formatTaipeiDateTime(overview.generatedAt)}</p></div><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"><label className="relative min-w-0"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><input type="search" aria-label="搜尋攤位" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋攤位" className="h-11 w-full min-w-0 rounded-md border border-stone-300 pl-9 pr-3 text-sm" /></label><select aria-label="排序攤位" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="h-11 rounded-md border border-stone-300 bg-white px-2 text-sm"><option value="sales">銷售額</option><option value="orders">訂單數</option><option value="pending">待處理</option><option value="name">攤位名稱</option></select></div></div>
 
           <div className="mt-4 hidden md:block">
-            <table className="w-full table-fixed border-y border-stone-200 text-left text-xs"><thead className="text-stone-500"><tr><th className="w-[15%] py-3">攤位</th><th>狀態</th><th>訂單</th><th>完成</th><th>銷售額</th><th>客單價</th><th>待處理</th><th>未付款</th><th>取消率</th><th className="w-[13%]">最後訂單</th></tr></thead><tbody>{visibleStalls.map((stall) => <tr key={stall.stallId} className="border-t border-stone-100"><td className="py-4 pr-2"><Link href={`/merchant/stalls/${stall.stallId}/dashboard`} className="font-semibold text-teal-800">{stall.stallName}</Link><div className="mt-1 text-stone-400">{stall.stallCode}</div></td><td><Status status={stall.businessStatus} /></td><td>{stall.orderCount}</td><td>{stall.completedOrderCount}</td><td>{formatMoney(stall.totalSales, currency)}</td><td>{formatMoney(stall.averageOrderValue, currency)}</td><td>{stall.pendingOrderCount}</td><td>{stall.unpaidOrderCount}</td><td>{percent(stall.cancellationRate)}</td><td>{stall.lastOrderAt ? new Date(stall.lastOrderAt).toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}</td></tr>)}</tbody></table>
+            <table className="w-full table-fixed border-y border-stone-200 text-left text-xs"><thead className="text-stone-500"><tr><th className="w-[15%] py-3">攤位</th><th>狀態</th><th>訂單</th><th>完成</th><th>銷售額</th><th>客單價</th><th>待處理</th><th>未付款</th><th>取消率</th><th className="w-[13%]">最後訂單</th></tr></thead><tbody>{visibleStalls.map((stall) => <tr key={stall.stallId} className="border-t border-stone-100"><td className="py-4 pr-2"><Link href={`/merchant/stalls/${stall.stallId}/dashboard`} className="font-semibold text-teal-800">{stall.stallName}</Link><div className="mt-1 text-stone-400">{stall.stallCode}</div></td><td><Status status={stall.businessStatus} /></td><td>{stall.orderCount}</td><td>{stall.completedOrderCount}</td><td>{formatMoney(stall.totalSales, currency)}</td><td>{formatMoney(stall.averageOrderValue, currency)}</td><td>{stall.pendingOrderCount}</td><td>{stall.unpaidOrderCount}</td><td>{percent(stall.cancellationRate)}</td><td>{stall.lastOrderAt ? formatTaipeiDateTime(stall.lastOrderAt).slice(5, 16) : "-"}</td></tr>)}</tbody></table>
           </div>
           <div className="mt-4 grid gap-3 md:hidden">{visibleStalls.map((stall) => <article key={stall.stallId} className="rounded-md border border-stone-200 bg-white p-4"><div className="flex items-center justify-between gap-3"><Link href={`/merchant/stalls/${stall.stallId}/dashboard`} className="font-semibold text-teal-800">{stall.stallName}</Link><Status status={stall.businessStatus} /></div><dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><MobileMetric label="銷售額" value={formatMoney(stall.totalSales, currency)} /><MobileMetric label="訂單 / 完成" value={`${stall.orderCount} / ${stall.completedOrderCount}`} /><MobileMetric label="待處理 / 未付款" value={`${stall.pendingOrderCount} / ${stall.unpaidOrderCount}`} /><MobileMetric label="客單價 / 取消率" value={`${formatMoney(stall.averageOrderValue, currency)} / ${percent(stall.cancellationRate)}`} /></dl></article>)}</div>
           {visibleStalls.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">此範圍沒有符合條件的攤位資料。</p> : null}

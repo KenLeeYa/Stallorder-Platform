@@ -18,7 +18,7 @@ import {
   pickupVoiceMessage,
   type PickupDisplayOrder,
   type PublicPickupDisplay,
-} from "@/lib/pickup-display-contract";
+} from "@/lib/pickup-display-client";
 
 type ConnectionState = "CONNECTING" | "REALTIME" | "POLLING";
 

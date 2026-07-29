@@ -5,10 +5,11 @@ import { requirePagePermission } from "@/lib/authorization";
 import { prisma } from "@/lib/prisma";
 import { activeOrderStatuses, serializeStaffOrder, staffOrderSelect } from "@/lib/orders";
 import { hasPermission } from "@/lib/rbac";
-import { getStaffOrderCatalog } from "@/lib/staff-order-catalog";
+import { getStaffOrderPageConfiguration } from "@/lib/staff-order-catalog";
 import { createPerformanceTiming } from "@/lib/performance-timing";
 import { createRequestId } from "@/lib/security";
 import { getStaffCapacityData } from "@/lib/capacity";
+import { getServerNowMs } from "@/lib/server-clock";
 import { buildWorkModeDestinations } from "@/lib/work-mode";
 
 type PageProps = {
@@ -38,8 +39,12 @@ type StaffOrderContentProps = Awaited<ReturnType<typeof requirePagePermission>> 
 };
 
 async function StaffOrderContent({ stall, principal, role, roles, timing }: StaffOrderContentProps) {
+  const canCreateOrders = hasPermission(role, "CREATE_ORDERS");
   const canOperateCapacity = roles.some((candidate) => hasPermission(candidate, "OPERATE_CAPACITY"));
-  const [orders, settings, paymentOptions, discountOptions, orderCatalog, capacity, serverClock] = await timing.measureDb(() => Promise.all([
+  const dataQueryCount = 3
+    + (canCreateOrders ? 3 : 1)
+    + (canOperateCapacity ? 3 : 0);
+  const [orders, paymentOptions, discountOptions, configuration, capacity] = await timing.measureDb(() => Promise.all([
     prisma.order.findMany({
       where: {
         stallId: stall.id,
@@ -47,17 +52,6 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
       },
       orderBy: { createdAt: "asc" },
       select: staffOrderSelect,
-    }),
-    prisma.stallOrderingSettings.findUnique({
-      where: { stallId: stall.id },
-      select: {
-        dineInEnabled: true,
-        deliveryModuleEnabled: true,
-        printModuleEnabled: true,
-        paymentModuleEnabled: true,
-        discountModuleEnabled: true,
-        discountApprovalThresholdBps: true,
-      },
     }),
     prisma.paymentOption.findMany({
       where: { stallId: stall.id, organizationId: stall.organizationId, isEnabled: true },
@@ -69,14 +63,16 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       select: { id: true, name: true, rateBps: true },
     }),
-    hasPermission(role, "CREATE_ORDERS")
-      ? getStaffOrderCatalog(stall.id, stall.organizationId)
-      : Promise.resolve(null),
+    getStaffOrderPageConfiguration(
+      stall.id,
+      stall.organizationId,
+      canCreateOrders,
+    ),
     canOperateCapacity
       ? getStaffCapacityData(stall.organizationId, stall.id)
       : Promise.resolve(null),
-    prisma.$queryRaw<Array<{ now: Date }>>`select now() as now`,
-  ]), 7);
+  ]), dataQueryCount);
+  const serverNow = getServerNowMs();
   timing.finish({ status: 200 });
   const workModeDestinations = buildWorkModeDestinations([{
     id: stall.organizationId,
@@ -101,19 +97,12 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
         currency: stall.currency,
       }}
       initialOrders={orders.map(serializeStaffOrder)}
-      initialNow={serverClock[0].now.getTime()}
+      initialNow={serverNow}
       account={{ displayName: principal.user.displayName, role }}
-      modules={{
-        dineIn: settings?.dineInEnabled ?? false,
-        delivery: settings?.deliveryModuleEnabled ?? false,
-        print: settings?.printModuleEnabled ?? false,
-        payment: settings?.paymentModuleEnabled ?? false,
-        discount: settings?.discountModuleEnabled ?? false,
-        discountApprovalThresholdBps: settings?.discountApprovalThresholdBps ?? 8000,
-      }}
+      modules={configuration.modules}
       paymentOptions={paymentOptions}
       discountOptions={discountOptions}
-      orderCatalog={orderCatalog}
+      orderCatalog={configuration.catalog}
       capacity={capacity}
       workModeDestinations={workModeDestinations}
     />
