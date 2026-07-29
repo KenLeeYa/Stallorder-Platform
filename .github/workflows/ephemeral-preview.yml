@@ -163,7 +163,7 @@ jobs:
         run: supabase test db supabase/tests/database --db-url "$EPHEMERAL_DATABASE_URL"
 
       - name: Lint isolated database
-        run: supabase db lint --db-url "$EPHEMERAL_DATABASE_URL" --level warning --fail-on warning
+        run: supabase db lint --db-url "$EPHEMERAL_DATABASE_URL" --schema public,app_private,internal --level warning --fail-on warning
 
       - name: Deploy Edge Functions to isolated branch
         env:

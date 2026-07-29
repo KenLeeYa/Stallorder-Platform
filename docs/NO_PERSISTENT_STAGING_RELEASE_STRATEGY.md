@@ -55,6 +55,11 @@ Same-repository Pull Request
 -> delete it when the Pull Request closes
 ```
 
+Database lint fails on warnings in the application-owned `public`,
+`app_private` and `internal` schemas. Supabase- and extension-owned schemas are
+excluded because their lifecycle and bundled function definitions are not
+controlled by this repository.
+
 Manual workflow runs always remove their branch at the end.
 
 ## Trust boundary
