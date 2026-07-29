@@ -119,6 +119,49 @@ export async function checkDrDatabaseHealth() {
   }
 }
 
+export async function checkReplicationHealth(): Promise<DependencyHealth> {
+  if (!isDrDatabaseConfigured()) {
+    return unknownDependency("replication", "DR_NOT_CONFIGURED");
+  }
+
+  try {
+    const snapshot = await prisma.replicationHealthSnapshot.findFirst({
+      where: { targetBackendCode: "DR" },
+      orderBy: { observedAt: "desc" },
+      select: {
+        status: true,
+        lagSeconds: true,
+        schemaCompatible: true,
+        observedAt: true,
+      },
+    });
+    if (!snapshot) return unknownDependency("replication", "NO_OBSERVATION");
+    if (Date.now() - snapshot.observedAt.getTime() > 60_000) {
+      return {
+        key: "replication",
+        status: "UNAVAILABLE",
+        checkedAt: new Date().toISOString(),
+        latencyMs: null,
+        reasonCode: "OBSERVATION_STALE",
+      };
+    }
+    const lagSeconds = snapshot.lagSeconds === null ? null : Number(snapshot.lagSeconds);
+    const healthy = snapshot.status === "CONNECTED"
+      && snapshot.schemaCompatible
+      && lagSeconds !== null
+      && lagSeconds <= 30;
+    return {
+      key: "replication",
+      status: healthy ? "HEALTHY" : "DEGRADED",
+      checkedAt: snapshot.observedAt.toISOString(),
+      latencyMs: lagSeconds === null ? null : roundDuration(lagSeconds * 1_000),
+      reasonCode: healthy ? null : "REPLICATION_NOT_READY",
+    };
+  } catch {
+    return unknownDependency("replication", "OBSERVATION_UNAVAILABLE");
+  }
+}
+
 export function summarizeCoreHealth(
   primary: DependencyHealth,
   dr: DependencyHealth,
@@ -130,9 +173,10 @@ export function summarizeCoreHealth(
 }
 
 export async function getDependencyHealthSnapshot() {
-  const [primary, dr] = await Promise.all([
+  const [primary, dr, replication] = await Promise.all([
     checkPrimaryDatabaseHealth(),
     checkDrDatabaseHealth(),
+    checkReplicationHealth(),
   ]);
   const checkedAt = new Date().toISOString();
   const dependencies: DependencyHealth[] = [
@@ -145,7 +189,7 @@ export async function getDependencyHealthSnapshot() {
     },
     primary,
     dr,
-    unknownDependency("replication"),
+    replication,
     unknownDependency("primaryEdge"),
     unknownDependency("drEdge"),
     unknownDependency("realtime"),

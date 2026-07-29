@@ -87,3 +87,20 @@ group by stall_id;
 只能記錄 operation、circuit、固定 reason code、status、request ID 與
 latency。不得記錄 QR raw token、session／tracking token、Turnstile token、
 pickup code、顧客電話、地址或備註。
+
+## DR 與 Storage
+
+- DR 設定完成後，至少每分鐘呼叫受保護的
+  `/api/cron/replication-health`，只保存已清理的狀態、lag、LSN 與
+  schema 相容性。
+- replication lag 超過 30 秒發出 warning；超過 5 分鐘或 worker
+  disconnected 發出 critical。
+- `replication_health_snapshots` 最新觀測超過 60 秒時，不得將報表導向
+  DR。
+- Storage manifest 維持 `PENDING`、`PROCESSING` 或 `FAILED` 超過 15 分鐘
+  時告警；DR checksum 不一致不得標記 `MIRRORED`。
+- 追蹤 `DATABASE_READ_ROUTED`、`DATABASE_DR_READ_FALLBACK`、
+  `REPLICATION_HEALTH_CAPTURED`、`REPLICATION_HEALTH_CAPTURE_FAILED` 與
+  `STORAGE_REPLICATION_FAILED`。
+- 以上日誌不得包含資料庫 URL、Storage object path、Auth user ID、Email、
+  provider 原始錯誤或任何 credential。

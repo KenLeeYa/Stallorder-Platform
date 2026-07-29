@@ -528,6 +528,7 @@ model Profile {
   completedMerchantSetups  MerchantSetupProgress[]           @relation("MerchantSetupCompletedBy")
   activatedMerchantSetups  MerchantSetupProgress[]           @relation("MerchantSetupActivatedBy")
   assignedProductionTasks  OrderProductionTask[]
+  authIdentities           ProfileAuthIdentity[]
 
   @@map("profiles")
 }
@@ -2598,4 +2599,122 @@ model LineWebhookEvent {
 
   @@index([integrationId, receivedAt(sort: Desc)])
   @@map("line_webhook_events")
+}
+
+model BackendRuntimeState {
+  backendCode        String    @id @map("backend_code")
+  backendRole        String    @map("backend_role")
+  region             String
+  promotionEpoch     BigInt    @default(1) @map("promotion_epoch")
+  writesEnabled      Boolean   @default(false) @map("writes_enabled")
+  enforcementEnabled Boolean   @default(false) @map("enforcement_enabled")
+  isCurrent          Boolean   @default(false) @map("is_current")
+  promotedAt         DateTime? @map("promoted_at")
+  demotedAt          DateTime? @map("demoted_at")
+  reason             String
+  updatedByProfileId String?   @map("updated_by_profile_id") @db.Uuid
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([isCurrent, writesEnabled])
+  @@map("backend_runtime_state")
+}
+
+model BackendFailoverEvent {
+  id                       String    @id @default(uuid()) @db.Uuid
+  state                    String
+  sourceBackendCode        String    @map("source_backend_code")
+  targetBackendCode        String    @map("target_backend_code")
+  healthEvidence           Json      @default("{}") @map("health_evidence")
+  replicationLagSeconds    Decimal?  @map("replication_lag_seconds") @db.Decimal(12, 3)
+  lastKnownLsn             String?   @map("last_known_lsn")
+  requestedByProfileId     String?   @map("requested_by_profile_id") @db.Uuid
+  approvedByProfileId      String?   @map("approved_by_profile_id") @db.Uuid
+  reason                   String
+  rpoEstimateSeconds       Int?      @map("rpo_estimate_seconds")
+  splitBrainAcknowledged   Boolean   @default(false) @map("split_brain_acknowledged")
+  assessmentStartedAt      DateTime  @default(now()) @map("assessment_started_at")
+  transitionCompletedAt    DateTime? @map("transition_completed_at")
+  createdAt                DateTime  @default(now()) @map("created_at")
+
+  @@index([state, createdAt(sort: Desc)])
+  @@index([targetBackendCode, createdAt(sort: Desc)])
+  @@map("backend_failover_events")
+}
+
+model ReplicationHealthSnapshot {
+  id                    BigInt   @id @default(autoincrement())
+  sourceBackendCode     String   @map("source_backend_code")
+  targetBackendCode     String   @map("target_backend_code")
+  status                String
+  lagSeconds            Decimal? @map("lag_seconds") @db.Decimal(12, 3)
+  slotWalBytes          BigInt?  @map("slot_wal_bytes")
+  receivedLsn           String?  @map("received_lsn")
+  replayLsn             String?  @map("replay_lsn")
+  schemaCompatible      Boolean  @default(false) @map("schema_compatible")
+  storageMirrorHealthy  Boolean  @default(false) @map("storage_mirror_healthy")
+  lastErrorCode         String?  @map("last_error_code")
+  observedAt            DateTime @default(now()) @map("observed_at")
+
+  @@index([targetBackendCode, observedAt(sort: Desc)])
+  @@index([status, observedAt(sort: Desc)])
+  @@map("replication_health_snapshots")
+}
+
+model ProfileAuthIdentity {
+  id              String   @id @default(uuid()) @db.Uuid
+  profileId       String   @map("profile_id") @db.Uuid
+  authProjectCode String   @map("auth_project_code")
+  authUserId      String   @map("auth_user_id") @db.Uuid
+  provider        String
+  verifiedEmail   String   @map("verified_email")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  profile         Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([authProjectCode, authUserId])
+  @@unique([profileId, authProjectCode, provider])
+  @@index([verifiedEmail, authProjectCode])
+  @@map("profile_auth_identities")
+}
+
+model StorageObjectManifest {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String?  @map("organization_id") @db.Uuid
+  bucket           String
+  objectPath       String   @map("object_path")
+  primaryChecksum  String?  @map("primary_checksum")
+  drChecksum       String?  @map("dr_checksum")
+  primaryUpdatedAt DateTime? @map("primary_updated_at")
+  drUpdatedAt      DateTime? @map("dr_updated_at")
+  replicationStatus String  @default("PENDING") @map("replication_status")
+  retryCount       Int      @default(0) @map("retry_count")
+  lastErrorCode    String?  @map("last_error_code")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  jobs             StorageReplicationJob[]
+
+  @@unique([bucket, objectPath])
+  @@index([organizationId, replicationStatus])
+  @@index([replicationStatus, updatedAt])
+  @@map("storage_object_manifest")
+}
+
+model StorageReplicationJob {
+  id                String                @id @default(uuid()) @db.Uuid
+  manifestId        String                @map("manifest_id") @db.Uuid
+  sourceBackendCode String                @map("source_backend_code")
+  targetBackendCode String                @map("target_backend_code")
+  status            String                @default("PENDING")
+  attemptCount      Int                   @default(0) @map("attempt_count")
+  nextAttemptAt     DateTime?             @map("next_attempt_at")
+  claimedAt         DateTime?             @map("claimed_at")
+  completedAt       DateTime?             @map("completed_at")
+  lastErrorCode     String?               @map("last_error_code")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+  manifest          StorageObjectManifest @relation(fields: [manifestId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([manifestId, createdAt(sort: Desc)])
+  @@map("storage_replication_jobs")
 }
