@@ -7,6 +7,10 @@ describe("offline device risk limits", () => {
     maxPendingOrders: 40,
     maxTotalAmount: 20_000,
     maxSingleOrderAmount: 4_000,
+    maxManualPaymentAmount: 3_000,
+    maxTotalManualPaymentAmount: 8_000,
+    requireCustomerContactAboveAmount: 2_000,
+    managerApprovalThreshold: 2_500,
   };
 
   it("uses reviewed policy limits for persistent storage", () => {
@@ -15,6 +19,10 @@ describe("offline device risk limits", () => {
       maxPendingOrders: 40,
       maxTotalAmount: 20_000,
       maxSingleOrderAmount: 4_000,
+      maxManualPaymentAmount: 3_000,
+      maxTotalManualPaymentAmount: 8_000,
+      requireCustomerContactAboveAmount: 2_000,
+      managerApprovalThreshold: 2_500,
     });
   });
 
@@ -24,6 +32,10 @@ describe("offline device risk limits", () => {
       maxPendingOrders: 10,
       maxTotalAmount: 5_000,
       maxSingleOrderAmount: 1_000,
+      maxManualPaymentAmount: 1_000,
+      maxTotalManualPaymentAmount: 3_000,
+      requireCustomerContactAboveAmount: 1_000,
+      managerApprovalThreshold: 1_000,
     });
   });
 });

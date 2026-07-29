@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 
-export async function readJson(request: Request, requestId?: string) {
+export async function readJson(
+  request: Request,
+  requestId?: string,
+  options: { maxBytes?: number } = {},
+) {
   const headers = requestId ? { "x-request-id": requestId } : undefined;
-  const maxBytes = 32_000;
+  const maxBytes = Math.max(1, Math.min(options.maxBytes ?? 32_000, 1_000_000));
   const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
   const contentLength = Number(request.headers.get("content-length") ?? 0);
 

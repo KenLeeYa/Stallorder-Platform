@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { createClient } from "@supabase/supabase-js";
+import { offlineSyncRequestSchema } from "../src/offline/offline-order-contract";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -13,6 +15,8 @@ const stallId = "22222222-2222-4222-8222-222222222222";
 const stallSlug = "aming-chicken";
 const deviceName = "P4 E2E 離線主機";
 const flagReason = "P4 E2E temporary offline device validation";
+const offlineCustomerName = "P5 E2E 離線顧客";
+const productionOfflineRuntime = process.env.PLAYWRIGHT_PRODUCTION_SERVER === "true";
 
 test.describe("P4 離線 PWA 基礎", () => {
   test.describe.configure({ mode: "serial" });
@@ -61,6 +65,7 @@ test.describe("P4 離線 PWA 基礎", () => {
     });
     const staffPage = await staffContext.newPage();
     const ownerPage = await ownerContext.newPage();
+    let offlineIdempotencyKey: string | null = null;
 
     try {
       await login(staffPage, "staff@stallorder.test", /\/staff\/aming-chicken/);
@@ -116,6 +121,7 @@ test.describe("P4 離線 PWA 基礎", () => {
             "menu_snapshots",
             "stall_settings",
             "availability_config",
+            "cash_shift_snapshot",
           ];
           const transaction = database.transaction(stores, "readonly");
           const counts = await Promise.all(stores.map((storeName) => new Promise<number>((resolveCount, reject) => {
@@ -129,7 +135,7 @@ test.describe("P4 離線 PWA 基礎", () => {
         }
       });
       expect(localData.storeCount).toBe(15);
-      expect(localData.counts).toEqual([1, 1, 1, 1, 1]);
+      expect(localData.counts).toEqual([1, 1, 1, 1, 1, 1]);
 
       const permit = await prisma.offlinePermit.findFirstOrThrow({
         where: { deviceId: device.id, status: "ACTIVE" },
@@ -167,12 +173,224 @@ test.describe("P4 離線 PWA 基礎", () => {
       expect(JSON.stringify(publicSnapshot)).not.toMatch(
         /password|session|permitToken|serviceRole|customerPhone/i,
       );
+      if (!productionOfflineRuntime) return;
+
+      await staffPage.getByTitle("關閉離線裝置視窗").click();
+      await staffPage.evaluate(async () => {
+        await navigator.serviceWorker.ready;
+      });
+      await staffPage.reload();
+      await expect(staffPage.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
+      await expect.poll(
+        () => staffPage.evaluate(() => Boolean(navigator.serviceWorker.controller)),
+      ).toBe(true);
+
+      await staffPage.goto("/offline");
+      await expect(staffPage.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
+      await staffContext.setOffline(true);
+      await staffPage.reload({ waitUntil: "domcontentloaded" });
+      await expect(staffPage.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
+      await expect(staffPage.getByText("目前離線", { exact: true })).toBeVisible();
+      await staffPage.getByRole("button", { name: "新增現場訂單" }).click();
+      const composer = staffPage.getByRole("dialog", { name: "店員點餐與結帳" });
+      await composer.getByLabel("顧客名稱（選填）").fill(offlineCustomerName);
+      await composer.getByTitle(/^增加 /).first().click();
+      const noteGroups = composer.locator("fieldset");
+      for (let index = 0; index < await noteGroups.count(); index += 1) {
+        const group = noteGroups.nth(index);
+        if ((await group.locator("legend").innerText()).includes("*")) {
+          await group.locator("input").first().check();
+        }
+      }
+      await composer.getByTestId("staff-order-cart-tab").click();
+      await composer.getByRole("button", { name: "稍後結帳" }).click();
+      await composer.getByRole("button", { name: "建立訂單送入廚房" }).click();
+      await expect(composer).toBeHidden();
+
+      const localCard = staffPage.getByTestId("offline-order-card").filter({
+        hasText: offlineCustomerName,
+      });
+      await expect(localCard).toBeVisible();
+      const localNumber = await localCard.getByTestId("offline-order-number").innerText();
+      expect(localNumber).toMatch(/^OFF-[A-F0-9]{6}-[0-9]{8}-[0-9]+$/);
+      const localIdentity = await staffPage.evaluate(async () => {
+        const database = await new Promise<IDBDatabase>((resolveDatabase, reject) => {
+          const request = indexedDB.open("stallorder-offline-pos");
+          request.addEventListener("success", () => resolveDatabase(request.result), { once: true });
+          request.addEventListener("error", () => reject(request.error), { once: true });
+        });
+        try {
+          const transaction = database.transaction("offline_orders", "readonly");
+          const records = await new Promise<Array<{
+            payload?: { customerLabel?: string; idempotencyKey?: string };
+          }>>((resolveRecords, reject) => {
+            const request = transaction.objectStore("offline_orders").getAll();
+            request.addEventListener("success", () => resolveRecords(request.result), { once: true });
+            request.addEventListener("error", () => reject(request.error), { once: true });
+          });
+          return records.find((record) => record.payload?.customerLabel === "P5 E2E 離線顧客")
+            ?.payload?.idempotencyKey ?? null;
+        } finally {
+          database.close();
+        }
+      });
+      expect(localIdentity).toMatch(/^[0-9a-f-]{36}$/);
+      if (!localIdentity) throw new Error("離線訂單未寫入本機冪等鍵");
+      offlineIdempotencyKey = localIdentity;
+
+      await staffPage.reload({ waitUntil: "domcontentloaded" });
+      const persistedCard = staffPage.getByTestId("offline-order-card").filter({
+        hasText: localNumber,
+      });
+      await expect(persistedCard).toBeVisible();
+      await persistedCard.getByRole("button", { name: "開始製作" }).click();
+      await expect(persistedCard.getByText("製作中", { exact: true })).toBeVisible();
+      await persistedCard.getByRole("button", { name: "餐點完成" }).click();
+      await expect(persistedCard.getByText("可取餐", { exact: true })).toBeVisible();
+
+      await staffPage.evaluate(() => {
+        const originalFetch = window.fetch.bind(window);
+        const captureWindow = window as typeof window & {
+          __offlineSyncPayload?: unknown;
+        };
+        window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = input instanceof Request ? input.url : String(input);
+          const method = (init?.method ?? (input instanceof Request ? input.method : "GET"))
+            .toUpperCase();
+          if (
+            method === "POST"
+            && new URL(url, window.location.origin).pathname === "/api/offline/sync"
+            && typeof init?.body === "string"
+          ) {
+            captureWindow.__offlineSyncPayload = JSON.parse(init.body);
+          }
+          return originalFetch(input, init);
+        };
+      });
+      await staffContext.setOffline(false);
+      await expect(staffPage.getByText("網路已恢復", { exact: true })).toBeVisible();
+      await staffPage.waitForTimeout(5_000);
+      const autoSyncStarted = await staffPage.evaluate(() => Boolean((
+        window as typeof window & { __offlineSyncPayload?: unknown }
+      ).__offlineSyncPayload));
+      if (!autoSyncStarted) {
+        await staffPage.getByRole("button", { name: "立即同步" }).click();
+      }
+      await expect.poll(async () => staffPage.evaluate(() => Boolean((
+        window as typeof window & { __offlineSyncPayload?: unknown }
+      ).__offlineSyncPayload)), {
+        timeout: 10_000,
+      }).toBe(true);
+      const syncPayload = await staffPage.evaluate(() => (
+        window as typeof window & { __offlineSyncPayload?: unknown }
+      ).__offlineSyncPayload);
+      const syncRequestValidation = offlineSyncRequestSchema.safeParse(syncPayload);
+      expect(
+        syncRequestValidation.success,
+        syncRequestValidation.success
+          ? undefined
+          : syncRequestValidation.error.issues
+            .map((issue) => {
+              const safeMessage = /^[A-Z0-9_]{1,120}$/.test(issue.message)
+                ? `:${issue.message}`
+                : "";
+              return `${issue.path.join(".") || "<root>"}:${issue.code}${safeMessage}`;
+            })
+            .join(", "),
+      ).toBe(true);
+      await expect(staffPage.getByText(/目前沒有待同步的本機訂單/)).toBeVisible({
+        timeout: 30_000,
+      });
+      expect(syncPayload).toBeTruthy();
+
+      const importedOrders = await prisma.order.findMany({
+        where: {
+          organizationId,
+          stallId,
+          idempotencyKey: localIdentity,
+        },
+        select: { id: true, origin: true, status: true },
+      });
+      expect(importedOrders).toHaveLength(1);
+      expect(importedOrders[0]).toMatchObject({
+        origin: "OFFLINE_POS",
+        status: "READY",
+      });
+
+      const duplicateResult = await staffPage.evaluate(async ({ body, slug }) => {
+        const csrf = document.cookie
+          .split(";")
+          .map((part) => part.trim())
+          .find((part) => part.startsWith("stallorder_csrf="))
+          ?.split("=").slice(1).join("=");
+        const response = await fetch("/api/offline/sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-csrf-token": decodeURIComponent(csrf ?? ""),
+            "x-stall-slug": slug,
+          },
+          body: JSON.stringify(body),
+        });
+        const payload = await response.json();
+        return {
+          status: response.status,
+          outcome: payload.receipts?.[0]?.outcome ?? null,
+        };
+      }, { body: syncPayload, slug: stallSlug });
+      expect(duplicateResult).toEqual({ status: 200, outcome: "DUPLICATE" });
+      expect(await prisma.order.count({
+        where: {
+          organizationId,
+          stallId,
+          idempotencyKey: localIdentity,
+        },
+      })).toBe(1);
     } finally {
+      if (offlineIdempotencyKey) {
+        await cleanupSyncedOfflineOrder(offlineIdempotencyKey);
+      }
       await staffContext.close();
       await ownerContext.close();
     }
   });
 });
+
+async function cleanupSyncedOfflineOrder(idempotencyKey: string) {
+  const orders = await prisma.order.findMany({
+    where: { organizationId, stallId, idempotencyKey },
+    select: { id: true },
+  });
+  const orderIds = orders.map((order) => order.id);
+  await prisma.$transaction([
+    prisma.offlineSyncConflict.deleteMany({
+      where: { organizationId, stallId, orderId: { in: orderIds } },
+    }),
+    prisma.offlineOrderSyncReceipt.deleteMany({
+      where: { organizationId, stallId, idempotencyKey },
+    }),
+    prisma.domainOutboxEvent.deleteMany({
+      where: { organizationId, stallId, aggregateId: { in: orderIds } },
+    }),
+    prisma.domainInboxMessage.deleteMany({
+      where: {
+        organizationId,
+        stallId,
+        source: "OFFLINE_ORDER_SYNC",
+        messageKey: idempotencyKey,
+      },
+    }),
+    prisma.usageEvent.deleteMany({
+      where: { organizationId, stallId, referenceId: { in: orderIds } },
+    }),
+    prisma.auditLog.deleteMany({
+      where: { organizationId, stallId, entityId: { in: orderIds } },
+    }),
+    prisma.order.deleteMany({
+      where: { organizationId, stallId, id: { in: orderIds } },
+    }),
+  ]);
+}
 
 async function cleanup() {
   const flag = await prisma.resilienceFeatureFlag.findUnique({
@@ -189,13 +407,6 @@ async function cleanup() {
     select: { id: true },
   });
   const deviceIds = devices.map((device) => device.id);
-  const permits = deviceIds.length > 0
-    ? await prisma.offlinePermit.findMany({
-      where: { organizationId, stallId, deviceId: { in: deviceIds } },
-      select: { menuSnapshotId: true },
-    })
-    : [];
-  const snapshotIds = [...new Set(permits.map((permit) => permit.menuSnapshotId))];
   if (deviceIds.length > 0) {
     await prisma.offlinePermit.deleteMany({
       where: { organizationId, stallId, deviceId: { in: deviceIds } },
@@ -206,10 +417,13 @@ async function cleanup() {
     await prisma.clientDevice.deleteMany({ where: { id: { in: deviceIds } } });
   }
   const snapshots = await prisma.menuSnapshot.findMany({
-    where: { id: { in: snapshotIds } },
+    where: { organizationId, stallId },
     select: { id: true, publicObjectPath: true },
   });
   if (snapshots.length > 0) {
+    await removeLocalSnapshotObjects(
+      snapshots.map((snapshot) => snapshot.publicObjectPath),
+    );
     await prisma.menuSnapshot.deleteMany({
       where: { id: { in: snapshots.map((snapshot) => snapshot.id) } },
     });
@@ -220,6 +434,23 @@ async function cleanup() {
       },
     });
   }
+}
+
+async function removeLocalSnapshotObjects(objectPaths: string[]) {
+  const url = process.env.PRIMARY_SUPABASE_URL;
+  const key = process.env.PRIMARY_SUPABASE_SECRET_KEY
+    ?? process.env.PRIMARY_SUPABASE_SERVICE_ROLE_KEY
+    ?? process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) throw new Error("本機 Storage 清理設定不完整");
+  const hostname = new URL(url).hostname;
+  if (hostname !== "127.0.0.1" && hostname !== "localhost") {
+    throw new Error(`拒絕清理非本機 Storage：${hostname}`);
+  }
+  const client = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const result = await client.storage.from("offline-menu-snapshots").remove(objectPaths);
+  if (result.error) throw new Error("本機離線快照清理失敗");
 }
 
 async function login(page: Page, email: string, expectedUrl: RegExp) {

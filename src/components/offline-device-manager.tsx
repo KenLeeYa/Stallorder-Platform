@@ -49,6 +49,10 @@ type OfflinePolicy = {
   maxPendingOrders: number;
   maxTotalAmount: number;
   maxSingleOrderAmount: number;
+  maxManualPaymentAmount: number;
+  maxTotalManualPaymentAmount: number;
+  requireCustomerContactAboveAmount: number;
+  managerApprovalThreshold: number;
   updatedAt: string | null;
 };
 
@@ -72,6 +76,10 @@ function normalizePolicy(policy: OfflinePolicy) {
     maxPendingOrders: policy.maxPendingOrders,
     maxTotalAmount: policy.maxTotalAmount,
     maxSingleOrderAmount: policy.maxSingleOrderAmount,
+    maxManualPaymentAmount: policy.maxManualPaymentAmount,
+    maxTotalManualPaymentAmount: policy.maxTotalManualPaymentAmount,
+    requireCustomerContactAboveAmount: policy.requireCustomerContactAboveAmount,
+    managerApprovalThreshold: policy.managerApprovalThreshold,
   };
 }
 
@@ -142,6 +150,10 @@ export function OfflineDeviceManager({
         maxPendingOrders: policy.maxPendingOrders,
         maxTotalAmount: policy.maxTotalAmount,
         maxSingleOrderAmount: policy.maxSingleOrderAmount,
+        maxManualPaymentAmount: policy.maxManualPaymentAmount,
+        maxTotalManualPaymentAmount: policy.maxTotalManualPaymentAmount,
+        requireCustomerContactAboveAmount: policy.requireCustomerContactAboveAmount,
+        managerApprovalThreshold: policy.managerApprovalThreshold,
       },
       reason,
     }, "policy");
@@ -174,7 +186,15 @@ export function OfflineDeviceManager({
   }
 
   function updateLimit(
-    key: "maxOfflineDurationMinutes" | "maxPendingOrders" | "maxTotalAmount" | "maxSingleOrderAmount",
+    key:
+      | "maxOfflineDurationMinutes"
+      | "maxPendingOrders"
+      | "maxTotalAmount"
+      | "maxSingleOrderAmount"
+      | "maxManualPaymentAmount"
+      | "maxTotalManualPaymentAmount"
+      | "requireCustomerContactAboveAmount"
+      | "managerApprovalThreshold",
     value: string,
   ) {
     setPolicy((current) => ({ ...current, [key]: Number(value) }));
@@ -283,6 +303,41 @@ export function OfflineDeviceManager({
             value={policy.maxSingleOrderAmount}
             disabled={!featureAvailable || busyKey !== null}
             onChange={(value) => updateLimit("maxSingleOrderAmount", value)}
+          />
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <NumberField
+            label="單筆人工付款上限"
+            min={0}
+            max={100_000_000}
+            value={policy.maxManualPaymentAmount}
+            disabled={!featureAvailable || busyKey !== null}
+            onChange={(value) => updateLimit("maxManualPaymentAmount", value)}
+          />
+          <NumberField
+            label="人工付款累計上限"
+            min={0}
+            max={100_000_000}
+            value={policy.maxTotalManualPaymentAmount}
+            disabled={!featureAvailable || busyKey !== null}
+            onChange={(value) => updateLimit("maxTotalManualPaymentAmount", value)}
+          />
+          <NumberField
+            label="需留聯絡方式門檻"
+            min={0}
+            max={100_000_000}
+            value={policy.requireCustomerContactAboveAmount}
+            disabled={!featureAvailable || busyKey !== null}
+            onChange={(value) => updateLimit("requireCustomerContactAboveAmount", value)}
+          />
+          <NumberField
+            label="管理者操作門檻"
+            min={0}
+            max={100_000_000}
+            value={policy.managerApprovalThreshold}
+            disabled={!featureAvailable || busyKey !== null}
+            onChange={(value) => updateLimit("managerApprovalThreshold", value)}
           />
         </div>
 

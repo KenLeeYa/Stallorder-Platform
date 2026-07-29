@@ -76,6 +76,30 @@ const messages: Record<string, { status: number; message: string }> = {
     status: 503,
     message: "離線菜單快照完整性檢查失敗。",
   },
+  OFFLINE_SYNC_AUTH_INVALID: {
+    status: 401,
+    message: "離線同步登入狀態已失效，請重新登入。",
+  },
+  OFFLINE_SYNC_SCOPE_INVALID: {
+    status: 404,
+    message: "找不到可同步的攤位或裝置資料。",
+  },
+  OFFLINE_SYNC_DEVICE_INVALID: {
+    status: 403,
+    message: "此裝置目前沒有離線同步權限。",
+  },
+  OFFLINE_SYNC_PERMIT_INVALID: {
+    status: 403,
+    message: "離線授權無效，請由已核准裝置重新取得授權。",
+  },
+  OFFLINE_SYNC_PROTOCOL_INVALID: {
+    status: 409,
+    message: "離線資料版本不相容，請先完成應用程式更新。",
+  },
+  OFFLINE_SYNC_BACKEND_NOT_WRITABLE: {
+    status: 503,
+    message: "目前後端尚未開放安全寫入，離線資料會保留並稍後重試。",
+  },
 };
 
 export function offlineErrorResponse(error: unknown, requestId: string) {

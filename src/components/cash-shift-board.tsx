@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
+import { OfflineQueueStatus } from "@/components/offline-queue-status";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatTaipeiDateTime } from "@/lib/date-time";
 import { formatMoney } from "@/lib/money";
@@ -92,7 +93,7 @@ export function CashShiftBoard({
   initialState,
   initialPermissions,
 }: {
-  stall: { slug: string; name: string; currency: string };
+  stall: { id: string; organizationId: string; slug: string; name: string; currency: string };
   initialState: CashShiftState;
   initialPermissions: CashShiftPermissions;
 }) {
@@ -113,6 +114,9 @@ export function CashShiftBoard({
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [offlineSnapshot, setOfflineSnapshot] = useState<Awaited<
+    ReturnType<typeof import("@/offline/offline-operations")["getOfflineCashShiftSnapshot"]>
+  >>(null);
 
   const applyPayload = useCallback((payload: { state?: CashShiftState; permissions?: CashShiftPermissions }) => {
     if (payload.state) setState(payload.state);
@@ -124,6 +128,12 @@ export function CashShiftBoard({
     const payload = await response.json();
     if (response.ok) applyPayload(payload);
   }, [applyPayload, stall.slug]);
+
+  const refreshOfflineSnapshot = useCallback(async () => {
+    if (!("indexedDB" in window)) return;
+    const { getOfflineCashShiftSnapshot } = await import("@/offline/offline-operations");
+    setOfflineSnapshot(await getOfflineCashShiftSnapshot(stall.id));
+  }, [stall.id]);
 
   const run = useCallback(async (command: Record<string, unknown>, successMessage: string) => {
     setBusy(true);
@@ -152,6 +162,16 @@ export function CashShiftBoard({
     return () => window.clearInterval(timer);
   }, [refresh]);
 
+  useEffect(() => {
+    const onOfflineDataChanged = () => void refreshOfflineSnapshot();
+    const initialRefresh = window.setTimeout(() => void refreshOfflineSnapshot(), 0);
+    window.addEventListener("stallorder:offline-data-changed", onOfflineDataChanged);
+    return () => {
+      window.clearTimeout(initialRefresh);
+      window.removeEventListener("stallorder:offline-data-changed", onOfflineDataChanged);
+    };
+  }, [refreshOfflineSnapshot]);
+
   async function openShift() {
     const amount = Number(openingAmount);
     if (!Number.isInteger(amount) || amount < 0) return;
@@ -168,6 +188,18 @@ export function CashShiftBoard({
     if (!state.openShift) return;
     const amount = Number(movementAmount);
     if (!Number.isInteger(amount) || amount <= 0 || !movementReason.trim()) return;
+    if (!navigator.onLine) {
+      const saved = await addOfflineCashEvent({
+        eventType: movementType,
+        amount,
+        reason: movementReason.trim(),
+      }, "現金收支已安全儲存在此裝置，恢復連線後會自動同步。");
+      if (saved) {
+        setMovementAmount("");
+        setMovementReason("");
+      }
+      return;
+    }
     if (await run({
       operation: "MOVE",
       shiftId: state.openShift.id,
@@ -200,6 +232,19 @@ export function CashShiftBoard({
     const successMessage = permissions.reconciliationEnabled
       ? "盤點已送出，等待店長或老闆複核。"
       : "現金班次已完成交班。";
+    if (!navigator.onLine) {
+      const saved = await addOfflineCashEvent({
+        eventType: "PROVISIONAL_CLOSE",
+        amount: activeExpectedAmount,
+        countedAmount: amount,
+        reason: closeNote.trim() || "離線暫時交班",
+      }, "已在此裝置暫時關班；恢復連線同步後，系統會重新計算應有金額並進入複核。");
+      if (saved) {
+        setCountedAmount("");
+        setCloseNote("");
+      }
+      return;
+    }
     if (await run({
       operation: "CLOSE",
       shiftId: state.openShift.id,
@@ -208,6 +253,37 @@ export function CashShiftBoard({
     }, successMessage)) {
       setCountedAmount("");
       setCloseNote("");
+    }
+  }
+
+  async function addOfflineCashEvent(
+    input: {
+      eventType: "CASH_IN" | "CASH_OUT" | "PROVISIONAL_CLOSE";
+      amount: number;
+      countedAmount?: number;
+      reason: string;
+    },
+    successMessage: string,
+  ) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const { createOfflineCashEvent } = await import("@/offline/offline-operations");
+      await createOfflineCashEvent({
+        organizationId: stall.organizationId,
+        stallId: stall.id,
+        ...input,
+      });
+      await refreshOfflineSnapshot();
+      setMessage(successMessage);
+      return true;
+    } catch (error) {
+      setMessage(error instanceof Error
+        ? offlineCashErrorMessage(error.message)
+        : "目前無法安全儲存離線現金事件。");
+      return false;
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -241,9 +317,17 @@ export function CashShiftBoard({
     }
   }
 
+  const activeOfflineSnapshot = state.openShift
+    && offlineSnapshot?.shiftId === state.openShift.id
+    ? offlineSnapshot
+    : null;
+  const activeExpectedAmount = activeOfflineSnapshot?.expectedAmount
+    ?? state.openShift?.expectedAmount
+    ?? 0;
+  const localProvisionalClose = activeOfflineSnapshot?.status === "PROVISIONAL_CLOSE";
   const counted = countedAmount === "" ? null : Number(countedAmount);
   const liveVariance = state.openShift && counted !== null && Number.isFinite(counted)
-    ? counted - state.openShift.expectedAmount
+    ? counted - activeExpectedAmount
     : null;
 
   return <main className="mx-auto min-h-screen max-w-5xl px-4 py-6 md:px-8">
@@ -262,6 +346,20 @@ export function CashShiftBoard({
 
     {!permissions.canManage ? <p className="mt-4 border-l-4 border-stone-300 pl-3 text-sm text-stone-600">目前為唯讀模式，您可以查看現金班次與對帳結果。</p> : null}
     {message ? <p role="status" aria-live="polite" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
+    <OfflineQueueStatus
+      stallId={stall.id}
+      stallSlug={stall.slug}
+      onSynchronized={() => {
+        void refresh();
+        void refreshOfflineSnapshot();
+      }}
+    />
+    {activeOfflineSnapshot && activeOfflineSnapshot.pendingEvents.length > 0 ? (
+      <section className="mt-4 border-l-4 border-blue-500 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+        <strong>{activeOfflineSnapshot.pendingEvents.length} 筆本機現金事件待同步</strong>
+        <p className="mt-1">本機暫算應有金額：{formatMoney(activeExpectedAmount, stall.currency)}。同步時仍由伺服器重新計算並留下差異紀錄。</p>
+      </section>
+    ) : null}
 
     {!state.openShift ? <section className="mt-6 border-y border-stone-200 py-6">
       <div className="flex items-center gap-2"><WalletCards className="h-5 w-5 text-teal-700" /><h2 className="text-xl font-semibold">開啟現金班次</h2></div>
@@ -275,12 +373,12 @@ export function CashShiftBoard({
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold">進行中的班次</h2><p className="mt-1 text-xs text-stone-500">{state.openShift.openedBy.displayName} · {formatTaipeiDateTime(state.openShift.openedAt)}</p></div><StatusBadge status="OPEN" /></div>
         <div className="mt-4 grid grid-cols-2 border-l border-t border-stone-200 sm:grid-cols-3 lg:grid-cols-7">
           <Metric label="開班金額" value={formatMoney(state.openShift.openingAmount, stall.currency)} />
-          <Metric label="現金銷售" value={formatMoney(state.openShift.cashSales, stall.currency)} />
+          <Metric label="現金銷售" value={formatMoney(activeOfflineSnapshot?.cashSales ?? state.openShift.cashSales, stall.currency)} />
           <Metric label="現金退款" value={`-${formatMoney(state.openShift.cashRefund, stall.currency)}`} />
-          <Metric label="現金收入" value={formatMoney(state.openShift.cashIn, stall.currency)} />
-          <Metric label="現金支出" value={`-${formatMoney(state.openShift.cashOut, stall.currency)}`} />
+          <Metric label="現金收入" value={formatMoney(activeOfflineSnapshot?.cashIn ?? state.openShift.cashIn, stall.currency)} />
+          <Metric label="現金支出" value={`-${formatMoney(activeOfflineSnapshot?.cashOut ?? state.openShift.cashOut, stall.currency)}`} />
           <Metric label="帳務更正" value={formatSignedMoney(state.openShift.correction, stall.currency)} />
-          <Metric label="系統應有" value={formatMoney(state.openShift.expectedAmount, stall.currency)} strong />
+          <Metric label="系統應有" value={formatMoney(activeExpectedAmount, stall.currency)} strong />
         </div>
       </section>
 
@@ -291,7 +389,7 @@ export function CashShiftBoard({
             <label className="text-xs font-semibold text-stone-600">類型<select value={movementType} onChange={(event) => setMovementType(event.target.value as "CASH_IN" | "CASH_OUT")} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="CASH_IN">現金收入</option><option value="CASH_OUT">現金支出</option></select></label>
             <MoneyInput label="金額" value={movementAmount} onChange={setMovementAmount} />
             <TextInput label="原因" value={movementReason} onChange={setMovementReason} maxLength={200} />
-            <button type="button" disabled={busy || !movementAmount || !movementReason.trim()} onClick={() => void addMovement()} className="h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">新增紀錄</button>
+            <button type="button" disabled={busy || localProvisionalClose || !movementAmount || !movementReason.trim()} onClick={() => void addMovement()} className="h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">新增紀錄</button>
           </div>
         </section>
 
@@ -308,7 +406,7 @@ export function CashShiftBoard({
           <h2 className="text-xl font-semibold">盤點並交班</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]"><MoneyInput label="實際盤點金額" value={countedAmount} onChange={setCountedAmount} /><TextInput label="交班備註（選填）" value={closeNote} onChange={setCloseNote} maxLength={500} /></div>
           {liveVariance !== null ? <Variance amount={liveVariance} currency={stall.currency} /> : null}
-          <button type="button" disabled={busy || counted === null || counted < 0} onClick={() => void closeShift()} className="mt-4 inline-flex h-11 items-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />{permissions.reconciliationEnabled ? "送出交班複核" : "完成交班"}</button>
+          <button type="button" disabled={busy || localProvisionalClose || counted === null || counted < 0} onClick={() => void closeShift()} className="mt-4 inline-flex h-11 items-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />{localProvisionalClose ? "已暫時關班，等待同步" : permissions.reconciliationEnabled ? "送出交班複核" : "完成交班"}</button>
         </section>
       </> : null}
 
@@ -403,4 +501,17 @@ function movementLabel(type: MovementType) {
 
 function reviewDecisionLabel(decision: Review["decision"]) {
   return { APPROVED: "核准", REJECTED: "退回", ADJUSTMENT_REQUIRED: "要求更正" }[decision];
+}
+
+function offlineCashErrorMessage(code: string) {
+  const messages: Record<string, string> = {
+    OFFLINE_BOOTSTRAP_REQUIRED: "請先在線上完成此裝置的離線營運初始化。",
+    OFFLINE_PERMIT_EXPIRED: "離線營運許可已到期，請恢復連線後重新取得許可。",
+    OFFLINE_DEVICE_NOT_LEADER: "此裝置不是目前攤位的離線主裝置。",
+    OFFLINE_ACTION_NOT_ALLOWED: "目前的離線許可不允許記錄現金事件。",
+    OFFLINE_CASH_SHIFT_REQUIRED: "離線現金操作只能延續已在線上開啟的班別。",
+  };
+  return messages[code] ?? (code.startsWith("OFFLINE_")
+    ? "目前無法安全儲存離線現金事件，請恢復連線後重試。"
+    : code);
 }

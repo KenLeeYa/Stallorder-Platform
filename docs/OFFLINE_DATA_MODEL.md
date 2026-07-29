@@ -97,8 +97,18 @@ settings 與 storage capability；只有 transaction commit 成功後才顯示�
 資料庫升級只建立缺少的 store/index，不刪除待同步資料。跨分頁同步先使用
 `navigator.locks`，不支援時使用 IndexedDB lease 與 BroadcastChannel 心跳。
 
-## P4 與 P5 邊界
+## P5 離線操作模型
 
-P4 只建立 schema 與安全儲存基礎。`offline_orders`、`offline_payments`、
-`offline_print_jobs` 與 `sync_queue` 的正式 payload、狀態機及寫入交易由 P5
-完成。在 P5 通過前，UI 不得把任何本機操作表示為成功訂單。
+`offline_orders`、`offline_order_events`、`offline_payments`、
+`offline_print_jobs` 與 `sync_queue` 由同一個 durability=strict transaction
+建立，避免只留下部分訂單。同步回條寫入 `sync_receipts`，衝突另外保存在
+`sync_conflicts`，不會因完整 payload 到期而一併刪除。
+
+PostgreSQL 以 `offline_order_sync_receipts` 與
+`offline_sync_conflicts` 保存伺服器權威結果，並使用
+`domain_inbox` 防止重播、`domain_outbox` 延後處理副作用。
+新表全部啟用及強制 RLS，撤銷 anon/authenticated 權限，只允許受信任的
+service role。
+
+同步完成的本機完整 payload 保存 7 天，回條保存 30 天；尚未同步或有衝突的
+資料不會被自動清除。

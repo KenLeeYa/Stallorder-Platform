@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 export const OFFLINE_DATABASE_NAME = "stallorder-offline-pos";
-export const OFFLINE_DATABASE_VERSION = 1;
-export const OFFLINE_SCHEMA_VERSION = 1;
-export const OFFLINE_APP_PROTOCOL_VERSION = "1";
+export const OFFLINE_DATABASE_VERSION = 2;
+export const OFFLINE_SCHEMA_VERSION = 2;
+export const OFFLINE_APP_PROTOCOL_VERSION = "2";
 
 export const offlineStorageClasses = [
   "PERSISTENT",
@@ -61,6 +61,10 @@ const offlineLimitsSchema = z.object({
   maxPendingOrders: z.number().int().min(1).max(500),
   maxTotalAmount: z.number().min(0).max(99_999_999.99),
   maxSingleOrderAmount: z.number().min(0).max(99_999_999.99),
+  maxManualPaymentAmount: z.number().int().min(0).max(100_000_000),
+  maxTotalManualPaymentAmount: z.number().int().min(0).max(100_000_000),
+  requireCustomerContactAboveAmount: z.number().int().min(0).max(100_000_000),
+  managerApprovalThreshold: z.number().int().min(0).max(100_000_000),
 }).superRefine((value, context) => {
   if (value.maxSingleOrderAmount > value.maxTotalAmount) {
     context.addIssue({
@@ -68,6 +72,32 @@ const offlineLimitsSchema = z.object({
       path: ["maxSingleOrderAmount"],
       message: "單筆離線訂單上限不可高於離線累計金額上限。",
     });
+  }
+  if (value.maxManualPaymentAmount > value.maxSingleOrderAmount) {
+    context.addIssue({
+      code: "custom",
+      path: ["maxManualPaymentAmount"],
+      message: "單筆人工付款上限不可高於單筆離線訂單上限。",
+    });
+  }
+  if (value.maxTotalManualPaymentAmount > value.maxTotalAmount) {
+    context.addIssue({
+      code: "custom",
+      path: ["maxTotalManualPaymentAmount"],
+      message: "人工付款累計上限不可高於離線累計金額上限。",
+    });
+  }
+  for (const key of [
+    "requireCustomerContactAboveAmount",
+    "managerApprovalThreshold",
+  ] as const) {
+    if (value[key] > value.maxManualPaymentAmount) {
+      context.addIssue({
+        code: "custom",
+        path: [key],
+        message: "人工付款門檻不可高於單筆人工付款上限。",
+      });
+    }
   }
 });
 
@@ -104,6 +134,19 @@ export const offlineManagementCommandSchema = z.discriminatedUnion("operation", 
 ]);
 
 export type OfflineManagementCommand = z.infer<typeof offlineManagementCommandSchema>;
+
+export const resolveOfflineConflictSchema = z.object({
+  conflictId: z.string().uuid("衝突識別碼格式不正確。"),
+  resolutionStatus: z.enum([
+    "ACCEPTED_LOCAL",
+    "MERGED",
+    "REJECTED",
+    "CANCELLED",
+  ]),
+  reason: safeText(5, 500, "處理原因"),
+}).strict();
+
+export type ResolveOfflineConflictCommand = z.infer<typeof resolveOfflineConflictSchema>;
 
 export const offlineBootstrapSchema = z.object({
   installationId: z.string().uuid("裝置安裝識別碼格式不正確。"),

@@ -74,8 +74,16 @@ IndexedDB 可能被作業系統清除；介面與文件不得宣稱永不遺失�
 - A09 Logging Failures：裝置、政策、Leader 與 Permit 皆有稽核事件。
 - A10 SSRF：公開快照 route 只使用伺服器設定的 Primary/DR origin。
 
-## 尚未開放
+## P5 伺服器匯入
 
-P4 不接受離線訂單、不記錄離線付款、不執行同步。P5 必須再驗證 snapshot
-價格、Permit、promotion epoch、idempotency、order state 與衝突，才能建立
-正式 canonical order。供應商授權付款在任何離線階段均維持停用。
+瀏覽器送出的訂單、價格、角色與付款狀態一律視為不可信。同步時重新驗證：
+
+- 有效登入、CSRF、RBAC、方案權益、organization 與 stall scope
+- active writer、裝置狀態、唯一 Leader、Permit hash／簽章與 promotion epoch
+- protocol、菜單快照、商品、註記、金額、狀態轉移及風險上限
+- `(source_device_id, offline_order_id)`、idempotency key、inbox key
+- 現金班別、人工付款對帳與列印 deduplication key
+
+每一筆記錄以資料庫交易與 advisory lock 匯入；重送會回傳既有 receipt，不會
+建立第二筆正式訂單。價格或商品已變更時保留離線交易快照並建立衝突供管理者
+核對。供應商授權付款、供應商退款與卡片資料在任何離線階段均維持停用。

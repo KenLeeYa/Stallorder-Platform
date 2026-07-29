@@ -35,6 +35,10 @@ export const offlinePermitPayloadSchema = z.object({
     maxPendingOrders: z.number().int().min(1).max(500),
     maxTotalAmount: z.number().min(0).max(99_999_999.99),
     maxSingleOrderAmount: z.number().min(0).max(99_999_999.99),
+    maxManualPaymentAmount: z.number().int().min(0).max(100_000_000),
+    maxTotalManualPaymentAmount: z.number().int().min(0).max(100_000_000),
+    requireCustomerContactAboveAmount: z.number().int().min(0).max(100_000_000),
+    managerApprovalThreshold: z.number().int().min(0).max(100_000_000),
   }).strict(),
 }).strict().superRefine((value, context) => {
   const issuedAt = Date.parse(value.issuedAt);
@@ -51,6 +55,18 @@ export const offlinePermitPayloadSchema = z.object({
       code: "custom",
       path: ["riskLimits", "maxSingleOrderAmount"],
       message: "OFFLINE_PERMIT_AMOUNT_LIMIT_INVALID",
+    });
+  }
+  if (
+    value.riskLimits.maxManualPaymentAmount > value.riskLimits.maxSingleOrderAmount
+    || value.riskLimits.maxTotalManualPaymentAmount > value.riskLimits.maxTotalAmount
+    || value.riskLimits.requireCustomerContactAboveAmount > value.riskLimits.maxManualPaymentAmount
+    || value.riskLimits.managerApprovalThreshold > value.riskLimits.maxManualPaymentAmount
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["riskLimits"],
+      message: "OFFLINE_PERMIT_MANUAL_PAYMENT_LIMIT_INVALID",
     });
   }
 });
@@ -78,6 +94,7 @@ export function verifyOfflinePermit(
   token: string,
   secret: string,
   now = new Date(),
+  options: { allowExpired?: boolean } = {},
 ): OfflinePermitPayload | null {
   assertSigningSecret(secret);
   if (token.length > 4096) return null;
@@ -90,7 +107,7 @@ export function verifyOfflinePermit(
   try {
     const decoded = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
     const payload = offlinePermitPayloadSchema.parse(decoded);
-    if (Date.parse(payload.expiresAt) <= now.getTime()) return null;
+    if (!options.allowExpired && Date.parse(payload.expiresAt) <= now.getTime()) return null;
     return payload;
   } catch {
     return null;

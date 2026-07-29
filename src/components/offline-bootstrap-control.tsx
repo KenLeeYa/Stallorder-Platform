@@ -59,6 +59,10 @@ type OfflineBootstrapResponse = {
       maxPendingOrders: number;
       maxTotalAmount: number;
       maxSingleOrderAmount: number;
+      maxManualPaymentAmount: number;
+      maxTotalManualPaymentAmount: number;
+      requireCustomerContactAboveAmount: number;
+      managerApprovalThreshold: number;
     };
   };
   device: DeviceRegistrationResponse["device"];
@@ -76,6 +80,19 @@ type OfflineBootstrapResponse = {
       path: string;
     };
   };
+  cashShift: {
+    id: string;
+    stallId: string;
+    status: "OPEN";
+    openingAmount: number;
+    openedAt: string;
+    cashSales: number;
+    cashIn: number;
+    cashOut: number;
+    cashRefund: number;
+    correction: number;
+    expectedAmount: number;
+  } | null;
   error?: string;
 };
 
@@ -289,10 +306,30 @@ export function OfflineBootstrapControl({
           usage_percent: capability.usagePercent,
           assessed_at: new Date().toISOString(),
         },
+        cashShiftSnapshot: bootstrap.cashShift ? {
+          stall_id: bootstrap.permit.stallId,
+          shift_id: bootstrap.cashShift.id,
+          status: bootstrap.cashShift.status,
+          opening_amount: bootstrap.cashShift.openingAmount,
+          opened_at: bootstrap.cashShift.openedAt,
+          cash_sales: bootstrap.cashShift.cashSales,
+          cash_in: bootstrap.cashShift.cashIn,
+          cash_out: bootstrap.cashShift.cashOut,
+          cash_refund: bootstrap.cashShift.cashRefund,
+          correction: bootstrap.cashShift.correction,
+          expected_amount: bootstrap.cashShift.expectedAmount,
+          pending_events: [],
+        } : {
+          stall_id: bootstrap.permit.stallId,
+          shift_id: null,
+          status: "NONE",
+          pending_events: [],
+        },
       });
+      window.dispatchEvent(new CustomEvent("stallorder:offline-data-changed"));
       setState("READY");
       setPermitExpiresAt(bootstrap.permit.expiresAt);
-      setMessage("離線資料已安全儲存在此裝置；目前僅提供離線唯讀，尚未開放斷線建立訂單。");
+      setMessage("離線資料已安全儲存在此裝置；斷線時可依核准風險上限建立現場訂單。");
     } catch (error) {
       setState("ERROR");
       setMessage(error instanceof Error ? error.message : "目前無法啟用離線裝置。");

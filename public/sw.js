@@ -1,12 +1,11 @@
-const CACHE_NAME = "stallorder-shell-v2";
+const CACHE_NAME = "stallorder-shell-v3";
 const OFFLINE_URL = "/offline";
 const OFFLINE_DB_NAME = "stallorder-offline-pos";
 const SHELL_ASSETS = [
-  OFFLINE_URL,
   "/icons/stallorder-192.png",
   "/icons/stallorder-512.png",
 ];
-const UNSYNCHRONIZED_STATUSES = new Set(["PENDING", "PROCESSING", "FAILED", "CONFLICT"]);
+const UNSYNCHRONIZED_STATUSES = new Set(["PENDING", "PROCESSING", "FAILED", "CONFLICT", "REJECTED"]);
 
 async function notifyClients(message) {
   const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
@@ -63,9 +62,26 @@ async function countUnsynchronizedRecords() {
   }
 }
 
+async function cacheOfflineShell() {
+  const cache = await caches.open(CACHE_NAME);
+  const response = await fetch(OFFLINE_URL, { cache: "reload" });
+  if (!response.ok) throw new Error("OFFLINE_SHELL_FETCH_FAILED");
+  const html = await response.clone().text();
+  await cache.put(OFFLINE_URL, response);
+
+  const referencedAssets = [...html.matchAll(/(?:src|href)=["']([^"']+)["']/g)]
+    .map((match) => match[1])
+    .filter((path) => path.startsWith("/_next/static/"));
+  const assetPaths = [...new Set([...SHELL_ASSETS, ...referencedAssets])];
+  await Promise.all(assetPaths.map(async (path) => {
+    const assetResponse = await fetch(path, { cache: "reload" });
+    if (assetResponse.ok) await cache.put(path, assetResponse);
+  }));
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
-    await caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS));
+    await cacheOfflineShell();
     if (self.registration.active) {
       await notifyClients({ type: "SW_UPDATE_AVAILABLE" });
     }
@@ -101,6 +117,11 @@ self.addEventListener("message", (event) => {
       await self.skipWaiting();
     })());
   }
+});
+
+self.addEventListener("sync", (event) => {
+  if (event.tag !== "stallorder-offline-sync") return;
+  event.waitUntil(notifyClients({ type: "OFFLINE_SYNC_REQUESTED" }));
 });
 
 async function cacheFirst(request) {

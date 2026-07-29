@@ -4,9 +4,11 @@ import { ArrowLeft, TabletSmartphone } from "lucide-react";
 import {
   OfflineDeviceManager,
 } from "@/components/offline-device-manager";
+import { OfflineConflictManager } from "@/components/offline-conflict-manager";
 import { hasPermission } from "@/lib/rbac";
 import { requireWorkspacePage } from "@/lib/workspace";
 import { getOfflineManagementState } from "@/server/offline/offline-device-service";
+import { listOfflineSyncConflicts } from "@/server/offline/offline-conflict-service";
 
 type PageProps = { params: Promise<{ stallId: string }> };
 
@@ -22,7 +24,10 @@ export default async function OfflineDeviceSettingsPage({ params }: PageProps) {
   const roles = [...new Set([...workspace.roles, ...stall.roles])];
   if (!roles.some((role) => hasPermission(role, "MANAGE_STALL"))) notFound();
 
-  const data = await getOfflineManagementState(workspace.id, stallId);
+  const [data, conflicts] = await Promise.all([
+    getOfflineManagementState(workspace.id, stallId),
+    listOfflineSyncConflicts(workspace.id, stallId),
+  ]);
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
@@ -45,6 +50,10 @@ export default async function OfflineDeviceSettingsPage({ params }: PageProps) {
         <OfflineDeviceManager
           stallId={stallId}
           initialData={data}
+        />
+        <OfflineConflictManager
+          stallId={stallId}
+          initialConflicts={conflicts}
         />
       </div>
     </main>

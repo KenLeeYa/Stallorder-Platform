@@ -44,6 +44,7 @@ export type OfflineBootstrapBundle = {
     id: string;
     storage_class: OfflineStorageClass;
   };
+  cashShiftSnapshot: Record<string, unknown> & { stall_id: string };
 };
 
 type StoreDefinition = {
@@ -63,14 +64,18 @@ export const offlineStoreDefinitions: Record<OfflineStoreName, StoreDefinition> 
     indexes: [{ name: "expires_at", keyPath: "expires_at" }],
   },
   menu_snapshots: {
-    keyPath: "version",
-    indexes: [{ name: "content_hash", keyPath: "content_hash" }],
+    keyPath: "snapshot_key",
+    indexes: [
+      { name: "content_hash", keyPath: "content_hash" },
+      { name: "stall_version", keyPath: ["stall_id", "version"], options: { unique: true } },
+    ],
   },
   stall_settings: { keyPath: "stall_id" },
   cash_shift_snapshot: { keyPath: "stall_id" },
   offline_orders: {
     keyPath: "local_order_id",
     indexes: [
+      { name: "stall_id", keyPath: "stall_id" },
       { name: "stall_sync_status", keyPath: ["stall_id", "sync_status"] },
       { name: "created_at", keyPath: "created_at" },
     ],
@@ -106,19 +111,25 @@ export const offlineStoreDefinitions: Record<OfflineStoreName, StoreDefinition> 
   },
 };
 
-function requestResult<T>(request: IDBRequest<T>) {
+export function requestResult<T>(request: IDBRequest<T>) {
   return new Promise<T>((resolve, reject) => {
     request.addEventListener("success", () => resolve(request.result), { once: true });
     request.addEventListener("error", () => reject(request.error ?? new Error("OFFLINE_DB_REQUEST_FAILED")), { once: true });
   });
 }
 
-function transactionComplete(transaction: IDBTransaction) {
-  return new Promise<void>((resolve, reject) => {
+export function transactionComplete(transaction: IDBTransaction) {
+  const completion = new Promise<void>((resolve, reject) => {
     transaction.addEventListener("complete", () => resolve(), { once: true });
-    transaction.addEventListener("abort", () => reject(transaction.error ?? new Error("OFFLINE_DB_TRANSACTION_ABORTED")), { once: true });
-    transaction.addEventListener("error", () => reject(transaction.error ?? new Error("OFFLINE_DB_TRANSACTION_FAILED")), { once: true });
+    transaction.addEventListener("abort", () => {
+      reject(transaction.error ?? new Error("OFFLINE_DB_TRANSACTION_ABORTED"));
+    }, { once: true });
+    transaction.addEventListener("error", () => {
+      reject(transaction.error ?? new Error("OFFLINE_DB_TRANSACTION_FAILED"));
+    }, { once: true });
   });
+  void completion.catch(() => undefined);
+  return completion;
 }
 
 export function withOfflineRecordMetadata<T extends Record<string, unknown>>(
@@ -150,6 +161,34 @@ function createMissingStores(database: IDBDatabase, transaction: IDBTransaction)
   }
 }
 
+function migrateMenuSnapshotKey(
+  database: IDBDatabase,
+  transaction: IDBTransaction,
+) {
+  const store = transaction.objectStore("menu_snapshots");
+  if (store.keyPath === "snapshot_key") return;
+
+  const readRequest = store.getAll();
+  readRequest.addEventListener("success", () => {
+    const records = readRequest.result as Array<Record<string, unknown>>;
+    database.deleteObjectStore("menu_snapshots");
+    const definition = offlineStoreDefinitions.menu_snapshots;
+    const migratedStore = database.createObjectStore("menu_snapshots", {
+      keyPath: definition.keyPath,
+    });
+    for (const index of definition.indexes ?? []) {
+      migratedStore.createIndex(index.name, index.keyPath, index.options);
+    }
+    for (const record of records) {
+      if (typeof record.stall_id !== "string" || typeof record.version !== "number") continue;
+      migratedStore.put({
+        ...record,
+        snapshot_key: `${record.stall_id}:${record.version}`,
+      });
+    }
+  }, { once: true });
+}
+
 export function openOfflineDatabase() {
   if (typeof indexedDB === "undefined") {
     return Promise.reject(new Error("OFFLINE_INDEXED_DB_UNAVAILABLE"));
@@ -161,6 +200,7 @@ export function openOfflineDatabase() {
       const transaction = request.transaction;
       if (!transaction) return;
       createMissingStores(request.result, transaction);
+      migrateMenuSnapshotKey(request.result, transaction);
     });
     request.addEventListener("success", () => {
       const database = request.result;
@@ -179,9 +219,10 @@ export async function putOfflineRecord(
   const database = await openOfflineDatabase();
   try {
     const transaction = database.transaction(storeName, "readwrite", { durability: "strict" });
+    const completion = transactionComplete(transaction);
     const stored = withOfflineRecordMetadata(record);
     transaction.objectStore(storeName).put(stored);
-    await transactionComplete(transaction);
+    await completion;
     return stored;
   } finally {
     database.close();
@@ -195,8 +236,9 @@ export async function getOfflineRecord<T extends OfflineRecord>(
   const database = await openOfflineDatabase();
   try {
     const transaction = database.transaction(storeName, "readonly");
+    const completion = transactionComplete(transaction);
     const result = await requestResult(transaction.objectStore(storeName).get(key));
-    await transactionComplete(transaction);
+    await completion;
     return (result as T | undefined) ?? null;
   } finally {
     database.close();
@@ -207,8 +249,9 @@ export async function getAllOfflineRecords<T extends OfflineRecord>(storeName: O
   const database = await openOfflineDatabase();
   try {
     const transaction = database.transaction(storeName, "readonly");
+    const completion = transactionComplete(transaction);
     const result = await requestResult(transaction.objectStore(storeName).getAll());
-    await transactionComplete(transaction);
+    await completion;
     return result as T[];
   } finally {
     database.close();
@@ -223,15 +266,21 @@ export async function saveOfflineBootstrap(bundle: OfflineBootstrapBundle) {
     "menu_snapshots",
     "stall_settings",
     "availability_config",
+    "cash_shift_snapshot",
   ];
   try {
     const transaction = database.transaction(stores, "readwrite", { durability: "strict" });
+    const completion = transactionComplete(transaction);
     transaction.objectStore("device_profile").put(withOfflineRecordMetadata(bundle.deviceProfile));
     transaction.objectStore("offline_permit").put(withOfflineRecordMetadata(bundle.permit));
-    transaction.objectStore("menu_snapshots").put(withOfflineRecordMetadata(bundle.menuSnapshot));
+    transaction.objectStore("menu_snapshots").put(withOfflineRecordMetadata({
+      ...bundle.menuSnapshot,
+      snapshot_key: `${bundle.menuSnapshot.stall_id}:${bundle.menuSnapshot.version}`,
+    }));
     transaction.objectStore("stall_settings").put(withOfflineRecordMetadata(bundle.stallSettings));
     transaction.objectStore("availability_config").put(withOfflineRecordMetadata(bundle.availability));
-    await transactionComplete(transaction);
+    transaction.objectStore("cash_shift_snapshot").put(withOfflineRecordMetadata(bundle.cashShiftSnapshot));
+    await completion;
   } finally {
     database.close();
   }
@@ -241,16 +290,17 @@ export async function countUnsynchronizedRecords() {
   const database = await openOfflineDatabase();
   try {
     const transaction = database.transaction(["sync_queue", "offline_orders"], "readonly");
+    const completion = transactionComplete(transaction);
     const [queue, orders] = await Promise.all([
       requestResult(transaction.objectStore("sync_queue").getAll()),
       requestResult(transaction.objectStore("offline_orders").getAll()),
     ]);
-    await transactionComplete(transaction);
+    await completion;
     const pendingQueue = (queue as Array<{ status?: string }>).filter(
-      (record) => !["SYNCED", "CANCELLED"].includes(record.status ?? "PENDING"),
+      (record) => !["SYNCED", "SYNCED_WITH_CONFLICT", "CANCELLED"].includes(record.status ?? "PENDING"),
     ).length;
     const pendingOrders = (orders as Array<{ sync_status?: string }>).filter(
-      (record) => !["SYNCED", "CANCELLED"].includes(record.sync_status ?? "PENDING"),
+      (record) => !["SYNCED", "SYNCED_WITH_CONFLICT", "CANCELLED"].includes(record.sync_status ?? "PENDING"),
     ).length;
     return pendingQueue + pendingOrders;
   } finally {
@@ -277,6 +327,7 @@ export async function acquireOfflineSyncLease(
   const database = await openOfflineDatabase();
   try {
     const transaction = database.transaction("device_profile", "readwrite", { durability: "strict" });
+    const completion = transactionComplete(transaction);
     const store = transaction.objectStore("device_profile");
     const id = syncLeaseId(installationId);
     const current = await requestResult(store.get(id)) as OfflineSyncLease | undefined;
@@ -286,6 +337,7 @@ export async function acquireOfflineSyncLease(
       && Date.parse(current.expires_at) > nowMs
     ) {
       transaction.abort();
+      await completion.catch(() => undefined);
       return false;
     }
     store.put(withOfflineRecordMetadata({
@@ -293,7 +345,7 @@ export async function acquireOfflineSyncLease(
       owner_id: ownerId,
       expires_at: new Date(nowMs + leaseDurationMs).toISOString(),
     }, new Date(nowMs)));
-    await transactionComplete(transaction);
+    await completion;
     return true;
   } finally {
     database.close();
@@ -309,18 +361,20 @@ export async function renewOfflineSyncLease(
   const database = await openOfflineDatabase();
   try {
     const transaction = database.transaction("device_profile", "readwrite", { durability: "strict" });
+    const completion = transactionComplete(transaction);
     const store = transaction.objectStore("device_profile");
     const id = syncLeaseId(installationId);
     const current = await requestResult(store.get(id)) as OfflineSyncLease | undefined;
     if (!current || current.owner_id !== ownerId) {
       transaction.abort();
+      await completion.catch(() => undefined);
       return false;
     }
     store.put(withOfflineRecordMetadata({
       ...current,
       expires_at: new Date(nowMs + leaseDurationMs).toISOString(),
     }, new Date(nowMs)));
-    await transactionComplete(transaction);
+    await completion;
     return true;
   } finally {
     database.close();
@@ -331,11 +385,12 @@ export async function releaseOfflineSyncLease(installationId: string, ownerId: s
   const database = await openOfflineDatabase();
   try {
     const transaction = database.transaction("device_profile", "readwrite", { durability: "strict" });
+    const completion = transactionComplete(transaction);
     const store = transaction.objectStore("device_profile");
     const id = syncLeaseId(installationId);
     const current = await requestResult(store.get(id)) as OfflineSyncLease | undefined;
     if (current?.owner_id === ownerId) store.delete(id);
-    await transactionComplete(transaction);
+    await completion;
   } finally {
     database.close();
   }

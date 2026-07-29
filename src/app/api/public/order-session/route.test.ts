@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   issueOrderSessionThroughCircuitB: vi.fn(),
 }));
+const testOrigin = "https://app.qidaigo.com";
 
 vi.mock("@/server/public-order/circuit-b-service", () => ({
   PublicOrderCircuitError: class PublicOrderCircuitError extends Error {
@@ -18,7 +19,12 @@ vi.mock("@/server/public-order/circuit-b-service", () => ({
 }));
 
 describe("POST /api/public/order-session", () => {
+  beforeEach(() => {
+    vi.stubEnv("TRUSTED_APP_ORIGINS", testOrigin);
+  });
+
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     mocks.issueOrderSessionThroughCircuitB.mockReset();
   });
@@ -38,12 +44,12 @@ describe("POST /api/public/order-session", () => {
     };
     const route = await import("./route");
     const response = await route.POST(new Request(
-      "https://app.qidaigo.com/api/public/order-session",
+      `${testOrigin}/api/public/order-session`,
       {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          origin: "https://app.qidaigo.com",
+          origin: testOrigin,
           "x-real-ip": "203.0.113.8",
           "x-stallorder-protocol-version": "1",
         },

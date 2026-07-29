@@ -37,14 +37,26 @@ describe("offline IndexedDB contract", () => {
       new Date("2026-07-29T01:00:00.000Z"),
     );
     expect(updated).toMatchObject({
-      schema_version: 1,
-      app_protocol_version: "1",
+      schema_version: 2,
+      app_protocol_version: "2",
       created_at: "2026-07-29T00:00:00.000Z",
       updated_at: "2026-07-29T01:00:00.000Z",
     });
   });
 
   it("uses unique idempotency and print deduplication indexes", () => {
+    expect(offlineStoreDefinitions.menu_snapshots).toMatchObject({
+      keyPath: "snapshot_key",
+      indexes: expect.arrayContaining([{
+        name: "stall_version",
+        keyPath: ["stall_id", "version"],
+        options: { unique: true },
+      }]),
+    });
+    expect(offlineStoreDefinitions.offline_orders.indexes).toContainEqual({
+      name: "stall_id",
+      keyPath: "stall_id",
+    });
     expect(offlineStoreDefinitions.sync_queue.indexes).toContainEqual({
       name: "idempotency_key",
       keyPath: "idempotency_key",

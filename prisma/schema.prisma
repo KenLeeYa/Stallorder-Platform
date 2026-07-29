@@ -36,8 +36,20 @@ enum PaymentStatus {
   UNPAID
   PAID
   REFUNDED
+  PENDING_RECONCILIATION
 
   @@map("payment_status")
+}
+
+enum OrderOrigin {
+  ONLINE_QR
+  ONLINE_STAFF
+  OFFLINE_POS
+  IMPORTED
+  TEST
+  SYSTEM_CANARY
+
+  @@map("order_origin")
 }
 
 enum PaymentMethod {
@@ -1925,6 +1937,7 @@ model Order {
   trackingTokenHash        String              @unique @map("tracking_token_hash")
   idempotencyKey           String              @map("idempotency_key") @db.Uuid
   source                   String              @default("QR_MENU")
+  origin                   OrderOrigin         @default(ONLINE_QR)
   isTest                   Boolean                @default(false) @map("is_test")
   customerName             String              @map("customer_name")
   customerPhone            String?             @map("customer_phone")
@@ -1966,6 +1979,17 @@ model Order {
   createdAt                DateTime            @default(now()) @map("created_at")
   updatedAt                DateTime            @updatedAt @map("updated_at")
   paidAt                   DateTime?           @map("paid_at")
+  sourceDeviceId           String?             @map("source_device_id") @db.Uuid
+  offlineOrderId           String?             @map("offline_order_id") @db.Uuid
+  offlineLocalSequence     Int?                @map("offline_local_sequence")
+  menuSnapshotVersion      Int?                @map("menu_snapshot_version")
+  deviceCreatedAt          DateTime?           @map("device_created_at")
+  serverReceivedAt         DateTime?           @map("server_received_at")
+  syncedAt                 DateTime?           @map("synced_at")
+  offlineSyncStatus        String              @default("NOT_APPLICABLE") @map("offline_sync_status")
+  offlineConflictStatus    String              @default("NONE") @map("offline_conflict_status")
+  deviceClockOffsetMs      BigInt?             @map("device_clock_offset_ms")
+  localDisplayNumber       String?             @map("local_display_number")
   organization             Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall                    Stall               @relation(fields: [stallId], references: [id], onDelete: Cascade)
   diningTable              DiningTable?        @relation(fields: [diningTableId], references: [id], onDelete: SetNull)
@@ -1997,6 +2021,8 @@ model Order {
   @@index([stallId, status, updatedAt(sort: Desc)])
   @@index([stallScheduleId, createdAt(sort: Desc)])
   @@index([locationId, createdAt(sort: Desc)])
+  @@unique([sourceDeviceId, offlineOrderId])
+  @@index([stallId, sourceDeviceId, syncedAt(sort: Desc)])
   @@map("orders")
 }
 
@@ -2013,6 +2039,8 @@ model Payment {
   status          PaymentStatus  @default(PAID)
   reference       String?
   methodLabel     String         @default("現金") @map("method_label")
+  offlinePaymentMethod String?   @map("offline_payment_method")
+  reconciliationStatus String?   @map("reconciliation_status")
   cashReceived    Int?           @map("cash_received")
   changeAmount    Int?           @map("change_amount")
   recordedById    String?        @map("recorded_by") @db.Uuid
@@ -2032,6 +2060,7 @@ model Payment {
   @@index([recordedById, paidAt])
   @@index([checkoutGroupId])
   @@index([cashShiftId, status, paidAt])
+  @@index([organizationId, stallId, reconciliationStatus, createdAt])
   @@map("payments")
 }
 
@@ -2101,6 +2130,8 @@ model PrintJob {
   queuedAt       DateTime       @default(now()) @map("queued_at")
   printingAt     DateTime?      @map("printing_at")
   printedAt      DateTime?      @map("printed_at")
+  offlinePrintJobId String?     @unique @map("offline_print_job_id") @db.Uuid
+  templateVersion String?       @map("template_version")
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -2758,6 +2789,10 @@ model OfflineStallRuntimePolicy {
   maxPendingOrders          Int           @default(25) @map("max_pending_orders")
   maxTotalAmount            Decimal       @default(10000) @map("max_total_amount") @db.Decimal(12, 2)
   maxSingleOrderAmount      Decimal       @default(2000) @map("max_single_order_amount") @db.Decimal(12, 2)
+  maxManualPaymentAmount    Int           @default(2000) @map("max_manual_payment_amount")
+  maxTotalManualPaymentAmount Int         @default(5000) @map("max_total_manual_payment_amount")
+  requireCustomerContactAboveAmount Int   @default(1000) @map("require_customer_contact_above_amount")
+  managerApprovalThreshold  Int           @default(1500) @map("manager_approval_threshold")
   createdAt                 DateTime      @default(now()) @map("created_at")
   updatedAt                 DateTime      @updatedAt @map("updated_at")
   leaderDevice              ClientDevice? @relation(fields: [offlineLeaderDeviceId], references: [id], onDelete: SetNull)
@@ -2811,4 +2846,94 @@ model OfflinePermit {
   @@index([deviceId, status, expiresAt])
   @@index([organizationId, stallId, status])
   @@map("offline_permits")
+}
+
+model OfflineOrderSyncReceipt {
+  id                   String   @id @default(uuid()) @db.Uuid
+  organizationId       String   @map("organization_id") @db.Uuid
+  stallId              String   @map("stall_id") @db.Uuid
+  deviceId             String   @map("device_id") @db.Uuid
+  offlineOrderId       String   @map("offline_order_id") @db.Uuid
+  idempotencyKey       String   @unique @map("idempotency_key") @db.Uuid
+  orderId              String   @unique @map("order_id") @db.Uuid
+  outcome              String
+  localDisplayNumber   String   @map("local_display_number")
+  canonicalOrderNumber String   @map("canonical_order_number")
+  promotionEpoch       BigInt   @map("promotion_epoch")
+  serverReceivedAt     DateTime @map("server_received_at")
+  syncedAt             DateTime @default(now()) @map("synced_at")
+  expiresAt            DateTime @map("expires_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  @@unique([deviceId, offlineOrderId])
+  @@index([deviceId, createdAt(sort: Desc)])
+  @@index([stallId, expiresAt])
+  @@map("offline_order_sync_receipts")
+}
+
+model OfflineSyncConflict {
+  id                  String    @id @default(uuid()) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  stallId             String    @map("stall_id") @db.Uuid
+  deviceId            String    @map("device_id") @db.Uuid
+  receiptId           String?   @map("receipt_id") @db.Uuid
+  orderId             String?   @map("order_id") @db.Uuid
+  localEntityType     String    @default("ORDER") @map("local_entity_type")
+  localEntityId       String    @map("local_entity_id") @db.Uuid
+  offlineOrderId      String?   @map("offline_order_id") @db.Uuid
+  conflictType        String    @map("conflict_type")
+  resolutionStatus    String    @default("OPEN") @map("resolution_status")
+  detailsJson         Json      @default("{}") @map("details_json")
+  detectedAt          DateTime  @default(now()) @map("detected_at")
+  resolvedAt          DateTime? @map("resolved_at")
+  resolvedByProfileId String?   @map("resolved_by_profile_id") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@unique([deviceId, localEntityType, localEntityId, conflictType])
+  @@index([organizationId, stallId, resolutionStatus, detectedAt(sort: Desc)])
+  @@index([deviceId, offlineOrderId, detectedAt(sort: Desc)])
+  @@map("offline_sync_conflicts")
+}
+
+model DomainOutboxEvent {
+  eventId        String    @id @default(uuid()) @map("event_id") @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  stallId        String    @map("stall_id") @db.Uuid
+  aggregateType String     @map("aggregate_type")
+  aggregateId   String     @map("aggregate_id") @db.Uuid
+  eventType     String     @map("event_type")
+  dedupeKey     String     @map("dedupe_key")
+  payload       Json       @default("{}")
+  status        String     @default("PENDING")
+  attemptCount  Int        @default(0) @map("attempt_count")
+  availableAt   DateTime   @default(now()) @map("available_at")
+  processedAt   DateTime?  @map("processed_at")
+  lastErrorCode String?    @map("last_error_code")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  @@unique([organizationId, dedupeKey])
+  @@index([status, availableAt, createdAt])
+  @@map("domain_outbox")
+}
+
+model DomainInboxMessage {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  stallId        String    @map("stall_id") @db.Uuid
+  deviceId       String?   @map("device_id") @db.Uuid
+  source         String
+  messageKey     String    @map("message_key")
+  payloadHash    String    @map("payload_hash")
+  status         String    @default("RECEIVED")
+  resultJson     Json      @default("{}") @map("result_json")
+  receivedAt     DateTime  @default(now()) @map("received_at")
+  processedAt    DateTime? @map("processed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@unique([source, messageKey])
+  @@index([deviceId, receivedAt(sort: Desc)])
+  @@map("domain_inbox")
 }

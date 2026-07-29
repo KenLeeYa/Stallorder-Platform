@@ -208,7 +208,11 @@ export async function createOrReuseOfflineMenuSnapshot(input: {
           organizationId: input.organizationId,
           stallId: input.stallId,
           isEnabled: true,
-          kind: { in: input.includeManualPayment ? ["CASH", "CUSTOM"] : ["CASH"] },
+          kind: {
+            in: input.includeManualPayment
+              ? ["CASH", "LINE_PAY", "JKO_PAY", "CUSTOM"]
+              : ["CASH"],
+          },
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         select: {
@@ -356,7 +360,7 @@ export async function createOrReuseOfflineMenuSnapshot(input: {
       input.minimumExpiresAt.getTime() + 5 * 60_000,
     ));
     const version = (latest?.version ?? 0) + 1;
-    const publicObjectPath = `${input.organizationId}/${input.stallId}/${version}-${publicContentHash}.json`;
+    const publicObjectPath = `${input.organizationId}/${input.stallId}/${version}-${generatedAt.getTime()}-${publicContentHash}.json`;
     const snapshot = await transaction.menuSnapshot.create({
       data: {
         organizationId: input.organizationId,

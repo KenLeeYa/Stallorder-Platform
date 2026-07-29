@@ -2,15 +2,15 @@
 
 ## 階段狀態
 
-- 實作階段：P4 Offline PWA foundation
+- 實作階段：P5 Offline operations
 - 預設狀態：關閉
 - 寫入模式：`SINGLE_DEVICE_ONLY`
 - 每攤位離線寫入裝置：最多一台 `OFFLINE_LEADER`
-- P4 尚未開放：離線建立訂單、現金收款、列印、同步與衝突處理
+- P5 已支援：離線建單、本機 KDS 狀態、現金／人工付款、現金事件、列印佇列、
+  自動／手動同步、回條與衝突處理
 
-目前只提供裝置登錄、管理者核准、短效 Permit、不可變菜單快照、
-IndexedDB 基礎與 Service Worker 更新閘門。P5 完成前，任何斷線狀態都不會
-顯示訂單已成立。
+離線寫入仍須先在線完成裝置登錄、管理者核准、短效 Permit 與不可變菜單
+快照。供應商授權付款、退款、跨攤位操作與訂閱異動保持 network-only。
 
 ## 拓樸
 
@@ -27,7 +27,7 @@ IndexedDB 基礎與 Service Worker 更新閘門。P5 完成前，任何斷線狀
 -> IndexedDB 原子寫入
 ```
 
-其他已核准裝置為 `OFFLINE_READ_ONLY`。P4 不實作裝置間共識、WebRTC 或
+其他已核准裝置為 `OFFLINE_READ_ONLY`。P5 不實作裝置間共識、WebRTC 或
 本地多主寫入。
 
 ## 啟用閘門
@@ -44,7 +44,7 @@ IndexedDB 基礎與 Service Worker 更新閘門。P5 完成前，任何斷線狀
 8. `OFFLINE_PERMIT_SIGNING_SECRET` 已設定為獨立高強度密鑰。
 9. 不可變公開菜單快照已發布至物件儲存。
 
-`OFFLINE_MANUAL_PAYMENT_ENABLED` 預設關閉。即使開啟，也只允許 P5 實作的
+`OFFLINE_MANUAL_PAYMENT_ENABLED` 預設關閉。即使開啟，也只允許
 現金或人工付款；LINE Pay、街口支付與信用卡授權永遠不能離線進行。
 
 ## Service Worker
@@ -91,8 +91,8 @@ Service Worker 不快取已驗證 HTML。偵測到待同步訂單或佇列時，
 1. 保持全域預設關閉。
 2. 只在隔離 Staging 的單一測試攤位開啟。
 3. 登錄一台測試裝置並由管理者指定為 Leader。
-4. 驗證 Permit、公開快照、IndexedDB 與更新閘門。
-5. P5 完成並通過離線訂單 E2E 前，不開放真實商家離線寫入。
+4. 驗證 Permit、公開快照、IndexedDB、更新閘門與離線訂單 E2E。
+5. 核對現金、人工付款、列印與衝突回條後，再逐攤位開放。
 
 ## 回復
 

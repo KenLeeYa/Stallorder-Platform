@@ -104,3 +104,21 @@ pickup code、顧客電話、地址或備註。
   `STORAGE_REPLICATION_FAILED`。
 - 以上日誌不得包含資料庫 URL、Storage object path、Auth user ID、Email、
   provider 原始錯誤或任何 credential。
+
+## 離線 POS
+
+- 監控 `offline_order_sync_receipts` 的每分鐘匯入量、`DUPLICATE`、
+  `REJECTED` 與 `ACCEPTED_WITH_CONFLICT` 比率。
+- 待同步 queue age 超過 5 分鐘為 warning，超過 30 分鐘為 critical；需區分
+  裝置尚未連線與 server import 失敗。
+- 同一攤位 OPEN conflict 超過 5 筆、衝突率超過 10%，或
+  `PAYMENT_RECONCILIATION_REQUIRED` 持續增加時通知店長。
+- `OFFLINE_SYNC_DEVICE_INVALID`、`OFFLINE_SYNC_PERMIT_INVALID`、
+  `OFFLINE_SYNC_PROTOCOL_UNSUPPORTED` 或 backend fencing 拒絕應建立安全告警。
+- 現金班別出現 `SHIFT_ALREADY_CLOSED`、`CASH_TOTAL_MISMATCH` 或重複 movement
+  時通知財務核對。
+- `PRINT_STATUS_UNKNOWN` 不可自動重印，先轉營運警示。
+- 追蹤本機 UI 顯示的待同步筆數、最舊資料分鐘數、Permit 到期與 storage class；
+  Client 端錯誤只顯示固定代碼。
+- 日誌不得包含 Permit、Session／CSRF token、完整 customer contact、備註、
+  pickup code、付款 reference、資料庫 URL 或 provider credential。

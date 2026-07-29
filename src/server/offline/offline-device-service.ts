@@ -11,6 +11,7 @@ import {
 } from "@/offline/offline-contract";
 import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/security";
+import { getCashShiftRuntimeTotals } from "@/lib/cash-shifts";
 import { createOrReuseOfflineMenuSnapshot } from "@/server/offline/offline-menu-snapshot-service";
 import {
   requireOfflinePermitSigningSecret,
@@ -27,6 +28,10 @@ const DEFAULT_LIMITS: OfflineRuntimeLimits = {
   maxPendingOrders: 25,
   maxTotalAmount: 10_000,
   maxSingleOrderAmount: 2_000,
+  maxManualPaymentAmount: 2_000,
+  maxTotalManualPaymentAmount: 5_000,
+  requireCustomerContactAboveAmount: 1_000,
+  managerApprovalThreshold: 1_500,
 };
 
 const PERMIT_ROLES = new Set<UserRole>([
@@ -112,6 +117,10 @@ function policyAuditSnapshot(policy: {
   maxPendingOrders: number;
   maxTotalAmount: { toString(): string };
   maxSingleOrderAmount: { toString(): string };
+  maxManualPaymentAmount: number;
+  maxTotalManualPaymentAmount: number;
+  requireCustomerContactAboveAmount: number;
+  managerApprovalThreshold: number;
 }): Prisma.InputJsonObject {
   return {
     stallId: policy.stallId,
@@ -122,6 +131,10 @@ function policyAuditSnapshot(policy: {
     maxPendingOrders: policy.maxPendingOrders,
     maxTotalAmount: policy.maxTotalAmount.toString(),
     maxSingleOrderAmount: policy.maxSingleOrderAmount.toString(),
+    maxManualPaymentAmount: policy.maxManualPaymentAmount,
+    maxTotalManualPaymentAmount: policy.maxTotalManualPaymentAmount,
+    requireCustomerContactAboveAmount: policy.requireCustomerContactAboveAmount,
+    managerApprovalThreshold: policy.managerApprovalThreshold,
   };
 }
 
@@ -207,6 +220,24 @@ export function boundedOfflineRiskLimits(
     maxSingleOrderAmount: Math.min(
       policy.maxSingleOrderAmount,
       bestEffort ? 1_000 : 99_999_999.99,
+    ),
+    maxManualPaymentAmount: Math.min(
+      policy.maxManualPaymentAmount,
+      bestEffort ? 1_000 : 100_000_000,
+    ),
+    maxTotalManualPaymentAmount: Math.min(
+      policy.maxTotalManualPaymentAmount,
+      bestEffort ? 3_000 : 100_000_000,
+    ),
+    requireCustomerContactAboveAmount: Math.min(
+      policy.requireCustomerContactAboveAmount,
+      policy.maxManualPaymentAmount,
+      bestEffort ? 1_000 : 100_000_000,
+    ),
+    managerApprovalThreshold: Math.min(
+      policy.managerApprovalThreshold,
+      policy.maxManualPaymentAmount,
+      bestEffort ? 1_000 : 100_000_000,
     ),
   };
 }
@@ -322,6 +353,10 @@ export async function getOfflineManagementState(organizationId: string, stallId:
       maxPendingOrders: policy.maxPendingOrders,
       maxTotalAmount: Number(policy.maxTotalAmount),
       maxSingleOrderAmount: Number(policy.maxSingleOrderAmount),
+      maxManualPaymentAmount: policy.maxManualPaymentAmount,
+      maxTotalManualPaymentAmount: policy.maxTotalManualPaymentAmount,
+      requireCustomerContactAboveAmount: policy.requireCustomerContactAboveAmount,
+      managerApprovalThreshold: policy.managerApprovalThreshold,
       updatedAt: policy.updatedAt.toISOString(),
     } : {
       stallId,
@@ -347,6 +382,10 @@ function policyData(command: Extract<OfflineManagementCommand, { operation: "UPD
     maxPendingOrders: command.limits.maxPendingOrders,
     maxTotalAmount: command.limits.maxTotalAmount,
     maxSingleOrderAmount: command.limits.maxSingleOrderAmount,
+    maxManualPaymentAmount: command.limits.maxManualPaymentAmount,
+    maxTotalManualPaymentAmount: command.limits.maxTotalManualPaymentAmount,
+    requireCustomerContactAboveAmount: command.limits.requireCustomerContactAboveAmount,
+    managerApprovalThreshold: command.limits.managerApprovalThreshold,
   };
 }
 
@@ -639,6 +678,10 @@ export async function issueOfflineBootstrap(input: IssueBootstrapInput) {
     maxPendingOrders: policy.maxPendingOrders,
     maxTotalAmount: Number(policy.maxTotalAmount),
     maxSingleOrderAmount: Number(policy.maxSingleOrderAmount),
+    maxManualPaymentAmount: policy.maxManualPaymentAmount,
+    maxTotalManualPaymentAmount: policy.maxTotalManualPaymentAmount,
+    requireCustomerContactAboveAmount: policy.requireCustomerContactAboveAmount,
+    managerApprovalThreshold: policy.managerApprovalThreshold,
   }, storageClass, input.command.requestedDurationMinutes);
   const issuedAt = new Date();
   const expiresAt = new Date(
@@ -752,6 +795,29 @@ export async function issueOfflineBootstrap(input: IssueBootstrapInput) {
     });
   }, { isolationLevel: "Serializable" });
 
+  const cashPaymentEnabled = allowedOfflineActions.includes("RECORD_CASH_PAYMENT")
+    && catalog.paymentOptions.some((option) => option.kind === "CASH");
+  const openCashShift = cashPaymentEnabled
+    ? await prisma.cashShift.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          stallId: input.stallId,
+          status: "OPEN",
+        },
+        orderBy: { openedAt: "desc" },
+      })
+    : null;
+  const cashShift = openCashShift
+    ? {
+        id: openCashShift.id,
+        stallId: openCashShift.stallId,
+        status: openCashShift.status,
+        openingAmount: openCashShift.openingAmount,
+        openedAt: openCashShift.openedAt.toISOString(),
+        ...(await getCashShiftRuntimeTotals(prisma, openCashShift)),
+      }
+    : null;
+
   return {
     permitToken,
     permit: payload,
@@ -766,5 +832,6 @@ export async function issueOfflineBootstrap(input: IssueBootstrapInput) {
       catalog,
       publicSnapshot,
     },
+    cashShift,
   };
 }

@@ -4,6 +4,7 @@ import {
   verifyOfflinePermit,
   type OfflinePermitPayload,
 } from "@/server/offline/offline-permit";
+import { OFFLINE_APP_PROTOCOL_VERSION } from "@/offline/offline-contract";
 
 const secret = "test-only-offline-permit-secret-with-32-bytes";
 
@@ -20,13 +21,17 @@ function payload(overrides: Partial<OfflinePermitPayload> = {}): OfflinePermitPa
     expiresAt: "2026-07-29T08:00:00.000Z",
     menuSnapshotVersion: 3,
     promotionEpoch: "2",
-    appProtocolVersion: "1",
+    appProtocolVersion: OFFLINE_APP_PROTOCOL_VERSION,
     storageClass: "PERSISTENT",
     riskLimits: {
       maxOfflineDurationMinutes: 480,
       maxPendingOrders: 25,
       maxTotalAmount: 10000,
       maxSingleOrderAmount: 2000,
+      maxManualPaymentAmount: 1000,
+      maxTotalManualPaymentAmount: 3000,
+      requireCustomerContactAboveAmount: 1000,
+      managerApprovalThreshold: 1000,
     },
     ...overrides,
   };

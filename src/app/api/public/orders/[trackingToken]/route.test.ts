@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getOrderThroughCircuitB: vi.fn(),
 }));
+const testOrigin = "https://app.qidaigo.com";
 
 vi.mock("@/server/public-order/circuit-b-service", () => ({
   PublicOrderCircuitError: class PublicOrderCircuitError extends Error {
@@ -18,7 +19,12 @@ vi.mock("@/server/public-order/circuit-b-service", () => ({
 }));
 
 describe("GET /api/public/orders/:trackingToken", () => {
+  beforeEach(() => {
+    vi.stubEnv("TRUSTED_APP_ORIGINS", testOrigin);
+  });
+
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
     mocks.getOrderThroughCircuitB.mockReset();
   });
@@ -33,10 +39,10 @@ describe("GET /api/public/orders/:trackingToken", () => {
     const route = await import("./route");
     const response = await route.GET(
       new Request(
-        `https://app.qidaigo.com/api/public/orders/${trackingToken}`,
+        `${testOrigin}/api/public/orders/${trackingToken}`,
         {
           headers: {
-            referer: "https://app.qidaigo.com/order/example",
+            referer: `${testOrigin}/order/example`,
             "x-real-ip": "203.0.113.8",
             "x-stallorder-device-id": "11111111-1111-4111-8111-111111111111",
             "x-stallorder-protocol-version": "1",

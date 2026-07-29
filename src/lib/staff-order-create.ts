@@ -114,6 +114,7 @@ export async function createStaffOrder(input: {
           trackingTokenHash: hashToken(createOpaqueToken()),
           idempotencyKey: input.request.idempotencyKey,
           source,
+          origin: isSetupTest ? "TEST" : "ONLINE_STAFF",
           isTest: isSetupTest,
           customerName: input.request.customerName || "現場顧客",
           customerPhone: input.request.customerPhone || null,

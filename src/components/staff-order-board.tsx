@@ -6,6 +6,7 @@ import Link from "next/link";
 import { CheckCheck, CheckCircle2, ChefHat, KeyRound, ListChecks, LoaderCircle, MapPinned, PackageCheck, Play, Printer, RefreshCw, Search, ShoppingCart, TriangleAlert, Truck, Undo2, Volume2, VolumeX, WalletCards, Wifi, WifiOff, X } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { OfflineBootstrapControl } from "@/components/offline-bootstrap-control";
+import { OfflineQueueStatus } from "@/components/offline-queue-status";
 import { PwaControls } from "@/components/pwa-controls";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
 import { StaffCapacityControl } from "@/components/staff-capacity-control";
@@ -108,13 +109,15 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "目前無法更新訂單。");
       const nextOrders: OrderWithItems[] = payload.orders ?? [];
-      const newWaitingOrders = nextOrders.filter((order) => (
+      const offlineOrders = await loadOfflineStaffOrders(stall.id);
+      const mergedOrders = mergeStaffOrders(nextOrders, offlineOrders);
+      const newWaitingOrders = mergedOrders.filter((order) => (
         order.status === "WAITING_CONFIRMATION" && !knownOrderIdsRef.current.has(order.id)
       ));
-      nextOrders.forEach((order) => knownOrderIdsRef.current.add(order.id));
+      mergedOrders.forEach((order) => knownOrderIdsRef.current.add(order.id));
       if (newWaitingOrders.length > 0) notifyNewOrders(newWaitingOrders.length);
-      setOrders(nextOrders);
-      const availableItemIds = new Set(nextOrders.flatMap((order) => order.items.map((item) => item.id)));
+      setOrders(mergedOrders);
+      const availableItemIds = new Set(mergedOrders.flatMap((order) => order.items.map((item) => item.id)));
       setSelectedItemIds((current) => new Set([...current].filter((id) => availableItemIds.has(id))));
       setPendingCancellation((current) => (
         current && !nextOrders.some((order) => order.id === current.id) ? null : current
@@ -132,7 +135,27 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
     } finally {
       if (!silent) setIsRefreshing(false);
     }
-  }, [notifyNewOrders, stall.slug]);
+  }, [notifyNewOrders, stall.id, stall.slug]);
+
+  useEffect(() => {
+    let disposed = false;
+    const load = async () => {
+      const offlineOrders = await loadOfflineStaffOrders(stall.id);
+      if (disposed) return;
+      offlineOrders.forEach((order) => knownOrderIdsRef.current.add(order.id));
+      setOrders((current) => mergeStaffOrders(
+        current.filter((order) => order.source !== "OFFLINE_POS"),
+        offlineOrders,
+      ));
+    };
+    const onOfflineDataChanged = () => void load();
+    void load();
+    window.addEventListener("stallorder:offline-data-changed", onOfflineDataChanged);
+    return () => {
+      disposed = true;
+      window.removeEventListener("stallorder:offline-data-changed", onOfflineDataChanged);
+    };
+  }, [stall.id]);
 
   function toggleAlerts() {
     const next = !alertsEnabledRef.current;
@@ -150,6 +173,34 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
     setMessage("");
     setUpdatingOrderId(orderId);
     try {
+      const currentOrder = orders.find((order) => order.id === orderId);
+      if (currentOrder?.source === "OFFLINE_POS") {
+        const nextState = status === "COMPLETED"
+          ? "LOCAL_COMPLETED"
+          : status === "CANCELLED" ? "LOCAL_CANCELLED" : null;
+        if (!nextState) throw new Error("此離線訂單狀態只能依序從製作、完成餐點到完成訂單。");
+        const [{ transitionOfflineOrder }, { offlineOrderToStaffOrder }] = await Promise.all([
+          import("@/offline/offline-operations"),
+          import("@/offline/offline-staff-order"),
+        ]);
+        const updated = await transitionOfflineOrder(
+          orderId,
+          nextState,
+          status === "CANCELLED"
+            ? [options.cancellationReason, options.cancellationDetail].filter(Boolean).join("：") || "現場取消"
+            : null,
+        );
+        const staffOrder = offlineOrderToStaffOrder(updated);
+        setOrders((current) => (
+          status === "COMPLETED" || status === "CANCELLED"
+            ? current.filter((order) => order.id !== orderId)
+            : current.map((order) => order.id === orderId ? staffOrder : order)
+        ));
+        setMessage(status === "COMPLETED"
+          ? "離線訂單已在本機完成，恢復連線後會同步。"
+          : "離線訂單已在本機取消，取消紀錄會在恢復連線後同步。");
+        return true;
+      }
       const response = await fetch(`/api/stalls/${stall.slug}/orders/${orderId}`, {
         method: "PATCH",
         headers: csrfHeaders(),
@@ -225,6 +276,25 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
     setMessage("");
     setUpdatingItemsOrderId(orderId);
     try {
+      const currentOrder = orders.find((order) => order.id === orderId);
+      if (currentOrder?.source === "OFFLINE_POS") {
+        const nextState = status === "PREPARING"
+          ? "LOCAL_PREPARING"
+          : status === "READY" ? "LOCAL_READY" : "LOCAL_COMPLETED";
+        const [{ transitionOfflineOrder }, { offlineOrderToStaffOrder }] = await Promise.all([
+          import("@/offline/offline-operations"),
+          import("@/offline/offline-staff-order"),
+        ]);
+        const updated = await transitionOfflineOrder(orderId, nextState);
+        const staffOrder = offlineOrderToStaffOrder(updated);
+        setOrders((current) => nextState === "LOCAL_COMPLETED"
+          ? current.filter((order) => order.id !== orderId)
+          : current.map((order) => order.id === orderId ? staffOrder : order));
+        setMessage(nextState === "LOCAL_COMPLETED"
+          ? "離線訂單已在本機完成，恢復連線後會同步。"
+          : "離線製作狀態已安全儲存在此裝置。");
+        return;
+      }
       const response = await fetch(`/api/stalls/${stall.slug}/orders/${orderId}/items`, {
         method: "PATCH",
         headers: csrfHeaders(),
@@ -305,7 +375,9 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt)));
     setComposerOpen(false);
     setViewMode("TICKETS");
-    setMessage(order.paymentStatus === "PAID"
+    setMessage(order.source === "OFFLINE_POS"
+      ? `離線訂單 ${order.orderNo} 已安全儲存在此裝置，恢復連線後會自動同步。`
+      : order.paymentStatus === "PAID"
       ? `訂單 ${order.orderNo} 已建立、完成收款並送入廚房。`
       : `訂單 ${order.orderNo} 已建立並送入廚房，請稍後結帳。`);
   }
@@ -390,6 +462,13 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
   async function printOrder(orderId: string) {
     setMessage("");
     try {
+      const order = orders.find((candidate) => candidate.id === orderId);
+      if (order?.source === "OFFLINE_POS") {
+        const { queueOfflinePrintJob } = await import("@/offline/offline-operations");
+        await queueOfflinePrintJob(orderId);
+        setMessage("離線訂單已排入本機列印佇列；列印結果會在同步時對帳。");
+        return;
+      }
       const response = await fetch(`/api/stalls/${stall.slug}/print-jobs`, {
         method: "POST",
         headers: csrfHeaders(),
@@ -650,7 +729,9 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
     ? orders.filter((order) => [order.orderNo, order.tableLabel ?? "", order.customerName]
       .some((value) => value.toLocaleLowerCase("zh-TW").includes(normalizedQuery)))
     : orders, [normalizedQuery, orders]);
-  const selectedItems = orders.flatMap((order) => order.items.map((item) => ({ ...item, orderId: order.id })))
+  const selectedItems = orders
+    .filter((order) => order.source !== "OFFLINE_POS")
+    .flatMap((order) => order.items.map((item) => ({ ...item, orderId: order.id })))
     .filter((item) => selectedItemIds.has(item.id));
   const selectedSourceStatus = selectedItems.length > 0
     && selectedItems.every((item) => item.status === selectedItems[0].status)
@@ -671,6 +752,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
       tickets: string[];
     }>();
     for (const order of filteredOrders) {
+      if (order.source === "OFFLINE_POS") continue;
       for (const item of order.items) {
         if (item.status === "SERVED") continue;
         const notes = [
@@ -753,6 +835,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
             currentMode="STAFF"
             organizationId={stall.organizationId}
             stallId={stall.id}
+            offlineGuardStallId={stall.id}
             className="w-full sm:w-auto"
           />
           {orderCatalog && hasPermission(account.role, "CREATE_ORDERS") ? (
@@ -800,9 +883,14 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             <span className="sr-only">重新整理</span>
           </button>
-          <LogoutButton />
+          <LogoutButton offlineStallId={stall.id} />
         </div>
       </div>
+      <OfflineQueueStatus
+        stallId={stall.id}
+        stallSlug={stall.slug}
+        onSynchronized={() => void refreshOrders(true)}
+      />
       {message ? <p role="status" className={`mt-4 text-sm print:hidden ${/(無法|失敗|中斷|錯誤|期限|找不到)/.test(message) ? "text-red-700" : "text-emerald-700"}`}>{message}</p> : null}
       {capacity ? <StaffCapacityControl stallSlug={stall.slug} initialData={capacity} /> : null}
 
@@ -883,7 +971,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-500"><span>訂單 {order.orderNo}</span>{order.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">開店測試訂單</span> : null}</div>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-500"><span>訂單 {order.orderNo}</span>{order.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">開店測試訂單</span> : null}{order.source === "OFFLINE_POS" ? <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-900">本機待同步</span> : null}</div>
                 <h2 className="mt-1 font-semibold">{order.customerName}</h2>
                 <p className="mt-1 text-sm text-stone-500">
                   {order.fulfillmentType === "DINE_IN"
@@ -945,8 +1033,8 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
             <ul className="mt-4 divide-y divide-stone-100 border-y border-stone-200 text-sm">
               {order.items.map((item) => (
                 <li key={item.id} className="relative grid gap-2 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
-                  {canSelectItem(item.status, order.status, account.role) ? <input type="checkbox" aria-label={`選取 ${order.orderNo} 的 ${item.name}`} checked={selectedItemIds.has(item.id)} onChange={(event) => setSelectedItemIds((current) => { const next = new Set(current); if (event.target.checked) next.add(item.id); else next.delete(item.id); return next; })} className="absolute left-0 top-4 h-4 w-4 print:hidden" /> : null}
-                  <div className={`min-w-0 ${canSelectItem(item.status, order.status, account.role) ? "pl-7" : ""}`}>
+                  {order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, account.role) ? <input type="checkbox" aria-label={`選取 ${order.orderNo} 的 ${item.name}`} checked={selectedItemIds.has(item.id)} onChange={(event) => setSelectedItemIds((current) => { const next = new Set(current); if (event.target.checked) next.add(item.id); else next.delete(item.id); return next; })} className="absolute left-0 top-4 h-4 w-4 print:hidden" /> : null}
+                  <div className={`min-w-0 ${order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, account.role) ? "pl-7" : ""}`}>
                     <div className="flex justify-between gap-3">
                       <span className="font-medium">{item.quantity} × {item.name}</span>
                       <span>{formatMoney(item.unitPrice * item.quantity, stall.currency)}</span>
@@ -957,7 +1045,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
                       {orderItemStatusLabels[item.status]}
                     </span>
                   </div>
-                  {item.status !== "SERVED" && order.status !== "WAITING_CONFIRMATION" ? (
+                  {order.source !== "OFFLINE_POS" && item.status !== "SERVED" && order.status !== "WAITING_CONFIRMATION" ? (
                     <ItemStatusButton
                       itemStatus={item.status}
                       role={account.role}
@@ -1037,6 +1125,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
               {staffStatusOptions
                 .filter((option) => canTransitionOrder(order.status, option.value, account.role))
                 .filter((option) => option.value !== "PREPARING" && option.value !== "READY")
+                .filter((option) => order.source !== "OFFLINE_POS" || option.value === "COMPLETED" || option.value === "CANCELLED")
                 .filter((option) => option.value !== "COMPLETED" || order.fulfillmentType === "DINE_IN" || order.source !== "QR_MENU" || Boolean(order.pickupVerifiedAt))
                 .map((option) => (
                   <button
@@ -1388,6 +1477,31 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
       ) : null}
     </main>
   );
+}
+
+async function loadOfflineStaffOrders(stallId: string): Promise<StaffOrderDto[]> {
+  if (!("indexedDB" in window)) return [];
+  try {
+    const [{ listUnsynchronizedOfflineOrders }, { offlineOrderToStaffOrder }] = await Promise.all([
+      import("@/offline/offline-operations"),
+      import("@/offline/offline-staff-order"),
+    ]);
+    return (await listUnsynchronizedOfflineOrders(stallId))
+      .filter((order) => order.orderStatus !== "LOCAL_COMPLETED" && order.orderStatus !== "LOCAL_CANCELLED")
+      .map(offlineOrderToStaffOrder);
+  } catch {
+    return [];
+  }
+}
+
+function mergeStaffOrders(
+  onlineOrders: StaffOrderDto[],
+  offlineOrders: StaffOrderDto[],
+) {
+  const merged = new Map(onlineOrders.map((order) => [order.id, order]));
+  offlineOrders.forEach((order) => merged.set(order.id, order));
+  return [...merged.values()]
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
 function ItemStatusButton({
