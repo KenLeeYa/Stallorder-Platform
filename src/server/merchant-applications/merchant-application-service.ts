@@ -94,6 +94,7 @@ type WritableApplicationData = Partial<Pick<Prisma.MerchantApplicationUncheckedC
 
 export type MerchantApplicationErrorCode =
   | "PROFILE_NOT_GOOGLE_LINKED"
+  | "PROFILE_CONTACT_EMAIL_REQUIRED"
   | "PROFILE_ALREADY_ONBOARDED"
   | "INVITATION_PENDING"
   | "APPLICATION_PENDING"
@@ -338,6 +339,9 @@ async function requireApplicantEligibility(transaction: Prisma.TransactionClient
   if (!profile?.isActive || !profile.authUserId || profile.authUserId !== identity.authUserId) {
     throw new MerchantApplicationError("PROFILE_NOT_GOOGLE_LINKED");
   }
+  if (!profile.email) {
+    throw new MerchantApplicationError("PROFILE_CONTACT_EMAIL_REQUIRED");
+  }
   const [organizationAccess, stallAccess, invitation] = await Promise.all([
     transaction.organizationMembership.count({ where: { profileId: profile.id, isActive: true } }),
     transaction.stallMembership.count({ where: { profileId: profile.id, isActive: true } }),
@@ -349,7 +353,7 @@ async function requireApplicantEligibility(transaction: Prisma.TransactionClient
     throw new MerchantApplicationError("PROFILE_ALREADY_ONBOARDED");
   }
   if (invitation > 0) throw new MerchantApplicationError("INVITATION_PENDING");
-  return profile;
+  return { ...profile, email: profile.email };
 }
 
 async function findActiveApplication(transaction: Prisma.TransactionClient, profileId: string) {

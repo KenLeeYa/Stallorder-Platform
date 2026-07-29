@@ -17,7 +17,7 @@ export type SessionPrincipal = {
   user: {
     id: string;
     authUserId: string | null;
-    email: string;
+    email: string | null;
     displayName: string;
     platformRole: UserRole | null;
   };
@@ -31,8 +31,25 @@ async function findPrincipal(token: string | null): Promise<SessionPrincipal | n
     include: { profile: true },
   });
 
-  if (!session || !session.profile.isActive || session.expiresAt <= new Date()) {
-    if (session) await prisma.authSession.delete({ where: { id: session.id } }).catch(() => undefined);
+  const now = new Date();
+  if (
+    !session
+    || session.revokedAt
+    || !session.profile.isActive
+    || session.expiresAt <= now
+    || session.profileSessionVersion !== session.profile.sessionVersion
+  ) {
+    if (session && !session.revokedAt) {
+      const revokeReason = !session.profile.isActive
+        ? "PROFILE_DISABLED"
+        : session.expiresAt <= now
+          ? "EXPIRED"
+          : "SESSION_VERSION_CHANGED";
+      await prisma.authSession.update({
+        where: { id: session.id },
+        data: { revokedAt: now, revokeReason },
+      }).catch(() => undefined);
+    }
     return null;
   }
 
@@ -62,6 +79,10 @@ export async function createSession(profileId: string) {
   const token = createOpaqueToken();
   const csrfToken = createOpaqueToken();
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+  const profile = await prisma.profile.findUniqueOrThrow({
+    where: { id: profileId },
+    select: { sessionVersion: true },
+  });
 
   await prisma.authSession.deleteMany({ where: { profileId, expiresAt: { lte: new Date() } } });
   await prisma.authSession.create({
@@ -70,6 +91,7 @@ export async function createSession(profileId: string) {
       tokenHash: hashToken(token),
       csrfTokenHash: hashToken(csrfToken),
       expiresAt,
+      profileSessionVersion: profile.sessionVersion,
     },
   });
 
@@ -99,7 +121,12 @@ export function setSessionCookies(
 
 export async function revokeRequestSession(request: Request) {
   const token = getCookieValue(request, SESSION_COOKIE);
-  if (token) await prisma.authSession.deleteMany({ where: { tokenHash: hashToken(token) } });
+  if (token) {
+    await prisma.authSession.updateMany({
+      where: { tokenHash: hashToken(token), revokedAt: null },
+      data: { revokedAt: new Date(), revokeReason: "LOGOUT" },
+    });
+  }
 }
 
 export function clearSessionCookies(response: NextResponse) {

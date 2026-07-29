@@ -25,9 +25,10 @@ import {
 export async function GET(request: Request) {
   const requestId = createRequestId();
   const principal = await getRequestPrincipal(request);
-  if (!principal?.user.authUserId) {
+  const profileEmail = principal?.user.email;
+  if (!principal?.user.authUserId || !profileEmail) {
     return NextResponse.json(
-      { error: "請先使用已驗證的 Google 帳號登入。" },
+      { error: "商家申請需要已驗證的 Google 帳號與聯絡電子郵件。" },
       { status: 401, headers: { "x-request-id": requestId } },
     );
   }
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
     prisma.organizationMembership.count({ where: { profileId: principal.user.id, isActive: true } }),
     prisma.stallMembership.count({ where: { profileId: principal.user.id, isActive: true } }),
     prisma.organizationInvitation.count({
-      where: { email: principal.user.email, status: "PENDING", expiresAt: { gt: now } },
+      where: { email: profileEmail, status: "PENDING", expiresAt: { gt: now } },
     }),
   ]);
 
@@ -100,6 +101,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const requestId = createRequestId();
   const principal = await getRequestPrincipal(request);
+  const profileEmail = principal?.user.email;
   let ipHash: string;
   try {
     ipHash = hashClientIp(request);
@@ -116,9 +118,9 @@ export async function POST(request: Request) {
       { status: 403, headers: { "x-request-id": requestId } },
     );
   }
-  if (!principal?.user.authUserId) {
+  if (!principal?.user.authUserId || !profileEmail) {
     return NextResponse.json(
-      { error: "請先使用已驗證的 Google 帳號登入。" },
+      { error: "商家申請需要已驗證的 Google 帳號與聯絡電子郵件。" },
       { status: 401, headers: { "x-request-id": requestId } },
     );
   }
@@ -156,7 +158,7 @@ export async function POST(request: Request) {
   }
 
   if (parsed.data.intent === "SUBMIT") {
-    const emailHash = hashApplicationIdentifier("email", principal.user.email);
+    const emailHash = hashApplicationIdentifier("email", profileEmail);
     const [profileLimit, emailLimit, ipHourLimit, ipDayLimit, sessionLimit] = await Promise.all([
       checkRateLimit({
         scope: "merchant-application-submit-profile-30d",
@@ -208,7 +210,7 @@ export async function POST(request: Request) {
   const identity = {
     profileId: principal.user.id,
     authUserId: principal.user.authUserId,
-    email: principal.user.email,
+    email: profileEmail,
     displayName: principal.user.displayName,
     sessionId: principal.sessionId,
   };
@@ -263,6 +265,7 @@ function merchantApplicationErrorResponse(error: unknown, requestId: string) {
   if (error instanceof MerchantApplicationError) {
     const messages: Record<MerchantApplicationError["code"], { status: number; error: string; next?: string }> = {
       PROFILE_NOT_GOOGLE_LINKED: { status: 403, error: "商家申請必須使用已驗證的 Google 帳號。" },
+      PROFILE_CONTACT_EMAIL_REQUIRED: { status: 403, error: "商家申請需要聯絡電子郵件，請先完成帳號資料。" },
       PROFILE_ALREADY_ONBOARDED: { status: 409, error: "此帳號已有組織或攤位權限。", next: "/select-organization" },
       INVITATION_PENDING: { status: 409, error: "此信箱已有待接受邀請，請先使用邀請連結加入工作區。" },
       APPLICATION_PENDING: { status: 409, error: "已有申請正在審核。", next: "/onboarding/status" },

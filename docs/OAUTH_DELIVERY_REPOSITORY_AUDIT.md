@@ -140,8 +140,9 @@ print and audit flows. They must not create a second canonical order model.
 
 ### Identity domain
 
-1. Expand `profile_auth_identities` with provider-subject fields while retaining
-   legacy Auth-project columns for compatibility.
+1. Keep `profile_auth_identities` as the project-local Supabase Auth/DR mapping
+   and add a separate `auth_identities` ledger whose only identity key is the
+   verified `(provider, provider_subject)` pair.
 2. Add one-time `oauth_transactions` with hashed state/nonce/code evidence and
    encrypted PKCE verifier storage.
 3. Add hashed identity-link invitations.

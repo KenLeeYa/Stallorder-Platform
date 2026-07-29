@@ -90,6 +90,7 @@ export async function POST(request: Request, context: RouteContext) {
       if (invitation.expiresAt <= new Date()) throw new Error("INVITATION_EXPIRED");
       if (
         invitation.email !== verifiedEmail
+        || !principal.user.email
         || principal.user.email.trim().toLowerCase() !== verifiedEmail
       ) {
         throw new Error("INVITATION_EMAIL_MISMATCH");

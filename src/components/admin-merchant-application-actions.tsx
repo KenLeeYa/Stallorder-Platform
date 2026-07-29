@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { csrfHeaders } from "@/lib/csrf-client";
 
-type Reviewer = { id: string; displayName: string; email: string };
+type Reviewer = { id: string; displayName: string; email: string | null };
 
 export function AdminMerchantApplicationActions({
   applicationId,

@@ -10,7 +10,7 @@ type Membership = {
   id: string;
   role: StallRole;
   isActive: boolean;
-  profile: { id: string; displayName: string; email: string };
+  profile: { id: string; displayName: string; email: string | null };
 };
 
 export function StallTeamManager({ stallId, initialMemberships }: { stallId: string; initialMemberships: Membership[] }) {
@@ -75,7 +75,7 @@ export function StallTeamManager({ stallId, initialMemberships }: { stallId: str
       <div className="mt-5 divide-y divide-stone-200 border-y border-stone-200">
         {memberships.map((membership) => (
           <div key={membership.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div><div className="font-medium">{membership.profile.displayName}</div><div className="mt-1 text-sm text-stone-500">{membership.profile.email}</div></div>
+            <div><div className="font-medium">{membership.profile.displayName}</div><div className="mt-1 text-sm text-stone-500">{membership.profile.email ?? "未提供電子郵件"}</div></div>
             <div className="flex flex-wrap items-center gap-2">
               <select aria-label={`變更 ${membership.profile.displayName} 的角色`} value={membership.role} disabled={isSaving || !membership.isActive} onChange={(event) => void updateMembership(membership, event.target.value as StallRole, true)} className="h-10 rounded-md border border-stone-300 bg-white px-2 text-sm"><option value="STALL_MANAGER">攤位經理</option><option value="STAFF">店員</option><option value="KITCHEN">廚房</option></select>
               <button type="button" disabled={isSaving} onClick={() => void updateMembership(membership, membership.role, !membership.isActive)} className={`h-10 rounded-md border px-3 text-sm font-semibold ${membership.isActive ? "border-red-300 text-red-800" : "border-stone-300 text-stone-700"}`}>{membership.isActive ? "停用" : "重新啟用"}</button>

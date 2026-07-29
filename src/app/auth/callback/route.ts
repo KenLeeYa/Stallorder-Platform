@@ -101,7 +101,11 @@ export async function GET(request: Request) {
         allowPasswordProfileLink: bootstrapPlatformAdmin,
         },
       );
-      if (bootstrapPlatformAdmin && existing && existing.email.trim().toLowerCase() !== email) {
+      if (
+        bootstrapPlatformAdmin
+        && existing
+        && existing.email?.trim().toLowerCase() !== email
+      ) {
         throw new Error("OAUTH_ACCOUNT_CONFLICT");
       }
 
@@ -120,6 +124,9 @@ export async function GET(request: Request) {
           where: { id: existing.id },
           data: {
             ...(authProjectCode === "PRIMARY" ? { authUserId: authUser.id } : {}),
+            email: existing.email ?? email,
+            emailSource: existing.email ? existing.emailSource : "GOOGLE",
+            emailVerified: existing.email ? existing.emailVerified : true,
             avatarUrl: existing.avatarUrl ?? cleanAvatarUrl(authUser.user_metadata.avatar_url),
             ...(bootstrapPlatformAdmin ? { isActive: true, platformRole: "PLATFORM_ADMIN" as const } : {}),
             lastLoginAt: new Date(),
@@ -129,6 +136,8 @@ export async function GET(request: Request) {
           data: {
             ...(authProjectCode === "PRIMARY" ? { authUserId: authUser.id } : {}),
             email,
+            emailSource: "GOOGLE",
+            emailVerified: true,
             displayName: cleanDisplayName(
               authUser.user_metadata.full_name ?? authUser.user_metadata.name,
               email,

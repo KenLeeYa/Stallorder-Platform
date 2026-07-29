@@ -21,7 +21,7 @@ export default async function InvitationPage({ params }: PageProps) {
   if (!principal) redirect(`/auth/google?next=${encodeURIComponent(`/invite/${token}`)}`);
 
   const expired = invitation.expiresAt <= new Date();
-  const emailMatches = principal.user.email.trim().toLowerCase() === invitation.email;
+  const emailMatches = principal.user.email?.trim().toLowerCase() === invitation.email;
   return (
     <main className="mx-auto grid min-h-screen max-w-lg place-items-center px-4 py-10">
       <section className="w-full border-y border-stone-200 py-8">
