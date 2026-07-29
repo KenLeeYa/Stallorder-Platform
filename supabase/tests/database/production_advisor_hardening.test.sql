@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(17);
+select plan(18);
 
 select ok(
   not exists (
@@ -13,6 +13,25 @@ select ok(
       and policyname = 'product_images_public_read'
   ),
   'public product image bucket does not expose object listing'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_default_acl default_acl
+    cross join lateral aclexplode(default_acl.defaclacl) privilege
+    left join pg_roles grantee on grantee.oid = privilege.grantee
+    where default_acl.defaclrole = 'postgres'::regrole
+      and default_acl.defaclnamespace = 'public'::regnamespace
+      and default_acl.defaclobjtype in ('r', 'S', 'f')
+      and coalesce(grantee.rolname, 'PUBLIC') in (
+        'PUBLIC',
+        'anon',
+        'authenticated',
+        'service_role'
+      )
+  ),
+  'public objects require explicit Data API grants'
 );
 
 select ok(

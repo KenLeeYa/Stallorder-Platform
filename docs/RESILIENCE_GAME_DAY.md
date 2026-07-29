@@ -122,7 +122,7 @@ approver 或 fencing 有一項缺漏，就必須停止。沒有核准的真實 D
 - Production-mode E2E：離線 PWA 與 QR 降級共 3 項通過。
 - 完整 Playwright：69 項通過，1 項僅限 production-mode 的案例依設計略過。
 - Vitest：113 個測試檔、453 項測試通過。
-- pgTAP：34 個測試檔、719 項測試通過。
+- pgTAP：34 個測試檔、720 項測試通過。
 - lint、typecheck、database lint、production build 與
   `npm audit --audit-level=moderate` 均通過。
 
