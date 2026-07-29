@@ -1,7 +1,7 @@
 # Replication Table Matrix
 
 The executable allowlist is
-`scripts/lib/dr-replication-scope.mjs`. At this revision it contains 92
+`scripts/lib/dr-replication-scope.mjs`. At this revision it contains 100
 `public` business tables, and every selected table has a primary key.
 
 ## Included
@@ -14,6 +14,7 @@ The executable allowlist is
 | Commercial | plans, subscriptions, usage, invoices, billing events | System test orders remain non-billable |
 | Notifications | outbox, integrations, jobs, webhook receipts | Outbound workers stay disabled on standby |
 | Resilience | feature flags, failover events, Storage manifest/jobs | Emergency state remains audited |
+| Offline recovery | sync receipts, conflicts, domain Inbox and Outbox | Preserves failover-safe idempotency and reconciliation |
 | Abuse controls | rate buckets and public order attempts | Prevents a failover from silently clearing recent abuse history |
 
 The full names live in the fixed source allowlist so a newly created table

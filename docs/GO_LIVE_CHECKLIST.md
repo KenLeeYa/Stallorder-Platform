@@ -87,6 +87,12 @@
 - [ ] Rollback plan rehearsed
 - [ ] Emergency ordering pause tested
 - [ ] RPO／RTO and incident contacts approved
+- [ ] Primary 與 DR environment-local backend identity 已設定並啟用 fence
+- [ ] `check-dr-readiness` 全綠且 sequence reserve 已驗證
+- [ ] Primary freeze rollback、DR promotion、DR write rejection 已在隔離環境演練
+- [ ] Offline 舊 epoch queue 同步後無 canonical duplicate
+- [ ] Primary failback、DR demotion 與單向複寫重建已演練
+- [ ] Failover／failback requester、approver 與事故證據保存流程已核准
 
 ## 最終核准
 

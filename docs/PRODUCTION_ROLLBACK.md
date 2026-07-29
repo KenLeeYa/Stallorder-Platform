@@ -64,3 +64,10 @@
 
 關閉旗標不會停用既有 QR 點餐，也不會改變訂單狀態、價格計算、RLS、
 Turnstile 或 idempotency。
+
+## 已提升 DR 的回復限制
+
+DR 成為 `ACTIVE_WRITER` 後，不得把 Vercel 變數直接切回 Primary，也不得解除
+Primary fence。依 [PRODUCTION_FAILBACK_RUNBOOK.md](PRODUCTION_FAILBACK_RUNBOOK.md)
+完成雙端備份、DR-era writes reconciliation、sequence、Auth、Storage 與付款資料
+驗證後，才能短暫凍結 DR 並提升 Primary。

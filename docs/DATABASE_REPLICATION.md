@@ -47,6 +47,16 @@ publication and does not delete business data.
 DDL, sequences, Auth settings, Storage objects, Vault values and project
 secrets are not replicated.
 
+Offline recovery additionally replicates `offline_order_sync_receipts`,
+`offline_sync_conflicts`, `domain_inbox` and `domain_outbox`. These records are
+required to preserve idempotency and reconciliation when an offline queue
+synchronizes after promotion.
+
+Before promotion, `prepare-dr-failover.mjs` inspects every identity/serial
+sequence owned by a replicated table and advances the DR sequence above both
+observed maxima with a reserve. The same operation runs in the opposite
+direction before failback. Gaps are expected; uniqueness is mandatory.
+
 ## Monitoring
 
 `GET /api/cron/replication-health` stores sanitized observations in
@@ -60,3 +70,6 @@ secrets are not replicated.
 
 The report read router returns to Primary on any missing, stale or unhealthy
 evidence.
+
+Promotion and failback procedures are documented in
+`PRODUCTION_FAILOVER_RUNBOOK.md` and `PRODUCTION_FAILBACK_RUNBOOK.md`.

@@ -74,3 +74,17 @@ HTTP 401/403、裝置撤銷、Permit 到期或 protocol 不相容都不能繞過
 - conflict：處理前不刪除
 
 Service Worker 更新不得清除尚未同步資料。
+
+## Promotion epoch
+
+Permit 與每筆本機交易都保存建立當下的 `promotion_epoch`。同步到不同 epoch 時，
+伺服器不會直接拒絕所有合法離線交易，而會先查：
+
+1. `domain_inbox` message key；
+2. device order ID；
+3. idempotency key；
+4. 既有 sync receipt。
+
+沒有 canonical duplicate 時才匯入，並建立 `BACKEND_EPOCH_CHANGED` 衝突標記供
+管理者檢視。舊 Primary 與新 DR 都使用同一套伺服器驗證、價格快照、Permit
+時間範圍與 stall scope；epoch 變更不會繞過任何控制。
