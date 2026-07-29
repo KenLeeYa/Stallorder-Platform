@@ -2,11 +2,12 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(34);
+select plan(39);
 
 select has_table('public', 'auth_identities', 'OAuth identity ledger exists');
 select has_table('public', 'auth_identity_link_invitations', 'identity-link invitation ledger exists');
 select has_table('public', 'oauth_transactions', 'OAuth transaction ledger exists');
+select has_table('public', 'oauth_provider_events', 'OAuth provider event ledger exists');
 
 select is(
   (
@@ -50,6 +51,14 @@ select ok(
   'OAuth transactions force RLS'
 );
 select ok(
+  (
+    select relrowsecurity and relforcerowsecurity
+    from pg_class
+    where oid = 'public.oauth_provider_events'::regclass
+  ),
+  'OAuth provider events force RLS'
+);
+select ok(
   not has_table_privilege('anon', 'public.auth_identities', 'SELECT'),
   'anonymous users cannot read OAuth identities'
 );
@@ -64,6 +73,25 @@ select ok(
 select ok(
   has_table_privilege('service_role', 'public.auth_identities', 'INSERT'),
   'service role can create verified OAuth identities'
+);
+select ok(
+  not has_table_privilege('anon', 'public.oauth_provider_events', 'SELECT'),
+  'anonymous users cannot read OAuth provider events'
+);
+select ok(
+  has_table_privilege('service_role', 'public.oauth_provider_events', 'INSERT'),
+  'service role can record verified OAuth provider events'
+);
+select is(
+  (
+    select count(*)::integer
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'oauth_provider_events'
+      and column_name in ('signed_payload', 'provider_subject')
+  ),
+  0,
+  'provider event ledger stores neither raw payload nor raw provider subject'
 );
 select is(
   (

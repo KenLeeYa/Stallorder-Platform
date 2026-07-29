@@ -60,7 +60,7 @@ test.describe("商家申請表單流程", () => {
   test("已驗證且尚無商戶的帳號可送出申請，但不會直接建立組織", async ({ page }) => {
     await loginForOnboarding(page);
     await expect(page.getByRole("heading", { name: "商家申請" })).toBeVisible();
-    await expect(page.getByText("已驗證 Google 身分")).toBeVisible();
+    await expect(page.getByText("已驗證登入身分")).toBeVisible();
     await expect(page.getByText("送出後由平台人工審核，不會立即建立商家工作區。")).toBeVisible();
 
     await page.getByRole("button", { name: "下一步" }).click();
@@ -156,7 +156,7 @@ test.describe("商家申請表單流程", () => {
 
 async function loginForOnboarding(page: Page) {
   await page.goto("/login");
-  await page.getByRole("link", { name: "使用 Google 申請開通" }).click();
+  await page.getByRole("link", { name: "使用已驗證帳號申請開通" }).click();
   await expect(page).toHaveURL(/\/onboarding$/);
 }
 

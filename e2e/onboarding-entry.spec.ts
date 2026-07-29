@@ -1,15 +1,15 @@
 import { expect, test } from "@playwright/test";
 
 const onboardingRoutes = [
-  ["/onboarding", "/auth/google?next=%2Fonboarding"],
-  ["/onboarding/edit", "/auth/google?next=%2Fonboarding%2Fedit"],
-  ["/onboarding/status", "/auth/google?next=%2Fonboarding%2Fstatus"],
+  ["/onboarding", "/login?next=%2Fonboarding"],
+  ["/onboarding/edit", "/login?next=%2Fonboarding%2Fedit"],
+  ["/onboarding/status", "/login?next=%2Fonboarding%2Fstatus"],
 ] as const;
 
-test("登入頁的申請開通會啟動 Google 驗證流程", async ({ page }) => {
+test("登入頁的申請開通會使用目前啟用的驗證帳號流程", async ({ page }) => {
   await page.goto("/login");
 
-  const applicationLink = page.getByRole("link", { name: "使用 Google 申請開通" });
+  const applicationLink = page.getByRole("link", { name: "使用已驗證帳號申請開通" });
   await expect(applicationLink).toHaveAttribute("href", "/auth/google?next=%2Fonboarding");
 
   const response = await page.request.get("/auth/google?next=%2Fonboarding", {
@@ -31,7 +31,7 @@ test("登入頁的申請開通會啟動 Google 驗證流程", async ({ page }) =
   expect(callbackUrl.searchParams.get("next")).toBe("/onboarding");
 });
 
-test("未登入直接進入申請相關頁面時不會循環導回登入頁", async ({ request }) => {
+test("未登入直接進入申請相關頁面時會回到統一登入入口", async ({ request }) => {
   for (const [route, expectedLocation] of onboardingRoutes) {
     const response = await request.get(route, { maxRedirects: 0 });
     expect(response.status(), route).toBe(307);

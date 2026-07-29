@@ -120,7 +120,12 @@ test.describe("Staging 平台管理員 Google 登入", () => {
     await page.getByRole("button", { name: "登出", exact: true }).click();
     expect((await logoutResponse).status()).toBe(200);
     await expect(page).toHaveURL(/\/login$/);
-    expect(await prisma.authSession.count({ where: { profileId } })).toBe(0);
+    expect(await prisma.authSession.count({
+      where: { profileId, revokedAt: null },
+    })).toBe(0);
+    expect(await prisma.authSession.count({
+      where: { profileId, revokeReason: "LOGOUT" },
+    })).toBe(1);
 
     await page.goto("/admin/billing");
     await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Fbilling$/);
