@@ -9,22 +9,23 @@ import {
   phoneNumberSchema,
   singleLineText,
 } from "./input-validation";
+import {
+  merchantApplicationFieldLabels,
+  merchantBusinessTypes,
+  preferredContactMethods,
+} from "./merchant-application-options";
 import { isTaiwanCity } from "./taiwan-address";
+
+export {
+  merchantApplicationFieldLabels,
+  merchantApplicationStatusLabels,
+  merchantBusinessTypeLabels,
+  merchantBusinessTypes,
+  preferredContactMethods,
+} from "./merchant-application-options";
 
 const nullableText = (maxLength: number) => multilineText({ maximum: maxLength }).nullable();
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
-
-export const merchantBusinessTypes = [
-  "NIGHT_MARKET_STALL",
-  "FOOD_TRUCK",
-  "MARKET_STALL",
-  "POPUP_STORE",
-  "SMALL_RESTAURANT",
-  "BEVERAGE_SHOP",
-  "OTHER",
-] as const;
-
-export const preferredContactMethods = ["PHONE", "LINE", "EMAIL"] as const;
 
 export const merchantApplicationFieldsSchema = z.object({
   phone: phoneNumberSchema,
@@ -139,32 +140,6 @@ export type MerchantApplicationFields = z.infer<typeof merchantApplicationFields
 export type MerchantApplicationCommand = z.infer<typeof merchantApplicationCommandSchema>;
 export type MerchantApplicationAdminCommand = z.infer<typeof merchantApplicationAdminCommandSchema>;
 
-export const merchantApplicationFieldLabels: Record<keyof MerchantApplicationFields, string> = {
-  phone: "聯絡電話",
-  lineId: "LINE ID",
-  preferredContactMethod: "偏好聯絡方式",
-  merchantName: "商家或品牌名稱",
-  businessType: "營業類型",
-  businessRegistrationNumber: "統一編號",
-  contactName: "負責聯絡人",
-  businessPhone: "商家電話",
-  businessAddress: "商家地址",
-  city: "縣市",
-  merchantDescription: "商家簡介",
-  stallName: "第一個攤位名稱",
-  stallLocation: "主要營業地點",
-  requestedSlug: "公開識別名稱",
-  estimatedDailyOrders: "預估每日訂單",
-  expectedStartDate: "預計開始日期",
-  needsMultipleStaff: "預計邀請其他員工共同使用",
-  needsKitchenView: "預計使用廚房生產看板（KDS）",
-  requestedPlanCode: "申請方案",
-  termsAccepted: "服務條款",
-  privacyAccepted: "隱私權政策",
-  dataProcessingAccepted: "資料處理告知事項",
-  informationConfirmed: "申請資料確認",
-};
-
 export function getMerchantApplicationFieldErrors(error: z.ZodError) {
   const fieldErrors: Partial<Record<keyof MerchantApplicationFields, string>> = {};
   for (const issue of error.issues) {
@@ -180,24 +155,3 @@ export function getMerchantApplicationFieldErrors(error: z.ZodError) {
   }
   return fieldErrors;
 }
-
-export const merchantApplicationStatusLabels = {
-  DRAFT: "草稿",
-  SUBMITTED: "已送出",
-  PENDING_REVIEW: "等待審核",
-  NEEDS_INFO: "需要補件",
-  APPROVED: "已核准",
-  REJECTED: "未核准",
-  WITHDRAWN: "已撤回",
-  EXPIRED: "已逾期",
-} as const;
-
-export const merchantBusinessTypeLabels = {
-  NIGHT_MARKET_STALL: "夜市攤位",
-  FOOD_TRUCK: "餐車",
-  MARKET_STALL: "市集攤位",
-  POPUP_STORE: "快閃店",
-  SMALL_RESTAURANT: "小型餐飲店",
-  BEVERAGE_SHOP: "飲料店",
-  OTHER: "其他",
-} as const;

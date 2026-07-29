@@ -6,7 +6,7 @@ import { CalendarClock, MailCheck, Pencil, Play, Plus, Save, Trash2, X } from "l
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatTaipeiDateTime } from "@/lib/date-time";
-import { reportScheduleTypeLabels, type ScheduledReportType } from "@/lib/report-scheduling";
+import { reportScheduleTypeLabels, type ScheduledReportType } from "@/lib/report-schedule-contract";
 
 type Delivery = {
   id: string;

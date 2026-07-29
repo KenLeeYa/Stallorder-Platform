@@ -592,12 +592,22 @@ function evaluateBudgets(routeResult) {
   const warnings = [];
   if (routeResult.coldLike?.error) {
     warnings.push("cold-like HTTP 要求失敗");
+  } else if (!isSuccessfulHttpStatus(routeResult.coldLike?.status)) {
+    warnings.push(`cold-like HTTP 回應狀態 ${routeResult.coldLike?.status ?? "未知"}`);
   }
   if ((routeResult.warm?.errors ?? 0) > 0) {
     warnings.push(`${routeResult.warm.errors} 筆 warm HTTP 要求失敗`);
   }
+  const failedWarmStatuses = (routeResult.warm?.statusCodes ?? [])
+    .filter((status) => !isSuccessfulHttpStatus(status));
+  if (failedWarmStatuses.length > 0) {
+    warnings.push(`warm HTTP 非成功回應狀態：${failedWarmStatuses.join("、")}`);
+  }
   for (const [profileName, profile] of Object.entries(routeResult.browser?.profiles ?? {})) {
     if (profile?.error) warnings.push(`${profileName} 瀏覽器量測失敗`);
+    else if (!isSuccessfulHttpStatus(profile?.status)) {
+      warnings.push(`${profileName} 瀏覽器回應狀態 ${profile?.status ?? "未知"}`);
+    }
   }
   const budget = routeResult.budget;
   if (!budget) return warnings;
@@ -624,6 +634,10 @@ function evaluateBudgets(routeResult) {
     }
   }
   return warnings;
+}
+
+function isSuccessfulHttpStatus(status) {
+  return Number.isInteger(status) && status >= 200 && status < 400;
 }
 
 function renderMarkdown(measurement) {

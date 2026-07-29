@@ -10,7 +10,7 @@ import {
   merchantApplicationFieldLabels,
   merchantBusinessTypeLabels,
   merchantBusinessTypes,
-} from "@/lib/merchant-application-contract";
+} from "@/lib/merchant-application-options";
 import {
   isValidPublicIdentifier,
   PUBLIC_IDENTIFIER_MAX_LENGTH,

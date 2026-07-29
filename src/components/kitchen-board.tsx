@@ -28,7 +28,7 @@ import {
   type KitchenBoardMode,
   type KitchenBoardTask,
   type KitchenTaskState,
-} from "@/lib/kitchen-contract";
+} from "@/lib/kitchen-board-contract";
 
 type BoardData = {
   settings: { warningMinutes: number; criticalMinutes: number; defaultView: KitchenBoardMode };

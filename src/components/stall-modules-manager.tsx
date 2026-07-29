@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Copy, Languages, MapPinned, MessageCircle, Percent, Plus, Printer, QrCode, RotateCw, Save, SlidersHorizontal, Trash2, Truck, Utensils, WalletCards } from "lucide-react";
+import { type SyntheticEvent, useState } from "react";
+import { ChevronsDown, ChevronsUp, Copy, Languages, MapPinned, MessageCircle, Percent, Plus, Printer, QrCode, RotateCw, Save, SlidersHorizontal, Trash2, Truck, Utensils, WalletCards } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
 import { DiningFloorEditor } from "@/components/dining-floor-editor";
@@ -59,6 +59,16 @@ type ModuleState = {
 type TableDraft = Omit<ModuleState["tables"][number], "id" | "qrCode" | "layoutX" | "layoutY">;
 type PaymentDraft = Omit<ModuleState["paymentOptions"][number], "id">;
 type DiscountDraft = Omit<ModuleState["discounts"][number], "id">;
+const moduleSectionKeys = [
+  "overview",
+  "delivery",
+  "locales",
+  "tables",
+  "floor",
+  "payments",
+  "discounts",
+] as const;
+type ModuleSectionKey = (typeof moduleSectionKeys)[number];
 
 export function StallModulesManager({
   stallId,
@@ -78,11 +88,32 @@ export function StallModulesManager({
   const [newDiscount, setNewDiscount] = useState<DiscountDraft>({ name: "", rateBps: 9000, isEnabled: true, sortOrder: initialState.discounts.length + 1 });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [openSections, setOpenSections] = useState<Set<ModuleSectionKey>>(
+    () => new Set(moduleSectionKeys),
+  );
   const deliveryUrl = `${appUrl.replace(/\/$/, "")}/delivery/${encodeURIComponent(stallSlug)}`;
   const lineReply = `您好，請點擊以下連結選擇餐點並填寫外送資料：\n${deliveryUrl}`;
   const moduleDirty = JSON.stringify(state) !== JSON.stringify(savedState)
     || Boolean(newTable.code || newTable.label || newPayment.code || newPayment.name || newDiscount.name);
   useUnsavedSettings("stall-modules", moduleDirty);
+
+  function handleSectionToggle(
+    section: ModuleSectionKey,
+    event: SyntheticEvent<HTMLDetailsElement>,
+  ) {
+    const isOpen = event.currentTarget.open;
+    setOpenSections((current) => {
+      if (current.has(section) === isOpen) return current;
+      const next = new Set(current);
+      if (isOpen) next.add(section);
+      else next.delete(section);
+      return next;
+    });
+  }
+
+  function setAllSections(isOpen: boolean) {
+    setOpenSections(isOpen ? new Set(moduleSectionKeys) : new Set());
+  }
 
   async function run(command: Record<string, unknown>, success: string) {
     setBusy(true);
@@ -159,7 +190,33 @@ export function StallModulesManager({
 
   return (
     <section className="mt-8" aria-label="營運模組與內用桌位">
-      <details open data-settings-section data-settings-scope="stall-modules" data-settings-search="營運模組 內用桌位 外送 LINE 專屬 QR 點餐語系 訂單列印 付款方式 結帳折扣 桌位平面配置" className="border-y border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
+      <div className="mb-3 flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setAllSections(true)}
+          className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"
+        >
+          <ChevronsDown className="h-4 w-4" />
+          全部展開
+        </button>
+        <button
+          type="button"
+          onClick={() => setAllSections(false)}
+          className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"
+        >
+          <ChevronsUp className="h-4 w-4" />
+          全部縮合
+        </button>
+      </div>
+      <details
+        open={openSections.has("overview")}
+        onToggle={(event) => handleSectionToggle("overview", event)}
+        data-module-section="overview"
+        data-settings-section
+        data-settings-scope="stall-modules"
+        data-settings-search="營運模組 內用桌位 外送 LINE 專屬 QR 點餐語系 訂單列印 付款方式 結帳折扣 桌位平面配置"
+        className="border-y border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180"
+      >
         <CollapsibleSectionSummary
           icon={SlidersHorizontal}
           title="營運模組與內用桌位"
@@ -177,7 +234,12 @@ export function StallModulesManager({
       {state.settings.discountModuleEnabled ? <label className="mt-4 block max-w-xs text-xs font-semibold text-stone-600">超過此折扣需經理核准（%）<input type="number" min={0} max={100} step={1} value={(10_000 - state.settings.discountApprovalThresholdBps) / 100} onChange={(event) => { const percent = Math.max(0, Math.min(100, Number(event.target.value) || 0)); setState((current) => ({ ...current, settings: { ...current.settings, discountApprovalThresholdBps: 10_000 - percent * 100 } })); }} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /><span className="mt-1 block font-normal text-stone-500">例如設定 20%，折扣超過 20%（低於 8 折）時需要經理驗證。</span></label> : null}
       <button type="button" disabled={busy} onClick={() => void saveModules()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存模組開關</button>
 
-      <details className="mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180" open={state.settings.deliveryModuleEnabled}>
+      <details
+        open={openSections.has("delivery")}
+        onToggle={(event) => handleSectionToggle("delivery", event)}
+        data-module-section="delivery"
+        className="mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
+      >
         <CollapsibleSectionSummary icon={Truck} title="外送與 LINE 連結" description="固定網址可放入 LINE 官方帳號的關鍵字自動回覆。" level={3} />
         <div className="pb-6">
           {!state.settings.deliveryModuleEnabled ? <p className="mb-3 text-sm text-amber-800">請先開啟並儲存「線上外送」模組，顧客才能使用此連結。</p> : null}
@@ -187,7 +249,13 @@ export function StallModulesManager({
         </div>
       </details>
 
-      <details aria-label="QR 點餐語系" className="mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180">
+      <details
+        open={openSections.has("locales")}
+        onToggle={(event) => handleSectionToggle("locales", event)}
+        data-module-section="locales"
+        aria-label="QR 點餐語系"
+        className="mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
+      >
         <CollapsibleSectionSummary icon={Languages} title="QR 點餐語系" level={3} />
         <div className="pb-6">
           <p className="mb-3 text-sm text-stone-600">只向顧客提供已開啟的語系；瀏覽器語言若已關閉，會自動改用繁體中文。</p>
@@ -207,10 +275,20 @@ export function StallModulesManager({
         </div>
       </details>
 
-      <details className="border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180" open>
+      <details
+        open={openSections.has("tables")}
+        onToggle={(event) => handleSectionToggle("tables", event)}
+        data-module-section="tables"
+        className="border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
+      >
         <CollapsibleSectionSummary icon={QrCode} title="內用桌位與專屬 QR" level={3} />
         <div className="pb-6">
-          <details open className="mb-6 border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180">
+          <details
+            open={openSections.has("floor")}
+            onToggle={(event) => handleSectionToggle("floor", event)}
+            data-module-section="floor"
+            className="mb-6 border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
+          >
             <CollapsibleSectionSummary icon={MapPinned} title="桌位平面配置" description="此位置會同步到員工手機的桌位看板。" level={4} />
             <div className="pb-6">
             <DiningFloorEditor
@@ -252,7 +330,13 @@ export function StallModulesManager({
         </div>
       </details>
 
-      <details className="border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180" open={state.settings.paymentModuleEnabled}>
+      <details
+        id="payment-options"
+        open={openSections.has("payments")}
+        onToggle={(event) => handleSectionToggle("payments", event)}
+        data-module-section="payments"
+        className="border-b border-stone-200 scroll-mt-24 [&[open]>summary_.section-chevron]:rotate-180"
+      >
         <CollapsibleSectionSummary icon={WalletCards} title="付款方式" level={3} />
         <div className="pb-6">
           <div className="grid gap-2 border-b border-stone-200 pb-4 sm:grid-cols-[110px_1fr_150px_80px_auto]">
@@ -268,7 +352,12 @@ export function StallModulesManager({
         </div>
       </details>
 
-      <details className="border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180" open={state.settings.discountModuleEnabled}>
+      <details
+        open={openSections.has("discounts")}
+        onToggle={(event) => handleSectionToggle("discounts", event)}
+        data-module-section="discounts"
+        className="border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
+      >
         <CollapsibleSectionSummary icon={Percent} title="結帳折扣" level={3} />
         <div className="pb-6">
           <div className="grid gap-2 border-b border-stone-200 pb-4 sm:grid-cols-[1fr_130px_80px_auto]"><TextInput label="折扣名稱" value={newDiscount.name} onChange={(name) => setNewDiscount({ ...newDiscount, name })} /><PercentInput value={newDiscount.rateBps} onChange={(rateBps) => setNewDiscount({ ...newDiscount, rateBps })} /><NumberInput label="排序" value={newDiscount.sortOrder} onChange={(sortOrder) => setNewDiscount({ ...newDiscount, sortOrder })} /><button type="button" disabled={busy || !newDiscount.name} onClick={async () => { if (await run({ operation: "CREATE_DISCOUNT", ...newDiscount }, "折扣已新增。")) setNewDiscount({ name: "", rateBps: 9000, isEnabled: true, sortOrder: state.discounts.length + 2 }); }} className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Plus className="h-4 w-4" />新增</button></div>

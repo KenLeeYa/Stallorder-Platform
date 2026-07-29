@@ -3,13 +3,14 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
 
-export async function getStaffOrderCatalog(
+export async function getStaffOrderPageConfiguration(
   stallId: string,
   organizationId: string,
-): Promise<StaffOrderCatalog> {
+  includeCatalog: boolean,
+) {
   const now = new Date();
   const [assignments, tables, settings] = await Promise.all([
-    prisma.stallProduct.findMany({
+    includeCatalog ? prisma.stallProduct.findMany({
       where: {
         stallId,
         organizationId,
@@ -54,15 +55,35 @@ export async function getStaffOrderCatalog(
           },
         },
       },
-    }),
-    prisma.diningTable.findMany({
+    }) : Promise.resolve([]),
+    includeCatalog ? prisma.diningTable.findMany({
       where: { stallId, organizationId, isActive: true },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
       select: { id: true, label: true },
-    }),
-    prisma.stallOrderingSettings.findUniqueOrThrow({
+    }) : Promise.resolve([]),
+    includeCatalog ? prisma.stallOrderingSettings.findUniqueOrThrow({
       where: { stallId },
       select: {
+        dineInEnabled: true,
+        deliveryModuleEnabled: true,
+        printModuleEnabled: true,
+        paymentModuleEnabled: true,
+        discountModuleEnabled: true,
+        discountApprovalThresholdBps: true,
+        maxItemQuantity: true,
+        maxUniqueProducts: true,
+        maxTotalQuantity: true,
+        maxNoteLength: true,
+      },
+    }) : prisma.stallOrderingSettings.findUnique({
+      where: { stallId },
+      select: {
+        dineInEnabled: true,
+        deliveryModuleEnabled: true,
+        printModuleEnabled: true,
+        paymentModuleEnabled: true,
+        discountModuleEnabled: true,
+        discountApprovalThresholdBps: true,
         maxItemQuantity: true,
         maxUniqueProducts: true,
         maxTotalQuantity: true,
@@ -72,16 +93,31 @@ export async function getStaffOrderCatalog(
   ]);
 
   return {
-    products: assignments.map((assignment) => ({
-      id: assignment.product.id,
-      name: assignment.product.name,
-      description: assignment.product.description,
-      category: assignment.product.category.name,
-      price: assignment.priceOverride ?? assignment.product.defaultPrice,
-      imageUrl: assignment.product.imageUrl,
-      noteGroups: assignment.product.noteGroupAssignments.map(({ noteGroup }) => noteGroup),
-    })),
-    tables,
-    limits: settings,
+    modules: {
+      dineIn: settings?.dineInEnabled ?? false,
+      delivery: settings?.deliveryModuleEnabled ?? false,
+      print: settings?.printModuleEnabled ?? false,
+      payment: settings?.paymentModuleEnabled ?? false,
+      discount: settings?.discountModuleEnabled ?? false,
+      discountApprovalThresholdBps: settings?.discountApprovalThresholdBps ?? 8000,
+    },
+    catalog: includeCatalog && settings ? {
+      products: assignments.map((assignment) => ({
+        id: assignment.product.id,
+        name: assignment.product.name,
+        description: assignment.product.description,
+        category: assignment.product.category.name,
+        price: assignment.priceOverride ?? assignment.product.defaultPrice,
+        imageUrl: assignment.product.imageUrl,
+        noteGroups: assignment.product.noteGroupAssignments.map(({ noteGroup }) => noteGroup),
+      })),
+      tables,
+      limits: {
+        maxItemQuantity: settings.maxItemQuantity,
+        maxUniqueProducts: settings.maxUniqueProducts,
+        maxTotalQuantity: settings.maxTotalQuantity,
+        maxNoteLength: settings.maxNoteLength,
+      },
+    } satisfies StaffOrderCatalog : null,
   };
 }
