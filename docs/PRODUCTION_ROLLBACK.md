@@ -2,6 +2,10 @@
 
 核心原則：先止血、保留證據、避免資料破壞。Database schema 優先 forward-fix；沒有已驗證備份與事故指揮核准，不做 destructive rollback。
 
+事故分級、角色、前 15 分鐘與溝通方式見
+[INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md)；跨專案資料復原原則見
+[DISASTER_RECOVERY.md](DISASTER_RECOVERY.md)。
+
 韌性功能發生回歸時，先透過受稽核的 server-side feature flag 停止 rollout，
 再判斷是否回滾 Vercel deployment。不得只改前端開關，也不得以
 `BACKEND_ACTIVE_TARGET=DR` 單獨啟用 DR。

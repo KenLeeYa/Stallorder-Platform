@@ -13,7 +13,9 @@ npx supabase db lint --level warning
 npm run build
 npm run test:e2e
 $env:PLAYWRIGHT_PRODUCTION_SERVER='true'
-npx playwright test e2e/offline-pwa-foundation.spec.ts
+npx concurrently --kill-others --success command-1 `
+  "npm run functions:serve:e2e" `
+  "npx playwright test e2e/offline-pwa-foundation.spec.ts"
 Remove-Item Env:PLAYWRIGHT_PRODUCTION_SERVER
 npm audit --audit-level=moderate
 ```
@@ -22,8 +24,9 @@ npm audit --audit-level=moderate
 
 - 裝置登錄、管理者核准與唯一 Leader
 - bootstrap、Service Worker、IndexedDB 與離線頁
-- 斷線建單與重新載入後仍存在
+- 斷線建單後關閉頁面並重開，訂單仍存在
 - 本機狀態 `CONFIRMED -> PREPARING -> READY`
+- Pending queue 存在時 Service Worker 回報更新不安全；同步後回到 0
 - 恢復連線後自動或手動同步
 - canonical order 保留最終狀態及 `OFFLINE_POS` origin
 - 相同 payload 重送得到 `DUPLICATE`
@@ -51,6 +54,9 @@ pgTAP 必須驗證：
 6. 裝置撤銷、Permit 到期、角色移除：禁止新單，既有佇列保留。
 7. 多分頁：只有一個 coordinator 上傳。
 8. 更新 PWA：待同步資料存在時不強制替換或刪除舊快取。
+
+完整故障注入與 DR 桌上演練見
+[RESILIENCE_GAME_DAY.md](RESILIENCE_GAME_DAY.md)。
 
 只可在隔離的 Staging 測試攤位建立測試訂單。Production 僅執行唯讀 smoke
 test，除非有明確核准的測試攤位。

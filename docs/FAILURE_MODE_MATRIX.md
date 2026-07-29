@@ -44,3 +44,15 @@
 5. Failback 必須先停止新寫入、核對資料，再重建單向複寫。
 6. Production 不執行破壞性故障注入；演練使用本機或隔離環境。
 
+## 自動化證據
+
+`scripts/lib/resilience-game-day.mjs` 維護 12 個必要故障卡及對應測試檔。
+執行：
+
+```powershell
+npm run resilience:game-day -- --verify-dry-runs
+npx playwright test e2e/resilience-failure-injection.spec.ts
+```
+
+Production-mode 的離線 PWA 與 QR 快取測試須依
+[RESILIENCE_GAME_DAY.md](RESILIENCE_GAME_DAY.md) 啟動本機 Edge Functions。

@@ -103,6 +103,7 @@ npx supabase db lint --local
 npm run build
 npm run test:e2e
 npm audit --audit-level=moderate
+npm run resilience:game-day -- --verify-dry-runs
 ```
 
 `npm run test:e2e` 只允許連接 `localhost/127.0.0.1` 資料庫，會啟動本機 OAuth 測試端、Next.js 與 Edge Functions。外部 Google 同意頁仍需在 staging/production 使用真實 Google/Supabase 憑證做部署驗收。
@@ -147,6 +148,12 @@ npm audit --audit-level=moderate
 - [商家設定精靈](docs/MERCHANT_SETUP_WIZARD.md)
 - [人工帳務操作](docs/MANUAL_BILLING_OPERATIONS.md)
 - [帳務測試計畫](docs/BILLING_TEST_PLAN.md)
+- [生產韌性架構](docs/PRODUCTION_RESILIENCE_MASTER_ARCHITECTURE.md)
+- [災難復原](docs/DISASTER_RECOVERY.md)
+- [事故應變](docs/INCIDENT_RESPONSE.md)
+- [韌性 Game Day](docs/RESILIENCE_GAME_DAY.md)
+- [QR 降級模式](docs/QR_DEGRADED_MODE.md)
+- [付款供應商備援](docs/PAYMENT_PROVIDER_FAILOVER.md)
 
 ## 商業帳務
 
