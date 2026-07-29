@@ -144,7 +144,7 @@ test("LINE 固定外送網址建立受保護 session 並顯示外送欄位", asy
   const customerName = `LINE 外送 QA ${Date.now()}`;
   const deliveryAddress = "台北市信義區測試路 1 號 2 樓";
   await page.goto("/delivery/aming-chicken");
-  await expect(page.getByText("外送", { exact: true })).toBeVisible();
+  await expect(page.locator("#main-content").getByText("外送", { exact: true })).toBeVisible();
   await expect(page.getByTestId("qr-cart-panel")).toBeHidden();
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("line-delivery-mobile.png"), fullPage: true });
