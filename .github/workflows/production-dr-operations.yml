@@ -531,7 +531,7 @@ jobs:
         run: node scripts/configure-production-dr-project.mjs
 
       - name: Deploy trusted Edge Functions to DR
-        run: supabase functions deploy --project-ref "$DR_SUPABASE_PROJECT_REF" --jobs 2
+        run: supabase functions deploy --project-ref "$DR_SUPABASE_PROJECT_REF" --use-api --import-map supabase/functions/deno.json
 
       - name: Initialize writer fencing and replication role
         env:
