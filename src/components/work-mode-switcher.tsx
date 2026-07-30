@@ -12,12 +12,14 @@ export function WorkModeSwitcher({
   currentMode,
   organizationId,
   stallId,
+  offlineGuardStallId,
   className = "",
 }: {
   destinations: readonly WorkModeDestination[];
   currentMode: WorkMode;
   organizationId: string;
   stallId?: string;
+  offlineGuardStallId?: string;
   className?: string;
 }) {
   const router = useRouter();
@@ -25,9 +27,17 @@ export function WorkModeSwitcher({
 
   const selectedValue = currentWorkModeValue(currentMode, organizationId, stallId);
 
-  function switchMode(value: string) {
+  async function switchMode(value: string) {
     const destination = destinations.find((candidate) => candidate.value === value);
     if (!destination) return;
+    if (offlineGuardStallId && destination.value !== selectedValue) {
+      const { getOfflineQueueSummary } = await import("@/offline/offline-operations");
+      const summary = await getOfflineQueueSummary(offlineGuardStallId).catch(() => null);
+      if ((summary?.pendingCount ?? 0) > 0) {
+        window.alert(`尚有 ${summary?.pendingCount} 筆離線資料未同步，完成同步後才能切換工作模式或攤位。`);
+        return;
+      }
+    }
     window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, destination.organizationId);
     router.push(destination.href);
   }
@@ -41,7 +51,7 @@ export function WorkModeSwitcher({
       <select
         aria-label="切換工作模式"
         value={selectedValue}
-        onChange={(event) => switchMode(event.target.value)}
+        onChange={(event) => void switchMode(event.target.value)}
         className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[220px]"
       >
         {destinations.map((destination) => (

@@ -13,10 +13,10 @@ import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
 const PHONE_NUMBER = /^\+?[0-9][0-9 ().-]{5,29}$/;
 
 type Props = {
-  stall: { slug: string; currency: string };
+  stall: { id: string; organizationId: string; slug: string; currency: string };
   catalog: StaffOrderCatalog;
   account: { role: UserRole };
-  modules: { dineIn: boolean; delivery: boolean; payment: boolean; discount: boolean; discountApprovalThresholdBps: number };
+  modules: { dineIn: boolean; delivery: boolean; print: boolean; payment: boolean; discount: boolean; discountApprovalThresholdBps: number };
   paymentOptions: Array<{ id: string; name: string; kind: PaymentOptionKind }>;
   discountOptions: Array<{ id: string; name: string; rateBps: number }>;
   onCreated: (order: StaffOrderDto) => void;
@@ -163,44 +163,108 @@ export function StaffOrderComposer({
 
     setBusy(true);
     setMessage("");
+    const fulfillment = fulfillmentType === "DINE_IN"
+      ? { fulfillmentType, diningTableId, customerPhone }
+      : fulfillmentType === "DELIVERY"
+        ? { fulfillmentType, customerPhone, deliveryAddress }
+        : { fulfillmentType, customerPhone };
+    const idempotencyKey = idempotencyKeyRef.current;
+    const requestBody = {
+      ...fulfillment,
+      idempotencyKey,
+      customerName,
+      customerNote,
+      paymentTiming,
+      checkout: paymentTiming === "PAY_NOW" ? {
+        paymentOptionId: modules.payment ? paymentOptionId : null,
+        discountOptionId: modules.discount ? discountOptionId : null,
+        cashReceived: usesCash ? received : null,
+        discountApprovalReason: needsApproval ? discountApprovalReason : null,
+        managerEmail: needsApproval && !operatorCanApprove ? managerEmail : null,
+        managerPassword: needsApproval && !operatorCanApprove ? managerPassword : null,
+      } : undefined,
+      items: selectedItems.map(({ product, quantity, noteOptionIds }) => ({
+        productId: product.id,
+        quantity,
+        note: "",
+        noteOptionIds,
+      })),
+    };
     try {
-      const fulfillment = fulfillmentType === "DINE_IN"
-        ? { fulfillmentType, diningTableId, customerPhone }
-        : fulfillmentType === "DELIVERY"
-          ? { fulfillmentType, customerPhone, deliveryAddress }
-          : { fulfillmentType, customerPhone };
-      const response = await fetch(`/api/stalls/${stall.slug}/orders`, {
-        method: "POST",
-        headers: csrfHeaders(),
-        body: JSON.stringify({
-          ...fulfillment,
-          idempotencyKey: idempotencyKeyRef.current,
-          customerName,
-          customerNote,
-          paymentTiming,
-          checkout: paymentTiming === "PAY_NOW" ? {
-            paymentOptionId: modules.payment ? paymentOptionId : null,
-            discountOptionId: modules.discount ? discountOptionId : null,
-            cashReceived: usesCash ? received : null,
-            discountApprovalReason: needsApproval ? discountApprovalReason : null,
-            managerEmail: needsApproval && !operatorCanApprove ? managerEmail : null,
-            managerPassword: needsApproval && !operatorCanApprove ? managerPassword : null,
-          } : undefined,
-          items: selectedItems.map(({ product, quantity, noteOptionIds }) => ({
-            productId: product.id,
-            quantity,
-            note: "",
-            noteOptionIds,
-          })),
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "目前無法建立訂單。");
-      onCreated(payload.order as StaffOrderDto);
+      let response: Response;
+      try {
+        response = await fetch(`/api/stalls/${stall.slug}/orders`, {
+          method: "POST",
+          headers: csrfHeaders(),
+          body: JSON.stringify(requestBody),
+        });
+      } catch (error) {
+        await createOfflineFallback(error);
+        return;
+      }
+      let payload: { order?: StaffOrderDto; error?: string };
+      try {
+        payload = await response.json() as { order?: StaffOrderDto; error?: string };
+      } catch (error) {
+        if (response.ok || isTemporaryOrderFailure(response.status)) {
+          await createOfflineFallback(error);
+          return;
+        }
+        throw new Error("目前無法建立訂單。");
+      }
+      if (!response.ok) {
+        if (isTemporaryOrderFailure(response.status)) {
+          await createOfflineFallback(new Error("ORDER_INTAKE_TEMPORARILY_UNAVAILABLE"));
+          return;
+        }
+        throw new Error(payload.error ?? "目前無法建立訂單。");
+      }
+      if (!payload.order) {
+        await createOfflineFallback(new Error("ORDER_RESPONSE_MISSING"));
+        return;
+      }
+      idempotencyKeyRef.current = crypto.randomUUID();
+      onCreated(payload.order);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "目前無法建立訂單。");
+      setMessage(error instanceof Error ? offlineErrorMessage(error.message) : "目前無法建立訂單。");
     } finally {
       setBusy(false);
+    }
+
+    async function createOfflineFallback(cause: unknown) {
+      const canFallback = !navigator.onLine
+        || cause instanceof TypeError
+        || (cause instanceof Error && [
+          "OFFLINE_READ_ONLY",
+          "ORDER_INTAKE_TEMPORARILY_UNAVAILABLE",
+          "ORDER_RESPONSE_MISSING",
+        ].includes(cause.message));
+      if (!canFallback) throw cause;
+      if (fulfillmentType !== "TAKEOUT") {
+        throw new Error("OFFLINE_TAKEOUT_ONLY");
+      }
+      if (discountOptionId !== null || needsApproval) {
+        throw new Error("OFFLINE_DISCOUNT_NOT_ALLOWED");
+      }
+      const [{ createOfflineOrder }, { offlineOrderToStaffOrder }] = await Promise.all([
+        import("@/offline/offline-operations"),
+        import("@/offline/offline-staff-order"),
+      ]);
+      const created = await createOfflineOrder({
+        organizationId: stall.organizationId,
+        stallId: stall.id,
+        idempotencyKey,
+        customerLabel: customerName,
+        customerContact: customerPhone,
+        note: customerNote,
+        paymentTiming,
+        paymentOptionId: paymentTiming === "PAY_NOW" ? paymentOptionId : null,
+        cashReceived: paymentTiming === "PAY_NOW" && usesCash ? received : null,
+        queuePrint: modules.print,
+        items: requestBody.items,
+      });
+      idempotencyKeyRef.current = crypto.randomUUID();
+      onCreated(offlineOrderToStaffOrder(created.order));
     }
   }
 
@@ -282,6 +346,34 @@ export function StaffOrderComposer({
       </section>
     </div>
   );
+}
+
+function isTemporaryOrderFailure(status: number) {
+  return status === 502 || status === 503 || status === 504;
+}
+
+function offlineErrorMessage(code: string) {
+  const messages: Record<string, string> = {
+    OFFLINE_READ_ONLY: "目前無法連線，且此裝置尚未具備離線寫入權限。",
+    OFFLINE_TAKEOUT_ONLY: "離線模式目前僅支援現場外帶訂單。",
+    OFFLINE_DISCOUNT_NOT_ALLOWED: "離線模式不支援折扣或經理線上核准，請取消折扣後再試。",
+    OFFLINE_BOOTSTRAP_REQUIRED: "請先在線上完成此裝置的離線營運初始化。",
+    OFFLINE_PERMIT_EXPIRED: "離線營運許可已到期，請恢復連線後重新取得許可。",
+    OFFLINE_MENU_EXPIRED: "離線菜單已到期，請恢復連線後重新取得最新菜單。",
+    OFFLINE_DEVICE_NOT_LEADER: "此裝置不是目前攤位的離線主裝置，離線時僅能檢視。",
+    OFFLINE_ACTION_NOT_ALLOWED: "目前的離線許可不允許執行此操作。",
+    OFFLINE_PRODUCT_UNAVAILABLE: "離線菜單中的商品已停售、售罄或不在供應時段。",
+    OFFLINE_ITEM_LIMIT_EXCEEDED: "商品數量或備註超過離線營運限制。",
+    OFFLINE_NOTE_SELECTION_INVALID: "商品註記不符合離線菜單規則。",
+    OFFLINE_RISK_LIMIT_REACHED: "已達離線訂單或金額風險上限，請恢復連線同步。",
+    OFFLINE_PAYMENT_NOT_ALLOWED: "此付款方式目前不可在離線模式使用。",
+    OFFLINE_CASH_SHIFT_REQUIRED: "離線現金收款前必須先在線上開啟現金班別。",
+    OFFLINE_CUSTOMER_CONTACT_REQUIRED: "此金額的人工付款需填寫顧客聯絡方式。",
+    OFFLINE_MANAGER_REQUIRED: "此金額的人工付款需由店長或擁有者操作。",
+  };
+  return messages[code] ?? (code.startsWith("OFFLINE_")
+    ? "目前無法安全建立離線訂單，請恢復連線後重試。"
+    : code);
 }
 
 function ModeButton({ active, disabled, icon, label, onClick }: { active: boolean; disabled?: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {

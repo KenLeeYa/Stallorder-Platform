@@ -71,6 +71,8 @@ export async function POST(
     method: "POST",
     headers: {
       "content-type": request.headers.get("content-type") ?? "application/json",
+      "x-stallorder-protocol-version":
+        request.headers.get("x-stallorder-protocol-version") ?? "1",
       origin: publicFunctionOrigin(),
       ...publicFunctionGatewayHeaders(),
       ...publicOrderUpstreamIpHeaders(clientIp),

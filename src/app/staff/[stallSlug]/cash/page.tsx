@@ -23,7 +23,13 @@ export default async function CashShiftPage({ params }: PageProps) {
   const reconciliationAccess = await getFeatureAccess(stall.organizationId, "CASH_RECONCILIATION");
   const state = await getCashShiftState(stall.id, stall.organizationId);
   return <CashShiftBoard
-    stall={{ slug: stall.slug, name: stall.name, currency: stall.currency }}
+    stall={{
+      id: stall.id,
+      organizationId: stall.organizationId,
+      slug: stall.slug,
+      name: stall.name,
+      currency: stall.currency,
+    }}
     initialState={JSON.parse(JSON.stringify(state)) as CashShiftState}
     initialPermissions={{
       canManage: roles.some((role) => hasPermission(role, "MANAGE_CASH_SHIFT")),

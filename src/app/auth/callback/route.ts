@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSession, setSessionCookies } from "@/lib/auth";
 import { logEvent, recordAuditEvent } from "@/lib/audit";
-import { resolveOAuthLinkProfile } from "@/lib/oauth-linking";
+import { resolveProjectOAuthLinkProfile } from "@/lib/oauth-linking";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { isStagingPlatformAdminBootstrapEmail } from "@/lib/platform-admin-bootstrap";
 import { prisma } from "@/lib/prisma";
@@ -24,6 +24,14 @@ function cleanAvatarUrl(value: unknown) {
   } catch {
     return null;
   }
+}
+
+function getAuthProjectCode() {
+  const value = process.env.AUTH_PROJECT_CODE?.trim().toUpperCase() || "PRIMARY";
+  if (!/^[A-Z][A-Z0-9_]{1,31}$/.test(value)) {
+    throw new Error("AUTH_PROJECT_CODE_INVALID");
+  }
+  return value;
 }
 
 export async function GET(request: Request) {
@@ -53,22 +61,60 @@ export async function GET(request: Request) {
       throw new Error("OAUTH_IDENTITY_INVALID");
     }
     const bootstrapPlatformAdmin = isStagingPlatformAdminBootstrapEmail(email);
+    const authProjectCode = getAuthProjectCode();
 
     const profile = await timing.measureDb(() => prisma.$transaction(async (transaction) => {
-      const [byAuthId, byEmail] = await Promise.all([
+      const [projectIdentity, projectEmailIdentity, byAuthId, byEmail] = await Promise.all([
+        transaction.profileAuthIdentity.findUnique({
+          where: {
+            authProjectCode_authUserId: {
+              authProjectCode,
+              authUserId: authUser.id,
+            },
+          },
+          include: { profile: true },
+        }),
+        transaction.profileAuthIdentity.findFirst({
+          where: {
+            authProjectCode,
+            provider: "GOOGLE",
+            verifiedEmail: email,
+          },
+          include: { profile: true },
+        }),
         transaction.profile.findUnique({ where: { authUserId: authUser.id } }),
         transaction.profile.findUnique({ where: { email } }),
       ]);
-      const existing = resolveOAuthLinkProfile(authUser.id, byAuthId, byEmail, {
+      if (
+        projectEmailIdentity
+        && projectEmailIdentity.authUserId !== authUser.id
+      ) {
+        throw new Error("OAUTH_ACCOUNT_CONFLICT");
+      }
+      const existing = resolveProjectOAuthLinkProfile(
+        authUser.id,
+        authProjectCode,
+        projectIdentity?.profile ?? projectEmailIdentity?.profile ?? null,
+        byAuthId,
+        byEmail,
+        {
         allowPasswordProfileLink: bootstrapPlatformAdmin,
-      });
-      if (bootstrapPlatformAdmin && existing && existing.email.trim().toLowerCase() !== email) {
+        },
+      );
+      if (
+        bootstrapPlatformAdmin
+        && existing
+        && existing.email?.trim().toLowerCase() !== email
+      ) {
         throw new Error("OAUTH_ACCOUNT_CONFLICT");
       }
 
+      const identityLinked = authProjectCode === "PRIMARY"
+        ? existing?.authUserId === authUser.id
+        : projectIdentity?.profileId === existing?.id;
       const shouldAuditBootstrap = bootstrapPlatformAdmin && (
         !existing
-        || existing.authUserId !== authUser.id
+        || !identityLinked
         || existing.platformRole !== "PLATFORM_ADMIN"
         || !existing.isActive
       );
@@ -77,7 +123,10 @@ export async function GET(request: Request) {
         ? await transaction.profile.update({
           where: { id: existing.id },
           data: {
-            authUserId: authUser.id,
+            ...(authProjectCode === "PRIMARY" ? { authUserId: authUser.id } : {}),
+            email: existing.email ?? email,
+            emailSource: existing.email ? existing.emailSource : "GOOGLE",
+            emailVerified: existing.email ? existing.emailVerified : true,
             avatarUrl: existing.avatarUrl ?? cleanAvatarUrl(authUser.user_metadata.avatar_url),
             ...(bootstrapPlatformAdmin ? { isActive: true, platformRole: "PLATFORM_ADMIN" as const } : {}),
             lastLoginAt: new Date(),
@@ -85,8 +134,10 @@ export async function GET(request: Request) {
         })
         : await transaction.profile.create({
           data: {
-            authUserId: authUser.id,
+            ...(authProjectCode === "PRIMARY" ? { authUserId: authUser.id } : {}),
             email,
+            emailSource: "GOOGLE",
+            emailVerified: true,
             displayName: cleanDisplayName(
               authUser.user_metadata.full_name ?? authUser.user_metadata.name,
               email,
@@ -96,6 +147,27 @@ export async function GET(request: Request) {
             lastLoginAt: new Date(),
           },
         });
+
+      await transaction.profileAuthIdentity.upsert({
+        where: {
+          authProjectCode_authUserId: {
+            authProjectCode,
+            authUserId: authUser.id,
+          },
+        },
+        create: {
+          profileId: profile.id,
+          authProjectCode,
+          authUserId: authUser.id,
+          provider: "GOOGLE",
+          verifiedEmail: email,
+        },
+        update: {
+          profileId: profile.id,
+          provider: "GOOGLE",
+          verifiedEmail: email,
+        },
+      });
 
       if (shouldAuditBootstrap) {
         await transaction.auditLog.create({
@@ -115,7 +187,7 @@ export async function GET(request: Request) {
               },
             } : {}),
             afterJson: {
-              authLinked: Boolean(profile.authUserId),
+              authLinked: true,
               isActive: profile.isActive,
               platformRole: profile.platformRole,
             },

@@ -1,4 +1,4 @@
-import { z } from "npm:zod@4.2.1";
+import { z } from "zod";
 
 const SINGLE_LINE_CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/;
 const MULTILINE_CONTROL_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/;
@@ -19,6 +19,7 @@ const optionalPhone = z.union([
 export const issueOrderSessionSchema = z.object({
   qrToken: z.string().trim().min(24).max(200),
   deviceId: z.string().uuid(),
+  sessionRequestId: z.string().uuid().optional(),
   orderingMode: z.enum(["DEFAULT", "DELIVERY"]).default("DEFAULT"),
   includeMenu: z.boolean().default(true),
 }).strict();
@@ -28,6 +29,8 @@ export const createPublicOrderSchema = z.object({
   orderSessionToken: z.string().min(40).max(200),
   deviceId: z.string().uuid(),
   idempotencyKey: z.string().uuid(),
+  clientOrderId: z.string().uuid().optional(),
+  turnstileIdempotencyKey: z.string().uuid().optional(),
   customerName: singleLineText(50).optional().default(""),
   customerPhone: optionalPhone.optional().default(""),
   deliveryAddress: multilineText(300).optional().default(""),
@@ -79,3 +82,5 @@ export const manageLineLinkSchema = z.discriminatedUnion("action", [
 export const prepareReorderSchema = trackedOrderIdentitySchema.strict();
 
 export type PublicOrderInput = z.infer<typeof createPublicOrderSchema>;
+export type IssueOrderSessionInput = z.infer<typeof issueOrderSessionSchema>;
+export type GetPublicOrderInput = z.infer<typeof getPublicOrderSchema>;

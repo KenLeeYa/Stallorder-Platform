@@ -3,13 +3,19 @@ import { redirect } from "next/navigation";
 import { Clock3, FileCheck2 } from "lucide-react";
 import { MerchantApplicationWithdrawAction } from "@/components/merchant-application-status-actions";
 import { getPagePrincipal } from "@/lib/auth";
+import { hasActiveOAuthIdentity } from "@/server/auth/oauth/profile-identity";
 import { merchantApplicationStatusLabels } from "@/lib/merchant-application-contract";
 import { canStartMerchantReapplication } from "@/server/merchant-applications/application-state";
 import { getApplicantApplication } from "@/server/merchant-applications/merchant-application-service";
 
 export default async function MerchantApplicationStatusPage() {
   const principal = await getPagePrincipal();
-  if (!principal?.user.authUserId) redirect("/auth/google?next=%2Fonboarding%2Fstatus");
+  const hasOAuthIdentity = principal
+    ? await hasActiveOAuthIdentity(principal.user.id)
+    : false;
+  if (!principal || (!principal.user.authUserId && !hasOAuthIdentity)) {
+    redirect("/login?next=%2Fonboarding%2Fstatus");
+  }
   const application = await getApplicantApplication(principal.user.id);
   if (!application) redirect("/onboarding");
   if (application.status === "DRAFT") redirect("/onboarding");

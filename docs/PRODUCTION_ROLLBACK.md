@@ -2,6 +2,14 @@
 
 核心原則：先止血、保留證據、避免資料破壞。Database schema 優先 forward-fix；沒有已驗證備份與事故指揮核准，不做 destructive rollback。
 
+事故分級、角色、前 15 分鐘與溝通方式見
+[INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md)；跨專案資料復原原則見
+[DISASTER_RECOVERY.md](DISASTER_RECOVERY.md)。
+
+韌性功能發生回歸時，先透過受稽核的 server-side feature flag 停止 rollout，
+再判斷是否回滾 Vercel deployment。不得只改前端開關，也不得以
+`BACKEND_ACTIVE_TARGET=DR` 單獨啟用 DR。
+
 ## 立即止血
 
 1. 由 merchant emergency controls 將受影響 stall `ordering_state=PAUSED` 或 `CLOSED`、`ordering_enabled=false`。
@@ -48,3 +56,22 @@
 ## 恢復服務
 
 完成 root cause、修正驗證、RLS／smoke／monitoring、積壓訂單處理與 stakeholder 核准後，先單一測試攤位，再分批恢復 ordering。事故報告不得包含 credentials 或顧客敏感資料。
+## 雙路徑訂單快速回復
+
+若新公開訂單 B 路徑出現異常：
+
+1. 由平台管理員將 `DUAL_ORDER_INTAKE_ENABLED` 關閉並填寫原因。
+2. 確認 `/api/availability/config` 回傳 `orderIntake=EDGE_PRIMARY`。
+3. 確認直接呼叫 Circuit B 回傳 503 且沒有建立 session／order。
+4. 監控既有 Supabase Edge Circuit A 的成功率、Turnstile 與限流。
+5. 保留 migration；只有在所有新版流量停止後才評估移除向下相容 RPC。
+
+關閉旗標不會停用既有 QR 點餐，也不會改變訂單狀態、價格計算、RLS、
+Turnstile 或 idempotency。
+
+## 已提升 DR 的回復限制
+
+DR 成為 `ACTIVE_WRITER` 後，不得把 Vercel 變數直接切回 Primary，也不得解除
+Primary fence。依 [PRODUCTION_FAILBACK_RUNBOOK.md](PRODUCTION_FAILBACK_RUNBOOK.md)
+完成雙端備份、DR-era writes reconciliation、sequence、Auth、Storage 與付款資料
+驗證後，才能短暫凍結 DR 並提升 Primary。

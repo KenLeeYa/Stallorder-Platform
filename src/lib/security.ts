@@ -63,6 +63,25 @@ export function hashClientIp(request: Request) {
     .digest("hex");
 }
 
+export function hashClientUserAgent(request: Request) {
+  const configuredSecret = process.env.SESSION_FINGERPRINT_HASH_SECRET
+    ?? process.env.AUDIT_IP_HASH_SECRET;
+  if (!configuredSecret && process.env.NODE_ENV === "production") {
+    throw new Error("正式環境必須設定 SESSION_FINGERPRINT_HASH_SECRET。");
+  }
+  const userAgent = request.headers.get("user-agent")?.slice(0, 1024) || "unknown";
+  return createHmac("sha256", configuredSecret || LOCAL_IP_HASH_SECRET)
+    .update(userAgent)
+    .digest("hex");
+}
+
+export function getSessionDeviceId(request: Request) {
+  const value = getCookieValue(request, "stallorder_device");
+  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value.toLowerCase()
+    : undefined;
+}
+
 export function createRequestId() {
   return randomUUID();
 }

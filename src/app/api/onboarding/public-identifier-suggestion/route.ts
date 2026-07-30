@@ -4,6 +4,7 @@ import { singleLineText } from "@/lib/input-validation";
 import { generatePublicIdentifierSuggestion } from "@/lib/public-identifier-suggestion";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createRequestId } from "@/lib/security";
+import { hasActiveOAuthIdentity } from "@/server/auth/oauth/profile-identity";
 
 const merchantNameSchema = singleLineText({
   minimum: 2,
@@ -14,9 +15,12 @@ const merchantNameSchema = singleLineText({
 export async function GET(request: Request) {
   const requestId = createRequestId();
   const principal = await getRequestPrincipal(request);
-  if (!principal?.user.authUserId) {
+  const hasOAuthIdentity = principal
+    ? await hasActiveOAuthIdentity(principal.user.id)
+    : false;
+  if (!principal || (!principal.user.authUserId && !hasOAuthIdentity)) {
     return NextResponse.json(
-      { error: "請先使用已驗證的 Google 帳號登入。" },
+      { error: "請先使用已驗證的帳號登入。" },
       { status: 401, headers: { "cache-control": "no-store", "x-request-id": requestId } },
     );
   }

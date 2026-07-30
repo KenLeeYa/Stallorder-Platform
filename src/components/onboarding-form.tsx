@@ -96,7 +96,7 @@ export function OnboardingForm({
   needsInfoNote,
   isReapplication = false,
 }: {
-  authenticatedProfile: { displayName: string; email: string; avatarUrl: string | null };
+  authenticatedProfile: { displayName: string; email: string | null; avatarUrl: string | null };
   initialValues?: InitialValues | null;
   trial: Trial;
   businessTypeOptions?: MerchantBusinessTypeOptionDto[];
@@ -401,11 +401,11 @@ export function OnboardingForm({
   );
 }
 
-function ApplicantStep({ profile, state, update, fieldErrors }: StepProps & { profile: { displayName: string; email: string; avatarUrl: string | null } }) {
+function ApplicantStep({ profile, state, update, fieldErrors }: StepProps & { profile: { displayName: string; email: string | null; avatarUrl: string | null } }) {
   return <div className="grid gap-5">
     <div className="flex items-center gap-4 border-b border-stone-200 pb-4">
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-stone-100" aria-hidden="true"><UserRound className="h-7 w-7 text-stone-500" /></span>
-      <div><strong>{profile.displayName}</strong><p className="text-sm text-stone-500">{profile.email}</p><p className="mt-1 text-xs text-teal-800">已驗證 Google 身分</p></div>
+      <div><strong>{profile.displayName}</strong><p className="text-sm text-stone-500">{profile.email ?? "未提供電子郵件"}</p><p className="mt-1 text-xs text-teal-800">已驗證登入身分</p></div>
     </div>
     <Field field="phone" label="聯絡電話" error={fieldErrors.phone}><input {...fieldValidationProps("phone", fieldErrors)} type="tel" inputMode="tel" required value={state.phone} onChange={(event) => update("phone", event.target.value)} autoComplete="tel" minLength={6} maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" className={inputClass} /></Field>
     <Field field="lineId" label="LINE ID（選填）" error={fieldErrors.lineId}><input {...fieldValidationProps("lineId", fieldErrors)} type="text" value={state.lineId} onChange={(event) => update("lineId", event.target.value)} maxLength={80} className={inputClass} /></Field>

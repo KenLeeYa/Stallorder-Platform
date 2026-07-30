@@ -106,7 +106,7 @@ export default async function MerchantTeamPage({ searchParams }: PageProps) {
         <div className="mt-4 divide-y divide-stone-200 border-y border-stone-200">
           {stallMemberships.map((membership) => (
             <div key={membership.id} className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <div><div className="font-medium">{membership.profile.displayName}</div><div className="mt-1 text-sm text-stone-500">{membership.profile.email} · {membership.stall.name}</div></div>
+              <div><div className="font-medium">{membership.profile.displayName}</div><div className="mt-1 text-sm text-stone-500">{membership.profile.email ?? "未提供電子郵件"} · {membership.stall.name}</div></div>
               <div className="flex items-center gap-2"><span className="rounded-md bg-stone-100 px-2 py-1 text-xs font-semibold">{roleLabels[membership.role]}</span>{!membership.isActive ? <span className="text-xs font-semibold text-red-700">已停用</span> : null}</div>
             </div>
           ))}

@@ -105,6 +105,7 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
       orderCatalog={configuration.catalog}
       capacity={capacity}
       workModeDestinations={workModeDestinations}
+      appVersion={(process.env.VERCEL_GIT_COMMIT_SHA ?? "web").slice(0, 40)}
     />
   );
 }

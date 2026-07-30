@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
 import type { NextResponse } from "next/server";
 import type { UserRole } from "@prisma/client";
 import { cookies } from "next/headers";
@@ -10,6 +11,7 @@ import { createOpaqueToken, getCookieValue, hashToken } from "@/lib/security";
 export const SESSION_COOKIE = "stallorder_session";
 export const CSRF_COOKIE = "stallorder_csrf";
 const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
+type SessionDatabase = Pick<Prisma.TransactionClient, "profile" | "authSession">;
 
 export type SessionPrincipal = {
   sessionId: string;
@@ -17,7 +19,7 @@ export type SessionPrincipal = {
   user: {
     id: string;
     authUserId: string | null;
-    email: string;
+    email: string | null;
     displayName: string;
     platformRole: UserRole | null;
   };
@@ -31,8 +33,25 @@ async function findPrincipal(token: string | null): Promise<SessionPrincipal | n
     include: { profile: true },
   });
 
-  if (!session || !session.profile.isActive || session.expiresAt <= new Date()) {
-    if (session) await prisma.authSession.delete({ where: { id: session.id } }).catch(() => undefined);
+  const now = new Date();
+  if (
+    !session
+    || session.revokedAt
+    || !session.profile.isActive
+    || session.expiresAt <= now
+    || session.profileSessionVersion !== session.profile.sessionVersion
+  ) {
+    if (session && !session.revokedAt) {
+      const revokeReason = !session.profile.isActive
+        ? "PROFILE_DISABLED"
+        : session.expiresAt <= now
+          ? "EXPIRED"
+          : "SESSION_VERSION_CHANGED";
+      await prisma.authSession.update({
+        where: { id: session.id },
+        data: { revokedAt: now, revokeReason },
+      }).catch(() => undefined);
+    }
     return null;
   }
 
@@ -58,22 +77,140 @@ export const getPagePrincipal = cache(async function getPagePrincipal() {
   return findPrincipal(cookieStore.get(SESSION_COOKIE)?.value ?? null);
 });
 
-export async function createSession(profileId: string) {
+export async function createSession(
+  profileId: string,
+  options: {
+    deviceId?: string;
+    ipHash?: string;
+    userAgentHash?: string;
+    rotationFamilyId?: string;
+    rotatedFromId?: string;
+  } = {},
+  database: SessionDatabase = prisma,
+) {
   const token = createOpaqueToken();
   const csrfToken = createOpaqueToken();
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+  const profile = await database.profile.findUniqueOrThrow({
+    where: { id: profileId },
+    select: { sessionVersion: true },
+  });
 
-  await prisma.authSession.deleteMany({ where: { profileId, expiresAt: { lte: new Date() } } });
-  await prisma.authSession.create({
+  await database.authSession.deleteMany({
+    where: {
+      profileId,
+      expiresAt: { lte: new Date(Date.now() - 30 * 24 * 60 * 60_000) },
+    },
+  });
+  const stored = await database.authSession.create({
     data: {
       profileId,
       tokenHash: hashToken(token),
       csrfTokenHash: hashToken(csrfToken),
       expiresAt,
+      profileSessionVersion: profile.sessionVersion,
+      deviceId: options.deviceId,
+      ipHash: options.ipHash,
+      userAgentHash: options.userAgentHash,
+      rotationFamilyId: options.rotationFamilyId,
+      rotatedFromId: options.rotatedFromId,
     },
+    select: { id: true },
   });
 
-  return { token, csrfToken, expiresAt };
+  return { id: stored.id, token, csrfToken, expiresAt };
+}
+
+export async function revokeAllProfileSessions(
+  profileId: string,
+  reason: string,
+  database: SessionDatabase = prisma,
+) {
+  const now = new Date();
+  await database.profile.update({
+    where: { id: profileId },
+    data: { sessionVersion: { increment: 1 } },
+  });
+  return database.authSession.updateMany({
+    where: { profileId, revokedAt: null },
+    data: { revokedAt: now, revokeReason: reason.slice(0, 120) },
+  });
+}
+
+export async function rotateRequestSession(
+  request: Request,
+  evidence: {
+    deviceId?: string;
+    ipHash?: string;
+    userAgentHash?: string;
+  } = {},
+) {
+  const token = getCookieValue(request, SESSION_COOKIE);
+  if (!token) return { status: "INVALID" as const };
+  const tokenHash = hashToken(token);
+
+  return prisma.$transaction(async (transaction) => {
+    await transaction.$queryRaw`
+      select id
+      from public.auth_sessions
+      where token_hash = ${tokenHash}
+      for update
+    `;
+    const current = await transaction.authSession.findUnique({
+      where: { tokenHash },
+      include: { profile: true },
+    });
+    if (!current) return { status: "INVALID" as const };
+
+    if (current.revokedAt) {
+      if (current.revokeReason === "ROTATED") {
+        const now = new Date();
+        await transaction.profile.update({
+          where: { id: current.profileId },
+          data: { sessionVersion: { increment: 1 } },
+        });
+        await transaction.authSession.updateMany({
+          where: { rotationFamilyId: current.rotationFamilyId },
+          data: {
+            revokedAt: now,
+            revokeReason: "REFRESH_TOKEN_REUSE",
+            reuseDetectedAt: now,
+          },
+        });
+        return { status: "REUSED" as const };
+      }
+      return { status: "INVALID" as const };
+    }
+
+    if (
+      !current.profile.isActive
+      || current.expiresAt <= new Date()
+      || current.profileSessionVersion !== current.profile.sessionVersion
+    ) {
+      await transaction.authSession.update({
+        where: { id: current.id },
+        data: { revokedAt: new Date(), revokeReason: "REFRESH_REJECTED" },
+      });
+      return { status: "INVALID" as const };
+    }
+
+    const next = await createSession(
+      current.profileId,
+      {
+        deviceId: evidence.deviceId ?? current.deviceId ?? undefined,
+        ipHash: evidence.ipHash ?? current.ipHash ?? undefined,
+        userAgentHash: evidence.userAgentHash ?? current.userAgentHash ?? undefined,
+        rotationFamilyId: current.rotationFamilyId,
+        rotatedFromId: current.id,
+      },
+      transaction,
+    );
+    await transaction.authSession.update({
+      where: { id: current.id },
+      data: { revokedAt: new Date(), revokeReason: "ROTATED" },
+    });
+    return { status: "ROTATED" as const, session: next, profileId: current.profileId };
+  });
 }
 
 export function setSessionCookies(
@@ -99,7 +236,12 @@ export function setSessionCookies(
 
 export async function revokeRequestSession(request: Request) {
   const token = getCookieValue(request, SESSION_COOKIE);
-  if (token) await prisma.authSession.deleteMany({ where: { tokenHash: hashToken(token) } });
+  if (token) {
+    await prisma.authSession.updateMany({
+      where: { tokenHash: hashToken(token), revokedAt: null },
+      data: { revokedAt: new Date(), revokeReason: "LOGOUT" },
+    });
+  }
 }
 
 export function clearSessionCookies(response: NextResponse) {

@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, Clock3, RefreshCw } from "lucide-react";
 import { LineNotificationControls } from "@/components/line-notification-controls";
-import { getOrCreateDeviceId, parseEdgeResponse, publicEdgeHeaders, publicEdgeUrl } from "@/lib/public-order-client";
+import {
+  getOrCreateDeviceId,
+  parseEdgeResponse,
+  requestPublicOrder,
+} from "@/lib/public-order-client";
 
 type PublicOrder = {
   orderNo: string;
@@ -59,11 +63,9 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
   const loadOrder = useCallback(async () => {
     setMessage("");
     try {
-      const response = await fetch(publicEdgeUrl("get-public-order"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...publicEdgeHeaders() },
-        body: JSON.stringify({ trackingToken, deviceId: getOrCreateDeviceId() }),
-        cache: "no-store",
+      const response = await requestPublicOrder("get-public-order", {
+        trackingToken,
+        deviceId: getOrCreateDeviceId(),
       });
       const payload = await parseEdgeResponse(response);
       if (!response.ok) throw new Error(String(payload.error ?? "找不到此訂單。"));

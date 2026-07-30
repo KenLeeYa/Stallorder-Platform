@@ -40,6 +40,14 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
+  logging: {
+    incomingRequests: {
+      ignore: [
+        /\/api\/auth\/(?:google|line|apple)\/callback/,
+        /\/api\/auth\/mock\/authorize/,
+      ],
+    },
+  },
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: productImageRemotePatterns,

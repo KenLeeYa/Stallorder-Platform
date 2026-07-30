@@ -60,6 +60,12 @@ Profile 不保存固定 tenant。Membership 可讓一人屬於多個組織/攤�
 - Date range、stall list、public product 與 JSON body 都有限制。
 - Health endpoint 僅回傳 DB 可用性，不暴露連線資訊。
 - 備份/PITR、migration staging、secret/QR rotation 與 fail-closed Turnstile 納入維運。
+- 公開 QR 在 backend fence 或緊急降級時保留最近菜單快照，但建立 session 與
+  訂單仍由兩條可信 server circuit 的共同資料庫閘門拒絕。
+- Realtime／SSE 只作通知；Staff 可退回 5 秒 polling，並重新抓取資料庫
+  權威狀態。
+- 線上付款供應商只有明確 `AVAILABLE` 才能建立新流程；現金與人工付款為
+  獨立備援，不能偽裝成 provider-confirmed。
 
 ## 擴充規則
 
