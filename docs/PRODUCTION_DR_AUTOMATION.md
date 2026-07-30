@@ -35,15 +35,18 @@ Confirmation: `CREATE_PRODUCTION_DR`
 1. Require the exact verified Staging tree.
 2. Create encrypted logical backups of Primary and the former Staging project,
    including public data plus Auth and Storage metadata.
-3. Restore-test both public data backups against the reviewed migrations and
-   validate every archive before encryption.
+3. Restore-test both public data backups against the reviewed migrations,
+   restoring their matching `auth.users` dependency first, and validate every
+   archive before encryption.
 4. Upload only encrypted backup artifacts.
 5. Reset the former Staging project and clear the fixed logical-replication
    table scope.
 6. Configure DR Auth redirects, Edge secrets and Edge Functions.
 7. Enable database writer fencing.
 8. Create the least-privilege logical-replication role, publication and
-   subscription.
+   subscription. The `profiles` publication excludes the Primary-only
+   `auth_user_id`; DR resolves its own Auth users through
+   `profile_auth_identities`.
 9. Wait for every relation to reach ready state and prove LSN/canary catch-up.
 10. Reserve DR sequences and run the readiness gate.
 

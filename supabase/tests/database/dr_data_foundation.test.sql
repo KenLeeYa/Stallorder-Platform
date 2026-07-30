@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(20);
+select plan(25);
 
 select has_table('public', 'backend_runtime_state', 'backend runtime state exists');
 select has_table('public', 'backend_failover_events', 'backend failover events exist');
@@ -60,6 +60,92 @@ select is(
   app_private.assert_backend_writable(),
   0::bigint,
   'guard remains compatible while project fencing setting is off'
+);
+
+insert into public.profiles (
+  id,
+  email,
+  display_name,
+  is_active,
+  platform_role
+)
+values
+  (
+    'da100000-0000-4000-8000-000000000001',
+    'dr-admin@example.test',
+    'DR Admin',
+    true,
+    'PLATFORM_ADMIN'
+  ),
+  (
+    'da100000-0000-4000-8000-000000000002',
+    'dr-collision@example.test',
+    'DR Collision',
+    true,
+    'STAFF'
+  );
+
+insert into public.profile_auth_identities (
+  profile_id,
+  auth_project_code,
+  auth_user_id,
+  provider,
+  verified_email
+)
+values (
+  'da100000-0000-4000-8000-000000000001',
+  'DR',
+  'da200000-0000-4000-8000-000000000001',
+  'GOOGLE',
+  'dr-admin@example.test'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  'da200000-0000-4000-8000-000000000001',
+  true
+);
+
+select is(
+  app_private.current_profile_id(),
+  'da100000-0000-4000-8000-000000000001'::uuid,
+  'DR Auth identity resolves the existing profile'
+);
+select ok(
+  app_private.is_current_profile(
+    'da100000-0000-4000-8000-000000000001'::uuid
+  ),
+  'DR Auth identity passes current-profile authorization'
+);
+select ok(
+  app_private.is_platform_admin(),
+  'DR Auth identity preserves platform-admin authorization'
+);
+
+insert into public.profile_auth_identities (
+  profile_id,
+  auth_project_code,
+  auth_user_id,
+  provider,
+  verified_email
+)
+values (
+  'da100000-0000-4000-8000-000000000002',
+  'DR_COLLISION',
+  'da200000-0000-4000-8000-000000000001',
+  'GOOGLE',
+  'dr-collision@example.test'
+);
+
+select is(
+  app_private.current_profile_id(),
+  null::uuid,
+  'ambiguous cross-project Auth identity fails closed'
+);
+select is(
+  app_private.is_platform_admin(),
+  false,
+  'ambiguous Auth identity cannot inherit platform-admin authorization'
 );
 
 update public.backend_runtime_state

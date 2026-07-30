@@ -3,6 +3,10 @@ export const environmentLocalTables = Object.freeze([
   "replication_health_snapshots",
 ]);
 
+export const replicationColumnExclusions = Object.freeze({
+  profiles: Object.freeze(["auth_user_id"]),
+});
+
 export const replicatedPublicTables = Object.freeze([
   "add_on_catalog",
   "additional_stall_approvals",
@@ -116,3 +120,29 @@ export const replicatedPublicTables = Object.freeze([
   "tax_documents",
   "usage_events",
 ]);
+
+export function buildPublicationTableExpression(table, availableColumns = []) {
+  if (!replicatedPublicTables.includes(table)) {
+    throw new Error("REPLICATION_TABLE_NOT_ALLOWED");
+  }
+
+  const qualifiedTable = `${quoteIdentifier("public")}.${quoteIdentifier(table)}`;
+  const exclusions = replicationColumnExclusions[table];
+  if (!exclusions) return qualifiedTable;
+
+  const uniqueColumns = [...new Set(availableColumns)];
+  if (exclusions.some((column) => !uniqueColumns.includes(column))) {
+    throw new Error("REPLICATION_EXCLUDED_COLUMN_MISSING");
+  }
+  const publishedColumns = uniqueColumns.filter(
+    (column) => !exclusions.includes(column),
+  );
+  if (!publishedColumns.includes("id")) {
+    throw new Error("REPLICATION_IDENTITY_COLUMN_MISSING");
+  }
+  return `${qualifiedTable} (${publishedColumns.map(quoteIdentifier).join(", ")})`;
+}
+
+function quoteIdentifier(value) {
+  return `"${value.replaceAll('"', '""')}"`;
+}
