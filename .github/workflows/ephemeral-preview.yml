@@ -151,12 +151,16 @@ jobs:
               --output json \
               --log-level error
           )"
-          transaction_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
+          raw_transaction_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
           supabase_url="$(jq -r '.SUPABASE_URL' <<<"$config")"
           anon_key="$(jq -r '.SUPABASE_ANON_KEY' <<<"$config")"
-          session_url="${transaction_url/:6543\//:5432\/}"
+          session_url="${raw_transaction_url/:6543\//:5432\/}"
+          case "$raw_transaction_url" in
+            *\?*) transaction_url="${raw_transaction_url}&pgbouncer=true" ;;
+            *) transaction_url="${raw_transaction_url}?pgbouncer=true" ;;
+          esac
 
-          for value in "$transaction_url" "$session_url" "$supabase_url" "$anon_key"; do
+          for value in "$raw_transaction_url" "$transaction_url" "$session_url" "$supabase_url" "$anon_key"; do
             test -n "$value" && test "$value" != "null" || {
               echo "::error::Preview Branch configuration is incomplete."
               exit 1
@@ -302,8 +306,8 @@ jobs:
               --env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
               --env "REPORT_DELIVERY_MODE=simulate"
           )"
-          deployment_id="$(jq -r '.id // empty' <<<"$deployment")"
-          deployment_url="$(jq -r '.url // empty' <<<"$deployment")"
+          deployment_id="$(jq -r '.deployment.id // .id // empty' <<<"$deployment")"
+          deployment_url="$(jq -r '.deployment.url // .url // empty' <<<"$deployment")"
           test -n "$deployment_id" && test -n "$deployment_url" || {
             echo "::error::Vercel CLI did not return a deployment ID and URL."
             exit 1

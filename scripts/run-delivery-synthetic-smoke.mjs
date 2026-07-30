@@ -236,7 +236,12 @@ async function validateMockOAuthFlow() {
     ?.split(";", 1)[0]
     .slice("stallorder_session=".length);
   if (!sessionToken) {
-    fail("Mock OAuth callback did not issue a server session.");
+    const destination = sameOriginLocation(callback);
+    const oauthError = destination.searchParams.get("oauthError");
+    fail(
+      "Mock OAuth callback did not issue a server session"
+      + ` (redirect: ${destination.pathname}, oauthError: ${oauthError ?? "none"}).`,
+    );
   }
 
   const replay = await requestRaw(callbackUrl, { method: "GET" });
