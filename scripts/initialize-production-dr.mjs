@@ -23,7 +23,13 @@ try {
     throw new Error("PRIMARY_REPLICATION_PASSWORD_INVALID");
   }
 
-  const [activeOrders, activeSessions, drBusinessRows, actors] = await Promise.all([
+  const [
+    activeOrders,
+    activeSessions,
+    drBusinessRows,
+    drStorageObjects,
+    actors,
+  ] = await Promise.all([
     primary.$queryRawUnsafe(
       `select count(*)::integer as count
        from public.orders
@@ -50,6 +56,9 @@ try {
          (select count(*) from public.stalls)::integer as stalls,
          (select count(*) from public.orders)::integer as orders`,
     ),
+    dr.$queryRawUnsafe(
+      "select count(*)::integer as count from storage.objects",
+    ),
     primary.$queryRawUnsafe(
       `select id
        from public.profiles
@@ -67,9 +76,11 @@ try {
   if (Object.values(drBusinessRows[0] ?? {}).some((count) => Number(count) !== 0)) {
     throw new Error("DR_BUSINESS_DATA_NOT_EMPTY");
   }
+  if (drStorageObjects[0]?.count !== 0) {
+    throw new Error("DR_STORAGE_OBJECTS_PRESENT");
+  }
 
   await dr.$executeRawUnsafe("delete from auth.users");
-  await dr.$executeRawUnsafe("delete from storage.objects");
   const disabledCronJobs = await dr.$executeRawUnsafe(
     "update cron.job set active = false where active",
   );
@@ -254,6 +265,7 @@ try {
     dr: drAfter,
     activeOrders: 0,
     activeSessions: 0,
+    storageObjects: 0,
     disabledCronJobs,
     clearedReplicatedTables: replicatedPublicTables.length,
     clearedEnvironmentLocalTables: environmentLocalTables.length,
