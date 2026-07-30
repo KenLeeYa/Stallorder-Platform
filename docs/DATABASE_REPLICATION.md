@@ -31,9 +31,18 @@ PRIMARY_REPLICATION_URL
 Do not place these connection values on the command line, in GitHub logs or in
 the repository. The script emits only sanitized status and never prints URLs.
 
+The dedicated replication role has `REPLICATION`, `BYPASSRLS`, `LOGIN`, a
+four-connection limit and read-only grants on the explicitly published tables.
+`BYPASSRLS` is required because every exposed application table uses forced
+RLS; without it, PostgreSQL's initial subscription copy can silently see zero
+rows. The replication connection also sets `row_security=off`, so losing the
+required privilege fails closed instead of producing an incomplete standby.
+
 Rollback uses `--rollback` and the confirmation
 `ROLLBACK_PRIMARY_TO_DR`. It removes the DR subscription before the Primary
-publication and does not delete business data.
+publication and does not delete business data. The rollback is idempotent so a
+failed bootstrap can safely remove only the reviewed subscription/publication
+pair before rebuilding the standby.
 
 ## Schema sequence
 

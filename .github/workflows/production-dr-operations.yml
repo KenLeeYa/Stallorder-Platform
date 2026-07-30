@@ -510,6 +510,11 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      - name: Remove incomplete logical replication from a prior bootstrap
+        env:
+          DR_CHANGE_CONFIRMATION: ROLLBACK_PRIMARY_TO_DR
+        run: node scripts/configure-dr-replication.mjs --source PRIMARY --target DR --rollback
+
       - name: Remove standalone application sequences before DR reset
         shell: bash
         run: |
