@@ -228,7 +228,7 @@ try {
   );
   await primary.$executeRawUnsafe(
     `alter role stallorder_replication
-       with login replication connection limit 4 password ${quotedPassword}`,
+       with login replication bypassrls connection limit 4 password ${quotedPassword}`,
   );
   await primary.$executeRawUnsafe(
     "grant connect on database postgres to stallorder_replication",
@@ -243,6 +243,26 @@ try {
     `alter default privileges for role postgres in schema public
        grant select on tables to stallorder_replication`,
   );
+  const replicationRoles = await primary.$queryRawUnsafe(
+    `select
+       rolcanlogin,
+       rolreplication,
+       rolbypassrls,
+       rolsuper,
+       rolconnlimit
+     from pg_catalog.pg_roles
+     where rolname = 'stallorder_replication'`,
+  );
+  const replicationRole = replicationRoles[0];
+  if (
+    replicationRole?.rolcanlogin !== true
+    || replicationRole.rolreplication !== true
+    || replicationRole.rolbypassrls !== true
+    || replicationRole.rolsuper !== false
+    || replicationRole.rolconnlimit !== 4
+  ) {
+    throw new Error("REPLICATION_ROLE_NOT_READY");
+  }
 
   const updated = await primary.$executeRawUnsafe(
     `update public.resilience_feature_flag_overrides override

@@ -13,6 +13,7 @@ const primary = new PrismaClient({
 const dr = new PrismaClient({
   datasources: { db: { url: requiredPostgresUrl("DR_DIRECT_URL") } },
 });
+let lastReplicationCheck = null;
 
 try {
   if (!Number.isSafeInteger(waitSeconds) || waitSeconds < 10 || waitSeconds > 1800) {
@@ -84,6 +85,14 @@ try {
       ? await isLsnCaughtUp(status.replayLsn, targetLsn)
       : false;
     const canaryCaughtUp = !canary || Boolean(canarySeenAt);
+    lastReplicationCheck = {
+      enabled: status.enabled,
+      connected: status.connected,
+      totalRelations: status.totalRelations,
+      readyRelations: status.readyRelations,
+      lsnCaughtUp,
+      canaryCaughtUp,
+    };
     if (
       status.enabled
       && status.connected
@@ -173,6 +182,7 @@ try {
   console.error(JSON.stringify({
     event: "dr_replication_snapshot_failed",
     reason: error instanceof Error ? error.message : "UNKNOWN",
+    replication: lastReplicationCheck,
   }));
   process.exitCode = 1;
 } finally {
