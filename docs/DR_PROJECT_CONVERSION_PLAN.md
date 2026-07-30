@@ -2,10 +2,12 @@
 
 ## Approval gate
 
-The current `stallorder-staging` project remains the persistent test environment.
-This plan does not convert, clear, rename or repurpose it. Conversion requires a
-separate approval after the ephemeral Preview workflow has passed its exit
-criteria and the user confirms Staging test data is no longer needed.
+The user approved converting the former `stallorder-staging` project into the
+Production DR candidate after the paired ephemeral Preview workflow passed its
+exit criteria. The destructive conversion is performed only by the protected
+`production-dr-operations.yml` bootstrap operation after encrypted backup and
+restore verification. Persistent feature testing now uses a data-less Supabase
+Preview Branch paired with the same Pull Request's Vercel Preview.
 
 ## Preconditions
 
@@ -38,8 +40,8 @@ criteria and the user confirms Staging test data is no longer needed.
 12. Run `npm run dr:replication:plan`, review the output, then use the documented
     approval path for the apply command.
 13. Verify copy completion, lag, row counts, RLS, grants and checksums.
-14. Rename the project display name to `stallorder-dr` manually and record an
-    audited conversion event.
+14. Rename the project display name to `stallorder-dr` through the authenticated
+    Management API and record sanitized workflow evidence.
 
 ## Required production values
 
