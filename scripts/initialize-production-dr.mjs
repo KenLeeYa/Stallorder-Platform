@@ -104,7 +104,7 @@ try {
     throw new Error("DR_UNKNOWN_ACTIVE_CRON_JOBS");
   }
   for (const job of activeCronJobs) {
-    await dr.$queryRawUnsafe(
+    await dr.$executeRawUnsafe(
       "select cron.alter_job($1::bigint, active := false)",
       job.job_id,
     );
