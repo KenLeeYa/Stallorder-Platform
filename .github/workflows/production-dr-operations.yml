@@ -363,6 +363,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          sudo chown "$(id -u):$(id -g)" dr-artifacts/*.dump
           for file in dr-artifacts/*.dump; do
             openssl enc -aes-256-cbc -pbkdf2 -salt \
               -in "$file" \
