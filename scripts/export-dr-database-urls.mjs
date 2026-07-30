@@ -77,7 +77,12 @@ try {
 }
 
 async function ensureTemporaryAccess(ref, accessToken) {
-  const profile = await managementApi("/v1/profile", accessToken);
+  const profile = await managementApi(
+    "/v1/profile",
+    accessToken,
+    {},
+    "profile",
+  );
   const userId = profile?.gotrue_id;
   if (
     typeof userId !== "string" ||
@@ -89,17 +94,20 @@ async function ensureTemporaryAccess(ref, accessToken) {
   }
 
   const status = await managementApi(
-    `/v1/projects/${ref}/database/jit-access`,
+    `/v1/projects/${ref}/jit-access`,
     accessToken,
+    {},
+    "temporary_access_status",
   );
   if (status?.state !== "enabled") {
     const enabled = await managementApi(
-      `/v1/projects/${ref}/database/jit-access`,
+      `/v1/projects/${ref}/jit-access`,
       accessToken,
       {
         method: "PUT",
         body: JSON.stringify({ state: "enabled" }),
       },
+      "temporary_access_enable",
     );
     if (enabled?.state !== "enabled" || enabled?.appliedSuccessfully === false) {
       throw new Error("SUPABASE_TEMPORARY_ACCESS_ENABLE_FAILED");
@@ -109,6 +117,8 @@ async function ensureTemporaryAccess(ref, accessToken) {
   const mappings = await managementApi(
     `/v1/projects/${ref}/database/jit/list`,
     accessToken,
+    {},
+    "jit_mapping_list",
   );
   const current = Array.isArray(mappings?.items)
     ? mappings.items.find((item) => item?.user_id === userId)
@@ -119,12 +129,7 @@ async function ensureTemporaryAccess(ref, accessToken) {
   const existingPostgres = currentRoles.find(
     (entry) => entry?.role === "postgres",
   );
-  const minimumExpiry = Date.now() + 2 * 60 * 60 * 1_000;
-  const existingExpiry = Number(existingPostgres?.expires_at);
-  const expiresAt =
-    Number.isFinite(existingExpiry) && existingExpiry > minimumExpiry
-      ? existingExpiry
-      : minimumExpiry;
+  const expiresAt = Math.floor(Date.now() / 1_000) + 2 * 60 * 60;
   const postgresRole = {
     ...(existingPostgres && typeof existingPostgres === "object"
       ? existingPostgres
@@ -143,9 +148,10 @@ async function ensureTemporaryAccess(ref, accessToken) {
       method: "PUT",
       body: JSON.stringify({
         user_id: userId,
-        user_roles: userRoles,
+        roles: userRoles,
       }),
     },
+    "jit_mapping_update",
   );
   if (
     updated?.user_id !== userId ||
@@ -154,13 +160,23 @@ async function ensureTemporaryAccess(ref, accessToken) {
   ) {
     throw new Error("SUPABASE_TEMPORARY_ACCESS_MAPPING_FAILED");
   }
-  return new Date(expiresAt).toISOString();
+  return new Date(expiresAt * 1_000).toISOString();
 }
 
 async function discoverConnection(ref, accessToken) {
   const [poolerConfig, project] = await Promise.all([
-    managementApi(`/v1/projects/${ref}/config/database/pooler`, accessToken),
-    managementApi(`/v1/projects/${ref}`, accessToken),
+    managementApi(
+      `/v1/projects/${ref}/config/database/pooler`,
+      accessToken,
+      {},
+      "pooler_config",
+    ),
+    managementApi(
+      `/v1/projects/${ref}`,
+      accessToken,
+      {},
+      "project_details",
+    ),
   ]);
   if (!Array.isArray(poolerConfig) || poolerConfig.length === 0) {
     throw new Error(`POOLER_CONFIG_MISSING_${ref}`);
@@ -203,7 +219,12 @@ async function discoverConnection(ref, accessToken) {
   };
 }
 
-async function managementApi(path, accessToken, init = {}) {
+async function managementApi(
+  path,
+  accessToken,
+  init = {},
+  operation = "request",
+) {
   const response = await fetch(`https://api.supabase.com${path}`, {
     ...init,
     headers: {
@@ -215,7 +236,9 @@ async function managementApi(path, accessToken, init = {}) {
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
-    throw new Error(`SUPABASE_MANAGEMENT_API_${response.status}`);
+    throw new Error(
+      `SUPABASE_MANAGEMENT_API_${operation.toUpperCase()}_${response.status}`,
+    );
   }
   return response.json();
 }
