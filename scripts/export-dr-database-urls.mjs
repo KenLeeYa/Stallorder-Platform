@@ -44,6 +44,7 @@ try {
     search: {
       sslmode: "require",
       connect_timeout: "10",
+      options: "-crow_security=off",
     },
   });
   const values = {

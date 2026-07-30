@@ -71,21 +71,34 @@ const dr = new PrismaClient({ datasources: { db: { url: drDirectUrl } } });
 
 try {
   if (rollback) {
-    await assertSubscriptionExists(dr);
-    await dr.$executeRawUnsafe(
-      `alter subscription ${quoteIdentifier(subscriptionName)} disable`,
+    const subscriptions = await dr.$queryRawUnsafe(
+      "select 1 from pg_catalog.pg_subscription where subname = $1",
+      subscriptionName,
     );
-    await dr.$executeRawUnsafe(
-      `drop subscription ${quoteIdentifier(subscriptionName)}`,
+    const publications = await primary.$queryRawUnsafe(
+      "select 1 from pg_catalog.pg_publication where pubname = $1",
+      publicationName,
     );
-    await primary.$executeRawUnsafe(
-      `drop publication if exists ${quoteIdentifier(publicationName)}`,
-    );
+    if (subscriptions.length === 1) {
+      await dr.$executeRawUnsafe(
+        `alter subscription ${quoteIdentifier(subscriptionName)} disable`,
+      );
+      await dr.$executeRawUnsafe(
+        `drop subscription ${quoteIdentifier(subscriptionName)}`,
+      );
+    }
+    if (publications.length === 1) {
+      await primary.$executeRawUnsafe(
+        `drop publication ${quoteIdentifier(publicationName)}`,
+      );
+    }
     console.log(
       JSON.stringify({
         event: "dr_replication_rollback_completed",
         publicationName,
         subscriptionName,
+        subscriptionRemoved: subscriptions.length === 1,
+        publicationRemoved: publications.length === 1,
       }),
     );
   } else {
@@ -258,12 +271,4 @@ async function assertSubscriptionAbsent(database) {
     subscriptionName,
   );
   if (rows.length > 0) throw new Error("SUBSCRIPTION_ALREADY_EXISTS");
-}
-
-async function assertSubscriptionExists(database) {
-  const rows = await database.$queryRawUnsafe(
-    "select 1 from pg_catalog.pg_subscription where subname = $1",
-    subscriptionName,
-  );
-  if (rows.length !== 1) throw new Error("SUBSCRIPTION_NOT_FOUND");
 }
