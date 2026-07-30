@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/delivery-jobs",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/storage-replication",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

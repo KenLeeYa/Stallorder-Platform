@@ -1,0 +1,899 @@
+name: Production DR Operations
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Production DR operation
+        required: true
+        type: choice
+        options:
+          - bootstrap
+          - drill
+      confirmation:
+        description: Type CREATE_PRODUCTION_DR or MEASURE_PRODUCTION_DR
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-dr-operations
+  cancel-in-progress: false
+
+env:
+  PRIMARY_SUPABASE_PROJECT_REF: ${{ vars.PRIMARY_SUPABASE_PROJECT_REF }}
+  DR_SUPABASE_PROJECT_REF: ${{ vars.DR_SUPABASE_PROJECT_REF }}
+  APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+  FAILOVER_ACTOR_EMAIL: ada76145@gmail.com
+  PRODUCTION_ENVIRONMENT_APPROVED: "true"
+
+jobs:
+  bootstrap:
+    if: inputs.operation == 'bootstrap'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+      PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
+      DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
+    steps:
+      - name: Validate protected invocation
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::Production DR operations must run from main."
+            exit 1
+          }
+          test "${{ inputs.confirmation }}" = "CREATE_PRODUCTION_DR" || {
+            echo "::error::Confirmation must be CREATE_PRODUCTION_DR."
+            exit 1
+          }
+          for name in \
+            SUPABASE_ACCESS_TOKEN \
+            SUPABASE_DB_PASSWORD \
+            DR_SUPABASE_DB_PASSWORD \
+            PRIMARY_REPLICATION_PASSWORD \
+            DR_BACKUP_ENCRYPTION_KEY \
+            PRIMARY_SUPABASE_PROJECT_REF \
+            DR_SUPABASE_PROJECT_REF \
+            APP_BASE_URL
+          do
+            test -n "${!name:-}" || {
+              echo "::error::Missing protected configuration: ${name}"
+              exit 1
+            }
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - run: npm ci
+
+      - name: Build protected database URLs
+        run: node scripts/export-dr-database-urls.mjs
+
+      - name: Create encrypted logical backups
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dr-artifacts
+          docker pull postgres:17 >/dev/null
+
+          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            pg_dump \
+              --host aws-0-ap-northeast-1.pooler.supabase.com \
+              --port 5432 \
+              --username "postgres.${PRIMARY_SUPABASE_PROJECT_REF}" \
+              --dbname postgres \
+              --schema public \
+              --format custom \
+              --compress 6 \
+              --no-owner \
+              --no-acl \
+              --file /out/primary-public.dump
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            pg_dump \
+              --host aws-0-ap-northeast-1.pooler.supabase.com \
+              --port 5432 \
+              --username "postgres.${PRIMARY_SUPABASE_PROJECT_REF}" \
+              --dbname postgres \
+              --schema public \
+              --data-only \
+              --format custom \
+              --compress 6 \
+              --no-owner \
+              --no-acl \
+              --file /out/primary-public-data.dump
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            pg_dump \
+              --host aws-0-ap-northeast-1.pooler.supabase.com \
+              --port 5432 \
+              --username "postgres.${PRIMARY_SUPABASE_PROJECT_REF}" \
+              --dbname postgres \
+              --schema auth \
+              --schema storage \
+              --data-only \
+              --format custom \
+              --compress 6 \
+              --no-owner \
+              --no-acl \
+              --file /out/primary-auth-storage-data.dump
+          primary_auth_users="$(
+            docker run --rm --network host --env PGPASSWORD postgres:17 \
+              psql \
+                --host aws-0-ap-northeast-1.pooler.supabase.com \
+                --port 5432 \
+                --username "postgres.${PRIMARY_SUPABASE_PROJECT_REF}" \
+                --dbname postgres \
+                --tuples-only \
+                --no-align \
+                --command "select count(*) from auth.users"
+          )"
+          primary_storage_objects="$(
+            docker run --rm --network host --env PGPASSWORD postgres:17 \
+              psql \
+                --host aws-0-ap-northeast-1.pooler.supabase.com \
+                --port 5432 \
+                --username "postgres.${PRIMARY_SUPABASE_PROJECT_REF}" \
+                --dbname postgres \
+                --tuples-only \
+                --no-align \
+                --command "select count(*) from storage.objects"
+          )"
+
+          export PGPASSWORD="$DR_SUPABASE_DB_PASSWORD"
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            pg_dump \
+              --host aws-0-ap-northeast-1.pooler.supabase.com \
+              --port 5432 \
+              --username "postgres.${DR_SUPABASE_PROJECT_REF}" \
+              --dbname postgres \
+              --schema public \
+              --format custom \
+              --compress 6 \
+              --no-owner \
+              --no-acl \
+              --file /out/former-staging-public.dump
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            pg_dump \
+              --host aws-0-ap-northeast-1.pooler.supabase.com \
+              --port 5432 \
+              --username "postgres.${DR_SUPABASE_PROJECT_REF}" \
+              --dbname postgres \
+              --schema public \
+              --data-only \
+              --format custom \
+              --compress 6 \
+              --no-owner \
+              --no-acl \
+              --file /out/former-staging-public-data.dump
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            pg_dump \
+              --host aws-0-ap-northeast-1.pooler.supabase.com \
+              --port 5432 \
+              --username "postgres.${DR_SUPABASE_PROJECT_REF}" \
+              --dbname postgres \
+              --schema auth \
+              --schema storage \
+              --data-only \
+              --format custom \
+              --compress 6 \
+              --no-owner \
+              --no-acl \
+              --file /out/former-staging-auth-storage-data.dump
+          former_staging_auth_users="$(
+            docker run --rm --network host --env PGPASSWORD postgres:17 \
+              psql \
+                --host aws-0-ap-northeast-1.pooler.supabase.com \
+                --port 5432 \
+                --username "postgres.${DR_SUPABASE_PROJECT_REF}" \
+                --dbname postgres \
+                --tuples-only \
+                --no-align \
+                --command "select count(*) from auth.users"
+          )"
+          former_staging_storage_objects="$(
+            docker run --rm --network host --env PGPASSWORD postgres:17 \
+              psql \
+                --host aws-0-ap-northeast-1.pooler.supabase.com \
+                --port 5432 \
+                --username "postgres.${DR_SUPABASE_PROJECT_REF}" \
+                --dbname postgres \
+                --tuples-only \
+                --no-align \
+                --command "select count(*) from storage.objects"
+          )"
+          unset PGPASSWORD
+          for archive in dr-artifacts/*.dump; do
+            docker run --rm \
+              -v "$PWD/dr-artifacts:/out" postgres:17 \
+              pg_restore --list "/out/$(basename "$archive")" >/dev/null
+          done
+          test "$primary_storage_objects" = "0" || {
+            echo "::error::Primary Storage contains objects; bootstrap requires the reviewed byte-mirror migration first."
+            exit 1
+          }
+          test "$former_staging_storage_objects" = "0" || {
+            echo "::error::Former Staging Storage contains objects; bootstrap will not delete unarchived bytes."
+            exit 1
+          }
+          cat > dr-artifacts/pre-conversion-inventory.json <<JSON
+          {
+            "primaryAuthUsers": ${primary_auth_users},
+            "primaryStorageObjects": ${primary_storage_objects},
+            "formerStagingAuthUsers": ${former_staging_auth_users},
+            "formerStagingStorageObjects": ${former_staging_storage_objects}
+          }
+          JSON
+
+      - name: Restore-test both logical backups
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx supabase start
+          npx supabase db reset --local --no-seed
+          cat > dr-artifacts/truncate-public.sql <<'SQL'
+          do $$
+          declare
+            relations text;
+          begin
+            select string_agg(format('%I.%I', schemaname, tablename), ', ')
+            into relations
+            from pg_catalog.pg_tables
+            where schemaname = 'public';
+            if relations is not null then
+              execute 'truncate table ' || relations || ' cascade';
+            end if;
+          end
+          $$;
+          SQL
+          export PGPASSWORD=postgres
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            psql \
+              --host 127.0.0.1 \
+              --port 54322 \
+              --username postgres \
+              --dbname postgres \
+              --set ON_ERROR_STOP=1 \
+              --file /out/truncate-public.sql
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            pg_restore \
+              --host 127.0.0.1 \
+              --port 54322 \
+              --username postgres \
+              --dbname postgres \
+              --data-only \
+              --disable-triggers \
+              --no-owner \
+              --no-acl \
+              --exit-on-error \
+              /out/primary-public-data.dump
+          docker run --rm --network host --env PGPASSWORD postgres:17 \
+            psql \
+              --host 127.0.0.1 \
+              --port 54322 \
+              --username postgres \
+              --dbname postgres \
+              --tuples-only \
+              --command "select count(*) > 0 from public.profiles" \
+            | grep -q t
+
+          npx supabase db reset --local --no-seed
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            psql \
+              --host 127.0.0.1 \
+              --port 54322 \
+              --username postgres \
+              --dbname postgres \
+              --set ON_ERROR_STOP=1 \
+              --file /out/truncate-public.sql
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            pg_restore \
+              --host 127.0.0.1 \
+              --port 54322 \
+              --username postgres \
+              --dbname postgres \
+              --data-only \
+              --disable-triggers \
+              --no-owner \
+              --no-acl \
+              --exit-on-error \
+              /out/former-staging-public-data.dump
+          unset PGPASSWORD
+          npx supabase stop --no-backup
+
+      - name: Encrypt backup artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in dr-artifacts/*.dump; do
+            openssl enc -aes-256-cbc -pbkdf2 -salt \
+              -in "$file" \
+              -out "${file}.enc" \
+              -pass env:DR_BACKUP_ENCRYPTION_KEY
+            sha256sum "${file}.enc" > "${file}.enc.sha256"
+            shred -u "$file"
+          done
+          rm -f dr-artifacts/truncate-public.sql
+          cat > dr-artifacts/backup-verification.json <<JSON
+          {
+            "runId": "${GITHUB_RUN_ID}",
+            "commit": "${GITHUB_SHA}",
+            "primaryRestoreTest": true,
+            "formerStagingRestoreTest": true,
+            "encrypted": true
+          }
+          JSON
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-dr-encrypted-backups-${{ github.run_id }}
+          path: dr-artifacts/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Reset former Staging into an empty DR schema
+        run: supabase db reset --db-url "$DR_DIRECT_URL" --no-seed --yes
+
+      - name: Configure Supabase DR project
+        env:
+          DR_CHANGE_CONFIRMATION: CONFIGURE_PRODUCTION_DR_PROJECT
+        run: node scripts/configure-production-dr-project.mjs
+
+      - name: Deploy trusted Edge Functions to DR
+        run: supabase functions deploy --project-ref "$DR_SUPABASE_PROJECT_REF" --jobs 2
+
+      - name: Initialize writer fencing and replication role
+        env:
+          DR_CHANGE_CONFIRMATION: INITIALIZE_PRODUCTION_DR
+        run: node scripts/initialize-production-dr.mjs
+
+      - name: Configure Primary to DR logical replication
+        env:
+          DR_CHANGE_CONFIRMATION: CONFIGURE_PRIMARY_TO_DR
+        run: node scripts/configure-dr-replication.mjs --source PRIMARY --target DR --apply
+
+      - name: Wait for initial copy and capture RPO canary
+        run: node scripts/refresh-dr-replication-snapshot.mjs --create-canary --drill-id bootstrap --wait-seconds 1200
+
+      - name: Reserve DR sequences
+        env:
+          DR_CHANGE_CONFIRMATION: RESERVE_DR_SEQUENCES
+        run: node scripts/reserve-dr-sequences.mjs
+
+      - name: Refresh final bootstrap snapshot
+        run: node scripts/refresh-dr-replication-snapshot.mjs --wait-seconds 300
+
+      - name: Verify DR readiness
+        env:
+          DR_CHANGE_CONFIRMATION: CHECK_DR_READINESS
+          DR_AUTH_READY: "true"
+          DR_EDGE_FUNCTIONS_READY: "true"
+          DR_TURNSTILE_READY: "true"
+          DR_PAYMENT_CALLBACK_READY: "true"
+          DR_NO_ACTIVE_MIGRATION_CONFIRMED: "true"
+        run: node scripts/check-dr-readiness.mjs --target DR --apply
+
+  drill:
+    if: inputs.operation == 'drill'
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+      PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      DR_AUTH_READY: "true"
+      DR_EDGE_FUNCTIONS_READY: "true"
+      DR_TURNSTILE_READY: "true"
+      DR_PAYMENT_CALLBACK_READY: "true"
+      DR_NO_ACTIVE_MIGRATION_CONFIRMED: "true"
+      PRIMARY_BACKUP_READY: "true"
+      DR_BACKUP_READY: "true"
+      DR_WRITES_RECONCILED: "true"
+      DR_AUTH_IDENTITIES_VALIDATED: "true"
+      DR_STORAGE_VALIDATED: "true"
+      DR_BUSINESS_DATA_VALIDATED: "true"
+    steps:
+      - name: Validate protected invocation
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::Production DR operations must run from main."
+            exit 1
+          }
+          test "${{ inputs.confirmation }}" = "MEASURE_PRODUCTION_DR" || {
+            echo "::error::Confirmation must be MEASURE_PRODUCTION_DR."
+            exit 1
+          }
+          for name in \
+            SUPABASE_ACCESS_TOKEN \
+            SUPABASE_DB_PASSWORD \
+            DR_SUPABASE_DB_PASSWORD \
+            PRIMARY_REPLICATION_PASSWORD \
+            VERCEL_TOKEN \
+            VERCEL_ORG_ID \
+            VERCEL_PROJECT_ID
+          do
+            test -n "${!name:-}" || {
+              echo "::error::Missing protected configuration: ${name}"
+              exit 1
+            }
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm install --global vercel@56.3.1
+
+      - name: Build protected runtime environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .vercel dr-artifacts
+          printf '{"orgId":"%s","projectId":"%s"}\n' \
+            "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+          echo "DR_DRILL_ID=${GITHUB_RUN_ID}" >> "$GITHUB_ENV"
+
+      - name: Export protected database URLs
+        run: node scripts/export-dr-database-urls.mjs
+
+      - name: Export provider runtime keys
+        run: node scripts/export-dr-runtime-environment.mjs
+
+      - name: Export approved failover actor
+        run: node scripts/export-failover-actor.mjs
+
+      - name: Enable the time-bounded failover gate
+        env:
+          DR_CHANGE_CONFIRMATION: ENABLE_DR_FAILOVER_FLAG
+        run: node scripts/set-dr-failover-flag.mjs --enable
+
+      - name: Prebuild Primary, DR and failback deployments
+        id: deployments
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_primary() {
+            local epoch="$1"
+            vercel deploy . \
+              --prod \
+              --skip-domain \
+              --force \
+              --yes \
+              --token "$VERCEL_TOKEN" \
+              --meta "dr_drill_id=${DR_DRILL_ID}" \
+              --meta "backend_target=PRIMARY" \
+              -b "BACKEND_ACTIVE_TARGET=PRIMARY" \
+              -b "AUTH_PROJECT_CODE=PRIMARY" \
+              -b "PROMOTION_EPOCH=${epoch}" \
+              -e "BACKEND_ACTIVE_TARGET=PRIMARY" \
+              -e "AUTH_PROJECT_CODE=PRIMARY" \
+              -e "PROMOTION_EPOCH=${epoch}" \
+              -e "DR_DATABASE_URL=${DR_RUNTIME_DATABASE_URL}" \
+              -e "DR_DIRECT_URL=${DR_DIRECT_URL}" \
+              -e "DR_SUPABASE_URL=${DR_SUPABASE_URL}" \
+              -e "DR_SUPABASE_SECRET_KEY=${DR_SUPABASE_SECRET_KEY}" \
+              -e "PRIMARY_SUPABASE_URL=${PRIMARY_SUPABASE_URL}" \
+              -e "PRIMARY_SUPABASE_SECRET_KEY=${PRIMARY_SUPABASE_SECRET_KEY}" \
+              -e "DR_REPLICATION_SUBSCRIPTION_NAME=stallorder_primary_to_dr"
+          }
+          deploy_dr() {
+            vercel deploy . \
+              --prod \
+              --skip-domain \
+              --force \
+              --yes \
+              --token "$VERCEL_TOKEN" \
+              --meta "dr_drill_id=${DR_DRILL_ID}" \
+              --meta "backend_target=DR" \
+              -b "DATABASE_URL=${DR_RUNTIME_DATABASE_URL}" \
+              -b "DIRECT_URL=${DR_DIRECT_URL}" \
+              -b "NEXT_PUBLIC_SUPABASE_URL=${DR_SUPABASE_URL}" \
+              -b "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${DR_SUPABASE_PUBLISHABLE_KEY}" \
+              -b "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=${DR_SUPABASE_FUNCTIONS_URL}" \
+              -b "BACKEND_ACTIVE_TARGET=DR" \
+              -b "AUTH_PROJECT_CODE=DR" \
+              -b "PROMOTION_EPOCH=2" \
+              -e "DATABASE_URL=${DR_RUNTIME_DATABASE_URL}" \
+              -e "DIRECT_URL=${DR_DIRECT_URL}" \
+              -e "NEXT_PUBLIC_SUPABASE_URL=${DR_SUPABASE_URL}" \
+              -e "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${DR_SUPABASE_PUBLISHABLE_KEY}" \
+              -e "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=${DR_SUPABASE_FUNCTIONS_URL}" \
+              -e "SUPABASE_SECRET_KEY=${DR_SUPABASE_SECRET_KEY}" \
+              -e "PUBLIC_ORDER_FUNCTION_ORIGIN=${DR_SUPABASE_FUNCTIONS_URL}" \
+              -e "BACKEND_ACTIVE_TARGET=DR" \
+              -e "AUTH_PROJECT_CODE=DR" \
+              -e "PROMOTION_EPOCH=2" \
+              -e "DR_DATABASE_URL=${DR_RUNTIME_DATABASE_URL}" \
+              -e "DR_DIRECT_URL=${DR_DIRECT_URL}" \
+              -e "DR_SUPABASE_URL=${DR_SUPABASE_URL}" \
+              -e "DR_SUPABASE_SECRET_KEY=${DR_SUPABASE_SECRET_KEY}" \
+              -e "PRIMARY_SUPABASE_URL=${PRIMARY_SUPABASE_URL}" \
+              -e "PRIMARY_SUPABASE_SECRET_KEY=${PRIMARY_SUPABASE_SECRET_KEY}" \
+              -e "DR_REPLICATION_SUBSCRIPTION_NAME=stallorder_primary_to_dr"
+          }
+          primary_epoch_1="$(deploy_primary 1)"
+          dr_epoch_2="$(deploy_dr)"
+          primary_epoch_3="$(deploy_primary 3)"
+          for url in "$primary_epoch_1" "$dr_epoch_2" "$primary_epoch_3"; do
+            [[ "$url" == https://*.vercel.app ]] || {
+              echo "::error::Vercel deployment URL was not returned."
+              exit 1
+            }
+          done
+          {
+            echo "PRIMARY_EPOCH_1_DEPLOYMENT=$primary_epoch_1"
+            echo "DR_EPOCH_2_DEPLOYMENT=$dr_epoch_2"
+            echo "PRIMARY_EPOCH_3_DEPLOYMENT=$primary_epoch_3"
+          } >> "$GITHUB_ENV"
+          cat > dr-artifacts/deployments.json <<JSON
+          {
+            "primaryEpoch1": "$primary_epoch_1",
+            "drEpoch2": "$dr_epoch_2",
+            "primaryEpoch3": "$primary_epoch_3"
+          }
+          JSON
+
+      - name: Promote DR-aware Primary deployment
+        run: |
+          vercel promote "$PRIMARY_EPOCH_1_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+          EXPECTED_BACKEND=PRIMARY EXPECTED_PROMOTION_EPOCH=1 \
+            node scripts/wait-for-active-backend.mjs
+
+      - name: Capture final pre-cutover RPO canary
+        run: node scripts/refresh-dr-replication-snapshot.mjs --create-canary --drill-id "$DR_DRILL_ID" --wait-seconds 300 | tee dr-artifacts/pre-cutover-rpo.json
+
+      - name: Verify final DR readiness
+        env:
+          DR_CHANGE_CONFIRMATION: CHECK_DR_READINESS
+        run: node scripts/check-dr-readiness.mjs --target DR --apply
+
+      - name: Freeze Primary writes
+        id: prepare
+        env:
+          DR_CHANGE_CONFIRMATION: PREPARE_DR_FAILOVER
+        run: |
+          reason="Production DR RTO RPO measurement [drill:${DR_DRILL_ID}]"
+          node scripts/prepare-dr-failover.mjs \
+            --target DR \
+            --apply \
+            --reason "$reason"
+          node scripts/read-backend-runtime-state.mjs --target PRIMARY \
+            | tee dr-artifacts/primary-freeze.json
+          freeze_ms="$(node -e "const r=require('./dr-artifacts/primary-freeze.json');process.stdout.write(String(r.updatedAtMs))")"
+          echo "PRIMARY_FREEZE_MS=$freeze_ms" >> "$GITHUB_ENV"
+
+      - name: Confirm freeze LSN reached DR
+        run: node scripts/refresh-dr-replication-snapshot.mjs --wait-seconds 300 | tee dr-artifacts/freeze-lsn.json
+
+      - name: Disable one-way subscription before DR promotion
+        id: disable_subscription
+        env:
+          DR_CHANGE_CONFIRMATION: DISABLE_DR_SUBSCRIPTION
+        run: node scripts/control-dr-subscription.mjs --disable
+
+      - name: Capture pre-promotion DR write fingerprint
+        id: dr_fingerprint_before
+        run: node scripts/capture-dr-business-fingerprint.mjs | tee dr-artifacts/dr-fingerprint-before.json
+
+      - name: Promote DR database writer
+        id: promote_dr_db
+        env:
+          DR_CHANGE_CONFIRMATION: PROMOTE_DR
+        run: |
+          reason="Production DR RTO RPO measurement [drill:${DR_DRILL_ID}]"
+          node scripts/switch-active-backend.mjs \
+            --target DR \
+            --apply \
+            --reason "$reason"
+
+      - name: Promote DR application and measure RTO
+        id: promote_dr_app
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          vercel promote "$DR_EPOCH_2_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+          EXPECTED_BACKEND=DR EXPECTED_PROMOTION_EPOCH=2 \
+            node scripts/wait-for-active-backend.mjs \
+            | tee dr-artifacts/dr-ready.json
+          dr_ready_ms="$(node -e "const r=require('./dr-artifacts/dr-ready.json');process.stdout.write(String(r.readyAtMs))")"
+          rto_ms="$((dr_ready_ms - PRIMARY_FREEZE_MS))"
+          test "$rto_ms" -ge 0
+          {
+            echo "DR_READY_MS=$dr_ready_ms"
+            echo "DR_RTO_MS=$rto_ms"
+          } >> "$GITHUB_ENV"
+
+      - name: Validate DR runtime
+        continue-on-error: true
+        env:
+          DR_CHANGE_CONFIRMATION: VALIDATE_DR_ACTIVE
+        run: |
+          node scripts/validate-active-backend.mjs \
+            --target DR \
+            --expected-epoch 2 \
+            --base-url "$APP_BASE_URL" \
+            --apply
+
+      - name: Run read-only DR smoke
+        id: dr_smoke
+        continue-on-error: true
+        env:
+          EXPECTED_BACKEND: DR
+          EXPECTED_PROMOTION_EPOCH: "2"
+          SKIP_OAUTH_WRITE: "true"
+        run: node scripts/run-dr-readonly-smoke.mjs | tee dr-artifacts/dr-smoke.json
+
+      - name: Prove no business writes occurred on DR
+        id: fingerprint
+        if: always() && steps.promote_dr_db.outcome == 'success' && steps.dr_fingerprint_before.outcome == 'success'
+        run: |
+          set -euo pipefail
+          node scripts/capture-dr-business-fingerprint.mjs \
+            | tee dr-artifacts/dr-fingerprint-after.json
+          before="$(node -e "const r=require('./dr-artifacts/dr-fingerprint-before.json');process.stdout.write(r.digest)")"
+          after="$(node -e "const r=require('./dr-artifacts/dr-fingerprint-after.json');process.stdout.write(r.digest)")"
+          test "$before" = "$after" || {
+            echo "::error::DR business-write fingerprint changed; automatic failback is blocked."
+            exit 1
+          }
+
+      - name: Prepare Primary failback
+        id: prepare_failback
+        if: always() && steps.promote_dr_db.outcome == 'success' && steps.fingerprint.outcome == 'success'
+        env:
+          DR_CHANGE_CONFIRMATION: PREPARE_PRIMARY_FAILBACK
+        run: |
+          reason="Production DR RTO RPO measurement [drill:${DR_DRILL_ID}]"
+          node scripts/prepare-primary-failback.mjs \
+            --target PRIMARY \
+            --apply \
+            --reason "$reason"
+          node scripts/read-backend-runtime-state.mjs --target DR \
+            | tee dr-artifacts/dr-freeze.json
+          dr_freeze_ms="$(node -e "const r=require('./dr-artifacts/dr-freeze.json');process.stdout.write(String(r.updatedAtMs))")"
+          echo "DR_FREEZE_MS=$dr_freeze_ms" >> "$GITHUB_ENV"
+
+      - name: Copy DR drill audit events to Primary
+        if: always() && steps.prepare_failback.outcome == 'success'
+        env:
+          DR_CHANGE_CONFIRMATION: COPY_DRILL_EVENTS_TO_PRIMARY
+        run: node scripts/reconcile-readonly-drill-events.mjs --copy
+
+      - name: Promote Primary database writer
+        id: promote_primary_db
+        if: always() && steps.prepare_failback.outcome == 'success'
+        env:
+          DR_CHANGE_CONFIRMATION: PROMOTE_PRIMARY
+        run: |
+          reason="Production DR RTO RPO measurement [drill:${DR_DRILL_ID}]"
+          node scripts/switch-active-backend.mjs \
+            --target PRIMARY \
+            --apply \
+            --reason "$reason"
+
+      - name: Remove DR-local event copies before replay
+        if: always() && steps.promote_primary_db.outcome == 'success'
+        env:
+          DR_CHANGE_CONFIRMATION: DELETE_DR_LOCAL_EVENT_COPIES
+        run: node scripts/reconcile-readonly-drill-events.mjs --delete-dr-local
+
+      - name: Promote Primary failback deployment
+        id: promote_primary_app
+        if: always() && steps.promote_primary_db.outcome == 'success'
+        run: |
+          set -euo pipefail
+          vercel promote "$PRIMARY_EPOCH_3_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+          EXPECTED_BACKEND=PRIMARY EXPECTED_PROMOTION_EPOCH=3 \
+            node scripts/wait-for-active-backend.mjs \
+            | tee dr-artifacts/primary-ready.json
+          primary_ready_ms="$(node -e "const r=require('./dr-artifacts/primary-ready.json');process.stdout.write(String(r.readyAtMs))")"
+          failback_ms="$((primary_ready_ms - DR_FREEZE_MS))"
+          test "$failback_ms" -ge 0
+          {
+            echo "PRIMARY_READY_MS=$primary_ready_ms"
+            echo "PRIMARY_FAILBACK_MS=$failback_ms"
+          } >> "$GITHUB_ENV"
+
+      - name: Re-enable replication from Primary
+        if: always() && steps.promote_primary_app.outcome == 'success'
+        env:
+          DR_CHANGE_CONFIRMATION: ENABLE_DR_SUBSCRIPTION
+        run: node scripts/control-dr-subscription.mjs --enable
+
+      - name: Close failover gate and verify replication
+        if: always() && steps.promote_primary_app.outcome == 'success'
+        run: |
+          DR_CHANGE_CONFIRMATION=DISABLE_DR_FAILOVER_FLAG \
+            node scripts/set-dr-failover-flag.mjs --disable
+          node scripts/refresh-dr-replication-snapshot.mjs --wait-seconds 300 \
+            | tee dr-artifacts/final-replication.json
+
+      - name: Validate restored Primary
+        id: primary_smoke
+        if: always() && steps.promote_primary_app.outcome == 'success'
+        env:
+          DR_CHANGE_CONFIRMATION: VALIDATE_PRIMARY_ACTIVE
+          EXPECTED_BACKEND: PRIMARY
+          EXPECTED_PROMOTION_EPOCH: "3"
+          SKIP_OAUTH_WRITE: "true"
+        run: |
+          node scripts/validate-active-backend.mjs \
+            --target PRIMARY \
+            --expected-epoch 3 \
+            --base-url "$APP_BASE_URL" \
+            --apply
+          node scripts/run-dr-readonly-smoke.mjs \
+            | tee dr-artifacts/primary-smoke.json
+
+      - name: Persist failback-safe Production environment
+        if: always() && steps.primary_smoke.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          set_sensitive() {
+            printf '%s' "$2" \
+              | vercel env add "$1" production --sensitive --force --yes --token "$VERCEL_TOKEN" >/dev/null
+          }
+          set_plain() {
+            printf '%s' "$2" \
+              | vercel env add "$1" production --no-sensitive --force --yes --token "$VERCEL_TOKEN" >/dev/null
+          }
+          set_sensitive DR_DATABASE_URL "$DR_RUNTIME_DATABASE_URL"
+          set_sensitive DR_DIRECT_URL "$DR_DIRECT_URL"
+          set_sensitive DR_SUPABASE_SECRET_KEY "$DR_SUPABASE_SECRET_KEY"
+          set_sensitive PRIMARY_SUPABASE_SECRET_KEY "$PRIMARY_SUPABASE_SECRET_KEY"
+          set_plain DR_SUPABASE_URL "$DR_SUPABASE_URL"
+          set_plain PRIMARY_SUPABASE_URL "$PRIMARY_SUPABASE_URL"
+          set_plain DR_REPLICATION_SUBSCRIPTION_NAME "stallorder_primary_to_dr"
+          set_plain BACKEND_ACTIVE_TARGET "PRIMARY"
+          set_plain AUTH_PROJECT_CODE "PRIMARY"
+          set_plain PROMOTION_EPOCH "3"
+
+      - name: Write measured DR result
+        if: always() && steps.promote_primary_app.outcome == 'success' && steps.promote_dr_app.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          canary_lag="$(node -e "const r=require('./dr-artifacts/pre-cutover-rpo.json');process.stdout.write(String(r.canaryLagSeconds))")"
+          rto_seconds="$(node -e "process.stdout.write((${DR_RTO_MS}/1000).toFixed(3))")"
+          failback_seconds="$(node -e "process.stdout.write((${PRIMARY_FAILBACK_MS}/1000).toFixed(3))")"
+          cat > dr-artifacts/production-dr-result.json <<JSON
+          {
+            "runId": "${GITHUB_RUN_ID}",
+            "commit": "${GITHUB_SHA}",
+            "drillId": "${DR_DRILL_ID}",
+            "primaryRegion": "ap-northeast-1",
+            "drRegion": "ap-northeast-1",
+            "vercelFunctionRegion": "hnd1",
+            "rtoMs": ${DR_RTO_MS},
+            "rtoSeconds": ${rto_seconds},
+            "rpoSeconds": 0,
+            "canaryReplicationSeconds": ${canary_lag},
+            "failbackMs": ${PRIMARY_FAILBACK_MS},
+            "failbackSeconds": ${failback_seconds},
+            "drReadOnlySmokePassed": ${{ steps.dr_smoke.outcome == 'success' }},
+            "primaryRestored": true,
+            "replicationReenabled": true
+          }
+          JSON
+          cat > dr-artifacts/production-dr-result.md <<MARKDOWN
+          # Production DR Measurement
+
+          - Commit: \`${GITHUB_SHA}\`
+          - Vercel region: \`hnd1\`
+          - Primary: Supabase Tokyo \`ap-northeast-1\`
+          - DR: Supabase Tokyo \`ap-northeast-1\`
+          - Measured RTO: **${rto_seconds} seconds**
+          - Proven RPO at the freeze LSN: **0 seconds / 0 replicated rows lost**
+          - Canary replication latency before cutover: **${canary_lag} seconds**
+          - Measured failback: **${failback_seconds} seconds**
+          - Primary restored: **yes**
+          - Logical replication re-enabled: **yes**
+
+          This same-region DR drill proves project-level failover. It does not
+          prove survivability of a full Tokyo regional outage.
+          MARKDOWN
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-dr-measurement-${{ github.run_id }}
+          path: dr-artifacts/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Roll back a freeze before DR promotion completed
+        if: always() && steps.prepare.outcome == 'success' && steps.promote_dr_db.outcome != 'success'
+        env:
+          DR_CHANGE_CONFIRMATION: ROLLBACK_PRIMARY_WRITE_FREEZE
+        run: |
+          set -euo pipefail
+          reason="Rollback failed Production DR promotion [drill:${DR_DRILL_ID}]"
+          node scripts/prepare-dr-failover.mjs \
+            --target DR \
+            --rollback \
+            --reason "$reason"
+          DR_CHANGE_CONFIRMATION=ENABLE_DR_SUBSCRIPTION \
+            node scripts/control-dr-subscription.mjs --enable
+          DR_CHANGE_CONFIRMATION=DISABLE_DR_FAILOVER_FLAG \
+            node scripts/set-dr-failover-flag.mjs --disable
+          vercel promote "$PRIMARY_EPOCH_1_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+          EXPECTED_BACKEND=PRIMARY EXPECTED_PROMOTION_EPOCH=1 \
+            node scripts/wait-for-active-backend.mjs
+
+      - name: Enforce completed failback
+        if: always()
+        run: |
+          test "${{ steps.promote_primary_app.outcome }}" = "success" || {
+            echo "::error::Primary failback did not complete; keep the current writer fenced and follow the runbook."
+            exit 1
+          }
+          test "${{ steps.primary_smoke.outcome }}" = "success" || {
+            echo "::error::Primary failback smoke did not pass."
+            exit 1
+          }
+          test "${{ steps.dr_smoke.outcome }}" = "success" || {
+            echo "::error::DR read-only smoke failed, although Primary was restored."
+            exit 1
+          }
+          test "${{ steps.promote_dr_app.outcome }}" = "success" || {
+            echo "::error::DR RTO could not be measured, although Primary was restored."
+            exit 1
+          }

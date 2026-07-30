@@ -21,8 +21,8 @@ credential.
 
 `GET /api/cron/storage-replication` performs bounded batches with five
 attempts and exponential backoff. It requires the existing constant-time cron
-authorization. No permanent schedule is enabled until DR credentials and
-worker ownership are reviewed.
+authorization. The reviewed Vercel schedule runs every five minutes after DR
+credentials and worker ownership are configured.
 
 ## Read path
 
@@ -43,3 +43,7 @@ Alert when failed or pending manifests remain for 15 minutes. A Storage mirror
 failure must not promote a missing image as healthy. During an incident the
 application may use a placeholder, while order product snapshots remain
 authoritative.
+
+The DR readiness snapshot compares the Primary and DR object-path inventory and
+requires every manifest checksum to be `MIRRORED`. Equal row counts alone are
+not accepted as Storage continuity evidence.
