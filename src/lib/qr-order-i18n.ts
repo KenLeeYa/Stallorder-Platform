@@ -28,6 +28,9 @@ export type QrOrderMessages = {
   sessionLoading: string;
   sessionStartError: string;
   qrUnavailableTitle: string;
+  degradedTitle: string;
+  degradedMessage: string;
+  retryAvailability: string;
   dineIn: (table: string) => string;
   takeout: string;
   timeRemaining: (minutes: number, seconds: string) => string;
@@ -76,6 +79,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     sessionLoading: "正在建立安全點餐工作階段...",
     sessionStartError: "目前無法開始點餐。",
     qrUnavailableTitle: "目前無法使用此 QR Code",
+    degradedTitle: "線上送單暫時停用",
+    degradedMessage: "您仍可查看菜單，請至攤位櫃台點餐。",
+    retryAvailability: "重新檢查",
     dineIn: (table) => `內用 · ${table}`,
     takeout: "外帶取餐",
     timeRemaining: (minutes, seconds) => `點餐時間剩餘 ${minutes}:${seconds}`,
@@ -141,6 +147,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     sessionLoading: "Starting a secure ordering session...",
     sessionStartError: "Unable to start ordering right now.",
     qrUnavailableTitle: "This QR code is currently unavailable",
+    degradedTitle: "Online ordering is temporarily unavailable",
+    degradedMessage: "You can still view the menu. Please order at the stall counter.",
+    retryAvailability: "Check again",
     dineIn: (table) => `Dine-in · ${table}`,
     takeout: "Takeout",
     timeRemaining: (minutes, seconds) => `Time remaining ${minutes}:${seconds}`,
@@ -206,6 +215,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     sessionLoading: "安全な注文セッションを開始しています...",
     sessionStartError: "現在、注文を開始できません。",
     qrUnavailableTitle: "このQRコードは現在ご利用いただけません",
+    degradedTitle: "オンライン注文は一時的にご利用いただけません",
+    degradedMessage: "メニューは引き続きご覧いただけます。ご注文は売り場カウンターにてお願いいたします。",
+    retryAvailability: "再確認",
     dineIn: (table) => `店内 · ${table}`,
     takeout: "テイクアウト",
     timeRemaining: (minutes, seconds) => `注文可能時間 残り ${minutes}:${seconds}`,
@@ -271,6 +283,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     sessionLoading: "안전한 주문 세션을 시작하는 중입니다...",
     sessionStartError: "현재 주문을 시작할 수 없습니다.",
     qrUnavailableTitle: "현재 이 QR 코드를 사용할 수 없습니다",
+    degradedTitle: "온라인 주문을 일시적으로 이용할 수 없습니다",
+    degradedMessage: "메뉴는 계속 확인할 수 있습니다. 매장 카운터에서 주문해 주세요.",
+    retryAvailability: "다시 확인",
     dineIn: (table) => `매장 식사 · ${table}`,
     takeout: "포장 주문",
     timeRemaining: (minutes, seconds) => `주문 가능 시간 ${minutes}:${seconds}`,
@@ -336,6 +351,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     sessionLoading: "Đang khởi tạo phiên đặt món an toàn...",
     sessionStartError: "Hiện không thể bắt đầu đặt món.",
     qrUnavailableTitle: "Mã QR này hiện không khả dụng",
+    degradedTitle: "Tạm thời không thể gửi đơn trực tuyến",
+    degradedMessage: "Bạn vẫn có thể xem thực đơn. Vui lòng gọi món tại quầy.",
+    retryAvailability: "Kiểm tra lại",
     dineIn: (table) => `Dùng tại chỗ · ${table}`,
     takeout: "Mang đi",
     timeRemaining: (minutes, seconds) => `Thời gian đặt món còn lại ${minutes}:${seconds}`,
@@ -401,6 +419,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     sessionLoading: "กำลังเริ่มเซสชันการสั่งอาหารที่ปลอดภัย...",
     sessionStartError: "ไม่สามารถเริ่มสั่งอาหารได้ในขณะนี้",
     qrUnavailableTitle: "ไม่สามารถใช้ QR Code นี้ได้ในขณะนี้",
+    degradedTitle: "ไม่สามารถส่งคำสั่งซื้อออนไลน์ได้ชั่วคราว",
+    degradedMessage: "คุณยังดูเมนูได้ โปรดสั่งอาหารที่เคาน์เตอร์ของร้าน",
+    retryAvailability: "ตรวจสอบอีกครั้ง",
     dineIn: (table) => `รับประทานที่ร้าน · ${table}`,
     takeout: "สั่งกลับบ้าน",
     timeRemaining: (minutes, seconds) => `เวลาสั่งอาหารคงเหลือ ${minutes}:${seconds}`,
@@ -479,6 +500,8 @@ const errorMessageKeys: Record<string, ErrorMessageKey> = {
   QR_NOT_ACTIVE: "qrUnavailable",
   TABLE_UNAVAILABLE: "qrUnavailable",
   QR_SESSION_MISMATCH: "sessionInvalid",
+  QR_ORDERING_DEGRADED: "orderingUnavailable",
+  QR_ORDERING_UNAVAILABLE: "orderingUnavailable",
   STALL_CLOSED: "orderingUnavailable",
   ORDERING_PAUSED: "orderingUnavailable",
   STALL_SOLD_OUT: "orderingUnavailable",

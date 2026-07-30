@@ -1,4 +1,4 @@
-import type { FulfillmentType, OrderItemStatus, OrderStatus, Prisma } from "@prisma/client";
+import type { FulfillmentType, OrderItemStatus, OrderStatus, PaymentStatus, Prisma } from "@prisma/client";
 
 export const activeOrderStatuses = ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "PACKING", "READY"] as const;
 
@@ -59,7 +59,7 @@ export type StaffOrderDto = {
   fulfillmentType: FulfillmentType;
   note: string | null;
   status: OrderStatus;
-  paymentStatus: "UNPAID" | "PAID" | "REFUNDED";
+  paymentStatus: PaymentStatus;
   subtotal: number;
   discountAmount: number;
   discountLabel: string | null;
@@ -126,6 +126,7 @@ export const orderStatusLabels = {
 
 export const paymentStatusLabels = {
   UNPAID: "未付款",
+  PENDING_RECONCILIATION: "待對帳",
   PAID: "已付款",
   REFUNDED: "已退款",
 } as const;

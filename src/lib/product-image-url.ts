@@ -1,4 +1,5 @@
 export function isRenderableProductImageUrl(value: string) {
+  if (value.startsWith("/api/assets/product-images/")) return true;
   try {
     const url = new URL(value);
     return !url.username
@@ -13,6 +14,7 @@ export function isOptimizableProductImageUrl(
   value: string,
   supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL,
 ) {
+  if (value.startsWith("/api/assets/product-images/")) return true;
   if (!supabaseUrl || !isRenderableProductImageUrl(value)) return false;
   try {
     const imageUrl = new URL(value);

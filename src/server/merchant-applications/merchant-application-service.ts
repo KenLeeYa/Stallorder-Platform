@@ -56,7 +56,7 @@ export const merchantApplicationPublicSelect = {
 
 type ApplicationIdentity = {
   profileId: string;
-  authUserId: string;
+  authUserId: string | null;
   email: string;
   displayName: string;
   sessionId: string;
@@ -94,6 +94,7 @@ type WritableApplicationData = Partial<Pick<Prisma.MerchantApplicationUncheckedC
 
 export type MerchantApplicationErrorCode =
   | "PROFILE_NOT_GOOGLE_LINKED"
+  | "PROFILE_CONTACT_EMAIL_REQUIRED"
   | "PROFILE_ALREADY_ONBOARDED"
   | "INVITATION_PENDING"
   | "APPLICATION_PENDING"
@@ -335,8 +336,25 @@ export async function withdrawMerchantApplication(input: {
 
 async function requireApplicantEligibility(transaction: Prisma.TransactionClient, identity: ApplicationIdentity) {
   const profile = await transaction.profile.findUnique({ where: { id: identity.profileId } });
-  if (!profile?.isActive || !profile.authUserId || profile.authUserId !== identity.authUserId) {
+  const legacyIdentityMatches = Boolean(
+    profile?.authUserId
+    && identity.authUserId
+    && profile.authUserId === identity.authUserId,
+  );
+  const directIdentity = profile
+    ? await transaction.authIdentity.findFirst({
+        where: {
+          profileId: profile.id,
+          revokedAt: null,
+        },
+        select: { id: true },
+      })
+    : null;
+  if (!profile?.isActive || (!legacyIdentityMatches && !directIdentity)) {
     throw new MerchantApplicationError("PROFILE_NOT_GOOGLE_LINKED");
+  }
+  if (!profile.email) {
+    throw new MerchantApplicationError("PROFILE_CONTACT_EMAIL_REQUIRED");
   }
   const [organizationAccess, stallAccess, invitation] = await Promise.all([
     transaction.organizationMembership.count({ where: { profileId: profile.id, isActive: true } }),
@@ -349,7 +367,7 @@ async function requireApplicantEligibility(transaction: Prisma.TransactionClient
     throw new MerchantApplicationError("PROFILE_ALREADY_ONBOARDED");
   }
   if (invitation > 0) throw new MerchantApplicationError("INVITATION_PENDING");
-  return profile;
+  return { ...profile, email: profile.email };
 }
 
 async function findActiveApplication(transaction: Prisma.TransactionClient, profileId: string) {

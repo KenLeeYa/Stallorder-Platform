@@ -10,6 +10,10 @@ export type KitchenBoardTask = {
   orderNo: string;
   pickupCode: string | null;
   source: string;
+  externalProvider: string | null;
+  externalOrderNumber: string | null;
+  scheduledPickupAt: string | null;
+  riderPickupAt: string | null;
   fulfillmentType: "TAKEOUT" | "DINE_IN" | "DELIVERY";
   tableLabel: string | null;
   orderNote: string | null;

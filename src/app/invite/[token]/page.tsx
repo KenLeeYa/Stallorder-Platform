@@ -4,6 +4,7 @@ import { getPagePrincipal } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { roleLabels } from "@/lib/rbac";
 import { hashToken } from "@/lib/security";
+import { hasActiveOAuthIdentity } from "@/server/auth/oauth/profile-identity";
 
 type PageProps = { params: Promise<{ token: string }> };
 
@@ -18,10 +19,11 @@ export default async function InvitationPage({ params }: PageProps) {
   if (!invitation || invitation.status !== "PENDING") notFound();
 
   const principal = await getPagePrincipal();
-  if (!principal) redirect(`/auth/google?next=${encodeURIComponent(`/invite/${token}`)}`);
+  if (!principal) redirect(`/login?next=${encodeURIComponent(`/invite/${token}`)}`);
 
   const expired = invitation.expiresAt <= new Date();
-  const emailMatches = principal.user.email.trim().toLowerCase() === invitation.email;
+  const emailMatches = principal.user.email?.trim().toLowerCase() === invitation.email;
+  const hasOAuthIdentity = await hasActiveOAuthIdentity(principal.user.id);
   return (
     <main className="mx-auto grid min-h-screen max-w-lg place-items-center px-4 py-10">
       <section className="w-full border-y border-stone-200 py-8">
@@ -47,13 +49,13 @@ export default async function InvitationPage({ params }: PageProps) {
           <p role="alert" className="mt-6 text-sm text-red-700">
             此邀請已過期，請聯絡管理員重新邀請。
           </p>
-        ) : !principal.user.authUserId ? (
+        ) : !principal.user.authUserId && !hasOAuthIdentity ? (
           <p role="alert" className="mt-6 text-sm text-red-700">
-            請登出並改用受邀的 Google 帳號登入。
+            請登出並改用受邀且已驗證電子郵件的帳號登入。
           </p>
         ) : !emailMatches ? (
           <p role="alert" className="mt-6 text-sm text-red-700">
-            目前登入的 Google 帳號 Email 與邀請不符。
+            目前登入帳號的 Email 與邀請不符。
           </p>
         ) : (
           <AcceptInvitation token={token} />

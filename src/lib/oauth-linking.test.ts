@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveOAuthLinkProfile } from "./oauth-linking";
+import { resolveOAuthLinkProfile, resolveProjectOAuthLinkProfile } from "./oauth-linking";
 
 describe("OAuth account linking", () => {
   it("rejects automatic linking to an existing password profile", () => {
@@ -29,5 +29,41 @@ describe("OAuth account linking", () => {
     expect(() => resolveOAuthLinkProfile("google-1", null, conflictingProfile, {
       allowPasswordProfileLink: true,
     })).toThrow("OAUTH_ACCOUNT_CONFLICT");
+  });
+});
+
+describe("resolveProjectOAuthLinkProfile", () => {
+  it("preserves the existing Primary conflict behavior", () => {
+    const profile = { id: "profile-1", authUserId: "primary-user", passwordHash: null };
+    expect(() => resolveProjectOAuthLinkProfile(
+      "different-user",
+      "PRIMARY",
+      null,
+      null,
+      profile,
+    )).toThrow("OAUTH_ACCOUNT_CONFLICT");
+  });
+
+  it("allows a verified DR identity to resolve an existing profile by email", () => {
+    const profile = { id: "profile-1", authUserId: "primary-user", passwordHash: "hash" };
+    expect(resolveProjectOAuthLinkProfile(
+      "dr-user",
+      "DR",
+      null,
+      null,
+      profile,
+    )).toBe(profile);
+  });
+
+  it("rejects a DR identity and verified email that point to different profiles", () => {
+    const identityProfile = { id: "profile-1", authUserId: "primary-user", passwordHash: null };
+    const emailProfile = { id: "profile-2", authUserId: "other-primary-user", passwordHash: null };
+    expect(() => resolveProjectOAuthLinkProfile(
+      "dr-user",
+      "DR",
+      identityProfile,
+      null,
+      emailProfile,
+    )).toThrow("OAUTH_ACCOUNT_CONFLICT");
   });
 });

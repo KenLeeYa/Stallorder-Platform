@@ -1,0 +1,425 @@
+name: Ephemeral Preview Validation
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - closed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ephemeral-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.action != 'closed' &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: Preview
+    env:
+      DO_NOT_TRACK: "1"
+      SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
+      PREVIEW_BRANCH_NAME: ${{ github.event_name == 'pull_request' && format('pr-{0}-oauth-delivery', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
+      PREVIEW_RESOURCE_KEY: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      ALLOW_DEMO_SEED: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Generate isolated Preview-only secrets
+        shell: bash
+        run: |
+          for name in \
+            AUDIT_IP_HASH_SECRET \
+            SESSION_FINGERPRINT_HASH_SECRET \
+            OAUTH_STATE_SECRET \
+            DELIVERY_MOCK_WEBHOOK_SECRET \
+            OFFLINE_PERMIT_SIGNING_SECRET \
+            CRON_SECRET \
+            CRON_API_SECRET
+          do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
+          {
+            echo "OAUTH_PROVIDER_MODE=mock"
+            echo "OAUTH_MOCK_GOOGLE_SUBJECT=preview-google-subject"
+            echo "OAUTH_MOCK_LINE_SUBJECT=preview-line-subject"
+            echo "OAUTH_MOCK_APPLE_SUBJECT=preview-apple-subject"
+            echo "BACKEND_ACTIVE_TARGET=PRIMARY"
+            echo "AUTH_PROJECT_CODE=PRIMARY"
+            echo "PRODUCTION_ENVIRONMENT_APPROVED=false"
+            echo "TRUSTED_CLIENT_IP_HEADER=x-real-ip"
+            echo "REPORT_DELIVERY_MODE=simulate"
+          } >> "$GITHUB_ENV"
+
+      - name: Validate isolated environment configuration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          test -n "${SUPABASE_ACCESS_TOKEN:-}" || {
+            echo "::error::Preview environment is missing SUPABASE_ACCESS_TOKEN."
+            exit 1
+          }
+          [[ "$SUPABASE_ACCESS_TOKEN" =~ ^sbp_[0-9a-f]{40}$ ]] || {
+            echo "::error::Preview SUPABASE_ACCESS_TOKEN must be the raw PAT without quotes or whitespace."
+            exit 1
+          }
+          test -n "${SUPABASE_PARENT_PROJECT_REF:-}" || {
+            echo "::error::Preview environment is missing SUPABASE_PARENT_PROJECT_REF."
+            exit 1
+          }
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create or reuse data-less Preview Branch
+        id: preview
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PR_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          branches="$(supabase branches list \
+            --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+            --output json \
+            --log-level error)"
+          branch_ref="$(
+            jq -r --arg name "$PREVIEW_BRANCH_NAME" \
+              '.[] | select(.name == $name) | .project_ref' <<<"$branches"
+          )"
+
+          if [ -z "$branch_ref" ]; then
+            supabase branches create "$PREVIEW_BRANCH_NAME" \
+              --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+              --region ap-northeast-1 \
+              --size micro \
+              --git-branch "$PR_GIT_BRANCH" \
+              --log-level error >/dev/null
+          fi
+
+          for attempt in $(seq 1 30); do
+            branches="$(supabase branches list \
+              --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+              --output json \
+              --log-level error)"
+            branch_ref="$(
+              jq -r --arg name "$PREVIEW_BRANCH_NAME" \
+                '.[] | select(.name == $name and .with_data == false) | .project_ref' <<<"$branches"
+            )"
+            if [ -n "$branch_ref" ] && [ "$branch_ref" != "$SUPABASE_PARENT_PROJECT_REF" ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          test -n "$branch_ref" && test "$branch_ref" != "$SUPABASE_PARENT_PROJECT_REF" || {
+            echo "::error::Data-less Preview Branch did not become available."
+            exit 1
+          }
+          echo "branch_ref=$branch_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Load and mask Preview Branch configuration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          config="$(
+            supabase branches get "$PREVIEW_BRANCH_NAME" \
+              --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+              --output json \
+              --log-level error
+          )"
+          raw_transaction_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
+          supabase_url="$(jq -r '.SUPABASE_URL' <<<"$config")"
+          anon_key="$(jq -r '.SUPABASE_ANON_KEY' <<<"$config")"
+          session_url="${raw_transaction_url/:6543\//:5432\/}"
+          case "$raw_transaction_url" in
+            *\?*) transaction_url="${raw_transaction_url}&pgbouncer=true" ;;
+            *) transaction_url="${raw_transaction_url}?pgbouncer=true" ;;
+          esac
+
+          for value in "$raw_transaction_url" "$transaction_url" "$session_url" "$supabase_url" "$anon_key"; do
+            test -n "$value" && test "$value" != "null" || {
+              echo "::error::Preview Branch configuration is incomplete."
+              exit 1
+            }
+            echo "::add-mask::$value"
+          done
+
+          {
+            echo "DATABASE_URL=$transaction_url"
+            echo "DIRECT_URL=$session_url"
+            echo "EPHEMERAL_DATABASE_URL=$session_url"
+            echo "NEXT_PUBLIC_SUPABASE_URL=$supabase_url"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon_key"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$anon_key"
+            echo "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$supabase_url/functions/v1"
+          } >> "$GITHUB_ENV"
+
+      - name: Apply reviewed migrations and synthetic fixtures
+        run: |
+          test "${{ steps.preview.outputs.branch_ref }}" != "$SUPABASE_PARENT_PROJECT_REF" || {
+            echo "::error::Refusing to seed the parent Supabase project."
+            exit 1
+          }
+          supabase db push \
+            --db-url "$EPHEMERAL_DATABASE_URL" \
+            --include-all \
+            --include-seed \
+            --yes
+
+      - name: Verify isolated migration history
+        run: supabase migration list --db-url "$EPHEMERAL_DATABASE_URL"
+
+      - name: Reset reusable Preview-only fixture state
+        run: |
+          supabase db query \
+            --db-url "$EPHEMERAL_DATABASE_URL" \
+            --file supabase/fixtures/delivery_mock_preview_cleanup.sql \
+            --log-level error
+
+      - name: Run isolated database tests
+        run: supabase test db supabase/tests/database --db-url "$EPHEMERAL_DATABASE_URL"
+
+      - name: Lint isolated database
+        run: supabase db lint --db-url "$EPHEMERAL_DATABASE_URL" --schema public,app_private,internal --level warning --fail-on warning
+
+      - name: Apply Preview-only OAuth and delivery fixture
+        run: |
+          test "${{ steps.preview.outputs.branch_ref }}" != "$SUPABASE_PARENT_PROJECT_REF" || {
+            echo "::error::Refusing to apply synthetic fixtures to the parent Supabase project."
+            exit 1
+          }
+          supabase db query \
+            --db-url "$EPHEMERAL_DATABASE_URL" \
+            --file supabase/fixtures/delivery_mock_preview.sql \
+            --log-level error
+
+      - name: Deploy Edge Functions to isolated branch
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy --project-ref "${{ steps.preview.outputs.branch_ref }}" --use-api --import-map supabase/functions/deno.json
+
+      - name: Generate Prisma Client
+        run: npm run prisma:generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build against isolated configuration
+        run: npm run build
+
+      - name: Check optional Vercel Preview authorization
+        id: vercel-auth
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -n "${VERCEL_TOKEN:-}" ] \
+            && [ -n "${VERCEL_ORG_ID:-}" ] \
+            && [ -n "${VERCEL_PROJECT_ID:-}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Vercel Preview cloud validation skipped. Configure Preview VERCEL_TOKEN plus VERCEL_ORG_ID and VERCEL_PROJECT_ID."
+          fi
+
+      - name: Deploy matching Vercel Preview
+        id: vercel-preview
+        if: steps.vercel-auth.outputs.enabled == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        run: |
+          mkdir -p .vercel
+          jq -n \
+            --arg orgId "$VERCEL_ORG_ID" \
+            --arg projectId "$VERCEL_PROJECT_ID" \
+            '{orgId: $orgId, projectId: $projectId}' > .vercel/project.json
+
+          deployment="$(
+            npx --yes vercel@58.3.0 deploy . \
+              --yes \
+              --target preview \
+              --json \
+              --token "$VERCEL_TOKEN" \
+              --project "$VERCEL_PROJECT_ID" \
+              --meta "stallorderPreviewRun=$GITHUB_RUN_ID" \
+              --meta "stallorderPreviewResource=$PREVIEW_RESOURCE_KEY" \
+              --build-env "DATABASE_URL=$DATABASE_URL" \
+              --build-env "DIRECT_URL=$DIRECT_URL" \
+              --build-env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
+              --build-env "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+              --build-env "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL" \
+              --build-env "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" \
+              --build-env "OAUTH_PROVIDER_MODE=$OAUTH_PROVIDER_MODE" \
+              --build-env "OAUTH_STATE_SECRET=$OAUTH_STATE_SECRET" \
+              --build-env "DELIVERY_MOCK_WEBHOOK_SECRET=$DELIVERY_MOCK_WEBHOOK_SECRET" \
+              --build-env "AUDIT_IP_HASH_SECRET=$AUDIT_IP_HASH_SECRET" \
+              --build-env "SESSION_FINGERPRINT_HASH_SECRET=$SESSION_FINGERPRINT_HASH_SECRET" \
+              --build-env "OFFLINE_PERMIT_SIGNING_SECRET=$OFFLINE_PERMIT_SIGNING_SECRET" \
+              --build-env "CRON_SECRET=$CRON_SECRET" \
+              --build-env "CRON_API_SECRET=$CRON_API_SECRET" \
+              --build-env "TRUSTED_CLIENT_IP_HEADER=$TRUSTED_CLIENT_IP_HEADER" \
+              --build-env "ALLOW_DEMO_SEED=true" \
+              --build-env "BACKEND_ACTIVE_TARGET=$BACKEND_ACTIVE_TARGET" \
+              --build-env "AUTH_PROJECT_CODE=$AUTH_PROJECT_CODE" \
+              --build-env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
+              --env "DATABASE_URL=$DATABASE_URL" \
+              --env "DIRECT_URL=$DIRECT_URL" \
+              --env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
+              --env "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+              --env "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL" \
+              --env "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" \
+              --env "OAUTH_PROVIDER_MODE=$OAUTH_PROVIDER_MODE" \
+              --env "OAUTH_STATE_SECRET=$OAUTH_STATE_SECRET" \
+              --env "OAUTH_MOCK_GOOGLE_SUBJECT=$OAUTH_MOCK_GOOGLE_SUBJECT" \
+              --env "OAUTH_MOCK_LINE_SUBJECT=$OAUTH_MOCK_LINE_SUBJECT" \
+              --env "OAUTH_MOCK_APPLE_SUBJECT=$OAUTH_MOCK_APPLE_SUBJECT" \
+              --env "DELIVERY_MOCK_WEBHOOK_SECRET=$DELIVERY_MOCK_WEBHOOK_SECRET" \
+              --env "AUDIT_IP_HASH_SECRET=$AUDIT_IP_HASH_SECRET" \
+              --env "SESSION_FINGERPRINT_HASH_SECRET=$SESSION_FINGERPRINT_HASH_SECRET" \
+              --env "OFFLINE_PERMIT_SIGNING_SECRET=$OFFLINE_PERMIT_SIGNING_SECRET" \
+              --env "CRON_SECRET=$CRON_SECRET" \
+              --env "CRON_API_SECRET=$CRON_API_SECRET" \
+              --env "TRUSTED_CLIENT_IP_HEADER=$TRUSTED_CLIENT_IP_HEADER" \
+              --env "ALLOW_DEMO_SEED=true" \
+              --env "BACKEND_ACTIVE_TARGET=$BACKEND_ACTIVE_TARGET" \
+              --env "AUTH_PROJECT_CODE=$AUTH_PROJECT_CODE" \
+              --env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
+              --env "REPORT_DELIVERY_MODE=simulate"
+          )"
+          deployment_id="$(jq -r '.deployment.id // .id // empty' <<<"$deployment")"
+          deployment_url="$(jq -r '.deployment.url // .url // empty' <<<"$deployment")"
+          test -n "$deployment_id" && test -n "$deployment_url" || {
+            echo "::error::Vercel CLI did not return a deployment ID and URL."
+            exit 1
+          }
+          [[ "$deployment_url" == http* ]] || deployment_url="https://$deployment_url"
+          echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+
+      - name: Run synthetic OAuth and delivery smoke tests
+        if: steps.vercel-auth.outputs.enabled == 'true'
+        env:
+          DELIVERY_SYNTHETIC_BASE_URL: ${{ steps.vercel-preview.outputs.url }}
+          DELIVERY_SYNTHETIC_CONFIRMATION: EPHEMERAL_PREVIEW_ONLY
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: npm run preview:delivery-smoke
+
+      - name: Clean reusable Preview-only fixture state
+        if: always() && env.EPHEMERAL_DATABASE_URL != ''
+        run: |
+          supabase db query \
+            --db-url "$EPHEMERAL_DATABASE_URL" \
+            --file supabase/fixtures/delivery_mock_preview_cleanup.sql \
+            --log-level error
+
+      - name: Remove manual Vercel Preview
+        if: always() && github.event_name == 'workflow_dispatch' && steps.vercel-preview.outputs.deployment_id != ''
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npx --yes vercel@58.3.0 remove \
+            "${{ steps.vercel-preview.outputs.deployment_id }}" \
+            --yes \
+            --token "$VERCEL_TOKEN" || true
+
+      - name: Remove manual Preview Branch
+        if: always() && github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase branches delete "$PREVIEW_BRANCH_NAME" \
+            --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+            --yes \
+            --log-level error || true
+
+  cleanup:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: Preview
+    env:
+      DO_NOT_TRACK: "1"
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
+      PREVIEW_BRANCH_NAME: pr-${{ github.event.pull_request.number }}-oauth-delivery
+      PREVIEW_RESOURCE_KEY: pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Remove closed Pull Request Vercel Previews
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "${VERCEL_TOKEN:-}" ] \
+            || [ -z "${VERCEL_ORG_ID:-}" ] \
+            || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
+            exit 0
+          fi
+          mkdir -p .vercel
+          jq -n \
+            --arg orgId "$VERCEL_ORG_ID" \
+            --arg projectId "$VERCEL_PROJECT_ID" \
+            '{orgId: $orgId, projectId: $projectId}' > .vercel/project.json
+          deployments="$(
+            npx --yes vercel@58.3.0 list "$VERCEL_PROJECT_ID" \
+              --meta "stallorderPreviewResource=$PREVIEW_RESOURCE_KEY" \
+              --json \
+              --token "$VERCEL_TOKEN" || true
+          )"
+          while IFS= read -r deployment_id; do
+            [ -n "$deployment_id" ] || continue
+            npx --yes vercel@58.3.0 remove "$deployment_id" \
+              --yes \
+              --token "$VERCEL_TOKEN" || true
+          done < <(
+            jq -r '.. | objects | .id? // empty | select(startswith("dpl_"))' \
+              <<<"$deployments" | sort -u
+          )
+
+      - name: Remove closed Pull Request Preview Branch
+        run: |
+          test -n "${SUPABASE_ACCESS_TOKEN:-}" || exit 0
+          test -n "${SUPABASE_PARENT_PROJECT_REF:-}" || exit 0
+          supabase branches delete "$PREVIEW_BRANCH_NAME" \
+            --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+            --yes \
+            --log-level error || true

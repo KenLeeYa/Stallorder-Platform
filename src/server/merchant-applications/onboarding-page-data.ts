@@ -4,7 +4,7 @@ import { listActiveMerchantBusinessTypeOptions } from "@/server/merchant-applica
 import { getApplicantApplication } from "@/server/merchant-applications/merchant-application-service";
 import { getPendingMerchantSetupPath } from "@/server/merchant-applications/merchant-setup-service";
 
-export async function loadOnboardingData(profileId: string, email: string) {
+export async function loadOnboardingData(profileId: string, email: string | null) {
   const now = new Date();
   const [profile, application, trial, workspaces, pendingInvitation, pendingSetupPath, businessTypeOptions] = await Promise.all([
     prisma.profile.findUniqueOrThrow({
@@ -31,9 +31,11 @@ export async function loadOnboardingData(profileId: string, email: string) {
       },
     }),
     getMemberWorkspaceAccess(profileId),
-    prisma.organizationInvitation.count({
-      where: { email, status: "PENDING", expiresAt: { gt: now } },
-    }),
+    email
+      ? prisma.organizationInvitation.count({
+          where: { email, status: "PENDING", expiresAt: { gt: now } },
+        })
+      : Promise.resolve(0),
     getPendingMerchantSetupPath(profileId),
     listActiveMerchantBusinessTypeOptions(),
   ]);

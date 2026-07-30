@@ -50,6 +50,10 @@ StallOrder（攤點通）讓夜市、市集、餐車與小型餐飲商家用現�
 
 P0 完成 OAuth/定價部署；P1 modifier 共用化、摘要/帳務自動對帳與更多 alert detector；P2 以真實流量資料決定 partition、retention、queue 或 organization summary table。不得在沒有量測前加入額外基礎設施。
 
+生產韌性工作依序完成健康檢查、雙路徑訂單、資料連續性、離線 POS、fencing
+與 QR 降級。下一個驗收閘門是隔離環境故障注入、離線 E2E、DR／failback
+演練與操作訓練；未通過前不得自動合併或部署 Production。
+
 詳細工作見 [ROADMAP.md](ROADMAP.md) 與 [MULTI_STALL_GITHUB_ISSUES.md](MULTI_STALL_GITHUB_ISSUES.md)。
 
 ## 商業帳務里程碑

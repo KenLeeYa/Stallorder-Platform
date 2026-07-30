@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
@@ -7,6 +7,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { hasExpectedImageSignature, type SupportedImageMime } from "@/lib/image-upload";
 import { optimizeProductImage } from "@/lib/product-image-processing";
 import { hashClientIp } from "@/lib/security";
+import { enqueueStorageReplication } from "@/server/resilience/storage-replication-service";
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxFileSize = 5 * 1024 * 1024;
@@ -57,7 +58,28 @@ export async function POST(request: Request, context: RouteContext) {
   if (upload.error) {
     return NextResponse.json({ error: "圖片上傳失敗，請稍後再試。" }, { status: 502 });
   }
-  const { data } = admin.storage.from("product-images").getPublicUrl(objectPath);
+  const primaryChecksum = createHash("sha256").update(optimizedBytes).digest("hex");
+  try {
+    await enqueueStorageReplication({
+      organizationId,
+      bucket: "product-images",
+      objectPath,
+      contentType: "image/webp",
+      primaryChecksum,
+      primaryUpdatedAt: new Date(),
+    });
+  } catch {
+    await recordAuditEvent({
+      organizationId,
+      actorProfileId: authorization.principal.user.id,
+      action: "PRODUCT_IMAGE_REPLICATION_ENQUEUE_FAILED",
+      entityType: "PRODUCT_IMAGE",
+      outcome: "FAILURE",
+      requestId: authorization.requestId,
+      ipHash: hashClientIp(request),
+      metadata: { reason: "OUTBOX_WRITE_FAILED" },
+    });
+  }
   await recordAuditEvent({
     organizationId,
     actorProfileId: authorization.principal.user.id,
@@ -73,5 +95,9 @@ export async function POST(request: Request, context: RouteContext) {
       optimizedSize: optimizedBytes.byteLength,
     },
   });
-  return NextResponse.json({ imageUrl: data.publicUrl }, { status: 201, headers: { "x-request-id": authorization.requestId } });
+  const applicationOrigin = process.env.NEXT_PUBLIC_APP_URL
+    ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin
+    : new URL(request.url).origin;
+  const imageUrl = new URL(`/api/assets/product-images/${objectPath}`, applicationOrigin).toString();
+  return NextResponse.json({ imageUrl }, { status: 201, headers: { "x-request-id": authorization.requestId } });
 }

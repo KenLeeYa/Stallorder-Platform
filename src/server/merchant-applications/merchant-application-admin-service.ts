@@ -60,6 +60,11 @@ export async function getMerchantApplicationForAdmin(applicationId: string) {
           email: true,
           isActive: true,
           authUserId: true,
+          authIdentities: {
+            where: { revokedAt: null },
+            orderBy: { createdAt: "asc" },
+            select: { provider: true },
+          },
           merchantApplications: {
             orderBy: { createdAt: "desc" },
             take: 20,

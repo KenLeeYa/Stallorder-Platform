@@ -1,7 +1,7 @@
 import "server-only";
 
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { withDatabaseRead } from "@/server/database/read-router";
 
 type ProductRow = { stall_id: string; stall_name: string; product_name: string; quantity: bigint; revenue: bigint };
 type HourRow = { stall_id: string; stall_name: string; sale_hour: number; order_count: bigint; sales: bigint };
@@ -37,28 +37,35 @@ export async function getProductAndHourlyReport(
 ) {
   if (stallIds.length === 0) return { products: [], hours: [] };
   const scopedIds = Prisma.join(stallIds.map((id) => Prisma.sql`${id}::uuid`));
-  const [productRows, hours] = await Promise.all([
-    prisma.$queryRaw<ProductRow[]>(Prisma.sql`
-      select
-        item.stall_id,
-        stall.name as stall_name,
-        item.name as product_name,
-        sum(item.quantity)::bigint as quantity,
-        sum(item.quantity * item.unit_price)::bigint as revenue
-      from public.order_items item
-      join public.orders order_record on order_record.id = item.order_id
-      join public.stalls stall on stall.id = item.stall_id
-      where item.organization_id = ${organizationId}::uuid
-        and item.stall_id in (${scopedIds})
-        and not order_record.is_test
-        and order_record.status = 'COMPLETED'::public.order_status
-        and public.stall_business_date(stall.id, order_record.completed_at) between ${dateFrom}::date and ${dateTo}::date
-      group by item.stall_id, stall.name, item.name
-      order by revenue desc, item.name asc
-      limit 500
-    `),
-    getHourlySalesReport(organizationId, stallIds, dateFrom, dateTo),
-  ]);
+  const [productRows, hours] = await withDatabaseRead(
+    {
+      policy: "DR_PREFERRED_EVENTUAL",
+      operation: "product_and_hourly_report",
+      maxLagSeconds: 30,
+    },
+    (database) => Promise.all([
+      database.$queryRaw<ProductRow[]>(Prisma.sql`
+        select
+          item.stall_id,
+          stall.name as stall_name,
+          item.name as product_name,
+          sum(item.quantity)::bigint as quantity,
+          sum(item.quantity * item.unit_price)::bigint as revenue
+        from public.order_items item
+        join public.orders order_record on order_record.id = item.order_id
+        join public.stalls stall on stall.id = item.stall_id
+        where item.organization_id = ${organizationId}::uuid
+          and item.stall_id in (${scopedIds})
+          and not order_record.is_test
+          and order_record.status = 'COMPLETED'::public.order_status
+          and public.stall_business_date(stall.id, order_record.completed_at) between ${dateFrom}::date and ${dateTo}::date
+        group by item.stall_id, stall.name, item.name
+        order by revenue desc, item.name asc
+        limit 500
+      `),
+      queryHourlySalesReport(database, organizationId, scopedIds, dateFrom, dateTo),
+    ]),
+  );
   return {
     products: productRows.map((row) => ({
       stallId: row.stall_id,
@@ -67,7 +74,7 @@ export async function getProductAndHourlyReport(
       quantity: Number(row.quantity),
       revenue: Number(row.revenue),
     })),
-    hours,
+    hours: mapHourlyRows(hours),
   };
 }
 
@@ -79,7 +86,25 @@ export async function getHourlySalesReport(
 ) {
   if (stallIds.length === 0) return [];
   const scopedIds = Prisma.join(stallIds.map((id) => Prisma.sql`${id}::uuid`));
-  const rows = await prisma.$queryRaw<HourRow[]>(Prisma.sql`
+  const rows = await withDatabaseRead(
+    {
+      policy: "DR_PREFERRED_EVENTUAL",
+      operation: "hourly_sales_report",
+      maxLagSeconds: 30,
+    },
+    (database) => queryHourlySalesReport(database, organizationId, scopedIds, dateFrom, dateTo),
+  );
+  return mapHourlyRows(rows);
+}
+
+function queryHourlySalesReport(
+  database: PrismaClient,
+  organizationId: string,
+  scopedIds: Prisma.Sql,
+  dateFrom: string,
+  dateTo: string,
+) {
+  return database.$queryRaw<HourRow[]>(Prisma.sql`
     select
       order_record.stall_id,
       stall.name as stall_name,
@@ -96,6 +121,9 @@ export async function getHourlySalesReport(
     group by order_record.stall_id, stall.name, sale_hour
     order by sale_hour asc, sales desc
   `);
+}
+
+function mapHourlyRows(rows: HourRow[]) {
   return rows.map((row) => ({
     stallId: row.stall_id,
     stallName: row.stall_name,
@@ -113,24 +141,31 @@ export async function getPaymentMethodReport(
 ) {
   if (stallIds.length === 0) return [];
   const scopedIds = Prisma.join(stallIds.map((id) => Prisma.sql`${id}::uuid`));
-  const rows = await prisma.$queryRaw<PaymentRow[]>(Prisma.sql`
-    select
-      payment.stall_id,
-      stall.name as stall_name,
-      payment.method_label,
-      count(*)::bigint as payment_count,
-      sum(payment.amount)::bigint as amount
-    from public.payments payment
-    join public.orders order_record on order_record.id = payment.order_id
-    join public.stalls stall on stall.id = payment.stall_id
-    where payment.organization_id = ${organizationId}::uuid
-      and payment.stall_id in (${scopedIds})
-      and not order_record.is_test
-      and payment.status = 'PAID'::public.payment_status
-      and public.stall_business_date(stall.id, payment.paid_at) between ${dateFrom}::date and ${dateTo}::date
-    group by payment.stall_id, stall.name, payment.method_label
-    order by amount desc, payment.method_label asc
-  `);
+  const rows = await withDatabaseRead(
+    {
+      policy: "DR_PREFERRED_EVENTUAL",
+      operation: "payment_method_report",
+      maxLagSeconds: 30,
+    },
+    (database) => database.$queryRaw<PaymentRow[]>(Prisma.sql`
+      select
+        payment.stall_id,
+        stall.name as stall_name,
+        payment.method_label,
+        count(*)::bigint as payment_count,
+        sum(payment.amount)::bigint as amount
+      from public.payments payment
+      join public.orders order_record on order_record.id = payment.order_id
+      join public.stalls stall on stall.id = payment.stall_id
+      where payment.organization_id = ${organizationId}::uuid
+        and payment.stall_id in (${scopedIds})
+        and not order_record.is_test
+        and payment.status = 'PAID'::public.payment_status
+        and public.stall_business_date(stall.id, payment.paid_at) between ${dateFrom}::date and ${dateTo}::date
+      group by payment.stall_id, stall.name, payment.method_label
+      order by amount desc, payment.method_label asc
+    `),
+  );
   return rows.map((row) => ({
     stallId: row.stall_id,
     stallName: row.stall_name,
@@ -148,23 +183,30 @@ export async function getCancellationReasonReport(
 ) {
   if (stallIds.length === 0) return [];
   const scopedIds = Prisma.join(stallIds.map((id) => Prisma.sql`${id}::uuid`));
-  const rows = await prisma.$queryRaw<CancellationRow[]>(Prisma.sql`
-    select
-      order_record.stall_id,
-      stall.name as stall_name,
-      coalesce(order_record.cancellation_reason::text, 'OTHER') as reason,
-      count(*)::bigint as cancellation_count
-    from public.orders order_record
-    join public.stalls stall on stall.id = order_record.stall_id
-    where order_record.organization_id = ${organizationId}::uuid
-      and order_record.stall_id in (${scopedIds})
-      and not order_record.is_test
-      and order_record.status = 'CANCELLED'::public.order_status
-      and public.stall_business_date(stall.id, coalesce(order_record.cancelled_at, order_record.updated_at))
-        between ${dateFrom}::date and ${dateTo}::date
-    group by order_record.stall_id, stall.name, reason
-    order by cancellation_count desc, stall.name asc, reason asc
-  `);
+  const rows = await withDatabaseRead(
+    {
+      policy: "DR_PREFERRED_EVENTUAL",
+      operation: "cancellation_reason_report",
+      maxLagSeconds: 30,
+    },
+    (database) => database.$queryRaw<CancellationRow[]>(Prisma.sql`
+      select
+        order_record.stall_id,
+        stall.name as stall_name,
+        coalesce(order_record.cancellation_reason::text, 'OTHER') as reason,
+        count(*)::bigint as cancellation_count
+      from public.orders order_record
+      join public.stalls stall on stall.id = order_record.stall_id
+      where order_record.organization_id = ${organizationId}::uuid
+        and order_record.stall_id in (${scopedIds})
+        and not order_record.is_test
+        and order_record.status = 'CANCELLED'::public.order_status
+        and public.stall_business_date(stall.id, coalesce(order_record.cancelled_at, order_record.updated_at))
+          between ${dateFrom}::date and ${dateTo}::date
+      group by order_record.stall_id, stall.name, reason
+      order by cancellation_count desc, stall.name asc, reason asc
+    `),
+  );
   return rows.map((row) => ({
     stallId: row.stall_id,
     stallName: row.stall_name,
@@ -181,8 +223,14 @@ export async function getCashShiftReport(
 ) {
   if (stallIds.length === 0) return [];
   const scopedIds = Prisma.join(stallIds.map((id) => Prisma.sql`${id}::uuid`));
-  const rows = await prisma.$queryRaw<CashShiftRow[]>(Prisma.sql`
-    select
+  const rows = await withDatabaseRead(
+    {
+      policy: "DR_PREFERRED_EVENTUAL",
+      operation: "cash_shift_report",
+      maxLagSeconds: 30,
+    },
+    (database) => database.$queryRaw<CashShiftRow[]>(Prisma.sql`
+      select
       shift.id,
       shift.stall_id,
       stall.name as stall_name,
@@ -236,8 +284,9 @@ export async function getCashShiftReport(
       and shift.stall_id in (${scopedIds})
       and public.stall_business_date(stall.id, shift.opened_at) between ${dateFrom}::date and ${dateTo}::date
     order by shift.opened_at desc
-    limit 1000
-  `);
+      limit 1000
+    `),
+  );
   return rows.map((row) => ({
     id: row.id,
     stallId: row.stall_id,

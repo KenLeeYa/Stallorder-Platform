@@ -10,7 +10,7 @@ type Membership = {
   isActive: boolean;
   allStalls: boolean;
   isPrimaryOwner: boolean;
-  profile: { id: string; displayName: string; email: string };
+  profile: { id: string; displayName: string; email: string | null };
 };
 
 export function OrganizationMembershipManager({
@@ -68,7 +68,7 @@ export function OrganizationMembershipManager({
                   <span>{membership.profile.displayName}</span>
                   {membership.isPrimaryOwner ? <span className="rounded bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">最高擁有者</span> : null}
                 </div>
-                <div className="mt-1 break-all text-sm text-stone-500">{membership.profile.email}</div>
+                <div className="mt-1 break-all text-sm text-stone-500">{membership.profile.email ?? "未提供電子郵件"}</div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <select
