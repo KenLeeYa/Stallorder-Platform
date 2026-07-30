@@ -262,7 +262,7 @@ function poolerUrl(
         connect_timeout: "10",
       };
   if (temporaryAccess) search.options = "-c jit=true";
-  return postgresUrl({
+  const url = postgresUrl({
     username: connection.poolerUsername,
     password,
     hostname: connection.poolerHost,
@@ -270,6 +270,16 @@ function poolerUrl(
     database: connection.database,
     search,
   });
+  if (!temporaryAccess) return url;
+
+  const formEncodedOptions = "options=-c+jit%3Dtrue";
+  if (!url.includes(formEncodedOptions)) {
+    throw new Error("JIT_OPTIONS_ENCODING_FAILED");
+  }
+  return url.replace(
+    formEncodedOptions,
+    "options=-c%20jit%3Dtrue",
+  );
 }
 
 function postgresUrl({ username, password, hostname, port, database, search }) {
