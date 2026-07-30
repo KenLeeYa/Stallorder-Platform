@@ -8,6 +8,19 @@ import {
   replicatedPublicTables,
 } from "./lib/dr-replication-scope.mjs";
 
+const expectedCronJobNames = new Set([
+  "invoke-vercel-preview-process-orders",
+  "stallorder-billing-invoice-overdue",
+  "stallorder-billing-trial-expiration",
+  "stallorder-cash-shift-alerts",
+  "stallorder-expire-merchant-applications",
+  "stallorder-expire-unconfirmed-orders",
+  "stallorder-line-link-session-cleanup",
+  "stallorder-notification-jobs",
+  "stallorder-report-deliveries",
+  "stallorder-stall-schedules",
+]);
+
 const primary = new PrismaClient({
   datasources: { db: { url: requiredPostgresUrl("DIRECT_URL") } },
 });
@@ -81,9 +94,28 @@ try {
   }
 
   await dr.$executeRawUnsafe("delete from auth.users");
-  const disabledCronJobs = await dr.$executeRawUnsafe(
-    "update cron.job set active = false where active",
+  const activeCronJobs = await dr.$queryRawUnsafe(
+    "select jobid::text as job_id, jobname from cron.job where active order by jobid",
   );
+  const unexpectedCronJobs = activeCronJobs.filter(
+    (job) => !expectedCronJobNames.has(job.jobname),
+  );
+  if (unexpectedCronJobs.length > 0) {
+    throw new Error("DR_UNKNOWN_ACTIVE_CRON_JOBS");
+  }
+  for (const job of activeCronJobs) {
+    await dr.$queryRawUnsafe(
+      "select cron.alter_job($1::bigint, active := false)",
+      job.job_id,
+    );
+  }
+  const remainingActiveCronJobs = await dr.$queryRawUnsafe(
+    "select count(*)::integer as count from cron.job where active",
+  );
+  if (remainingActiveCronJobs[0]?.count !== 0) {
+    throw new Error("DR_ACTIVE_CRON_JOBS_REMAIN");
+  }
+  const disabledCronJobs = activeCronJobs.length;
   const clearedTables = [...replicatedPublicTables, ...environmentLocalTables];
   const replicatedTableList = clearedTables
     .map((table) => `"public"."${table.replaceAll('"', '""')}"`)
