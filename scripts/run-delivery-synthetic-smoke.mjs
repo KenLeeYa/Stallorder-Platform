@@ -23,11 +23,17 @@ if (webhookSecret.length < 32 || cronSecret.length < 32) {
 const prisma = new PrismaClient();
 let sessionId = null;
 let oauthSessionTokenHash = null;
+let oauthTransactionId = null;
+let syntheticEventId = null;
+let syntheticExternalOrderId = null;
+let syntheticOrderId = null;
 
 try {
   oauthSessionTokenHash = await validateMockOAuthFlow();
   const runId = randomUUID();
   const externalOrderId = `preview-${runId}`;
+  syntheticEventId = `preview-event-${runId}`;
+  syntheticExternalOrderId = externalOrderId;
   const body = JSON.stringify(createFixture(runId, externalOrderId));
   const signature = createHmac("sha256", webhookSecret).update(body).digest("hex");
 
@@ -83,6 +89,7 @@ try {
       items: { select: { id: true } },
     },
   });
+  syntheticOrderId = canonicalOrder?.id ?? null;
   if (
     !canonicalOrder
     || canonicalOrder.source !== "MOCK"
@@ -205,15 +212,11 @@ try {
     paymentReconciliationProtected: true,
   }) + "\n");
 } finally {
-  if (sessionId) {
-    await prisma.authSession.deleteMany({ where: { id: sessionId } }).catch(() => undefined);
+  try {
+    await cleanupSyntheticState();
+  } finally {
+    await prisma.$disconnect();
   }
-  if (oauthSessionTokenHash) {
-    await prisma.authSession.deleteMany({
-      where: { tokenHash: oauthSessionTokenHash },
-    }).catch(() => undefined);
-  }
-  await prisma.$disconnect();
 }
 
 async function validateMockOAuthFlow() {
@@ -243,6 +246,20 @@ async function validateMockOAuthFlow() {
       + ` (redirect: ${destination.pathname}, oauthError: ${oauthError ?? "none"}).`,
     );
   }
+  const sessionTokenHash = sha256(decodeURIComponent(sessionToken));
+  oauthSessionTokenHash = sessionTokenHash;
+  const storedSession = await prisma.authSession.findUnique({
+    where: { tokenHash: sessionTokenHash },
+    select: { id: true },
+  });
+  if (!storedSession) {
+    fail("Mock OAuth callback session was not persisted.");
+  }
+  const transaction = await prisma.oAuthTransaction.findFirst({
+    where: { resultSessionId: storedSession.id },
+    select: { id: true },
+  });
+  oauthTransactionId = transaction?.id ?? null;
 
   const replay = await requestRaw(callbackUrl, { method: "GET" });
   assertRedirect(replay, "OAuth callback replay");
@@ -250,7 +267,81 @@ async function validateMockOAuthFlow() {
   if (replayLocation.searchParams.get("oauthError") !== "already-completed") {
     fail("OAuth callback replay was not rejected.");
   }
-  return sha256(decodeURIComponent(sessionToken));
+  return sessionTokenHash;
+}
+
+async function cleanupSyntheticState() {
+  let orderId = syntheticOrderId;
+  if (syntheticExternalOrderId && !orderId) {
+    const externalOrder = await prisma.externalOrder.findFirst({
+      where: {
+        provider: "MOCK",
+        externalOrderId: syntheticExternalOrderId,
+      },
+      select: { internalOrderId: true },
+    });
+    orderId = externalOrder?.internalOrderId ?? null;
+  }
+
+  await prisma.$transaction(async (transaction) => {
+    if (syntheticExternalOrderId) {
+      await transaction.deliverySyncJob.deleteMany({
+        where: {
+          provider: "MOCK",
+          OR: [
+            {
+              deduplicationKey:
+                `order-import:MOCK:${syntheticExternalOrderId}`,
+            },
+            {
+              deduplicationKey: {
+                startsWith:
+                  `order-action:MOCK:${syntheticExternalOrderId}:`,
+              },
+            },
+          ],
+        },
+      });
+      if (syntheticEventId) {
+        await transaction.deliveryWebhookEvent.deleteMany({
+          where: {
+            provider: "MOCK",
+            externalEventId: syntheticEventId,
+          },
+        });
+      }
+      await transaction.externalOrder.deleteMany({
+        where: {
+          provider: "MOCK",
+          externalOrderId: syntheticExternalOrderId,
+        },
+      });
+    }
+    if (orderId) {
+      await transaction.order.deleteMany({
+        where: {
+          id: orderId,
+          source: "MOCK",
+          isTest: true,
+        },
+      });
+    }
+    if (oauthTransactionId) {
+      await transaction.oAuthTransaction.deleteMany({
+        where: { id: oauthTransactionId },
+      });
+    }
+    if (sessionId) {
+      await transaction.authSession.deleteMany({
+        where: { id: sessionId },
+      });
+    }
+    if (oauthSessionTokenHash) {
+      await transaction.authSession.deleteMany({
+        where: { tokenHash: oauthSessionTokenHash },
+      });
+    }
+  });
 }
 
 async function importPendingOrder(externalOrderId) {
@@ -306,7 +397,7 @@ async function createSyntheticSession() {
 
 function createFixture(runId, externalOrderId) {
   return {
-    eventId: `preview-event-${runId}`,
+    eventId: syntheticEventId ?? `preview-event-${runId}`,
     eventType: "ORDER_CREATED",
     order: {
       externalOrderId,

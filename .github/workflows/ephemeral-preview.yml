@@ -193,6 +193,13 @@ jobs:
       - name: Verify isolated migration history
         run: supabase migration list --db-url "$EPHEMERAL_DATABASE_URL"
 
+      - name: Reset reusable Preview-only fixture state
+        run: |
+          supabase db query \
+            --db-url "$EPHEMERAL_DATABASE_URL" \
+            --file supabase/fixtures/delivery_mock_preview_cleanup.sql \
+            --log-level error
+
       - name: Run isolated database tests
         run: supabase test db supabase/tests/database --db-url "$EPHEMERAL_DATABASE_URL"
 
@@ -323,6 +330,14 @@ jobs:
           DELIVERY_SYNTHETIC_CONFIRMATION: EPHEMERAL_PREVIEW_ONLY
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run preview:delivery-smoke
+
+      - name: Clean reusable Preview-only fixture state
+        if: always() && env.EPHEMERAL_DATABASE_URL != ''
+        run: |
+          supabase db query \
+            --db-url "$EPHEMERAL_DATABASE_URL" \
+            --file supabase/fixtures/delivery_mock_preview_cleanup.sql \
+            --log-level error
 
       - name: Remove manual Vercel Preview
         if: always() && github.event_name == 'workflow_dispatch' && steps.vercel-preview.outputs.deployment_id != ''
