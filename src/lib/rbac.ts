@@ -33,6 +33,7 @@ export type Permission =
   | "MANAGE_STALL_SCHEDULES"
   | "MANAGE_MARKET_EVENTS"
   | "MANAGE_LINE_INTEGRATION"
+  | "MANAGE_DELIVERY_INTEGRATIONS"
   | "PLATFORM_ADMIN";
 
 const rolePermissions: Record<UserRole, readonly Permission[]> = {
@@ -69,6 +70,7 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STALL_SCHEDULES",
     "MANAGE_MARKET_EVENTS",
     "MANAGE_LINE_INTEGRATION",
+    "MANAGE_DELIVERY_INTEGRATIONS",
     "PLATFORM_ADMIN",
   ],
   MERCHANT_OWNER: [],
@@ -106,6 +108,7 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STALL_SCHEDULES",
     "MANAGE_MARKET_EVENTS",
     "MANAGE_LINE_INTEGRATION",
+    "MANAGE_DELIVERY_INTEGRATIONS",
   ],
   ORGANIZATION_ADMIN: [
     "VIEW_ORDERS",
@@ -138,6 +141,7 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STALL_SCHEDULES",
     "MANAGE_MARKET_EVENTS",
     "MANAGE_LINE_INTEGRATION",
+    "MANAGE_DELIVERY_INTEGRATIONS",
   ],
   FINANCE_VIEWER: ["VIEW_REPORTS", "VIEW_BILLING", "VIEW_CASH_SHIFT"],
   STALL_MANAGER: [
@@ -166,6 +170,7 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_STALL_LOCATIONS",
     "MANAGE_STALL_SCHEDULES",
     "MANAGE_LINE_INTEGRATION",
+    "MANAGE_DELIVERY_INTEGRATIONS",
   ],
   STAFF: ["VIEW_ORDERS", "CREATE_ORDERS", "UPDATE_ORDERS", "CHECKOUT_ORDERS", "MANAGE_PRINT_QUEUE", "VIEW_CASH_SHIFT", "MANAGE_CASH_SHIFT", "VIEW_DINING_FLOOR", "OPERATE_CAPACITY"],
   KITCHEN: ["VIEW_KDS", "UPDATE_PRODUCTION_TASKS"],

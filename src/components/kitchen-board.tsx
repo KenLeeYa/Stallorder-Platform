@@ -22,6 +22,7 @@ import {
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { deliveryProviderLabel } from "@/lib/delivery-platform-labels";
 import {
   aggregateKitchenItems,
   kitchenWaitLevel,
@@ -255,7 +256,16 @@ function OrderTicket({ order, now, warningMinutes, criticalMinutes, busyId, canC
   return (
     <article className={`rounded-md border-2 ${border} bg-white p-4`}>
       <div className="flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
-        <div><h3 className="text-xl font-bold">#{order.orderNo}</h3><p className="mt-1 text-sm text-stone-600">{fulfillmentLabel(order.fulfillmentType, order.tableLabel)} · {sourceLabel(order.source)}</p></div>
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-xl font-bold">#{order.orderNo}</h3>
+            {order.externalProvider ? <span className="rounded bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-800">{deliveryProviderLabel(order.externalProvider)}</span> : null}
+          </div>
+          <p className="mt-1 text-sm text-stone-600">{fulfillmentLabel(order.fulfillmentType, order.tableLabel)} · {sourceLabel(order.source)}</p>
+          {order.externalOrderNumber ? <p className="mt-1 text-xs font-medium text-stone-600">平台單號：{order.externalOrderNumber}</p> : null}
+          {order.scheduledPickupAt ? <p className="mt-1 text-xs font-medium text-teal-800">預約取餐：{formatKitchenTime(order.scheduledPickupAt)}</p> : null}
+          {order.externalProvider ? <p className="mt-1 text-xs font-medium text-stone-600">{order.riderPickupAt ? `外送員已於 ${formatKitchenTime(order.riderPickupAt)} 取餐` : "等待外送員取餐"}</p> : null}
+        </div>
         <div className={`text-right ${level === "CRITICAL" ? "text-red-700" : level === "WARNING" ? "text-amber-700" : "text-stone-600"}`}>
           <span className="inline-flex items-center gap-1 text-sm font-semibold"><Clock3 className="h-4 w-4" />{elapsed} 分</span>
           {level !== "NORMAL" ? (
@@ -277,7 +287,7 @@ function OrderTicket({ order, now, warningMinutes, criticalMinutes, busyId, canC
           />
         ))}
       </div>
-      {order.note ? <div className="mt-3 flex gap-2 bg-amber-50 p-3 text-sm text-amber-900"><MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" /><span>{order.note}</span></div> : null}
+      {order.note ? <div className="mt-3 flex gap-2 bg-amber-50 p-3 text-sm text-amber-900"><MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" /><span>{order.externalProvider ? "平台備註：" : ""}{order.note}</span></div> : null}
       <div className="mt-4 flex flex-wrap gap-2">
         {order.tasks.some((task) => task.status !== "COMPLETED") ? (
           <button type="button" disabled={busyId !== null} onClick={() => void onComplete()} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50"><CheckCheck className="h-5 w-5" />整單完成</button>
@@ -311,13 +321,21 @@ function ModeButton({ active, icon: Icon, label, onClick }: { active: boolean; i
 }
 
 function groupTasksByOrder(tasks: KitchenBoardTask[]) {
-  const groups = new Map<string, { id: string; orderNo: string; pickupCode: string | null; source: string; fulfillmentType: KitchenBoardTask["fulfillmentType"]; tableLabel: string | null; note: string | null; status: KitchenBoardTask["orderStatus"]; createdAt: string; confirmedAt: string | null; tasks: KitchenBoardTask[] }>();
+  const groups = new Map<string, { id: string; orderNo: string; pickupCode: string | null; source: string; externalProvider: string | null; externalOrderNumber: string | null; scheduledPickupAt: string | null; riderPickupAt: string | null; fulfillmentType: KitchenBoardTask["fulfillmentType"]; tableLabel: string | null; note: string | null; status: KitchenBoardTask["orderStatus"]; createdAt: string; confirmedAt: string | null; tasks: KitchenBoardTask[] }>();
   for (const task of tasks) {
     const current = groups.get(task.orderId);
     if (current) current.tasks.push(task);
-    else groups.set(task.orderId, { id: task.orderId, orderNo: task.orderNo, pickupCode: task.pickupCode, source: task.source, fulfillmentType: task.fulfillmentType, tableLabel: task.tableLabel, note: task.orderNote, status: task.orderStatus, createdAt: task.orderCreatedAt, confirmedAt: task.confirmedAt, tasks: [task] });
+    else groups.set(task.orderId, { id: task.orderId, orderNo: task.orderNo, pickupCode: task.pickupCode, source: task.source, externalProvider: task.externalProvider, externalOrderNumber: task.externalOrderNumber, scheduledPickupAt: task.scheduledPickupAt, riderPickupAt: task.riderPickupAt, fulfillmentType: task.fulfillmentType, tableLabel: task.tableLabel, note: task.orderNote, status: task.orderStatus, createdAt: task.orderCreatedAt, confirmedAt: task.confirmedAt, tasks: [task] });
   }
   return [...groups.values()].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
+function formatKitchenTime(value: string) {
+  return new Intl.DateTimeFormat("zh-TW", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Taipei",
+  }).format(new Date(value));
 }
 
 async function cancelOrder(stallSlug: string, orderId: string, orderNo: string, refresh: (silent?: boolean) => Promise<void>, setMessage: (message: string) => void, setBusyId: (value: string | null) => void) {

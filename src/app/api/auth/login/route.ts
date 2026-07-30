@@ -16,6 +16,7 @@ import {
   sanitizeRedirectPath,
 } from "@/lib/security";
 import { getDefaultWorkspacePath, getWorkspaceAccess } from "@/lib/workspace";
+import { resolveOAuthLoginFeatureState } from "@/server/auth/oauth/feature-flags";
 import { getPendingMerchantSetupPath } from "@/server/merchant-applications/merchant-setup-service";
 
 const loginSchema = z.object({
@@ -40,6 +41,21 @@ export async function POST(request: Request) {
     }));
     return finalize(NextResponse.json(
       { error: "無法驗證登入來源。" },
+      { status: 403, headers: { "x-request-id": requestId } },
+    ));
+  }
+
+  const oauthState = await timing.measureDb(() => resolveOAuthLoginFeatureState());
+  if (oauthState.oauthOnly) {
+    await timing.measureDb(() => recordAuditEvent({
+      action: "PASSWORD_LOGIN_DISABLED",
+      entityType: "AUTH",
+      outcome: "DENIED",
+      requestId,
+      ipHash,
+    }));
+    return finalize(NextResponse.json(
+      { error: "此環境已停用密碼登入，請使用已連結的登入方式。" },
       { status: 403, headers: { "x-request-id": requestId } },
     ));
   }

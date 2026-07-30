@@ -10,6 +10,7 @@ import {
 } from "@/lib/kitchen-contract";
 import { prisma } from "@/lib/prisma";
 import { entitlementService } from "@/server/billing/entitlement-service";
+import { persistExternalOrderTransitionForOrder } from "@/server/delivery-platforms/external-order-status-service";
 
 export class KitchenOperationError extends Error {
   constructor(public readonly code:
@@ -49,6 +50,10 @@ const kitchenTaskInclude = {
       orderNo: true,
       pickupCodeDisplay: true,
       source: true,
+      externalProvider: true,
+      externalOrderNumber: true,
+      scheduledPickupAt: true,
+      riderPickupAt: true,
       fulfillmentType: true,
       tableLabel: true,
       note: true,
@@ -250,6 +255,11 @@ export async function applyKitchenTaskUpdate(input: {
     );
     if (nextOrderStatus !== task.order.status) {
       await transaction.order.update({ where: { id: task.orderId }, data: { status: nextOrderStatus } });
+      await persistExternalOrderTransitionForOrder(
+        transaction,
+        task.orderId,
+        nextOrderStatus,
+      );
     }
     await transaction.orderEvent.create({
       data: {
@@ -311,6 +321,7 @@ export async function completeKitchenOrder(input: {
       data: { assignedToProfileId: input.actorProfileId },
     });
     await transaction.order.update({ where: { id: order.id }, data: { status: "READY" } });
+    await persistExternalOrderTransitionForOrder(transaction, order.id, "READY");
     await transaction.orderEvent.create({
       data: {
         organizationId: input.organizationId,
@@ -451,6 +462,10 @@ function serializeKitchenTask(task: KitchenTaskRecord): KitchenBoardTask {
     orderNo: task.order.orderNo,
     pickupCode: task.order.pickupCodeDisplay,
     source: task.order.source,
+    externalProvider: task.order.externalProvider,
+    externalOrderNumber: task.order.externalOrderNumber,
+    scheduledPickupAt: task.order.scheduledPickupAt?.toISOString() ?? null,
+    riderPickupAt: task.order.riderPickupAt?.toISOString() ?? null,
     fulfillmentType: task.order.fulfillmentType,
     tableLabel: task.order.tableLabel,
     orderNote: task.order.note,

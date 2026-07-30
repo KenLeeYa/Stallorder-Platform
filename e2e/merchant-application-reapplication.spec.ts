@@ -155,7 +155,7 @@ async function login(page: Page, email: string) {
 
 async function loginForOnboarding(page: Page) {
   await page.goto("/login");
-  await page.getByRole("link", { name: "使用 Google 申請開通" }).click();
+  await page.getByRole("link", { name: "使用已驗證帳號申請開通" }).click();
   await expect(page).toHaveURL(/\/onboarding$/);
 }
 

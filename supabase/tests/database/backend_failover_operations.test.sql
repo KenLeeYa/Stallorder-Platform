@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(12);
+select plan(13);
 
 select is(
   app_private.assert_backend_writable(),
@@ -140,6 +140,30 @@ select ok(
     where oid = 'public.backend_runtime_state'::regclass
   ),
   'backend runtime state keeps forced RLS'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from pg_catalog.pg_trigger
+    where not tgisinternal
+      and tgname = 'backend_writable_guard'
+      and tgrelid = any (array[
+        'public.auth_identities'::regclass,
+        'public.auth_identity_link_invitations'::regclass,
+        'public.delivery_platform_connection_requests'::regclass,
+        'public.delivery_platform_connections'::regclass,
+        'public.delivery_sync_jobs'::regclass,
+        'public.delivery_webhook_events'::regclass,
+        'public.external_menu_mappings'::regclass,
+        'public.external_orders'::regclass,
+        'public.external_store_mappings'::regclass,
+        'public.oauth_provider_events'::regclass,
+        'public.oauth_transactions'::regclass
+      ])
+  ),
+  11,
+  'OAuth and delivery tables receive the backend write fence'
 );
 
 select * from finish();

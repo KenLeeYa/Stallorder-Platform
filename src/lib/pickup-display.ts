@@ -161,6 +161,7 @@ async function buildPublicPickupDisplay(
     where: {
       organizationId: settings.organizationId,
       stallId: settings.stallId,
+      fulfillmentType: { not: "DELIVERY" },
       OR: [
         {
           status: { in: [...PREPARING_STATUSES] },
