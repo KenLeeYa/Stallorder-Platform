@@ -50,6 +50,22 @@ Confirmation: `CREATE_PRODUCTION_DR`
 9. Wait for every relation to reach ready state and prove LSN/canary catch-up.
 10. Reserve DR sequences and run the readiness gate.
 
+If bootstrap fails after the encrypted backup artifact was uploaded and after
+the former Staging conversion began, rerun `bootstrap` with
+`resume_backup_run_id` set to that verified workflow run. The workflow accepts
+the artifact only when:
+
+- it belongs to an ancestor of the current verified `main` commit;
+- its metadata records a successful former Staging restore test and encryption;
+- all three former Staging encrypted dump checksums pass;
+- all three archives decrypt with the protected key and pass PostgreSQL 17
+  archive validation;
+- the recorded former Staging Storage object count is zero.
+
+Resume mode creates and restore-tests a fresh Primary backup. It reuses only the
+verified, encrypted former Staging backup and does not treat a partially reset
+DR candidate as a new recovery source.
+
 ### `drill`
 
 Confirmation: `MEASURE_PRODUCTION_DR`
