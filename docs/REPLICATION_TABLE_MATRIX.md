@@ -8,7 +8,7 @@ The executable allowlist is
 
 | Domain | Examples | Notes |
 | --- | --- | --- |
-| Tenant and authorization | organizations, profiles, memberships, auth identity mappings | Current authorization still reads active writer |
+| Tenant and authorization | organizations, profiles, memberships, auth identity mappings | `profiles.auth_user_id` stays project-local; DR resolves the replicated identity mapping |
 | Catalog and ordering | products, modifiers, QR, sessions, orders, items, events | Trusted writes remain fenced |
 | Operations | KDS, capacity, cash, print, schedules, alerts | Subscriber apply does not run normal application triggers |
 | Commercial | plans, subscriptions, usage, invoices, billing events | System test orders remain non-billable |
@@ -21,6 +21,11 @@ The executable allowlist is
 
 The full names live in the fixed source allowlist so a newly created table
 cannot enter replication accidentally.
+
+The `profiles` publication has an explicit column list containing every current
+column except `auth_user_id`. Its primary key remains published. Adding a
+Profile column therefore requires updating and revalidating the publication
+before relying on that column in DR.
 
 ## Excluded
 

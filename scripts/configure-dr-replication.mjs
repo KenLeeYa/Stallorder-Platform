@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import {
+  buildPublicationTableExpression,
   environmentLocalTables,
+  replicationColumnExclusions,
   replicatedPublicTables,
 } from "./lib/dr-replication-scope.mjs";
 
@@ -28,6 +30,7 @@ const plan = {
   subscriptionName,
   replicatedTableCount: replicatedPublicTables.length,
   excludedEnvironmentLocalTables: environmentLocalTables,
+  excludedColumnsByTable: replicationColumnExclusions,
   safeguards: [
     "單向 Primary 到 DR",
     "不發布 TRUNCATE",
@@ -48,7 +51,9 @@ if (!apply && !rollback) {
 }
 
 if (process.env.PRODUCTION_ENVIRONMENT_APPROVED !== "true") {
-  fail("缺少 Production Environment 核准：PRODUCTION_ENVIRONMENT_APPROVED=true。");
+  fail(
+    "缺少 Production Environment 核准：PRODUCTION_ENVIRONMENT_APPROVED=true。",
+  );
 }
 if (process.env.DR_CHANGE_CONFIRMATION !== action) {
   fail(`請輸入確認字串 ${action} 至 DR_CHANGE_CONFIRMATION。`);
@@ -56,21 +61,33 @@ if (process.env.DR_CHANGE_CONFIRMATION !== action) {
 
 const primaryDirectUrl = requiredPostgresUrl("DIRECT_URL");
 const drDirectUrl = requiredPostgresUrl("DR_DIRECT_URL");
-const replicationUrl = rollback ? null : requiredPostgresUrl("PRIMARY_REPLICATION_URL");
-const primary = new PrismaClient({ datasources: { db: { url: primaryDirectUrl } } });
+const replicationUrl = rollback
+  ? null
+  : requiredPostgresUrl("PRIMARY_REPLICATION_URL");
+const primary = new PrismaClient({
+  datasources: { db: { url: primaryDirectUrl } },
+});
 const dr = new PrismaClient({ datasources: { db: { url: drDirectUrl } } });
 
 try {
   if (rollback) {
     await assertSubscriptionExists(dr);
-    await dr.$executeRawUnsafe(`alter subscription ${quoteIdentifier(subscriptionName)} disable`);
-    await dr.$executeRawUnsafe(`drop subscription ${quoteIdentifier(subscriptionName)}`);
-    await primary.$executeRawUnsafe(`drop publication if exists ${quoteIdentifier(publicationName)}`);
-    console.log(JSON.stringify({
-      event: "dr_replication_rollback_completed",
-      publicationName,
-      subscriptionName,
-    }));
+    await dr.$executeRawUnsafe(
+      `alter subscription ${quoteIdentifier(subscriptionName)} disable`,
+    );
+    await dr.$executeRawUnsafe(
+      `drop subscription ${quoteIdentifier(subscriptionName)}`,
+    );
+    await primary.$executeRawUnsafe(
+      `drop publication if exists ${quoteIdentifier(publicationName)}`,
+    );
+    console.log(
+      JSON.stringify({
+        event: "dr_replication_rollback_completed",
+        publicationName,
+        subscriptionName,
+      }),
+    );
   } else {
     await assertRuntimeState(primary, "PRIMARY", "ACTIVE_WRITER", true);
     await assertRuntimeState(dr, "DR", "READ_ONLY_STANDBY", false);
@@ -79,8 +96,11 @@ try {
     await assertPublicationAbsent(primary);
     await assertSubscriptionAbsent(dr);
 
+    const columnsByTable = await readPublicationColumns(primary);
     const tableList = replicatedPublicTables
-      .map((table) => `${quoteIdentifier("public")}.${quoteIdentifier(table)}`)
+      .map((table) =>
+        buildPublicationTableExpression(table, columnsByTable.get(table) ?? []),
+      )
       .join(", ");
     await primary.$executeRawUnsafe(
       `create publication ${quoteIdentifier(publicationName)} for table ${tableList} with (publish = 'insert, update, delete')`,
@@ -90,22 +110,28 @@ try {
         `create subscription ${quoteIdentifier(subscriptionName)} connection ${quoteLiteral(replicationUrl)} publication ${quoteIdentifier(publicationName)} with (copy_data = true, create_slot = true, enabled = true, streaming = on, two_phase = false)`,
       );
     } catch {
-      await primary.$executeRawUnsafe(`drop publication if exists ${quoteIdentifier(publicationName)}`);
+      await primary.$executeRawUnsafe(
+        `drop publication if exists ${quoteIdentifier(publicationName)}`,
+      );
       throw new Error("SUBSCRIPTION_CREATE_FAILED");
     }
-    console.log(JSON.stringify({
-      event: "dr_replication_configured",
-      publicationName,
-      subscriptionName,
-      replicatedTableCount: replicatedPublicTables.length,
-    }));
+    console.log(
+      JSON.stringify({
+        event: "dr_replication_configured",
+        publicationName,
+        subscriptionName,
+        replicatedTableCount: replicatedPublicTables.length,
+      }),
+    );
   }
 } catch {
-  console.error(JSON.stringify({
-    event: "dr_replication_change_failed",
-    action,
-    reason: "VALIDATION_OR_PROVIDER_OPERATION_FAILED",
-  }));
+  console.error(
+    JSON.stringify({
+      event: "dr_replication_change_failed",
+      action,
+      reason: "VALIDATION_OR_PROVIDER_OPERATION_FAILED",
+    }),
+  );
   process.exitCode = 1;
 } finally {
   await Promise.allSettled([primary.$disconnect(), dr.$disconnect()]);
@@ -126,7 +152,8 @@ function requiredPostgresUrl(name) {
   if (!value) fail(`缺少 ${name}。`);
   try {
     const parsed = new URL(value);
-    if (!["postgres:", "postgresql:"].includes(parsed.protocol)) throw new Error();
+    if (!["postgres:", "postgresql:"].includes(parsed.protocol))
+      throw new Error();
   } catch {
     fail(`${name} 必須是有效的 PostgreSQL URL。`);
   }
@@ -150,11 +177,11 @@ async function assertRuntimeState(database, backendCode, role, writesEnabled) {
   );
   const state = rows[0];
   if (
-    state?.backend_code !== backendCode
-    || state?.backend_role !== role
-    || state?.writes_enabled !== writesEnabled
-    || state?.enforcement_enabled !== true
-    || state?.is_current !== true
+    state?.backend_code !== backendCode ||
+    state?.backend_role !== role ||
+    state?.writes_enabled !== writesEnabled ||
+    state?.enforcement_enabled !== true ||
+    state?.is_current !== true
   ) {
     throw new Error("BACKEND_RUNTIME_STATE_NOT_READY");
   }
@@ -196,6 +223,25 @@ async function assertAllTablesHavePrimaryKeys(database) {
        )`,
   );
   if (missing.length > 0) throw new Error("REPLICA_IDENTITY_NOT_READY");
+}
+
+async function readPublicationColumns(database) {
+  const filteredTables = Object.keys(replicationColumnExclusions);
+  const tableLiterals = filteredTables.map(quoteLiteral).join(", ");
+  const rows = await database.$queryRawUnsafe(
+    `select table_name, column_name
+     from information_schema.columns
+     where table_schema = 'public'
+       and table_name in (${tableLiterals})
+     order by table_name, ordinal_position`,
+  );
+  const columnsByTable = new Map();
+  for (const row of rows) {
+    const columns = columnsByTable.get(row.table_name) ?? [];
+    columns.push(row.column_name);
+    columnsByTable.set(row.table_name, columns);
+  }
+  return columnsByTable;
 }
 
 async function assertPublicationAbsent(database) {
