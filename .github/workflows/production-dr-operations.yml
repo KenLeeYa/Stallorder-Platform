@@ -206,10 +206,11 @@ jobs:
           set -euo pipefail
           npx supabase start
           npx supabase db reset --local --no-seed
-          cat > dr-artifacts/truncate-public.sql <<'SQL'
+          cat > dr-artifacts/prepare-public-restore.sql <<'SQL'
           do $$
           declare
             relations text;
+            target record;
           begin
             select string_agg(format('%I.%I', schemaname, tablename), ', ')
             into relations
@@ -218,6 +219,36 @@ jobs:
             if relations is not null then
               execute 'truncate table ' || relations || ' cascade';
             end if;
+            for target in
+              select schemaname, tablename
+              from pg_catalog.pg_tables
+              where schemaname = 'public'
+            loop
+              execute format(
+                'alter table %I.%I disable trigger user',
+                target.schemaname,
+                target.tablename
+              );
+            end loop;
+          end
+          $$;
+          SQL
+          cat > dr-artifacts/enable-public-user-triggers.sql <<'SQL'
+          do $$
+          declare
+            target record;
+          begin
+            for target in
+              select schemaname, tablename
+              from pg_catalog.pg_tables
+              where schemaname = 'public'
+            loop
+              execute format(
+                'alter table %I.%I enable trigger user',
+                target.schemaname,
+                target.tablename
+              );
+            end loop;
           end
           $$;
           SQL
@@ -230,7 +261,7 @@ jobs:
               --username postgres \
               --dbname postgres \
               --set ON_ERROR_STOP=1 \
-              --file /out/truncate-public.sql
+              --file /out/prepare-public-restore.sql
           docker run --rm --network host --env PGPASSWORD \
             -v "$PWD/dr-artifacts:/out" postgres:17 \
             pg_restore \
@@ -239,11 +270,20 @@ jobs:
               --username postgres \
               --dbname postgres \
               --data-only \
-              --disable-triggers \
               --no-owner \
               --no-acl \
+              --single-transaction \
               --exit-on-error \
               /out/primary-public-data.dump
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            psql \
+              --host 127.0.0.1 \
+              --port 54322 \
+              --username postgres \
+              --dbname postgres \
+              --set ON_ERROR_STOP=1 \
+              --file /out/enable-public-user-triggers.sql
           docker run --rm --network host --env PGPASSWORD postgres:17 \
             psql \
               --host 127.0.0.1 \
@@ -263,7 +303,7 @@ jobs:
               --username postgres \
               --dbname postgres \
               --set ON_ERROR_STOP=1 \
-              --file /out/truncate-public.sql
+              --file /out/prepare-public-restore.sql
           docker run --rm --network host --env PGPASSWORD \
             -v "$PWD/dr-artifacts:/out" postgres:17 \
             pg_restore \
@@ -272,11 +312,20 @@ jobs:
               --username postgres \
               --dbname postgres \
               --data-only \
-              --disable-triggers \
               --no-owner \
               --no-acl \
+              --single-transaction \
               --exit-on-error \
               /out/former-staging-public-data.dump
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            psql \
+              --host 127.0.0.1 \
+              --port 54322 \
+              --username postgres \
+              --dbname postgres \
+              --set ON_ERROR_STOP=1 \
+              --file /out/enable-public-user-triggers.sql
           unset PGPASSWORD
           npx supabase stop --no-backup
 
@@ -292,7 +341,9 @@ jobs:
             sha256sum "${file}.enc" > "${file}.enc.sha256"
             shred -u "$file"
           done
-          rm -f dr-artifacts/truncate-public.sql
+          rm -f \
+            dr-artifacts/prepare-public-restore.sql \
+            dr-artifacts/enable-public-user-triggers.sql
           cat > dr-artifacts/backup-verification.json <<JSON
           {
             "runId": "${GITHUB_RUN_ID}",
