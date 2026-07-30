@@ -4,6 +4,12 @@ Supabase Auth user IDs are project-specific. `profiles.auth_user_id` remains the
 legacy Primary identity. `profile_auth_identities` maps a Profile to a verified
 Google identity for each Auth project.
 
+The Primary-to-DR publication excludes only `profiles.auth_user_id`. The DR
+subscriber therefore keeps that column null and resolves authenticated users
+through `profile_auth_identities`; all other Profile fields continue to
+replicate. Authorization helpers reject an Auth user ID if it maps to more than
+one Profile.
+
 ## Normal Primary login
 
 The existing conflict and password-linking behavior remains unchanged. A

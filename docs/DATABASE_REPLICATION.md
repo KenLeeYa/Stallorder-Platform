@@ -47,6 +47,11 @@ publication and does not delete business data.
 DDL, sequences, Auth settings, Storage objects, Vault values and project
 secrets are not replicated.
 
+`profiles.auth_user_id` is also excluded from the `profiles` publication column
+list because Supabase Auth IDs belong to one project. The `id` replica identity
+and every other Profile column remain published. DR login and RLS resolve the
+project-local user through the replicated `profile_auth_identities` mapping.
+
 Offline recovery additionally replicates `offline_order_sync_receipts`,
 `offline_sync_conflicts`, `domain_inbox` and `domain_outbox`. These records are
 required to preserve idempotency and reconciliation when an offline queue

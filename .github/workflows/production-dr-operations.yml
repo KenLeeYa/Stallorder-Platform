@@ -270,6 +270,21 @@ jobs:
               --username postgres \
               --dbname postgres \
               --data-only \
+              --schema auth \
+              --table users \
+              --no-owner \
+              --no-acl \
+              --single-transaction \
+              --exit-on-error \
+              /out/primary-auth-storage-data.dump
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            pg_restore \
+              --host 127.0.0.1 \
+              --port 54322 \
+              --username postgres \
+              --dbname postgres \
+              --data-only \
               --no-owner \
               --no-acl \
               --single-transaction \
@@ -304,6 +319,21 @@ jobs:
               --dbname postgres \
               --set ON_ERROR_STOP=1 \
               --file /out/prepare-public-restore.sql
+          docker run --rm --network host --env PGPASSWORD \
+            -v "$PWD/dr-artifacts:/out" postgres:17 \
+            pg_restore \
+              --host 127.0.0.1 \
+              --port 54322 \
+              --username postgres \
+              --dbname postgres \
+              --data-only \
+              --schema auth \
+              --table users \
+              --no-owner \
+              --no-acl \
+              --single-transaction \
+              --exit-on-error \
+              /out/former-staging-auth-storage-data.dump
           docker run --rm --network host --env PGPASSWORD \
             -v "$PWD/dr-artifacts:/out" postgres:17 \
             pg_restore \
