@@ -94,28 +94,7 @@ jobs:
       - run: npm ci
 
       - name: Build protected database URLs
-        shell: bash
-        run: |
-          set -euo pipefail
-          encode() {
-            node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$1"
-          }
-          primary_password="$(encode "$SUPABASE_DB_PASSWORD")"
-          dr_password="$(encode "$DR_SUPABASE_DB_PASSWORD")"
-          replication_password="$(encode "$PRIMARY_REPLICATION_PASSWORD")"
-          primary_direct_url="postgresql://postgres.${PRIMARY_SUPABASE_PROJECT_REF}:${primary_password}@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require&connect_timeout=10"
-          dr_direct_url="postgresql://postgres.${DR_SUPABASE_PROJECT_REF}:${dr_password}@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require&connect_timeout=10"
-          dr_runtime_url="postgresql://postgres.${DR_SUPABASE_PROJECT_REF}:${dr_password}@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5&pool_timeout=20&sslmode=require"
-          replication_url="postgresql://stallorder_replication:${replication_password}@db.${PRIMARY_SUPABASE_PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
-          for value in "$primary_direct_url" "$dr_direct_url" "$dr_runtime_url" "$replication_url"; do
-            echo "::add-mask::$value"
-          done
-          {
-            echo "DIRECT_URL=$primary_direct_url"
-            echo "DR_DIRECT_URL=$dr_direct_url"
-            echo "DR_RUNTIME_DATABASE_URL=$dr_runtime_url"
-            echo "PRIMARY_REPLICATION_URL=$replication_url"
-          } >> "$GITHUB_ENV"
+        run: node scripts/export-dr-database-urls.mjs
 
       - name: Create encrypted logical backups
         shell: bash
@@ -506,29 +485,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          encode() {
-            node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' "$1"
-          }
-          primary_password="$(encode "$SUPABASE_DB_PASSWORD")"
-          dr_password="$(encode "$DR_SUPABASE_DB_PASSWORD")"
-          replication_password="$(encode "$PRIMARY_REPLICATION_PASSWORD")"
-          primary_direct_url="postgresql://postgres.${PRIMARY_SUPABASE_PROJECT_REF}:${primary_password}@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require&connect_timeout=10"
-          dr_direct_url="postgresql://postgres.${DR_SUPABASE_PROJECT_REF}:${dr_password}@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require&connect_timeout=10"
-          dr_runtime_url="postgresql://postgres.${DR_SUPABASE_PROJECT_REF}:${dr_password}@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5&pool_timeout=20&sslmode=require"
-          replication_url="postgresql://stallorder_replication:${replication_password}@db.${PRIMARY_SUPABASE_PROJECT_REF}.supabase.co:5432/postgres?sslmode=require&connect_timeout=10"
-          for value in "$primary_direct_url" "$dr_direct_url" "$dr_runtime_url" "$replication_url"; do
-            echo "::add-mask::$value"
-          done
-          {
-            echo "DIRECT_URL=$primary_direct_url"
-            echo "DR_DIRECT_URL=$dr_direct_url"
-            echo "DR_RUNTIME_DATABASE_URL=$dr_runtime_url"
-            echo "PRIMARY_REPLICATION_URL=$replication_url"
-            echo "DR_DRILL_ID=${GITHUB_RUN_ID}"
-          } >> "$GITHUB_ENV"
           mkdir -p .vercel dr-artifacts
           printf '{"orgId":"%s","projectId":"%s"}\n' \
             "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+          echo "DR_DRILL_ID=${GITHUB_RUN_ID}" >> "$GITHUB_ENV"
+
+      - name: Export protected database URLs
+        run: node scripts/export-dr-database-urls.mjs
 
       - name: Export provider runtime keys
         run: node scripts/export-dr-runtime-environment.mjs
