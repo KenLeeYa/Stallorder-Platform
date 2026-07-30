@@ -51,9 +51,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\configure-github-preview-envi
 若要設定後立即重跑既有 Actions run：
 
 ```powershell
+$runId = gh run list `
+  --repo KenLeeYa/Stallorder-Platform `
+  --workflow "Ephemeral Preview Validation" `
+  --branch feature/delivery-platform-integration-foundation `
+  --limit 1 `
+  --json databaseId |
+  ConvertFrom-Json |
+  Select-Object -First 1 -ExpandProperty databaseId
+
 powershell -ExecutionPolicy Bypass `
   -File .\scripts\configure-github-preview-environment.ps1 `
-  -RerunRunId 30487579394
+  -RerunRunId $runId
 ```
 
 ## GitHub Preview Environment
