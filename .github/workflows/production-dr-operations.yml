@@ -103,138 +103,83 @@ jobs:
           mkdir -p dr-artifacts
           docker pull postgres:17 >/dev/null
 
-          export PGPASSWORD="$SUPABASE_DB_PASSWORD"
-          docker run --rm --network host --env PGPASSWORD \
-            -v "$PWD/dr-artifacts:/out" postgres:17 \
-            pg_dump \
-              --host aws-0-ap-northeast-1.pooler.supabase.com \
-              --port 5432 \
-              --username "postgres.${PRIMARY_SUPABASE_PROJECT_REF}" \
-              --dbname postgres \
-              --schema public \
-              --format custom \
-              --compress 6 \
-              --no-owner \
-              --no-acl \
-              --file /out/primary-public.dump
-          docker run --rm --network host --env PGPASSWORD \
-            -v "$PWD/dr-artifacts:/out" postgres:17 \
-            pg_dump \
-              --host aws-0-ap-northeast-1.pooler.supabase.com \
-              --port 5432 \
-              --username "postgres.${PRIMARY_SUPABASE_PROJECT_REF}" \
-              --dbname postgres \
-              --schema public \
-              --data-only \
-              --format custom \
-              --compress 6 \
-              --no-owner \
-              --no-acl \
-              --file /out/primary-public-data.dump
-          docker run --rm --network host --env PGPASSWORD \
-            -v "$PWD/dr-artifacts:/out" postgres:17 \
-            pg_dump \
-              --host aws-0-ap-northeast-1.pooler.supabase.com \
-              --port 5432 \
-              --username "postgres.${PRIMARY_SUPABASE_PROJECT_REF}" \
-              --dbname postgres \
-              --schema auth \
-              --schema storage \
-              --data-only \
-              --format custom \
-              --compress 6 \
-              --no-owner \
-              --no-acl \
-              --file /out/primary-auth-storage-data.dump
+          run_pg_dump() {
+            local database_url="$1"
+            shift
+            DATABASE_URL="$database_url" docker run --rm --network host \
+              --env DATABASE_URL \
+              -v "$PWD/dr-artifacts:/out" postgres:17 \
+              sh -ceu 'exec pg_dump --dbname "$DATABASE_URL" "$@"' sh "$@"
+          }
+          run_psql_scalar() {
+            local database_url="$1"
+            local query="$2"
+            DATABASE_URL="$database_url" docker run --rm --network host \
+              --env DATABASE_URL postgres:17 \
+              sh -ceu 'exec psql --dbname "$DATABASE_URL" --tuples-only --no-align --command "$1"' sh "$query"
+          }
+
+          run_pg_dump "$DIRECT_URL" \
+            --schema public \
+            --format custom \
+            --compress 6 \
+            --no-owner \
+            --no-acl \
+            --file /out/primary-public.dump
+          run_pg_dump "$DIRECT_URL" \
+            --schema public \
+            --data-only \
+            --format custom \
+            --compress 6 \
+            --no-owner \
+            --no-acl \
+            --file /out/primary-public-data.dump
+          run_pg_dump "$DIRECT_URL" \
+            --schema auth \
+            --schema storage \
+            --data-only \
+            --format custom \
+            --compress 6 \
+            --no-owner \
+            --no-acl \
+            --file /out/primary-auth-storage-data.dump
           primary_auth_users="$(
-            docker run --rm --network host --env PGPASSWORD postgres:17 \
-              psql \
-                --host aws-0-ap-northeast-1.pooler.supabase.com \
-                --port 5432 \
-                --username "postgres.${PRIMARY_SUPABASE_PROJECT_REF}" \
-                --dbname postgres \
-                --tuples-only \
-                --no-align \
-                --command "select count(*) from auth.users"
+            run_psql_scalar "$DIRECT_URL" "select count(*) from auth.users"
           )"
           primary_storage_objects="$(
-            docker run --rm --network host --env PGPASSWORD postgres:17 \
-              psql \
-                --host aws-0-ap-northeast-1.pooler.supabase.com \
-                --port 5432 \
-                --username "postgres.${PRIMARY_SUPABASE_PROJECT_REF}" \
-                --dbname postgres \
-                --tuples-only \
-                --no-align \
-                --command "select count(*) from storage.objects"
+            run_psql_scalar "$DIRECT_URL" "select count(*) from storage.objects"
           )"
 
-          export PGPASSWORD="$DR_SUPABASE_DB_PASSWORD"
-          docker run --rm --network host --env PGPASSWORD \
-            -v "$PWD/dr-artifacts:/out" postgres:17 \
-            pg_dump \
-              --host aws-0-ap-northeast-1.pooler.supabase.com \
-              --port 5432 \
-              --username "postgres.${DR_SUPABASE_PROJECT_REF}" \
-              --dbname postgres \
-              --schema public \
-              --format custom \
-              --compress 6 \
-              --no-owner \
-              --no-acl \
-              --file /out/former-staging-public.dump
-          docker run --rm --network host --env PGPASSWORD \
-            -v "$PWD/dr-artifacts:/out" postgres:17 \
-            pg_dump \
-              --host aws-0-ap-northeast-1.pooler.supabase.com \
-              --port 5432 \
-              --username "postgres.${DR_SUPABASE_PROJECT_REF}" \
-              --dbname postgres \
-              --schema public \
-              --data-only \
-              --format custom \
-              --compress 6 \
-              --no-owner \
-              --no-acl \
-              --file /out/former-staging-public-data.dump
-          docker run --rm --network host --env PGPASSWORD \
-            -v "$PWD/dr-artifacts:/out" postgres:17 \
-            pg_dump \
-              --host aws-0-ap-northeast-1.pooler.supabase.com \
-              --port 5432 \
-              --username "postgres.${DR_SUPABASE_PROJECT_REF}" \
-              --dbname postgres \
-              --schema auth \
-              --schema storage \
-              --data-only \
-              --format custom \
-              --compress 6 \
-              --no-owner \
-              --no-acl \
-              --file /out/former-staging-auth-storage-data.dump
+          run_pg_dump "$DR_DIRECT_URL" \
+            --schema public \
+            --format custom \
+            --compress 6 \
+            --no-owner \
+            --no-acl \
+            --file /out/former-staging-public.dump
+          run_pg_dump "$DR_DIRECT_URL" \
+            --schema public \
+            --data-only \
+            --format custom \
+            --compress 6 \
+            --no-owner \
+            --no-acl \
+            --file /out/former-staging-public-data.dump
+          run_pg_dump "$DR_DIRECT_URL" \
+            --schema auth \
+            --schema storage \
+            --data-only \
+            --format custom \
+            --compress 6 \
+            --no-owner \
+            --no-acl \
+            --file /out/former-staging-auth-storage-data.dump
           former_staging_auth_users="$(
-            docker run --rm --network host --env PGPASSWORD postgres:17 \
-              psql \
-                --host aws-0-ap-northeast-1.pooler.supabase.com \
-                --port 5432 \
-                --username "postgres.${DR_SUPABASE_PROJECT_REF}" \
-                --dbname postgres \
-                --tuples-only \
-                --no-align \
-                --command "select count(*) from auth.users"
+            run_psql_scalar "$DR_DIRECT_URL" "select count(*) from auth.users"
           )"
           former_staging_storage_objects="$(
-            docker run --rm --network host --env PGPASSWORD postgres:17 \
-              psql \
-                --host aws-0-ap-northeast-1.pooler.supabase.com \
-                --port 5432 \
-                --username "postgres.${DR_SUPABASE_PROJECT_REF}" \
-                --dbname postgres \
-                --tuples-only \
-                --no-align \
-                --command "select count(*) from storage.objects"
+            run_psql_scalar "$DR_DIRECT_URL" "select count(*) from storage.objects"
           )"
-          unset PGPASSWORD
           for archive in dr-artifacts/*.dump; do
             docker run --rm \
               -v "$PWD/dr-artifacts:/out" postgres:17 \

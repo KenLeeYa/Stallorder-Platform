@@ -103,7 +103,9 @@ GitHub `production` environment variables:
 - `VERCEL_PROJECT_ID`
 
 Values must never be committed or printed. Database URLs are assembled at run
-time and masked before use.
+time and masked before use. The workflow retrieves each project's current
+Supavisor and database endpoints from the authenticated Supabase Management
+API; it does not hard-code a regional Pooler hostname.
 
 ## Recovery
 
