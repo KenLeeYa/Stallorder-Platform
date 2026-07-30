@@ -2,20 +2,19 @@
 
 ## Current status
 
-StallOrder is in a controlled transition:
+StallOrder has completed the Preview handoff:
 
 ```text
 Local Development
-+ Ephemeral Preview Validation
-+ Persistent Staging release gate
++ Paired Supabase and Vercel Preview validation
++ staging Git branch source-tree gate
 + Production
 ```
 
-Persistent Staging is **not removed yet**. It remains the required source-tree
-promotion gate until ephemeral validation has passed repeatedly and covers the
-same functional, security, migration and deployment checks.
-
-Production DR must never be used as Staging.
+The `staging` Git branch remains the source-tree promotion gate, but
+`staging.qidaigo.com` is no longer a required runtime validation environment.
+The former Staging Supabase project is reserved for the approved Production DR
+conversion and must never receive synthetic Preview fixtures.
 
 ## Target state
 
@@ -127,20 +126,17 @@ and then verifies the resulting history.
 
 ## Vercel Preview requirement
 
-Vercel's Git integration remains responsible for creating the Preview
-Deployment for the Pull Request.
-
-Persistent Staging cannot be removed until the Preview Deployment is connected
-to the matching Supabase Preview Branch. A Vercel Preview must never point to:
+The repository workflow creates a Vercel Preview with the generated connection
+values from the same Pull Request's data-less Supabase Preview Branch. It then
+runs synthetic OAuth, webhook, order, KDS and payment checks before cleanup. A
+Vercel Preview must never point to:
 
 - Production Primary
 - Production DR
 - persistent Staging
 
-The final implementation must add a safe handoff from the Preview Branch output
-to Vercel Preview environment values without placing credentials in logs. Until
-that integration is verified, the new workflow is a database/build gate, not a
-complete replacement for persistent Staging.
+Generated credentials are masked and remain inside the workflow environment;
+they are not written to the repository, Pull Request or artifacts.
 
 ## Feature rollout
 
@@ -174,19 +170,17 @@ When a canary is separately approved, it must be:
 The existing `orders.is_test` behavior is reusable, but a dedicated canary
 bootstrap and teardown procedure is still required.
 
-## Promotion sequence during transition
-
-Until persistent Staging is retired:
+## Promotion sequence
 
 1. Local CI passes.
-2. Ephemeral Preview validation passes.
-3. Vercel Preview is tested against the matching isolated Supabase branch when
-   available.
-4. The exact source tree is merged to `staging`.
-5. Persistent Staging migration, remote lint and functional smoke pass.
+2. The Pull Request's paired Supabase and Vercel Preview validation passes.
+3. The exact source tree is merged to the `staging` Git branch.
+4. The Staging push repeats deterministic local readiness checks but does not
+   connect to the Production DR candidate.
+5. A `staging` to `main` Pull Request repeats CI and paired Preview validation.
 6. The exact verified Staging tree is promoted to `main`.
-7. Production migration dry-run and deployment checks pass.
-8. Production receives only non-destructive smoke checks.
+7. The Main push runs Production migration, remote lint, deployment and
+   non-destructive smoke checks.
 
 ## Rollback
 
@@ -220,10 +214,9 @@ Persistent Staging may be removed only after all of the following are true:
 ## Current limitations
 
 - GitHub Environment protection reviewers are not configured.
-- Vercel Preview to Supabase Preview dynamic environment handoff is not yet
-  verified.
-- Preview OAuth and full browser E2E are not yet implemented.
-- Production DR is not created.
-- A measured Production failover RTO/RPO does not exist.
-
-These limitations keep persistent Staging in place.
+- Production DR bootstrap must complete before the former Staging project is a
+  usable standby.
+- A measured Production failover RTO/RPO does not exist until the protected DR
+  drill succeeds.
+- Primary and DR are both in Tokyo, so this design does not cover a complete
+  regional outage.
