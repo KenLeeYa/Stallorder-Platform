@@ -14,8 +14,14 @@ on:
         description: Type CREATE_PRODUCTION_DR or MEASURE_PRODUCTION_DR
         required: true
         type: string
+      resume_backup_run_id:
+        description: Prior successful encrypted former-Staging backup run to reuse
+        required: false
+        type: string
+        default: ""
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -40,6 +46,7 @@ jobs:
       DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
       PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
       DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
+      RESUME_BACKUP_RUN_ID: ${{ inputs.resume_backup_run_id }}
     steps:
       - name: Validate protected invocation
         run: |
@@ -52,6 +59,10 @@ jobs:
             echo "::error::Confirmation must be CREATE_PRODUCTION_DR."
             exit 1
           }
+          if [ -n "$RESUME_BACKUP_RUN_ID" ] && [[ ! "$RESUME_BACKUP_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::resume_backup_run_id must contain digits only."
+            exit 1
+          fi
           for name in \
             SUPABASE_ACCESS_TOKEN \
             DR_SUPABASE_DB_PASSWORD \
@@ -79,6 +90,89 @@ jobs:
             echo "::error::main does not match the verified staging tree."
             exit 1
           }
+
+      - name: Download verified former Staging backup
+        if: inputs.resume_backup_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: production-dr-encrypted-backups-${{ inputs.resume_backup_run_id }}
+          path: dr-resume-artifacts
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.resume_backup_run_id }}
+
+      - name: Validate resumed former Staging backup
+        if: inputs.resume_backup_run_id != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          verification=dr-resume-artifacts/backup-verification.json
+          inventory=dr-resume-artifacts/pre-conversion-inventory.json
+          test -f "$verification"
+          test -f "$inventory"
+          jq -e \
+            --arg run_id "$RESUME_BACKUP_RUN_ID" \
+            '.runId == $run_id
+              and .formerStagingRestoreTest == true
+              and .encrypted == true' \
+            "$verification" >/dev/null
+          jq -e \
+            '(.formerStagingAuthUsers | type) == "number"
+              and .formerStagingStorageObjects == 0' \
+            "$inventory" >/dev/null
+          artifact_commit="$(jq -r '.commit' "$verification")"
+          run_metadata="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${RESUME_BACKUP_RUN_ID}"
+          )"
+          jq -e \
+            --arg artifact_commit "$artifact_commit" \
+            '.path == ".github/workflows/production-dr-operations.yml"
+              and .event == "workflow_dispatch"
+              and .head_branch == "main"
+              and .head_sha == $artifact_commit' \
+            <<<"$run_metadata" >/dev/null
+          git merge-base --is-ancestor "$artifact_commit" HEAD
+          mapfile -t checksums < <(
+            find dr-resume-artifacts -maxdepth 1 -type f \
+              -name 'former-staging-*.dump.enc.sha256' \
+              -print | sort
+          )
+          mapfile -t encrypted_archives < <(
+            find dr-resume-artifacts -maxdepth 1 -type f \
+              -name 'former-staging-*.dump.enc' \
+              -print | sort
+          )
+          test "${#checksums[@]}" = "3"
+          test "${#encrypted_archives[@]}" = "3"
+          for checksum_file in "${checksums[@]}"; do
+            encrypted_file="${checksum_file%.sha256}"
+            test -f "$encrypted_file"
+            expected_hash="$(cut -d ' ' -f 1 "$checksum_file")"
+            printf '%s  %s\n' "$expected_hash" "$encrypted_file" |
+              sha256sum --check --status -
+          done
+          install -d -m 700 dr-resume-verify
+          cleanup_resume_plaintext() {
+            find dr-resume-verify -maxdepth 1 -type f -exec shred -u {} +
+            rmdir dr-resume-verify 2>/dev/null || true
+          }
+          trap cleanup_resume_plaintext EXIT
+          docker pull postgres:17 >/dev/null
+          for encrypted_file in "${encrypted_archives[@]}"; do
+            decrypted_file="dr-resume-verify/$(basename "${encrypted_file%.enc}")"
+            openssl enc -d -aes-256-cbc -pbkdf2 \
+              -in "$encrypted_file" \
+              -out "$decrypted_file" \
+              -pass env:DR_BACKUP_ENCRYPTION_KEY
+            docker run --rm \
+              -v "$PWD/dr-resume-verify:/out" postgres:17 \
+              pg_restore --list "/out/$(basename "$decrypted_file")" >/dev/null
+            shred -u "$decrypted_file"
+          done
+          cleanup_resume_plaintext
+          trap - EXIT
 
       - uses: actions/setup-node@v4
         with:
@@ -148,36 +242,47 @@ jobs:
             run_psql_scalar "$DIRECT_URL" "select count(*) from storage.objects"
           )"
 
-          run_pg_dump "$DR_DIRECT_URL" \
-            --schema public \
-            --format custom \
-            --compress 6 \
-            --no-owner \
-            --no-acl \
-            --file /out/former-staging-public.dump
-          run_pg_dump "$DR_DIRECT_URL" \
-            --schema public \
-            --data-only \
-            --format custom \
-            --compress 6 \
-            --no-owner \
-            --no-acl \
-            --file /out/former-staging-public-data.dump
-          run_pg_dump "$DR_DIRECT_URL" \
-            --schema auth \
-            --schema storage \
-            --data-only \
-            --format custom \
-            --compress 6 \
-            --no-owner \
-            --no-acl \
-            --file /out/former-staging-auth-storage-data.dump
-          former_staging_auth_users="$(
-            run_psql_scalar "$DR_DIRECT_URL" "select count(*) from auth.users"
-          )"
-          former_staging_storage_objects="$(
-            run_psql_scalar "$DR_DIRECT_URL" "select count(*) from storage.objects"
-          )"
+          if [ -z "$RESUME_BACKUP_RUN_ID" ]; then
+            run_pg_dump "$DR_DIRECT_URL" \
+              --schema public \
+              --format custom \
+              --compress 6 \
+              --no-owner \
+              --no-acl \
+              --file /out/former-staging-public.dump
+            run_pg_dump "$DR_DIRECT_URL" \
+              --schema public \
+              --data-only \
+              --format custom \
+              --compress 6 \
+              --no-owner \
+              --no-acl \
+              --file /out/former-staging-public-data.dump
+            run_pg_dump "$DR_DIRECT_URL" \
+              --schema auth \
+              --schema storage \
+              --data-only \
+              --format custom \
+              --compress 6 \
+              --no-owner \
+              --no-acl \
+              --file /out/former-staging-auth-storage-data.dump
+            former_staging_auth_users="$(
+              run_psql_scalar "$DR_DIRECT_URL" "select count(*) from auth.users"
+            )"
+            former_staging_storage_objects="$(
+              run_psql_scalar "$DR_DIRECT_URL" "select count(*) from storage.objects"
+            )"
+          else
+            former_staging_auth_users="$(
+              jq -r '.formerStagingAuthUsers' \
+                dr-resume-artifacts/pre-conversion-inventory.json
+            )"
+            former_staging_storage_objects="$(
+              jq -r '.formerStagingStorageObjects' \
+                dr-resume-artifacts/pre-conversion-inventory.json
+            )"
+          fi
           for archive in dr-artifacts/*.dump; do
             docker run --rm \
               -v "$PWD/dr-artifacts:/out" postgres:17 \
@@ -309,53 +414,55 @@ jobs:
               --command "select count(*) > 0 from public.profiles" \
             | grep -q t
 
-          npx supabase db reset --local --no-seed
-          docker run --rm --network host --env PGPASSWORD \
-            -v "$PWD/dr-artifacts:/out" postgres:17 \
-            psql \
-              --host 127.0.0.1 \
-              --port 54322 \
-              --username postgres \
-              --dbname postgres \
-              --set ON_ERROR_STOP=1 \
-              --file /out/prepare-public-restore.sql
-          docker run --rm --network host --env PGPASSWORD \
-            -v "$PWD/dr-artifacts:/out" postgres:17 \
-            pg_restore \
-              --host 127.0.0.1 \
-              --port 54322 \
-              --username postgres \
-              --dbname postgres \
-              --data-only \
-              --schema auth \
-              --table users \
-              --no-owner \
-              --no-acl \
-              --single-transaction \
-              --exit-on-error \
-              /out/former-staging-auth-storage-data.dump
-          docker run --rm --network host --env PGPASSWORD \
-            -v "$PWD/dr-artifacts:/out" postgres:17 \
-            pg_restore \
-              --host 127.0.0.1 \
-              --port 54322 \
-              --username postgres \
-              --dbname postgres \
-              --data-only \
-              --no-owner \
-              --no-acl \
-              --single-transaction \
-              --exit-on-error \
-              /out/former-staging-public-data.dump
-          docker run --rm --network host --env PGPASSWORD \
-            -v "$PWD/dr-artifacts:/out" postgres:17 \
-            psql \
-              --host 127.0.0.1 \
-              --port 54322 \
-              --username postgres \
-              --dbname postgres \
-              --set ON_ERROR_STOP=1 \
-              --file /out/enable-public-user-triggers.sql
+          if [ -z "$RESUME_BACKUP_RUN_ID" ]; then
+            npx supabase db reset --local --no-seed
+            docker run --rm --network host --env PGPASSWORD \
+              -v "$PWD/dr-artifacts:/out" postgres:17 \
+              psql \
+                --host 127.0.0.1 \
+                --port 54322 \
+                --username postgres \
+                --dbname postgres \
+                --set ON_ERROR_STOP=1 \
+                --file /out/prepare-public-restore.sql
+            docker run --rm --network host --env PGPASSWORD \
+              -v "$PWD/dr-artifacts:/out" postgres:17 \
+              pg_restore \
+                --host 127.0.0.1 \
+                --port 54322 \
+                --username postgres \
+                --dbname postgres \
+                --data-only \
+                --schema auth \
+                --table users \
+                --no-owner \
+                --no-acl \
+                --single-transaction \
+                --exit-on-error \
+                /out/former-staging-auth-storage-data.dump
+            docker run --rm --network host --env PGPASSWORD \
+              -v "$PWD/dr-artifacts:/out" postgres:17 \
+              pg_restore \
+                --host 127.0.0.1 \
+                --port 54322 \
+                --username postgres \
+                --dbname postgres \
+                --data-only \
+                --no-owner \
+                --no-acl \
+                --single-transaction \
+                --exit-on-error \
+                /out/former-staging-public-data.dump
+            docker run --rm --network host --env PGPASSWORD \
+              -v "$PWD/dr-artifacts:/out" postgres:17 \
+              psql \
+                --host 127.0.0.1 \
+                --port 54322 \
+                --username postgres \
+                --dbname postgres \
+                --set ON_ERROR_STOP=1 \
+                --file /out/enable-public-user-triggers.sql
+          fi
           unset PGPASSWORD
           npx supabase stop --no-backup
 
@@ -363,6 +470,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [ -n "$RESUME_BACKUP_RUN_ID" ]; then
+            cp dr-resume-artifacts/former-staging-*.dump.enc \
+              dr-resume-artifacts/former-staging-*.dump.enc.sha256 \
+              dr-artifacts/
+            cp dr-resume-artifacts/backup-verification.json \
+              dr-artifacts/resumed-former-staging-backup-verification.json
+          fi
           sudo chown "$(id -u):$(id -g)" dr-artifacts/*.dump
           for file in dr-artifacts/*.dump; do
             openssl enc -aes-256-cbc -pbkdf2 -salt \
@@ -375,12 +489,16 @@ jobs:
           rm -f \
             dr-artifacts/prepare-public-restore.sql \
             dr-artifacts/enable-public-user-triggers.sql
+          for checksum_file in dr-artifacts/*.dump.enc.sha256; do
+            sha256sum --check --status "$checksum_file"
+          done
           cat > dr-artifacts/backup-verification.json <<JSON
           {
             "runId": "${GITHUB_RUN_ID}",
             "commit": "${GITHUB_SHA}",
             "primaryRestoreTest": true,
             "formerStagingRestoreTest": true,
+            "resumedFormerStagingBackupRunId": "${RESUME_BACKUP_RUN_ID}",
             "encrypted": true
           }
           JSON
