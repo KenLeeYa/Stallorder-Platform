@@ -88,7 +88,6 @@ No report may claim measured RTO or RPO until the workflow artifact contains
 GitHub `production` environment secrets:
 
 - `SUPABASE_ACCESS_TOKEN`
-- `SUPABASE_DB_PASSWORD`
 - `DR_SUPABASE_DB_PASSWORD`
 - `PRIMARY_REPLICATION_PASSWORD`
 - `DR_BACKUP_ENCRYPTION_KEY`
@@ -105,7 +104,11 @@ GitHub `production` environment variables:
 Values must never be committed or printed. Database URLs are assembled at run
 time and masked before use. The workflow retrieves each project's current
 Supavisor and database endpoints from the authenticated Supabase Management
-API; it does not hard-code a regional Pooler hostname.
+API; it does not hard-code a regional Pooler hostname. Primary administrative
+connections use the PAT through Supabase Temporary Access with a two-hour
+`postgres` mapping that is renewed per operation. Production application
+connections continue using Vercel's existing encrypted database variables;
+the DR workflow does not reset or disclose that password.
 
 ## Recovery
 

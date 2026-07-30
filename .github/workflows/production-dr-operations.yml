@@ -37,7 +37,6 @@ jobs:
     environment: production
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
       PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
       DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
@@ -55,7 +54,6 @@ jobs:
           }
           for name in \
             SUPABASE_ACCESS_TOKEN \
-            SUPABASE_DB_PASSWORD \
             DR_SUPABASE_DB_PASSWORD \
             PRIMARY_REPLICATION_PASSWORD \
             DR_BACKUP_ENCRYPTION_KEY \
@@ -361,7 +359,6 @@ jobs:
     environment: production
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
       PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -392,7 +389,6 @@ jobs:
           }
           for name in \
             SUPABASE_ACCESS_TOKEN \
-            SUPABASE_DB_PASSWORD \
             DR_SUPABASE_DB_PASSWORD \
             PRIMARY_REPLICATION_PASSWORD \
             VERCEL_TOKEN \
