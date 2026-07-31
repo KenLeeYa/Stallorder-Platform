@@ -1301,6 +1301,23 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
               </div>
             ) : null}
 
+            {message ? (
+              <div role="alert" className="mt-5 rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-900">
+                <div className="flex items-start gap-2">
+                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p className="font-semibold">{message}</p>
+                </div>
+                {message === "現金交易前必須先開啟現金班次。" ? (
+                  <Link
+                    href={`/staff/${stall.slug}/cash`}
+                    className="mt-3 inline-flex min-h-10 items-center rounded-md bg-teal-800 px-4 py-2 font-semibold text-white"
+                  >
+                    前往現金交班
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
                 type="button"
