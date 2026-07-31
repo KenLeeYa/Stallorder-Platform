@@ -47,7 +47,6 @@ type PendingCancellation = Pick<OrderWithItems, "id" | "orderNo" | "customerName
 type ManualPickupReason = "DEVICE_LOST" | "TRACKING_UNAVAILABLE" | "OTHER";
 type PendingManualPickup = {
   orderId: string;
-  confirmationOrderNo: string;
   reason: ManualPickupReason;
   confirmedCustomerDetails: boolean;
 };
@@ -524,9 +523,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
   async function verifyManualPickup() {
     if (!pendingManualPickup || verifyingPickupOrderId === pendingManualPickup.orderId) return;
     const order = orders.find((candidate) => candidate.id === pendingManualPickup.orderId);
-    if (!order
-      || pendingManualPickup.confirmationOrderNo !== order.orderNo
-      || !pendingManualPickup.confirmedCustomerDetails) return;
+    if (!order || !pendingManualPickup.confirmedCustomerDetails) return;
 
     setMessage("");
     setVerifyingPickupOrderId(order.id);
@@ -536,7 +533,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
         headers: csrfHeaders(),
         body: JSON.stringify({
           mode: "MANUAL",
-          confirmationOrderNo: pendingManualPickup.confirmationOrderNo,
+          confirmationOrderNo: order.orderNo,
           reason: pendingManualPickup.reason,
           confirmedCustomerDetails: true,
         }),
@@ -1108,7 +1105,6 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
                     disabled={verifyingPickupOrderId === order.id}
                     onClick={() => setPendingManualPickup({
                       orderId: order.id,
-                      confirmationOrderNo: "",
                       reason: "DEVICE_LOST",
                       confirmedCustomerDetails: false,
                     })}
@@ -1404,20 +1400,6 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
               />
               已向顧客核對稱呼與全部餐點內容
             </label>
-            <label className="mt-4 block text-xs font-semibold text-stone-600">
-              輸入完整訂單編號以確認
-              <input type="text"
-                value={pendingManualPickup.confirmationOrderNo}
-                maxLength={30}
-                onChange={(event) => setPendingManualPickup((current) => current ? {
-                  ...current,
-                  confirmationOrderNo: event.target.value.trim().slice(0, 30),
-                } : null)}
-                autoComplete="off"
-                className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 font-mono text-sm"
-                placeholder={manualPickupOrder.orderNo}
-              />
-            </label>
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
                 type="button"
@@ -1432,7 +1414,6 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
                 disabled={
                   verifyingPickupOrderId === manualPickupOrder.id
                   || !pendingManualPickup.confirmedCustomerDetails
-                  || pendingManualPickup.confirmationOrderNo !== manualPickupOrder.orderNo
                 }
                 onClick={() => void verifyManualPickup()}
                 className="rounded-md bg-teal-800 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"

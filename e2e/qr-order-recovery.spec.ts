@@ -56,9 +56,22 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
     await staffOrder.getByRole("button", { name: "無法取得取餐碼" }).click();
 
     const manualDialog = staffPage.getByRole("alertdialog", { name: "人工核對取餐" });
+    await expect(manualDialog).toContainText(`訂單 ${orderNo}`);
+    await expect(manualDialog.getByLabel("輸入完整訂單編號以確認")).toHaveCount(0);
+    const confirmManualPickup = manualDialog.getByRole("button", { name: "確認人工取餐" });
+    await expect(confirmManualPickup).toBeDisabled();
     await manualDialog.getByLabel("已向顧客核對稱呼與全部餐點內容").check();
-    await manualDialog.getByLabel("輸入完整訂單編號以確認").fill(orderNo);
-    await manualDialog.getByRole("button", { name: "確認人工取餐" }).click();
+    await expect(confirmManualPickup).toBeEnabled();
+    const manualPickupRequest = staffPage.waitForRequest((request) => (
+      new URL(request.url()).pathname.endsWith("/verify-pickup")
+      && request.method() === "POST"
+    ));
+    await confirmManualPickup.click();
+    expect((await manualPickupRequest).postDataJSON()).toMatchObject({
+      mode: "MANUAL",
+      confirmationOrderNo: orderNo,
+      confirmedCustomerDetails: true,
+    });
     await expect(staffOrder).toContainText("已完成人工取餐核對");
   } finally {
     await staffContext.close();
