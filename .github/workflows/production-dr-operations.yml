@@ -636,6 +636,9 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Normalize protected Vercel token
+        run: node scripts/export-normalized-vercel-token.mjs
+
       - run: npm ci
       - run: npm install --global vercel@56.3.1
 
@@ -1017,6 +1020,12 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+      - name: Close pre-cutover failover gate
+        if: always() && steps.prepare.outcome != 'success'
+        env:
+          DR_CHANGE_CONFIRMATION: DISABLE_DR_FAILOVER_FLAG
+        run: node scripts/set-dr-failover-flag.mjs --disable
+
       - name: Roll back a freeze before DR promotion completed
         if: always() && steps.prepare.outcome == 'success' && steps.promote_dr_db.outcome != 'success'
         env:
@@ -1037,7 +1046,7 @@ jobs:
             node scripts/wait-for-active-backend.mjs
 
       - name: Enforce completed failback
-        if: always()
+        if: always() && steps.prepare.outcome == 'success'
         run: |
           test "${{ steps.promote_primary_app.outcome }}" = "success" || {
             echo "::error::Primary failback did not complete; keep the current writer fenced and follow the runbook."

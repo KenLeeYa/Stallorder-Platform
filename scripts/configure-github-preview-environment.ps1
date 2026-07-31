@@ -106,8 +106,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $vercelToken = Read-SecretValue
+$vercelToken = $vercelToken.Replace([string][char]0xFEFF, "").Trim()
 if ([string]::IsNullOrWhiteSpace($vercelToken)) {
   throw "Vercel Preview token is empty."
+}
+if ($vercelToken -match '[\x00-\x1F\x7F-\x9F]' -or $vercelToken -match '\s') {
+  throw "Vercel Preview token contains an invalid control or whitespace character."
 }
 
 try {
