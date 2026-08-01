@@ -1,8 +1,15 @@
 import { appendFile } from "node:fs/promises";
 
+const primaryOnly = process.argv[2] === "--primary-only";
+if (process.argv.length > (primaryOnly ? 3 : 2)) {
+  throw new Error("UNSUPPORTED_ARGUMENTS");
+}
+
 const output = required("GITHUB_ENV");
-const primaryRef = projectRef("PRIMARY_SUPABASE_PROJECT_REF");
-const drRef = projectRef("DR_SUPABASE_PROJECT_REF");
+const primaryRef = projectRef(
+  primaryOnly ? "SUPABASE_PROJECT_REF" : "PRIMARY_SUPABASE_PROJECT_REF",
+);
+const drRef = primaryOnly ? null : projectRef("DR_SUPABASE_PROJECT_REF");
 
 try {
   const accessToken = required("SUPABASE_ACCESS_TOKEN");
@@ -12,7 +19,7 @@ try {
   );
   const [primaryConnection, drConnection] = await Promise.all([
     discoverConnection(primaryRef, accessToken),
-    discoverConnection(drRef, accessToken),
+    drRef ? discoverConnection(drRef, accessToken) : Promise.resolve(null),
   ]);
   const primaryDirectUrl = poolerUrl(
     primaryConnection,
@@ -21,38 +28,44 @@ try {
     false,
     true,
   );
-  const drDirectUrl = poolerUrl(
-    drConnection,
-    required("DR_SUPABASE_DB_PASSWORD"),
-    5432,
-    false,
-    false,
-  );
-  const drRuntimeUrl = poolerUrl(
-    drConnection,
-    required("DR_SUPABASE_DB_PASSWORD"),
-    drConnection.transactionPort,
-    true,
-    false,
-  );
-  const replicationUrl = postgresUrl({
-    username: "stallorder_replication",
-    password: required("PRIMARY_REPLICATION_PASSWORD"),
-    hostname: primaryConnection.databaseHost,
-    port: 5432,
-    database: "postgres",
-    search: {
-      sslmode: "require",
-      connect_timeout: "10",
-      options: "-crow_security=off",
-    },
-  });
-  const values = {
-    DIRECT_URL: primaryDirectUrl,
-    DR_DIRECT_URL: drDirectUrl,
-    DR_RUNTIME_DATABASE_URL: drRuntimeUrl,
-    PRIMARY_REPLICATION_URL: replicationUrl,
-  };
+  let values;
+  if (primaryOnly) {
+    values = { SUPABASE_CI_DATABASE_URL: primaryDirectUrl };
+  } else {
+    const drPassword = required("DR_SUPABASE_DB_PASSWORD");
+    const drDirectUrl = poolerUrl(
+      drConnection,
+      drPassword,
+      5432,
+      false,
+      false,
+    );
+    const drRuntimeUrl = poolerUrl(
+      drConnection,
+      drPassword,
+      drConnection.transactionPort,
+      true,
+      false,
+    );
+    const replicationUrl = postgresUrl({
+      username: "stallorder_replication",
+      password: required("PRIMARY_REPLICATION_PASSWORD"),
+      hostname: primaryConnection.databaseHost,
+      port: 5432,
+      database: "postgres",
+      search: {
+        sslmode: "require",
+        connect_timeout: "10",
+        options: "-crow_security=off",
+      },
+    });
+    values = {
+      DIRECT_URL: primaryDirectUrl,
+      DR_DIRECT_URL: drDirectUrl,
+      DR_RUNTIME_DATABASE_URL: drRuntimeUrl,
+      PRIMARY_REPLICATION_URL: replicationUrl,
+    };
+  }
   for (const value of Object.values(values)) {
     console.log(`::add-mask::${value}`);
   }
@@ -64,14 +77,18 @@ try {
     { encoding: "utf8" },
   );
   console.log(JSON.stringify({
-    event: "dr_database_urls_exported",
+    event: primaryOnly
+      ? "supabase_ci_database_url_exported"
+      : "dr_database_urls_exported",
     variableNames: Object.keys(values),
     endpointsDiscoveredFromManagementApi: true,
     primaryTemporaryAccessExpiresAt: temporaryAccessExpiresAt,
   }));
 } catch (error) {
   console.error(JSON.stringify({
-    event: "dr_database_url_export_failed",
+    event: primaryOnly
+      ? "supabase_ci_database_url_export_failed"
+      : "dr_database_url_export_failed",
     reason: error instanceof Error ? error.message : "UNKNOWN",
   }));
   process.exitCode = 1;
