@@ -56,7 +56,11 @@ type Catalog = { categories: Category[]; groups: Group[]; products: Product[] };
 type Stall = { id: string; name: string; isActive: boolean };
 type CategoryDraft = Omit<Category, "id"> & { id?: string };
 type GroupDraft = Omit<Group, "id"> & { id?: string };
-type ProductDraft = Omit<Product, "id" | "stallProducts"> & { id?: string; stallIds: string[] };
+type ProductDraft = Omit<Product, "id" | "stallProducts" | "defaultPrice"> & {
+  id?: string;
+  stallIds: string[];
+  defaultPrice: number | "";
+};
 type ImportPreview = {
   file: File;
   totalCount: number;
@@ -171,7 +175,7 @@ export function SharedCatalogManager({
       groupId: group?.id ?? null,
       name: "",
       description: "",
-      defaultPrice: 0,
+      defaultPrice: "",
       imageUrl: null,
       sortOrder: catalog.products.length + 1,
       isActive: true,
@@ -211,7 +215,7 @@ export function SharedCatalogManager({
 
   async function saveProduct(event: FormEvent) {
     event.preventDefault();
-    if (!productDraft) return;
+    if (!productDraft || productDraft.defaultPrice === "") return;
     const data = {
       categoryId: productDraft.categoryId,
       groupId: productDraft.groupId,
@@ -450,7 +454,7 @@ export function SharedCatalogManager({
             <TextField label="商品名稱" value={productDraft.name} onChange={(name) => setProductDraft({ ...productDraft, name })} wide />
             <SelectField label="分類" value={productDraft.categoryId} options={sortedCategories.map((category) => ({ value: category.id, label: category.name }))} onChange={(categoryId) => setProductDraft({ ...productDraft, categoryId, groupId: null })} />
             <SelectField label="群組" value={productDraft.groupId ?? ""} options={[{ value: "", label: "不分組" }, ...catalog.groups.filter((group) => group.categoryId === productDraft.categoryId).map((group) => ({ value: group.id, label: group.name }))]} onChange={(groupId) => setProductDraft({ ...productDraft, groupId: groupId || null })} />
-            <NumberField label="預設售價" value={productDraft.defaultPrice} onChange={(defaultPrice) => setProductDraft({ ...productDraft, defaultPrice })} />
+            <PriceField label="預設售價" value={productDraft.defaultPrice} onChange={(defaultPrice) => setProductDraft({ ...productDraft, defaultPrice })} />
             <NumberField label="排序" value={productDraft.sortOrder} onChange={(sortOrder) => setProductDraft({ ...productDraft, sortOrder })} />
             <label className="text-sm font-medium text-stone-700 sm:col-span-2">商品描述<textarea maxLength={500} rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>
             <div className="grid gap-3 sm:col-span-2 sm:grid-cols-[1fr_auto]">
@@ -523,6 +527,10 @@ function TextField({ label, value, onChange, wide = false, required = true }: { 
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return <label className="text-sm font-medium text-stone-700">{label}<input required type="number" min={0} max={10_000_000} value={value} onChange={(event) => onChange(Number(event.target.value))} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>;
+}
+
+function PriceField({ label, value, onChange }: { label: string; value: number | ""; onChange: (value: number | "") => void }) {
+  return <label className="text-sm font-medium text-stone-700">{label}<input required type="number" min={0} max={10_000_000} value={value} onChange={(event) => onChange(event.target.value === "" ? "" : Number(event.target.value))} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>;
 }
 
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void }) {

@@ -164,6 +164,24 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await checkout.getByRole("button", { name: "$500" }).click();
   await expect(checkout).toContainText("$135");
   await expect(checkout).toContainText("$365");
+  await staffPage.route("**/api/stalls/aming-chicken/orders/*", async (route) => {
+    await route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "現金交易前必須先開啟現金班次。",
+        code: "ACTIVE_SHIFT_REQUIRED",
+      }),
+    });
+  }, { times: 1 });
+  const rejectedCheckoutResponse = staffPage.waitForResponse((response) => (
+    response.url().includes("/api/stalls/aming-chicken/orders/")
+    && response.request().method() === "PATCH"
+  ));
+  await checkout.getByRole("button", { name: "完成訂單", exact: true }).click();
+  expect((await rejectedCheckoutResponse).status()).toBe(409);
+  await expect(checkout.getByRole("alert")).toContainText("現金交易前必須先開啟現金班次。");
+  await expect(checkout.getByRole("link", { name: "前往現金交班" })).toHaveAttribute("href", "/staff/aming-chicken/cash");
   const checkoutResponse = staffPage.waitForResponse((response) => (
     response.url().includes("/api/stalls/aming-chicken/orders/")
     && response.request().method() === "PATCH"

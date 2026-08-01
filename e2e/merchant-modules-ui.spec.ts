@@ -258,6 +258,31 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   const editor = page.getByRole("dialog", { name: "編輯商品" });
   await expect(editor.getByLabel("圖片網址")).toBeVisible();
   await expect(editor.getByText("本機上傳", { exact: true })).toBeVisible();
+  await expect(editor.getByLabel("預設售價")).toHaveValue(/^\d+$/);
   await expect(editor.getByLabel("英文名稱")).toHaveValue("Deep-Fried Chicken Cutlet");
   await expect(editor.getByLabel("日文名稱")).toHaveValue("鶏肉の揚げ物");
+  await editor.getByRole("button", { name: "關閉" }).click();
+
+  await page.getByRole("button", { name: "商品", exact: true }).click();
+  const createEditor = page.getByRole("dialog", { name: "新增商品" });
+  const defaultPrice = createEditor.getByLabel("預設售價");
+  await expect(defaultPrice).toHaveValue("");
+  expect(await defaultPrice.evaluate((element: HTMLInputElement) => element.validity.valueMissing)).toBe(true);
+  await defaultPrice.pressSequentially("95");
+  await expect(defaultPrice).toHaveValue("95");
+  await defaultPrice.clear();
+  await defaultPrice.pressSequentially("0");
+  await expect(defaultPrice).toHaveValue("0");
+  expect(await defaultPrice.evaluate((element: HTMLInputElement) => element.validity.valid)).toBe(true);
+  await defaultPrice.clear();
+  await createEditor.getByLabel("商品名稱").fill("未送出測試商品");
+  let catalogPostCount = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname === `/api/merchant/organizations/${organizationId}/catalog`) catalogPostCount += 1;
+  });
+  await createEditor.getByRole("button", { name: "儲存" }).click();
+  expect(catalogPostCount).toBe(0);
+  await expect(createEditor).toBeVisible();
+  await expect(defaultPrice).toHaveValue("");
+  await createEditor.getByRole("button", { name: "關閉" }).click();
 });
