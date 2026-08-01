@@ -51,9 +51,9 @@ async function probePrimary(
   if (parsed.protocol !== "https:") return "DEGRADED";
 
   try {
-    const response = await fetcher(parsed, {
+    const response = await fetcher(parsed.href, {
       headers: { accept: "application/json" },
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(3_000),
     });
     if (!response.ok) return "DEGRADED";
