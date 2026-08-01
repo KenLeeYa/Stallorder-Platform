@@ -115,7 +115,7 @@ test("安全工作階段失敗時顯示錯誤並可重新建立", async ({ page 
 
   await page.goto(`/q/${demoQrToken}`);
 
-  const sessionStatus = page.getByTestId("qr-session-status");
+  const sessionStatus = page.locator("#main-content").getByTestId("qr-session-status");
   await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
   await expect(sessionStatus).toHaveAttribute("data-ordering-availability", "AVAILABLE");
   expect(sessionAttempts).toBe(1);
@@ -201,7 +201,7 @@ test("後端 target 切換時忽略舊工作階段的晚到失敗", async ({ pag
 
   await page.goto(`/q/${demoQrToken}`);
 
-  const sessionStatus = page.getByTestId("qr-session-status");
+  const sessionStatus = page.locator("#main-content").getByTestId("qr-session-status");
   await expect(sessionStatus).toHaveAttribute("data-ordering-availability", "AVAILABLE");
   expect(sessionAttempts).toBe(1);
 
