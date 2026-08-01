@@ -1,0 +1,20 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "stallorder-status",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "status.qidaigo.com",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "PRIMARY_HEALTH_URL": "https://app.qidaigo.com/api/health",
+    "INCIDENT_STATUS": "OPERATIONAL",
+    "INCIDENT_SUMMARY": "目前無已知重大事故。",
+    "INCIDENT_WORKAROUND": "若頁面暫時無法操作，請稍後重試或直接聯繫現場商家。",
+    "PAYMENT_STATUS": "OPERATIONAL"
+  }
+}

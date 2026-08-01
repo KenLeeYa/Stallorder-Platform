@@ -44,7 +44,10 @@ test.describe("P8 生產韌性故障注入", () => {
   });
 
   test("Supabase Edge 回傳 503 時以同一請求識別轉入 Circuit B", async ({ page }) => {
-    await page.route("**/functions/v1/create-order-session", async (route) => {
+    await page.route((url) => [
+      "/functions/v1/create-order-session",
+      "/api/public-order/create-order-session",
+    ].includes(url.pathname), async (route) => {
       await route.fulfill({
         status: 503,
         contentType: "application/json",

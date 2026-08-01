@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Copy, Eye, EyeOff, PackageCheck, PackageX, Save } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
@@ -36,6 +36,7 @@ export function StallCatalogSettings({
   sourceStalls: Array<{ id: string; name: string; code: string }>;
 }) {
   const [products, setProducts] = useState(initialProducts);
+  const productsRef = useRef(initialProducts);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
@@ -47,7 +48,7 @@ export function StallCatalogSettings({
   const allSelected = products.length > 0 && products.every((product) => selectedProductIds.has(product.productId));
 
   function update(productId: string, changes: Partial<StallCatalogProduct>) {
-    setProducts((current) => current.map((product) => product.productId === productId
+    const nextProducts = productsRef.current.map((product) => product.productId === productId
       ? {
         ...product,
         ...changes,
@@ -56,11 +57,15 @@ export function StallCatalogSettings({
           changes.priceOverride === undefined ? product.priceOverride : changes.priceOverride,
         ),
       }
-      : product));
+      : product);
+    productsRef.current = nextProducts;
+    setProducts(nextProducts);
   }
 
-  async function save(product: StallCatalogProduct) {
-    setBusyId(product.productId);
+  async function save(productId: string) {
+    const product = productsRef.current.find((candidate) => candidate.productId === productId);
+    if (!product) return;
+    setBusyId(productId);
     setMessage("");
     try {
       const response = await fetch(`/api/merchant/stalls/${stallId}/products/${product.productId}`, {
@@ -97,7 +102,9 @@ export function StallCatalogSettings({
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "目前無法批次更新商品。");
-      setProducts(payload.products as StallCatalogProduct[]);
+      const nextProducts = payload.products as StallCatalogProduct[];
+      productsRef.current = nextProducts;
+      setProducts(nextProducts);
       setSelectedProductIds(new Set());
       setMessage(`${successMessage}（${payload.changedCount} 項）`);
     } catch (error) {
@@ -167,7 +174,7 @@ export function StallCatalogSettings({
                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                     <button type="button" role="switch" aria-checked={product.isEnabled} onClick={() => update(product.productId, { isEnabled: !product.isEnabled })} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold ${product.isEnabled ? "border border-stone-300" : "bg-stone-900 text-white"}`}>{product.isEnabled ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{product.isEnabled ? "已啟用" : "已停用"}</button>
                     <label className="flex min-h-10 items-center gap-2 text-sm font-semibold text-red-800"><input type="checkbox" checked={product.isSoldOut} onChange={(event) => update(product.productId, { isSoldOut: event.target.checked })} />售罄</label>
-                    <button type="button" title={`儲存 ${product.name}`} disabled={busyId !== null} onClick={() => void save(product)} className="grid h-10 w-10 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-50"><Save className="h-4 w-4" /><span className="sr-only">儲存 {product.name}</span></button>
+                    <button type="button" title={`儲存 ${product.name}`} disabled={busyId !== null} onClick={() => void save(product.productId)} className="grid h-10 w-10 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-50"><Save className="h-4 w-4" /><span className="sr-only">儲存 {product.name}</span></button>
                   </div>
                 </div>
               ))}

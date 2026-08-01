@@ -17,7 +17,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
@@ -47,6 +47,30 @@ jobs:
         run: npm test
       - name: Start local Supabase
         run: npx supabase start
+      - name: Configure local E2E runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(npx supabase status -o env)"
+          for entry in \
+            "NEXT_PUBLIC_SUPABASE_URL=${API_URL}" \
+            "PRIMARY_SUPABASE_URL=${API_URL}" \
+            "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${PUBLISHABLE_KEY}" \
+            "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}" \
+            "SUPABASE_SECRET_KEY=${SERVICE_ROLE_KEY}" \
+            "PRIMARY_SUPABASE_SECRET_KEY=${SERVICE_ROLE_KEY}"; do
+            value="${entry#*=}"
+            echo "::add-mask::${value}"
+            echo "${entry}" >> "$GITHUB_ENV"
+          done
+          for name in \
+            AUDIT_IP_HASH_SECRET \
+            SESSION_FINGERPRINT_HASH_SECRET \
+            OFFLINE_PERMIT_SIGNING_SECRET; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::${value}"
+            echo "${name}=${value}" >> "$GITHUB_ENV"
+          done
       - name: Rebuild local database from migrations
         run: npx supabase db reset
       - name: Database tests
@@ -56,7 +80,21 @@ jobs:
       - name: Production guardrails
         run: npm run production:check
       - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:55431
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
         run: npm run build
+      - name: Verify independent status Worker bundle
+        run: npm run status:check
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Playwright end-to-end tests
+        env:
+          PLAYWRIGHT_PRODUCTION_SERVER: "true"
+          PLAYWRIGHT_APP_URL: http://127.0.0.1:3000
+        run: npm run test:e2e
+      - name: Production-mode resilience smoke
+        run: npm run test:e2e:resilience:production
       - name: Dependency audit
         run: npm audit --audit-level=moderate
       - name: Stop local Supabase

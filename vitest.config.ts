@@ -13,5 +13,6 @@ export default defineConfig({
   },
   test: {
     exclude: [...configDefaults.exclude, "e2e/**"],
+    maxWorkers: 4,
   },
 });

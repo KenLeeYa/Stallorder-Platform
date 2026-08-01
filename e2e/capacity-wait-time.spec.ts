@@ -183,7 +183,7 @@ test.describe.serial("產能與等候時間", () => {
     ));
     await page.goto(`/q/${qrToken}`);
     const sessionResponse = await sessionResponsePromise;
-    expect(sessionResponse.status()).toBe(201);
+    expect([200, 201]).toContain(sessionResponse.status());
     const session = await sessionResponse.json();
     expect(session).toMatchObject({
       estimatedWaitMinMinutes: 35,

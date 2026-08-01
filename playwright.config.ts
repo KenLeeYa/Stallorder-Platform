@@ -17,7 +17,21 @@ const appUrl = process.env.PLAYWRIGHT_APP_URL ?? "http://localhost:3001";
 const oauthMockUrl = "http://127.0.0.1:55431";
 const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === "true";
 const productionServer = process.env.PLAYWRIGHT_PRODUCTION_SERVER === "true";
-const appServerCommand = productionServer ? "next start -p 3001" : "next dev -p 3001";
+const parsedAppUrl = new URL(appUrl);
+const appPort = Number.parseInt(parsedAppUrl.port || "80", 10);
+if (
+  !reuseExistingServer
+  && (!['localhost', '127.0.0.1'].includes(parsedAppUrl.hostname)
+    || parsedAppUrl.protocol !== "http:"
+    || !Number.isSafeInteger(appPort)
+    || appPort < 1_024
+    || appPort > 65_535)
+) {
+  throw new Error("PLAYWRIGHT_LOCAL_APP_URL_INVALID");
+}
+const appServerCommand = productionServer
+  ? `next start -p ${appPort}`
+  : `next dev -p ${appPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -33,6 +47,9 @@ export default defineConfig({
   use: {
     ...devices["Desktop Chrome"],
     baseURL: appUrl,
+    extraHTTPHeaders: productionServer
+      ? { "x-vercel-forwarded-for": "203.0.113.10" }
+      : undefined,
     locale: "zh-TW",
     timezoneId: "Asia/Taipei",
     screenshot: "only-on-failure",

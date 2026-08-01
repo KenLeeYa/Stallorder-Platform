@@ -163,10 +163,11 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
 
       await localizationPage.goto(`/merchant/localization?organizationId=${organizationId}`);
       await expect(localizationPage.getByText("日本語", { exact: true })).toHaveCount(0);
-      const disabledPreview = await localizationPage.request.get(
-        `/merchant/localization/preview?organizationId=${organizationId}&stallId=${stallId}&locale=ja`,
-      );
-      expect(disabledPreview.status()).toBe(404);
+      const disabledPreviewStatus = await localizationPage.evaluate(async (url) => {
+        const response = await fetch(url, { credentials: "same-origin" });
+        return response.status;
+      }, `/merchant/localization/preview?organizationId=${organizationId}&stallId=${stallId}&locale=ja`);
+      expect(disabledPreviewStatus).toBe(404);
     } finally {
       await localizationPage.close();
     }

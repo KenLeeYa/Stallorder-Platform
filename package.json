@@ -14,6 +14,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "concurrently --kill-others --success command-1 \"npm run functions:serve:e2e\" \"playwright test\"",
+    "test:e2e:resilience:production": "cross-env PLAYWRIGHT_PRODUCTION_SERVER=true PLAYWRIGHT_APP_URL=http://127.0.0.1:3000 concurrently --kill-others --success command-1 \"npm run functions:serve:e2e\" \"playwright test e2e/offline-pwa-foundation.spec.ts e2e/qr-degraded-mode.spec.ts e2e/resilience-failure-injection.spec.ts\"",
     "typecheck": "tsc --noEmit",
     "ui:audit": "node scripts/audit-ui-controls.mjs",
     "local:doctor": "node scripts/local-dev-doctor.mjs",
@@ -40,6 +41,9 @@
     "dr:validate": "node scripts/validate-active-backend.mjs",
     "dr:failback": "node scripts/prepare-primary-failback.mjs --target PRIMARY",
     "resilience:game-day": "node scripts/run-resilience-game-day.mjs",
+    "status:plan": "node scripts/plan-status-page-deployment.mjs",
+    "status:check": "wrangler deploy --config status-worker/wrangler.jsonc --dry-run --outdir .wrangler/status-dry-run",
+    "status:deploy": "wrangler deploy --config status-worker/wrangler.jsonc",
     "db:start": "supabase start",
     "db:push": "supabase db push",
     "db:seed": "cross-env ALLOW_DEMO_SEED=true tsx prisma/seed.ts",
@@ -85,7 +89,8 @@
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "4.118.0"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
