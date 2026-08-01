@@ -77,6 +77,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const sessionRequestIdRef = useRef<string | null>(null);
   const sessionAttemptGenerationRef = useRef(0);
   const preferredLocalesRef = useRef<readonly string[]>(["zh-TW"]);
+  const localeRef = useRef<QrLocale>("zh-TW");
   const availabilityTargetRef = useRef<string | null>(null);
   const availabilityStatusRef = useRef<PublicAvailabilityStatus | "CHECKING">("CHECKING");
   const refreshAvailabilityRef = useRef<() => void>(() => undefined);
@@ -243,6 +244,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       storedLocale = null;
     }
     const browserLocale = storedLocale ?? resolvePreferredQrLocale(preferredLocales, QR_LOCALES);
+    localeRef.current = browserLocale;
     setLocale(browserLocale);
     setDeviceId(currentDeviceId);
     void startOrderSession(currentDeviceId, browserLocale, preferredLocales);
@@ -290,7 +292,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       updateOrderingAvailability("AVAILABLE");
       if (shouldStartSession) {
         if (targetChanged) sessionRequestIdRef.current = crypto.randomUUID();
-        await startOrderSession(deviceId, locale, preferredLocalesRef.current);
+        await startOrderSession(deviceId, localeRef.current, preferredLocalesRef.current);
       }
     };
 
@@ -302,9 +304,10 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       window.clearInterval(timer);
       refreshAvailabilityRef.current = () => undefined;
     };
-  }, [deviceId, locale, startOrderSession, updateOrderingAvailability]);
+  }, [deviceId, startOrderSession, updateOrderingAvailability]);
 
   useEffect(() => {
+    localeRef.current = locale;
     document.documentElement.lang = locale;
   }, [locale]);
 
@@ -363,6 +366,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
 
   function changeLocale(nextLocale: string) {
     if (!isQrLocale(nextLocale)) return;
+    localeRef.current = nextLocale;
     setLocale(nextLocale);
     setMessage("");
     try {
@@ -370,6 +374,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     } catch {
       // Browsers can block storage in private or restricted contexts.
     }
+    refreshAvailabilityRef.current();
   }
 
   const handleTurnstileToken = useCallback((token: string | null) => {
