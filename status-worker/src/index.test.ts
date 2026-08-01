@@ -17,6 +17,22 @@ describe("independent status worker", () => {
       "OPERATIONAL",
     ]);
     expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://app.qidaigo.com/api/health",
+      expect.objectContaining({ redirect: "manual" }),
+    );
+  });
+
+  it("does not follow a redirected primary health check", async () => {
+    const fetcher = vi.fn(async () => new Response(null, {
+      status: 302,
+      headers: { Location: "https://example.com/health" },
+    })) as unknown as typeof fetch;
+
+    const snapshot = await createStatusSnapshot({}, fetcher);
+
+    expect(snapshot.status).toBe("DEGRADED");
+    expect(fetcher).toHaveBeenCalledOnce();
   });
 
   it("remains available and reports degradation when the primary application is unavailable", async () => {

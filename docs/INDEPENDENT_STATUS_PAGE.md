@@ -72,13 +72,14 @@ the protected workflow and preserve the incident record.
 After deployment the workflow verifies:
 
 - `https://status.qidaigo.com/health` returns `ok` over HTTPS;
-- `/api/status` contains all three required service codes;
+- `/api/status` contains all three required service codes and reports the
+  overall status and every service as `OPERATIONAL`;
 - HSTS is present; and
 - CSP is present.
 
 The Worker deliberately returns a degraded status page when the Production
-health probe times out. A failed primary probe must not make the independent
-status page unavailable.
+health probe times out, redirects or returns an invalid response. A failed
+primary probe must not make the independent status page unavailable.
 
 ## Rollback
 
