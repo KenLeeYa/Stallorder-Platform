@@ -17,7 +17,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
@@ -80,12 +80,18 @@ jobs:
       - name: Production guardrails
         run: npm run production:check
       - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:55431
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
         run: npm run build
       - name: Verify independent status Worker bundle
         run: npm run status:check
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Playwright end-to-end tests
+        env:
+          PLAYWRIGHT_PRODUCTION_SERVER: "true"
+          PLAYWRIGHT_APP_URL: http://127.0.0.1:3000
         run: npm run test:e2e
       - name: Production-mode resilience smoke
         run: npm run test:e2e:resilience:production

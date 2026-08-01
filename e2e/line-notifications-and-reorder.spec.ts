@@ -19,8 +19,11 @@ test.describe("LINE 通知與再次點餐", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
     const kitchenPage = await newRolePage(browser, "kitchen@stallorder.test", /\/kitchen/);
-    const response = await kitchenPage.request.get(`/api/merchant/stalls/${stallId}/line`);
-    expect(response.status()).toBe(403);
+    const responseStatus = await kitchenPage.evaluate(async (url) => {
+      const response = await fetch(url, { credentials: "same-origin" });
+      return response.status;
+    }, `/api/merchant/stalls/${stallId}/line`);
+    expect(responseStatus).toBe(403);
     await kitchenPage.context().close();
   });
 
