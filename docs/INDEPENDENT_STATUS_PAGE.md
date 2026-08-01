@@ -49,7 +49,9 @@ Required GitHub `production` environment configuration:
 
 The token should be scoped to this account and the `qidaigo.com` zone with only
 Workers Scripts write/read, Workers Routes write/read and DNS read permissions
-needed by the plan and deployment.
+needed by the plan and deployment. The preflight accepts either an account-owned
+or user-owned API token and validates it through the corresponding Cloudflare
+verification endpoint before any write operation.
 
 ## Incident updates
 
