@@ -120,6 +120,8 @@ jobs:
                   for (const code of ["QR_ORDERING", "STAFF_ORDERING", "PAYMENT_CHECKOUT"]) {
                     if (!codes.has(code)) process.exit(1);
                   }
+                  if (parsed.status !== "OPERATIONAL") process.exit(1);
+                  if (parsed.services.some(service => service.status !== "OPERATIONAL")) process.exit(1);
                 });
               '
           headers="$(curl --fail --silent --show-error --head --max-time 10 https://status.qidaigo.com/)"
