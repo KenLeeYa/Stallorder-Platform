@@ -80,7 +80,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const localeRef = useRef<QrLocale>("zh-TW");
   const availabilityTargetRef = useRef<string | null>(null);
   const availabilityStatusRef = useRef<PublicAvailabilityStatus | "CHECKING">("CHECKING");
-  const refreshAvailabilityRef = useRef<() => void>(() => undefined);
+  const refreshAvailabilityRef = useRef<(retrySession?: boolean) => void>(() => undefined);
   const idempotencyRef = useRef<{
     key: string;
     clientOrderId: string;
@@ -296,7 +296,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       }
     };
 
-    refreshAvailabilityRef.current = () => void refreshAvailability(true);
+    refreshAvailabilityRef.current = (retrySession = false) => void refreshAvailability(retrySession);
     void refreshAvailability();
     const timer = window.setInterval(() => void refreshAvailability(), 10_000);
     return () => {
@@ -659,7 +659,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
                 type="button"
                 aria-label={copy.retryAvailability}
                 disabled={availabilityRefreshing}
-                onClick={() => refreshAvailabilityRef.current()}
+                onClick={() => refreshAvailabilityRef.current(true)}
                 className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border border-amber-400 bg-white px-3 text-xs font-semibold disabled:opacity-50"
               >
                 <RefreshCw className={`h-4 w-4 ${availabilityRefreshing ? "animate-spin" : ""}`} />
