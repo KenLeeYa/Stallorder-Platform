@@ -188,7 +188,11 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       setMessage("");
     } catch (error) {
       sessionReadyRef.current = false;
-      if (initialMenu && availabilityStatusRef.current === "CHECKING") {
+      if (initialMenu && (
+        availabilityStatusRef.current === "CHECKING"
+        || availabilityStatusRef.current === "AVAILABLE"
+        || availabilityStatusRef.current === "UNKNOWN"
+      )) {
         updateOrderingAvailability("UNAVAILABLE");
       }
       setMessage(error instanceof LocalizedOrderError
@@ -622,10 +626,15 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <h2 className="font-semibold">{copy.degradedTitle}</h2>
-                <p className="mt-1 text-sm leading-6">{copy.degradedMessage}</p>
+                <p className="mt-1 text-sm leading-6">
+                  {orderingAvailability === "UNAVAILABLE" && !sessionReady && message
+                    ? message
+                    : copy.degradedMessage}
+                </p>
               </div>
               <button
                 type="button"
+                aria-label={copy.retryAvailability}
                 disabled={availabilityRefreshing}
                 onClick={() => refreshAvailabilityRef.current()}
                 className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border border-amber-400 bg-white px-3 text-xs font-semibold disabled:opacity-50"
