@@ -83,6 +83,8 @@ jobs:
         run: npm run build
       - name: Verify independent status Worker bundle
         run: npm run status:check
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
       - name: Playwright end-to-end tests
         run: npm run test:e2e
       - name: Production-mode resilience smoke
