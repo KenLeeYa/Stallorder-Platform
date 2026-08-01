@@ -64,11 +64,18 @@ type Props = {
 
 class LocalizedOrderError extends Error {}
 const PHONE_NUMBER = /^\+?[0-9][0-9 ().-]{5,29}$/;
+const SESSION_REQUEST_ROTATION_CODES = new Set([
+  "SCHEDULE_CONTEXT_MISMATCH",
+  "SESSION_EXPIRED",
+  "SESSION_NOT_FOUND",
+  "SESSION_REPLAYED",
+]);
 
 export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = null }: Props) {
   const startedRef = useRef(false);
   const sessionReadyRef = useRef(false);
   const sessionRequestIdRef = useRef<string | null>(null);
+  const sessionAttemptGenerationRef = useRef(0);
   const preferredLocalesRef = useRef<readonly string[]>(["zh-TW"]);
   const availabilityTargetRef = useRef<string | null>(null);
   const availabilityStatusRef = useRef<PublicAvailabilityStatus | "CHECKING">("CHECKING");
@@ -94,6 +101,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [turnstileRequested, setTurnstileRequested] = useState(false);
   const [message, setMessage] = useState("");
+  const [sessionStartError, setSessionStartError] = useState("");
   const [isLoading, setIsLoading] = useState(!initialMenu);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
@@ -124,8 +132,11 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     browserLocale: QrLocale,
     preferredLocales: readonly string[],
   ) => {
+    const attemptGeneration = sessionAttemptGenerationRef.current + 1;
+    sessionAttemptGenerationRef.current = attemptGeneration;
     if (!sessionRequestIdRef.current) sessionRequestIdRef.current = crypto.randomUUID();
     setIsLoading(!initialMenu);
+    setSessionStartError("");
     try {
       const response = await requestPublicOrder("create-order-session", {
         qrToken,
@@ -135,8 +146,10 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         includeMenu: !initialMenu,
       });
       const payload = await parseEdgeResponse(response);
+      if (attemptGeneration !== sessionAttemptGenerationRef.current) return;
       if (!response.ok) {
         const code = String(payload.code ?? "");
+        if (SESSION_REQUEST_ROTATION_CODES.has(code)) sessionRequestIdRef.current = null;
         if (code === "QR_ORDERING_DEGRADED") updateOrderingAvailability("DEGRADED");
         if (code === "QR_ORDERING_UNAVAILABLE") updateOrderingAvailability("UNAVAILABLE");
         throw new LocalizedOrderError(
@@ -185,17 +198,25 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       }
       setSession(orderSession);
       setCartReady(true);
+      setSessionStartError("");
       setMessage("");
     } catch (error) {
+      if (attemptGeneration !== sessionAttemptGenerationRef.current) return;
       sessionReadyRef.current = false;
-      if (initialMenu && availabilityStatusRef.current === "CHECKING") {
+      if (initialMenu && (
+        availabilityStatusRef.current === "CHECKING"
+        || availabilityStatusRef.current === "AVAILABLE"
+        || availabilityStatusRef.current === "UNKNOWN"
+      )) {
         updateOrderingAvailability("UNAVAILABLE");
       }
-      setMessage(error instanceof LocalizedOrderError
+      const errorMessage = error instanceof LocalizedOrderError
         ? error.message
-        : qrOrderMessages[browserLocale].networkError);
+        : qrOrderMessages[browserLocale].networkError;
+      setSessionStartError(errorMessage);
+      setMessage(errorMessage);
     } finally {
-      setIsLoading(false);
+      if (attemptGeneration === sessionAttemptGenerationRef.current) setIsLoading(false);
     }
   }, [initialMenu, orderingMode, qrToken, updateOrderingAvailability]);
 
@@ -248,6 +269,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
 
       if (config.qrOrdering !== "AVAILABLE") {
         sessionReadyRef.current = false;
+        setSessionStartError("");
         setSession((current) => current ? {
           ...current,
           orderSessionToken: "",
@@ -622,10 +644,15 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <h2 className="font-semibold">{copy.degradedTitle}</h2>
-                <p className="mt-1 text-sm leading-6">{copy.degradedMessage}</p>
+                <p className="mt-1 text-sm leading-6">
+                  {orderingAvailability === "UNAVAILABLE" && !sessionReady && sessionStartError
+                    ? sessionStartError
+                    : copy.degradedMessage}
+                </p>
               </div>
               <button
                 type="button"
+                aria-label={copy.retryAvailability}
                 disabled={availabilityRefreshing}
                 onClick={() => refreshAvailabilityRef.current()}
                 className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border border-amber-400 bg-white px-3 text-xs font-semibold disabled:opacity-50"
@@ -636,7 +663,11 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
             </div>
           </div>
         ) : null}
-        <div className="mt-3 inline-flex items-center gap-2 text-sm text-stone-600">
+        <div
+          data-testid="qr-session-status"
+          data-ordering-availability={orderingAvailability}
+          className="mt-3 inline-flex items-center gap-2 text-sm text-stone-600"
+        >
           <Clock3 className="h-4 w-4" />
           {sessionReady
             ? copy.timeRemaining(Math.floor(secondsRemaining / 60), String(secondsRemaining % 60).padStart(2, "0"))
