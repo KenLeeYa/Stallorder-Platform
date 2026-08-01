@@ -1,0 +1,127 @@
+name: Independent Status Page
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Status page operation
+        required: true
+        type: choice
+        options:
+          - plan
+          - deploy
+      confirmation:
+        description: Type PLAN_STATUS_PAGE or DEPLOY_STATUS_PAGE
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: independent-status-page
+  cancel-in-progress: false
+
+jobs:
+  plan-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+    steps:
+      - name: Validate protected invocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::Status page operations must run from main."
+            exit 1
+          }
+          expected="PLAN_STATUS_PAGE"
+          if [ "${{ inputs.operation }}" = "deploy" ]; then
+            expected="DEPLOY_STATUS_PAGE"
+          fi
+          test "${{ inputs.confirmation }}" = "$expected" || {
+            echo "::error::Confirmation must be ${expected}."
+            exit 1
+          }
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_ZONE_ID; do
+            test -n "${!name:-}" || {
+              echo "::error::Missing protected configuration: ${name}"
+              exit 1
+            }
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verify Worker bundle without publishing
+        run: npm run status:check
+
+      - name: Build Cloudflare dry-run plan
+        run: npm run status:plan
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: status-page-deployment-plan-${{ github.run_id }}
+          path: artifacts/status-page-deployment-plan.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Deploy Worker and custom domain
+        if: inputs.operation == 'deploy'
+        run: npm run status:deploy
+
+      - name: Verify independent HTTPS status service
+        if: inputs.operation == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error --max-time 10 \
+              https://status.qidaigo.com/health | grep -qx 'ok'; then
+              break
+            fi
+            if [ "$attempt" = "60" ]; then
+              echo "::error::status.qidaigo.com did not become healthy in time."
+              exit 1
+            fi
+            sleep 10
+          done
+          curl --fail --silent --show-error --max-time 10 \
+            https://status.qidaigo.com/api/status \
+            | node -e '
+                let data = "";
+                process.stdin.on("data", chunk => data += chunk);
+                process.stdin.on("end", () => {
+                  const parsed = JSON.parse(data);
+                  const codes = new Set(parsed.services?.map(service => service.code));
+                  for (const code of ["QR_ORDERING", "STAFF_ORDERING", "PAYMENT_CHECKOUT"]) {
+                    if (!codes.has(code)) process.exit(1);
+                  }
+                });
+              '
+          headers="$(curl --fail --silent --show-error --head --max-time 10 https://status.qidaigo.com/)"
+          grep -qi '^strict-transport-security:' <<<"$headers"
+          grep -qi '^content-security-policy:' <<<"$headers"

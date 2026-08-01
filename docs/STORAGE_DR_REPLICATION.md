@@ -47,3 +47,16 @@ authoritative.
 The DR readiness snapshot compares the Primary and DR object-path inventory and
 requires every manifest checksum to be `MIRRORED`. Equal row counts alone are
 not accepted as Storage continuity evidence.
+
+## Production byte canary
+
+The protected `storage-canary` operation in
+`.github/workflows/production-dr-operations.yml` writes one random,
+non-customer JSON object under `system-canary/storage`, waits for the deployed
+five-minute replication cron, and verifies Primary and DR downloads with
+SHA-256.
+
+It then removes both object bytes and deletes the manifest/outbox record. The
+operation is successful only after the delete reaches DR. Run the dry-run first
+and use confirmation `PROVE_STORAGE_DR`; never use a customer image or menu
+snapshot as a canary.
