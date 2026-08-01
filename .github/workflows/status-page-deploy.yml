@@ -98,32 +98,36 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          status_is_operational() {
+            curl --fail --silent --show-error --max-time 10 \
+              https://status.qidaigo.com/api/status \
+              | node -e '
+                  let data = "";
+                  process.stdin.on("data", chunk => data += chunk);
+                  process.stdin.on("end", () => {
+                    const parsed = JSON.parse(data);
+                    if (!Array.isArray(parsed.services)) process.exit(1);
+                    const codes = new Set(parsed.services.map(service => service.code));
+                    for (const code of ["QR_ORDERING", "STAFF_ORDERING", "PAYMENT_CHECKOUT"]) {
+                      if (!codes.has(code)) process.exit(1);
+                    }
+                    if (parsed.status !== "OPERATIONAL") process.exit(1);
+                    if (parsed.services.some(service => service.status !== "OPERATIONAL")) process.exit(1);
+                  });
+                '
+          }
           for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error --max-time 10 \
-              https://status.qidaigo.com/health | grep -qx 'ok'; then
+              https://status.qidaigo.com/health | grep -qx 'ok' \
+              && status_is_operational; then
               break
             fi
             if [ "$attempt" = "60" ]; then
-              echo "::error::status.qidaigo.com did not become healthy in time."
+              echo "::error::status.qidaigo.com did not become fully operational in time."
               exit 1
             fi
             sleep 10
           done
-          curl --fail --silent --show-error --max-time 10 \
-            https://status.qidaigo.com/api/status \
-            | node -e '
-                let data = "";
-                process.stdin.on("data", chunk => data += chunk);
-                process.stdin.on("end", () => {
-                  const parsed = JSON.parse(data);
-                  const codes = new Set(parsed.services?.map(service => service.code));
-                  for (const code of ["QR_ORDERING", "STAFF_ORDERING", "PAYMENT_CHECKOUT"]) {
-                    if (!codes.has(code)) process.exit(1);
-                  }
-                  if (parsed.status !== "OPERATIONAL") process.exit(1);
-                  if (parsed.services.some(service => service.status !== "OPERATIONAL")) process.exit(1);
-                });
-              '
           headers="$(curl --fail --silent --show-error --head --max-time 10 https://status.qidaigo.com/)"
           grep -qi '^strict-transport-security:' <<<"$headers"
           grep -qi '^content-security-policy:' <<<"$headers"
