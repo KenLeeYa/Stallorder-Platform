@@ -24,8 +24,8 @@ verified `main` tree after it matches `staging`.
 
 ## Protected workflow
 
-`.github/workflows/production-dr-operations.yml` has two manual operations.
-Both use the protected GitHub `production` environment and serialized
+`.github/workflows/production-dr-operations.yml` has three manual operations.
+All use the protected GitHub `production` environment and serialized
 concurrency.
 
 ### `bootstrap`
@@ -88,6 +88,29 @@ Confirmation: `MEASURE_PRODUCTION_DR`
 The workflow refuses automatic failback if DR business data changed. This
 prevents silent loss of DR-era writes.
 
+### `storage-canary`
+
+Confirmation: `PROVE_STORAGE_DR`
+
+1. Require the exact verified Staging tree.
+2. Build temporary protected Primary and DR database connections through the
+   authenticated Supabase Management API.
+3. Export current Primary and DR Storage credentials without printing them.
+4. Run and record a no-write dry-run plan.
+5. Upload one random JSON object containing no customer data to the dedicated
+   `system-canary/storage` prefix.
+6. Create the normal manifest and replication outbox job.
+7. Wait for the deployed Production replication cron to mark the manifest
+   `MIRRORED`.
+8. Download both objects and compare their SHA-256 checksums.
+9. Delete both objects and the Primary manifest/outbox records.
+10. Wait for the manifest deletion to replicate to DR.
+
+The canary fails if byte checksums differ, the outbox reaches `FAILED`, the
+timeout is exceeded or cleanup is incomplete. Its artifact contains only a
+random canary identifier, checksums, duration, high-level status and cleanup
+result.
+
 ## RTO and RPO definitions
 
 - RTO starts at the committed Primary write-freeze timestamp and ends when the
@@ -146,7 +169,10 @@ writer fenced and follow `PRODUCTION_FAILBACK_RUNBOOK.md`.
 ## Artifacts
 
 Bootstrap uploads AES-256-CBC encrypted logical backups and SHA-256 files.
-The current conversion blocks if either project contains Storage bytes because
-database metadata alone is not an object backup.
+The initial conversion blocked if either project contained Storage bytes
+because database metadata alone is not an object backup. New immutable objects
+use the Storage manifest/outbox mirror. The protected `storage-canary`
+operation proves real object bytes and cleanup independently of database row
+replication.
 Drill uploads sanitized JSON and Markdown evidence, including measured RTO,
 RPO, failback time, deployment URLs, smoke results and replication state.

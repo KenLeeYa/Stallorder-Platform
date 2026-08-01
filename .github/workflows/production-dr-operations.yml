@@ -10,6 +10,7 @@ on:
         options:
           - bootstrap
           - drill
+          - storage-canary
       confirmation:
         description: Type CREATE_PRODUCTION_DR or MEASURE_PRODUCTION_DR
         required: true
@@ -1064,3 +1065,85 @@ jobs:
             echo "::error::DR RTO could not be measured, although Primary was restored."
             exit 1
           }
+
+  storage-canary:
+    if: inputs.operation == 'storage-canary'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+      PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
+      PRODUCTION_ENVIRONMENT_APPROVED: "true"
+    steps:
+      - name: Validate protected invocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::Production DR operations must run from main."
+            exit 1
+          }
+          test "${{ inputs.confirmation }}" = "PROVE_STORAGE_DR" || {
+            echo "::error::Confirmation must be PROVE_STORAGE_DR."
+            exit 1
+          }
+          for name in \
+            SUPABASE_ACCESS_TOKEN \
+            DR_SUPABASE_DB_PASSWORD \
+            PRIMARY_REPLICATION_PASSWORD \
+            PRIMARY_SUPABASE_PROJECT_REF \
+            DR_SUPABASE_PROJECT_REF
+          do
+            test -n "${!name:-}" || {
+              echo "::error::Missing protected configuration: ${name}"
+              exit 1
+            }
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build protected database URLs
+        run: node scripts/export-dr-database-urls.mjs
+
+      - name: Export protected Storage runtime
+        run: node scripts/export-dr-runtime-environment.mjs
+
+      - name: Review Storage canary dry-run
+        run: node scripts/run-storage-replication-canary.mjs
+
+      - name: Prove Storage byte replication and cleanup
+        env:
+          DR_CHANGE_CONFIRMATION: PROVE_STORAGE_DR
+        run: |
+          mkdir -p dr-artifacts
+          node scripts/run-storage-replication-canary.mjs --apply \
+            | tee dr-artifacts/storage-replication-canary.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-storage-dr-canary-${{ github.run_id }}
+          path: dr-artifacts/storage-replication-canary.json
+          if-no-files-found: error
+          retention-days: 30

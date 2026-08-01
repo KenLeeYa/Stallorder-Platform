@@ -345,10 +345,11 @@ test.describe("多攤位商戶關鍵流程", () => {
     const crossOrganizationResponse = await page.goto(`/merchant/stalls/${otherStall.id}`);
     expect(crossOrganizationResponse?.status()).toBe(404);
     const today = taipeiToday();
-    const crossOrganizationApi = await page.request.get(
-      `/api/merchant/dashboard/overview?organizationId=${await otherOrganizationId()}&dateFrom=${today}&dateTo=${today}`,
-    );
-    expect(crossOrganizationApi.status()).toBe(404);
+    const crossOrganizationApiStatus = await page.evaluate(async (url) => {
+      const response = await fetch(url, { credentials: "same-origin" });
+      return response.status;
+    }, `/api/merchant/dashboard/overview?organizationId=${await otherOrganizationId()}&dateFrom=${today}&dateTo=${today}`);
+    expect(crossOrganizationApiStatus).toBe(404);
 
     await page.context().clearCookies();
     await loginWithPassword(page, staffEmail);
