@@ -8,13 +8,21 @@ on:
         required: true
         type: choice
         options:
+          - plan-bootstrap
           - bootstrap
+          - plan-drill
           - drill
+          - plan-storage-canary
           - storage-canary
       confirmation:
-        description: Type CREATE_PRODUCTION_DR or MEASURE_PRODUCTION_DR
+        description: Type PLAN_PRODUCTION_DR or the operation-specific Apply confirmation
         required: true
         type: string
+      plan_run_id:
+        description: Successful matching Plan run ID required for Apply operations
+        required: false
+        type: string
+        default: ""
       resume_backup_run_id:
         description: Prior successful encrypted former-Staging backup run to reuse
         required: false
@@ -37,8 +45,185 @@ env:
   PRODUCTION_ENVIRONMENT_APPROVED: "true"
 
 jobs:
+  plan:
+    if: "${{ startsWith(inputs.operation, 'plan-') }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Validate Production DR plan invocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::Production DR plans must run from main."
+            exit 1
+          }
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+            echo "::error::Only the repository owner may create a Production plan."
+            exit 1
+          }
+          test "${{ inputs.confirmation }}" = "PLAN_PRODUCTION_DR" || {
+            echo "::error::Confirmation must be PLAN_PRODUCTION_DR."
+            exit 1
+          }
+          if [ "${{ inputs.operation }}" = "plan-bootstrap" ] \
+            && [ -n "${{ inputs.resume_backup_run_id }}" ]; then
+            [[ "${{ inputs.resume_backup_run_id }}" =~ ^[1-9][0-9]{0,19}$ ]] || {
+              echo "::error::resume_backup_run_id must contain digits only."
+              exit 1
+            }
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build read-only DR operation plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          case "${{ inputs.operation }}" in
+            plan-bootstrap)
+              node scripts/configure-dr-replication.mjs \
+                --source PRIMARY --target DR \
+                > artifacts/production-dr-operation-plan.json
+              echo "PRODUCTION_APPROVAL_OPERATION=production-dr-bootstrap" >> "$GITHUB_ENV"
+              printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"resumeBackupRunId":"%s"}\n' \
+                "${{ inputs.resume_backup_run_id }}" >> "$GITHUB_ENV"
+              ;;
+            plan-drill)
+              node scripts/check-dr-readiness.mjs --target DR \
+                > artifacts/production-dr-operation-plan.json
+              echo "PRODUCTION_APPROVAL_OPERATION=production-dr-drill" >> "$GITHUB_ENV"
+              echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={}' >> "$GITHUB_ENV"
+              ;;
+            plan-storage-canary)
+              node scripts/run-storage-replication-canary.mjs \
+                > artifacts/production-dr-operation-plan.json
+              echo "PRODUCTION_APPROVAL_OPERATION=production-storage-canary" >> "$GITHUB_ENV"
+              echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={}' >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "::error::Unsupported Production DR plan operation."
+              exit 1
+              ;;
+          esac
+
+      - name: Create immutable Production plan receipt
+        env:
+          PRODUCTION_APPROVAL_RECEIPT_PATH: artifacts/production-approval.json
+        run: node scripts/production-approval.mjs create
+
+      - name: Upload Production DR plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-dr-plan-${{ github.run_id }}
+          path: |
+            artifacts/production-dr-operation-plan.json
+            artifacts/production-approval.json
+          if-no-files-found: error
+          retention-days: 1
+
+  approval:
+    if: >-
+      inputs.operation == 'bootstrap' ||
+      inputs.operation == 'drill' ||
+      inputs.operation == 'storage-canary'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Validate manual Production apply invocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::Production DR apply must run from main."
+            exit 1
+          }
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+            echo "::error::Only the repository owner may confirm Production apply."
+            exit 1
+          }
+          [[ "${{ inputs.plan_run_id }}" =~ ^[1-9][0-9]{0,19}$ ]] || {
+            echo "::error::Apply requires the successful matching Plan run ID."
+            exit 1
+          }
+          case "${{ inputs.operation }}:${{ inputs.confirmation }}" in
+            bootstrap:CREATE_PRODUCTION_DR)
+              echo "PRODUCTION_APPROVAL_OPERATION=production-dr-bootstrap" >> "$GITHUB_ENV"
+              printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"resumeBackupRunId":"%s"}\n' \
+                "${{ inputs.resume_backup_run_id }}" >> "$GITHUB_ENV"
+              ;;
+            drill:MEASURE_PRODUCTION_DR)
+              echo "PRODUCTION_APPROVAL_OPERATION=production-dr-drill" >> "$GITHUB_ENV"
+              echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={}' >> "$GITHUB_ENV"
+              ;;
+            storage-canary:PROVE_STORAGE_DR)
+              echo "PRODUCTION_APPROVAL_OPERATION=production-storage-canary" >> "$GITHUB_ENV"
+              echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={}' >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "::error::Apply confirmation does not match the selected operation."
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Download approved Production DR plan
+        uses: actions/download-artifact@v4
+        with:
+          name: production-dr-plan-${{ inputs.plan_run_id }}
+          path: approved-plan
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.plan_run_id }}
+
+      - name: Verify manual approval is bound to the immutable plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PRODUCTION_APPROVAL_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          PRODUCTION_APPROVAL_RECEIPT_PATH: approved-plan/production-approval.json
+        run: node scripts/production-approval.mjs verify
+
   bootstrap:
-    if: inputs.operation == 'bootstrap'
+    needs: approval
+    if: "${{ inputs.operation == 'bootstrap' && needs.approval.result == 'success' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: production
@@ -571,7 +756,8 @@ jobs:
         run: node scripts/check-dr-readiness.mjs --target DR --apply
 
   drill:
-    if: inputs.operation == 'drill'
+    needs: approval
+    if: "${{ inputs.operation == 'drill' && needs.approval.result == 'success' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 70
     environment: production
@@ -1067,7 +1253,8 @@ jobs:
           }
 
   storage-canary:
-    if: inputs.operation == 'storage-canary'
+    needs: approval
+    if: "${{ inputs.operation == 'storage-canary' && needs.approval.result == 'success' }}"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
