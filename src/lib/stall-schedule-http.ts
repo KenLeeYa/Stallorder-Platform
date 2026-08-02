@@ -14,10 +14,30 @@ export function stallScheduleErrorResponse(error: unknown, requestId: string) {
     : error.code.endsWith("_REQUIRED") || error.code === "EVENT_FEATURE_REQUIRED"
       ? 403
       : 409;
+  const message = stallScheduleErrorMessage(error);
+  const fieldErrors = stallScheduleOperationFieldErrors(error.code, message);
   return NextResponse.json(
-    { error: stallScheduleErrorMessage(error), code: error.code },
+    { error: message, code: error.code, ...(fieldErrors ? { fieldErrors } : {}) },
     { status, headers: noStoreHeaders(requestId) },
   );
+}
+
+function stallScheduleOperationFieldErrors(
+  code: StallScheduleOperationError["code"],
+  message: string,
+) {
+  if (code === "SCHEDULE_CONTEXT_INVALID") {
+    return { locationId: message, marketEventId: message };
+  }
+  if (code === "SCHEDULE_EVENT_WINDOW_INVALID") return { startsAt: message, endsAt: message };
+  if (code === "QR_CODE_NOT_FOUND") return { qrCodeId: message };
+  if (code === "QR_ORDER_TYPE_INVALID" || code === "DELIVERY_MODULE_REQUIRED") {
+    return { fulfillmentType: message };
+  }
+  if (code === "AUTOMATIC_ORDERING_REQUIRED") {
+    return { autoOpenEnabled: message, autoCloseEnabled: message };
+  }
+  return null;
 }
 
 export function requireJsonContentType(request: Request, requestId: string) {

@@ -1,16 +1,15 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
 import { recordAuditEvent } from "@/lib/audit";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-
-const membershipUpdateSchema = z.object({
-  role: z.enum(["STALL_MANAGER", "STAFF", "KITCHEN"]),
-  isActive: z.boolean(),
-}).strict();
+import {
+  getStallMembershipConflictFieldErrors,
+  getStallMembershipFieldErrors,
+  stallMembershipUpdateSchema,
+} from "@/lib/stall-membership-contract";
 
 type RouteContext = { params: Promise<{ stallId: string; membershipId: string }> };
 
@@ -27,10 +26,11 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const body = await readJson(request, authorization.requestId);
   if (body.error) return body.error;
-  const parsed = membershipUpdateSchema.safeParse(body.data);
+  const parsed = stallMembershipUpdateSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getStallMembershipFieldErrors(parsed.error);
     return NextResponse.json(
-      { error: "成員角色格式不正確。" },
+      { error: "請檢查成員角色與啟用狀態。", fieldErrors },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -89,7 +89,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   } catch (error) {
     const conflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
     return NextResponse.json(
-      { error: conflict ? "此成員已具有相同角色。" : "目前無法更新成員。" },
+      {
+        error: conflict ? "此成員已具有相同角色。" : "目前無法更新成員。",
+        ...(conflict ? { fieldErrors: getStallMembershipConflictFieldErrors() } : {}),
+      },
       { status: conflict ? 409 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }

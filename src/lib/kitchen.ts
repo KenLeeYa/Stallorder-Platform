@@ -20,6 +20,7 @@ export class KitchenOperationError extends Error {
     | "STATION_NOT_FOUND"
     | "STATION_IN_USE"
     | "DEFAULT_STATION_REQUIRED"
+    | "STATION_CODE_CONFLICT"
     | "ASSIGNMENT_TARGET_INVALID"
     | "ASSIGNMENT_CONFLICT"
     | "STATION_LIMIT_REACHED") {
@@ -431,6 +432,9 @@ export async function applyKitchenStationCommand(
   } catch (error) {
     if (error instanceof KitchenOperationError) throw error;
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      if (command.operation === "CREATE_STATION" || command.operation === "UPDATE_STATION") {
+        throw new KitchenOperationError("STATION_CODE_CONFLICT");
+      }
       throw new KitchenOperationError("ASSIGNMENT_CONFLICT");
     }
     throw error;

@@ -27,8 +27,9 @@ gate, but it is not a persistent runtime environment.
 8. The repository owner manually runs `Production Readiness` from the same
    `main` commit with the Plan run ID and `APPLY_PRODUCTION_RELEASE`.
 9. Apply verifies the receipt, builds an unaliased Production deployment,
-   applies migrations, promotes that deployment and runs the Production smoke
-   test. A failed post-promotion smoke rolls the Vercel alias back.
+   applies and lints migrations, deploys and lists every repository Edge
+   Function, then promotes that deployment and runs the Production smoke test.
+   A failed post-promotion smoke rolls the Vercel alias back.
 
 Production deployment is rejected when the `main` source tree differs from the
 verified `staging` source tree. This prevents Production-only application or
@@ -46,8 +47,13 @@ create data-less Supabase Preview Branches and matching Vercel Previews. The
 `production` GitHub Environment contains:
 
 - Secret `SUPABASE_ACCESS_TOKEN`
+- Secret `PRODUCTION_TEST_QR_URL`
 - Variable `SUPABASE_PROJECT_REF`
 - Variable `APP_BASE_URL`
+
+`PRODUCTION_TEST_QR_URL` 必須是 `APP_BASE_URL` 同源的專用 `/q/<token>`；
+Production Apply 缺少或設定錯誤時會在部署前失敗。發布後 smoke 會載入該
+QR，並經正式同源 proxy 建立一個不含訂單的短效安全點餐 session。
 
 Preview automation may also use `VERCEL_AUTOMATION_BYPASS_SECRET`. Generated
 Preview connection values are masked and never persisted to GitHub variables.

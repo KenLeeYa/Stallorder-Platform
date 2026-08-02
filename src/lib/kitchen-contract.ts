@@ -38,6 +38,33 @@ export const kitchenSettingsSchema = z.object({
   { path: ["criticalMinutes"], message: "嚴重逾時必須大於警示時間。" },
 );
 
+const kitchenFieldLabels: Record<string, string> = {
+  name: "工作站名稱",
+  code: "工作站代碼",
+  description: "工作站說明",
+  sortOrder: "排序",
+  isActive: "啟用狀態",
+  stationId: "工作站",
+  categoryId: "分類",
+  productId: "商品",
+  warningMinutes: "警示時間",
+  criticalMinutes: "嚴重逾時時間",
+  defaultView: "預設顯示模式",
+};
+
+export function getKitchenFieldErrors(error: z.ZodError): Record<string, string> {
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const field = typeof issue.path[0] === "string" ? issue.path[0] : "_form";
+    if (fieldErrors[field]) continue;
+    const label = kitchenFieldLabels[field] ?? "欄位";
+    fieldErrors[field] = issue.code === "custom"
+      ? issue.message
+      : `「${label}」輸入不正確，請依欄位限制重新輸入。`;
+  }
+  return fieldErrors;
+}
+
 export const kitchenTaskCommandSchema = z.discriminatedUnion("operation", [
   z.object({
     operation: z.literal("UPDATE_TASK"),

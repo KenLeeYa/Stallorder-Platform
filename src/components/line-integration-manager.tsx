@@ -1,8 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, Copy, LoaderCircle, Power, Save } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
+import {
+  focusFirstInvalidField,
+  parseFieldErrors,
+  withoutFieldError,
+} from "@/lib/form-field-errors";
 import { useUnsavedSettings } from "@/lib/unsaved-settings";
 
 type ManagerData = {
@@ -49,6 +54,11 @@ export function LineIntegrationManager({
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState("");
+  const [hasError, setHasError] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [showDisable, setShowDisable] = useState(false);
+  const [disableReason, setDisableReason] = useState("");
+  const managerRef = useRef<HTMLDivElement>(null);
   const dirty = useMemo(() => (
     channelId !== data.channelId
     || JSON.stringify(settings) !== JSON.stringify(savedSettings)
@@ -59,17 +69,30 @@ export function LineIntegrationManager({
     ? `${appUrl}/api/webhooks/line/${data.integrationId}`
     : "";
 
+  function clearFieldError(field: string) {
+    setFieldErrors((current) => withoutFieldError(current, field));
+  }
+
   async function save() {
     setBusy(true);
     setMessage("");
+    setHasError(false);
+    setFieldErrors({});
     try {
       const response = await fetch(`/api/merchant/stalls/${stallId}/line`, {
         method: "PATCH",
         headers: csrfHeaders(),
         body: JSON.stringify({ operation: "UPSERT", channelId, ...secrets, ...settings }),
       });
-      const payload = await response.json() as ManagerData & { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "無法儲存 LINE 整合設定。");
+      const payload = await response.json() as ManagerData & { error?: string; fieldErrors?: unknown };
+      if (!response.ok) {
+        const nextFieldErrors = parseFieldErrors(payload.fieldErrors);
+        setFieldErrors(nextFieldErrors);
+        setMessage(payload.error ?? "無法儲存 LINE 整合設定。");
+        setHasError(true);
+        focusFirstInvalidField(managerRef.current, nextFieldErrors);
+        return;
+      }
       setData(payload);
       setChannelId(payload.channelId);
       setSettings(payload.settings);
@@ -78,6 +101,7 @@ export function LineIntegrationManager({
       setMessage("LINE 整合與新憑證已安全儲存。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "無法儲存 LINE 整合設定。");
+      setHasError(true);
     } finally {
       setBusy(false);
     }
@@ -85,24 +109,34 @@ export function LineIntegrationManager({
 
   async function disable() {
     if (!window.confirm("確定停用 LINE 訂單通知？尚未傳送的通知會一併取消。")) return;
-    const reason = window.prompt("請輸入停用原因。", "暫停使用 LINE 通知")?.trim();
-    if (!reason) return;
     setBusy(true);
     setMessage("");
+    setHasError(false);
+    setFieldErrors({});
     try {
       const response = await fetch(`/api/merchant/stalls/${stallId}/line`, {
         method: "PATCH",
         headers: csrfHeaders(),
-        body: JSON.stringify({ operation: "DISABLE", reason }),
+        body: JSON.stringify({ operation: "DISABLE", reason: disableReason }),
       });
-      const payload = await response.json() as ManagerData & { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "無法停用 LINE 整合。");
+      const payload = await response.json() as ManagerData & { error?: string; fieldErrors?: unknown };
+      if (!response.ok) {
+        const nextFieldErrors = parseFieldErrors(payload.fieldErrors);
+        setFieldErrors(nextFieldErrors);
+        setMessage(payload.error ?? "無法停用 LINE 整合。");
+        setHasError(true);
+        focusFirstInvalidField(managerRef.current, nextFieldErrors);
+        return;
+      }
       setData(payload);
       setChannelId("");
       setSecrets(emptySecrets);
+      setDisableReason("");
+      setShowDisable(false);
       setMessage("LINE 整合已停用，既有憑證已從 Vault 移除。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "無法停用 LINE 整合。");
+      setHasError(true);
     } finally {
       setBusy(false);
     }
@@ -116,7 +150,7 @@ export function LineIntegrationManager({
   }
 
   return (
-    <div className="space-y-8">
+    <div ref={managerRef} className="space-y-8">
       <section className="border-y border-stone-200 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h2 className="text-lg font-semibold">整合狀態</h2><p className="mt-1 text-sm text-stone-600">{data.status === "ACTIVE" ? "已啟用" : data.status === "ERROR" ? "需要檢查" : "未啟用"}</p></div>
@@ -128,18 +162,18 @@ export function LineIntegrationManager({
       <section>
         <h2 className="text-lg font-semibold">LINE Channel</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label="LINE Login Channel ID"><input type="text" value={channelId} onChange={(event) => setChannelId(event.target.value.replace(/\D/g, "").slice(0, 30))} inputMode="numeric" autoComplete="off" minLength={5} maxLength={30} pattern="[0-9]{5,30}" className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" /></Field>
-          <Field label="顯示名稱"><input type="text" value={settings.displayName} onChange={(event) => setSettings((current) => ({ ...current, displayName: event.target.value }))} maxLength={80} className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" /></Field>
-          <Field label="LINE 官方帳號網址（選填）"><input value={settings.officialAccountUrl} onChange={(event) => setSettings((current) => ({ ...current, officialAccountUrl: event.target.value }))} type="url" maxLength={500} placeholder="https://lin.ee/..." className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" /></Field>
+          <Field label="LINE Login Channel ID" field="channelId" error={fieldErrors.channelId}><input {...validationProps("channelId", fieldErrors.channelId)} type="text" value={channelId} onChange={(event) => { clearFieldError("channelId"); setChannelId(event.target.value.slice(0, 30)); }} inputMode="numeric" autoComplete="off" minLength={5} maxLength={30} pattern="[0-9]{5,30}" className={inputClass(fieldErrors.channelId)} /></Field>
+          <Field label="顯示名稱" field="displayName" error={fieldErrors.displayName}><input {...validationProps("displayName", fieldErrors.displayName)} type="text" value={settings.displayName} onChange={(event) => { clearFieldError("displayName"); setSettings((current) => ({ ...current, displayName: event.target.value })); }} maxLength={80} className={inputClass(fieldErrors.displayName)} /></Field>
+          <Field label="LINE 官方帳號網址（選填）" field="officialAccountUrl" error={fieldErrors.officialAccountUrl}><input {...validationProps("officialAccountUrl", fieldErrors.officialAccountUrl)} value={settings.officialAccountUrl} onChange={(event) => { clearFieldError("officialAccountUrl"); setSettings((current) => ({ ...current, officialAccountUrl: event.target.value })); }} type="url" maxLength={500} placeholder="https://lin.ee/..." className={inputClass(fieldErrors.officialAccountUrl)} /></Field>
         </div>
       </section>
 
       <section className="border-y border-stone-200 py-5">
         <h2 className="text-lg font-semibold">Vault 憑證</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label="Messaging API Channel Access Token"><SecretInput value={secrets.channelAccessToken} onChange={(value) => setSecrets((current) => ({ ...current, channelAccessToken: value }))} /></Field>
-          <Field label="Messaging API Channel Secret"><SecretInput value={secrets.messagingChannelSecret} onChange={(value) => setSecrets((current) => ({ ...current, messagingChannelSecret: value }))} /></Field>
-          <Field label="LINE Login Channel Secret"><SecretInput value={secrets.loginChannelSecret} onChange={(value) => setSecrets((current) => ({ ...current, loginChannelSecret: value }))} /></Field>
+          <Field label="Messaging API Channel Access Token" field="channelAccessToken" error={fieldErrors.channelAccessToken}><SecretInput field="channelAccessToken" error={fieldErrors.channelAccessToken} value={secrets.channelAccessToken} maxLength={4096} onChange={(value) => { clearFieldError("channelAccessToken"); setSecrets((current) => ({ ...current, channelAccessToken: value })); }} /></Field>
+          <Field label="Messaging API Channel Secret" field="messagingChannelSecret" error={fieldErrors.messagingChannelSecret}><SecretInput field="messagingChannelSecret" error={fieldErrors.messagingChannelSecret} value={secrets.messagingChannelSecret} maxLength={256} onChange={(value) => { clearFieldError("messagingChannelSecret"); setSecrets((current) => ({ ...current, messagingChannelSecret: value })); }} /></Field>
+          <Field label="LINE Login Channel Secret" field="loginChannelSecret" error={fieldErrors.loginChannelSecret}><SecretInput field="loginChannelSecret" error={fieldErrors.loginChannelSecret} value={secrets.loginChannelSecret} maxLength={256} onChange={(value) => { clearFieldError("loginChannelSecret"); setSecrets((current) => ({ ...current, loginChannelSecret: value })); }} /></Field>
         </div>
       </section>
 
@@ -152,20 +186,33 @@ export function LineIntegrationManager({
         </div>
       </section>
 
-      {message ? <p role="status" className="rounded-md border border-stone-200 bg-stone-50 p-3 text-sm">{message}</p> : null}
+      {message ? <p role={hasError ? "alert" : "status"} className={`rounded-md border p-3 text-sm ${hasError ? "border-red-200 bg-red-50 text-red-800" : "border-stone-200 bg-stone-50"}`}>{message}</p> : null}
       <div className="flex flex-wrap gap-3 border-t border-stone-200 pt-5">
-        <button type="button" onClick={() => void save()} disabled={busy || !channelId || Object.values(secrets).some((value) => value.length < 16)} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-950 px-4 text-sm font-semibold text-white disabled:opacity-40">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}儲存並輪替憑證</button>
-        {data.configured ? <button type="button" onClick={() => void disable()} disabled={busy} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-300 px-4 text-sm font-semibold text-red-800 disabled:opacity-40"><Power className="h-4 w-4" />停用整合</button> : null}
+        <button type="button" onClick={() => void save()} disabled={busy} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-950 px-4 text-sm font-semibold text-white disabled:opacity-40">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}儲存並輪替憑證</button>
+        {data.configured && !showDisable ? <button type="button" onClick={() => setShowDisable(true)} disabled={busy} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-300 px-4 text-sm font-semibold text-red-800 disabled:opacity-40"><Power className="h-4 w-4" />停用整合</button> : null}
       </div>
+      {data.configured && showDisable ? <section className="grid gap-3 border-l-2 border-red-400 pl-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end"><Field label="停用原因" field="reason" error={fieldErrors.reason}><input {...validationProps("reason", fieldErrors.reason)} type="text" value={disableReason} minLength={2} maxLength={200} onChange={(event) => { clearFieldError("reason"); setDisableReason(event.target.value); }} className={inputClass(fieldErrors.reason)} /></Field><button type="button" disabled={busy} onClick={() => void disable()} className="min-h-11 rounded-md bg-red-700 px-4 text-sm font-semibold text-white disabled:opacity-40">確認停用</button><button type="button" disabled={busy} onClick={() => { setShowDisable(false); setDisableReason(""); clearFieldError("reason"); }} className="min-h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold">取消</button></section> : null}
     </div>
   );
 }
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="text-sm font-medium text-stone-800">{label}{children}</label>;
+function Field({ label, field, error, children }: { label: string; field: string; error?: string; children: React.ReactNode }) {
+  return <label className="text-sm font-medium text-stone-800">{label}{children}{error ? <span id={fieldErrorId(field)} role="alert" className="mt-1 block text-xs text-red-700">{error}</span> : null}</label>;
 }
 
-function SecretInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return <input type="password" value={value} maxLength={4096} onChange={(event) => onChange(event.target.value)} autoComplete="new-password" className="mt-1 min-h-11 w-full rounded-md border border-stone-300 px-3" />;
+function SecretInput({ field, error, value, maxLength, onChange }: { field: string; error?: string; value: string; maxLength: number; onChange: (value: string) => void }) {
+  return <input {...validationProps(field, error)} type="password" value={value} minLength={16} maxLength={maxLength} onChange={(event) => onChange(event.target.value)} autoComplete="new-password" className={inputClass(error)} />;
+}
+
+function validationProps(field: string, error?: string) {
+  return { "data-field-key": field, "aria-invalid": error ? true : undefined, "aria-describedby": error ? fieldErrorId(field) : undefined };
+}
+
+function fieldErrorId(field: string) {
+  return `line-integration-${field}-error`;
+}
+
+function inputClass(error?: string) {
+  return `mt-1 min-h-11 w-full rounded-md border px-3 ${error ? "border-red-500 bg-red-50" : "border-stone-300"}`;
 }
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {

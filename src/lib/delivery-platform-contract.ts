@@ -15,7 +15,7 @@ export const deliveryConnectionRequestSchema = z.object({
   provider: z.enum(["UBER_EATS", "FOODPANDA"]),
   merchantContactName: z.string().trim().min(2).max(120),
   merchantContactEmail: z.string().trim().email().max(320),
-  merchantContactPhone: nullableTrimmed(30),
+  merchantContactPhone: z.string().trim().min(6).max(30).nullable().optional(),
   externalVendorCode: nullableTrimmed(120),
   externalChainCode: nullableTrimmed(120),
   currentProvider: nullableTrimmed(120),

@@ -38,8 +38,32 @@ test.describe.serial("出攤地點與行程", () => {
 
     await page.goto(`/merchant/stalls/${stallId}/locations`);
     await expect(page.getByRole("heading", { name: "常用出攤地點" })).toBeVisible();
-    await page.getByLabel("地點名稱").fill(locationName);
+    const blankLocationResponse = page.waitForResponse((response) => (
+      response.url().endsWith(`/api/merchant/stalls/${stallId}/locations`)
+      && response.request().method() === "PATCH"
+    ));
+    await page.getByRole("button", { name: "新增地點" }).click();
+    expect((await blankLocationResponse).status()).toBe(400);
+    const locationNameField = page.getByLabel("地點名稱");
+    await expect(page.getByText("請填寫地點名稱。", { exact: true }).first()).toBeVisible();
+    await expect(locationNameField).toHaveAttribute("aria-invalid", "true");
+    await expect(locationNameField).toBeFocused();
+
+    await locationNameField.fill(locationName);
     await page.getByLabel("地址").fill(locationAddress);
+    const mapUrlField = page.getByLabel("地圖網址（選填）");
+    await mapUrlField.fill("http://example.test/location");
+    const invalidUrlResponse = page.waitForResponse((response) => (
+      response.url().endsWith(`/api/merchant/stalls/${stallId}/locations`)
+      && response.request().method() === "PATCH"
+    ));
+    await page.getByRole("button", { name: "新增地點" }).click();
+    expect((await invalidUrlResponse).status()).toBe(400);
+    await expect(page.getByText("網址必須使用 HTTPS。", { exact: true }).first()).toBeVisible();
+    await expect(mapUrlField).toHaveAttribute("aria-invalid", "true");
+    await expect(mapUrlField).toBeFocused();
+    await expect(mapUrlField).toHaveValue("http://example.test/location");
+    await mapUrlField.fill("");
     await page.getByLabel("緯度（選填）").fill("25.056000");
     await page.getByLabel("經度（選填）").fill("121.515000");
     const locationResponse = page.waitForResponse((response) => (
@@ -60,8 +84,22 @@ test.describe.serial("出攤地點與行程", () => {
     await page.goto(`/merchant/stalls/${stallId}/schedule`);
     await expect(page.getByRole("heading", { name: "出攤行程與接單時段" })).toBeVisible();
     await page.getByLabel("常用地點").selectOption(locationId);
-    await page.getByLabel("行程開始").fill(toTaipeiDateTimeLocal(start));
-    await page.getByLabel("行程結束").fill(toTaipeiDateTimeLocal(end));
+    const scheduleStartField = page.getByLabel("行程開始");
+    const scheduleEndField = page.getByLabel("行程結束");
+    await scheduleStartField.fill(toTaipeiDateTimeLocal(end));
+    await scheduleEndField.fill(toTaipeiDateTimeLocal(start));
+    const invalidScheduleResponse = page.waitForResponse((response) => (
+      response.url().endsWith(`/api/merchant/stalls/${stallId}/schedule`)
+      && response.request().method() === "PATCH"
+    ));
+    await page.getByRole("button", { name: "建立行程" }).click();
+    expect((await invalidScheduleResponse).status()).toBe(400);
+    await expect(page.getByText("行程結束時間必須晚於開始時間。", { exact: true }).first()).toBeVisible();
+    await expect(scheduleEndField).toHaveAttribute("aria-invalid", "true");
+    await expect(scheduleEndField).toBeFocused();
+    await expect(scheduleEndField).toHaveValue(toTaipeiDateTimeLocal(start));
+    await scheduleStartField.fill(toTaipeiDateTimeLocal(start));
+    await scheduleEndField.fill(toTaipeiDateTimeLocal(end));
     await page.getByLabel("公開臨時公告（選填）").fill(publicNotice);
     const scheduleResponse = page.waitForResponse((response) => (
       response.url().endsWith(`/api/merchant/stalls/${stallId}/schedule`)

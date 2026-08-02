@@ -75,7 +75,7 @@ export function LocalizationDashboard({
         <div>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div><h2 className="text-lg font-semibold">缺漏項目</h2><p className="mt-1 inline-flex items-center gap-2 text-sm text-stone-500"><LocaleFlag locale={locale} />{qrOrderMessages[locale].localeName} · {missing.length} 項</p></div>
-            <Link href={`/merchant/catalog?organizationId=${organizationId}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-teal-800">前往編輯翻譯<ExternalLink className="h-4 w-4" /></Link>
+            <Link href={`/merchant/catalog?organizationId=${organizationId}${returnStallId ? `&stallId=${returnStallId}` : ""}&source=localization`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-teal-800">前往編輯翻譯<ExternalLink className="h-4 w-4" /></Link>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
             <label className="relative"><span className="sr-only">搜尋缺漏項目</span><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><input type="search" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋原文名稱" className="h-11 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" /></label>
@@ -92,7 +92,7 @@ export function LocalizationDashboard({
           <p className="mt-1 text-sm text-stone-500">預覽不會建立點餐 Session，也不能送出訂單。</p>
           <label className="mt-4 block text-sm font-medium">預覽攤位<select value={stallId} onChange={(event) => setStallId(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3">{stalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}</select></label>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            {previewLocales.map((previewLocale) => <Link key={previewLocale} target="_blank" rel="noopener noreferrer" href={`/merchant/localization/preview?organizationId=${organizationId}&stallId=${stallId}&locale=${previewLocale}`} className="inline-flex min-h-11 items-center justify-between gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-900"><span className="inline-flex min-w-0 items-center gap-2"><LocaleFlag locale={previewLocale} /><span className="truncate">{qrOrderMessages[previewLocale].localeName}</span></span><ExternalLink className="h-3.5 w-3.5 shrink-0" /></Link>)}
+            {previewLocales.map((previewLocale) => <Link key={previewLocale} target="_blank" rel="noopener noreferrer" href={`/merchant/localization/preview?organizationId=${organizationId}&stallId=${stallId}&locale=${previewLocale}&source=localization${returnStallId ? `&returnStallId=${returnStallId}` : ""}`} className="inline-flex min-h-11 items-center justify-between gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-900"><span className="inline-flex min-w-0 items-center gap-2"><LocaleFlag locale={previewLocale} /><span className="truncate">{qrOrderMessages[previewLocale].localeName}</span></span><ExternalLink className="h-3.5 w-3.5 shrink-0" /></Link>)}
           </div>
         </aside>
       </section>

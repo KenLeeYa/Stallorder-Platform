@@ -3,7 +3,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
-import { kitchenStationCommandSchema } from "@/lib/kitchen-contract";
+import { getKitchenFieldErrors, kitchenStationCommandSchema } from "@/lib/kitchen-contract";
 import {
   applyKitchenStationCommand,
   getKitchenStationConfiguration,
@@ -40,8 +40,9 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = kitchenStationCommandSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getKitchenFieldErrors(parsed.error);
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "工作站設定內容不正確。" },
+      { error: Object.values(fieldErrors)[0] ?? "工作站設定內容不正確。", fieldErrors },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -76,12 +77,19 @@ export async function PATCH(request: Request, context: RouteContext) {
       STATION_NOT_FOUND: "找不到此工作站。",
       STATION_IN_USE: "工作站已有歷史工作，請改為停用。",
       DEFAULT_STATION_REQUIRED: "預設工作站不可刪除或變更代碼。",
+      STATION_CODE_CONFLICT: "工作站代碼已存在，請使用其他代碼。",
       ASSIGNMENT_TARGET_INVALID: "商品或分類不屬於此攤位。",
       ASSIGNMENT_CONFLICT: "此商品或分類已分派工作站。",
       STATION_LIMIT_REACHED: "已達目前方案的工作站數量上限。",
     };
     return NextResponse.json(
-      { error: messages[error.code], code: error.code },
+      {
+        error: messages[error.code],
+        code: error.code,
+        ...(error.code === "STATION_CODE_CONFLICT"
+          ? { fieldErrors: { code: messages[error.code] } }
+          : {}),
+      },
       { status: error.code === "STATION_NOT_FOUND" ? 404 : 409, headers: { "x-request-id": authorization.requestId } },
     );
   }

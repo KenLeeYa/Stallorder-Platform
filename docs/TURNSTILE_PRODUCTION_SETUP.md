@@ -49,7 +49,7 @@ Production readiness 若發現 test key 或 `TURNSTILE_ALLOW_TEST_KEYS=true` 必
 6. Wrong action：拒絕。
 7. Turnstile service timeout：fail closed，不建立訂單。
 
-`npm run production:smoke` 可在指定 `PRODUCTION_TEST_QR_URL` 時檢查 widget script 是否載入；真正 Siteverify 測試必須在 Staging 完成，Production 只用專用測試攤位做一次受控驗證。
+`npm run production:smoke` 在指定 `PRODUCTION_TEST_QR_URL` 時會確認 CSP 允許 Turnstile、QR 頁面可載入，並經正式同源 proxy 建立不含訂單的短效安全 session；真正的 widget 互動與 Siteverify 測試必須在 Staging 完成，Production 只用受控測試 QR 做非破壞性驗證。
 
 ## Incident／輪替
 

@@ -162,6 +162,16 @@ export type StallLocationCommand = z.infer<typeof stallLocationCommandSchema>;
 export type MarketEventCommand = z.infer<typeof marketEventCommandSchema>;
 export type StallScheduleCommand = z.infer<typeof stallScheduleCommandSchema>;
 
+export function normalizeAutomaticOrderingFlags(
+  automaticOrdering: boolean,
+  flags: { autoOpenEnabled: boolean; autoCloseEnabled: boolean },
+) {
+  return {
+    autoOpenEnabled: automaticOrdering && flags.autoOpenEnabled,
+    autoCloseEnabled: automaticOrdering && flags.autoCloseEnabled,
+  };
+}
+
 export type ScheduleCapabilities = {
   locationLimit: number | null;
   scheduleLimit: number | null;

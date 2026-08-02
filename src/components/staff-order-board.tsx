@@ -9,6 +9,7 @@ import { OfflineBootstrapControl } from "@/components/offline-bootstrap-control"
 import { OfflineQueueStatus } from "@/components/offline-queue-status";
 import { PwaControls } from "@/components/pwa-controls";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
+import { StaffDiscountSelector } from "@/components/staff-discount-selector";
 import { StaffCapacityControl } from "@/components/staff-capacity-control";
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
 import type { StaffCapacityData } from "@/lib/capacity-contract";
@@ -19,6 +20,7 @@ import { canTransitionOrderItem } from "@/lib/order-item-status";
 import { orderItemStatusLabels, orderStatusLabels, paymentStatusLabels, staffStatusOptions, type StaffOrderDto } from "@/lib/orders";
 import { isCompletePickupCode, normalizePickupCode } from "@/lib/pickup-code";
 import { canTransitionOrder, hasPermission, roleLabels } from "@/lib/rbac";
+import { getStaffCheckoutPreview } from "@/lib/staff-discount-presentation";
 import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
 import type { WorkModeDestination } from "@/lib/work-mode";
 
@@ -60,7 +62,19 @@ type CheckoutRequest = {
 };
 type UndoBatch = { actionId: string; undoExpiresAt: string; itemCount: number };
 
-export function StaffOrderBoard({ stall, initialOrders, initialNow, account, modules, paymentOptions, discountOptions, orderCatalog, capacity, workModeDestinations, appVersion }: Props) {
+export function StaffOrderBoard({
+  stall,
+  initialOrders,
+  initialNow,
+  account,
+  modules: initialModules,
+  paymentOptions: initialPaymentOptions,
+  discountOptions: initialDiscountOptions,
+  orderCatalog: initialOrderCatalog,
+  capacity,
+  workModeDestinations,
+  appVersion,
+}: Props) {
   const knownOrderIdsRef = useRef(new Set(initialOrders.map((order) => order.id)));
   const alertsEnabledRef = useRef(false);
   const [orders, setOrders] = useState(initialOrders);
@@ -89,7 +103,41 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
   const [batchBusy, setBatchBusy] = useState(false);
   const [undoBatch, setUndoBatch] = useState<UndoBatch | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [modules, setModules] = useState(initialModules);
+  const [paymentOptions, setPaymentOptions] = useState(initialPaymentOptions);
+  const [discountOptions, setDiscountOptions] = useState(initialDiscountOptions);
+  const [orderCatalog, setOrderCatalog] = useState(initialOrderCatalog);
+  const [posConfigurationLoading, setPosConfigurationLoading] = useState(false);
   const checkoutOrder = checkoutOrders[0] ?? null;
+
+  type PosConfiguration = {
+    modules: Props["modules"];
+    paymentOptions: Props["paymentOptions"];
+    discountOptions: Props["discountOptions"];
+    catalog: StaffOrderCatalog | null;
+  };
+
+  async function refreshPosConfiguration(includeCatalog = false) {
+    setPosConfigurationLoading(true);
+    try {
+      const response = await fetch(
+        `/api/stalls/${stall.slug}/pos-configuration${includeCatalog ? "?includeCatalog=true" : ""}`,
+        { cache: "no-store" },
+      );
+      const payload = await response.json() as PosConfiguration & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "目前無法更新店員點餐設定。");
+      setModules(payload.modules);
+      setPaymentOptions(payload.paymentOptions);
+      setDiscountOptions(payload.discountOptions);
+      if (payload.catalog) setOrderCatalog(payload.catalog);
+      return payload;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "目前無法更新店員點餐設定，將使用畫面上的現有設定。");
+      return null;
+    } finally {
+      setPosConfigurationLoading(false);
+    }
+  }
 
   const notifyNewOrders = useCallback((count: number) => {
     if (!alertsEnabledRef.current) return;
@@ -381,11 +429,22 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
       : `訂單 ${order.orderNo} 已建立並送入廚房，請稍後結帳。`);
   }
 
-  function openCheckout(orderOrOrders: OrderWithItems | OrderWithItems[]) {
+  async function openComposer() {
+    setMessage("");
+    const latest = await refreshPosConfiguration(true);
+    if (!latest?.catalog && !orderCatalog) return;
+    setComposerOpen(true);
+  }
+
+  async function openCheckout(orderOrOrders: OrderWithItems | OrderWithItems[]) {
+    setMessage("");
+    const latest = await refreshPosConfiguration();
+    const activeModules = latest?.modules ?? modules;
+    const activePaymentOptions = latest?.paymentOptions ?? paymentOptions;
     const ordersToCheckout = Array.isArray(orderOrOrders) ? orderOrOrders : [orderOrOrders];
-    const defaultPayment = modules.payment
-      ? paymentOptions[0] ?? null
-      : paymentOptions.find((option) => option.kind === "CASH") ?? null;
+    const defaultPayment = activeModules.payment
+      ? activePaymentOptions[0] ?? null
+      : activePaymentOptions.find((option) => option.kind === "CASH") ?? null;
     setCheckoutOrders(ordersToCheckout);
     setSelectedPaymentOptionId(defaultPayment?.id ?? null);
     setSelectedDiscountOptionId(null);
@@ -393,7 +452,6 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
     setDiscountApprovalReason("");
     setManagerEmail("");
     setManagerPassword("");
-    setMessage("");
   }
 
   async function completeCheckout() {
@@ -795,11 +853,9 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
   }, [filteredOrders]);
 
   const checkoutDiscount = discountOptions.find((option) => option.id === selectedDiscountOptionId) ?? null;
-  const checkoutSubtotal = checkoutOrders.reduce((sum, order) => sum + order.subtotal, 0);
-  const checkoutTotal = checkoutOrders.reduce(
-    (sum, order) => sum + Math.round((order.subtotal * (checkoutDiscount?.rateBps ?? 10_000)) / 10_000),
-    0,
-  );
+  const checkoutPreview = getStaffCheckoutPreview(checkoutOrders, checkoutDiscount);
+  const checkoutSubtotal = checkoutPreview.subtotal;
+  const checkoutTotal = checkoutPreview.total;
   const checkoutPayment = paymentOptions.find((option) => option.id === selectedPaymentOptionId) ?? null;
   const checkoutUsesCash = !modules.payment || checkoutPayment?.kind === "CASH";
   const parsedCashReceived = cashReceived === "" ? checkoutTotal : Number(cashReceived);
@@ -841,7 +897,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
             className="w-full sm:w-auto"
           />
           {orderCatalog && hasPermission(account.role, "CREATE_ORDERS") ? (
-            <button type="button" onClick={() => setComposerOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white">
+            <button type="button" disabled={posConfigurationLoading} onClick={() => void openComposer()} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60">
               <ShoppingCart className="h-4 w-4" />
               <span>店員點餐</span>
             </button>
@@ -951,7 +1007,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
                 <div className="mt-4 divide-y divide-stone-100 border-y border-stone-200">{group.orders.map((order) => <div key={order.id} className="py-3"><div className="flex items-center justify-between gap-3 text-sm"><strong>訂單 {order.orderNo}</strong><span className="rounded bg-stone-100 px-2 py-0.5 text-xs font-semibold">{orderStatusLabels[order.status]}</span></div><p className="mt-1 text-xs text-stone-600">{order.items.map((item) => `${item.quantity}×${item.name}`).join("、")}</p><p className="mt-1 text-xs text-stone-500">{paymentStatusLabels[order.paymentStatus]}</p></div>)}</div>
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <span className={`text-xs font-semibold ${pendingItems === 0 ? "text-emerald-700" : "text-amber-800"}`}>{pendingItems === 0 ? "餐點皆已出餐" : `${pendingItems} 個品項尚未出餐`}</span>
-                  <button type="button" disabled={!checkoutEligible || updatingOrderId !== null} onClick={() => unpaidOrders.length > 0 ? openCheckout(unpaidOrders) : void completePaidOrders(group.orders)} className="h-10 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{unpaidOrders.length > 0 ? unpaidOrders.length > 1 ? `合併結帳（${unpaidOrders.length} 筆）` : "完成此桌結帳" : "完成此桌"}</button>
+                  <button type="button" disabled={!checkoutEligible || updatingOrderId !== null || posConfigurationLoading} onClick={() => unpaidOrders.length > 0 ? void openCheckout(unpaidOrders) : void completePaidOrders(group.orders)} className="h-10 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{unpaidOrders.length > 0 ? unpaidOrders.length > 1 ? `合併結帳（${unpaidOrders.length} 筆）` : "完成此桌結帳" : "完成此桌"}</button>
                 </div>
               </article>
             );
@@ -1141,7 +1197,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
                       }
                       if (option.value === "COMPLETED") {
                         if (order.paymentStatus === "PAID") void updateOrder(order.id, "COMPLETED");
-                        else openCheckout(order);
+                        else void openCheckout(order);
                         return;
                       }
                       void updateOrder(order.id, option.value);
@@ -1166,6 +1222,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
           modules={modules}
           paymentOptions={paymentOptions}
           discountOptions={discountOptions}
+          discountSettingsHref={hasPermission(account.role, "MANAGE_STALL") ? `/merchant/stalls/${stall.id}/settings/modules?source=staff#discount-options` : undefined}
           onCreated={handleStaffOrderCreated}
           onClose={() => setComposerOpen(false)}
         />
@@ -1224,32 +1281,16 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
               )}
             </div>
 
-            {modules.discount ? (
-              <div className="mt-5">
-                <h3 className="text-xs font-semibold text-stone-600">折扣</h3>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    aria-pressed={selectedDiscountOptionId === null}
-                    onClick={() => setSelectedDiscountOptionId(null)}
-                    className={`h-10 rounded-md border px-3 text-sm font-medium ${selectedDiscountOptionId === null ? "border-teal-700 bg-teal-50" : "border-stone-300"}`}
-                  >
-                    無折扣
-                  </button>
-                  {discountOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={selectedDiscountOptionId === option.id}
-                      onClick={() => setSelectedDiscountOptionId(option.id)}
-                      className={`h-10 rounded-md border px-3 text-sm font-medium ${selectedDiscountOptionId === option.id ? "border-teal-700 bg-teal-50" : "border-stone-300"}`}
-                    >
-                      {option.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+            <StaffDiscountSelector
+              enabled={modules.discount}
+              options={discountOptions}
+              selectedOptionId={selectedDiscountOptionId}
+              onSelect={setSelectedDiscountOptionId}
+              settingsHref={hasPermission(account.role, "MANAGE_STALL") ? `/merchant/stalls/${stall.id}/settings/modules?source=staff#discount-options` : undefined}
+              existingDiscountLabel={checkoutPreview.discountAmount > 0
+                ? checkoutPreview.discountLabel ?? "訂單既有折扣"
+                : null}
+            />
 
             {checkoutNeedsApproval ? (
               <div className="mt-5 rounded-md border border-amber-300 bg-amber-50 p-4">
@@ -1261,7 +1302,7 @@ export function StaffOrderBoard({ stall, initialOrders, initialNow, account, mod
 
             <dl className="mt-5 space-y-2 border-y border-stone-200 py-4 text-sm">
               <div className="flex justify-between"><dt>商品小計</dt><dd>{formatMoney(checkoutSubtotal, stall.currency)}</dd></div>
-              {checkoutDiscount ? <div className="flex justify-between text-emerald-800"><dt>{checkoutDiscount.name}</dt><dd>-{formatMoney(checkoutSubtotal - checkoutTotal, stall.currency)}</dd></div> : null}
+              {checkoutPreview.discountAmount > 0 ? <div className="flex justify-between text-emerald-800"><dt>{checkoutPreview.discountLabel ?? "訂單既有折扣"}</dt><dd>-{formatMoney(checkoutPreview.discountAmount, stall.currency)}</dd></div> : null}
               <div className="flex justify-between text-lg font-semibold"><dt>應收金額</dt><dd>{formatMoney(checkoutTotal, stall.currency)}</dd></div>
             </dl>
 

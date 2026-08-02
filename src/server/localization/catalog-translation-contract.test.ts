@@ -122,4 +122,22 @@ describe("catalog translation contract", () => {
     expect(chunks.map((chunk) => chunk.items[0].key)).toEqual(["item-0", "item-0"]);
     expect(chunks.map((chunk) => chunk.items[0].entityId)).toEqual(["product-1", "option-1"]);
   });
+
+  it("共用單一註記只建立一份翻譯目標", () => {
+    const [request] = buildCatalogTranslationRequests({
+      products: [],
+      noteGroups: [
+        { id: "group-1", name: "辣度", translations: [], options: [] },
+        { id: "group-2", name: "加料", translations: [], options: [] },
+      ],
+      reusableNotes: [{ id: "reusable-note-1", name: "不要香菜", translations: [] }],
+    }, ["en"]);
+
+    expect(request.items.filter((item) => item.entityType === "REUSABLE_NOTE")).toEqual([expect.objectContaining({
+      entityType: "REUSABLE_NOTE",
+      entityId: "reusable-note-1",
+      context: "共用單一註記",
+    })]);
+    expect(request.items.filter((item) => item.entityType === "NOTE_OPTION")).toHaveLength(0);
+  });
 });

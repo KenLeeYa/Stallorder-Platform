@@ -239,12 +239,6 @@ jobs:
                 rm -f "$deploy_log"
                 break
               fi
-              if grep -qi 'deployment already exists' "$deploy_log"; then
-                echo "::notice::${function_name} already has this immutable deployment."
-                deployed=true
-                rm -f "$deploy_log"
-                break
-              fi
               if grep -Eqi \
                 'unexpected deploy status (429|500|502|503|504)|"retryable"[[:space:]]*:[[:space:]]*true' \
                 "$deploy_log" \

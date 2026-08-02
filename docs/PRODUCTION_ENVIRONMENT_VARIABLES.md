@@ -47,12 +47,19 @@
 - Secret `SUPABASE_ACCESS_TOKEN`
 - Variable `SUPABASE_PROJECT_REF`
 
+`production` Environment 另外設定：
+
+- Secret `PRODUCTION_TEST_QR_URL`（同源專用 `/q/<token>`，不得回顯 token）
+
 `production-readiness.yml` uses the access token to obtain a short-lived
 Postgres login role through the linked IPv4 Supavisor endpoint. A long-lived
 `SUPABASE_DB_PASSWORD` secret is not required by this workflow.
 
 `production-readiness.yml` 預設只做 migration list、dry-run 與 lint；只有手動選擇
 `apply_migrations=true` 且前置檢查全部成功時，才會套用 Production migration。
+Apply 會要求 `PRODUCTION_TEST_QR_URL`，在 promote 前部署並以
+`supabase functions list` 驗證所有 repository Edge Functions，最後執行不可略過
+專用 QR 的 Production smoke。
 Production Environment 應設定必要 reviewer。
 
 ## Supabase Auth provider

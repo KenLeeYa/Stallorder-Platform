@@ -6,7 +6,7 @@ import { Check, Copy, Eye, RefreshCw } from "lucide-react";
 import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
 import { csrfHeaders } from "@/lib/csrf-client";
 
-type SectionKey = "PAYMENTS" | "DISCOUNTS" | "PRODUCT_AVAILABILITY" | "BUSINESS_HOURS";
+type SectionKey = "PAYMENTS" | "DISCOUNTS" | "ORDERING_EXPERIENCE" | "PRODUCT_AVAILABILITY" | "BUSINESS_HOURS";
 type Preview = {
   sourceStall: { id: string; name: string };
   targetStall: { id: string; name: string };
@@ -71,7 +71,7 @@ export function StallTemplateCopyManager({ stallId, sourceStalls }: { stallId: s
     });
   }
 
-  return <details open data-settings-section data-settings-scope="stall-template" data-settings-search="多攤位範本 複製 付款 折扣 商品供應 營業時間 差異預覽" className="border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180">
+  return <details open data-settings-section data-settings-scope="stall-template" data-settings-search="多攤位範本 複製 付款 折扣 店員外送 預約 抽抽樂 商品供應 營業時間 差異預覽" className="border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180">
     <CollapsibleSectionSummary icon={Copy} title="多攤位範本" description="先顯示差異，再選擇要覆蓋的設定。" />
     <div className="pb-6">
       {sourceStalls.length === 0 ? <p className="text-sm text-stone-500">目前沒有其他可管理的攤位可作為範本。</p> : <div className="flex flex-wrap items-end gap-3"><label className="min-w-60 flex-1 text-xs font-semibold text-stone-600">來源攤位<select value={sourceStallId} onChange={(event) => { setSourceStallId(event.target.value); setPreview(null); setSelected(new Set()); }} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{sourceStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}</select></label><button type="button" disabled={busy || !sourceStallId} onClick={() => void loadPreview()} className="inline-flex h-11 items-center gap-2 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">{busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}比較差異</button></div>}

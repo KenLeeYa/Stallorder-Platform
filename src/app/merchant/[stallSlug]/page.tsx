@@ -72,7 +72,7 @@ export default async function MerchantPage({ params }: PageProps) {
         .filter((candidate) => candidate.id !== stall.id && candidate.roles.some((candidateRole) => hasPermission(candidateRole, "MANAGE_PRODUCTS")))
         .map((candidate) => ({ id: candidate.id, name: candidate.name, code: candidate.code }))}
       sharedCatalogUrl={roles.some((candidate) => hasPermission(candidate, "MANAGE_SHARED_PRODUCTS"))
-        ? `/merchant/catalog?organizationId=${stall.organizationId}`
+        ? `/merchant/catalog?organizationId=${stall.organizationId}&stallId=${stall.id}&source=stall-products`
         : undefined}
       appBaseUrl={baseUrl}
       qrCode={qrCode}

@@ -175,14 +175,44 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
 test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
   await login(page, "owner@stallorder.test");
   await page.goto("/kitchen/stations?stall=aming-chicken");
-  await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/kitchen/stations$`));
-  await expect(page.getByRole("link", { name: "返回攤位設定", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/kitchen/stations\\?source=kitchen$`));
+  await expect(page.getByRole("link", { name: "返回生產看板", exact: true }))
+    .toHaveAttribute("href", "/kitchen?stall=aming-chicken");
   await expect(page.getByRole("heading", { name: "工作站與品項分流" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "綜合工作站", exact: true }).last()).toBeVisible();
+  const newStationName = page.getByLabel("名稱", { exact: true }).first();
+  const newStationCode = page.getByLabel("代碼", { exact: true }).first();
+  await newStationName.fill("錯誤代碼測試");
+  await newStationCode.fill("中文代碼");
+  const invalidStationResponse = page.waitForResponse((response) => (
+    response.url().endsWith("/api/stalls/aming-chicken/kitchen/stations")
+    && response.request().method() === "PATCH"
+  ));
+  await page.getByRole("button", { name: "新增工作站", exact: true }).click();
+  expect((await invalidStationResponse).status()).toBe(400);
+  await expect(newStationCode).toHaveAttribute("aria-invalid", "true");
+  await expect(newStationCode).toBeFocused();
   await page.goto("/kitchen/settings?stall=aming-chicken");
-  await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/kitchen/settings$`));
-  await expect(page.getByRole("link", { name: "返回攤位設定", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/kitchen/settings\\?source=kitchen$`));
+  await expect(page.getByRole("link", { name: "返回生產看板", exact: true }))
+    .toHaveAttribute("href", "/kitchen?stall=aming-chicken");
   await expect(page.getByRole("heading", { name: "KDS 顯示設定" })).toBeVisible();
   await expect(page.getByRole("spinbutton", { name: "警示時間（分鐘）", exact: true }).last()).toHaveValue("5");
   await expect(page.getByRole("spinbutton", { name: "嚴重逾時（分鐘）", exact: true }).last()).toHaveValue("10");
+  const warningMinutes = page.getByRole("spinbutton", { name: "警示時間（分鐘）", exact: true }).last();
+  const criticalMinutes = page.getByRole("spinbutton", { name: "嚴重逾時（分鐘）", exact: true }).last();
+  await warningMinutes.fill("10");
+  await criticalMinutes.fill("8");
+  const invalidSettingsResponse = page.waitForResponse((response) => (
+    response.url().endsWith("/api/stalls/aming-chicken/kitchen/settings")
+    && response.request().method() === "PATCH"
+  ));
+  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+  expect((await invalidSettingsResponse).status()).toBe(400);
+  await expect(criticalMinutes).toHaveAttribute("aria-invalid", "true");
+  await expect(criticalMinutes).toBeFocused();
+
+  await page.goto(`/merchant/stalls/${stallId}/kitchen/settings?source=https://attacker.invalid`);
+  await expect(page.getByRole("link", { name: "返回攤位設定", exact: true }))
+    .toHaveAttribute("href", `/merchant/stalls/${stallId}`);
 });

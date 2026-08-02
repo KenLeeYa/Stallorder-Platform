@@ -35,10 +35,20 @@ APP_ENV=production
 
 ## 部署
 
+`Production Readiness` 的 Apply 在 migration 套用與 remote lint 成功後、Vercel
+promote 前，自動尋找每個 `supabase/functions/*/index.ts` 並逐一部署。每個函式
+最多重試三次，使用 `--use-api` 與
+`--import-map supabase/functions/deno.json`；不可使用 `--prune`。JWT gateway
+設定以 `supabase/config.toml` 為準。
+
+每個 deploy command 必須以 exit code 0 完成；包含 HTTP 409 `deployment already
+exists` 在內的非零結果都會停止發布。`functions list` 的 `ACTIVE` 檢查只驗證部署後
+liveness，不取代本次 deploy 成功證據，也不會接受既有舊版本繼續 promote。
+
+部署後 workflow 執行 `supabase functions list`，逐一確認 repository 內的函式
+都存在且狀態為 `ACTIVE`；缺少、移除或遭節流的函式都會停止 promote。人工只需執行唯讀核對：
+
 ```powershell
-npx supabase functions deploy create-order-session --project-ref <PRODUCTION_SUPABASE_PROJECT_REF> --no-verify-jwt
-npx supabase functions deploy create-public-order --project-ref <PRODUCTION_SUPABASE_PROJECT_REF> --no-verify-jwt
-npx supabase functions deploy get-public-order --project-ref <PRODUCTION_SUPABASE_PROJECT_REF> --no-verify-jwt
 npx supabase functions list --project-ref <PRODUCTION_SUPABASE_PROJECT_REF>
 npx supabase secrets list --project-ref <PRODUCTION_SUPABASE_PROJECT_REF>
 ```

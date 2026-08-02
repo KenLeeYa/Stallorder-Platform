@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
@@ -82,17 +83,63 @@ test.describe("P4 離線 PWA 基礎", () => {
       expect(device.status).toBe("DISABLED");
       expect(device.offlineRole).toBe("NONE");
       expect(device.offlineEnabled).toBe(false);
+      await prisma.offlineSyncConflict.create({
+        data: {
+          organizationId,
+          stallId,
+          deviceId: device.id,
+          localEntityId: randomUUID(),
+          conflictType: "PRICE_CHANGED",
+          detailsJson: { errorCode: "E2E_INVALID_SUBMIT" },
+        },
+      });
 
       await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
       await ownerPage.goto(`/merchant/stalls/${stallId}/offline`);
       const ownerSettings = ownerPage.locator("main:visible").last();
       await expect(ownerSettings.getByRole("heading", { name: "離線裝置" })).toBeVisible();
       await expect(ownerSettings.getByRole("heading", { name: deviceName, exact: true })).toBeVisible();
+
+      const policyReasonField = ownerSettings.getByLabel("異動原因");
+      const blankPolicyResponse = ownerPage.waitForResponse((response) => (
+        response.url().endsWith(`/api/merchant/stalls/${stallId}/offline`)
+        && response.request().method() === "PATCH"
+      ));
+      await ownerSettings.getByRole("button", { name: "儲存離線政策" }).click();
+      expect((await blankPolicyResponse).status()).toBe(400);
+      await expect(ownerSettings.getByText("異動原因不可空白。", { exact: true }).first()).toBeVisible();
+      await expect(policyReasonField).toHaveAttribute("aria-invalid", "true");
+      await expect(policyReasonField).toBeFocused();
+
       await ownerSettings.getByRole("switch", { name: "允許離線收單" }).check();
       await ownerSettings.getByLabel("Leader 裝置").selectOption(device.id);
-      await ownerSettings.getByLabel("異動原因").fill("核准本機 E2E 離線主機測試");
+      await policyReasonField.fill("核准本機 E2E 離線主機測試");
       await ownerSettings.getByRole("button", { name: "儲存離線政策" }).click();
       await expect(ownerSettings.getByRole("status")).toContainText("離線裝置設定已更新");
+
+      const conflictCard = ownerSettings.getByRole("article").filter({ hasText: "價格已變更" });
+      const resolutionField = conflictCard.getByLabel("處理結果");
+      const blankConflictResponse = ownerPage.waitForResponse((response) => (
+        response.url().endsWith(`/api/merchant/stalls/${stallId}/offline/conflicts`)
+        && response.request().method() === "PATCH"
+      ));
+      await conflictCard.getByRole("button", { name: "確認處理" }).click();
+      expect((await blankConflictResponse).status()).toBe(400);
+      await expect(conflictCard.getByText("「處理結果」輸入不正確，請依欄位限制重新輸入。", { exact: true })).toBeVisible();
+      await expect(resolutionField).toHaveAttribute("aria-invalid", "true");
+      await expect(resolutionField).toBeFocused();
+
+      await resolutionField.selectOption("ACCEPTED_LOCAL");
+      const blankConflictReasonResponse = ownerPage.waitForResponse((response) => (
+        response.url().endsWith(`/api/merchant/stalls/${stallId}/offline/conflicts`)
+        && response.request().method() === "PATCH"
+      ));
+      await conflictCard.getByRole("button", { name: "確認處理" }).click();
+      expect((await blankConflictReasonResponse).status()).toBe(400);
+      const conflictReasonField = conflictCard.getByLabel("處理原因");
+      await expect(conflictCard.getByText("處理原因不可空白。", { exact: true })).toBeVisible();
+      await expect(conflictReasonField).toHaveAttribute("aria-invalid", "true");
+      await expect(conflictReasonField).toBeFocused();
       expect(await ownerPage.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth + 1,
       )).toBe(true);
@@ -434,9 +481,14 @@ async function cleanup() {
   });
   const deviceIds = devices.map((device) => device.id);
   if (deviceIds.length > 0) {
-    await prisma.offlinePermit.deleteMany({
-      where: { organizationId, stallId, deviceId: { in: deviceIds } },
-    });
+    await prisma.$transaction([
+      prisma.offlineSyncConflict.deleteMany({
+        where: { organizationId, stallId, deviceId: { in: deviceIds } },
+      }),
+      prisma.offlinePermit.deleteMany({
+        where: { organizationId, stallId, deviceId: { in: deviceIds } },
+      }),
+    ]);
   }
   await prisma.offlineStallRuntimePolicy.deleteMany({ where: { organizationId, stallId } });
   if (deviceIds.length > 0) {

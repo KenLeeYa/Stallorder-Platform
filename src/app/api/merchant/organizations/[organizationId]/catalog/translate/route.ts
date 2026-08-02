@@ -7,7 +7,10 @@ import { validateCsrf } from "@/lib/csrf";
 import { getEnabledTranslationLocales } from "@/lib/enabled-locales";
 import { readJson } from "@/lib/http";
 import { getOrganizationEnabledLocales } from "@/lib/localization-data";
-import { getOrganizationProductNotes } from "@/lib/product-note-data";
+import {
+  getOrganizationProductNotes,
+  getOrganizationReusableProductNotes,
+} from "@/lib/product-note-data";
 import { invalidatePublicMenus } from "@/lib/public-menu";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { hashClientIp } from "@/lib/security";
@@ -143,15 +146,17 @@ export async function POST(request: Request, context: RouteContext) {
         translatedProductCount: summary.translatedProducts,
         translatedNoteGroupCount: summary.translatedNoteGroups,
         translatedNoteOptionCount: summary.translatedNoteOptions,
+        translatedReusableNoteCount: summary.translatedReusableNotes,
       },
     });
 
-    const [catalog, noteGroups] = await Promise.all([
+    const [catalog, noteGroups, reusableNotes] = await Promise.all([
       getOrganizationCatalog(organizationId, stallIds),
       getOrganizationProductNotes(organizationId),
+      getOrganizationReusableProductNotes(organizationId),
     ]);
     return NextResponse.json(
-      { summary, catalog, noteGroups },
+      { summary, catalog, noteGroups, reusableNotes },
       { headers: { "x-request-id": requestId } },
     );
   } catch (error) {

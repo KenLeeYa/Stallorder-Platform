@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
+import { getZodFieldErrors } from "@/lib/form-field-errors";
 import { readJson } from "@/lib/http";
 import { updateOrganizationProfileSchema } from "@/lib/organization-profile-contract";
 import { prisma } from "@/lib/prisma";
@@ -29,8 +30,13 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = updateOrganizationProfileSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getZodFieldErrors(parsed.error, {
+      businessName: "商家名稱",
+      email: "聯絡電子郵件",
+      phone: "聯絡電話",
+    });
     return NextResponse.json(
-      { error: "商家資料格式不正確，請檢查名稱、電子郵件與電話。" },
+      { error: "商家資料格式不正確，請檢查標示欄位。", fieldErrors },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -66,15 +72,20 @@ export async function PATCH(request: Request, context: RouteContext) {
       { headers: { "x-request-id": authorization.requestId } },
     );
   } catch (error) {
-    const conflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+    const uniqueTarget = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
+      ? JSON.stringify(error.meta?.target ?? "").toLowerCase()
+      : "";
+    const conflict = uniqueTarget.includes("email");
     const notFound = error instanceof Error && error.message === "ORGANIZATION_NOT_FOUND";
+    const conflictMessage = "此聯絡電子郵件已由其他商家使用。";
     return NextResponse.json(
       {
         error: conflict
-          ? "此聯絡電子郵件已由其他商家使用。"
+          ? conflictMessage
           : notFound
             ? "找不到指定商家。"
             : "目前無法更新商家資料。",
+        ...(conflict ? { fieldErrors: { email: conflictMessage } } : {}),
       },
       {
         status: conflict ? 409 : notFound ? 404 : 500,

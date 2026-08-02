@@ -86,6 +86,7 @@ function kitchenErrorResponse(error: KitchenOperationError, requestId: string) {
     STATION_NOT_FOUND: "找不到此工作站。",
     STATION_IN_USE: "工作站已有歷史工作，請停用而非刪除。",
     DEFAULT_STATION_REQUIRED: "預設工作站不可刪除或變更代碼。",
+    STATION_CODE_CONFLICT: "工作站代碼已存在，請使用其他代碼。",
     ASSIGNMENT_TARGET_INVALID: "商品或分類不屬於此攤位。",
     ASSIGNMENT_CONFLICT: "此商品或分類已分派工作站。",
     STATION_LIMIT_REACHED: "已達目前方案的工作站數量上限。",

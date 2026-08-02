@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
+import { getZodFieldErrors } from "@/lib/form-field-errors";
 import { readJson } from "@/lib/http";
 import {
   cdsVoiceAvailable,
@@ -54,8 +55,17 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = pickupDisplayCommandSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getZodFieldErrors(parsed.error, {
+      readyRetentionMinutes: "可取餐保留時間",
+      preparingRetentionMinutes: "製作中保留時間",
+      voiceLocale: "語音語系",
+      announcementText: "公告內容",
+      logoUrl: "自訂標誌網址",
+      backgroundImageUrl: "背景圖片網址",
+      accentColor: "主色",
+    });
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "取餐顯示設定格式不正確。" },
+      { error: Object.values(fieldErrors)[0] ?? "取餐顯示設定格式不正確。", fieldErrors },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -70,7 +80,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     const voiceAvailable = cdsVoiceAvailable(entitlement.configuration);
     if (command.operation === "UPDATE_SETTINGS" && command.enableVoice && !voiceAvailable) {
       return NextResponse.json(
-        { error: "目前方案未包含 CDS 語音播報。" },
+        {
+          error: "目前方案未包含 CDS 語音播報。",
+          fieldErrors: { enableVoice: "目前方案未包含 CDS 語音播報，請關閉語音後再儲存。" },
+        },
         { status: 403, headers: { "x-request-id": authorization.requestId } },
       );
     }
