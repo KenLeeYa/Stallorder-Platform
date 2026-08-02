@@ -1,6 +1,12 @@
+import {
+  productionTestQrToken,
+  resolveProductionTestQrUrl,
+} from "./lib/production-smoke-qr-url.mjs";
+
 const baseUrl = new URL(process.env.PRODUCTION_BASE_URL ?? "https://app.qidaigo.com");
 const allowHttp = process.env.SMOKE_ALLOW_HTTP === "true";
 const skipDomainRedirects = process.env.SMOKE_SKIP_DOMAIN_REDIRECTS === "true";
+const requireTestQr = process.env.PRODUCTION_TEST_QR_REQUIRED === "true";
 const vercelAutomationBypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
 const requestHeaders = {
   "user-agent": "StallOrder-Production-Smoke/1.0",
@@ -20,8 +26,10 @@ function assert(name, condition, detail) {
 
 async function request(url, options = {}) {
   return fetch(url, {
+    method: options.method ?? "GET",
     redirect: options.redirect ?? "follow",
     headers: { ...requestHeaders, ...options.headers },
+    body: options.body,
     signal: AbortSignal.timeout(15_000),
   });
 }
@@ -114,13 +122,51 @@ async function run() {
     record("Root and WWW redirects", true, "SKIPPED by SMOKE_SKIP_DOMAIN_REDIRECTS=true");
   }
 
-  const testQrUrl = process.env.PRODUCTION_TEST_QR_URL;
+  const testQrUrl = resolveProductionTestQrUrl({
+    baseUrl,
+    configuredUrl: process.env.PRODUCTION_TEST_QR_URL,
+    required: requireTestQr,
+  });
   if (testQrUrl) {
-    const qrResponse = await request(new URL(testQrUrl, baseUrl));
+    const qrResponse = await request(testQrUrl);
     const qrBody = await qrResponse.text();
-    assert("Turnstile widget loads on test QR", qrResponse.status === 200 && qrBody.includes("challenges.cloudflare.com/turnstile"), `status=${qrResponse.status}`);
+    assert("Dedicated test QR page loads", qrResponse.status === 200, `status=${qrResponse.status}`);
+    assert("Dedicated test QR hides stack traces", !containsDebugDetails(qrBody), "response body inspected");
+
+    const sessionResponse = await request(
+      new URL("/api/public-order/create-order-session", baseUrl),
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-stallorder-protocol-version": "1",
+        },
+        body: JSON.stringify({
+          qrToken: productionTestQrToken(testQrUrl),
+          deviceId: crypto.randomUUID(),
+          sessionRequestId: crypto.randomUUID(),
+          orderingMode: "DEFAULT",
+          includeMenu: false,
+        }),
+      },
+    );
+    const sessionBody = await sessionResponse.text();
+    let sessionPayload;
+    try {
+      sessionPayload = JSON.parse(sessionBody);
+    } catch {
+      sessionPayload = null;
+    }
+    assert(
+      "Dedicated test QR issues a secure order session",
+      sessionResponse.status === 201
+        && typeof sessionPayload?.orderSessionToken === "string"
+        && sessionPayload.orderSessionToken.length >= 40,
+      `status=${sessionResponse.status}, code=${typeof sessionPayload?.code === "string" ? sessionPayload.code : "missing"}`,
+    );
+    assert("Dedicated QR session hides stack traces", !containsDebugDetails(sessionBody), "response body inspected");
   } else {
-    record("Turnstile widget loads on test QR", true, "SKIPPED: PRODUCTION_TEST_QR_URL is not configured; keep as a go-live blocker.");
+    record("Dedicated Production QR checks", true, "SKIPPED: PRODUCTION_TEST_QR_URL is not configured; keep as a go-live blocker.");
   }
 
   for (const result of results) {

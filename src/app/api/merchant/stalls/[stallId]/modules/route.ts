@@ -7,7 +7,13 @@ import { readJson } from "@/lib/http";
 import { initialFloorPosition } from "@/lib/dining-floor-layout";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp, createOpaqueToken } from "@/lib/security";
-import { getStallModuleState, stallModuleCommandSchema } from "@/lib/stall-modules";
+import {
+  getModuleDuplicateCodeFieldErrors,
+  getStallModuleFieldErrors,
+  getStallModuleFieldLabel,
+  stallModuleCommandSchema,
+} from "@/lib/stall-module-contract";
+import { getStallModuleState } from "@/lib/stall-modules";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
 import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
@@ -29,8 +35,20 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = stallModuleCommandSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getStallModuleFieldErrors(parsed.error);
+    const operation = body.data && typeof body.data === "object" && "operation" in body.data
+      ? body.data.operation
+      : undefined;
+    const invalidFields = [...new Set(
+      Object.keys(fieldErrors).map((field) => getStallModuleFieldLabel(field, operation)),
+    )];
     return NextResponse.json(
-      { error: "模組設定格式不正確。" },
+      {
+        error: invalidFields.length
+          ? `請檢查以下欄位：${invalidFields.join("、")}。`
+          : "模組設定格式不正確。",
+        fieldErrors,
+      },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -73,20 +91,46 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
     const entityId = await prisma.$transaction(async (transaction) => {
       if (command.operation === "UPDATE_MODULES") {
+        if (command.lotteryDiscountOptionId) {
+          const lotteryDiscount = await transaction.discountOption.findFirst({
+            where: {
+              id: command.lotteryDiscountOptionId,
+              organizationId,
+              stallId,
+              isEnabled: true,
+            },
+            select: { id: true },
+          });
+          if (!lotteryDiscount) throw new LotteryDiscountNotFoundError();
+        }
         await transaction.stallOrderingSettings.update({
           where: { stallId, organizationId },
           data: {
             dineInEnabled: command.dineInEnabled,
             deliveryModuleEnabled: command.deliveryModuleEnabled,
+            staffDeliveryEnabled: command.staffDeliveryEnabled,
             printModuleEnabled: command.printModuleEnabled,
             paymentModuleEnabled: command.paymentModuleEnabled,
             discountModuleEnabled: command.discountModuleEnabled,
             discountApprovalThresholdBps: command.discountApprovalThresholdBps,
+            takeoutPreorderEnabled: command.takeoutPreorderEnabled,
+            preorderMinLeadMinutes: command.preorderMinLeadMinutes,
+            preorderMaxDays: command.preorderMaxDays,
+            preorderSlotMinutes: command.preorderSlotMinutes,
+            lotteryEnabled: command.lotteryEnabled,
+            lotteryDiscountOptionId: command.lotteryDiscountOptionId,
+            lotteryDiscountWinRateBps: command.lotteryDiscountWinRateBps,
           },
         });
         if (!command.deliveryModuleEnabled) {
           await transaction.orderSession.updateMany({
             where: { stallId, organizationId, orderingMode: "DELIVERY", status: "ACTIVE" },
+            data: { status: "REVOKED", revokedAt: new Date() },
+          });
+        }
+        if (!command.takeoutPreorderEnabled) {
+          await transaction.orderSession.updateMany({
+            where: { stallId, organizationId, orderingMode: "PREORDER", status: "ACTIVE" },
             data: { status: "REVOKED", revokedAt: new Date() },
           });
         }
@@ -251,6 +295,12 @@ export async function PATCH(request: Request, context: RouteContext) {
         const existing = await transaction.discountOption.findFirst({ where: { id: command.discountId, stallId, organizationId } });
         if (!existing) throw new ModuleNotFoundError();
         await transaction.discountOption.update({ where: { id: existing.id }, data: discountFields(command) });
+        if (!command.isEnabled) {
+          await transaction.stallOrderingSettings.updateMany({
+            where: { stallId, organizationId, lotteryDiscountOptionId: existing.id },
+            data: { lotteryDiscountOptionId: null, lotteryDiscountWinRateBps: 0 },
+          });
+        }
         return existing.id;
       }
       const existing = await transaction.discountOption.findFirst({ where: { id: command.discountId, stallId, organizationId } });
@@ -280,12 +330,24 @@ export async function PATCH(request: Request, context: RouteContext) {
   } catch (error) {
     const entitlementResponse = entitlementErrorResponse(error, authorization.requestId);
     if (entitlementResponse) return entitlementResponse;
-    const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+    const duplicateError = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
+      ? error
+      : null;
+    const duplicate = Boolean(duplicateError);
     const notFound = error instanceof ModuleNotFoundError;
+    const invalidLotteryDiscount = error instanceof LotteryDiscountNotFoundError;
     const activeOrders = error instanceof ActiveTableOrdersError;
+    const duplicateFieldErrors = duplicate
+      ? getModuleDuplicateCodeFieldErrors(command.operation, duplicateError?.meta?.target)
+      : undefined;
     return NextResponse.json(
-      { error: duplicate ? "代碼已存在。" : notFound ? "找不到指定設定。" : activeOrders ? "桌位仍有未完成訂單，請先停用而不要刪除。" : "目前無法更新模組設定。" },
-      { status: duplicate || activeOrders ? 409 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
+      {
+        error: duplicateFieldErrors ? "代碼已存在。" : duplicate ? "資料與現有設定衝突，請重新整理後再試。" : invalidLotteryDiscount ? "抽中折扣已停用或不存在，請重新選擇。" : notFound ? "找不到指定設定。" : activeOrders ? "桌位仍有未完成訂單，請先停用而不要刪除。" : "目前無法更新模組設定。",
+        ...(duplicateFieldErrors ? { fieldErrors: duplicateFieldErrors } : invalidLotteryDiscount ? {
+          fieldErrors: { lotteryDiscountOptionId: "抽中折扣已停用或不存在，請重新選擇。" },
+        } : {}),
+      },
+      { status: duplicate || activeOrders ? 409 : invalidLotteryDiscount ? 400 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }
 }
@@ -299,4 +361,5 @@ function discountFields(command: { name: string; rateBps: number; isEnabled: boo
 }
 
 class ModuleNotFoundError extends Error {}
+class LotteryDiscountNotFoundError extends Error {}
 class ActiveTableOrdersError extends Error {}

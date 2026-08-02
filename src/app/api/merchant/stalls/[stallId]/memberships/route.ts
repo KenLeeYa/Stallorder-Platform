@@ -1,18 +1,17 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
 import { recordAuditEvent } from "@/lib/audit";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import {
+  getStallMembershipConflictFieldErrors,
+  getStallMembershipFieldErrors,
+  stallMembershipSchema,
+} from "@/lib/stall-membership-contract";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
-
-const membershipSchema = z.object({
-  email: z.string().trim().email().max(120).transform((value) => value.toLowerCase()),
-  role: z.enum(["STALL_MANAGER", "STAFF", "KITCHEN"]),
-}).strict();
 
 type RouteContext = { params: Promise<{ stallId: string }> };
 
@@ -29,10 +28,11 @@ export async function POST(request: Request, context: RouteContext) {
 
   const body = await readJson(request, authorization.requestId);
   if (body.error) return body.error;
-  const parsed = membershipSchema.safeParse(body.data);
+  const parsed = stallMembershipSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getStallMembershipFieldErrors(parsed.error);
     return NextResponse.json(
-      { error: "成員 Email 或角色格式不正確。" },
+      { error: "請檢查成員 Email 與角色。", fieldErrors },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -42,7 +42,10 @@ export async function POST(request: Request, context: RouteContext) {
   );
   if (parsed.data.role === "STALL_MANAGER" && !canGrantManager) {
     return NextResponse.json(
-      { error: "只有組織擁有者或管理員可指派攤位經理。" },
+      {
+        error: "只有組織擁有者或管理員可指派攤位經理。",
+        fieldErrors: { role: "您目前沒有指派攤位經理的權限，請選擇其他角色。" },
+      },
       { status: 403, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -68,7 +71,10 @@ export async function POST(request: Request, context: RouteContext) {
   });
   if (!profile?.isActive) {
     return NextResponse.json(
-      { error: "找不到同組織的有效帳號；外部成員請改用 Email 邀請。" },
+      {
+        error: "找不到同組織的有效帳號；外部成員請改用 Email 邀請。",
+        fieldErrors: { email: "找不到此 Email 對應的同組織有效帳號。" },
+      },
       { status: 404, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -123,7 +129,10 @@ export async function POST(request: Request, context: RouteContext) {
     if (entitlementResponse) return entitlementResponse;
     const conflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
     return NextResponse.json(
-      { error: conflict ? "此成員已具有相同角色。" : "目前無法指派成員。" },
+      {
+        error: conflict ? "此成員已具有相同角色。" : "目前無法指派成員。",
+        ...(conflict ? { fieldErrors: getStallMembershipConflictFieldErrors() } : {}),
+      },
       { status: conflict ? 409 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }

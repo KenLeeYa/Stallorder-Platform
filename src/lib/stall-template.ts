@@ -3,7 +3,13 @@ import "server-only";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
-export const stallTemplateSections = ["PAYMENTS", "DISCOUNTS", "PRODUCT_AVAILABILITY", "BUSINESS_HOURS"] as const;
+export const stallTemplateSections = [
+  "PAYMENTS",
+  "DISCOUNTS",
+  "ORDERING_EXPERIENCE",
+  "PRODUCT_AVAILABILITY",
+  "BUSINESS_HOURS",
+] as const;
 export type StallTemplateSection = (typeof stallTemplateSections)[number];
 
 export const applyStallTemplateSchema = z.object({
@@ -29,6 +35,14 @@ export async function loadStallTemplateData(stallId: string, organizationId: str
         paymentModuleEnabled: true,
         discountModuleEnabled: true,
         discountApprovalThresholdBps: true,
+        staffDeliveryEnabled: true,
+        takeoutPreorderEnabled: true,
+        preorderMinLeadMinutes: true,
+        preorderMaxDays: true,
+        preorderSlotMinutes: true,
+        lotteryEnabled: true,
+        lotteryDiscountOptionId: true,
+        lotteryDiscountWinRateBps: true,
       },
     }),
   ]);
@@ -46,6 +60,13 @@ export async function getStallTemplatePreview(sourceStallId: string, targetStall
     sections: [
       createSection("PAYMENTS", "付款方式", paymentDiff(source, target), source.paymentOptions.length, target.paymentOptions.length),
       createSection("DISCOUNTS", "折扣設定", discountDiff(source, target), source.discounts.length, target.discounts.length),
+      createSection(
+        "ORDERING_EXPERIENCE",
+        "點餐體驗",
+        orderingExperienceDiff(source, target),
+        orderingExperienceEnabledCount(source),
+        orderingExperienceEnabledCount(target),
+      ),
       createSection("PRODUCT_AVAILABILITY", "商品供應", productAvailabilityDiff(source, target), source.stallProducts.length, target.stallProducts.length),
       createSection("BUSINESS_HOURS", "營業時間", businessHourDiff(source, target), source.businessHours.length, target.businessHours.length),
     ],
@@ -75,8 +96,49 @@ function discountDiff(source: Awaited<ReturnType<typeof loadStallTemplateData>>,
   return changes;
 }
 
+function orderingExperienceDiff(
+  source: Awaited<ReturnType<typeof loadStallTemplateData>>,
+  target: Awaited<ReturnType<typeof loadStallTemplateData>>,
+) {
+  const sourceDiscount = source.discounts.find(
+    (discount) => discount.id === source.settings.lotteryDiscountOptionId && discount.isEnabled,
+  )?.name ?? "只推薦商品";
+  const targetDiscount = target.discounts.find(
+    (discount) => discount.id === target.settings.lotteryDiscountOptionId && discount.isEnabled,
+  )?.name ?? "只推薦商品";
+  const values = [
+    ["店員外送", enabledLabel(source.settings.staffDeliveryEnabled), enabledLabel(target.settings.staffDeliveryEnabled)],
+    ["外帶預約", enabledLabel(source.settings.takeoutPreorderEnabled), enabledLabel(target.settings.takeoutPreorderEnabled)],
+    ["最少提前", `${source.settings.preorderMinLeadMinutes} 分鐘`, `${target.settings.preorderMinLeadMinutes} 分鐘`],
+    ["最多預約", `${source.settings.preorderMaxDays} 天`, `${target.settings.preorderMaxDays} 天`],
+    ["時段間隔", `${source.settings.preorderSlotMinutes} 分鐘`, `${target.settings.preorderSlotMinutes} 分鐘`],
+    ["抽抽樂", enabledLabel(source.settings.lotteryEnabled), enabledLabel(target.settings.lotteryEnabled)],
+    ["抽中折扣", sourceDiscount, targetDiscount],
+    ["折扣中獎率", formatPercentage(source.settings.lotteryDiscountWinRateBps), formatPercentage(target.settings.lotteryDiscountWinRateBps)],
+  ];
+  return values
+    .filter(([, sourceValue, targetValue]) => sourceValue !== targetValue)
+    .map(([label, sourceValue, targetValue]) => `${label}：${targetValue} → ${sourceValue}`);
+}
+
+function orderingExperienceEnabledCount(data: Awaited<ReturnType<typeof loadStallTemplateData>>) {
+  return [
+    data.settings.staffDeliveryEnabled,
+    data.settings.takeoutPreorderEnabled,
+    data.settings.lotteryEnabled,
+  ].filter(Boolean).length;
+}
+
+function enabledLabel(value: boolean) {
+  return value ? "啟用" : "停用";
+}
+
 function formatDiscount(rateBps: number) {
   return `${Number((rateBps / 1000).toFixed(1))} 折`;
+}
+
+function formatPercentage(rateBps: number) {
+  return `${Number((rateBps / 100).toFixed(2))}%`;
 }
 
 function productAvailabilityDiff(source: Awaited<ReturnType<typeof loadStallTemplateData>>, target: Awaited<ReturnType<typeof loadStallTemplateData>>) {

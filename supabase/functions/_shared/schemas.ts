@@ -15,42 +15,74 @@ const optionalPhone = z.union([
   z.literal(""),
   z.string().trim().min(6).max(30).regex(PHONE_NUMBER),
 ]);
+const canonicalUuid = (value: string) => value.toLowerCase();
+const uuid = z.string().uuid().transform(canonicalUuid);
+
+type PublicOrderLineIdentity = {
+  productId: string;
+  quantity: number;
+  note: string;
+  noteOptionIds: readonly string[];
+  bundleChoiceIds: readonly string[];
+};
+
+export function canonicalPublicOrderLine(item: Omit<PublicOrderLineIdentity, "quantity">) {
+  return JSON.stringify([
+    canonicalUuid(item.productId),
+    item.note.trim(),
+    item.noteOptionIds.map(canonicalUuid).sort(),
+    item.bundleChoiceIds.map(canonicalUuid).sort(),
+  ]);
+}
+
+export function canonicalPublicOrderBehavior(items: readonly PublicOrderLineIdentity[]) {
+  const canonicalItems = items
+    .map((item) => JSON.stringify([canonicalPublicOrderLine(item), item.quantity]))
+    .sort();
+  return JSON.stringify(canonicalItems);
+}
 
 export const issueOrderSessionSchema = z.object({
   qrToken: z.string().trim().min(24).max(200),
-  deviceId: z.string().uuid(),
-  sessionRequestId: z.string().uuid().optional(),
-  orderingMode: z.enum(["DEFAULT", "DELIVERY"]).default("DEFAULT"),
+  deviceId: uuid,
+  sessionRequestId: uuid.optional(),
+  orderingMode: z.enum(["DEFAULT", "DELIVERY", "PREORDER"]).default("DEFAULT"),
   includeMenu: z.boolean().default(true),
 }).strict();
 
 export const createPublicOrderSchema = z.object({
   qrToken: z.string().trim().min(24).max(200),
   orderSessionToken: z.string().min(40).max(200),
-  deviceId: z.string().uuid(),
-  idempotencyKey: z.string().uuid(),
-  clientOrderId: z.string().uuid().optional(),
-  turnstileIdempotencyKey: z.string().uuid().optional(),
+  deviceId: uuid,
+  idempotencyKey: uuid,
+  clientOrderId: uuid.optional(),
+  turnstileIdempotencyKey: uuid.optional(),
   customerName: singleLineText(50).optional().default(""),
   customerPhone: optionalPhone.optional().default(""),
   deliveryAddress: multilineText(300).optional().default(""),
   customerNote: multilineText(1000).optional().default(""),
   waitAcknowledged: z.boolean().default(false),
-  orderingMode: z.enum(["DEFAULT", "DELIVERY"]).default("DEFAULT"),
+  orderingMode: z.enum(["DEFAULT", "DELIVERY", "PREORDER"]).default("DEFAULT"),
+  scheduledPickupAt: z.string().datetime({ offset: true }).nullable().default(null),
+  lotteryDrawId: uuid.nullable().default(null),
   items: z.array(z.object({
-    productId: z.string().uuid(),
+    productId: uuid,
     quantity: z.number().int().min(1).max(100),
     note: multilineText(1000).optional().default(""),
-    noteOptionIds: z.array(z.string().uuid()).max(50).default([]),
+    noteOptionIds: z.array(uuid).max(50).default([]),
+    bundleChoiceIds: z.array(uuid).max(50).default([]),
   })).min(1).max(100),
   turnstileToken: z.string().min(1).max(2048),
 }).strict().superRefine((value, context) => {
-  if (new Set(value.items.map((item) => item.productId)).size !== value.items.length) {
-    context.addIssue({ code: "custom", path: ["items"], message: "duplicate products" });
+  if (new Set(value.items.map(canonicalPublicOrderLine)).size !== value.items.length) {
+    context.addIssue({ code: "custom", path: ["items"], message: "duplicate item configurations" });
   }
   value.items.forEach((item, index) => {
-    if (new Set(item.noteOptionIds).size !== item.noteOptionIds.length) {
+    if (new Set(item.noteOptionIds.map(canonicalUuid)).size !== item.noteOptionIds.length) {
       context.addIssue({ code: "custom", path: ["items", index, "noteOptionIds"], message: "duplicate note options" });
+    }
+    if (new Set(item.bundleChoiceIds.map(canonicalUuid)).size !== item.bundleChoiceIds.length) {
+      context.addIssue({ code: "custom", path: ["items", index, "bundleChoiceIds"], message: "duplicate bundle choices" });
     }
   });
   if (value.orderingMode === "DELIVERY") {
@@ -60,17 +92,26 @@ export const createPublicOrderSchema = z.object({
     if (value.deliveryAddress.length < 1) {
       context.addIssue({ code: "custom", path: ["deliveryAddress"], message: "delivery address required" });
     }
+    if (value.lotteryDrawId) {
+      context.addIssue({ code: "custom", path: ["lotteryDrawId"], message: "lottery is takeaway only" });
+    }
+  }
+  if (value.orderingMode === "PREORDER" && !value.scheduledPickupAt) {
+    context.addIssue({ code: "custom", path: ["scheduledPickupAt"], message: "preorder time required" });
+  }
+  if (value.orderingMode !== "PREORDER" && value.scheduledPickupAt) {
+    context.addIssue({ code: "custom", path: ["scheduledPickupAt"], message: "preorder mode required" });
   }
 });
 
 export const getPublicOrderSchema = z.object({
   trackingToken: z.string().min(40).max(200),
-  deviceId: z.string().uuid(),
+  deviceId: uuid,
 }).strict();
 
 const trackedOrderIdentitySchema = z.object({
   trackingToken: z.string().min(40).max(200),
-  deviceId: z.string().uuid(),
+  deviceId: uuid,
 }).strict();
 
 export const manageLineLinkSchema = z.discriminatedUnion("action", [

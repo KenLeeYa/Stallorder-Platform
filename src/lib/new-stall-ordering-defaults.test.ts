@@ -7,9 +7,12 @@ describe("new stall ordering defaults", () => {
       organizationId: "organization-id",
       dineInEnabled: false,
       deliveryModuleEnabled: false,
+      staffDeliveryEnabled: false,
       printModuleEnabled: false,
       paymentModuleEnabled: true,
       discountModuleEnabled: false,
+      takeoutPreorderEnabled: false,
+      lotteryEnabled: false,
       enabledLocales: ["zh-TW"],
     });
   });

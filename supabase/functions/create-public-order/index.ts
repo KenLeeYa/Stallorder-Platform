@@ -10,7 +10,7 @@ import {
   statusForCode,
   assertSupportedPublicOrderProtocol,
 } from "../_shared/http.ts";
-import { createPublicOrderSchema } from "../_shared/schemas.ts";
+import { canonicalPublicOrderBehavior, createPublicOrderSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
 import { verifyTurnstile } from "../_shared/turnstile.ts";
 import { createEdgePerformanceTiming, finalizeEdgeResponse } from "../_shared/performance.ts";
@@ -25,6 +25,8 @@ type StoredOrder = {
   pickup_required?: boolean;
   quoted_wait_minutes?: number | null;
   quoted_ready_at?: string | null;
+  scheduled_pickup_at?: string | null;
+  discount_amount?: number;
   created_at: string;
 };
 
@@ -77,6 +79,8 @@ function publicOrderResponse(order: StoredOrder, trackingToken: string, pickupCo
     totalAmount: order.total_amount,
     quotedWaitMinutes: order.quoted_wait_minutes ?? null,
     quotedReadyAt: order.quoted_ready_at ?? null,
+    scheduledPickupAt: order.scheduled_pickup_at ?? null,
+    discountAmount: order.discount_amount ?? 0,
     createdAt: order.created_at,
   };
 }
@@ -120,16 +124,13 @@ Deno.serve(async (request) => {
     const abuseSecret = requireEnv("ABUSE_HASH_SECRET");
     const tokenSecret = requireEnv("TOKEN_DERIVATION_SECRET");
     const clientIp = getGatewayClientIp(request);
-    const sortedBehavior = [...input.items]
-      .sort((left, right) => left.productId.localeCompare(right.productId))
-      .map((item) => `${item.productId}:${item.quantity}:${[...item.noteOptionIds].sort().join(",")}`)
-      .join("|");
+    const sortedBehavior = canonicalPublicOrderBehavior(input.items);
     const [sessionHash, ipHash, deviceHash, qrTokenHash, behaviorHash, idempotencyHash] = await Promise.all([
       sha256Hex(input.orderSessionToken),
       hmacHex(abuseSecret, `ip:${clientIp}`),
       hmacHex(abuseSecret, `device:${input.deviceId}`),
       hmacHex(abuseSecret, `qr:${input.qrToken}`),
-      hmacHex(abuseSecret, `order:${input.orderingMode}:${input.deviceId}:${input.qrToken}:${sortedBehavior}`),
+      hmacHex(abuseSecret, `order:${input.orderingMode}:${input.deviceId}:${input.qrToken}:${input.scheduledPickupAt ?? ""}:${input.lotteryDrawId ?? ""}:${sortedBehavior}`),
       hmacHex(abuseSecret, `idempotency:${input.idempotencyKey}`),
     ]);
 
@@ -193,12 +194,30 @@ Deno.serve(async (request) => {
     if (existing) {
       const order = existing as StoredOrder;
       const { data: quote, error: quoteError } = await timing.measureDb(() => admin.from("orders")
-        .select("quoted_wait_minutes, quoted_ready_at")
+        .select("quoted_wait_minutes, quoted_ready_at, scheduled_pickup_at, lottery_draw_id, discount_amount")
         .eq("id", order.order_id)
         .single());
       if (quoteError) throw quoteError;
+      const requestedPickupTime = input.scheduledPickupAt
+        ? Date.parse(input.scheduledPickupAt)
+        : null;
+      const storedPickupTime = quote.scheduled_pickup_at
+        ? Date.parse(quote.scheduled_pickup_at)
+        : null;
+      if (
+        requestedPickupTime !== storedPickupTime
+        || (quote.lottery_draw_id ?? null) !== input.lotteryDrawId
+      ) {
+        const code = "IDEMPOTENCY_CONFLICT";
+        await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
+          requestId, code, ipHash, deviceHash, qrTokenHash, sessionHash, behaviorHash, idempotencyHash,
+        }));
+        return respond({ error: errorMessage(code), code }, statusForCode(code));
+      }
       order.quoted_wait_minutes = quote.quoted_wait_minutes;
       order.quoted_ready_at = quote.quoted_ready_at;
+      order.scheduled_pickup_at = quote.scheduled_pickup_at;
+      order.discount_amount = quote.discount_amount;
       const tokens = await derivePublicOrderTokens(order.order_id, tokenSecret);
       await timing.measureDb(() => persistPickupCodeDisplay(admin, order, tokens.pickupCode));
       return respond(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200);
@@ -280,11 +299,16 @@ Deno.serve(async (request) => {
         quantity: item.quantity,
         note: item.note,
         modifier_option_ids: item.noteOptionIds,
+        bundle_choice_ids: item.bundleChoiceIds,
       })),
       p_tracking_token_hash: trackingTokenHash,
       p_pickup_code_hash: pickupCodeHash,
       p_request_id: requestId,
       p_wait_acknowledged: input.waitAcknowledged,
+      ...(input.orderingMode !== "DELIVERY" ? {
+        p_scheduled_pickup_at: input.scheduledPickupAt,
+        p_lottery_draw_id: input.lotteryDrawId,
+      } : {}),
       ...(input.orderingMode === "DELIVERY" ? {
         p_customer_phone: input.customerPhone,
         p_delivery_address: input.deliveryAddress,
@@ -293,7 +317,7 @@ Deno.serve(async (request) => {
     const { data: createResult, error: createError } = await timing.measureDb(() => admin.rpc(
       input.orderingMode === "DELIVERY"
         ? "create_public_delivery_order_with_schedule"
-        : "create_public_order_with_schedule",
+        : "create_public_order_with_experience",
       createArguments,
     ));
     if (createError) {

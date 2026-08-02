@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
+import { getZodFieldErrors } from "@/lib/form-field-errors";
 import { readJson } from "@/lib/http";
 import { organizationInvitationRoles, organizationInvitationSchema, stallInvitationRoles } from "@/lib/invitation-validation";
 import { prisma } from "@/lib/prisma";
@@ -25,8 +26,13 @@ export async function POST(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = organizationInvitationSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getZodFieldErrors(parsed.error, {
+      email: "Google 帳號 Email",
+      role: "角色",
+      stallId: "攤位範圍",
+    });
     return NextResponse.json(
-      { error: "邀請 Email、角色或攤位格式不正確。" },
+      { error: "邀請資料格式不正確，請檢查標示欄位。", fieldErrors },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -39,17 +45,26 @@ export async function POST(request: Request, context: RouteContext) {
   const canGrantStallManager = organizationManagers || authorization.workspace.roles.includes("ORGANIZATION_ADMIN");
   const canGrantOwner = authorization.workspace.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER");
   if (organizationRole && (!organizationManagers || parsed.data.stallId !== null)) {
-    return NextResponse.json({ error: "您沒有指派此組織角色的權限。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
+    const message = !organizationManagers
+      ? "您沒有指派此組織角色的權限。"
+      : "組織角色的攤位範圍必須為全部攤位。";
+    return NextResponse.json(
+      { error: message, fieldErrors: { [!organizationManagers ? "role" : "stallId"]: message } },
+      { status: 403, headers: { "x-request-id": authorization.requestId } },
+    );
   }
   if (parsed.data.role === "ORGANIZATION_OWNER" && !canGrantOwner) {
-    return NextResponse.json({ error: "只有組織擁有者可邀請另一位擁有者。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
+    const message = "只有組織擁有者可邀請另一位擁有者。";
+    return NextResponse.json({ error: message, fieldErrors: { role: message } }, { status: 403, headers: { "x-request-id": authorization.requestId } });
   }
   const authorizedStallIds = new Set(authorization.authorizedStallIds);
   if (stallRole && (!parsed.data.stallId || !authorizedStallIds.has(parsed.data.stallId))) {
-    return NextResponse.json({ error: "找不到可指派的攤位。" }, { status: 404, headers: { "x-request-id": authorization.requestId } });
+    const message = "請選擇可指派的攤位。";
+    return NextResponse.json({ error: message, fieldErrors: { stallId: message } }, { status: 404, headers: { "x-request-id": authorization.requestId } });
   }
   if (parsed.data.role === "STALL_MANAGER" && !canGrantStallManager) {
-    return NextResponse.json({ error: "只有組織擁有者或管理員可邀請攤位經理。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
+    const message = "只有組織擁有者或管理員可邀請攤位經理。";
+    return NextResponse.json({ error: message, fieldErrors: { role: message } }, { status: 403, headers: { "x-request-id": authorization.requestId } });
   }
 
   const token = createOpaqueToken();
@@ -97,9 +112,18 @@ export async function POST(request: Request, context: RouteContext) {
     );
   } catch (error) {
     const conflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+    const target = conflict ? JSON.stringify(error.meta?.target ?? "").toLowerCase() : "";
+    const duplicateInvitation = conflict && (
+      target.includes("organization_invitations_pending_idx")
+      || (target.includes("email") && target.includes("role"))
+    );
+    const conflictMessage = "此 Email 已有相同範圍與角色的待接受邀請。";
     return NextResponse.json(
-      { error: conflict ? "此 Email 已有相同範圍與角色的待接受邀請。" : "目前無法建立邀請。" },
-      { status: conflict ? 409 : 500, headers: { "x-request-id": authorization.requestId } },
+      {
+        error: duplicateInvitation ? conflictMessage : "目前無法建立邀請。",
+        ...(duplicateInvitation ? { fieldErrors: { email: conflictMessage, role: conflictMessage, stallId: conflictMessage } } : {}),
+      },
+      { status: duplicateInvitation ? 409 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }
 }

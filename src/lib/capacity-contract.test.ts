@@ -4,6 +4,7 @@ import {
   capacityMerchantCommandSchema,
   capacityStaffCommandSchema,
   formatWaitQuote,
+  getCapacityFieldErrors,
   parseCapacitySnapshot,
 } from "@/lib/capacity-contract";
 
@@ -26,6 +27,26 @@ describe("capacity contract", () => {
       isActive: true,
     });
     expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(getCapacityFieldErrors(result.error)).toMatchObject({
+        pauseUtilizationPercent: "自動暫停門檻必須高於警示門檻。",
+      });
+    }
+  });
+
+  it("將數值格式錯誤轉為繁體中文欄位提示", () => {
+    const result = capacityMerchantCommandSchema.safeParse({
+      operation: "UPSERT_PRODUCT_RULE",
+      productId: crypto.randomUUID(),
+      capacityWeight: "",
+      prepMinutes: 10,
+      maxQuantityPerWindow: null,
+      isActive: true,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(getCapacityFieldErrors(result.error).capacityWeight).toContain("產能權重");
+    }
   });
 
   it("現場操作必須附上原因", () => {

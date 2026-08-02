@@ -5,12 +5,20 @@ import { calculateCapacitySnapshot } from "@/lib/capacity";
 import { prisma } from "@/lib/prisma";
 import { publicQrCacheTag, stallMenuCacheTag } from "@/lib/cache-tags";
 import type { PublicMenu } from "@/lib/public-menu-types";
+import {
+  publicMenuProductsForPickup,
+  publicMenuProductsForPickupWindow,
+} from "@/lib/public-menu-availability";
+import {
+  applyBestSellerRanking,
+  type BestSellerRankRow,
+} from "../../supabase/functions/_shared/bestseller-ranking";
 
 const QR_CONTEXT_TTL_SECONDS = 15;
 const PUBLIC_MENU_TTL_SECONDS = 45;
 const ACTIVE_ORGANIZATION_STATUSES = ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] as const;
 
-type OrderingMode = "DEFAULT" | "DELIVERY";
+type OrderingMode = "DEFAULT" | "DELIVERY" | "PREORDER";
 
 export async function getCachedPublicMenuForQrToken(
   qrToken: string,
@@ -23,41 +31,71 @@ export async function getCachedPublicMenuForQrToken(
     { revalidate: QR_CONTEXT_TTL_SECONDS, tags: [qrTag] },
   );
   const context = await getQrContext();
-  if (!context || !publicQrContextIsAvailable(context)) return null;
+  if (!context) return null;
+
+  const liveOrderingAvailable = publicQrContextIsLive(context);
+  const preorderAvailable = publicQrContextSupportsPreorder(context);
+  const resolvedOrderingMode: OrderingMode = orderingMode === "DEFAULT"
+    && !liveOrderingAvailable
+    && preorderAvailable
+    ? "PREORDER"
+    : orderingMode;
+  if (resolvedOrderingMode === "PREORDER" ? !preorderAvailable : !liveOrderingAvailable) {
+    return null;
+  }
 
   if (
-    (orderingMode === "DELIVERY" && context.fulfillmentTypeContext && context.fulfillmentTypeContext !== "DELIVERY")
-    || (orderingMode === "DEFAULT" && context.fulfillmentTypeContext === "DELIVERY")
+    (resolvedOrderingMode === "DELIVERY" && context.fulfillmentTypeContext && context.fulfillmentTypeContext !== "DELIVERY")
+    || (resolvedOrderingMode !== "DELIVERY" && context.fulfillmentTypeContext === "DELIVERY")
   ) return null;
 
   const settings = context.stall.orderingSettings;
   if (!settings) return null;
-  if (orderingMode === "DELIVERY") {
+  if (resolvedOrderingMode === "DELIVERY") {
     if (context.diningTable || !settings.deliveryModuleEnabled) return null;
-  } else if (context.diningTable && (!context.diningTable.isActive || !settings.dineInEnabled)) {
+  } else if (resolvedOrderingMode === "DEFAULT" && context.diningTable && (
+    !context.diningTable.isActive || !settings.dineInEnabled
+  )) {
     return null;
   }
 
-  const [menu, capacity] = await Promise.all([
+  const [menu, capacity, preorderSlots] = await Promise.all([
     getCachedStallMenu(context.stallId),
-    calculateCapacitySnapshot(context.stallId),
+    resolvedOrderingMode === "PREORDER"
+      ? Promise.resolve(null)
+      : calculateCapacitySnapshot(context.stallId),
+    resolvedOrderingMode === "PREORDER"
+      ? getTakeoutPreorderSlots(context.stallId)
+      : Promise.resolve([]),
   ]);
-  if (!menu) return null;
+  if (!menu || (resolvedOrderingMode === "PREORDER" && preorderSlots.length === 0)) return null;
+  const products = resolvedOrderingMode === "PREORDER"
+    ? publicMenuProductsForPickupWindow(menu.products, preorderSlots)
+    : publicMenuProductsForPickup(menu.products, new Date().toISOString());
 
   return {
     ...menu,
-    estimatedWaitMinutes: capacity.quoteMaxMinutes,
-    estimatedWaitMinMinutes: capacity.quoteMinMinutes,
-    estimatedWaitMaxMinutes: capacity.quoteMaxMinutes,
-    waitAcknowledgmentThresholdMinutes: capacity.acknowledgmentThresholdMinutes,
-    requiresWaitAcknowledgment: capacity.requiresAcknowledgment,
+    products,
+    orderingMode: resolvedOrderingMode,
+    preorderSlots,
+    lotteryEnabled: resolvedOrderingMode === "DEFAULT" && settings.lotteryEnabled,
+    estimatedWaitMinutes: capacity?.quoteMaxMinutes ?? 0,
+    estimatedWaitMinMinutes: capacity?.quoteMinMinutes ?? 0,
+    estimatedWaitMaxMinutes: capacity?.quoteMaxMinutes ?? 0,
+    waitAcknowledgmentThresholdMinutes: resolvedOrderingMode === "PREORDER"
+      ? null
+      : capacity?.acknowledgmentThresholdMinutes ?? null,
+    requiresWaitAcknowledgment: resolvedOrderingMode === "PREORDER"
+      ? false
+      : capacity?.requiresAcknowledgment === true,
     stall: {
       name: context.stall.name,
       slug: context.stall.slug,
       location: context.location?.name ?? context.stall.location,
       currency: context.stall.currency,
+      timezone: context.stall.timezone,
       fulfillmentType: context.fulfillmentTypeContext
-        ?? (orderingMode === "DELIVERY" ? "DELIVERY" : context.diningTable ? "DINE_IN" : "TAKEOUT"),
+        ?? (resolvedOrderingMode === "DELIVERY" ? "DELIVERY" : context.diningTable ? "DINE_IN" : "TAKEOUT"),
       table: context.diningTable
         ? { id: context.diningTable.id, code: context.diningTable.code, label: context.diningTable.label }
         : null,
@@ -74,6 +112,7 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
       slug: true,
       location: true,
       currency: true,
+      timezone: true,
       isActive: true,
       orderingEnabled: true,
       businessStatus: true,
@@ -91,6 +130,10 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
   if (!menu) return null;
   return {
     ...menu,
+    products: publicMenuProductsForPickup(menu.products, new Date().toISOString()),
+    orderingMode: "DELIVERY",
+    preorderSlots: [],
+    lotteryEnabled: false,
     estimatedWaitMinutes: capacity.quoteMaxMinutes,
     estimatedWaitMinMinutes: capacity.quoteMinMinutes,
     estimatedWaitMaxMinutes: capacity.quoteMaxMinutes,
@@ -101,6 +144,7 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
       slug: stall.slug,
       location: stall.location,
       currency: stall.currency,
+      timezone: stall.timezone,
       fulfillmentType: "TAKEOUT",
       table: null,
     },
@@ -163,6 +207,7 @@ async function loadQrContext(qrToken: string) {
           slug: true,
           location: true,
           currency: true,
+          timezone: true,
           isActive: true,
           orderingEnabled: true,
           businessStatus: true,
@@ -170,7 +215,12 @@ async function loadQrContext(qrToken: string) {
           isSoldOut: true,
           organization: { select: { status: true } },
           orderingSettings: {
-            select: { dineInEnabled: true, deliveryModuleEnabled: true },
+            select: {
+              dineInEnabled: true,
+              deliveryModuleEnabled: true,
+              takeoutPreorderEnabled: true,
+              lotteryEnabled: true,
+            },
           },
         },
       },
@@ -194,13 +244,22 @@ async function loadQrContext(qrToken: string) {
   };
 }
 
-function publicQrContextIsAvailable(context: NonNullable<Awaited<ReturnType<typeof loadQrContext>>>) {
-  const now = Date.now();
-  const schedule = context.stallSchedule;
-  const event = context.marketEvent;
+function publicQrBaseIsAvailable(context: NonNullable<Awaited<ReturnType<typeof loadQrContext>>>) {
   return context.state === "ACTIVE"
     && (!context.expiresAt || Date.parse(context.expiresAt) > Date.now())
     && (!context.location || context.location.isActive)
+    && context.stall.isActive
+    && !context.stall.isSoldOut
+    && ACTIVE_ORGANIZATION_STATUSES.includes(
+      context.stall.organization.status as (typeof ACTIVE_ORGANIZATION_STATUSES)[number],
+    );
+}
+
+function publicQrContextIsLive(context: NonNullable<Awaited<ReturnType<typeof loadQrContext>>>) {
+  const now = Date.now();
+  const schedule = context.stallSchedule;
+  const event = context.marketEvent;
+  return publicQrBaseIsAvailable(context)
     && (!schedule || (
       schedule.status === "OPEN"
       && Date.parse(schedule.orderingOpensAt ?? schedule.startsAt) <= now
@@ -211,6 +270,30 @@ function publicQrContextIsAvailable(context: NonNullable<Awaited<ReturnType<type
       && (schedule || Date.parse(event.startsAt) <= now)
     ))
     && publicStallIsAvailable(context.stall);
+}
+
+function publicQrContextSupportsPreorder(
+  context: NonNullable<Awaited<ReturnType<typeof loadQrContext>>>,
+) {
+  return publicQrBaseIsAvailable(context)
+    && context.stall.orderingSettings?.takeoutPreorderEnabled === true
+    && context.stall.businessStatus !== "PAUSED"
+    && context.stall.orderingState !== "PAUSED"
+    && !context.diningTable
+    && !context.marketEvent
+    && !context.stallSchedule
+    && context.fulfillmentTypeContext !== "DINE_IN"
+    && context.fulfillmentTypeContext !== "DELIVERY";
+}
+
+async function getTakeoutPreorderSlots(stallId: string) {
+  const rows = await prisma.$queryRaw<Array<{ slots: unknown }>>`
+    select public.get_takeout_preorder_slots(${stallId}::uuid, now()) as slots
+  `;
+  const slots = rows[0]?.slots;
+  return Array.isArray(slots)
+    ? slots.filter((slot): slot is string => typeof slot === "string")
+    : [];
 }
 
 function publicStallIsAvailable(stall: {
@@ -231,32 +314,67 @@ function publicStallIsAvailable(stall: {
     );
 }
 
-async function loadStallMenu(stallId: string): Promise<Omit<PublicMenu, "stall"> | null> {
-  const now = new Date();
-  const [assignments, settings] = await Promise.all([
+async function loadStallMenu(
+  stallId: string,
+): Promise<Omit<PublicMenu, "stall" | "orderingMode" | "preorderSlots" | "lotteryEnabled"> | null> {
+  const [assignments, settings, bestSellerRanks] = await Promise.all([
     prisma.stallProduct.findMany({
       where: {
         stallId,
         isEnabled: true,
         isSoldOut: false,
-        OR: [{ availableFrom: null }, { availableFrom: { lte: now } }],
-        AND: [{ OR: [{ availableUntil: null }, { availableUntil: { gt: now } }] }],
         product: { isActive: true, category: { isActive: true } },
       },
       orderBy: [{ sortOrder: "asc" }, { product: { sortOrder: "asc" } }],
       select: {
         priceOverride: true,
         sortOrder: true,
+        availableFrom: true,
+        availableUntil: true,
         product: {
           select: {
             id: true,
+            organizationId: true,
             name: true,
             description: true,
             defaultPrice: true,
+            kind: true,
             imageUrl: true,
             sortOrder: true,
             category: { select: { name: true, sortOrder: true } },
             translations: { select: { locale: true, name: true, description: true } },
+            bundleChoiceGroups: {
+              orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+              select: {
+                id: true,
+                organizationId: true,
+                name: true,
+                minSelections: true,
+                maxSelections: true,
+                sortOrder: true,
+                choices: {
+                  where: { isEnabled: true },
+                  orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+                  select: {
+                    id: true,
+                    organizationId: true,
+                    componentProductId: true,
+                    quantity: true,
+                    priceDelta: true,
+                    sortOrder: true,
+                    componentProduct: {
+                      select: {
+                        id: true,
+                        organizationId: true,
+                        name: true,
+                        kind: true,
+                        isActive: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
             noteGroupAssignments: {
               where: { isActive: true, noteGroup: { isActive: true } },
               orderBy: [{ sortOrder: "asc" }, { noteGroup: { sortOrder: "asc" } }],
@@ -302,16 +420,85 @@ async function loadStallMenu(stallId: string): Promise<Omit<PublicMenu, "stall">
         estimatedWaitMinutes: true,
       },
     }),
+    prisma.$queryRaw<BestSellerRankRow[]>`
+      select product_id, rank
+      from public.get_stall_best_sellers(${stallId}::uuid)
+    `,
   ]);
   if (!settings) return null;
 
+  const saleableProductIds = new Set(assignments.map((assignment) => assignment.product.id));
+  const assignmentsByProductId = new Map(
+    assignments.map((assignment) => [assignment.product.id, assignment]),
+  );
+  const publicProducts = assignments.flatMap((assignment) => {
+    const product = assignment.product;
+    const bundleChoiceGroups = product.kind === "BUNDLE"
+      ? product.bundleChoiceGroups.map((group) => ({
+        id: group.id,
+        organizationId: group.organizationId,
+        name: group.name,
+        minSelections: group.minSelections,
+        maxSelections: group.maxSelections,
+        sortOrder: group.sortOrder,
+        options: group.choices.flatMap((choice) => (
+          assignmentsByProductId.has(choice.componentProductId)
+          && (
+          choice.organizationId === product.organizationId
+          && choice.componentProduct.organizationId === product.organizationId
+          && choice.componentProduct.kind === "SINGLE"
+          && choice.componentProduct.isActive
+          && saleableProductIds.has(choice.componentProductId)
+          )
+            ? [{
+              id: choice.id,
+              componentProductId: choice.componentProductId,
+              componentProductName: choice.componentProduct.name,
+              quantity: choice.quantity,
+              priceDelta: choice.priceDelta,
+              sortOrder: choice.sortOrder,
+              availableFrom: assignmentsByProductId.get(choice.componentProductId)
+                ?.availableFrom?.toISOString() ?? null,
+              availableUntil: assignmentsByProductId.get(choice.componentProductId)
+                ?.availableUntil?.toISOString() ?? null,
+            }]
+            : []
+        )),
+      }))
+      : [];
+
+    if (product.kind === "BUNDLE" && (
+      bundleChoiceGroups.length === 0
+      || bundleChoiceGroups.some((group) => (
+        group.organizationId !== product.organizationId
+        || group.options.length < Math.max(1, group.minSelections)
+      ))
+    )) return [];
+
+    return [{
+      assignment,
+      bundleChoiceGroups: bundleChoiceGroups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        minSelections: group.minSelections,
+        maxSelections: group.maxSelections,
+        sortOrder: group.sortOrder,
+        options: group.options,
+      })),
+    }];
+  });
+
   return {
-    products: assignments.map((assignment) => ({
+    products: applyBestSellerRanking(publicProducts.map(({ assignment, bundleChoiceGroups }) => ({
       id: assignment.product.id,
       name: assignment.product.name,
       description: assignment.product.description,
       imageUrl: assignment.product.imageUrl,
+      availableFrom: assignment.availableFrom?.toISOString() ?? null,
+      availableUntil: assignment.availableUntil?.toISOString() ?? null,
       translations: assignment.product.translations,
+      kind: assignment.product.kind,
+      bundleChoiceGroups,
       noteGroups: assignment.product.noteGroupAssignments.map((assignmentItem) => ({
         id: assignmentItem.noteGroup.id,
         name: assignmentItem.noteGroup.name,
@@ -335,11 +522,15 @@ async function loadStallMenu(stallId: string): Promise<Omit<PublicMenu, "stall">
       name: product.name,
       description: product.description,
       imageUrl: product.imageUrl,
+      availableFrom: product.availableFrom,
+      availableUntil: product.availableUntil,
       translations: product.translations,
+      kind: product.kind,
+      bundleChoiceGroups: product.bundleChoiceGroups,
       noteGroups: product.noteGroups,
       price: product.price,
       category: product.category,
-    })),
+    })), bestSellerRanks),
     supportedLocales: settings.enabledLocales,
     estimatedWaitMinutes: settings.estimatedWaitMinutes,
     estimatedWaitMinMinutes: settings.estimatedWaitMinutes,

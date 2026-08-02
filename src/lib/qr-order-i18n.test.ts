@@ -12,6 +12,14 @@ describe("commercial QR errors", () => {
     expect(localizedPublicOrderError("en", "TRIAL_ORDER_LIMIT_REACHED")).toContain("trial");
     expect(localizedPublicOrderError("zh-TW", "SUBSCRIPTION_SUSPENDED")).toContain("訂閱已停權");
   });
+
+  it("localizes linked preorder and terminal session errors", () => {
+    const fallback = localizedPublicOrderError("en", "UNKNOWN_CODE");
+    expect(localizedPublicOrderError("en", "PREORDER_TIME_UNAVAILABLE")).not.toBe(fallback);
+    expect(localizedPublicOrderError("en", "SESSION_TOKEN_COLLISION")).not.toBe(fallback);
+    expect(localizedPublicOrderError("en", "INVALID_PRODUCT_BUNDLE")).not.toBe(fallback);
+    expect(localizedPublicOrderError("en", "LOTTERY_RATE_LIMITED")).not.toBe(fallback);
+  });
 });
 
 const allTranslations = ["en", "ja", "ko", "vi", "th"];
@@ -39,8 +47,14 @@ describe("QR 點餐瀏覽器語系", () => {
   });
 
   it("order session 完成時保留使用者已選且受支援的語系", () => {
-    expect(preserveSupportedQrLocale("en", ["zh-TW"], ["en", "ja"])).toBe("en");
-    expect(preserveSupportedQrLocale("ko", ["ja-JP"], ["en", "ja"])).toBe("ja");
+    expect(preserveSupportedQrLocale("en", ["en", "ja"])).toBe("en");
+    expect(preserveSupportedQrLocale("ko", ["en", "ja"])).toBe("zh-TW");
+  });
+
+  it("保留初始化的瀏覽器語系與後續手動選擇，僅在未啟用時回退", () => {
+    expect(preserveSupportedQrLocale("ja", ["en", "ja"])).toBe("ja");
+    expect(preserveSupportedQrLocale("en", ["en", "ja"])).toBe("en");
+    expect(preserveSupportedQrLocale("ja", ["en"])).toBe("zh-TW");
   });
 });
 

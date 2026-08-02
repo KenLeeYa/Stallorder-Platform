@@ -62,11 +62,12 @@ export async function translateMissingCatalogContent({
     translatedProducts: persisted.translatedProducts,
     translatedNoteGroups: persisted.translatedNoteGroups,
     translatedNoteOptions: persisted.translatedNoteOptions,
+    translatedReusableNotes: persisted.translatedReusableNotes,
   };
 }
 
 async function loadTranslationSource(organizationId: string): Promise<CatalogTranslationSource> {
-  const [products, noteGroups] = await Promise.all([
+  const [products, noteGroups, reusableNotes] = await Promise.all([
     prisma.product.findMany({
       where: { organizationId, isActive: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -89,7 +90,7 @@ async function loadTranslationSource(organizationId: string): Promise<CatalogTra
         name: true,
         translations: { select: { locale: true, name: true } },
         options: {
-          where: { isActive: true },
+          where: { isActive: true, reusableNoteId: null },
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
           select: {
             id: true,
@@ -97,6 +98,15 @@ async function loadTranslationSource(organizationId: string): Promise<CatalogTra
             translations: { select: { locale: true, name: true } },
           },
         },
+      },
+    }),
+    prisma.reusableProductNote.findMany({
+      where: { organizationId, isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        translations: { select: { locale: true, name: true } },
       },
     }),
   ]);
@@ -111,6 +121,7 @@ async function loadTranslationSource(organizationId: string): Promise<CatalogTra
       translations: product.translations,
     })),
     noteGroups,
+    reusableNotes,
   };
 }
 
@@ -124,7 +135,8 @@ async function persistTranslations(
       const productIds = uniqueEntityIds(translations, "PRODUCT");
       const noteGroupIds = uniqueEntityIds(translations, "NOTE_GROUP");
       const noteOptionIds = uniqueEntityIds(translations, "NOTE_OPTION");
-      const [products, noteGroups, noteOptions] = await Promise.all([
+      const reusableNoteIds = uniqueEntityIds(translations, "REUSABLE_NOTE");
+      const [products, noteGroups, noteOptions, reusableNotes] = await Promise.all([
         transaction.product.findMany({
           where: { organizationId, id: { in: productIds }, isActive: true },
           select: {
@@ -164,12 +176,24 @@ async function persistTranslations(
             },
           },
         }),
+        transaction.reusableProductNote.findMany({
+          where: { organizationId, id: { in: reusableNoteIds }, isActive: true },
+          select: {
+            id: true,
+            name: true,
+            translations: {
+              where: { locale: { in: locales } },
+              select: { locale: true, name: true },
+            },
+          },
+        }),
       ]);
 
       if (
         products.length !== productIds.length
         || noteGroups.length !== noteGroupIds.length
         || noteOptions.length !== noteOptionIds.length
+        || reusableNotes.length !== reusableNoteIds.length
       ) {
         throw new CatalogTranslationSourceChangedError("翻譯期間商品資料已變更。");
       }
@@ -177,6 +201,7 @@ async function persistTranslations(
       const productsById = new Map(products.map((product) => [product.id, product]));
       const noteGroupsById = new Map(noteGroups.map((group) => [group.id, group]));
       const noteOptionsById = new Map(noteOptions.map((option) => [option.id, option]));
+      const reusableNotesById = new Map(reusableNotes.map((note) => [note.id, note]));
       for (const translation of translations) {
         if (translation.entityType === "PRODUCT") {
           const product = productsById.get(translation.entityId);
@@ -190,6 +215,10 @@ async function persistTranslations(
           if (noteGroupsById.get(translation.entityId)?.name !== translation.sourceName) {
             throw new CatalogTranslationSourceChangedError("翻譯期間註記群組原文已變更。");
           }
+        } else if (translation.entityType === "REUSABLE_NOTE") {
+          if (reusableNotesById.get(translation.entityId)?.name !== translation.sourceName) {
+            throw new CatalogTranslationSourceChangedError("翻譯期間共用註記原文已變更。");
+          }
         } else if (noteOptionsById.get(translation.entityId)?.name !== translation.sourceName) {
           throw new CatalogTranslationSourceChangedError("翻譯期間註記選項原文已變更。");
         }
@@ -198,6 +227,7 @@ async function persistTranslations(
       const currentProducts = translationMap(products);
       const currentNoteGroups = translationMap(noteGroups);
       const currentNoteOptions = translationMap(noteOptions);
+      const currentReusableNotes = translationMap(reusableNotes);
       const results: Array<{
         entityType: ValidatedCatalogTranslation["entityType"];
         entityId: string;
@@ -241,7 +271,9 @@ async function persistTranslations(
 
           const currentMap = translation.entityType === "NOTE_GROUP"
             ? currentNoteGroups
-            : currentNoteOptions;
+            : translation.entityType === "REUSABLE_NOTE"
+              ? currentReusableNotes
+              : currentNoteOptions;
           const existing = currentMap.get(mapKey(translation.entityId, translation.locale));
           const name = existing?.name.trim() || translation.name;
           if (!name) throw new CatalogTranslationSourceChangedError("註記翻譯名稱已失效。");
@@ -257,6 +289,22 @@ async function persistTranslations(
               create: {
                 organizationId,
                 noteGroupId: translation.entityId,
+                locale: translation.locale,
+                name,
+              },
+              update: { name },
+            });
+          } else if (translation.entityType === "REUSABLE_NOTE") {
+            await transaction.reusableProductNoteTranslation.upsert({
+              where: {
+                reusableNoteId_locale: {
+                  reusableNoteId: translation.entityId,
+                  locale: translation.locale,
+                },
+              },
+              create: {
+                organizationId,
+                reusableNoteId: translation.entityId,
                 locale: translation.locale,
                 name,
               },
@@ -338,6 +386,9 @@ function summarizeWrites(
     translatedNoteOptions: new Set(
       changed.filter((write) => write.entityType === "NOTE_OPTION").map((write) => write.entityId),
     ).size,
+    translatedReusableNotes: new Set(
+      changed.filter((write) => write.entityType === "REUSABLE_NOTE").map((write) => write.entityId),
+    ).size,
   };
 }
 
@@ -349,6 +400,7 @@ function emptySummary(locales: readonly TranslationLocale[]) {
     translatedProducts: 0,
     translatedNoteGroups: 0,
     translatedNoteOptions: 0,
+    translatedReusableNotes: 0,
   };
 }
 

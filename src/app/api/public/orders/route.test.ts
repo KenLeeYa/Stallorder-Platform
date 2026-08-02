@@ -31,11 +31,14 @@ const validOrder = {
   customerNote: "",
   waitAcknowledged: false,
   orderingMode: "DEFAULT",
+  scheduledPickupAt: null,
+  lotteryDrawId: null,
   items: [{
     productId: "55555555-5555-4555-8555-555555555555",
     quantity: 1,
     note: "",
     noteOptionIds: [],
+    bundleChoiceIds: [],
   }],
   turnstileToken: "turnstile-test-token",
 };

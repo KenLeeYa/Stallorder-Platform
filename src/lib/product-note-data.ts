@@ -28,6 +28,7 @@ export async function getOrganizationProductNotes(organizationId: string) {
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         select: {
           id: true,
+          reusableNoteId: true,
           name: true,
           priceDelta: true,
           sortOrder: true,
@@ -40,4 +41,28 @@ export async function getOrganizationProductNotes(organizationId: string) {
       },
     },
   });
+}
+
+export async function getOrganizationReusableProductNotes(organizationId: string) {
+  return prisma.reusableProductNote.findMany({
+    where: { organizationId },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      priceDelta: true,
+      sortOrder: true,
+      isActive: true,
+      translations: {
+        orderBy: { locale: "asc" },
+        select: { locale: true, name: true },
+      },
+      _count: {
+        select: { linkedOptions: true },
+      },
+    },
+  }).then((notes) => notes.map(({ _count, ...note }) => ({
+    ...note,
+    linkedOptionCount: _count.linkedOptions,
+  })));
 }

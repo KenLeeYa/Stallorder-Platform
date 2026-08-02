@@ -139,7 +139,7 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-4xl px-4 py-7 md:px-8">
       {source === "setup"
         ? <MerchantSetupBackLink organizationId={workspace.id} />
-        : <StallSettingsBackLink stallId={stall.id} />}
+        : <StallSettingsBackLink stallId={stall.id} stallSlug={stall.slug} source={source} allowedSources={["staff"]} />}
       <header className="mt-4 border-b border-stone-200 pb-5">
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <h1 className="mt-1 text-3xl font-semibold">{stall.name}</h1>

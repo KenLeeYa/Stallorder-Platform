@@ -7,7 +7,11 @@ import {
   CapacityOperationError,
   getCapacityManagerData,
 } from "@/lib/capacity";
-import { capacityMerchantCommandSchema, type CapacityMerchantCommand } from "@/lib/capacity-contract";
+import {
+  capacityMerchantCommandSchema,
+  getCapacityFieldErrors,
+  type CapacityMerchantCommand,
+} from "@/lib/capacity-contract";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
@@ -57,8 +61,9 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = capacityMerchantCommandSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getCapacityFieldErrors(parsed.error);
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "容量設定內容不正確。" },
+      { error: Object.values(fieldErrors)[0] ?? "容量設定內容不正確。", fieldErrors },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }

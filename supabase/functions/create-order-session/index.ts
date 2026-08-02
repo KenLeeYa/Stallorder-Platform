@@ -18,6 +18,14 @@ import {
 import { issueOrderSessionSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
 import { createEdgePerformanceTiming, finalizeEdgeResponse } from "../_shared/performance.ts";
+import {
+  applyBestSellerRanking,
+  type BestSellerRankRow,
+} from "../_shared/bestseller-ranking.ts";
+import {
+  filterPublicMenuProductsForTime,
+  filterPublicMenuProductsForTimeWindow,
+} from "../_shared/public-menu-availability.ts";
 
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
@@ -41,14 +49,25 @@ Deno.serve(async (request) => {
 
     const abuseSecret = requireEnv("ABUSE_HASH_SECRET");
     const clientIp = getGatewayClientIp(request);
+    const admin = createServiceClient();
+    const { data: resolvedMode, error: resolvedModeError } = await timing.measureDb(() => admin.rpc(
+      "resolve_public_ordering_mode",
+      {
+        p_qr_token: parsed.data.qrToken,
+        p_requested_mode: parsed.data.orderingMode,
+      },
+    ));
+    if (resolvedModeError) throw resolvedModeError;
+    const orderingMode = parsed.data.orderingMode === "DEFAULT" && resolvedMode === "PREORDER"
+      ? "PREORDER"
+      : parsed.data.orderingMode;
     const [ipHash, deviceHash, qrTokenHash, behaviorHash] = await Promise.all([
       hmacHex(abuseSecret, `ip:${clientIp}`),
       hmacHex(abuseSecret, `device:${parsed.data.deviceId}`),
       hmacHex(abuseSecret, `qr:${parsed.data.qrToken}`),
-      hmacHex(abuseSecret, `scan:${parsed.data.orderingMode}:${clientIp}:${parsed.data.deviceId}:${parsed.data.qrToken}`),
+      hmacHex(abuseSecret, `scan:${orderingMode}:${clientIp}:${parsed.data.deviceId}:${parsed.data.qrToken}`),
     ]);
 
-    const admin = createServiceClient();
     const { data: intakeResult, error: intakeError } = await timing.measureDb(() => admin.rpc(
       "check_public_order_intake_availability",
       {
@@ -81,7 +100,7 @@ Deno.serve(async (request) => {
     }
 
     const { data: resumableOrder, error: resumableOrderError } = await timing.measureDb(() => admin.rpc(
-      parsed.data.orderingMode === "DELIVERY"
+      orderingMode === "DELIVERY"
         ? "lookup_resumable_public_delivery_order"
         : "lookup_resumable_public_order",
       {
@@ -101,6 +120,7 @@ Deno.serve(async (request) => {
         requireEnv("TOKEN_DERIVATION_SECRET"),
       );
       return respond({
+        orderingMode,
         resumeOrder: {
           trackingToken,
           orderStatus: recovered.order_status,
@@ -130,7 +150,7 @@ Deno.serve(async (request) => {
         p_qr_token_hash: qrTokenHash,
         p_behavior_hash: behaviorHash,
         p_request_id: requestId,
-        p_ordering_mode: parsed.data.orderingMode,
+        p_ordering_mode: orderingMode,
       })),
     );
     if (sessionError) throw sessionError;
@@ -157,7 +177,7 @@ Deno.serve(async (request) => {
 
     const [stallQuery, stallProductsQuery, settingsQuery, qrQuery] = await timing.measureDb(() => Promise.all([
       admin.from("stalls")
-        .select("organization_id, name, slug, location, currency")
+        .select("organization_id, name, slug, location, currency, timezone")
         .eq("id", result.stall_id)
         .single(),
       admin.from("stall_products")
@@ -168,7 +188,7 @@ Deno.serve(async (request) => {
         .order("sort_order", { ascending: true })
         .limit(100),
       admin.from("stall_ordering_settings")
-        .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length, dine_in_enabled, delivery_module_enabled, enabled_locales, estimated_wait_minutes")
+        .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length, dine_in_enabled, delivery_module_enabled, enabled_locales, estimated_wait_minutes, lottery_enabled")
         .eq("stall_id", result.stall_id)
         .single(),
       admin.from("qr_codes")
@@ -182,7 +202,7 @@ Deno.serve(async (request) => {
     }
 
     if (
-      parsed.data.orderingMode === "DELIVERY"
+      orderingMode === "DELIVERY"
       && (qrQuery.data.dining_table_id || !settingsQuery.data.delivery_module_enabled)
     ) {
       await timing.measureDb(() => admin.from("order_sessions")
@@ -205,15 +225,19 @@ Deno.serve(async (request) => {
     }
 
     if (!parsed.data.includeMenu) {
+      const preorderSession = orderingMode === "PREORDER";
       return respond({
         orderSessionToken: sessionToken,
         expiresAt: result.expires_at,
-        estimatedWaitMinutes: result.capacity?.quote_max_minutes ?? null,
-        estimatedWaitMinMinutes: result.capacity?.quote_min_minutes ?? null,
-        estimatedWaitMaxMinutes: result.capacity?.quote_max_minutes ?? null,
+        orderingMode,
+        estimatedWaitMinutes: preorderSession ? 0 : result.capacity?.quote_max_minutes ?? null,
+        estimatedWaitMinMinutes: preorderSession ? 0 : result.capacity?.quote_min_minutes ?? null,
+        estimatedWaitMaxMinutes: preorderSession ? 0 : result.capacity?.quote_max_minutes ?? null,
         waitAcknowledgmentThresholdMinutes:
-          result.capacity?.acknowledgment_threshold_minutes ?? null,
-        requiresWaitAcknowledgment: result.capacity?.requires_acknowledgment === true,
+          preorderSession ? null : result.capacity?.acknowledgment_threshold_minutes ?? null,
+        requiresWaitAcknowledgment: preorderSession
+          ? false
+          : result.capacity?.requires_acknowledgment === true,
       }, result.idempotent_replay ? 200 : 201);
     }
 
@@ -228,19 +252,25 @@ Deno.serve(async (request) => {
       : { data: null, error: null };
     if (lastTableOrderQuery.error) throw lastTableOrderQuery.error;
 
+    const preorderSlotsQuery = orderingMode === "PREORDER"
+      ? await timing.measureDb(() => admin.rpc("get_takeout_preorder_slots", {
+        p_stall_id: result.stall_id,
+      }))
+      : { data: [], error: null };
+    if (preorderSlotsQuery.error) throw preorderSlotsQuery.error;
+    const preorderSlots = Array.isArray(preorderSlotsQuery.data)
+      ? preorderSlotsQuery.data.filter((slot): slot is string => typeof slot === "string")
+      : [];
+
     const enabledLocales = settingsQuery.data.enabled_locales as string[];
 
     const now = Date.now();
-    const availableAssignments = stallProductsQuery.data.filter((assignment) => (
-      (!assignment.available_from || Date.parse(assignment.available_from) <= now)
-      && (!assignment.available_until || Date.parse(assignment.available_until) > now)
-    ));
-    const productIds = availableAssignments.map((assignment) => assignment.product_id);
-    const [productsQuery, categoriesQuery, translationsQuery, noteAssignmentsQuery] = await timing.measureDb(() => Promise.all([
+    const productIds = stallProductsQuery.data.map((assignment) => assignment.product_id);
+    const [productsQuery, categoriesQuery, translationsQuery, noteAssignmentsQuery, bestSellerRanksQuery] = await timing.measureDb(() => Promise.all([
       productIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : admin.from("products")
-          .select("id, name, description, default_price, image_url, category_id, sort_order")
+          .select("id, organization_id, name, description, default_price, kind, image_url, category_id, sort_order")
           .eq("organization_id", stallQuery.data.organization_id)
           .eq("is_active", true)
           .in("id", productIds)
@@ -268,11 +298,49 @@ Deno.serve(async (request) => {
           .in("product_id", productIds)
           .order("sort_order", { ascending: true })
           .limit(500),
-    ]), productIds.length === 0 ? 1 : 4);
+      admin.rpc("get_stall_best_sellers", { p_stall_id: result.stall_id }),
+    ]), productIds.length === 0 ? 2 : 5);
 
-    if (productsQuery.error || categoriesQuery.error || translationsQuery.error || noteAssignmentsQuery.error) {
-      throw productsQuery.error ?? categoriesQuery.error ?? translationsQuery.error ?? noteAssignmentsQuery.error;
+    if (
+      productsQuery.error
+      || categoriesQuery.error
+      || translationsQuery.error
+      || noteAssignmentsQuery.error
+      || bestSellerRanksQuery.error
+    ) {
+      throw productsQuery.error
+        ?? categoriesQuery.error
+        ?? translationsQuery.error
+        ?? noteAssignmentsQuery.error
+        ?? bestSellerRanksQuery.error;
     }
+
+    const bundleProductIds = productsQuery.data
+      .filter((product) => product.kind === "BUNDLE")
+      .map((product) => product.id);
+    const bundleGroupsQuery = bundleProductIds.length === 0
+      ? { data: [], error: null }
+      : await timing.measureDb(() => admin.from("product_bundle_choice_groups")
+        .select("id, organization_id, bundle_product_id, name, min_selections, max_selections, sort_order")
+        .eq("organization_id", stallQuery.data.organization_id)
+        .in("bundle_product_id", bundleProductIds)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true })
+        .limit(500));
+    if (bundleGroupsQuery.error) throw bundleGroupsQuery.error;
+
+    const bundleGroupIds = bundleGroupsQuery.data.map((group) => group.id);
+    const bundleChoicesQuery = bundleGroupIds.length === 0
+      ? { data: [], error: null }
+      : await timing.measureDb(() => admin.from("product_bundle_choices")
+        .select("id, organization_id, choice_group_id, component_product_id, quantity, price_delta, sort_order")
+        .eq("organization_id", stallQuery.data.organization_id)
+        .eq("is_enabled", true)
+        .in("choice_group_id", bundleGroupIds)
+        .order("sort_order", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(2_000));
+    if (bundleChoicesQuery.error) throw bundleChoicesQuery.error;
 
     const noteGroupIds = [...new Set(noteAssignmentsQuery.data.map((assignment) => assignment.note_group_id))];
     const [noteGroupsQuery, noteOptionsQuery, noteGroupTranslationsQuery] = await timing.measureDb(() => Promise.all([
@@ -320,8 +388,23 @@ Deno.serve(async (request) => {
 
     const categoriesById = new Map(categoriesQuery.data.map((category) => [category.id, category]));
     const assignmentsByProductId = new Map(
-      availableAssignments.map((assignment) => [assignment.product_id, assignment]),
+      stallProductsQuery.data.map((assignment) => [assignment.product_id, assignment]),
     );
+    const saleableProductsById = new Map(productsQuery.data
+      .filter((product) => categoriesById.has(product.category_id))
+      .map((product) => [product.id, product]));
+    const bundleGroupsByProductId = new Map<string, typeof bundleGroupsQuery.data>();
+    for (const group of bundleGroupsQuery.data) {
+      const groups = bundleGroupsByProductId.get(group.bundle_product_id);
+      if (groups) groups.push(group);
+      else bundleGroupsByProductId.set(group.bundle_product_id, [group]);
+    }
+    const bundleChoicesByGroupId = new Map<string, typeof bundleChoicesQuery.data>();
+    for (const choice of bundleChoicesQuery.data) {
+      const choices = bundleChoicesByGroupId.get(choice.choice_group_id);
+      if (choices) choices.push(choice);
+      else bundleChoicesByGroupId.set(choice.choice_group_id, [choice]);
+    }
     const productTranslationsByProductId = new Map<string, typeof translationsQuery.data>();
     for (const translation of translationsQuery.data) {
       const translations = productTranslationsByProductId.get(translation.product_id);
@@ -357,11 +440,58 @@ Deno.serve(async (request) => {
       .flatMap((product) => {
         const category = categoriesById.get(product.category_id);
         const assignment = assignmentsByProductId.get(product.id);
-        return category && assignment ? [{
+        const bundleChoiceGroups = product.kind === "BUNDLE"
+          ? (bundleGroupsByProductId.get(product.id) ?? []).map((group) => ({
+            id: group.id,
+            organizationId: group.organization_id,
+            name: group.name,
+            minSelections: group.min_selections,
+            maxSelections: group.max_selections,
+            sortOrder: group.sort_order,
+            options: (bundleChoicesByGroupId.get(group.id) ?? []).flatMap((choice) => {
+              const component = saleableProductsById.get(choice.component_product_id);
+              const componentAssignment = assignmentsByProductId.get(choice.component_product_id);
+              return choice.organization_id === product.organization_id
+                && component?.organization_id === product.organization_id
+                && component.kind === "SINGLE"
+                && componentAssignment
+                ? [{
+                  id: choice.id,
+                  componentProductId: component.id,
+                  componentProductName: component.name,
+                  quantity: choice.quantity,
+                  priceDelta: choice.price_delta,
+                  sortOrder: choice.sort_order,
+                  availableFrom: componentAssignment.available_from,
+                  availableUntil: componentAssignment.available_until,
+                }]
+                : [];
+            }),
+          }))
+          : [];
+        const bundleIsComplete = product.kind !== "BUNDLE" || (
+          bundleChoiceGroups.length > 0
+          && bundleChoiceGroups.every((group) => (
+            group.organizationId === product.organization_id
+            && group.options.length >= Math.max(1, group.minSelections)
+          ))
+        );
+        return category && assignment && bundleIsComplete ? [{
           id: product.id,
           name: product.name,
           description: product.description,
           imageUrl: product.image_url,
+          availableFrom: assignment.available_from,
+          availableUntil: assignment.available_until,
+          kind: product.kind,
+          bundleChoiceGroups: bundleChoiceGroups.map((group) => ({
+            id: group.id,
+            name: group.name,
+            minSelections: group.minSelections,
+            maxSelections: group.maxSelections,
+            sortOrder: group.sortOrder,
+            options: group.options,
+          })),
           translations: (productTranslationsByProductId.get(product.id) ?? [])
             .map((translation) => ({ locale: translation.locale, name: translation.name, description: translation.description })),
           noteGroups: (noteAssignmentsByProductId.get(product.id) ?? [])
@@ -398,16 +528,23 @@ Deno.serve(async (request) => {
       })
       .sort((left, right) => left.categorySortOrder - right.categorySortOrder
         || left.productSortOrder - right.productSortOrder);
-    const products = productsWithSortOrder.map((product) => ({
+    const rankedProducts = applyBestSellerRanking(productsWithSortOrder.map((product) => ({
       id: product.id,
       name: product.name,
       description: product.description,
       imageUrl: product.imageUrl,
+      availableFrom: product.availableFrom,
+      availableUntil: product.availableUntil,
       translations: product.translations,
+      kind: product.kind,
+      bundleChoiceGroups: product.bundleChoiceGroups,
       noteGroups: product.noteGroups,
       price: product.price,
       category: product.category,
-    }));
+    })), (bestSellerRanksQuery.data ?? []) as BestSellerRankRow[]);
+    const products = orderingMode === "PREORDER"
+      ? filterPublicMenuProductsForTimeWindow(rankedProducts, preorderSlots)
+      : filterPublicMenuProductsForTime(rankedProducts, now);
 
     const settings = settingsQuery.data;
     return respond({
@@ -418,21 +555,35 @@ Deno.serve(async (request) => {
         slug: stallQuery.data.slug,
         location: stallQuery.data.location,
         currency: stallQuery.data.currency,
-        fulfillmentType: parsed.data.orderingMode === "DELIVERY"
+        timezone: stallQuery.data.timezone,
+        fulfillmentType: orderingMode === "DELIVERY"
           ? "DELIVERY"
           : tableQuery.data ? "DINE_IN" : "TAKEOUT",
         table: tableQuery.data ? { id: tableQuery.data.id, code: tableQuery.data.code, label: tableQuery.data.label } : null,
       },
       products,
+      orderingMode,
+      preorderSlots,
+      lotteryEnabled: orderingMode === "DEFAULT" && settings.lottery_enabled === true,
       supportedLocales: enabledLocales,
-      estimatedWaitMinutes: result.capacity?.quote_max_minutes ?? settings.estimated_wait_minutes,
+      estimatedWaitMinutes: orderingMode === "PREORDER"
+        ? 0
+        : result.capacity?.quote_max_minutes ?? settings.estimated_wait_minutes,
       estimatedWaitMinMinutes:
-        result.capacity?.quote_min_minutes ?? settings.estimated_wait_minutes,
+        orderingMode === "PREORDER"
+          ? 0
+          : result.capacity?.quote_min_minutes ?? settings.estimated_wait_minutes,
       estimatedWaitMaxMinutes:
-        result.capacity?.quote_max_minutes ?? settings.estimated_wait_minutes,
+        orderingMode === "PREORDER"
+          ? 0
+          : result.capacity?.quote_max_minutes ?? settings.estimated_wait_minutes,
       waitAcknowledgmentThresholdMinutes:
-        result.capacity?.acknowledgment_threshold_minutes ?? null,
-      requiresWaitAcknowledgment: result.capacity?.requires_acknowledgment === true,
+        orderingMode === "PREORDER"
+          ? null
+          : result.capacity?.acknowledgment_threshold_minutes ?? null,
+      requiresWaitAcknowledgment: orderingMode === "PREORDER"
+        ? false
+        : result.capacity?.requires_acknowledgment === true,
       lastTableOrderAt: lastTableOrderQuery.data?.created_at ?? null,
       limits: {
         maxItemQuantity: settings.max_item_quantity,

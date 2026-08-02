@@ -1,9 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, RefreshCw, ShieldAlert } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatTaipeiDateTime } from "@/lib/date-time";
+import {
+  focusFirstInvalidField,
+  parseFieldErrors,
+  withoutFieldError,
+} from "@/lib/form-field-errors";
 
 export type OfflineConflictView = {
   id: string;
@@ -69,14 +74,26 @@ export function OfflineConflictManager({
   const [reasonById, setReasonById] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [hasError, setHasError] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const sectionRef = useRef<HTMLElement>(null);
   const openCount = useMemo(
     () => conflicts.filter((conflict) => conflict.resolutionStatus === "OPEN").length,
     [conflicts],
   );
 
+  function fieldKey(conflictId: string, field: string) {
+    return `${conflictId}:${field}`;
+  }
+
+  function clearFieldError(conflictId: string, field: string) {
+    setFieldErrors((current) => withoutFieldError(current, fieldKey(conflictId, field)));
+  }
+
   async function refresh() {
     setBusyId("refresh");
     setMessage("");
+    setHasError(false);
     try {
       const response = await fetch(`/api/merchant/stalls/${stallId}/offline/conflicts`, {
         cache: "no-store",
@@ -91,6 +108,7 @@ export function OfflineConflictManager({
       setConflicts(payload.conflicts);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "目前無法重新載入同步衝突。");
+      setHasError(true);
     } finally {
       setBusyId(null);
     }
@@ -99,14 +117,6 @@ export function OfflineConflictManager({
   async function resolveConflict(conflict: OfflineConflictView) {
     const resolutionStatus = resolutionById[conflict.id] ?? "";
     const reason = reasonById[conflict.id]?.trim() ?? "";
-    if (!resolutionStatus) {
-      setMessage("請先選擇處理結果。");
-      return;
-    }
-    if (reason.length < 5) {
-      setMessage("請輸入至少 5 個字元的處理原因。");
-      return;
-    }
     if (
       ["REJECTED", "CANCELLED"].includes(resolutionStatus)
       && !window.confirm("確定套用此處理結果？系統會保留稽核紀錄，送出後不可直接復原。")
@@ -116,6 +126,8 @@ export function OfflineConflictManager({
 
     setBusyId(conflict.id);
     setMessage("");
+    setHasError(false);
+    setFieldErrors({});
     try {
       const response = await fetch(`/api/merchant/stalls/${stallId}/offline/conflicts`, {
         method: "PATCH",
@@ -129,9 +141,16 @@ export function OfflineConflictManager({
       const payload = await response.json() as {
         conflicts?: OfflineConflictView[];
         error?: string;
+        fieldErrors?: unknown;
       };
       if (!response.ok || !payload.conflicts) {
-        throw new Error(payload.error ?? "目前無法處理同步衝突。");
+        const parsedFieldErrors = parseFieldErrors(payload.fieldErrors);
+        const nextFieldErrors = Object.fromEntries(Object.entries(parsedFieldErrors).map(([field, error]) => [fieldKey(conflict.id, field), error]));
+        setFieldErrors(nextFieldErrors);
+        setMessage(payload.error ?? "目前無法處理同步衝突。");
+        setHasError(true);
+        focusFirstInvalidField(sectionRef.current, nextFieldErrors);
+        return;
       }
       setConflicts(payload.conflicts);
       setResolutionById((current) => ({ ...current, [conflict.id]: "" }));
@@ -139,13 +158,14 @@ export function OfflineConflictManager({
       setMessage("同步衝突已處理並寫入稽核紀錄。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "目前無法處理同步衝突。");
+      setHasError(true);
     } finally {
       setBusyId(null);
     }
   }
 
   return (
-    <section className="border-t border-stone-200 pt-7">
+    <section ref={sectionRef} className="border-t border-stone-200 pt-7">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-xl font-semibold">
@@ -171,7 +191,7 @@ export function OfflineConflictManager({
       </div>
 
       {message ? (
-        <p role="status" className="mt-4 border-y border-stone-200 py-3 text-sm text-stone-700">
+        <p role={hasError ? "alert" : "status"} className={`mt-4 border-y py-3 text-sm ${hasError ? "border-red-200 text-red-700" : "border-stone-200 text-stone-700"}`}>
           {message}
         </p>
       ) : null}
@@ -219,32 +239,47 @@ export function OfflineConflictManager({
                     處理結果
                     <select
                       value={resolutionById[conflict.id] ?? ""}
+                      data-field-key={fieldKey(conflict.id, "resolutionStatus")}
+                      aria-invalid={Boolean(fieldErrors[fieldKey(conflict.id, "resolutionStatus")])}
+                      aria-describedby={fieldErrors[fieldKey(conflict.id, "resolutionStatus")] ? fieldErrorId(conflict.id, "resolutionStatus") : undefined}
                       disabled={busyId !== null}
-                      onChange={(event) => setResolutionById((current) => ({
-                        ...current,
-                        [conflict.id]: event.target.value,
-                      }))}
-                      className="form-input mt-1"
+                      onChange={(event) => {
+                        clearFieldError(conflict.id, "resolutionStatus");
+                        setResolutionById((current) => ({
+                          ...current,
+                          [conflict.id]: event.target.value,
+                        }));
+                      }}
+                      className={`form-input mt-1 ${fieldErrors[fieldKey(conflict.id, "resolutionStatus")] ? "border-red-500 bg-red-50" : ""}`}
                     >
                       <option value="">請選擇</option>
                       {resolutionOptions.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
                     </select>
+                    {fieldErrors[fieldKey(conflict.id, "resolutionStatus")] ? <FieldError id={fieldErrorId(conflict.id, "resolutionStatus")} error={fieldErrors[fieldKey(conflict.id, "resolutionStatus")]} /> : null}
                   </label>
                   <label className="text-sm font-medium">
                     處理原因
                     <input
                       type="text"
                       value={reasonById[conflict.id] ?? ""}
+                      minLength={5}
                       maxLength={500}
+                      data-field-key={fieldKey(conflict.id, "reason")}
+                      aria-invalid={Boolean(fieldErrors[fieldKey(conflict.id, "reason")])}
+                      aria-describedby={fieldErrors[fieldKey(conflict.id, "reason")] ? fieldErrorId(conflict.id, "reason") : undefined}
                       disabled={busyId !== null}
-                      onChange={(event) => setReasonById((current) => ({
-                        ...current,
-                        [conflict.id]: event.target.value,
-                      }))}
-                      className="form-input mt-1"
+                      onChange={(event) => {
+                        clearFieldError(conflict.id, "reason");
+                        setReasonById((current) => ({
+                          ...current,
+                          [conflict.id]: event.target.value,
+                        }));
+                      }}
+                      className={`form-input mt-1 ${fieldErrors[fieldKey(conflict.id, "reason")] ? "border-red-500 bg-red-50" : ""}`}
                     />
+                    {fieldErrors[fieldKey(conflict.id, "reason")] ? <FieldError id={fieldErrorId(conflict.id, "reason")} error={fieldErrors[fieldKey(conflict.id, "reason")]} /> : null}
                   </label>
                   <button
                     type="button"
@@ -272,6 +307,14 @@ export function OfflineConflictManager({
       ) : null}
     </section>
   );
+}
+
+function FieldError({ id, error }: { id: string; error: string }) {
+  return <span id={id} role="alert" className="mt-1 block text-xs text-red-700">{error}</span>;
+}
+
+function fieldErrorId(conflictId: string, field: string) {
+  return `offline-conflict-${conflictId}-${field}-error`;
 }
 
 function entityLabel(value: string) {

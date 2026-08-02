@@ -43,6 +43,11 @@ export type QrOrderMessages = {
   productImage: (name: string) => string;
   decrease: (name: string) => string;
   increase: (name: string) => string;
+  addToCart: string;
+  editCartItem: string;
+  removeCartItem: string;
+  cartProductQuantity: (count: number) => string;
+  backToTop: string;
   quantityLimit: string;
   singleChoice: string;
   multipleChoice: string;
@@ -96,6 +101,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     productImage: (name) => `${name}圖片`,
     decrease: (name) => `減少 ${name}`,
     increase: (name) => `增加 ${name}`,
+    addToCart: "加入購物車",
+    editCartItem: "修改客製",
+    removeCartItem: "移除",
+    cartProductQuantity: (count) => `購物車已有 ${count} 份`,
+    backToTop: "返回頁面頂端",
     quantityLimit: "已達本攤位的點餐數量限制。",
     singleChoice: "單選",
     multipleChoice: "複選",
@@ -164,6 +174,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     productImage: (name) => `${name} image`,
     decrease: (name) => `Decrease ${name}`,
     increase: (name) => `Increase ${name}`,
+    addToCart: "Add to cart",
+    editCartItem: "Edit options",
+    removeCartItem: "Remove",
+    cartProductQuantity: (count) => `${count} already in cart`,
+    backToTop: "Back to top",
     quantityLimit: "You have reached this stall's ordering limit.",
     singleChoice: "Choose one",
     multipleChoice: "Choose multiple",
@@ -232,6 +247,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     productImage: (name) => `${name}の画像`,
     decrease: (name) => `${name}を減らす`,
     increase: (name) => `${name}を増やす`,
+    addToCart: "カートに追加",
+    editCartItem: "オプションを変更",
+    removeCartItem: "削除",
+    cartProductQuantity: (count) => `カートに${count}点`,
+    backToTop: "ページ上部へ戻る",
     quantityLimit: "この店舗の注文数量上限に達しました。",
     singleChoice: "1つ選択",
     multipleChoice: "複数選択",
@@ -300,6 +320,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     productImage: (name) => `${name} 이미지`,
     decrease: (name) => `${name} 수량 줄이기`,
     increase: (name) => `${name} 수량 늘리기`,
+    addToCart: "장바구니에 담기",
+    editCartItem: "옵션 수정",
+    removeCartItem: "삭제",
+    cartProductQuantity: (count) => `장바구니에 ${count}개`,
+    backToTop: "맨 위로",
     quantityLimit: "이 매장의 주문 수량 한도에 도달했습니다.",
     singleChoice: "1개 선택",
     multipleChoice: "복수 선택",
@@ -368,6 +393,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     productImage: (name) => `Hình ảnh ${name}`,
     decrease: (name) => `Giảm ${name}`,
     increase: (name) => `Tăng ${name}`,
+    addToCart: "Thêm vào giỏ",
+    editCartItem: "Sửa tùy chọn",
+    removeCartItem: "Xóa",
+    cartProductQuantity: (count) => `Đã có ${count} phần trong giỏ`,
+    backToTop: "Về đầu trang",
     quantityLimit: "Bạn đã đạt giới hạn số lượng đặt món của quầy.",
     singleChoice: "Chọn một",
     multipleChoice: "Chọn nhiều",
@@ -436,6 +466,11 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     productImage: (name) => `รูปภาพ ${name}`,
     decrease: (name) => `ลดจำนวน ${name}`,
     increase: (name) => `เพิ่มจำนวน ${name}`,
+    addToCart: "เพิ่มลงตะกร้า",
+    editCartItem: "แก้ไขตัวเลือก",
+    removeCartItem: "ลบ",
+    cartProductQuantity: (count) => `มี ${count} รายการในตะกร้า`,
+    backToTop: "กลับไปด้านบน",
     quantityLimit: "ถึงขีดจำกัดจำนวนการสั่งซื้อของร้านแล้ว",
     singleChoice: "เลือก 1 รายการ",
     multipleChoice: "เลือกได้หลายรายการ",
@@ -493,6 +528,9 @@ const errorMessageKeys: Record<string, ErrorMessageKey> = {
   REQUEST_TOO_LARGE: "invalidRequest",
   INVALID_JSON: "invalidRequest",
   INVALID_REQUEST: "invalidRequest",
+  CLIENT_VERSION_UNSUPPORTED: "sessionInvalid",
+  REQUEST_SOURCE_UNAVAILABLE: "orderingUnavailable",
+  CIRCUIT_B_UNAVAILABLE: "orderingUnavailable",
   QR_NOT_FOUND: "qrUnavailable",
   QR_REVOKED: "qrUnavailable",
   QR_PAUSED: "qrUnavailable",
@@ -510,6 +548,7 @@ const errorMessageKeys: Record<string, ErrorMessageKey> = {
   SESSION_EXPIRED: "sessionInvalid",
   SESSION_REPLAYED: "sessionInvalid",
   SESSION_DEVICE_MISMATCH: "sessionInvalid",
+  SESSION_TOKEN_COLLISION: "sessionInvalid",
   RATE_LIMITED: "rateLimited",
   INVALID_TURNSTILE: "securityFailed",
   TURNSTILE_UNAVAILABLE: "securityUnavailable",
@@ -521,11 +560,40 @@ const errorMessageKeys: Record<string, ErrorMessageKey> = {
   PRODUCT_UNAVAILABLE: "productUnavailable",
   PRODUCT_CAPACITY_EXCEEDED: "productUnavailable",
   CAPACITY_PAUSED: "capacityPaused",
+  LOCATION_UNAVAILABLE: "orderingUnavailable",
+  EVENT_NOT_ACTIVE: "orderingUnavailable",
+  EVENT_EXPIRED: "orderingUnavailable",
+  SCHEDULE_NOT_ACTIVE: "orderingUnavailable",
+  SCHEDULE_CLOSED: "orderingUnavailable",
+  SCHEDULE_CONTEXT_MISMATCH: "sessionInvalid",
   WAIT_ACKNOWLEDGMENT_REQUIRED: "waitAcknowledgment",
   INVALID_PRODUCT_NOTES: "selectionInvalid",
+  INVALID_PRODUCT_BUNDLE: "selectionInvalid",
+  PREORDER_DISABLED: "orderingUnavailable",
+  PREORDER_TIME_REQUIRED: "selectionInvalid",
+  PREORDER_TIME_INVALID: "selectionInvalid",
+  PREORDER_TIME_UNAVAILABLE: "orderingUnavailable",
+  PREORDER_CONTEXT_UNAVAILABLE: "orderingUnavailable",
+  LOTTERY_UNAVAILABLE: "selectionInvalid",
+  LOTTERY_RATE_LIMITED: "rateLimited",
+  LOTTERY_DRAW_INVALID: "selectionInvalid",
+  LOTTERY_DRAW_EXPIRED: "selectionInvalid",
+  LOTTERY_ALREADY_REDEEMED: "selectionInvalid",
+  IDEMPOTENCY_CONFLICT: "orderFailed",
   TOO_MANY_PENDING_ORDERS: "pendingLimit",
   TRIAL_ORDER_LIMIT_REACHED: "trialOrderLimit",
+  TRIAL_EXPIRED: "subscriptionSuspended",
+  SUBSCRIPTION_NOT_ACTIVE: "subscriptionSuspended",
   SUBSCRIPTION_SUSPENDED: "subscriptionSuspended",
+  FEATURE_NOT_INCLUDED: "orderFailed",
+  PLAN_LIMIT_REACHED: "orderFailed",
+  ADDITIONAL_STALL_APPROVAL_REQUIRED: "orderFailed",
+  ORDER_PACKAGE_REQUIRED: "orderFailed",
+  UPGRADE_REQUIRED: "orderFailed",
+  LINE_LINK_UNAVAILABLE: "orderFailed",
+  LINE_LINK_EXPIRED: "orderFailed",
+  LINE_LINK_CONFLICT: "orderFailed",
+  REORDER_UNAVAILABLE: "orderFailed",
   ORDER_CONFLICT: "orderFailed",
   ORDER_CREATE_ERROR: "orderFailed",
   ORDER_NOT_FOUND: "orderFailed",
@@ -555,16 +623,13 @@ export function resolvePreferredQrLocale(preferredLocales: readonly string[], su
 
 export function preserveSupportedQrLocale(
   currentLocale: QrLocale,
-  preferredLocales: readonly string[],
   supportedLocales: readonly string[],
 ) {
   const available = new Set<QrLocale>(["zh-TW"]);
   supportedLocales.forEach((locale) => {
     if (isQrLocale(locale)) available.add(locale);
   });
-  return available.has(currentLocale)
-    ? currentLocale
-    : resolvePreferredQrLocale(preferredLocales, supportedLocales);
+  return available.has(currentLocale) ? currentLocale : "zh-TW";
 }
 
 export function localizedQrCategory(locale: QrLocale, category: string) {

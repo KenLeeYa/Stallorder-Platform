@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { PaymentOptionKind, UserRole } from "@prisma/client";
 import { List, Minus, Package, Plus, Send, ShoppingCart, Truck, Utensils, X } from "lucide-react";
+import { StaffDiscountSelector } from "@/components/staff-discount-selector";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
@@ -19,6 +20,7 @@ type Props = {
   modules: { dineIn: boolean; delivery: boolean; print: boolean; payment: boolean; discount: boolean; discountApprovalThresholdBps: number };
   paymentOptions: Array<{ id: string; name: string; kind: PaymentOptionKind }>;
   discountOptions: Array<{ id: string; name: string; rateBps: number }>;
+  discountSettingsHref?: string;
   onCreated: (order: StaffOrderDto) => void;
   onClose: () => void;
 };
@@ -30,6 +32,7 @@ export function StaffOrderComposer({
   modules,
   paymentOptions,
   discountOptions,
+  discountSettingsHref,
   onCreated,
   onClose,
 }: Props) {
@@ -46,6 +49,7 @@ export function StaffOrderComposer({
   const [customerNote, setCustomerNote] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [noteSelections, setNoteSelections] = useState<Record<string, string[]>>({});
+  const [bundleSelections, setBundleSelections] = useState<Record<string, string[]>>({});
   const [paymentTiming, setPaymentTiming] = useState<"PAY_NOW" | "PAY_LATER">("PAY_NOW");
   const [paymentOptionId, setPaymentOptionId] = useState(defaultPayment?.id ?? null);
   const [discountOptionId, setDiscountOptionId] = useState<string | null>(null);
@@ -63,10 +67,16 @@ export function StaffOrderComposer({
       product,
       quantity: quantities[product.id],
       noteOptionIds: noteSelections[product.id] ?? [],
-    })), [catalog.products, noteSelections, quantities]);
+      bundleChoiceIds: bundleSelections[product.id] ?? [],
+    })), [bundleSelections, catalog.products, noteSelections, quantities]);
   const totalQuantity = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = selectedItems.reduce((sum, item) => (
-    sum + Math.max(0, item.product.price + notePriceAdjustment(item.product.noteGroups, item.noteOptionIds)) * item.quantity
+    sum + Math.max(
+      0,
+      item.product.price
+        + bundlePriceAdjustment(item.product, item.bundleChoiceIds)
+        + notePriceAdjustment(item.product.noteGroups, item.noteOptionIds),
+    ) * item.quantity
   ), 0);
   const discount = discountOptions.find((option) => option.id === discountOptionId) ?? null;
   const total = Math.round((subtotal * (discount?.rateBps ?? 10_000)) / 10_000);
@@ -107,6 +117,11 @@ export function StaffOrderComposer({
         delete nextSelections[productId];
         return nextSelections;
       });
+      setBundleSelections((currentSelections) => {
+        const nextSelections = { ...currentSelections };
+        delete nextSelections[productId];
+        return nextSelections;
+      });
     }
   }
 
@@ -121,6 +136,17 @@ export function StaffOrderComposer({
     }));
   }
 
+  function selectBundleChoice(
+    productId: string,
+    group: NonNullable<StaffOrderCatalog["products"][number]["bundleChoiceGroups"]>[number],
+    choiceId: string | null,
+  ) {
+    setBundleSelections((current) => ({
+      ...current,
+      [productId]: toggleBundleChoice(current[productId] ?? [], group, choiceId),
+    }));
+  }
+
   async function submit() {
     if (selectedItems.length === 0) {
       setMessage("請至少選擇一項商品。");
@@ -131,6 +157,13 @@ export function StaffOrderComposer({
     ));
     if (invalidNotes) {
       setMessage(`${invalidNotes.product.name} 的必選註記尚未完成。`);
+      return;
+    }
+    const invalidBundle = selectedItems.find(({ product, bundleChoiceIds }) => (
+      !bundleSelectionIsValid(product, bundleChoiceIds)
+    ));
+    if (invalidBundle) {
+      setMessage(`${invalidBundle.product.name} 的套餐選擇尚未完成。`);
       return;
     }
     if (fulfillmentType === "DINE_IN" && !diningTableId) {
@@ -183,11 +216,12 @@ export function StaffOrderComposer({
         managerEmail: needsApproval && !operatorCanApprove ? managerEmail : null,
         managerPassword: needsApproval && !operatorCanApprove ? managerPassword : null,
       } : undefined,
-      items: selectedItems.map(({ product, quantity, noteOptionIds }) => ({
+      items: selectedItems.map(({ product, quantity, noteOptionIds, bundleChoiceIds }) => ({
         productId: product.id,
         quantity,
         note: "",
         noteOptionIds,
+        bundleChoiceIds,
       })),
     };
     try {
@@ -245,6 +279,9 @@ export function StaffOrderComposer({
       }
       if (discountOptionId !== null || needsApproval) {
         throw new Error("OFFLINE_DISCOUNT_NOT_ALLOWED");
+      }
+      if (selectedItems.some(({ product }) => product.kind === "BUNDLE")) {
+        throw new Error("OFFLINE_BUNDLE_NOT_ALLOWED");
       }
       const [{ createOfflineOrder }, { offlineOrderToStaffOrder }] = await Promise.all([
         import("@/offline/offline-operations"),
@@ -309,9 +346,46 @@ export function StaffOrderComposer({
                   <div className="divide-y divide-stone-100">
                     {catalog.products.filter((product) => product.category === category).map((product) => {
                       const quantity = quantities[product.id] ?? 0;
-                      const selected = noteSelections[product.id] ?? [];
-                      const unitPrice = Math.max(0, product.price + notePriceAdjustment(product.noteGroups, selected));
-                      return <div key={product.id} className="py-4"><div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4"><div className="min-w-0"><h4 className="font-semibold">{product.name}</h4>{product.description ? <p className="mt-1 text-sm text-stone-500">{product.description}</p> : null}<p className="mt-1 text-sm font-semibold">{formatMoney(unitPrice, stall.currency)}</p></div><div className="grid grid-cols-[44px_32px_44px] items-center gap-2"><button type="button" title={`減少 ${product.name}`} disabled={quantity === 0} onClick={() => setQuantity(product.id, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Minus className="h-4 w-4" /></button><span className="text-center font-semibold">{quantity}</span><button type="button" title={`增加 ${product.name}`} onClick={() => setQuantity(product.id, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-800 text-white"><Plus className="h-4 w-4" /></button></div></div>{quantity > 0 && product.noteGroups.length > 0 ? <div className="mt-4 space-y-3 border-l-2 border-teal-700 pl-3">{product.noteGroups.map((group) => { const optionIds = new Set(group.options.map((option) => option.id)); const selectedCount = selected.filter((id) => optionIds.has(id)).length; return <fieldset key={group.id}><legend className="text-sm font-semibold">{group.name}{group.isRequired ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.selectionMode === "SINGLE" ? "單選" : group.maxSelections ? `最多 ${group.maxSelections} 項` : "複選"}</span></legend><div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">{group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-note-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectNoteOption(product.id, group, null)} />不選</label> : null}{group.options.map((option) => { const checked = selected.includes(option.id); const maxed = group.maxSelections !== null && selectedCount >= group.maxSelections; return <label key={option.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`staff-note-${product.id}-${group.id}`} checked={checked} disabled={group.selectionMode === "MULTIPLE" && maxed && !checked} onChange={() => selectNoteOption(product.id, group, option.id)} />{option.name}{option.priceDelta !== 0 ? <span className="text-teal-800">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, stall.currency)}</span> : null}</label>; })}</div></fieldset>; })}</div> : null}</div>;
+                      const noteSelected = noteSelections[product.id] ?? [];
+                      const bundleSelected = bundleSelections[product.id] ?? [];
+                      const unitPrice = Math.max(
+                        0,
+                        product.price
+                          + bundlePriceAdjustment(product, bundleSelected)
+                          + notePriceAdjustment(product.noteGroups, noteSelected),
+                      );
+                      return <div key={product.id} className="py-4">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+                          <div className="min-w-0">
+                            <h4 className="font-semibold">{product.name}{product.kind === "BUNDLE" ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">套餐</span> : null}</h4>
+                            {product.description ? <p className="mt-1 text-sm text-stone-500">{product.description}</p> : null}
+                            <p className="mt-1 text-sm font-semibold">{formatMoney(unitPrice, stall.currency)}</p>
+                          </div>
+                          <div className="grid grid-cols-[44px_32px_44px] items-center gap-2">
+                            <button type="button" title={`減少 ${product.name}`} disabled={quantity === 0} onClick={() => setQuantity(product.id, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Minus className="h-4 w-4" /></button>
+                            <span className="text-center font-semibold">{quantity}</span>
+                            <button type="button" title={`增加 ${product.name}`} onClick={() => setQuantity(product.id, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-800 text-white"><Plus className="h-4 w-4" /></button>
+                          </div>
+                        </div>
+                        {quantity > 0 && product.kind === "BUNDLE" ? <div className="mt-4 space-y-3 border-l-2 border-amber-500 pl-3">
+                          {(product.bundleChoiceGroups ?? []).map((group) => {
+                            const groupIds = new Set(group.choices.map((choice) => choice.id));
+                            const selectedCount = bundleSelected.filter((id) => groupIds.has(id)).length;
+                            return <fieldset key={group.id}>
+                              <legend className="text-sm font-semibold">套餐 · {group.name}{group.minSelections > 0 ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.minSelections === group.maxSelections ? `選 ${group.minSelections} 項` : `選 ${group.minSelections}～${group.maxSelections} 項`}</span></legend>
+                              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                                {group.maxSelections === 1 && group.minSelections === 0 ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-bundle-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectBundleChoice(product.id, group, null)} />不選</label> : null}
+                                {group.choices.map((choice) => {
+                                  const checked = bundleSelected.includes(choice.id);
+                                  const maxed = selectedCount >= group.maxSelections;
+                                  return <label key={choice.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.maxSelections === 1 ? "radio" : "checkbox"} name={`staff-bundle-${product.id}-${group.id}`} checked={checked} disabled={group.maxSelections > 1 && maxed && !checked} onChange={() => selectBundleChoice(product.id, group, choice.id)} />{choice.name} × {choice.quantity}{choice.priceDelta !== 0 ? <span className="text-teal-800">{choice.priceDelta > 0 ? "+" : ""}{formatMoney(choice.priceDelta, stall.currency)}</span> : null}</label>;
+                                })}
+                              </div>
+                            </fieldset>;
+                          })}
+                        </div> : null}
+                        {quantity > 0 && product.noteGroups.length > 0 ? <div className="mt-4 space-y-3 border-l-2 border-teal-700 pl-3">{product.noteGroups.map((group) => { const optionIds = new Set(group.options.map((option) => option.id)); const selectedCount = noteSelected.filter((id) => optionIds.has(id)).length; return <fieldset key={group.id}><legend className="text-sm font-semibold">{group.name}{group.isRequired ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.selectionMode === "SINGLE" ? "單選" : group.maxSelections ? `最多 ${group.maxSelections} 項` : "複選"}</span></legend><div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">{group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-note-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectNoteOption(product.id, group, null)} />不選</label> : null}{group.options.map((option) => { const checked = noteSelected.includes(option.id); const maxed = group.maxSelections !== null && selectedCount >= group.maxSelections; return <label key={option.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`staff-note-${product.id}-${group.id}`} checked={checked} disabled={group.selectionMode === "MULTIPLE" && maxed && !checked} onChange={() => selectNoteOption(product.id, group, option.id)} />{option.name}{option.priceDelta !== 0 ? <span className="text-teal-800">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, stall.currency)}</span> : null}</label>; })}</div></fieldset>; })}</div> : null}
+                      </div>;
                     })}
                   </div>
                 </section>
@@ -323,7 +397,22 @@ export function StaffOrderComposer({
 
           <aside data-testid="staff-order-cart-panel" className={`${activePane === "CART" ? "block" : "hidden"} safe-area-bottom border-t border-stone-200 bg-stone-50 px-4 py-5 lg:block lg:border-l lg:border-t-0 sm:px-6`}>
             <div className="flex items-center gap-2"><ShoppingCart className="h-4 w-4 text-teal-800" /><h3 className="font-semibold">本次訂單</h3><span className="ml-auto text-sm text-stone-500">{totalQuantity} 份</span></div>
-            <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{selectedItems.map(({ product, quantity, noteOptionIds }) => <div key={product.id} className="py-3 text-sm"><div className="flex justify-between gap-3"><span>{quantity} × {product.name}</span><strong>{formatMoney(Math.max(0, product.price + notePriceAdjustment(product.noteGroups, noteOptionIds)) * quantity, stall.currency)}</strong></div>{noteOptionIds.length > 0 ? <p className="mt-1 text-xs text-teal-800">{product.noteGroups.flatMap((group) => group.options.filter((option) => noteOptionIds.includes(option.id)).map((option) => option.name)).join("、")}</p> : null}</div>)}</div>
+            <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{selectedItems.map(({ product, quantity, noteOptionIds, bundleChoiceIds }) => {
+              const selectedBundleChoices = (product.bundleChoiceGroups ?? []).flatMap((group) => (
+                group.choices.filter((choice) => bundleChoiceIds.includes(choice.id))
+              ));
+              const unitPrice = Math.max(
+                0,
+                product.price
+                  + bundlePriceAdjustment(product, bundleChoiceIds)
+                  + notePriceAdjustment(product.noteGroups, noteOptionIds),
+              );
+              return <div key={product.id} className="py-3 text-sm">
+                <div className="flex justify-between gap-3"><span>{quantity} × {product.name}</span><strong>{formatMoney(unitPrice * quantity, stall.currency)}</strong></div>
+                {selectedBundleChoices.length > 0 ? <p className="mt-1 text-xs text-amber-800">{selectedBundleChoices.map((choice) => `${choice.name} × ${choice.quantity}`).join("、")}</p> : null}
+                {noteOptionIds.length > 0 ? <p className="mt-1 text-xs text-teal-800">{product.noteGroups.flatMap((group) => group.options.filter((option) => noteOptionIds.includes(option.id)).map((option) => option.name)).join("、")}</p> : null}
+              </div>;
+            })}</div>
             <label className="mt-4 block text-xs font-semibold text-stone-600">訂單備註<textarea value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-1 min-h-20" /></label>
 
             <div className="mt-5 grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label="付款時間">
@@ -333,7 +422,13 @@ export function StaffOrderComposer({
 
             {paymentTiming === "PAY_NOW" ? <>
               {modules.payment ? <div className="mt-4 grid grid-cols-2 gap-2">{paymentOptions.map((option) => <button key={option.id} type="button" aria-pressed={paymentOptionId === option.id} onClick={() => { setPaymentOptionId(option.id); setCashReceived(""); }} className={`min-h-10 rounded-md border px-2 text-xs font-semibold ${paymentOptionId === option.id ? "border-teal-700 bg-teal-50" : "border-stone-300 bg-white"}`}>{option.name}</button>)}</div> : <p className="mt-4 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-semibold">現金</p>}
-              {modules.discount ? <div className="mt-4 flex flex-wrap gap-2"><button type="button" aria-pressed={discountOptionId === null} onClick={() => setDiscountOptionId(null)} className={`h-9 rounded-md border px-3 text-xs font-semibold ${discountOptionId === null ? "border-teal-700 bg-teal-50" : "border-stone-300 bg-white"}`}>不折扣</button>{discountOptions.map((option) => <button key={option.id} type="button" aria-pressed={discountOptionId === option.id} onClick={() => setDiscountOptionId(option.id)} className={`h-9 rounded-md border px-3 text-xs font-semibold ${discountOptionId === option.id ? "border-teal-700 bg-teal-50" : "border-stone-300 bg-white"}`}>{option.name}</button>)}</div> : null}
+              <StaffDiscountSelector
+                enabled={modules.discount}
+                options={discountOptions}
+                selectedOptionId={discountOptionId}
+                onSelect={setDiscountOptionId}
+                settingsHref={discountSettingsHref}
+              />
               {needsApproval ? <div className="mt-4 border-y border-amber-300 bg-amber-50 py-3"><p className="text-xs font-semibold text-amber-900">此折扣需要經理核准</p><TextField label="核准原因" value={discountApprovalReason} maxLength={200} onChange={setDiscountApprovalReason} />{!operatorCanApprove ? <><TextField label="經理帳號" value={managerEmail} maxLength={254} onChange={setManagerEmail} type="email" autoComplete="username" /><TextField label="經理密碼" value={managerPassword} maxLength={128} onChange={setManagerPassword} type="password" autoComplete="current-password" /></> : null}</div> : null}
               {usesCash ? <div className="mt-4"><TextField label="實收金額" value={cashReceived} maxLength={9} inputMode="numeric" onChange={(value) => setCashReceived(value.replace(/\D/g, ""))} /><div className="mt-2 grid grid-cols-4 gap-2">{[total, 200, 500, 1000].filter((value, index, values) => values.indexOf(value) === index).map((value, index) => <button key={value} type="button" disabled={value < total} onClick={() => setCashReceived(String(value))} className="h-9 rounded-md border border-stone-300 bg-white text-xs font-semibold disabled:opacity-40">{index === 0 ? "剛好" : value}</button>)}</div><div className="mt-3 flex justify-between bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900"><span>找零</span><span>{formatMoney(change, stall.currency)}</span></div></div> : null}
             </> : null}
@@ -357,6 +452,7 @@ function offlineErrorMessage(code: string) {
     OFFLINE_READ_ONLY: "目前無法連線，且此裝置尚未具備離線寫入權限。",
     OFFLINE_TAKEOUT_ONLY: "離線模式目前僅支援現場外帶訂單。",
     OFFLINE_DISCOUNT_NOT_ALLOWED: "離線模式不支援折扣或經理線上核准，請取消折扣後再試。",
+    OFFLINE_BUNDLE_NOT_ALLOWED: "離線模式目前不支援套餐，請恢復連線後再建立此訂單。",
     OFFLINE_BOOTSTRAP_REQUIRED: "請先在線上完成此裝置的離線營運初始化。",
     OFFLINE_PERMIT_EXPIRED: "離線營運許可已到期，請恢復連線後重新取得許可。",
     OFFLINE_MENU_EXPIRED: "離線菜單已到期，請恢復連線後重新取得最新菜單。",
@@ -374,6 +470,48 @@ function offlineErrorMessage(code: string) {
   return messages[code] ?? (code.startsWith("OFFLINE_")
     ? "目前無法安全建立離線訂單，請恢復連線後重試。"
     : code);
+}
+
+type StaffCatalogProduct = StaffOrderCatalog["products"][number];
+type StaffBundleChoiceGroup = NonNullable<StaffCatalogProduct["bundleChoiceGroups"]>[number];
+
+function bundleSelectionIsValid(product: StaffCatalogProduct, selectedIds: string[]) {
+  if (new Set(selectedIds).size !== selectedIds.length) return false;
+  if (product.kind !== "BUNDLE") return selectedIds.length === 0;
+  const groups = product.bundleChoiceGroups ?? [];
+  if (groups.length === 0) return false;
+  const allowedIds = new Set(groups.flatMap((group) => group.choices.map((choice) => choice.id)));
+  if (selectedIds.some((choiceId) => !allowedIds.has(choiceId))) return false;
+  return groups.every((group) => {
+    const choiceIds = new Set(group.choices.map((choice) => choice.id));
+    const selectedCount = selectedIds.filter((choiceId) => choiceIds.has(choiceId)).length;
+    return selectedCount >= group.minSelections && selectedCount <= group.maxSelections;
+  });
+}
+
+function bundlePriceAdjustment(product: StaffCatalogProduct, selectedIds: string[]) {
+  if (product.kind !== "BUNDLE") return 0;
+  const selected = new Set(selectedIds);
+  return (product.bundleChoiceGroups ?? []).reduce((sum, group) => (
+    sum + group.choices.reduce((choiceSum, choice) => (
+      choiceSum + (selected.has(choice.id) ? choice.priceDelta : 0)
+    ), 0)
+  ), 0);
+}
+
+function toggleBundleChoice(
+  currentIds: string[],
+  group: StaffBundleChoiceGroup,
+  choiceId: string | null,
+) {
+  const groupIds = new Set(group.choices.map((choice) => choice.id));
+  const outsideGroup = currentIds.filter((id) => !groupIds.has(id));
+  if (choiceId === null) return outsideGroup;
+  if (group.maxSelections === 1) return [...outsideGroup, choiceId];
+  if (currentIds.includes(choiceId)) return currentIds.filter((id) => id !== choiceId);
+  const selectedInGroup = currentIds.filter((id) => groupIds.has(id));
+  if (selectedInGroup.length >= group.maxSelections) return currentIds;
+  return [...currentIds, choiceId];
 }
 
 function ModeButton({ active, disabled, icon, label, onClick }: { active: boolean; disabled?: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {

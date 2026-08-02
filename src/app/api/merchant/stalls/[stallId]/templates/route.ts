@@ -56,7 +56,10 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const organizationId = authorization.workspace.id;
-  const source = await loadStallTemplateData(parsed.data.sourceStallId, organizationId);
+  const [source, target] = await Promise.all([
+    loadStallTemplateData(parsed.data.sourceStallId, organizationId),
+    loadStallTemplateData(stallId, organizationId),
+  ]);
   await prisma.$transaction(async (transaction) => {
     if (parsed.data.sections.includes("PAYMENTS")) {
       await transaction.paymentOption.deleteMany({ where: { organizationId, stallId } });
@@ -97,8 +100,59 @@ export async function POST(request: Request, context: RouteContext) {
         data: {
           discountModuleEnabled: source.settings.discountModuleEnabled,
           discountApprovalThresholdBps: source.settings.discountApprovalThresholdBps,
+          ...(!parsed.data.sections.includes("ORDERING_EXPERIENCE")
+            ? {
+                lotteryDiscountOptionId: await findReplacementLotteryDiscountId({
+                  transaction,
+                  organizationId,
+                  stallId,
+                  discount: target.discounts.find(
+                    (discount) => (
+                      discount.id === target.settings.lotteryDiscountOptionId
+                      && discount.isEnabled
+                    ),
+                  ),
+                }),
+              }
+            : {}),
         },
       });
+    }
+    if (parsed.data.sections.includes("ORDERING_EXPERIENCE")) {
+      const sourceLotteryDiscount = source.discounts.find(
+        (discount) => discount.id === source.settings.lotteryDiscountOptionId && discount.isEnabled,
+      );
+      const targetLotteryDiscount = sourceLotteryDiscount
+        ? await transaction.discountOption.findFirst({
+            where: {
+              organizationId,
+              stallId,
+              name: sourceLotteryDiscount.name,
+              rateBps: sourceLotteryDiscount.rateBps,
+              isEnabled: true,
+            },
+            select: { id: true },
+          })
+        : null;
+      await transaction.stallOrderingSettings.update({
+        where: { stallId },
+        data: {
+          staffDeliveryEnabled: source.settings.staffDeliveryEnabled,
+          takeoutPreorderEnabled: source.settings.takeoutPreorderEnabled,
+          preorderMinLeadMinutes: source.settings.preorderMinLeadMinutes,
+          preorderMaxDays: source.settings.preorderMaxDays,
+          preorderSlotMinutes: source.settings.preorderSlotMinutes,
+          lotteryEnabled: source.settings.lotteryEnabled,
+          lotteryDiscountOptionId: targetLotteryDiscount?.id ?? null,
+          lotteryDiscountWinRateBps: source.settings.lotteryDiscountWinRateBps,
+        },
+      });
+      if (!source.settings.takeoutPreorderEnabled) {
+        await transaction.orderSession.updateMany({
+          where: { organizationId, stallId, orderingMode: "PREORDER", status: "ACTIVE" },
+          data: { status: "REVOKED", revokedAt: new Date() },
+        });
+      }
     }
     if (parsed.data.sections.includes("PRODUCT_AVAILABILITY")) {
       const sourceProductIds = source.stallProducts.map((item) => item.productId);
@@ -182,6 +236,31 @@ export async function POST(request: Request, context: RouteContext) {
     { preview: await getStallTemplatePreview(parsed.data.sourceStallId, stallId, organizationId) },
     { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
   );
+}
+
+async function findReplacementLotteryDiscountId({
+  transaction,
+  organizationId,
+  stallId,
+  discount,
+}: {
+  transaction: Prisma.TransactionClient;
+  organizationId: string;
+  stallId: string;
+  discount: { name: string; rateBps: number } | undefined;
+}) {
+  if (!discount) return null;
+  const replacement = await transaction.discountOption.findFirst({
+    where: {
+      organizationId,
+      stallId,
+      name: discount.name,
+      rateBps: discount.rateBps,
+      isEnabled: true,
+    },
+    select: { id: true },
+  });
+  return replacement?.id ?? null;
 }
 
 function canUseSourceStall(

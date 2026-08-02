@@ -16,6 +16,31 @@ test.describe("LINE 通知與再次點餐", () => {
     await expect(page.getByLabel("Messaging API Channel Access Token")).toHaveAttribute("type", "password");
     await expect(page.getByLabel("Messaging API Channel Secret")).toHaveAttribute("type", "password");
     await expect(page.getByLabel("LINE Login Channel Secret")).toHaveAttribute("type", "password");
+    await expect(page.getByLabel("Messaging API Channel Access Token")).toHaveAttribute("minlength", "16");
+
+    const channelIdField = page.getByLabel("LINE Login Channel ID");
+    await channelIdField.fill("中文代碼");
+    const invalidChannelResponse = page.waitForResponse((response) => (
+      response.url().endsWith(`/api/merchant/stalls/${stallId}/line`)
+      && response.request().method() === "PATCH"
+    ));
+    await page.getByRole("button", { name: "儲存並輪替憑證" }).click();
+    expect((await invalidChannelResponse).status()).toBe(400);
+    await expect(page.getByText("LINE Login Channel ID 格式不正確。", { exact: true }).first()).toBeVisible();
+    await expect(channelIdField).toHaveAttribute("aria-invalid", "true");
+    await expect(channelIdField).toBeFocused();
+    await expect(channelIdField).toHaveValue("中文代碼");
+
+    await channelIdField.fill("");
+    const blankChannelResponse = page.waitForResponse((response) => (
+      response.url().endsWith(`/api/merchant/stalls/${stallId}/line`)
+      && response.request().method() === "PATCH"
+    ));
+    await page.getByRole("button", { name: "儲存並輪替憑證" }).click();
+    expect((await blankChannelResponse).status()).toBe(400);
+    await expect(channelIdField).toHaveAttribute("aria-invalid", "true");
+    await expect(channelIdField).toBeFocused();
+    await expect(channelIdField).toHaveValue("");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
     const kitchenPage = await newRolePage(browser, "kitchen@stallorder.test", /\/kitchen/);

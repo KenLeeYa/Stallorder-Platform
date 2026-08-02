@@ -94,8 +94,21 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await page.getByRole("button", { name: "點餐語言" }).click();
   await page.getByRole("option", { name: "English", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Deep-Fried Chicken Cutlet" })).toBeVisible();
-  await page.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet" }).click();
-  await page.getByRole("button", { name: "Increase Sweet Potato Fries" }).click();
+  const chickenCutlet = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: "Deep-Fried Chicken Cutlet", exact: true }),
+  });
+  await chickenCutlet.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet" }).click();
+  await chickenCutlet.getByRole("button", { name: "Add to cart", exact: true }).click();
+  const cartLines = page.getByTestId("qr-cart-panel").getByTestId("qr-cart-line");
+  await expect(cartLines).toHaveCount(1);
+  const sweetPotatoFries = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: "Sweet Potato Fries", exact: true }),
+  });
+  await sweetPotatoFries.getByRole("button", { name: "Increase Sweet Potato Fries" }).click();
+  await sweetPotatoFries.getByRole("button", { name: "Add to cart", exact: true }).click();
+  await expect(cartLines).toHaveCount(2);
+  await expect(cartLines.filter({ hasText: "Deep-Fried Chicken Cutlet" })).toHaveCount(1);
+  await expect(cartLines.filter({ hasText: "Sweet Potato Fries" })).toHaveCount(1);
   await page.getByLabel("Customer name").fill(customerName);
   await page.getByRole("checkbox", { name: /I understand the estimated wait/ }).check();
   await expect(page.getByRole("button", { name: "Place order", exact: true })).toBeEnabled({ timeout: 15_000 });

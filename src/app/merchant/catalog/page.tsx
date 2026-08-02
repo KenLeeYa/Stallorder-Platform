@@ -5,7 +5,10 @@ import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { getOrganizationCatalog } from "@/lib/catalog-data";
 import { getEnabledTranslationLocales } from "@/lib/enabled-locales";
 import { getOrganizationEnabledLocales } from "@/lib/localization-data";
-import { getOrganizationProductNotes } from "@/lib/product-note-data";
+import {
+  getOrganizationProductNotes,
+  getOrganizationReusableProductNotes,
+} from "@/lib/product-note-data";
 import { hasPermission } from "@/lib/rbac";
 import { isCatalogAiTranslationConfigured } from "@/server/localization/openai-catalog-translation-provider";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
@@ -20,13 +23,15 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
   if (!workspace.roles.some((role) => hasPermission(role, "MANAGE_SHARED_PRODUCTS"))) notFound();
 
   const authorizedStallIds = workspace.stalls.map((stall) => stall.id);
-  const returnStallId = workspace.stalls.some((stall) => stall.id === stallId) ? stallId : undefined;
-  const [catalog, noteGroups, enabledLocales] = await Promise.all([
+  const returnStall = workspace.stalls.find((stall) => stall.id === stallId);
+  const returnStallId = returnStall?.id;
+  const [catalog, noteGroups, reusableNotes, enabledLocales] = await Promise.all([
     getOrganizationCatalog(
       workspace.id,
       authorizedStallIds,
     ),
     getOrganizationProductNotes(workspace.id),
+    getOrganizationReusableProductNotes(workspace.id),
     getOrganizationEnabledLocales(workspace.id, authorizedStallIds),
   ]);
 
@@ -36,9 +41,15 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
         <div className="mb-4">
           <MerchantSetupBackLink organizationId={workspace.id} />
         </div>
-      ) : returnStallId ? (
+      ) : returnStallId || source === "localization" ? (
         <div className="mb-4">
-          <StallSettingsBackLink stallId={returnStallId} />
+          <StallSettingsBackLink
+            stallId={returnStallId}
+            stallSlug={returnStall?.slug}
+            organizationId={workspace.id}
+            source={source}
+            allowedSources={["stall-products", "localization"]}
+          />
         </div>
       ) : null}
       <SharedCatalogManager
@@ -51,6 +62,7 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
         }))}
         initialCatalog={catalog}
         initialNoteGroups={noteGroups}
+        initialReusableNotes={reusableNotes}
         enabledTranslationLocales={getEnabledTranslationLocales(enabledLocales)}
         aiTranslationConfigured={isCatalogAiTranslationConfigured()}
       />

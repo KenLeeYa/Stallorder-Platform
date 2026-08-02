@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   marketEventCommandSchema,
+  normalizeAutomaticOrderingFlags,
   stallLocationCommandSchema,
   stallScheduleCommandSchema,
 } from "@/lib/stall-schedule-contract";
@@ -71,5 +72,22 @@ describe("stall schedule contracts", () => {
       reason: "綁定本週市集 QR",
       organizationId: locationId,
     }).success).toBe(false);
+  });
+
+  it("clears stale automatic ordering flags when the plan capability is removed", () => {
+    expect(normalizeAutomaticOrderingFlags(false, {
+      autoOpenEnabled: true,
+      autoCloseEnabled: true,
+    })).toEqual({
+      autoOpenEnabled: false,
+      autoCloseEnabled: false,
+    });
+    expect(normalizeAutomaticOrderingFlags(true, {
+      autoOpenEnabled: true,
+      autoCloseEnabled: false,
+    })).toEqual({
+      autoOpenEnabled: true,
+      autoCloseEnabled: false,
+    });
   });
 });

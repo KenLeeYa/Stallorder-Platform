@@ -262,10 +262,16 @@ async function createDineInOrder(page: Page, customerName: string, productName: 
   await page.goto(`/q/${tableQrToken}`);
   await page.getByRole("button", { name: "點餐語言" }).click();
   await page.getByRole("option", { name: "English", exact: true }).click();
-  await page.getByRole("button", { name: `Increase ${productName}` }).click();
+  const product = page.getByRole("article").filter({ hasText: productName });
+  await product.getByRole("button", { name: `Increase ${productName}` }).click();
+  await product.getByRole("button", { name: "Add to cart", exact: true }).click();
+  const waitAcknowledgment = page.getByRole("checkbox", { name: /I understand the estimated wait/ });
+  if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
   await page.getByLabel("Customer name").fill(customerName);
+  const submitButton = page.getByRole("button", { name: "Place order", exact: true });
+  await expect(submitButton).toBeEnabled({ timeout: 15_000 });
   const responsePromise = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith("/create-public-order") && response.request().method() === "POST");
-  await page.getByRole("button", { name: "Place order", exact: true }).click();
+  await submitButton.click();
   expect((await responsePromise).status()).toBe(201);
   await expect(page).toHaveURL(/\/order\//);
   const orderText = await page.getByText(/^訂單 /).first().textContent();

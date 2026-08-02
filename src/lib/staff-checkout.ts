@@ -29,6 +29,7 @@ export async function resolveStaffCheckout(input: {
   organizationId: string;
   stallId: string;
   subtotals: readonly number[];
+  currentTotals?: readonly number[];
   actorProfileId: string;
   actorRoles: readonly UserRole[];
   request: StaffCheckoutInput;
@@ -87,8 +88,25 @@ export async function resolveStaffCheckout(input: {
     : null;
   if (requestedDiscountOptionId && !discount) throw new StaffCheckoutError("DISCOUNT_INVALID");
 
+  if (input.currentTotals && input.currentTotals.length !== input.subtotals.length) {
+    throw new StaffCheckoutError("DISCOUNT_INVALID");
+  }
   const rateBps = discount?.rateBps ?? 10_000;
-  const perOrderAmounts = input.subtotals.map((subtotal) => calculateCheckout(subtotal, rateBps));
+  const perOrderAmounts = input.subtotals.map((subtotal, index) => {
+    if (discount || !input.currentTotals) return calculateCheckout(subtotal, rateBps);
+
+    const currentTotal = input.currentTotals[index];
+    if (!Number.isInteger(currentTotal) || currentTotal < 0 || currentTotal > subtotal) {
+      throw new StaffCheckoutError("DISCOUNT_INVALID");
+    }
+    return {
+      subtotal,
+      discountAmount: subtotal - currentTotal,
+      total: currentTotal,
+      cashReceived: currentTotal,
+      changeAmount: 0,
+    };
+  });
   const subtotal = input.subtotals.reduce((total, amount) => total + amount, 0);
   const total = perOrderAmounts.reduce((sum, amount) => sum + amount.total, 0);
   const discountAmount = subtotal - total;

@@ -126,8 +126,22 @@ test.describe.serial("產能與等候時間", () => {
     await expect(page.getByRole("heading", { name: "產能與等候時間", exact: true })).toBeVisible();
     await expect(page.getByText("即時負載", { exact: true })).toBeVisible();
     await expect(page.getByText("等候時間與容量門檻", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("基本製餐時間（分鐘）")).toHaveValue("10");
+    await expect(page.getByText(/負載增加時會自動提高/)).toBeVisible();
     await expect(page.getByLabel("需顧客確認門檻（分鐘）")).toHaveValue("30");
     await expect(page.getByText("商品容量規則", { exact: true })).toBeVisible();
+
+    const prepMinutes = page.getByLabel("基本製餐時間（分鐘）");
+    await prepMinutes.fill("");
+    const invalidResponse = page.waitForResponse((response) => (
+      response.url().endsWith(`/api/merchant/stalls/${stallId}/capacity`)
+      && response.request().method() === "PATCH"
+    ));
+    await page.getByRole("button", { name: "儲存門檻", exact: true }).click();
+    expect((await invalidResponse).status()).toBe(400);
+    await expect(prepMinutes).toHaveAttribute("aria-invalid", "true");
+    await expect(prepMinutes).toBeFocused();
+    await expect(prepMinutes).toHaveValue("");
   });
 
   test("店員可手動暫停及恢復公開接單", async ({ page }) => {
@@ -195,6 +209,7 @@ test.describe.serial("產能與等候時間", () => {
     await expect(page.getByText("目前預估等候約 35 分鐘", { exact: true })).toBeVisible();
     const product = page.getByRole("article").filter({ hasText: "香酥雞排" });
     await product.getByRole("button", { name: "增加 香酥雞排" }).click();
+    await product.getByRole("button", { name: "加入購物車", exact: true }).click();
     await page.getByTestId("qr-mobile-cart-summary").click();
 
     const submit = page.getByRole("button", { name: "送出訂單", exact: true });

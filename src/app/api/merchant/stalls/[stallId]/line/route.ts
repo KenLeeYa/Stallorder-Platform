@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { logEvent, recordAuditEvent } from "@/lib/audit";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
+import { getZodFieldErrors } from "@/lib/form-field-errors";
 import { readJson } from "@/lib/http";
 import { lineIntegrationCommandSchema } from "@/lib/line-notification-contract";
 import { hashClientIp } from "@/lib/security";
@@ -63,8 +64,17 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = lineIntegrationCommandSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getZodFieldErrors(parsed.error, {
+      channelId: "LINE Login Channel ID",
+      channelAccessToken: "Messaging API Channel Access Token",
+      messagingChannelSecret: "Messaging API Channel Secret",
+      loginChannelSecret: "LINE Login Channel Secret",
+      displayName: "顯示名稱",
+      officialAccountUrl: "LINE 官方帳號網址",
+      reason: "停用原因",
+    });
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "LINE 整合設定不正確。" },
+      { error: Object.values(fieldErrors)[0] ?? "LINE 整合設定不正確。", fieldErrors },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }

@@ -44,6 +44,13 @@ export type PickupDisplayManagerSettings = PickupDisplaySettingsInput & {
   voiceAvailable: boolean;
 };
 
+export function normalizePickupDisplayManagerCapabilities(
+  settings: PickupDisplayManagerSettings,
+): PickupDisplayManagerSettings {
+  if (settings.voiceAvailable || !settings.enableVoice) return settings;
+  return { ...settings, enableVoice: false };
+}
+
 export function normalizePickupDisplayTheme(value: unknown): PickupDisplayTheme {
   const parsed = pickupDisplayThemeSchema.safeParse(value ?? {});
   return parsed.success ? parsed.data : pickupDisplayThemeSchema.parse({});

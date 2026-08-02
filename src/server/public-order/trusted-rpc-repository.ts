@@ -13,6 +13,8 @@ export type StoredPublicOrder = {
   pickup_required?: boolean;
   quoted_wait_minutes?: number | null;
   quoted_ready_at?: string | null;
+  scheduled_pickup_at?: string | null;
+  discount_amount?: number;
   created_at: string;
 };
 
@@ -73,7 +75,7 @@ export function checkGlobalPublicRequestGate(input: {
 }
 
 export function lookupResumablePublicOrder(input: {
-  orderingMode: "DEFAULT" | "DELIVERY";
+  orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
   qrToken: string;
   deviceHash: string;
   ipHash: string;
@@ -110,6 +112,18 @@ export function checkPublicOrderIntakeAvailability(
   `);
 }
 
+export function resolvePublicOrderingMode(
+  qrToken: string,
+  requestedMode: "DEFAULT" | "DELIVERY" | "PREORDER",
+) {
+  return jsonResult<"DEFAULT" | "DELIVERY" | "PREORDER">(Prisma.sql`
+    select public.resolve_public_ordering_mode(
+      ${qrToken}::text,
+      ${requestedMode}::text
+    ) as result
+  `);
+}
+
 export function issueIdempotentOrderSession(input: {
   qrToken: string;
   sessionTokenHash: string;
@@ -118,7 +132,7 @@ export function issueIdempotentOrderSession(input: {
   qrTokenHash: string;
   behaviorHash: string;
   requestId: string;
-  orderingMode: "DEFAULT" | "DELIVERY";
+  orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
 }) {
   return jsonResult<SessionIssueResult>(Prisma.sql`
     select public.issue_idempotent_order_session_with_schedule(
@@ -222,7 +236,7 @@ export function checkPublicOrderSubmissionGate(input: {
 }
 
 export function createPublicOrderWithSchedule(input: {
-  orderingMode: "DEFAULT" | "DELIVERY";
+  orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
   orderId: string;
   qrToken: string;
   sessionTokenHash: string;
@@ -241,11 +255,14 @@ export function createPublicOrderWithSchedule(input: {
     quantity: number;
     note: string;
     modifier_option_ids: string[];
+    bundle_choice_ids: string[];
   }>;
   trackingTokenHash: string;
   pickupCodeHash: string;
   requestId: string;
   waitAcknowledged: boolean;
+  scheduledPickupAt: string | null;
+  lotteryDrawId: string | null;
 }) {
   if (input.orderingMode === "DELIVERY") {
     return jsonResult<OrderCreateResult>(Prisma.sql`
@@ -273,7 +290,7 @@ export function createPublicOrderWithSchedule(input: {
   }
 
   return jsonResult<OrderCreateResult>(Prisma.sql`
-    select public.create_public_order_with_schedule(
+    select public.create_public_order_with_experience(
       ${input.orderId}::uuid,
       ${input.qrToken}::text,
       ${input.sessionTokenHash}::text,
@@ -289,7 +306,9 @@ export function createPublicOrderWithSchedule(input: {
       ${input.trackingTokenHash}::text,
       ${input.pickupCodeHash}::text,
       ${input.requestId}::text,
-      ${input.waitAcknowledged}::boolean
+      ${input.waitAcknowledged}::boolean,
+      ${input.scheduledPickupAt}::timestamptz,
+      ${input.lotteryDrawId}::uuid
     ) as result
   `);
 }
@@ -302,6 +321,9 @@ export function getOrderQuote(orderId: string) {
       pickupCodeLength: true,
       quotedWaitMinutes: true,
       quotedReadyAt: true,
+      scheduledPickupAt: true,
+      lotteryDrawId: true,
+      discountAmount: true,
     },
   });
 }

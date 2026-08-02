@@ -5,6 +5,8 @@ const prisma = new PrismaClient();
 const stallId = "22222222-2222-4222-8222-222222222222";
 const createdOrderIds: string[] = [];
 let originalDeliveryEnabled = false;
+let originalStaffDeliveryEnabled = false;
+let originalDineInEnabled = false;
 let cashShiftId = "";
 
 async function login(page: Page) {
@@ -20,14 +22,24 @@ test.beforeAll(async () => {
   const [settings, owner] = await Promise.all([
     prisma.stallOrderingSettings.findUniqueOrThrow({
       where: { stallId },
-      select: { deliveryModuleEnabled: true },
+      select: {
+        deliveryModuleEnabled: true,
+        staffDeliveryEnabled: true,
+        dineInEnabled: true,
+      },
     }),
     prisma.profile.findUniqueOrThrow({ where: { email: "owner@stallorder.test" }, select: { id: true } }),
   ]);
   originalDeliveryEnabled = settings.deliveryModuleEnabled;
+  originalStaffDeliveryEnabled = settings.staffDeliveryEnabled;
+  originalDineInEnabled = settings.dineInEnabled;
   await prisma.stallOrderingSettings.update({
     where: { stallId },
-    data: { deliveryModuleEnabled: true },
+    data: {
+      deliveryModuleEnabled: true,
+      staffDeliveryEnabled: true,
+      dineInEnabled: true,
+    },
   });
   const shift = await prisma.cashShift.create({
     data: {
@@ -51,7 +63,11 @@ test.afterAll(async () => {
   }
   await prisma.stallOrderingSettings.update({
     where: { stallId },
-    data: { deliveryModuleEnabled: originalDeliveryEnabled },
+    data: {
+      deliveryModuleEnabled: originalDeliveryEnabled,
+      staffDeliveryEnabled: originalStaffDeliveryEnabled,
+      dineInEnabled: originalDineInEnabled,
+    },
   });
   await prisma.$disconnect();
 });
@@ -60,9 +76,15 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   await page.setViewportSize({ width: 1024, height: 768 });
   await login(page);
   await page.goto("/staff/aming-chicken");
+  const configurationResponsePromise = page.waitForResponse((response) => (
+    new URL(response.url()).pathname.endsWith("/api/stalls/aming-chicken/pos-configuration")
+    && response.request().method() === "GET"
+  ));
   await page.getByRole("button", { name: "店員點餐" }).click();
+  expect((await configurationResponsePromise).status()).toBe(200);
 
   const dialog = page.getByRole("dialog", { name: "店員點餐與結帳" });
+  await expect(dialog.getByRole("region", { name: "結帳折扣" })).toBeVisible();
   await dialog.getByRole("button", { name: "內用", exact: true }).click();
   const customerNameInput = dialog.getByLabel("顧客名稱（選填）");
   const tableSelect = dialog.getByLabel("桌位");
@@ -76,6 +98,113 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   expect(Math.abs(customerBox!.y - tableBox!.y)).toBeLessThanOrEqual(1);
   expect(Math.abs(customerBox!.height - tableBox!.height)).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath("staff-pos-dine-in-alignment.png"), fullPage: true });
+});
+
+test("店員內用與外送使用獨立設定，且建立訂單時重新驗證", async ({ page }) => {
+  await prisma.stallOrderingSettings.update({
+    where: { stallId },
+    data: {
+      deliveryModuleEnabled: false,
+      staffDeliveryEnabled: true,
+      dineInEnabled: true,
+    },
+  });
+
+  try {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await login(page);
+    await page.goto("/staff/aming-chicken");
+    const initialConfigurationPromise = page.waitForResponse((response) => (
+      new URL(response.url()).pathname.endsWith("/api/stalls/aming-chicken/pos-configuration")
+      && response.request().method() === "GET"
+    ));
+    await page.getByRole("button", { name: "店員點餐" }).click();
+    const initialConfiguration = await initialConfigurationPromise;
+    expect(initialConfiguration.status()).toBe(200);
+    expect((await initialConfiguration.json()).modules).toMatchObject({
+      dineIn: true,
+      delivery: true,
+    });
+
+    const dialog = page.getByRole("dialog", { name: "店員點餐與結帳" });
+    const dineInButton = dialog.getByRole("button", { name: "內用", exact: true });
+    const deliveryButton = dialog.getByRole("button", { name: "外送", exact: true });
+    await expect(dineInButton).toBeEnabled();
+    await expect(deliveryButton).toBeEnabled();
+    await deliveryButton.click();
+    await dialog.getByLabel("聯絡電話").fill("0912345678");
+    await dialog.getByLabel("外送地址").fill("台北市信義區店員外送測試路 1 號");
+    await dialog.getByTitle(/^增加 /).first().click();
+    const fieldsets = dialog.locator("fieldset");
+    for (let index = 0; index < await fieldsets.count(); index += 1) {
+      const fieldset = fieldsets.nth(index);
+      if ((await fieldset.locator("legend").innerText()).includes("*")) {
+        await fieldset.locator('input[type="radio"], input[type="checkbox"]').first().check();
+      }
+    }
+    await dialog.getByRole("button", { name: "稍後結帳", exact: true }).click();
+
+    await prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: { deliveryModuleEnabled: true, staffDeliveryEnabled: false },
+    });
+    const rejectedDeliveryPromise = page.waitForResponse((response) => (
+      response.url().endsWith("/api/stalls/aming-chicken/orders")
+      && response.request().method() === "POST"
+    ));
+    await dialog.getByRole("button", { name: "建立訂單送入廚房", exact: true }).click();
+    const rejectedDelivery = await rejectedDeliveryPromise;
+    expect(rejectedDelivery.status()).toBe(400);
+    expect(await rejectedDelivery.json()).toMatchObject({ code: "DELIVERY_UNAVAILABLE" });
+
+    await dineInButton.click();
+    await expect(dialog.getByLabel("桌位")).toBeVisible();
+    await prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: { dineInEnabled: false },
+    });
+    const rejectedDineInPromise = page.waitForResponse((response) => (
+      response.url().endsWith("/api/stalls/aming-chicken/orders")
+      && response.request().method() === "POST"
+    ));
+    await dialog.getByRole("button", { name: "建立訂單送入廚房", exact: true }).click();
+    const rejectedDineIn = await rejectedDineInPromise;
+    expect(rejectedDineIn.status()).toBe(400);
+    expect(await rejectedDineIn.json()).toMatchObject({ code: "TABLE_UNAVAILABLE" });
+
+    await dialog.getByTitle("關閉店員點餐").click();
+    await prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: {
+        deliveryModuleEnabled: true,
+        staffDeliveryEnabled: false,
+        dineInEnabled: true,
+      },
+    });
+    const refreshedConfigurationPromise = page.waitForResponse((response) => (
+      new URL(response.url()).pathname.endsWith("/api/stalls/aming-chicken/pos-configuration")
+      && response.request().method() === "GET"
+    ));
+    await page.getByRole("button", { name: "店員點餐" }).click();
+    const refreshedConfiguration = await refreshedConfigurationPromise;
+    expect(refreshedConfiguration.status()).toBe(200);
+    expect((await refreshedConfiguration.json()).modules).toMatchObject({
+      dineIn: true,
+      delivery: false,
+    });
+    const refreshedDialog = page.getByRole("dialog", { name: "店員點餐與結帳" });
+    await expect(refreshedDialog.getByRole("button", { name: "內用", exact: true })).toBeEnabled();
+    await expect(refreshedDialog.getByRole("button", { name: "外送", exact: true })).toBeDisabled();
+  } finally {
+    await prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: {
+        deliveryModuleEnabled: true,
+        staffDeliveryEnabled: true,
+        dineInEnabled: true,
+      },
+    });
+  }
 });
 
 test("店員可在手機介面代客點餐並立即完成收款", async ({ page }, testInfo) => {
@@ -150,7 +279,10 @@ test("LINE 固定外送網址建立受保護 session 並顯示外送欄位", asy
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("line-delivery-mobile.png"), fullPage: true });
 
-  await page.getByRole("button", { name: /^增加 / }).first().click();
+  const deliveryProduct = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: "香酥雞排", exact: true }),
+  });
+  await deliveryProduct.getByRole("button", { name: "增加 香酥雞排", exact: true }).click();
   const requiredGroups = page.locator("fieldset").filter({ has: page.locator("legend") });
   for (let index = 0; index < await requiredGroups.count(); index += 1) {
     const group = requiredGroups.nth(index);
@@ -158,6 +290,7 @@ test("LINE 固定外送網址建立受保護 session 並顯示外送欄位", asy
       await group.locator('input[type="radio"], input[type="checkbox"]').first().check();
     }
   }
+  await deliveryProduct.getByRole("button", { name: "加入購物車", exact: true }).click();
   await page.getByTestId("qr-mobile-cart-summary").click();
   await expect(page.getByTestId("qr-cart-panel")).toHaveAttribute("role", "dialog");
   await expect(page.getByLabel("聯絡電話")).toBeVisible();
@@ -205,7 +338,11 @@ test("外送頁依瀏覽器語系顯示英文欄位", async ({ browser }) => {
     const page = await context.newPage();
     const appUrl = process.env.PLAYWRIGHT_APP_URL ?? "http://localhost:3001";
     await page.goto(`${appUrl}/delivery/aming-chicken`);
-    await page.getByRole("article").first().locator('button[title]:not([disabled])').first().click();
+    const deliveryProduct = page.getByRole("article").filter({
+      has: page.getByRole("heading", { name: "Deep-Fried Chicken Cutlet", exact: true }),
+    });
+    await deliveryProduct.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet", exact: true }).click();
+    await deliveryProduct.getByRole("button", { name: "Add to cart", exact: true }).click();
     await page.getByTestId("qr-mobile-cart-summary").click();
     await expect(page.getByLabel("Contact phone")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByLabel("Delivery address")).toBeVisible();

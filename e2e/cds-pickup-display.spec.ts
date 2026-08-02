@@ -298,6 +298,34 @@ test("管理者可輪替與撤銷 Token，且跨組織管理遭拒", async ({ pa
   await page.goto(`/merchant/stalls/${stallId}/display`);
   await expect(page.getByRole("heading", { name: "CDS 取餐顯示" })).toBeVisible();
 
+  const preparingRetentionField = page.getByLabel("製作中保留時間（分鐘）");
+  await preparingRetentionField.fill("");
+  const blankSettingsResponse = page.waitForResponse((response) => (
+    response.url().endsWith(`/api/merchant/stalls/${stallId}/display`)
+    && response.request().method() === "PATCH"
+  ));
+  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+  expect((await blankSettingsResponse).status()).toBe(400);
+  await expect(page.getByText("「製作中保留時間」輸入不正確，請依欄位限制重新輸入。", { exact: true }).first()).toBeVisible();
+  await expect(preparingRetentionField).toHaveAttribute("aria-invalid", "true");
+  await expect(preparingRetentionField).toBeFocused();
+  await expect(preparingRetentionField).toHaveValue("");
+  await preparingRetentionField.fill("180");
+
+  const voiceLocaleField = page.getByLabel("語音語系");
+  await voiceLocaleField.fill("中文語系");
+  const invalidLocaleResponse = page.waitForResponse((response) => (
+    response.url().endsWith(`/api/merchant/stalls/${stallId}/display`)
+    && response.request().method() === "PATCH"
+  ));
+  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+  expect((await invalidLocaleResponse).status()).toBe(400);
+  await expect(page.getByText("「語音語系」輸入不正確，請依欄位限制重新輸入。", { exact: true }).first()).toBeVisible();
+  await expect(voiceLocaleField).toHaveAttribute("aria-invalid", "true");
+  await expect(voiceLocaleField).toBeFocused();
+  await expect(voiceLocaleField).toHaveValue("中文語系");
+  await voiceLocaleField.fill("zh-TW");
+
   const rotateResponsePromise = page.waitForResponse((response) => (
     response.url().endsWith(`/api/merchant/stalls/${stallId}/display`)
     && response.request().method() === "PATCH"
@@ -307,6 +335,7 @@ test("管理者可輪替與撤銷 Token，且跨組織管理遭拒", async ({ pa
   expect(rotateResponse.status()).toBe(200);
   const rotatePayload = await rotateResponse.json() as { displayToken: string };
   expect(rotatePayload.displayToken).toMatch(/^[A-Za-z0-9_-]{40,}$/);
+  await expect(page.getByText("顯示 Token 已輪替，舊連結已失效。", { exact: true })).toHaveAttribute("role", "status");
   const tokenResponse = await page.request.get(`/api/public/display/q/${encodeURIComponent(rotatePayload.displayToken)}`);
   expect(tokenResponse.status()).toBe(200);
 
@@ -322,6 +351,7 @@ test("管理者可輪替與撤銷 Token，且跨組織管理遭拒", async ({ pa
   ));
   await page.getByRole("button", { name: "撤銷", exact: true }).click();
   expect((await revokeResponsePromise).status()).toBe(200);
+  await expect(page.getByText("顯示 Token 已撤銷。", { exact: true })).toHaveAttribute("role", "status");
   const revokedResponse = await page.request.get(`/api/public/display/q/${encodeURIComponent(rotatePayload.displayToken)}`);
   expect(revokedResponse.status()).toBe(404);
 

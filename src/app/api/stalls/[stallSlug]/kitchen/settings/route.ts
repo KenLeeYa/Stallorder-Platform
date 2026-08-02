@@ -3,7 +3,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
-import { kitchenSettingsSchema } from "@/lib/kitchen-contract";
+import { getKitchenFieldErrors, kitchenSettingsSchema } from "@/lib/kitchen-contract";
 import { hashClientIp } from "@/lib/security";
 import { getKitchenSettings, updateKitchenSettings } from "@/lib/kitchen";
 
@@ -36,8 +36,9 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = kitchenSettingsSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getKitchenFieldErrors(parsed.error);
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "KDS 設定內容不正確。" },
+      { error: Object.values(fieldErrors)[0] ?? "KDS 設定內容不正確。", fieldErrors },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }

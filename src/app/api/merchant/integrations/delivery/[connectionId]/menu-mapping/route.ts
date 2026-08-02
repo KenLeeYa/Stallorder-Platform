@@ -1,8 +1,10 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import {
   deliveryMenuMappingSchema,
   deliveryStallQuerySchema,
 } from "@/lib/delivery-platform-contract";
+import { getZodFieldErrors } from "@/lib/form-field-errors";
 import { readJson } from "@/lib/http";
 import { hashClientIp } from "@/lib/security";
 import { deliveryPlatformRepository } from "@/server/delivery-platforms/delivery-platform-repository";
@@ -12,6 +14,7 @@ import {
   deliveryNoStoreHeaders,
   validateDeliveryCsrf,
 } from "@/server/delivery-platforms/delivery-http";
+import { DeliveryPlatformError } from "@/server/delivery-platforms/delivery-platform-errors";
 import {
   listExternalMenuMappings,
   upsertExternalMenuMapping,
@@ -38,8 +41,14 @@ export async function PUT(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = deliveryMenuMappingSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getZodFieldErrors(parsed.error, {
+      internalEntityType: "資料類型",
+      internalEntityId: "攤點通項目",
+      externalEntityId: "外送平台項目 ID",
+      externalParentId: "外送平台上層 ID",
+    });
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "商品對應資料格式不正確。" },
+      { error: "商品對應資料格式不正確，請檢查標示欄位。", fieldErrors },
       { status: 400, headers: deliveryNoStoreHeaders(scope.authorization.requestId) },
     );
   }
@@ -59,6 +68,34 @@ export async function PUT(request: Request, context: RouteContext) {
       { headers: deliveryNoStoreHeaders(scope.authorization.requestId) },
     );
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const target = JSON.stringify(error.meta?.target ?? "").toLowerCase();
+      const field = target.includes("internal_entity_id") || target.includes("internalentityid") || target.includes("_internal_key")
+        ? "internalEntityId"
+        : target.includes("external_entity_id") || target.includes("externalentityid") || target.includes("_external_key")
+          ? "externalEntityId"
+          : null;
+      if (!field) {
+        return NextResponse.json(
+          { error: "目前無法儲存商品對應。" },
+          { status: 500, headers: deliveryNoStoreHeaders(scope.authorization.requestId) },
+        );
+      }
+      const message = field === "internalEntityId"
+        ? "此攤點通項目已建立對應，請重新整理後再試。"
+        : "此外送平台項目 ID 已對應其他攤點通項目。";
+      return NextResponse.json(
+        { error: message, fieldErrors: { [field]: message } },
+        { status: 409, headers: deliveryNoStoreHeaders(scope.authorization.requestId) },
+      );
+    }
+    if (error instanceof DeliveryPlatformError && error.code === "UNSUPPORTED_MAPPING") {
+      const message = "找不到所選的攤點通項目，請重新選擇。";
+      return NextResponse.json(
+        { error: message, code: error.code, fieldErrors: { internalEntityId: message } },
+        { status: 409, headers: deliveryNoStoreHeaders(scope.authorization.requestId) },
+      );
+    }
     const response = deliveryApiErrorResponse(error, scope.authorization.requestId);
     if (response) return response;
     throw error;

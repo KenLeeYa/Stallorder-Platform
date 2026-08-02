@@ -1,8 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, Copy, Send, Trash2 } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
+import {
+  focusFirstInvalidField,
+  parseFieldErrors,
+  withoutFieldError,
+  type FieldErrors,
+} from "@/lib/form-field-errors";
 
 type InvitationRole =
   | "ORGANIZATION_OWNER"
@@ -53,6 +59,7 @@ export function OrganizationInvitationManager({
   canManageOrganizationTeam: boolean;
   canGrantOwner: boolean;
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
   const defaultRole: InvitationRole = canManageOrganizationTeam ? "ORGANIZATION_ADMIN" : "STAFF";
   const [role, setRole] = useState<InvitationRole>(defaultRole);
   const [stallId, setStallId] = useState(stalls[0]?.id ?? "");
@@ -60,7 +67,9 @@ export function OrganizationInvitationManager({
   const [acceptanceUrl, setAcceptanceUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState("");
+  const [hasError, setHasError] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const organizationRole = useMemo(
     () => role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN" || role === "FINANCE_VIEWER",
@@ -71,6 +80,8 @@ export function OrganizationInvitationManager({
   async function createInvitation(formData: FormData) {
     setSaving(true);
     setMessage("");
+    setHasError(false);
+    setFieldErrors({});
     setAcceptanceUrl("");
     setCopied(false);
     try {
@@ -83,8 +94,15 @@ export function OrganizationInvitationManager({
           stallId: organizationRole ? null : stallId,
         }),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "目前無法建立邀請。");
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const nextFieldErrors = parseFieldErrors(payload.fieldErrors);
+        setFieldErrors(nextFieldErrors);
+        focusFirstInvalidField(formRef.current, nextFieldErrors);
+        setHasError(true);
+        setMessage(typeof payload.error === "string" ? payload.error : "目前無法建立邀請。");
+        return;
+      }
       setInvitations((current) => [
         { ...payload.invitation, createdAt: new Date().toISOString() },
         ...current,
@@ -92,10 +110,15 @@ export function OrganizationInvitationManager({
       setAcceptanceUrl(payload.acceptanceUrl);
       setMessage("邀請已建立。基於安全考量，接受連結只會顯示這一次。");
     } catch (caughtError) {
+      setHasError(true);
       setMessage(caughtError instanceof Error ? caughtError.message : "目前無法建立邀請。");
     } finally {
       setSaving(false);
     }
+  }
+
+  function clearFieldError(field: string) {
+    setFieldErrors((current) => withoutFieldError(current, field));
   }
 
   async function copyAcceptanceUrl() {
@@ -108,6 +131,7 @@ export function OrganizationInvitationManager({
     if (!window.confirm(`確定撤銷寄給 ${invitation.email} 的邀請？撤銷後原連結將立即失效。`)) return;
     setSaving(true);
     setMessage("");
+    setHasError(false);
     try {
       const response = await fetch(
         `/api/merchant/organizations/${organizationId}/invitations/${invitation.id}`,
@@ -120,6 +144,7 @@ export function OrganizationInvitationManager({
       )));
       setMessage("邀請已撤銷。");
     } catch (caughtError) {
+      setHasError(true);
       setMessage(caughtError instanceof Error ? caughtError.message : "目前無法撤銷邀請。");
     } finally {
       setSaving(false);
@@ -129,7 +154,7 @@ export function OrganizationInvitationManager({
   return (
     <section className="py-7">
       <h2 className="text-lg font-semibold">邀請新成員</h2>
-      <form action={createInvitation} className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px_auto]">
+      <form ref={formRef} noValidate action={createInvitation} className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px_auto]">
         <label className="text-sm font-medium">
           Google 帳號 Email
           <input
@@ -138,14 +163,26 @@ export function OrganizationInvitationManager({
             required
             maxLength={120}
             autoComplete="email"
+            data-field-key="email"
+            aria-invalid={Boolean(fieldErrors.email)}
+            aria-describedby={fieldErrors.email ? "organization-invitation-email-error" : undefined}
+            onChange={() => clearFieldError("email")}
             className="mt-1.5 h-11 w-full rounded-md border border-stone-300 px-3"
           />
+          {fieldErrors.email ? <span id="organization-invitation-email-error" role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors.email}</span> : null}
         </label>
         <label className="text-sm font-medium">
           角色
           <select
             value={role}
-            onChange={(event) => setRole(event.target.value as InvitationRole)}
+            data-field-key="role"
+            aria-invalid={Boolean(fieldErrors.role)}
+            aria-describedby={fieldErrors.role ? "organization-invitation-role-error" : undefined}
+            onChange={(event) => {
+              clearFieldError("role");
+              clearFieldError("stallId");
+              setRole(event.target.value as InvitationRole);
+            }}
             className="mt-1.5 h-11 w-full rounded-md border border-stone-300 bg-white px-3"
           >
             {canGrantOwner ? <option value="ORGANIZATION_OWNER">組織擁有者</option> : null}
@@ -155,6 +192,7 @@ export function OrganizationInvitationManager({
             <option value="STAFF">店員</option>
             <option value="KITCHEN">廚房</option>
           </select>
+          {fieldErrors.role ? <span id="organization-invitation-role-error" role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors.role}</span> : null}
         </label>
         <label className="text-sm font-medium">
           攤位範圍
@@ -162,16 +200,20 @@ export function OrganizationInvitationManager({
             value={organizationRole ? "" : stallId}
             disabled={organizationRole}
             required={!organizationRole}
-            onChange={(event) => setStallId(event.target.value)}
+            data-field-key="stallId"
+            aria-invalid={Boolean(fieldErrors.stallId)}
+            aria-describedby={fieldErrors.stallId ? "organization-invitation-stall-error" : undefined}
+            onChange={(event) => { clearFieldError("stallId"); setStallId(event.target.value); }}
             className="mt-1.5 h-11 w-full rounded-md border border-stone-300 bg-white px-3 disabled:bg-stone-100"
           >
             {organizationRole ? <option value="">全部攤位</option> : null}
             {stalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}
           </select>
+          {fieldErrors.stallId ? <span id="organization-invitation-stall-error" role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors.stallId}</span> : null}
         </label>
         <button
           type="submit"
-          disabled={saving || (!organizationRole && !stallId)}
+          disabled={saving}
           className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"
         >
           <Send className="h-4 w-4" />
@@ -202,7 +244,7 @@ export function OrganizationInvitationManager({
         </div>
       ) : null}
 
-      {message ? <p role="status" className="mt-4 text-sm text-stone-700">{message}</p> : null}
+      {message ? <p role={hasError ? "alert" : "status"} className="mt-4 text-sm text-stone-700">{message}</p> : null}
 
       <h3 className="mt-7 text-base font-semibold">邀請紀錄</h3>
       <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">

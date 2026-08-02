@@ -18,5 +18,11 @@ export default async function QrOrderPage({ params }: PageProps) {
   );
   timing.addSince("renderMs", renderStartedAt);
   timing.finish({ status: 200 });
-  return <QrOrderFlow qrToken={qrToken} initialMenu={initialMenu} />;
+  return (
+    <QrOrderFlow
+      qrToken={qrToken}
+      orderingMode={initialMenu?.orderingMode ?? "DEFAULT"}
+      initialMenu={initialMenu}
+    />
+  );
 }
