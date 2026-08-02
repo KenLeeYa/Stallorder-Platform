@@ -92,7 +92,9 @@ describe("Production workflow approval contract", () => {
     expect(cleanupEnd).toBeGreaterThan(cleanupStart);
     expect(cleanup).toContain(".deployments[]?.url // empty");
     expect(cleanup).toContain('vercel@58.3.0 remove "$deployment_url"');
+    expect(cleanup.match(/\.deployments \| type/gu)).toHaveLength(2);
     expect(cleanup).toContain(".deployments | length == 0");
+    expect(cleanup).toContain("verifying final state");
     expect(cleanup).toContain("--limit 100");
     expect(cleanup).not.toContain("|| true");
   });

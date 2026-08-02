@@ -454,12 +454,19 @@ jobs:
               --json \
               --token "$VERCEL_TOKEN"
           )"
+          jq -e '(.deployments | type) == "array"' <<<"$deployments" >/dev/null || {
+            echo "::error::Unexpected Vercel deployment list response."
+            exit 1
+          }
           while IFS= read -r deployment_url; do
             [ -n "$deployment_url" ] || continue
-            npx --yes vercel@58.3.0 remove "$deployment_url" \
+            if npx --yes vercel@58.3.0 remove "$deployment_url" \
               --yes \
-              --token "$VERCEL_TOKEN"
-            echo "Removed Vercel Preview $deployment_url."
+              --token "$VERCEL_TOKEN"; then
+              echo "Removed Vercel Preview $deployment_url."
+            else
+              echo "::warning::Vercel Preview removal returned nonzero for $deployment_url; verifying final state."
+            fi
           done < <(
             jq -r '.deployments[]?.url // empty' \
               <<<"$deployments" | sort -u
@@ -471,6 +478,10 @@ jobs:
               --json \
               --token "$VERCEL_TOKEN"
           )"
+          jq -e '(.deployments | type) == "array"' <<<"$remaining" >/dev/null || {
+            echo "::error::Unexpected Vercel deployment list response after cleanup."
+            exit 1
+          }
           jq -e '.deployments | length == 0' <<<"$remaining" >/dev/null || {
             echo "::error::Matching Vercel Preview deployments remain after cleanup."
             exit 1
