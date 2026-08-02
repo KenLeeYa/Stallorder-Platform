@@ -79,6 +79,24 @@ describe("Production workflow approval contract", () => {
     expect(ephemeralPreview).toContain("run: npm run production:smoke");
   });
 
+  it("deletes every metadata-matched Preview URL and verifies cleanup", () => {
+    const cleanupStart = ephemeralPreview.indexOf(
+      "name: Remove closed Pull Request Vercel Previews",
+    );
+    const cleanupEnd = ephemeralPreview.indexOf(
+      "name: Remove closed Pull Request Preview Branch",
+    );
+    const cleanup = ephemeralPreview.slice(cleanupStart, cleanupEnd);
+
+    expect(cleanupStart).toBeGreaterThan(-1);
+    expect(cleanupEnd).toBeGreaterThan(cleanupStart);
+    expect(cleanup).toContain(".deployments[]?.url // empty");
+    expect(cleanup).toContain('vercel@58.3.0 remove "$deployment_url"');
+    expect(cleanup).toContain(".deployments | length == 0");
+    expect(cleanup).toContain("--limit 100");
+    expect(cleanup).not.toContain("|| true");
+  });
+
   it("deploys and verifies every Production Function only during Apply", () => {
     expect(readiness).toMatch(
       /name: Deploy Production Edge Functions\r?\n\s+if: inputs\.apply_migrations/u,

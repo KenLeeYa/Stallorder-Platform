@@ -436,6 +436,7 @@ jobs:
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
         run: |
+          set -euo pipefail
           if [ -z "${VERCEL_TOKEN:-}" ] \
             || [ -z "${VERCEL_ORG_ID:-}" ] \
             || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
@@ -449,18 +450,31 @@ jobs:
           deployments="$(
             npx --yes vercel@58.3.0 list "$VERCEL_PROJECT_ID" \
               --meta "stallorderPreviewResource=$PREVIEW_RESOURCE_KEY" \
+              --limit 100 \
               --json \
-              --token "$VERCEL_TOKEN" || true
+              --token "$VERCEL_TOKEN"
           )"
-          while IFS= read -r deployment_id; do
-            [ -n "$deployment_id" ] || continue
-            npx --yes vercel@58.3.0 remove "$deployment_id" \
+          while IFS= read -r deployment_url; do
+            [ -n "$deployment_url" ] || continue
+            npx --yes vercel@58.3.0 remove "$deployment_url" \
               --yes \
-              --token "$VERCEL_TOKEN" || true
+              --token "$VERCEL_TOKEN"
+            echo "Removed Vercel Preview $deployment_url."
           done < <(
-            jq -r '.. | objects | .id? // empty | select(startswith("dpl_"))' \
+            jq -r '.deployments[]?.url // empty' \
               <<<"$deployments" | sort -u
           )
+          remaining="$(
+            npx --yes vercel@58.3.0 list "$VERCEL_PROJECT_ID" \
+              --meta "stallorderPreviewResource=$PREVIEW_RESOURCE_KEY" \
+              --limit 100 \
+              --json \
+              --token "$VERCEL_TOKEN"
+          )"
+          jq -e '.deployments | length == 0' <<<"$remaining" >/dev/null || {
+            echo "::error::Matching Vercel Preview deployments remain after cleanup."
+            exit 1
+          }
 
       - name: Remove closed Pull Request Preview Branch
         run: |
