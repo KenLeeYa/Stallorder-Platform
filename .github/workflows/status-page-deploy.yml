@@ -14,8 +14,14 @@ on:
         description: Type PLAN_STATUS_PAGE or DEPLOY_STATUS_PAGE
         required: true
         type: string
+      plan_run_id:
+        description: Successful plan run ID required for deploy
+        required: false
+        type: string
+        default: ""
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -48,6 +54,16 @@ jobs:
             echo "::error::Confirmation must be ${expected}."
             exit 1
           }
+          if [ "${{ inputs.operation }}" = "deploy" ]; then
+            [[ "${{ inputs.plan_run_id }}" =~ ^[1-9][0-9]{0,19}$ ]] || {
+              echo "::error::Deploy requires the successful Plan workflow run ID."
+              exit 1
+            }
+            test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+              echo "::error::Only the repository owner may confirm Production apply."
+              exit 1
+            }
+          fi
           for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_ZONE_ID; do
             test -n "${!name:-}" || {
               echo "::error::Missing protected configuration: ${name}"
@@ -82,12 +98,42 @@ jobs:
       - name: Build Cloudflare dry-run plan
         run: npm run status:plan
 
+      - name: Create immutable Production plan receipt
+        if: inputs.operation == 'plan'
+        env:
+          PRODUCTION_APPROVAL_OPERATION: status-page-deploy
+          PRODUCTION_APPROVAL_PARAMETERS_JSON: '{"hostname":"status.qidaigo.com","serviceName":"stallorder-status"}'
+          PRODUCTION_APPROVAL_RECEIPT_PATH: artifacts/production-approval.json
+        run: node scripts/production-approval.mjs create
+
       - uses: actions/upload-artifact@v4
+        if: inputs.operation == 'plan'
         with:
           name: status-page-deployment-plan-${{ github.run_id }}
-          path: artifacts/status-page-deployment-plan.json
+          path: |
+            artifacts/status-page-deployment-plan.json
+            artifacts/production-approval.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Download approved Status Page plan
+        if: inputs.operation == 'deploy'
+        uses: actions/download-artifact@v4
+        with:
+          name: status-page-deployment-plan-${{ inputs.plan_run_id }}
+          path: approved-plan
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.plan_run_id }}
+
+      - name: Verify manual approval is bound to the immutable plan
+        if: inputs.operation == 'deploy'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PRODUCTION_APPROVAL_OPERATION: status-page-deploy
+          PRODUCTION_APPROVAL_PARAMETERS_JSON: '{"hostname":"status.qidaigo.com","serviceName":"stallorder-status"}'
+          PRODUCTION_APPROVAL_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          PRODUCTION_APPROVAL_RECEIPT_PATH: approved-plan/production-approval.json
+        run: node scripts/production-approval.mjs verify
 
       - name: Deploy Worker and custom domain
         if: inputs.operation == 'deploy'

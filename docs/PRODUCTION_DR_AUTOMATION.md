@@ -24,11 +24,26 @@ verified `main` tree after it matches `staging`.
 
 ## Protected workflow
 
-`.github/workflows/production-dr-operations.yml` has three manual operations.
-All use the protected GitHub `production` environment and serialized
-concurrency.
+`.github/workflows/production-dr-operations.yml` has three Plan operations and
+three matching Apply operations. All use the GitHub `production` environment
+and serialized concurrency.
+
+Every write operation requires two separate workflow runs:
+
+1. run `plan-bootstrap`, `plan-drill`, or `plan-storage-canary` with
+   `PLAN_PRODUCTION_DR`;
+2. review the uploaded dry-run artifact;
+3. run the matching Apply operation from the same `main` commit with the Plan
+   run ID and its operation-specific confirmation.
+
+The receipt expires after 24 hours and binds the repository, workflow, Plan
+run, commit, exact Staging tree, operation and non-sensitive parameters.
+Bootstrap also binds `resume_backup_run_id`. Apply is rejected for a failed,
+expired, replay-self, cross-workflow, cross-commit or non-owner Plan.
 
 ### `bootstrap`
+
+Plan operation: `plan-bootstrap` with `PLAN_PRODUCTION_DR`
 
 Confirmation: `CREATE_PRODUCTION_DR`
 
@@ -68,6 +83,8 @@ DR candidate as a new recovery source.
 
 ### `drill`
 
+Plan operation: `plan-drill` with `PLAN_PRODUCTION_DR`
+
 Confirmation: `MEASURE_PRODUCTION_DR`
 
 1. Prebuild Primary, DR and Primary-failback Vercel deployments without moving
@@ -89,6 +106,8 @@ The workflow refuses automatic failback if DR business data changed. This
 prevents silent loss of DR-era writes.
 
 ### `storage-canary`
+
+Plan operation: `plan-storage-canary` with `PLAN_PRODUCTION_DR`
 
 Confirmation: `PROVE_STORAGE_DR`
 

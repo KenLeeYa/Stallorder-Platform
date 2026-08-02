@@ -25,10 +25,16 @@ seconds and applies a restrictive CSP and browser security headers.
 Use `.github/workflows/status-page-deploy.yml` from the verified `main` branch.
 The workflow accepts:
 
-| Operation | Confirmation | Writes |
-| --- | --- | --- |
-| `plan` | `PLAN_STATUS_PAGE` | None |
-| `deploy` | `DEPLOY_STATUS_PAGE` | Worker code, custom domain DNS and certificate |
+| Operation | Confirmation | Additional input | Writes |
+| --- | --- | --- | --- |
+| `plan` | `PLAN_STATUS_PAGE` | None | None |
+| `deploy` | `DEPLOY_STATUS_PAGE` | Successful `plan_run_id` | Worker code, custom domain DNS and certificate |
+
+The Plan uploads an immutable receipt for the exact workflow, commit, Staging
+tree and status hostname. Deploy is accepted only within 24 hours, from the
+same commit, by the repository owner, and after the referenced Plan run has
+completed successfully. A confirmation string without a valid Plan receipt is
+rejected.
 
 Both operations first:
 

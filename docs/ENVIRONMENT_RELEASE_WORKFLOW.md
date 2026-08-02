@@ -21,12 +21,23 @@ gate, but it is not a persistent runtime environment.
 5. Promote the exact verified `staging` tree through a Pull Request to `main`.
 6. Merge only after the Production Pull Request repeats CI and paired
    Ephemeral Preview validation.
-7. The `main` push applies and verifies Production migrations, waits for the
-   matching Vercel deployment, and runs the Production smoke test.
+7. The `main` push performs the Production migration dry-run and remote lint,
+   then uploads an immutable, 24-hour release Plan receipt. It does not apply
+   migrations or deploy to Production.
+8. The repository owner manually runs `Production Readiness` from the same
+   `main` commit with the Plan run ID and `APPLY_PRODUCTION_RELEASE`.
+9. Apply verifies the receipt, builds an unaliased Production deployment,
+   applies migrations, promotes that deployment and runs the Production smoke
+   test. A failed post-promotion smoke rolls the Vercel alias back.
 
 Production deployment is rejected when the `main` source tree differs from the
 verified `staging` source tree. This prevents Production-only application or
 migration updates.
+
+Vercel Git deployment is disabled only for `main` in `vercel.json`. Pull
+Request and other branch Previews remain automatic. See
+[GITHUB_TWO_STAGE_APPROVAL.md](GITHUB_TWO_STAGE_APPROVAL.md) for the complete
+approval and rollback contract.
 
 ## GitHub Environment configuration
 
@@ -69,10 +80,13 @@ specific migration:
 
 1. Confirm the remote migration list and the exact missing local file.
 2. Confirm the full local reset, database tests and database lint pass.
-3. Manually run `Production Readiness` from `main` for `production` with
-   `apply_migrations=true` and `include_all_migrations=true`.
-4. Review the dry-run output before the apply step proceeds.
-5. Re-run the standard workflow without `include_all_migrations`.
+3. Manually run `Production Readiness` from `main` with
+   `apply_migrations=false` and `include_all_migrations=true` to produce a
+   reviewed Plan receipt.
+4. Run it again from the same commit with `apply_migrations=true`, the Plan run
+   ID, `include_all_migrations=true`, and confirmation
+   `APPLY_PRODUCTION_RELEASE`.
+5. Re-run the standard Plan without `include_all_migrations`.
 
 Never enable this recovery option for an unknown remote-only migration or an
 unreviewed migration file.
