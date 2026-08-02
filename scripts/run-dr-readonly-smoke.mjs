@@ -25,7 +25,7 @@ try {
   const qrRows = await database.$queryRawUnsafe(
     `select token
      from public.qr_codes
-     where status = 'ACTIVE'
+     where state = 'ACTIVE'
        and (expires_at is null or expires_at > now())
      order by created_at
      limit 1`,

@@ -7,6 +7,7 @@ const readiness = read(".github/workflows/production-readiness.yml");
 const disasterRecovery = read(".github/workflows/production-dr-operations.yml");
 const ephemeralPreview = read(".github/workflows/ephemeral-preview.yml");
 const statusPage = read(".github/workflows/status-page-deploy.yml");
+const drSmoke = read("scripts/run-dr-readonly-smoke.mjs");
 const vercel = JSON.parse(read("vercel.json"));
 
 describe("Production workflow approval contract", () => {
@@ -31,6 +32,17 @@ describe("Production workflow approval contract", () => {
     expect(statusPage).toContain("plan_run_id:");
     expect(statusPage.indexOf("production-approval.mjs verify")).toBeLessThan(
       statusPage.indexOf("name: Deploy Worker and custom domain"),
+    );
+  });
+
+  it("fails closed when a DR or restored-Primary smoke command fails", () => {
+    expect(drSmoke).toContain("where state = 'ACTIVE'");
+    expect(drSmoke).not.toContain("where status = 'ACTIVE'");
+    expect(disasterRecovery).toMatch(
+      /name: Run read-only DR smoke[\s\S]*?run: \|\r?\n\s+set -euo pipefail\r?\n\s+node scripts\/run-dr-readonly-smoke\.mjs \| tee/u,
+    );
+    expect(disasterRecovery).toMatch(
+      /name: Validate restored Primary[\s\S]*?run: \|\r?\n\s+set -euo pipefail\r?\n\s+node scripts\/validate-active-backend\.mjs/u,
     );
   });
 

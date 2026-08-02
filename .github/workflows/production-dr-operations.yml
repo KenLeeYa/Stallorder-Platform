@@ -1026,7 +1026,9 @@ jobs:
           EXPECTED_BACKEND: DR
           EXPECTED_PROMOTION_EPOCH: "2"
           SKIP_OAUTH_WRITE: "true"
-        run: node scripts/run-dr-readonly-smoke.mjs | tee dr-artifacts/dr-smoke.json
+        run: |
+          set -euo pipefail
+          node scripts/run-dr-readonly-smoke.mjs | tee dr-artifacts/dr-smoke.json
 
       - name: Prove no business writes occurred on DR
         id: fingerprint
@@ -1122,6 +1124,7 @@ jobs:
           EXPECTED_PROMOTION_EPOCH: "3"
           SKIP_OAUTH_WRITE: "true"
         run: |
+          set -euo pipefail
           node scripts/validate-active-backend.mjs \
             --target PRIMARY \
             --expected-epoch 3 \

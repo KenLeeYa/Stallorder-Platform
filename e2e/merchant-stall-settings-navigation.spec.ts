@@ -7,6 +7,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 
 test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) => {
   await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
   await page.getByRole("button", { name: "登入", exact: true }).click();
