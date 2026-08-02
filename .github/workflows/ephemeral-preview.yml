@@ -220,7 +220,51 @@ jobs:
       - name: Deploy Edge Functions to isolated branch
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: supabase functions deploy --project-ref "${{ steps.preview.outputs.branch_ref }}" --use-api --import-map supabase/functions/deno.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_ref="${{ steps.preview.outputs.branch_ref }}"
+          for function_directory in supabase/functions/*; do
+            test -f "$function_directory/index.ts" || continue
+            function_name="$(basename "$function_directory")"
+            deployed=false
+            for attempt in 1 2 3; do
+              deploy_log="$(mktemp)"
+              if supabase functions deploy "$function_name" \
+                --project-ref "$project_ref" \
+                --use-api \
+                --import-map supabase/functions/deno.json \
+                >"$deploy_log" 2>&1; then
+                deployed=true
+                rm -f "$deploy_log"
+                break
+              fi
+              if grep -qi 'deployment already exists' "$deploy_log"; then
+                echo "::notice::${function_name} already has this immutable deployment."
+                deployed=true
+                rm -f "$deploy_log"
+                break
+              fi
+              if grep -Eqi \
+                'unexpected deploy status (429|500|502|503|504)|"retryable"[[:space:]]*:[[:space:]]*true' \
+                "$deploy_log" \
+                && [ "$attempt" -lt 3 ]; then
+                delay_seconds="$((attempt * 60))"
+                echo "::warning::Transient Supabase deployment failure for ${function_name}; retrying in ${delay_seconds}s."
+                rm -f "$deploy_log"
+                sleep "$delay_seconds"
+                continue
+              fi
+              status_code="$(grep -Eio 'unexpected deploy status [0-9]{3}' "$deploy_log" | tail -n 1 || true)"
+              rm -f "$deploy_log"
+              echo "::error::Edge Function deployment failed for ${function_name}${status_code:+ (${status_code})}."
+              exit 1
+            done
+            test "$deployed" = "true" || {
+              echo "::error::Edge Function deployment retry limit reached for ${function_name}."
+              exit 1
+            }
+          done
 
       - name: Generate Prisma Client
         run: npm run prisma:generate
