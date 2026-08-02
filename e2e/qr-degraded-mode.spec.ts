@@ -153,7 +153,13 @@ test("安全工作階段失敗時顯示錯誤並可重新建立", async ({ page 
 
 test("後端 target 切換時忽略舊工作階段的晚到失敗", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    // Isolate stale-response ordering from the separate four-second transport-timeout path.
+    const nativeTimeout = AbortSignal.timeout.bind(AbortSignal);
+    AbortSignal.timeout = (milliseconds) => nativeTimeout(Math.max(milliseconds, 30_000));
+  });
   let availabilityRequests = 0;
+  let activeTarget: "PRIMARY" | "DR" = "PRIMARY";
   let sessionAttempts = 0;
   const sessionRequestIds: string[] = [];
   let releaseInitialResponse!: () => void;
@@ -170,9 +176,11 @@ test("後端 target 切換時忽略舊工作階段的晚到失敗", async ({ pag
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(availabilityRequests === 1
-        ? availableConfig
-        : { ...availableConfig, activeBackend: "DR", promotionEpoch: 2 }),
+      body: JSON.stringify({
+        ...availableConfig,
+        activeBackend: activeTarget,
+        promotionEpoch: activeTarget === "PRIMARY" ? 1 : 2,
+      }),
     });
   });
   await page.route("**/create-order-session", async (route) => {
@@ -204,10 +212,14 @@ test("後端 target 切換時忽略舊工作階段的晚到失敗", async ({ pag
   const sessionStatus = page.locator("#main-content").getByTestId("qr-session-status");
   await expect(sessionStatus).toHaveAttribute("data-ordering-availability", "AVAILABLE");
   expect(sessionAttempts).toBe(1);
+  await expect.poll(() => availabilityRequests).toBe(1);
+  const requestsBeforeSwitch = availabilityRequests;
+  activeTarget = "DR";
 
   await page.getByRole("button", { name: "點餐語言", exact: true }).click();
   await page.getByRole("option", { name: "English", exact: true }).click();
 
+  await expect.poll(() => availabilityRequests).toBeGreaterThan(requestsBeforeSwitch);
   await expect.poll(() => sessionAttempts).toBe(2);
   await expect(sessionStatus).toContainText(/^Time remaining /);
   expect(sessionRequestIds[1]).not.toBe(sessionRequestIds[0]);
