@@ -65,6 +65,7 @@ async function resetOpenCapacity() {
 
 async function login(page: Page, email: string) {
   await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
   const responsePromise = page.waitForResponse((response) => (

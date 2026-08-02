@@ -135,6 +135,7 @@ async function newRolePage(browser: Browser, email: string, destination: RegExp)
 
 async function login(page: Page, email: string, destination: RegExp) {
   await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
   const responsePromise = page.waitForResponse((response) => (
