@@ -4,6 +4,11 @@
 
 ## Preview
 
+Preview smoke 由 `Ephemeral Preview Validation` 自動對 PR 專屬、data-less
+Supabase Branch 所配對的 Vercel URL 執行。Vercel 自動建立的通用 Git Preview
+只作 build／前端訊號，不是後端 runtime gate，也不得連到 Production Primary
+或 DR。
+
 ```powershell
 $env:PRODUCTION_BASE_URL='https://<ACTUAL_PREVIEW_URL>'
 $env:SMOKE_SKIP_DOMAIN_REDIRECTS='true'

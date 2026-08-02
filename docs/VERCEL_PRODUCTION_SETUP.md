@@ -27,12 +27,17 @@
 
 ## Preview Gate
 
-從 `deployment/production-qidaigo` 建立 Preview，確認：
+後端驗證只使用 `Ephemeral Preview Validation` 建立的 PR 專屬 Vercel URL；它
+連到同一流程建立的 data-less Supabase Branch。Vercel 自動建立的通用 Git
+Preview 只作 build／前端訊號，不可連到 Production Primary 或 DR。下列
+`Preview` 均指這個配對且隔離的 URL。
+
+由 `Ephemeral Preview Validation` 建立配對 Preview，確認：
 
 - build 成功，`/`、`/login`、merchant／staff route 與 `/q/:token` 可載入。
 - `/api/health` 回傳最小 `{status,timestamp}`，不暴露 DB detail。
 - 未登入 merchant API 為 401／403。
-- Preview 連 Staging，不會寫 Production。
+- Preview 只連同一個 PR 的 data-less Supabase Branch，不會寫 Production。
 - CSP、HSTS（Preview HTTPS）、nosniff、Referrer、Permissions、frame-ancestors 正確。
 - HTML／client JS 沒有 Supabase secret key、database URL、Turnstile secret、OAuth secret。
 

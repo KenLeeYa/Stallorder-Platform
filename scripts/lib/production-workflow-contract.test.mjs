@@ -59,6 +59,26 @@ describe("Production workflow approval contract", () => {
     expect(ephemeralPreview).toContain("for attempt in 1 2 3; do");
   });
 
+  it("gates the matching Preview with read-only smoke before synthetic writes", () => {
+    const deployPreview = ephemeralPreview.indexOf("name: Deploy matching Vercel Preview");
+    const readOnlySmoke = ephemeralPreview.indexOf(
+      "name: Run matching Preview read-only smoke",
+    );
+    const syntheticSmoke = ephemeralPreview.indexOf(
+      "name: Run synthetic OAuth and delivery smoke tests",
+    );
+
+    expect(deployPreview).toBeGreaterThan(-1);
+    expect(deployPreview).toBeLessThan(readOnlySmoke);
+    expect(readOnlySmoke).toBeLessThan(syntheticSmoke);
+    expect(ephemeralPreview).toContain(
+      "PRODUCTION_BASE_URL: ${{ steps.vercel-preview.outputs.url }}",
+    );
+    expect(ephemeralPreview).toContain('SMOKE_SKIP_DOMAIN_REDIRECTS: "true"');
+    expect(ephemeralPreview).toContain('PRODUCTION_TEST_QR_REQUIRED: "false"');
+    expect(ephemeralPreview).toContain("run: npm run production:smoke");
+  });
+
   it("deploys and verifies every Production Function only during Apply", () => {
     expect(readiness).toMatch(
       /name: Deploy Production Edge Functions\r?\n\s+if: inputs\.apply_migrations/u,

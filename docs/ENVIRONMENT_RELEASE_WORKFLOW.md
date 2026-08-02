@@ -15,7 +15,9 @@ gate, but it is not a persistent runtime environment.
 1. Create a feature branch from the latest `staging` branch.
 2. Open a Pull Request to `staging`.
 3. Require CI plus the Pull Request's paired data-less Supabase Branch,
-   matching Vercel Preview and synthetic smoke tests.
+   matching Vercel Preview, read-only health/security smoke and synthetic smoke
+   tests. The automatic generic Git Preview is a build/frontend signal only;
+   it must not connect to Production Primary or DR.
 4. Merge to `staging`; the push repeats deterministic local readiness checks
    and must not connect to the Production DR project.
 5. Promote the exact verified `staging` tree through a Pull Request to `main`.

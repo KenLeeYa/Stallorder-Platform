@@ -361,6 +361,15 @@ jobs:
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
 
+      - name: Run matching Preview read-only smoke
+        if: steps.vercel-auth.outputs.enabled == 'true'
+        env:
+          PRODUCTION_BASE_URL: ${{ steps.vercel-preview.outputs.url }}
+          SMOKE_SKIP_DOMAIN_REDIRECTS: "true"
+          PRODUCTION_TEST_QR_REQUIRED: "false"
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: npm run production:smoke
+
       - name: Run synthetic OAuth and delivery smoke tests
         if: steps.vercel-auth.outputs.enabled == 'true'
         env:

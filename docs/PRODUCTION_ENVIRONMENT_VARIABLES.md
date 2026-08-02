@@ -4,24 +4,28 @@
 
 ## Vercel variables
 
+下表的 `Preview` 指 `Ephemeral Preview Validation` 在每次 PR 執行時產生並只
+注入該次部署的隔離值，不是 Vercel 專案的持久 Preview variables；不得把
+Production Primary、Production DR 或舊 Staging 連線填入通用 Git Preview。
+
 | Variable | Preview | Production | 敏感 | 用途 |
 | --- | --- | --- | --- | --- |
-| `DATABASE_URL` | Staging Transaction Pooler | `<PRODUCTION_DATABASE_URL>` | 是 | Prisma serverless runtime |
-| `DIRECT_URL` | Staging direct/session URL | `<PRODUCTION_DIRECT_URL>` | 是 | Prisma validate／migration-compatible connection |
-| `NEXT_PUBLIC_APP_URL` | 實際 Preview／staging URL | `https://app.qidaigo.com` | 否 | OAuth、CSRF origin、QR links |
-| `NEXT_PUBLIC_SUPABASE_URL` | Staging Project URL | Production Project URL | 否 | Supabase Auth/browser |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Staging active publishable key | Production active publishable key | 否 | Browser Supabase client |
-| `SUPABASE_SECRET_KEY` | Staging secret key | Production secret key | 是 | 受信任 server 的 Storage 管理；不得進 client bundle |
-| `NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL` | `https://<STAGING_SUPABASE_PROJECT_REF>.supabase.co/functions/v1` | `https://<PRODUCTION_SUPABASE_PROJECT_REF>.supabase.co/functions/v1` | 否 | Public order Edge API |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Staging Site Key | `<PRODUCTION_TURNSTILE_SITE_KEY>` | 否 | Turnstile widget |
-| `AUDIT_IP_HASH_SECRET` | Staging unique secret | Production unique secret | 是 | Next.js audit IP HMAC |
+| `DATABASE_URL` | PR 專屬 Branch Transaction Pooler | `<PRODUCTION_DATABASE_URL>` | 是 | Prisma serverless runtime |
+| `DIRECT_URL` | PR 專屬 Branch direct/session URL | `<PRODUCTION_DIRECT_URL>` | 是 | Prisma validate／migration-compatible connection |
+| `NEXT_PUBLIC_APP_URL` | 配對 Vercel Preview URL | `https://app.qidaigo.com` | 否 | OAuth、CSRF origin、QR links |
+| `NEXT_PUBLIC_SUPABASE_URL` | PR 專屬 Branch URL | Production Project URL | 否 | Supabase Auth/browser |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | PR 專屬 Branch publishable key | Production active publishable key | 否 | Browser Supabase client |
+| `SUPABASE_SECRET_KEY` | 僅在配對流程需要時注入 Branch secret | Production secret key | 是 | 受信任 server 的 Storage 管理；不得進 client bundle |
+| `NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL` | `https://<PR_PREVIEW_PROJECT_REF>.supabase.co/functions/v1` | `https://<PRODUCTION_SUPABASE_PROJECT_REF>.supabase.co/functions/v1` | 否 | Public order Edge API |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | 隔離測試策略；不得用 Production key | `<PRODUCTION_TURNSTILE_SITE_KEY>` | 否 | Turnstile widget |
+| `AUDIT_IP_HASH_SECRET` | 每次流程產生的獨立值 | Production unique secret | 是 | Next.js audit IP HMAC |
 | `TRUSTED_CLIENT_IP_HEADER` | `x-forwarded-for` | `x-forwarded-for` | 否 | Vercel 覆寫的單一 client IP header |
 | `ALLOW_DEMO_SEED` | `false` | `false` | 否 | 正式 guardrail |
 | `LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT` | `false` | `false` | 否 | 只能在雙 loopback 本機 QA 使用 |
-| `CRON_SECRET` | Staging unique secret | Production unique secret | 是 | `/api/cron/report-deliveries` bearer authorization；Supabase Vault 需保存同值供資料庫排程呼叫 |
-| `RESEND_API_KEY` | Staging key | Production key | 是 | 排程報表寄送 |
-| `REPORT_FROM_EMAIL` | 已驗證 staging sender | 已驗證 qidaigo.com sender | 否 | 報表寄件者 |
-| `REPORT_DELIVERY_MODE` | `simulate` 或 staging policy | `live` | 否 | 正式不得 simulate |
+| `CRON_SECRET` | 每次流程產生的獨立值 | Production unique secret | 是 | `/api/cron/report-deliveries` bearer authorization；Supabase Vault 需保存同值供資料庫排程呼叫 |
+| `RESEND_API_KEY` | 不注入；Preview 不寄真實郵件 | Production key | 是 | 排程報表寄送 |
+| `REPORT_FROM_EMAIL` | 不注入 | 已驗證 qidaigo.com sender | 否 | 報表寄件者 |
+| `REPORT_DELIVERY_MODE` | `simulate` | `live` | 否 | 正式不得 simulate |
 
 本專案沒有 `TRUST_PROXY_HEADERS`；不要新增未實作的 variable。Vercel 官方邊緣層會覆寫 `x-forwarded-for`，程式仍只接受單一合法 IP，拒絕逗號鏈與任意 header 名稱。
 
@@ -42,7 +46,16 @@
 
 ## GitHub Environment secrets／variables
 
-`staging` 與 `production` Environment 各自設定：
+`Preview` Environment 設定：
+
+- Secret `SUPABASE_ACCESS_TOKEN`
+- Secret `VERCEL_TOKEN`
+- Secret `VERCEL_AUTOMATION_BYPASS_SECRET`
+- Variable `SUPABASE_PARENT_PROJECT_REF`
+- Variable `VERCEL_ORG_ID`
+- Variable `VERCEL_PROJECT_ID`
+
+`production` Environment 設定：
 
 - Secret `SUPABASE_ACCESS_TOKEN`
 - Variable `SUPABASE_PROJECT_REF`
