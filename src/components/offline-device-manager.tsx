@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Ban,
   Check,
@@ -13,6 +13,11 @@ import {
 } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatTaipeiDateTime } from "@/lib/date-time";
+import {
+  focusFirstInvalidField,
+  parseFieldErrors,
+  withoutFieldError,
+} from "@/lib/form-field-errors";
 import { useUnsavedSettings } from "@/lib/unsaved-settings";
 
 type FeatureState = {
@@ -68,7 +73,20 @@ export type OfflineManagementState = {
 
 const terminalDeviceStatuses = new Set(["REVOKED", "LOST", "REPLACED"]);
 
-function normalizePolicy(policy: OfflinePolicy) {
+type EditableOfflinePolicy = {
+  offlineEnabled: boolean;
+  offlineLeaderDeviceId: string | null;
+  maxOfflineDurationMinutes: number | string;
+  maxPendingOrders: number | string;
+  maxTotalAmount: number | string;
+  maxSingleOrderAmount: number | string;
+  maxManualPaymentAmount: number | string;
+  maxTotalManualPaymentAmount: number | string;
+  requireCustomerContactAboveAmount: number | string;
+  managerApprovalThreshold: number | string;
+};
+
+function normalizePolicy(policy: OfflinePolicy): EditableOfflinePolicy {
   return {
     offlineEnabled: policy.offlineEnabled,
     offlineLeaderDeviceId: policy.offlineLeaderDeviceId,
@@ -96,6 +114,9 @@ export function OfflineDeviceManager({
   const [reason, setReason] = useState("");
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [hasError, setHasError] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const managerRef = useRef<HTMLDivElement>(null);
   const featureAvailable = data.feature.offlinePos.enabled
     && data.feature.singleDeviceOnly.enabled;
   const leaderCandidates = data.devices.filter(
@@ -107,17 +128,30 @@ export function OfflineDeviceManager({
   );
   useUnsavedSettings("offline-device-policy", dirty);
 
+  function clearFieldError(field: string) {
+    setFieldErrors((current) => withoutFieldError(current, field));
+  }
+
   async function submit(command: Record<string, unknown>, busyId: string) {
     setBusyKey(busyId);
     setMessage("");
+    setHasError(false);
+    setFieldErrors({});
     try {
       const response = await fetch(`/api/merchant/stalls/${stallId}/offline`, {
         method: "PATCH",
         headers: csrfHeaders(),
         body: JSON.stringify(command),
       });
-      const payload = await response.json() as OfflineManagementState & { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "無法更新離線裝置設定。");
+      const payload = await response.json() as OfflineManagementState & { error?: string; fieldErrors?: unknown };
+      if (!response.ok) {
+        const nextFieldErrors = parseFieldErrors(payload.fieldErrors);
+        setFieldErrors(nextFieldErrors);
+        setMessage(payload.error ?? "無法更新離線裝置設定。");
+        setHasError(true);
+        focusFirstInvalidField(managerRef.current, nextFieldErrors);
+        return;
+      }
       setData(payload);
       const nextPolicy = normalizePolicy(payload.policy);
       setPolicy(nextPolicy);
@@ -126,34 +160,27 @@ export function OfflineDeviceManager({
       setMessage("離線裝置設定已更新。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "無法更新離線裝置設定。");
+      setHasError(true);
     } finally {
       setBusyKey(null);
     }
   }
 
   async function savePolicy() {
-    if (reason.trim().length < 5) {
-      setMessage("請輸入至少 5 個字元的異動原因。");
-      return;
-    }
-    if (policy.offlineEnabled && !policy.offlineLeaderDeviceId) {
-      setMessage("啟用離線收單前，請先選擇一台 Leader 裝置。");
-      return;
-    }
     await submit({
       operation: "UPDATE_POLICY",
       offlineEnabled: policy.offlineEnabled,
       offlineWriteMode: policy.offlineEnabled ? "SINGLE_DEVICE_ONLY" : "DISABLED",
       offlineLeaderDeviceId: policy.offlineEnabled ? policy.offlineLeaderDeviceId : null,
       limits: {
-        maxOfflineDurationMinutes: policy.maxOfflineDurationMinutes,
-        maxPendingOrders: policy.maxPendingOrders,
-        maxTotalAmount: policy.maxTotalAmount,
-        maxSingleOrderAmount: policy.maxSingleOrderAmount,
-        maxManualPaymentAmount: policy.maxManualPaymentAmount,
-        maxTotalManualPaymentAmount: policy.maxTotalManualPaymentAmount,
-        requireCustomerContactAboveAmount: policy.requireCustomerContactAboveAmount,
-        managerApprovalThreshold: policy.managerApprovalThreshold,
+        maxOfflineDurationMinutes: numberOrOriginal(policy.maxOfflineDurationMinutes),
+        maxPendingOrders: numberOrOriginal(policy.maxPendingOrders),
+        maxTotalAmount: numberOrOriginal(policy.maxTotalAmount),
+        maxSingleOrderAmount: numberOrOriginal(policy.maxSingleOrderAmount),
+        maxManualPaymentAmount: numberOrOriginal(policy.maxManualPaymentAmount),
+        maxTotalManualPaymentAmount: numberOrOriginal(policy.maxTotalManualPaymentAmount),
+        requireCustomerContactAboveAmount: numberOrOriginal(policy.requireCustomerContactAboveAmount),
+        managerApprovalThreshold: numberOrOriginal(policy.managerApprovalThreshold),
       },
       reason,
     }, "policy");
@@ -163,10 +190,6 @@ export function OfflineDeviceManager({
     device: OfflineDevice,
     action: "APPROVE_READ_ONLY" | "DISABLE" | "REVOKE" | "MARK_LOST",
   ) {
-    if (reason.trim().length < 5) {
-      setMessage("請先輸入至少 5 個字元的異動原因。");
-      return;
-    }
     if (
       ["REVOKE", "MARK_LOST"].includes(action)
       && !window.confirm(
@@ -197,11 +220,12 @@ export function OfflineDeviceManager({
       | "managerApprovalThreshold",
     value: string,
   ) {
-    setPolicy((current) => ({ ...current, [key]: Number(value) }));
+    clearFieldError(key);
+    setPolicy((current) => ({ ...current, [key]: value }));
   }
 
   return (
-    <div className="space-y-7">
+    <div ref={managerRef} className="space-y-7">
       {!featureAvailable ? (
         <section className="border-y border-amber-300 bg-amber-50 px-4 py-4 text-amber-950">
           <div className="flex gap-3">
@@ -233,33 +257,47 @@ export function OfflineDeviceManager({
         </div>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <label className={`flex min-h-12 items-center justify-between gap-3 rounded-md border border-stone-300 px-3 text-sm font-medium ${!featureAvailable ? "opacity-50" : ""}`}>
+          <label className={`flex min-h-12 flex-wrap items-center justify-between gap-3 rounded-md border px-3 text-sm font-medium ${fieldErrors.offlineEnabled ? "border-red-500 bg-red-50" : "border-stone-300"} ${!featureAvailable ? "opacity-50" : ""}`}>
             <span>允許離線收單</span>
             <input
               type="checkbox"
               role="switch"
               checked={policy.offlineEnabled}
+              data-field-key="offlineEnabled"
+              aria-invalid={Boolean(fieldErrors.offlineEnabled)}
+              aria-describedby={fieldErrors.offlineEnabled ? fieldErrorId("offlineEnabled") : undefined}
               disabled={!featureAvailable || busyKey !== null}
-              onChange={(event) => setPolicy((current) => ({
-                ...current,
-                offlineEnabled: event.target.checked,
-                offlineLeaderDeviceId: event.target.checked
-                  ? current.offlineLeaderDeviceId
-                  : null,
-              }))}
+              onChange={(event) => {
+                clearFieldError("offlineEnabled");
+                clearFieldError("offlineLeaderDeviceId");
+                setPolicy((current) => ({
+                  ...current,
+                  offlineEnabled: event.target.checked,
+                  offlineLeaderDeviceId: event.target.checked
+                    ? current.offlineLeaderDeviceId
+                    : null,
+                }));
+              }}
               className="h-5 w-5"
             />
+            {fieldErrors.offlineEnabled ? <FieldError field="offlineEnabled" error={fieldErrors.offlineEnabled} /> : null}
           </label>
           <label className="text-sm font-medium">
             Leader 裝置
             <select
               value={policy.offlineLeaderDeviceId ?? ""}
+              data-field-key="offlineLeaderDeviceId"
+              aria-invalid={Boolean(fieldErrors.offlineLeaderDeviceId)}
+              aria-describedby={fieldErrors.offlineLeaderDeviceId ? fieldErrorId("offlineLeaderDeviceId") : undefined}
               disabled={!featureAvailable || !policy.offlineEnabled || busyKey !== null}
-              onChange={(event) => setPolicy((current) => ({
-                ...current,
-                offlineLeaderDeviceId: event.target.value || null,
-              }))}
-              className="form-input mt-1"
+              onChange={(event) => {
+                clearFieldError("offlineLeaderDeviceId");
+                setPolicy((current) => ({
+                  ...current,
+                  offlineLeaderDeviceId: event.target.value || null,
+                }));
+              }}
+              className={`form-input mt-1 ${fieldErrors.offlineLeaderDeviceId ? "border-red-500 bg-red-50" : ""}`}
             >
               <option value="">請選擇已登錄裝置</option>
               {leaderCandidates.map((device) => (
@@ -268,12 +306,15 @@ export function OfflineDeviceManager({
                 </option>
               ))}
             </select>
+            {fieldErrors.offlineLeaderDeviceId ? <FieldError field="offlineLeaderDeviceId" error={fieldErrors.offlineLeaderDeviceId} /> : null}
           </label>
         </div>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <NumberField
             label="最長離線時間（分鐘）"
+            fieldKey="maxOfflineDurationMinutes"
+            error={fieldErrors.maxOfflineDurationMinutes}
             min={15}
             max={720}
             value={policy.maxOfflineDurationMinutes}
@@ -282,6 +323,8 @@ export function OfflineDeviceManager({
           />
           <NumberField
             label="待同步訂單上限"
+            fieldKey="maxPendingOrders"
+            error={fieldErrors.maxPendingOrders}
             min={1}
             max={500}
             value={policy.maxPendingOrders}
@@ -290,6 +333,8 @@ export function OfflineDeviceManager({
           />
           <NumberField
             label="離線累計金額上限"
+            fieldKey="maxTotalAmount"
+            error={fieldErrors.maxTotalAmount}
             min={0}
             max={99_999_999.99}
             value={policy.maxTotalAmount}
@@ -298,6 +343,8 @@ export function OfflineDeviceManager({
           />
           <NumberField
             label="單筆訂單金額上限"
+            fieldKey="maxSingleOrderAmount"
+            error={fieldErrors.maxSingleOrderAmount}
             min={0}
             max={99_999_999.99}
             value={policy.maxSingleOrderAmount}
@@ -309,6 +356,8 @@ export function OfflineDeviceManager({
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <NumberField
             label="單筆人工付款上限"
+            fieldKey="maxManualPaymentAmount"
+            error={fieldErrors.maxManualPaymentAmount}
             min={0}
             max={100_000_000}
             value={policy.maxManualPaymentAmount}
@@ -317,6 +366,8 @@ export function OfflineDeviceManager({
           />
           <NumberField
             label="人工付款累計上限"
+            fieldKey="maxTotalManualPaymentAmount"
+            error={fieldErrors.maxTotalManualPaymentAmount}
             min={0}
             max={100_000_000}
             value={policy.maxTotalManualPaymentAmount}
@@ -325,6 +376,8 @@ export function OfflineDeviceManager({
           />
           <NumberField
             label="需留聯絡方式門檻"
+            fieldKey="requireCustomerContactAboveAmount"
+            error={fieldErrors.requireCustomerContactAboveAmount}
             min={0}
             max={100_000_000}
             value={policy.requireCustomerContactAboveAmount}
@@ -333,6 +386,8 @@ export function OfflineDeviceManager({
           />
           <NumberField
             label="管理者操作門檻"
+            fieldKey="managerApprovalThreshold"
+            error={fieldErrors.managerApprovalThreshold}
             min={0}
             max={100_000_000}
             value={policy.managerApprovalThreshold}
@@ -346,16 +401,20 @@ export function OfflineDeviceManager({
           <input
             type="text"
             value={reason}
+            data-field-key="reason"
+            aria-invalid={Boolean(fieldErrors.reason)}
+            aria-describedby={fieldErrors.reason ? fieldErrorId("reason") : undefined}
             minLength={5}
             maxLength={500}
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) => { clearFieldError("reason"); setReason(event.target.value); }}
             placeholder="例如：核准櫃台平板作為離線主機"
-            className="form-input mt-1"
+            className={`form-input mt-1 ${fieldErrors.reason ? "border-red-500 bg-red-50" : ""}`}
           />
+          {fieldErrors.reason ? <FieldError field="reason" error={fieldErrors.reason} /> : null}
         </label>
         <button
           type="button"
-          disabled={!dirty || busyKey !== null || (!featureAvailable && policy.offlineEnabled)}
+          disabled={busyKey !== null || (!featureAvailable && policy.offlineEnabled)}
           onClick={() => void savePolicy()}
           className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"
         >
@@ -454,8 +513,8 @@ export function OfflineDeviceManager({
       </p>
       {message ? (
         <p
-          role="status"
-          className={`text-sm font-medium ${/(無法|失敗|請|不可|尚未)/.test(message) ? "text-red-700" : "text-emerald-700"}`}
+          role={hasError ? "alert" : "status"}
+          className={`text-sm font-medium ${hasError ? "text-red-700" : "text-emerald-700"}`}
         >
           {message}
         </p>
@@ -466,6 +525,8 @@ export function OfflineDeviceManager({
 
 function NumberField({
   label,
+  fieldKey,
+  error,
   min,
   max,
   value,
@@ -473,9 +534,11 @@ function NumberField({
   onChange,
 }: {
   label: string;
+  fieldKey: string;
+  error?: string;
   min: number;
   max: number;
-  value: number;
+  value: number | string;
   disabled: boolean;
   onChange: (value: string) => void;
 }) {
@@ -487,12 +550,29 @@ function NumberField({
         min={min}
         max={max}
         value={value}
+        data-field-key={fieldKey}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? fieldErrorId(fieldKey) : undefined}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="form-input mt-1"
+        className={`form-input mt-1 ${error ? "border-red-500 bg-red-50" : ""}`}
       />
+      {error ? <FieldError field={fieldKey} error={error} /> : null}
     </label>
   );
+}
+
+function FieldError({ field, error }: { field: string; error: string }) {
+  return <span id={fieldErrorId(field)} role="alert" className="mt-1 block w-full text-xs text-red-700">{error}</span>;
+}
+
+function fieldErrorId(field: string) {
+  return `offline-device-${field}-error`;
+}
+
+function numberOrOriginal(value: number | string) {
+  if (typeof value === "number") return value;
+  return value.trim() === "" ? value : Number(value);
 }
 
 function StatusBadge({ status }: { status: string }) {

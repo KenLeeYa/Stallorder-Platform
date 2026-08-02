@@ -22,7 +22,7 @@ describe("Edge 用戶端 IP", () => {
   });
 });
 
-describe("Edge 訂閱錯誤", () => {
+describe("Edge 公開錯誤契約", () => {
   it("回傳安全且可操作的公開訊息", () => {
     expect(errorMessage("SUBSCRIPTION_SUSPENDED")).toContain("停權");
     expect(errorMessage("TRIAL_ORDER_LIMIT_REACHED")).not.toContain("organization");
@@ -33,5 +33,16 @@ describe("Edge 訂閱錯誤", () => {
     expect(statusForCode("TRIAL_ORDER_LIMIT_REACHED")).toBe(409);
     expect(statusForCode("QR_ORDERING_DEGRADED")).toBe(503);
     expect(statusForCode("QR_ORDERING_UNAVAILABLE")).toBe(503);
+    expect(statusForCode("PREORDER_TIME_UNAVAILABLE")).toBe(409);
+    expect(statusForCode("SESSION_TOKEN_COLLISION")).toBe(409);
+    expect(statusForCode("INVALID_PRODUCT_BUNDLE")).toBe(422);
+    expect(statusForCode("LOTTERY_RATE_LIMITED")).toBe(429);
+  });
+
+  it("涵蓋預約與工作階段的終止錯誤", () => {
+    expect(errorMessage("PREORDER_TIME_UNAVAILABLE")).toContain("預約");
+    expect(errorMessage("SESSION_TOKEN_COLLISION")).toContain("工作階段");
+    expect(errorMessage("INVALID_PRODUCT_BUNDLE")).toContain("套餐");
+    expect(errorMessage("LOTTERY_RATE_LIMITED")).toContain("抽抽樂");
   });
 });

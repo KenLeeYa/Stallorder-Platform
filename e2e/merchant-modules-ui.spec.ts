@@ -46,9 +46,19 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await page.getByRole("link", { name: "基本資料", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/settings/basic$`));
   await expect(page.getByRole("heading", { name: "基本資料", exact: true })).toBeVisible();
-  const phoneInput = page.getByLabel("電話", { exact: true });
+  const phoneInput = page.locator('input[name="phone"]');
   const originalPhone = await phoneInput.inputValue();
-  await phoneInput.fill(`${originalPhone}0`);
+  await phoneInput.fill("abcdef");
+  const invalidBasicResponse = page.waitForResponse((response) => (
+    response.url().endsWith(`/api/merchant/stalls/${stallId}`)
+    && response.request().method() === "PATCH"
+    && response.request().postDataJSON()?.operation === "UPDATE_BASIC"
+  ));
+  await page.getByRole("button", { name: "儲存基本資料", exact: true }).click();
+  expect((await invalidBasicResponse).status()).toBe(400);
+  await expect(page.getByText("電話需為 6～30 個字元，僅可包含數字、空格、括號、連字號與開頭的 +，或留空不填。", { exact: true })).toBeVisible();
+  await expect(phoneInput).toBeFocused();
+  await expect(phoneInput).toHaveAttribute("aria-invalid", "true");
   await phoneInput.fill(originalPhone);
 
   const basicSaveResponse = page.waitForResponse((response) => (
@@ -78,6 +88,37 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   ].sort());
   expect(operationsResponse.request().postDataJSON().operation).toBe("UPDATE_OPERATIONS");
   await expect(page.getByText("營運狀態已更新。", { exact: true })).toBeVisible();
+
+  await page.goto(`/merchant/stalls/${stallId}/settings/business-hours`);
+  const editableOpeningTime = page.locator('input[data-field-key$=".opensAt"]:not(:disabled)').first();
+  const openingTimeKey = await editableOpeningTime.getAttribute("data-field-key");
+  expect(openingTimeKey).toMatch(/^hours\.[0-6]\.opensAt$/);
+  const openingDayIndex = Number(openingTimeKey!.split(".")[1]);
+  const openingDayLabel = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"][openingDayIndex];
+  const originalOpeningTime = await editableOpeningTime.inputValue();
+  await editableOpeningTime.fill("");
+  const invalidHoursResponse = page.waitForResponse((response) => (
+    response.url().endsWith(`/api/merchant/stalls/${stallId}/business-hours`)
+    && response.request().method() === "PATCH"
+  ));
+  await page.getByRole("button", { name: "儲存營業時間", exact: true }).click();
+  expect((await invalidHoursResponse).status()).toBe(400);
+  await expect(page.getByText(`${openingDayLabel}開始時間格式必須為 HH:mm。`, { exact: true })).toBeVisible();
+  await expect(editableOpeningTime).toBeFocused();
+  await editableOpeningTime.fill(originalOpeningTime);
+
+  await page.goto(`/merchant/stalls/${stallId}/settings/members`);
+  const memberEmail = page.locator('input[name="email"]');
+  await memberEmail.fill("不是有效信箱");
+  const invalidMemberResponse = page.waitForResponse((response) => (
+    response.url().endsWith(`/api/merchant/stalls/${stallId}/memberships`)
+    && response.request().method() === "POST"
+  ));
+  await page.getByRole("button", { name: "指派", exact: true }).click();
+  expect((await invalidMemberResponse).status()).toBe(400);
+  await expect(page.getByText("請輸入有效的 Email 格式。", { exact: true })).toBeVisible();
+  await expect(memberEmail).toBeFocused();
+  await memberEmail.fill("");
 
   await page.goto(`/merchant/stalls/${stallId}/settings/modules`);
   await expect(page.getByRole("heading", { name: "營運模組與內用桌位", exact: true })).toBeVisible();
@@ -148,13 +189,14 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
       const aiTranslationButton = localizationPage.getByRole("button", { name: "一鍵補齊翻譯" });
       await expect(aiTranslationButton).toBeDisabled();
       await expect(aiTranslationButton).toHaveAttribute("title", "AI 翻譯尚未完成伺服器設定");
-      await localizationPage.getByRole("button", { name: "編輯 香酥雞排" }).click();
+      await localizationPage.getByRole("button", { name: "編輯 香酥雞排" }).first().click();
       const productEditor = localizationPage.getByRole("dialog", { name: "編輯商品" });
       await expect(productEditor.getByLabel("英文名稱")).toBeVisible();
       await expect(productEditor.getByLabel("英文名稱")).not.toHaveAttribute("required");
       await expect(productEditor.getByLabel("日文名稱")).toHaveCount(0);
       await productEditor.getByRole("button", { name: "關閉" }).click();
 
+      await localizationPage.getByRole("tab", { name: "註記群組", exact: true }).click();
       await localizationPage.getByRole("button", { name: "編輯 辣度" }).click();
       const noteEditor = localizationPage.getByRole("dialog", { name: "編輯註記群組" });
       await noteEditor.getByText("多語名稱", { exact: true }).click();
@@ -218,6 +260,24 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(page.locator('input[value="街口支付"]')).toBeVisible();
   await expect(page.locator('input[value="9 折"]')).toBeVisible();
 
+  const paymentSection = page.locator("#payment-options");
+  const newPaymentCode = paymentSection.locator('[data-field-key="new-payment:code"]');
+  const newPaymentName = paymentSection.locator('[data-field-key="new-payment:name"]');
+  await newPaymentCode.fill("中文代碼");
+  await newPaymentName.fill("測試付款方式");
+  const invalidPaymentResponse = page.waitForResponse((response) => (
+    response.url().endsWith(`/api/merchant/stalls/${stallId}/modules`)
+    && response.request().method() === "PATCH"
+    && response.request().postDataJSON()?.operation === "CREATE_PAYMENT_OPTION"
+  ));
+  await paymentSection.getByRole("button", { name: "新增", exact: true }).click();
+  expect((await invalidPaymentResponse).status()).toBe(400);
+  await expect(paymentSection.getByText("付款方式代碼僅可使用英文字母、數字、底線或連字號，不能輸入中文。", { exact: true })).toBeVisible();
+  await expect(newPaymentCode).toBeFocused();
+  await expect(newPaymentCode).toHaveAttribute("aria-invalid", "true");
+  await newPaymentCode.fill("");
+  await newPaymentName.fill("");
+
   await page.goto(`/merchant/team?organizationId=${organizationId}`);
   await expect(page.getByText("最高擁有者", { exact: true })).toBeVisible();
   await expect(page.getByLabel(/變更.*組織角色/).first()).toBeDisabled();
@@ -241,10 +301,11 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
   await expect(page.getByRole("link", { name: "匯出 CSV" })).toBeVisible();
   await expect(page.getByText("匯入 CSV", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "商品註記群組" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "商品註記設定" })).toBeVisible();
+  await page.getByRole("tab", { name: "註記群組" }).click();
   await expect(page.getByText("辣度", { exact: true })).toBeVisible();
   await expect(page.getByText("加蛋", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "複製 香酥雞排" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "複製 香酥雞排" }).first()).toBeVisible();
   const validCsvRow = ["", "測試分類", "", "匯入預覽商品", "", "88", "", "1", "true", "AMING-01", "Preview item", "", "", "", "", "", "", "", "", ""];
   const invalidCsvRow = ["", "測試分類", "", "錯誤價格商品", "", "=100", "", "2", "true", "AMING-01", "", "", "", "", "", "", "", "", "", ""];
   await page.getByText("匯入 CSV", { exact: true }).locator("input[type=file]").setInputFiles({
@@ -256,7 +317,7 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(importDialog.getByRole("button", { name: "套用 1 筆有效資料" })).toBeVisible();
   await expect(importDialog.getByRole("button", { name: "下載錯誤 CSV" })).toBeVisible();
   await importDialog.getByRole("button", { name: "關閉" }).click();
-  await page.getByRole("button", { name: "編輯 香酥雞排" }).click();
+  await page.getByRole("button", { name: "編輯 香酥雞排" }).first().click();
   const editor = page.getByRole("dialog", { name: "編輯商品" });
   await expect(editor.getByLabel("圖片網址")).toBeVisible();
   await expect(editor.getByText("本機上傳", { exact: true })).toBeVisible();
@@ -278,13 +339,42 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   expect(await defaultPrice.evaluate((element: HTMLInputElement) => element.validity.valid)).toBe(true);
   await defaultPrice.clear();
   await createEditor.getByLabel("商品名稱").fill("未送出測試商品");
-  let catalogPostCount = 0;
-  page.on("request", (request) => {
-    if (request.method() === "POST" && new URL(request.url()).pathname === `/api/merchant/organizations/${organizationId}/catalog`) catalogPostCount += 1;
-  });
+  const invalidProductResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === `/api/merchant/organizations/${organizationId}/catalog`
+    && response.request().method() === "POST"
+    && response.request().postDataJSON()?.operation === "CREATE_PRODUCT"
+  ));
   await createEditor.getByRole("button", { name: "儲存" }).click();
-  expect(catalogPostCount).toBe(0);
+  expect((await invalidProductResponse).status()).toBe(400);
+  await expect(createEditor.getByText("「預設價格」輸入不正確，請依欄位限制重新輸入。", { exact: true }).first()).toBeVisible();
+  await expect(defaultPrice).toHaveAttribute("aria-invalid", "true");
+  await expect(defaultPrice).toBeFocused();
   await expect(createEditor).toBeVisible();
   await expect(defaultPrice).toHaveValue("");
+
+  await defaultPrice.fill("95");
+  const productName = createEditor.getByLabel("商品名稱");
+  await productName.fill("模擬重名商品");
+  await page.route(`**/api/merchant/organizations/${organizationId}/catalog`, async (route) => {
+    await route.fulfill({
+      status: 409,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: "此名稱已存在，請使用其他名稱。",
+        fieldErrors: { name: "此名稱已存在，請使用其他名稱。" },
+      }),
+    });
+  }, { times: 1 });
+  const duplicateProductResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === `/api/merchant/organizations/${organizationId}/catalog`
+    && response.request().method() === "POST"
+    && response.request().postDataJSON()?.operation === "CREATE_PRODUCT"
+  ));
+  await createEditor.getByRole("button", { name: "儲存" }).click();
+  expect((await duplicateProductResponse).status()).toBe(409);
+  await expect(createEditor.getByText("此名稱已存在，請使用其他名稱。", { exact: true }).first()).toBeVisible();
+  await expect(productName).toHaveAttribute("aria-invalid", "true");
+  await expect(productName).toBeFocused();
+  await expect(productName).toHaveValue("模擬重名商品");
   await createEditor.getByRole("button", { name: "關閉" }).click();
 });

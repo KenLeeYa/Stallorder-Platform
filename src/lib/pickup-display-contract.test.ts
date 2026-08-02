@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cdsVoiceAvailable,
   collectUnannouncedReadyOrders,
+  normalizePickupDisplayManagerCapabilities,
   pickupCodeForDisplay,
   pickupDisplaySettingsSchema,
   pickupVoiceMessage,
@@ -63,5 +64,25 @@ describe("CDS pickup display contract", () => {
     expect(cdsVoiceAvailable({ voiceAnnouncements: true })).toBe(true);
     expect(cdsVoiceAvailable({ voiceAnnouncements: false })).toBe(false);
     expect(cdsVoiceAvailable(null)).toBe(false);
+  });
+
+  it("clears a stale voice setting after the plan capability is removed", () => {
+    const normalized = normalizePickupDisplayManagerCapabilities({
+      showCustomerName: false,
+      showPickupCode: true,
+      maskPickupCode: false,
+      readyRetentionMinutes: 30,
+      preparingRetentionMinutes: 180,
+      enableVoice: true,
+      voiceLocale: "zh-TW",
+      announcementText: "",
+      theme: { logoUrl: "", backgroundImageUrl: "", accentColor: "#0f766e" },
+      isActive: true,
+      tokenConfigured: false,
+      voiceAvailable: false,
+    });
+
+    expect(normalized.enableVoice).toBe(false);
+    expect(normalized.voiceAvailable).toBe(false);
   });
 });

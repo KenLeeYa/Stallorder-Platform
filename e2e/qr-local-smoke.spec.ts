@@ -14,6 +14,7 @@ test("手機 QR 點餐使用固定訂單摘要且不產生水平溢位", async (
 
   const firstProduct = page.getByRole("article").first();
   await firstProduct.locator('button[title]:not([disabled])').first().click();
+  await firstProduct.getByRole("button", { name: "加入購物車", exact: true }).click();
 
   const summary = page.getByTestId("qr-mobile-cart-summary");
   await expect(summary).toBeVisible();
@@ -48,6 +49,9 @@ test("本機 QA 可透過示範 QR 建立點餐 session", async ({ page }) => {
   const product = page.getByRole("article").filter({ hasText: "香酥雞排" });
   await expect(product).toContainText("95");
   await product.getByRole("button", { name: "增加 香酥雞排" }).click();
+  await product.getByRole("button", { name: "加入購物車", exact: true }).click();
+  const waitAcknowledgment = page.getByRole("checkbox", { name: /我已了解目前預估等候時間/ });
+  if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
   await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeEnabled({ timeout: 15_000 });
 
   const restoredSession = page.waitForResponse((response) => (

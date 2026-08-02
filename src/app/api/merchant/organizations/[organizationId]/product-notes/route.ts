@@ -5,8 +5,15 @@ import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { getOrganizationProductNotes } from "@/lib/product-note-data";
-import { productNoteCommandSchema } from "@/lib/product-note-validation";
+import {
+  getOrganizationProductNotes,
+  getOrganizationReusableProductNotes,
+} from "@/lib/product-note-data";
+import {
+  getProductNoteFieldErrors,
+  getReusableProductNoteDuplicateFieldErrors,
+  productNoteCommandSchema,
+} from "@/lib/product-note-validation";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
@@ -49,8 +56,9 @@ export async function POST(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = productNoteCommandSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getProductNoteFieldErrors(parsed.error);
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "註記群組資料格式不正確。" },
+      { error: Object.values(fieldErrors)[0] ?? "註記群組資料格式不正確。", fieldErrors },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -76,6 +84,19 @@ export async function POST(request: Request, context: RouteContext) {
     const current = await prisma.productNoteOption.findFirst({
       where: { id: command.noteOptionId, organizationId },
       select: { noteGroupId: true, name: true, priceDelta: true, sortOrder: true, isActive: true },
+    });
+    before = current ? toAuditJson(current) : undefined;
+  } else if (command.operation === "UPDATE_REUSABLE_NOTE" || command.operation === "DELETE_REUSABLE_NOTE") {
+    const current = await prisma.reusableProductNote.findFirst({
+      where: { id: command.reusableNoteId, organizationId },
+      select: {
+        name: true,
+        priceDelta: true,
+        sortOrder: true,
+        isActive: true,
+        translations: { select: { locale: true, name: true } },
+        _count: { select: { linkedOptions: true } },
+      },
     });
     before = current ? toAuditJson(current) : undefined;
   }
@@ -141,6 +162,85 @@ export async function POST(request: Request, context: RouteContext) {
         return { id: group.id, entityType: "PRODUCT_NOTE_GROUP" } as const;
       }
 
+      if (command.operation === "CREATE_REUSABLE_NOTE" || command.operation === "UPDATE_REUSABLE_NOTE") {
+        const noteData = {
+          name: command.name,
+          priceDelta: command.priceDelta,
+          sortOrder: command.sortOrder,
+          isActive: command.isActive,
+        } as const;
+        let reusableNote: { id: string };
+        if (command.operation === "CREATE_REUSABLE_NOTE") {
+          reusableNote = await transaction.reusableProductNote.create({
+            data: { organizationId, ...noteData },
+            select: { id: true },
+          });
+        } else {
+          const current = await transaction.reusableProductNote.findFirst({
+            where: { id: command.reusableNoteId, organizationId },
+            select: { id: true },
+          });
+          if (!current) throw new ProductNoteNotFoundError();
+          reusableNote = await transaction.reusableProductNote.update({
+            where: { id: current.id },
+            data: noteData,
+            select: { id: true },
+          });
+        }
+
+        await transaction.reusableProductNoteTranslation.deleteMany({
+          where: {
+            organizationId,
+            reusableNoteId: reusableNote.id,
+            locale: { notIn: command.translations.map((translation) => translation.locale) },
+          },
+        });
+        await Promise.all(command.translations.map((translation) => transaction.reusableProductNoteTranslation.upsert({
+          where: { reusableNoteId_locale: { reusableNoteId: reusableNote.id, locale: translation.locale } },
+          create: { organizationId, reusableNoteId: reusableNote.id, ...translation },
+          update: { name: translation.name },
+        })));
+        return { id: reusableNote.id, entityType: "REUSABLE_PRODUCT_NOTE" } as const;
+      }
+
+      if (command.operation === "DELETE_REUSABLE_NOTE") {
+        const reusableNote = await transaction.reusableProductNote.findFirst({
+          where: { id: command.reusableNoteId, organizationId },
+          select: { id: true, _count: { select: { linkedOptions: true } } },
+        });
+        if (!reusableNote) throw new ProductNoteNotFoundError();
+        if (reusableNote._count.linkedOptions > 0) throw new ReusableProductNoteLinkedError();
+        await transaction.reusableProductNote.delete({ where: { id: reusableNote.id } });
+        return { id: reusableNote.id, entityType: "REUSABLE_PRODUCT_NOTE" } as const;
+      }
+
+      if (command.operation === "ATTACH_REUSABLE_NOTE") {
+        const [group, reusableNote] = await Promise.all([
+          transaction.productNoteGroup.findFirst({
+            where: { id: command.noteGroupId, organizationId },
+            select: { id: true },
+          }),
+          transaction.reusableProductNote.findFirst({
+            where: { id: command.reusableNoteId, organizationId },
+            select: { id: true, name: true, priceDelta: true, isActive: true },
+          }),
+        ]);
+        if (!group || !reusableNote) throw new ProductNoteNotFoundError();
+        const option = await transaction.productNoteOption.create({
+          data: {
+            organizationId,
+            noteGroupId: group.id,
+            reusableNoteId: reusableNote.id,
+            name: reusableNote.name,
+            priceDelta: reusableNote.priceDelta,
+            sortOrder: command.sortOrder,
+            isActive: reusableNote.isActive,
+          },
+          select: { id: true },
+        });
+        return { id: option.id, entityType: "PRODUCT_NOTE_OPTION" } as const;
+      }
+
       if (command.operation === "CREATE_NOTE_OPTION") {
         const group = await transaction.productNoteGroup.findFirst({
           where: { id: command.noteGroupId, organizationId },
@@ -169,30 +269,34 @@ export async function POST(request: Request, context: RouteContext) {
       if (command.operation === "UPDATE_NOTE_OPTION") {
         const option = await transaction.productNoteOption.findFirst({
           where: { id: command.noteOptionId, organizationId },
-          select: { id: true },
+          select: { id: true, reusableNoteId: true },
         });
         if (!option) throw new ProductNoteNotFoundError();
         await transaction.productNoteOption.update({
           where: { id: option.id },
-          data: {
-            name: command.name,
-            priceDelta: command.priceDelta,
-            sortOrder: command.sortOrder,
-            isActive: command.isActive,
-          },
+          data: option.reusableNoteId
+            ? { sortOrder: command.sortOrder }
+            : {
+              name: command.name,
+              priceDelta: command.priceDelta,
+              sortOrder: command.sortOrder,
+              isActive: command.isActive,
+            },
         });
-        await transaction.productNoteOptionTranslation.deleteMany({
-          where: {
-            organizationId,
-            noteOptionId: option.id,
-            locale: { notIn: command.translations.map((translation) => translation.locale) },
-          },
-        });
-        await Promise.all(command.translations.map((translation) => transaction.productNoteOptionTranslation.upsert({
-          where: { noteOptionId_locale: { noteOptionId: option.id, locale: translation.locale } },
-          create: { organizationId, noteOptionId: option.id, ...translation },
-          update: { name: translation.name },
-        })));
+        if (!option.reusableNoteId) {
+          await transaction.productNoteOptionTranslation.deleteMany({
+            where: {
+              organizationId,
+              noteOptionId: option.id,
+              locale: { notIn: command.translations.map((translation) => translation.locale) },
+            },
+          });
+          await Promise.all(command.translations.map((translation) => transaction.productNoteOptionTranslation.upsert({
+            where: { noteOptionId_locale: { noteOptionId: option.id, locale: translation.locale } },
+            create: { organizationId, noteOptionId: option.id, ...translation },
+            update: { name: translation.name },
+          })));
+        }
         return { id: option.id, entityType: "PRODUCT_NOTE_OPTION" } as const;
       }
 
@@ -220,16 +324,36 @@ export async function POST(request: Request, context: RouteContext) {
     });
     invalidatePublicMenus(authorization.workspace.stalls.map((stall) => stall.id));
 
+    const [noteGroups, reusableNotes] = await Promise.all([
+      getOrganizationProductNotes(organizationId),
+      getOrganizationReusableProductNotes(organizationId),
+    ]);
     return NextResponse.json(
-      { noteGroups: await getOrganizationProductNotes(organizationId) },
+      { noteGroups, reusableNotes },
       { headers: { "x-request-id": authorization.requestId } },
     );
   } catch (error) {
     const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+    const duplicateFieldErrors = duplicate
+      ? getReusableProductNoteDuplicateFieldErrors(command.operation)
+      : {};
+    const linked = error instanceof ReusableProductNoteLinkedError
+      || (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003");
     const notFound = error instanceof ProductNoteNotFoundError;
     return NextResponse.json(
-      { error: duplicate ? "同一群組內已有相同名稱。" : notFound ? "找不到指定的商品或註記資料。" : "目前無法更新註記群組。" },
-      { status: duplicate ? 409 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
+      {
+        error: linked
+          ? "此共用註記仍在註記群組中使用，請先從所有群組移除。"
+          : duplicate
+            ? Object.values(duplicateFieldErrors)[0] ?? "同一範圍內已有相同名稱或共用註記。"
+            : notFound
+              ? "找不到指定的商品或註記資料。"
+              : "目前無法更新註記群組。",
+        ...(Object.keys(duplicateFieldErrors).length > 0
+          ? { fieldErrors: duplicateFieldErrors }
+          : {}),
+      },
+      { status: duplicate || linked ? 409 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }
 }
@@ -268,8 +392,13 @@ function auditAction(operation: string) {
     CREATE_NOTE_OPTION: "PRODUCT_NOTE_OPTION_CREATED",
     UPDATE_NOTE_OPTION: "PRODUCT_NOTE_OPTION_UPDATED",
     DELETE_NOTE_OPTION: "PRODUCT_NOTE_OPTION_DELETED",
+    CREATE_REUSABLE_NOTE: "REUSABLE_PRODUCT_NOTE_CREATED",
+    UPDATE_REUSABLE_NOTE: "REUSABLE_PRODUCT_NOTE_UPDATED",
+    DELETE_REUSABLE_NOTE: "REUSABLE_PRODUCT_NOTE_DELETED",
+    ATTACH_REUSABLE_NOTE: "REUSABLE_PRODUCT_NOTE_ATTACHED",
   };
   return actions[operation] ?? "PRODUCT_NOTES_UPDATED";
 }
 
 class ProductNoteNotFoundError extends Error {}
+class ReusableProductNoteLinkedError extends Error {}

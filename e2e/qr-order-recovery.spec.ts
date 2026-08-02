@@ -18,7 +18,11 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
   await page.goto(`/q/${takeoutQrToken}`);
   await page.getByRole("button", { name: "點餐語言" }).click();
   await page.getByRole("option", { name: "English", exact: true }).click();
-  await page.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet" }).click();
+  const chickenCutlet = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: "Deep-Fried Chicken Cutlet", exact: true }),
+  });
+  await chickenCutlet.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet" }).click();
+  await chickenCutlet.getByRole("button", { name: "Add to cart", exact: true }).click();
   await page.getByLabel("Customer name").fill(customerName);
   await expect(page.getByRole("button", { name: "Place order", exact: true })).toBeEnabled({ timeout: 15_000 });
 

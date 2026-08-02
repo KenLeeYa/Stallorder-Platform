@@ -191,7 +191,13 @@ export async function createMerchantSetupTestOrder(
       customerPhone: "",
       customerNote: "此為開店設定測試訂單，不計入營收與用量。",
       paymentTiming: "PAY_LATER",
-      items: [{ productId: product.productId, quantity: 1, note: "", noteOptionIds: [] }],
+      items: [{
+        productId: product.productId,
+        quantity: 1,
+        note: "",
+        noteOptionIds: [],
+        bundleChoiceIds: [],
+      }],
     },
   });
   await prisma.$transaction(async (transaction) => {

@@ -6,5 +6,5 @@ type PageProps = { searchParams: Promise<{ stall?: string }> };
 export default async function KitchenSettingsPage({ searchParams }: PageProps) {
   const { stall: requestedStall } = await searchParams;
   const access = await requireKitchenPage(requestedStall, "MANAGE_KDS");
-  redirect(`/merchant/stalls/${access.stall.id}/kitchen/settings`);
+  redirect(`/merchant/stalls/${access.stall.id}/kitchen/settings?source=kitchen`);
 }

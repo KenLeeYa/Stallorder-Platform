@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
+import { getZodFieldErrors } from "@/lib/form-field-errors";
 import { readJson } from "@/lib/http";
 import { hashClientIp } from "@/lib/security";
 import { stallScheduleCommandSchema } from "@/lib/stall-schedule-contract";
@@ -57,8 +58,26 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = stallScheduleCommandSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getZodFieldErrors(parsed.error, {
+      locationId: "常用地點",
+      marketEventId: "市集活動",
+      startsAt: "行程開始",
+      endsAt: "行程結束",
+      orderingOpensAt: "開放接單時間",
+      orderingClosesAt: "停止接單時間",
+      specialNotice: "公開臨時公告",
+      reason: "操作原因",
+      weeks: "複製週數",
+      qrCodeId: "QR Code",
+      scheduleId: "綁定行程",
+      fulfillmentType: "點餐類型",
+    });
+    if (body.data && typeof body.data === "object" && body.data.operation === "SET_STATUS" && fieldErrors.specialNotice) {
+      fieldErrors.actionNotice = fieldErrors.specialNotice;
+      delete fieldErrors.specialNotice;
+    }
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "行程資料不正確。" },
+      { error: Object.values(fieldErrors)[0] ?? "行程資料不正確。", fieldErrors },
       { status: 400, headers: noStoreHeaders(authorization.requestId) },
     );
   }

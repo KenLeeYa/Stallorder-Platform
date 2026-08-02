@@ -9,10 +9,11 @@ import {
   hmacHex,
   sha256Hex,
 } from "../../../supabase/functions/_shared/crypto";
-import type {
-  GetPublicOrderInput,
-  IssueOrderSessionInput,
-  PublicOrderInput,
+import {
+  canonicalPublicOrderBehavior,
+  type GetPublicOrderInput,
+  type IssueOrderSessionInput,
+  type PublicOrderInput,
 } from "../../../supabase/functions/_shared/schemas";
 import { verifyTurnstile } from "../../../supabase/functions/_shared/turnstile";
 import { statusForCode } from "../../../supabase/functions/_shared/public-order-errors";
@@ -33,6 +34,7 @@ import {
   lookupResumablePublicOrder,
   persistPickupCodeDisplay,
   recordPublicOrderAttempt,
+  resolvePublicOrderingMode,
   revokeOrderSession,
   type StoredPublicOrder,
 } from "@/server/public-order/trusted-rpc-repository";
@@ -108,6 +110,8 @@ function publicOrderResponse(order: StoredPublicOrder, trackingToken: string, pi
     totalAmount: order.total_amount,
     quotedWaitMinutes: order.quoted_wait_minutes ?? null,
     quotedReadyAt: order.quoted_ready_at ?? null,
+    scheduledPickupAt: order.scheduled_pickup_at ?? null,
+    discountAmount: order.discount_amount ?? 0,
     createdAt: order.created_at,
   };
 }
@@ -133,12 +137,18 @@ export async function issueOrderSessionThroughCircuitB(
   },
 ) {
   await assertCircuitBEnabled(input.deviceId, context.timing);
+  const resolvedOrderingMode = await context.timing.measureDb(
+    () => resolvePublicOrderingMode(input.qrToken, input.orderingMode),
+  );
+  const orderingMode = input.orderingMode === "DEFAULT" && resolvedOrderingMode === "PREORDER"
+    ? "PREORDER"
+    : input.orderingMode;
   const hashes = await publicHashes({
     scope: "SESSION",
     clientIp: context.clientIp,
     deviceId: input.deviceId,
     qrToken: input.qrToken,
-    behavior: `scan:${input.orderingMode}:${context.clientIp}:${input.deviceId}:${input.qrToken}`,
+    behavior: `scan:${orderingMode}:${context.clientIp}:${input.deviceId}:${input.qrToken}`,
   });
   const intake = await context.timing.measureDb(
     () => checkPublicOrderIntakeAvailability(input.qrToken, input.deviceId),
@@ -155,7 +165,7 @@ export async function issueOrderSessionThroughCircuitB(
   gateError(globalGate);
 
   const resumableOrder = await context.timing.measureDb(() => lookupResumablePublicOrder({
-    orderingMode: input.orderingMode,
+    orderingMode,
     qrToken: input.qrToken,
     deviceHash: hashes.deviceHash,
     ipHash: hashes.ipHash,
@@ -171,6 +181,7 @@ export async function issueOrderSessionThroughCircuitB(
     return {
       status: 200,
       body: {
+        orderingMode,
         resumeOrder: {
           trackingToken,
           orderStatus: resumableOrder.order_status,
@@ -197,7 +208,7 @@ export async function issueOrderSessionThroughCircuitB(
       qrTokenHash: hashes.qrTokenHash,
       behaviorHash: hashes.behaviorHash,
       requestId: context.requestId,
-      orderingMode: input.orderingMode,
+      orderingMode,
     })),
   );
   if (!result?.ok || !result.stall_id || !result.order_session_id || !result.expires_at) {
@@ -210,14 +221,14 @@ export async function issueOrderSessionThroughCircuitB(
   );
   const settings = menuContext?.stall.orderingSettings;
   if (
-    input.orderingMode === "DELIVERY"
+    orderingMode === "DELIVERY"
     && (menuContext?.diningTable || !settings?.deliveryModuleEnabled)
   ) {
     await context.timing.measureDb(() => revokeOrderSession(result.order_session_id!));
     throw new PublicOrderCircuitError("DELIVERY_UNAVAILABLE", 409);
   }
   if (
-    input.orderingMode === "DEFAULT"
+    orderingMode === "DEFAULT"
     && menuContext?.diningTable
     && (!menuContext.diningTable.isActive || !settings?.dineInEnabled)
   ) {
@@ -225,15 +236,19 @@ export async function issueOrderSessionThroughCircuitB(
   }
 
   const capacity = result.capacity;
+  const preorderSession = orderingMode === "PREORDER";
   const sessionResponse = {
     orderSessionToken: sessionToken,
     expiresAt: result.expires_at,
-    estimatedWaitMinutes: capacity?.quote_max_minutes ?? null,
-    estimatedWaitMinMinutes: capacity?.quote_min_minutes ?? null,
-    estimatedWaitMaxMinutes: capacity?.quote_max_minutes ?? null,
+    estimatedWaitMinutes: preorderSession ? 0 : capacity?.quote_max_minutes ?? null,
+    estimatedWaitMinMinutes: preorderSession ? 0 : capacity?.quote_min_minutes ?? null,
+    estimatedWaitMaxMinutes: preorderSession ? 0 : capacity?.quote_max_minutes ?? null,
     waitAcknowledgmentThresholdMinutes:
-      capacity?.acknowledgment_threshold_minutes ?? null,
-    requiresWaitAcknowledgment: capacity?.requires_acknowledgment === true,
+      preorderSession ? null : capacity?.acknowledgment_threshold_minutes ?? null,
+    requiresWaitAcknowledgment: preorderSession
+      ? false
+      : capacity?.requires_acknowledgment === true,
+    orderingMode,
   };
 
   if (!input.includeMenu) {
@@ -244,7 +259,7 @@ export async function issueOrderSessionThroughCircuitB(
   }
 
   const menu = await context.timing.measureDb(
-    () => getCachedPublicMenuForQrToken(input.qrToken, input.orderingMode),
+    () => getCachedPublicMenuForQrToken(input.qrToken, orderingMode),
   );
   if (!menu) {
     await context.timing.measureDb(() => revokeOrderSession(result.order_session_id!));
@@ -254,6 +269,7 @@ export async function issueOrderSessionThroughCircuitB(
     status: result.idempotent_replay ? 200 : 201,
     body: {
       ...menu,
+      lotteryEnabled: orderingMode === "DEFAULT" && menu.lotteryEnabled,
       ...sessionResponse,
     },
   };
@@ -299,16 +315,13 @@ export async function createOrderThroughCircuitB(
   },
 ) {
   await assertCircuitBEnabled(input.deviceId, context.timing);
-  const sortedBehavior = [...input.items]
-    .sort((left, right) => left.productId.localeCompare(right.productId))
-    .map((item) => `${item.productId}:${item.quantity}:${[...item.noteOptionIds].sort().join(",")}`)
-    .join("|");
+  const sortedBehavior = canonicalPublicOrderBehavior(input.items);
   const hashes = await publicHashes({
     scope: "ORDER",
     clientIp: context.clientIp,
     deviceId: input.deviceId,
     qrToken: input.qrToken,
-    behavior: `order:${input.orderingMode}:${input.deviceId}:${input.qrToken}:${sortedBehavior}`,
+    behavior: `order:${input.orderingMode}:${input.deviceId}:${input.qrToken}:${input.scheduledPickupAt ?? ""}:${input.lotteryDrawId ?? ""}:${sortedBehavior}`,
   });
   const [sessionHash, idempotencyHash] = await Promise.all([
     sha256Hex(input.orderSessionToken),
@@ -353,10 +366,23 @@ export async function createOrderThroughCircuitB(
   );
   if (existing) {
     const quote = await context.timing.measureDb(() => getOrderQuote(existing.order_id));
+    const requestedPickupTime = input.scheduledPickupAt
+      ? new Date(input.scheduledPickupAt).getTime()
+      : null;
+    const storedPickupTime = quote?.scheduledPickupAt?.getTime() ?? null;
+    if (
+      requestedPickupTime !== storedPickupTime
+      || (quote?.lotteryDrawId ?? null) !== input.lotteryDrawId
+    ) {
+      await recordSubmissionFailure("IDEMPOTENCY_CONFLICT", failureValues, context.timing);
+      throw new PublicOrderCircuitError("IDEMPOTENCY_CONFLICT", 409);
+    }
     existing.fulfillment_type = quote?.fulfillmentType ?? existing.fulfillment_type;
     existing.pickup_required = quote?.fulfillmentType === "TAKEOUT";
     existing.quoted_wait_minutes = quote?.quotedWaitMinutes ?? null;
     existing.quoted_ready_at = quote?.quotedReadyAt?.toISOString() ?? null;
+    existing.scheduled_pickup_at = quote?.scheduledPickupAt?.toISOString() ?? null;
+    existing.discount_amount = quote?.discountAmount ?? 0;
     const tokens = await derivePublicOrderTokens(
       existing.order_id,
       requireSecret("TOKEN_DERIVATION_SECRET"),
@@ -424,11 +450,14 @@ export async function createOrderThroughCircuitB(
       quantity: item.quantity,
       note: item.note,
       modifier_option_ids: item.noteOptionIds,
+      bundle_choice_ids: item.bundleChoiceIds,
     })),
     trackingTokenHash,
     pickupCodeHash,
     requestId: context.requestId,
     waitAcknowledged: input.waitAcknowledged,
+    scheduledPickupAt: input.scheduledPickupAt,
+    lotteryDrawId: input.lotteryDrawId,
   }));
   if (!result?.ok || !result.order) {
     const code = result?.code ?? "ORDER_CREATE_ERROR";
@@ -453,6 +482,8 @@ export async function createOrderThroughCircuitB(
   result.order.pickup_required = quote?.fulfillmentType === "TAKEOUT";
   result.order.quoted_wait_minutes = quote?.quotedWaitMinutes ?? null;
   result.order.quoted_ready_at = quote?.quotedReadyAt?.toISOString() ?? null;
+  result.order.scheduled_pickup_at = quote?.scheduledPickupAt?.toISOString() ?? null;
+  result.order.discount_amount = quote?.discountAmount ?? 0;
   await persistPickupCode(result.order, finalTokens.pickupCode, context.timing);
   return {
     status: result.idempotent_replay ? 200 : 201,

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateKitchenItems,
   canTransitionKitchenTask,
+  getKitchenFieldErrors,
+  kitchenSettingsSchema,
+  kitchenStationCommandSchema,
   kitchenWaitLevel,
   preserveKitchenOrderProgress,
   type KitchenBoardTask,
@@ -39,6 +42,29 @@ function task(overrides: Partial<KitchenBoardTask> = {}): KitchenBoardTask {
 }
 
 describe("KDS operational helpers", () => {
+  it("將工作站與時間門檻錯誤對應至繁體中文欄位提示", () => {
+    const station = kitchenStationCommandSchema.safeParse({
+      operation: "CREATE_STATION",
+      name: "炸台",
+      code: "中文代碼",
+      description: null,
+      sortOrder: 1,
+      isActive: true,
+    });
+    expect(station.success).toBe(false);
+    if (!station.success) expect(getKitchenFieldErrors(station.error).code).toContain("工作站代碼");
+
+    const settings = kitchenSettingsSchema.safeParse({
+      warningMinutes: 10,
+      criticalMinutes: 8,
+      defaultView: "ORDER",
+    });
+    expect(settings.success).toBe(false);
+    if (!settings.success) {
+      expect(getKitchenFieldErrors(settings.error).criticalMinutes).toBe("嚴重逾時必須大於警示時間。");
+    }
+  });
+
   it("applies normal, warning and critical elapsed-time thresholds", () => {
     expect(kitchenWaitLevel(4.9, 5, 10)).toBe("NORMAL");
     expect(kitchenWaitLevel(5, 5, 10)).toBe("WARNING");

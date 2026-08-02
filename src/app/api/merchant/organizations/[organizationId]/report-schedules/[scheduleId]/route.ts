@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
+import { getZodFieldErrors } from "@/lib/form-field-errors";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { nextScheduledRun, reportScheduleInputSchema } from "@/lib/report-scheduling";
@@ -29,13 +30,15 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = reportScheduleInputSchema.safeParse(body.data);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "排程資料不正確。" }, { status: 400, headers: { "x-request-id": authorization.requestId } });
+    const fieldErrors = getZodFieldErrors(parsed.error, reportScheduleFieldLabels);
+    return NextResponse.json({ error: "排程資料不正確，請檢查標示欄位。", fieldErrors }, { status: 400, headers: { "x-request-id": authorization.requestId } });
   }
   const schedule = await prisma.reportSchedule.findFirst({ where: { id: scheduleId, organizationId, archivedAt: null } });
   if (!schedule) return NextResponse.json({ error: "找不到指定排程。" }, { status: 404, headers: { "x-request-id": authorization.requestId } });
   const allowedStallIds = new Set(authorization.workspace.stalls.filter((stall) => stall.isActive).map((stall) => stall.id));
   if (parsed.data.stallIds.some((stallId) => !allowedStallIds.has(stallId))) {
-    return NextResponse.json({ error: "攤位範圍包含未授權資源。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
+    const message = "攤位範圍包含未授權資源。";
+    return NextResponse.json({ error: message, fieldErrors: { stallIds: message } }, { status: 403, headers: { "x-request-id": authorization.requestId } });
   }
   const nextRunAt = nextScheduledRun(parsed.data);
   const updated = await prisma.reportSchedule.update({
@@ -56,6 +59,18 @@ export async function PATCH(request: Request, context: RouteContext) {
   });
   return NextResponse.json({ schedule: { ...updated, nextRunAt: updated.nextRunAt.toISOString() } }, { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } });
 }
+
+const reportScheduleFieldLabels = {
+  name: "排程名稱",
+  reportType: "報告類型",
+  recipients: "收件人 Email",
+  stallIds: "攤位範圍",
+  timezone: "時區",
+  sendHour: "寄送時間",
+  sendMinute: "寄送時間",
+  dayOfWeek: "寄送星期",
+  isEnabled: "啟用排程",
+};
 
 export async function DELETE(request: Request, context: RouteContext) {
   const { organizationId, scheduleId } = await context.params;

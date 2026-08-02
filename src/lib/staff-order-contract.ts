@@ -20,6 +20,7 @@ const itemSchema = z.object({
   quantity: z.number().int().min(1).max(100),
   note: multilineText({ maximum: 1000 }).optional().default(""),
   noteOptionIds: z.array(z.string().uuid()).max(50).default([]),
+  bundleChoiceIds: z.array(z.string().uuid()).max(400).default([]),
 }).strict();
 
 const baseOrderFields = {
@@ -57,6 +58,9 @@ export const createStaffOrderSchema = z.discriminatedUnion("fulfillmentType", [
     if (new Set(item.noteOptionIds).size !== item.noteOptionIds.length) {
       context.addIssue({ code: "custom", path: ["items", index, "noteOptionIds"], message: "註記不可重複。" });
     }
+    if (new Set(item.bundleChoiceIds).size !== item.bundleChoiceIds.length) {
+      context.addIssue({ code: "custom", path: ["items", index, "bundleChoiceIds"], message: "套餐選項不可重複。" });
+    }
   });
   if (value.paymentTiming === "PAY_NOW" && !value.checkout) {
     context.addIssue({ code: "custom", path: ["checkout"], message: "立即結帳需要付款資料。" });
@@ -73,6 +77,19 @@ export type StaffOrderCatalog = {
     category: string;
     price: number;
     imageUrl: string | null;
+    kind?: "SINGLE" | "BUNDLE";
+    bundleChoiceGroups?: Array<{
+      id: string;
+      name: string;
+      minSelections: number;
+      maxSelections: number;
+      choices: Array<{
+        id: string;
+        name: string;
+        quantity: number;
+        priceDelta: number;
+      }>;
+    }>;
     noteGroups: Array<{
       id: string;
       name: string;

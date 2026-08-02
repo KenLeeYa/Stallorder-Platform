@@ -109,14 +109,21 @@ export const updateOfflinePolicySchema = z.object({
   limits: offlineLimitsSchema,
   reason: safeText(5, 500, "異動原因"),
 }).strict().superRefine((value, context) => {
+  if (value.offlineEnabled && !value.offlineLeaderDeviceId) {
+    context.addIssue({
+      code: "custom",
+      path: ["offlineLeaderDeviceId"],
+      message: "啟用離線收單前，請選擇一台 Leader 裝置。",
+    });
+  }
   if (
     value.offlineEnabled !== (value.offlineWriteMode === "SINGLE_DEVICE_ONLY")
-    || (value.offlineEnabled && !value.offlineLeaderDeviceId)
     || (!value.offlineEnabled && value.offlineLeaderDeviceId)
   ) {
     context.addIssue({
       code: "custom",
-      message: "離線啟用狀態、寫入模式與 Leader 裝置設定不一致。",
+      path: ["offlineEnabled"],
+      message: "離線啟用狀態與寫入模式不一致，請重新選擇後再儲存。",
     });
   }
 });

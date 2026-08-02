@@ -50,13 +50,73 @@ describe("Production workflow approval contract", () => {
     expect(vercel.git.deploymentEnabled).toEqual({ main: false });
   });
 
-  it("makes Preview Function deployment bounded and idempotent", () => {
+  it("makes Preview Function deployment bounded and fail closed", () => {
     expect(ephemeralPreview).toContain(
       "for function_directory in supabase/functions/*; do",
     );
-    expect(ephemeralPreview).toContain("deployment already exists");
+    expect(ephemeralPreview).not.toContain("deployment already exists");
     expect(ephemeralPreview).toContain("unexpected deploy status (429|500|502|503|504)");
     expect(ephemeralPreview).toContain("for attempt in 1 2 3; do");
+  });
+
+  it("gates the matching Preview with read-only smoke before synthetic writes", () => {
+    const deployPreview = ephemeralPreview.indexOf("name: Deploy matching Vercel Preview");
+    const readOnlySmoke = ephemeralPreview.indexOf(
+      "name: Run matching Preview read-only smoke",
+    );
+    const syntheticSmoke = ephemeralPreview.indexOf(
+      "name: Run synthetic OAuth and delivery smoke tests",
+    );
+
+    expect(deployPreview).toBeGreaterThan(-1);
+    expect(deployPreview).toBeLessThan(readOnlySmoke);
+    expect(readOnlySmoke).toBeLessThan(syntheticSmoke);
+    expect(ephemeralPreview).toContain(
+      "PRODUCTION_BASE_URL: ${{ steps.vercel-preview.outputs.url }}",
+    );
+    expect(ephemeralPreview).toContain('SMOKE_SKIP_DOMAIN_REDIRECTS: "true"');
+    expect(ephemeralPreview).toContain('PRODUCTION_TEST_QR_REQUIRED: "false"');
+    expect(ephemeralPreview).toContain("run: npm run production:smoke");
+  });
+
+  it("deploys and verifies every Production Function only during Apply", () => {
+    expect(readiness).toMatch(
+      /name: Deploy Production Edge Functions\r?\n\s+if: inputs\.apply_migrations/u,
+    );
+    expect(readiness).toMatch(
+      /name: Verify deployed Production Edge Functions\r?\n\s+if: inputs\.apply_migrations/u,
+    );
+    expect(readiness).toContain("for function_directory in supabase/functions/*; do");
+    expect(readiness).toContain("for attempt in 1 2 3; do");
+    expect(readiness).not.toContain("deployment already exists");
+    expect(readiness).toContain("--use-api");
+    expect(readiness).toContain("--import-map supabase/functions/deno.json");
+    expect(readiness).toContain("supabase functions list");
+    expect(readiness).toContain(
+      '(.slug // .name) == $function_name and .status == "ACTIVE"',
+    );
+    expect(readiness).toContain("missing or not ACTIVE after deployment");
+    expect(readiness).not.toContain("--prune");
+
+    const postApplyLint = readiness.indexOf("name: Lint remote database after apply");
+    const deployFunctions = readiness.indexOf("name: Deploy Production Edge Functions");
+    const verifyFunctions = readiness.indexOf("name: Verify deployed Production Edge Functions");
+    const promote = readiness.indexOf("name: Promote approved deployment and smoke Production");
+    expect(postApplyLint).toBeGreaterThan(-1);
+    expect(postApplyLint).toBeLessThan(deployFunctions);
+    expect(deployFunctions).toBeLessThan(verifyFunctions);
+    expect(verifyFunctions).toBeLessThan(promote);
+  });
+
+  it("requires the protected Production QR before running Apply smoke", () => {
+    expect(readiness).toContain(
+      "PRODUCTION_TEST_QR_URL: ${{ secrets.PRODUCTION_TEST_QR_URL }}",
+    );
+    expect(readiness).toContain("PRODUCTION_TEST_QR_REQUIRED: \"true\"");
+    expect(readiness).toContain(
+      "for name in PRODUCTION_TEST_QR_URL VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do",
+    );
+    expect(readiness).toContain("resolveProductionTestQrUrl({");
   });
 });
 

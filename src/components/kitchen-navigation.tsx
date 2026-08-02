@@ -22,13 +22,13 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage, w
     ...(canManage ? [
       {
         key: "STATIONS" as const,
-        href: `/merchant/stalls/${stall.id}/kitchen/stations`,
+        href: `/merchant/stalls/${stall.id}/kitchen/stations?source=kitchen`,
         label: "工作站設定",
         icon: ListTree,
       },
       {
         key: "SETTINGS" as const,
-        href: `/merchant/stalls/${stall.id}/kitchen/settings`,
+        href: `/merchant/stalls/${stall.id}/kitchen/settings?source=kitchen`,
         label: "KDS 設定",
         icon: Settings2,
       },

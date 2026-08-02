@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createStallSchema, updateStallSchema } from "./stall-validation";
+import {
+  createStallSchema,
+  getCreateStallConflictFieldErrors,
+  getStallFieldErrors,
+  updateStallSchema,
+} from "./stall-validation";
 
 const validCreate = {
   name: "第二攤",
@@ -25,6 +30,33 @@ describe("攤位資料驗證", () => {
 
   it("拒絕無效時區", () => {
     expect(createStallSchema.safeParse({ ...validCreate, timezone: "Taipei/Unknown" }).success).toBe(false);
+  });
+
+  it("回傳可直接顯示的繁中欄位錯誤", () => {
+    const result = createStallSchema.safeParse({ ...validCreate, code: "中文代碼", phone: "abc" });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(getStallFieldErrors(result.error)).toMatchObject({
+      code: "攤位代碼僅可使用英文字母、數字與連字號。",
+      phone: "電話需為 6～30 個字元，僅可包含數字、空格、括號、連字號與開頭的 +，或留空不填。",
+    });
+  });
+
+  it("依唯一鍵 target 只標示真正衝突的建立欄位", () => {
+    expect(getCreateStallConflictFieldErrors(["organization_id", "code"])).toEqual({
+      code: "此攤位代碼已被使用，請改用其他代碼。",
+    });
+    expect(getCreateStallConflictFieldErrors("stalls_slug_key")).toEqual({
+      slug: "此公開識別名稱已被使用，請改用其他名稱。",
+    });
+    expect(getCreateStallConflictFieldErrors("qr_codes_token_key")).toEqual({
+      code: "攤位代碼或公開識別名稱已被使用，請改用其他值。",
+      slug: "攤位代碼或公開識別名稱已被使用，請改用其他值。",
+    });
+    expect(getCreateStallConflictFieldErrors(undefined)).toEqual({
+      code: "攤位代碼或公開識別名稱已被使用，請改用其他值。",
+      slug: "攤位代碼或公開識別名稱已被使用，請改用其他值。",
+    });
   });
 
   it.each(["-stall", "stall-", "STALL", "攤位一號"])("拒絕無效公開識別名稱：%s", (slug) => {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
+import { getZodFieldErrors } from "@/lib/form-field-errors";
 import { hashClientIp } from "@/lib/security";
 import { resolveOfflineConflictSchema } from "@/offline/offline-contract";
 import {
@@ -48,8 +49,12 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = resolveOfflineConflictSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getZodFieldErrors(parsed.error, {
+      resolutionStatus: "處理結果",
+      reason: "處理原因",
+    });
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "衝突處理資料格式不正確。" },
+      { error: Object.values(fieldErrors)[0] ?? "衝突處理資料格式不正確。", fieldErrors },
       { status: 400, headers: offlineNoStoreHeaders(authorization.requestId) },
     );
   }

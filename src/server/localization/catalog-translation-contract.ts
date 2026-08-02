@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { TranslationLocale } from "@/lib/enabled-locales";
 
-export const catalogTranslationEntityTypes = ["PRODUCT", "NOTE_GROUP", "NOTE_OPTION"] as const;
+export const catalogTranslationEntityTypes = ["PRODUCT", "NOTE_GROUP", "NOTE_OPTION", "REUSABLE_NOTE"] as const;
 export type CatalogTranslationEntityType = (typeof catalogTranslationEntityTypes)[number];
 
 type ExistingTranslation = {
@@ -28,6 +28,11 @@ export type CatalogTranslationSource = {
       name: string;
       translations: ExistingTranslation[];
     }>;
+  }>;
+  reusableNotes?: Array<{
+    id: string;
+    name: string;
+    translations: ExistingTranslation[];
   }>;
 };
 
@@ -134,6 +139,16 @@ export function buildCatalogTranslationRequests(
       for (const option of group.options) {
         addItem("NOTE_OPTION", option.id, option.name, null, `註記群組：${group.name}`, option.translations);
       }
+    }
+    for (const reusableNote of source.reusableNotes ?? []) {
+      addItem(
+        "REUSABLE_NOTE",
+        reusableNote.id,
+        reusableNote.name,
+        null,
+        "共用單一註記",
+        reusableNote.translations,
+      );
     }
 
     return { locale, items };

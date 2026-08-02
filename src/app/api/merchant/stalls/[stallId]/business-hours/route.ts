@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
-import { businessHoursSchema } from "@/lib/business-hours";
+import { businessHoursSchema, getBusinessHoursFieldErrors } from "@/lib/business-hours";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
@@ -23,8 +23,14 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = businessHoursSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getBusinessHoursFieldErrors(parsed.error);
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "營業時間格式不正確。" },
+      {
+        error: Object.keys(fieldErrors).length > 0
+          ? "請檢查標示的營業時間欄位。"
+          : parsed.error.issues[0]?.message ?? "營業時間格式不正確。",
+        fieldErrors,
+      },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }

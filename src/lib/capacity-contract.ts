@@ -168,6 +168,41 @@ export const capacityMerchantCommandSchema = z.discriminatedUnion("operation", [
   }).strict(),
 ]);
 
+const capacityFieldLabels: Record<string, string> = {
+  windowMinutes: "統計時間窗",
+  maxOrdersPerWindow: "每個時間窗最大訂單數",
+  maxItemsPerWindow: "每個時間窗最大餐點數",
+  warningUtilizationPercent: "警示使用率",
+  pauseUtilizationPercent: "暫停接單使用率",
+  defaultPrepMinutes: "基本製餐時間",
+  minimumQuoteMinutes: "最短等候時間",
+  maximumQuoteMinutes: "最長等候時間",
+  quoteBufferMinutes: "等候時間緩衝",
+  acknowledgmentThresholdMinutes: "需確認的等候時間",
+  autoPauseEnabled: "自動暫停接單",
+  autoResumeEnabled: "自動恢復接單",
+  isActive: "啟用產能估算",
+  minutes: "等候時間",
+  reason: "操作原因",
+  productId: "商品",
+  capacityWeight: "產能權重",
+  prepMinutes: "製餐時間",
+  maxQuantityPerWindow: "時間窗商品上限",
+};
+
+export function getCapacityFieldErrors(error: z.ZodError): Record<string, string> {
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const field = typeof issue.path[0] === "string" ? issue.path[0] : "_form";
+    if (fieldErrors[field]) continue;
+    const label = capacityFieldLabels[field] ?? "欄位";
+    fieldErrors[field] = issue.code === "custom"
+      ? issue.message
+      : `「${label}」輸入不正確，請依欄位限制重新輸入。`;
+  }
+  return fieldErrors;
+}
+
 export type CapacityStaffCommand = z.infer<typeof capacityStaffCommandSchema>;
 export type CapacityMerchantCommand = z.infer<typeof capacityMerchantCommandSchema>;
 

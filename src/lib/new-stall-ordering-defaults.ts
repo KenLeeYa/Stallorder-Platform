@@ -7,9 +7,12 @@ export function newStallOrderingSettings(organizationId: string) {
     organizationId,
     dineInEnabled: false,
     deliveryModuleEnabled: false,
+    staffDeliveryEnabled: false,
     printModuleEnabled: false,
     paymentModuleEnabled: true,
     discountModuleEnabled: false,
+    takeoutPreorderEnabled: false,
+    lotteryEnabled: false,
     enabledLocales: [...defaultEnabledLocales],
   };
 }

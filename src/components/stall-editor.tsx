@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, Plus, Save, Store } from "lucide-react";
 import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
@@ -46,7 +46,10 @@ export function StallEditor({
   const [draft, setDraft] = useState(initial);
   const [savedDraft, setSavedDraft] = useState(initial);
   const [messages, setMessages] = useState<Record<SaveSection, string>>({ basic: "", operations: "" });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [savingSection, setSavingSection] = useState<SaveSection | null>(null);
+  const basicFormRef = useRef<HTMLFormElement>(null);
+  const operationsFormRef = useRef<HTMLFormElement>(null);
   const isEditing = Boolean(stallId);
   const basicDirty = basicFieldKeys.some((key) => draft[key] !== savedDraft[key]);
   const operationsDirty = isEditing && operationFieldKeys.some((key) => draft[key] !== savedDraft[key]);
@@ -55,6 +58,12 @@ export function StallEditor({
 
   function update<K extends keyof StallDraft>(key: K, value: StallDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
+    setFieldErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   }
 
   function setMessage(section: SaveSection, message: string) {
@@ -63,6 +72,7 @@ export function StallEditor({
 
   async function persist(payload: Record<string, unknown>, section: SaveSection) {
     setMessage(section, "");
+    setFieldErrors({});
     setSavingSection(section);
     try {
       const response = await fetch(
@@ -76,7 +86,13 @@ export function StallEditor({
         },
       );
       const responsePayload = await response.json();
-      if (!response.ok) throw new Error(responsePayload.error ?? "目前無法儲存攤位。");
+      if (!response.ok) {
+        const nextFieldErrors = parseFieldErrors(responsePayload.fieldErrors);
+        setFieldErrors(nextFieldErrors);
+        setMessage(section, responsePayload.error ?? "目前無法儲存攤位。");
+        focusFirstInvalidField(section === "basic" ? basicFormRef.current : operationsFormRef.current, nextFieldErrors);
+        return false;
+      }
 
       if (!isEditing) {
         router.push(`/merchant/stalls/${responsePayload.stall.id}?organizationId=${organizationId}`);
@@ -144,34 +160,33 @@ export function StallEditor({
     <div className="border-t border-stone-200">
       {section !== "operations" ? <details open data-settings-section data-settings-scope="stall-basic" data-settings-search="基本資料 名稱 代碼 說明 地址 電話 時區 幣別" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
         <CollapsibleSectionSummary icon={Store} title="基本資料" description={basicDirty ? "有尚未儲存的變更" : undefined} />
-        <form onSubmit={submitBasic} className="pb-7">
+        <form ref={basicFormRef} noValidate onSubmit={submitBasic} className="pb-7">
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium">攤位名稱<input type="text" value={draft.name} onChange={(event) => update("name", event.target.value)} required maxLength={80} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
-            <label className="text-sm font-medium">攤位代碼<input type="text" value={draft.code} onChange={(event) => update("code", event.target.value.toUpperCase())} required maxLength={30} pattern="[A-Za-z0-9-]+" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5 uppercase" /></label>
+            <Field label="攤位名稱" field="name" error={fieldErrors.name}><input {...fieldValidationProps("name", fieldErrors.name)} type="text" value={draft.name} onChange={(event) => update("name", event.target.value)} required maxLength={80} className={inputClass(fieldErrors.name)} /></Field>
+            <Field label="攤位代碼" field="code" error={fieldErrors.code}><input {...fieldValidationProps("code", fieldErrors.code)} type="text" value={draft.code} onChange={(event) => update("code", event.target.value.toUpperCase())} required maxLength={30} pattern="[A-Za-z0-9-]+" className={`${inputClass(fieldErrors.code)} uppercase`} /></Field>
             {!isEditing ? (
-              <label className="text-sm font-medium sm:col-span-2">
-                公開識別名稱
+              <Field label="公開識別名稱" field="slug" error={fieldErrors.slug} full>
                 <PublicIdentifierInputHint hintId="new-stall-public-identifier-rules">
                   <input type="text"
+                    {...fieldValidationProps("slug", fieldErrors.slug, "new-stall-public-identifier-rules")}
                     value={draft.slug ?? ""}
                     onChange={(event) => update("slug", event.target.value.toLowerCase())}
                     required
                     minLength={PUBLIC_IDENTIFIER_MIN_LENGTH}
                     maxLength={PUBLIC_IDENTIFIER_MAX_LENGTH}
                     pattern={PUBLIC_IDENTIFIER_PATTERN}
-                    aria-describedby="new-stall-public-identifier-rules"
-                    className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5"
+                    className={inputClass(fieldErrors.slug)}
                   />
                 </PublicIdentifierInputHint>
-              </label>
+              </Field>
             ) : null}
-            <label className="text-sm font-medium sm:col-span-2">說明<textarea value={draft.description} onChange={(event) => update("description", event.target.value)} maxLength={500} rows={3} className="mt-1.5 w-full resize-y rounded-md border border-stone-300 px-3 py-2.5" /></label>
-            <label className="text-sm font-medium sm:col-span-2">地址<input type="text" value={draft.address} onChange={(event) => update("address", event.target.value)} required maxLength={200} className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
-            <label className="text-sm font-medium">電話<input type="tel" inputMode="tel" value={draft.phone} onChange={(event) => update("phone", event.target.value)} maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" autoComplete="tel" className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5" /></label>
-            <label className="text-sm font-medium">時區<select value={draft.timezone} onChange={(event) => update("timezone", event.target.value)} className="mt-1.5 h-11 w-full rounded-md border border-stone-300 bg-white px-3"><option value="Asia/Taipei">Asia/Taipei</option><option value="Asia/Tokyo">Asia/Tokyo</option><option value="Asia/Hong_Kong">Asia/Hong_Kong</option></select></label>
-            <label className="text-sm font-medium">幣別<select value={draft.currency} onChange={(event) => update("currency", event.target.value)} className="mt-1.5 h-11 w-full rounded-md border border-stone-300 bg-white px-3"><option value="TWD">TWD</option><option value="JPY">JPY</option><option value="HKD">HKD</option></select></label>
+            <Field label="說明" field="description" error={fieldErrors.description} full><textarea {...fieldValidationProps("description", fieldErrors.description)} value={draft.description} onChange={(event) => update("description", event.target.value)} maxLength={500} rows={3} className={`${inputClass(fieldErrors.description)} resize-y`} /></Field>
+            <Field label="地址" field="address" error={fieldErrors.address} full><input {...fieldValidationProps("address", fieldErrors.address)} type="text" value={draft.address} onChange={(event) => update("address", event.target.value)} required maxLength={200} className={inputClass(fieldErrors.address)} /></Field>
+            <Field label="電話" field="phone" error={fieldErrors.phone}><input {...fieldValidationProps("phone", fieldErrors.phone)} type="tel" inputMode="tel" value={draft.phone} onChange={(event) => update("phone", event.target.value)} maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" autoComplete="tel" className={inputClass(fieldErrors.phone)} /></Field>
+            <Field label="時區" field="timezone" error={fieldErrors.timezone}><select {...fieldValidationProps("timezone", fieldErrors.timezone)} value={draft.timezone} onChange={(event) => update("timezone", event.target.value)} className={`${inputClass(fieldErrors.timezone)} bg-white`}><option value="Asia/Taipei">Asia/Taipei</option><option value="Asia/Tokyo">Asia/Tokyo</option><option value="Asia/Hong_Kong">Asia/Hong_Kong</option></select></Field>
+            <Field label="幣別" field="currency" error={fieldErrors.currency}><select {...fieldValidationProps("currency", fieldErrors.currency)} value={draft.currency} onChange={(event) => update("currency", event.target.value)} className={`${inputClass(fieldErrors.currency)} bg-white`}><option value="TWD">TWD</option><option value="JPY">JPY</option><option value="HKD">HKD</option></select></Field>
           </div>
-          {messages.basic ? <p role="status" className={messages.basic.includes("已更新") ? "mt-4 text-sm text-emerald-700" : "mt-4 text-sm text-red-700"}>{messages.basic}</p> : null}
+          {messages.basic ? <p role={messages.basic.includes("已更新") ? "status" : "alert"} className={messages.basic.includes("已更新") ? "mt-4 text-sm text-emerald-700" : "mt-4 text-sm text-red-700"}>{messages.basic}</p> : null}
           <button type="submit" disabled={savingSection !== null} className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
             {isEditing ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             {savingSection === "basic" ? "儲存中..." : isEditing ? "儲存基本資料" : "建立攤位"}
@@ -182,7 +197,7 @@ export function StallEditor({
       {isEditing && section !== "basic" ? (
         <details open data-settings-section data-settings-scope="stall-operations" data-settings-search="營運狀態 營業 顧客點餐 啟用 攤位" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
           <CollapsibleSectionSummary icon={Activity} title="營運狀態" description={operationsDirty ? "有尚未儲存的變更" : undefined} />
-          <form onSubmit={submitOperations} className="pb-7">
+          <form ref={operationsFormRef} noValidate onSubmit={submitOperations} className="pb-7">
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium">營業狀態<select value={draft.businessStatus} onChange={(event) => update("businessStatus", event.target.value as StallDraft["businessStatus"])} className="mt-1.5 h-11 w-full rounded-md border border-stone-300 bg-white px-3"><option value="OPEN">營業中</option><option value="PAUSED">暫停</option><option value="CLOSED">關閉</option><option value="SOLD_OUT">全攤售罄</option></select></label>
               <div className="space-y-3 pt-1 sm:pt-6">
@@ -190,7 +205,7 @@ export function StallEditor({
                 <label className="flex min-h-11 items-center gap-3 text-sm font-medium text-red-800"><input type="checkbox" checked={draft.isActive} onChange={(event) => update("isActive", event.target.checked)} className="h-5 w-5" />啟用此攤位</label>
               </div>
             </div>
-            {messages.operations ? <p role="status" className={messages.operations.includes("已更新") ? "mt-4 text-sm text-emerald-700" : "mt-4 text-sm text-red-700"}>{messages.operations}</p> : null}
+            {messages.operations ? <p role={messages.operations.includes("已更新") ? "status" : "alert"} className={messages.operations.includes("已更新") ? "mt-4 text-sm text-emerald-700" : "mt-4 text-sm text-red-700"}>{messages.operations}</p> : null}
             <button type="submit" disabled={savingSection !== null} className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
               <Save className="h-4 w-4" />
               {savingSection === "operations" ? "儲存中..." : "儲存營運狀態"}
@@ -200,4 +215,46 @@ export function StallEditor({
       ) : null}
     </div>
   );
+}
+
+function Field({ label, field, error, full = false, children }: {
+  label: string;
+  field: string;
+  error?: string;
+  full?: boolean;
+  children: React.ReactNode;
+}) {
+  return <label className={`text-sm font-medium ${full ? "sm:col-span-2" : ""}`}><span>{label}</span>{children}{error ? <span id={fieldErrorId(field)} role="alert" className="mt-1.5 block text-xs font-medium text-red-700">{error}</span> : null}</label>;
+}
+
+function fieldErrorId(field: string) {
+  return `stall-${field}-error`;
+}
+
+function fieldValidationProps(field: string, error?: string, describedBy?: string) {
+  return {
+    name: field,
+    "aria-invalid": error ? true : undefined,
+    "aria-describedby": [describedBy, error ? fieldErrorId(field) : null].filter(Boolean).join(" ") || undefined,
+  };
+}
+
+function inputClass(error?: string) {
+  return `mt-1.5 min-h-11 w-full rounded-md border px-3 py-2.5 ${error ? "border-red-500 bg-red-50" : "border-stone-300"}`;
+}
+
+function parseFieldErrors(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => (
+    typeof entry[1] === "string" && Boolean(entry[1].trim())
+  )));
+}
+
+function focusFirstInvalidField(form: HTMLFormElement | null, fieldErrors: Record<string, string>) {
+  const field = Object.keys(fieldErrors)[0];
+  if (!field) return;
+  requestAnimationFrame(() => {
+    const control = form?.elements.namedItem(field);
+    if (control instanceof HTMLElement) control.focus();
+  });
 }

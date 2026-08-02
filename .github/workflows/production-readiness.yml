@@ -185,19 +185,28 @@ jobs:
           path: artifacts/production-approval.json
           if-no-files-found: error
           retention-days: 1
-      - name: Validate protected Vercel configuration
+      - name: Validate protected Production configuration
         if: inputs.apply_migrations
         env:
+          PRODUCTION_TEST_QR_URL: ${{ secrets.PRODUCTION_TEST_QR_URL }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+          for name in PRODUCTION_TEST_QR_URL VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
             test -n "${!name:-}" || {
               echo "::error::Missing protected configuration: ${name}"
               exit 1
             }
           done
+          node --input-type=module -e '
+            import { resolveProductionTestQrUrl } from "./scripts/lib/production-smoke-qr-url.mjs";
+            resolveProductionTestQrUrl({
+              baseUrl: process.env.APP_BASE_URL,
+              configuredUrl: process.env.PRODUCTION_TEST_QR_URL,
+              required: true,
+            });
+          '
       - name: Normalize protected Vercel token
         if: inputs.apply_migrations
         env:
@@ -238,11 +247,69 @@ jobs:
       - name: Lint remote database after apply
         if: inputs.apply_migrations
         run: supabase db lint --db-url "$SUPABASE_CI_DATABASE_URL" --level warning --fail-on warning
+      - name: Deploy Production Edge Functions
+        if: inputs.apply_migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for function_directory in supabase/functions/*; do
+            test -f "$function_directory/index.ts" || continue
+            function_name="$(basename "$function_directory")"
+            deployed=false
+            for attempt in 1 2 3; do
+              deploy_log="$(mktemp)"
+              if supabase functions deploy "$function_name" \
+                --project-ref "$SUPABASE_PROJECT_REF" \
+                --use-api \
+                --import-map supabase/functions/deno.json \
+                >"$deploy_log" 2>&1; then
+                deployed=true
+                rm -f "$deploy_log"
+                break
+              fi
+              if grep -Eqi \
+                'unexpected deploy status (429|500|502|503|504)|"retryable"[[:space:]]*:[[:space:]]*true' \
+                "$deploy_log" \
+                && [ "$attempt" -lt 3 ]; then
+                delay_seconds="$((attempt * 60))"
+                echo "::warning::Transient Supabase deployment failure for ${function_name}; retrying in ${delay_seconds}s."
+                rm -f "$deploy_log"
+                sleep "$delay_seconds"
+                continue
+              fi
+              status_code="$(grep -Eio 'unexpected deploy status [0-9]{3}' "$deploy_log" | tail -n 1 || true)"
+              rm -f "$deploy_log"
+              echo "::error::Edge Function deployment failed for ${function_name}${status_code:+ (${status_code})}."
+              exit 1
+            done
+            test "$deployed" = "true" || {
+              echo "::error::Edge Function deployment retry limit reached for ${function_name}."
+              exit 1
+            }
+          done
+      - name: Verify deployed Production Edge Functions
+        if: inputs.apply_migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployed_functions="$(supabase functions list --project-ref "$SUPABASE_PROJECT_REF" --output json)"
+          for function_directory in supabase/functions/*; do
+            test -f "$function_directory/index.ts" || continue
+            function_name="$(basename "$function_directory")"
+            jq -e --arg function_name "$function_name" \
+              'any(.[]; (.slug // .name) == $function_name and .status == "ACTIVE")' \
+              <<<"$deployed_functions" >/dev/null || {
+              echo "::error::Edge Function is missing or not ACTIVE after deployment: ${function_name}."
+              exit 1
+            }
+          done
       - name: Promote approved deployment and smoke Production
         if: inputs.apply_migrations
         shell: bash
         env:
           PRODUCTION_BASE_URL: ${{ vars.APP_BASE_URL }}
+          PRODUCTION_TEST_QR_REQUIRED: "true"
+          PRODUCTION_TEST_QR_URL: ${{ secrets.PRODUCTION_TEST_QR_URL }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           set -euo pipefail

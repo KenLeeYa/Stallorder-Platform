@@ -60,12 +60,6 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
 
   function continueOrdering() {
     if (!data || data.availableItems.length === 0) return;
-    const quantities = Object.fromEntries(data.availableItems.map((item) => [item.productId, item.quantity]));
-    const noteSelections = Object.fromEntries(
-      data.availableItems
-        .filter((item) => item.noteOptionIds.length > 0)
-        .map((item) => [item.productId, item.noteOptionIds]),
-    );
     try {
       window.localStorage.setItem(
         qrCartStorageKey(data.qrToken, data.orderingMode),
@@ -74,8 +68,14 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
           customerNote: "",
           customerPhone: "",
           deliveryAddress: "",
-          quantities,
-          noteSelections,
+          lines: data.availableItems.map((item) => ({
+            id: crypto.randomUUID(),
+            productId: item.productId,
+            quantity: item.quantity,
+            note: "",
+            noteOptionIds: item.noteOptionIds,
+            bundleChoiceIds: [],
+          })),
         }),
       );
     } catch {
@@ -99,8 +99,8 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
           <section className="mt-7 border-y border-stone-200 py-5">
             <h2 className="font-semibold">可再次選購</h2>
             <div className="mt-3 divide-y divide-stone-100">
-              {data.availableItems.map((item) => (
-                <div key={item.productId} className="grid gap-2 py-3 sm:grid-cols-[1fr_auto]">
+              {data.availableItems.map((item, index) => (
+                <div key={`${item.productId}-${index}`} className="grid gap-2 py-3 sm:grid-cols-[1fr_auto]">
                   <div>
                     <p className="font-medium">{item.quantity} × {item.name}</p>
                     {item.needsReview ? <p className="mt-1 text-xs font-medium text-amber-800">商品選項已變更，進入菜單後請重新確認。</p> : null}

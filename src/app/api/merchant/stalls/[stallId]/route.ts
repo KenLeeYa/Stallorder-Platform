@@ -6,7 +6,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { evaluateStallCreation } from "@/lib/billing";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { updateStallSchema } from "@/lib/stall-validation";
+import { getStallFieldErrors, stallFieldLabels, updateStallSchema } from "@/lib/stall-validation";
 import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
 
 type RouteContext = { params: Promise<{ stallId: string }> };
@@ -26,8 +26,15 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = updateStallSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getStallFieldErrors(parsed.error);
+    const invalidFields = Object.keys(fieldErrors).map((field) => stallFieldLabels[field as keyof typeof stallFieldLabels]);
     return NextResponse.json(
-      { error: "攤位資料格式不正確，請檢查後再試。" },
+      {
+        error: invalidFields.length
+          ? `請檢查以下欄位：${invalidFields.join("、")}。`
+          : "攤位資料格式不正確，請檢查後再試。",
+        fieldErrors,
+      },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -171,7 +178,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     };
     const entitlementMessage = entitlementMessages[code];
     return NextResponse.json(
-      { error: conflict ? "攤位代碼已被使用。" : entitlementMessage ?? "目前無法更新攤位。" },
+      {
+        error: conflict ? "攤位代碼已被使用。" : entitlementMessage ?? "目前無法更新攤位。",
+        ...(conflict ? { fieldErrors: { code: "此攤位代碼已被使用，請改用其他代碼。" } } : {}),
+      },
       { status: conflict || entitlementMessage ? 409 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }

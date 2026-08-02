@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   lookupResumablePublicOrder: vi.fn(),
   persistPickupCodeDisplay: vi.fn(),
   recordPublicOrderAttempt: vi.fn(),
+  resolvePublicOrderingMode: vi.fn(),
   revokeOrderSession: vi.fn(),
 }));
 
@@ -52,6 +53,7 @@ vi.mock("@/server/public-order/trusted-rpc-repository", () => ({
   lookupResumablePublicOrder: mocks.lookupResumablePublicOrder,
   persistPickupCodeDisplay: mocks.persistPickupCodeDisplay,
   recordPublicOrderAttempt: mocks.recordPublicOrderAttempt,
+  resolvePublicOrderingMode: mocks.resolvePublicOrderingMode,
   revokeOrderSession: mocks.revokeOrderSession,
 }));
 
@@ -91,6 +93,9 @@ describe("Circuit B public order service", () => {
     });
     mocks.checkGlobalPublicRequestGate.mockResolvedValue({ ok: true });
     mocks.checkPublicOrderIntakeAvailability.mockResolvedValue({ ok: true });
+    mocks.resolvePublicOrderingMode.mockImplementation(
+      async (_qrToken: string, orderingMode: string) => orderingMode,
+    );
     mocks.lookupResumablePublicOrder.mockResolvedValue(null);
     mocks.getOrderSessionMode.mockResolvedValue({
       id: "66666666-6666-4666-8666-666666666666",
@@ -179,6 +184,7 @@ describe("Circuit B public order service", () => {
 
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({
+      orderingMode: "DEFAULT",
       resumeOrder: { orderStatus: "WAITING_CONFIRMATION" },
     });
     expect(mocks.issueIdempotentOrderSession).not.toHaveBeenCalled();
@@ -208,6 +214,112 @@ describe("Circuit B public order service", () => {
     expect(mocks.checkGlobalPublicRequestGate).not.toHaveBeenCalled();
   });
 
+  it("uses the resolved preorder mode for resume, session issue, menu cache, and response", async () => {
+    mocks.resolvePublicOrderingMode.mockResolvedValue("PREORDER");
+    mocks.issueIdempotentOrderSession.mockResolvedValue({
+      ok: true,
+      stall_id: "88888888-8888-4888-8888-888888888888",
+      order_session_id: "66666666-6666-4666-8666-666666666666",
+      expires_at: "2026-08-02T12:00:00.000Z",
+      capacity: {
+        quote_min_minutes: 10,
+        quote_max_minutes: 15,
+        acknowledgment_threshold_minutes: 20,
+        requires_acknowledgment: false,
+      },
+    });
+    mocks.getPublicSessionMenuContext.mockResolvedValue({
+      diningTable: null,
+      stall: {
+        orderingSettings: {
+          dineInEnabled: true,
+          deliveryModuleEnabled: true,
+        },
+      },
+    });
+    mocks.getCachedPublicMenuForQrToken.mockResolvedValue({
+      orderingMode: "PREORDER",
+      preorderSlots: ["2026-08-03T04:00:00.000Z"],
+      lotteryEnabled: false,
+    });
+    const { issueOrderSessionThroughCircuitB } = await import("./circuit-b-service");
+
+    const result = await issueOrderSessionThroughCircuitB({
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      sessionRequestId: "22222222-2222-4222-8222-222222222222",
+      orderingMode: "DEFAULT",
+      includeMenu: true,
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    });
+
+    expect(mocks.lookupResumablePublicOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ orderingMode: "PREORDER" }),
+    );
+    expect(mocks.issueIdempotentOrderSession).toHaveBeenCalledWith(
+      expect.objectContaining({ orderingMode: "PREORDER" }),
+    );
+    expect(mocks.getCachedPublicMenuForQrToken).toHaveBeenCalledWith(
+      "demo-aming-chicken-qr-2026-rotate-me",
+      "PREORDER",
+    );
+    expect(result.body).toMatchObject({
+      orderingMode: "PREORDER",
+      preorderSlots: ["2026-08-03T04:00:00.000Z"],
+      lotteryEnabled: false,
+      estimatedWaitMinutes: 0,
+      estimatedWaitMinMinutes: 0,
+      estimatedWaitMaxMinutes: 0,
+      waitAcknowledgmentThresholdMinutes: null,
+      requiresWaitAcknowledgment: false,
+    });
+  });
+
+  it("always disables lottery in a delivery session response", async () => {
+    mocks.issueIdempotentOrderSession.mockResolvedValue({
+      ok: true,
+      stall_id: "88888888-8888-4888-8888-888888888888",
+      order_session_id: "66666666-6666-4666-8666-666666666666",
+      expires_at: "2026-08-02T12:00:00.000Z",
+    });
+    mocks.getPublicSessionMenuContext.mockResolvedValue({
+      diningTable: null,
+      stall: {
+        orderingSettings: {
+          dineInEnabled: true,
+          deliveryModuleEnabled: true,
+        },
+      },
+    });
+    mocks.getCachedPublicMenuForQrToken.mockResolvedValue({
+      orderingMode: "DELIVERY",
+      preorderSlots: [],
+      lotteryEnabled: true,
+    });
+    const { issueOrderSessionThroughCircuitB } = await import("./circuit-b-service");
+
+    const result = await issueOrderSessionThroughCircuitB({
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      sessionRequestId: "22222222-2222-4222-8222-222222222222",
+      orderingMode: "DELIVERY",
+      includeMenu: true,
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    });
+
+    expect(result.body).toMatchObject({
+      orderingMode: "DELIVERY",
+      preorderSlots: [],
+      lotteryEnabled: false,
+    });
+  });
+
   it("records invalid Turnstile and never reaches the trusted create-order RPC", async () => {
     mocks.verifyTurnstile.mockResolvedValue({
       ok: false,
@@ -232,6 +344,51 @@ describe("Circuit B public order service", () => {
       }),
     );
     expect(mocks.createPublicOrderWithSchedule).not.toHaveBeenCalled();
+  });
+
+  it("canonicalizes UUID casing before Circuit B abuse hashing", async () => {
+    mocks.verifyTurnstile.mockResolvedValue({
+      ok: false,
+      code: "INVALID_TURNSTILE",
+      errors: ["invalid-input-response"],
+    });
+    const { createOrderThroughCircuitB } = await import("./circuit-b-service");
+    const lower = {
+      ...validOrder(),
+      items: [{
+        productId: "abcdefab-cdef-4abc-8def-abcdefabcdef",
+        quantity: 1,
+        note: "",
+        noteOptionIds: ["fedcbafe-dcba-4fed-8cba-fedcbafedcba"],
+        bundleChoiceIds: ["abcdefab-1234-4abc-8def-abcdefabcdef"],
+      }],
+    };
+    const upper = {
+      ...lower,
+      items: lower.items.map((item) => ({
+        ...item,
+        productId: item.productId.toUpperCase(),
+        noteOptionIds: item.noteOptionIds.map((id) => id.toUpperCase()),
+        bundleChoiceIds: item.bundleChoiceIds.map((id) => id.toUpperCase()),
+      })),
+    };
+    const context = {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    };
+
+    await expect(createOrderThroughCircuitB(lower, context)).rejects.toMatchObject({
+      code: "INVALID_TURNSTILE",
+    });
+    await expect(createOrderThroughCircuitB(upper, context)).rejects.toMatchObject({
+      code: "INVALID_TURNSTILE",
+    });
+
+    expect(mocks.checkGlobalPublicRequestGate).toHaveBeenCalledTimes(2);
+    expect(mocks.checkGlobalPublicRequestGate.mock.calls[0][0].behaviorHash).toBe(
+      mocks.checkGlobalPublicRequestGate.mock.calls[1][0].behaviorHash,
+    );
   });
 
   it("returns the prior order for an idempotent replay without reusing Turnstile", async () => {

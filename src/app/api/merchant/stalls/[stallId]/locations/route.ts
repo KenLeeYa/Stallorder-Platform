@@ -1,7 +1,9 @@
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
+import { getZodFieldErrors } from "@/lib/form-field-errors";
 import { readJson } from "@/lib/http";
 import { hashClientIp } from "@/lib/security";
 import { stallLocationCommandSchema } from "@/lib/stall-schedule-contract";
@@ -54,8 +56,17 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = stallLocationCommandSchema.safeParse(body.data);
   if (!parsed.success) {
+    const fieldErrors = getZodFieldErrors(parsed.error, {
+      name: "地點名稱",
+      address: "地址",
+      latitude: "緯度",
+      longitude: "經度",
+      mapUrl: "地圖網址",
+      instructions: "到場說明",
+      reason: "刪除原因",
+    });
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "地點資料不正確。" },
+      { error: Object.values(fieldErrors)[0] ?? "地點資料不正確。", fieldErrors },
       { status: 400, headers: noStoreHeaders(authorization.requestId) },
     );
   }
@@ -86,6 +97,15 @@ export async function PATCH(request: Request, context: RouteContext) {
       { headers: noStoreHeaders(authorization.requestId) },
     );
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json(
+        {
+          error: "此地點名稱已被使用，請改用其他名稱。",
+          fieldErrors: { name: "此地點名稱已被使用，請改用其他名稱。" },
+        },
+        { status: 409, headers: noStoreHeaders(authorization.requestId) },
+      );
+    }
     return stallScheduleErrorResponse(error, authorization.requestId);
   }
 }

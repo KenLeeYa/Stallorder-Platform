@@ -45,6 +45,9 @@ const optionFields = {
   isActive: z.boolean(),
   translations,
 } as const;
+const reusableNoteFields = {
+  ...optionFields,
+} as const;
 
 export const productNoteCommandSchema = z.discriminatedUnion("operation", [
   createGroup,
@@ -61,6 +64,22 @@ export const productNoteCommandSchema = z.discriminatedUnion("operation", [
     ...optionFields,
   }).strict(),
   z.object({ operation: z.literal("DELETE_NOTE_OPTION"), noteOptionId: uuid }).strict(),
+  z.object({
+    operation: z.literal("CREATE_REUSABLE_NOTE"),
+    ...reusableNoteFields,
+  }).strict(),
+  z.object({
+    operation: z.literal("UPDATE_REUSABLE_NOTE"),
+    reusableNoteId: uuid,
+    ...reusableNoteFields,
+  }).strict(),
+  z.object({ operation: z.literal("DELETE_REUSABLE_NOTE"), reusableNoteId: uuid }).strict(),
+  z.object({
+    operation: z.literal("ATTACH_REUSABLE_NOTE"),
+    noteGroupId: uuid,
+    reusableNoteId: uuid,
+    sortOrder,
+  }).strict(),
 ]).superRefine((command, context) => {
   if (command.operation !== "CREATE_NOTE_GROUP" && command.operation !== "UPDATE_NOTE_GROUP") return;
   if (command.selectionMode === "SINGLE" && command.maxSelections !== 1) {
@@ -79,3 +98,35 @@ export const productNoteCommandSchema = z.discriminatedUnion("operation", [
     context.addIssue({ code: "custom", path: ["maxSelections"], message: "最多選取數不可小於最少選取數。" });
   }
 });
+
+const productNoteFieldLabels: Record<string, string> = {
+  name: "名稱",
+  priceDelta: "加減價",
+  sortOrder: "排序",
+  selectionMode: "選取方式",
+  isRequired: "是否必選",
+  minSelections: "最少選取數",
+  maxSelections: "最多選取數",
+  productIds: "指派商品",
+  noteGroupId: "註記群組",
+  reusableNoteId: "共用單一註記",
+};
+
+export function getProductNoteFieldErrors(error: z.ZodError): Record<string, string> {
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const field = typeof issue.path[0] === "string" ? issue.path[0] : "_form";
+    if (fieldErrors[field]) continue;
+    const label = productNoteFieldLabels[field] ?? "欄位";
+    fieldErrors[field] = issue.code === "custom"
+      ? issue.message
+      : `「${label}」輸入不正確，請依欄位限制重新輸入。`;
+  }
+  return fieldErrors;
+}
+
+export function getReusableProductNoteDuplicateFieldErrors(operation: string) {
+  return operation === "CREATE_REUSABLE_NOTE" || operation === "UPDATE_REUSABLE_NOTE"
+    ? { name: "已有相同名稱的共用單一註記，請使用其他名稱。" }
+    : {};
+}

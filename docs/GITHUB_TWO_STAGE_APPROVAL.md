@@ -8,7 +8,7 @@ Production changes use an explicit Plan and Apply contract.
 
 The gate covers:
 
-- Production application deployment and Supabase migrations;
+- Production application deployment, Supabase migrations and Edge Functions;
 - Production DR bootstrap, failover drill and Storage canary; and
 - the independent Cloudflare Status Page deployment.
 
@@ -53,8 +53,10 @@ remain enabled.
    - `plan_run_id=<reviewed run>`; and
    - `confirmation=APPLY_PRODUCTION_RELEASE`.
 5. Apply builds a Production-target Vercel deployment without assigning the
-   domain, applies and verifies migrations, promotes the deployment, then runs
-   the Production smoke test.
+   domain, applies and verifies migrations, deploys and verifies every
+   repository Edge Function, promotes the deployment, then runs the Production
+   smoke test. The protected `PRODUCTION_TEST_QR_URL` is required and must be a
+   same-origin `/q/<token>` route.
 
 If the smoke fails after promotion, the workflow rolls the Vercel alias back.
 Database migrations remain forward-only and must use an additive or otherwise

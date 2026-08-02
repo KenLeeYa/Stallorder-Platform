@@ -93,6 +93,13 @@ enum ProductNoteSelectionMode {
   @@map("product_note_selection_mode")
 }
 
+enum ProductKind {
+  SINGLE
+  BUNDLE
+
+  @@map("product_kind")
+}
+
 enum PaymentOptionKind {
   CASH
   LINE_PAY
@@ -355,6 +362,10 @@ model Organization {
   productGroups                 ProductGroup[]
   products                      Product[]
   productTranslations           ProductTranslation[]
+  productBundleChoiceGroups     ProductBundleChoiceGroup[]
+  productBundleChoices          ProductBundleChoice[]
+  reusableProductNotes          ReusableProductNote[]
+  reusableProductNoteTranslations ReusableProductNoteTranslation[]
   productNoteGroups             ProductNoteGroup[]
   productNoteOptions            ProductNoteOption[]
   productNoteGroupTranslations  ProductNoteGroupTranslation[]
@@ -1428,6 +1439,7 @@ model Product {
   name                 String
   description          String
   defaultPrice         Int                          @map("default_price")
+  kind                 ProductKind                  @default(SINGLE)
   imageUrl             String?                      @map("image_url")
   isActive             Boolean                      @default(true) @map("is_active")
   sortOrder            Int                          @default(0) @map("sort_order")
@@ -1439,6 +1451,8 @@ model Product {
   stallProducts        StallProduct[]
   orderItems           OrderItem[]
   translations         ProductTranslation[]
+  bundleChoiceGroups   ProductBundleChoiceGroup[]   @relation("BundleProductChoiceGroups")
+  componentChoices     ProductBundleChoice[]        @relation("BundleComponentChoices")
   noteGroupAssignments ProductNoteGroupAssignment[]
   kitchenStationAssignments KitchenStationAssignment[]
   capacityRules         ProductCapacityRule[]
@@ -1446,6 +1460,46 @@ model Product {
   @@index([organizationId, categoryId, sortOrder])
   @@index([organizationId, groupId])
   @@map("products")
+}
+
+model ProductBundleChoiceGroup {
+  id                String                @id @default(uuid()) @db.Uuid
+  organizationId    String                @map("organization_id") @db.Uuid
+  bundleProductId   String                @map("bundle_product_id") @db.Uuid
+  name              String
+  minSelections     Int                   @default(1) @map("min_selections")
+  maxSelections     Int                   @default(1) @map("max_selections")
+  sortOrder         Int                   @default(0) @map("sort_order")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bundleProduct     Product               @relation("BundleProductChoiceGroups", fields: [bundleProductId], references: [id], onDelete: Cascade)
+  choices           ProductBundleChoice[]
+
+  @@unique([bundleProductId, name])
+  @@index([organizationId, bundleProductId, sortOrder])
+  @@map("product_bundle_choice_groups")
+}
+
+model ProductBundleChoice {
+  id                 String                   @id @default(uuid()) @db.Uuid
+  organizationId     String                   @map("organization_id") @db.Uuid
+  choiceGroupId      String                   @map("choice_group_id") @db.Uuid
+  componentProductId String                   @map("component_product_id") @db.Uuid
+  quantity           Int                      @default(1)
+  priceDelta         Int                      @default(0) @map("price_delta")
+  isEnabled          Boolean                  @default(true) @map("is_enabled")
+  sortOrder          Int                      @default(0) @map("sort_order")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @updatedAt @map("updated_at")
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  choiceGroup        ProductBundleChoiceGroup @relation(fields: [choiceGroupId], references: [id], onDelete: Cascade)
+  componentProduct   Product                  @relation("BundleComponentChoices", fields: [componentProductId], references: [id], onDelete: Restrict)
+
+  @@unique([choiceGroupId, componentProductId])
+  @@index([organizationId, choiceGroupId, sortOrder])
+  @@index([organizationId, componentProductId])
+  @@map("product_bundle_choices")
 }
 
 model ProductTranslation {
@@ -1488,10 +1542,46 @@ model ProductNoteGroup {
   @@map("product_note_groups")
 }
 
+model ReusableProductNote {
+  id             String                           @id @default(uuid()) @db.Uuid
+  organizationId String                           @map("organization_id") @db.Uuid
+  name           String
+  priceDelta     Int                              @default(0) @map("price_delta")
+  sortOrder      Int                              @default(0) @map("sort_order")
+  isActive       Boolean                          @default(true) @map("is_active")
+  createdAt      DateTime                         @default(now()) @map("created_at")
+  updatedAt      DateTime                         @updatedAt @map("updated_at")
+  organization   Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  translations   ReusableProductNoteTranslation[]
+  linkedOptions  ProductNoteOption[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, name])
+  @@index([organizationId, sortOrder, name])
+  @@map("reusable_product_notes")
+}
+
+model ReusableProductNoteTranslation {
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @map("organization_id") @db.Uuid
+  reusableNoteId String              @map("reusable_note_id") @db.Uuid
+  locale         String
+  name           String
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reusableNote   ReusableProductNote @relation(fields: [reusableNoteId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@unique([reusableNoteId, locale])
+  @@index([organizationId, locale])
+  @@map("reusable_product_note_translations")
+}
+
 model ProductNoteOption {
   id             String                         @id @default(uuid()) @db.Uuid
   organizationId String                         @map("organization_id") @db.Uuid
   noteGroupId    String                         @map("note_group_id") @db.Uuid
+  reusableNoteId String?                        @map("reusable_note_id") @db.Uuid
   name           String
   priceDelta     Int                            @default(0) @map("price_delta")
   sortOrder      Int                            @default(0) @map("sort_order")
@@ -1500,6 +1590,7 @@ model ProductNoteOption {
   updatedAt      DateTime                       @updatedAt @map("updated_at")
   organization   Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   noteGroup      ProductNoteGroup               @relation(fields: [noteGroupId], references: [id], onDelete: Cascade)
+  reusableNote   ReusableProductNote?            @relation(fields: [reusableNoteId, organizationId], references: [id, organizationId], onDelete: Restrict)
   translations   ProductNoteOptionTranslation[]
   orderItemNotes OrderItemNoteOption[]
 
@@ -1636,10 +1727,18 @@ model StallOrderingSettings {
   maxBehaviorFrequency           Int          @default(4) @map("max_behavior_frequency")
   dineInEnabled                  Boolean      @default(false) @map("dine_in_enabled")
   deliveryModuleEnabled          Boolean      @default(false) @map("delivery_module_enabled")
+  staffDeliveryEnabled           Boolean      @default(false) @map("staff_delivery_enabled")
   printModuleEnabled             Boolean      @default(false) @map("print_module_enabled")
   paymentModuleEnabled           Boolean      @default(true) @map("payment_module_enabled")
   discountModuleEnabled          Boolean      @default(false) @map("discount_module_enabled")
   discountApprovalThresholdBps   Int          @default(8000) @map("discount_approval_threshold_bps")
+  takeoutPreorderEnabled         Boolean      @default(false) @map("takeout_preorder_enabled")
+  preorderMinLeadMinutes         Int          @default(60) @map("preorder_min_lead_minutes") @db.SmallInt
+  preorderMaxDays                Int          @default(7) @map("preorder_max_days") @db.SmallInt
+  preorderSlotMinutes            Int          @default(30) @map("preorder_slot_minutes") @db.SmallInt
+  lotteryEnabled                 Boolean      @default(false) @map("lottery_enabled")
+  lotteryDiscountOptionId        String?      @map("lottery_discount_option_id") @db.Uuid
+  lotteryDiscountWinRateBps      Int          @default(0) @map("lottery_discount_win_rate_bps") @db.SmallInt
   estimatedWaitMinutes           Int          @default(15) @map("estimated_wait_minutes")
   businessDayCutoffHour          Int          @default(0) @map("business_day_cutoff_hour") @db.SmallInt
   enabledLocales                 String[]     @default(["zh-TW"]) @map("enabled_locales")
@@ -1933,6 +2032,7 @@ model OrderSession {
   revokedAt      DateTime?          @map("revoked_at")
   orderId        String?            @unique @map("order_id") @db.Uuid
   orderingMode   String             @default("DEFAULT") @map("ordering_mode")
+  requestedFulfillmentAt DateTime?  @map("requested_fulfillment_at")
   locationId     String?            @map("location_id") @db.Uuid
   marketEventId  String?            @map("market_event_id") @db.Uuid
   stallScheduleId String?           @map("stall_schedule_id") @db.Uuid
@@ -1974,6 +2074,8 @@ model Order {
   platformDiscountAmount   Int?                @map("platform_discount_amount")
   merchantDiscountAmount   Int?                @map("merchant_discount_amount")
   scheduledPickupAt        DateTime?           @map("scheduled_pickup_at")
+  discountSource           String                 @default("NONE") @map("discount_source")
+  lotteryDrawId            String?                @unique @map("lottery_draw_id") @db.Uuid
   riderPickupAt            DateTime?           @map("rider_pickup_at")
   customerName             String              @map("customer_name")
   customerPhone            String?             @map("customer_phone")
@@ -2297,6 +2399,7 @@ model OrderItem {
   stallId        String                @map("stall_id") @db.Uuid
   orderId        String                @map("order_id") @db.Uuid
   productId      String?               @map("product_id") @db.Uuid
+  sourceLineIndex Int?                 @map("source_line_index") @db.SmallInt
   name           String
   baseUnitPrice  Int                   @map("base_unit_price")
   unitPrice      Int                   @map("unit_price")
