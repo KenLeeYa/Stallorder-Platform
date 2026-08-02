@@ -7,6 +7,7 @@ const stallId = "22222222-2222-4222-8222-222222222222";
 test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", async ({ browser, page }, testInfo) => {
   test.setTimeout(180_000);
   await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
   const loginResponse = page.waitForResponse((response) => (

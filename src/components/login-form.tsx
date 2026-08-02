@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useSyncExternalStore, type FormEvent } from "react";
-import { LogIn } from "lucide-react";
+import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { KeyRound, LogIn, X } from "lucide-react";
 
 const oauthErrorMessages: Record<string, string> = {
   "not-configured": "第三方登入尚未完成環境設定。",
@@ -41,7 +41,17 @@ export function LoginForm({
     : "";
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const error = submissionError ?? urlError;
+  const passwordDialogRef = useRef<HTMLDialogElement>(null);
+  const hasOAuthProvider = oauthProviders.length > 0 || legacyGoogleEnabled;
+
+  function openPasswordDialog() {
+    setSubmissionError(null);
+    if (!passwordDialogRef.current?.open) passwordDialogRef.current?.showModal();
+  }
+
+  function closePasswordDialog() {
+    if (!isSubmitting) passwordDialogRef.current?.close();
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,74 +83,61 @@ export function LoginForm({
   }
 
   return (
-    <form onSubmit={submit} className="w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+    <section
+      aria-labelledby="login-title"
+      className="w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+    >
       <div className="mb-6">
         <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-md bg-teal-50 text-teal-800">
           <LogIn className="h-5 w-5" />
         </div>
-        <h1 className="text-2xl font-semibold">登入攤點通</h1>
+        <h1 id="login-title" className="text-2xl font-semibold">登入攤點通</h1>
         <p className="mt-2 text-sm text-stone-600">商戶、店員與廚房人員共用此登入入口。</p>
       </div>
-      {!oauthOnly ? (
-        <div className="space-y-4">
-          <label className="block text-sm font-medium">
-            電子郵件
-            <input
-              name="email"
-              type="email"
-              autoComplete="username"
-              maxLength={120}
-              required
-              className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5"
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            密碼
-            <input
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              maxLength={128}
-              required
-              className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5"
-            />
-          </label>
-        </div>
-      ) : null}
-      {error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
-      {!oauthOnly ? (
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          <LogIn className="h-4 w-4" />
-          {isSubmitting ? "登入中..." : "登入"}
-        </button>
-      ) : null}
-      {oauthProviders.length > 0 || legacyGoogleEnabled ? (
+      {urlError ? <p role="alert" className="mb-4 text-sm text-red-700">{urlError}</p> : null}
+      {hasOAuthProvider ? (
         <>
-          <div className="my-5 flex items-center gap-3 text-xs text-stone-500"><span className="h-px flex-1 bg-stone-200" /><span>或</span><span className="h-px flex-1 bg-stone-200" /></div>
           <div className="space-y-3">
             {oauthProviders.map((provider) => (
               <a
                 key={provider.provider}
                 href={`/api/auth/${provider.provider.toLowerCase()}/start${requestedNextPath ? `?next=${encodeURIComponent(requestedNextPath)}` : ""}`}
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 hover:bg-stone-50"
+                className={provider.provider === "GOOGLE"
+                  ? "inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800"
+                  : "inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 hover:bg-stone-50"}
               >
                 <LogIn className="h-4 w-4" />
                 使用 {provider.label} 登入
               </a>
             ))}
             {legacyGoogleEnabled ? (
-              <a href={`/auth/google${requestedNextPath ? `?next=${encodeURIComponent(requestedNextPath)}` : ""}`} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 hover:bg-stone-50"><LogIn className="h-4 w-4" />使用 Google 登入</a>
+              <a href={`/auth/google${requestedNextPath ? `?next=${encodeURIComponent(requestedNextPath)}` : ""}`} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800"><LogIn className="h-4 w-4" />使用 Google 登入</a>
             ) : null}
           </div>
           <p className="mt-3 text-center text-xs text-stone-500">
             {legacyGoogleEnabled && oauthProviders.length === 0
-              ? "已註冊商家請使用 Google 帳號登入。"
+              ? "已註冊商家請優先使用 Google 帳號登入。"
               : "請使用帳號已連結的登入方式。"}
           </p>
+        </>
+      ) : null}
+      {!oauthOnly ? (
+        <>
+          {hasOAuthProvider ? (
+            <div className="my-5 flex items-center gap-3 text-xs text-stone-500">
+              <span className="h-px flex-1 bg-stone-200" />
+              <span>其他登入方式</span>
+              <span className="h-px flex-1 bg-stone-200" />
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={openPasswordDialog}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 hover:bg-stone-50"
+          >
+            <KeyRound className="h-4 w-4" />
+            使用電子郵件與密碼登入
+          </button>
         </>
       ) : null}
       {oauthOnly && oauthProviders.length === 0 ? (
@@ -148,7 +145,75 @@ export function LoginForm({
           此環境目前沒有可用的登入方式，請聯絡平台管理員。
         </p>
       ) : null}
-    </form>
+      {!oauthOnly ? (
+        <dialog
+          ref={passwordDialogRef}
+          aria-labelledby="password-login-title"
+          aria-describedby="password-login-description"
+          onCancel={(event) => {
+            if (isSubmitting) event.preventDefault();
+          }}
+          className="m-auto w-[calc(100%-2rem)] max-w-md rounded-lg border border-stone-200 bg-white p-0 text-stone-950 shadow-2xl backdrop:bg-stone-950/70"
+        >
+          <form onSubmit={submit} className="p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="password-login-title" className="text-xl font-semibold">使用帳密登入</h2>
+                <p id="password-login-description" className="mt-1 text-sm text-stone-600">
+                  僅供已建立帳密的商戶、店員與廚房人員使用。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closePasswordDialog}
+                disabled={isSubmitting}
+                aria-label="關閉帳密登入"
+                title="關閉"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-stone-300 text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-5 space-y-4">
+              <label className="block text-sm font-medium">
+                電子郵件
+                <input
+                  name="email"
+                  type="email"
+                  autoComplete="username"
+                  maxLength={120}
+                  required
+                  autoFocus
+                  className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5"
+                />
+              </label>
+              <label className="block text-sm font-medium">
+                密碼
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  maxLength={128}
+                  required
+                  className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5"
+                />
+              </label>
+            </div>
+            {submissionError ? (
+              <p role="alert" className="mt-4 text-sm text-red-700">{submissionError}</p>
+            ) : null}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white hover:bg-stone-800 disabled:opacity-50"
+            >
+              <LogIn className="h-4 w-4" />
+              {isSubmitting ? "登入中..." : "登入"}
+            </button>
+          </form>
+        </dialog>
+      ) : null}
+    </section>
   );
 }
 

@@ -62,6 +62,7 @@ async function createDisplayOrder(input: {
 
 async function loginAsOwner(page: Page) {
   await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.locator('input[type="email"]').fill("owner@stallorder.test");
   await page.locator('input[type="password"]').fill("StallOrderDemo!2026");
   const response = page.waitForResponse((candidate) => (

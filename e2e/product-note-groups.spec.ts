@@ -6,6 +6,7 @@ const takeoutQrToken = "demo-aming-chicken-qr-2026-rotate-me";
 
 async function login(page: Page, email: string) {
   await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();

@@ -9,12 +9,31 @@ test("手機登入欄位具備正確語意、焦點與無水平溢位", async ({
 
   await expect(page.getByRole("heading", { name: "登入攤點通" })).toBeVisible();
   await expect(page.getByText("StallOrder", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("已註冊商家請使用 Google 帳號登入。", { exact: true })).toBeVisible();
+  await expect(page.getByText("已註冊商家請優先使用 Google 帳號登入。", { exact: true })).toBeVisible();
   await expect(page.getByText(/平台管理員請使用/)).toHaveCount(0);
 
   const email = page.locator('input[name="email"]');
   const passwordInput = page.locator('input[name="password"]');
   const submit = page.locator('button[type="submit"]');
+  const googleLogin = page.getByRole("link", { name: "使用 Google 登入", exact: true });
+  const passwordLogin = page.getByRole("button", {
+    name: "使用電子郵件與密碼登入",
+    exact: true,
+  });
+
+  await expect(googleLogin).toBeVisible();
+  await expect(passwordLogin).toBeVisible();
+  await expect(email).toBeHidden();
+  await expect(passwordInput).toBeHidden();
+  expect((await googleLogin.boundingBox())!.y).toBeLessThan((await passwordLogin.boundingBox())!.y);
+
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".skip-link")).toBeFocused();
+
+  await passwordLogin.click();
+  const dialog = page.getByRole("dialog", { name: "使用帳密登入" });
+  await expect(dialog).toBeVisible();
+  await expect(email).toBeFocused();
 
   await expect(email).toHaveAttribute("type", "email");
   await expect(email).toHaveAttribute("maxlength", "120");
@@ -23,12 +42,14 @@ test("手機登入欄位具備正確語意、焦點與無水平溢位", async ({
   expect((await submit.boundingBox())?.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 
-  await page.keyboard.press("Tab");
-  await expect(page.locator(".skip-link")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(passwordLogin).toBeFocused();
 });
 
 test("示範 Owner 可登入並建立有效 session", async ({ page }) => {
   await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(ownerEmail);
   await page.getByLabel("密碼").fill(password);
 
@@ -66,6 +87,7 @@ test("瀏覽器擴充套件修改 body 屬性時不會阻擋登入", async ({ pa
   });
 
   await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.locator('input[name="email"]').fill(ownerEmail);
   await page.locator('input[name="password"]').fill(password);
   const loginResponse = page.waitForResponse((response) => (
