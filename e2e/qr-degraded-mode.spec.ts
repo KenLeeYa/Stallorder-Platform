@@ -255,6 +255,7 @@ test("已快取的 QR 菜單在網路中斷後維持唯讀", async ({ context, p
     "data-ordering-availability",
     "AVAILABLE",
   );
+  await expect(page.getByText(/點餐時間剩餘 \d{1,2}:\d{2}/)).toBeVisible();
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
   });
@@ -273,6 +274,7 @@ test("已快取的 QR 菜單在網路中斷後維持唯讀", async ({ context, p
     "data-ordering-availability",
     "AVAILABLE",
   );
+  await expect(page.getByText(/點餐時間剩餘 \d{1,2}:\d{2}/)).toBeVisible();
   await context.setOffline(true);
   try {
     await page.reload({ waitUntil: "domcontentloaded" });
