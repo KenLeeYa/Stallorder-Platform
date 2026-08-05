@@ -1,12 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
+  focusFirstInvalidField,
   getZodFieldErrors,
   parseFieldErrors,
   withoutFieldError,
 } from "./form-field-errors";
 
 describe("form field errors", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("保留繁體中文自訂訊息，並只保留每個欄位的第一個錯誤", () => {
     const schema = z.object({
       name: z.string().min(1, "請填寫名稱。").max(2, "名稱過長。"),
@@ -37,5 +42,56 @@ describe("form field errors", () => {
     const parsed = parseFieldErrors({ name: "請填寫名稱。", count: 1, empty: "" });
     expect(parsed).toEqual({ name: "請填寫名稱。" });
     expect(withoutFieldError(parsed, "name")).toEqual({});
+  });
+
+  it("欄位解除停用前會跨畫面更新重試聚焦", () => {
+    const frames: FrameRequestCallback[] = [];
+    let focused = false;
+    let focusAttempts = 0;
+    const focus = vi.fn(() => {
+      focusAttempts += 1;
+      focused = focusAttempts > 1;
+    });
+    const control = {
+      focus,
+      matches: vi.fn(() => focused),
+    } as unknown as HTMLElement;
+    const container = {
+      querySelector: vi.fn(() => control),
+    } as unknown as ParentNode;
+    vi.stubGlobal("CSS", { escape: (value: string) => value });
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    }));
+
+    focusFirstInvalidField(container, { resolutionStatus: "請選擇處理結果。" });
+    while (frames.length > 0) frames.shift()?.(0);
+
+    expect(focus).toHaveBeenCalledTimes(2);
+    expect(control.matches).toHaveBeenCalledWith(":focus");
+    expect(container.querySelector).toHaveBeenCalledWith('[data-field-key="resolutionStatus"]');
+  });
+
+  it("無法取得焦點時最多嘗試四次", () => {
+    const frames: FrameRequestCallback[] = [];
+    const focus = vi.fn();
+    const control = {
+      focus,
+      matches: vi.fn(() => false),
+    } as unknown as HTMLElement;
+    const container = {
+      querySelector: vi.fn(() => control),
+    } as unknown as ParentNode;
+    vi.stubGlobal("CSS", { escape: (value: string) => value });
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    }));
+
+    focusFirstInvalidField(container, { reason: "請填寫原因。" });
+    while (frames.length > 0) frames.shift()?.(0);
+
+    expect(focus).toHaveBeenCalledTimes(4);
   });
 });
