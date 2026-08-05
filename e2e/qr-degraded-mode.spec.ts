@@ -244,8 +244,17 @@ test("已快取的 QR 菜單在網路中斷後維持唯讀", async ({ context, p
     "Service Worker 導覽快取只在 production-mode E2E 驗證。",
   );
   await page.setViewportSize({ width: 390, height: 844 });
+  const initialSessionResponse = page.waitForResponse((response) => (
+    response.request().method() === "POST"
+    && new URL(response.url()).pathname.endsWith("/create-order-session")
+  ));
   await page.goto(`/q/${demoQrToken}`);
+  await initialSessionResponse;
   await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
+  await expect(page.getByTestId("qr-session-status")).toHaveAttribute(
+    "data-ordering-availability",
+    "AVAILABLE",
+  );
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
   });
@@ -253,8 +262,17 @@ test("已快取的 QR 菜單在網路中斷後維持唯讀", async ({ context, p
     () => page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
   ).toBe(true);
 
+  const reloadedSessionResponse = page.waitForResponse((response) => (
+    response.request().method() === "POST"
+    && new URL(response.url()).pathname.endsWith("/create-order-session")
+  ));
   await page.reload();
+  await reloadedSessionResponse;
   await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
+  await expect(page.getByTestId("qr-session-status")).toHaveAttribute(
+    "data-ordering-availability",
+    "AVAILABLE",
+  );
   await context.setOffline(true);
   try {
     await page.reload({ waitUntil: "domcontentloaded" });
