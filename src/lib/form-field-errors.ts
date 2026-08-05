@@ -38,9 +38,18 @@ export function focusFirstInvalidField(
 ) {
   const field = Object.keys(fieldErrors).find((candidate) => candidate !== "_form");
   if (!field) return;
-  requestAnimationFrame(() => {
+
+  const focus = (attempt: number) => {
     requestAnimationFrame(() => {
-      container?.querySelector<HTMLElement>(`[data-field-key="${CSS.escape(field)}"]`)?.focus();
+      const control = container?.querySelector<HTMLElement>(`[data-field-key="${CSS.escape(field)}"]`);
+      if (!control) return;
+
+      control.focus();
+      if (!control.matches(":focus") && attempt < 4) focus(attempt + 1);
     });
+  };
+
+  requestAnimationFrame(() => {
+    focus(1);
   });
 }

@@ -251,11 +251,12 @@ test("已快取的 QR 菜單在網路中斷後維持唯讀", async ({ context, p
   await page.goto(`/q/${demoQrToken}`);
   await initialSessionResponse;
   await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
-  await expect(page.getByTestId("qr-session-status")).toHaveAttribute(
+  const initialSessionStatus = page.getByTestId("qr-session-status").last();
+  await expect(initialSessionStatus).toHaveAttribute(
     "data-ordering-availability",
     "AVAILABLE",
   );
-  await expect(page.getByText(/點餐時間剩餘 \d{1,2}:\d{2}/)).toBeVisible();
+  await expect(initialSessionStatus).toContainText(/點餐時間剩餘 \d{1,2}:\d{2}/);
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
   });
@@ -270,11 +271,12 @@ test("已快取的 QR 菜單在網路中斷後維持唯讀", async ({ context, p
   await page.reload();
   await reloadedSessionResponse;
   await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
-  await expect(page.getByTestId("qr-session-status")).toHaveAttribute(
+  const reloadedSessionStatus = page.getByTestId("qr-session-status").last();
+  await expect(reloadedSessionStatus).toHaveAttribute(
     "data-ordering-availability",
     "AVAILABLE",
   );
-  await expect(page.getByText(/點餐時間剩餘 \d{1,2}:\d{2}/)).toBeVisible();
+  await expect(reloadedSessionStatus).toContainText(/點餐時間剩餘 \d{1,2}:\d{2}/);
   await context.setOffline(true);
   try {
     await page.reload({ waitUntil: "domcontentloaded" });
