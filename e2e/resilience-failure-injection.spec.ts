@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -10,6 +11,7 @@ const prisma = new PrismaClient();
 const password = "StallOrderDemo!2026";
 const flagReason = "P8 E2E local Edge circuit failure injection";
 const demoQrToken = "demo-aming-chicken-qr-2026-rotate-me";
+const demoStallId = "22222222-2222-4222-8222-222222222222";
 
 test.describe("P8 生產韌性故障注入", () => {
   test.describe.configure({ mode: "serial" });
@@ -69,6 +71,132 @@ test.describe("P8 生產韌性故障注入", () => {
     expect(response.headers()["x-order-circuit"]).toBe("B");
     await expect(page.getByRole("button", { name: "增加 香酥雞排" })).toBeEnabled();
     await expect(page.getByText(/點餐時間剩餘 \d{1,2}:\d{2}/)).toBeVisible();
+  });
+
+  test("同一 QR 的三個不同裝置可並行建立安全工作階段", async () => {
+    const identities = [
+      {
+        sessionRequestId: "30000000-0000-4000-8000-000000000001",
+        deviceId: "40000000-0000-4000-8000-000000000001",
+      },
+      {
+        sessionRequestId: "30000000-0000-4000-8000-000000000002",
+        deviceId: "40000000-0000-4000-8000-000000000002",
+      },
+      {
+        sessionRequestId: "30000000-0000-4000-8000-000000000003",
+        deviceId: "40000000-0000-4000-8000-000000000003",
+      },
+    ].map((identity) => ({
+      ...identity,
+      sessionTokenHash: sha256(`session:${identity.sessionRequestId}:${identity.deviceId}`),
+      ipHash: sha256(`ip:${identity.deviceId}`),
+      deviceHash: sha256(`device:${identity.deviceId}`),
+      behaviorHash: sha256(`scan:${identity.sessionRequestId}:${identity.deviceId}`),
+    }));
+    const requestIds = identities.map((identity) => identity.sessionRequestId);
+    const sessionTokenHashes = identities.map((identity) => identity.sessionTokenHash);
+    const qrTokenHash = sha256(`qr:${demoQrToken}`);
+    const rateLimitHashes = [
+      ...identities.flatMap((identity) => [
+        identity.ipHash,
+        identity.deviceHash,
+        identity.behaviorHash,
+      ]),
+      qrTokenHash,
+      sha256(demoStallId),
+    ];
+    await cleanupConcurrentSessionState(requestIds, sessionTokenHashes, rateLimitHashes);
+    const blocker = new PrismaClient();
+    const sessionClient = new PrismaClient();
+    const observer = new PrismaClient();
+    let releaseBlocker: () => void = () => undefined;
+    const blockerRelease = new Promise<void>((resolve) => {
+      releaseBlocker = resolve;
+    });
+    let resolveBlockerReady!: (pid: number) => void;
+    let rejectBlockerReady!: (error: unknown) => void;
+    const blockerReady = new Promise<number>((resolve, reject) => {
+      resolveBlockerReady = resolve;
+      rejectBlockerReady = reject;
+    });
+    const blockerWork = blocker.$transaction(async (transaction) => {
+      const [row] = await transaction.$queryRaw<Array<{ pid: number }>>`
+        select pg_catalog.pg_backend_pid()::integer as pid
+        from public.stalls
+        where id = ${demoStallId}::uuid
+        for update
+      `;
+      if (!row) throw new Error("E2E_BLOCKER_STALL_NOT_FOUND");
+      resolveBlockerReady(row.pid);
+      await blockerRelease;
+    }, { maxWait: 5_000, timeout: 20_000 }).catch((error) => {
+      rejectBlockerReady(error);
+      throw error;
+    });
+    let sessionWork: Array<Promise<SessionIssueRow[]>> = [];
+
+    try {
+      const blockerPid = await blockerReady;
+      sessionWork = identities.map(async (identity) => (
+        await sessionClient.$queryRaw<SessionIssueRow[]>(Prisma.sql`
+          select public.issue_idempotent_order_session_with_schedule(
+            ${demoQrToken}::text,
+            ${identity.sessionTokenHash}::text,
+            ${identity.ipHash}::text,
+            ${identity.deviceHash}::text,
+            ${qrTokenHash}::text,
+            ${identity.behaviorHash}::text,
+            ${identity.sessionRequestId}::text,
+            'DEFAULT'::text
+          ) as result
+        `)
+      ));
+
+      await expect.poll(async () => {
+        const [row] = await observer.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+          with recursive wait_chain(pid) as (
+            select ${blockerPid}::integer
+            union
+            select activity.pid
+            from pg_catalog.pg_stat_activity activity
+            join wait_chain blocker
+              on blocker.pid = any(pg_catalog.pg_blocking_pids(activity.pid))
+            where activity.datname = current_database()
+              and activity.wait_event_type = 'Lock'
+              and activity.query like '%issue_idempotent_order_session_with_schedule%'
+          )
+          select (count(*) - 1)::integer as count
+          from wait_chain
+        `);
+        return row?.count ?? 0;
+      }, { timeout: 10_000 }).toBeGreaterThanOrEqual(3);
+
+      releaseBlocker();
+      await blockerWork;
+      const outcomes = await Promise.allSettled(sessionWork);
+      expect(outcomes.filter((outcome) => outcome.status === "rejected")).toEqual([]);
+      const results = outcomes.flatMap((outcome) => (
+        outcome.status === "fulfilled" ? outcome.value : []
+      ));
+      expect(results).toHaveLength(3);
+      const sessionIds = results.map((row) => {
+        expect(row.result).toMatchObject({ ok: true });
+        expect(row.result?.idempotent_replay).not.toBe(true);
+        expect(row.result?.order_session_id).toEqual(expect.any(String));
+        return row.result?.order_session_id;
+      });
+      expect(new Set(sessionIds).size).toBe(3);
+    } finally {
+      releaseBlocker();
+      await Promise.allSettled([blockerWork, ...sessionWork]);
+      await cleanupConcurrentSessionState(requestIds, sessionTokenHashes, rateLimitHashes);
+      await Promise.all([
+        blocker.$disconnect(),
+        sessionClient.$disconnect(),
+        observer.$disconnect(),
+      ]);
+    }
   });
 
   test("SSE 與 Realtime 同時失效時顯示 5 秒輪詢並持續抓取訂單", async ({ page }) => {
@@ -145,4 +273,36 @@ function loadLocalEnv() {
       ? value.slice(1, -1)
       : value;
   }
+}
+
+type SessionIssueRow = {
+  result: {
+    ok?: boolean;
+    code?: string;
+    order_session_id?: string;
+    idempotent_replay?: boolean;
+  } | null;
+};
+
+function sha256(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function cleanupConcurrentSessionState(
+  requestIds: string[],
+  sessionTokenHashes: string[],
+  rateLimitHashes: string[],
+) {
+  await prisma.publicOrderAttempt.deleteMany({
+    where: { requestId: { in: requestIds } },
+  });
+  await prisma.orderSession.deleteMany({
+    where: { tokenHash: { in: sessionTokenHashes } },
+  });
+  await prisma.publicRateLimitBucket.deleteMany({
+    where: {
+      stallId: demoStallId,
+      dimensionHash: { in: rateLimitHashes },
+    },
+  });
 }

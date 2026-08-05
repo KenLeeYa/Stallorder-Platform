@@ -1,5 +1,6 @@
 import "server-only";
 
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { logEvent } from "@/lib/audit";
 import {
@@ -16,6 +17,15 @@ import { isSupportedPublicOrderProtocol } from "../../../supabase/functions/_sha
 import { PublicOrderCircuitError } from "@/server/public-order/circuit-b-service";
 
 type Timing = ReturnType<typeof createPerformanceTiming>;
+
+const allowedSqlStates = new Set(["40001", "40P01", "55P03", "57014"]);
+const allowedErrorNames = new Set([
+  "Error",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "TypeError",
+]);
 
 export function assertCircuitBRequest(request: Request) {
   if (!isTrustedOrigin(request)) {
@@ -74,7 +84,11 @@ export function circuitBFailureResponse(
     : statusForCode(code);
 
   if (!(error instanceof PublicOrderCircuitError)) {
-    logEvent("error", event, { requestId, circuit: "B" });
+    logEvent("error", event, {
+      requestId,
+      circuit: "B",
+      ...safeCircuitBErrorDiagnostic(error),
+    });
   }
 
   return circuitBResponse(
@@ -89,4 +103,23 @@ export function circuitBFailureResponse(
     requestId,
     timing,
   );
+}
+
+function safeCircuitBErrorDiagnostic(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    const sqlState = typeof error.meta?.code === "string"
+      && allowedSqlStates.has(error.meta.code)
+      ? error.meta.code
+      : undefined;
+    return {
+      errorName: "PrismaClientKnownRequestError",
+      prismaCode: /^P\d{4}$/.test(error.code) ? error.code : undefined,
+      sqlState,
+    };
+  }
+
+  if (!(error instanceof Error)) return { errorName: "NonErrorThrown" };
+  return {
+    errorName: allowedErrorNames.has(error.name) ? error.name : "Error",
+  };
 }
