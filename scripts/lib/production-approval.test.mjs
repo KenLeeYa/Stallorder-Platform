@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   createProductionApprovalReceipt,
+  createProductionOperationEvidence,
   stableJson,
   validateProductionApprovalReceipt,
+  validateProductionOperationEvidence,
 } from "./production-approval.mjs";
 
 const NOW = new Date("2026-08-02T00:00:00.000Z");
@@ -67,6 +69,50 @@ describe("production approval receipts", () => {
       planRunId: "30723323487",
       commitSha: COMMIT_SHA,
     });
+  });
+
+  it("binds predecessor evidence to a completed successful operation run", () => {
+    const evidence = createProductionOperationEvidence({
+      repository: "KenLeeYa/Stallorder-Platform",
+      runId: "40723323487",
+      commitSha: COMMIT_SHA,
+      treeSha: TREE_SHA,
+      operation: "production-dr-schema",
+      completedBy: "KenLeeYa",
+    });
+    const expected = {
+      repository: "KenLeeYa/Stallorder-Platform",
+      runId: "40723323487",
+      commitSha: COMMIT_SHA,
+      treeSha: TREE_SHA,
+      operation: "production-dr-schema",
+      repositoryOwner: "KenLeeYa",
+      verifyingActor: "KenLeeYa",
+    };
+    const runMetadata = validMetadata({
+      id: 40723323487,
+      path: ".github/workflows/production-dr-operations.yml",
+      event: "workflow_dispatch",
+    });
+
+    expect(validateProductionOperationEvidence({
+      evidence,
+      expected,
+      runMetadata,
+    })).toMatchObject({
+      operation: "production-dr-schema",
+      runId: "40723323487",
+    });
+    expect(() => validateProductionOperationEvidence({
+      evidence: { ...evidence, completed: false },
+      expected,
+      runMetadata,
+    })).toThrow("EVIDENCE_NOT_COMPLETED");
+    expect(() => validateProductionOperationEvidence({
+      evidence,
+      expected,
+      runMetadata: { ...runMetadata, conclusion: "failure" },
+    })).toThrow("EVIDENCE_RUN_NOT_SUCCESSFUL");
   });
 
   it("canonicalizes parameters before hashing", () => {

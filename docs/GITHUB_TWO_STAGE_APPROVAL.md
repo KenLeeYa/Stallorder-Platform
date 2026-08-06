@@ -9,7 +9,8 @@ Production changes use an explicit Plan and Apply contract.
 The gate covers:
 
 - Production application deployment, Supabase migrations and Edge Functions;
-- Production DR bootstrap, failover drill and Storage canary; and
+- Production DR schema, incremental replication, bootstrap, failover drill and
+  Storage canary; and
 - the independent Cloudflare Status Page deployment.
 
 ## Immutable Plan receipt
@@ -43,13 +44,17 @@ run API. The operation is rejected unless:
 `main` Git auto-deployment is disabled in `vercel.json`. Preview deployments
 remain enabled.
 
-1. Merge the exact verified Staging tree to `main`.
-2. The `main` push runs `Production Readiness`, performs migration dry-run and
-   remote lint, and uploads `production-release-plan-<run-id>`.
-3. Review the Plan run and note its run ID.
-4. Manually dispatch `Production Readiness` from `main` with:
+1. Merge the exact verified `staging` Git tree to `main`. This is a source-tree
+   gate, not an online Staging environment.
+2. Run `plan-dr-schema` with `PLAN_PRODUCTION_DR`; review it, then run
+   `dr-schema` with its Plan run ID and `APPLY_PRODUCTION_DR_SCHEMA`.
+3. Manually dispatch the `Production Readiness` Plan from the same `main`
+   commit with the successful DR schema Apply run ID. Review the receipt and
+   note its run ID.
+4. Dispatch `Production Readiness` Apply from the same commit with:
    - `apply_migrations=true`;
-   - the same `include_all_migrations` value as the Plan;
+   - `include_all_migrations=false`;
+   - `dr_schema_run_id=<successful DR schema Apply run>`;
    - `plan_run_id=<reviewed run>`; and
    - `confirmation=APPLY_PRODUCTION_RELEASE`.
 5. Apply builds a Production-target Vercel deployment without assigning the
@@ -57,6 +62,12 @@ remain enabled.
    repository Edge Function, promotes the deployment, then runs the Production
    smoke test. The protected `PRODUCTION_TEST_QR_URL` is required and must be a
    same-origin `/q/<token>` route.
+6. Keep new feature writes disabled. Run `plan-incremental-replication` with
+   `primary_migration_run_id=<successful Production Apply run>`, then run
+   `incremental-replication` with that Plan run ID and
+   `UPGRADE_PRODUCTION_DR_REPLICATION`.
+7. Enable the feature only after the replication snapshot and readiness gate
+   succeed.
 
 If the smoke fails after promotion, the workflow rolls the Vercel alias back.
 Database migrations remain forward-only and must use an additive or otherwise
@@ -67,6 +78,8 @@ backward-compatible migration before old application code is removed.
 DR Plan operations use `PLAN_PRODUCTION_DR`. Their matching Apply confirmations
 remain:
 
+- `APPLY_PRODUCTION_DR_SCHEMA`;
+- `UPGRADE_PRODUCTION_DR_REPLICATION`;
 - `CREATE_PRODUCTION_DR`;
 - `MEASURE_PRODUCTION_DR`; and
 - `PROVE_STORAGE_DR`.

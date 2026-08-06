@@ -128,4 +128,72 @@ describe("Supabase database URL export", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it("exports only DR direct access without touching Primary JIT in DR-only mode", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "stallorder-dr-url-"));
+    const githubEnvironment = join(directory, "github-env");
+    const projectRef = "zyxwvutsrqponmlkjihg";
+    const accessToken = "test-access-token";
+    const drPassword = "test-dr-password";
+
+    process.argv.splice(
+      0,
+      process.argv.length,
+      process.execPath,
+      "scripts/export-dr-database-urls.mjs",
+      "--dr-only",
+    );
+    process.env.GITHUB_ENV = githubEnvironment;
+    process.env.SUPABASE_ACCESS_TOKEN = accessToken;
+    process.env.DR_SUPABASE_PROJECT_REF = projectRef;
+    process.env.DR_SUPABASE_DB_PASSWORD = drPassword;
+    delete process.env.SUPABASE_PROJECT_REF;
+    delete process.env.PRIMARY_SUPABASE_PROJECT_REF;
+    delete process.env.PRIMARY_REPLICATION_PASSWORD;
+
+    const requestedPaths = [];
+    vi.stubGlobal("fetch", vi.fn(async (input, init = {}) => {
+      const url = new URL(input);
+      requestedPaths.push(url.pathname);
+      expect(init.headers.Authorization).toBe(`Bearer ${accessToken}`);
+      const response = (body) => new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+      if (
+        url.pathname ===
+        `/v1/projects/${projectRef}/config/database/pooler`
+      ) {
+        return response([{
+          database_type: "PRIMARY",
+          connection_string:
+            `postgresql://postgres.${projectRef}`
+            + "@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres",
+        }]);
+      }
+      if (url.pathname === `/v1/projects/${projectRef}`) {
+        return response({ database: { host: `db.${projectRef}.supabase.co` } });
+      }
+      return new Response(null, { status: 404 });
+    }));
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      await import("./export-dr-database-urls.mjs?dr-only-test");
+      const lines = (await readFile(githubEnvironment, "utf8"))
+        .trim()
+        .split(/\r?\n/);
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatch(/^DR_DIRECT_URL=/);
+      const databaseUrl = new URL(lines[0].slice("DR_DIRECT_URL=".length));
+      expect(decodeURIComponent(databaseUrl.username)).toBe(`postgres.${projectRef}`);
+      expect(decodeURIComponent(databaseUrl.password)).toBe(drPassword);
+      expect(databaseUrl.port).toBe("5432");
+      expect(databaseUrl.searchParams.get("sslmode")).toBe("require");
+      expect(requestedPaths).not.toContain("/v1/profile");
+      expect(requestedPaths.every((path) => !path.includes("/jit"))).toBe(true);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });

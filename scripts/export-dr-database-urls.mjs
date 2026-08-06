@@ -1,36 +1,48 @@
 import { appendFile } from "node:fs/promises";
 
-const primaryOnly = process.argv[2] === "--primary-only";
-if (process.argv.length > (primaryOnly ? 3 : 2)) {
+const options = process.argv.slice(2);
+const [mode] = options;
+if (options.length > 1 || (mode && !["--primary-only", "--dr-only"].includes(mode))) {
   throw new Error("UNSUPPORTED_ARGUMENTS");
 }
+const primaryOnly = mode === "--primary-only";
+const drOnly = mode === "--dr-only";
 
 const output = required("GITHUB_ENV");
-const primaryRef = projectRef(
-  primaryOnly ? "SUPABASE_PROJECT_REF" : "PRIMARY_SUPABASE_PROJECT_REF",
-);
+const primaryRef = drOnly
+  ? null
+  : projectRef(primaryOnly
+    ? "SUPABASE_PROJECT_REF"
+    : "PRIMARY_SUPABASE_PROJECT_REF");
 const drRef = primaryOnly ? null : projectRef("DR_SUPABASE_PROJECT_REF");
 
 try {
   const accessToken = required("SUPABASE_ACCESS_TOKEN");
-  const temporaryAccessExpiresAt = await ensureTemporaryAccess(
-    primaryRef,
-    accessToken,
-  );
+  const temporaryAccessExpiresAt = primaryRef
+    ? await ensureTemporaryAccess(primaryRef, accessToken)
+    : null;
   const [primaryConnection, drConnection] = await Promise.all([
-    discoverConnection(primaryRef, accessToken),
+    primaryRef
+      ? discoverConnection(primaryRef, accessToken)
+      : Promise.resolve(null),
     drRef ? discoverConnection(drRef, accessToken) : Promise.resolve(null),
   ]);
-  const primaryDirectUrl = poolerUrl(
-    primaryConnection,
-    accessToken,
-    5432,
-    false,
-    true,
-  );
+  const primaryDirectUrl = primaryConnection
+    ? poolerUrl(primaryConnection, accessToken, 5432, false, true)
+    : null;
   let values;
   if (primaryOnly) {
     values = { SUPABASE_CI_DATABASE_URL: primaryDirectUrl };
+  } else if (drOnly) {
+    values = {
+      DR_DIRECT_URL: poolerUrl(
+        drConnection,
+        required("DR_SUPABASE_DB_PASSWORD"),
+        5432,
+        false,
+        false,
+      ),
+    };
   } else {
     const drPassword = required("DR_SUPABASE_DB_PASSWORD");
     const drDirectUrl = poolerUrl(
@@ -79,6 +91,8 @@ try {
   console.log(JSON.stringify({
     event: primaryOnly
       ? "supabase_ci_database_url_exported"
+      : drOnly
+        ? "dr_database_url_exported"
       : "dr_database_urls_exported",
     variableNames: Object.keys(values),
     endpointsDiscoveredFromManagementApi: true,
@@ -88,6 +102,8 @@ try {
   console.error(JSON.stringify({
     event: primaryOnly
       ? "supabase_ci_database_url_export_failed"
+      : drOnly
+        ? "dr_database_url_export_failed"
       : "dr_database_url_export_failed",
     reason: error instanceof Error ? error.message : "UNKNOWN",
   }));

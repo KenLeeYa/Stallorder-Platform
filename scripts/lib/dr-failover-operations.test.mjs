@@ -58,7 +58,7 @@ describe("DR failover operation helpers", () => {
   });
 
   it("replicates the offline recovery idempotency records exactly once", () => {
-    expect(replicatedPublicTables).toHaveLength(111);
+    expect(replicatedPublicTables).toHaveLength(112);
     expect(new Set(replicatedPublicTables).size).toBe(
       replicatedPublicTables.length,
     );
@@ -79,6 +79,7 @@ describe("DR failover operation helpers", () => {
         "external_orders",
         "delivery_webhook_events",
         "delivery_sync_jobs",
+        "dining_floors",
       ]),
     );
   });

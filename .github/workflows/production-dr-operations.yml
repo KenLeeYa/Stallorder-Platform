@@ -12,6 +12,10 @@ on:
           - bootstrap
           - plan-drill
           - drill
+          - plan-dr-schema
+          - dr-schema
+          - plan-incremental-replication
+          - incremental-replication
           - plan-storage-canary
           - storage-canary
       confirmation:
@@ -25,6 +29,11 @@ on:
         default: ""
       resume_backup_run_id:
         description: Prior successful encrypted former-Staging backup run to reuse
+        required: false
+        type: string
+        default: ""
+      primary_migration_run_id:
+        description: Successful matching Production migration Apply run required before incremental replication
         required: false
         type: string
         default: ""
@@ -50,8 +59,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
+    env:
+      NO_COLOR: "1"
     steps:
       - name: Validate Production DR plan invocation
+        env:
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+          INPUT_OPERATION: ${{ inputs.operation }}
+          INPUT_RESUME_BACKUP_RUN_ID: ${{ inputs.resume_backup_run_id }}
+          INPUT_PRIMARY_MIGRATION_RUN_ID: ${{ inputs.primary_migration_run_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -63,14 +79,20 @@ jobs:
             echo "::error::Only the repository owner may create a Production plan."
             exit 1
           }
-          test "${{ inputs.confirmation }}" = "PLAN_PRODUCTION_DR" || {
+          test "$INPUT_CONFIRMATION" = "PLAN_PRODUCTION_DR" || {
             echo "::error::Confirmation must be PLAN_PRODUCTION_DR."
             exit 1
           }
-          if [ "${{ inputs.operation }}" = "plan-bootstrap" ] \
-            && [ -n "${{ inputs.resume_backup_run_id }}" ]; then
-            [[ "${{ inputs.resume_backup_run_id }}" =~ ^[1-9][0-9]{0,19}$ ]] || {
+          if [ "$INPUT_OPERATION" = "plan-bootstrap" ] \
+            && [ -n "$INPUT_RESUME_BACKUP_RUN_ID" ]; then
+            [[ "$INPUT_RESUME_BACKUP_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
               echo "::error::resume_backup_run_id must contain digits only."
+              exit 1
+            }
+          fi
+          if [ "$INPUT_OPERATION" = "plan-incremental-replication" ]; then
+            [[ "$INPUT_PRIMARY_MIGRATION_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
+              echo "::error::Incremental replication Plan requires the successful Production migration Apply run ID."
               exit 1
             }
           fi
@@ -96,25 +118,107 @@ jobs:
 
       - run: npm ci
 
+      - uses: supabase/setup-cli@v1
+        if: inputs.operation == 'plan-dr-schema'
+        with:
+          version: 2.109.1
+
+      - name: Build protected DR-only database URL
+        if: inputs.operation == 'plan-dr-schema'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+        run: node scripts/export-dr-database-urls.mjs --dr-only
+
+      - name: Build protected Primary and DR database URLs
+        if: inputs.operation == 'plan-incremental-replication'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+          PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
+        run: node scripts/export-dr-database-urls.mjs
+
+      - name: Download successful Production migration evidence
+        if: inputs.operation == 'plan-incremental-replication'
+        uses: actions/download-artifact@v4
+        with:
+          name: production-primary-migration-${{ inputs.primary_migration_run_id }}
+          path: predecessor-primary-migration
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.primary_migration_run_id }}
+
+      - name: Verify Production migration completed before replication Plan
+        if: inputs.operation == 'plan-incremental-replication'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PRODUCTION_APPROVAL_OPERATION: production-migrations
+          PRODUCTION_EVIDENCE_PATH: predecessor-primary-migration/production-primary-migration-evidence.json
+          PRODUCTION_EVIDENCE_RUN_ID: ${{ inputs.primary_migration_run_id }}
+        run: node scripts/production-approval.mjs verify-evidence
+
       - name: Build read-only DR operation plan
+        env:
+          INPUT_OPERATION: ${{ inputs.operation }}
+          INPUT_RESUME_BACKUP_RUN_ID: ${{ inputs.resume_backup_run_id }}
+          INPUT_PRIMARY_MIGRATION_RUN_ID: ${{ inputs.primary_migration_run_id }}
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          case "${{ inputs.operation }}" in
+          case "$INPUT_OPERATION" in
             plan-bootstrap)
               node scripts/configure-dr-replication.mjs \
                 --source PRIMARY --target DR \
                 > artifacts/production-dr-operation-plan.json
               echo "PRODUCTION_APPROVAL_OPERATION=production-dr-bootstrap" >> "$GITHUB_ENV"
               printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"resumeBackupRunId":"%s"}\n' \
-                "${{ inputs.resume_backup_run_id }}" >> "$GITHUB_ENV"
+                "$INPUT_RESUME_BACKUP_RUN_ID" >> "$GITHUB_ENV"
               ;;
             plan-drill)
               node scripts/check-dr-readiness.mjs --target DR \
                 > artifacts/production-dr-operation-plan.json
               echo "PRODUCTION_APPROVAL_OPERATION=production-dr-drill" >> "$GITHUB_ENV"
               echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={}' >> "$GITHUB_ENV"
+              ;;
+            plan-dr-schema)
+              node scripts/production-readiness.mjs
+              supabase migration list --db-url "$DR_DIRECT_URL" \
+                2>&1 | tee artifacts/dr-schema-migration-list.txt
+              node scripts/assert-additive-migration-plan.mjs \
+                --migration-list artifacts/dr-schema-migration-list.txt \
+                > artifacts/dr-schema-additive-plan.json
+              supabase db push --db-url "$DR_DIRECT_URL" --dry-run \
+                2>&1 | tee artifacts/dr-schema-push-dry-run.txt
+              supabase db lint --db-url "$DR_DIRECT_URL" \
+                --schema public,app_private,internal \
+                --level warning --fail-on warning \
+                2>&1 | tee artifacts/dr-schema-lint.txt
+              {
+                sha256sum artifacts/dr-schema-migration-list.txt | cut -d ' ' -f 1
+                sha256sum artifacts/dr-schema-additive-plan.json | cut -d ' ' -f 1
+                sha256sum artifacts/dr-schema-push-dry-run.txt | cut -d ' ' -f 1
+              } | sha256sum | cut -d ' ' -f 1 \
+                > artifacts/dr-schema-plan-digest.txt
+              node --input-type=module -e '
+                console.log(JSON.stringify({
+                  mode: "live-read-only-plan",
+                  action: "PLAN_DR_SCHEMA",
+                  target: "DR",
+                  strategy: "ADDITIVE_ONLY",
+                  changesRemoteState: false,
+                }, null, 2));
+              ' > artifacts/production-dr-operation-plan.json
+              echo "PRODUCTION_APPROVAL_OPERATION=production-dr-schema" >> "$GITHUB_ENV"
+              echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"strategy":"ADDITIVE_ONLY","target":"DR"}' >> "$GITHUB_ENV"
+              ;;
+            plan-incremental-replication)
+              DR_CHANGE_CONFIRMATION=INSPECT_PRIMARY_TO_DR \
+                node scripts/configure-dr-replication.mjs \
+                --source PRIMARY --target DR --inspect --upgrade-only \
+                > artifacts/production-dr-operation-plan.json
+              echo "PRODUCTION_APPROVAL_OPERATION=production-dr-incremental-replication" >> "$GITHUB_ENV"
+              printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"primaryMigrationRunId":"%s","source":"PRIMARY","strategy":"UPGRADE_ONLY","target":"DR"}\n' \
+                "$INPUT_PRIMARY_MIGRATION_RUN_ID" >> "$GITHUB_ENV"
               ;;
             plan-storage-canary)
               node scripts/run-storage-replication-canary.mjs \
@@ -137,9 +241,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: production-dr-plan-${{ github.run_id }}
-          path: |
-            artifacts/production-dr-operation-plan.json
-            artifacts/production-approval.json
+          path: artifacts/
           if-no-files-found: error
           retention-days: 1
 
@@ -147,12 +249,20 @@ jobs:
     if: >-
       inputs.operation == 'bootstrap' ||
       inputs.operation == 'drill' ||
+      inputs.operation == 'dr-schema' ||
+      inputs.operation == 'incremental-replication' ||
       inputs.operation == 'storage-canary'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
     steps:
       - name: Validate manual Production apply invocation
+        env:
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+          INPUT_OPERATION: ${{ inputs.operation }}
+          INPUT_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          INPUT_RESUME_BACKUP_RUN_ID: ${{ inputs.resume_backup_run_id }}
+          INPUT_PRIMARY_MIGRATION_RUN_ID: ${{ inputs.primary_migration_run_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -164,19 +274,38 @@ jobs:
             echo "::error::Only the repository owner may confirm Production apply."
             exit 1
           }
-          [[ "${{ inputs.plan_run_id }}" =~ ^[1-9][0-9]{0,19}$ ]] || {
+          [[ "$INPUT_PLAN_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
             echo "::error::Apply requires the successful matching Plan run ID."
             exit 1
           }
-          case "${{ inputs.operation }}:${{ inputs.confirmation }}" in
+          case "$INPUT_OPERATION:$INPUT_CONFIRMATION" in
             bootstrap:CREATE_PRODUCTION_DR)
+              if [ -n "$INPUT_RESUME_BACKUP_RUN_ID" ]; then
+                [[ "$INPUT_RESUME_BACKUP_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
+                  echo "::error::resume_backup_run_id must contain digits only."
+                  exit 1
+                }
+              fi
               echo "PRODUCTION_APPROVAL_OPERATION=production-dr-bootstrap" >> "$GITHUB_ENV"
               printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"resumeBackupRunId":"%s"}\n' \
-                "${{ inputs.resume_backup_run_id }}" >> "$GITHUB_ENV"
+                "$INPUT_RESUME_BACKUP_RUN_ID" >> "$GITHUB_ENV"
               ;;
             drill:MEASURE_PRODUCTION_DR)
               echo "PRODUCTION_APPROVAL_OPERATION=production-dr-drill" >> "$GITHUB_ENV"
               echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={}' >> "$GITHUB_ENV"
+              ;;
+            dr-schema:APPLY_PRODUCTION_DR_SCHEMA)
+              echo "PRODUCTION_APPROVAL_OPERATION=production-dr-schema" >> "$GITHUB_ENV"
+              echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"strategy":"ADDITIVE_ONLY","target":"DR"}' >> "$GITHUB_ENV"
+              ;;
+            incremental-replication:UPGRADE_PRODUCTION_DR_REPLICATION)
+              [[ "$INPUT_PRIMARY_MIGRATION_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
+                echo "::error::Incremental replication Apply requires the successful Production migration Apply run ID."
+                exit 1
+              }
+              echo "PRODUCTION_APPROVAL_OPERATION=production-dr-incremental-replication" >> "$GITHUB_ENV"
+              printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"primaryMigrationRunId":"%s","source":"PRIMARY","strategy":"UPGRADE_ONLY","target":"DR"}\n' \
+                "$INPUT_PRIMARY_MIGRATION_RUN_ID" >> "$GITHUB_ENV"
               ;;
             storage-canary:PROVE_STORAGE_DR)
               echo "PRODUCTION_APPROVAL_OPERATION=production-storage-canary" >> "$GITHUB_ENV"
@@ -221,6 +350,285 @@ jobs:
           PRODUCTION_APPROVAL_RECEIPT_PATH: approved-plan/production-approval.json
         run: node scripts/production-approval.mjs verify
 
+  dr-schema:
+    needs: approval
+    if: "${{ inputs.operation == 'dr-schema' && needs.approval.result == 'success' }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      NO_COLOR: "1"
+    steps:
+      - name: Validate protected DR schema invocation
+        env:
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::Production DR schema operations must run from main."
+            exit 1
+          }
+          test "$INPUT_CONFIRMATION" = "APPLY_PRODUCTION_DR_SCHEMA" || {
+            echo "::error::Confirmation must be APPLY_PRODUCTION_DR_SCHEMA."
+            exit 1
+          }
+          test -n "${DR_SUPABASE_PROJECT_REF:-}" || {
+            echo "::error::Missing protected configuration: DR_SUPABASE_PROJECT_REF"
+            exit 1
+          }
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Reject unreviewed destructive migrations
+        run: node scripts/production-readiness.mjs
+
+      - name: Build protected DR-only database URL
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+        run: node scripts/export-dr-database-urls.mjs --dr-only
+
+      - name: Download approved DR schema Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: production-dr-plan-${{ inputs.plan_run_id }}
+          path: approved-dr-schema-plan
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.plan_run_id }}
+
+      - name: Reconfirm immutable DR schema Plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dr-schema-artifacts
+          supabase migration list --db-url "$DR_DIRECT_URL" \
+            2>&1 | tee dr-schema-artifacts/dr-schema-migration-list-before.txt
+          node scripts/assert-additive-migration-plan.mjs \
+            --migration-list dr-schema-artifacts/dr-schema-migration-list-before.txt \
+            > dr-schema-artifacts/dr-schema-additive-plan-before.json
+          supabase db push --db-url "$DR_DIRECT_URL" --dry-run \
+            2>&1 | tee dr-schema-artifacts/dr-schema-push-dry-run-before.txt
+          supabase db lint --db-url "$DR_DIRECT_URL" \
+            --schema public,app_private,internal \
+            --level warning --fail-on warning \
+            2>&1 | tee dr-schema-artifacts/dr-schema-lint-before.txt
+          actual_digest="$({
+            sha256sum dr-schema-artifacts/dr-schema-migration-list-before.txt \
+              | cut -d ' ' -f 1
+            sha256sum dr-schema-artifacts/dr-schema-additive-plan-before.json \
+              | cut -d ' ' -f 1
+            sha256sum dr-schema-artifacts/dr-schema-push-dry-run-before.txt \
+              | cut -d ' ' -f 1
+          } | sha256sum | cut -d ' ' -f 1)"
+          expected_digest="$(tr -d '[:space:]' \
+            < approved-dr-schema-plan/dr-schema-plan-digest.txt)"
+          [[ "$expected_digest" =~ ^[0-9a-f]{64}$ ]] || {
+            echo "::error::Approved DR schema Plan digest is invalid."
+            exit 1
+          }
+          test "$actual_digest" = "$expected_digest" || {
+            echo "::error::DR schema changed after the approved Plan."
+            exit 1
+          }
+
+      - name: Apply reviewed additive migrations to DR only
+        run: supabase db push --db-url "$DR_DIRECT_URL"
+
+      - name: Verify DR migration history and remaining pending migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --db-url "$DR_DIRECT_URL" \
+            2>&1 | tee dr-schema-artifacts/dr-schema-migration-list-after.txt
+          supabase db push --db-url "$DR_DIRECT_URL" --dry-run \
+            2>&1 | tee dr-schema-artifacts/dr-schema-push-dry-run-after.txt
+
+      - name: Lint DR database after additive migration Apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db lint --db-url "$DR_DIRECT_URL" \
+            --schema public,app_private,internal \
+            --level warning --fail-on warning \
+            2>&1 | tee dr-schema-artifacts/dr-schema-lint-after.txt
+
+      - name: Create immutable DR schema Apply evidence
+        env:
+          PRODUCTION_APPROVAL_OPERATION: production-dr-schema
+          PRODUCTION_EVIDENCE_PATH: dr-schema-artifacts/production-dr-schema-evidence.json
+        run: node scripts/production-approval.mjs create-evidence
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-dr-schema-apply-${{ github.run_id }}
+          path: dr-schema-artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+  incremental-replication:
+    needs: approval
+    if: "${{ inputs.operation == 'incremental-replication' && needs.approval.result == 'success' }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      DR_AUTH_READY: "true"
+      DR_EDGE_FUNCTIONS_READY: "true"
+      DR_TURNSTILE_READY: "true"
+      DR_PAYMENT_CALLBACK_READY: "true"
+      DR_NO_ACTIVE_MIGRATION_CONFIRMED: "true"
+    steps:
+      - name: Validate protected incremental replication invocation
+        env:
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+          INPUT_PRIMARY_MIGRATION_RUN_ID: ${{ inputs.primary_migration_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::Production DR operations must run from main."
+            exit 1
+          }
+          test "$INPUT_CONFIRMATION" = "UPGRADE_PRODUCTION_DR_REPLICATION" || {
+            echo "::error::Confirmation must be UPGRADE_PRODUCTION_DR_REPLICATION."
+            exit 1
+          }
+          [[ "$INPUT_PRIMARY_MIGRATION_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
+            echo "::error::Incremental replication requires the successful Production migration Apply run ID."
+            exit 1
+          }
+          for name in \
+            PRIMARY_SUPABASE_PROJECT_REF \
+            DR_SUPABASE_PROJECT_REF
+          do
+            test -n "${!name:-}" || {
+              echo "::error::Missing protected configuration: ${name}"
+              exit 1
+            }
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download successful Production migration evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: production-primary-migration-${{ inputs.primary_migration_run_id }}
+          path: predecessor-primary-migration
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.primary_migration_run_id }}
+
+      - name: Verify Production migration completed before replication Apply
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PRODUCTION_APPROVAL_OPERATION: production-migrations
+          PRODUCTION_EVIDENCE_PATH: predecessor-primary-migration/production-primary-migration-evidence.json
+          PRODUCTION_EVIDENCE_RUN_ID: ${{ inputs.primary_migration_run_id }}
+        run: node scripts/production-approval.mjs verify-evidence
+
+      - name: Download approved incremental replication Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: production-dr-plan-${{ inputs.plan_run_id }}
+          path: approved-incremental-plan
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.plan_run_id }}
+
+      - name: Build protected database URLs
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+          PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
+        run: node scripts/export-dr-database-urls.mjs
+
+      - name: Reconfirm immutable existing-only replication Plan
+        env:
+          DR_CHANGE_CONFIRMATION: INSPECT_PRIMARY_TO_DR
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dr-artifacts
+          node scripts/configure-dr-replication.mjs \
+            --source PRIMARY --target DR --inspect --upgrade-only \
+            > dr-artifacts/incremental-replication-reconfirmed-plan.json
+          cmp --silent \
+            approved-incremental-plan/production-dr-operation-plan.json \
+            dr-artifacts/incremental-replication-reconfirmed-plan.json || {
+              echo "::error::Replication catalog changed after the approved Plan."
+              exit 1
+            }
+
+      - name: Apply incremental publication upgrade
+        env:
+          DR_CHANGE_CONFIRMATION: CONFIGURE_PRIMARY_TO_DR
+        run: |
+          set -euo pipefail
+          mkdir -p dr-artifacts
+          node scripts/configure-dr-replication.mjs \
+            --source PRIMARY --target DR --apply --upgrade-only \
+            | tee dr-artifacts/incremental-replication.json
+
+      - name: Wait for replication catch-up and refresh readiness evidence
+        run: |
+          set -euo pipefail
+          node scripts/refresh-dr-replication-snapshot.mjs --wait-seconds 300 \
+            | tee dr-artifacts/incremental-replication-snapshot.json
+
+      - name: Verify DR readiness after incremental replication
+        env:
+          DR_CHANGE_CONFIRMATION: CHECK_DR_READINESS
+        run: |
+          set -euo pipefail
+          node scripts/check-dr-readiness.mjs --target DR --apply \
+            | tee dr-artifacts/incremental-replication-readiness.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-dr-incremental-replication-${{ github.run_id }}
+          path: dr-artifacts/
+          if-no-files-found: warn
+          retention-days: 30
+
   bootstrap:
     needs: approval
     if: "${{ inputs.operation == 'bootstrap' && needs.approval.result == 'success' }}"
@@ -228,20 +636,22 @@ jobs:
     timeout-minutes: 60
     environment: production
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
-      PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
-      DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
       RESUME_BACKUP_RUN_ID: ${{ inputs.resume_backup_run_id }}
     steps:
       - name: Validate protected invocation
+        env:
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/main" || {
             echo "::error::Production DR operations must run from main."
             exit 1
           }
-          test "${{ inputs.confirmation }}" = "CREATE_PRODUCTION_DR" || {
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+            echo "::error::Only the repository owner may create Production DR."
+            exit 1
+          }
+          test "$INPUT_CONFIRMATION" = "CREATE_PRODUCTION_DR" || {
             echo "::error::Confirmation must be CREATE_PRODUCTION_DR."
             exit 1
           }
@@ -250,10 +660,6 @@ jobs:
             exit 1
           fi
           for name in \
-            SUPABASE_ACCESS_TOKEN \
-            DR_SUPABASE_DB_PASSWORD \
-            PRIMARY_REPLICATION_PASSWORD \
-            DR_BACKUP_ENCRYPTION_KEY \
             PRIMARY_SUPABASE_PROJECT_REF \
             DR_SUPABASE_PROJECT_REF \
             APP_BASE_URL
@@ -291,6 +697,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
         run: |
           set -euo pipefail
           verification=dr-resume-artifacts/backup-verification.json
@@ -372,6 +779,10 @@ jobs:
       - run: npm ci
 
       - name: Build protected database URLs
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+          PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
         run: node scripts/export-dr-database-urls.mjs
 
       - name: Create encrypted logical backups
@@ -654,6 +1065,8 @@ jobs:
 
       - name: Encrypt backup artifacts
         shell: bash
+        env:
+          DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
         run: |
           set -euo pipefail
           if [ -n "$RESUME_BACKUP_RUN_ID" ]; then
@@ -719,9 +1132,12 @@ jobs:
       - name: Configure Supabase DR project
         env:
           DR_CHANGE_CONFIRMATION: CONFIGURE_PRODUCTION_DR_PROJECT
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/configure-production-dr-project.mjs
 
       - name: Deploy trusted Edge Functions to DR
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase functions deploy --project-ref "$DR_SUPABASE_PROJECT_REF" --use-api --import-map supabase/functions/deno.json
 
       - name: Initialize writer fencing and replication role
@@ -762,10 +1178,6 @@ jobs:
     timeout-minutes: 70
     environment: production
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
-      PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       DR_AUTH_READY: "true"
@@ -781,21 +1193,23 @@ jobs:
       DR_BUSINESS_DATA_VALIDATED: "true"
     steps:
       - name: Validate protected invocation
+        env:
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/main" || {
             echo "::error::Production DR operations must run from main."
             exit 1
           }
-          test "${{ inputs.confirmation }}" = "MEASURE_PRODUCTION_DR" || {
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+            echo "::error::Only the repository owner may run a Production DR drill."
+            exit 1
+          }
+          test "$INPUT_CONFIRMATION" = "MEASURE_PRODUCTION_DR" || {
             echo "::error::Confirmation must be MEASURE_PRODUCTION_DR."
             exit 1
           }
           for name in \
-            SUPABASE_ACCESS_TOKEN \
-            DR_SUPABASE_DB_PASSWORD \
-            PRIMARY_REPLICATION_PASSWORD \
-            VERCEL_TOKEN \
             VERCEL_ORG_ID \
             VERCEL_PROJECT_ID
           do
@@ -823,11 +1237,13 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Normalize protected Vercel token
-        run: node scripts/export-normalized-vercel-token.mjs
-
       - run: npm ci
       - run: npm install --global vercel@56.3.1
+
+      - name: Normalize protected Vercel token
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node scripts/export-normalized-vercel-token.mjs
 
       - name: Build protected runtime environment
         shell: bash
@@ -839,9 +1255,15 @@ jobs:
           echo "DR_DRILL_ID=${GITHUB_RUN_ID}" >> "$GITHUB_ENV"
 
       - name: Export protected database URLs
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+          PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
         run: node scripts/export-dr-database-urls.mjs
 
       - name: Export provider runtime keys
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/export-dr-runtime-environment.mjs
 
       - name: Export approved failover actor
@@ -1262,27 +1684,27 @@ jobs:
     timeout-minutes: 20
     environment: production
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
-      PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
       PRODUCTION_ENVIRONMENT_APPROVED: "true"
     steps:
       - name: Validate protected invocation
         shell: bash
+        env:
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/main" || {
             echo "::error::Production DR operations must run from main."
             exit 1
           }
-          test "${{ inputs.confirmation }}" = "PROVE_STORAGE_DR" || {
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+            echo "::error::Only the repository owner may run the Production Storage canary."
+            exit 1
+          }
+          test "$INPUT_CONFIRMATION" = "PROVE_STORAGE_DR" || {
             echo "::error::Confirmation must be PROVE_STORAGE_DR."
             exit 1
           }
           for name in \
-            SUPABASE_ACCESS_TOKEN \
-            DR_SUPABASE_DB_PASSWORD \
-            PRIMARY_REPLICATION_PASSWORD \
             PRIMARY_SUPABASE_PROJECT_REF \
             DR_SUPABASE_PROJECT_REF
           do
@@ -1314,9 +1736,15 @@ jobs:
       - run: npm ci
 
       - name: Build protected database URLs
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+          PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
         run: node scripts/export-dr-database-urls.mjs
 
       - name: Export protected Storage runtime
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/export-dr-runtime-environment.mjs
 
       - name: Review Storage canary dry-run

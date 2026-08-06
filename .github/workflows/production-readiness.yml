@@ -28,6 +28,11 @@ on:
         required: false
         type: string
         default: ""
+      dr_schema_run_id:
+        description: Successful DR schema Apply run required before a manual Production Plan or Apply
+        required: false
+        type: string
+        default: ""
       confirmation:
         description: Type APPLY_PRODUCTION_RELEASE when applying
         required: false
@@ -88,7 +93,6 @@ jobs:
     env:
       TARGET_ENVIRONMENT: production
       APP_BASE_URL: ${{ vars.APP_BASE_URL }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -119,26 +123,58 @@ jobs:
           }
       - name: Validate manual Production apply invocation
         if: inputs.apply_migrations
+        env:
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+          INPUT_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          INPUT_DR_SCHEMA_RUN_ID: ${{ inputs.dr_schema_run_id }}
+          INPUT_INCLUDE_ALL_MIGRATIONS: ${{ inputs.include_all_migrations }}
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ inputs.confirmation }}" = "APPLY_PRODUCTION_RELEASE" || {
-            echo "::error::Confirmation must be APPLY_PRODUCTION_RELEASE."
-            exit 1
-          }
-          [[ "${{ inputs.plan_run_id }}" =~ ^[1-9][0-9]{0,19}$ ]] || {
-            echo "::error::Apply requires the successful Production Plan run ID."
-            exit 1
-          }
           test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
             echo "::error::Only the repository owner may confirm Production apply."
             exit 1
           }
+          test "$INPUT_CONFIRMATION" = "APPLY_PRODUCTION_RELEASE" || {
+            echo "::error::Confirmation must be APPLY_PRODUCTION_RELEASE."
+            exit 1
+          }
+          [[ "$INPUT_PLAN_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
+            echo "::error::Apply requires the successful Production Plan run ID."
+            exit 1
+          }
+          [[ "$INPUT_DR_SCHEMA_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
+            echo "::error::Production Apply requires the successful DR schema Apply run ID."
+            exit 1
+          }
+          test "$INPUT_INCLUDE_ALL_MIGRATIONS" = "false" || {
+            echo "::error::DR-first Production Apply does not allow out-of-order migrations."
+            exit 1
+          }
       - name: Validate protected environment configuration
         run: |
-          test -n "${SUPABASE_ACCESS_TOKEN:-}" || { echo "::error::Missing SUPABASE_ACCESS_TOKEN"; exit 1; }
           test -n "${SUPABASE_PROJECT_REF:-}" || { echo "::error::Missing SUPABASE_PROJECT_REF"; exit 1; }
           test -n "${APP_BASE_URL:-}" || { echo "::error::Missing APP_BASE_URL"; exit 1; }
+      - name: Validate DR schema predecessor for a manual Production Plan
+        if: github.event_name == 'workflow_dispatch' && !inputs.apply_migrations
+        env:
+          INPUT_DR_SCHEMA_RUN_ID: ${{ inputs.dr_schema_run_id }}
+          INPUT_INCLUDE_ALL_MIGRATIONS: ${{ inputs.include_all_migrations }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+            echo "::error::Only the repository owner may create a Production Plan."
+            exit 1
+          }
+          [[ "$INPUT_DR_SCHEMA_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
+            echo "::error::Manual Production Plan requires the successful DR schema Apply run ID."
+            exit 1
+          }
+          test "$INPUT_INCLUDE_ALL_MIGRATIONS" = "false" || {
+            echo "::error::DR-first Production Plan does not allow out-of-order migrations."
+            exit 1
+          }
       - name: Download approved Production plan
         if: inputs.apply_migrations
         uses: actions/download-artifact@v4
@@ -152,12 +188,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PRODUCTION_APPROVAL_OPERATION: production-migrations
-          PRODUCTION_APPROVAL_PARAMETERS_JSON: >-
-            ${{ inputs.include_all_migrations && '{"includeAllMigrations":true}' || '{"includeAllMigrations":false}' }}
+          PRODUCTION_APPROVAL_PARAMETERS_JSON: '{"drSchemaRunId":"${{ inputs.dr_schema_run_id }}","includeAllMigrations":false}'
           PRODUCTION_APPROVAL_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
           PRODUCTION_APPROVAL_RECEIPT_PATH: approved-plan/production-approval.json
         run: node scripts/production-approval.mjs verify
+      - name: Download successful DR schema Apply evidence
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@v4
+        with:
+          name: production-dr-schema-apply-${{ inputs.dr_schema_run_id }}
+          path: predecessor-dr-schema
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.dr_schema_run_id }}
+      - name: Verify DR schema completed before the Production Plan or Apply
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PRODUCTION_APPROVAL_OPERATION: production-dr-schema
+          PRODUCTION_EVIDENCE_PATH: predecessor-dr-schema/production-dr-schema-evidence.json
+          PRODUCTION_EVIDENCE_RUN_ID: ${{ inputs.dr_schema_run_id }}
+        run: node scripts/production-approval.mjs verify-evidence
       - name: Export temporary database access
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/export-dr-database-urls.mjs --primary-only
       - name: Compare migration history
         run: supabase migration list --db-url "$SUPABASE_CI_DATABASE_URL"
@@ -173,8 +226,7 @@ jobs:
         if: github.event_name == 'push' || !inputs.apply_migrations
         env:
           PRODUCTION_APPROVAL_OPERATION: production-migrations
-          PRODUCTION_APPROVAL_PARAMETERS_JSON: >-
-            ${{ inputs.include_all_migrations && '{"includeAllMigrations":true}' || '{"includeAllMigrations":false}' }}
+          PRODUCTION_APPROVAL_PARAMETERS_JSON: '{"drSchemaRunId":"${{ inputs.dr_schema_run_id }}","includeAllMigrations":false}'
           PRODUCTION_APPROVAL_RECEIPT_PATH: artifacts/production-approval.json
         run: node scripts/production-approval.mjs create
       - name: Upload Production release plan
@@ -217,6 +269,8 @@ jobs:
         run: npm install --global vercel@56.3.1
       - name: Build approved Production deployment without assigning domains
         if: inputs.apply_migrations
+        env:
+          APPROVAL_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
         shell: bash
         run: |
           set -euo pipefail
@@ -227,7 +281,7 @@ jobs:
               --force \
               --yes \
               --token "$VERCEL_TOKEN" \
-              --meta "approval_plan_run_id=${{ inputs.plan_run_id }}" \
+              --meta "approval_plan_run_id=$APPROVAL_PLAN_RUN_ID" \
               --meta "git_commit=${GITHUB_SHA}"
           )"
           [[ "$deployment" == https://*.vercel.app ]] || {
@@ -249,6 +303,8 @@ jobs:
         run: supabase db lint --db-url "$SUPABASE_CI_DATABASE_URL" --level warning --fail-on warning
       - name: Deploy Production Edge Functions
         if: inputs.apply_migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -289,6 +345,8 @@ jobs:
           done
       - name: Verify deployed Production Edge Functions
         if: inputs.apply_migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -325,3 +383,17 @@ jobs:
           promoted=true
           npm run production:smoke
           trap - ERR
+      - name: Create immutable successful Production migration evidence
+        if: inputs.apply_migrations
+        env:
+          PRODUCTION_APPROVAL_OPERATION: production-migrations
+          PRODUCTION_EVIDENCE_PATH: artifacts/production-primary-migration-evidence.json
+        run: node scripts/production-approval.mjs create-evidence
+      - name: Upload successful Production migration evidence
+        if: inputs.apply_migrations
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-primary-migration-${{ github.run_id }}
+          path: artifacts/production-primary-migration-evidence.json
+          if-no-files-found: error
+          retention-days: 30
