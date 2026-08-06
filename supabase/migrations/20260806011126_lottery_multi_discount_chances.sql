@@ -12,6 +12,10 @@ create table public.stall_lottery_discount_chances (
     check (win_rate_bps between 1 and 10000)
 );
 
+create trigger backend_writable_guard
+before insert or update or delete on public.stall_lottery_discount_chances
+for each statement execute function app_private.enforce_backend_writable();
+
 create index stall_lottery_discount_chances_discount_idx
   on public.stall_lottery_discount_chances (discount_option_id);
 
@@ -57,19 +61,9 @@ before insert or update of stall_id, discount_option_id, win_rate_bps
 on public.stall_lottery_discount_chances
 for each row execute function public.enforce_lottery_discount_chance_scope();
 
-insert into public.stall_lottery_discount_chances (
-  stall_id,
-  discount_option_id,
-  win_rate_bps
-)
-select
-  settings.stall_id,
-  settings.lottery_discount_option_id,
-  settings.lottery_discount_win_rate_bps
-from public.stall_ordering_settings settings
-where settings.lottery_discount_option_id is not null
-  and settings.lottery_discount_win_rate_bps between 1 and 10000
-on conflict (stall_id, discount_option_id) do nothing;
+-- Existing single-discount settings remain the compatibility fallback until
+-- the merchant next saves the normalized prize list. Keeping this table empty
+-- on DR avoids conflicting rows when replication first copies the new table.
 
 alter table public.stall_lottery_discount_chances enable row level security;
 alter table public.stall_lottery_discount_chances force row level security;

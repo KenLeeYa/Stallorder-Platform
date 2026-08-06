@@ -13,7 +13,7 @@ exception
 end
 $$;
 
-create table if not exists public.dining_floors (
+create table public.dining_floors (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   stall_id uuid not null references public.stalls(id) on delete cascade,
@@ -25,6 +25,10 @@ create table if not exists public.dining_floors (
   constraint dining_floors_name_check check (char_length(name) between 1 and 40),
   constraint dining_floors_sort_order_check check (sort_order between 0 and 10000)
 );
+
+create trigger backend_writable_guard
+before insert or update or delete on public.dining_floors
+for each statement execute function app_private.enforce_backend_writable();
 
 create index if not exists dining_floors_organization_stall_sort_idx
   on public.dining_floors (organization_id, stall_id, sort_order, name);

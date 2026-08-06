@@ -16,6 +16,7 @@ import {
   classifyReplicationObjectState,
   DrReplicationPublicationError,
   quoteIdentifier,
+  verifyInitialCopyTargetsEmpty,
   waitForSubscriptionScope,
 } from "./lib/dr-replication-publication.mjs";
 
@@ -68,6 +69,7 @@ const plan = {
     ? {
         upgradeOnly: [
           "publication/subscription 必須都已存在，否則 fail closed",
+          "新增 subscription relation 前驗證 DR 目標表為空",
           "只 ADD allowlist 缺表並在 DR REFRESH PUBLICATION WITH (copy_data = true)",
           "已完全一致時 no-op",
         ],
@@ -75,6 +77,7 @@ const plan = {
     : {
         createOrUpgrade: [
           "publication/subscription 都不存在時初建",
+          "增量新增 subscription relation 前驗證 DR 目標表為空",
           "兩者都存在時比對 scope，只 ADD 缺表並在 DR REFRESH PUBLICATION WITH (copy_data = true)",
           "已完全一致時 no-op",
         ],
@@ -269,6 +272,10 @@ try {
         subscriptionRelationRows,
         columnsByTable,
       });
+      const initialCopyTargetEmptiness = await verifyInitialCopyTargetsEmpty({
+        tables: upgradePlan.missingSubscriptionTables,
+        hasRows: (table) => readTableHasRows(dr, table),
+      });
 
       if (inspect) {
         console.log(JSON.stringify({
@@ -280,6 +287,7 @@ try {
           operation: upgradePlan.mode,
           missingPublicationTables: upgradePlan.missingPublicationTables,
           missingSubscriptionTables: upgradePlan.missingSubscriptionTables,
+          initialCopyTargetEmptiness,
           physicalContract,
           exactExistingContractVerified: true,
           changesRemoteState: false,
@@ -620,6 +628,18 @@ async function readSubscriptionRelations(database) {
      order by namespace.nspname, relation_class.relname`,
     subscriptionName,
   );
+}
+
+async function readTableHasRows(database, table) {
+  const rows = await database.$queryRawUnsafe(
+    `select exists (
+       select 1
+       from ${quoteIdentifier("public")}.${quoteIdentifier(table)}
+     ) as "hasRows"`,
+  );
+  return Array.isArray(rows) && rows.length === 1
+    ? rows[0]?.hasRows
+    : null;
 }
 
 async function verifyExactReplicationContract({

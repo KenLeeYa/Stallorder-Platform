@@ -336,6 +336,7 @@ export function getTrackedOrderContext(orderId: string) {
   return prisma.order.findUnique({
     where: { id: orderId },
     select: {
+      source: true,
       stallId: true,
       diningTableId: true,
       quotedWaitMinutes: true,

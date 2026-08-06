@@ -10,6 +10,7 @@ import {
   buildReplicationUpgradePlan,
   classifyReplicationObjectState,
   quoteIdentifier,
+  verifyInitialCopyTargetsEmpty,
   waitForSubscriptionScope,
 } from "./dr-replication-publication.mjs";
 
@@ -104,6 +105,51 @@ describe("DR replication publication upgrade helpers", () => {
       mode: "ADD_TABLES_AND_REFRESH",
       missingPublicationTables: ["dining_floors"],
       missingSubscriptionTables: [],
+    });
+  });
+
+  it("requires every newly subscribed DR table to be empty before initial copy", async () => {
+    const checked = [];
+    await expect(verifyInitialCopyTargetsEmpty({
+      tables: ["dining_floors", "product_bundle_choices"],
+      hasRows: async (table) => {
+        checked.push(table);
+        return false;
+      },
+    })).resolves.toEqual({
+      verifiedTables: ["dining_floors", "product_bundle_choices"],
+      verifiedTableCount: 2,
+      allEmpty: true,
+    });
+    expect(checked).toEqual(["dining_floors", "product_bundle_choices"]);
+
+    await expect(verifyInitialCopyTargetsEmpty({
+      tables: [],
+      hasRows: async () => {
+        throw new Error("NO_OP_MUST_NOT_QUERY");
+      },
+    })).resolves.toEqual({
+      verifiedTables: [],
+      verifiedTableCount: 0,
+      allEmpty: true,
+    });
+
+    await expect(verifyInitialCopyTargetsEmpty({
+      tables: ["dining_floors", "product_bundle_choices"],
+      hasRows: async (table) => table === "product_bundle_choices",
+    })).rejects.toMatchObject({
+      code: "DR_INITIAL_COPY_TARGETS_NOT_EMPTY",
+      details: { tables: ["product_bundle_choices"] },
+    });
+  });
+
+  it("fails closed when a DR emptiness result is not boolean", async () => {
+    await expect(verifyInitialCopyTargetsEmpty({
+      tables: ["dining_floors"],
+      hasRows: async () => null,
+    })).rejects.toMatchObject({
+      code: "DR_INITIAL_COPY_EMPTINESS_RESULT_INVALID",
+      details: { tables: ["dining_floors"] },
     });
   });
 

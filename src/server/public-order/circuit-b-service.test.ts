@@ -474,4 +474,53 @@ describe("Circuit B public order service", () => {
     expect(mocks.verifyTurnstile).not.toHaveBeenCalled();
     expect(mocks.createPublicOrderWithSchedule).not.toHaveBeenCalled();
   });
+
+  it("shows a scheduled-only legacy QR takeout as confirmed when tracking", async () => {
+    const scheduledPickupAt = "2026-08-07T04:30:00.000Z";
+    mocks.getTrackedPublicOrder.mockResolvedValue({
+      orderId: "33333333-3333-4333-8333-333333333333",
+      orderNo: "A003",
+      orderStatus: "CONFIRMED",
+      paymentStatus: "UNPAID",
+      totalAmount: 100,
+      createdAt: "2026-08-06T04:00:00.000Z",
+      fulfillmentType: "TAKEOUT",
+      pickupCodeLength: 3,
+      scheduledPickupAt,
+      requestedFulfillmentAt: null,
+      committedFulfillmentAt: null,
+      pendingFulfillmentAt: null,
+      fulfillmentTimeState: "NOT_REQUESTED",
+      fulfillmentTimeVersion: 0,
+      items: [],
+    });
+    mocks.getTrackedOrderContext.mockResolvedValue({
+      source: "QR_MENU",
+      stallId: "88888888-8888-4888-8888-888888888888",
+      diningTableId: null,
+      quotedWaitMinutes: 10,
+      quotedReadyAt: new Date("2026-08-06T04:10:00.000Z"),
+      stall: { orderingSettings: { estimatedWaitMinutes: 15 } },
+    });
+    const { getOrderThroughCircuitB } = await import("./circuit-b-service");
+
+    const result = await getOrderThroughCircuitB({
+      trackingToken: "legacy-tracking-token",
+      deviceId: "11111111-1111-4111-8111-111111111111",
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    });
+
+    expect(result.body).toMatchObject({
+      order: {
+        scheduledPickupAt,
+        requestedFulfillmentAt: scheduledPickupAt,
+        committedFulfillmentAt: scheduledPickupAt,
+        fulfillmentTimeState: "CONFIRMED",
+        fulfillmentTimeVersion: 0,
+      },
+    });
+  });
 });
