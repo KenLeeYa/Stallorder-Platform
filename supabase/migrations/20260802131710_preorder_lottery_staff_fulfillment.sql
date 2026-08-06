@@ -82,7 +82,7 @@ alter table public.orders
   add constraint orders_discount_source_check
     check (discount_source in ('NONE', 'STAFF', 'LOTTERY'));
 
-create table if not exists public.public_lottery_draws (
+create table public.public_lottery_draws (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   stall_id uuid not null references public.stalls(id) on delete cascade,
@@ -109,6 +109,10 @@ create table if not exists public.public_lottery_draws (
   constraint public_lottery_draws_stall_device_day_unique
     unique (stall_id, device_hash, business_date)
 );
+
+create trigger backend_writable_guard
+before insert or update or delete on public.public_lottery_draws
+for each statement execute function app_private.enforce_backend_writable();
 
 create index if not exists public_lottery_draws_tenant_idx
   on public.public_lottery_draws (organization_id, stall_id, business_date desc);

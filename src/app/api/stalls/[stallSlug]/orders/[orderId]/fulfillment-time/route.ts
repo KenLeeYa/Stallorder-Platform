@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
-import { fulfillmentTimeCommandSchema } from "@/lib/fulfillment-time";
+import {
+  fulfillmentTimeCommandSchema,
+  isUninitializedLegacyQrTakeout,
+} from "@/lib/fulfillment-time";
 import { readJson } from "@/lib/http";
 import { serializeStaffOrder, staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
@@ -51,6 +54,13 @@ export async function PATCH(request: Request, context: RouteContext) {
         || !["WAITING_CONFIRMATION", "CONFIRMED"].includes(current.status)
       ) throw new FulfillmentTimeError("UNAVAILABLE");
       if (current.fulfillmentTimeVersion !== parsed.data.version) {
+        throw new FulfillmentTimeError("CONFLICT");
+      }
+      if (
+        parsed.data.operation === "PROPOSE"
+        && parsed.data.version === 0
+        && !isUninitializedLegacyQrTakeout(current)
+      ) {
         throw new FulfillmentTimeError("CONFLICT");
       }
 

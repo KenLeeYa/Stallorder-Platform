@@ -1,7 +1,7 @@
 # Replication Table Matrix
 
 The executable allowlist is
-`scripts/lib/dr-replication-scope.mjs`. At this revision it contains 111
+`scripts/lib/dr-replication-scope.mjs`. At this revision it contains 118
 `public` business tables, and every selected table has a primary key.
 
 ## Included
@@ -9,7 +9,7 @@ The executable allowlist is
 | Domain | Examples | Notes |
 | --- | --- | --- |
 | Tenant and authorization | organizations, profiles, memberships, auth identity mappings | `profiles.auth_user_id` stays project-local; DR resolves the replicated identity mapping |
-| Catalog and ordering | products, modifiers, QR, sessions, orders, items, events | Trusted writes remain fenced |
+| Catalog and ordering | products, bundles, reusable notes, QR, sessions, orders, lottery draws | Trusted writes remain fenced |
 | Operations | KDS, capacity, cash, print, schedules, alerts | Subscriber apply does not run normal application triggers |
 | Commercial | plans, subscriptions, usage, invoices, billing events | System test orders remain non-billable |
 | Notifications | outbox, integrations, jobs, webhook receipts | Outbound workers stay disabled on standby |

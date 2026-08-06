@@ -30,7 +30,7 @@ describe("configure DR replication dry-run", () => {
     expect(plan).toMatchObject({
       mode: "dry-run",
       strategy: "CREATE_OR_UPGRADE",
-      replicatedTableCount: 112,
+      replicatedTableCount: 118,
       dryRunGuarantees: {
         connectsToDatabases: false,
         changesRemoteState: false,
@@ -57,6 +57,19 @@ describe("configure DR replication dry-run", () => {
     expect(source).toContain('relation.relkind::text as "tableKind"');
     expect(source).toContain('pg_catalog.format_type(attribute.atttypid, attribute.atttypmod)');
     expect(source).toContain("await verifyExactReplicationContract({");
+    const emptinessCheck = source.indexOf(
+      "const initialCopyTargetEmptiness = await verifyInitialCopyTargetsEmpty({",
+    );
+    const primaryUpgradeMutation = source.indexOf(
+      "for (const statement of upgradePlan.primaryStatements)",
+    );
+    const drRefreshMutation = source.indexOf(
+      "for (const statement of upgradePlan.drStatements)",
+    );
+    expect(emptinessCheck).toBeGreaterThan(-1);
+    expect(emptinessCheck).toBeLessThan(primaryUpgradeMutation);
+    expect(emptinessCheck).toBeLessThan(drRefreshMutation);
+    expect(source).toContain("initialCopyTargetEmptiness,");
     expect(rollbackSource.indexOf("assertPublicationContract({")).toBeLessThan(
       rollbackSource.indexOf("drop publication"),
     );

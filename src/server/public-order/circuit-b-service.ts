@@ -4,6 +4,10 @@ import { randomUUID } from "node:crypto";
 import type { createPerformanceTiming } from "@/lib/performance-timing";
 import { getCachedPublicMenuForQrToken } from "@/lib/public-menu";
 import {
+  resolveFulfillmentTimeReadModel,
+  type FulfillmentTimeState,
+} from "@/lib/fulfillment-time";
+import {
   deriveOrderSessionToken,
   derivePublicOrderTokens,
   hmacHex,
@@ -550,7 +554,27 @@ export async function getOrderThroughCircuitB(
       () => getLastDiningTableOrder(orderContext.stallId, orderContext.diningTableId!),
     )
     : null;
-  const publicOrder: Record<string, unknown> = { ...stored };
+  const fulfillmentTime = resolveFulfillmentTimeReadModel({
+    source: orderContext.source,
+    fulfillmentType: String(stored.fulfillmentType ?? ""),
+    scheduledPickupAt: typeof stored.scheduledPickupAt === "string"
+      ? stored.scheduledPickupAt
+      : null,
+    requestedFulfillmentAt: typeof stored.requestedFulfillmentAt === "string"
+      ? stored.requestedFulfillmentAt
+      : null,
+    committedFulfillmentAt: typeof stored.committedFulfillmentAt === "string"
+      ? stored.committedFulfillmentAt
+      : null,
+    pendingFulfillmentAt: typeof stored.pendingFulfillmentAt === "string"
+      ? stored.pendingFulfillmentAt
+      : null,
+    fulfillmentTimeState: (stored.fulfillmentTimeState ?? "NOT_REQUESTED") as FulfillmentTimeState,
+    fulfillmentTimeVersion: typeof stored.fulfillmentTimeVersion === "number"
+      ? stored.fulfillmentTimeVersion
+      : 0,
+  });
+  const publicOrder: Record<string, unknown> = { ...stored, ...fulfillmentTime };
   delete publicOrder.orderId;
   delete publicOrder.pickupCodeLength;
 

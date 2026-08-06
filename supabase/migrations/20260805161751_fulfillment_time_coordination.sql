@@ -61,23 +61,9 @@ alter table public.orders
       and fulfillment_time_version >= 1)
   ) not valid;
 
-update public.orders
-set requested_fulfillment_at = scheduled_pickup_at,
-    committed_fulfillment_at = scheduled_pickup_at,
-    fulfillment_time_state = 'CONFIRMED',
-    fulfillment_time_version = 1
-where fulfillment_type = 'TAKEOUT'::public.fulfillment_type
-  and source = 'QR_MENU'
-  and scheduled_pickup_at is not null
-  and fulfillment_time_state = 'NOT_REQUESTED'
-  and created_at >= now() - interval '30 days'
-  and status in (
-    'WAITING_CONFIRMATION'::public.order_status,
-    'CONFIRMED'::public.order_status,
-    'PREPARING'::public.order_status,
-    'PACKING'::public.order_status,
-    'READY'::public.order_status
-  );
+-- Existing orders keep their established scheduled_pickup_at value. New
+-- coordination state begins with orders created by this release, avoiding a
+-- DR-side data rewrite before Primary replication includes the new columns.
 
 create index if not exists orders_stall_fulfillment_time_state_idx
   on public.orders (stall_id, fulfillment_time_state, created_at desc)
@@ -100,7 +86,7 @@ alter table public.notification_jobs
   add constraint notification_jobs_event_version_check
     check (event_version between 0 and 10000) not valid,
   drop constraint if exists notification_jobs_order_template_unique,
-  add constraint notification_jobs_order_template_version_unique
+  add constraint notification_jobs_order_template_unique
     unique (order_id, provider, template_code, event_version),
   drop constraint if exists notification_jobs_template_check,
   add constraint notification_jobs_template_check check (
