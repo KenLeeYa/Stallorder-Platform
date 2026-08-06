@@ -2,6 +2,12 @@ import { createHash } from "node:crypto";
 
 const ANSI_PATTERN = /\u001b\[[0-9;]*m/gu;
 const MIGRATION_VERSION_PATTERN = /^\d{14}$/u;
+const IDENTIFIER_SOURCE = "[a-z_][a-z0-9_$]*";
+const QUALIFIED_IDENTIFIER_SOURCE = `${IDENTIFIER_SOURCE}(?:\\.${IDENTIFIER_SOURCE})?`;
+const QUALIFIED_IDENTIFIER_PATTERN = new RegExp(
+  `^${QUALIFIED_IDENTIFIER_SOURCE}$`,
+  "iu",
+);
 
 export class AdditiveMigrationPlanError extends Error {
   constructor(code, details = {}) {
@@ -22,10 +28,19 @@ function parseMigrationListContract(value) {
   }
   const rows = [];
   for (const line of value.replace(ANSI_PATTERN, "").split(/\r?\n/u)) {
-    const match = line.match(/^\s*(\d{14})?\s*[|│]\s*(\d{14})?\s*[|│]/u);
-    if (!match) continue;
-    const local = match[1] || null;
-    const remote = match[2] || null;
+    const match = line.match(
+      /^\s*(?:(\d{14})|`(\d{14})`|`\s*`)?\s*[|│]\s*(?:(\d{14})|`(\d{14})`|`\s*`)?\s*[|│]/u,
+    );
+    if (!match) {
+      const isHeader = /^\s*local\s*[|│]\s*remote\s*[|│]/iu.test(line);
+      const isSeparator = /^\s*-+\s*[|│]\s*-+\s*[|│]/u.test(line);
+      if (/[|│]/u.test(line) && !isHeader && !isSeparator) {
+        throw new AdditiveMigrationPlanError("MIGRATION_LIST_UNPARSEABLE");
+      }
+      continue;
+    }
+    const local = match[1] || match[2] || null;
+    const remote = match[3] || match[4] || null;
     if (!local && !remote) continue;
     rows.push({ local, remote });
   }
@@ -123,10 +138,17 @@ export function assertAdditiveMigrationSql(sql) {
     .split(";")
     .map((statement) => statement.trim())
     .filter(Boolean);
+  const functionReplacements = safeFunctionReplacements(statements);
   const replacements = replacementObjects(statements);
-  assertRevokesTargetCreatedObjects(statements);
+  assertRevokesTargetCreatedObjects(
+    statements,
+    functionReplacements.renamedFunctions,
+  );
+  assertCommentsTargetCreatedObjects(statements);
 
   for (const statement of statements) {
+    if (functionReplacements.statements.has(statement)) continue;
+    if (/^set\b/iu.test(statement)) assertSafeTimeout(statement);
     assertAllowedStatement(statement);
     if (
       /^drop\s+index\b/iu.test(statement)
@@ -164,28 +186,232 @@ export function assertAdditiveMigrationSql(sql) {
   return true;
 }
 
-function assertRevokesTargetCreatedObjects(statements) {
-  const created = new Set();
-  for (const statement of statements) {
-    const table = statement.match(
-      /\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?([^\s(;]+)/iu,
-    );
-    if (table) created.add(`table:${normalizeIdentifier(table[1])}`);
-    const functions = statement.match(
-      /\bcreate\s+(?:or\s+replace\s+)?function\s+([^\s(;]+)/iu,
-    );
-    if (functions) created.add(`function:${normalizeIdentifier(functions[1])}`);
+function assertRevokesTargetCreatedObjects(statements, renamedFunctions) {
+  const createdAt = new Map(renamedFunctions);
+  for (const [index, statement] of statements.entries()) {
+    const table = statement.match(new RegExp(
+      `^create\\s+table\\s+(${QUALIFIED_IDENTIFIER_SOURCE})`,
+      "iu",
+    ));
+    if (table) {
+      const identity = `table:${normalizeIdentifier(table[1])}`;
+      if (!createdAt.has(identity)) createdAt.set(identity, index);
+    }
+    const functionIdentity = createFunctionIdentity(statement);
+    if (functionIdentity) {
+      const identity = `function:${functionIdentity}`;
+      if (!createdAt.has(identity)) createdAt.set(identity, index);
+    }
   }
-  for (const statement of statements) {
-    const revoke = statement.match(
-      /\brevoke\b[\s\S]*?\bon\s+(table|function)\s+([^\s(;]+)/iu,
-    );
-    if (!revoke) continue;
-    const key = `${revoke[1].toLowerCase()}:${normalizeIdentifier(revoke[2])}`;
-    if (!created.has(key)) {
+  for (const [index, statement] of statements.entries()) {
+    if (!/^revoke\b/iu.test(statement)) continue;
+    const revoke = statement.match(new RegExp(
+      "^revoke\\s+all(?:\\s+privileges)?\\s+on\\s+"
+        + "(?:(table|function)\\s+)?([\\s\\S]*?)\\s+from\\s+"
+        + `${IDENTIFIER_SOURCE}(?:\\s*,\\s*${IDENTIFIER_SOURCE})*$`,
+      "iu",
+    ));
+    if (!revoke) {
+      throw new AdditiveMigrationPlanError("REVOKE_STATEMENT_UNPARSEABLE");
+    }
+    const kind = revoke[1]?.toLowerCase() ?? "table";
+    const targets = kind === "function"
+      ? splitTopLevelComma(revoke[2]).map((target) => {
+        const match = target.match(new RegExp(
+          `^(${QUALIFIED_IDENTIFIER_SOURCE})\\s*\\(([^()]*)\\)$`,
+          "iu",
+        ));
+        const argumentTypes = match
+          ? functionArgumentTypes(match[2], false)
+          : null;
+        return argumentTypes
+          ? `${normalizeIdentifier(match[1])}(${argumentTypes.join(",")})`
+          : null;
+      })
+      : revoke[2].split(",").map((target) => target.trim()).filter(Boolean);
+    if (
+      targets.length === 0
+      || targets.some((target) => (
+        !target
+        || (kind === "table" && !QUALIFIED_IDENTIFIER_PATTERN.test(target))
+        || !createdAt.has(`${kind}:${normalizeIdentifier(target)}`)
+        || createdAt.get(`${kind}:${normalizeIdentifier(target)}`) >= index
+      ))
+    ) {
       throw new AdditiveMigrationPlanError("REVOKE_EXISTING_OBJECT_FORBIDDEN");
     }
   }
+}
+
+function assertCommentsTargetCreatedObjects(statements) {
+  const createdTables = new Map();
+  const createdFunctions = new Map();
+  const addedColumns = new Map();
+  for (const [index, statement] of statements.entries()) {
+    const table = statement.match(new RegExp(
+      `^create\\s+table\\s+(${QUALIFIED_IDENTIFIER_SOURCE})`,
+      "iu",
+    ));
+    if (table && !createdTables.has(normalizeIdentifier(table[1]))) {
+      createdTables.set(normalizeIdentifier(table[1]), index);
+    }
+    const functionIdentity = createFunctionIdentity(statement);
+    if (functionIdentity && !createdFunctions.has(functionIdentity)) {
+      createdFunctions.set(functionIdentity, index);
+    }
+    const alteredTable = statement.match(new RegExp(
+      `^alter\\s+table\\s+(${QUALIFIED_IDENTIFIER_SOURCE})\\s+`,
+      "iu",
+    ));
+    if (!alteredTable) continue;
+    for (const column of statement.matchAll(new RegExp(
+      `\\badd\\s+column\\s+(?:if\\s+not\\s+exists\\s+)?(${IDENTIFIER_SOURCE})\\b`,
+      "giu",
+    ))) {
+      const identity = `${normalizeIdentifier(alteredTable[1])}.${normalizeIdentifier(column[1])}`;
+      if (!addedColumns.has(identity)) addedColumns.set(identity, index);
+    }
+  }
+  for (const [index, statement] of statements.entries()) {
+    if (!/^comment\s+on\b/iu.test(statement)) continue;
+    const functionComment = statement.match(new RegExp(
+      `^comment\\s+on\\s+function\\s+(${QUALIFIED_IDENTIFIER_SOURCE})\\s*\\(([^()]*)\\)\\s+is\\s+[\\s\\S]+$`,
+      "iu",
+    ));
+    if (functionComment) {
+      const argumentTypes = functionArgumentTypes(functionComment[2], false);
+      const identity = argumentTypes
+        ? `${normalizeIdentifier(functionComment[1])}(${argumentTypes.join(",")})`
+        : null;
+      if (
+        identity
+        && createdFunctions.has(identity)
+        && createdFunctions.get(identity) < index
+      ) continue;
+      throw new AdditiveMigrationPlanError("COMMENT_EXISTING_OBJECT_FORBIDDEN");
+    }
+    const columnComment = statement.match(new RegExp(
+      `^comment\\s+on\\s+column\\s+(${QUALIFIED_IDENTIFIER_SOURCE})\\.(${IDENTIFIER_SOURCE})\\s+is\\s+[\\s\\S]+$`,
+      "iu",
+    ));
+    if (columnComment) {
+      const table = normalizeIdentifier(columnComment[1]);
+      const column = normalizeIdentifier(columnComment[2]);
+      if (
+        (createdTables.has(table) && createdTables.get(table) < index)
+        || (
+          addedColumns.has(`${table}.${column}`)
+          && addedColumns.get(`${table}.${column}`) < index
+        )
+      ) continue;
+      throw new AdditiveMigrationPlanError("COMMENT_EXISTING_OBJECT_FORBIDDEN");
+    }
+    throw new AdditiveMigrationPlanError("COMMENT_STATEMENT_UNPARSEABLE");
+  }
+}
+
+function assertSafeTimeout(statement) {
+  const match = statement.match(
+    /^set\s+(lock_timeout|statement_timeout)\s*=\s*'(\d+)(ms|s|min)'$/iu,
+  );
+  if (!match) {
+    throw new AdditiveMigrationPlanError("TIMEOUT_STATEMENT_UNSAFE");
+  }
+  const multiplier = match[3].toLowerCase() === "min"
+    ? 60_000
+    : match[3].toLowerCase() === "s"
+      ? 1_000
+      : 1;
+  const milliseconds = Number(match[2]) * multiplier;
+  const maximum = match[1].toLowerCase() === "lock_timeout" ? 60_000 : 1_800_000;
+  if (!Number.isSafeInteger(milliseconds) || milliseconds <= 0 || milliseconds > maximum) {
+    throw new AdditiveMigrationPlanError("TIMEOUT_STATEMENT_UNSAFE");
+  }
+}
+
+function safeFunctionReplacements(statements) {
+  const createdIdentities = statements.map((statement, index) => ({
+    identity: createFunctionIdentity(statement),
+    index,
+  })).filter((entry) => entry.identity);
+  const safeStatements = new Set();
+  const renamedFunctions = new Map();
+  for (const [index, statement] of statements.entries()) {
+    const match = statement.match(
+      new RegExp(
+        `^alter\\s+function\\s+(${QUALIFIED_IDENTIFIER_SOURCE})\\s*\\(([\\s\\S]*?)\\)\\s+rename\\s+to\\s+(${IDENTIFIER_SOURCE})$`,
+        "iu",
+      ),
+    );
+    if (!match) continue;
+    const argumentTypes = functionArgumentTypes(match[2], false);
+    const originalName = normalizeIdentifier(match[1]);
+    const originalIdentity = argumentTypes
+      ? `${originalName}(${argumentTypes.join(",")})`
+      : null;
+    if (
+      !originalIdentity
+      || !createdIdentities.some((entry) => (
+        entry.identity === originalIdentity && entry.index > index
+      ))
+    ) {
+      throw new AdditiveMigrationPlanError(
+        "UNPAIRED_FUNCTION_RENAME_FORBIDDEN",
+      );
+    }
+    const separator = originalName.lastIndexOf(".");
+    const schema = separator >= 0 ? originalName.slice(0, separator + 1) : "";
+    safeStatements.add(statement);
+    renamedFunctions.set(
+      `function:${schema}${normalizeIdentifier(match[3])}(${argumentTypes.join(",")})`,
+      index,
+    );
+  }
+  return { statements: safeStatements, renamedFunctions };
+}
+
+function createFunctionIdentity(statement) {
+  const match = statement.match(new RegExp(
+    `^create\\s+(?:or\\s+replace\\s+)?function\\s+(${QUALIFIED_IDENTIFIER_SOURCE})\\s*\\(([\\s\\S]*?)\\)\\s*returns\\b`,
+    "iu",
+  ));
+  if (!match) return null;
+  const argumentTypes = functionArgumentTypes(match[2], true);
+  return argumentTypes
+    ? `${normalizeIdentifier(match[1])}(${argumentTypes.join(",")})`
+    : null;
+}
+
+function splitTopLevelComma(value) {
+  const targets = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] === "(") depth += 1;
+    if (value[index] === ")") depth -= 1;
+    if (depth < 0) return [];
+    if (value[index] === "," && depth === 0) {
+      targets.push(value.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  if (depth !== 0) return [];
+  targets.push(value.slice(start).trim());
+  return targets.filter(Boolean);
+}
+
+function functionArgumentTypes(value, declarationsIncludeNames) {
+  if (value.trim() === "") return [];
+  const types = [];
+  for (const argument of value.split(",")) {
+    const normalized = argument.trim().replace(/\s+(?:default|=)[\s\S]*$/iu, "");
+    const type = declarationsIncludeNames
+      ? normalized.match(/^(?:in\s+)?"?[a-z_][a-z0-9_$]*"?\s+([a-z_][a-z0-9_.]*(?:\[\])?)$/iu)?.[1]
+      : normalized.match(/^([a-z_][a-z0-9_.]*(?:\[\])?)$/iu)?.[1];
+    if (!type) return null;
+    types.push(normalizeIdentifier(type));
+  }
+  return types;
 }
 
 function assertDoBlocksSafe(sql) {
@@ -212,6 +438,8 @@ function assertAllowedStatement(statement) {
     /^drop\s+(?:trigger|policy|index)\b/iu,
     /^revoke\b/iu,
     /^grant\b/iu,
+    /^comment\s+on\s+(?:column|function)\b/iu,
+    /^set\s+(?:lock_timeout|statement_timeout)\s*=/iu,
     /^do\s+\$\$/iu,
   ].some((pattern) => pattern.test(statement));
   if (!allowed) {
@@ -303,7 +531,7 @@ function replacementKey(kind, table, name) {
 }
 
 function normalizeIdentifier(value) {
-  return value.replaceAll('"', "").toLowerCase();
+  return value.includes('"') ? `quoted:${value}` : value.toLowerCase();
 }
 
 function scrubSql(sql) {
@@ -337,18 +565,24 @@ function scrubSql(sql) {
       continue;
     }
     if (sql[index] === "'") {
+      let literal = "";
+      let simpleLiteral = true;
       index += 1;
       while (index < sql.length) {
         if (sql[index] === "'" && sql[index + 1] === "'") {
+          simpleLiteral = false;
           index += 2;
         } else if (sql[index] === "'") {
           index += 1;
           break;
         } else {
+          literal += sql[index];
           index += 1;
         }
       }
-      output += " '' ";
+      output += simpleLiteral && /^\d+(?:ms|s|min)$/iu.test(literal)
+        ? ` '${literal}' `
+        : " '' ";
       continue;
     }
     if (sql[index] === "$") {

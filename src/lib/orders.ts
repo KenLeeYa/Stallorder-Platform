@@ -1,4 +1,8 @@
 import type { FulfillmentType, OrderItemStatus, OrderStatus, PaymentStatus, Prisma } from "@prisma/client";
+import {
+  resolveFulfillmentTimeReadModel,
+  type FulfillmentTimeState,
+} from "@/lib/fulfillment-time";
 
 export const activeOrderStatuses = ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "PACKING", "READY"] as const;
 
@@ -83,7 +87,7 @@ export type StaffOrderDto = {
   requestedFulfillmentAt: string | null;
   committedFulfillmentAt: string | null;
   pendingFulfillmentAt: string | null;
-  fulfillmentTimeState: "NOT_REQUESTED" | "REQUESTED" | "CONFIRMED" | "CUSTOMER_ACTION_REQUIRED" | "DECLINED" | "EXPIRED";
+  fulfillmentTimeState: FulfillmentTimeState;
   fulfillmentTimeVersion: number;
   fulfillmentTimeResponseExpiresAt: string | null;
   fulfillmentTimeChangeReason: string | null;
@@ -104,6 +108,21 @@ export type StaffOrderDto = {
 };
 
 export function serializeStaffOrder(order: Prisma.OrderGetPayload<{ select: typeof staffOrderSelect }>): StaffOrderDto {
+  const scheduledPickupAt = order.scheduledPickupAt?.toISOString() ?? null;
+  const requestedFulfillmentAt = order.requestedFulfillmentAt?.toISOString() ?? null;
+  const committedFulfillmentAt = order.committedFulfillmentAt?.toISOString() ?? null;
+  const pendingFulfillmentAt = order.pendingFulfillmentAt?.toISOString() ?? null;
+  const fulfillmentTime = resolveFulfillmentTimeReadModel({
+    source: order.source,
+    fulfillmentType: order.fulfillmentType,
+    scheduledPickupAt,
+    requestedFulfillmentAt,
+    committedFulfillmentAt,
+    pendingFulfillmentAt,
+    fulfillmentTimeState: order.fulfillmentTimeState as FulfillmentTimeState,
+    fulfillmentTimeVersion: order.fulfillmentTimeVersion,
+  });
+
   return {
     ...order,
     pickupVerifiedAt: order.pickupVerifiedAt?.toISOString() ?? null,
@@ -112,11 +131,11 @@ export function serializeStaffOrder(order: Prisma.OrderGetPayload<{ select: type
       : order.pickupVerificationMethod === "MANUAL" ? "MANUAL" : null,
     confirmationExpiresAt: order.confirmationExpiresAt.toISOString(),
     quotedReadyAt: order.quotedReadyAt?.toISOString() ?? null,
-    scheduledPickupAt: order.scheduledPickupAt?.toISOString() ?? null,
-    requestedFulfillmentAt: order.requestedFulfillmentAt?.toISOString() ?? null,
-    committedFulfillmentAt: order.committedFulfillmentAt?.toISOString() ?? null,
-    pendingFulfillmentAt: order.pendingFulfillmentAt?.toISOString() ?? null,
-    fulfillmentTimeState: order.fulfillmentTimeState as StaffOrderDto["fulfillmentTimeState"],
+    scheduledPickupAt,
+    requestedFulfillmentAt: fulfillmentTime.requestedFulfillmentAt,
+    committedFulfillmentAt: fulfillmentTime.committedFulfillmentAt,
+    pendingFulfillmentAt,
+    fulfillmentTimeState: fulfillmentTime.fulfillmentTimeState,
     fulfillmentTimeResponseExpiresAt: order.fulfillmentTimeResponseExpiresAt?.toISOString() ?? null,
     createdAt: order.createdAt.toISOString(),
     items: order.items.map((item) => ({

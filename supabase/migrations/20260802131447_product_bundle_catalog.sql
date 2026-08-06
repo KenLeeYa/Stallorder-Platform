@@ -38,6 +38,10 @@ create table public.product_bundle_choice_groups (
     check (sort_order between 0 and 10000)
 );
 
+create trigger backend_writable_guard
+before insert or update or delete on public.product_bundle_choice_groups
+for each statement execute function app_private.enforce_backend_writable();
+
 create index product_bundle_choice_groups_organization_bundle_sort_idx
   on public.product_bundle_choice_groups (organization_id, bundle_product_id, sort_order, name);
 
@@ -67,6 +71,10 @@ create table public.product_bundle_choices (
   constraint product_bundle_choices_sort_check
     check (sort_order between 0 and 10000)
 );
+
+create trigger backend_writable_guard
+before insert or update or delete on public.product_bundle_choices
+for each statement execute function app_private.enforce_backend_writable();
 
 create index product_bundle_choices_organization_group_sort_idx
   on public.product_bundle_choices (organization_id, choice_group_id, sort_order);

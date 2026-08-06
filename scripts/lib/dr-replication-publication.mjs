@@ -506,6 +506,45 @@ export function buildReplicationUpgradePlan({
   };
 }
 
+export async function verifyInitialCopyTargetsEmpty({
+  tables,
+  hasRows,
+}) {
+  const required = validateTableList(
+    tables,
+    "DR_INITIAL_COPY_TABLES_INVALID",
+  );
+  if (typeof hasRows !== "function") {
+    throw new DrReplicationPublicationError(
+      "DR_INITIAL_COPY_EMPTINESS_READER_INVALID",
+    );
+  }
+
+  const nonEmptyTables = [];
+  for (const table of required) {
+    const result = await hasRows(table);
+    if (typeof result !== "boolean") {
+      throw new DrReplicationPublicationError(
+        "DR_INITIAL_COPY_EMPTINESS_RESULT_INVALID",
+        { tables: [table] },
+      );
+    }
+    if (result) nonEmptyTables.push(table);
+  }
+  if (nonEmptyTables.length > 0) {
+    throw new DrReplicationPublicationError(
+      "DR_INITIAL_COPY_TARGETS_NOT_EMPTY",
+      { tables: nonEmptyTables },
+    );
+  }
+
+  return {
+    verifiedTables: required,
+    verifiedTableCount: required.length,
+    allEmpty: true,
+  };
+}
+
 export function diffAllowedPublicTables({
   allowlistedTables,
   actualRows,

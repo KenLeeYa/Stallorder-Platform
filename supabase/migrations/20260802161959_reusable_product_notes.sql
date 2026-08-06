@@ -14,6 +14,10 @@ create table public.reusable_product_notes (
   constraint reusable_product_notes_sort_check check (sort_order between 0 and 10000)
 );
 
+create trigger backend_writable_guard
+before insert or update or delete on public.reusable_product_notes
+for each statement execute function app_private.enforce_backend_writable();
+
 create index reusable_product_notes_organization_sort_idx
   on public.reusable_product_notes (organization_id, sort_order, name);
 
@@ -32,6 +36,10 @@ create table public.reusable_product_note_translations (
   constraint reusable_product_note_translations_locale_check check (locale ~ '^[a-z]{2}(-[A-Z]{2})?$'),
   constraint reusable_product_note_translations_name_check check (char_length(name) between 1 and 120)
 );
+
+create trigger backend_writable_guard
+before insert or update or delete on public.reusable_product_note_translations
+for each statement execute function app_private.enforce_backend_writable();
 
 create index reusable_product_note_translations_organization_locale_idx
   on public.reusable_product_note_translations (organization_id, locale);
