@@ -8,7 +8,8 @@ gate, but it is not a persistent runtime environment.
 | ----------------- | ---------------------------- | --------------------------- | ------------------------------------------------------ |
 | Ephemeral Preview | Same-repository Pull Request | Matching Vercel Preview URL | Data-less Preview Branch created for that Pull Request |
 | Source-tree gate  | `staging`                    | No persistent runtime       | No remote database                                     |
-| Production        | `main`                       | `https://app.qidaigo.com`   | `stallorder-production`                                |
+| Production DR     | Verified `main` tree         | No normal public traffic    | Former Staging project, fenced read-only standby       |
+| Production        | `main`                       | `https://app.qidaigo.com`   | `stallorder-production` Primary                        |
 
 ## Required release order
 
@@ -23,15 +24,27 @@ gate, but it is not a persistent runtime environment.
 5. Promote the exact verified `staging` tree through a Pull Request to `main`.
 6. Merge only after the Production Pull Request repeats CI and paired
    Ephemeral Preview validation.
-7. The `main` push performs the Production migration dry-run and remote lint,
-   then uploads an immutable, 24-hour release Plan receipt. It does not apply
-   migrations or deploy to Production.
-8. The repository owner manually runs `Production Readiness` from the same
-   `main` commit with the Plan run ID and `APPLY_PRODUCTION_RELEASE`.
-9. Apply verifies the receipt, builds an unaliased Production deployment,
+7. Before a Production database change, run `plan-dr-schema` from `main` with
+   `PLAN_PRODUCTION_DR`, review the artifact, and run `dr-schema` with its Plan
+   run ID and `APPLY_PRODUCTION_DR_SCHEMA`. This updates and verifies fenced DR
+   first without seed, reset or `--include-all`.
+8. Run a manual `Production Readiness` Plan from the same `main` commit with
+   the successful DR schema Apply run ID. Review its immutable, 24-hour receipt,
+   then run Apply with the same DR run ID, the Plan run ID and
+   `APPLY_PRODUCTION_RELEASE`.
+9. Production Apply verifies both receipts, builds an unaliased deployment,
    applies and lints migrations, deploys and lists every repository Edge
    Function, then promotes that deployment and runs the Production smoke test.
    A failed post-promotion smoke rolls the Vercel alias back.
+10. Keep new feature writes disabled. Run `plan-incremental-replication` with
+    the successful Production run ID, then run `incremental-replication` with
+    its Plan run ID and `UPGRADE_PRODUCTION_DR_REPLICATION`. The operation fails
+    closed unless the existing publication/subscription contract is exact.
+11. Enable the feature or canary only after the replication snapshot and
+    readiness checks pass.
+
+The automatic `main` push Plan is an early signal only; a database-changing
+release needs a newly dispatched Plan bound to the completed DR schema run.
 
 Production deployment is rejected when the `main` source tree differs from the
 verified `staging` source tree. This prevents Production-only application or
@@ -59,8 +72,8 @@ QR，並經正式同源 proxy 建立一個不含訂單的短效安全點餐 sess
 
 Preview automation may also use `VERCEL_AUTOMATION_BYPASS_SECRET`. Generated
 Preview connection values are masked and never persisted to GitHub variables.
-The former Staging Supabase project is reserved for Production DR and must not
-be configured as a `Production Readiness` staging target.
+The former Staging Supabase project is Production DR. It must not be configured
+as a `Production Readiness` staging target and must not receive Preview data.
 
 Secrets must never be committed, printed in logs, or shared between Supabase
 projects unless the provider explicitly requires one project-level value.
@@ -82,19 +95,9 @@ projects unless the provider explicitly requires one project-level value.
 
 ## Out-of-order migration recovery
 
-The standard workflow rejects a local migration whose version is older than the
-latest remote migration. If a reviewed environment accidentally skipped that
-specific migration:
-
-1. Confirm the remote migration list and the exact missing local file.
-2. Confirm the full local reset, database tests and database lint pass.
-3. Manually run `Production Readiness` from `main` with
-   `apply_migrations=false` and `include_all_migrations=true` to produce a
-   reviewed Plan receipt.
-4. Run it again from the same commit with `apply_migrations=true`, the Plan run
-   ID, `include_all_migrations=true`, and confirmation
-   `APPLY_PRODUCTION_RELEASE`.
-5. Re-run the standard Plan without `include_all_migrations`.
-
-Never enable this recovery option for an unknown remote-only migration or an
-unreviewed migration file.
+The normal DR-first workflow rejects `include_all_migrations=true`. An
+out-of-order migration is therefore an incident, not a routine release option:
+stop before any DR or Primary Apply, identify the exact divergence, and use a
+separately reviewed forward-only recovery plan. Never reset either Production
+database or bypass the DR-schema -> Primary-migration -> replication-upgrade
+order.

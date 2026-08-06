@@ -13,8 +13,8 @@ Local Development
 
 The `staging` Git branch remains the source-tree promotion gate, but
 `staging.qidaigo.com` is no longer a required runtime validation environment.
-The former Staging Supabase project is reserved for the approved Production DR
-conversion and must never receive synthetic Preview fixtures.
+The former Staging Supabase project is now Production DR and must never receive
+synthetic Preview fixtures or act as an online Staging target.
 
 ## Target state
 
@@ -179,8 +179,16 @@ bootstrap and teardown procedure is still required.
    connect to the Production DR candidate.
 5. A `staging` to `main` Pull Request repeats CI and paired Preview validation.
 6. The exact verified Staging tree is promoted to `main`.
-7. The Main push runs Production migration, remote lint, deployment and
-   non-destructive smoke checks.
+7. Run the protected DR schema Plan/Apply and verify fenced DR first.
+8. Run the Production Readiness Plan/Apply, bound to that DR schema run, to
+   migrate Primary and promote compatible code while new feature writes remain
+   disabled.
+9. Run the upgrade-only replication Plan/Apply, bound to the successful
+   Production run, then require snapshot/readiness success before canary or
+   feature enablement.
+
+The automatic `main` push only creates an early Production Plan signal; it does
+not apply a database migration or deploy Production.
 
 ## Rollback
 
@@ -214,8 +222,8 @@ Persistent Staging may be removed only after all of the following are true:
 ## Current limitations
 
 - GitHub Environment protection reviewers are not configured.
-- Production DR bootstrap must complete before the former Staging project is a
-  usable standby.
+- Production DR is an existing standby. Bootstrap remains available only for a
+  separately approved first-time creation or rebuild, not routine releases.
 - A measured Production failover RTO/RPO does not exist until the protected DR
   drill succeeds.
 - Primary and DR are both in Tokyo, so this design does not cover a complete

@@ -8,6 +8,7 @@ const disasterRecovery = read(".github/workflows/production-dr-operations.yml");
 const ephemeralPreview = read(".github/workflows/ephemeral-preview.yml");
 const statusPage = read(".github/workflows/status-page-deploy.yml");
 const drSmoke = read("scripts/run-dr-readonly-smoke.mjs");
+const productionApproval = read("scripts/lib/production-approval.mjs");
 const vercel = JSON.parse(read("vercel.json"));
 
 describe("Production workflow approval contract", () => {
@@ -24,15 +25,138 @@ describe("Production workflow approval contract", () => {
   });
 
   it("requires a prior Plan receipt for every DR and status-page Apply", () => {
-    for (const operation of ["plan-bootstrap", "plan-drill", "plan-storage-canary"]) {
+    for (const operation of [
+      "plan-bootstrap",
+      "plan-drill",
+      "plan-dr-schema",
+      "plan-incremental-replication",
+      "plan-storage-canary",
+    ]) {
       expect(disasterRecovery).toContain(`- ${operation}`);
     }
-    expect(disasterRecovery.match(/needs: approval/gu)).toHaveLength(3);
+    for (const jobName of [
+      "bootstrap",
+      "drill",
+      "dr-schema",
+      "incremental-replication",
+      "storage-canary",
+    ]) {
+      expect(workflowJob(disasterRecovery, jobName)).toMatch(/needs: approval/u);
+    }
     expect(disasterRecovery).toContain("production-approval.mjs verify");
     expect(statusPage).toContain("plan_run_id:");
     expect(statusPage.indexOf("production-approval.mjs verify")).toBeLessThan(
       statusPage.indexOf("name: Deploy Worker and custom domain"),
     );
+  });
+
+  it("applies additive schema to DR before Primary and never resets DR", () => {
+    const plan = workflowJob(disasterRecovery, "plan");
+    const job = workflowJob(disasterRecovery, "dr-schema");
+    const migrationList = job.indexOf('migration list --db-url "$DR_DIRECT_URL"');
+    const dryRun = job.indexOf('db push --db-url "$DR_DIRECT_URL" --dry-run');
+    const apply = job.indexOf('db push --db-url "$DR_DIRECT_URL"', dryRun + 1);
+    const postLint = job.indexOf("Lint DR database after additive migration Apply");
+
+    expect(productionApproval).toContain('"production-dr-schema"');
+    expect(plan).toContain("plan-dr-schema)");
+    expect(plan).toContain("node scripts/production-readiness.mjs");
+    expect(plan).toContain("assert-additive-migration-plan.mjs");
+    expect(plan).toContain("dr-schema-additive-plan.json");
+    expect(plan).toContain('migration list --db-url "$DR_DIRECT_URL"');
+    expect(plan).toContain('db push --db-url "$DR_DIRECT_URL" --dry-run');
+    expect(plan).toContain('db lint --db-url "$DR_DIRECT_URL"');
+    expect(plan).toContain("dr-schema-plan-digest.txt");
+    expect(job).toContain("APPLY_PRODUCTION_DR_SCHEMA");
+    expect(job).toContain("name: Reject unreviewed destructive migrations");
+    expect(job).toContain("node scripts/production-readiness.mjs");
+    expect(job).toContain("assert-additive-migration-plan.mjs");
+    expect(job).toContain("dr-schema-additive-plan-before.json");
+    expect(job).toContain("needs: approval");
+    expect(migrationList).toBeGreaterThan(-1);
+    expect(migrationList).toBeLessThan(dryRun);
+    expect(dryRun).toBeLessThan(apply);
+    expect(apply).toBeLessThan(postLint);
+    expect(job).toContain("production-dr-schema-evidence.json");
+    expect(job).not.toContain('"$DIRECT_URL"');
+    expect(job).not.toContain("--include-all");
+    expect(job).not.toContain("--include-seed");
+    expect(job).not.toContain("db reset");
+    expect(job).not.toContain("--rollback");
+  });
+
+  it("binds a non-destructive incremental replication upgrade to Plan and Apply", () => {
+    expect(productionApproval).toContain(
+      '"production-dr-incremental-replication"',
+    );
+    expect(disasterRecovery).toContain(
+      "incremental-replication:UPGRADE_PRODUCTION_DR_REPLICATION",
+    );
+    const plan = workflowJob(disasterRecovery, "plan");
+    const job = workflowJob(disasterRecovery, "incremental-replication");
+    const predecessor = job.indexOf("Verify Production migration completed");
+    const inspect = job.indexOf("--inspect --upgrade-only");
+    const apply = job.indexOf("--apply --upgrade-only");
+    const snapshot = job.indexOf("refresh-dr-replication-snapshot.mjs");
+    const readinessCheck = job.indexOf("check-dr-readiness.mjs --target DR --apply");
+
+    expect(plan).toContain("--inspect --upgrade-only");
+    expect(plan).toContain('"strategy":"UPGRADE_ONLY"');
+    expect(plan).not.toContain('"strategy":"CREATE_OR_UPGRADE"');
+    expect(job).toContain("needs: approval");
+    expect(job).toContain("primary_migration_run_id");
+    expect(job).toContain("production-approval.mjs verify-evidence");
+    expect(job).toContain("cmp --silent");
+    expect(predecessor).toBeGreaterThan(-1);
+    expect(predecessor).toBeLessThan(inspect);
+    expect(inspect).toBeLessThan(apply);
+    expect(apply).toBeGreaterThan(-1);
+    expect(apply).toBeLessThan(snapshot);
+    expect(snapshot).toBeLessThan(readinessCheck);
+    expect(job).not.toContain("supabase db reset");
+    expect(job).not.toContain("--rollback");
+    expect(job).not.toContain("drop publication");
+    expect(job).not.toContain("drop subscription");
+  });
+
+  it("requires successful DR schema evidence before Primary migration evidence", () => {
+    const verifyDrSchema = readiness.indexOf(
+      "name: Verify DR schema completed before the Production Plan or Apply",
+    );
+    const applyPrimary = readiness.indexOf("name: Apply pending migrations");
+    const primaryEvidence = readiness.indexOf(
+      "name: Create immutable successful Production migration evidence",
+    );
+
+    expect(readiness).toContain("dr_schema_run_id:");
+    expect(readiness).toContain("production-dr-schema-apply-${{ inputs.dr_schema_run_id }}");
+    expect(verifyDrSchema).toBeGreaterThan(-1);
+    expect(verifyDrSchema).toBeLessThan(applyPrimary);
+    expect(applyPrimary).toBeLessThan(primaryEvidence);
+    expect(readiness).toContain("production-primary-migration-${{ github.run_id }}");
+  });
+
+  it("keeps dispatch inputs out of shell source and scopes database secrets after install", () => {
+    const plan = workflowJob(disasterRecovery, "plan");
+    const incremental = workflowJob(disasterRecovery, "incremental-replication");
+
+    expect(readiness).not.toContain('test "${{ inputs.');
+    expect(readiness).not.toContain("format('{\"");
+    expect(plan).not.toContain('test "${{ inputs.');
+    expect(plan.indexOf("npm ci")).toBeLessThan(
+      plan.indexOf("SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}"),
+    );
+    expect(incremental.indexOf("npm ci")).toBeLessThan(
+      incremental.indexOf("SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}"),
+    );
+    for (const jobName of ["bootstrap", "drill", "storage-canary"]) {
+      const job = workflowJob(disasterRecovery, jobName);
+      const jobDeclaration = job.slice(0, job.indexOf("    steps:"));
+      expect(job).not.toContain('test "${{ inputs.');
+      expect(jobDeclaration).not.toContain("${{ secrets.");
+      expect(job).toContain("INPUT_CONFIRMATION: ${{ inputs.confirmation }}");
+      expect(job).toContain('test "$INPUT_CONFIRMATION"');
+    }
   });
 
   it("fails closed when a DR or restored-Primary smoke command fails", () => {
@@ -142,4 +266,14 @@ describe("Production workflow approval contract", () => {
 
 function read(path) {
   return readFileSync(resolve(root, path), "utf8");
+}
+
+function workflowJob(source, jobName) {
+  const escaped = jobName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const match = source.match(new RegExp(
+    `^  ${escaped}:\\r?\\n[\\s\\S]*?(?=^  [a-z0-9-]+:\\r?$|(?![\\s\\S]))`,
+    "imu",
+  ));
+  if (!match) throw new Error(`WORKFLOW_JOB_NOT_FOUND_${jobName}`);
+  return match[0];
 }

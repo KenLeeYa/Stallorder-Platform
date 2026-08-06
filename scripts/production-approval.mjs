@@ -3,7 +3,9 @@ import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
   createProductionApprovalReceipt,
+  createProductionOperationEvidence,
   validateProductionApprovalReceipt,
+  validateProductionOperationEvidence,
 } from "./lib/production-approval.mjs";
 
 const [command] = process.argv.slice(2);
@@ -13,6 +15,10 @@ try {
     await createReceipt();
   } else if (command === "verify") {
     await verifyReceipt();
+  } else if (command === "create-evidence") {
+    await createEvidence();
+  } else if (command === "verify-evidence") {
+    await verifyEvidence();
   } else {
     throw new Error("APPROVAL_COMMAND_INVALID");
   }
@@ -22,6 +28,61 @@ try {
     reason: safeReason(error),
   }));
   process.exitCode = 1;
+}
+
+async function createEvidence() {
+  const outputPath = resolve(required("PRODUCTION_EVIDENCE_PATH"));
+  const context = workflowContext();
+  requireOwnerActor(context);
+  const evidence = createProductionOperationEvidence({
+    repository: context.repository,
+    runId: context.runId,
+    commitSha: context.commitSha,
+    treeSha: git("rev-parse", "HEAD^{tree}"),
+    operation: required("PRODUCTION_APPROVAL_OPERATION"),
+    completedBy: context.actor,
+  });
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  console.log(JSON.stringify({
+    event: "production_operation_evidence_created",
+    operation: evidence.operation,
+    runId: evidence.runId,
+  }));
+}
+
+async function verifyEvidence() {
+  const evidencePath = resolve(required("PRODUCTION_EVIDENCE_PATH"));
+  const context = workflowContext();
+  requireOwnerActor(context);
+  const runId = required("PRODUCTION_EVIDENCE_RUN_ID");
+  if (runId === context.runId) throw new Error("EVIDENCE_RUN_REPLAY_INVALID");
+  const stats = await lstat(evidencePath).catch(() => null);
+  if (!stats?.isFile() || stats.size > 64 * 1_024) {
+    throw new Error("OPERATION_EVIDENCE_FILE_INVALID");
+  }
+  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
+  const result = validateProductionOperationEvidence({
+    evidence,
+    expected: {
+      repository: context.repository,
+      runId,
+      commitSha: context.commitSha,
+      treeSha: git("rev-parse", "HEAD^{tree}"),
+      operation: required("PRODUCTION_APPROVAL_OPERATION"),
+      repositoryOwner: context.repositoryOwner,
+      verifyingActor: context.actor,
+    },
+    runMetadata: await githubRun(context.repository, runId),
+  });
+  console.log(JSON.stringify({
+    event: "production_predecessor_evidence_verified",
+    operation: result.operation,
+    runId: result.runId,
+  }));
 }
 
 async function createReceipt() {
