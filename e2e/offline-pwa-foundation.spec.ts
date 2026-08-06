@@ -249,6 +249,8 @@ test.describe("P4 離線 PWA 基礎", () => {
           await group.locator("input").first().check();
         }
       }
+      await composer.getByRole("button", { name: "加入購物車", exact: true }).click();
+      await expect(composer.getByTestId("staff-cart-line")).toHaveCount(1);
       await composer.getByTestId("staff-order-cart-tab").click();
       await composer.getByRole("button", { name: "稍後結帳" }).click();
       await composer.getByRole("button", { name: "建立訂單送入廚房" }).click();

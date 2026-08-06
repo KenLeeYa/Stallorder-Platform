@@ -80,6 +80,7 @@ test.describe.serial("現金交班與短溢收", () => {
         await group.locator('input[type="radio"], input[type="checkbox"]').first().check();
       }
     }
+    await composer.getByRole("button", { name: "加入購物車", exact: true }).click();
     await composer.getByLabel("顧客名稱（選填）").fill(customerName);
     await composer.getByTestId("staff-mobile-cart-summary").click();
     await expect(composer.getByTestId("staff-order-cart-panel")).toBeVisible();

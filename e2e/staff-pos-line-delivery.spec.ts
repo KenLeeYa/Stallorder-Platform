@@ -495,6 +495,12 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
   await page.goto("/delivery/aming-chicken");
   const sessionResponse = await sessionResponsePromise;
   expect([200, 201]).toContain(sessionResponse.status());
+  const session = await sessionResponse.json() as {
+    requiresWaitAcknowledgment: boolean;
+  };
+  expect(session).toMatchObject({
+    requiresWaitAcknowledgment: expect.any(Boolean),
+  });
   const slotRows = await prisma.$queryRaw<Array<{ slots: unknown }>>`
     select public.get_takeout_preorder_slots(${stallId}::uuid, now()) as slots
   `;
@@ -562,6 +568,17 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
   await page.getByLabel("聯絡電話").fill("0912345678");
   await page.getByLabel("外送地址").fill(deliveryAddress);
   const submit = page.getByRole("button", { name: "送出訂單", exact: true });
+  const waitAcknowledgment = page.getByRole("checkbox", {
+    name: /我已了解目前預估等候時間為/,
+  });
+  if (session.requiresWaitAcknowledgment) {
+    await expect(waitAcknowledgment).toBeVisible();
+    await expect(submit).toBeDisabled();
+    await waitAcknowledgment.check();
+  } else {
+    await expect(waitAcknowledgment).toHaveCount(0);
+  }
+  await expect(page.getByLabel("安全驗證")).toBeVisible();
   await expect(submit).toBeEnabled({ timeout: 15_000 });
   const createResponsePromise = page.waitForResponse((response) => (
     response.url().endsWith("/create-public-order")
