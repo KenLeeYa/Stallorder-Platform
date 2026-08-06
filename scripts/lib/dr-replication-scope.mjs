@@ -32,6 +32,7 @@ export const replicatedPublicTables = Object.freeze([
   "delivery_platform_connections",
   "delivery_sync_jobs",
   "delivery_webhook_events",
+  "dining_floors",
   "dining_tables",
   "discount_options",
   "domain_inbox",

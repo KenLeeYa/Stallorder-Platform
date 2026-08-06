@@ -24,14 +24,13 @@ verified `main` tree after it matches `staging`.
 
 ## Protected workflow
 
-`.github/workflows/production-dr-operations.yml` has three Plan operations and
-three matching Apply operations. All use the GitHub `production` environment
-and serialized concurrency.
+`.github/workflows/production-dr-operations.yml` has five protected Plan/Apply
+pairs: DR schema, incremental replication, bootstrap, drill and Storage canary.
+All use the GitHub `production` environment and serialized concurrency.
 
 Every write operation requires two separate workflow runs:
 
-1. run `plan-bootstrap`, `plan-drill`, or `plan-storage-canary` with
-   `PLAN_PRODUCTION_DR`;
+1. run the matching `plan-*` operation with `PLAN_PRODUCTION_DR`;
 2. review the uploaded dry-run artifact;
 3. run the matching Apply operation from the same `main` commit with the Plan
    run ID and its operation-specific confirmation.
@@ -41,11 +40,41 @@ run, commit, exact Staging tree, operation and non-sensitive parameters.
 Bootstrap also binds `resume_backup_run_id`. Apply is rejected for a failed,
 expired, replay-self, cross-workflow, cross-commit or non-owner Plan.
 
+### Routine additive release order
+
+1. Complete local and paired Preview QA.
+2. Run `plan-dr-schema`, then `dr-schema` with
+   `APPLY_PRODUCTION_DR_SCHEMA` and the reviewed Plan run ID.
+3. Run `Production Readiness` Plan/Apply with that successful DR schema run ID.
+4. Keep new feature writes disabled after the compatible application deploy.
+5. Run `plan-incremental-replication` with the successful Production run ID,
+   then `incremental-replication` with its Plan run ID and
+   `UPGRADE_PRODUCTION_DR_REPLICATION`.
+6. Enable a canary or feature only after snapshot/readiness verification.
+
+`dr-schema` performs the DR migration list, fail-closed additive SQL check,
+exact pending-file/content digest, `db push --dry-run`, and database lint again
+before Apply and compares their immutable digest with the Plan. It
+pushes only ordinary pending migrations, then repeats list, dry-run and lint.
+It never resets, seeds, uses `--include-all`, or tears down replication.
+
+Incremental replication is upgrade-only. It requires a successful immutable
+Primary-migration evidence artifact and existing reviewed publication and
+subscription objects. Its live Plan and Apply validate exact relation/column
+scope, replica identities, subscription flags and endpoint identity. They also
+require every published table/column to exist physically on DR, forbid
+`hostaddr`, and require `sslmode=require` plus `row_security=off`. The approved
+Plan is reconfirmed byte-for-byte immediately before mutation.
+
 ### `bootstrap`
 
 Plan operation: `plan-bootstrap` with `PLAN_PRODUCTION_DR`
 
 Confirmation: `CREATE_PRODUCTION_DR`
+
+Bootstrap is retained only for first-time creation or a separately approved DR
+rebuild. Routine schema releases must use `dr-schema` followed by the
+upgrade-only incremental replication operation; they must not reset DR.
 
 1. Require the exact verified Staging tree.
 2. Create encrypted logical backups of Primary and the former Staging project,
@@ -193,5 +222,10 @@ because database metadata alone is not an object backup. New immutable objects
 use the Storage manifest/outbox mirror. The protected `storage-canary`
 operation proves real object bytes and cleanup independently of database row
 replication.
+DR schema Apply uploads `production-dr-schema-evidence.json`. A successful
+Production release consumes that evidence and uploads
+`production-primary-migration-evidence.json`; incremental replication consumes
+the latter before it can create its live Plan or Apply. These files contain
+only immutable run, commit, tree, operation and completion evidence.
 Drill uploads sanitized JSON and Markdown evidence, including measured RTO,
 RPO, failback time, deployment URLs, smoke results and replication state.

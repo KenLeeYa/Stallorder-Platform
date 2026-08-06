@@ -11,13 +11,19 @@ automatic promotion are prohibited.
 
 ## Configuration tool
 
-Review the dry run:
+Review the local, no-connection dry run:
 
 ```powershell
 npm run dr:replication:plan
 ```
 
-The apply path additionally requires:
+Routine releases must use the protected `Production DR Operations` workflow.
+`plan-incremental-replication` performs a live, read-only inspection and the
+matching `incremental-replication` Apply is upgrade-only: both the reviewed
+publication and subscription must already exist. Initial creation remains a
+one-time bootstrap/rebuild operation.
+
+The low-level apply path additionally requires:
 
 ```text
 --apply --source PRIMARY --target DR
@@ -40,18 +46,44 @@ required privilege fails closed instead of producing an incomplete standby.
 
 Rollback uses `--rollback` and the confirmation
 `ROLLBACK_PRIMARY_TO_DR`. It removes the DR subscription before the Primary
-publication and does not delete business data. The rollback is idempotent so a
-failed bootstrap can safely remove only the reviewed subscription/publication
-pair before rebuilding the standby.
+publication and does not delete business data. It accepts a disabled reviewed
+subscription and safe subsets of the allowlisted publication/subscription
+scope, while still rejecting unexpected relations, endpoint identity or
+subscription flags. It is rerunnable after a disable/drop or add/refresh
+partial failure, so a failed bootstrap can remove only the reviewed pair before
+rebuilding the standby.
+
+Before any replication mutation, the tool also verifies that DR physically has
+every allowlisted base/partitioned table, matching published-column types and
+no target-only required column that could reject a replicated insert. The subscription
+connection must match the reviewed Primary host, port, database and user,
+forbid `hostaddr`, require `sslmode=require`, and set `row_security=off`. The
+tool never emits the connection string or password.
 
 ## Schema sequence
 
-1. Apply additive migration to fenced DR.
-2. Validate schema digest and RLS.
-3. Apply the same migration to Primary.
-4. Deploy compatible Edge and Vercel code.
-5. Enable the feature for a system canary.
-6. Perform destructive contract changes only in a later release.
+1. Pass local QA and the paired data-less Preview checks.
+2. Run `plan-dr-schema` with `PLAN_PRODUCTION_DR`, review its DR migration
+   list, exact pending-file/content digest, `db push --dry-run`, and lint
+   artifact, then run `dr-schema` from the
+   same `main` commit with that Plan run ID and
+   `APPLY_PRODUCTION_DR_SCHEMA`.
+3. Run `Production Readiness` Plan with the successful DR schema Apply run ID,
+   then Apply the same additive migration to Primary with that immutable Plan
+   run ID and `APPLY_PRODUCTION_RELEASE`.
+4. Keep new feature writes disabled while compatible Edge and Vercel code is
+   deployed and verified. The successful Production run publishes immutable
+   Primary-migration evidence.
+5. Run `plan-incremental-replication` with that Primary-migration run ID,
+   review the live exact-diff artifact, then run `incremental-replication`
+   with its Plan run ID and `UPGRADE_PRODUCTION_DR_REPLICATION`.
+6. Require the replication snapshot/readiness checks to pass before enabling a
+   system canary or feature writes.
+7. Perform destructive contract changes only in a later release.
+
+Routine DR schema Apply is additive-only and never uses `--include-all`, seed,
+reset or replication teardown. Never move DR schema changes after the Primary
+migration or after the replication upgrade.
 
 DDL, sequences, Auth settings, Storage objects, Vault values and project
 secrets are not replicated.

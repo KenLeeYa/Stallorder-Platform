@@ -352,9 +352,12 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     if (!deviceId) return;
     let disposed = false;
 
-    const refreshAvailability = async (retrySession = false) => {
+    const refreshAvailability = async (
+      retrySession = false,
+      forceRefresh = true,
+    ) => {
       setAvailabilityRefreshing(true);
-      const config = await getPublicAvailability(deviceId, { forceRefresh: true });
+      const config = await getPublicAvailability(deviceId, { forceRefresh });
       if (disposed) return;
       setAvailabilityRefreshing(false);
       if (!config) {
@@ -394,9 +397,14 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       }
     };
 
-    refreshAvailabilityRef.current = (retrySession = false) => void refreshAvailability(retrySession);
-    void refreshAvailability();
-    const timer = window.setInterval(() => void refreshAvailability(), 10_000);
+    refreshAvailabilityRef.current = (retrySession = false) => (
+      void refreshAvailability(retrySession, true)
+    );
+    void refreshAvailability(false, false);
+    const timer = window.setInterval(
+      () => void refreshAvailability(false, true),
+      10_000,
+    );
     return () => {
       disposed = true;
       window.clearInterval(timer);

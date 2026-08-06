@@ -436,6 +436,7 @@ jobs:
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
         run: |
+          set -euo pipefail
           if [ -z "${VERCEL_TOKEN:-}" ] \
             || [ -z "${VERCEL_ORG_ID:-}" ] \
             || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
@@ -449,18 +450,42 @@ jobs:
           deployments="$(
             npx --yes vercel@58.3.0 list "$VERCEL_PROJECT_ID" \
               --meta "stallorderPreviewResource=$PREVIEW_RESOURCE_KEY" \
+              --limit 100 \
               --json \
-              --token "$VERCEL_TOKEN" || true
+              --token "$VERCEL_TOKEN"
           )"
-          while IFS= read -r deployment_id; do
-            [ -n "$deployment_id" ] || continue
-            npx --yes vercel@58.3.0 remove "$deployment_id" \
+          jq -e '(.deployments | type) == "array"' <<<"$deployments" >/dev/null || {
+            echo "::error::Unexpected Vercel deployment list response."
+            exit 1
+          }
+          while IFS= read -r deployment_url; do
+            [ -n "$deployment_url" ] || continue
+            if npx --yes vercel@58.3.0 remove "$deployment_url" \
               --yes \
-              --token "$VERCEL_TOKEN" || true
+              --token "$VERCEL_TOKEN"; then
+              echo "Removed Vercel Preview $deployment_url."
+            else
+              echo "::warning::Vercel Preview removal returned nonzero for $deployment_url; verifying final state."
+            fi
           done < <(
-            jq -r '.. | objects | .id? // empty | select(startswith("dpl_"))' \
+            jq -r '.deployments[]?.url // empty' \
               <<<"$deployments" | sort -u
           )
+          remaining="$(
+            npx --yes vercel@58.3.0 list "$VERCEL_PROJECT_ID" \
+              --meta "stallorderPreviewResource=$PREVIEW_RESOURCE_KEY" \
+              --limit 100 \
+              --json \
+              --token "$VERCEL_TOKEN"
+          )"
+          jq -e '(.deployments | type) == "array"' <<<"$remaining" >/dev/null || {
+            echo "::error::Unexpected Vercel deployment list response after cleanup."
+            exit 1
+          }
+          jq -e '.deployments | length == 0' <<<"$remaining" >/dev/null || {
+            echo "::error::Matching Vercel Preview deployments remain after cleanup."
+            exit 1
+          }
 
       - name: Remove closed Pull Request Preview Branch
         run: |

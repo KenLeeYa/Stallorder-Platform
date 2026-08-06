@@ -22,6 +22,14 @@ export const PRODUCTION_OPERATIONS = Object.freeze({
     workflowPath: ".github/workflows/production-dr-operations.yml",
     allowedPlanEvents: ["workflow_dispatch"],
   },
+  "production-dr-schema": {
+    workflowPath: ".github/workflows/production-dr-operations.yml",
+    allowedPlanEvents: ["workflow_dispatch"],
+  },
+  "production-dr-incremental-replication": {
+    workflowPath: ".github/workflows/production-dr-operations.yml",
+    allowedPlanEvents: ["workflow_dispatch"],
+  },
   "production-storage-canary": {
     workflowPath: ".github/workflows/production-dr-operations.yml",
     allowedPlanEvents: ["workflow_dispatch"],
@@ -160,6 +168,88 @@ export function validateProductionApprovalReceipt({
   };
 }
 
+export function createProductionOperationEvidence({
+  repository,
+  runId,
+  commitSha,
+  treeSha,
+  operation,
+  completedBy,
+}) {
+  const operationConfig = operationDefinition(operation);
+  validateRepository(repository);
+  validateRunId(runId);
+  validateSha(commitSha, "COMMIT_SHA");
+  validateSha(treeSha, "TREE_SHA");
+  validateActor(completedBy, "COMPLETED_BY");
+  const payload = {
+    schemaVersion: 1,
+    repository,
+    workflowPath: operationConfig.workflowPath,
+    runId: String(runId),
+    commitSha,
+    treeSha,
+    operation,
+    completedBy,
+    completed: true,
+  };
+  return {
+    ...payload,
+    evidenceDigest: sha256(stableJson(payload)),
+  };
+}
+
+export function validateProductionOperationEvidence({
+  evidence,
+  expected,
+  runMetadata,
+}) {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
+    throw approvalError("OPERATION_EVIDENCE_INVALID");
+  }
+  if (evidence.schemaVersion !== 1) {
+    throw approvalError("OPERATION_EVIDENCE_SCHEMA_UNSUPPORTED");
+  }
+  const operationConfig = operationDefinition(expected.operation);
+  validateRepository(expected.repository);
+  validateRunId(expected.runId);
+  validateSha(expected.commitSha, "COMMIT_SHA");
+  validateSha(expected.treeSha, "TREE_SHA");
+  validateActor(expected.repositoryOwner, "REPOSITORY_OWNER");
+  validateActor(expected.verifyingActor, "VERIFYING_ACTOR");
+  if (expected.verifyingActor !== expected.repositoryOwner) {
+    throw approvalError("VERIFYING_ACTOR_NOT_REPOSITORY_OWNER");
+  }
+
+  const comparisons = [
+    [evidence.repository, expected.repository, "EVIDENCE_REPOSITORY_MISMATCH"],
+    [evidence.workflowPath, operationConfig.workflowPath, "EVIDENCE_WORKFLOW_MISMATCH"],
+    [String(evidence.runId), String(expected.runId), "EVIDENCE_RUN_ID_MISMATCH"],
+    [evidence.commitSha, expected.commitSha, "EVIDENCE_COMMIT_MISMATCH"],
+    [evidence.treeSha, expected.treeSha, "EVIDENCE_TREE_MISMATCH"],
+    [evidence.operation, expected.operation, "EVIDENCE_OPERATION_MISMATCH"],
+    [evidence.completedBy, expected.repositoryOwner, "EVIDENCE_ACTOR_MISMATCH"],
+    [evidence.completed, true, "EVIDENCE_NOT_COMPLETED"],
+  ];
+  for (const [actual, wanted, errorCode] of comparisons) {
+    if (actual !== wanted) throw approvalError(errorCode);
+  }
+  const { evidenceDigest, ...payload } = evidence;
+  if (evidenceDigest !== sha256(stableJson(payload))) {
+    throw approvalError("OPERATION_EVIDENCE_DIGEST_MISMATCH");
+  }
+  validateCompletedOperationRun({
+    runMetadata,
+    operationConfig,
+    expected,
+  });
+  return {
+    operation: expected.operation,
+    runId: String(expected.runId),
+    commitSha: expected.commitSha,
+  };
+}
+
 export function stableJson(value) {
   if (value === null || typeof value === "string" || typeof value === "boolean") {
     return JSON.stringify(value);
@@ -212,6 +302,27 @@ function validateRunMetadata({ runMetadata, operationConfig, expected, createdAt
   }
   if (createdAtMs > runUpdatedAtMs + MAX_CLOCK_SKEW_MS) {
     throw approvalError("PLAN_RECEIPT_POSTDATES_RUN");
+  }
+}
+
+function validateCompletedOperationRun({ runMetadata, operationConfig, expected }) {
+  if (!runMetadata || typeof runMetadata !== "object") {
+    throw approvalError("EVIDENCE_RUN_METADATA_INVALID");
+  }
+  const comparisons = [
+    [String(runMetadata.id), String(expected.runId), "EVIDENCE_RUN_METADATA_ID_MISMATCH"],
+    [runMetadata.path, operationConfig.workflowPath, "EVIDENCE_RUN_WORKFLOW_MISMATCH"],
+    [runMetadata.head_branch, "main", "EVIDENCE_RUN_BRANCH_MISMATCH"],
+    [runMetadata.head_sha, expected.commitSha, "EVIDENCE_RUN_COMMIT_MISMATCH"],
+    [runMetadata.status, "completed", "EVIDENCE_RUN_NOT_COMPLETED"],
+    [runMetadata.conclusion, "success", "EVIDENCE_RUN_NOT_SUCCESSFUL"],
+    [runMetadata.actor?.login, expected.repositoryOwner, "EVIDENCE_RUN_ACTOR_MISMATCH"],
+  ];
+  for (const [actual, wanted, errorCode] of comparisons) {
+    if (actual !== wanted) throw approvalError(errorCode);
+  }
+  if (!operationConfig.allowedPlanEvents.includes(runMetadata.event)) {
+    throw approvalError("EVIDENCE_RUN_EVENT_INVALID");
   }
 }
 
