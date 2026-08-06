@@ -1,0 +1,118 @@
+import { expect, test, type Page } from "@playwright/test";
+import { PrismaClient, type DiningTableShape } from "@prisma/client";
+
+const prisma = new PrismaClient();
+const stallId = "22222222-2222-4222-8222-222222222222";
+const stallSlug = "aming-chicken";
+const qaTableCode = "QA-F2";
+
+let originalFloors: Array<{ id: string }> = [];
+let originalTables: Array<{
+  id: string;
+  floorId: string | null;
+  shape: DiningTableShape;
+  rotationDegrees: number;
+}> = [];
+
+async function login(page: Page) {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
+  await page.getByLabel("電子郵件").fill("owner@stallorder.test");
+  await page.getByLabel("密碼").fill("StallOrderDemo!2026");
+  await page.getByRole("button", { name: "登入", exact: true }).click();
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/, { timeout: 30_000 });
+}
+
+test.beforeAll(async () => {
+  [originalFloors, originalTables] = await Promise.all([
+    prisma.diningFloor.findMany({ where: { stallId }, select: { id: true } }),
+    prisma.diningTable.findMany({
+      where: { stallId },
+      select: { id: true, floorId: true, shape: true, rotationDegrees: true },
+    }),
+  ]);
+  await prisma.diningTable.deleteMany({ where: { stallId, code: qaTableCode } });
+});
+
+test.afterAll(async () => {
+  await prisma.diningTable.deleteMany({ where: { stallId, code: qaTableCode } });
+  for (const table of originalTables) {
+    await prisma.diningTable.update({
+      where: { id: table.id },
+      data: {
+        floorId: table.floorId,
+        shape: table.shape,
+        rotationDegrees: table.rotationDegrees,
+      },
+    });
+  }
+  const originalFloorIds = originalFloors.map((floor) => floor.id);
+  await prisma.diningFloor.deleteMany({
+    where: {
+      stallId,
+      ...(originalFloorIds.length > 0 ? { id: { notIn: originalFloorIds } } : {}),
+    },
+  });
+  await prisma.$disconnect();
+});
+
+test("樓層桌型會連動商家配置、員工看板與店員點餐", async ({ page }) => {
+  test.setTimeout(120_000);
+  await login(page);
+  await page.goto(`/merchant/stalls/${stallId}/settings/modules`);
+
+  await expect(page.getByRole("tab", { name: "1樓", exact: true })).toBeVisible();
+  await page.locator('[data-field-key="new-floor:name"]').fill("2樓");
+  await page.locator('[data-field-key="new-floor:sortOrder"]').fill("2");
+  const createFloorResponse = page.waitForResponse((response) => (
+    response.url().endsWith(`/api/merchant/stalls/${stallId}/modules`)
+    && response.request().method() === "PATCH"
+    && response.request().postDataJSON()?.operation === "CREATE_FLOOR"
+  ));
+  await page.getByTestId("create-dining-floor").click();
+  expect((await createFloorResponse).status()).toBe(200);
+  await expect(page.getByRole("tab", { name: "2樓", exact: true })).toHaveAttribute("aria-selected", "true");
+
+  const tableForm = page.locator('[data-field-key="new-table:code"]').locator("xpath=ancestor::div[contains(@class,'border-b')][1]");
+  await tableForm.locator('[data-field-key="new-table:code"]').fill(qaTableCode);
+  await tableForm.locator('[data-field-key="new-table:label"]').fill("QA 2樓桌");
+  await tableForm.locator('[data-field-key="new-table:shape"]').selectOption("DIAMOND");
+  await tableForm.locator('[data-field-key="new-table:rotationDegrees"]').selectOption("45");
+  const createTableResponse = page.waitForResponse((response) => (
+    response.url().endsWith(`/api/merchant/stalls/${stallId}/modules`)
+    && response.request().method() === "PATCH"
+    && response.request().postDataJSON()?.operation === "CREATE_TABLE"
+  ));
+  await tableForm.getByRole("button", { name: "新增", exact: true }).click();
+  expect((await createTableResponse).status()).toBe(200);
+
+  const floorEditor = page.getByRole("region", { name: "桌位平面配置" });
+  const qaTable = floorEditor.getByRole("button", { name: "移動 QA 2樓桌" });
+  await expect(qaTable).toBeVisible();
+  await expect(qaTable.locator("polygon")).toHaveCount(1);
+
+  const createdTable = await prisma.diningTable.findFirstOrThrow({
+    where: { stallId, code: qaTableCode },
+    select: { id: true },
+  });
+  const floorSelect = page.locator(`[data-field-key="table-${createdTable.id}:floorId"]`);
+  await floorSelect.selectOption({ label: "1樓" });
+  await expect(page.getByText("請先儲存「QA 2樓桌」的樓層變更，再儲存桌位位置。")).toBeVisible();
+  await page.getByRole("tab", { name: "1樓", exact: true }).click();
+  await expect(page.getByRole("button", { name: "儲存桌位位置", exact: true })).toBeDisabled();
+  await page.locator(`[data-field-key="table-${createdTable.id}:floorId"]`).selectOption({ label: "2樓" });
+  await page.getByRole("tab", { name: "2樓", exact: true }).click();
+  await expect(qaTable).toBeVisible();
+
+  await page.goto(`/staff/${stallSlug}/floor`);
+  await page.getByRole("tab", { name: "2樓", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^QA 2樓桌，/ })).toBeVisible();
+
+  await page.goto(`/staff/${stallSlug}`);
+  await page.getByRole("button", { name: "店員點餐" }).click();
+  const composer = page.getByRole("dialog", { name: "店員點餐與結帳" });
+  await composer.getByRole("button", { name: "內用", exact: true }).click();
+  const tableSelect = composer.getByLabel("桌位");
+  await expect(tableSelect.locator('optgroup[label="1樓"]')).toHaveCount(1);
+  await expect(tableSelect.locator('optgroup[label="2樓"] option', { hasText: "QA 2樓桌" })).toHaveCount(1);
+});

@@ -18,7 +18,7 @@ export default async function MerchantPage({ params }: PageProps) {
   );
   const workspaces = await getWorkspaceAccess(principal.user.id, principal.user.platformRole);
   const workspace = workspaces.find((candidate) => candidate.id === stall.organizationId);
-  const [products, qrCode, orderingSettings] = await Promise.all([
+  const [products, qrCode] = await Promise.all([
     prisma.stallProduct.findMany({
       where: { stallId: stall.id },
       orderBy: [{ sortOrder: "asc" }, { product: { name: "asc" } }],
@@ -36,7 +36,6 @@ export default async function MerchantPage({ params }: PageProps) {
       orderBy: { tokenVersion: "desc" },
       select: { token: true, state: true, tokenVersion: true },
     }),
-    prisma.stallOrderingSettings.findUnique({ where: { stallId: stall.id } }),
   ]);
   const configuredUrl = process.env.NEXT_PUBLIC_APP_URL;
   const baseUrl = configuredUrl || "http://localhost:3000";
@@ -76,19 +75,6 @@ export default async function MerchantPage({ params }: PageProps) {
         : undefined}
       appBaseUrl={baseUrl}
       qrCode={qrCode}
-      orderingSettings={orderingSettings ?? {
-        orderSessionTtlSeconds: 600,
-        unconfirmedOrderTimeoutSeconds: 600,
-        maxItemQuantity: 20,
-        maxUniqueProducts: 20,
-        maxTotalQuantity: 40,
-        maxNoteLength: 200,
-        maxPendingOrdersPerDevice: 3,
-        maxOrdersPerWindow: 5,
-        orderWindowSeconds: 300,
-        estimatedWaitMinutes: 15,
-        businessDayCutoffHour: 0,
-      }}
       account={{ displayName: principal.user.displayName, role }}
     />
   );

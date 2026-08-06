@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { UserPlus, Users } from "lucide-react";
-import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
 import { csrfHeaders } from "@/lib/csrf-client";
 
 type StallRole = "STALL_MANAGER" | "STAFF" | "KITCHEN";
@@ -92,10 +91,12 @@ export function StallTeamManager({ stallId, initialMemberships }: { stallId: str
   }
 
   return (
-    <section ref={sectionRef} id="stall-team" className="mt-8 scroll-mt-24">
-      <details open data-settings-section data-settings-scope="stall-team" data-settings-search="攤位成員 員工 廚房 主管 權限" className="border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180">
-        <CollapsibleSectionSummary icon={Users} title="攤位成員" />
-        <div className="pb-7">
+    <section ref={sectionRef} id="stall-team" aria-labelledby="stall-team-heading" data-settings-section data-settings-scope="stall-team" data-settings-search="攤位成員 員工 廚房 主管 權限" className="mt-8 scroll-mt-24 border-y border-stone-200">
+      <div className="flex min-h-14 items-center gap-3 py-3 text-left">
+        <Users aria-hidden="true" className="h-5 w-5 shrink-0 text-teal-700" />
+        <h2 id="stall-team-heading" className="min-w-0 flex-1 text-lg font-semibold">攤位成員</h2>
+      </div>
+      <div className="pb-7">
       <form ref={addMemberFormRef} noValidate action={addMember} className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
         <label className="text-sm font-medium">帳號 Email<input {...fieldValidationProps("email", fieldErrors.email)} type="email" required maxLength={120} className={inputClass(fieldErrors.email)} />{fieldErrors.email ? <span id={fieldErrorId("email")} role="alert" className="mt-1 block text-xs font-medium text-red-700">{fieldErrors.email}</span> : null}</label>
         <label className="text-sm font-medium">角色<select {...fieldValidationProps("role", fieldErrors.role)} defaultValue="STAFF" className={`${inputClass(fieldErrors.role)} bg-white`}><option value="STALL_MANAGER">攤位經理</option><option value="STAFF">店員</option><option value="KITCHEN">廚房</option></select>{fieldErrors.role ? <span id={fieldErrorId("role")} role="alert" className="mt-1 block text-xs font-medium text-red-700">{fieldErrors.role}</span> : null}</label>
@@ -118,8 +119,7 @@ export function StallTeamManager({ stallId, initialMemberships }: { stallId: str
       </div>
       {memberships.length === 0 ? <p className="mt-5 text-sm text-stone-600">尚未指派攤位成員。</p> : null}
       {message ? <p role={hasError ? "alert" : "status"} className={hasError ? "mt-4 text-sm text-red-700" : "mt-4 text-sm text-emerald-700"}>{message}</p> : null}
-        </div>
-      </details>
+      </div>
     </section>
   );
 }

@@ -94,7 +94,7 @@ test.describe("P4 離線 PWA 基礎", () => {
         },
       });
 
-      await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
+      await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard\?organizationId=/);
       await ownerPage.goto(`/merchant/stalls/${stallId}/offline`);
       const ownerSettings = ownerPage.locator("main:visible").last();
       await expect(ownerSettings.getByRole("heading", { name: "離線裝置" })).toBeVisible();
@@ -249,6 +249,8 @@ test.describe("P4 離線 PWA 基礎", () => {
           await group.locator("input").first().check();
         }
       }
+      await composer.getByRole("button", { name: "加入購物車", exact: true }).click();
+      await expect(composer.getByTestId("staff-cart-line")).toHaveCount(1);
       await composer.getByTestId("staff-order-cart-tab").click();
       await composer.getByRole("button", { name: "稍後結帳" }).click();
       await composer.getByRole("button", { name: "建立訂單送入廚房" }).click();

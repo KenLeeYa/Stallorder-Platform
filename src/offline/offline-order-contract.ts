@@ -214,8 +214,13 @@ export const offlineOrderSchema = z.object({
   if (Date.parse(order.updatedAtDevice) < Date.parse(order.createdAtDevice)) {
     context.addIssue({ code: "custom", message: "OFFLINE_ORDER_TIME_INVALID" });
   }
-  if (new Set(order.itemsSnapshot.map((item) => item.productId)).size !== order.itemsSnapshot.length) {
-    context.addIssue({ code: "custom", message: "OFFLINE_ORDER_PRODUCT_DUPLICATE" });
+  const configurationKeys = order.itemsSnapshot.map((item) => JSON.stringify([
+    item.productId,
+    item.note,
+    item.noteOptions.map((option) => option.noteOptionId).sort(),
+  ]));
+  if (new Set(configurationKeys).size !== configurationKeys.length) {
+    context.addIssue({ code: "custom", message: "OFFLINE_ORDER_CONFIGURATION_DUPLICATE" });
   }
 });
 

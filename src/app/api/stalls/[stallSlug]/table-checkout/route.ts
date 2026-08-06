@@ -85,7 +85,14 @@ async function handlePatch(
       paymentStatus: true,
       subtotal: true,
       total: true,
-      items: { select: { status: true } },
+      items: {
+        select: {
+          status: true,
+          unitPrice: true,
+          quantity: true,
+          isOrderDiscountEligible: true,
+        },
+      },
     },
   }));
   if (orders.length !== parsed.data.orderIds.length) {
@@ -133,6 +140,9 @@ async function handlePatch(
         organizationId: authorization.stall.organizationId,
         stallId: authorization.stall.id,
         subtotals: orders.map((order) => order.subtotal),
+        discountEligibleSubtotals: orders.map((order) => order.items.reduce((sum, item) => (
+          sum + (item.isOrderDiscountEligible ? item.unitPrice * item.quantity : 0)
+        ), 0)),
         currentTotals: orders.map((order) => order.total),
         actorProfileId: authorization.principal.user.id,
         actorRoles: authorization.roles,
@@ -290,9 +300,15 @@ function checkoutErrorResponse(error: unknown, requestId: string) {
       PAYMENT_INVALID: "付款方式已停用或不存在，請重新選擇。",
       DISCOUNT_DISABLED: "此攤位尚未開啟折扣模組。",
       DISCOUNT_INVALID: "折扣已停用或不存在，請重新選擇。",
+      DISCOUNT_NOT_APPLICABLE: "這些訂單沒有可套用折扣的商品。",
       INSUFFICIENT_CASH: "實收金額不可小於應收金額。",
     };
-    return NextResponse.json({ error: messages[error.code] }, { status: error.code.includes("INVALID") || error.code === "DISCOUNT_DISABLED" ? 409 : 400, headers });
+    return NextResponse.json({ error: messages[error.code] }, {
+      status: error.code.includes("INVALID")
+        || error.code === "DISCOUNT_DISABLED"
+        || error.code === "DISCOUNT_NOT_APPLICABLE" ? 409 : 400,
+      headers,
+    });
   }
   if (error instanceof DiscountApprovalError) {
     const messages: Record<DiscountApprovalError["code"], string> = {

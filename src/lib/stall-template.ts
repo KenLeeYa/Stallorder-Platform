@@ -19,7 +19,7 @@ export const applyStallTemplateSchema = z.object({
 }).strict();
 
 export async function loadStallTemplateData(stallId: string, organizationId: string) {
-  const [stall, paymentOptions, discounts, stallProducts, businessHours, settings] = await Promise.all([
+  const [stall, paymentOptions, discounts, stallProducts, businessHours, settings, lotteryDiscountChances] = await Promise.all([
     prisma.stall.findFirstOrThrow({ where: { id: stallId, organizationId }, select: { id: true, name: true } }),
     prisma.paymentOption.findMany({ where: { stallId, organizationId }, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
     prisma.discountOption.findMany({ where: { stallId, organizationId }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
@@ -45,8 +45,38 @@ export async function loadStallTemplateData(stallId: string, organizationId: str
         lotteryDiscountWinRateBps: true,
       },
     }),
+    prisma.$queryRaw<Array<{ discountOptionId: string; winRateBps: number }>>`
+      select
+        chance.discount_option_id as "discountOptionId",
+        chance.win_rate_bps::integer as "winRateBps"
+      from public.stall_lottery_discount_chances chance
+      join public.discount_options discount
+        on discount.id = chance.discount_option_id
+       and discount.stall_id = chance.stall_id
+       and discount.is_enabled
+      where chance.stall_id = ${stallId}::uuid
+      order by discount.sort_order, discount.id
+    `,
   ]);
-  return { stall, paymentOptions, discounts, stallProducts, businessHours, settings };
+  return {
+    stall,
+    paymentOptions,
+    discounts,
+    stallProducts,
+    businessHours,
+    settings,
+    lotteryDiscountChances: lotteryDiscountChances.length > 0
+      ? lotteryDiscountChances
+      : settings.lotteryDiscountOptionId && settings.lotteryDiscountWinRateBps > 0
+        && discounts.some((discount) => (
+          discount.id === settings.lotteryDiscountOptionId && discount.isEnabled
+        ))
+        ? [{
+            discountOptionId: settings.lotteryDiscountOptionId,
+            winRateBps: settings.lotteryDiscountWinRateBps,
+          }]
+        : [],
+  };
 }
 
 export async function getStallTemplatePreview(sourceStallId: string, targetStallId: string, organizationId: string) {
@@ -100,12 +130,8 @@ function orderingExperienceDiff(
   source: Awaited<ReturnType<typeof loadStallTemplateData>>,
   target: Awaited<ReturnType<typeof loadStallTemplateData>>,
 ) {
-  const sourceDiscount = source.discounts.find(
-    (discount) => discount.id === source.settings.lotteryDiscountOptionId && discount.isEnabled,
-  )?.name ?? "只推薦商品";
-  const targetDiscount = target.discounts.find(
-    (discount) => discount.id === target.settings.lotteryDiscountOptionId && discount.isEnabled,
-  )?.name ?? "只推薦商品";
+  const sourceDiscounts = lotteryPrizeSummary(source);
+  const targetDiscounts = lotteryPrizeSummary(target);
   const values = [
     ["店員外送", enabledLabel(source.settings.staffDeliveryEnabled), enabledLabel(target.settings.staffDeliveryEnabled)],
     ["外帶預約", enabledLabel(source.settings.takeoutPreorderEnabled), enabledLabel(target.settings.takeoutPreorderEnabled)],
@@ -113,12 +139,29 @@ function orderingExperienceDiff(
     ["最多預約", `${source.settings.preorderMaxDays} 天`, `${target.settings.preorderMaxDays} 天`],
     ["時段間隔", `${source.settings.preorderSlotMinutes} 分鐘`, `${target.settings.preorderSlotMinutes} 分鐘`],
     ["抽抽樂", enabledLabel(source.settings.lotteryEnabled), enabledLabel(target.settings.lotteryEnabled)],
-    ["抽中折扣", sourceDiscount, targetDiscount],
-    ["折扣中獎率", formatPercentage(source.settings.lotteryDiscountWinRateBps), formatPercentage(target.settings.lotteryDiscountWinRateBps)],
+    ["折扣獎項", sourceDiscounts, targetDiscounts],
   ];
   return values
     .filter(([, sourceValue, targetValue]) => sourceValue !== targetValue)
     .map(([label, sourceValue, targetValue]) => `${label}：${targetValue} → ${sourceValue}`);
+}
+
+function lotteryPrizeSummary(data: Awaited<ReturnType<typeof loadStallTemplateData>>) {
+  const prizes = data.lotteryDiscountChances.flatMap((chance) => {
+    const discount = data.discounts.find((item) => (
+      item.id === chance.discountOptionId && item.isEnabled
+    ));
+    return discount ? [`${discount.name} ${formatPercentage(chance.winRateBps)}`] : [];
+  });
+  const totalBps = data.lotteryDiscountChances.reduce(
+    (total, chance) => total + chance.winRateBps,
+    0,
+  );
+  const remainder = Math.max(0, 10_000 - totalBps);
+  return [
+    ...(prizes.length > 0 ? prizes : ["無折扣獎項"]),
+    `未中獎／只推薦 ${formatPercentage(remainder)}`,
+  ].join("、");
 }
 
 function orderingExperienceEnabledCount(data: Awaited<ReturnType<typeof loadStallTemplateData>>) {

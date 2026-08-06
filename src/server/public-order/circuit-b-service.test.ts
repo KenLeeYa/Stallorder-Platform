@@ -430,4 +430,48 @@ describe("Circuit B public order service", () => {
     expect(mocks.checkPublicOrderSubmissionGate).not.toHaveBeenCalled();
     expect(mocks.createPublicOrderWithSchedule).not.toHaveBeenCalled();
   });
+
+  it("uses the requested fulfillment time for idempotent replay checks", async () => {
+    const requestedFulfillmentAt = new Date("2099-08-03T04:00:00.000Z");
+    const input = createPublicOrderSchema.parse({
+      ...validOrder(),
+      scheduledPickupAt: requestedFulfillmentAt.toISOString(),
+    });
+    mocks.lookupPublicOrderIdempotency.mockResolvedValue({
+      order_id: "33333333-3333-4333-8333-333333333333",
+      order_no: "A002",
+      order_status: "WAITING_CONFIRMATION",
+      payment_status: "UNPAID",
+      total_amount: 100,
+      fulfillment_type: "TAKEOUT",
+      pickup_required: true,
+      created_at: "2026-07-29T00:00:00.000Z",
+    });
+    mocks.getOrderQuote.mockResolvedValue({
+      fulfillmentType: "TAKEOUT",
+      pickupCodeLength: 3,
+      quotedWaitMinutes: 10,
+      quotedReadyAt: new Date("2026-07-29T00:10:00.000Z"),
+      scheduledPickupAt: null,
+      requestedFulfillmentAt,
+      lotteryDrawId: null,
+      discountAmount: 0,
+    });
+    mocks.persistPickupCodeDisplay.mockResolvedValue({ count: 1 });
+    const { createOrderThroughCircuitB } = await import("./circuit-b-service");
+
+    const result = await createOrderThroughCircuitB(input, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({
+      orderNo: "A002",
+      requestedFulfillmentAt: requestedFulfillmentAt.toISOString(),
+    });
+    expect(mocks.verifyTurnstile).not.toHaveBeenCalled();
+    expect(mocks.createPublicOrderWithSchedule).not.toHaveBeenCalled();
+  });
 });

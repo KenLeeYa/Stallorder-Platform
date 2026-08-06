@@ -1,3 +1,5 @@
+import { calculateOrderDiscount } from "@/lib/checkout";
+
 export type StaffDiscountState = "DISABLED" | "EMPTY" | "AVAILABLE";
 
 export function getStaffDiscountState(enabled: boolean, activeOptionCount: number): StaffDiscountState {
@@ -6,13 +8,22 @@ export function getStaffDiscountState(enabled: boolean, activeOptionCount: numbe
 }
 
 export function getStaffCheckoutPreview(
-  orders: readonly { subtotal: number; total: number; discountLabel: string | null }[],
+  orders: readonly {
+    subtotal: number;
+    discountEligibleSubtotal?: number;
+    total: number;
+    discountLabel: string | null;
+  }[],
   selectedDiscount: { name: string; rateBps: number } | null,
 ) {
   const subtotal = orders.reduce((sum, order) => sum + order.subtotal, 0);
   const total = selectedDiscount
     ? orders.reduce(
-        (sum, order) => sum + Math.round((order.subtotal * selectedDiscount.rateBps) / 10_000),
+        (sum, order) => sum + calculateOrderDiscount(
+          order.subtotal,
+          order.discountEligibleSubtotal ?? order.subtotal,
+          selectedDiscount.rateBps,
+        ).total,
         0,
       )
     : orders.reduce((sum, order) => sum + order.total, 0);

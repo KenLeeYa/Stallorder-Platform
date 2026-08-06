@@ -5,6 +5,8 @@ const targetStallId = "22222222-2222-4222-8222-222222222222";
 const organizationId = "33333333-3333-4333-8333-333333333333";
 const sourceDiscountId = "44444444-4444-4444-8444-444444444444";
 const targetDiscountId = "55555555-5555-4555-8555-555555555555";
+const secondSourceDiscountId = "44444444-4444-4444-8444-444444444445";
+const secondTargetDiscountId = "55555555-5555-4555-8555-555555555556";
 
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
@@ -16,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   settingsUpdate: vi.fn(),
   discountDeleteMany: vi.fn(),
   discountCreateMany: vi.fn(),
-  discountFindFirst: vi.fn(),
+  discountFindMany: vi.fn(),
+  executeRaw: vi.fn(),
   orderSessionUpdateMany: vi.fn(),
   recordAuditEvent: vi.fn(),
   invalidatePublicMenu: vi.fn(),
@@ -45,15 +48,30 @@ vi.mock("@/lib/prisma", () => ({
 const sourceTemplate = {
   stall: { id: sourceStallId, name: "來源攤位" },
   paymentOptions: [],
-  discounts: [{
-    id: sourceDiscountId,
-    organizationId,
-    stallId: sourceStallId,
-    name: "抽抽樂九折",
-    rateBps: 9000,
-    isEnabled: true,
-    sortOrder: 1,
-  }],
+  discounts: [
+    {
+      id: sourceDiscountId,
+      organizationId,
+      stallId: sourceStallId,
+      name: "抽抽樂九折",
+      rateBps: 9000,
+      isEnabled: true,
+      sortOrder: 1,
+    },
+    {
+      id: secondSourceDiscountId,
+      organizationId,
+      stallId: sourceStallId,
+      name: "抽抽樂八折",
+      rateBps: 8000,
+      isEnabled: true,
+      sortOrder: 2,
+    },
+  ],
+  lotteryDiscountChances: [
+    { discountOptionId: sourceDiscountId, winRateBps: 2500 },
+    { discountOptionId: secondSourceDiscountId, winRateBps: 5000 },
+  ],
   stallProducts: [],
   businessHours: [],
   settings: {
@@ -74,11 +92,15 @@ const sourceTemplate = {
 const targetTemplate = {
   ...sourceTemplate,
   stall: { id: targetStallId, name: "目標攤位" },
-  discounts: [{
-    ...sourceTemplate.discounts[0],
-    id: targetDiscountId,
+  discounts: sourceTemplate.discounts.map((discount, index) => ({
+    ...discount,
+    id: index === 0 ? targetDiscountId : secondTargetDiscountId,
     stallId: targetStallId,
-  }],
+  })),
+  lotteryDiscountChances: [
+    { discountOptionId: targetDiscountId, winRateBps: 2500 },
+    { discountOptionId: secondTargetDiscountId, winRateBps: 5000 },
+  ],
   settings: {
     ...sourceTemplate.settings,
     lotteryDiscountOptionId: targetDiscountId,
@@ -102,15 +124,20 @@ beforeEach(() => {
     stallId === sourceStallId ? sourceTemplate : targetTemplate
   ));
   mocks.getPreview.mockResolvedValue({ sections: [] });
-  mocks.discountFindFirst.mockResolvedValue({ id: targetDiscountId });
+  mocks.discountFindMany.mockResolvedValue([
+    { id: targetDiscountId, name: "抽抽樂九折", rateBps: 9000 },
+    { id: secondTargetDiscountId, name: "抽抽樂八折", rateBps: 8000 },
+  ]);
+  mocks.executeRaw.mockResolvedValue(1);
   mocks.transaction.mockImplementation(async (operation) => operation({
     stallOrderingSettings: { update: mocks.settingsUpdate },
     discountOption: {
       deleteMany: mocks.discountDeleteMany,
       createMany: mocks.discountCreateMany,
-      findFirst: mocks.discountFindFirst,
+      findMany: mocks.discountFindMany,
     },
     orderSession: { updateMany: mocks.orderSessionUpdateMany },
+    $executeRaw: mocks.executeRaw,
   }));
 });
 
@@ -127,19 +154,18 @@ async function postTemplate(sections: string[]) {
 }
 
 describe("stall template ordering experience linkage", () => {
-  it("copies staff delivery, preorder, and lottery settings with a target discount id", async () => {
+  it("copies staff delivery, preorder, and every weighted lottery discount", async () => {
     const response = await postTemplate(["ORDERING_EXPERIENCE"]);
 
     expect(response.status).toBe(200);
-    expect(mocks.discountFindFirst).toHaveBeenCalledWith({
+    expect(mocks.discountFindMany).toHaveBeenCalledWith({
       where: {
         organizationId,
         stallId: targetStallId,
-        name: "抽抽樂九折",
-        rateBps: 9000,
         isEnabled: true,
       },
-      select: { id: true },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+      select: { id: true, name: true, rateBps: true },
     });
     expect(mocks.settingsUpdate).toHaveBeenCalledWith({
       where: { stallId: targetStallId },
@@ -154,6 +180,7 @@ describe("stall template ordering experience linkage", () => {
         lotteryDiscountWinRateBps: 2500,
       },
     });
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
   });
 
   it("remaps an existing lottery discount when only discount options are copied", async () => {
@@ -166,8 +193,50 @@ describe("stall template ordering experience linkage", () => {
         discountModuleEnabled: true,
         discountApprovalThresholdBps: 8000,
         lotteryDiscountOptionId: targetDiscountId,
+        lotteryDiscountWinRateBps: 2500,
       },
     });
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it("maps duplicate name-and-rate prizes to distinct target discount ids", async () => {
+    const duplicateSource = {
+      ...sourceTemplate,
+      discounts: sourceTemplate.discounts.map((discount) => ({
+        ...discount,
+        name: "同名九折",
+        rateBps: 9000,
+      })),
+    };
+    const duplicateTarget = {
+      ...targetTemplate,
+      discounts: targetTemplate.discounts.map((discount) => ({
+        ...discount,
+        name: "同名九折",
+        rateBps: 9000,
+      })),
+    };
+    mocks.loadTemplate.mockImplementation(async (currentStallId: string) => (
+      currentStallId === sourceStallId ? duplicateSource : duplicateTarget
+    ));
+    mocks.discountFindMany.mockResolvedValue([
+      { id: targetDiscountId, name: "同名九折", rateBps: 9000 },
+      { id: secondTargetDiscountId, name: "同名九折", rateBps: 9000 },
+    ]);
+
+    const response = await postTemplate(["ORDERING_EXPERIENCE"]);
+
+    expect(response.status).toBe(200);
+    const insertValues = sqlValues(mocks.executeRaw.mock.calls[1]?.[0]);
+    const serializedChances = insertValues.find((value): value is string => (
+      typeof value === "string" && value.includes("discount_option_id")
+    ));
+    expect(serializedChances).toBeTruthy();
+    const rows = JSON.parse(serializedChances ?? "[]") as Array<{ discount_option_id: string }>;
+    expect(rows.map((row) => row.discount_option_id)).toEqual([
+      targetDiscountId,
+      secondTargetDiscountId,
+    ]);
   });
 
   it("revokes active preorder sessions when the copied template disables preorder", async () => {
@@ -194,3 +263,8 @@ describe("stall template ordering experience linkage", () => {
     });
   });
 });
+
+function sqlValues(query: unknown) {
+  if (!query || typeof query !== "object" || !("values" in query)) return [];
+  return Array.from((query as { values: readonly unknown[] }).values);
+}

@@ -5,6 +5,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
+import { fulfillmentTimeBlocksProduction } from "@/lib/fulfillment-time";
 import { canTransitionOrderItem, deriveOrderStatusFromItems } from "@/lib/order-item-status";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
@@ -64,6 +65,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         include: { items: { select: { id: true, status: true } } },
       });
       if (!order) throw new BulkItemTransitionConflict("NOT_FOUND");
+      if (parsed.data.status === "PREPARING" && fulfillmentTimeBlocksProduction(order.fulfillmentTimeState)) {
+        throw new BulkItemTransitionConflict("FULFILLMENT_TIME");
+      }
       if (!["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.status)) {
         throw new BulkItemTransitionConflict("ORDER_STATUS");
       }

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, Building2, CreditCard, FileChartColumn, Package, Rocket, ScrollText, Store } from "lucide-react";
+import { BarChart3, Building2, CreditCard, FileChartColumn, Package, ScrollText, Store } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
@@ -38,6 +38,9 @@ export function MerchantWorkspaceHeader({
     [organizationId, workspaces],
   );
   const activeStalls = workspace?.stalls.filter((stall) => stall.isActive) ?? [];
+  const showOrganizationSelector = workspaces.length > 1;
+  const showStallSelector = activeStalls.length > 1;
+  const singleStall = activeStalls.length === 1 ? activeStalls[0] : null;
   const workModeDestinations = useMemo(
     () => buildWorkModeDestinations(workspaces),
     [workspaces],
@@ -48,14 +51,14 @@ export function MerchantWorkspaceHeader({
   function selectOrganization(nextOrganizationId: string) {
     setOrganizationId(nextOrganizationId);
     window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, nextOrganizationId);
-    router.push(`/merchant/dashboard?organizationId=${nextOrganizationId}`);
+    router.push(`/merchant/stalls?organizationId=${nextOrganizationId}`);
   }
 
   function selectScope(scope: string) {
     if (!workspace) return;
     window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, workspace.id);
     if (scope === "ALL_STALLS") {
-      router.push(`/merchant/dashboard?organizationId=${workspace.id}`);
+      router.push(`/merchant/stalls?organizationId=${workspace.id}`);
       return;
     }
     const stall = workspace.stalls.find((candidate) => candidate.id === scope);
@@ -65,16 +68,20 @@ export function MerchantWorkspaceHeader({
   return (
     <header className="sticky top-0 z-30 border-b border-stone-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 md:px-8">
-        <Link href="/merchant/dashboard" className="inline-flex min-h-11 w-full items-center gap-2 font-semibold text-stone-950 md:mr-auto md:w-auto">
+        <Link
+          href={workspace ? `/merchant/stalls?organizationId=${workspace.id}` : "/merchant/stalls"}
+          className="inline-flex min-h-11 w-full items-center gap-2 font-semibold text-stone-950 md:mr-auto md:w-auto"
+        >
           <Store className="h-5 w-5 text-teal-700" />
           攤點通
         </Link>
 
-        <div className="grid w-full min-w-0 grid-cols-2 gap-3 md:contents">
-          <label className="block min-w-0 text-xs font-medium text-stone-500">
-            組織
+        <div className="flex w-full min-w-0 flex-wrap items-end gap-3 md:w-auto">
+          {showOrganizationSelector ? (
+          <label className="min-w-40 flex-1 text-xs font-medium text-stone-500 md:flex-none">
+            商家
             <select
-              aria-label="選擇組織"
+              aria-label="選擇商家"
               value={workspace?.id ?? ""}
               onChange={(event) => selectOrganization(event.target.value)}
               className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[190px]"
@@ -84,11 +91,13 @@ export function MerchantWorkspaceHeader({
               ))}
             </select>
           </label>
+          ) : null}
 
-          <label className="block min-w-0 text-xs font-medium text-stone-500">
-            檢視範圍
+          {showStallSelector ? (
+          <label className="min-w-40 flex-1 text-xs font-medium text-stone-500 md:flex-none">
+            攤位
             <select
-              aria-label="選擇攤位範圍"
+              aria-label="選擇攤位"
               value={selectedScope}
               onChange={(event) => selectScope(event.target.value)}
               className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[190px]"
@@ -97,27 +106,27 @@ export function MerchantWorkspaceHeader({
               {activeStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}
             </select>
           </label>
+          ) : singleStall ? (
+            <Link
+              href={`/merchant/${singleStall.slug}`}
+              aria-label={`前往攤位 ${singleStall.name}`}
+              className="inline-flex h-10 max-w-full items-center gap-2 rounded-full border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-900 transition-colors hover:border-teal-600 hover:bg-teal-50"
+            >
+              <Store className="h-4 w-4 shrink-0 text-teal-700" />
+              <span className="truncate">{singleStall.name}</span>
+            </Link>
+          ) : null}
 
           {workspace ? (
             <WorkModeSwitcher
               destinations={workModeDestinations}
               currentMode="MERCHANT"
               organizationId={workspace.id}
-              className="col-span-2 md:col-span-1"
             />
           ) : null}
         </div>
 
         <nav className="flex w-full min-w-0 items-center gap-1 overflow-x-auto md:w-auto" aria-label="商戶功能">
-          {workspace?.roles.includes("ORGANIZATION_OWNER") && workspace.merchantSetupState ? (
-            <Link
-              title={`開店設定（${workspace.merchantSetupState === "COMPLETED" ? "已完成" : "進行中"}）`}
-              href={`/merchant/setup?organizationId=${workspace.id}`}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100"
-            >
-              <Rocket className="h-5 w-5" /><span className="sr-only">開店設定</span>
-            </Link>
-          ) : null}
           <Link title="儀表板" href={`/merchant/dashboard?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
             <BarChart3 className="h-5 w-5" /><span className="sr-only">儀表板</span>
           </Link>

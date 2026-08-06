@@ -12,9 +12,10 @@ type Props = {
   onSelect: (optionId: string | null) => void;
   settingsHref?: string;
   existingDiscountLabel?: string | null;
+  isApplicable?: boolean;
 };
 
-export function StaffDiscountSelector({ enabled, options, selectedOptionId, onSelect, settingsHref, existingDiscountLabel }: Props) {
+export function StaffDiscountSelector({ enabled, options, selectedOptionId, onSelect, settingsHref, existingDiscountLabel, isApplicable = true }: Props) {
   const state = getStaffDiscountState(enabled, options.length);
   const preservedDiscountLabel = selectedOptionId === null ? existingDiscountLabel : null;
 
@@ -24,7 +25,11 @@ export function StaffDiscountSelector({ enabled, options, selectedOptionId, onSe
         <p className="text-xs font-semibold text-stone-600">折扣</p>
         {state === "AVAILABLE" && settingsHref ? <Link href={settingsHref} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-teal-800 underline underline-offset-2">管理折扣</Link> : null}
       </div>
-      {state === "AVAILABLE" ? (
+      {state === "AVAILABLE" && !isApplicable ? (
+        <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950" role="status" data-testid="staff-discount-not-applicable">
+          此訂單沒有可套用折扣的商品。
+        </div>
+      ) : state === "AVAILABLE" ? (
         <>
           <p className="mt-1 text-xs text-emerald-800" role="status">
             {preservedDiscountLabel

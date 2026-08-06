@@ -37,6 +37,28 @@ describe("店員代客點餐契約", () => {
     expect(result.success).toBe(false);
   });
 
+  it("外帶與外送可指定時間，但內用不可夾帶指定時間", () => {
+    const requestedFulfillmentAt = "2026-08-07T12:30:00+08:00";
+    expect(createStaffOrderSchema.safeParse({
+      ...baseOrder(),
+      fulfillmentType: "TAKEOUT",
+      requestedFulfillmentAt,
+    }).success).toBe(true);
+    expect(createStaffOrderSchema.safeParse({
+      ...baseOrder(),
+      fulfillmentType: "DELIVERY",
+      customerPhone: "0912345678",
+      deliveryAddress: "台北市信義區測試路 1 號",
+      requestedFulfillmentAt,
+    }).success).toBe(true);
+    expect(createStaffOrderSchema.safeParse({
+      ...baseOrder(),
+      fulfillmentType: "DINE_IN",
+      diningTableId: tableId,
+      requestedFulfillmentAt,
+    }).success).toBe(false);
+  });
+
   it("立即結帳必須提供付款資料", () => {
     const result = createStaffOrderSchema.safeParse({
       ...baseOrder(),
@@ -46,17 +68,40 @@ describe("店員代客點餐契約", () => {
     expect(result.success).toBe(false);
   });
 
-  it("拒絕重複商品與重複註記", () => {
-    const noteOptionId = "33333333-3333-4333-8333-333333333333";
-    const result = createStaffOrderSchema.safeParse({
+  it("接受同商品不同註記列，但拒絕相同設定與列內重複註記", () => {
+    const firstNoteOptionId = "33333333-3333-4333-8333-333333333333";
+    const secondNoteOptionId = "33333333-3333-4333-8333-333333333334";
+    const differentConfigurations = createStaffOrderSchema.safeParse({
       ...baseOrder(),
       fulfillmentType: "TAKEOUT",
       items: [
-        { productId, quantity: 1, note: "", noteOptionIds: [noteOptionId, noteOptionId] },
-        { productId, quantity: 1, note: "", noteOptionIds: [] },
+        { productId, quantity: 1, note: "", noteOptionIds: [firstNoteOptionId] },
+        { productId, quantity: 1, note: "", noteOptionIds: [secondNoteOptionId] },
       ],
     });
-    expect(result.success).toBe(false);
+    expect(differentConfigurations.success).toBe(true);
+
+    const duplicateConfiguration = createStaffOrderSchema.safeParse({
+      ...baseOrder(),
+      fulfillmentType: "TAKEOUT",
+      items: [
+        { productId, quantity: 1, note: "", noteOptionIds: [firstNoteOptionId] },
+        { productId, quantity: 2, note: "", noteOptionIds: [firstNoteOptionId] },
+      ],
+    });
+    expect(duplicateConfiguration.success).toBe(false);
+
+    const duplicateNote = createStaffOrderSchema.safeParse({
+      ...baseOrder(),
+      fulfillmentType: "TAKEOUT",
+      items: [{
+        productId,
+        quantity: 1,
+        note: "",
+        noteOptionIds: [firstNoteOptionId, firstNoteOptionId],
+      }],
+    });
+    expect(duplicateNote.success).toBe(false);
   });
 
   it("接受套餐選項並拒絕重複套餐選項", () => {

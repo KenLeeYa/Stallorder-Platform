@@ -1,8 +1,8 @@
 "use client";
 
-import { type FormEvent, useMemo, useRef, useState } from "react";
-import { Check, Eye, EyeOff, MessageSquareText, Pencil, Plus, Trash2, X } from "lucide-react";
-import { csrfHeaders } from "@/lib/csrf-client";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Download, Eye, EyeOff, MessageSquareText, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
 import {
   getTranslationLocaleOptions,
   type TranslationLocale,
@@ -49,6 +49,33 @@ type GroupDraft = Omit<ProductNoteGroupView, "id" | "assignments" | "options"> &
 };
 type OptionDraft = Omit<NoteOption, "id"> & { id?: string; noteGroupId: string };
 type ReusableNoteDraft = Omit<ReusableProductNoteView, "id" | "linkedOptionCount"> & { id?: string };
+type AttachDialogDraft = {
+  noteGroupId: string;
+  query: string;
+  reusableNoteIds: string[];
+};
+type ProductNoteImportPreview = {
+  file: File;
+  summary: {
+    reusableNoteCount: number;
+    groupCount: number;
+    optionCount: number;
+    assignmentCount: number;
+    reusableNoteCreateCount: number;
+    reusableNoteUpdateCount: number;
+    groupCreateCount: number;
+    groupUpdateCount: number;
+  };
+  previewReusableNotes: ProductNoteImportPreviewItem[];
+  previewGroups: Array<ProductNoteImportPreviewItem & { productCount: number; optionCount: number }>;
+};
+type ProductNoteImportPreviewItem = {
+  name: string;
+  changeType: "CREATE" | "UPDATE";
+  changes: Array<{ field: string; before: string; after: string }>;
+  additionalChangeCount: number;
+};
+const MAX_REUSABLE_NOTES_PER_BATCH = 100;
 
 export function ProductNoteGroupsManager({
   organizationId,
@@ -73,14 +100,16 @@ export function ProductNoteGroupsManager({
   const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
   const [optionDraft, setOptionDraft] = useState<OptionDraft | null>(null);
   const [reusableNoteDraft, setReusableNoteDraft] = useState<ReusableNoteDraft | null>(null);
-  const [attachSelections, setAttachSelections] = useState<Record<string, string>>({});
-  const [attachFieldErrors, setAttachFieldErrors] = useState<Record<string, string>>({});
+  const [settingsExpanded, setSettingsExpanded] = useState(true);
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => new Set());
+  const [attachDialog, setAttachDialog] = useState<AttachDialogDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [editorMessage, setEditorMessage] = useState("");
   const [editorFieldErrors, setEditorFieldErrors] = useState<Record<string, string>>({});
+  const [importPreview, setImportPreview] = useState<ProductNoteImportPreview | null>(null);
+  const [importError, setImportError] = useState("");
   const editorRef = useRef<HTMLElement>(null);
-  const managerRef = useRef<HTMLElement>(null);
   const translationOptions = getTranslationLocaleOptions(enabledTranslationLocales);
   const sortedGroups = useMemo(
     () => [...groups].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "zh-TW")),
@@ -95,6 +124,29 @@ export function ProductNoteGroupsManager({
     products.forEach((product) => categories.set(product.categoryName, [...(categories.get(product.categoryName) ?? []), product]));
     return [...categories.entries()];
   }, [products]);
+  const allGroupsExpanded = sortedGroups.length > 0
+    && sortedGroups.every((group) => !collapsedGroupIds.has(group.id));
+  const attachGroup = attachDialog
+    ? groups.find((group) => group.id === attachDialog.noteGroupId) ?? null
+    : null;
+  const availableReusableNotes = useMemo(() => {
+    if (!attachGroup) return [];
+    const linkedReusableNoteIds = new Set(
+      attachGroup.options.flatMap((option) => option.reusableNoteId ? [option.reusableNoteId] : []),
+    );
+    return sortedReusableNotes.filter((note) => !linkedReusableNoteIds.has(note.id));
+  }, [attachGroup, sortedReusableNotes]);
+  const filteredReusableNotes = useMemo(() => {
+    const query = attachDialog?.query.trim().normalize("NFKC").toLocaleLowerCase("zh-TW") ?? "";
+    if (!query) return availableReusableNotes;
+    return availableReusableNotes.filter((note) => (
+      [note.name, ...note.translations.map((translation) => translation.name)]
+        .join(" ")
+        .normalize("NFKC")
+        .toLocaleLowerCase("zh-TW")
+        .includes(query)
+    ));
+  }, [attachDialog?.query, availableReusableNotes]);
 
   function clearEditorFeedback() {
     setEditorMessage("");
@@ -149,6 +201,97 @@ export function ProductNoteGroupsManager({
       if (inEditor) setEditorMessage(errorMessage);
       else setMessage(errorMessage);
       return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportProductNotes() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/merchant/organizations/${organizationId}/product-notes/export`, {
+        headers: { accept: "application/json" },
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(payload.error ?? "商品註記匯出失敗，請稍後再試。");
+      }
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = productNoteExportFileName(response.headers.get("content-disposition"));
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      setMessage("商品註記已匯出。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "商品註記匯出失敗，請稍後再試。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function previewProductNoteImport(file: File) {
+    const form = new FormData();
+    form.set("productNotes", file);
+    form.set("mode", "PREVIEW");
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/merchant/organizations/${organizationId}/product-notes/import`, {
+        method: "POST",
+        headers: csrfFormHeaders(),
+        body: form,
+      });
+      const payload = await response.json() as Omit<ProductNoteImportPreview, "file"> & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "註記匯入預覽失敗。");
+      setImportPreview({
+        file,
+        summary: payload.summary,
+        previewReusableNotes: payload.previewReusableNotes,
+        previewGroups: payload.previewGroups,
+      });
+      setImportError("");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "註記匯入預覽失敗。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applyProductNoteImport() {
+    if (!importPreview) return;
+    const form = new FormData();
+    form.set("productNotes", importPreview.file);
+    form.set("mode", "APPLY");
+    setBusy(true);
+    setMessage("");
+    setImportError("");
+    try {
+      const response = await fetch(`/api/merchant/organizations/${organizationId}/product-notes/import`, {
+        method: "POST",
+        headers: csrfFormHeaders(),
+        body: form,
+      });
+      const payload = await response.json() as {
+        error?: string;
+        warning?: string;
+        noteGroups?: ProductNoteGroupView[];
+        reusableNotes?: ReusableProductNoteView[];
+        summary: ProductNoteImportPreview["summary"];
+      };
+      if (!response.ok) throw new Error(payload.error ?? "註記匯入失敗。");
+      if (payload.noteGroups && payload.reusableNotes) {
+        setGroups(payload.noteGroups);
+        setReusableNotes(payload.reusableNotes);
+        onChange?.(payload.noteGroups, payload.reusableNotes);
+      }
+      setImportPreview(null);
+      setMessage(payload.warning ?? `已匯入 ${payload.summary.reusableNoteCount} 個共用註記、${payload.summary.groupCount} 個群組與 ${payload.summary.optionCount} 個群組註記。`);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "註記匯入失敗。");
     } finally {
       setBusy(false);
     }
@@ -240,32 +383,68 @@ export function ProductNoteGroupsManager({
     );
   }
 
-  async function attachReusableNote(group: ProductNoteGroupView) {
-    const reusableNoteId = attachSelections[group.id];
-    if (!reusableNoteId) {
-      const error = "請先選擇要加入群組的共用單一註記。";
-      setMessage(error);
-      setAttachFieldErrors((current) => ({ ...current, [group.id]: error }));
+  function toggleAllGroups() {
+    setCollapsedGroupIds(allGroupsExpanded
+      ? new Set(sortedGroups.map((group) => group.id))
+      : new Set());
+  }
+
+  function updateGroupDisclosure(groupId: string, isOpen: boolean) {
+    setCollapsedGroupIds((current) => {
+      const next = new Set(current);
+      if (isOpen) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }
+
+  function openAttachDialog(group: ProductNoteGroupView) {
+    clearEditorFeedback();
+    setAttachDialog({ noteGroupId: group.id, query: "", reusableNoteIds: [] });
+  }
+
+  function closeAttachDialog() {
+    clearEditorFeedback();
+    setAttachDialog(null);
+  }
+
+  function updateAttachSelection(reusableNoteId: string, checked: boolean) {
+    clearEditorField("reusableNoteIds");
+    setEditorMessage("");
+    setAttachDialog((current) => {
+      if (!current) return current;
+      const selected = current.reusableNoteIds;
+      if (checked && (selected.includes(reusableNoteId) || selected.length >= MAX_REUSABLE_NOTES_PER_BATCH)) {
+        return current;
+      }
+      return {
+        ...current,
+        reusableNoteIds: checked
+          ? [...selected, reusableNoteId]
+          : selected.filter((id) => id !== reusableNoteId),
+      };
+    });
+  }
+
+  async function attachReusableNotes() {
+    if (!attachDialog || !attachGroup) return;
+    const reusableNoteIds = attachDialog.reusableNoteIds;
+    if (reusableNoteIds.length === 0) {
+      const error = "請至少選擇一個要加入群組的共用單一註記。";
+      setEditorFieldErrors({ reusableNoteIds: error });
       requestAnimationFrame(() => {
-        managerRef.current
-          ?.querySelector<HTMLElement>(`[data-field-key="attach-${group.id}-reusableNoteId"]`)
+        editorRef.current
+          ?.querySelector<HTMLElement>('[data-field-key="reusableNoteIds"]')
           ?.focus();
       });
       return;
     }
-    const sortOrder = nextProductNoteSortOrder(group.options);
     const attached = await runCommand(
-      { operation: "ATTACH_REUSABLE_NOTE", noteGroupId: group.id, reusableNoteId, sortOrder },
-      "共用單一註記已加入群組。",
+      { operation: "ATTACH_REUSABLE_NOTES", noteGroupId: attachGroup.id, reusableNoteIds },
+      `已將 ${reusableNoteIds.length} 個共用單一註記加入群組。`,
+      true,
     );
-    if (attached) {
-      setAttachSelections((current) => ({ ...current, [group.id]: "" }));
-      setAttachFieldErrors((current) => {
-        const next = { ...current };
-        delete next[group.id];
-        return next;
-      });
-    }
+    if (attached) setAttachDialog(null);
   }
 
   async function toggleGroup(group: ProductNoteGroupView) {
@@ -311,28 +490,81 @@ export function ProductNoteGroupsManager({
   }
 
   return (
-    <section ref={managerRef} aria-labelledby="product-notes-heading" className="mt-10 border-t border-stone-200 pt-7">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <section aria-labelledby="product-notes-heading" className="mt-10 border-t border-stone-200 pt-7">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-teal-800">商品客製化</p>
           <h2 id="product-notes-heading" className="mt-1 text-2xl font-semibold">商品註記設定</h2>
         </div>
         <button
           type="button"
-          onClick={() => activeTab === "NOTES"
-            ? setReusableNoteDraft({ name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(reusableNotes), isActive: true, translations: [] })
-            : setGroupDraft({ name: "", selectionMode: "MULTIPLE", isRequired: false, minSelections: 0, maxSelections: null, sortOrder: nextProductNoteSortOrder(groups), isActive: true, translations: [], productIds: [] })}
-          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white"
+          data-testid="product-note-settings-toggle"
+          aria-controls="product-note-settings-content"
+          aria-expanded={settingsExpanded}
+          onClick={() => setSettingsExpanded((current) => !current)}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold sm:w-auto"
         >
-          <Plus className="h-4 w-4" />{activeTab === "NOTES" ? "新增單一註記" : "新增群組"}
+          <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${settingsExpanded ? "rotate-180" : ""}`} />
+          {settingsExpanded ? "摺疊商品註記設定" : "展開商品註記設定"}
         </button>
       </div>
+
+      <div id="product-note-settings-content" hidden={!settingsExpanded}>
+        <div className="mt-4 flex flex-wrap gap-2 sm:justify-end">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void exportProductNotes()}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />匯出 JSON
+          </button>
+          <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold focus-within:outline-none focus-within:ring-2 focus-within:ring-teal-700 focus-within:ring-offset-2">
+            <Upload className="h-4 w-4" />匯入 JSON
+            <input
+              type="file"
+              accept=".json,application/json"
+              className="sr-only"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void previewProductNoteImport(file);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => activeTab === "NOTES"
+              ? setReusableNoteDraft({ name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(reusableNotes), isActive: true, translations: [] })
+              : setGroupDraft({ name: "", selectionMode: "MULTIPLE", isRequired: false, minSelections: 0, maxSelections: null, sortOrder: nextProductNoteSortOrder(groups), isActive: true, translations: [], productIds: [] })}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white"
+          >
+            <Plus className="h-4 w-4" />{activeTab === "NOTES" ? "新增單一註記" : "新增群組"}
+          </button>
+        </div>
 
       <div role="tablist" aria-label="商品註記設定" className="mt-5 flex gap-1 border-b border-stone-200">
         <button type="button" role="tab" aria-selected={activeTab === "NOTES"} onClick={() => setActiveTab("NOTES")} className={`min-h-11 border-b-2 px-4 text-sm font-semibold ${activeTab === "NOTES" ? "border-teal-700 text-teal-800" : "border-transparent text-stone-500"}`}>所有單一註記</button>
         <button type="button" role="tab" aria-selected={activeTab === "GROUPS"} onClick={() => setActiveTab("GROUPS")} className={`min-h-11 border-b-2 px-4 text-sm font-semibold ${activeTab === "GROUPS" ? "border-teal-700 text-teal-800" : "border-transparent text-stone-500"}`}>註記群組</button>
       </div>
       {message ? <p role="status" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
+      {activeTab === "GROUPS" ? (
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            data-testid="product-note-groups-toggle-all"
+            aria-controls="product-note-groups-list"
+            aria-expanded={allGroupsExpanded}
+            disabled={sortedGroups.length === 0}
+            onClick={toggleAllGroups}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-50 sm:w-auto"
+          >
+            <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${allGroupsExpanded ? "rotate-180" : ""}`} />
+            {allGroupsExpanded ? "收合全部註記群組" : "展開全部註記群組"}
+          </button>
+        </div>
+      ) : null}
       {activeTab === "NOTES" ? (
         <div role="tabpanel" className="mt-5 divide-y divide-stone-200 border-y border-stone-200">
           {sortedReusableNotes.map((note) => (
@@ -351,15 +583,25 @@ export function ProductNoteGroupsManager({
           {reusableNotes.length === 0 ? <p className="py-10 text-center text-sm text-stone-500">尚未建立共用單一註記。</p> : null}
         </div>
       ) : (
-        <div role="tabpanel" className="mt-5 divide-y divide-stone-200 border-y border-stone-200">
+        <div id="product-note-groups-list" role="tabpanel" className="mt-3 divide-y divide-stone-200 border-y border-stone-200">
           {sortedGroups.map((group) => {
             const assignedNames = group.assignments
               .map((assignment) => products.find((product) => product.id === assignment.productId)?.name)
               .filter(Boolean);
-            const availableReusableNotes = sortedReusableNotes.filter((note) => !group.options.some((option) => option.reusableNoteId === note.id));
+            const availableReusableNoteCount = sortedReusableNotes.filter(
+              (note) => !group.options.some((option) => option.reusableNoteId === note.id),
+            ).length;
             return (
-              <details key={group.id} open className="py-1">
-                <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
+              <details
+                key={group.id}
+                open={!collapsedGroupIds.has(group.id)}
+                onToggle={(event) => {
+                  const isOpen = event.currentTarget.open;
+                  updateGroupDisclosure(group.id, isOpen);
+                }}
+                className="group py-1"
+              >
+                <summary className="flex min-h-16 cursor-pointer list-none items-center gap-1 py-3 sm:gap-3 [&::-webkit-details-marker]:hidden">
                   <MessageSquareText className="h-4 w-4 shrink-0 text-teal-700" />
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2"><strong>{group.name}</strong>{!group.isActive ? <span className="text-xs text-red-700">已停用</span> : null}</div>
@@ -369,14 +611,23 @@ export function ProductNoteGroupsManager({
                     <IconButton label={`編輯 ${group.name}`} onClick={(event) => { event.preventDefault(); editGroup(group); }}><Pencil className="h-4 w-4" /></IconButton>
                     <IconButton label={`${group.isActive ? "停用" : "啟用"} ${group.name}`} onClick={(event) => { event.preventDefault(); void toggleGroup(group); }}>{group.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
                     <IconButton label={`刪除 ${group.name}`} danger onClick={(event) => { event.preventDefault(); void deleteGroup(group); }}><Trash2 className="h-4 w-4" /></IconButton>
+                    <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-stone-500 transition-transform group-open:rotate-180" />
                   </div>
                 </summary>
-                <div className="pb-4 pl-7">
-                  <p className="mb-3 text-xs text-stone-500">{assignedNames.length > 0 ? assignedNames.join("、") : "尚未指派商品"}</p>
-                  <div className="mb-3 flex flex-wrap items-end gap-2 rounded-md bg-stone-50 p-3">
-                    <SelectField label="加入既有共用註記" fieldKey={`attach-${group.id}-reusableNoteId`} error={attachFieldErrors[group.id]} value={attachSelections[group.id] ?? ""} options={[{ value: "", label: availableReusableNotes.length > 0 ? "請選擇" : "沒有可加入的註記" }, ...availableReusableNotes.map((note) => ({ value: note.id, label: note.name }))]} onChange={(reusableNoteId) => { setAttachFieldErrors((current) => { const next = { ...current }; delete next[group.id]; return next; }); setAttachSelections((current) => ({ ...current, [group.id]: reusableNoteId })); }} />
-                    <button type="button" disabled={busy} onClick={() => void attachReusableNote(group)} className="min-h-10 rounded-md border border-teal-700 px-3 text-xs font-semibold text-teal-800 disabled:opacity-50">加入群組</button>
-                    <button type="button" onClick={() => setOptionDraft({ noteGroupId: group.id, reusableNoteId: null, name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(group.options), isActive: true, translations: [] })} className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Plus className="h-4 w-4" />新增群組專用註記</button>
+                <div className="pb-4 pl-0 sm:pl-7">
+                  <p className="mb-3 line-clamp-2 break-words text-xs text-stone-500">{assignedNames.length > 0 ? assignedNames.join("、") : "尚未指派商品"}</p>
+                  <div className="mb-3 grid gap-2 rounded-md bg-stone-50 p-3 sm:flex sm:items-center">
+                    <button
+                      type="button"
+                      disabled={busy || availableReusableNoteCount === 0}
+                      onClick={() => openAttachDialog(group)}
+                      className="min-h-11 w-full rounded-md border border-teal-700 px-3 text-sm font-semibold text-teal-800 disabled:opacity-50 sm:w-auto"
+                    >
+                      {availableReusableNoteCount > 0
+                        ? `加入既有共用註記（${availableReusableNoteCount}）`
+                        : "所有共用註記皆已加入"}
+                    </button>
+                    <button type="button" onClick={() => setOptionDraft({ noteGroupId: group.id, reusableNoteId: null, name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(group.options), isActive: true, translations: [] })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold sm:ml-auto sm:w-auto"><Plus className="h-4 w-4" />新增群組專用註記</button>
                   </div>
                   <div className="divide-y divide-stone-100">
                     {group.options.map((option) => (
@@ -399,6 +650,74 @@ export function ProductNoteGroupsManager({
         </div>
       )}
 
+      {attachDialog && attachGroup ? (
+        <Editor
+          title={`將共用註記加入「${attachGroup.name}」`}
+          onClose={closeAttachDialog}
+          dialogRef={editorRef}
+          errorMessage={editorMessage}
+          wide
+          constrained
+          closeDisabled={busy}
+        >
+          <div className="flex min-h-0 flex-1 flex-col">
+            <p className="shrink-0 text-sm text-stone-600">搜尋並勾選要加入此群組的共用註記；已加入的註記不會重複顯示。</p>
+            <label className="mt-3 shrink-0 text-sm font-medium text-stone-700">
+              搜尋共用註記
+              <span className="relative mt-1 block">
+                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-500" />
+                <input
+                  data-dialog-initial-focus
+                  type="search"
+                  value={attachDialog.query}
+                  maxLength={120}
+                  onChange={(event) => setAttachDialog((current) => current ? { ...current, query: event.target.value } : current)}
+                  placeholder="輸入註記名稱"
+                  className="min-h-11 w-full rounded-md border border-stone-300 py-2 pl-9 pr-3"
+                />
+              </span>
+            </label>
+            <fieldset
+              tabIndex={-1}
+              data-testid="product-note-attach-list"
+              data-field-key="reusableNoteIds"
+              aria-invalid={Boolean(editorFieldErrors.reusableNoteIds)}
+              aria-describedby={editorFieldErrors.reusableNoteIds ? "product-note-attach-reusableNoteIds-error" : undefined}
+              className={`mt-3 min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain rounded-md border p-2 ${editorFieldErrors.reusableNoteIds ? "border-red-500 ring-1 ring-red-200" : "border-stone-300"}`}
+            >
+              <legend className="sr-only">選擇共用註記</legend>
+              {filteredReusableNotes.map((note) => {
+                const selected = attachDialog.reusableNoteIds.includes(note.id);
+                return (
+                  <label key={note.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-stone-50">
+                    <input
+                      type="checkbox"
+                      aria-label={note.name}
+                      checked={selected}
+                      disabled={busy || (attachDialog.reusableNoteIds.length >= MAX_REUSABLE_NOTES_PER_BATCH && !selected)}
+                      onChange={(event) => updateAttachSelection(note.id, event.target.checked)}
+                      className="h-5 w-5 shrink-0"
+                    />
+                    <span className="min-w-0 flex-1 break-words font-medium">{note.name}</span>
+                    <span className="shrink-0 text-xs text-stone-500">{note.priceDelta === 0 ? "不加價" : `${note.priceDelta > 0 ? "+" : ""}${formatMoney(note.priceDelta, currency)}`}</span>
+                    {!note.isActive ? <span className="shrink-0 text-xs text-red-700">已停用</span> : null}
+                  </label>
+                );
+              })}
+              {filteredReusableNotes.length === 0 ? <p className="px-2 py-8 text-center text-sm text-stone-500">找不到符合的共用註記。</p> : null}
+            </fieldset>
+            <div data-testid="product-note-attach-actions" className="mt-3 shrink-0 border-t border-stone-200 bg-white pt-3">
+              <p aria-live="polite" className="text-xs text-stone-500">已選擇 {attachDialog.reusableNoteIds.length} 個註記（單次最多 {MAX_REUSABLE_NOTES_PER_BATCH} 個）</p>
+              {editorFieldErrors.reusableNoteIds ? <span id="product-note-attach-reusableNoteIds-error" role="alert" className="mt-1 block text-xs text-red-700">{editorFieldErrors.reusableNoteIds}</span> : null}
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+                <button type="button" disabled={busy} onClick={closeAttachDialog} className="min-h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">取消</button>
+                <button type="button" disabled={busy || availableReusableNotes.length === 0} onClick={() => void attachReusableNotes()} className="min-h-11 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "加入中…" : "加入群組"}</button>
+              </div>
+            </div>
+          </div>
+        </Editor>
+      ) : null}
+
       {groupDraft ? (
         <Editor title={groupDraft.id ? "編輯註記群組" : "新增註記群組"} onClose={() => { clearEditorFeedback(); setGroupDraft(null); }} dialogRef={editorRef} errorMessage={editorMessage} wide>
           <form noValidate onSubmit={saveGroup} className="grid gap-4 sm:grid-cols-2">
@@ -408,7 +727,7 @@ export function ProductNoteGroupsManager({
             {groupDraft.selectionMode === "MULTIPLE" ? <OptionalNumberField label="最多選取數" fieldKey="maxSelections" error={editorFieldErrors.maxSelections} value={groupDraft.maxSelections} min={1} onChange={(maxSelections) => { clearEditorField("maxSelections"); setGroupDraft({ ...groupDraft, maxSelections }); }} /> : <div />}
             <NumberField label="排序" fieldKey="sortOrder" error={editorFieldErrors.sortOrder} value={groupDraft.sortOrder} onChange={(sortOrder) => { clearEditorField("sortOrder"); setGroupDraft({ ...groupDraft, sortOrder }); }} />
             <div className="grid content-center gap-2"><CheckField label="顧客必須選擇" checked={groupDraft.isRequired} onChange={(isRequired) => setGroupDraft({ ...groupDraft, isRequired, minSelections: isRequired ? Math.max(1, groupDraft.minSelections) : 0 })} /><CheckField label="啟用群組" checked={groupDraft.isActive} onChange={(isActive) => setGroupDraft({ ...groupDraft, isActive })} /></div>
-            <fieldset tabIndex={-1} data-field-key="productIds" aria-invalid={Boolean(editorFieldErrors.productIds)} aria-describedby={editorFieldErrors.productIds ? "product-note-productIds-error" : undefined} className={`sm:col-span-2 rounded-md ${editorFieldErrors.productIds ? "border border-red-500 bg-red-50 p-2" : ""}`}><legend className="text-sm font-semibold text-stone-700">指派商品</legend><div className="mt-2 max-h-56 overflow-y-auto border-y border-stone-200">{productsByCategory.map(([categoryName, categoryProducts]) => <details key={categoryName} open><summary className="cursor-pointer py-2 text-sm font-semibold">{categoryName}</summary><div className="pb-2 pl-3">{categoryProducts.map((product) => <label key={product.id} className="flex min-h-9 items-center gap-2 text-sm"><input type="checkbox" checked={groupDraft.productIds.includes(product.id)} onChange={(event) => { clearEditorField("productIds"); setGroupDraft({ ...groupDraft, productIds: event.target.checked ? [...groupDraft.productIds, product.id] : groupDraft.productIds.filter((id) => id !== product.id) }); }} />{product.name}{!product.isActive ? <span className="text-xs text-stone-500">（已停用）</span> : null}</label>)}</div></details>)}</div>{editorFieldErrors.productIds ? <span id="product-note-productIds-error" role="alert" className="mt-1 block text-xs text-red-700">{editorFieldErrors.productIds}</span> : null}</fieldset>
+            <fieldset tabIndex={-1} data-field-key="productIds" aria-invalid={Boolean(editorFieldErrors.productIds)} aria-describedby={editorFieldErrors.productIds ? "product-note-productIds-error" : undefined} className={`sm:col-span-2 rounded-md ${editorFieldErrors.productIds ? "border border-red-500 bg-red-50 p-2" : ""}`}><legend className="text-sm font-semibold text-stone-700">指派商品</legend><div className="mt-2 max-h-56 overflow-y-auto border-y border-stone-200">{productsByCategory.map(([categoryName, categoryProducts]) => <details key={categoryName} open><summary className="cursor-pointer py-2 text-sm font-semibold">{categoryName}</summary><div className="pb-2 pl-3">{categoryProducts.map((product) => <label key={product.id} className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={groupDraft.productIds.includes(product.id)} onChange={(event) => { clearEditorField("productIds"); setGroupDraft({ ...groupDraft, productIds: event.target.checked ? [...groupDraft.productIds, product.id] : groupDraft.productIds.filter((id) => id !== product.id) }); }} />{product.name}{!product.isActive ? <span className="text-xs text-stone-500">（已停用）</span> : null}</label>)}</div></details>)}</div>{editorFieldErrors.productIds ? <span id="product-note-productIds-error" role="alert" className="mt-1 block text-xs text-red-700">{editorFieldErrors.productIds}</span> : null}</fieldset>
             <TranslationFields translations={groupDraft.translations} options={translationOptions} onChange={(translations) => setGroupDraft({ ...groupDraft, translations })} />
             <SubmitButton busy={busy} />
           </form>
@@ -444,8 +763,83 @@ export function ProductNoteGroupsManager({
           </form>
         </Editor>
       ) : null}
+
+      {importPreview ? (
+        <Editor
+          title="確認匯入商品註記"
+          onClose={() => { setImportError(""); setImportPreview(null); }}
+          dialogRef={editorRef}
+          errorMessage={importError}
+          wide
+        >
+          <p className="text-sm text-stone-600">匯入採安全合併：依名稱新增或更新資料，不會刪除檔案中未列出的既有註記、翻譯、群組選項或商品指派。商品指派先以原商品 ID 對應，跨商家時再以唯一商品名稱對應。</p>
+          <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900"><strong>同名資料會被更新：</strong>共用註記會覆寫價格調整、排序與啟用狀態；註記群組會覆寫選取規則、排序與啟用狀態。檔案中列出的翻譯、商品指派及群組註記也會新增或更新，實際差異如下。</p>
+          <dl className="mt-4 grid grid-cols-2 gap-3 rounded-md bg-stone-50 p-4 text-sm sm:grid-cols-4">
+            <div><dt className="text-stone-500">共用註記</dt><dd className="mt-1 text-lg font-semibold">{importPreview.summary.reusableNoteCount}</dd><dd className="text-xs text-stone-500">新增 {importPreview.summary.reusableNoteCreateCount} · 更新 {importPreview.summary.reusableNoteUpdateCount}</dd></div>
+            <div><dt className="text-stone-500">註記群組</dt><dd className="mt-1 text-lg font-semibold">{importPreview.summary.groupCount}</dd><dd className="text-xs text-stone-500">新增 {importPreview.summary.groupCreateCount} · 更新 {importPreview.summary.groupUpdateCount}</dd></div>
+            <div><dt className="text-stone-500">群組註記</dt><dd className="mt-1 text-lg font-semibold">{importPreview.summary.optionCount}</dd></div>
+            <div><dt className="text-stone-500">商品指派</dt><dd className="mt-1 text-lg font-semibold">{importPreview.summary.assignmentCount}</dd></div>
+          </dl>
+          {importPreview.previewReusableNotes.length > 0 ? (
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold">共用單一註記影響</h3>
+              <div className="mt-2 max-h-48 overflow-y-auto border-y border-stone-200">
+                {importPreview.previewReusableNotes.map((note) => (
+                  <ImportPreviewRow key={note.name} item={note} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {importPreview.previewGroups.length > 0 ? (
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold">註記群組影響</h3>
+              <div className="mt-2 max-h-64 overflow-y-auto border-y border-stone-200">
+                {importPreview.previewGroups.map((group) => (
+                  <ImportPreviewRow key={group.name} item={group} meta={`${group.optionCount} 個註記 · ${group.productCount} 個商品`} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="mt-5 flex justify-end gap-2">
+            <button type="button" disabled={busy} onClick={() => { setImportError(""); setImportPreview(null); }} className="min-h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold">取消</button>
+            <button type="button" disabled={busy} onClick={() => void applyProductNoteImport()} className="min-h-11 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? "匯入中…" : "套用匯入"}</button>
+          </div>
+        </Editor>
+      ) : null}
+      </div>
     </section>
   );
+}
+
+function ImportPreviewRow({ item, meta }: { item: ProductNoteImportPreviewItem; meta?: string }) {
+  const isCreate = item.changeType === "CREATE";
+  return (
+    <div className="border-b border-stone-100 py-3 text-sm last:border-b-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <strong>{item.name}</strong>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isCreate ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>
+          {isCreate ? "新增" : "更新"}
+        </span>
+        {meta ? <span className="ml-auto text-xs text-stone-500">{meta}</span> : null}
+      </div>
+      {isCreate ? <p className="mt-1 text-xs text-stone-500">將建立新資料。</p> : item.changes.length > 0 ? (
+        <ul className="mt-2 space-y-1 text-xs text-stone-600">
+          {item.changes.map((change) => (
+            <li key={`${change.field}-${change.before}-${change.after}`}><span className="font-medium text-stone-700">{change.field}</span>：{change.before} → {change.after}</li>
+          ))}
+          {item.additionalChangeCount > 0 ? <li>另有 {item.additionalChangeCount} 項差異，套用前請確認匯入檔。</li> : null}
+        </ul>
+      ) : <p className="mt-1 text-xs text-stone-500">同名資料已存在；檔案列出的覆寫欄位與目前設定相同。</p>}
+    </div>
+  );
+}
+
+function productNoteExportFileName(contentDisposition: string | null) {
+  const headerName = contentDisposition?.match(/filename="?([^";]+)"?/iu)?.[1];
+  const safeName = headerName?.trim().replace(/[^a-zA-Z0-9._-]/gu, "_");
+  return safeName?.toLocaleLowerCase("en-US").endsWith(".json")
+    ? safeName
+    : "stallorder-product-notes.json";
 }
 
 function TranslationFields({ translations, options, onChange }: { translations: Translation[]; options: ReturnType<typeof getTranslationLocaleOptions>; onChange: (items: Translation[]) => void }) {
@@ -453,12 +847,99 @@ function TranslationFields({ translations, options, onChange }: { translations: 
   return <details className="border-t border-stone-200 pt-3 sm:col-span-2"><summary className="cursor-pointer text-sm font-semibold">多語名稱</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{options.map((option) => { const current = translations.find((item) => item.locale === option.locale)?.name ?? ""; return <label key={option.locale} className="text-sm font-medium text-stone-700">{option.label}<input type="text" maxLength={120} value={current} onChange={(event) => { const next = translations.filter((item) => item.locale !== option.locale); if (event.target.value) next.push({ locale: option.locale, name: event.target.value }); onChange(next); }} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>; })}</div></details>;
 }
 
-function Editor({ title, onClose, dialogRef, errorMessage, wide = false, children }: { title: string; onClose: () => void; dialogRef: React.RefObject<HTMLElement | null>; errorMessage: string; wide?: boolean; children: React.ReactNode }) {
-  return <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4"><section ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} className={`my-auto w-full rounded-lg bg-white p-5 shadow-xl ${wide ? "max-w-2xl" : "max-w-md"}`}><div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">{title}</h2><IconButton label="關閉" onClick={onClose}><X className="h-4 w-4" /></IconButton></div>{errorMessage ? <p role="alert" className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{errorMessage}</p> : null}{children}</section></div>;
+function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constrained = false, closeDisabled = false, children }: { title: string; onClose: () => void; dialogRef: React.RefObject<HTMLElement | null>; errorMessage: string; wide?: boolean; constrained?: boolean; closeDisabled?: boolean; children: React.ReactNode }) {
+  const onCloseRef = useRef(onClose);
+  const closeDisabledRef = useRef(closeDisabled);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    closeDisabledRef.current = closeDisabled;
+  }, [closeDisabled]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const activeDialog: HTMLElement = dialog;
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousFocusFallback = previousFocus
+      ?.closest("details")
+      ?.querySelector<HTMLElement>(":scope > summary") ?? null;
+    const bodyOverflow = document.body.style.overflow;
+    const documentOverflow = document.documentElement.style.overflow;
+    const focusableElements = () => [...activeDialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )].filter((element) => element.getClientRects().length > 0);
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    (activeDialog.querySelector<HTMLElement>("[data-dialog-initial-focus]") ?? focusableElements()[0] ?? activeDialog).focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (closeDisabledRef.current) return;
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const elements = focusableElements();
+      if (elements.length === 0) {
+        event.preventDefault();
+        activeDialog.focus();
+        return;
+      }
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (!activeDialog.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = documentOverflow;
+      if (previousFocus?.isConnected && !previousFocus.matches(":disabled") && previousFocus.getClientRects().length > 0) {
+        previousFocus.focus();
+      } else if (previousFocusFallback?.isConnected && previousFocusFallback.getClientRects().length > 0) {
+        previousFocusFallback.focus();
+      }
+    };
+  }, [dialogRef]);
+
+  return (
+    <div className={`fixed inset-0 z-50 grid place-items-center overscroll-contain bg-black/45 ${constrained ? "overflow-hidden p-2 sm:p-4" : "overflow-y-auto p-4"}`}>
+      <section
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`my-auto w-full rounded-lg bg-white p-5 shadow-xl ${wide ? "max-w-2xl" : "max-w-md"} ${constrained ? "flex h-[calc(100dvh-1rem)] max-h-[52rem] flex-col overflow-hidden sm:h-[calc(100dvh-2rem)]" : ""}`}
+      >
+        <div className="mb-4 flex shrink-0 items-center justify-between gap-3"><h2 className="min-w-0 break-words text-lg font-semibold">{title}</h2><IconButton label="關閉" disabled={closeDisabled} onClick={onClose}><X className="h-4 w-4" /></IconButton></div>
+        {errorMessage ? <p role="alert" className="mb-4 shrink-0 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{errorMessage}</p> : null}
+        {constrained ? <div className="flex min-h-0 flex-1 flex-col">{children}</div> : children}
+      </section>
+    </div>
+  );
 }
 
-function IconButton({ label, danger = false, onClick, children }: { label: string; danger?: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; children: React.ReactNode }) {
-  return <button type="button" title={label} aria-label={label} onClick={onClick} className={`grid h-10 w-10 shrink-0 place-items-center rounded-md hover:bg-stone-100 ${danger ? "text-red-700" : "text-stone-600"}`}>{children}</button>;
+function IconButton({ label, danger = false, disabled = false, onClick, children }: { label: string; danger?: boolean; disabled?: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; children: React.ReactNode }) {
+  return <button type="button" title={label} aria-label={label} disabled={disabled} onClick={onClick} className={`grid h-11 w-11 shrink-0 place-items-center rounded-md hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "text-red-700" : "text-stone-600"}`}>{children}</button>;
 }
 function TextField({ label, fieldKey, error, value, onChange, wide = false }: { label: string; fieldKey?: string; error?: string; value: string; onChange: (value: string) => void; wide?: boolean }) {
   const errorId = fieldKey ? `product-note-${fieldKey}-error` : undefined;
@@ -481,7 +962,7 @@ function SelectField({ label, fieldKey, error, value, options, onChange }: { lab
   return <label className="text-sm font-medium text-stone-700">{label}<select aria-label={label} value={value} data-field-key={fieldKey} aria-invalid={Boolean(error)} aria-describedby={error && errorId ? errorId : undefined} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2">{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>{error && errorId ? <span id={errorId} role="alert" className="mt-1 block text-xs text-red-700">{error}</span> : null}</label>;
 }
 function CheckField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return <label className="flex min-h-9 items-center gap-2 text-sm font-medium text-stone-700"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />{label}</label>;
+  return <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-stone-700"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />{label}</label>;
 }
 function SubmitButton({ busy }: { busy: boolean }) {
   return <button disabled={busy} type="submit" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50 sm:col-span-2"><Check className="h-4 w-4" />儲存</button>;

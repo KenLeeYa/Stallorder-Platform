@@ -93,6 +93,8 @@ export async function POST(request: Request, context: RouteContext) {
         defaultPrice: true,
         kind: true,
         imageUrl: true,
+        isOrderDiscountEligible: true,
+        isLotteryEligible: true,
         sortOrder: true,
         isActive: true,
       },
@@ -225,6 +227,12 @@ export async function POST(request: Request, context: RouteContext) {
           defaultPrice: command.defaultPrice,
           kind: command.kind,
           imageUrl: command.imageUrl,
+          ...(command.isOrderDiscountEligible === undefined
+            ? {}
+            : { isOrderDiscountEligible: command.isOrderDiscountEligible }),
+          ...(command.isLotteryEligible === undefined
+            ? {}
+            : { isLotteryEligible: command.isLotteryEligible }),
           sortOrder: command.sortOrder,
         };
         if (command.operation === "CREATE_PRODUCT") {
@@ -317,6 +325,8 @@ export async function POST(request: Request, context: RouteContext) {
             defaultPrice: source.defaultPrice,
             kind: source.kind,
             imageUrl: source.imageUrl,
+            isOrderDiscountEligible: source.isOrderDiscountEligible,
+            isLotteryEligible: source.isLotteryEligible,
             isActive: source.isActive,
             sortOrder: Math.min(10_000, source.sortOrder + 1),
           },
@@ -544,6 +554,12 @@ export async function POST(request: Request, context: RouteContext) {
     if ("defaultPrice" in command) after.defaultPrice = command.defaultPrice;
     if ("kind" in command && command.kind) after.kind = command.kind;
     if ("imageUrl" in command) after.imageUrl = command.imageUrl;
+    if ("isOrderDiscountEligible" in command && command.isOrderDiscountEligible !== undefined) {
+      after.isOrderDiscountEligible = command.isOrderDiscountEligible;
+    }
+    if ("isLotteryEligible" in command && command.isLotteryEligible !== undefined) {
+      after.isLotteryEligible = command.isLotteryEligible;
+    }
     if ("translations" in command) after.translations = command.translations;
     if ("isActive" in command) after.isActive = command.isActive;
     if ("stallIds" in command) after.stallIds = [...command.stallIds].sort();

@@ -8,7 +8,7 @@ const productId = "77777777-7777-4777-8777-777777777771";
 
 test.describe("LINE 通知與再次點餐", () => {
   test("商家可開啟 LINE 設定，KITCHEN 無管理權限", async ({ page, browser }) => {
-    await login(page, "owner@stallorder.test", /\/merchant\/dashboard/);
+    await login(page, "owner@stallorder.test", /\/merchant\/dashboard\?organizationId=/);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/merchant/stalls/${stallId}/line`);
     await expect(page.getByRole("heading", { name: "LINE 訂單通知" })).toBeVisible();

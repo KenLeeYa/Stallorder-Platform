@@ -4,6 +4,7 @@ export const lineNotificationTemplateCodes = [
   "ORDER_CONFIRMED",
   "ORDER_READY",
   "ORDER_CANCELLED",
+  "FULFILLMENT_TIME_PROPOSED",
 ] as const;
 
 export type LineNotificationTemplateCode = (typeof lineNotificationTemplateCodes)[number];

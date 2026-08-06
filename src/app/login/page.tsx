@@ -1,4 +1,5 @@
 import { LoginForm } from "@/components/login-form";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { isSupabaseAuthConfigured } from "@/lib/supabase-auth";
 import { getOAuthLoginUiConfig } from "@/server/auth/oauth/provider-registry";
 
@@ -31,6 +32,9 @@ export default async function LoginPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-8">
+      <div className="fixed right-4 top-4 z-10">
+        <ThemeToggle />
+      </div>
       <LoginForm
         legacyGoogleEnabled={legacyGoogleEnabled}
         oauthOnly={oauth.oauthOnly}

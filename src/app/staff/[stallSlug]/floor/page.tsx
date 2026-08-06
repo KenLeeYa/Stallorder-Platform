@@ -22,17 +22,25 @@ export default async function DiningFloorPage({ params }: PageProps) {
   });
   if (!settings?.dineInEnabled) notFound();
 
-  const [tables, orders] = await Promise.all([
+  const [floors, tables, orders] = await Promise.all([
+    prisma.diningFloor.findMany({
+      where: { stallId: stall.id, organizationId: stall.organizationId },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, sortOrder: true },
+    }),
     prisma.diningTable.findMany({
       where: { stallId: stall.id, organizationId: stall.organizationId },
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
       select: {
         id: true,
+        floorId: true,
         code: true,
         label: true,
         isActive: true,
         layoutX: true,
         layoutY: true,
+        shape: true,
+        rotationDegrees: true,
         serviceState: true,
         seatedAt: true,
         cleanedAt: true,
@@ -77,6 +85,7 @@ export default async function DiningFloorPage({ params }: PageProps) {
   return (
     <DiningFloorBoard
       stall={{ slug: stall.slug, name: stall.name }}
+      floors={floors}
       tables={tables.map((table) => ({
         ...table,
         seatedAt: table.seatedAt?.toISOString() ?? null,

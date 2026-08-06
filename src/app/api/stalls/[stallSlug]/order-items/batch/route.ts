@@ -5,6 +5,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
+import { fulfillmentTimeBlocksProduction } from "@/lib/fulfillment-time";
 import { canTransitionOrderItem, deriveOrderStatusFromItems } from "@/lib/order-item-status";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
@@ -103,11 +104,13 @@ async function applyBatchUpdate(
         preparingAt: true,
         readyAt: true,
         servedAt: true,
-        order: { select: { status: true } },
+        order: { select: { status: true, fulfillmentTimeState: true } },
       },
     });
     if (items.length !== itemIds.length) throw new BatchConflict("NOT_FOUND");
-    if (items.some((item) => !["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(item.order.status)
+    if (items.some((item) => (targetStatus === "PREPARING"
+      && fulfillmentTimeBlocksProduction(item.order.fulfillmentTimeState))
+      || !["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(item.order.status)
       || !canTransitionOrderItem(item.status, targetStatus, authorization.role))) {
       throw new BatchConflict("INVALID_TRANSITION");
     }

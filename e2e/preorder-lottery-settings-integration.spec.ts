@@ -51,19 +51,27 @@ type QrSnapshot = {
   expiresAt: Date | null;
 };
 
+type LotteryDiscountChanceSnapshot = {
+  discountOptionId: string;
+  winRateBps: number;
+};
+
 let originalSettings: OrderingSettingsSnapshot | null = null;
 let originalStall: StallSnapshot | null = null;
 let originalHours: BusinessHourSnapshot[] = [];
 let originalQr: QrSnapshot | null = null;
+let originalLotteryDiscountChances: LotteryDiscountChanceSnapshot[] = [];
 let temporaryDiscountId = "";
 let temporaryDiscountName = "";
+let secondTemporaryDiscountId = "";
+let secondTemporaryDiscountName = "";
 const createdSessionTokenHashes = new Set<string>();
 
 test.describe("預約與抽抽樂設定的公開點餐整合", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
-    const [settings, stall, hours, qr] = await Promise.all([
+    const [settings, stall, hours, qr, lotteryDiscountChances] = await Promise.all([
       prisma.stallOrderingSettings.findUniqueOrThrow({
         where: { stallId },
         select: {
@@ -102,6 +110,14 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
         where: { token: takeoutQrToken },
         select: { id: true, state: true, expiresAt: true },
       }),
+      prisma.$queryRaw<LotteryDiscountChanceSnapshot[]>`
+        select
+          chance.discount_option_id as "discountOptionId",
+          chance.win_rate_bps::integer as "winRateBps"
+        from public.stall_lottery_discount_chances chance
+        where chance.stall_id = ${stallId}::uuid
+        order by chance.discount_option_id
+      `,
     ]);
 
     expect(hours).toHaveLength(7);
@@ -109,20 +125,43 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
     originalStall = stall;
     originalHours = hours;
     originalQr = qr;
+    originalLotteryDiscountChances = lotteryDiscountChances.length > 0
+      ? lotteryDiscountChances
+      : settings.lotteryDiscountOptionId && settings.lotteryDiscountWinRateBps > 0
+        ? [{
+            discountOptionId: settings.lotteryDiscountOptionId,
+            winRateBps: settings.lotteryDiscountWinRateBps,
+          }]
+        : [];
     temporaryDiscountName = `整合測試九折 ${Date.now()}`;
+    secondTemporaryDiscountName = `整合測試八折 ${Date.now()}`;
 
-    const discount = await prisma.discountOption.create({
-      data: {
-        organizationId,
-        stallId,
-        name: temporaryDiscountName,
-        rateBps: 9000,
-        isEnabled: true,
-        sortOrder: 10_000,
-      },
-      select: { id: true },
-    });
+    const [discount, secondDiscount] = await Promise.all([
+      prisma.discountOption.create({
+        data: {
+          organizationId,
+          stallId,
+          name: temporaryDiscountName,
+          rateBps: 9000,
+          isEnabled: true,
+          sortOrder: 9_998,
+        },
+        select: { id: true },
+      }),
+      prisma.discountOption.create({
+        data: {
+          organizationId,
+          stallId,
+          name: secondTemporaryDiscountName,
+          rateBps: 8000,
+          isEnabled: true,
+          sortOrder: 9_999,
+        },
+        select: { id: true },
+      }),
+    ]);
     temporaryDiscountId = discount.id;
+    secondTemporaryDiscountId = secondDiscount.id;
 
     await prisma.$transaction([
       prisma.stallOrderingSettings.update({
@@ -137,6 +176,10 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
           lotteryDiscountWinRateBps: 0,
         },
       }),
+      prisma.$executeRaw`
+        delete from public.stall_lottery_discount_chances
+        where stall_id = ${stallId}::uuid
+      `,
       prisma.stall.update({
         where: { id: stallId },
         data: {
@@ -161,9 +204,34 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
   test.afterAll(async () => {
     try {
       if (originalSettings) {
-        await prisma.stallOrderingSettings.update({
-          where: { stallId },
-          data: originalSettings,
+        await prisma.$transaction(async (transaction) => {
+          await transaction.stallOrderingSettings.update({
+            where: { stallId },
+            data: originalSettings!,
+          });
+          await transaction.$executeRaw`
+            delete from public.stall_lottery_discount_chances
+            where stall_id = ${stallId}::uuid
+          `;
+          if (originalLotteryDiscountChances.length > 0) {
+            await transaction.$executeRaw`
+              insert into public.stall_lottery_discount_chances (
+                stall_id,
+                discount_option_id,
+                win_rate_bps
+              )
+              select
+                ${stallId}::uuid,
+                chance.discount_option_id,
+                chance.win_rate_bps
+              from jsonb_to_recordset(
+                ${JSON.stringify(originalLotteryDiscountChances.map((chance) => ({
+                  discount_option_id: chance.discountOptionId,
+                  win_rate_bps: chance.winRateBps,
+                })))}::jsonb
+              ) as chance(discount_option_id uuid, win_rate_bps smallint)
+            `;
+          }
         });
       }
       if (originalStall) {
@@ -188,8 +256,10 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
           where: { tokenHash: { in: [...createdSessionTokenHashes] }, orderId: null },
         });
       }
-      if (temporaryDiscountId) {
-        await prisma.discountOption.deleteMany({ where: { id: temporaryDiscountId } });
+      if (temporaryDiscountId || secondTemporaryDiscountId) {
+        await prisma.discountOption.deleteMany({
+          where: { id: { in: [temporaryDiscountId, secondTemporaryDiscountId].filter(Boolean) } },
+        });
       }
     } finally {
       await prisma.$disconnect();
@@ -212,8 +282,12 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       await page.getByLabel("最少提前（分鐘）").fill("45");
       await page.getByLabel("最多預約天數").fill("5");
       await page.getByLabel("時段間隔").selectOption("60");
-      await page.getByLabel("抽中折扣").selectOption({ label: temporaryDiscountName });
-      await page.getByLabel("折扣中獎率（%）").fill("100");
+      await page.getByTestId(`lottery-discount-row-${temporaryDiscountId}`).getByRole("checkbox").check();
+      await page.getByTestId(`lottery-discount-row-${secondTemporaryDiscountId}`).getByRole("checkbox").check();
+      await page.getByTestId(`lottery-discount-rate-${temporaryDiscountId}`).fill("40");
+      await page.getByTestId(`lottery-discount-rate-${secondTemporaryDiscountId}`).fill("60");
+      await expect(page.getByText("折扣中獎率合計 100%", { exact: true })).toBeVisible();
+      await expect(page.getByText("未中獎／只推薦 0%", { exact: true })).toBeVisible();
 
       const saveResponsePromise = page.waitForResponse((response) => (
         new URL(response.url()).pathname === `/api/merchant/stalls/${stallId}/modules`
@@ -232,7 +306,11 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
         preorderSlotMinutes: 60,
         lotteryEnabled: true,
         lotteryDiscountOptionId: temporaryDiscountId,
-        lotteryDiscountWinRateBps: 10_000,
+        lotteryDiscountWinRateBps: 4_000,
+        lotteryDiscountChances: [
+          { discountOptionId: temporaryDiscountId, winRateBps: 4_000 },
+          { discountOptionId: secondTemporaryDiscountId, winRateBps: 6_000 },
+        ],
       });
       await expect(page.getByRole("status")).toHaveText("模組開關已儲存。");
 
@@ -242,8 +320,10 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       await expect(page.getByLabel("最少提前（分鐘）")).toHaveValue("45");
       await expect(page.getByLabel("最多預約天數")).toHaveValue("5");
       await expect(page.getByLabel("時段間隔")).toHaveValue("60");
-      await expect(page.getByLabel("抽中折扣")).toHaveValue(temporaryDiscountId);
-      await expect(page.getByLabel("折扣中獎率（%）")).toHaveValue("100");
+      await expect(page.getByTestId(`lottery-discount-row-${temporaryDiscountId}`).getByRole("checkbox")).toBeChecked();
+      await expect(page.getByTestId(`lottery-discount-row-${secondTemporaryDiscountId}`).getByRole("checkbox")).toBeChecked();
+      await expect(page.getByTestId(`lottery-discount-rate-${temporaryDiscountId}`)).toHaveValue("40");
+      await expect(page.getByTestId(`lottery-discount-rate-${secondTemporaryDiscountId}`)).toHaveValue("60");
       await expect.poll(async () => prisma.stallOrderingSettings.findUniqueOrThrow({
         where: { stallId },
         select: {
@@ -262,10 +342,49 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
         preorderSlotMinutes: 60,
         lotteryEnabled: true,
         lotteryDiscountOptionId: temporaryDiscountId,
-        lotteryDiscountWinRateBps: 10_000,
+        lotteryDiscountWinRateBps: 4_000,
       });
+      await expect.poll(async () => prisma.$queryRaw<LotteryDiscountChanceSnapshot[]>`
+        select
+          chance.discount_option_id as "discountOptionId",
+          chance.win_rate_bps::integer as "winRateBps"
+        from public.stall_lottery_discount_chances chance
+        where chance.stall_id = ${stallId}::uuid
+        order by chance.discount_option_id
+      `).toEqual([
+        { discountOptionId: temporaryDiscountId, winRateBps: 4_000 },
+        { discountOptionId: secondTemporaryDiscountId, winRateBps: 6_000 },
+      ].sort((left, right) => left.discountOptionId.localeCompare(right.discountOptionId)));
 
       await verifyLiveLottery(browser);
+
+      const discountSaveButton = page.getByRole("button", { name: `儲存 ${temporaryDiscountName}` });
+      const configuredDiscountRow = discountSaveButton.locator("xpath=../..");
+      await configuredDiscountRow.getByRole("switch").click();
+      const disableDiscountResponsePromise = page.waitForResponse((response) => (
+        new URL(response.url()).pathname === `/api/merchant/stalls/${stallId}/modules`
+        && response.request().method() === "PATCH"
+        && response.request().postDataJSON()?.operation === "UPDATE_DISCOUNT"
+      ));
+      await discountSaveButton.click();
+      expect((await disableDiscountResponsePromise).status()).toBe(200);
+      await expect(page.getByTestId(`lottery-discount-row-${temporaryDiscountId}`)).toHaveCount(0);
+      await expect.poll(async () => prisma.$queryRaw<Array<{ count: number }>>`
+        select count(*)::integer as count
+        from public.stall_lottery_discount_chances chance
+        where chance.stall_id = ${stallId}::uuid
+          and chance.discount_option_id = ${temporaryDiscountId}::uuid
+      `).toEqual([{ count: 0 }]);
+      await expect.poll(async () => prisma.stallOrderingSettings.findUniqueOrThrow({
+        where: { stallId },
+        select: {
+          lotteryDiscountOptionId: true,
+          lotteryDiscountWinRateBps: true,
+        },
+      })).toEqual({
+        lotteryDiscountOptionId: secondTemporaryDiscountId,
+        lotteryDiscountWinRateBps: 6_000,
+      });
 
       await page.goto(`/merchant/stalls/${stallId}/settings/operations`);
       await page.getByLabel("營業狀態").selectOption("CLOSED");
@@ -315,9 +434,9 @@ async function verifyLiveLottery(browser: Browser) {
     expect(drawPayload).toMatchObject({
       ok: true,
       discountWon: true,
-      discountLabel: temporaryDiscountName,
     });
-    await expect(lottery.getByRole("status")).toContainText(`並抽中 ${temporaryDiscountName}！`);
+    expect([temporaryDiscountName, secondTemporaryDiscountName]).toContain(drawPayload.discountLabel);
+    await expect(lottery.getByRole("status")).toContainText(`並抽中 ${String(drawPayload.discountLabel)}！`);
   } finally {
     await context.close();
   }
@@ -348,8 +467,19 @@ async function verifyClosedPreorder(browser: Browser) {
     rememberSessionToken(sessionPayload.orderSessionToken);
 
     await expect(page.getByText("目前為非營業時間，僅接受預約外帶。", { exact: true })).toBeVisible();
-    await expect(page.getByLabel("預約取餐時間")).toBeVisible();
-    await expect(page.getByLabel("預約取餐時間").locator("option")).not.toHaveCount(0);
+    const preorderFields = page.getByTestId("qr-preorder-fulfillment-time-fields");
+    const preorderDate = preorderFields.getByLabel("預約取餐日期");
+    const preorderHour = preorderFields.getByLabel("預約取餐時間－時");
+    const preorderMinute = preorderFields.getByLabel("預約取餐時間－分");
+    await expect(preorderDate).toHaveAttribute("type", "date");
+    await expect(preorderHour.locator("option")).not.toHaveCount(0);
+    await expect(preorderMinute.locator("option")).not.toHaveCount(0);
+    expect((await preorderHour.locator("option").allTextContents()).every((hour) => (
+      /^(?:[01]\d|2[0-3])$/.test(hour)
+    ))).toBe(true);
+    expect((await preorderMinute.locator("option").allTextContents()).every((minute) => (
+      /^(?:[0-5]\d)$/.test(minute) && Number(minute) % 5 === 0
+    ))).toBe(true);
     await expect(page.getByRole("region", { name: "抽抽樂推薦" })).toHaveCount(0);
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
@@ -370,8 +500,16 @@ async function restoreThroughUi(page: Page) {
     await page.getByLabel("時段間隔").selectOption(String(originalSettings.preorderSlotMinutes));
   }
   if (originalSettings.lotteryEnabled) {
-    await page.getByLabel("抽中折扣").selectOption(originalSettings.lotteryDiscountOptionId ?? "");
-    await page.getByLabel("折扣中獎率（%）").fill(String(originalSettings.lotteryDiscountWinRateBps / 100));
+    const selectedDiscounts = page.locator('input[id^="lottery-discount-"]:checked');
+    while (await selectedDiscounts.count()) await selectedDiscounts.first().uncheck();
+    for (const chance of originalLotteryDiscountChances) {
+      const checkbox = page.locator(`#lottery-discount-${chance.discountOptionId}`);
+      if (await checkbox.count() === 0) continue;
+      await checkbox.check();
+      await page.getByTestId(`lottery-discount-rate-${chance.discountOptionId}`).fill(
+        String(chance.winRateBps / 100),
+      );
+    }
   }
   const modulesResponsePromise = page.waitForResponse((response) => (
     new URL(response.url()).pathname === `/api/merchant/stalls/${stallId}/modules`
@@ -410,7 +548,7 @@ async function login(page: Page) {
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(/\/merchant\/dashboard/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/, { timeout: 30_000 });
 }
 
 function assertLocalDatabase() {

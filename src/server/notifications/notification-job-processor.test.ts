@@ -26,4 +26,25 @@ describe("notification job processing helpers", () => {
     expect(text).toContain("NT$130");
     expect(text).toContain("/reorder");
   });
+
+  it("renders a proposed fulfillment time with the customer confirmation link", () => {
+    const text = renderLineNotification({
+      templateCode: "FULFILLMENT_TIME_PROPOSED",
+      stallName: "阿明雞排",
+      orderNo: "A026",
+      fulfillmentType: "DELIVERY",
+      pickupCode: null,
+      quotedWaitMinutes: null,
+      total: 200,
+      pendingFulfillmentAt: new Date("2026-08-06T10:30:00.000Z"),
+      fulfillmentTimeChangeReason: "原時段訂單較多",
+      timezone: "Asia/Taipei",
+      trackingToken: "sto_tracking-token-that-is-long-enough-for-test",
+      appUrl: "https://staging.qidaigo.com",
+    });
+
+    expect(text).toContain("送達時間");
+    expect(text).toContain("原時段訂單較多");
+    expect(text).toContain("/order/");
+  });
 });

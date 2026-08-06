@@ -56,7 +56,7 @@ async function processClaimedNotificationJob(jobId: string, now: Date) {
     include: {
       integration: true,
       contactLink: true,
-      order: { include: { stall: { select: { name: true } } } },
+      order: { include: { stall: { select: { name: true, timezone: true } } } },
     },
   });
   if (!job || job.status !== "PROCESSING") return { jobId, status: "SKIPPED" };
@@ -93,6 +93,9 @@ async function processClaimedNotificationJob(jobId: string, now: Date) {
         pickupCode: job.order.pickupCodeDisplay,
         quotedWaitMinutes: job.order.quotedWaitMinutes,
         total: job.order.total,
+        pendingFulfillmentAt: job.order.pendingFulfillmentAt,
+        fulfillmentTimeChangeReason: job.order.fulfillmentTimeChangeReason,
+        timezone: job.order.stall.timezone,
         trackingToken: recipientSecret.trackingToken,
         appUrl: requiredAppUrl(),
       }),
@@ -189,6 +192,9 @@ export function renderLineNotification(input: {
   pickupCode: string | null;
   quotedWaitMinutes: number | null;
   total: number;
+  pendingFulfillmentAt?: Date | null;
+  fulfillmentTimeChangeReason?: string | null;
+  timezone?: string;
   trackingToken: string;
   appUrl: string;
 }) {
@@ -203,6 +209,22 @@ export function renderLineNotification(input: {
       ? `，請憑取餐碼 ${input.pickupCode} 取餐`
       : "";
     return `${input.stallName}：訂單 ${input.orderNo} 已完成${pickup}。\n本次金額 NT$${input.total}\n再次點餐：${reorderUrl}`;
+  }
+  if (input.templateCode === "FULFILLMENT_TIME_PROPOSED") {
+    const label = input.fulfillmentType === "DELIVERY" ? "送達" : "取餐";
+    const proposedTime = input.pendingFulfillmentAt
+      ? new Intl.DateTimeFormat("zh-TW", {
+          timeZone: input.timezone ?? "Asia/Taipei",
+          month: "numeric",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(input.pendingFulfillmentAt)
+      : "新的建議時間";
+    const reason = input.fulfillmentTimeChangeReason
+      ? `（${input.fulfillmentTimeChangeReason}）`
+      : "";
+    return `${input.stallName}：訂單 ${input.orderNo} 建議將${label}時間改為 ${proposedTime}${reason}，請確認是否接受。\n前往確認：${orderUrl}`;
   }
   return `${input.stallName}：訂單 ${input.orderNo} 已取消，請洽現場工作人員。\n查看訂單：${orderUrl}`;
 }

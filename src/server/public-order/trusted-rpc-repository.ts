@@ -14,6 +14,7 @@ export type StoredPublicOrder = {
   quoted_wait_minutes?: number | null;
   quoted_ready_at?: string | null;
   scheduled_pickup_at?: string | null;
+  requested_fulfillment_at?: string | null;
   discount_amount?: number;
   created_at: string;
 };
@@ -264,33 +265,8 @@ export function createPublicOrderWithSchedule(input: {
   scheduledPickupAt: string | null;
   lotteryDrawId: string | null;
 }) {
-  if (input.orderingMode === "DELIVERY") {
-    return jsonResult<OrderCreateResult>(Prisma.sql`
-      select public.create_public_delivery_order_with_schedule(
-        ${input.orderId}::uuid,
-        ${input.qrToken}::text,
-        ${input.sessionTokenHash}::text,
-        ${input.deviceHash}::text,
-        ${input.ipHash}::text,
-        ${input.qrTokenHash}::text,
-        ${input.behaviorHash}::text,
-        ${input.idempotencyKey}::uuid,
-        ${input.idempotencyHash}::text,
-        ${input.customerName}::text,
-        ${input.customerPhone}::text,
-        ${input.deliveryAddress}::text,
-        ${input.customerNote}::text,
-        ${JSON.stringify(input.items)}::jsonb,
-        ${input.trackingTokenHash}::text,
-        ${input.pickupCodeHash}::text,
-        ${input.requestId}::text,
-        ${input.waitAcknowledged}::boolean
-      ) as result
-    `);
-  }
-
   return jsonResult<OrderCreateResult>(Prisma.sql`
-    select public.create_public_order_with_experience(
+    select public.create_public_order_with_fulfillment_time(
       ${input.orderId}::uuid,
       ${input.qrToken}::text,
       ${input.sessionTokenHash}::text,
@@ -301,6 +277,8 @@ export function createPublicOrderWithSchedule(input: {
       ${input.idempotencyKey}::uuid,
       ${input.idempotencyHash}::text,
       ${input.customerName}::text,
+      ${input.customerPhone}::text,
+      ${input.deliveryAddress}::text,
       ${input.customerNote}::text,
       ${JSON.stringify(input.items)}::jsonb,
       ${input.trackingTokenHash}::text,
@@ -322,6 +300,7 @@ export function getOrderQuote(orderId: string) {
       quotedWaitMinutes: true,
       quotedReadyAt: true,
       scheduledPickupAt: true,
+      requestedFulfillmentAt: true,
       lotteryDrawId: true,
       discountAmount: true,
     },

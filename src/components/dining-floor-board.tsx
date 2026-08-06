@@ -5,18 +5,23 @@ import type { OrderItemStatus, OrderStatus, UserRole } from "@prisma/client";
 import Link from "next/link";
 import { ArrowLeft, CheckCheck, CircleCheck, Clock3, LoaderCircle, RefreshCw, Utensils, Wifi, WifiOff } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
+import { DiningTableShapeGraphic } from "@/components/dining-table-shape";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { getDiningFloorTabs, type DiningTableShape } from "@/lib/dining-floor";
 import { canTransitionOrderItem } from "@/lib/order-item-status";
 import { orderItemStatusLabels, orderStatusLabels } from "@/lib/orders";
 import { canTransitionOrder, roleLabels } from "@/lib/rbac";
 
 type FloorTable = {
   id: string;
+  floorId: string | null;
   code: string;
   label: string;
   isActive: boolean;
   layoutX: number;
   layoutY: number;
+  shape: DiningTableShape;
+  rotationDegrees: number;
   serviceState: "EMPTY" | "OCCUPIED" | "NEEDS_CLEANING";
   seatedAt: string | null;
   cleanedAt: string | null;
@@ -74,17 +79,22 @@ function getTableStatus(table: FloorTable, orders: DiningFloorOrder[]) {
 
 export function DiningFloorBoard({
   stall,
+  floors,
   tables,
   initialOrders,
   account,
 }: {
   stall: { slug: string; name: string };
+  floors: Array<{ id: string; name: string; sortOrder: number }>;
   tables: FloorTable[];
   initialOrders: DiningFloorOrder[];
   account: { displayName: string; role: UserRole };
 }) {
   const [orders, setOrders] = useState(initialOrders);
+  const [diningFloors, setDiningFloors] = useState(floors);
   const [floorTables, setFloorTables] = useState(tables);
+  const initialFloorTabs = getDiningFloorTabs(floors, tables);
+  const [activeFloorKey, setActiveFloorKey] = useState(initialFloorTabs[0]?.key ?? "");
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
@@ -107,6 +117,7 @@ export function DiningFloorBoard({
         order.fulfillmentType === "DINE_IN" && Boolean(order.diningTableId)
       )));
       setFloorTables(tablesPayload.tables as FloorTable[]);
+      setDiningFloors(tablesPayload.floors as Array<{ id: string; name: string; sortOrder: number }>);
       if (showProgress) setMessage("");
     } catch (error) {
       if (showProgress) setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
@@ -218,7 +229,13 @@ export function DiningFloorBoard({
     table.id,
     orders.filter((order) => order.diningTableId === table.id),
   ])), [floorTables, orders]);
-  const selectedTable = floorTables.find((table) => table.id === selectedTableId) ?? null;
+  const floorTabs = useMemo(() => getDiningFloorTabs(diningFloors, floorTables), [diningFloors, floorTables]);
+  const activeFloor = floorTabs.find((floor) => floor.key === activeFloorKey) ?? floorTabs[0] ?? null;
+  const visibleTables = floorTables.filter((table) => table.floorId === (activeFloor?.id ?? null));
+  const selectedTableCandidate = floorTables.find((table) => table.id === selectedTableId) ?? null;
+  const selectedTable = selectedTableCandidate?.floorId === (activeFloor?.id ?? null)
+    ? selectedTableCandidate
+    : null;
   const selectedOrders = selectedTable ? ordersByTable.get(selectedTable.id) ?? [] : [];
   const selectedTableStatus = selectedTable ? getTableStatus(selectedTable, selectedOrders) : null;
 
@@ -251,9 +268,26 @@ export function DiningFloorBoard({
 
       <div className="mt-3 grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] lg:items-start">
         <section aria-labelledby="floor-map-heading">
+          <div role="tablist" aria-label="樓層" className="mb-3 flex gap-2 overflow-x-auto pb-1">
+            {floorTabs.map((floor) => (
+              <button
+                key={floor.key}
+                type="button"
+                role="tab"
+                aria-selected={floor.key === activeFloor?.key}
+                onClick={() => {
+                  setActiveFloorKey(floor.key);
+                  setSelectedTableId(null);
+                }}
+                className={`min-h-10 shrink-0 rounded-md border px-4 text-sm font-semibold ${floor.key === activeFloor?.key ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-700"}`}
+              >
+                {floor.name}
+              </button>
+            ))}
+          </div>
           <div className="mb-2 flex items-center justify-between">
             <h2 id="floor-map-heading" className="text-sm font-semibold">點選桌位查看餐點</h2>
-            <span className="text-xs text-stone-500">共 {floorTables.length} 桌</span>
+            <span className="text-xs text-stone-500">共 {visibleTables.length} 桌</span>
           </div>
           <div
             role="region"
@@ -264,7 +298,7 @@ export function DiningFloorBoard({
               backgroundSize: "10% 10%",
             }}
           >
-            {floorTables.map((table) => {
+            {visibleTables.map((table) => {
               const tableOrders = ordersByTable.get(table.id) ?? [];
               const status = !table.isActive && tableOrders.length === 0
                 ? { key: "INACTIVE" as const, label: "已停用", unservedCount: 0 }
@@ -280,13 +314,15 @@ export function DiningFloorBoard({
                   className={`absolute flex h-[16%] w-[18%] flex-col items-center justify-center overflow-hidden rounded-md border px-1 text-center shadow-sm transition focus:outline-none focus:ring-2 focus:ring-teal-600 ${tableStatusStyles[status.key]} ${selected ? "ring-2 ring-teal-700 ring-offset-2" : ""}`}
                   style={{ left: `${table.layoutX / 10}%`, top: `${table.layoutY / 10}%` }}
                 >
-                  <span className="line-clamp-2 text-xs font-bold sm:text-sm">{table.label}</span>
-                  <span className="mt-0.5 text-[10px] font-semibold sm:text-xs">{status.label}</span>
-                  {status.unservedCount > 0 ? <span className="text-[9px] sm:text-[10px]">未出餐 {status.unservedCount}</span> : null}
-                  {table.seatedAt && status.key !== "EMPTY" ? <span className="hidden text-[9px] sm:block">{new Date(table.seatedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })} 入座</span> : null}
+                  <DiningTableShapeGraphic shape={table.shape} rotationDegrees={table.rotationDegrees} className="pointer-events-none absolute inset-0 h-full w-full" />
+                  <span className="relative line-clamp-2 text-xs font-bold sm:text-sm">{table.label}</span>
+                  <span className="relative mt-0.5 text-[10px] font-semibold sm:text-xs">{status.label}</span>
+                  {status.unservedCount > 0 ? <span className="relative text-[9px] sm:text-[10px]">未出餐 {status.unservedCount}</span> : null}
+                  {table.seatedAt && status.key !== "EMPTY" ? <span className="relative hidden text-[9px] sm:block">{new Date(table.seatedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })} 入座</span> : null}
                 </button>
               );
             })}
+            {visibleTables.length === 0 ? <div className="absolute inset-0 grid place-items-center text-sm text-stone-500">此樓層尚未建立桌位。</div> : null}
           </div>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-600">
             <Legend color="bg-white border-stone-400" label="空桌" />

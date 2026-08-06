@@ -88,8 +88,8 @@ test("QR 菜單在原分類內優先顯示熱銷推薦", async ({ page }) => {
   await expect(articles.nth(2)).toContainText("熱銷飲品");
   await expect(articles.nth(3)).toContainText("一般飲品");
   await expect(page.getByTestId("best-seller-badge")).toHaveCount(2);
-  await expect(articles.nth(0)).toContainText("熱銷推薦");
-  await expect(articles.nth(2)).toContainText("熱銷推薦");
+  await expect(articles.nth(0)).toContainText("近 30 天熱銷第 2 名");
+  await expect(articles.nth(2)).toContainText("近 30 天熱銷第 1 名");
   await expect(articles.nth(0)).toHaveAttribute("data-best-seller-rank", "2");
   await expect(articles.nth(2)).toHaveAttribute("data-best-seller-rank", "1");
 });

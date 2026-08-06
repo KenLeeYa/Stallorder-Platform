@@ -26,6 +26,7 @@ type StoredOrder = {
   quoted_wait_minutes?: number | null;
   quoted_ready_at?: string | null;
   scheduled_pickup_at?: string | null;
+  requested_fulfillment_at?: string | null;
   discount_amount?: number;
   created_at: string;
 };
@@ -80,6 +81,7 @@ function publicOrderResponse(order: StoredOrder, trackingToken: string, pickupCo
     quotedWaitMinutes: order.quoted_wait_minutes ?? null,
     quotedReadyAt: order.quoted_ready_at ?? null,
     scheduledPickupAt: order.scheduled_pickup_at ?? null,
+    requestedFulfillmentAt: order.requested_fulfillment_at ?? null,
     discountAmount: order.discount_amount ?? 0,
     createdAt: order.created_at,
   };
@@ -194,15 +196,15 @@ Deno.serve(async (request) => {
     if (existing) {
       const order = existing as StoredOrder;
       const { data: quote, error: quoteError } = await timing.measureDb(() => admin.from("orders")
-        .select("quoted_wait_minutes, quoted_ready_at, scheduled_pickup_at, lottery_draw_id, discount_amount")
+        .select("quoted_wait_minutes, quoted_ready_at, scheduled_pickup_at, requested_fulfillment_at, lottery_draw_id, discount_amount")
         .eq("id", order.order_id)
         .single());
       if (quoteError) throw quoteError;
       const requestedPickupTime = input.scheduledPickupAt
         ? Date.parse(input.scheduledPickupAt)
         : null;
-      const storedPickupTime = quote.scheduled_pickup_at
-        ? Date.parse(quote.scheduled_pickup_at)
+      const storedPickupTime = quote.requested_fulfillment_at
+        ? Date.parse(quote.requested_fulfillment_at)
         : null;
       if (
         requestedPickupTime !== storedPickupTime
@@ -217,6 +219,7 @@ Deno.serve(async (request) => {
       order.quoted_wait_minutes = quote.quoted_wait_minutes;
       order.quoted_ready_at = quote.quoted_ready_at;
       order.scheduled_pickup_at = quote.scheduled_pickup_at;
+      order.requested_fulfillment_at = quote.requested_fulfillment_at;
       order.discount_amount = quote.discount_amount;
       const tokens = await derivePublicOrderTokens(order.order_id, tokenSecret);
       await timing.measureDb(() => persistPickupCodeDisplay(admin, order, tokens.pickupCode));
@@ -293,6 +296,8 @@ Deno.serve(async (request) => {
       p_idempotency_key: input.idempotencyKey,
       p_idempotency_hash: idempotencyHash,
       p_customer_name: input.customerName,
+      p_customer_phone: input.customerPhone,
+      p_delivery_address: input.deliveryAddress,
       p_customer_note: input.customerNote,
       p_items: input.items.map((item) => ({
         product_id: item.productId,
@@ -305,19 +310,11 @@ Deno.serve(async (request) => {
       p_pickup_code_hash: pickupCodeHash,
       p_request_id: requestId,
       p_wait_acknowledged: input.waitAcknowledged,
-      ...(input.orderingMode !== "DELIVERY" ? {
-        p_scheduled_pickup_at: input.scheduledPickupAt,
-        p_lottery_draw_id: input.lotteryDrawId,
-      } : {}),
-      ...(input.orderingMode === "DELIVERY" ? {
-        p_customer_phone: input.customerPhone,
-        p_delivery_address: input.deliveryAddress,
-      } : {}),
+      p_requested_fulfillment_at: input.scheduledPickupAt,
+      p_lottery_draw_id: input.lotteryDrawId,
     };
     const { data: createResult, error: createError } = await timing.measureDb(() => admin.rpc(
-      input.orderingMode === "DELIVERY"
-        ? "create_public_delivery_order_with_schedule"
-        : "create_public_order_with_experience",
+      "create_public_order_with_fulfillment_time",
       createArguments,
     ));
     if (createError) {

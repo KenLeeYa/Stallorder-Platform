@@ -111,6 +111,7 @@ function publicOrderResponse(order: StoredPublicOrder, trackingToken: string, pi
     quotedWaitMinutes: order.quoted_wait_minutes ?? null,
     quotedReadyAt: order.quoted_ready_at ?? null,
     scheduledPickupAt: order.scheduled_pickup_at ?? null,
+    requestedFulfillmentAt: order.requested_fulfillment_at ?? null,
     discountAmount: order.discount_amount ?? 0,
     createdAt: order.created_at,
   };
@@ -369,7 +370,7 @@ export async function createOrderThroughCircuitB(
     const requestedPickupTime = input.scheduledPickupAt
       ? new Date(input.scheduledPickupAt).getTime()
       : null;
-    const storedPickupTime = quote?.scheduledPickupAt?.getTime() ?? null;
+    const storedPickupTime = quote?.requestedFulfillmentAt?.getTime() ?? null;
     if (
       requestedPickupTime !== storedPickupTime
       || (quote?.lotteryDrawId ?? null) !== input.lotteryDrawId
@@ -382,6 +383,7 @@ export async function createOrderThroughCircuitB(
     existing.quoted_wait_minutes = quote?.quotedWaitMinutes ?? null;
     existing.quoted_ready_at = quote?.quotedReadyAt?.toISOString() ?? null;
     existing.scheduled_pickup_at = quote?.scheduledPickupAt?.toISOString() ?? null;
+    existing.requested_fulfillment_at = quote?.requestedFulfillmentAt?.toISOString() ?? null;
     existing.discount_amount = quote?.discountAmount ?? 0;
     const tokens = await derivePublicOrderTokens(
       existing.order_id,
@@ -483,6 +485,7 @@ export async function createOrderThroughCircuitB(
   result.order.quoted_wait_minutes = quote?.quotedWaitMinutes ?? null;
   result.order.quoted_ready_at = quote?.quotedReadyAt?.toISOString() ?? null;
   result.order.scheduled_pickup_at = quote?.scheduledPickupAt?.toISOString() ?? null;
+  result.order.requested_fulfillment_at = quote?.requestedFulfillmentAt?.toISOString() ?? null;
   result.order.discount_amount = quote?.discountAmount ?? 0;
   await persistPickupCode(result.order, finalTokens.pickupCode, context.timing);
   return {

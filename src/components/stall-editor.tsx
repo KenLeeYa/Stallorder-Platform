@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, Plus, Save, Store } from "lucide-react";
-import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
 import { PublicIdentifierInputHint } from "@/components/public-identifier-input-hint";
 import { csrfHeaders } from "@/lib/csrf-client";
 import {
@@ -158,8 +157,14 @@ export function StallEditor({
 
   return (
     <div className="border-t border-stone-200">
-      {section !== "operations" ? <details open data-settings-section data-settings-scope="stall-basic" data-settings-search="基本資料 名稱 代碼 說明 地址 電話 時區 幣別" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
-        <CollapsibleSectionSummary icon={Store} title="基本資料" description={basicDirty ? "有尚未儲存的變更" : undefined} />
+      {section !== "operations" ? <section aria-labelledby="stall-basic-heading" data-settings-section data-settings-scope="stall-basic" data-settings-search="基本資料 名稱 代碼 說明 地址 電話 時區 幣別" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500">
+        <div className="flex min-h-14 items-center gap-3 py-3 text-left">
+          <Store aria-hidden="true" className="h-5 w-5 shrink-0 text-teal-700" />
+          <div className="min-w-0 flex-1">
+            <h2 id="stall-basic-heading" className="text-lg font-semibold">基本資料</h2>
+            {basicDirty ? <p className="mt-1 text-sm text-stone-600">有尚未儲存的變更</p> : null}
+          </div>
+        </div>
         <form ref={basicFormRef} noValidate onSubmit={submitBasic} className="pb-7">
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <Field label="攤位名稱" field="name" error={fieldErrors.name}><input {...fieldValidationProps("name", fieldErrors.name)} type="text" value={draft.name} onChange={(event) => update("name", event.target.value)} required maxLength={80} className={inputClass(fieldErrors.name)} /></Field>
@@ -192,11 +197,17 @@ export function StallEditor({
             {savingSection === "basic" ? "儲存中..." : isEditing ? "儲存基本資料" : "建立攤位"}
           </button>
         </form>
-      </details> : null}
+      </section> : null}
 
       {isEditing && section !== "basic" ? (
-        <details open data-settings-section data-settings-scope="stall-operations" data-settings-search="營運狀態 營業 顧客點餐 啟用 攤位" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
-          <CollapsibleSectionSummary icon={Activity} title="營運狀態" description={operationsDirty ? "有尚未儲存的變更" : undefined} />
+        <section aria-labelledby="stall-operations-heading" data-settings-section data-settings-scope="stall-operations" data-settings-search="營運狀態 營業 顧客點餐 啟用 攤位" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500">
+          <div className="flex min-h-14 items-center gap-3 py-3 text-left">
+            <Activity aria-hidden="true" className="h-5 w-5 shrink-0 text-teal-700" />
+            <div className="min-w-0 flex-1">
+              <h2 id="stall-operations-heading" className="text-lg font-semibold">營運狀態</h2>
+              {operationsDirty ? <p className="mt-1 text-sm text-stone-600">有尚未儲存的變更</p> : null}
+            </div>
+          </div>
           <form ref={operationsFormRef} noValidate onSubmit={submitOperations} className="pb-7">
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium">營業狀態<select value={draft.businessStatus} onChange={(event) => update("businessStatus", event.target.value as StallDraft["businessStatus"])} className="mt-1.5 h-11 w-full rounded-md border border-stone-300 bg-white px-3"><option value="OPEN">營業中</option><option value="PAUSED">暫停</option><option value="CLOSED">關閉</option><option value="SOLD_OUT">全攤售罄</option></select></label>
@@ -211,7 +222,7 @@ export function StallEditor({
               {savingSection === "operations" ? "儲存中..." : "儲存營運狀態"}
             </button>
           </form>
-        </details>
+        </section>
       ) : null}
     </div>
   );

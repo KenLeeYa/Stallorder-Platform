@@ -26,6 +26,8 @@ export async function getOrganizationCatalog(organizationId: string, authorizedS
         defaultPrice: true,
         kind: true,
         imageUrl: true,
+        isOrderDiscountEligible: true,
+        isLotteryEligible: true,
         sortOrder: true,
         isActive: true,
         translations: {

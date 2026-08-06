@@ -118,6 +118,7 @@ function staffOrderErrorResponse(error: unknown, requestId: string) {
       INVALID_PRODUCT_NOTES: "商品註記未符合必選或數量限制。",
       TABLE_UNAVAILABLE: "內用桌位已停用或不存在。",
       DELIVERY_UNAVAILABLE: "此攤位尚未開啟外送模組。",
+      FULFILLMENT_TIME_INVALID: "所選取餐或送達時間已失效，請重新選擇。",
       ACTIVE_SHIFT_REQUIRED: "現金交易前必須先開啟現金班次。",
       ORDER_CONFLICT: "訂單編號或防重複識別發生衝突，請重新送出。",
     };
@@ -128,13 +129,17 @@ function staffOrderErrorResponse(error: unknown, requestId: string) {
   }
   if (error instanceof StaffCheckoutError) {
     const messages: Record<StaffCheckoutError["code"], string> = {
+      DISCOUNT_NOT_APPLICABLE: "此訂單沒有可套用折扣的商品。",
       PAYMENT_REQUIRED: "請選擇付款方式。",
       PAYMENT_INVALID: "付款方式已停用或不存在，請重新選擇。",
       DISCOUNT_DISABLED: "此攤位尚未開啟折扣模組。",
       DISCOUNT_INVALID: "折扣已停用或不存在，請重新選擇。",
       INSUFFICIENT_CASH: "實收金額不可小於應收金額。",
     };
-    return NextResponse.json({ error: messages[error.code], code: error.code }, { status: 400, headers });
+    return NextResponse.json(
+      { error: messages[error.code], code: error.code },
+      { status: error.code === "DISCOUNT_NOT_APPLICABLE" ? 409 : 400, headers },
+    );
   }
   if (error instanceof DiscountApprovalError) {
     const messages: Record<DiscountApprovalError["code"], string> = {

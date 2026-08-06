@@ -9,6 +9,7 @@ import {
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
 import { getStaffFulfillmentError } from "@/lib/staff-fulfillment";
+import { orderItemsExceedLimits } from "@/lib/order-item-limits";
 import type { CreateStaffOrderInput } from "@/lib/staff-order-contract";
 import { resolveStaffCheckout } from "@/lib/staff-checkout";
 import { createOpaqueToken, hashToken } from "@/lib/security";
@@ -23,6 +24,7 @@ export type TrustedStaffOrderAssignment = {
     name: string;
     defaultPrice: number;
     kind: ProductKind;
+    isOrderDiscountEligible: boolean;
     noteGroupAssignments: Array<{
       noteGroup: {
         id: string;
@@ -78,6 +80,7 @@ export class StaffOrderCreateError extends Error {
     | "INVALID_PRODUCT_NOTES"
     | "TABLE_UNAVAILABLE"
     | "DELIVERY_UNAVAILABLE"
+    | "FULFILLMENT_TIME_INVALID"
     | "ACTIVE_SHIFT_REQUIRED"
     | "ORDER_CONFLICT") {
     super(code);
@@ -112,6 +115,7 @@ export async function createStaffOrder(input: {
         organizationId: input.organizationId,
         stallId: input.stallId,
         subtotals: [prepared.subtotal],
+        discountEligibleSubtotals: [prepared.discountEligibleSubtotal],
         actorProfileId: input.actorProfileId,
         actorRoles: input.actorRoles,
         request: input.request.checkout ?? {},
@@ -196,6 +200,13 @@ export async function createStaffOrder(input: {
           total,
           quotedWaitMinutes: capacity.quoteMaxMinutes,
           quotedReadyAt: new Date(createdAt.getTime() + capacity.quoteMaxMinutes * 60_000),
+          scheduledPickupAt: input.request.fulfillmentType === "TAKEOUT"
+            ? prepared.requestedFulfillmentAt
+            : null,
+          requestedFulfillmentAt: prepared.requestedFulfillmentAt,
+          committedFulfillmentAt: prepared.requestedFulfillmentAt,
+          fulfillmentTimeState: prepared.requestedFulfillmentAt ? "CONFIRMED" : "NOT_REQUESTED",
+          fulfillmentTimeVersion: prepared.requestedFulfillmentAt ? 1 : 0,
           deviceHash,
           pickupCodeHash: null,
           confirmationExpiresAt: isSetupTest
@@ -212,6 +223,7 @@ export async function createStaffOrder(input: {
               baseUnitPrice: item.baseUnitPrice,
               unitPrice: item.unitPrice,
               quantity: item.quantity,
+              isOrderDiscountEligible: item.isOrderDiscountEligible,
               note: item.note,
               noteOptions: {
                 create: item.noteOptions.map((option) => ({
@@ -235,6 +247,9 @@ export async function createStaffOrder(input: {
               previousStatus: null,
               newStatus: initialStatus,
               createdBy: input.actorProfileId,
+              metadataJson: prepared.requestedFulfillmentAt
+                ? { requestedFulfillmentAt: prepared.requestedFulfillmentAt.toISOString() }
+                : {},
             },
           },
           payment: checkout ? {
@@ -416,9 +431,22 @@ export function prepareTrustedStaffOrderItem(input: {
     baseUnitPrice,
     unitPrice,
     quantity: requested.quantity,
+    isOrderDiscountEligible: assignment.product.isOrderDiscountEligible,
     note: requested.note || null,
     noteOptions,
   };
+}
+
+export function staffOrderExceedsLimits(
+  request: Pick<CreateStaffOrderInput, "items" | "customerNote">,
+  settings: {
+    maxItemQuantity: number;
+    maxUniqueProducts: number;
+    maxTotalQuantity: number;
+    maxNoteLength: number;
+  },
+) {
+  return orderItemsExceedLimits(request.items, request.customerNote, settings);
 }
 
 async function prepareOrder(
@@ -428,6 +456,7 @@ async function prepareOrder(
   request: CreateStaffOrderInput,
 ) {
   const now = new Date();
+  const requestedProductIds = [...new Set(request.items.map((item) => item.productId))];
   const [settings, assignments] = await Promise.all([
     client.stallOrderingSettings.findUnique({
       where: { stallId },
@@ -445,7 +474,7 @@ async function prepareOrder(
       where: {
         organizationId,
         stallId,
-        productId: { in: request.items.map((item) => item.productId) },
+        productId: { in: requestedProductIds },
         isEnabled: true,
         isSoldOut: false,
         OR: [{ availableFrom: null }, { availableFrom: { lte: now } }],
@@ -461,6 +490,7 @@ async function prepareOrder(
             name: true,
             defaultPrice: true,
             kind: true,
+            isOrderDiscountEligible: true,
             bundleChoiceGroups: {
               orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
               select: {
@@ -529,14 +559,10 @@ async function prepareOrder(
   ]);
 
   if (!settings) throw new StaffOrderCreateError("PRODUCT_UNAVAILABLE");
-  const totalQuantity = request.items.reduce((sum, item) => sum + item.quantity, 0);
-  if (
-    request.items.length > settings.maxUniqueProducts
-    || totalQuantity > settings.maxTotalQuantity
-    || request.items.some((item) => item.quantity > settings.maxItemQuantity || item.note.length > settings.maxNoteLength)
-    || request.customerNote.length > settings.maxNoteLength
-  ) throw new StaffOrderCreateError("ORDER_LIMIT_EXCEEDED");
-  if (assignments.length !== request.items.length) {
+  if (staffOrderExceedsLimits(request, settings)) {
+    throw new StaffOrderCreateError("ORDER_LIMIT_EXCEEDED");
+  }
+  if (assignments.length !== requestedProductIds.length) {
     throw new StaffOrderCreateError("PRODUCT_UNAVAILABLE");
   }
 
@@ -554,6 +580,25 @@ async function prepareOrder(
     tableLabel = table.label;
   }
 
+  const requestedFulfillmentAt = request.fulfillmentType === "DINE_IN"
+    || !request.requestedFulfillmentAt
+    ? null
+    : new Date(request.requestedFulfillmentAt);
+  if (requestedFulfillmentAt) {
+    const [validation] = await client.$queryRaw<Array<{ code: string | null }>>`
+      select public.validate_requested_fulfillment_slot(
+        ${stallId}::uuid,
+        ${request.fulfillmentType}::public.fulfillment_type,
+        'STAFF_NEW_ORDER',
+        ${requestedFulfillmentAt}::timestamptz,
+        now()
+      ) as code
+    `;
+    if (!validation || validation.code !== null) {
+      throw new StaffOrderCreateError("FULFILLMENT_TIME_INVALID");
+    }
+  }
+
   const assignmentsByProduct = new Map(assignments.map((assignment) => [assignment.productId, assignment]));
   const items = request.items.map((requested) => {
     const assignment = assignmentsByProduct.get(requested.productId);
@@ -569,9 +614,13 @@ async function prepareOrder(
 
   return {
     unconfirmedOrderTimeoutSeconds: settings.unconfirmedOrderTimeoutSeconds,
+    requestedFulfillmentAt,
     diningTableId,
     tableLabel,
     subtotal: items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
+    discountEligibleSubtotal: items.reduce((sum, item) => (
+      sum + (item.isOrderDiscountEligible ? item.unitPrice * item.quantity : 0)
+    ), 0),
     items,
   };
 }

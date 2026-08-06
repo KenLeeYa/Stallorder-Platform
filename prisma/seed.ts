@@ -57,10 +57,14 @@ async function main() {
       organizationId: organization.id,
       dineInEnabled: true,
       deliveryModuleEnabled: true,
+      staffDeliveryEnabled: true,
       printModuleEnabled: true,
       paymentModuleEnabled: true,
       discountModuleEnabled: true,
+      lotteryEnabled: true,
       discountApprovalThresholdBps: 8000,
+      takeoutPreorderEnabled: true,
+      preorderSlotMinutes: 5,
       enabledLocales: ["zh-TW", "en", "ja", "ko", "vi", "th"],
     },
     create: {
@@ -68,10 +72,14 @@ async function main() {
       organizationId: organization.id,
       dineInEnabled: true,
       deliveryModuleEnabled: true,
+      staffDeliveryEnabled: true,
       printModuleEnabled: true,
       paymentModuleEnabled: true,
       discountModuleEnabled: true,
+      lotteryEnabled: true,
       discountApprovalThresholdBps: 8000,
+      takeoutPreorderEnabled: true,
+      preorderSlotMinutes: 5,
       enabledLocales: ["zh-TW", "en", "ja", "ko", "vi", "th"],
     },
   });
@@ -154,6 +162,34 @@ async function main() {
         data: { organizationId: organization.id, stallId: stall.id, ...discount, sortOrder: index + 1 },
       });
     }
+  }
+  const lotteryDiscounts = await prisma.discountOption.findMany({
+    where: {
+      organizationId: organization.id,
+      stallId: stall.id,
+      name: { in: ["9 折", "8 折"] },
+      isEnabled: true,
+    },
+    select: { id: true, name: true },
+  });
+  await prisma.stallLotteryDiscountChance.deleteMany({
+    where: {
+      stallId: stall.id,
+      discountOptionId: { notIn: lotteryDiscounts.map((discount) => discount.id) },
+    },
+  });
+  for (const discount of lotteryDiscounts) {
+    const winRateBps = discount.name === "9 折" ? 1_000 : 500;
+    await prisma.stallLotteryDiscountChance.upsert({
+      where: {
+        stallId_discountOptionId: {
+          stallId: stall.id,
+          discountOptionId: discount.id,
+        },
+      },
+      update: { winRateBps },
+      create: { stallId: stall.id, discountOptionId: discount.id, winRateBps },
+    });
   }
 
   const products = [
@@ -411,6 +447,91 @@ async function main() {
     }
   }
 
+  const demoBestSellerSales = [
+    { productName: "香酥雞排", quantity: 3 },
+    { productName: "香酥雞排", quantity: 3 },
+    { productName: "香酥雞排", quantity: 3 },
+    { productName: "香酥雞排", quantity: 3 },
+    { productName: "地瓜薯條", quantity: 4 },
+    { productName: "地瓜薯條", quantity: 2 },
+    { productName: "地瓜薯條", quantity: 2 },
+    { productName: "台式鹽酥雞", quantity: 1 },
+    { productName: "台式鹽酥雞", quantity: 1 },
+    { productName: "台式鹽酥雞", quantity: 1 },
+  ] as const;
+  for (const [saleIndex, sale] of demoBestSellerSales.entries()) {
+    const sequence = String(saleIndex + 1).padStart(12, "0");
+    const productId = seededProducts.get(sale.productName);
+    if (!productId) throw new Error(`找不到熱銷示範商品：${sale.productName}`);
+    const product = await prisma.product.findUniqueOrThrow({
+      where: { id: productId },
+      select: { defaultPrice: true },
+    });
+    const completedAt = new Date(Date.now() - (saleIndex + 1) * 60 * 60 * 1_000);
+    const orderId = `b5100000-0000-4000-8000-${sequence}`;
+    const subtotal = product.defaultPrice * sale.quantity;
+    await prisma.order.upsert({
+      where: { id: orderId },
+      update: {
+        organizationId: organization.id,
+        stallId: stall.id,
+        source: "DEMO_BESTSELLER_SEED",
+        origin: "IMPORTED",
+        isTest: false,
+        customerName: "熱銷示範訂單",
+        fulfillmentType: "TAKEOUT",
+        status: "COMPLETED",
+        paymentStatus: "PAID",
+        subtotal,
+        total: subtotal,
+        confirmationExpiresAt: completedAt,
+        confirmedAt: completedAt,
+        paidAt: completedAt,
+        completedAt,
+        cancelledAt: null,
+      },
+      create: {
+        id: orderId,
+        organizationId: organization.id,
+        stallId: stall.id,
+        orderNo: `DEMO-HOT-${String(saleIndex + 1).padStart(3, "0")}`,
+        trackingTokenHash: `${"b".repeat(61)}${String(saleIndex + 1).padStart(3, "0")}`,
+        idempotencyKey: `b5300000-0000-4000-8000-${sequence}`,
+        source: "DEMO_BESTSELLER_SEED",
+        origin: "IMPORTED",
+        isTest: false,
+        customerName: "熱銷示範訂單",
+        fulfillmentType: "TAKEOUT",
+        status: "COMPLETED",
+        paymentStatus: "PAID",
+        subtotal,
+        total: subtotal,
+        deviceHash: "demo-bestseller-seed".padEnd(64, "0"),
+        confirmationExpiresAt: completedAt,
+        confirmedAt: completedAt,
+        paidAt: completedAt,
+        completedAt,
+        createdAt: completedAt,
+      },
+    });
+    await prisma.orderItem.deleteMany({ where: { orderId } });
+    await prisma.orderItem.create({
+      data: {
+        id: `b5200000-0000-4000-8000-${sequence}`,
+        organizationId: organization.id,
+        stallId: stall.id,
+        orderId,
+        productId,
+        sourceLineIndex: 1,
+        name: sale.productName,
+        baseUnitPrice: product.defaultPrice,
+        unitPrice: product.defaultPrice,
+        quantity: sale.quantity,
+        status: "SERVED",
+      },
+    });
+  }
+
   const passwordHash = await hash("StallOrderDemo!2026", 12);
   const accounts = [
     { email: "owner@stallorder.test", displayName: "示範商戶", role: "ORGANIZATION_OWNER" as const },
@@ -456,6 +577,22 @@ async function main() {
       });
     }
   }
+
+  await prisma.profile.upsert({
+    where: { email: "platform.admin@stallorder.test" },
+    update: {
+      displayName: "示範平台管理員",
+      passwordHash,
+      platformRole: "PLATFORM_ADMIN",
+      isActive: true,
+    },
+    create: {
+      email: "platform.admin@stallorder.test",
+      displayName: "示範平台管理員",
+      passwordHash,
+      platformRole: "PLATFORM_ADMIN",
+    },
+  });
 
   const proPlan = await prisma.plan.findUniqueOrThrow({ where: { code: "PRO" } });
   const proPlanVersion = await prisma.planVersion.findFirstOrThrow({

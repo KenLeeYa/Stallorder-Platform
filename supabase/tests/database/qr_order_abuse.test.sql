@@ -309,6 +309,9 @@ select ok(
   '已逾時訂單不可再由 QR 找回'
 );
 
+delete from public.product_bundle_choices
+where component_product_id = '44444444-4444-4444-8444-444444444441';
+
 select lives_ok(
   $$delete from public.products where id = '44444444-4444-4444-8444-444444444441'$$,
   '刪除商品不會破壞歷史訂單品項'

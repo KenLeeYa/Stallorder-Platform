@@ -137,10 +137,11 @@ export async function GET(request: Request) {
       if (templateCode) {
         await transaction.notificationJob.upsert({
           where: {
-            orderId_provider_templateCode: {
+            orderId_provider_templateCode_eventVersion: {
               orderId: session.orderId,
               provider: "LINE",
               templateCode,
+              eventVersion: 0,
             },
           },
           create: {
@@ -151,6 +152,7 @@ export async function GET(request: Request) {
             orderId: session.orderId,
             provider: "LINE",
             templateCode,
+            eventVersion: 0,
             recipientReference,
             status: "PENDING",
             nextAttemptAt: now,

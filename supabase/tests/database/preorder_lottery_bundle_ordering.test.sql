@@ -2,13 +2,15 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(65);
+select plan(67);
 
 delete from public.public_order_attempts;
 delete from public.public_rate_limit_buckets;
 delete from public.order_sessions;
 delete from public.orders;
 delete from public.stall_order_counters;
+delete from public.stall_lottery_discount_chances
+where stall_id = '22222222-2222-4222-8222-222222222222';
 
 update public.stall_ordering_settings
 set takeout_preorder_enabled = true,
@@ -37,6 +39,12 @@ set is_active = true,
     business_status = 'OPEN',
     ordering_state = 'OPEN'
 where id = '22222222-2222-4222-8222-222222222222';
+
+update public.products product
+set is_lottery_eligible = false
+from public.stall_products assignment
+where assignment.product_id = product.id
+  and assignment.stall_id = '22222222-2222-4222-8222-222222222222';
 
 insert into public.products (
   id, organization_id, category_id, group_id, name, description,
@@ -94,6 +102,16 @@ insert into public.products (
   null,
   'Hidden component', 'Previously visible component fixture',
   20, 'SINGLE', true, 100
+);
+
+select is(
+  (
+    select is_lottery_eligible
+    from public.products
+    where id = 'b7000000-0000-4000-8000-000000000001'
+  ),
+  true,
+  'new products participate in lottery recommendations by default'
 );
 
 insert into public.product_bundle_choices (
@@ -165,6 +183,15 @@ select is(
   ),
   'SINGLE',
   'lottery recommendations only draw directly orderable single products'
+);
+select is(
+  (
+    select selected_product_id
+    from public.public_lottery_draws
+    where id = (select draw_id from pg_temp.experience_values)
+  ),
+  'b7000000-0000-4000-8000-000000000001'::uuid,
+  'lottery recommendations exclude products whose eligibility is disabled'
 );
 select ok(
   strpos(

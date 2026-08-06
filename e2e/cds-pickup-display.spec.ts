@@ -71,7 +71,7 @@ async function loginAsOwner(page: Page) {
   ));
   await page.locator('button[type="submit"]').click();
   expect((await response).status()).toBe(200);
-  await expect(page).toHaveURL(/\/merchant\/dashboard/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/, { timeout: 30_000 });
 }
 
 test.beforeAll(async () => {

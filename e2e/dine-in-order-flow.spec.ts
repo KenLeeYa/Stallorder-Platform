@@ -83,7 +83,7 @@ async function login(page: Page, email: string) {
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await loginResponse).status()).toBe(200);
-  await expect(page).toHaveURL(/\/merchant\/dashboard|\/staff\/|\/kitchen\?/);
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=|\/staff\/|\/kitchen\?/);
 }
 
 test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ browser, page }) => {

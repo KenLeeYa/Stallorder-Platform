@@ -20,6 +20,7 @@ function product(
     category: "主餐",
     rank: null,
     isBestSeller: false,
+    isOrderDiscountEligible: true,
     imageUrl: null,
     translations: [],
     noteGroups: [],
