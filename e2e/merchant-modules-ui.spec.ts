@@ -15,7 +15,10 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await loginResponse).status()).toBe(200);
-  await expect(page).toHaveURL(/\/merchant\/dashboard/, { timeout: 30_000 });
+  await expect(page).toHaveURL(
+    new RegExp(`/merchant/dashboard\\?organizationId=${organizationId}$`),
+    { timeout: 30_000 },
+  );
 
   await page.goto(`/merchant/stalls/${stallId}`);
   for (const title of ["攤位設定", "營運工具", "組織管理"]) {
@@ -26,6 +29,7 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
     "營運狀態",
     "營業時間",
     "營運模組與內用桌位",
+    "安全與訂單限制",
     "多攤位範本",
     "攤位成員",
     "CDS 取餐顯示",
@@ -127,11 +131,16 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect.poll(async () => moduleSections.evaluateAll((sections) => (
     sections.every((section) => (section as HTMLDetailsElement).open)
   ))).toBe(true);
-  await page.getByRole("button", { name: "全部縮合", exact: true }).click();
+  const moduleSectionsToggle = page.getByTestId("stall-modules-toggle-all");
+  await expect(moduleSectionsToggle).toHaveText("全部摺疊");
+  await expect(moduleSectionsToggle).toHaveAttribute("aria-expanded", "true");
+  await moduleSectionsToggle.click();
   await expect.poll(async () => moduleSections.evaluateAll((sections) => (
     sections.every((section) => !(section as HTMLDetailsElement).open)
   ))).toBe(true);
-  await page.getByRole("button", { name: "全部展開", exact: true }).click();
+  await expect(moduleSectionsToggle).toHaveText("全部展開");
+  await expect(moduleSectionsToggle).toHaveAttribute("aria-expanded", "false");
+  await moduleSectionsToggle.click();
   await expect.poll(async () => moduleSections.evaluateAll((sections) => (
     sections.every((section) => (section as HTMLDetailsElement).open)
   ))).toBe(true);
@@ -291,12 +300,41 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(hourlySales.getByText("23:00", { exact: true })).toBeVisible();
 
   await page.goto("/merchant/aming-chicken");
+  const stallProductList = page.locator("details[data-stall-product-list]");
+  await expect(stallProductList).toHaveAttribute("open", "");
+  await stallProductList.locator("summary").first().click();
+  await expect(stallProductList).not.toHaveAttribute("open", "");
+  await stallProductList.locator("summary").first().click();
   await expect(page.getByRole("button", { name: "批次售完" })).toBeVisible();
   await expect(page.getByLabel("供應開始").first()).toBeVisible();
   await expect(page.getByLabel("供應結束").first()).toBeVisible();
-  await page.getByText("安全與訂單限制", { exact: true }).click();
-  await expect(page.getByLabel("顧客預估等候分鐘")).toHaveValue("15");
+  await expect(page.getByText("安全與訂單限制", { exact: true })).toHaveCount(0);
+
+  await page.goto(`/merchant/stalls/${stallId}/settings/order-limits`);
+  await expect(page.getByRole("heading", { name: "安全與訂單限制", exact: true })).toBeVisible();
+  const estimatedWaitInput = page.getByLabel("顧客預估等候分鐘");
+  await expect(estimatedWaitInput).toHaveValue("15");
   await expect(page.getByLabel("營業日切換時間")).toHaveValue("0");
+  await estimatedWaitInput.fill("");
+  await page.getByRole("button", { name: "儲存限制", exact: true }).click();
+  await expect(estimatedWaitInput).toHaveValue("");
+  await expect(estimatedWaitInput).toBeFocused();
+  await expect(page.getByText("顧客預估等候分鐘為必填欄位。", { exact: true })).toBeVisible();
+  await estimatedWaitInput.fill("241");
+  await page.getByRole("button", { name: "儲存限制", exact: true }).click();
+  await expect(page.getByText("顧客預估等候分鐘請輸入 0 到 240 之間。", { exact: true })).toBeVisible();
+  await estimatedWaitInput.fill("1.5");
+  await page.getByRole("button", { name: "儲存限制", exact: true }).click();
+  await expect(page.getByText("顧客預估等候分鐘請輸入整數。", { exact: true })).toBeVisible();
+  await estimatedWaitInput.fill("15");
+  const limitsResponse = page.waitForResponse((response) => (
+    response.url().endsWith("/api/stalls/aming-chicken/ordering")
+    && response.request().method() === "PATCH"
+    && response.request().postDataJSON()?.action === "UPDATE_LIMITS"
+  ));
+  await page.getByRole("button", { name: "儲存限制", exact: true }).click();
+  expect((await limitsResponse).status()).toBe(200);
+  await expect(page.getByRole("status")).toHaveText("安全與訂單限制已更新。");
 
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
   await expect(page.getByRole("link", { name: "匯出 CSV" })).toBeVisible();
@@ -306,8 +344,8 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(page.getByText("辣度", { exact: true })).toBeVisible();
   await expect(page.getByText("加蛋", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "複製 香酥雞排" }).first()).toBeVisible();
-  const validCsvRow = ["", "測試分類", "", "匯入預覽商品", "", "88", "", "1", "true", "AMING-01", "Preview item", "", "", "", "", "", "", "", "", ""];
-  const invalidCsvRow = ["", "測試分類", "", "錯誤價格商品", "", "=100", "", "2", "true", "AMING-01", "", "", "", "", "", "", "", "", "", ""];
+  const validCsvRow = ["", "測試分類", "", "匯入預覽商品", "", "88", "", "1", "true", "AMING-01", "Preview item", "", "", "", "", "", "", "", "", "", "true", "true"];
+  const invalidCsvRow = ["", "測試分類", "", "錯誤價格商品", "", "=100", "", "2", "true", "AMING-01", "", "", "", "", "", "", "", "", "", "", "true", "true"];
   await page.getByText("匯入 CSV", { exact: true }).locator("input[type=file]").setInputFiles({
     name: "catalog-preview.csv",
     mimeType: "text/csv",

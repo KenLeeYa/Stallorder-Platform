@@ -12,6 +12,22 @@ describe("getStaffDiscountState", () => {
   });
 });
 
+describe("checkout preview discount eligibility", () => {
+  it("previews a discount against only eligible products", () => {
+    expect(getStaffCheckoutPreview([{
+      subtotal: 150,
+      discountEligibleSubtotal: 100,
+      total: 150,
+      discountLabel: null,
+    }], { name: "九折", rateBps: 9_000 })).toEqual({
+      subtotal: 150,
+      total: 140,
+      discountAmount: 10,
+      discountLabel: "九折",
+    });
+  });
+});
+
 describe("getStaffCheckoutPreview", () => {
   const lotteryOrder = { subtotal: 220, total: 198, discountLabel: "抽抽樂九折" };
 

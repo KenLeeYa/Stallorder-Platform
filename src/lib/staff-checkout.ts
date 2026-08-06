@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { UserRole } from "@prisma/client";
-import { calculateCheckout, paymentMethodForKind } from "@/lib/checkout";
+import { calculateOrderDiscount, paymentMethodForKind } from "@/lib/checkout";
 import { resolveDiscountApproval } from "@/lib/discount-approval";
 import { prisma } from "@/lib/prisma";
 
@@ -20,6 +20,7 @@ export class StaffCheckoutError extends Error {
     | "PAYMENT_INVALID"
     | "DISCOUNT_DISABLED"
     | "DISCOUNT_INVALID"
+    | "DISCOUNT_NOT_APPLICABLE"
     | "INSUFFICIENT_CASH") {
     super(code);
   }
@@ -29,6 +30,7 @@ export async function resolveStaffCheckout(input: {
   organizationId: string;
   stallId: string;
   subtotals: readonly number[];
+  discountEligibleSubtotals: readonly number[];
   currentTotals?: readonly number[];
   actorProfileId: string;
   actorRoles: readonly UserRole[];
@@ -88,12 +90,26 @@ export async function resolveStaffCheckout(input: {
     : null;
   if (requestedDiscountOptionId && !discount) throw new StaffCheckoutError("DISCOUNT_INVALID");
 
-  if (input.currentTotals && input.currentTotals.length !== input.subtotals.length) {
+  if (
+    input.discountEligibleSubtotals.length !== input.subtotals.length
+    || (input.currentTotals && input.currentTotals.length !== input.subtotals.length)
+  ) {
     throw new StaffCheckoutError("DISCOUNT_INVALID");
+  }
+  const discountEligibleSubtotal = input.discountEligibleSubtotals.reduce((sum, amount) => sum + amount, 0);
+  if (discount && discountEligibleSubtotal === 0) {
+    throw new StaffCheckoutError("DISCOUNT_NOT_APPLICABLE");
   }
   const rateBps = discount?.rateBps ?? 10_000;
   const perOrderAmounts = input.subtotals.map((subtotal, index) => {
-    if (discount || !input.currentTotals) return calculateCheckout(subtotal, rateBps);
+    const eligibleSubtotal = input.discountEligibleSubtotals[index];
+    let discounted;
+    try {
+      discounted = calculateOrderDiscount(subtotal, eligibleSubtotal, rateBps);
+    } catch {
+      throw new StaffCheckoutError("DISCOUNT_INVALID");
+    }
+    if (discount || !input.currentTotals) return discounted;
 
     const currentTotal = input.currentTotals[index];
     if (!Number.isInteger(currentTotal) || currentTotal < 0 || currentTotal > subtotal) {
@@ -101,6 +117,7 @@ export async function resolveStaffCheckout(input: {
     }
     return {
       subtotal,
+      discountEligibleSubtotal: eligibleSubtotal,
       discountAmount: subtotal - currentTotal,
       total: currentTotal,
       cashReceived: currentTotal,
@@ -137,6 +154,7 @@ export async function resolveStaffCheckout(input: {
     discountLabel: discount?.name ?? null,
     discountRateBps: discount?.rateBps ?? null,
     discountAmount,
+    discountEligibleSubtotal,
     subtotal,
     total,
     cashReceived,

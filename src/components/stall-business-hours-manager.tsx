@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { Clock3, Save } from "lucide-react";
-import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { businessDayLabels } from "@/lib/business-hours";
 import { useUnsavedSettings } from "@/lib/unsaved-settings";
@@ -22,7 +21,7 @@ export function StallBusinessHoursManager({ stallId, initialHours }: { stallId: 
   const [message, setMessage] = useState("");
   const [hasError, setHasError] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const containerRef = useRef<HTMLDetailsElement>(null);
+  const containerRef = useRef<HTMLElement>(null);
   const dirty = JSON.stringify(hours) !== JSON.stringify(savedHours);
   useUnsavedSettings("business-hours", dirty);
 
@@ -62,8 +61,14 @@ export function StallBusinessHoursManager({ stallId, initialHours }: { stallId: 
     }
   }
 
-  return <details ref={containerRef} open data-settings-section data-settings-scope="business-hours" data-settings-search="營業時間 星期 開店 打烊 公休 多攤位範本" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180">
-    <CollapsibleSectionSummary icon={Clock3} title="營業時間" description={dirty ? "有尚未儲存的變更" : "可供多攤位範本複製。"} />
+  return <section ref={containerRef} aria-labelledby="business-hours-heading" data-settings-section data-settings-scope="business-hours" data-settings-search="營業時間 星期 開店 打烊 公休 多攤位範本" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500">
+    <div className="flex min-h-14 items-center gap-3 py-3 text-left">
+      <Clock3 aria-hidden="true" className="h-5 w-5 shrink-0 text-teal-700" />
+      <div className="min-w-0 flex-1">
+        <h2 id="business-hours-heading" className="text-lg font-semibold">營業時間</h2>
+        <p className="mt-1 text-sm text-stone-600">{dirty ? "有尚未儲存的變更" : "可供多攤位範本複製。"}</p>
+      </div>
+    </div>
     <div className="pb-6">
       {message ? <p role={hasError ? "alert" : "status"} className={`mb-3 text-sm font-medium ${hasError ? "text-red-700" : "text-stone-700"}`}>{message}</p> : null}
       <div className="divide-y divide-stone-200 border-y border-stone-200">{hours.map((hour, index) => {
@@ -73,7 +78,7 @@ export function StallBusinessHoursManager({ stallId, initialHours }: { stallId: 
       })}</div>
       <button type="button" disabled={busy || !dirty} onClick={() => void save()} className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存營業時間</button>
     </div>
-  </details>;
+  </section>;
 }
 
 function fieldErrorId(field: string) {

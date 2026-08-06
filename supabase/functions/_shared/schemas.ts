@@ -99,9 +99,6 @@ export const createPublicOrderSchema = z.object({
   if (value.orderingMode === "PREORDER" && !value.scheduledPickupAt) {
     context.addIssue({ code: "custom", path: ["scheduledPickupAt"], message: "preorder time required" });
   }
-  if (value.orderingMode !== "PREORDER" && value.scheduledPickupAt) {
-    context.addIssue({ code: "custom", path: ["scheduledPickupAt"], message: "preorder mode required" });
-  }
 });
 
 export const getPublicOrderSchema = z.object({

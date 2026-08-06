@@ -135,7 +135,7 @@ async function login(page: Page) {
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(/\/merchant\/dashboard/);
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/);
 }
 
 async function cleanup() {

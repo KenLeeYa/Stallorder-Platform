@@ -95,6 +95,16 @@ export async function POST(request: Request, context: RouteContext) {
           })),
         });
       }
+      const preservedLotteryDiscountChances = !parsed.data.sections.includes("ORDERING_EXPERIENCE")
+        ? await remapLotteryDiscountChances({
+            transaction,
+            organizationId,
+            stallId,
+            chances: target.lotteryDiscountChances,
+            sourceDiscounts: target.discounts,
+          })
+        : null;
+      const preservedLegacyLotteryDiscount = preservedLotteryDiscountChances?.[0] ?? null;
       await transaction.stallOrderingSettings.update({
         where: { stallId },
         data: {
@@ -102,38 +112,29 @@ export async function POST(request: Request, context: RouteContext) {
           discountApprovalThresholdBps: source.settings.discountApprovalThresholdBps,
           ...(!parsed.data.sections.includes("ORDERING_EXPERIENCE")
             ? {
-                lotteryDiscountOptionId: await findReplacementLotteryDiscountId({
-                  transaction,
-                  organizationId,
-                  stallId,
-                  discount: target.discounts.find(
-                    (discount) => (
-                      discount.id === target.settings.lotteryDiscountOptionId
-                      && discount.isEnabled
-                    ),
-                  ),
-                }),
+                lotteryDiscountOptionId: preservedLegacyLotteryDiscount?.discountOptionId ?? null,
+                lotteryDiscountWinRateBps: preservedLegacyLotteryDiscount?.winRateBps ?? 0,
               }
             : {}),
         },
       });
+      if (preservedLotteryDiscountChances) {
+        await replaceLotteryDiscountChances({
+          transaction,
+          stallId,
+          chances: preservedLotteryDiscountChances,
+        });
+      }
     }
     if (parsed.data.sections.includes("ORDERING_EXPERIENCE")) {
-      const sourceLotteryDiscount = source.discounts.find(
-        (discount) => discount.id === source.settings.lotteryDiscountOptionId && discount.isEnabled,
-      );
-      const targetLotteryDiscount = sourceLotteryDiscount
-        ? await transaction.discountOption.findFirst({
-            where: {
-              organizationId,
-              stallId,
-              name: sourceLotteryDiscount.name,
-              rateBps: sourceLotteryDiscount.rateBps,
-              isEnabled: true,
-            },
-            select: { id: true },
-          })
-        : null;
+      const lotteryDiscountChances = await remapLotteryDiscountChances({
+        transaction,
+        organizationId,
+        stallId,
+        chances: source.lotteryDiscountChances,
+        sourceDiscounts: source.discounts,
+      });
+      const legacyLotteryDiscount = lotteryDiscountChances[0] ?? null;
       await transaction.stallOrderingSettings.update({
         where: { stallId },
         data: {
@@ -143,10 +144,11 @@ export async function POST(request: Request, context: RouteContext) {
           preorderMaxDays: source.settings.preorderMaxDays,
           preorderSlotMinutes: source.settings.preorderSlotMinutes,
           lotteryEnabled: source.settings.lotteryEnabled,
-          lotteryDiscountOptionId: targetLotteryDiscount?.id ?? null,
-          lotteryDiscountWinRateBps: source.settings.lotteryDiscountWinRateBps,
+          lotteryDiscountOptionId: legacyLotteryDiscount?.discountOptionId ?? null,
+          lotteryDiscountWinRateBps: legacyLotteryDiscount?.winRateBps ?? 0,
         },
       });
+      await replaceLotteryDiscountChances({ transaction, stallId, chances: lotteryDiscountChances });
       if (!source.settings.takeoutPreorderEnabled) {
         await transaction.orderSession.updateMany({
           where: { organizationId, stallId, orderingMode: "PREORDER", status: "ACTIVE" },
@@ -238,29 +240,78 @@ export async function POST(request: Request, context: RouteContext) {
   );
 }
 
-async function findReplacementLotteryDiscountId({
+async function remapLotteryDiscountChances({
   transaction,
   organizationId,
   stallId,
-  discount,
+  chances,
+  sourceDiscounts,
 }: {
   transaction: Prisma.TransactionClient;
   organizationId: string;
   stallId: string;
-  discount: { name: string; rateBps: number } | undefined;
+  chances: Array<{ discountOptionId: string; winRateBps: number }>;
+  sourceDiscounts: Array<{ id: string; name: string; rateBps: number; isEnabled: boolean }>;
 }) {
-  if (!discount) return null;
-  const replacement = await transaction.discountOption.findFirst({
-    where: {
-      organizationId,
-      stallId,
-      name: discount.name,
-      rateBps: discount.rateBps,
-      isEnabled: true,
-    },
-    select: { id: true },
+  if (chances.length === 0) return [];
+  const targetDiscounts = await transaction.discountOption.findMany({
+    where: { organizationId, stallId, isEnabled: true },
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    select: { id: true, name: true, rateBps: true },
   });
-  return replacement?.id ?? null;
+  const replacementBySignature = new Map<string, string[]>();
+  for (const discount of targetDiscounts) {
+    const signature = `${discount.name}\u0000${discount.rateBps}`;
+    const replacements = replacementBySignature.get(signature) ?? [];
+    replacements.push(discount.id);
+    replacementBySignature.set(signature, replacements);
+  }
+  return chances.flatMap((chance) => {
+    const sourceDiscount = sourceDiscounts.find((discount) => (
+      discount.id === chance.discountOptionId && discount.isEnabled
+    ));
+    if (!sourceDiscount) return [];
+    const replacements = replacementBySignature.get(
+      `${sourceDiscount.name}\u0000${sourceDiscount.rateBps}`,
+    );
+    const discountOptionId = replacements?.shift();
+    return discountOptionId
+      ? [{ discountOptionId, winRateBps: chance.winRateBps }]
+      : [];
+  });
+}
+
+async function replaceLotteryDiscountChances({
+  transaction,
+  stallId,
+  chances,
+}: {
+  transaction: Prisma.TransactionClient;
+  stallId: string;
+  chances: Array<{ discountOptionId: string; winRateBps: number }>;
+}) {
+  await transaction.$executeRaw(Prisma.sql`
+    delete from public.stall_lottery_discount_chances
+    where stall_id = ${stallId}::uuid
+  `);
+  if (chances.length === 0) return;
+  await transaction.$executeRaw(Prisma.sql`
+    insert into public.stall_lottery_discount_chances (
+      stall_id,
+      discount_option_id,
+      win_rate_bps
+    )
+    select
+      ${stallId}::uuid,
+      chance.discount_option_id,
+      chance.win_rate_bps
+    from jsonb_to_recordset(
+      ${JSON.stringify(chances.map((chance) => ({
+        discount_option_id: chance.discountOptionId,
+        win_rate_bps: chance.winRateBps,
+      })))}::jsonb
+    ) as chance(discount_option_id uuid, win_rate_bps smallint)
+  `);
 }
 
 function canUseSourceStall(

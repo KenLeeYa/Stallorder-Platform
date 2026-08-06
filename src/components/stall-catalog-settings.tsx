@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Copy, Eye, EyeOff, PackageCheck, PackageX, Save } from "lucide-react";
+import { ChevronDown, Copy, Eye, EyeOff, PackageCheck, PackageX, Save } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
 import { effectiveProductPrice } from "@/lib/shared-catalog";
@@ -136,12 +136,17 @@ export function StallCatalogSettings({
         {sourceStalls.length > 0 ? <div className="flex min-w-0 flex-wrap items-end gap-2"><label className="text-xs font-semibold text-stone-600">複製其他攤位設定<select value={sourceStallId} onChange={(event) => setSourceStallId(event.target.value)} className="mt-1 block h-10 max-w-56 rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-900">{sourceStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}（{stall.code}）</option>)}</select></label><button type="button" disabled={busyId !== null || !sourceStallId} onClick={() => void copyFromStall()} className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-40"><Copy className="h-4 w-4" />合併設定</button></div> : null}
       </div>
       {message ? <p role="status" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
-      <div className="mt-4 divide-y divide-stone-200 border-y border-stone-200">
-        {categories.map((category) => (
-          <details key={category} open className="py-1">
-            <summary className="min-h-12 cursor-pointer py-3 font-semibold">{category}</summary>
-            <div className="divide-y divide-stone-100 pb-3">
-              {products.filter((product) => product.categoryName === category).map((product) => (
+      <details open data-stall-product-list className="group mt-4">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 border-y border-stone-200 py-3 font-semibold hover:text-teal-800 [&::-webkit-details-marker]:hidden">
+          <span>商品列表（{products.length}）</span>
+          <ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="divide-y divide-stone-200 border-b border-stone-200">
+          {categories.map((category) => (
+            <details key={category} open className="py-1">
+              <summary className="min-h-12 cursor-pointer py-3 font-semibold">{category}</summary>
+              <div className="divide-y divide-stone-100 pb-3">
+                {products.filter((product) => product.categoryName === category).map((product) => (
                 <div key={product.productId} className="grid gap-3 py-4 lg:grid-cols-[minmax(180px,1fr)_150px_90px_auto] lg:items-end">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -177,12 +182,13 @@ export function StallCatalogSettings({
                     <button type="button" title={`儲存 ${product.name}`} disabled={busyId !== null} onClick={() => void save(product.productId)} className="grid h-10 w-10 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-50"><Save className="h-4 w-4" /><span className="sr-only">儲存 {product.name}</span></button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </details>
-        ))}
-        {products.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">組織尚未分派商品至此攤位。</p> : null}
-      </div>
+                ))}
+              </div>
+            </details>
+          ))}
+          {products.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">組織尚未分派商品至此攤位。</p> : null}
+        </div>
+      </details>
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   prepareTrustedStaffOrderItem,
+  staffOrderExceedsLimits,
   type TrustedStaffOrderAssignment,
 } from "./staff-order-create";
 
@@ -22,6 +23,7 @@ function bundleAssignment(): TrustedStaffOrderAssignment {
       name: "招牌套餐",
       defaultPrice: 100,
       kind: "BUNDLE",
+      isOrderDiscountEligible: true,
       bundleChoiceGroups: [{
         id: choiceGroupId,
         organizationId,
@@ -93,6 +95,7 @@ describe("店員套餐伺服器定價", () => {
 
     expect(item.baseUnitPrice).toBe(120);
     expect(item.unitPrice).toBe(155);
+    expect(item.isOrderDiscountEligible).toBe(true);
     expect(item.noteOptions).toEqual([
       {
         noteGroupId: null,
@@ -198,5 +201,64 @@ describe("店員套餐伺服器定價", () => {
     expect(item.unitPrice).toBe(130);
     expect(item.noteOptions).toHaveLength(1);
     expect(item.noteOptions[0]?.noteGroupId).toBe(noteGroupId);
+  });
+
+  it("uses the parent bundle product as the discount eligibility source", () => {
+    const assignment = bundleAssignment();
+    assignment.product.isOrderDiscountEligible = false;
+
+    const item = prepareTrustedStaffOrderItem({
+      organizationId,
+      stallId,
+      now,
+      assignment,
+      requested: requestedItem(),
+    });
+
+    expect(item.isOrderDiscountEligible).toBe(false);
+    expect(item.unitPrice).toBe(155);
+  });
+});
+
+describe("店員購物車分列限制", () => {
+  const limits = {
+    maxItemQuantity: 5,
+    maxUniqueProducts: 1,
+    maxTotalQuantity: 10,
+    maxNoteLength: 100,
+  };
+
+  function line(productId: string, quantity: number, noteOptionIds: string[]) {
+    return { productId, quantity, note: "", noteOptionIds, bundleChoiceIds: [] };
+  }
+
+  it("同商品的不同註記列只占一個商品額度", () => {
+    expect(staffOrderExceedsLimits({
+      customerNote: "",
+      items: [
+        line(bundleProductId, 2, [noteOptionId]),
+        line(bundleProductId, 2, []),
+      ],
+    }, limits)).toBe(false);
+  });
+
+  it("同商品各列數量合計仍受單品上限限制", () => {
+    expect(staffOrderExceedsLimits({
+      customerNote: "",
+      items: [
+        line(bundleProductId, 3, [noteOptionId]),
+        line(bundleProductId, 3, []),
+      ],
+    }, limits)).toBe(true);
+  });
+
+  it("不同商品仍受不同商品數上限限制", () => {
+    expect(staffOrderExceedsLimits({
+      customerNote: "",
+      items: [
+        line(bundleProductId, 1, []),
+        line(choiceId, 1, []),
+      ],
+    }, limits)).toBe(true);
   });
 });

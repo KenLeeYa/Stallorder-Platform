@@ -3,18 +3,28 @@
 import { useMemo, useRef, useState } from "react";
 import type { PaymentOptionKind, UserRole } from "@prisma/client";
 import { List, Minus, Package, Plus, Send, ShoppingCart, Truck, Utensils, X } from "lucide-react";
+import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
 import { StaffDiscountSelector } from "@/components/staff-discount-selector";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { calculateOrderDiscount } from "@/lib/checkout";
 import { formatMoney } from "@/lib/money";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
+import {
+  addQrCartLine,
+  qrCartProductQuantity,
+  qrCartTotalQuantity,
+  updateQrCartLineQuantity,
+  type QrCartLine,
+} from "@/lib/qr-cart";
 import { hasPermission } from "@/lib/rbac";
 import type { StaffOrderDto } from "@/lib/orders";
 import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
+import { buildFulfillmentTimeSlots } from "@/lib/fulfillment-time-options";
 
 const PHONE_NUMBER = /^\+?[0-9][0-9 ().-]{5,29}$/;
 
 type Props = {
-  stall: { id: string; organizationId: string; slug: string; currency: string };
+  stall: { id: string; organizationId: string; slug: string; currency: string; timezone?: string };
   catalog: StaffOrderCatalog;
   account: { role: UserRole };
   modules: { dineIn: boolean; delivery: boolean; print: boolean; payment: boolean; discount: boolean; discountApprovalThresholdBps: number };
@@ -46,7 +56,9 @@ export function StaffOrderComposer({
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [requestedFulfillmentAt, setRequestedFulfillmentAt] = useState("");
   const [customerNote, setCustomerNote] = useState("");
+  const [cartLines, setCartLines] = useState<QrCartLine[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [noteSelections, setNoteSelections] = useState<Record<string, string[]>>({});
   const [bundleSelections, setBundleSelections] = useState<Record<string, string[]>>({});
@@ -60,16 +72,33 @@ export function StaffOrderComposer({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [activePane, setActivePane] = useState<"MENU" | "CART">("MENU");
+  const [catalogExpanded, setCatalogExpanded] = useState(true);
 
-  const selectedItems = useMemo(() => catalog.products
-    .filter((product) => (quantities[product.id] ?? 0) > 0)
-    .map((product) => ({
+  const productsById = useMemo(
+    () => new Map(catalog.products.map((product) => [product.id, product])),
+    [catalog.products],
+  );
+  const selectedItems = useMemo(() => cartLines.flatMap((line) => {
+    const product = productsById.get(line.productId);
+    return product ? [{
+      cartLineId: line.id,
       product,
-      quantity: quantities[product.id],
-      noteOptionIds: noteSelections[product.id] ?? [],
-      bundleChoiceIds: bundleSelections[product.id] ?? [],
-    })), [bundleSelections, catalog.products, noteSelections, quantities]);
-  const totalQuantity = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
+      quantity: line.quantity,
+      noteOptionIds: line.noteOptionIds,
+      bundleChoiceIds: line.bundleChoiceIds,
+    }] : [];
+  }), [cartLines, productsById]);
+  const cartQuantitiesByProduct = useMemo(() => {
+    const quantitiesByProduct = new Map<string, number>();
+    for (const line of cartLines) {
+      quantitiesByProduct.set(
+        line.productId,
+        (quantitiesByProduct.get(line.productId) ?? 0) + line.quantity,
+      );
+    }
+    return quantitiesByProduct;
+  }, [cartLines]);
+  const totalQuantity = qrCartTotalQuantity(cartLines);
   const subtotal = selectedItems.reduce((sum, item) => (
     sum + Math.max(
       0,
@@ -78,15 +107,44 @@ export function StaffOrderComposer({
         + notePriceAdjustment(item.product.noteGroups, item.noteOptionIds),
     ) * item.quantity
   ), 0);
-  const discount = discountOptions.find((option) => option.id === discountOptionId) ?? null;
-  const total = Math.round((subtotal * (discount?.rateBps ?? 10_000)) / 10_000);
+  const discountEligibleSubtotal = selectedItems.reduce((sum, item) => {
+    if (!item.product.isOrderDiscountEligible) return sum;
+    return sum + Math.max(
+      0,
+      item.product.price
+        + bundlePriceAdjustment(item.product, item.bundleChoiceIds)
+        + notePriceAdjustment(item.product.noteGroups, item.noteOptionIds),
+    ) * item.quantity;
+  }, 0);
+  const applicableDiscountOptionId = discountEligibleSubtotal > 0 ? discountOptionId : null;
+  const discount = discountOptions.find((option) => option.id === applicableDiscountOptionId) ?? null;
+  const total = calculateOrderDiscount(
+    subtotal,
+    discountEligibleSubtotal,
+    discount?.rateBps ?? 10_000,
+  ).total;
   const payment = paymentOptions.find((option) => option.id === paymentOptionId) ?? null;
   const usesCash = !modules.payment || payment?.kind === "CASH";
   const received = cashReceived === "" ? total : Number(cashReceived);
   const change = usesCash && Number.isFinite(received) ? Math.max(0, received - total) : 0;
-  const needsApproval = Boolean(discount && discount.rateBps < modules.discountApprovalThresholdBps);
+  const needsApproval = Boolean(
+    discount
+    && discountEligibleSubtotal > 0
+    && discount.rateBps < modules.discountApprovalThresholdBps,
+  );
   const operatorCanApprove = hasPermission(account.role, "APPROVE_DISCOUNT");
   const categories = [...new Set(catalog.products.map((product) => product.category))];
+  const tableGroups = useMemo(() => {
+    const groups = new Map<string, StaffOrderCatalog["tables"]>();
+    for (const table of catalog.tables) {
+      groups.set(table.floorName, [...(groups.get(table.floorName) ?? []), table]);
+    }
+    return [...groups.entries()];
+  }, [catalog.tables]);
+  const fulfillmentTimeSlots = useMemo(
+    () => buildFulfillmentTimeSlots(catalog.fulfillmentSlots, stall.timezone ?? "Asia/Taipei"),
+    [catalog.fulfillmentSlots, stall.timezone],
+  );
   const [activeCategory, setActiveCategory] = useState(categories[0] ?? "");
 
   function switchPane(pane: "MENU" | "CART") {
@@ -94,13 +152,22 @@ export function StaffOrderComposer({
     scrollContainerRef.current?.scrollTo({ top: 0 });
   }
 
+  function selectFulfillmentType(next: "TAKEOUT" | "DINE_IN" | "DELIVERY") {
+    setFulfillmentType(next);
+    if (next !== fulfillmentType) {
+      setRequestedFulfillmentAt("");
+    }
+  }
+
   function setQuantity(productId: string, nextQuantity: number) {
-    const current = quantities[productId] ?? 0;
-    const nextTotal = totalQuantity - current + nextQuantity;
-    const nextUnique = selectedItems.length + (current === 0 && nextQuantity > 0 ? 1 : 0);
+    const next = Math.max(0, nextQuantity);
+    const distinctProducts = new Set(cartLines.map((line) => line.productId));
+    const nextUnique = distinctProducts.size + (
+      next > 0 && !distinctProducts.has(productId) ? 1 : 0
+    );
     if (
-      nextQuantity > catalog.limits.maxItemQuantity
-      || nextTotal > catalog.limits.maxTotalQuantity
+      qrCartProductQuantity(cartLines, productId) + next > catalog.limits.maxItemQuantity
+      || totalQuantity + next > catalog.limits.maxTotalQuantity
       || nextUnique > catalog.limits.maxUniqueProducts
     ) {
       setMessage("已達此攤位設定的商品數量上限。");
@@ -109,9 +176,9 @@ export function StaffOrderComposer({
     setMessage("");
     setQuantities((currentQuantities) => ({
       ...currentQuantities,
-      [productId]: Math.max(0, nextQuantity),
+      [productId]: next,
     }));
-    if (nextQuantity <= 0) {
+    if (next <= 0) {
       setNoteSelections((currentSelections) => {
         const nextSelections = { ...currentSelections };
         delete nextSelections[productId];
@@ -123,6 +190,59 @@ export function StaffOrderComposer({
         return nextSelections;
       });
     }
+  }
+
+  function addProductToCart(product: StaffCatalogProduct) {
+    const quantity = quantities[product.id] ?? 0;
+    if (quantity <= 0) return;
+    const noteOptionIds = noteSelections[product.id] ?? [];
+    const bundleChoiceIds = bundleSelections[product.id] ?? [];
+    if (!noteSelectionIsValid(product.noteGroups, noteOptionIds)) {
+      setMessage(`${product.name} 的必選註記尚未完成。`);
+      return;
+    }
+    if (!bundleSelectionIsValid(product, bundleChoiceIds)) {
+      setMessage(`${product.name} 的套餐選項尚未完成。`);
+      return;
+    }
+    const nextLines = addQrCartLine(cartLines, {
+      productId: product.id,
+      quantity,
+      note: "",
+      noteOptionIds,
+      bundleChoiceIds,
+    }, catalog.limits, () => crypto.randomUUID());
+    if (!nextLines) {
+      setMessage("已達此攤位設定的商品數量上限。");
+      return;
+    }
+    setCartLines(nextLines);
+    setQuantities((current) => {
+      const nextQuantities = { ...current };
+      delete nextQuantities[product.id];
+      return nextQuantities;
+    });
+    setNoteSelections((current) => {
+      const nextSelections = { ...current };
+      delete nextSelections[product.id];
+      return nextSelections;
+    });
+    setBundleSelections((current) => {
+      const nextSelections = { ...current };
+      delete nextSelections[product.id];
+      return nextSelections;
+    });
+    setMessage("");
+  }
+
+  function changeCartLineQuantity(lineId: string, quantity: number) {
+    const nextLines = updateQrCartLineQuantity(cartLines, lineId, quantity, catalog.limits);
+    if (!nextLines) {
+      setMessage("已達此攤位設定的商品數量上限。");
+      return;
+    }
+    setCartLines(nextLines);
+    setMessage("");
   }
 
   function selectNoteOption(
@@ -149,7 +269,9 @@ export function StaffOrderComposer({
 
   async function submit() {
     if (selectedItems.length === 0) {
-      setMessage("請至少選擇一項商品。");
+      setMessage(Object.values(quantities).some((quantity) => quantity > 0)
+        ? "請先按「加入購物車」，再進行結帳。"
+        : "請至少選擇一項商品。");
       return;
     }
     const invalidNotes = selectedItems.find(({ product, noteOptionIds }) => (
@@ -178,6 +300,14 @@ export function StaffOrderComposer({
       setMessage("外送訂單必須填寫聯絡電話與地址。");
       return;
     }
+    if (
+      (fulfillmentType === "TAKEOUT" || fulfillmentType === "DELIVERY")
+      && requestedFulfillmentAt
+      && !fulfillmentTimeSlots.some((slot) => slot.iso === requestedFulfillmentAt)
+    ) {
+      setMessage(`請重新選擇有效的 5 分鐘${fulfillmentType === "DELIVERY" ? "送達" : "取餐"}時段。`);
+      return;
+    }
     if (paymentTiming === "PAY_NOW") {
       if (modules.payment && !payment) {
         setMessage("請選擇付款方式。");
@@ -199,8 +329,8 @@ export function StaffOrderComposer({
     const fulfillment = fulfillmentType === "DINE_IN"
       ? { fulfillmentType, diningTableId, customerPhone }
       : fulfillmentType === "DELIVERY"
-        ? { fulfillmentType, customerPhone, deliveryAddress }
-        : { fulfillmentType, customerPhone };
+        ? { fulfillmentType, customerPhone, deliveryAddress, requestedFulfillmentAt: requestedFulfillmentAt || null }
+        : { fulfillmentType, customerPhone, requestedFulfillmentAt: requestedFulfillmentAt || null };
     const idempotencyKey = idempotencyKeyRef.current;
     const requestBody = {
       ...fulfillment,
@@ -210,7 +340,7 @@ export function StaffOrderComposer({
       paymentTiming,
       checkout: paymentTiming === "PAY_NOW" ? {
         paymentOptionId: modules.payment ? paymentOptionId : null,
-        discountOptionId: modules.discount ? discountOptionId : null,
+        discountOptionId: modules.discount ? applicableDiscountOptionId : null,
         cashReceived: usesCash ? received : null,
         discountApprovalReason: needsApproval ? discountApprovalReason : null,
         managerEmail: needsApproval && !operatorCanApprove ? managerEmail : null,
@@ -277,7 +407,10 @@ export function StaffOrderComposer({
       if (fulfillmentType !== "TAKEOUT") {
         throw new Error("OFFLINE_TAKEOUT_ONLY");
       }
-      if (discountOptionId !== null || needsApproval) {
+      if (requestedFulfillmentAt) {
+        throw new Error("OFFLINE_SCHEDULED_TIME_NOT_ALLOWED");
+      }
+      if (applicableDiscountOptionId !== null || needsApproval) {
         throw new Error("OFFLINE_DISCOUNT_NOT_ALLOWED");
       }
       if (selectedItems.some(({ product }) => product.kind === "BUNDLE")) {
@@ -323,20 +456,67 @@ export function StaffOrderComposer({
         <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className={`${activePane === "MENU" ? "block" : "hidden"} px-4 py-5 pb-28 sm:px-6 lg:block lg:pb-5`}>
             <div className="grid grid-cols-3 gap-2" aria-label="取餐方式">
-              <ModeButton active={fulfillmentType === "TAKEOUT"} icon={<Package className="h-4 w-4" />} label="外帶" onClick={() => setFulfillmentType("TAKEOUT")} />
-              <ModeButton active={fulfillmentType === "DINE_IN"} disabled={!modules.dineIn || catalog.tables.length === 0} icon={<Utensils className="h-4 w-4" />} label="內用" onClick={() => setFulfillmentType("DINE_IN")} />
-              <ModeButton active={fulfillmentType === "DELIVERY"} disabled={!modules.delivery} icon={<Truck className="h-4 w-4" />} label="外送" onClick={() => setFulfillmentType("DELIVERY")} />
+              <ModeButton active={fulfillmentType === "TAKEOUT"} icon={<Package className="h-4 w-4" />} label="外帶" onClick={() => selectFulfillmentType("TAKEOUT")} />
+              <ModeButton active={fulfillmentType === "DINE_IN"} disabled={!modules.dineIn || catalog.tables.length === 0} icon={<Utensils className="h-4 w-4" />} label="內用" onClick={() => selectFulfillmentType("DINE_IN")} />
+              <ModeButton active={fulfillmentType === "DELIVERY"} disabled={!modules.delivery} icon={<Truck className="h-4 w-4" />} label="外送" onClick={() => selectFulfillmentType("DELIVERY")} />
             </div>
 
             <div className="mt-5 grid items-start gap-3 sm:grid-cols-2">
               <TextField className="mt-0" label="顧客名稱（選填）" value={customerName} maxLength={50} autoComplete="name" onChange={setCustomerName} />
               {(fulfillmentType === "TAKEOUT" || fulfillmentType === "DELIVERY") ? <TextField className="mt-0" label={fulfillmentType === "DELIVERY" ? "聯絡電話" : "聯絡電話（選填）"} value={customerPhone} maxLength={30} type="tel" inputMode="tel" autoComplete="tel" pattern="\+?[0-9][0-9 ().-]{5,29}" onChange={setCustomerPhone} /> : null}
-              {fulfillmentType === "DINE_IN" ? <label className="block text-xs font-semibold text-stone-600">桌位<select value={diningTableId} onChange={(event) => setDiningTableId(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{catalog.tables.map((table) => <option key={table.id} value={table.id}>{table.label}</option>)}</select></label> : null}
+              {fulfillmentType === "DINE_IN" ? <label className="block text-xs font-semibold text-stone-600">桌位<select value={diningTableId} onChange={(event) => setDiningTableId(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{tableGroups.map(([floorName, tables]) => <optgroup key={floorName} label={floorName}>{tables.map((table) => <option key={table.id} value={table.id}>{table.label}</option>)}</optgroup>)}</select></label> : null}
               {fulfillmentType === "DELIVERY" ? <label className="text-xs font-semibold text-stone-600 sm:col-span-2">外送地址<textarea autoComplete="street-address" value={deliveryAddress} maxLength={300} onChange={(event) => setDeliveryAddress(event.target.value)} className="form-input mt-1 min-h-20" /></label> : null}
+              {fulfillmentType === "TAKEOUT" && fulfillmentTimeSlots.length > 0 ? (
+                <FulfillmentTimePicker
+                  slots={fulfillmentTimeSlots}
+                  value={requestedFulfillmentAt}
+                  onChange={setRequestedFulfillmentAt}
+                  legend="預計取餐時間（選填）"
+                  scheduledLabel="指定取餐時間"
+                  dateLabel="取餐日期"
+                  timeLabel="取餐時間"
+                  unavailableDateMessage="該日期沒有可用取餐時段。"
+                  allowAsap
+                  required={false}
+                  testId="staff-takeout-fulfillment-time-fields"
+                  className="sm:col-span-2"
+                />
+              ) : null}
+              {fulfillmentType === "DELIVERY" && fulfillmentTimeSlots.length > 0 ? (
+                <FulfillmentTimePicker
+                  slots={fulfillmentTimeSlots}
+                  value={requestedFulfillmentAt}
+                  onChange={setRequestedFulfillmentAt}
+                  legend="指定送達時間（選填）"
+                  scheduledLabel="指定送達時間"
+                  dateLabel="送達日期"
+                  timeLabel="送達時間"
+                  unavailableDateMessage="該日期沒有可用送達時段。"
+                  allowAsap
+                  required={false}
+                  testId="staff-delivery-fulfillment-time-fields"
+                  className="sm:col-span-2"
+                />
+              ) : null}
             </div>
 
-            <nav aria-label="商品分類" className="-mx-4 mt-6 flex gap-2 overflow-x-auto border-y border-stone-200 px-4 py-2 sm:-mx-6 sm:px-6 lg:hidden">
-              {categories.map((category) => <button key={category} type="button" aria-pressed={activeCategory === category} onClick={() => setActiveCategory(category)} className={`min-h-10 shrink-0 rounded-md border px-3 text-sm font-semibold ${activeCategory === category ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-700"}`}>{category}</button>)}
+            <div className="mt-6 flex min-h-12 items-center justify-between gap-3 border-y border-stone-200 py-2">
+              <p className="text-sm font-semibold text-stone-700">商品列表（{catalog.products.length}）</p>
+              <button
+                type="button"
+                data-testid="staff-product-list-toggle"
+                aria-expanded={catalogExpanded}
+                aria-controls="staff-product-list"
+                onClick={() => setCatalogExpanded((expanded) => !expanded)}
+                className="min-h-11 rounded-md border border-stone-300 px-3 text-sm font-semibold text-teal-800"
+              >
+                {catalogExpanded ? "收合全部商品" : "展開全部商品"}
+              </button>
+            </div>
+
+            {catalogExpanded ? <div id="staff-product-list" data-testid="staff-product-list">
+            <nav aria-label="商品分類" className="-mx-4 mt-2 flex gap-2 overflow-x-auto border-b border-stone-200 px-4 py-2 sm:-mx-6 sm:px-6 lg:hidden">
+              {categories.map((category) => <button key={category} type="button" aria-pressed={activeCategory === category} onClick={() => setActiveCategory(category)} className={`min-h-11 shrink-0 rounded-md border px-3 text-sm font-semibold ${activeCategory === category ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-700"}`}>{category}</button>)}
             </nav>
 
             <div className="mt-7 space-y-7">
@@ -346,6 +526,7 @@ export function StaffOrderComposer({
                   <div className="divide-y divide-stone-100">
                     {catalog.products.filter((product) => product.category === category).map((product) => {
                       const quantity = quantities[product.id] ?? 0;
+                      const cartQuantity = cartQuantitiesByProduct.get(product.id) ?? 0;
                       const noteSelected = noteSelections[product.id] ?? [];
                       const bundleSelected = bundleSelections[product.id] ?? [];
                       const unitPrice = Math.max(
@@ -354,12 +535,13 @@ export function StaffOrderComposer({
                           + bundlePriceAdjustment(product, bundleSelected)
                           + notePriceAdjustment(product.noteGroups, noteSelected),
                       );
-                      return <div key={product.id} className="py-4">
+                      return <article key={product.id} data-testid="staff-product-card" className="py-4">
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                           <div className="min-w-0">
                             <h4 className="font-semibold">{product.name}{product.kind === "BUNDLE" ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">套餐</span> : null}</h4>
                             {product.description ? <p className="mt-1 text-sm text-stone-500">{product.description}</p> : null}
                             <p className="mt-1 text-sm font-semibold">{formatMoney(unitPrice, stall.currency)}</p>
+                            {cartQuantity > 0 ? <p className="mt-1 text-xs font-medium text-teal-800">購物車已有 {cartQuantity} 份</p> : null}
                           </div>
                           <div className="grid grid-cols-[44px_32px_44px] items-center gap-2">
                             <button type="button" title={`減少 ${product.name}`} disabled={quantity === 0} onClick={() => setQuantity(product.id, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Minus className="h-4 w-4" /></button>
@@ -367,12 +549,12 @@ export function StaffOrderComposer({
                             <button type="button" title={`增加 ${product.name}`} onClick={() => setQuantity(product.id, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-800 text-white"><Plus className="h-4 w-4" /></button>
                           </div>
                         </div>
-                        {quantity > 0 && product.kind === "BUNDLE" ? <div className="mt-4 space-y-3 border-l-2 border-amber-500 pl-3">
+                        {quantity > 0 && product.kind === "BUNDLE" ? <div className="mt-4 space-y-3">
                           {(product.bundleChoiceGroups ?? []).map((group) => {
                             const groupIds = new Set(group.choices.map((choice) => choice.id));
                             const selectedCount = bundleSelected.filter((id) => groupIds.has(id)).length;
-                            return <fieldset key={group.id}>
-                              <legend className="text-sm font-semibold">套餐 · {group.name}{group.minSelections > 0 ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.minSelections === group.maxSelections ? `選 ${group.minSelections} 項` : `選 ${group.minSelections}～${group.maxSelections} 項`}</span></legend>
+                            return <fieldset key={group.id} className="rounded-md border border-teal-200 bg-teal-50/60 p-3">
+                              <legend className="px-2 text-sm font-bold text-teal-950"><span className="mr-2 inline-flex rounded-full bg-teal-800 px-2 py-0.5 text-xs text-white">套餐群組</span>{group.name}{group.minSelections > 0 ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-600">{group.minSelections === group.maxSelections ? `選 ${group.minSelections} 項` : `選 ${group.minSelections}～${group.maxSelections} 項`}</span></legend>
                               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
                                 {group.maxSelections === 1 && group.minSelections === 0 ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-bundle-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectBundleChoice(product.id, group, null)} />不選</label> : null}
                                 {group.choices.map((choice) => {
@@ -385,52 +567,71 @@ export function StaffOrderComposer({
                           })}
                         </div> : null}
                         {quantity > 0 && product.noteGroups.length > 0 ? <div className="mt-4 space-y-3 border-l-2 border-teal-700 pl-3">{product.noteGroups.map((group) => { const optionIds = new Set(group.options.map((option) => option.id)); const selectedCount = noteSelected.filter((id) => optionIds.has(id)).length; return <fieldset key={group.id}><legend className="text-sm font-semibold">{group.name}{group.isRequired ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.selectionMode === "SINGLE" ? "單選" : group.maxSelections ? `最多 ${group.maxSelections} 項` : "複選"}</span></legend><div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">{group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-note-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectNoteOption(product.id, group, null)} />不選</label> : null}{group.options.map((option) => { const checked = noteSelected.includes(option.id); const maxed = group.maxSelections !== null && selectedCount >= group.maxSelections; return <label key={option.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`staff-note-${product.id}-${group.id}`} checked={checked} disabled={group.selectionMode === "MULTIPLE" && maxed && !checked} onChange={() => selectNoteOption(product.id, group, option.id)} />{option.name}{option.priceDelta !== 0 ? <span className="text-teal-800">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, stall.currency)}</span> : null}</label>; })}</div></fieldset>; })}</div> : null}
-                      </div>;
+                        {quantity > 0 ? <button type="button" onClick={() => addProductToCart(product)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white"><ShoppingCart className="h-4 w-4" />加入購物車</button> : null}
+                      </article>;
                     })}
                   </div>
                 </section>
               ))}
               {catalog.products.length === 0 ? <p className="py-12 text-center text-sm text-stone-500">目前沒有可供應商品。</p> : null}
             </div>
+            </div> : <p role="status" className="py-5 text-center text-sm text-stone-500">商品列表已收合，已選商品仍保留在購物車。</p>}
             {selectedItems.length > 0 ? <button data-testid="staff-mobile-cart-summary" type="button" onClick={() => switchPane("CART")} className="safe-area-bottom fixed inset-x-3 bottom-0 z-30 flex min-h-16 items-center gap-3 rounded-t-lg bg-stone-900 px-4 pt-3 text-left text-white shadow-2xl lg:hidden"><ShoppingCart className="h-5 w-5" /><span className="flex-1"><span className="block text-xs text-stone-300">{totalQuantity} 份</span><strong>{formatMoney(total, stall.currency)}</strong></span><span className="text-sm font-semibold">前往結帳</span></button> : null}
           </div>
 
           <aside data-testid="staff-order-cart-panel" className={`${activePane === "CART" ? "block" : "hidden"} safe-area-bottom border-t border-stone-200 bg-stone-50 px-4 py-5 lg:block lg:border-l lg:border-t-0 sm:px-6`}>
             <div className="flex items-center gap-2"><ShoppingCart className="h-4 w-4 text-teal-800" /><h3 className="font-semibold">本次訂單</h3><span className="ml-auto text-sm text-stone-500">{totalQuantity} 份</span></div>
-            <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{selectedItems.map(({ product, quantity, noteOptionIds, bundleChoiceIds }) => {
+            <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{selectedItems.map(({ cartLineId, product, quantity, noteOptionIds, bundleChoiceIds }) => {
               const selectedBundleChoices = (product.bundleChoiceGroups ?? []).flatMap((group) => (
                 group.choices.filter((choice) => bundleChoiceIds.includes(choice.id))
               ));
+              const selectedNoteNames = product.noteGroups.flatMap((group) => (
+                group.options
+                  .filter((option) => noteOptionIds.includes(option.id))
+                  .map((option) => option.name)
+              ));
+              const configurationLabel = [
+                ...selectedBundleChoices.map((choice) => `${choice.name} × ${choice.quantity}`),
+                ...selectedNoteNames,
+              ].join("、") || "無註記";
               const unitPrice = Math.max(
                 0,
                 product.price
                   + bundlePriceAdjustment(product, bundleChoiceIds)
                   + notePriceAdjustment(product.noteGroups, noteOptionIds),
               );
-              return <div key={product.id} className="py-3 text-sm">
+              return <div key={cartLineId} data-testid="staff-cart-line" className="py-3 text-sm">
                 <div className="flex justify-between gap-3"><span>{quantity} × {product.name}</span><strong>{formatMoney(unitPrice * quantity, stall.currency)}</strong></div>
                 {selectedBundleChoices.length > 0 ? <p className="mt-1 text-xs text-amber-800">{selectedBundleChoices.map((choice) => `${choice.name} × ${choice.quantity}`).join("、")}</p> : null}
-                {noteOptionIds.length > 0 ? <p className="mt-1 text-xs text-teal-800">{product.noteGroups.flatMap((group) => group.options.filter((option) => noteOptionIds.includes(option.id)).map((option) => option.name)).join("、")}</p> : null}
+                {selectedNoteNames.length > 0 ? <p className="mt-1 text-xs text-teal-800">{selectedNoteNames.join("、")}</p> : null}
+                <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                  <button type="button" aria-label={`減少 ${product.name}（${configurationLabel}）`} onClick={() => changeCartLineQuantity(cartLineId, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Minus className="h-4 w-4" /></button>
+                  <span className="min-w-8 text-center font-semibold" aria-label={`${product.name}（${configurationLabel}）數量`}>{quantity}</span>
+                  <button type="button" aria-label={`增加 ${product.name}（${configurationLabel}）`} onClick={() => changeCartLineQuantity(cartLineId, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Plus className="h-4 w-4" /></button>
+                  <button type="button" aria-label={`移除 ${product.name}（${configurationLabel}）`} onClick={() => changeCartLineQuantity(cartLineId, 0)} className="min-h-11 rounded-md border border-red-300 bg-white px-3 font-semibold text-red-700">移除</button>
+                </div>
               </div>;
             })}</div>
             <label className="mt-4 block text-xs font-semibold text-stone-600">訂單備註<textarea value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-1 min-h-20" /></label>
 
             <div className="mt-5 grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label="付款時間">
-              <button type="button" aria-pressed={paymentTiming === "PAY_NOW"} onClick={() => setPaymentTiming("PAY_NOW")} className={`h-9 rounded text-xs font-semibold ${paymentTiming === "PAY_NOW" ? "bg-stone-900 text-white" : "text-stone-600"}`}>立即結帳</button>
-              <button type="button" aria-pressed={paymentTiming === "PAY_LATER"} onClick={() => setPaymentTiming("PAY_LATER")} className={`h-9 rounded text-xs font-semibold ${paymentTiming === "PAY_LATER" ? "bg-stone-900 text-white" : "text-stone-600"}`}>稍後結帳</button>
+              <button type="button" aria-pressed={paymentTiming === "PAY_NOW"} onClick={() => setPaymentTiming("PAY_NOW")} className={`h-11 rounded text-xs font-semibold ${paymentTiming === "PAY_NOW" ? "bg-stone-900 text-white" : "text-stone-600"}`}>立即結帳</button>
+              <button type="button" aria-pressed={paymentTiming === "PAY_LATER"} onClick={() => setPaymentTiming("PAY_LATER")} className={`h-11 rounded text-xs font-semibold ${paymentTiming === "PAY_LATER" ? "bg-stone-900 text-white" : "text-stone-600"}`}>稍後結帳</button>
             </div>
 
             {paymentTiming === "PAY_NOW" ? <>
-              {modules.payment ? <div className="mt-4 grid grid-cols-2 gap-2">{paymentOptions.map((option) => <button key={option.id} type="button" aria-pressed={paymentOptionId === option.id} onClick={() => { setPaymentOptionId(option.id); setCashReceived(""); }} className={`min-h-10 rounded-md border px-2 text-xs font-semibold ${paymentOptionId === option.id ? "border-teal-700 bg-teal-50" : "border-stone-300 bg-white"}`}>{option.name}</button>)}</div> : <p className="mt-4 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-semibold">現金</p>}
+              {modules.payment ? <div className="mt-4 grid grid-cols-2 gap-2">{paymentOptions.map((option) => <button key={option.id} type="button" aria-pressed={paymentOptionId === option.id} onClick={() => { setPaymentOptionId(option.id); setCashReceived(""); }} className={`min-h-11 rounded-md border px-2 text-xs font-semibold ${paymentOptionId === option.id ? "border-teal-700 bg-teal-50" : "border-stone-300 bg-white"}`}>{option.name}</button>)}</div> : <p className="mt-4 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-semibold">現金</p>}
               <StaffDiscountSelector
                 enabled={modules.discount}
                 options={discountOptions}
-                selectedOptionId={discountOptionId}
+                selectedOptionId={applicableDiscountOptionId}
                 onSelect={setDiscountOptionId}
                 settingsHref={discountSettingsHref}
+                isApplicable={discountEligibleSubtotal > 0}
               />
+              {discountEligibleSubtotal < subtotal ? <p className="mt-2 text-xs text-amber-800">折扣適用金額：{formatMoney(discountEligibleSubtotal, stall.currency)}；其餘商品不套用訂單折扣。</p> : null}
               {needsApproval ? <div className="mt-4 border-y border-amber-300 bg-amber-50 py-3"><p className="text-xs font-semibold text-amber-900">此折扣需要經理核准</p><TextField label="核准原因" value={discountApprovalReason} maxLength={200} onChange={setDiscountApprovalReason} />{!operatorCanApprove ? <><TextField label="經理帳號" value={managerEmail} maxLength={254} onChange={setManagerEmail} type="email" autoComplete="username" /><TextField label="經理密碼" value={managerPassword} maxLength={128} onChange={setManagerPassword} type="password" autoComplete="current-password" /></> : null}</div> : null}
-              {usesCash ? <div className="mt-4"><TextField label="實收金額" value={cashReceived} maxLength={9} inputMode="numeric" onChange={(value) => setCashReceived(value.replace(/\D/g, ""))} /><div className="mt-2 grid grid-cols-4 gap-2">{[total, 200, 500, 1000].filter((value, index, values) => values.indexOf(value) === index).map((value, index) => <button key={value} type="button" disabled={value < total} onClick={() => setCashReceived(String(value))} className="h-9 rounded-md border border-stone-300 bg-white text-xs font-semibold disabled:opacity-40">{index === 0 ? "剛好" : value}</button>)}</div><div className="mt-3 flex justify-between bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900"><span>找零</span><span>{formatMoney(change, stall.currency)}</span></div></div> : null}
+              {usesCash ? <div className="mt-4"><TextField label="實收金額" value={cashReceived} maxLength={9} inputMode="numeric" onChange={(value) => setCashReceived(value.replace(/\D/g, ""))} /><div className="mt-2 grid grid-cols-4 gap-2">{[total, 200, 500, 1000].filter((value, index, values) => values.indexOf(value) === index).map((value, index) => <button key={value} type="button" disabled={value < total} onClick={() => setCashReceived(String(value))} className="h-11 rounded-md border border-stone-300 bg-white text-xs font-semibold disabled:opacity-40">{index === 0 ? "剛好" : value}</button>)}</div><div className="mt-3 flex justify-between bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900"><span>找零</span><span>{formatMoney(change, stall.currency)}</span></div></div> : null}
             </> : null}
 
             <dl className="mt-5 space-y-2 border-y border-stone-200 py-4 text-sm"><div className="flex justify-between"><dt>商品小計</dt><dd>{formatMoney(subtotal, stall.currency)}</dd></div>{paymentTiming === "PAY_NOW" && discount ? <div className="flex justify-between text-emerald-800"><dt>{discount.name}</dt><dd>-{formatMoney(subtotal - total, stall.currency)}</dd></div> : null}<div className="flex justify-between text-lg font-semibold"><dt>{paymentTiming === "PAY_NOW" ? "應收金額" : "訂單金額"}</dt><dd>{formatMoney(paymentTiming === "PAY_NOW" ? total : subtotal, stall.currency)}</dd></div></dl>
@@ -451,6 +652,7 @@ function offlineErrorMessage(code: string) {
   const messages: Record<string, string> = {
     OFFLINE_READ_ONLY: "目前無法連線，且此裝置尚未具備離線寫入權限。",
     OFFLINE_TAKEOUT_ONLY: "離線模式目前僅支援現場外帶訂單。",
+    OFFLINE_SCHEDULED_TIME_NOT_ALLOWED: "離線模式無法確認預約時段，請恢復連線後再建立指定時間訂單。",
     OFFLINE_DISCOUNT_NOT_ALLOWED: "離線模式不支援折扣或經理線上核准，請取消折扣後再試。",
     OFFLINE_BUNDLE_NOT_ALLOWED: "離線模式目前不支援套餐，請恢復連線後再建立此訂單。",
     OFFLINE_BOOTSTRAP_REQUIRED: "請先在線上完成此裝置的離線營運初始化。",

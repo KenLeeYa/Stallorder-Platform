@@ -39,6 +39,7 @@ describe("resolveStaffCheckout", () => {
       organizationId: "org",
       stallId: "stall",
       subtotals: [100],
+      discountEligibleSubtotals: [100],
       currentTotals: [80],
       actorProfileId: "staff",
       actorRoles: ["STAFF"],
@@ -62,6 +63,7 @@ describe("resolveStaffCheckout", () => {
       organizationId: "org",
       stallId: "stall",
       subtotals: [100],
+      discountEligibleSubtotals: [100],
       currentTotals: [80],
       actorProfileId: "staff",
       actorRoles: ["STAFF"],
@@ -76,5 +78,60 @@ describe("resolveStaffCheckout", () => {
       changeAmount: 10,
       discountOptionId: "staff-discount",
     });
+  });
+
+  it("applies a selected discount only to eligible item totals", async () => {
+    mocks.findDiscount.mockResolvedValue({ id: "staff-discount", name: "九折", rateBps: 9_000 });
+
+    const checkout = await resolveStaffCheckout({
+      organizationId: "org",
+      stallId: "stall",
+      subtotals: [150],
+      discountEligibleSubtotals: [100],
+      currentTotals: [150],
+      actorProfileId: "staff",
+      actorRoles: ["STAFF"],
+      request: { discountOptionId: "staff-discount", cashReceived: 150 },
+    });
+
+    expect(checkout).toMatchObject({
+      subtotal: 150,
+      discountEligibleSubtotal: 100,
+      discountAmount: 10,
+      total: 140,
+      changeAmount: 10,
+    });
+  });
+
+  it("rejects a discount when no order amount is eligible", async () => {
+    mocks.findDiscount.mockResolvedValue({ id: "staff-discount", name: "九折", rateBps: 9_000 });
+
+    await expect(resolveStaffCheckout({
+      organizationId: "org",
+      stallId: "stall",
+      subtotals: [150],
+      discountEligibleSubtotals: [0],
+      actorProfileId: "staff",
+      actorRoles: ["STAFF"],
+      request: { discountOptionId: "staff-discount" },
+    })).rejects.toMatchObject({ code: "DISCOUNT_NOT_APPLICABLE" });
+    expect(mocks.resolveApproval).not.toHaveBeenCalled();
+  });
+
+  it("rounds a multi-order discount per order", async () => {
+    mocks.findDiscount.mockResolvedValue({ id: "half", name: "五折", rateBps: 5_000 });
+
+    const checkout = await resolveStaffCheckout({
+      organizationId: "org",
+      stallId: "stall",
+      subtotals: [1, 1],
+      discountEligibleSubtotals: [1, 1],
+      actorProfileId: "staff",
+      actorRoles: ["STAFF"],
+      request: { discountOptionId: "half" },
+    });
+
+    expect(checkout.total).toBe(2);
+    expect(checkout.discountAmount).toBe(0);
   });
 });

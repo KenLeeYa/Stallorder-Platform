@@ -95,6 +95,7 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
         slug: stall.slug,
         name: stall.name,
         currency: stall.currency,
+        timezone: stall.timezone,
       }}
       initialOrders={orders.map(serializeStaffOrder)}
       initialNow={serverNow}

@@ -264,6 +264,9 @@ test.describe("多攤位商戶關鍵流程", () => {
 
   test("共用商品分派、攤位覆寫價格與顧客菜單一致", async ({ page }) => {
     await loginWithPassword(page, ownerEmail);
+    await expect(page).toHaveURL(
+      new RegExp(`/merchant/dashboard\\?organizationId=${organization.id}$`),
+    );
     await page.goto(`/merchant/catalog?organizationId=${organization.id}`);
     await page.getByRole("button", { name: `分派 ${sharedProductName}` }).click();
     const assignmentDialog = page.getByRole("dialog", { name: `分派「${sharedProductName}」` });
@@ -312,6 +315,19 @@ test.describe("多攤位商戶關鍵流程", () => {
   test("儀表板範圍、staff、finance、kitchen 與跨組織 URL 權限", async ({ page }) => {
     await loginWithPassword(page, ownerEmail);
     await page.goto(`/merchant/dashboard?organizationId=${organization.id}`);
+    await expect(page.getByLabel("選擇商家")).toHaveCount(0);
+    const stallSelector = page.getByLabel("選擇攤位");
+    await expect(stallSelector).toBeVisible();
+    await expect(stallSelector.locator('option[value="ALL_STALLS"]')).toHaveText("全部攤位");
+    await expect(stallSelector.locator(`option[value="${firstStall.id}"]`)).toHaveText(firstStall.name);
+    await expect(stallSelector.locator(`option[value="${secondStall.id}"]`)).toHaveText(secondStall.name);
+    await stallSelector.selectOption(firstStall.id);
+    await expect(page).toHaveURL(new RegExp(`/merchant/${firstStall.slug}$`));
+    await page.getByLabel("選擇攤位").selectOption("ALL_STALLS");
+    await expect(page).toHaveURL(
+      new RegExp(`/merchant/stalls\\?organizationId=${organization.id}$`),
+    );
+    await page.goto(`/merchant/dashboard?organizationId=${organization.id}`);
     await expect(page.getByLabel("營運摘要")).toContainText("1,500");
     await expect(page.getByRole("heading", { name: "攤位比較" })).toBeVisible();
     await expect(page.getByRole("link", { name: firstStall.name, exact: true })).toBeVisible();
@@ -353,7 +369,7 @@ test.describe("多攤位商戶關鍵流程", () => {
 
     await page.context().clearCookies();
     await loginWithPassword(page, staffEmail);
-    await page.goto(`/staff/${firstStall.slug}`);
+    await expect(page).toHaveURL(new RegExp(`/staff/${firstStall.slug}$`));
     await expect(page.getByRole("heading", { name: firstStall.name, exact: true })).toBeVisible();
     await expect(page.getByLabel("切換工作模式")).toHaveCount(0);
     const unassignedStaffResponse = await page.goto(`/staff/${secondStall.slug}`);
@@ -361,6 +377,9 @@ test.describe("多攤位商戶關鍵流程", () => {
 
     await page.context().clearCookies();
     await loginWithPassword(page, financeEmail);
+    await expect(page).toHaveURL(
+      new RegExp(`/merchant/dashboard\\?organizationId=${organization.id}$`),
+    );
     const financeMutation = await page.evaluate(async ({ stallSlug, orderId }) => {
       const csrf = document.cookie
         .split(";")
@@ -382,7 +401,7 @@ test.describe("多攤位商戶關鍵流程", () => {
 
     await page.context().clearCookies();
     await loginWithPassword(page, kitchenEmail);
-    await page.goto(`/kitchen?stall=${firstStall.slug}`);
+    await expect(page).toHaveURL(new RegExp(`/kitchen\\?stall=${firstStall.slug}$`));
     await expect(page.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
     await expect(page.getByLabel("切換工作模式")).toHaveCount(0);
     const kitchenFinanceResponse = await page.goto(

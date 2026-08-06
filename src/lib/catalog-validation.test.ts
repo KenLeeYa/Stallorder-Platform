@@ -50,10 +50,28 @@ describe("商品與分類輸入驗證", () => {
     };
     const legacy = sharedCatalogCommandSchema.safeParse(command);
     const bundle = sharedCatalogCommandSchema.safeParse({ ...command, kind: "BUNDLE" });
+    const lotteryOptOut = sharedCatalogCommandSchema.safeParse({ ...command, isLotteryEligible: false });
 
     expect(legacy.success && legacy.data.operation === "CREATE_PRODUCT" ? legacy.data.kind : null).toBe("SINGLE");
+    expect(legacy.success && legacy.data.operation === "CREATE_PRODUCT"
+      ? legacy.data.isOrderDiscountEligible
+      : null).toBe(true);
+    expect(legacy.success && legacy.data.operation === "CREATE_PRODUCT"
+      ? legacy.data.isLotteryEligible
+      : null).toBe(true);
     expect(bundle.success && bundle.data.operation === "CREATE_PRODUCT" ? bundle.data.kind : null).toBe("BUNDLE");
+    expect(lotteryOptOut.success && lotteryOptOut.data.operation === "CREATE_PRODUCT"
+      ? lotteryOptOut.data.isLotteryEligible
+      : null).toBe(false);
     expect(sharedCatalogCommandSchema.safeParse({ ...command, kind: "GROUP" }).success).toBe(false);
+    expect(sharedCatalogCommandSchema.safeParse({
+      ...command,
+      isOrderDiscountEligible: "false",
+    }).success).toBe(false);
+    expect(sharedCatalogCommandSchema.safeParse({
+      ...command,
+      isLotteryEligible: "false",
+    }).success).toBe(false);
   });
 
   it("將空白售價與攤位分派限制對應至可見欄位", () => {

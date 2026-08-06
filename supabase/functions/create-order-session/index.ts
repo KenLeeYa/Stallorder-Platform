@@ -188,11 +188,11 @@ Deno.serve(async (request) => {
         .order("sort_order", { ascending: true })
         .limit(100),
       admin.from("stall_ordering_settings")
-        .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length, dine_in_enabled, delivery_module_enabled, enabled_locales, estimated_wait_minutes, lottery_enabled")
+        .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length, dine_in_enabled, delivery_module_enabled, takeout_preorder_enabled, enabled_locales, estimated_wait_minutes, lottery_enabled")
         .eq("stall_id", result.stall_id)
         .single(),
       admin.from("qr_codes")
-        .select("dining_table_id")
+        .select("dining_table_id, fulfillment_type_context")
         .eq("id", result.qr_code_id)
         .single(),
     ]), 4);
@@ -252,7 +252,12 @@ Deno.serve(async (request) => {
       : { data: null, error: null };
     if (lastTableOrderQuery.error) throw lastTableOrderQuery.error;
 
-    const preorderSlotsQuery = orderingMode === "PREORDER"
+    const supportsRequestedFulfillmentTime = !qrQuery.data.dining_table_id
+      && qrQuery.data.fulfillment_type_context !== "DINE_IN"
+      && (orderingMode === "DELIVERY"
+        ? settingsQuery.data.delivery_module_enabled === true
+        : settingsQuery.data.takeout_preorder_enabled === true);
+    const preorderSlotsQuery = supportsRequestedFulfillmentTime
       ? await timing.measureDb(() => admin.rpc("get_takeout_preorder_slots", {
         p_stall_id: result.stall_id,
       }))

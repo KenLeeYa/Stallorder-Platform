@@ -219,7 +219,7 @@ test.describe("P1 營運功能", () => {
     await login(page, "owner@stallorder.test");
     await page.goto(`/merchant/stalls/${targetStallId}/settings/templates`);
     await expect(page.getByRole("heading", { name: "多攤位範本", exact: true })).toBeVisible();
-    const template = page.locator("details").filter({ hasText: "多攤位範本" }).last();
+    const template = page.getByRole("region", { name: "多攤位範本", exact: true });
     await template.getByLabel("來源攤位").selectOption(sourceStallId);
     await template.getByRole("button", { name: "比較差異" }).click();
     await expect(template).toContainText("付款方式");
@@ -255,7 +255,7 @@ async function login(page: Page, email: string) {
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(/\/merchant\/dashboard|\/staff\//);
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=|\/staff\//);
 }
 
 async function createDineInOrder(page: Page, customerName: string, productName: string) {

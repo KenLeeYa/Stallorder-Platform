@@ -5,6 +5,7 @@ import { CashShiftOperationError, requireOpenCashShift } from "@/lib/cash-shifts
 import { validateCsrf } from "@/lib/csrf";
 import { DiscountApprovalError } from "@/lib/discount-approval";
 import { readJson } from "@/lib/http";
+import { fulfillmentTimeBlocksProduction } from "@/lib/fulfillment-time";
 import { cancellationMatchesOrder, orderStatusUpdateSchema } from "@/lib/order-status-update";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
@@ -82,6 +83,15 @@ async function handlePatch(
 
   const order = await timing.measureDb(() => prisma.order.findFirst({
     where: { id: orderId, stallId: authorization.stall.id },
+    include: {
+      items: {
+        select: {
+          unitPrice: true,
+          quantity: true,
+          isOrderDiscountEligible: true,
+        },
+      },
+    },
   }));
   if (!order) {
     return NextResponse.json(
@@ -134,6 +144,12 @@ async function handlePatch(
       { status: 409, headers: { "x-request-id": authorization.requestId } },
     );
   }
+  if (nextStatus === "PREPARING" && fulfillmentTimeBlocksProduction(order.fulfillmentTimeState)) {
+    return NextResponse.json(
+      { error: "請先確認顧客要求的取餐或送達時間，才能開始製作。" },
+      { status: 409, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
   if (nextStatus === "COMPLETED" && !hasPermission(authorization.role, "CHECKOUT_ORDERS")) {
     return NextResponse.json(
       { error: "您沒有完成訂單的權限。" },
@@ -179,6 +195,9 @@ async function handlePatch(
         organizationId: order.organizationId,
         stallId: order.stallId,
         subtotals: [order.subtotal],
+        discountEligibleSubtotals: [order.items.reduce((sum, item) => (
+          sum + (item.isOrderDiscountEligible ? item.unitPrice * item.quantity : 0)
+        ), 0)],
         currentTotals: [order.total],
         actorProfileId: authorization.principal.user.id,
         actorRoles: authorization.roles,
@@ -364,9 +383,13 @@ function checkoutErrorResponse(error: unknown, requestId: string) {
       PAYMENT_INVALID: "付款方式已停用或不存在，請重新選擇。",
       DISCOUNT_DISABLED: "此攤位尚未開啟折扣模組。",
       DISCOUNT_INVALID: "折扣已停用或不存在，請重新選擇。",
+      DISCOUNT_NOT_APPLICABLE: "此訂單沒有可套用折扣的商品。",
       INSUFFICIENT_CASH: "實收金額不可小於應收金額。",
     };
-    const status = error.code === "PAYMENT_INVALID" || error.code === "DISCOUNT_DISABLED" || error.code === "DISCOUNT_INVALID" ? 409 : 400;
+    const status = error.code === "PAYMENT_INVALID"
+      || error.code === "DISCOUNT_DISABLED"
+      || error.code === "DISCOUNT_INVALID"
+      || error.code === "DISCOUNT_NOT_APPLICABLE" ? 409 : 400;
     return NextResponse.json({ error: messages[error.code] }, { status, headers });
   }
   if (error instanceof DiscountApprovalError) {

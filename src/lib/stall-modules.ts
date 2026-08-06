@@ -1,11 +1,12 @@
 import "server-only";
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isQrLocale } from "@/lib/qr-order-i18n";
 export { stallModuleCommandSchema } from "@/lib/stall-module-contract";
 
 export async function getStallModuleState(stallId: string, organizationId: string) {
-  const [settings, tables, paymentOptions, discounts] = await Promise.all([
+  const [settings, floors, tables, paymentOptions, discounts, lotteryDiscountChances] = await Promise.all([
     prisma.stallOrderingSettings.findFirstOrThrow({
       where: { stallId, organizationId },
       select: {
@@ -25,6 +26,10 @@ export async function getStallModuleState(stallId: string, organizationId: strin
         lotteryDiscountWinRateBps: true,
         enabledLocales: true,
       },
+    }),
+    prisma.diningFloor.findMany({
+      where: { stallId, organizationId },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     prisma.diningTable.findMany({
       where: { stallId, organizationId },
@@ -46,18 +51,47 @@ export async function getStallModuleState(stallId: string, organizationId: strin
       where: { stallId, organizationId },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
+    prisma.$queryRaw<Array<{ discountOptionId: string; winRateBps: number }>>(Prisma.sql`
+      select
+        chance.discount_option_id as "discountOptionId",
+        chance.win_rate_bps::integer as "winRateBps"
+      from public.stall_lottery_discount_chances chance
+      where chance.stall_id = ${stallId}::uuid
+    `),
   ]);
+
+  const discountOrder = new Map(discounts.flatMap((discount, index) => (
+    discount.isEnabled ? [[discount.id, index] as const] : []
+  )));
+  const orderedLotteryDiscountChances = lotteryDiscountChances
+    .filter((chance) => discountOrder.has(chance.discountOptionId))
+    .sort((left, right) => (
+      (discountOrder.get(left.discountOptionId) ?? Number.MAX_SAFE_INTEGER)
+      - (discountOrder.get(right.discountOptionId) ?? Number.MAX_SAFE_INTEGER)
+    ));
+  const legacyLotteryDiscountChances = settings.lotteryDiscountOptionId
+    && settings.lotteryDiscountWinRateBps > 0
+    && discountOrder.has(settings.lotteryDiscountOptionId)
+    ? [{
+        discountOptionId: settings.lotteryDiscountOptionId,
+        winRateBps: settings.lotteryDiscountWinRateBps,
+      }]
+    : [];
 
   return {
     settings: {
       ...settings,
-      preorderSlotMinutes: ([15, 30, 60, 120] as const).includes(
-        settings.preorderSlotMinutes as 15 | 30 | 60 | 120,
+      lotteryDiscountChances: orderedLotteryDiscountChances.length > 0
+        ? orderedLotteryDiscountChances
+        : legacyLotteryDiscountChances,
+      preorderSlotMinutes: ([5, 15, 30, 60, 120] as const).includes(
+        settings.preorderSlotMinutes as 5 | 15 | 30 | 60 | 120,
       )
-        ? settings.preorderSlotMinutes as 15 | 30 | 60 | 120
+        ? settings.preorderSlotMinutes as 5 | 15 | 30 | 60 | 120
         : 30,
       enabledLocales: settings.enabledLocales.filter(isQrLocale),
     },
+    floors,
     tables: tables.map(({ qrCodes, ...table }) => ({ ...table, qrCode: qrCodes[0] ?? null })),
     paymentOptions,
     discounts,

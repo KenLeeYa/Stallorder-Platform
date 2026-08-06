@@ -64,6 +64,18 @@ test("示範 Owner 可登入並建立有效 session", async ({ page }) => {
   await expect(page.getByText("多攤位營運總覽", { exact: true })).toBeVisible();
 });
 
+test("本機平台管理員可登入管理後台", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
+  await page.getByLabel("電子郵件").fill("platform.admin@stallorder.test");
+  await page.getByLabel("密碼").fill(password);
+  await page.getByRole("button", { name: "登入", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/admin\/billing$/);
+  await expect(page.getByRole("link", { name: "平台管理後台", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "平台管理導覽" })).toBeVisible();
+});
+
 test("瀏覽器擴充套件修改 body 屬性時不會阻擋登入", async ({ page }) => {
   const hydrationErrors: string[] = [];
   page.on("console", (message) => {

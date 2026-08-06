@@ -7,6 +7,28 @@
   --field-border: #d6d3d1;
   --field-border-invalid: #b91c1c;
   --field-background: #ffffff;
+  --cds-surface-overlay: rgba(250, 250, 249, 0.94);
+}
+
+:root[data-theme="dark"] {
+  --background: #0c0a09;
+  --foreground: #fafaf9;
+  --focus-ring: #5eead4;
+  --field-border: #78716c;
+  --field-border-invalid: #f87171;
+  --field-background: #1c1917;
+  --color-stone-50: #0c0a09;
+  --color-stone-100: #1c1917;
+  --color-stone-200: #292524;
+  --color-stone-300: #78716c;
+  --color-stone-400: #78716c;
+  --color-stone-500: #a8a29e;
+  --color-stone-600: #d6d3d1;
+  --color-stone-700: #e7e5e4;
+  --color-stone-800: #f5f5f4;
+  --color-stone-900: #fafaf9;
+  --color-stone-950: #ffffff;
+  --cds-surface-overlay: rgba(12, 10, 9, 0.94);
 }
 
 @theme inline {
@@ -23,6 +45,92 @@ body {
   overflow-wrap: anywhere;
   text-rendering: optimizeLegibility;
   -webkit-text-size-adjust: 100%;
+}
+
+:root[data-theme="dark"] :where(.bg-white, .bg-white\/85, .bg-white\/90, .bg-white\/95),
+:root[data-theme="dark"] :where(.hover\:bg-white:hover) {
+  background-color: #1c1917 !important;
+}
+
+:root[data-theme="dark"] :where(.bg-stone-900, .bg-stone-950) {
+  background-color: #0f766e;
+}
+
+:root[data-theme="dark"] .bg-stone-800,
+:root[data-theme="dark"] .hover\:bg-stone-800:hover {
+  background-color: #44403c;
+}
+
+:root[data-theme="dark"] :where(.text-teal-700, .text-teal-800, .text-teal-900, .text-teal-950) {
+  color: #5eead4 !important;
+}
+
+:root[data-theme="dark"] :where(.text-emerald-700, .text-emerald-800, .text-emerald-900, .text-emerald-950) {
+  color: #6ee7b7 !important;
+}
+
+:root[data-theme="dark"] :where(.text-red-700, .text-red-800, .text-red-900, .text-red-950) {
+  color: #fca5a5 !important;
+}
+
+:root[data-theme="dark"] :where(.text-amber-700, .text-amber-800, .text-amber-900, .text-amber-950) {
+  color: #fcd34d !important;
+}
+
+:root[data-theme="dark"] :where(.text-sky-700, .text-sky-800, .text-sky-900, .text-sky-950, .text-blue-700, .text-blue-800, .text-blue-900, .text-blue-950) {
+  color: #bae6fd !important;
+}
+
+:root[data-theme="dark"] :where(.text-violet-700, .text-violet-800, .text-violet-900, .text-violet-950) {
+  color: #ddd6fe !important;
+}
+
+:root[data-theme="dark"] :where(.text-orange-700, .text-orange-800, .text-orange-900, .text-orange-950) {
+  color: #fed7aa !important;
+}
+
+:root[data-theme="dark"] :where(.text-rose-700, .text-rose-800, .text-rose-900, .text-rose-950) {
+  color: #fecdd3 !important;
+}
+
+:root[data-theme="dark"] :where(.bg-teal-50, .bg-teal-100) {
+  background-color: #042f2e !important;
+}
+
+:root[data-theme="dark"] :where(.bg-emerald-50, .bg-emerald-100) {
+  background-color: #022c22 !important;
+}
+
+:root[data-theme="dark"] :where(.bg-red-50, .bg-red-100) {
+  background-color: #450a0a !important;
+}
+
+:root[data-theme="dark"] :where(.bg-amber-50, .bg-amber-100) {
+  background-color: #422006 !important;
+}
+
+:root[data-theme="dark"] :where(.bg-sky-50, .bg-blue-50, .bg-blue-100) {
+  background-color: #082f49 !important;
+}
+
+:root[data-theme="dark"] :where(.bg-violet-50, .bg-violet-100) {
+  background-color: #2e1065 !important;
+}
+
+:root[data-theme="dark"] :where(.bg-orange-50, .bg-orange-100) {
+  background-color: #431407 !important;
+}
+
+:root[data-theme="dark"] :where(.bg-rose-50, .bg-rose-100) {
+  background-color: #4c0519 !important;
+}
+
+:root[data-theme="dark"] .theme-switch-to-dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .theme-switch-to-light {
+  display: block;
 }
 
 button,
@@ -119,5 +227,39 @@ textarea.form-input {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  :root[data-theme="dark"] {
+    color-scheme: light !important;
+    --background: #ffffff;
+    --foreground: #1c1917;
+    --field-border: #78716c;
+    --field-border-invalid: #b91c1c;
+    --field-background: #ffffff;
+    --color-stone-50: #fafaf9;
+    --color-stone-100: #f5f5f4;
+    --color-stone-200: #e7e5e4;
+    --color-stone-300: #d6d3d1;
+    --color-stone-400: #a8a29e;
+    --color-stone-500: #78716c;
+    --color-stone-600: #57534e;
+    --color-stone-700: #44403c;
+    --color-stone-800: #292524;
+    --color-stone-900: #1c1917;
+    --color-stone-950: #0c0a09;
+  }
+
+  :root[data-theme="dark"] body {
+    background: #ffffff !important;
+    color: #1c1917 !important;
+  }
+
+  :root[data-theme="dark"] body :where(*) {
+    border-color: #78716c !important;
+    background-color: transparent !important;
+    color: #1c1917 !important;
+    box-shadow: none !important;
   }
 }

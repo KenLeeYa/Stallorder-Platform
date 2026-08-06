@@ -1,5 +1,104 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+describe("getOrCreateDeviceId", () => {
+  const cookieDeviceId = "11111111-1111-4111-8111-111111111111";
+  const storedDeviceId = "22222222-2222-4222-8222-222222222222";
+  const generatedDeviceId = "33333333-3333-4333-8333-333333333333";
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  function installBrowserStorage(cookie: string, storedValue: string | null) {
+    let currentCookie = cookie;
+    let currentStoredValue = storedValue;
+    const storage = {
+      getItem: vi.fn(() => currentStoredValue),
+      setItem: vi.fn((_key: string, value: string) => {
+        currentStoredValue = value;
+      }),
+      removeItem: vi.fn(() => {
+        currentStoredValue = null;
+      }),
+    };
+    const randomUUID = vi.fn(() => generatedDeviceId);
+    vi.stubGlobal("document", {
+      get cookie() {
+        return currentCookie;
+      },
+      set cookie(value: string) {
+        currentCookie = value;
+      },
+    });
+    vi.stubGlobal("window", {
+      location: { protocol: "https:", hostname: "app.qidaigo.com" },
+      localStorage: storage,
+    });
+    vi.stubGlobal("crypto", { randomUUID });
+    return {
+      getCookie: () => currentCookie,
+      getStoredValue: () => currentStoredValue,
+      randomUUID,
+      storage,
+    };
+  }
+
+  it("優先沿用有效 Cookie，並同步版本化的本機備援", async () => {
+    const browser = installBrowserStorage(
+      `another=value; stallorder_device=${cookieDeviceId}`,
+      storedDeviceId,
+    );
+    const { getOrCreateDeviceId } = await import("./public-order-client");
+
+    expect(getOrCreateDeviceId()).toBe(cookieDeviceId);
+    expect(JSON.parse(browser.getStoredValue() ?? "{}")).toMatchObject({
+      id: cookieDeviceId,
+    });
+    expect(browser.randomUUID).not.toHaveBeenCalled();
+  });
+
+  it("Cookie 缺失時從有效本機備援復原，並補回一年期安全 Cookie", async () => {
+    const browser = installBrowserStorage("another=value", storedDeviceId);
+    const { getOrCreateDeviceId } = await import("./public-order-client");
+
+    expect(getOrCreateDeviceId()).toBe(storedDeviceId);
+    expect(browser.getCookie()).toContain(`stallorder_device=${storedDeviceId}`);
+    expect(browser.getCookie()).toContain("Max-Age=31536000");
+    expect(browser.getCookie()).toContain("SameSite=Lax; Secure");
+    expect(JSON.parse(browser.getStoredValue() ?? "{}")).toMatchObject({
+      id: storedDeviceId,
+    });
+    expect(browser.randomUUID).not.toHaveBeenCalled();
+  });
+
+  it("Cookie 與本機備援皆無效時產生新識別並同步兩處", async () => {
+    const browser = installBrowserStorage("stallorder_device=%E0%A4%A", "invalid");
+    const { getOrCreateDeviceId } = await import("./public-order-client");
+
+    expect(getOrCreateDeviceId()).toBe(generatedDeviceId);
+    expect(browser.getCookie()).toContain(`stallorder_device=${generatedDeviceId}`);
+    expect(JSON.parse(browser.getStoredValue() ?? "{}")).toMatchObject({
+      id: generatedDeviceId,
+    });
+    expect(browser.randomUUID).toHaveBeenCalledOnce();
+  });
+
+  it("不會從已逾期的本機備援復活識別碼", async () => {
+    const browser = installBrowserStorage("", JSON.stringify({
+      id: storedDeviceId,
+      expiresAt: Date.now() - 1,
+    }));
+    const { getOrCreateDeviceId } = await import("./public-order-client");
+
+    expect(getOrCreateDeviceId()).toBe(generatedDeviceId);
+    expect(browser.storage.removeItem).toHaveBeenCalledWith("stallorder_device:v1");
+    expect(JSON.parse(browser.getStoredValue() ?? "{}")).toMatchObject({
+      id: generatedDeviceId,
+    });
+  });
+});
+
 describe("publicEdgeUrl", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -157,6 +256,45 @@ describe("requestPublicOrder", () => {
     expect(response.status).toBe(201);
     expect(fetchImpl.mock.calls.map(([input]) => String(input))).toContain(
       "/api/public/order-session",
+    );
+  });
+});
+
+describe("respondToFulfillmentTime", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  it("posts only the bound device, version, and response to the same-site API", async () => {
+    const fetchImpl = vi.fn(async () => Response.json({
+      ok: true,
+      state: "CONFIRMED",
+      version: 3,
+    }));
+    const { respondToFulfillmentTime } = await import("./public-order-client");
+    const trackingToken = `sto_${"a".repeat(43)}`;
+
+    const response = await respondToFulfillmentTime({
+      trackingToken,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      version: 3,
+      response: "DECLINE",
+    }, { fetchImpl });
+
+    expect(response.status).toBe(200);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `/api/public/orders/${encodeURIComponent(trackingToken)}/fulfillment-time`,
+      expect.objectContaining({
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          deviceId: "11111111-1111-4111-8111-111111111111",
+          version: 3,
+          response: "DECLINE",
+        }),
+        cache: "no-store",
+      }),
     );
   });
 });

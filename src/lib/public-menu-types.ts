@@ -47,6 +47,7 @@ export type PublicMenuProduct = {
   category: string;
   rank: number | null;
   isBestSeller: boolean;
+  isOrderDiscountEligible: boolean;
   imageUrl: string | null;
   availableFrom?: string | null;
   availableUntil?: string | null;

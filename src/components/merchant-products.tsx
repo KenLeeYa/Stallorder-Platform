@@ -4,24 +4,11 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { QrCodeState, StallOrderingState, UserRole } from "@prisma/client";
 import { QRCodeSVG } from "qrcode.react";
-import { Ban, BarChart3, ChevronDown, CircleStop, Package, PackageCheck, PackageX, Pause, Play, RotateCw, Save } from "lucide-react";
+import { Ban, BarChart3, CircleStop, Package, PackageCheck, PackageX, Pause, Play, RotateCw } from "lucide-react";
 import { StallCatalogSettings, type StallCatalogProduct } from "@/components/stall-catalog-settings";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { roleLabels } from "@/lib/rbac";
 
-type Limits = {
-  orderSessionTtlSeconds: number;
-  unconfirmedOrderTimeoutSeconds: number;
-  maxItemQuantity: number;
-  maxUniqueProducts: number;
-  maxTotalQuantity: number;
-  maxNoteLength: number;
-  maxPendingOrdersPerDevice: number;
-  maxOrdersPerWindow: number;
-  orderWindowSeconds: number;
-  estimatedWaitMinutes: number;
-  businessDayCutoffHour: number;
-};
 type QrState = { token: string; state: QrCodeState; tokenVersion: number } | null;
 type ControlAction = "PAUSE" | "RESUME" | "REVOKE_QR" | "ROTATE_QR" | "MARK_SOLD_OUT" | "MARK_AVAILABLE" | "CLOSE" | "OPEN";
 
@@ -32,16 +19,14 @@ type Props = {
   sharedCatalogUrl?: string;
   appBaseUrl: string;
   qrCode: QrState;
-  orderingSettings: Limits;
   account: { displayName: string; role: UserRole };
 };
 
 const qrLabels: Record<QrCodeState, string> = { ACTIVE: "啟用中", PAUSED: "已暫停", EXPIRED: "已到期", REVOKED: "已撤銷" };
 const orderingLabels: Record<StallOrderingState, string> = { OPEN: "開放點餐", PAUSED: "暫停點餐", CLOSED: "已關閉點餐" };
 
-export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogUrl, appBaseUrl, qrCode, orderingSettings, account }: Props) {
+export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogUrl, appBaseUrl, qrCode, account }: Props) {
   const [ordering, setOrdering] = useState({ orderingState: stall.orderingState, isSoldOut: stall.isSoldOut, qrCode });
-  const [limits, setLimits] = useState(orderingSettings);
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const orderUrl = useMemo(() => ordering.qrCode ? `${appBaseUrl.replace(/\/$/, "")}/q/${ordering.qrCode.token}` : "", [appBaseUrl, ordering.qrCode]);
@@ -54,7 +39,6 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "目前無法更新點餐設定。");
       setOrdering({ orderingState: payload.state.orderingState, isSoldOut: payload.state.isSoldOut, qrCode: payload.state.qrCode });
-      if (payload.state.orderingSettings) setLimits(payload.state.orderingSettings);
       setMessage("點餐設定已更新。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
@@ -66,10 +50,6 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
   async function runControl(action: ControlAction) {
     if ((action === "REVOKE_QR" || action === "ROTATE_QR") && !window.confirm(action === "REVOKE_QR" ? "確定撤銷目前的 QR Code？撤銷後無法恢復。" : "確定輪替 QR token？現有印刷 QR Code 將立即失效。")) return;
     await requestOrderingUpdate({ action });
-  }
-
-  function updateLimit(key: keyof Limits, value: string) {
-    setLimits((current) => ({ ...current, [key]: Number(value) }));
   }
 
   return (
@@ -116,35 +96,6 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
       <div>
         {message ? <p role="alert" className="mb-4 text-sm text-red-700">{message}</p> : null}
         <StallCatalogSettings stallId={stall.id} currency={stall.currency} initialProducts={products} sourceStalls={sourceStalls} />
-
-        <details className="group mt-10 border-y border-stone-200">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-semibold hover:text-teal-800 [&::-webkit-details-marker]:hidden">
-            <span>安全與訂單限制</span>
-            <ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" />
-          </summary>
-          <div className="pb-7">
-            <div className="mb-6 grid gap-4 border-b border-stone-200 pb-6 sm:grid-cols-2">
-              <label className="text-sm font-medium text-stone-700">顧客預估等候分鐘<input type="number" min={0} max={240} value={limits.estimatedWaitMinutes} onChange={(event) => updateLimit("estimatedWaitMinutes", event.target.value)} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm" /></label>
-              <label className="text-sm font-medium text-stone-700">營業日切換時間<select value={limits.businessDayCutoffHour} onChange={(event) => updateLimit("businessDayCutoffHour", event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>)}</select><span className="mt-1 block text-xs font-normal text-stone-500">切換前完成的訂單計入前一個營業日。</span></label>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {([
-              ["orderSessionTtlSeconds", "點餐工作階段秒數", 60, 1800],
-              ["unconfirmedOrderTimeoutSeconds", "待確認逾時秒數", 60, 3600],
-              ["maxItemQuantity", "單品數量上限", 1, 100],
-              ["maxUniqueProducts", "商品種類上限", 1, 100],
-              ["maxTotalQuantity", "總數量上限", 1, 500],
-              ["maxNoteLength", "備註字數上限", 0, 2000],
-              ["maxPendingOrdersPerDevice", "每裝置待確認上限", 1, 20],
-              ["maxOrdersPerWindow", "時間窗訂單上限", 1, 100],
-              ["orderWindowSeconds", "訂單時間窗秒數", 60, 3600],
-            ] as const).map(([key, label, min, max]) => (
-              <label key={key} className="text-sm font-medium text-stone-700">{label}<input type="number" min={min} max={max} value={limits[key]} onChange={(event) => updateLimit(key, event.target.value)} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2 text-sm" /></label>
-            ))}
-            </div>
-            <button type="button" disabled={isSaving} onClick={() => void requestOrderingUpdate({ action: "UPDATE_LIMITS", settings: limits })} className="mt-4 inline-flex items-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存限制</button>
-          </div>
-        </details>
       </div>
     </main>
   );

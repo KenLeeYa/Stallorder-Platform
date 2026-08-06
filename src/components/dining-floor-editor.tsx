@@ -2,6 +2,8 @@
 
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Grip, Move } from "lucide-react";
+import { DiningTableShapeGraphic } from "@/components/dining-table-shape";
+import type { DiningTableShape } from "@/lib/dining-floor";
 import {
   clampFloorCoordinate,
   moveFloorPosition,
@@ -14,6 +16,8 @@ export type EditableFloorTable = {
   isActive: boolean;
   layoutX: number;
   layoutY: number;
+  shape: DiningTableShape;
+  rotationDegrees: number;
 };
 
 type DragState = {
@@ -99,9 +103,10 @@ export function DiningFloorEditor({
             className={`absolute flex h-[16%] w-[18%] touch-none select-none flex-col items-center justify-center overflow-hidden rounded-md border px-1 text-center shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-600 disabled:cursor-wait ${table.isActive ? "border-teal-700 bg-white text-stone-900" : "border-stone-300 bg-stone-200 text-stone-500"}`}
             style={{ left: `${table.layoutX / 10}%`, top: `${table.layoutY / 10}%` }}
           >
-            <Grip className="mb-1 h-3.5 w-3.5 shrink-0 text-stone-400" />
-            <span className="line-clamp-2 text-xs font-semibold sm:text-sm">{table.label}</span>
-            <span className="hidden text-[10px] text-stone-500 sm:block">{table.code}</span>
+            <DiningTableShapeGraphic shape={table.shape} rotationDegrees={table.rotationDegrees} className="pointer-events-none absolute inset-0 h-full w-full" />
+            <Grip className="relative mb-1 h-3.5 w-3.5 shrink-0 text-stone-400" />
+            <span className="relative line-clamp-2 text-xs font-semibold sm:text-sm">{table.label}</span>
+            <span className="relative hidden text-[10px] text-stone-500 sm:block">{table.code}</span>
           </button>
         ))}
         {tables.length === 0 ? (

@@ -65,9 +65,24 @@ describe("offline order contract", () => {
     expect(canTransitionOfflineOrder("LOCAL_COMPLETED", "LOCAL_CANCELLED")).toBe(false);
   });
 
-  it("rejects client-tampered totals and duplicate products", () => {
+  it("rejects client-tampered totals and duplicate configurations while allowing product variants", () => {
     expect(offlineOrderSchema.safeParse({ ...validOrder(), total: 1 }).success).toBe(false);
     const order = validOrder();
+    const variant = {
+      ...order.itemsSnapshot[0],
+      localItemId: "60000000-0000-4000-8000-000000000002",
+      noteOptions: [{
+        ...order.itemsSnapshot[0].noteOptions[0],
+        noteOptionId: "80000000-0000-4000-8000-000000000002",
+        optionName: "加起司",
+      }],
+    };
+    expect(offlineOrderSchema.safeParse({
+      ...order,
+      itemsSnapshot: [...order.itemsSnapshot, variant],
+      subtotal: 460,
+      total: 460,
+    }).success).toBe(true);
     expect(offlineOrderSchema.safeParse({
       ...order,
       itemsSnapshot: [...order.itemsSnapshot, {

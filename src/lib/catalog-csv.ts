@@ -29,6 +29,16 @@ const catalogCsvRowSchema = z.object({
   description_vi: z.string().trim().max(500),
   name_th: z.string().trim().max(80),
   description_th: z.string().trim().max(500),
+  isOrderDiscountEligible: z.union([
+    z.literal("").transform(() => null),
+    z.string().trim().toLowerCase().pipe(z.enum(["true", "false"]))
+      .transform((value) => value === "true"),
+  ]),
+  isLotteryEligible: z.union([
+    z.literal("").transform(() => null),
+    z.string().trim().toLowerCase().pipe(z.enum(["true", "false"]))
+      .transform((value) => value === "true"),
+  ]),
 }).strict().superRefine((row, context) => {
   for (const columns of catalogCsvTranslationColumns) {
     if (!row[columns.name] && row[columns.description]) {
@@ -73,7 +83,11 @@ export function parseCatalogCsvPreview(text: string) {
   if (parsed.data.length > 500) return { ok: false as const, error: "單次最多匯入 500 筆商品。" };
 
   const headers = parsed.meta.fields ?? [];
-  if (catalogCsvHeaders.some((header) => !headers.includes(header))) {
+  if (catalogCsvHeaders.some((header) => (
+    header !== "isOrderDiscountEligible"
+    && header !== "isLotteryEligible"
+    && !headers.includes(header)
+  ))) {
     return { ok: false as const, error: "CSV 欄位不完整，請先匯出範本後再修改。" };
   }
 

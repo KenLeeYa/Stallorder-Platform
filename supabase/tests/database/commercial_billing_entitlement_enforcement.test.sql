@@ -4,6 +4,14 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(34);
 
+create temporary table billing_test_baseline on commit drop as
+select coalesce((
+  select billable_order_count
+  from public.billing_usage_summaries
+  where organization_id = '11111111-1111-4111-8111-111111111111'
+    and billing_period = date_trunc('month', now())::date
+), 0)::integer as billable_order_count;
+
 select is(
   public.billing_order_access_code('11111111-1111-4111-8111-111111111111', false),
   'OK',
@@ -303,10 +311,12 @@ select ok(exists(
     and notification_type = 'USAGE_110_PERCENT'
 ), 'paid usage above 110 percent creates upgrade recommendation');
 select is((
-  select billable_order_count from public.billing_usage_summaries
-  where organization_id = '11111111-1111-4111-8111-111111111111'
-    and billing_period = date_trunc('month', now())::date
-), 2, 'usage summary is rebuilt from unique completed-order events');
+  select summary.billable_order_count - baseline.billable_order_count
+  from public.billing_usage_summaries summary
+  cross join billing_test_baseline baseline
+  where summary.organization_id = '11111111-1111-4111-8111-111111111111'
+    and summary.billing_period = date_trunc('month', now())::date
+), 2, 'usage summary adds two unique completed-order events');
 
 update public.subscriptions set status = 'SUSPENDED', suspended_at = now()
 where organization_id = '11111111-1111-4111-8111-111111111111';
@@ -345,7 +355,11 @@ select throws_ok(
 );
 select is((
   select count(*)::integer from public.orders
-  where organization_id = '11111111-1111-4111-8111-111111111111'
+  where id in (
+    'c6000000-0000-4000-8000-000000000001',
+    'c6000000-0000-4000-8000-000000000002',
+    'c6000000-0000-4000-8000-000000000003'
+  )
 ), 3, 'suspension preserves historical orders');
 
 update public.subscriptions set status = 'ACTIVE', suspended_at = null

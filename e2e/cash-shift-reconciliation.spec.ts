@@ -80,6 +80,7 @@ test.describe.serial("現金交班與短溢收", () => {
         await group.locator('input[type="radio"], input[type="checkbox"]').first().check();
       }
     }
+    await composer.getByRole("button", { name: "加入購物車", exact: true }).click();
     await composer.getByLabel("顧客名稱（選填）").fill(customerName);
     await composer.getByTestId("staff-mobile-cart-summary").click();
     await expect(composer.getByTestId("staff-order-cart-panel")).toBeVisible();
@@ -138,7 +139,7 @@ test.describe.serial("現金交班與短溢收", () => {
     expect(pending.countedAmount).toBe(1100);
     expect(pending.varianceAmount).toBe(-50);
 
-    const ownerPage = await newRolePage(browser, "owner@stallorder.test", /\/merchant\/dashboard/);
+    const ownerPage = await newRolePage(browser, "owner@stallorder.test", /\/merchant\/dashboard\?organizationId=/);
     await ownerPage.goto(`/staff/${stallSlug}/cash`);
     const shiftRecord = ownerPage.getByRole("article").filter({ hasText: "Cash shift E2E 班次" });
     await expect(shiftRecord).toContainText("等待複核");

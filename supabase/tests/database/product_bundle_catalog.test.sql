@@ -234,6 +234,20 @@ insert into public.product_bundle_choice_groups (
   1
 );
 
+insert into public.product_bundle_choices (
+  id, organization_id, choice_group_id, component_product_id,
+  quantity, price_delta, is_enabled, sort_order
+) values (
+  'ab950000-0000-4000-8000-000000000001',
+  'ab900000-0000-4000-8000-000000000001',
+  'ab940000-0000-4000-8000-000000000001',
+  'ab930000-0000-4000-8000-000000000001',
+  1,
+  0,
+  true,
+  1
+);
+
 select throws_ok(
   $$insert into public.product_bundle_choices (
       organization_id, choice_group_id, component_product_id,
@@ -307,13 +321,27 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', 'ab990000-0000-4000-8000-000000000001', true);
 
 select is(
-  (select count(*)::integer from public.product_bundle_choice_groups),
+  (
+    select count(*)::integer
+    from public.product_bundle_choice_groups
+    where id = any (array[
+      'ab100000-0000-4000-8000-000000000001'::uuid,
+      'ab940000-0000-4000-8000-000000000001'::uuid
+    ])
+  ),
   1,
   'RLS 只允許組織成員讀取自己組織的套餐群組'
 );
 
 select is(
-  (select count(*)::integer from public.product_bundle_choices),
+  (
+    select count(*)::integer
+    from public.product_bundle_choices
+    where id = any (array[
+      'ab200000-0000-4000-8000-000000000001'::uuid,
+      'ab950000-0000-4000-8000-000000000001'::uuid
+    ])
+  ),
   1,
   'RLS 只允許組織成員讀取自己組織的套餐選項'
 );

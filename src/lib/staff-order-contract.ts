@@ -37,6 +37,7 @@ export const createStaffOrderSchema = z.discriminatedUnion("fulfillmentType", [
     ...baseOrderFields,
     fulfillmentType: z.literal("TAKEOUT"),
     customerPhone: optionalPhoneNumberSchema.optional().default(""),
+    requestedFulfillmentAt: z.string().datetime({ offset: true }).nullable().optional().default(null),
   }).strict(),
   z.object({
     ...baseOrderFields,
@@ -49,11 +50,9 @@ export const createStaffOrderSchema = z.discriminatedUnion("fulfillmentType", [
     fulfillmentType: z.literal("DELIVERY"),
     customerPhone: phoneNumberSchema,
     deliveryAddress: multilineText({ minimum: 1, maximum: 300 }),
+    requestedFulfillmentAt: z.string().datetime({ offset: true }).nullable().optional().default(null),
   }).strict(),
 ]).superRefine((value, context) => {
-  if (new Set(value.items.map((item) => item.productId)).size !== value.items.length) {
-    context.addIssue({ code: "custom", path: ["items"], message: "商品不可重複。" });
-  }
   value.items.forEach((item, index) => {
     if (new Set(item.noteOptionIds).size !== item.noteOptionIds.length) {
       context.addIssue({ code: "custom", path: ["items", index, "noteOptionIds"], message: "註記不可重複。" });
@@ -62,6 +61,19 @@ export const createStaffOrderSchema = z.discriminatedUnion("fulfillmentType", [
       context.addIssue({ code: "custom", path: ["items", index, "bundleChoiceIds"], message: "套餐選項不可重複。" });
     }
   });
+  const configurationKeys = value.items.map((item) => JSON.stringify([
+    item.productId,
+    item.note,
+    [...item.noteOptionIds].sort(),
+    [...item.bundleChoiceIds].sort(),
+  ]));
+  if (new Set(configurationKeys).size !== configurationKeys.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["items"],
+      message: "相同商品與註記設定不可重複，請合併數量。",
+    });
+  }
   if (value.paymentTiming === "PAY_NOW" && !value.checkout) {
     context.addIssue({ code: "custom", path: ["checkout"], message: "立即結帳需要付款資料。" });
   }
@@ -77,6 +89,7 @@ export type StaffOrderCatalog = {
     category: string;
     price: number;
     imageUrl: string | null;
+    isOrderDiscountEligible: boolean;
     kind?: "SINGLE" | "BUNDLE";
     bundleChoiceGroups?: Array<{
       id: string;
@@ -104,7 +117,8 @@ export type StaffOrderCatalog = {
       }>;
     }>;
   }>;
-  tables: Array<{ id: string; label: string }>;
+  tables: Array<{ id: string; label: string; floorId: string | null; floorName: string }>;
+  fulfillmentSlots: string[];
   limits: {
     maxItemQuantity: number;
     maxUniqueProducts: number;

@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import type { PaymentOptionKind, UserRole } from "@prisma/client";
+import { orderItemsExceedLimits } from "@/lib/order-item-limits";
 import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
 import { OFFLINE_APP_PROTOCOL_VERSION } from "@/offline/offline-contract";
 import {
@@ -347,6 +348,7 @@ export async function getOfflineRecoveryWorkspaces(now = new Date()) {
             category: categoryNames.get(product.categoryId) ?? "其他",
             price: product.price,
             imageUrl: product.imageUrl,
+            isOrderDiscountEligible: true,
             noteGroups: product.noteGroups
               .filter((group) => group.isActive)
               .map((group) => ({
@@ -366,6 +368,7 @@ export async function getOfflineRecoveryWorkspaces(now = new Date()) {
               })),
           })),
         tables: [],
+        fulfillmentSlots: [],
         limits: menu.catalog.limits,
       };
       return [{
@@ -463,6 +466,49 @@ function getSelectedNoteOptions(
   });
 }
 
+export function prepareOfflineOrderItemSnapshots(
+  items: CreateOfflineOrderDraft["items"],
+  catalog: Pick<z.infer<typeof menuCatalogSchema>, "products" | "limits">,
+  now: Date,
+) {
+  const products = new Map(catalog.products.map((product) => [product.id, product]));
+  return items.map((item) => {
+    const product = products.get(item.productId);
+    if (
+      !product
+      || !product.isActive
+      || !product.isEnabled
+      || product.isSoldOut
+      || (product.availableFrom && Date.parse(product.availableFrom) > now.getTime())
+      || (product.availableUntil && Date.parse(product.availableUntil) <= now.getTime())
+    ) {
+      throw new OfflineLocalOperationError("OFFLINE_PRODUCT_UNAVAILABLE");
+    }
+    if (
+      item.quantity < 1
+      || item.quantity > catalog.limits.maxItemQuantity
+      || item.note.length > catalog.limits.maxNoteLength
+    ) {
+      throw new OfflineLocalOperationError("OFFLINE_ITEM_LIMIT_EXCEEDED");
+    }
+    const noteOptions = getSelectedNoteOptions(product.noteGroups, item.noteOptionIds);
+    const unitPrice = Math.max(
+      0,
+      product.price + noteOptions.reduce((sum, option) => sum + option.priceDelta, 0),
+    );
+    return {
+      localItemId: crypto.randomUUID(),
+      productId: product.id,
+      name: product.name,
+      baseUnitPrice: product.price,
+      unitPrice,
+      quantity: item.quantity,
+      note: item.note,
+      noteOptions,
+    };
+  });
+}
+
 function parseRecord<T>(schema: z.ZodType<T>, value: unknown, code: OfflineLocalOperationError["code"]) {
   const parsed = schema.safeParse(value);
   if (!parsed.success) throw new OfflineLocalOperationError(code);
@@ -550,52 +596,14 @@ export async function createOfflineOrder(
     }
 
     const catalog = menu.catalog;
-    const totalQuantity = draft.items.reduce((sum, item) => sum + item.quantity, 0);
     if (
       draft.items.length < 1
-      || draft.items.length > catalog.limits.maxUniqueProducts
-      || totalQuantity > catalog.limits.maxTotalQuantity
-      || draft.note.length > catalog.limits.maxNoteLength
-      || new Set(draft.items.map((item) => item.productId)).size !== draft.items.length
+      || draft.items.length > 100
+      || orderItemsExceedLimits(draft.items, draft.note, catalog.limits)
     ) {
       throw new OfflineLocalOperationError("OFFLINE_ITEM_LIMIT_EXCEEDED");
     }
-    const products = new Map(catalog.products.map((product) => [product.id, product]));
-    const itemSnapshots = draft.items.map((item) => {
-      const product = products.get(item.productId);
-      if (
-        !product
-        || !product.isActive
-        || !product.isEnabled
-        || product.isSoldOut
-        || (product.availableFrom && Date.parse(product.availableFrom) > now.getTime())
-        || (product.availableUntil && Date.parse(product.availableUntil) <= now.getTime())
-      ) {
-        throw new OfflineLocalOperationError("OFFLINE_PRODUCT_UNAVAILABLE");
-      }
-      if (
-        item.quantity < 1
-        || item.quantity > catalog.limits.maxItemQuantity
-        || item.note.length > catalog.limits.maxNoteLength
-      ) {
-        throw new OfflineLocalOperationError("OFFLINE_ITEM_LIMIT_EXCEEDED");
-      }
-      const noteOptions = getSelectedNoteOptions(product.noteGroups, item.noteOptionIds);
-      const unitPrice = Math.max(
-        0,
-        product.price + noteOptions.reduce((sum, option) => sum + option.priceDelta, 0),
-      );
-      return {
-        localItemId: crypto.randomUUID(),
-        productId: product.id,
-        name: product.name,
-        baseUnitPrice: product.price,
-        unitPrice,
-        quantity: item.quantity,
-        note: item.note,
-        noteOptions,
-      };
-    });
+    const itemSnapshots = prepareOfflineOrderItemSnapshots(draft.items, catalog, now);
     const subtotal = itemSnapshots.reduce(
       (sum, item) => sum + item.unitPrice * item.quantity,
       0,

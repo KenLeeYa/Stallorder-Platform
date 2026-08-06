@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { PwaRuntime } from "@/components/pwa-runtime";
 import { VercelPerformanceMonitoring } from "@/components/vercel-performance-monitoring";
+import { initializeThemeScript } from "@/lib/theme";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -41,8 +43,17 @@ export default function RootLayout({
   return (
     <html
       lang="zh-Hant-TW"
+      data-theme="light"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <Script
+          id="stallorder-theme-initializer"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: initializeThemeScript }}
+        />
+      </head>
       <body suppressHydrationWarning className="min-h-full bg-stone-50 text-stone-950">
         <a href="#main-content" className="skip-link">跳至主要內容</a>
         <PwaRuntime>

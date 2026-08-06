@@ -5,6 +5,7 @@ const database = vi.hoisted(() => ({
   diningTableFindMany: vi.fn(),
   settingsFindUniqueOrThrow: vi.fn(),
   settingsFindUnique: vi.fn(),
+  queryRaw: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -15,6 +16,7 @@ vi.mock("@/lib/prisma", () => ({
       findUniqueOrThrow: database.settingsFindUniqueOrThrow,
       findUnique: database.settingsFindUnique,
     },
+    $queryRaw: database.queryRaw,
   },
 }));
 
@@ -41,6 +43,7 @@ function assignment(input: {
       name: kind === "BUNDLE" ? "招牌套餐" : "單點河粉",
       description: "",
       defaultPrice: 100,
+      isOrderDiscountEligible: true,
       kind,
       imageUrl: null,
       category: { name: "主食" },
@@ -84,6 +87,7 @@ describe("店員點餐套餐目錄", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     database.diningTableFindMany.mockResolvedValue([]);
+    database.queryRaw.mockResolvedValue([{ slots: [] }]);
     database.settingsFindUniqueOrThrow.mockResolvedValue({
       dineInEnabled: false,
       staffDeliveryEnabled: false,
@@ -126,6 +130,7 @@ describe("店員點餐套餐目錄", () => {
     expect(configuration.catalog?.products[0]).toMatchObject({
       kind: "BUNDLE",
       price: 100,
+      isOrderDiscountEligible: true,
       bundleChoiceGroups: [{
         name: "主餐",
         choices: [{ name: "河粉", quantity: 1, priceDelta: 20 }],
@@ -150,5 +155,30 @@ describe("店員點餐套餐目錄", () => {
       kind: "BUNDLE",
       bundleChoiceGroups: [{ minSelections: 0, choices: [] }],
     }]);
+  });
+
+  it("groups physical and legacy tables with a floor name for staff ordering", async () => {
+    database.stallProductFindMany.mockResolvedValue([]);
+    database.diningTableFindMany.mockResolvedValue([
+      { id: "table-1", label: "A1", floorId: null, floor: null },
+      { id: "table-2", label: "B1", floorId: "floor-2", floor: { name: "2樓" } },
+    ]);
+
+    const configuration = await getStaffOrderPageConfiguration(stallId, organizationId, true);
+
+    expect(configuration.catalog?.tables).toEqual([
+      { id: "table-1", label: "A1", floorId: null, floorName: "1樓" },
+      { id: "table-2", label: "B1", floorId: "floor-2", floorName: "2樓" },
+    ]);
+  });
+
+  it("returns server-generated fulfillment slots for staff pickup and delivery", async () => {
+    const slots = ["2026-08-07T04:00:00+00:00", "2026-08-07T04:30:00+00:00"];
+    database.stallProductFindMany.mockResolvedValue([]);
+    database.queryRaw.mockResolvedValue([{ slots }]);
+
+    const configuration = await getStaffOrderPageConfiguration(stallId, organizationId, true);
+
+    expect(configuration.catalog?.fulfillmentSlots).toEqual(slots);
   });
 });

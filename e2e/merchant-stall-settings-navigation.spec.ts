@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 
-test.use({ viewport: { width: 390, height: 844 } });
+test.use({ viewport: { width: 375, height: 812 } });
 
 test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) => {
   await page.goto("/login");
@@ -11,21 +11,20 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(/\/merchant\/dashboard/, { timeout: 30_000 });
+  await expect(page).toHaveURL(
+    new RegExp(`/merchant/dashboard\\?organizationId=${organizationId}$`),
+    { timeout: 30_000 },
+  );
 
   await page.goto(`/merchant/stalls/${stallId}`);
-  const [brandBox, organizationBox, scopeBox] = await Promise.all([
-    page.getByRole("link", { name: "攤點通", exact: true }).boundingBox(),
-    page.getByLabel("選擇組織").boundingBox(),
-    page.getByLabel("選擇攤位範圍").boundingBox(),
-  ]);
-  expect(brandBox).not.toBeNull();
-  expect(organizationBox).not.toBeNull();
-  expect(scopeBox).not.toBeNull();
-  expect(organizationBox!.y).toBeGreaterThan(brandBox!.y + brandBox!.height);
-  expect(Math.abs(organizationBox!.y - scopeBox!.y)).toBeLessThanOrEqual(1);
-  expect(scopeBox!.x).toBeGreaterThan(organizationBox!.x);
-  expect(Math.abs(organizationBox!.width - scopeBox!.width)).toBeLessThanOrEqual(1);
+  await expect(page.getByRole("link", { name: "攤點通", exact: true })).toHaveAttribute(
+    "href",
+    `/merchant/stalls?organizationId=${organizationId}`,
+  );
+  await expect(page.getByLabel("選擇商家")).toHaveCount(0);
+  await expect(page.getByLabel("選擇攤位")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "前往攤位 阿明鹽酥雞", exact: true }))
+    .toHaveAttribute("href", "/merchant/aming-chicken");
 
   for (const heading of ["攤位設定", "營運工具", "組織管理"]) {
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
@@ -41,9 +40,17 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     ["營運狀態", "operations"],
     ["營業時間", "business-hours"],
     ["營運模組與內用桌位", "modules"],
+    ["安全與訂單限制", "order-limits"],
     ["多攤位範本", "templates"],
     ["攤位成員", "members"],
   ] as const;
+  const staticSectionScopes: Record<string, string> = {
+    basic: "stall-basic",
+    operations: "stall-operations",
+    "business-hours": "business-hours",
+    templates: "stall-template",
+    members: "stall-team",
+  };
 
   for (const [label, section] of sectionLinks) {
     await page.goto(`/merchant/stalls/${stallId}`);
@@ -53,6 +60,16 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/settings/${section}$`));
     await expect(page.getByRole("heading", { name: label, exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "返回攤位設定", exact: true })).toBeVisible();
+    const staticScope = staticSectionScopes[section];
+    if (staticScope) {
+      await expect(page.locator(`section[data-settings-scope="${staticScope}"]`)).toHaveCount(1);
+    }
+    await expect(page.locator("details[data-settings-scope]")).toHaveCount(section === "modules" ? 1 : 0);
+    await expect(page.getByTestId("stall-modules-toggle-all")).toHaveCount(section === "modules" ? 1 : 0);
+    const hasSectionOverflow = await page.evaluate(() => (
+      document.documentElement.scrollWidth > document.documentElement.clientWidth
+    ));
+    expect(hasSectionOverflow, `${label} 不應產生手機版水平溢位`).toBe(false);
   }
 
   const organizationLinks = [

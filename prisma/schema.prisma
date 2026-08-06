@@ -270,6 +270,17 @@ enum DiningTableServiceState {
   @@map("dining_table_service_state")
 }
 
+enum DiningTableShape {
+  CIRCLE
+  ELLIPSE
+  SQUARE
+  RECTANGLE
+  DIAMOND
+  TRIANGLE
+
+  @@map("dining_table_shape")
+}
+
 enum CancellationReason {
   SOLD_OUT
   CUSTOMER_CANCELLED
@@ -372,6 +383,7 @@ model Organization {
   productNoteOptionTranslations ProductNoteOptionTranslation[]
   productNoteAssignments        ProductNoteGroupAssignment[]
   stallProducts                 StallProduct[]
+  diningFloors                  DiningFloor[]
   diningTables                  DiningTable[]
   paymentOptions                PaymentOption[]
   discountOptions               DiscountOption[]
@@ -466,9 +478,11 @@ model Stall {
   auditLogs              AuditLog[]
   qrCodes                QrCode[]
   orderingSettings       StallOrderingSettings?
+  diningFloors           DiningFloor[]
   diningTables           DiningTable[]
   paymentOptions         PaymentOption[]
   discountOptions        DiscountOption[]
+  lotteryDiscountChances StallLotteryDiscountChance[]
   orderSessions          OrderSession[]
   publicOrderAttempts    PublicOrderAttempt[]
   publicRateLimitBuckets PublicRateLimitBucket[]
@@ -547,6 +561,7 @@ model Profile {
   discountAppliedOrders    Order[]                   @relation("DiscountAppliedBy")
   discountApprovedOrders   Order[]                   @relation("DiscountApprovedBy")
   cancelledOrders          Order[]                   @relation("OrderCancelledBy")
+  fulfillmentTimeProposedOrders Order[]              @relation("FulfillmentTimeProposedBy")
   createdReportSchedules   ReportSchedule[]          @relation("ReportScheduleCreatedBy")
   updatedReportSchedules   ReportSchedule[]          @relation("ReportScheduleUpdatedBy")
   merchantApplications     MerchantApplication[]             @relation("MerchantApplicationApplicant")
@@ -1441,6 +1456,8 @@ model Product {
   defaultPrice         Int                          @map("default_price")
   kind                 ProductKind                  @default(SINGLE)
   imageUrl             String?                      @map("image_url")
+  isOrderDiscountEligible Boolean                    @default(true) @map("is_order_discount_eligible")
+  isLotteryEligible    Boolean                      @default(true) @map("is_lottery_eligible")
   isActive             Boolean                      @default(true) @map("is_active")
   sortOrder            Int                          @default(0) @map("sort_order")
   createdAt            DateTime                     @default(now()) @map("created_at")
@@ -1735,7 +1752,7 @@ model StallOrderingSettings {
   takeoutPreorderEnabled         Boolean      @default(false) @map("takeout_preorder_enabled")
   preorderMinLeadMinutes         Int          @default(60) @map("preorder_min_lead_minutes") @db.SmallInt
   preorderMaxDays                Int          @default(7) @map("preorder_max_days") @db.SmallInt
-  preorderSlotMinutes            Int          @default(30) @map("preorder_slot_minutes") @db.SmallInt
+  preorderSlotMinutes            Int          @default(5) @map("preorder_slot_minutes") @db.SmallInt
   lotteryEnabled                 Boolean      @default(false) @map("lottery_enabled")
   lotteryDiscountOptionId        String?      @map("lottery_discount_option_id") @db.Uuid
   lotteryDiscountWinRateBps      Int          @default(0) @map("lottery_discount_win_rate_bps") @db.SmallInt
@@ -1952,16 +1969,36 @@ model StallSchedule {
   @@map("stall_schedules")
 }
 
+model DiningFloor {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  stallId        String        @map("stall_id") @db.Uuid
+  name           String
+  sortOrder      Int           @default(0) @map("sort_order")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall         @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  tables         DiningTable[]
+
+  @@unique([stallId, name])
+  @@index([organizationId, stallId, sortOrder, name])
+  @@map("dining_floors")
+}
+
 model DiningTable {
   id             String                  @id @default(uuid()) @db.Uuid
   organizationId String                  @map("organization_id") @db.Uuid
   stallId        String                  @map("stall_id") @db.Uuid
+  floorId        String?                 @map("floor_id") @db.Uuid
   code           String
   label          String
   isActive       Boolean                 @default(true) @map("is_active")
   sortOrder      Int                     @default(0) @map("sort_order")
   layoutX        Int                     @default(60) @map("layout_x") @db.SmallInt
   layoutY        Int                     @default(80) @map("layout_y") @db.SmallInt
+  shape          DiningTableShape        @default(SQUARE)
+  rotationDegrees Int                    @default(0) @map("rotation_degrees") @db.SmallInt
   serviceState   DiningTableServiceState @default(EMPTY) @map("service_state")
   seatedAt       DateTime?               @map("seated_at")
   cleanedAt      DateTime?               @map("cleaned_at")
@@ -1969,12 +2006,14 @@ model DiningTable {
   updatedAt      DateTime                @updatedAt @map("updated_at")
   organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall          Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  floor          DiningFloor?            @relation(fields: [floorId], references: [id], onDelete: Restrict)
   qrCodes        QrCode[]
   orders         Order[]
   checkoutGroups CheckoutGroup[]
 
   @@unique([stallId, code])
   @@index([organizationId, stallId, isActive])
+  @@index([stallId, floorId, sortOrder, label])
   @@map("dining_tables")
 }
 
@@ -2013,9 +2052,23 @@ model DiscountOption {
   stall          Stall           @relation(fields: [stallId], references: [id], onDelete: Cascade)
   orders         Order[]
   checkoutGroups CheckoutGroup[]
+  lotteryChances StallLotteryDiscountChance[]
 
   @@index([organizationId, stallId, isEnabled])
   @@map("discount_options")
+}
+
+model StallLotteryDiscountChance {
+  stallId          String         @map("stall_id") @db.Uuid
+  discountOptionId String         @map("discount_option_id") @db.Uuid
+  winRateBps       Int            @map("win_rate_bps") @db.SmallInt
+  createdAt        DateTime       @default(now()) @map("created_at")
+  stall            Stall          @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  discountOption   DiscountOption @relation(fields: [discountOptionId], references: [id], onDelete: Cascade)
+
+  @@id([stallId, discountOptionId])
+  @@index([discountOptionId])
+  @@map("stall_lottery_discount_chances")
 }
 
 model OrderSession {
@@ -2074,6 +2127,15 @@ model Order {
   platformDiscountAmount   Int?                @map("platform_discount_amount")
   merchantDiscountAmount   Int?                @map("merchant_discount_amount")
   scheduledPickupAt        DateTime?           @map("scheduled_pickup_at")
+  requestedFulfillmentAt   DateTime?           @map("requested_fulfillment_at")
+  committedFulfillmentAt   DateTime?           @map("committed_fulfillment_at")
+  pendingFulfillmentAt     DateTime?           @map("pending_fulfillment_at")
+  fulfillmentTimeState     String              @default("NOT_REQUESTED") @map("fulfillment_time_state")
+  fulfillmentTimeVersion   Int                 @default(0) @map("fulfillment_time_version")
+  fulfillmentTimeResponseExpiresAt DateTime?   @map("fulfillment_time_response_expires_at")
+  customerTimeRespondedAt  DateTime?           @map("customer_time_responded_at")
+  fulfillmentTimeChangeReason String?          @map("fulfillment_time_change_reason")
+  fulfillmentTimeProposedById String?          @map("fulfillment_time_proposed_by") @db.Uuid
   discountSource           String                 @default("NONE") @map("discount_source")
   lotteryDrawId            String?                @unique @map("lottery_draw_id") @db.Uuid
   riderPickupAt            DateTime?           @map("rider_pickup_at")
@@ -2138,6 +2200,7 @@ model Order {
   discountAppliedBy        Profile?            @relation("DiscountAppliedBy", fields: [discountAppliedById], references: [id], onDelete: SetNull)
   discountApprovedBy       Profile?            @relation("DiscountApprovedBy", fields: [discountApprovedById], references: [id], onDelete: SetNull)
   cancelledBy              Profile?            @relation("OrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  fulfillmentTimeProposedBy Profile?            @relation("FulfillmentTimeProposedBy", fields: [fulfillmentTimeProposedById], references: [id], onDelete: SetNull)
   items                    OrderItem[]
   events                   OrderEvent[]
   orderSession             OrderSession?
@@ -2162,6 +2225,8 @@ model Order {
   @@unique([sourceDeviceId, offlineOrderId])
   @@index([stallId, sourceDeviceId, syncedAt(sort: Desc)])
   @@index([stallId, externalProvider, createdAt(sort: Desc)])
+  @@index([stallId, fulfillmentTimeState, createdAt(sort: Desc)])
+  @@index([fulfillmentTimeResponseExpiresAt])
   @@map("orders")
 }
 
@@ -2404,6 +2469,7 @@ model OrderItem {
   baseUnitPrice  Int                   @map("base_unit_price")
   unitPrice      Int                   @map("unit_price")
   quantity       Int
+  isOrderDiscountEligible Boolean      @default(true) @map("is_order_discount_eligible")
   note           String?
   status         OrderItemStatus       @default(PENDING)
   preparingAt    DateTime?             @map("preparing_at")
@@ -2541,6 +2607,7 @@ model OrderEvent {
   previousStatus OrderStatus? @map("previous_status")
   newStatus      OrderStatus? @map("new_status")
   createdBy      String?      @map("created_by") @db.Uuid
+  metadataJson   Json         @default("{}") @map("metadata_json")
   createdAt      DateTime     @default(now()) @map("created_at")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
@@ -2709,6 +2776,7 @@ model NotificationJob {
   orderId            String?                 @map("order_id") @db.Uuid
   provider           NotificationProvider
   templateCode       String                  @map("template_code")
+  eventVersion       Int                     @default(0) @map("event_version")
   recipientReference String                  @map("recipient_reference") @db.Uuid
   status             NotificationJobStatus   @default(PENDING)
   attemptCount       Int                     @default(0) @map("attempt_count")
@@ -2724,7 +2792,7 @@ model NotificationJob {
   contactLink        CustomerContactLink     @relation(fields: [contactLinkId], references: [id], onDelete: Cascade)
   order              Order?                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  @@unique([orderId, provider, templateCode])
+  @@unique([orderId, provider, templateCode, eventVersion])
   @@index([status, nextAttemptAt, createdAt])
   @@index([organizationId, stallId, createdAt(sort: Desc)])
   @@map("notification_jobs")

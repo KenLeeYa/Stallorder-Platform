@@ -50,8 +50,9 @@ insert into public.stalls (
 );
 
 insert into public.stall_ordering_settings (
-  stall_id, organization_id, dine_in_enabled, delivery_module_enabled, print_module_enabled,
-  payment_module_enabled, discount_module_enabled, discount_approval_threshold_bps,
+  stall_id, organization_id, dine_in_enabled, delivery_module_enabled, staff_delivery_enabled,
+  print_module_enabled, payment_module_enabled, discount_module_enabled,
+  lottery_enabled, discount_approval_threshold_bps, takeout_preorder_enabled, preorder_slot_minutes,
   enabled_locales, created_at, updated_at
 ) values (
   '22222222-2222-4222-8222-222222222222',
@@ -61,7 +62,11 @@ insert into public.stall_ordering_settings (
   true,
   true,
   true,
+  true,
+  true,
   8000,
+  true,
+  5,
   array['zh-TW', 'en', 'ja', 'ko', 'vi', 'th']::text[],
   now(),
   now()
@@ -122,6 +127,12 @@ insert into public.discount_options (
 ) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '9 折', 9000, true, 1, now(), now()),
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '8 折', 8000, true, 2, now(), now());
+
+insert into public.stall_lottery_discount_chances (
+  stall_id, discount_option_id, win_rate_bps, created_at
+) values
+  ('22222222-2222-4222-8222-222222222222', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', 1000, now()),
+  ('22222222-2222-4222-8222-222222222222', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', 500, now());
 
 insert into public.qr_codes (
   id, organization_id, stall_id, token, label, state, token_version,
@@ -295,12 +306,104 @@ select
 from public.products
 where organization_id = '11111111-1111-4111-8111-111111111111';
 
+-- Reproducible completed demo sales make the QR Top 3 and popularity-weighted
+-- lottery behavior visible immediately after a local reset.
+with demo_sales(sequence_no, product_id, unit_price, quantity) as (
+  values
+    (1, '44444444-4444-4444-8444-444444444441'::uuid, 95, 3),
+    (2, '44444444-4444-4444-8444-444444444441'::uuid, 95, 3),
+    (3, '44444444-4444-4444-8444-444444444441'::uuid, 95, 3),
+    (4, '44444444-4444-4444-8444-444444444441'::uuid, 95, 3),
+    (5, '44444444-4444-4444-8444-444444444442'::uuid, 55, 4),
+    (6, '44444444-4444-4444-8444-444444444442'::uuid, 55, 2),
+    (7, '44444444-4444-4444-8444-444444444442'::uuid, 55, 2),
+    (8, '44444444-4444-4444-8444-444444444443'::uuid, 75, 1),
+    (9, '44444444-4444-4444-8444-444444444443'::uuid, 75, 1),
+    (10, '44444444-4444-4444-8444-444444444443'::uuid, 75, 1)
+)
+insert into public.orders (
+  id, organization_id, stall_id, order_no, tracking_token_hash, idempotency_key,
+  source, origin, is_test, customer_name, fulfillment_type, status, payment_status,
+  subtotal, total, device_hash, confirmation_expires_at, confirmed_at, paid_at,
+  completed_at, created_at, updated_at
+)
+select
+  ('b5100000-0000-4000-8000-' || lpad(sequence_no::text, 12, '0'))::uuid,
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  'DEMO-HOT-' || lpad(sequence_no::text, 3, '0'),
+  encode(extensions.digest('DEMO-HOT-' || sequence_no, 'sha256'), 'hex'),
+  ('b5300000-0000-4000-8000-' || lpad(sequence_no::text, 12, '0'))::uuid,
+  'DEMO_BESTSELLER_SEED',
+  'IMPORTED'::public.order_origin,
+  false,
+  '熱銷示範訂單',
+  'TAKEOUT',
+  'COMPLETED',
+  'PAID',
+  unit_price * quantity,
+  unit_price * quantity,
+  rpad('demo-bestseller-seed', 64, '0'),
+  now() - make_interval(hours => sequence_no),
+  now() - make_interval(hours => sequence_no),
+  now() - make_interval(hours => sequence_no),
+  now() - make_interval(hours => sequence_no),
+  now() - make_interval(hours => sequence_no),
+  now()
+from demo_sales;
+
+with demo_sales(sequence_no, product_id, unit_price, quantity) as (
+  values
+    (1, '44444444-4444-4444-8444-444444444441'::uuid, 95, 3),
+    (2, '44444444-4444-4444-8444-444444444441'::uuid, 95, 3),
+    (3, '44444444-4444-4444-8444-444444444441'::uuid, 95, 3),
+    (4, '44444444-4444-4444-8444-444444444441'::uuid, 95, 3),
+    (5, '44444444-4444-4444-8444-444444444442'::uuid, 55, 4),
+    (6, '44444444-4444-4444-8444-444444444442'::uuid, 55, 2),
+    (7, '44444444-4444-4444-8444-444444444442'::uuid, 55, 2),
+    (8, '44444444-4444-4444-8444-444444444443'::uuid, 75, 1),
+    (9, '44444444-4444-4444-8444-444444444443'::uuid, 75, 1),
+    (10, '44444444-4444-4444-8444-444444444443'::uuid, 75, 1)
+)
+insert into public.order_items (
+  id, organization_id, stall_id, order_id, product_id, source_line_index,
+  name, base_unit_price, unit_price, quantity, status, created_at
+)
+select
+  ('b5200000-0000-4000-8000-' || lpad(sale.sequence_no::text, 12, '0'))::uuid,
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  ('b5100000-0000-4000-8000-' || lpad(sale.sequence_no::text, 12, '0'))::uuid,
+  sale.product_id,
+  1,
+  product.name,
+  sale.unit_price,
+  sale.unit_price,
+  sale.quantity,
+  'SERVED'::public.order_item_status,
+  now() - make_interval(hours => sale.sequence_no)
+from demo_sales as sale
+join public.products as product on product.id = sale.product_id;
+
 insert into public.profiles (
   id, email, password_hash, display_name, is_active, created_at, updated_at
 ) values
   ('55555555-5555-4555-8555-555555555551', 'owner@stallorder.test', '$2b$12$7u7DvA296znZ3UsOt48Hwer7nLr8Rrtk6bbqqXILK1EKmH9xXxOjm', '示範商戶擁有者', true, now(), now()),
   ('55555555-5555-4555-8555-555555555552', 'staff@stallorder.test', '$2b$12$7u7DvA296znZ3UsOt48Hwer7nLr8Rrtk6bbqqXILK1EKmH9xXxOjm', '示範店員', true, now(), now()),
   ('55555555-5555-4555-8555-555555555553', 'kitchen@stallorder.test', '$2b$12$7u7DvA296znZ3UsOt48Hwer7nLr8Rrtk6bbqqXILK1EKmH9xXxOjm', '示範廚房', true, now(), now());
+
+insert into public.profiles (
+  id, email, password_hash, display_name, is_active, platform_role, created_at, updated_at
+) values (
+  '55555555-5555-4555-8555-555555555554',
+  'platform.admin@stallorder.test',
+  '$2b$12$7u7DvA296znZ3UsOt48Hwer7nLr8Rrtk6bbqqXILK1EKmH9xXxOjm',
+  '示範平台管理員',
+  true,
+  'PLATFORM_ADMIN',
+  now(),
+  now()
+);
 
 insert into public.organization_memberships (
   id, organization_id, profile_id, role, all_stalls, is_primary_owner, is_active, created_at, updated_at

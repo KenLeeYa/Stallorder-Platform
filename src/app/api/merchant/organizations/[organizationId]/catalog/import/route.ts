@@ -44,10 +44,16 @@ export async function POST(request: Request, context: RouteContext) {
   const requestedProductIds = [...new Set(parsed.rows.map((item) => item.row.id).filter(Boolean))];
   const existingProducts = requestedProductIds.length > 0 ? await prisma.product.findMany({
     where: { organizationId, id: { in: requestedProductIds } },
-    select: { id: true, isActive: true },
+    select: { id: true, isActive: true, isOrderDiscountEligible: true, isLotteryEligible: true },
   }) : [];
   const existingProductIds = new Set(existingProducts.map((product) => product.id));
   const existingProductActivity = new Map(existingProducts.map((product) => [product.id, product.isActive]));
+  const existingProductDiscountEligibility = new Map(existingProducts.map((product) => (
+    [product.id, product.isOrderDiscountEligible]
+  )));
+  const existingProductLotteryEligibility = new Map(existingProducts.map((product) => (
+    [product.id, product.isLotteryEligible]
+  )));
   const seenProductIds = new Set<string>();
   const errors: CatalogCsvRowError[] = [...parsed.errors];
   const validRows = parsed.rows.flatMap((item) => {
@@ -146,7 +152,15 @@ export async function POST(request: Request, context: RouteContext) {
       const missingGroup = requestedGroups.find((group) => !groupsByName.has(groupKey(group.categoryId, group.name)));
       if (missingGroup) throw new CatalogImportReferenceError("GROUP", missingGroup.name);
 
-      await upsertImportedProducts(transaction, organizationId, importRows, categoriesByName, groupsByName);
+      await upsertImportedProducts(
+        transaction,
+        organizationId,
+        importRows,
+        categoriesByName,
+        groupsByName,
+        existingProductDiscountEligibility,
+        existingProductLotteryEligibility,
+      );
       await updateImportedTranslations(transaction, organizationId, importRows);
       await updateImportedStallAssignments(
         transaction,
@@ -226,6 +240,8 @@ async function upsertImportedProducts(
   rows: ImportRow[],
   categoriesByName: ReadonlyMap<string, string>,
   groupsByName: ReadonlyMap<string, string>,
+  existingProductDiscountEligibility: ReadonlyMap<string, boolean>,
+  existingProductLotteryEligibility: ReadonlyMap<string, boolean>,
 ) {
   const records = rows.map(({ productId, row }) => {
     const categoryId = categoriesByName.get(catalogKey(row.category));
@@ -242,13 +258,20 @@ async function upsertImportedProducts(
       image_url: row.imageUrl || null,
       sort_order: row.sortOrder,
       is_active: row.isActive,
+      is_order_discount_eligible: row.isOrderDiscountEligible
+        ?? existingProductDiscountEligibility.get(row.id)
+        ?? true,
+      is_lottery_eligible: row.isLotteryEligible
+        ?? existingProductLotteryEligibility.get(row.id)
+        ?? true,
     };
   });
 
   const changedCount = await transaction.$executeRaw(Prisma.sql`
     insert into public.products (
       id, organization_id, category_id, group_id, name, description,
-      default_price, image_url, sort_order, is_active, created_at, updated_at
+      default_price, image_url, sort_order, is_active,
+      is_order_discount_eligible, is_lottery_eligible, created_at, updated_at
     )
     select
       imported.id,
@@ -261,6 +284,8 @@ async function upsertImportedProducts(
       imported.image_url,
       imported.sort_order,
       imported.is_active,
+      imported.is_order_discount_eligible,
+      imported.is_lottery_eligible,
       now(),
       now()
     from jsonb_to_recordset(${JSON.stringify(records)}::jsonb) as imported(
@@ -272,7 +297,9 @@ async function upsertImportedProducts(
       default_price integer,
       image_url text,
       sort_order integer,
-      is_active boolean
+      is_active boolean,
+      is_order_discount_eligible boolean,
+      is_lottery_eligible boolean
     )
     on conflict (id) do update set
       category_id = excluded.category_id,
@@ -283,6 +310,8 @@ async function upsertImportedProducts(
       image_url = excluded.image_url,
       sort_order = excluded.sort_order,
       is_active = excluded.is_active,
+      is_order_discount_eligible = excluded.is_order_discount_eligible,
+      is_lottery_eligible = excluded.is_lottery_eligible,
       updated_at = now()
     where products.organization_id = excluded.organization_id
   `);
