@@ -2,13 +2,19 @@ import { defineConfig, devices } from "@playwright/test";
 import { loadEnvFile } from "node:process";
 
 try {
-  loadEnvFile(".env");
+  loadEnvFile("supabase/functions/e2e-runtime.defaults");
 } catch (error) {
   if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 }
 
 try {
-  loadEnvFile("supabase/functions/e2e-runtime.defaults");
+  loadEnvFile(".env.local");
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+}
+
+try {
+  loadEnvFile(".env");
 } catch (error) {
   if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 }

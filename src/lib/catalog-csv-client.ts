@@ -21,6 +21,8 @@ export const catalogCsvHeaders = [
   "description_vi",
   "name_th",
   "description_th",
+  "isOrderDiscountEligible",
+  "isLotteryEligible",
 ] as const;
 
 export const catalogCsvTranslationColumns = [

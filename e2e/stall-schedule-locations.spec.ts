@@ -34,7 +34,7 @@ test.describe.serial("出攤地點與行程", () => {
 
   test("商家可建立地點與行程，公開頁只顯示安全欄位及攤位時區", async ({ page }) => {
     test.setTimeout(120_000);
-    await login(page, "owner@stallorder.test", /\/merchant\/dashboard/);
+    await login(page, "owner@stallorder.test", /\/merchant\/dashboard\?organizationId=/);
 
     await page.goto(`/merchant/stalls/${stallId}/locations`);
     await expect(page.getByRole("heading", { name: "常用出攤地點" })).toBeVisible();

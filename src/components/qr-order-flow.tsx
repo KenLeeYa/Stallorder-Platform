@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   AlertTriangle,
   ArrowUp,
@@ -17,9 +17,12 @@ import {
   ShoppingCart,
   X,
 } from "lucide-react";
+import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
 import { ProductImage } from "@/components/product-image";
 import { QrLanguageSelector } from "@/components/qr-language-selector";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { deliveryOrderMessages, localizedDeliveryOrderError } from "@/lib/delivery-order-i18n";
+import { buildFulfillmentTimeSlots } from "@/lib/fulfillment-time-options";
 import { formatMoney } from "@/lib/money";
 import {
   bundlePriceAdjustment,
@@ -27,7 +30,6 @@ import {
   toggleBundleChoice,
 } from "@/lib/product-bundle-selection";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
-import { formatPreorderSlot } from "@/lib/preorder-slot-format";
 import {
   getPublicAvailability,
   getOrCreateDeviceId,
@@ -96,6 +98,8 @@ type LotteryDraw = {
   drawId: string;
   productId: string;
   productName: string;
+  bestSellerRank: number | null;
+  recommendationBasis: "BEST_SELLER" | "DISCOVERY";
   discountWon: boolean;
   discountLabel: string | null;
 };
@@ -116,8 +120,11 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const sessionAttemptGenerationRef = useRef(0);
   const localeRef = useRef<QrLocale>("zh-TW");
   const availabilityTargetRef = useRef<string | null>(null);
+  const lotteryButtonRef = useRef<HTMLButtonElement>(null);
   const availabilityStatusRef = useRef<PublicAvailabilityStatus | "CHECKING">("CHECKING");
-  const scheduledPickupAtRef = useRef(initialMenu?.preorderSlots[0] ?? "");
+  const scheduledPickupAtRef = useRef(
+    initialMenu?.orderingMode === "PREORDER" ? initialMenu.preorderSlots[0] ?? "" : "",
+  );
   const secondsRemainingRef = useRef(0);
   const lastCapacityRefreshAtRef = useRef(0);
   const capacityRefreshInFlightRef = useRef(false);
@@ -141,10 +148,14 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [scheduledPickupAt, setScheduledPickupAt] = useState(
-    initialMenu?.preorderSlots[0] ?? "",
+    initialMenu?.orderingMode === "PREORDER" ? initialMenu.preorderSlots[0] ?? "" : "",
+  );
+  const [draftScheduledPickupAt, setDraftScheduledPickupAt] = useState(
+    initialMenu?.orderingMode === "PREORDER" ? initialMenu.preorderSlots[0] ?? "" : "",
   );
   const [lotteryDraw, setLotteryDraw] = useState<LotteryDraw | null>(null);
   const [isDrawingLottery, setIsDrawingLottery] = useState(false);
+  const [lotteryLimitDialogOpen, setLotteryLimitDialogOpen] = useState(false);
   const [customerNote, setCustomerNote] = useState("");
   const [waitAcknowledged, setWaitAcknowledged] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -163,6 +174,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     PublicAvailabilityStatus | "CHECKING"
   >("CHECKING");
   const [availabilityRefreshing, setAvailabilityRefreshing] = useState(false);
+  const closeLotteryLimitDialog = useCallback(() => setLotteryLimitDialogOpen(false), []);
   const copy = qrOrderMessages[locale];
   const deliveryCopy = deliveryOrderMessages[locale];
   const sessionReady = Boolean(session?.orderSessionToken && session.expiresAt);
@@ -247,14 +259,15 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
             ? product.bundleChoiceGroups
             : [],
           isBestSeller: product.isBestSeller === true,
+          isOrderDiscountEligible: product.isOrderDiscountEligible !== false,
           rank: typeof product.rank === "number" ? product.rank : null,
         })),
       };
-      const nextScheduledPickupAt = orderSession.orderingMode === "PREORDER"
-        ? orderSession.preorderSlots.includes(scheduledPickupAtRef.current)
-          ? scheduledPickupAtRef.current
-          : orderSession.preorderSlots[0] ?? ""
-        : "";
+      const nextScheduledPickupAt = orderSession.preorderSlots.includes(scheduledPickupAtRef.current)
+        ? scheduledPickupAtRef.current
+        : orderSession.orderingMode === "PREORDER"
+          ? orderSession.preorderSlots[0] ?? ""
+          : "";
       const restorableProducts = orderSession.orderingMode === "PREORDER"
         ? publicMenuProductsForPickup(orderSession.products, nextScheduledPickupAt)
         : orderSession.products;
@@ -292,10 +305,12 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       lastCapacityRefreshAtRef.current = Date.now();
       capacityRefreshStoppedRef.current = false;
       setActiveOrderingMode(orderSession.orderingMode);
+      scheduledPickupAtRef.current = nextScheduledPickupAt;
+      setScheduledPickupAt(nextScheduledPickupAt);
+      setDraftScheduledPickupAt(nextScheduledPickupAt);
       if (orderSession.orderingMode === "PREORDER") {
-        scheduledPickupAtRef.current = nextScheduledPickupAt;
-        setScheduledPickupAt(nextScheduledPickupAt);
         setLotteryDraw(null);
+        setLotteryLimitDialogOpen(false);
       }
       setCartReady(true);
       setSessionStartError("");
@@ -567,6 +582,21 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     ) * line.quantity;
   }, 0) : 0;
   const categories = [...new Set(visibleProducts.map((product) => product.category))];
+  const fulfillmentTimeSlots = useMemo(() => (
+    session
+      ? buildFulfillmentTimeSlots(session.preorderSlots, session.stall.timezone)
+      : []
+  ), [session]);
+  const canSelectFulfillmentTime = session
+    && session.stall.fulfillmentType !== "DINE_IN"
+    && fulfillmentTimeSlots.length > 0;
+  const fulfillmentTimeLabel = activeOrderingMode === "PREORDER"
+    ? "預約取餐時間"
+    : activeOrderingMode === "DELIVERY"
+      ? "指定送達時間（選填）"
+      : "預計取餐時間（選填）";
+  const hasUnappliedFulfillmentTime = activeOrderingMode === "PREORDER"
+    && draftScheduledPickupAt !== scheduledPickupAt;
   const localizedProduct = useCallback((product: Product) => {
     const translation = product.translations.find((item) => item.locale === locale);
     return translation ? { name: translation.name, description: translation.description } : product;
@@ -772,13 +802,20 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   }
 
   function changeScheduledPickupAt(nextScheduledPickupAt: string) {
-    if (!session || !session.preorderSlots.includes(nextScheduledPickupAt)) return;
+    if (
+      !session
+      || (nextScheduledPickupAt === "" && activeOrderingMode === "PREORDER")
+      || (nextScheduledPickupAt !== "" && !session.preorderSlots.includes(nextScheduledPickupAt))
+    ) return;
+    scheduledPickupAtRef.current = nextScheduledPickupAt;
+    setScheduledPickupAt(nextScheduledPickupAt);
+    setDraftScheduledPickupAt(nextScheduledPickupAt);
+    setMessage("");
+    if (activeOrderingMode !== "PREORDER") return;
     const availableProducts = publicMenuProductsForPickup(
       session.products,
       nextScheduledPickupAt,
     );
-    scheduledPickupAtRef.current = nextScheduledPickupAt;
-    setScheduledPickupAt(nextScheduledPickupAt);
     const nextCartLines = prunePublicCartLinesForProducts(availableProducts, cartLines);
     setCartLines(nextCartLines);
     setProductDrafts((drafts) => {
@@ -823,10 +860,13 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       return nextLineIds;
     });
     setLotteryDraw(null);
-    setMessage("");
   }
 
   async function drawLottery() {
+    if (lotteryDraw) {
+      setLotteryLimitDialogOpen(true);
+      return;
+    }
     if (!sessionReady || !session || !deviceId || isDrawingLottery) return;
     setIsDrawingLottery(true);
     setMessage("");
@@ -845,6 +885,15 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         drawId: String(payload.drawId),
         productId: String(payload.productId),
         productName: String(payload.productName),
+        bestSellerRank: typeof payload.bestSellerRank === "number"
+          && Number.isInteger(payload.bestSellerRank)
+          && payload.bestSellerRank >= 1
+          && payload.bestSellerRank <= 3
+          ? payload.bestSellerRank
+          : null,
+        recommendationBasis: payload.recommendationBasis === "BEST_SELLER"
+          ? "BEST_SELLER"
+          : "DISCOVERY",
         discountWon: payload.discountWon === true,
         discountLabel: typeof payload.discountLabel === "string" ? payload.discountLabel : null,
       };
@@ -852,6 +901,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         throw new Error("抽中的商品目前無法供應，請稍後再試。");
       }
       setLotteryDraw(draw);
+      setLotteryLimitDialogOpen(payload.idempotentReplay === true);
       const product = visibleProducts.find((candidate) => candidate.id === draw.productId);
       const currentQuantity = product && (product.noteGroups.length > 0 || product.bundleChoiceGroups.length > 0)
         ? productDrafts[draw.productId]?.quantity ?? 0
@@ -867,6 +917,10 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   async function submitOrder() {
     if (!orderingEnabled) {
       setMessage(copy.degradedMessage);
+      return;
+    }
+    if (hasUnappliedFulfillmentTime) {
+      setMessage("取餐時間尚未套用，請先按下「套用這個時間」。");
       return;
     }
     if (!sessionReady || !session || !deviceId || !turnstileToken || selectedItems.length === 0) {
@@ -929,7 +983,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         customerNote,
         waitAcknowledged,
         orderingMode: activeOrderingMode,
-        scheduledPickupAt: activeOrderingMode === "PREORDER" ? scheduledPickupAt : null,
+        scheduledPickupAt: scheduledPickupAt || null,
         lotteryDrawId: lotteryDraw?.drawId ?? null,
         items: selectedItems,
         turnstileToken,
@@ -1096,24 +1150,49 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
             />
           </>
         ) : null}
-        {activeOrderingMode === "PREORDER" ? (
-          <label className="block text-sm font-semibold text-stone-700">
-            預約取餐時間
-            <select
-              required
-              aria-label="預約取餐時間"
-              value={scheduledPickupAt}
+        {canSelectFulfillmentTime ? (
+          <div className="min-w-0">
+            <FulfillmentTimePicker
+              slots={fulfillmentTimeSlots}
+              value={activeOrderingMode === "PREORDER" ? draftScheduledPickupAt : scheduledPickupAt}
+              onChange={activeOrderingMode === "PREORDER"
+                ? (value) => {
+                    setDraftScheduledPickupAt(value);
+                    setMessage("");
+                  }
+                : changeScheduledPickupAt}
+              legend={fulfillmentTimeLabel}
+              scheduledLabel={activeOrderingMode === "DELIVERY" ? "指定送達時間" : "指定取餐時間"}
+              dateLabel={activeOrderingMode === "PREORDER"
+                ? "預約取餐日期"
+                : activeOrderingMode === "DELIVERY" ? "送達日期" : "取餐日期"}
+              timeLabel={activeOrderingMode === "PREORDER"
+                ? "預約取餐時間"
+                : activeOrderingMode === "DELIVERY" ? "送達時間" : "取餐時間"}
+              unavailableDateMessage="所選日期目前沒有可接受的時段。"
+              allowAsap={activeOrderingMode !== "PREORDER"}
+              required={activeOrderingMode === "PREORDER"}
               disabled={!orderingEnabled}
-              onChange={(event) => changeScheduledPickupAt(event.target.value)}
-              className="form-input mt-1 bg-white"
-            >
-              {session.preorderSlots.map((slot) => (
-                <option key={slot} value={slot}>
-                  {formatPreorderSlot(slot, locale, session.stall.timezone)}
-                </option>
-              ))}
-            </select>
-          </label>
+              testId={`qr-${activeOrderingMode.toLowerCase()}-fulfillment-time-fields`}
+            />
+            {activeOrderingMode === "PREORDER" ? (
+              <div className="mt-2 grid gap-2">
+                <button
+                  type="button"
+                  disabled={!orderingEnabled || !hasUnappliedFulfillmentTime}
+                  onClick={() => changeScheduledPickupAt(draftScheduledPickupAt)}
+                  className="min-h-11 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:bg-stone-200 disabled:text-stone-500"
+                >
+                  {hasUnappliedFulfillmentTime ? "套用這個時間" : "時間已套用"}
+                </button>
+                {hasUnappliedFulfillmentTime ? (
+                  <p role="status" className="text-xs font-medium text-amber-800">
+                    尚未套用新的取餐時間；套用後才會更新可點商品與購物車。
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         ) : null}
         <textarea
           aria-label={copy.orderNote}
@@ -1156,7 +1235,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           />
         ) : null}
       </div>
-      <button type="button" disabled={!orderingEnabled || isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0 || (session.requiresWaitAcknowledgment && !waitAcknowledged)} onClick={submitOrder} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+      <button type="button" disabled={!orderingEnabled || isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0 || hasUnappliedFulfillmentTime || (session.requiresWaitAcknowledgment && !waitAcknowledged)} onClick={submitOrder} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
         <Send className="h-4 w-4" />
         {isSubmitting ? copy.submitting : copy.submitOrder}
       </button>
@@ -1170,7 +1249,10 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       <section>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><p className="text-sm font-medium text-teal-800">{session.stall.location}</p><h1 className="mt-1 text-3xl font-semibold">{session.stall.name}</h1></div>
-          <QrLanguageSelector locale={locale} locales={availableLocales} label={copy.language} menuLabel={copy.menuLanguage} onChange={changeLocale} />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <QrLanguageSelector locale={locale} locales={availableLocales} label={copy.language} menuLabel={copy.menuLanguage} onChange={changeLocale} />
+          </div>
         </div>
         <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? copy.dineIn(session.stall.table?.label ?? "") : session.stall.fulfillmentType === "DELIVERY" ? deliveryCopy.delivery : copy.takeout}</p>
         {activeOrderingMode === "PREORDER" ? <p className="mt-2 rounded-md bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900">目前為非營業時間，僅接受預約外帶。</p> : null}
@@ -1218,10 +1300,10 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         {session.lotteryEnabled && activeOrderingMode === "DEFAULT" ? (
           <section className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-4" aria-label="抽抽樂推薦">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><h2 className="font-semibold text-violet-950">不知道吃什麼？幫我抽</h2><p className="mt-1 text-sm text-violet-800">每天一次商品推薦，還可能抽中結帳折扣。</p></div>
-              <button type="button" disabled={!orderingEnabled || isDrawingLottery} onClick={() => void drawLottery()} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50"><Dices className="h-4 w-4" />{isDrawingLottery ? "抽取中…" : lotteryDraw ? "查看今日結果" : "開始抽抽樂"}</button>
+              <div><h2 className="font-semibold text-violet-950">不知道吃什麼？幫我抽</h2><p className="mt-1 text-sm leading-6 text-violet-800">依近 30 天完成訂單的熱銷趨勢推薦，也保留探索其他商品的機會；結帳折扣會另外獨立抽取。</p></div>
+              <button ref={lotteryButtonRef} type="button" disabled={!orderingEnabled || isDrawingLottery} onClick={() => void drawLottery()} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50"><Dices className="h-4 w-4" />{isDrawingLottery ? "抽取中…" : lotteryDraw ? "查看今日結果" : "開始抽抽樂"}</button>
             </div>
-            {lotteryDraw ? <p role="status" className="mt-3 text-sm font-semibold text-violet-950">推薦你吃「{lotteryDraw.productName}」{lotteryDraw.discountWon && lotteryDraw.discountLabel ? `，並抽中 ${lotteryDraw.discountLabel}！` : "。"}</p> : null}
+            {lotteryDraw ? <div className="mt-3 border-t border-violet-200 pt-3"><span data-testid="lottery-recommendation-basis" className="inline-flex rounded-full bg-white px-2 py-1 text-xs font-semibold text-violet-900">{lotteryDraw.bestSellerRank ? `近 30 天熱銷第 ${lotteryDraw.bestSellerRank} 名` : "探索人氣推薦"}</span><p role="status" className="mt-2 text-sm font-semibold text-violet-950">推薦你點「{lotteryDraw.productName}」{lotteryDraw.discountWon && lotteryDraw.discountLabel ? `，並抽中 ${lotteryDraw.discountLabel}！` : "。"}</p>{lotteryDraw.discountWon ? <p className="mt-1 text-xs text-violet-800">折扣僅套用未標示「不適用訂單折扣」的商品。</p> : null}</div> : null}
           </section>
         ) : null}
 
@@ -1262,7 +1344,8 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
                     <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:gap-4">
                       {product.imageUrl ? <ProductImage src={product.imageUrl} alt={copy.productImage(localizedProduct(product).name)} width={80} height={80} sizes="(max-width: 639px) 64px, 80px" className="h-16 w-16 shrink-0 rounded-md object-cover sm:h-20 sm:w-20" /> : <div aria-hidden="true" className="h-16 w-16 rounded-md bg-stone-100 sm:h-20 sm:w-20" />}
                       <div className="min-w-0 flex-1">
-                        {product.isBestSeller ? <span data-testid="best-seller-badge" className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">熱銷推薦</span> : null}
+                        {product.isBestSeller && product.rank !== null ? <span data-testid="best-seller-badge" className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950">近 30 天熱銷第 {product.rank} 名</span> : null}
+                        {!product.isOrderDiscountEligible ? <span data-testid="discount-ineligible-badge" className="mb-1 ml-1 inline-flex rounded-full bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">不適用訂單折扣</span> : null}
                         <h3 className="font-semibold">{localizedProduct(product).name}</h3>
                         <p className="mt-1 text-sm leading-6 text-stone-600">{localizedProduct(product).description}</p>
                         <p className="mt-2 font-semibold">{formatMoney(Math.max(
@@ -1312,10 +1395,11 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
                           const selectedCount = selected.filter((id) => groupChoiceIds.has(id)).length;
                           const maximumReached = selectedCount >= group.maxSelections;
                           return (
-                            <fieldset key={group.id}>
-                              <legend className="text-sm font-semibold text-stone-700">
+                            <fieldset key={group.id} className="rounded-md border border-teal-200 bg-teal-50/60 p-3">
+                              <legend className="px-2 text-sm font-bold text-teal-950">
+                                <span className="mr-2 rounded-full bg-teal-700 px-2 py-0.5 text-[11px] text-white">套餐群組</span>
                                 {group.name}{group.minSelections > 0 ? " *" : ""}
-                                <span className="ml-2 text-xs font-normal text-stone-500">
+                                <span className="ml-2 text-xs font-normal text-teal-800">
                                   {group.maxSelections === 1
                                     ? "單選"
                                     : `選 ${group.minSelections}～${group.maxSelections} 項`}
@@ -1404,6 +1488,77 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           <span className="inline-flex items-center gap-1 text-sm font-semibold">{copy.viewOrder}<ChevronDown className="h-4 w-4 rotate-180" /></span>
         </button>
       ) : null}
+      <LotteryDailyLimitDialog
+        open={lotteryLimitDialogOpen}
+        onClose={closeLotteryLimitDialog}
+        returnFocusRef={lotteryButtonRef}
+      />
     </main>
+  );
+}
+
+function LotteryDailyLimitDialog({
+  open,
+  onClose,
+  returnFocusRef,
+}: {
+  open: boolean;
+  onClose: () => void;
+  returnFocusRef: RefObject<HTMLButtonElement | null>;
+}) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const returnFocusElement = returnFocusRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key === "Tab") {
+        event.preventDefault();
+        closeButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      returnFocusElement?.focus();
+    };
+  }, [onClose, open, returnFocusRef]);
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+      <section
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="lottery-daily-limit-title"
+        aria-describedby="lottery-daily-limit-description"
+        className="w-full max-w-sm rounded-xl bg-white p-5 text-stone-900 shadow-2xl"
+      >
+        <h2 id="lottery-daily-limit-title" className="text-lg font-semibold">
+          此瀏覽器今日已抽取過
+        </h2>
+        <p id="lottery-daily-limit-description" className="mt-2 text-sm leading-6 text-stone-600">
+          同一瀏覽器資料每日只能抽取一次；今天的商品推薦與折扣結果已保留，明天可再次抽取。
+        </p>
+        <button
+          ref={closeButtonRef}
+          type="button"
+          onClick={onClose}
+          className="mt-5 min-h-11 w-full rounded-md bg-violet-700 px-4 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700"
+        >
+          我知道了
+        </button>
+      </section>
+    </div>
   );
 }

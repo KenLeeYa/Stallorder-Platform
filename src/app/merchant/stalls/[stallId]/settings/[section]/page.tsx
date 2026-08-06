@@ -5,6 +5,7 @@ import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { StallBusinessHoursManager } from "@/components/stall-business-hours-manager";
 import { StallEditor } from "@/components/stall-editor";
 import { StallModulesManager } from "@/components/stall-modules-manager";
+import { StallOrderLimitsForm, type StallOrderLimits } from "@/components/stall-order-limits-form";
 import { StallSettingsShell } from "@/components/stall-settings-shell";
 import { StallTeamManager } from "@/components/stall-team-manager";
 import { StallTemplateCopyManager } from "@/components/stall-template-copy-manager";
@@ -18,6 +19,7 @@ const sectionLabels = {
   operations: "營運狀態",
   "business-hours": "營業時間",
   modules: "營運模組與內用桌位",
+  "order-limits": "安全與訂單限制",
   templates: "多攤位範本",
   members: "攤位成員",
 } as const;
@@ -45,6 +47,7 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
   const roles = [...new Set([...workspace.roles, ...workspaceStall.roles])];
   if (!roles.some((role) => hasPermission(role, "MANAGE_STALL"))) notFound();
   if (rawSection === "members" && !roles.some((role) => hasPermission(role, "MANAGE_STAFF"))) notFound();
+  if (rawSection === "order-limits" && !roles.some((role) => hasPermission(role, "MANAGE_ORDERING"))) notFound();
 
   const stall = await prisma.stall.findUnique({
     where: { id: stallId, organizationId: workspace.id },
@@ -104,6 +107,37 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
         initialState={moduleState}
       />
     );
+  } else if (rawSection === "order-limits") {
+    const orderingSettings = await prisma.stallOrderingSettings.findUnique({
+      where: { stallId: stall.id },
+      select: {
+        orderSessionTtlSeconds: true,
+        unconfirmedOrderTimeoutSeconds: true,
+        maxItemQuantity: true,
+        maxUniqueProducts: true,
+        maxTotalQuantity: true,
+        maxNoteLength: true,
+        maxPendingOrdersPerDevice: true,
+        maxOrdersPerWindow: true,
+        orderWindowSeconds: true,
+        estimatedWaitMinutes: true,
+        businessDayCutoffHour: true,
+      },
+    });
+    const initialSettings: StallOrderLimits = orderingSettings ?? {
+      orderSessionTtlSeconds: 600,
+      unconfirmedOrderTimeoutSeconds: 600,
+      maxItemQuantity: 20,
+      maxUniqueProducts: 20,
+      maxTotalQuantity: 40,
+      maxNoteLength: 200,
+      maxPendingOrdersPerDevice: 3,
+      maxOrdersPerWindow: 5,
+      orderWindowSeconds: 300,
+      estimatedWaitMinutes: 15,
+      businessDayCutoffHour: 0,
+    };
+    content = <StallOrderLimitsForm stallSlug={stall.slug} initialSettings={initialSettings} />;
   } else if (rawSection === "templates") {
     content = (
       <StallTemplateCopyManager

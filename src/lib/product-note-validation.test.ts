@@ -6,6 +6,7 @@ import {
 } from "./product-note-validation";
 
 const reusableNoteId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
+const secondReusableNoteId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
 const noteGroupId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
 
 describe("共用商品註記輸入驗證", () => {
@@ -34,6 +35,42 @@ describe("共用商品註記輸入驗證", () => {
       noteGroupId,
       sortOrder: 3,
     }).success).toBe(true);
+  });
+
+  it("接受一次加入多個不重複的共用註記", () => {
+    expect(productNoteCommandSchema.safeParse({
+      operation: "ATTACH_REUSABLE_NOTES",
+      noteGroupId,
+      reusableNoteIds: [reusableNoteId, secondReusableNoteId],
+    }).success).toBe(true);
+  });
+
+  it("拒絕空白、重複、超量或帶越權欄位的批次共用註記", () => {
+    const command = {
+      operation: "ATTACH_REUSABLE_NOTES",
+      noteGroupId,
+    } as const;
+    expect(productNoteCommandSchema.safeParse({ ...command, reusableNoteIds: [] }).success).toBe(false);
+
+    const duplicate = productNoteCommandSchema.safeParse({
+      ...command,
+      reusableNoteIds: [reusableNoteId, reusableNoteId],
+    });
+    expect(duplicate.success).toBe(false);
+    if (!duplicate.success) {
+      expect(getProductNoteFieldErrors(duplicate.error).reusableNoteIds)
+        .toBe("共用單一註記不可重複選擇。");
+    }
+
+    expect(productNoteCommandSchema.safeParse({
+      ...command,
+      reusableNoteIds: Array.from({ length: 101 }, () => crypto.randomUUID()),
+    }).success).toBe(false);
+    expect(productNoteCommandSchema.safeParse({
+      ...command,
+      reusableNoteIds: [reusableNoteId],
+      organizationId: crypto.randomUUID(),
+    }).success).toBe(false);
   });
 
   it("拒絕越權組織欄位、重複翻譯與超界排序", () => {
@@ -75,6 +112,8 @@ describe("共用商品註記輸入驗證", () => {
     }
     expect(getReusableProductNoteDuplicateFieldErrors("CREATE_REUSABLE_NOTE"))
       .toEqual({ name: "已有相同名稱的共用單一註記，請使用其他名稱。" });
+    expect(getReusableProductNoteDuplicateFieldErrors("ATTACH_REUSABLE_NOTES"))
+      .toEqual({ reusableNoteIds: "部分共用單一註記已在群組中，請重新整理後再選擇。" });
   });
 
   it("將商品指派數量與重複限制對應至 productIds 欄位", () => {

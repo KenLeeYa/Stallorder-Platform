@@ -24,6 +24,9 @@ type DrawResult = {
   drawId?: string;
   productId?: string;
   productName?: string;
+  bestSellerRank?: number | null;
+  recommendationBasis?: "BEST_SELLER" | "DISCOVERY";
+  recommendationStrategy?: "POPULARITY_30D";
   discountWon?: boolean;
   discountLabel?: string | null;
   discountRateBps?: number | null;

@@ -112,7 +112,7 @@ export function PickupDisplayBoard({
   const style = useMemo(() => ({
     "--cds-accent": display?.appearance.accentColor ?? "#0f766e",
     ...(display?.stall.backgroundImageUrl
-      ? { backgroundImage: `linear-gradient(rgba(250,250,249,.94), rgba(250,250,249,.94)), url("${display.stall.backgroundImageUrl.replace(/["\\]/g, "")}")` }
+      ? { backgroundImage: `linear-gradient(var(--cds-surface-overlay), var(--cds-surface-overlay)), url("${display.stall.backgroundImageUrl.replace(/["\\]/g, "")}")` }
       : {}),
   } as CSSProperties), [display]);
 

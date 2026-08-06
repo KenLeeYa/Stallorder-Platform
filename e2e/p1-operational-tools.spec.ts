@@ -255,7 +255,7 @@ async function login(page: Page, email: string) {
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(/\/merchant\/dashboard|\/staff\//);
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=|\/staff\//);
 }
 
 async function createDineInOrder(page: Page, customerName: string, productName: string) {

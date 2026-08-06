@@ -128,5 +128,7 @@ export function lineTemplateEnabled(
     ? parsed.data.notifyConfirmed
     : templateCode === "ORDER_READY"
       ? parsed.data.notifyReady
-      : parsed.data.notifyCancelled;
+      : templateCode === "FULFILLMENT_TIME_PROPOSED"
+        ? parsed.data.notifyConfirmed
+        : parsed.data.notifyCancelled;
 }

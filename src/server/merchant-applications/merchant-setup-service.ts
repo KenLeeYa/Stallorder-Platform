@@ -187,6 +187,7 @@ export async function createMerchantSetupTestOrder(
     request: {
       idempotencyKey: deterministicSetupOrderUuid(`${progress.id}:${attemptCount + 1}`),
       fulfillmentType: "TAKEOUT",
+      requestedFulfillmentAt: null,
       customerName: "開店流程測試",
       customerPhone: "",
       customerNote: "此為開店設定測試訂單，不計入營收與用量。",

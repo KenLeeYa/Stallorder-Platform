@@ -59,12 +59,18 @@ export async function getCachedPublicMenuForQrToken(
     return null;
   }
 
+  const supportsRequestedFulfillmentTime = !context.diningTable
+    && context.fulfillmentTypeContext !== "DINE_IN"
+    && (resolvedOrderingMode === "DELIVERY"
+      ? settings.deliveryModuleEnabled
+      : settings.takeoutPreorderEnabled);
+
   const [menu, capacity, preorderSlots] = await Promise.all([
     getCachedStallMenu(context.stallId),
     resolvedOrderingMode === "PREORDER"
       ? Promise.resolve(null)
       : calculateCapacitySnapshot(context.stallId),
-    resolvedOrderingMode === "PREORDER"
+    supportsRequestedFulfillmentTime
       ? getTakeoutPreorderSlots(context.stallId)
       : Promise.resolve([]),
   ]);
@@ -340,6 +346,7 @@ async function loadStallMenu(
             defaultPrice: true,
             kind: true,
             imageUrl: true,
+            isOrderDiscountEligible: true,
             sortOrder: true,
             category: { select: { name: true, sortOrder: true } },
             translations: { select: { locale: true, name: true, description: true } },
@@ -471,7 +478,7 @@ async function loadStallMenu(
       bundleChoiceGroups.length === 0
       || bundleChoiceGroups.some((group) => (
         group.organizationId !== product.organizationId
-        || group.options.length < Math.max(1, group.minSelections)
+        || group.options.length < group.minSelections
       ))
     )) return [];
 
@@ -498,6 +505,7 @@ async function loadStallMenu(
       availableUntil: assignment.availableUntil?.toISOString() ?? null,
       translations: assignment.product.translations,
       kind: assignment.product.kind,
+      isOrderDiscountEligible: assignment.product.isOrderDiscountEligible,
       bundleChoiceGroups,
       noteGroups: assignment.product.noteGroupAssignments.map((assignmentItem) => ({
         id: assignmentItem.noteGroup.id,
@@ -526,6 +534,7 @@ async function loadStallMenu(
       availableUntil: product.availableUntil,
       translations: product.translations,
       kind: product.kind,
+      isOrderDiscountEligible: product.isOrderDiscountEligible,
       bundleChoiceGroups: product.bundleChoiceGroups,
       noteGroups: product.noteGroups,
       price: product.price,

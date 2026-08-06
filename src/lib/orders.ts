@@ -26,6 +26,14 @@ export const staffOrderSelect = {
   confirmationExpiresAt: true,
   quotedWaitMinutes: true,
   quotedReadyAt: true,
+  scheduledPickupAt: true,
+  requestedFulfillmentAt: true,
+  committedFulfillmentAt: true,
+  pendingFulfillmentAt: true,
+  fulfillmentTimeState: true,
+  fulfillmentTimeVersion: true,
+  fulfillmentTimeResponseExpiresAt: true,
+  fulfillmentTimeChangeReason: true,
   createdAt: true,
   items: {
     select: {
@@ -33,6 +41,7 @@ export const staffOrderSelect = {
       name: true,
       unitPrice: true,
       quantity: true,
+      isOrderDiscountEligible: true,
       note: true,
       status: true,
       preparingAt: true,
@@ -70,12 +79,21 @@ export type StaffOrderDto = {
   confirmationExpiresAt: string;
   quotedWaitMinutes: number | null;
   quotedReadyAt: string | null;
+  scheduledPickupAt: string | null;
+  requestedFulfillmentAt: string | null;
+  committedFulfillmentAt: string | null;
+  pendingFulfillmentAt: string | null;
+  fulfillmentTimeState: "NOT_REQUESTED" | "REQUESTED" | "CONFIRMED" | "CUSTOMER_ACTION_REQUIRED" | "DECLINED" | "EXPIRED";
+  fulfillmentTimeVersion: number;
+  fulfillmentTimeResponseExpiresAt: string | null;
+  fulfillmentTimeChangeReason: string | null;
   createdAt: string;
   items: Array<{
     id: string;
     name: string;
     unitPrice: number;
     quantity: number;
+    isOrderDiscountEligible: boolean;
     note: string | null;
     status: OrderItemStatus;
     preparingAt: string | null;
@@ -94,6 +112,12 @@ export function serializeStaffOrder(order: Prisma.OrderGetPayload<{ select: type
       : order.pickupVerificationMethod === "MANUAL" ? "MANUAL" : null,
     confirmationExpiresAt: order.confirmationExpiresAt.toISOString(),
     quotedReadyAt: order.quotedReadyAt?.toISOString() ?? null,
+    scheduledPickupAt: order.scheduledPickupAt?.toISOString() ?? null,
+    requestedFulfillmentAt: order.requestedFulfillmentAt?.toISOString() ?? null,
+    committedFulfillmentAt: order.committedFulfillmentAt?.toISOString() ?? null,
+    pendingFulfillmentAt: order.pendingFulfillmentAt?.toISOString() ?? null,
+    fulfillmentTimeState: order.fulfillmentTimeState as StaffOrderDto["fulfillmentTimeState"],
+    fulfillmentTimeResponseExpiresAt: order.fulfillmentTimeResponseExpiresAt?.toISOString() ?? null,
     createdAt: order.createdAt.toISOString(),
     items: order.items.map((item) => ({
       ...item,

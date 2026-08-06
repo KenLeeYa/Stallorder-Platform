@@ -2,6 +2,7 @@
 
 import { Download, Lightbulb, LightbulbOff, Signal, SignalLow, WifiOff } from "lucide-react";
 import { usePwaRuntime } from "@/components/pwa-runtime";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function PwaControls({ showWakeLock = false }: { showWakeLock?: boolean }) {
   const runtime = usePwaRuntime();
@@ -14,6 +15,7 @@ export function PwaControls({ showWakeLock = false }: { showWakeLock?: boolean }
 
   return (
     <div className="flex items-center gap-1" aria-label="應用程式狀態">
+      <ThemeToggle />
       <span title={`${qualityLabel}${runtime.effectiveType ? ` · ${runtime.effectiveType}` : ""}`} className={`inline-flex h-10 items-center gap-2 px-2 text-xs font-semibold ${runtime.quality === "GOOD" ? "text-emerald-700" : runtime.quality === "POOR" ? "text-amber-800" : "text-red-700"}`}>
         <QualityIcon className="h-4 w-4" aria-hidden="true" />
         <span className="hidden xl:inline">{qualityLabel}</span>

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Plus, Settings2 } from "lucide-react";
+import { StallSettingsOverview } from "@/components/stall-settings-overview";
 import { hasPermission } from "@/lib/rbac";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
+import { resolveDeliveryFeatureState } from "@/server/delivery-platforms/delivery-feature-flags";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string }> };
 
@@ -16,6 +18,19 @@ export default async function MerchantStallsPage({ searchParams }: PageProps) {
   const canCreate = workspace.roles.some((role) => hasPermission(role, "MANAGE_ORGANIZATION"));
   const canManageAny = canCreate || workspace.stalls.some((stall) => stall.roles.some((role) => hasPermission(role, "MANAGE_STALL")));
   if (!canManageAny) notFound();
+  const singleStall = workspace.stalls.length === 1 ? workspace.stalls[0] : null;
+  const singleStallRoles = singleStall
+    ? [...new Set([...workspace.roles, ...singleStall.roles])]
+    : [];
+  const showSingleStallSettings = Boolean(singleStall && singleStallRoles.some(
+    (role) => hasPermission(role, "MANAGE_STALL"),
+  ));
+  const deliveryFeatureState = showSingleStallSettings && singleStall
+    ? await resolveDeliveryFeatureState("UBER_EATS", {
+      organizationId: workspace.id,
+      stallId: singleStall.id,
+    })
+    : null;
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
@@ -29,11 +44,29 @@ export default async function MerchantStallsPage({ searchParams }: PageProps) {
           return (
             <div key={stall.id} className="flex flex-col gap-3 py-5 sm:flex-row sm:items-center sm:justify-between">
               <div><div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold">{stall.name}</h2>{!stall.isActive ? <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-800">已停用</span> : <span className="rounded-md bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">{statusLabels[stall.businessStatus]}</span>}</div><p className="mt-1 text-sm text-stone-500">代碼 {stall.code} · {stall.slug}</p></div>
-              {canManage ? <Link href={`/merchant/stalls/${stall.id}?organizationId=${workspace.id}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800"><Settings2 className="h-4 w-4" />設定</Link> : null}
+              {canManage && !showSingleStallSettings ? <Link href={`/merchant/stalls/${stall.id}?organizationId=${workspace.id}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800"><Settings2 className="h-4 w-4" />設定</Link> : null}
             </div>
           );
         })}
       </div>
+      {showSingleStallSettings && singleStall ? (
+        <StallSettingsOverview
+          workspaceId={workspace.id}
+          stallId={singleStall.id}
+          canManageLocalization={workspace.roles.some((role) => hasPermission(role, "MANAGE_SHARED_PRODUCTS"))}
+          canManageEvents={workspace.roles.some((role) => hasPermission(role, "MANAGE_MARKET_EVENTS"))}
+          canManageTeam={singleStallRoles.some((role) => hasPermission(role, "MANAGE_STAFF"))}
+          canManageOrdering={singleStallRoles.some((role) => hasPermission(role, "MANAGE_ORDERING"))}
+          canManageReportSchedules={workspace.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES"))}
+          canManageOrganization={canCreate}
+          canManageDelivery={singleStallRoles.some(
+            (role) => hasPermission(role, "MANAGE_DELIVERY_INTEGRATIONS"),
+          ) && Boolean(deliveryFeatureState?.foundation && deliveryFeatureState.ui)}
+          showMerchantSetup={workspace.roles.includes("ORGANIZATION_OWNER")
+            && Boolean(workspace.merchantSetupState)
+            && workspace.merchantSetupStallId === singleStall.id}
+        />
+      ) : null}
       {workspace.stalls.length === 0 ? <p className="mt-6 text-sm text-stone-600">尚未建立攤位。</p> : null}
     </main>
   );

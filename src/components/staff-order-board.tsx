@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CancellationReason, OrderItemStatus, OrderStatus, PaymentOptionKind, UserRole } from "@prisma/client";
 import Link from "next/link";
-import { CheckCheck, CheckCircle2, ChefHat, KeyRound, ListChecks, LoaderCircle, MapPinned, PackageCheck, Play, Printer, RefreshCw, Search, ShoppingCart, TriangleAlert, Truck, Undo2, Volume2, VolumeX, WalletCards, Wifi, WifiOff, X } from "lucide-react";
+import { CheckCheck, CheckCircle2, ChefHat, Clock3, KeyRound, ListChecks, LoaderCircle, MapPinned, PackageCheck, Play, Printer, RefreshCw, Search, ShoppingCart, TriangleAlert, Truck, Undo2, Volume2, VolumeX, WalletCards, Wifi, WifiOff, X } from "lucide-react";
+import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
 import { LogoutButton } from "@/components/logout-button";
 import { OfflineBootstrapControl } from "@/components/offline-bootstrap-control";
 import { OfflineQueueStatus } from "@/components/offline-queue-status";
@@ -15,6 +16,7 @@ import { WorkModeSwitcher } from "@/components/work-mode-switcher";
 import type { StaffCapacityData } from "@/lib/capacity-contract";
 import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { buildFulfillmentTimeSlots } from "@/lib/fulfillment-time-options";
 import { formatMoney } from "@/lib/money";
 import { canTransitionOrderItem } from "@/lib/order-item-status";
 import { orderItemStatusLabels, orderStatusLabels, paymentStatusLabels, staffStatusOptions, type StaffOrderDto } from "@/lib/orders";
@@ -27,7 +29,7 @@ import type { WorkModeDestination } from "@/lib/work-mode";
 type OrderWithItems = StaffOrderDto;
 
 type Props = {
-  stall: { id: string; organizationId: string; slug: string; name: string; currency: string };
+  stall: { id: string; organizationId: string; slug: string; name: string; currency: string; timezone: string };
   initialOrders: OrderWithItems[];
   initialNow: number;
   account: { displayName: string; role: UserRole };
@@ -61,6 +63,13 @@ type CheckoutRequest = {
   managerPassword: string | null;
 };
 type UndoBatch = { actionId: string; undoExpiresAt: string; itemCount: number };
+type PendingTimeProposal = {
+  orderId: string;
+  orderNo: string;
+  version: number;
+  proposedFulfillmentAt: string;
+  reason: string;
+};
 
 export function StaffOrderBoard({
   stall,
@@ -87,6 +96,7 @@ export function StaffOrderBoard({
   const [liveConnection, setLiveConnection] = useState<LiveConnectionState>("connecting");
   const [pendingCancellation, setPendingCancellation] = useState<PendingCancellation | null>(null);
   const [pendingManualPickup, setPendingManualPickup] = useState<PendingManualPickup | null>(null);
+  const [pendingTimeProposal, setPendingTimeProposal] = useState<PendingTimeProposal | null>(null);
   const [checkoutOrders, setCheckoutOrders] = useState<OrderWithItems[]>([]);
   const [selectedPaymentOptionId, setSelectedPaymentOptionId] = useState<string | null>(null);
   const [selectedDiscountOptionId, setSelectedDiscountOptionId] = useState<string | null>(null);
@@ -108,6 +118,10 @@ export function StaffOrderBoard({
   const [discountOptions, setDiscountOptions] = useState(initialDiscountOptions);
   const [orderCatalog, setOrderCatalog] = useState(initialOrderCatalog);
   const [posConfigurationLoading, setPosConfigurationLoading] = useState(false);
+  const fulfillmentTimeSlots = useMemo(() => buildFulfillmentTimeSlots(
+    orderCatalog?.fulfillmentSlots ?? [],
+    stall.timezone,
+  ), [orderCatalog?.fulfillmentSlots, stall.timezone]);
   const checkoutOrder = checkoutOrders[0] ?? null;
 
   type PosConfiguration = {
@@ -291,6 +305,61 @@ export function StaffOrderBoard({
     if (cancelled) setPendingCancellation(null);
   }
 
+  async function updateFulfillmentTime(
+    order: OrderWithItems,
+    command: { operation: "CONFIRM_REQUESTED"; version: number } | {
+      operation: "PROPOSE";
+      version: number;
+      proposedFulfillmentAt: string;
+      reason: string;
+    },
+  ) {
+    setMessage("");
+    setUpdatingOrderId(order.id);
+    try {
+      const response = await fetch(
+        `/api/stalls/${stall.slug}/orders/${order.id}/fulfillment-time`,
+        {
+          method: "PATCH",
+          headers: csrfHeaders(),
+          body: JSON.stringify(command),
+        },
+      );
+      const payload = await response.json() as { order?: OrderWithItems; error?: string };
+      if (!response.ok || !payload.order) {
+        throw new Error(payload.error ?? "目前無法更新取餐或送達時間。");
+      }
+      setOrders((current) => current.map((candidate) => (
+        candidate.id === order.id ? payload.order! : candidate
+      )));
+      setPendingTimeProposal(null);
+      setMessage(command.operation === "PROPOSE"
+        ? "已通知顧客確認新的時間；顧客回覆前不會開始製作。"
+        : "已接受顧客指定時間。"
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "目前無法更新取餐或送達時間。");
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  }
+
+  function openTimeProposal(order: OrderWithItems) {
+    const slots = fulfillmentTimeSlots;
+    if (slots.length === 0) {
+      setMessage("目前沒有可提供給顧客的預約時段，請先檢查營業時間與預約設定。");
+      return;
+    }
+    const preferred = slots.find((slot) => slot.iso !== order.requestedFulfillmentAt)?.iso ?? slots[0]!.iso;
+    setPendingTimeProposal({
+      orderId: order.id,
+      orderNo: order.orderNo,
+      version: order.fulfillmentTimeVersion,
+      proposedFulfillmentAt: preferred,
+      reason: "目前訂單較多，建議調整時間",
+    });
+  }
+
   async function updateItemStatus(
     orderId: string,
     itemId: string,
@@ -463,7 +532,9 @@ export function StaffOrderBoard({
     const received = isCash && cashReceived !== "" ? Number(cashReceived) : null;
     const checkoutRequest: CheckoutRequest = {
       paymentOptionId: modules.payment ? selectedPaymentOptionId : null,
-      discountOptionId: modules.discount ? selectedDiscountOptionId : null,
+      discountOptionId: modules.discount && checkoutDiscountEligibleSubtotal > 0
+        ? selectedDiscountOptionId
+        : null,
       cashReceived: received,
       discountApprovalReason: discountApprovalReason.trim() || null,
       managerEmail: managerEmail.trim() || null,
@@ -791,7 +862,11 @@ export function StaffOrderBoard({
     : orders, [normalizedQuery, orders]);
   const selectedItems = orders
     .filter((order) => order.source !== "OFFLINE_POS")
-    .flatMap((order) => order.items.map((item) => ({ ...item, orderId: order.id })))
+    .flatMap((order) => order.items.map((item) => ({
+      ...item,
+      orderId: order.id,
+      fulfillmentTimeState: order.fulfillmentTimeState,
+    })))
     .filter((item) => selectedItemIds.has(item.id));
   const selectedSourceStatus = selectedItems.length > 0
     && selectedItems.every((item) => item.status === selectedItems[0].status)
@@ -800,6 +875,7 @@ export function StaffOrderBoard({
   const nextSelectedStatus = selectedSourceStatus ? nextOperationalItemStatus(selectedSourceStatus) : null;
   const canUpdateSelection = Boolean(nextSelectedStatus && selectedItems.every((item) => (
     canTransitionOrderItem(item.status, nextSelectedStatus, account.role)
+    && !(nextSelectedStatus === "PREPARING" && fulfillmentTimeNeedsResponse(item.fulfillmentTimeState))
   )));
   const kitchenGroups = useMemo(() => {
     const groups = new Map<string, {
@@ -852,8 +928,20 @@ export function StaffOrderBoard({
     return [...groups.values()].sort((left, right) => left.tableLabel.localeCompare(right.tableLabel, "zh-TW"));
   }, [filteredOrders]);
 
-  const checkoutDiscount = discountOptions.find((option) => option.id === selectedDiscountOptionId) ?? null;
-  const checkoutPreview = getStaffCheckoutPreview(checkoutOrders, checkoutDiscount);
+  const checkoutDiscountEligibleSubtotal = checkoutOrders.reduce((orderSum, order) => (
+    orderSum + order.items.reduce((itemSum, item) => (
+      itemSum + (item.isOrderDiscountEligible ? item.unitPrice * item.quantity : 0)
+    ), 0)
+  ), 0);
+  const checkoutDiscount = checkoutDiscountEligibleSubtotal > 0
+    ? discountOptions.find((option) => option.id === selectedDiscountOptionId) ?? null
+    : null;
+  const checkoutPreview = getStaffCheckoutPreview(checkoutOrders.map((order) => ({
+    ...order,
+    discountEligibleSubtotal: order.items.reduce((sum, item) => (
+      sum + (item.isOrderDiscountEligible ? item.unitPrice * item.quantity : 0)
+    ), 0),
+  })), checkoutDiscount);
   const checkoutSubtotal = checkoutPreview.subtotal;
   const checkoutTotal = checkoutPreview.total;
   const checkoutPayment = paymentOptions.find((option) => option.id === selectedPaymentOptionId) ?? null;
@@ -877,6 +965,9 @@ export function StaffOrderBoard({
   );
   const manualPickupOrder = pendingManualPickup
     ? orders.find((order) => order.id === pendingManualPickup.orderId) ?? null
+    : null;
+  const timeProposalOrder = pendingTimeProposal
+    ? orders.find((order) => order.id === pendingTimeProposal.orderId) ?? null
     : null;
 
   return (
@@ -1039,12 +1130,31 @@ export function StaffOrderBoard({
                 <div className="min-w-0"><p className="font-medium break-words">{order.deliveryAddress}</p>{order.customerPhone ? <p className="mt-1 text-stone-600">{order.customerPhone}</p> : null}</div>
               </div>
             ) : null}
+            {order.fulfillmentType !== "DINE_IN" && order.fulfillmentTimeState !== "NOT_REQUESTED" ? (
+              <div className={`mt-3 rounded-md border px-3 py-3 text-sm ${order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? "border-amber-300 bg-amber-50 text-amber-950" : order.fulfillmentTimeState === "DECLINED" || order.fulfillmentTimeState === "EXPIRED" ? "border-red-200 bg-red-50 text-red-900" : "border-teal-200 bg-teal-50 text-teal-950"}`}>
+                <div className="flex items-start gap-2">
+                  <Clock3 className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold">{fulfillmentTimeTitle(order)}</p>
+                    {order.fulfillmentTimeChangeReason ? <p className="mt-1 text-xs">原因：{order.fulfillmentTimeChangeReason}</p> : null}
+                    {order.fulfillmentTimeResponseExpiresAt && order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? <p className="mt-1 text-xs">顧客需於 {formatStaffFulfillmentTime(order.fulfillmentTimeResponseExpiresAt)} 前回覆。</p> : null}
+                  </div>
+                </div>
+                {order.source !== "OFFLINE_POS" && ["WAITING_CONFIRMATION", "CONFIRMED"].includes(order.status) ? (
+                  <div className="mt-3 flex flex-wrap gap-2 print:hidden">
+                    {order.fulfillmentTimeState === "REQUESTED" ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void updateFulfillmentTime(order, { operation: "CONFIRM_REQUESTED", version: order.fulfillmentTimeVersion })} className="min-h-9 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50">接受原時間</button> : null}
+                    <button type="button" disabled={updatingOrderId === order.id || fulfillmentTimeSlots.length === 0} onClick={() => openTimeProposal(order)} className="min-h-9 rounded-md border border-current px-3 text-xs font-semibold disabled:opacity-40">{order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? "修改提議" : "提出新時間"}</button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {order.status === "WAITING_CONFIRMATION" ? (
               <p className="mt-3 text-xs font-medium text-amber-800">確認後才可開始製作；逾時時間 {new Date(order.confirmationExpiresAt).toLocaleTimeString("zh-TW")}</p>
             ) : null}
             {order.status !== "WAITING_CONFIRMATION" ? (
               <div className="mt-4 flex flex-wrap gap-2 print:hidden">
                 {order.items.some((item) => item.status === "PENDING")
+                  && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)
                   && canTransitionOrderItem("PENDING", "PREPARING", account.role) ? (
                     <button
                       type="button"
@@ -1085,8 +1195,8 @@ export function StaffOrderBoard({
             <ul className="mt-4 divide-y divide-stone-100 border-y border-stone-200 text-sm">
               {order.items.map((item) => (
                 <li key={item.id} className="relative grid gap-2 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
-                  {order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, account.role) ? <input type="checkbox" aria-label={`選取 ${order.orderNo} 的 ${item.name}`} checked={selectedItemIds.has(item.id)} onChange={(event) => setSelectedItemIds((current) => { const next = new Set(current); if (event.target.checked) next.add(item.id); else next.delete(item.id); return next; })} className="absolute left-0 top-4 h-4 w-4 print:hidden" /> : null}
-                  <div className={`min-w-0 ${order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, account.role) ? "pl-7" : ""}`}>
+                  {order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, account.role) && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)) ? <input type="checkbox" aria-label={`選取 ${order.orderNo} 的 ${item.name}`} checked={selectedItemIds.has(item.id)} onChange={(event) => setSelectedItemIds((current) => { const next = new Set(current); if (event.target.checked) next.add(item.id); else next.delete(item.id); return next; })} className="absolute left-0 top-4 h-4 w-4 print:hidden" /> : null}
+                  <div className={`min-w-0 ${order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, account.role) && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)) ? "pl-7" : ""}`}>
                     <div className="flex justify-between gap-3">
                       <span className="font-medium">{item.quantity} × {item.name}</span>
                       <span>{formatMoney(item.unitPrice * item.quantity, stall.currency)}</span>
@@ -1097,7 +1207,7 @@ export function StaffOrderBoard({
                       {orderItemStatusLabels[item.status]}
                     </span>
                   </div>
-                  {order.source !== "OFFLINE_POS" && item.status !== "SERVED" && order.status !== "WAITING_CONFIRMATION" ? (
+                  {order.source !== "OFFLINE_POS" && item.status !== "SERVED" && order.status !== "WAITING_CONFIRMATION" && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)) ? (
                     <ItemStatusButton
                       itemStatus={item.status}
                       role={account.role}
@@ -1287,10 +1397,13 @@ export function StaffOrderBoard({
               selectedOptionId={selectedDiscountOptionId}
               onSelect={setSelectedDiscountOptionId}
               settingsHref={hasPermission(account.role, "MANAGE_STALL") ? `/merchant/stalls/${stall.id}/settings/modules?source=staff#discount-options` : undefined}
+              isApplicable={checkoutDiscountEligibleSubtotal > 0}
               existingDiscountLabel={checkoutPreview.discountAmount > 0
                 ? checkoutPreview.discountLabel ?? "訂單既有折扣"
                 : null}
             />
+
+            {checkoutDiscountEligibleSubtotal < checkoutSubtotal ? <p className="mt-2 text-xs text-amber-800">折扣適用金額：{formatMoney(checkoutDiscountEligibleSubtotal, stall.currency)}；其餘商品不套用訂單折扣。</p> : null}
 
             {checkoutNeedsApproval ? (
               <div className="mt-5 rounded-md border border-amber-300 bg-amber-50 p-4">
@@ -1372,6 +1485,43 @@ export function StaffOrderBoard({
               >
                 {updatingOrderId === checkoutOrder.id ? "處理中…" : "完成訂單"}
               </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {pendingTimeProposal && timeProposalOrder ? (
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4">
+          <section role="dialog" aria-modal="true" aria-labelledby="time-proposal-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 id="time-proposal-title" className="text-lg font-semibold">提出新的{timeProposalOrder.fulfillmentType === "DELIVERY" ? "送達" : "取餐"}時間</h2>
+                <p className="mt-1 text-sm text-stone-600">訂單 {pendingTimeProposal.orderNo}；送出後會通知顧客確認。</p>
+              </div>
+              <button type="button" title="關閉時間調整" disabled={updatingOrderId === timeProposalOrder.id} onClick={() => setPendingTimeProposal(null)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 disabled:opacity-50"><X className="h-4 w-4" /></button>
+            </div>
+            <FulfillmentTimePicker
+              slots={fulfillmentTimeSlots}
+              value={pendingTimeProposal.proposedFulfillmentAt}
+              onChange={(value) => setPendingTimeProposal((current) => (
+                current ? { ...current, proposedFulfillmentAt: value } : null
+              ))}
+              legend="建議時間"
+              scheduledLabel={timeProposalOrder.fulfillmentType === "DELIVERY" ? "指定送達時間" : "指定取餐時間"}
+              dateLabel={timeProposalOrder.fulfillmentType === "DELIVERY" ? "送達日期" : "取餐日期"}
+              timeLabel={timeProposalOrder.fulfillmentType === "DELIVERY" ? "送達時間" : "取餐時間"}
+              unavailableDateMessage="所選日期目前沒有可提供給顧客的時段。"
+              allowAsap={false}
+              required
+              disabled={updatingOrderId === timeProposalOrder.id}
+              testId="staff-time-proposal-fields"
+              className="mt-5"
+            />
+            <label className="mt-4 block text-xs font-semibold text-stone-700">調整原因<textarea value={pendingTimeProposal.reason} maxLength={200} onChange={(event) => setPendingTimeProposal((current) => current ? { ...current, reason: event.target.value } : null)} className="mt-1 min-h-20 w-full resize-y rounded-md border border-stone-300 p-3 text-sm" /></label>
+            <p className="mt-3 text-xs leading-5 text-amber-800">顧客接受前會保留原本已確認的時間，且訂單不會開始製作。</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" disabled={updatingOrderId === timeProposalOrder.id} onClick={() => setPendingTimeProposal(null)} className="min-h-11 rounded-md border border-stone-300 px-3 py-2 text-sm font-medium disabled:opacity-50">返回訂單</button>
+              <button type="button" disabled={updatingOrderId === timeProposalOrder.id || pendingTimeProposal.reason.trim().length < 2 || !pendingTimeProposal.proposedFulfillmentAt} onClick={() => void updateFulfillmentTime(timeProposalOrder, { operation: "PROPOSE", version: pendingTimeProposal.version, proposedFulfillmentAt: pendingTimeProposal.proposedFulfillmentAt, reason: pendingTimeProposal.reason.trim() })} className="min-h-11 rounded-md bg-teal-800 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{updatingOrderId === timeProposalOrder.id ? "通知中…" : "通知顧客確認"}</button>
             </div>
           </section>
         </div>
@@ -1619,6 +1769,42 @@ function canSelectItem(status: OrderItemStatus, orderStatus: OrderStatus, role: 
   if (orderStatus === "WAITING_CONFIRMATION") return false;
   const next = nextOperationalItemStatus(status);
   return Boolean(next && canTransitionOrderItem(status, next, role));
+}
+
+function fulfillmentTimeNeedsResponse(state: StaffOrderDto["fulfillmentTimeState"]) {
+  return state === "REQUESTED" || state === "CUSTOMER_ACTION_REQUIRED";
+}
+
+function formatStaffFulfillmentTime(value: string) {
+  return new Intl.DateTimeFormat("zh-TW", {
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function fulfillmentTimeTitle(order: StaffOrderDto) {
+  const label = order.fulfillmentType === "DELIVERY" ? "送達" : "取餐";
+  if (order.fulfillmentTimeState === "REQUESTED" && order.requestedFulfillmentAt) {
+    return `顧客希望${label}：${formatStaffFulfillmentTime(order.requestedFulfillmentAt)}`;
+  }
+  if (order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" && order.pendingFulfillmentAt) {
+    return `等待顧客確認新${label}時間：${formatStaffFulfillmentTime(order.pendingFulfillmentAt)}`;
+  }
+  if (order.fulfillmentTimeState === "CONFIRMED" && order.committedFulfillmentAt) {
+    return `已確認${label}：${formatStaffFulfillmentTime(order.committedFulfillmentAt)}`;
+  }
+  if (order.fulfillmentTimeState === "DECLINED") {
+    return order.committedFulfillmentAt
+      ? `顧客未接受新時間，維持 ${formatStaffFulfillmentTime(order.committedFulfillmentAt)}`
+      : "顧客未接受店員建議的時間";
+  }
+  if (order.fulfillmentTimeState === "EXPIRED") {
+    return "顧客尚未在期限內回覆時間調整";
+  }
+  return `${label}時間尚未確認`;
 }
 
 function batchActionLabel(status: "PREPARING" | "READY" | "SERVED") {

@@ -38,6 +38,9 @@ describe("POST /api/public/lottery-draw", () => {
         drawId: "22222222-2222-4222-8222-222222222222",
         productId: "33333333-3333-4333-8333-333333333333",
         productName: "招牌餐點",
+        bestSellerRank: 1,
+        recommendationBasis: "BEST_SELLER",
+        recommendationStrategy: "POPULARITY_30D",
         discountWon: false,
       },
     }]);
@@ -57,6 +60,9 @@ describe("POST /api/public/lottery-draw", () => {
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
       productName: "招牌餐點",
+      bestSellerRank: 1,
+      recommendationBasis: "BEST_SELLER",
+      recommendationStrategy: "POPULARITY_30D",
     });
     expect(mocks.queryRaw).toHaveBeenCalledOnce();
   });

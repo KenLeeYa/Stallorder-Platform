@@ -1,0 +1,67 @@
+import { describe, expect, it } from "vitest";
+import { prepareOfflineOrderItemSnapshots } from "@/offline/offline-operations";
+
+const productId = "10000000-0000-4000-8000-000000000001";
+const noteGroupId = "20000000-0000-4000-8000-000000000001";
+const eggId = "30000000-0000-4000-8000-000000000001";
+const cheeseId = "30000000-0000-4000-8000-000000000002";
+
+const catalog = {
+  limits: {
+    maxItemQuantity: 5,
+    maxUniqueProducts: 1,
+    maxTotalQuantity: 10,
+    maxNoteLength: 100,
+  },
+  products: [{
+    id: productId,
+    categoryId: "40000000-0000-4000-8000-000000000001",
+    name: "香酥雞排",
+    description: null,
+    imageUrl: null,
+    price: 95,
+    isActive: true,
+    isEnabled: true,
+    isSoldOut: false,
+    availableFrom: null,
+    availableUntil: null,
+    noteGroups: [{
+      id: noteGroupId,
+      name: "加料",
+      selectionMode: "MULTIPLE" as const,
+      isRequired: false,
+      minSelections: 0,
+      maxSelections: 2,
+      sortOrder: 0,
+      isActive: true,
+      options: [{
+        id: eggId,
+        name: "加蛋",
+        priceDelta: 15,
+        sortOrder: 0,
+        isActive: true,
+      }, {
+        id: cheeseId,
+        name: "加起司",
+        priceDelta: 20,
+        sortOrder: 1,
+        isActive: true,
+      }],
+    }],
+  }],
+};
+
+describe("offline staff order item preparation", () => {
+  it("creates independent snapshots for one product with different notes", () => {
+    const snapshots = prepareOfflineOrderItemSnapshots([
+      { productId, quantity: 2, note: "", noteOptionIds: [eggId] },
+      { productId, quantity: 1, note: "", noteOptionIds: [cheeseId] },
+    ], catalog, new Date("2026-08-06T01:00:00.000Z"));
+
+    expect(snapshots).toHaveLength(2);
+    expect(new Set(snapshots.map((item) => item.productId))).toEqual(new Set([productId]));
+    expect(snapshots.map((item) => item.quantity)).toEqual([2, 1]);
+    expect(snapshots.map((item) => item.noteOptions[0]?.optionName)).toEqual(["加蛋", "加起司"]);
+    expect(snapshots.map((item) => item.unitPrice)).toEqual([110, 115]);
+  });
+});

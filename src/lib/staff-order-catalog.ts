@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_DINING_FLOOR_NAME } from "@/lib/dining-floor";
 import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
 import { getStaffFulfillmentModules } from "@/lib/staff-fulfillment";
 
@@ -10,7 +11,7 @@ export async function getStaffOrderPageConfiguration(
   includeCatalog: boolean,
 ) {
   const now = new Date();
-  const [assignments, tables, settings] = await Promise.all([
+  const [assignments, tables, settings, fulfillmentSlotRows] = await Promise.all([
     includeCatalog ? prisma.stallProduct.findMany({
       where: {
         stallId,
@@ -33,6 +34,7 @@ export async function getStaffOrderPageConfiguration(
             defaultPrice: true,
             kind: true,
             imageUrl: true,
+            isOrderDiscountEligible: true,
             category: { select: { name: true } },
             bundleChoiceGroups: {
               orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -103,8 +105,8 @@ export async function getStaffOrderPageConfiguration(
     }) : Promise.resolve([]),
     includeCatalog ? prisma.diningTable.findMany({
       where: { stallId, organizationId, isActive: true },
-      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      select: { id: true, label: true },
+      orderBy: [{ floor: { sortOrder: "asc" } }, { sortOrder: "asc" }, { label: "asc" }],
+      select: { id: true, label: true, floorId: true, floor: { select: { name: true } } },
     }) : Promise.resolve([]),
     includeCatalog ? prisma.stallOrderingSettings.findUniqueOrThrow({
       where: { stallId },
@@ -135,9 +137,15 @@ export async function getStaffOrderPageConfiguration(
         maxNoteLength: true,
       },
     }),
+    includeCatalog ? prisma.$queryRaw<Array<{ slots: unknown }>>`
+      select public.get_fulfillment_time_slots_raw(${stallId}::uuid, ${now}::timestamptz) as slots
+    ` : Promise.resolve([]),
   ]);
 
   const fulfillmentModules = getStaffFulfillmentModules(settings);
+  const fulfillmentSlots = Array.isArray(fulfillmentSlotRows[0]?.slots)
+    ? fulfillmentSlotRows[0].slots.filter((slot): slot is string => typeof slot === "string")
+    : [];
   const catalogProducts = assignments.flatMap((assignment) => {
     const bundleChoiceGroups = assignment.product.bundleChoiceGroups.map((group) => ({
       id: group.id,
@@ -186,6 +194,7 @@ export async function getStaffOrderPageConfiguration(
       description: assignment.product.description,
       category: assignment.product.category.name,
       price: assignment.priceOverride ?? assignment.product.defaultPrice,
+      isOrderDiscountEligible: assignment.product.isOrderDiscountEligible,
       kind: assignment.product.kind,
       bundleChoiceGroups: assignment.product.kind === "BUNDLE" ? bundleChoiceGroups : [],
       imageUrl: assignment.product.imageUrl,
@@ -203,7 +212,11 @@ export async function getStaffOrderPageConfiguration(
     },
     catalog: includeCatalog && settings ? {
       products: catalogProducts,
-      tables,
+      tables: tables.map(({ floor, ...table }) => ({
+        ...table,
+        floorName: floor?.name ?? DEFAULT_DINING_FLOOR_NAME,
+      })),
+      fulfillmentSlots,
       limits: {
         maxItemQuantity: settings.maxItemQuantity,
         maxUniqueProducts: settings.maxUniqueProducts,

@@ -1,8 +1,12 @@
 import { z } from "zod";
+import {
+  diningFloorFields,
+  diningTableLayoutEntrySchema,
+  diningTablePresentationFields,
+} from "@/lib/dining-floor-contract";
 import { QR_LOCALES } from "@/lib/qr-order-i18n";
 
 const uuid = z.string().uuid("識別資料格式不正確，請重新整理後再試。");
-const floorCoordinate = z.number().int().min(0).max(820);
 const tableFields = {
   code: z.string().trim()
     .min(1, "請輸入桌位代碼。")
@@ -13,6 +17,7 @@ const tableFields = {
     .max(40, "桌位名稱不可超過 40 個字元。"),
   sortOrder: z.number().int("排序必須是整數。").min(0, "排序不可小於 0。").max(10_000, "排序不可超過 10000。"),
   isActive: z.boolean(),
+  ...diningTablePresentationFields,
 };
 const paymentFields = {
   code: z.string().trim()
@@ -37,6 +42,22 @@ const discountFields = {
   sortOrder: z.number().int("排序必須是整數。").min(0, "排序不可小於 0。").max(10_000, "排序不可超過 10000。"),
 };
 
+const lotteryDiscountChancesSchema = z.array(z.object({
+  discountOptionId: uuid,
+  winRateBps: z.number().int("各折扣中獎率必須是整數百分比。")
+    .min(1, "已選折扣的中獎率必須大於 0%。")
+    .max(10_000, "各折扣中獎率不可超過 100%。"),
+}).strict())
+  .max(20, "抽抽樂最多可設定 20 個折扣獎項。")
+  .superRefine((chances, context) => {
+    if (new Set(chances.map((chance) => chance.discountOptionId)).size !== chances.length) {
+      context.addIssue({ code: "custom", message: "同一個折扣不可重複加入抽抽樂。" });
+    }
+    if (chances.reduce((total, chance) => total + chance.winRateBps, 0) > 10_000) {
+      context.addIssue({ code: "custom", message: "所有折扣的中獎率合計不可超過 100%。" });
+    }
+  });
+
 export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
   z.object({
     operation: z.literal("UPDATE_MODULES"),
@@ -56,14 +77,15 @@ export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
     preorderMaxDays: z.number().int("最多預約天數必須是整數。")
       .min(1, "最多預約天數不可少於 1 天。")
       .max(30, "最多預約天數不可超過 30 天。"),
-    preorderSlotMinutes: z.union([z.literal(15), z.literal(30), z.literal(60), z.literal(120)], {
-      error: "預約時段間隔只能選擇 15、30、60 或 120 分鐘。",
+    preorderSlotMinutes: z.union([z.literal(5), z.literal(15), z.literal(30), z.literal(60), z.literal(120)], {
+      error: "預約時段間隔只能選擇 5、15、30、60 或 120 分鐘。",
     }),
     lotteryEnabled: z.boolean(),
     lotteryDiscountOptionId: uuid.nullable(),
     lotteryDiscountWinRateBps: z.number().int("折扣中獎率必須是整數百分比。")
       .min(0, "折扣中獎率不可小於 0%。")
       .max(10_000, "折扣中獎率不可超過 100%。"),
+    lotteryDiscountChances: lotteryDiscountChancesSchema.optional(),
   }).strict(),
   z.object({
     operation: z.literal("UPDATE_LOCALES"),
@@ -72,15 +94,15 @@ export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
       .refine((locales) => locales.includes("zh-TW"), "繁體中文為必要語系，無法停用。")
       .refine((locales) => new Set(locales).size === locales.length, "語系不可重複。"),
   }).strict(),
+  z.object({ operation: z.literal("CREATE_FLOOR"), ...diningFloorFields }).strict(),
+  z.object({ operation: z.literal("UPDATE_FLOOR"), floorId: uuid, ...diningFloorFields }).strict(),
+  z.object({ operation: z.literal("DELETE_FLOOR"), floorId: uuid }).strict(),
   z.object({ operation: z.literal("CREATE_TABLE"), ...tableFields }).strict(),
   z.object({ operation: z.literal("UPDATE_TABLE"), tableId: uuid, ...tableFields }).strict(),
   z.object({
     operation: z.literal("UPDATE_TABLE_LAYOUT"),
-    tables: z.array(z.object({
-      tableId: uuid,
-      layoutX: floorCoordinate,
-      layoutY: floorCoordinate,
-    }).strict()).min(1, "至少需要一個桌位才能儲存位置。").max(100, "一次最多可儲存 100 個桌位。")
+    floorId: uuid.nullable(),
+    tables: z.array(diningTableLayoutEntrySchema).min(1, "至少需要一個桌位才能儲存位置。").max(100, "一次最多可儲存 100 個桌位。")
       .refine((tables) => new Set(tables.map((table) => table.tableId)).size === tables.length, "桌位不可重複。"),
   }).strict(),
   z.object({ operation: z.literal("DELETE_TABLE"), tableId: uuid }).strict(),
@@ -107,8 +129,12 @@ const fieldLabels: Record<string, string> = {
   preorderSlotMinutes: "預約時段間隔",
   lotteryDiscountOptionId: "中獎折扣",
   lotteryDiscountWinRateBps: "折扣中獎率",
+  lotteryDiscountChances: "多折扣中獎率",
   enabledLocales: "QR 點餐語系",
   rateBps: "付款比例",
+  floorId: "樓層",
+  shape: "桌型",
+  rotationDegrees: "旋轉角度",
   tables: "桌位位置",
 };
 
@@ -140,6 +166,9 @@ export function getStallModuleFieldLabel(field: string, operation: unknown) {
   if (field === "name" && (operation === "CREATE_DISCOUNT" || operation === "UPDATE_DISCOUNT")) {
     return "折扣名稱";
   }
+  if (field === "name" && (operation === "CREATE_FLOOR" || operation === "UPDATE_FLOOR")) {
+    return "樓層名稱";
+  }
   return fieldLabels[field] ?? field;
 }
 
@@ -147,10 +176,11 @@ type ModuleSettingsForSave = {
   takeoutPreorderEnabled: boolean;
   preorderMinLeadMinutes: number;
   preorderMaxDays: number;
-  preorderSlotMinutes: 15 | 30 | 60 | 120;
+  preorderSlotMinutes: 5 | 15 | 30 | 60 | 120;
   lotteryEnabled: boolean;
   lotteryDiscountOptionId: string | null;
   lotteryDiscountWinRateBps: number;
+  lotteryDiscountChances?: Array<{ discountOptionId: string; winRateBps: number }>;
 };
 
 export function normalizeDisabledModuleSettings<T extends ModuleSettingsForSave>(settings: T): T {
@@ -159,11 +189,12 @@ export function normalizeDisabledModuleSettings<T extends ModuleSettingsForSave>
     ...(!settings.takeoutPreorderEnabled ? {
       preorderMinLeadMinutes: 15,
       preorderMaxDays: 1,
-      preorderSlotMinutes: 30 as const,
+      preorderSlotMinutes: 5 as const,
     } : {}),
     ...(!settings.lotteryEnabled ? {
       lotteryDiscountOptionId: null,
       lotteryDiscountWinRateBps: 0,
+      ...(settings.lotteryDiscountChances ? { lotteryDiscountChances: [] } : {}),
     } : {}),
   };
 }
@@ -178,12 +209,20 @@ export function getModuleDuplicateCodeFieldErrors(operation: unknown, target: un
     && (fields.includes("stall_id") || fields.includes("stallid"));
   const paymentTarget = exactFieldTarget || constraint === "payment_options_stall_code_key";
   const tableTarget = exactFieldTarget || constraint === "dining_tables_stall_code_key";
+  const floorTarget = (fields.length === 2
+      && fields.includes("name")
+      && (fields.includes("stall_id") || fields.includes("stallid")))
+    || constraint === "dining_floors_stall_id_name_key"
+    || constraint === "dining_floors_stall_name_key";
 
   if ((operation === "CREATE_PAYMENT_OPTION" || operation === "UPDATE_PAYMENT_OPTION") && paymentTarget) {
     return { code: "此付款方式代碼已被使用，請改用其他代碼。" };
   }
   if ((operation === "CREATE_TABLE" || operation === "UPDATE_TABLE") && tableTarget) {
     return { code: "此桌位代碼已被使用，請改用其他代碼。" };
+  }
+  if ((operation === "CREATE_FLOOR" || operation === "UPDATE_FLOOR") && floorTarget) {
+    return { name: "此樓層名稱已被使用，請改用其他名稱。" };
   }
   return undefined;
 }

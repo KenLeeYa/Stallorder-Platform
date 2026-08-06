@@ -16,6 +16,10 @@ const productIds = z.array(uuid).max(100).refine(
   (ids) => new Set(ids).size === ids.length,
   { message: "商品不可重複指派。" },
 );
+const reusableNoteIds = z.array(uuid).min(1).max(100).refine(
+  (ids) => new Set(ids).size === ids.length,
+  { message: "共用單一註記不可重複選擇。" },
+);
 
 const groupFields = {
   name,
@@ -80,6 +84,11 @@ export const productNoteCommandSchema = z.discriminatedUnion("operation", [
     reusableNoteId: uuid,
     sortOrder,
   }).strict(),
+  z.object({
+    operation: z.literal("ATTACH_REUSABLE_NOTES"),
+    noteGroupId: uuid,
+    reusableNoteIds,
+  }).strict(),
 ]).superRefine((command, context) => {
   if (command.operation !== "CREATE_NOTE_GROUP" && command.operation !== "UPDATE_NOTE_GROUP") return;
   if (command.selectionMode === "SINGLE" && command.maxSelections !== 1) {
@@ -110,6 +119,7 @@ const productNoteFieldLabels: Record<string, string> = {
   productIds: "指派商品",
   noteGroupId: "註記群組",
   reusableNoteId: "共用單一註記",
+  reusableNoteIds: "共用單一註記",
 };
 
 export function getProductNoteFieldErrors(error: z.ZodError): Record<string, string> {
@@ -126,7 +136,11 @@ export function getProductNoteFieldErrors(error: z.ZodError): Record<string, str
 }
 
 export function getReusableProductNoteDuplicateFieldErrors(operation: string) {
-  return operation === "CREATE_REUSABLE_NOTE" || operation === "UPDATE_REUSABLE_NOTE"
-    ? { name: "已有相同名稱的共用單一註記，請使用其他名稱。" }
-    : {};
+  if (operation === "CREATE_REUSABLE_NOTE" || operation === "UPDATE_REUSABLE_NOTE") {
+    return { name: "已有相同名稱的共用單一註記，請使用其他名稱。" };
+  }
+  if (operation === "ATTACH_REUSABLE_NOTES") {
+    return { reusableNoteIds: "部分共用單一註記已在群組中，請重新整理後再選擇。" };
+  }
+  return {};
 }

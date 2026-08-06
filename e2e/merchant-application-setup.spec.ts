@@ -14,6 +14,7 @@ const applicantEmail = "merchant.application.e2e@stallorder.test";
 const adminEmail = "merchant.application.admin.e2e@stallorder.test";
 const applicantAuthUserId = randomUUID();
 const requestedSlug = "merchant-application-e2e";
+const demoOrganizationId = "11111111-1111-4111-8111-111111111111";
 let applicationId = "";
 let organizationId = "";
 
@@ -136,13 +137,26 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     expect(organization.merchantSetupProgress?.goLiveCompleted).toBe(false);
 
     await page.goto(`/merchant/dashboard?organizationId=${organizationId}`);
+    await expect(page.getByLabel("選擇商家")).toBeVisible();
+    await page.getByLabel("選擇商家").selectOption(demoOrganizationId);
+    await expect(page).toHaveURL(
+      new RegExp(`/merchant/stalls\\?organizationId=${demoOrganizationId}$`),
+    );
+    await page.goto(`/merchant/dashboard?organizationId=${organizationId}`);
     await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);
 
     await page.context().clearCookies();
     await login(page, applicantEmail);
     await expect(page).toHaveURL(new RegExp(`/merchant/setup\\?organizationId=${organizationId}`));
     await expect(page.getByRole("heading", { name: "開店設定" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "開店設定" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);
+
+    await page.goto(`/merchant/stalls/${organization.stalls[0].id}`);
+    await expect(page.getByRole("link", { name: "開店設定", exact: true })).toHaveAttribute(
+      "href",
+      `/merchant/setup?organizationId=${organizationId}`,
+    );
+    await page.goto(`/merchant/setup?organizationId=${organizationId}`);
 
     const merchantProfileStep = page.getByRole("article").filter({ hasText: "商家資料" });
     const stallProfileStep = page.getByRole("article").filter({ hasText: "攤位資料" });
@@ -216,6 +230,14 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     expect(live.stall.orderingState).toBe("OPEN");
     expect(live.stall.orderingEnabled).toBe(true);
     expect(live.qrCode.state).toBe("ACTIVE");
+
+    await page.context().clearCookies();
+    await login(page, applicantEmail);
+    await expect(page).toHaveURL(
+      new RegExp(`/merchant/dashboard\\?organizationId=${organizationId}$`),
+      { timeout: 30_000 },
+    );
+    await expect(page.getByText("多攤位營運總覽", { exact: true })).toBeVisible();
 
     await prisma.merchantSetupProgress.delete({ where: { organizationId } });
     await page.goto(`/merchant/setup?organizationId=${organizationId}`);

@@ -241,6 +241,46 @@ export async function POST(request: Request, context: RouteContext) {
         return { id: option.id, entityType: "PRODUCT_NOTE_OPTION" } as const;
       }
 
+      if (command.operation === "ATTACH_REUSABLE_NOTES") {
+        const [group, reusableNotes, currentSort] = await Promise.all([
+          transaction.productNoteGroup.findFirst({
+            where: { id: command.noteGroupId, organizationId },
+            select: { id: true },
+          }),
+          transaction.reusableProductNote.findMany({
+            where: { id: { in: command.reusableNoteIds }, organizationId },
+            select: { id: true, name: true, priceDelta: true, isActive: true },
+          }),
+          transaction.productNoteOption.aggregate({
+            where: { noteGroupId: command.noteGroupId, organizationId },
+            _max: { sortOrder: true },
+          }),
+        ]);
+        if (!group || reusableNotes.length !== command.reusableNoteIds.length) {
+          throw new ProductNoteNotFoundError();
+        }
+
+        const reusableNotesById = new Map(reusableNotes.map((note) => [note.id, note]));
+        const nextSortOrder = Math.max(0, currentSort._max.sortOrder ?? 0) + 1;
+        for (const [index, reusableNoteId] of command.reusableNoteIds.entries()) {
+          const reusableNote = reusableNotesById.get(reusableNoteId);
+          if (!reusableNote) throw new ProductNoteNotFoundError();
+          await transaction.productNoteOption.create({
+            data: {
+              organizationId,
+              noteGroupId: group.id,
+              reusableNoteId: reusableNote.id,
+              name: reusableNote.name,
+              priceDelta: reusableNote.priceDelta,
+              sortOrder: Math.min(10_000, nextSortOrder + index),
+              isActive: reusableNote.isActive,
+            },
+            select: { id: true },
+          });
+        }
+        return { id: group.id, entityType: "PRODUCT_NOTE_GROUP" } as const;
+      }
+
       if (command.operation === "CREATE_NOTE_OPTION") {
         const group = await transaction.productNoteGroup.findFirst({
           where: { id: command.noteGroupId, organizationId },
@@ -320,7 +360,11 @@ export async function POST(request: Request, context: RouteContext) {
       ipHash: hashClientIp(request),
       before,
       after: toAuditJson(command),
-      metadata: "productIds" in command ? { assignedProductCount: command.productIds.length } : undefined,
+      metadata: "productIds" in command
+        ? { assignedProductCount: command.productIds.length }
+        : "reusableNoteIds" in command
+          ? { attachedReusableNoteCount: command.reusableNoteIds.length }
+          : undefined,
     });
     invalidatePublicMenus(authorization.workspace.stalls.map((stall) => stall.id));
 
@@ -396,6 +440,7 @@ function auditAction(operation: string) {
     UPDATE_REUSABLE_NOTE: "REUSABLE_PRODUCT_NOTE_UPDATED",
     DELETE_REUSABLE_NOTE: "REUSABLE_PRODUCT_NOTE_DELETED",
     ATTACH_REUSABLE_NOTE: "REUSABLE_PRODUCT_NOTE_ATTACHED",
+    ATTACH_REUSABLE_NOTES: "REUSABLE_PRODUCT_NOTES_ATTACHED",
   };
   return actions[operation] ?? "PRODUCT_NOTES_UPDATED";
 }

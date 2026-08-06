@@ -49,6 +49,8 @@ export async function GET(request: Request, context: RouteContext) {
           const translation = translations.get(columns.locale);
           return [translation?.name ?? "", translation?.description ?? ""];
         }),
+        String(product.isOrderDiscountEligible),
+        String(product.isLotteryEligible),
       ];
     }),
   ];

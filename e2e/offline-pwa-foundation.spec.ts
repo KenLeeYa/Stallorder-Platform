@@ -94,7 +94,7 @@ test.describe("P4 離線 PWA 基礎", () => {
         },
       });
 
-      await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
+      await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard\?organizationId=/);
       await ownerPage.goto(`/merchant/stalls/${stallId}/offline`);
       const ownerSettings = ownerPage.locator("main:visible").last();
       await expect(ownerSettings.getByRole("heading", { name: "離線裝置" })).toBeVisible();

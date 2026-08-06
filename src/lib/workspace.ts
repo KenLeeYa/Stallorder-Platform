@@ -6,7 +6,7 @@ import { cache } from "react";
 import { getPagePrincipal } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { defaultPathForRole } from "@/lib/auth";
-import { resolvePrimaryRole } from "@/lib/rbac";
+import { hasPermission, resolvePrimaryRole } from "@/lib/rbac";
 
 const accessibleOrganizationStatuses = [
   "TRIALING",
@@ -37,6 +37,7 @@ export type WorkspaceOrganization = {
   status: OrganizationStatus;
   defaultCurrency: string;
   merchantSetupState: "IN_PROGRESS" | "COMPLETED" | null;
+  merchantSetupStallId: string | null;
   roles: UserRole[];
   canUseAllStalls: boolean;
   stalls: WorkspaceStall[];
@@ -79,7 +80,7 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
       status: true,
       defaultCurrency: true,
       merchantSetupProgress: {
-        select: { goLiveCompleted: true },
+        select: { stallId: true, goLiveCompleted: true },
       },
       stalls: {
         orderBy: [{ name: "asc" }, { createdAt: "asc" }],
@@ -157,6 +158,7 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
           ? "COMPLETED"
           : "IN_PROGRESS"
         : null,
+      merchantSetupStallId: organization.merchantSetupProgress?.stallId ?? null,
       roles: organizationRoles,
       canUseAllStalls: hasAllStallAccess,
       stalls,
@@ -173,6 +175,23 @@ export function getDefaultWorkspacePath(workspaces: WorkspaceOrganization[]) {
   if (workspaces.length > 1) return "/select-organization";
 
   const workspace = workspaces[0];
+  const workspaceRoles = [...new Set([
+    ...workspace.roles,
+    ...workspace.stalls.flatMap((stall) => stall.roles),
+  ])];
+  const canViewOperationalDashboard = workspace.merchantSetupState !== "IN_PROGRESS"
+    && workspace.stalls.some((stall) => (
+      stall.isActive
+      && [...workspace.roles, ...stall.roles].some((role) => hasPermission(role, "VIEW_REPORTS"))
+    ));
+  if (canViewOperationalDashboard) {
+    return `/merchant/dashboard?organizationId=${workspace.id}`;
+  }
+  if (workspaceRoles.some((role) => (
+    hasPermission(role, "MANAGE_STALL") || hasPermission(role, "MANAGE_PRODUCTS")
+  ))) {
+    return `/merchant/stalls?organizationId=${workspace.id}`;
+  }
   if (workspace.canUseAllStalls) return `/merchant/dashboard?organizationId=${workspace.id}`;
   const activeStalls = workspace.stalls.filter((stall) => stall.isActive);
   if (activeStalls.length !== 1) return `/select-stall?organizationId=${workspace.id}`;

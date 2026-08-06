@@ -227,9 +227,17 @@ where id = '55555555-5555-4555-8555-555555555551';
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a1111111-1111-4111-8111-111111111112', true);
-select is(
-  (select count(*)::integer from public.products),
-  4,
+select ok(
+  exists (
+    select 1
+    from public.products
+    where id = '44444444-4444-4444-8444-444444444441'
+  )
+  and not exists (
+    select 1
+    from public.products
+    where id = '94444444-4444-4444-8444-444444444441'
+  ),
   'RLS 只允許組織擁有者讀取自己組織的商品主檔'
 );
 

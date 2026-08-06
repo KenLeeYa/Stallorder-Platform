@@ -2,8 +2,11 @@ import { expect, test, type Page } from "@playwright/test";
 
 const routes = [
   "/merchant/dashboard",
+  "/merchant/stalls?organizationId=11111111-1111-4111-8111-111111111111",
   "/merchant/stalls/22222222-2222-4222-8222-222222222222",
+  "/merchant/stalls/22222222-2222-4222-8222-222222222222/settings/modules",
   "/merchant/stalls/22222222-2222-4222-8222-222222222222/products",
+  "/merchant/catalog?organizationId=11111111-1111-4111-8111-111111111111",
   "/merchant/operations",
   "/staff/aming-chicken",
   "/kitchen?stall=aming-chicken",
@@ -15,10 +18,11 @@ async function login(page: Page) {
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(/\/merchant\/dashboard/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/, { timeout: 30_000 });
 }
 
 for (const viewport of [
+  { name: "compact-mobile", width: 375, height: 812 },
   { name: "mobile", width: 390, height: 844 },
   { name: "tablet", width: 768, height: 1024 },
   { name: "desktop", width: 1440, height: 900 },

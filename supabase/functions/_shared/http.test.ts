@@ -37,6 +37,8 @@ describe("Edge 公開錯誤契約", () => {
     expect(statusForCode("SESSION_TOKEN_COLLISION")).toBe(409);
     expect(statusForCode("INVALID_PRODUCT_BUNDLE")).toBe(422);
     expect(statusForCode("LOTTERY_RATE_LIMITED")).toBe(429);
+    expect(statusForCode("FULFILLMENT_TIME_PROPOSAL_STALE")).toBe(409);
+    expect(statusForCode("FULFILLMENT_TIME_SERVICE_UNAVAILABLE")).toBe(503);
   });
 
   it("涵蓋預約與工作階段的終止錯誤", () => {
@@ -44,5 +46,6 @@ describe("Edge 公開錯誤契約", () => {
     expect(errorMessage("SESSION_TOKEN_COLLISION")).toContain("工作階段");
     expect(errorMessage("INVALID_PRODUCT_BUNDLE")).toContain("套餐");
     expect(errorMessage("LOTTERY_RATE_LIMITED")).toContain("抽抽樂");
+    expect(errorMessage("FULFILLMENT_TIME_PROPOSAL_EXPIRED")).toContain("逾期");
   });
 });

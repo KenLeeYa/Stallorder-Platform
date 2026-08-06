@@ -20,6 +20,7 @@ import {
   type OfflineSyncRecord,
 } from "@/offline/offline-order-contract";
 import { getCashShiftRuntimeTotals } from "@/lib/cash-shifts";
+import { orderItemsExceedLimits } from "@/lib/order-item-limits";
 import { prisma } from "@/lib/prisma";
 import { createOpaqueToken, hashToken, safeEqual } from "@/lib/security";
 import { EntitlementService } from "@/server/billing/entitlement-service";
@@ -213,12 +214,9 @@ function prepareSnapshotItems(
   snapshotCatalog: z.infer<typeof snapshotCatalogSchema>,
 ) {
   const productMap = new Map(snapshotCatalog.products.map((product) => [product.id, product]));
-  const totalQuantity = order.itemsSnapshot.reduce((sum, item) => sum + item.quantity, 0);
   if (
     order.currency !== snapshotCatalog.stall.currency
-    || order.itemsSnapshot.length > snapshotCatalog.limits.maxUniqueProducts
-    || totalQuantity > snapshotCatalog.limits.maxTotalQuantity
-    || order.note.length > snapshotCatalog.limits.maxNoteLength
+    || orderItemsExceedLimits(order.itemsSnapshot, order.note, snapshotCatalog.limits)
   ) {
     throw new OfflineSyncOperationError("OFFLINE_SYNC_PAYLOAD_INVALID");
   }

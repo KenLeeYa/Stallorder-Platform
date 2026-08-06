@@ -1,6 +1,8 @@
 import { PublicOrderCircuitBreaker } from "@/lib/public-order-circuit-breaker";
 
 const DEVICE_COOKIE = "stallorder_device";
+const DEVICE_STORAGE_KEY = "stallorder_device:v1";
+const DEVICE_STORAGE_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PUBLIC_ORDER_PROTOCOL_VERSION = "1";
 const CIRCUIT_TIMEOUT_MS = 4_000;
@@ -52,21 +54,77 @@ let availabilityCache: AvailabilityCache | null = null;
 let availabilityRequest: Promise<PublicAvailabilityConfig | null> | null = null;
 
 export function getOrCreateDeviceId() {
-  const existing = document.cookie
+  const encodedCookie = document.cookie
     .split(";")
     .map((part) => part.trim())
     .find((part) => part.startsWith(`${DEVICE_COOKIE}=`))
     ?.slice(DEVICE_COOKIE.length + 1);
 
-  if (existing) {
-    const decoded = decodeURIComponent(existing);
-    if (UUID_PATTERN.test(decoded)) return decoded;
+  if (encodedCookie) {
+    try {
+      const cookieDeviceId = decodeURIComponent(encodedCookie);
+      if (UUID_PATTERN.test(cookieDeviceId)) {
+        persistDeviceStorage(cookieDeviceId);
+        return cookieDeviceId;
+      }
+    } catch {
+      // Treat a malformed cookie as missing and recover from the local backup.
+    }
+  }
+
+  const storedDevice = readDeviceStorage();
+  if (storedDevice) {
+    persistDeviceStorage(storedDevice.id);
+    persistDeviceCookie(storedDevice.id);
+    return storedDevice.id;
   }
 
   const deviceId = crypto.randomUUID();
+  persistDeviceCookie(deviceId);
+  persistDeviceStorage(deviceId);
+  return deviceId;
+}
+
+function persistDeviceCookie(deviceId: string) {
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
   document.cookie = `${DEVICE_COOKIE}=${encodeURIComponent(deviceId)}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
-  return deviceId;
+}
+
+function readDeviceStorage() {
+  try {
+    const storedValue = window.localStorage.getItem(DEVICE_STORAGE_KEY);
+    if (!storedValue) return null;
+    if (UUID_PATTERN.test(storedValue)) {
+      return { id: storedValue, expiresAt: null };
+    }
+    const parsed = JSON.parse(storedValue) as { id?: unknown; expiresAt?: unknown };
+    if (
+      typeof parsed.id !== "string"
+      || !UUID_PATTERN.test(parsed.id)
+      || typeof parsed.expiresAt !== "number"
+      || !Number.isFinite(parsed.expiresAt)
+      || parsed.expiresAt <= Date.now()
+    ) {
+      window.localStorage.removeItem(DEVICE_STORAGE_KEY);
+      return null;
+    }
+    return { id: parsed.id, expiresAt: parsed.expiresAt };
+  } catch {
+    return null;
+  }
+}
+
+function persistDeviceStorage(deviceId: string) {
+  try {
+    const existing = readDeviceStorage();
+    if (existing?.id === deviceId && existing.expiresAt !== null) return;
+    window.localStorage.setItem(DEVICE_STORAGE_KEY, JSON.stringify({
+      id: deviceId,
+      expiresAt: Date.now() + DEVICE_STORAGE_MAX_AGE_MS,
+    }));
+  } catch {
+    // Restricted browser storage must not block ordering.
+  }
 }
 
 export function publicEdgeUrl(functionName: string) {
@@ -94,6 +152,32 @@ function canCallEdgeDirectly() {
 export async function parseEdgeResponse(response: Response) {
   const payload = await response.json().catch(() => ({ error: "伺服器回應格式不正確。" }));
   return payload as Record<string, unknown>;
+}
+
+export function respondToFulfillmentTime(
+  input: {
+    trackingToken: string;
+    deviceId: string;
+    version: number;
+    response: "ACCEPT" | "DECLINE";
+  },
+  options: Pick<PublicOrderRequestOptions, "fetchImpl" | "timeoutMs"> = {},
+) {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  return fetchImpl(
+    `/api/public/orders/${encodeURIComponent(input.trackingToken)}/fulfillment-time`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        deviceId: input.deviceId,
+        version: input.version,
+        response: input.response,
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(options.timeoutMs ?? CIRCUIT_TIMEOUT_MS),
+    },
+  );
 }
 
 export async function requestPublicOrder(

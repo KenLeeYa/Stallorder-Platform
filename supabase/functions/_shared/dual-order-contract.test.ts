@@ -74,6 +74,43 @@ describe("dual public order contract", () => {
     expect(createPublicOrderSchema.safeParse({ ...base, items: [first, { ...first, quantity: 2 }] }).success).toBe(false);
   });
 
+  it("requires a time for PREORDER and accepts an optional requested time for takeaway or delivery", () => {
+    const base = {
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      orderSessionToken: `stos_${"a".repeat(43)}`,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      idempotencyKey: "22222222-2222-4222-8222-222222222222",
+      items: [{
+        productId: "55555555-5555-4555-8555-555555555555",
+        quantity: 1,
+      }],
+      turnstileToken: "turnstile-token",
+    };
+    const requestedTime = "2099-08-03T04:00:00.000Z";
+
+    expect(createPublicOrderSchema.safeParse({
+      ...base,
+      orderingMode: "PREORDER",
+    }).success).toBe(false);
+    expect(createPublicOrderSchema.safeParse({
+      ...base,
+      orderingMode: "PREORDER",
+      scheduledPickupAt: requestedTime,
+    }).success).toBe(true);
+    expect(createPublicOrderSchema.safeParse({
+      ...base,
+      orderingMode: "DEFAULT",
+      scheduledPickupAt: requestedTime,
+    }).success).toBe(true);
+    expect(createPublicOrderSchema.safeParse({
+      ...base,
+      orderingMode: "DELIVERY",
+      customerPhone: "0912345678",
+      deliveryAddress: "Taipei",
+      scheduledPickupAt: requestedTime,
+    }).success).toBe(true);
+  });
+
   it("canonicalizes behavior independent of line and option order", () => {
     const first = {
       productId: "abcdefab-cdef-4abc-8def-abcdefabcdef",
