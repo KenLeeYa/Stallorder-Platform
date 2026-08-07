@@ -54,6 +54,9 @@ describe("configure DR replication dry-run", () => {
     expect(source).toContain('subscription.subconninfo as "connectionInfo"');
     expect(source).toContain('subscription.subtwophasestate::text as "twoPhaseState"');
     expect(source).toContain('statements::text[] as statements');
+    expect(source).toContain("assertMigrationHistoriesCompatible(primaryHistory, drHistory)");
+    expect(source).toContain("assertAllTablesHavePrimaryKeys(primary)");
+    expect(source).toContain("assertAllTablesHavePrimaryKeys(dr)");
     expect(source).toContain('relation.relkind::text as "tableKind"');
     expect(source).toContain('pg_catalog.format_type(attribute.atttypid, attribute.atttypmod)');
     expect(source).toContain("await verifyExactReplicationContract({");

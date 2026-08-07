@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import {
   buildPublicationTableExpression,
@@ -19,6 +18,7 @@ import {
   verifyInitialCopyTargetsEmpty,
   waitForSubscriptionScope,
 } from "./lib/dr-replication-publication.mjs";
+import { assertMigrationHistoriesCompatible } from "./lib/dr-migration-history.mjs";
 
 const args = new Set(process.argv.slice(2));
 const apply = args.has("--apply");
@@ -180,7 +180,10 @@ try {
     await assertRuntimeState(primary, "PRIMARY", "ACTIVE_WRITER", true);
     await assertRuntimeState(dr, "DR", "READ_ONLY_STANDBY", false);
     await assertMigrationHistoryMatches(primary, dr);
-    await assertAllTablesHavePrimaryKeys(primary);
+    await Promise.all([
+      assertAllTablesHavePrimaryKeys(primary),
+      assertAllTablesHavePrimaryKeys(dr),
+    ]);
     const [
       columnsByTable,
       drColumnsByTable,
@@ -405,8 +408,8 @@ async function assertRuntimeState(database, backendCode, role, writesEnabled) {
   }
 }
 
-async function migrationDigest(database) {
-  const rows = await database.$queryRawUnsafe(
+async function readMigrationHistory(database) {
+  return database.$queryRawUnsafe(
     `select
        version::text as version,
        name,
@@ -414,31 +417,14 @@ async function migrationDigest(database) {
      from supabase_migrations.schema_migrations
      order by version`,
   );
-  if (rows.some((row) => (
-    typeof row.version !== "string"
-    || (row.name !== null && typeof row.name !== "string")
-    || (row.statements !== null && (
-      !Array.isArray(row.statements)
-      || row.statements.some((statement) => typeof statement !== "string")
-    ))
-  ))) {
-    throw new Error("MIGRATION_HISTORY_INVALID");
-  }
-  return createHash("sha256")
-    .update(JSON.stringify(rows.map((row) => ({
-      version: row.version,
-      name: row.name ?? null,
-      statements: row.statements ?? [],
-    }))))
-    .digest("hex");
 }
 
 async function assertMigrationHistoryMatches(primaryDatabase, drDatabase) {
-  const [primaryDigest, drDigest] = await Promise.all([
-    migrationDigest(primaryDatabase),
-    migrationDigest(drDatabase),
+  const [primaryHistory, drHistory] = await Promise.all([
+    readMigrationHistory(primaryDatabase),
+    readMigrationHistory(drDatabase),
   ]);
-  if (primaryDigest !== drDigest) throw new Error("MIGRATION_HISTORY_MISMATCH");
+  assertMigrationHistoriesCompatible(primaryHistory, drHistory);
 }
 
 async function assertAllTablesHavePrimaryKeys(database) {
