@@ -135,6 +135,10 @@ select is(
 delete from public.orders;
 
 update public.products
+set is_lottery_eligible = false
+where organization_id = '11111111-1111-4111-8111-111111111111';
+
+update public.products
 set is_active = true,
     is_lottery_eligible = true,
     kind = 'SINGLE'::public.product_kind

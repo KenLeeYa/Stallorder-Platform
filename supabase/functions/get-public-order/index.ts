@@ -4,6 +4,7 @@ import {
   errorMessage,
   getCorsHeaders,
   getGatewayClientIp,
+  getPublicOrderOperationId,
   HttpInputError,
   jsonResponse,
   readBoundedJson,
@@ -15,10 +16,15 @@ import { createEdgePerformanceTiming, finalizeEdgeResponse } from "../_shared/pe
 
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
-  const timing = createEdgePerformanceTiming({ route: "/functions/v1/get-public-order", requestId });
+  const operationId = getPublicOrderOperationId(request);
+  const timing = createEdgePerformanceTiming({
+    route: "/functions/v1/get-public-order",
+    requestId,
+    operationId,
+  });
   let corsHeaders: Record<string, string> = {};
   const respond = (body: unknown, status: number) => finalizeEdgeResponse(
-    jsonResponse(body, status, corsHeaders, requestId),
+    jsonResponse(body, status, corsHeaders, requestId, operationId),
     timing,
   );
 
@@ -135,6 +141,7 @@ Deno.serve(async (request) => {
         level: "error",
         event: "PUBLIC_ORDER_LOOKUP_FAILED",
         requestId,
+        operationId,
         detail,
       }));
     }

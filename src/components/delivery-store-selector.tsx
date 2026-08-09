@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RefreshCw, Store } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { createWebUuid } from "@/lib/web-uuid";
 
 type ExternalStore = { id: string; chainId: string | null; name: string };
 
@@ -44,7 +45,7 @@ export function DeliveryStoreSelector({
       headers: csrfHeaders(),
       body: JSON.stringify({
         externalStoreId: selected,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: createWebUuid(),
       }),
     });
     const result = await response.json().catch(() => ({}));

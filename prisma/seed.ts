@@ -141,12 +141,14 @@ async function main() {
     { code: "LINE_PAY", name: "LINE Pay", kind: "LINE_PAY" as const, sortOrder: 2 },
     { code: "JKO_PAY", name: "街口支付", kind: "JKO_PAY" as const, sortOrder: 3 },
   ];
+  const paymentOptionIds = new Map<string, string>();
   for (const option of paymentOptions) {
-    await prisma.paymentOption.upsert({
+    const paymentOption = await prisma.paymentOption.upsert({
       where: { stallId_code: { stallId: stall.id, code: option.code } },
       update: { organizationId: organization.id, ...option, isEnabled: true },
       create: { organizationId: organization.id, stallId: stall.id, ...option },
     });
+    paymentOptionIds.set(option.code, paymentOption.id);
   }
   for (const [index, discount] of [{ name: "9 折", rateBps: 9000 }, { name: "8 折", rateBps: 8000 }].entries()) {
     const existingDiscount = await prisma.discountOption.findFirst({
@@ -193,10 +195,21 @@ async function main() {
   }
 
   const products = [
-    ["香酥雞排", "現炸雞排，灑上胡椒鹽。", 95, "炸物", "人氣炸物"],
-    ["地瓜薯條", "金黃酥脆，適合一起分享。", 55, "炸物", "人氣炸物"],
-    ["台式鹽酥雞", "一口大小的鹽酥雞，搭配九層塔。", 75, "炸物", "人氣炸物"],
-    ["冬瓜茶", "冰涼古早味冬瓜茶。", 35, "飲料", "清涼飲品"],
+    ["香酥雞排", "現炸雞排，灑上胡椒鹽。", 95, "炸物", "人氣炸物", "SINGLE"],
+    ["地瓜薯條", "金黃酥脆，適合一起分享。", 55, "炸物", "人氣炸物", "SINGLE"],
+    ["台式鹽酥雞", "一口大小的鹽酥雞，搭配九層塔。", 75, "炸物", "人氣炸物", "SINGLE"],
+    ["甜不辣", "外酥內Q的夜市經典。", 45, "炸物", "經典炸物", "SINGLE"],
+    ["米血糕", "酥炸米血糕，口感外脆內軟。", 40, "炸物", "經典炸物", "SINGLE"],
+    ["百頁豆腐", "金黃酥香、口感紮實。", 45, "炸物", "經典炸物", "SINGLE"],
+    ["雞蛋豆腐", "嫩口雞蛋豆腐炸至金黃。", 55, "炸物", "經典炸物", "SINGLE"],
+    ["四季豆", "爽脆四季豆，現點現炸。", 45, "蔬食", "酥炸蔬菜", "SINGLE"],
+    ["杏鮑菇", "多汁杏鮑菇，外層酥香。", 55, "蔬食", "酥炸蔬菜", "SINGLE"],
+    ["玉米筍", "清甜玉米筍，適合搭配炸物。", 50, "蔬食", "酥炸蔬菜", "SINGLE"],
+    ["冬瓜茶", "冰涼古早味冬瓜茶。", 35, "飲料", "古早味飲品", "SINGLE"],
+    ["無糖綠茶", "清爽無糖茶香，解膩首選。", 30, "飲料", "茶飲", "SINGLE"],
+    ["檸檬紅茶", "檸檬酸香搭配清爽紅茶。", 45, "飲料", "茶飲", "SINGLE"],
+    ["梅子可樂", "酸甜梅香氣泡飲。", 50, "飲料", "氣泡飲品", "SINGLE"],
+    ["人氣雙享餐", "任選人氣主餐與配餐，套餐更優惠。", 150, "套餐", "超值套餐", "BUNDLE"],
   ] as const;
   const categoryIds = new Map<string, string>();
   for (const [index, categoryName] of [...new Set(products.map((product) => product[3]))].entries()) {
@@ -239,8 +252,9 @@ async function main() {
     where: { organizationId: organization.id },
     orderBy: { sortOrder: "asc" },
   });
+  const existingByName = new Map(existing.map((product) => [product.name, product]));
   const seededProducts = new Map<string, string>();
-  for (const [index, [name, description, defaultPrice, category, group]] of products.entries()) {
+  for (const [index, [name, description, defaultPrice, category, group, kind]] of products.entries()) {
     const categoryId = categoryIds.get(category);
     if (!categoryId) throw new Error(`找不到商品分類：${category}`);
     const groupId = groupIds.get(group);
@@ -252,11 +266,14 @@ async function main() {
       name,
       description,
       defaultPrice,
+      kind,
+      isLotteryEligible: kind === "SINGLE",
       isActive: true,
       sortOrder: index + 1,
     };
-    const product = existing[index]
-      ? await prisma.product.update({ where: { id: existing[index].id }, data })
+    const existingProduct = existingByName.get(name);
+    const product = existingProduct
+      ? await prisma.product.update({ where: { id: existingProduct.id }, data })
       : await prisma.product.create({ data });
     seededProducts.set(name, product.id);
     await prisma.stallProduct.upsert({
@@ -269,7 +286,7 @@ async function main() {
         sortOrder: index + 1,
       },
     });
-    const translations = demoProductTranslations[name];
+    const translations = demoProductTranslations[name as keyof typeof demoProductTranslations] ?? [];
     for (const translation of translations) {
       await prisma.productTranslation.upsert({
         where: { productId_locale: { productId: product.id, locale: translation.locale } },
@@ -277,6 +294,68 @@ async function main() {
         create: { organizationId: organization.id, productId: product.id, ...translation },
       });
     }
+  }
+
+  const bundleProductId = seededProducts.get("人氣雙享餐");
+  if (!bundleProductId) throw new Error("找不到示範套餐：人氣雙享餐");
+  const bundleGroupDefinitions = [
+    { name: "選擇主餐", minSelections: 1, maxSelections: 1, productNames: ["香酥雞排", "台式鹽酥雞"] },
+    { name: "選擇配餐", minSelections: 1, maxSelections: 1, productNames: ["地瓜薯條", "甜不辣", "無糖綠茶"] },
+  ] as const;
+  for (const [groupIndex, definition] of bundleGroupDefinitions.entries()) {
+    const choiceGroup = await prisma.productBundleChoiceGroup.upsert({
+      where: { bundleProductId_name: { bundleProductId, name: definition.name } },
+      update: {
+        organizationId: organization.id,
+        minSelections: definition.minSelections,
+        maxSelections: definition.maxSelections,
+        sortOrder: groupIndex + 1,
+      },
+      create: {
+        organizationId: organization.id,
+        bundleProductId,
+        name: definition.name,
+        minSelections: definition.minSelections,
+        maxSelections: definition.maxSelections,
+        sortOrder: groupIndex + 1,
+      },
+    });
+    for (const [choiceIndex, productName] of definition.productNames.entries()) {
+      const componentProductId = seededProducts.get(productName);
+      if (!componentProductId) throw new Error(`找不到套餐元件商品：${productName}`);
+      await prisma.productBundleChoice.upsert({
+        where: { choiceGroupId_componentProductId: { choiceGroupId: choiceGroup.id, componentProductId } },
+        update: { organizationId: organization.id, quantity: 1, priceDelta: 0, isEnabled: true, sortOrder: choiceIndex + 1 },
+        create: {
+          organizationId: organization.id,
+          choiceGroupId: choiceGroup.id,
+          componentProductId,
+          quantity: 1,
+          priceDelta: 0,
+          sortOrder: choiceIndex + 1,
+        },
+      });
+    }
+  }
+
+  const reusableNoteDefinitions = [
+    { name: "不加胡椒", priceDelta: 0 },
+    { name: "加九層塔", priceDelta: 5 },
+    { name: "加蒜", priceDelta: 5 },
+    { name: "分開裝", priceDelta: 0 },
+    { name: "少冰", priceDelta: 0 },
+    { name: "去冰", priceDelta: 0 },
+    { name: "半糖", priceDelta: 0 },
+    { name: "無糖", priceDelta: 0 },
+  ] as const;
+  const reusableNoteIds = new Map<string, string>();
+  for (const [index, definition] of reusableNoteDefinitions.entries()) {
+    const reusableNote = await prisma.reusableProductNote.upsert({
+      where: { organizationId_name: { organizationId: organization.id, name: definition.name } },
+      update: { priceDelta: definition.priceDelta, sortOrder: index + 1, isActive: true },
+      create: { organizationId: organization.id, ...definition, sortOrder: index + 1 },
+    });
+    reusableNoteIds.set(definition.name, reusableNote.id);
   }
 
   const noteGroupDefinitions = [
@@ -287,7 +366,7 @@ async function main() {
       minSelections: 1,
       maxSelections: 1,
       sortOrder: 1,
-      productNames: ["台式鹽酥雞"],
+      productNames: ["台式鹽酥雞", "甜不辣", "米血糕", "百頁豆腐", "雞蛋豆腐", "四季豆", "杏鮑菇", "玉米筍"],
       translations: [
         { locale: "en", name: "Spice Level" },
         { locale: "ja", name: "辛さ" },
@@ -349,7 +428,7 @@ async function main() {
       minSelections: 0,
       maxSelections: 2,
       sortOrder: 2,
-      productNames: ["香酥雞排", "地瓜薯條", "台式鹽酥雞"],
+      productNames: ["香酥雞排", "地瓜薯條", "台式鹽酥雞", "甜不辣", "米血糕", "百頁豆腐", "雞蛋豆腐", "四季豆", "杏鮑菇", "玉米筍"],
       translations: [
         { locale: "en", name: "Add-ons" },
         { locale: "ja", name: "追加トッピング" },
@@ -393,6 +472,49 @@ async function main() {
         },
       ],
     },
+    {
+      name: "包裝需求",
+      selectionMode: "MULTIPLE" as const,
+      isRequired: false,
+      minSelections: 0,
+      maxSelections: 3,
+      sortOrder: 3,
+      productNames: ["香酥雞排", "地瓜薯條", "台式鹽酥雞", "甜不辣", "米血糕", "百頁豆腐", "雞蛋豆腐", "四季豆", "杏鮑菇", "玉米筍"],
+      translations: [],
+      options: [
+        { name: "不加胡椒", priceDelta: 0, translations: [] },
+        { name: "加蒜", priceDelta: 5, translations: [] },
+        { name: "分開裝", priceDelta: 0, translations: [] },
+      ],
+    },
+    {
+      name: "甜度",
+      selectionMode: "SINGLE" as const,
+      isRequired: true,
+      minSelections: 1,
+      maxSelections: 1,
+      sortOrder: 4,
+      productNames: ["冬瓜茶", "檸檬紅茶", "梅子可樂"],
+      translations: [],
+      options: [
+        { name: "半糖", priceDelta: 0, translations: [] },
+        { name: "無糖", priceDelta: 0, translations: [] },
+      ],
+    },
+    {
+      name: "冰量",
+      selectionMode: "SINGLE" as const,
+      isRequired: true,
+      minSelections: 1,
+      maxSelections: 1,
+      sortOrder: 5,
+      productNames: ["冬瓜茶", "無糖綠茶", "檸檬紅茶", "梅子可樂"],
+      translations: [],
+      options: [
+        { name: "少冰", priceDelta: 0, translations: [] },
+        { name: "去冰", priceDelta: 0, translations: [] },
+      ],
+    },
   ];
   for (const definition of noteGroupDefinitions) {
     const noteGroup = await prisma.productNoteGroup.upsert({
@@ -425,8 +547,8 @@ async function main() {
     for (const [optionIndex, optionDefinition] of definition.options.entries()) {
       const noteOption = await prisma.productNoteOption.upsert({
         where: { noteGroupId_name: { noteGroupId: noteGroup.id, name: optionDefinition.name } },
-        update: { organizationId: organization.id, priceDelta: optionDefinition.priceDelta, sortOrder: optionIndex + 1, isActive: true },
-        create: { organizationId: organization.id, noteGroupId: noteGroup.id, name: optionDefinition.name, priceDelta: optionDefinition.priceDelta, sortOrder: optionIndex + 1 },
+        update: { organizationId: organization.id, reusableNoteId: reusableNoteIds.get(optionDefinition.name), priceDelta: optionDefinition.priceDelta, sortOrder: optionIndex + 1, isActive: true },
+        create: { organizationId: organization.id, noteGroupId: noteGroup.id, reusableNoteId: reusableNoteIds.get(optionDefinition.name), name: optionDefinition.name, priceDelta: optionDefinition.priceDelta, sortOrder: optionIndex + 1 },
       });
       for (const translation of optionDefinition.translations) {
         await prisma.productNoteOptionTranslation.upsert({
@@ -435,6 +557,12 @@ async function main() {
           create: { organizationId: organization.id, noteOptionId: noteOption.id, ...translation },
         });
       }
+    }
+    if (definition.name === "包裝需求") {
+      await prisma.productNoteOption.updateMany({
+        where: { organizationId: organization.id, noteGroupId: noteGroup.id, name: "加九層塔" },
+        data: { reusableNoteId: null, isActive: false },
+      });
     }
     for (const [assignmentIndex, productName] of definition.productNames.entries()) {
       const productId = seededProducts.get(productName);
@@ -459,6 +587,16 @@ async function main() {
     { productName: "台式鹽酥雞", quantity: 1 },
     { productName: "台式鹽酥雞", quantity: 1 },
   ] as const;
+  const cashPaymentOptionId = paymentOptionIds.get("CASH");
+  if (!cashPaymentOptionId) throw new Error("找不到示範現金付款方式。");
+  const firstDemoOrderId = "b5100000-0000-4000-8000-000000000001";
+  const firstDemoOrder = await prisma.order.findUnique({
+    where: { id: firstDemoOrderId },
+    select: { createdAt: true },
+  });
+  const firstDemoCompletedAt = firstDemoOrder?.createdAt
+    ?? new Date(Date.now() - 60 * 60 * 1_000);
+  const demoPaymentDefinitions: Array<{ orderId: string; amount: number; paidAt: Date }> = [];
   for (const [saleIndex, sale] of demoBestSellerSales.entries()) {
     const sequence = String(saleIndex + 1).padStart(12, "0");
     const productId = seededProducts.get(sale.productName);
@@ -467,7 +605,7 @@ async function main() {
       where: { id: productId },
       select: { defaultPrice: true },
     });
-    const completedAt = new Date(Date.now() - (saleIndex + 1) * 60 * 60 * 1_000);
+    const completedAt = new Date(firstDemoCompletedAt.getTime() - saleIndex * 60 * 60 * 1_000);
     const orderId = `b5100000-0000-4000-8000-${sequence}`;
     const subtotal = product.defaultPrice * sale.quantity;
     await prisma.order.upsert({
@@ -488,6 +626,7 @@ async function main() {
         confirmedAt: completedAt,
         paidAt: completedAt,
         completedAt,
+        createdAt: completedAt,
         cancelledAt: null,
       },
       create: {
@@ -530,6 +669,7 @@ async function main() {
         status: "SERVED",
       },
     });
+    demoPaymentDefinitions.push({ orderId, amount: subtotal, paidAt: completedAt });
   }
 
   const passwordHash = await hash("StallOrderDemo!2026", 12);
@@ -538,12 +678,14 @@ async function main() {
     { email: "staff@stallorder.test", displayName: "示範店員", role: "STAFF" as const },
     { email: "kitchen@stallorder.test", displayName: "示範廚房", role: "KITCHEN" as const },
   ];
+  const profileIds = new Map<string, string>();
   for (const account of accounts) {
     const profile = await prisma.profile.upsert({
       where: { email: account.email },
       update: { displayName: account.displayName, passwordHash, isActive: true },
       create: { email: account.email, displayName: account.displayName, passwordHash },
     });
+    profileIds.set(account.email, profile.id);
     if (account.role === "ORGANIZATION_OWNER") {
       await prisma.organizationMembership.upsert({
         where: {
@@ -577,6 +719,99 @@ async function main() {
       });
     }
   }
+
+  const ownerProfileId = profileIds.get("owner@stallorder.test");
+  if (!ownerProfileId) throw new Error("找不到示範商戶帳號。");
+  const demoCashShiftId = "b5400000-0000-4000-8000-000000000001";
+  const demoCashShiftOpenedAt = new Date(
+    Math.min(...demoPaymentDefinitions.map((payment) => payment.paidAt.getTime())) - 60_000,
+  );
+  const demoCashShiftClosedAt = new Date(
+    Math.max(...demoPaymentDefinitions.map((payment) => payment.paidAt.getTime())) + 60_000,
+  );
+  const demoCashTotal = demoPaymentDefinitions.reduce((total, payment) => total + payment.amount, 0);
+  await prisma.$transaction(async (transaction) => {
+    let demoCashShift = await transaction.cashShift.findUnique({
+      where: { id: demoCashShiftId },
+    });
+    if (!demoCashShift) {
+      const activeCashShift = await transaction.cashShift.findFirst({
+        where: { stallId: stall.id, status: "OPEN" },
+        select: { id: true },
+      });
+      if (activeCashShift) throw new Error("請先關閉目前現金班次，再執行示範資料種子。");
+      demoCashShift = await transaction.cashShift.create({
+        data: {
+          id: demoCashShiftId,
+          organizationId: organization.id,
+          stallId: stall.id,
+          openingAmount: 0,
+          note: "熱銷示範現金班次",
+          openedById: ownerProfileId,
+          openedAt: demoCashShiftOpenedAt,
+          createdAt: demoCashShiftOpenedAt,
+        },
+      });
+    }
+    if (demoCashShift.status !== "OPEN" && demoCashShift.status !== "CLOSED") {
+      throw new Error("示範現金班次狀態無法安全重跑種子。");
+    }
+    if (demoCashShift.status === "CLOSED") {
+      const existingPaymentCount = await transaction.payment.count({
+        where: {
+          cashShiftId: demoCashShiftId,
+          orderId: { in: demoPaymentDefinitions.map((payment) => payment.orderId) },
+        },
+      });
+      if (existingPaymentCount !== demoPaymentDefinitions.length) {
+        throw new Error("示範現金班次已關閉，但付款資料不完整。");
+      }
+    }
+    for (const payment of demoPaymentDefinitions) {
+      const paymentData = {
+        organizationId: organization.id,
+        stallId: stall.id,
+        paymentOptionId: cashPaymentOptionId,
+        cashShiftId: demoCashShiftId,
+        amount: payment.amount,
+        method: "CASH" as const,
+        status: "PAID" as const,
+        reference: "DEMO_BESTSELLER_SEED",
+        methodLabel: "現金",
+        reconciliationStatus: null,
+        cashReceived: payment.amount,
+        changeAmount: 0,
+        recordedById: ownerProfileId,
+        paidAt: payment.paidAt,
+        createdAt: payment.paidAt,
+      };
+      if (demoCashShift.status === "CLOSED") {
+        await transaction.payment.update({
+          where: { orderId: payment.orderId },
+          data: paymentData,
+        });
+      } else {
+        await transaction.payment.upsert({
+          where: { orderId: payment.orderId },
+          update: paymentData,
+          create: { ...paymentData, orderId: payment.orderId },
+        });
+      }
+    }
+    if (demoCashShift.status === "OPEN") {
+      await transaction.cashShift.update({
+        where: { id: demoCashShiftId },
+        data: {
+          status: "CLOSED",
+          systemExpectedAmount: demoCashTotal,
+          countedAmount: demoCashTotal,
+          varianceAmount: 0,
+          closedById: ownerProfileId,
+          closedAt: demoCashShiftClosedAt,
+        },
+      });
+    }
+  });
 
   await prisma.profile.upsert({
     where: { email: "platform.admin@stallorder.test" },

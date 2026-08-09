@@ -175,7 +175,7 @@ set delivery_result = public.create_public_order_with_fulfillment_time(
   'fb400000-0000-4000-8000-000000000001', repeat('i', 64),
   'Delivery only customer', '0912345678', '台北市測試路 5 號', '',
   jsonb_build_array(jsonb_build_object(
-    'product_id', '44444444-4444-4444-8444-444444444444',
+    'product_id', '44444444-4444-4444-8444-444444444441',
     'quantity', 1,
     'note', '',
     'modifier_option_ids', '[]'::jsonb,
@@ -221,7 +221,7 @@ set takeaway_result = public.create_public_order_with_fulfillment_time(
   'fb400000-0000-4000-8000-000000000002', repeat('j', 64),
   'Takeaway disabled customer', null, null, '',
   jsonb_build_array(jsonb_build_object(
-    'product_id', '44444444-4444-4444-8444-444444444444',
+    'product_id', '44444444-4444-4444-8444-444444444441',
     'quantity', 1,
     'note', '',
     'modifier_option_ids', '[]'::jsonb,
@@ -440,6 +440,10 @@ select ok(
 update public.stall_ordering_settings
 set preorder_slot_minutes = 15
 where stall_id = '22222222-2222-4222-8222-222222222222';
+-- Cadence assertions should not change when the real clock approaches midnight.
+update five_minute_test_context
+set reference_time = date_trunc('day', reference_time at time zone 'Asia/Taipei')
+  at time zone 'Asia/Taipei';
 create temporary table fifteen_minute_test_slots (
   slot timestamptz primary key
 ) on commit drop;

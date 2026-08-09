@@ -63,6 +63,28 @@ describe("Turnstile 伺服器驗證", () => {
     })).resolves.toEqual({ ok: true });
   });
 
+  it("測試環境明確啟用官方 always-pass 私鑰時可離線驗證", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new Error("offline"));
+    await expect(verifyTurnstile({
+      ...base,
+      secret: "1x0000000000000000000000000000000AA",
+      allowTestKeys: true,
+      environment: "test",
+      fetchImpl,
+    })).resolves.toEqual({ ok: true });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("測試環境的一般私鑰在離線時仍採 fail closed", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new Error("offline"));
+    await expect(verifyTurnstile({
+      ...base,
+      allowTestKeys: true,
+      environment: "test",
+      fetchImpl,
+    })).resolves.toMatchObject({ ok: false, code: "TURNSTILE_UNAVAILABLE" });
+  });
+
   it("正式環境一律拒絕 Cloudflare 官方測試私鑰", async () => {
     const fetchImpl = siteverify({
       success: true,

@@ -1,12 +1,24 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { catalogCsvHeaders } from "../src/lib/catalog-csv";
+import { gotoLocalPath } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 
+async function waitForReactHandler(control: Locator, handler: "onClick" | "onChange") {
+  await expect.poll(() => control.evaluate((element, eventName) => {
+    const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps$"));
+    if (!propsKey) return false;
+    const props = (element as unknown as Record<string, unknown>)[propsKey];
+    return typeof props === "object"
+      && props !== null
+      && typeof (props as Record<string, unknown>)[eventName] === "function";
+  }, handler), { message: `等待 React 掛載 ${handler}` }).toBe(true);
+}
+
 test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", async ({ browser, page }, testInfo) => {
   test.setTimeout(180_000);
-  await page.goto("/login");
+  await gotoLocalPath(page, "/login");
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
@@ -20,7 +32,27 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
     { timeout: 30_000 },
   );
 
-  await page.goto(`/merchant/stalls/${stallId}`);
+  const settingsBasicPath = `/merchant/stalls/${stallId}/settings/basic`;
+  if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+    for (const path of [
+      `/api/merchant/stalls/${stallId}`,
+      `/api/merchant/stalls/${stallId}/business-hours`,
+      `/api/merchant/stalls/${stallId}/memberships`,
+      `/api/merchant/stalls/${stallId}/modules`,
+      "/api/stalls/aming-chicken/ordering",
+      `/api/merchant/organizations/${organizationId}/catalog/import`,
+      `/api/merchant/organizations/${organizationId}/catalog`,
+    ]) {
+      const warmupResponse = await page.context().request.get(path);
+      expect(warmupResponse.status()).toBe(405);
+      await warmupResponse.dispose();
+    }
+    const settingsWarmupResponse = await page.context().request.get(settingsBasicPath);
+    expect(settingsWarmupResponse.status()).toBe(200);
+    await settingsWarmupResponse.dispose();
+  }
+
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}`);
   for (const title of ["攤位設定", "營運工具", "組織管理"]) {
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
   }
@@ -78,7 +110,7 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   expect(basicResponse.request().postDataJSON().operation).toBe("UPDATE_BASIC");
   await expect(page.getByText("基本資料已更新。", { exact: true })).toBeVisible();
 
-  await page.goto(`/merchant/stalls/${stallId}/settings/operations`);
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/operations`);
   await expect(page.getByRole("heading", { name: "營運狀態", exact: true })).toBeVisible();
   const operationsSaveResponse = page.waitForResponse((response) => (
     response.url().endsWith(`/api/merchant/stalls/${stallId}`)
@@ -93,7 +125,7 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   expect(operationsResponse.request().postDataJSON().operation).toBe("UPDATE_OPERATIONS");
   await expect(page.getByText("營運狀態已更新。", { exact: true })).toBeVisible();
 
-  await page.goto(`/merchant/stalls/${stallId}/settings/business-hours`);
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/business-hours`);
   const editableOpeningTime = page.locator('input[data-field-key$=".opensAt"]:not(:disabled)').first();
   const openingTimeKey = await editableOpeningTime.getAttribute("data-field-key");
   expect(openingTimeKey).toMatch(/^hours\.[0-6]\.opensAt$/);
@@ -111,7 +143,7 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(editableOpeningTime).toBeFocused();
   await editableOpeningTime.fill(originalOpeningTime);
 
-  await page.goto(`/merchant/stalls/${stallId}/settings/members`);
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/members`);
   const memberEmail = page.locator('input[name="email"]');
   await memberEmail.fill("不是有效信箱");
   const invalidMemberResponse = page.waitForResponse((response) => (
@@ -124,7 +156,7 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(memberEmail).toBeFocused();
   await memberEmail.fill("");
 
-  await page.goto(`/merchant/stalls/${stallId}/settings/modules`);
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/modules`);
   await expect(page.getByRole("heading", { name: "營運模組與內用桌位", exact: true })).toBeVisible();
   const moduleSections = page.locator("details[data-module-section]");
   await expect(moduleSections).toHaveCount(7);
@@ -183,7 +215,7 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
     const japaneseContext = await browser.newContext({ locale: "ja-JP", timezoneId: "Asia/Taipei" });
     try {
       const japanesePage = await japaneseContext.newPage();
-      await japanesePage.goto("/q/demo-aming-chicken-qr-2026-rotate-me");
+      await gotoLocalPath(japanesePage, "/q/demo-aming-chicken-qr-2026-rotate-me");
       const languageMenu = japanesePage.getByRole("button", { name: "點餐語言" });
       await expect(languageMenu).toHaveAttribute("data-current-locale", "zh-TW");
       await languageMenu.click();
@@ -194,11 +226,13 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
 
     const localizationPage = await page.context().newPage();
     try {
-      await localizationPage.goto(`/merchant/catalog?organizationId=${organizationId}`);
+      await gotoLocalPath(localizationPage, `/merchant/catalog?organizationId=${organizationId}`);
       const aiTranslationButton = localizationPage.getByRole("button", { name: "一鍵補齊翻譯" });
       await expect(aiTranslationButton).toBeDisabled();
       await expect(aiTranslationButton).toHaveAttribute("title", "AI 翻譯尚未完成伺服器設定");
-      await localizationPage.getByRole("button", { name: "編輯 香酥雞排" }).first().click();
+      const editProductButton = localizationPage.getByRole("button", { name: "編輯 香酥雞排" }).first();
+      await waitForReactHandler(editProductButton, "onClick");
+      await editProductButton.click();
       const productEditor = localizationPage.getByRole("dialog", { name: "編輯商品" });
       await expect(productEditor.getByLabel("英文名稱")).toBeVisible();
       await expect(productEditor.getByLabel("英文名稱")).not.toHaveAttribute("required");
@@ -213,7 +247,7 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
       await expect(noteEditor.getByLabel("日文", { exact: true })).toHaveCount(0);
       await noteEditor.getByRole("button", { name: "關閉" }).click();
 
-      await localizationPage.goto(`/merchant/localization?organizationId=${organizationId}`);
+      await gotoLocalPath(localizationPage, `/merchant/localization?organizationId=${organizationId}`);
       await expect(localizationPage.getByText("日本語", { exact: true })).toHaveCount(0);
       const disabledPreviewStatus = await localizationPage.evaluate(async (url) => {
         const response = await fetch(url, { credentials: "same-origin" });
@@ -225,14 +259,18 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
     }
   } finally {
     if (japaneseChanged) {
+      await waitForReactHandler(japaneseSwitch, "onClick");
       await japaneseSwitch.click();
+      await expect(japaneseSwitch).toHaveAttribute("aria-checked", "true");
+      const saveLocaleSettingsButton = localeSection.getByRole("button", { name: "儲存語系設定" });
+      await waitForReactHandler(saveLocaleSettingsButton, "onClick");
+      await expect(saveLocaleSettingsButton).toBeEnabled();
       const restoreResponse = page.waitForResponse((response) => (
         response.url().includes(`/api/merchant/stalls/${stallId}/modules`)
         && response.request().method() === "PATCH"
       ));
-      await localeSection.getByRole("button", { name: "儲存語系設定" }).click();
+      await saveLocaleSettingsButton.click();
       expect((await restoreResponse).status()).toBe(200);
-      await expect(japaneseSwitch).toHaveAttribute("aria-checked", "true");
     }
   }
 
@@ -287,11 +325,11 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await newPaymentCode.fill("");
   await newPaymentName.fill("");
 
-  await page.goto(`/merchant/team?organizationId=${organizationId}`);
+  await gotoLocalPath(page, `/merchant/team?organizationId=${organizationId}`);
   await expect(page.getByText("最高擁有者", { exact: true })).toBeVisible();
   await expect(page.getByLabel(/變更.*組織角色/).first()).toBeDisabled();
 
-  await page.goto(`/merchant/reports/overview?organizationId=${organizationId}`);
+  await gotoLocalPath(page, `/merchant/reports/overview?organizationId=${organizationId}`);
   await expect(page.getByRole("button", { name: "日", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "週", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "月", exact: true })).toBeVisible();
@@ -299,7 +337,7 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(hourlySales.getByText("00:00", { exact: true })).toBeVisible();
   await expect(hourlySales.getByText("23:00", { exact: true })).toBeVisible();
 
-  await page.goto("/merchant/aming-chicken");
+  await gotoLocalPath(page, "/merchant/aming-chicken");
   const stallProductList = page.locator("details[data-stall-product-list]");
   await expect(stallProductList).toHaveAttribute("open", "");
   await stallProductList.locator("summary").first().click();
@@ -310,7 +348,7 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(page.getByLabel("供應結束").first()).toBeVisible();
   await expect(page.getByText("安全與訂單限制", { exact: true })).toHaveCount(0);
 
-  await page.goto(`/merchant/stalls/${stallId}/settings/order-limits`);
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/order-limits`);
   await expect(page.getByRole("heading", { name: "安全與訂單限制", exact: true })).toBeVisible();
   const estimatedWaitInput = page.getByLabel("顧客預估等候分鐘");
   await expect(estimatedWaitInput).toHaveValue("15");
@@ -336,7 +374,14 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   expect((await limitsResponse).status()).toBe(200);
   await expect(page.getByRole("status")).toHaveText("安全與訂單限制已更新。");
 
-  await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  const catalogPath = `/merchant/catalog?organizationId=${organizationId}`;
+  if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+    const warmupResponse = await page.context().request.get(catalogPath);
+    expect(warmupResponse.status()).toBe(200);
+    await warmupResponse.dispose();
+  }
+  await gotoLocalPath(page, catalogPath);
+  await expect(page).toHaveURL(new RegExp(`/merchant/catalog\\?organizationId=${organizationId}$`));
   await expect(page.getByRole("link", { name: "匯出 CSV" })).toBeVisible();
   await expect(page.getByText("匯入 CSV", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "商品註記設定" })).toBeVisible();
@@ -346,11 +391,19 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(page.getByRole("button", { name: "複製 香酥雞排" }).first()).toBeVisible();
   const validCsvRow = ["", "測試分類", "", "匯入預覽商品", "", "88", "", "1", "true", "AMING-01", "Preview item", "", "", "", "", "", "", "", "", "", "true", "true"];
   const invalidCsvRow = ["", "測試分類", "", "錯誤價格商品", "", "=100", "", "2", "true", "AMING-01", "", "", "", "", "", "", "", "", "", "", "true", "true"];
-  await page.getByText("匯入 CSV", { exact: true }).locator("input[type=file]").setInputFiles({
+  const csvInput = page.getByText("匯入 CSV", { exact: true }).locator("input[type=file]");
+  await waitForReactHandler(csvInput, "onChange");
+  const importPreviewResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname
+      === `/api/merchant/organizations/${organizationId}/catalog/import`
+    && response.request().method() === "POST"
+  ));
+  await csvInput.setInputFiles({
     name: "catalog-preview.csv",
     mimeType: "text/csv",
     buffer: Buffer.from([catalogCsvHeaders.join(","), validCsvRow.join(","), invalidCsvRow.join(",")].join("\n")),
   });
+  expect((await importPreviewResponse).status()).toBe(200);
   const importDialog = page.getByRole("dialog", { name: "CSV 匯入預覽" });
   await expect(importDialog.getByRole("button", { name: "套用 1 筆有效資料" })).toBeVisible();
   await expect(importDialog.getByRole("button", { name: "下載錯誤 CSV" })).toBeVisible();

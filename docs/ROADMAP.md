@@ -57,3 +57,7 @@
 詳見 [PHASE_2_BILLING_ROADMAP.md](PHASE_2_BILLING_ROADMAP.md) 與 [PHASE_3_BILLING_ROADMAP.md](PHASE_3_BILLING_ROADMAP.md)。
 
 商家申請自動化仍停用；後續 gate 見 [PHASE_2_MERCHANT_APPLICATION_ROADMAP.md](PHASE_2_MERCHANT_APPLICATION_ROADMAP.md) 與 [PHASE_3_MERCHANT_APPLICATION_ROADMAP.md](PHASE_3_MERCHANT_APPLICATION_ROADMAP.md)。
+
+## QR 訂購與架構改善 Phase 0–3
+
+QR 顧客流程、Tracker、公開訂單 Circuit A/B、容量／排程、outbox、Staff Board 與候選新功能使用獨立 Phase 定義，與上方商業帳務及商家申請階段無關。狀態、驗收條件、本機實作批次與 release gate 以 [QR_ORDERING_PHASE_0_3_CHECKLIST.md](QR_ORDERING_PHASE_0_3_CHECKLIST.md) 為唯一來源。

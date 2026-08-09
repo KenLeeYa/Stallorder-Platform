@@ -1,13 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowUp,
   ChevronDown,
   Clock3,
   Dices,
+  Flame,
   History,
   Minus,
   Plus,
@@ -18,12 +19,20 @@ import {
   X,
 } from "lucide-react";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
+import {
+  LotteryDailyLimitDialog,
+  LotteryResultDialog,
+  type LotteryDraw,
+} from "@/components/qr-lottery-dialogs";
 import { ProductImage } from "@/components/product-image";
 import { QrLanguageSelector } from "@/components/qr-language-selector";
+import { QrSessionCountdown } from "@/components/qr-session-countdown";
+import { SessionExpiryDialog } from "@/components/qr-session-expiry-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { deliveryOrderMessages, localizedDeliveryOrderError } from "@/lib/delivery-order-i18n";
 import { buildFulfillmentTimeSlots } from "@/lib/fulfillment-time-options";
 import { formatMoney } from "@/lib/money";
+import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
 import {
   bundlePriceAdjustment,
   bundleSelectionIsValid,
@@ -31,6 +40,7 @@ import {
 } from "@/lib/product-bundle-selection";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
 import {
+  createPublicOrderOperationId,
   getPublicAvailability,
   getOrCreateDeviceId,
   parseEdgeResponse,
@@ -48,12 +58,24 @@ import {
   qrCartProductQuantity,
   qrCartStorageKey,
   qrCartTotalQuantity,
+  replaceQrCartLine,
   restoreQrCartDraft,
   serializeQrCartDraft,
   updateQrCartLineQuantity,
   type QrCartLine,
 } from "@/lib/qr-cart";
 import { shouldRefreshQrCapacity } from "@/lib/qr-capacity-refresh";
+import {
+  lotteryAnimationDelay,
+  lotteryProductNeedsConfiguration,
+  shouldShowLotteryDialog,
+} from "@/lib/qr-lottery";
+import {
+  sessionCountdownPhase,
+  sessionSecondsRemaining,
+  type SessionCountdownPhase,
+} from "@/lib/session-countdown";
+import { createWebUuid } from "@/lib/web-uuid";
 import {
   prunePublicCartLinesForProducts,
   publicMenuProductsForPickup,
@@ -92,16 +114,7 @@ type Props = {
   qrToken: string;
   orderingMode?: "DEFAULT" | "DELIVERY" | "PREORDER";
   initialMenu?: PublicMenu | null;
-};
-
-type LotteryDraw = {
-  drawId: string;
-  productId: string;
-  productName: string;
-  bestSellerRank: number | null;
-  recommendationBasis: "BEST_SELLER" | "DISCOVERY";
-  discountWon: boolean;
-  discountLabel: string | null;
+  entryChannel?: "QR" | "SHARED_LINK";
 };
 
 type ProductDraft = {
@@ -112,20 +125,33 @@ type ProductDraft = {
 
 class LocalizedOrderError extends Error {}
 const PHONE_NUMBER = /^\+?[0-9][0-9 ().-]{5,29}$/;
+const LOTTERY_REQUEST_TIMEOUT_MS = 8_000;
 
-export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = null }: Props) {
+export function QrOrderFlow({
+  qrToken,
+  orderingMode = "DEFAULT",
+  initialMenu = null,
+  entryChannel = "QR",
+}: Props) {
+  const usableInitialMenu = entryChannel === "QR" && initialMenu?.orderingMode !== "DEFAULT"
+    ? null
+    : initialMenu;
   const startedRef = useRef(false);
   const sessionReadyRef = useRef(false);
   const sessionRequestIdRef = useRef<string | null>(null);
+  const sessionOperationIdRef = useRef<string | null>(null);
   const sessionAttemptGenerationRef = useRef(0);
   const localeRef = useRef<QrLocale>("zh-TW");
   const availabilityTargetRef = useRef<string | null>(null);
   const lotteryButtonRef = useRef<HTMLButtonElement>(null);
+  const productConfigurationRef = useRef<HTMLElement>(null);
+  const cartPanelRef = useRef<HTMLElement>(null);
+  const cartCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const cartTriggerRef = useRef<HTMLButtonElement>(null);
+  const cartContinueButtonRef = useRef<HTMLButtonElement>(null);
+  const checkoutHeadingRef = useRef<HTMLHeadingElement>(null);
   const availabilityStatusRef = useRef<PublicAvailabilityStatus | "CHECKING">("CHECKING");
-  const scheduledPickupAtRef = useRef(
-    initialMenu?.orderingMode === "PREORDER" ? initialMenu.preorderSlots[0] ?? "" : "",
-  );
-  const secondsRemainingRef = useRef(0);
+  const scheduledPickupAtRef = useRef("");
   const lastCapacityRefreshAtRef = useRef(0);
   const capacityRefreshInFlightRef = useRef(false);
   const capacityRefreshStoppedRef = useRef(false);
@@ -134,12 +160,13 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     key: string;
     clientOrderId: string;
     turnstileIdempotencyKey: string;
+    operationId: string;
     fingerprint: string;
   } | null>(null);
   const [deviceId, setDeviceId] = useState("");
   const [activeOrderingMode, setActiveOrderingMode] = useState(orderingMode);
-  const [session, setSession] = useState<OrderSession | null>(initialMenu
-    ? { ...initialMenu, orderSessionToken: "", expiresAt: "" }
+  const [session, setSession] = useState<OrderSession | null>(usableInitialMenu
+    ? { ...usableInitialMenu, orderSessionToken: "", expiresAt: "" }
     : null);
   const [cartLines, setCartLines] = useState<QrCartLine[]>([]);
   const [productDrafts, setProductDrafts] = useState<Record<string, ProductDraft>>({});
@@ -147,15 +174,16 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [scheduledPickupAt, setScheduledPickupAt] = useState(
-    initialMenu?.orderingMode === "PREORDER" ? initialMenu.preorderSlots[0] ?? "" : "",
-  );
+  const [scheduledPickupAt, setScheduledPickupAt] = useState("");
   const [draftScheduledPickupAt, setDraftScheduledPickupAt] = useState(
-    initialMenu?.orderingMode === "PREORDER" ? initialMenu.preorderSlots[0] ?? "" : "",
+    usableInitialMenu?.orderingMode === "PREORDER" ? usableInitialMenu.preorderSlots[0] ?? "" : "",
   );
   const [lotteryDraw, setLotteryDraw] = useState<LotteryDraw | null>(null);
   const [isDrawingLottery, setIsDrawingLottery] = useState(false);
+  const [lotteryDialogOpen, setLotteryDialogOpen] = useState(false);
   const [lotteryLimitDialogOpen, setLotteryLimitDialogOpen] = useState(false);
+  const [lotteryError, setLotteryError] = useState<"UNAVAILABLE" | "PRODUCT_UNAVAILABLE" | null>(null);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [customerNote, setCustomerNote] = useState("");
   const [waitAcknowledged, setWaitAcknowledged] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -163,21 +191,49 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const [turnstileRequested, setTurnstileRequested] = useState(false);
   const [message, setMessage] = useState("");
   const [sessionStartError, setSessionStartError] = useState("");
-  const [isLoading, setIsLoading] = useState(!initialMenu);
+  const [isLoading, setIsLoading] = useState(!usableInitialMenu);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [secondsRemaining, setSecondsRemaining] = useState(0);
+  const [sessionTimePhase, setSessionTimePhase] = useState<SessionCountdownPhase>("INACTIVE");
   const [locale, setLocale] = useState<QrLocale>("zh-TW");
   const [cartReady, setCartReady] = useState(false);
   const [cartRestored, setCartRestored] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [cartStep, setCartStep] = useState<"CART" | "CHECKOUT">("CART");
+  const [configuringProductId, setConfiguringProductId] = useState<string | null>(null);
   const [orderingAvailability, setOrderingAvailability] = useState<
     PublicAvailabilityStatus | "CHECKING"
   >("CHECKING");
   const [availabilityRefreshing, setAvailabilityRefreshing] = useState(false);
+  const closeCart = useCallback(() => {
+    setCartOpen(false);
+    window.requestAnimationFrame(() => cartTriggerRef.current?.focus());
+  }, []);
   const closeLotteryLimitDialog = useCallback(() => setLotteryLimitDialogOpen(false), []);
+  const cancelProductConfiguration = useCallback((productId: string) => {
+    setProductDrafts((drafts) => {
+      const nextDrafts = { ...drafts };
+      delete nextDrafts[productId];
+      return nextDrafts;
+    });
+    setEditingLineIds((lineIds) => {
+      const nextLineIds = { ...lineIds };
+      delete nextLineIds[productId];
+      return nextLineIds;
+    });
+    setConfiguringProductId(null);
+    window.setTimeout(() => document.getElementById(`qr-product-${productId}`)?.focus(), 0);
+  }, []);
   const copy = qrOrderMessages[locale];
   const deliveryCopy = deliveryOrderMessages[locale];
   const sessionReady = Boolean(session?.orderSessionToken && session.expiresAt);
+  const sessionExpiryDialogOpen = sessionReady
+    && (sessionTimePhase === "EXPIRING" || sessionTimePhase === "EXPIRED");
+  const lotteryDialogVisible = shouldShowLotteryDialog({
+    open: lotteryDialogOpen,
+    hasAcceptedDraw: lotteryDraw !== null,
+    sessionExpiryDialogOpen,
+  });
+  const cartDialogOpen = cartOpen && !sessionExpiryDialogOpen;
   const orderingEnabled = orderingAvailability === "AVAILABLE" && sessionReady;
   const degradedMode = orderingAvailability !== "AVAILABLE"
     && orderingAvailability !== "CHECKING";
@@ -195,36 +251,44 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   ) => {
     const attemptGeneration = sessionAttemptGenerationRef.current + 1;
     sessionAttemptGenerationRef.current = attemptGeneration;
-    if (!sessionRequestIdRef.current) sessionRequestIdRef.current = crypto.randomUUID();
-    setIsLoading(!initialMenu);
+    if (!sessionRequestIdRef.current) sessionRequestIdRef.current = createWebUuid();
+    if (!sessionOperationIdRef.current) sessionOperationIdRef.current = createPublicOrderOperationId();
+    setIsLoading(!usableInitialMenu);
     setSessionStartError("");
     try {
       const requestSession = async (includeMenu: boolean) => {
-        const response = await requestPublicOrder("create-order-session", {
-          qrToken,
-          deviceId: currentDeviceId,
-          sessionRequestId: sessionRequestIdRef.current,
-          orderingMode: activeOrderingMode,
-          includeMenu,
-        });
+        const response = await requestPublicOrder(
+          "create-order-session",
+          {
+            qrToken,
+            deviceId: currentDeviceId,
+            sessionRequestId: sessionRequestIdRef.current,
+            orderingMode: activeOrderingMode,
+            includeMenu,
+          },
+          { operationId: sessionOperationIdRef.current ?? undefined },
+        );
         return { response, payload: await parseEdgeResponse(response) };
       };
       let { response, payload } = await requestSession(
-        shouldIncludeFullSessionMenu(Boolean(initialMenu), activeOrderingMode),
+        shouldIncludeFullSessionMenu(Boolean(usableInitialMenu), activeOrderingMode),
       );
       if (attemptGeneration !== sessionAttemptGenerationRef.current) return;
       if (
         response.ok
-        && initialMenu
+        && usableInitialMenu
         && !(payload.resumeOrder && typeof payload.resumeOrder === "object")
-        && shouldReloadResolvedSessionMenu(initialMenu.orderingMode, payload.orderingMode)
+        && shouldReloadResolvedSessionMenu(usableInitialMenu.orderingMode, payload.orderingMode)
       ) {
         ({ response, payload } = await requestSession(true));
         if (attemptGeneration !== sessionAttemptGenerationRef.current) return;
       }
       if (!response.ok) {
         const code = String(payload.code ?? "");
-        if (shouldRotateSessionRequestId(response.status, code)) sessionRequestIdRef.current = null;
+        if (shouldRotateSessionRequestId(response.status, code)) {
+          sessionRequestIdRef.current = null;
+          sessionOperationIdRef.current = null;
+        }
         if (code === "QR_ORDERING_DEGRADED") updateOrderingAvailability("DEGRADED");
         if (code === "QR_ORDERING_UNAVAILABLE") updateOrderingAvailability("UNAVAILABLE");
         throw new LocalizedOrderError(
@@ -238,13 +302,16 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         window.location.replace(`/order/${encodeURIComponent(trackingToken)}`);
         return;
       }
-      const rawOrderSession = initialMenu
-        ? { ...initialMenu, ...payload } as OrderSession
+      const rawOrderSession = usableInitialMenu
+        ? { ...usableInitialMenu, ...payload } as OrderSession
         : payload as unknown as OrderSession;
       const resolvedOrderingMode = resolvePublicOrderingMode(
         rawOrderSession.orderingMode,
-        initialMenu?.orderingMode ?? activeOrderingMode,
+        usableInitialMenu?.orderingMode ?? activeOrderingMode,
       );
+      if (entryChannel === "QR" && resolvedOrderingMode !== "DEFAULT") {
+        throw new LocalizedOrderError(localizedPublicOrderError(browserLocale, "QR_NOT_ACTIVE"));
+      }
       const orderSession: OrderSession = {
         ...rawOrderSession,
         orderingMode: resolvedOrderingMode,
@@ -263,38 +330,56 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           rank: typeof product.rank === "number" ? product.rank : null,
         })),
       };
-      const nextScheduledPickupAt = orderSession.preorderSlots.includes(scheduledPickupAtRef.current)
-        ? scheduledPickupAtRef.current
-        : orderSession.orderingMode === "PREORDER"
-          ? orderSession.preorderSlots[0] ?? ""
-          : "";
-      const restorableProducts = orderSession.orderingMode === "PREORDER"
-        ? publicMenuProductsForPickup(orderSession.products, nextScheduledPickupAt)
-        : orderSession.products;
       const nextLocale = preserveSupportedQrLocale(
         localeRef.current,
         orderSession.supportedLocales,
       );
       localeRef.current = nextLocale;
       setLocale(nextLocale);
+      let restoredDraft: ReturnType<typeof restoreQrCartDraft> = null;
       try {
-        const restored = restoreQrCartDraft(
+        restoredDraft = restoreQrCartDraft(
           window.localStorage.getItem(qrCartStorageKey(qrToken, orderSession.orderingMode)),
-          restorableProducts,
+          orderSession.products,
           orderSession.limits,
+          Date.now(),
+          { orderingMode: orderSession.orderingMode },
         );
-        if (restored) {
-          setCartLines(restored.lines);
-          setCustomerName(restored.customerName);
-          setCustomerNote(restored.customerNote);
-          setCustomerPhone(restored.customerPhone ?? "");
-          setDeliveryAddress(restored.deliveryAddress ?? "");
+        if (restoredDraft) {
+          setCustomerName(restoredDraft.customerName);
+          setCustomerNote(restoredDraft.customerNote);
+          setCustomerPhone(restoredDraft.customerPhone ?? "");
+          setDeliveryAddress(restoredDraft.deliveryAddress ?? "");
           setCartRestored(true);
         }
       } catch {
         // Restricted browser storage must not block ordering.
       }
+      const restoredScheduledPickupAt = restoredDraft?.orderingMode === orderSession.orderingMode
+        && orderSession.preorderSlots.includes(restoredDraft.scheduledPickupAt)
+        ? restoredDraft.scheduledPickupAt
+        : "";
+      const currentScheduledPickupAt = orderSession.preorderSlots.includes(scheduledPickupAtRef.current)
+        ? scheduledPickupAtRef.current
+        : "";
+      const nextScheduledPickupAt = orderSession.orderingMode === "PREORDER"
+        ? restoredScheduledPickupAt || currentScheduledPickupAt
+        : orderSession.orderingMode === "DELIVERY"
+          ? restoredScheduledPickupAt || currentScheduledPickupAt
+          : "";
+      const nextDraftScheduledPickupAt = orderSession.orderingMode === "PREORDER"
+        ? nextScheduledPickupAt || (orderSession.preorderSlots[0] ?? "")
+        : nextScheduledPickupAt;
+      const restorableProducts = orderSession.orderingMode === "PREORDER"
+        ? publicMenuProductsForPickup(orderSession.products, nextScheduledPickupAt)
+        : orderSession.products;
+      if (restoredDraft) {
+        const restoredLines = prunePublicCartLinesForProducts(restorableProducts, restoredDraft.lines);
+        setCartLines(restoredLines);
+        if (restoredLines.length > 0) setTurnstileRequested(true);
+      }
       sessionReadyRef.current = true;
+      setSessionTimePhase(sessionCountdownPhase(orderSession.expiresAt));
       if (
         availabilityStatusRef.current === "CHECKING"
         || availabilityStatusRef.current === "UNKNOWN"
@@ -307,18 +392,19 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       setActiveOrderingMode(orderSession.orderingMode);
       scheduledPickupAtRef.current = nextScheduledPickupAt;
       setScheduledPickupAt(nextScheduledPickupAt);
-      setDraftScheduledPickupAt(nextScheduledPickupAt);
+      setDraftScheduledPickupAt(nextDraftScheduledPickupAt);
       if (orderSession.orderingMode === "PREORDER") {
         setLotteryDraw(null);
         setLotteryLimitDialogOpen(false);
       }
+      setLotteryError(null);
       setCartReady(true);
       setSessionStartError("");
       setMessage("");
     } catch (error) {
       if (attemptGeneration !== sessionAttemptGenerationRef.current) return;
       sessionReadyRef.current = false;
-      if (initialMenu && (
+      if (usableInitialMenu && (
         availabilityStatusRef.current === "CHECKING"
         || availabilityStatusRef.current === "AVAILABLE"
         || availabilityStatusRef.current === "UNKNOWN"
@@ -333,16 +419,89 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     } finally {
       if (attemptGeneration === sessionAttemptGenerationRef.current) setIsLoading(false);
     }
-  }, [activeOrderingMode, initialMenu, qrToken, updateOrderingAvailability]);
+  }, [activeOrderingMode, entryChannel, qrToken, updateOrderingAvailability, usableInitialMenu]);
 
   useEffect(() => {
-    if (!cartOpen) return;
+    if (!cartDialogOpen) return;
+    const desktopQuery = window.matchMedia("(min-width: 768px)");
+    if (desktopQuery.matches) {
+      const closeFrame = window.requestAnimationFrame(() => setCartOpen(false));
+      return () => window.cancelAnimationFrame(closeFrame);
+    }
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() => cartCloseButtonRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeCart();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(cartPanelRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      ) ?? []).filter((element) => element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        cartPanelRef.current?.focus();
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === cartPanelRef.current)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    const handleDesktopChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setCartOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    desktopQuery.addEventListener("change", handleDesktopChange);
     return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown);
+      desktopQuery.removeEventListener("change", handleDesktopChange);
       document.body.style.overflow = previousOverflow;
     };
-  }, [cartOpen]);
+  }, [cartDialogOpen, closeCart]);
+
+  useEffect(() => {
+    if (!configuringProductId || sessionExpiryDialogOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() => productConfigurationRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelProductConfiguration(configuringProductId);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(productConfigurationRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      ) ?? []);
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        productConfigurationRef.current?.focus();
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === productConfigurationRef.current)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [cancelProductConfiguration, configuringProductId, sessionExpiryDialogOpen]);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -393,7 +552,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           orderSessionToken: "",
           expiresAt: "",
         } : current);
-        setSecondsRemaining(0);
+        setSessionTimePhase("INACTIVE");
         setTurnstileToken(null);
         setTurnstileRequested(false);
         updateOrderingAvailability(config.qrOrdering);
@@ -407,7 +566,10 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         || availabilityStatusRef.current === "MAINTENANCE";
       updateOrderingAvailability("AVAILABLE");
       if (shouldStartSession) {
-        if (targetChanged) sessionRequestIdRef.current = crypto.randomUUID();
+        if (targetChanged) {
+          sessionRequestIdRef.current = createWebUuid();
+          sessionOperationIdRef.current = createPublicOrderOperationId();
+        }
         await startOrderSession(deviceId, localeRef.current);
       }
     };
@@ -416,13 +578,29 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       void refreshAvailability(retrySession, true)
     );
     void refreshAvailability(false, false);
-    const timer = window.setInterval(
-      () => void refreshAvailability(false, true),
-      10_000,
-    );
+    let timer: number | null = null;
+    const startTimer = () => {
+      if (timer === null) timer = window.setInterval(() => void refreshAvailability(false, true), 10_000);
+    };
+    const stopTimer = () => {
+      if (timer === null) return;
+      window.clearInterval(timer);
+      timer = null;
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshAvailability(false, true);
+        startTimer();
+      } else {
+        stopTimer();
+      }
+    };
+    if (document.visibilityState === "visible") startTimer();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       disposed = true;
-      window.clearInterval(timer);
+      stopTimer();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       refreshAvailabilityRef.current = () => undefined;
     };
   }, [deviceId, startOrderSession, updateOrderingAvailability]);
@@ -432,27 +610,24 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   }, [locale]);
 
   useEffect(() => {
-    if (!session?.expiresAt) return;
-    const updateRemaining = () => {
-      const nextSeconds = Math.max(0, Math.ceil((new Date(session.expiresAt).getTime() - Date.now()) / 1000));
-      secondsRemainingRef.current = nextSeconds;
-      setSecondsRemaining(nextSeconds);
-    };
-    updateRemaining();
-    const timer = window.setInterval(updateRemaining, 1000);
-    return () => window.clearInterval(timer);
-  }, [session]);
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+    updatePreference();
+    mediaQuery.addEventListener("change", updatePreference);
+    return () => mediaQuery.removeEventListener("change", updatePreference);
+  }, []);
 
   useEffect(() => {
     if (!deviceId || !sessionReady || !session?.orderSessionToken) return;
     let disposed = false;
+    let capacityOperationId: string | null = null;
 
     const refreshCapacityQuote = async () => {
       const now = Date.now();
       if (capacityRefreshStoppedRef.current || capacityRefreshInFlightRef.current || !shouldRefreshQrCapacity({
         orderingMode: activeOrderingMode,
         sessionReady: sessionReadyRef.current,
-        secondsRemaining: secondsRemainingRef.current,
+        secondsRemaining: sessionSecondsRemaining(session.expiresAt),
         visibilityState: document.visibilityState,
         sessionRequestId: sessionRequestIdRef.current,
         lastRefreshAt: lastCapacityRefreshAtRef.current,
@@ -461,22 +636,29 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
 
       lastCapacityRefreshAtRef.current = now;
       capacityRefreshInFlightRef.current = true;
+      if (!capacityOperationId) capacityOperationId = createPublicOrderOperationId();
       try {
-        const response = await requestPublicOrder("create-order-session", {
-          qrToken,
-          deviceId,
-          sessionRequestId: sessionRequestIdRef.current,
-          orderingMode: activeOrderingMode,
-          includeMenu: false,
-        });
+        const response = await requestPublicOrder(
+          "create-order-session",
+          {
+            qrToken,
+            deviceId,
+            sessionRequestId: sessionRequestIdRef.current,
+            orderingMode: activeOrderingMode,
+            includeMenu: false,
+          },
+          { operationId: capacityOperationId },
+        );
         const payload = await parseEdgeResponse(response);
         if (disposed) return;
         if (!response.ok) {
           if (shouldRotateSessionRequestId(response.status, String(payload.code ?? ""))) {
             capacityRefreshStoppedRef.current = true;
+            capacityOperationId = null;
           }
           return;
         }
+        capacityOperationId = null;
         if (payload.orderSessionToken !== session.orderSessionToken) return;
         const nextMinimum = Number(payload.estimatedWaitMinMinutes);
         const nextMaximum = Number(payload.estimatedWaitMaxMinutes);
@@ -512,12 +694,28 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       }
     };
 
-    const timer = window.setInterval(() => void refreshCapacityQuote(), 15_000);
-    const handleVisibilityChange = () => void refreshCapacityQuote();
+    let timer: number | null = null;
+    const startTimer = () => {
+      if (timer === null) timer = window.setInterval(() => void refreshCapacityQuote(), 15_000);
+    };
+    const stopTimer = () => {
+      if (timer === null) return;
+      window.clearInterval(timer);
+      timer = null;
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshCapacityQuote();
+        startTimer();
+      } else {
+        stopTimer();
+      }
+    };
+    if (document.visibilityState === "visible") startTimer();
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       disposed = true;
-      window.clearInterval(timer);
+      stopTimer();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [
@@ -526,6 +724,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     qrToken,
     session?.estimatedWaitMaxMinutes,
     session?.estimatedWaitMinMinutes,
+    session?.expiresAt,
     session?.orderSessionToken,
     session?.requiresWaitAcknowledgment,
     sessionReady,
@@ -536,12 +735,15 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     try {
       const hasDraft = cartLines.length > 0
         || customerName.length > 0 || customerNote.length > 0
-        || customerPhone.length > 0 || deliveryAddress.length > 0;
+        || customerPhone.length > 0 || deliveryAddress.length > 0
+        || (activeOrderingMode !== "DEFAULT" && scheduledPickupAt.length > 0);
       if (!hasDraft) {
         window.localStorage.removeItem(qrCartStorageKey(qrToken, activeOrderingMode));
         return;
       }
       window.localStorage.setItem(qrCartStorageKey(qrToken, activeOrderingMode), serializeQrCartDraft({
+        orderingMode: activeOrderingMode,
+        scheduledPickupAt: activeOrderingMode !== "DEFAULT" ? scheduledPickupAt : "",
         customerName,
         customerNote,
         customerPhone,
@@ -551,7 +753,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     } catch {
       // Restricted browser storage must not block ordering.
     }
-  }, [activeOrderingMode, cartLines, cartReady, customerName, customerNote, customerPhone, deliveryAddress, qrToken, session]);
+  }, [activeOrderingMode, cartLines, cartReady, customerName, customerNote, customerPhone, deliveryAddress, qrToken, scheduledPickupAt, session]);
 
   const visibleProducts = useMemo(() => {
     if (!session) return [];
@@ -571,6 +773,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   }, [cartLines]);
 
   const totalQuantity = qrCartTotalQuantity(cartLines);
+  const activeCartStep = cartLines.length === 0 ? "CART" : cartStep;
   const total = session ? cartLines.reduce((sum, line) => {
     const product = session.products.find((candidate) => candidate.id === line.productId);
     if (!product) return sum;
@@ -587,7 +790,8 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       ? buildFulfillmentTimeSlots(session.preorderSlots, session.stall.timezone)
       : []
   ), [session]);
-  const canSelectFulfillmentTime = session
+  const canSelectFulfillmentTime = entryChannel === "SHARED_LINK"
+    && session
     && session.stall.fulfillmentType !== "DINE_IN"
     && fulfillmentTimeSlots.length > 0;
   const fulfillmentTimeLabel = activeOrderingMode === "PREORDER"
@@ -608,6 +812,10 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       ? `${option.componentProductName} × ${option.quantity}`
       : option.componentProductName
   ), []);
+  const lotteryResultProduct = lotteryDraw
+    ? visibleProducts.find((product) => product.id === lotteryDraw.productId) ?? null
+    : null;
+  const lotteryCarouselProductNames = visibleProducts.map((product) => localizedProduct(product).name);
 
   function changeLocale(nextLocale: string) {
     if (!isQrLocale(nextLocale)) return;
@@ -641,7 +849,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
             note: "",
             noteOptionIds: [],
             bundleChoiceIds: [],
-          }, session.limits, () => crypto.randomUUID());
+          }, session.limits, createWebUuid);
       if (!nextLines) {
         setMessage(copy.quantityLimit);
         return;
@@ -679,6 +887,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       }
       return { ...drafts, [productId]: { ...currentDraft, quantity: next } };
     });
+    setConfiguringProductId(next > 0 ? productId : null);
   }
 
   function selectNoteOption(productId: string, group: NoteGroup, optionId: string | null) {
@@ -725,16 +934,16 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       return;
     }
     const editingLineId = editingLineIds[product.id];
-    const effectiveLines = editingLineId
-      ? cartLines.filter((line) => line.id !== editingLineId)
-      : cartLines;
-    const nextLines = addQrCartLine(effectiveLines, {
+    const nextLine = {
       productId: product.id,
       quantity: draft.quantity,
       note: "",
       noteOptionIds: draft.noteOptionIds,
       bundleChoiceIds: draft.bundleChoiceIds,
-    }, session.limits, () => crypto.randomUUID());
+    };
+    const nextLines = editingLineId
+      ? replaceQrCartLine(cartLines, editingLineId, nextLine, session.limits)
+      : addQrCartLine(cartLines, nextLine, session.limits, createWebUuid);
     if (!nextLines) {
       setMessage(copy.quantityLimit);
       return;
@@ -750,6 +959,8 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       delete nextLineIds[product.id];
       return nextLineIds;
     });
+    setConfiguringProductId(null);
+    window.setTimeout(() => document.getElementById(`qr-product-${product.id}`)?.focus(), 0);
     setTurnstileRequested(true);
     setMessage("");
   }
@@ -795,10 +1006,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     }));
     setEditingLineIds((lineIds) => ({ ...lineIds, [line.productId]: line.id }));
     setCartOpen(false);
-    window.setTimeout(() => document.getElementById(`qr-product-${line.productId}`)?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    }), 0);
+    setConfiguringProductId(line.productId);
   }
 
   function changeScheduledPickupAt(nextScheduledPickupAt: string) {
@@ -817,6 +1025,13 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       nextScheduledPickupAt,
     );
     const nextCartLines = prunePublicCartLinesForProducts(availableProducts, cartLines);
+    const firstInvalidLine = nextCartLines.find((line) => {
+      const product = availableProducts.find((candidate) => candidate.id === line.productId);
+      return product && (
+        !noteSelectionIsValid(product.noteGroups, line.noteOptionIds)
+        || !bundleSelectionIsValid(product.bundleChoiceGroups, line.bundleChoiceIds)
+      );
+    });
     setCartLines(nextCartLines);
     setProductDrafts((drafts) => {
       const draftLines = Object.entries(drafts).map(([productId, draft]) => ({
@@ -859,38 +1074,46 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       }
       return nextLineIds;
     });
+    setConfiguringProductId(firstInvalidLine?.productId ?? null);
     setLotteryDraw(null);
   }
 
   async function drawLottery() {
+    if (sessionExpiryDialogOpen) return;
     if (lotteryDraw) {
       setLotteryLimitDialogOpen(true);
       return;
     }
     if (!sessionReady || !session || !deviceId || isDrawingLottery) return;
+    if (sessionSecondsRemaining(session.expiresAt) <= 60) {
+      setSessionTimePhase(sessionCountdownPhase(session.expiresAt));
+      return;
+    }
     setIsDrawingLottery(true);
+    setLotteryDialogOpen(true);
+    setLotteryError(null);
     setMessage("");
+    let failureReason: "UNAVAILABLE" | "PRODUCT_UNAVAILABLE" = "UNAVAILABLE";
     try {
-      const response = await fetch("/api/public/lottery-draw", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          orderSessionToken: session.orderSessionToken,
-          deviceId,
+      const delayMs = lotteryAnimationDelay(prefersReducedMotion);
+      const [response] = await Promise.all([
+        fetch("/api/public/lottery-draw", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            orderSessionToken: session.orderSessionToken,
+            deviceId,
+          }),
+          signal: AbortSignal.timeout(LOTTERY_REQUEST_TIMEOUT_MS),
         }),
-      });
+        new Promise<void>((resolve) => window.setTimeout(resolve, delayMs)),
+      ]);
+      if (!response.ok) throw new Error(copy.lotteryUnavailable);
       const payload = await response.json() as Record<string, unknown>;
-      if (!response.ok) throw new Error(String(payload.error ?? "抽抽樂目前無法使用。"));
       const draw: LotteryDraw = {
         drawId: String(payload.drawId),
         productId: String(payload.productId),
         productName: String(payload.productName),
-        bestSellerRank: typeof payload.bestSellerRank === "number"
-          && Number.isInteger(payload.bestSellerRank)
-          && payload.bestSellerRank >= 1
-          && payload.bestSellerRank <= 3
-          ? payload.bestSellerRank
-          : null,
         recommendationBasis: payload.recommendationBasis === "BEST_SELLER"
           ? "BEST_SELLER"
           : "DISCOVERY",
@@ -898,20 +1121,86 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         discountLabel: typeof payload.discountLabel === "string" ? payload.discountLabel : null,
       };
       if (!visibleProducts.some((product) => product.id === draw.productId)) {
-        throw new Error("抽中的商品目前無法供應，請稍後再試。");
+        failureReason = "PRODUCT_UNAVAILABLE";
+        throw new Error(copy.lotteryUnavailableProduct);
       }
       setLotteryDraw(draw);
-      setLotteryLimitDialogOpen(payload.idempotentReplay === true);
-      const product = visibleProducts.find((candidate) => candidate.id === draw.productId);
-      const currentQuantity = product && (product.noteGroups.length > 0 || product.bundleChoiceGroups.length > 0)
-        ? productDrafts[draw.productId]?.quantity ?? 0
-        : qrCartProductQuantity(cartLines, draw.productId);
-      updateQuantity(draw.productId, Math.max(1, currentQuantity));
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "抽抽樂目前無法使用。");
+      if (payload.idempotentReplay === true) {
+        setLotteryDialogOpen(false);
+        setLotteryLimitDialogOpen(true);
+      }
+    } catch {
+      setLotteryDialogOpen(false);
+      setLotteryError(failureReason);
+      window.requestAnimationFrame(() => lotteryButtonRef.current?.focus());
     } finally {
       setIsDrawingLottery(false);
     }
+  }
+
+  function cancelLotteryRecommendation() {
+    if (isDrawingLottery) return;
+    setLotteryDialogOpen(false);
+    window.setTimeout(() => lotteryButtonRef.current?.focus(), 0);
+  }
+
+  function acceptLotteryRecommendation() {
+    if (!lotteryDraw || !session || isDrawingLottery) return;
+    const product = visibleProducts.find((candidate) => candidate.id === lotteryDraw.productId);
+    if (!product) {
+      setLotteryDialogOpen(false);
+      setMessage(copy.lotteryUnavailableProduct);
+      return;
+    }
+
+    if (!lotteryProductNeedsConfiguration(product)) {
+      updateQuantity(product.id, qrCartProductQuantity(cartLines, product.id) + 1);
+      setLotteryDialogOpen(false);
+      window.setTimeout(() => lotteryButtonRef.current?.focus(), 0);
+      return;
+    }
+
+    setProductDrafts((drafts) => ({
+      ...drafts,
+      [product.id]: {
+        quantity: 1,
+        noteOptionIds: drafts[product.id]?.noteOptionIds ?? [],
+        bundleChoiceIds: drafts[product.id]?.bundleChoiceIds ?? [],
+      },
+    }));
+    setEditingLineIds((lineIds) => {
+      const nextLineIds = { ...lineIds };
+      delete nextLineIds[product.id];
+      return nextLineIds;
+    });
+    setLotteryDialogOpen(false);
+    setConfiguringProductId(product.id);
+  }
+
+  function reloadWithPersistedCart() {
+    try {
+      const hasDraft = cartLines.length > 0
+        || customerName.length > 0 || customerNote.length > 0
+        || customerPhone.length > 0 || deliveryAddress.length > 0
+        || (activeOrderingMode !== "DEFAULT" && scheduledPickupAt.length > 0);
+      const storageKey = qrCartStorageKey(qrToken, activeOrderingMode);
+      if (hasDraft) {
+        window.localStorage.setItem(storageKey, serializeQrCartDraft({
+          orderingMode: activeOrderingMode,
+          scheduledPickupAt: activeOrderingMode !== "DEFAULT" ? scheduledPickupAt : "",
+          customerName,
+          customerNote,
+          customerPhone,
+          deliveryAddress,
+          lines: cartLines,
+        }));
+      } else {
+        window.localStorage.removeItem(storageKey);
+      }
+    } catch {
+      // Restricted browser storage must not block creation of a fresh session.
+    }
+    window.location.reload();
   }
 
   async function submitOrder() {
@@ -927,7 +1216,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
       setMessage(!sessionReady ? copy.sessionLoading : !turnstileToken ? copy.securityRequired : copy.selectAtLeastOne);
       return;
     }
-    if (secondsRemaining <= 0) {
+    if (sessionCountdownPhase(session.expiresAt) === "EXPIRED") {
       setMessage(copy.sessionExpired);
       return;
     }
@@ -960,9 +1249,10 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     const fingerprint = JSON.stringify({ orderingMode: activeOrderingMode, customerName, customerPhone, deliveryAddress, customerNote, scheduledPickupAt, lotteryDrawId: lotteryDraw?.drawId ?? null, selectedItems, waitAcknowledged });
     if (!idempotencyRef.current || idempotencyRef.current.fingerprint !== fingerprint) {
       idempotencyRef.current = {
-        key: crypto.randomUUID(),
-        clientOrderId: crypto.randomUUID(),
-        turnstileIdempotencyKey: crypto.randomUUID(),
+        key: createWebUuid(),
+        clientOrderId: createWebUuid(),
+        turnstileIdempotencyKey: createWebUuid(),
+        operationId: createPublicOrderOperationId(),
         fingerprint,
       };
     }
@@ -970,24 +1260,28 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
     setMessage("");
     setIsSubmitting(true);
     try {
-      const response = await requestPublicOrder("create-public-order", {
-        qrToken,
-        orderSessionToken: session.orderSessionToken,
-        deviceId,
-        idempotencyKey: idempotencyRef.current.key,
-        clientOrderId: idempotencyRef.current.clientOrderId,
-        turnstileIdempotencyKey: idempotencyRef.current.turnstileIdempotencyKey,
-        customerName,
-        customerPhone,
-        deliveryAddress,
-        customerNote,
-        waitAcknowledged,
-        orderingMode: activeOrderingMode,
-        scheduledPickupAt: scheduledPickupAt || null,
-        lotteryDrawId: lotteryDraw?.drawId ?? null,
-        items: selectedItems,
-        turnstileToken,
-      });
+      const response = await requestPublicOrder(
+        "create-public-order",
+        {
+          qrToken,
+          orderSessionToken: session.orderSessionToken,
+          deviceId,
+          idempotencyKey: idempotencyRef.current.key,
+          clientOrderId: idempotencyRef.current.clientOrderId,
+          turnstileIdempotencyKey: idempotencyRef.current.turnstileIdempotencyKey,
+          customerName,
+          customerPhone,
+          deliveryAddress,
+          customerNote,
+          waitAcknowledged,
+          orderingMode: activeOrderingMode,
+          scheduledPickupAt: entryChannel === "SHARED_LINK" ? scheduledPickupAt || null : null,
+          lotteryDrawId: lotteryDraw?.drawId ?? null,
+          items: selectedItems,
+          turnstileToken,
+        },
+        { operationId: idempotencyRef.current.operationId },
+      );
       const payload = await parseEdgeResponse(response);
       if (!response.ok) {
         const code = String(payload.code ?? "");
@@ -1045,22 +1339,98 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
   const availableLocales = QR_LOCALES.filter((candidate) => (
     candidate === "zh-TW" || session.supportedLocales.includes(candidate)
   ));
+  const fulfillmentTimePicker = canSelectFulfillmentTime ? (
+    <div className="min-w-0">
+      <FulfillmentTimePicker
+        slots={fulfillmentTimeSlots}
+        value={activeOrderingMode === "PREORDER" ? draftScheduledPickupAt : scheduledPickupAt}
+        onChange={activeOrderingMode === "PREORDER"
+          ? (value) => {
+              setDraftScheduledPickupAt(value);
+              setMessage("");
+            }
+          : changeScheduledPickupAt}
+        legend={fulfillmentTimeLabel}
+        scheduledLabel={activeOrderingMode === "DELIVERY" ? "指定送達時間" : "指定取餐時間"}
+        dateLabel={activeOrderingMode === "PREORDER"
+          ? "預約取餐日期"
+          : activeOrderingMode === "DELIVERY" ? "送達日期" : "取餐日期"}
+        timeLabel={activeOrderingMode === "PREORDER"
+          ? "預約取餐時間"
+          : activeOrderingMode === "DELIVERY" ? "送達時間" : "取餐時間"}
+        unavailableDateMessage="所選日期目前沒有可接受的時段。"
+        allowAsap={activeOrderingMode !== "PREORDER"}
+        required={activeOrderingMode === "PREORDER"}
+        disabled={!orderingEnabled}
+        testId={`qr-${activeOrderingMode.toLowerCase()}-fulfillment-time-fields`}
+      />
+      {activeOrderingMode === "PREORDER" ? (
+        <div className="mt-2 grid gap-2">
+          <button
+            type="button"
+            disabled={!orderingEnabled || !hasUnappliedFulfillmentTime}
+            onClick={() => changeScheduledPickupAt(draftScheduledPickupAt)}
+            className="min-h-11 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:bg-stone-200 disabled:text-stone-500"
+          >
+            {hasUnappliedFulfillmentTime ? "套用這個時間" : "時間已套用"}
+          </button>
+          {hasUnappliedFulfillmentTime ? (
+            <p role="status" className="text-xs font-medium text-amber-800">
+              尚未套用新的取餐時間；套用後才會更新可點商品與購物車。
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+  const deliveryDetailsMissing = session.stall.fulfillmentType === "DELIVERY"
+    && (!PHONE_NUMBER.test(customerPhone.trim()) || deliveryAddress.trim().length === 0);
+  const invalidCartLine = cartLines.find((line) => {
+    const product = session.products.find((candidate) => candidate.id === line.productId);
+    return product && (
+      !noteSelectionIsValid(product.noteGroups, line.noteOptionIds)
+      || !bundleSelectionIsValid(product.bundleChoiceGroups, line.bundleChoiceIds)
+    );
+  });
+  const invalidCartProduct = invalidCartLine
+    ? session.products.find((product) => product.id === invalidCartLine.productId)
+    : undefined;
+  const checkoutBlocker = !orderingEnabled
+    ? copy.degradedMessage
+    : totalQuantity === 0
+      ? copy.selectAtLeastOne
+      : hasUnappliedFulfillmentTime
+        ? "取餐時間尚未套用，請先按下「套用這個時間」。"
+        : !sessionReady
+          ? copy.sessionLoading
+          : sessionTimePhase === "EXPIRED"
+            ? copy.sessionExpired
+            : deliveryDetailsMissing
+              ? deliveryCopy.detailsRequired
+              : invalidCartProduct
+                ? copy.requiredNotes(localizedProduct(invalidCartProduct).name)
+                : session.requiresWaitAcknowledgment && !waitAcknowledged
+                  ? copy.waitAcknowledgmentRequired
+                  : !turnstileToken
+                    ? copy.securityRequired
+                    : "";
   const cartPanel = (
     <>
       <div className="flex items-center justify-between gap-3">
         <h2 id="qr-cart-heading" className="text-lg font-semibold">{copy.yourOrder}</h2>
         <button
+          ref={cartCloseButtonRef}
           type="button"
           title={copy.close}
           aria-label={copy.close}
-          onClick={() => setCartOpen(false)}
+          onClick={closeCart}
           className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 md:hidden"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
       {cartLines.length > 0 ? (
-        <div data-testid="qr-cart-lines" className="mt-4 space-y-3 border-b border-stone-200 pb-4">
+        <div data-testid="qr-cart-lines" className={`${activeCartStep === "CART" ? "block" : "hidden"} mt-4 space-y-3 border-b border-stone-200 pb-4 md:block`}>
           {cartLines.map((line, index) => {
             const product = session.products.find((candidate) => candidate.id === line.productId);
             if (!product) return null;
@@ -1082,6 +1452,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
               <article
                 key={line.id}
                 data-testid="qr-cart-line"
+                data-cart-line-id={line.id}
                 data-product-id={line.productId}
                 className="rounded-md border border-stone-200 p-3"
               >
@@ -1107,6 +1478,16 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           })}
         </div>
       ) : null}
+      {cartLines.length > 0 && activeCartStep === "CART" ? (
+        <button ref={cartContinueButtonRef} type="button" onClick={() => { setCartStep("CHECKOUT"); window.requestAnimationFrame(() => checkoutHeadingRef.current?.focus()); }} className="mt-4 min-h-12 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white md:hidden">
+          {copy.continueToCheckout}
+        </button>
+      ) : null}
+      <div data-testid="qr-checkout-panel" className={`${activeCartStep === "CHECKOUT" ? "block" : "hidden"} md:block`}>
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-stone-200 pt-4">
+          <h3 ref={checkoutHeadingRef} tabIndex={-1} className="font-semibold outline-none">{copy.checkoutDetails}</h3>
+          <button type="button" onClick={() => { setCartStep("CART"); window.requestAnimationFrame(() => cartContinueButtonRef.current?.focus()); }} className="min-h-10 rounded-md px-2 text-xs font-semibold text-teal-800 md:hidden">{copy.backToCart}</button>
+        </div>
       <div className="mt-4 space-y-3">
         <input
           type="text"
@@ -1132,7 +1513,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
               className="form-input"
               placeholder={deliveryCopy.phonePlaceholder}
               maxLength={30}
-              pattern="\+?[0-9][0-9 ().-]{5,29}"
+              pattern={PHONE_INPUT_PATTERN}
               value={customerPhone}
               disabled={!orderingEnabled}
               onChange={(event) => setCustomerPhone(event.target.value)}
@@ -1150,50 +1531,7 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
             />
           </>
         ) : null}
-        {canSelectFulfillmentTime ? (
-          <div className="min-w-0">
-            <FulfillmentTimePicker
-              slots={fulfillmentTimeSlots}
-              value={activeOrderingMode === "PREORDER" ? draftScheduledPickupAt : scheduledPickupAt}
-              onChange={activeOrderingMode === "PREORDER"
-                ? (value) => {
-                    setDraftScheduledPickupAt(value);
-                    setMessage("");
-                  }
-                : changeScheduledPickupAt}
-              legend={fulfillmentTimeLabel}
-              scheduledLabel={activeOrderingMode === "DELIVERY" ? "指定送達時間" : "指定取餐時間"}
-              dateLabel={activeOrderingMode === "PREORDER"
-                ? "預約取餐日期"
-                : activeOrderingMode === "DELIVERY" ? "送達日期" : "取餐日期"}
-              timeLabel={activeOrderingMode === "PREORDER"
-                ? "預約取餐時間"
-                : activeOrderingMode === "DELIVERY" ? "送達時間" : "取餐時間"}
-              unavailableDateMessage="所選日期目前沒有可接受的時段。"
-              allowAsap={activeOrderingMode !== "PREORDER"}
-              required={activeOrderingMode === "PREORDER"}
-              disabled={!orderingEnabled}
-              testId={`qr-${activeOrderingMode.toLowerCase()}-fulfillment-time-fields`}
-            />
-            {activeOrderingMode === "PREORDER" ? (
-              <div className="mt-2 grid gap-2">
-                <button
-                  type="button"
-                  disabled={!orderingEnabled || !hasUnappliedFulfillmentTime}
-                  onClick={() => changeScheduledPickupAt(draftScheduledPickupAt)}
-                  className="min-h-11 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:bg-stone-200 disabled:text-stone-500"
-                >
-                  {hasUnappliedFulfillmentTime ? "套用這個時間" : "時間已套用"}
-                </button>
-                {hasUnappliedFulfillmentTime ? (
-                  <p role="status" className="text-xs font-medium text-amber-800">
-                    尚未套用新的取餐時間；套用後才會更新可點商品與購物車。
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        {activeOrderingMode !== "PREORDER" ? fulfillmentTimePicker : null}
         <textarea
           aria-label={copy.orderNote}
           className="form-input min-h-20"
@@ -1235,12 +1573,14 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
           />
         ) : null}
       </div>
-      <button type="button" disabled={!orderingEnabled || isSubmitting || totalQuantity === 0 || !turnstileToken || secondsRemaining <= 0 || hasUnappliedFulfillmentTime || (session.requiresWaitAcknowledgment && !waitAcknowledged)} onClick={submitOrder} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+      {checkoutBlocker ? <p data-testid="qr-checkout-blocker" role="status" className="mt-3 text-sm font-medium text-amber-800">{checkoutBlocker}</p> : null}
+      <button type="button" disabled={isSubmitting || Boolean(checkoutBlocker)} onClick={submitOrder} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
         <Send className="h-4 w-4" />
         {isSubmitting ? copy.submitting : copy.submitOrder}
       </button>
       <p className="mt-3 text-xs leading-5 text-stone-500">{copy.confirmationNotice}</p>
       {message ? <p role="alert" className="mt-3 text-sm text-red-700">{message}</p> : null}
+      </div>
     </>
   );
 
@@ -1281,50 +1621,68 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
             </div>
           </div>
         ) : null}
-        <div
-          data-testid="qr-session-status"
-          data-ordering-availability={orderingAvailability}
-          className="mt-3 inline-flex items-center gap-2 text-sm text-stone-600"
-        >
-          <Clock3 className="h-4 w-4" />
-          {sessionReady
-            ? copy.timeRemaining(Math.floor(secondsRemaining / 60), String(secondsRemaining % 60).padStart(2, "0"))
-            : degradedMode ? copy.degradedTitle : copy.sessionLoading}
-        </div>
+        <QrSessionCountdown
+          active={sessionReady}
+          expiresAt={session.expiresAt}
+          availabilityStatus={orderingAvailability}
+          activeLabel={copy.timeRemaining}
+          inactiveLabel={degradedMode ? copy.degradedTitle : copy.sessionLoading}
+          onPhaseChange={setSessionTimePhase}
+        />
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-y border-stone-200 py-3 text-sm text-stone-700">
           <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{activeOrderingMode === "PREORDER" ? "請依選擇的預約時段取餐" : copy.estimatedWaitRange(session.estimatedWaitMinMinutes, session.estimatedWaitMaxMinutes)}</span>
           {session.lastTableOrderAt ? <span className="inline-flex items-center gap-2"><History className="h-4 w-4 text-stone-500" />{copy.lastTableOrder(new Date(session.lastTableOrderAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }))}</span> : null}
         </div>
         {cartRestored ? <p role="status" className="mt-3 text-sm font-medium text-emerald-800">{copy.cartRestored}</p> : null}
 
-        {session.lotteryEnabled && activeOrderingMode === "DEFAULT" ? (
-          <section className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-4" aria-label="抽抽樂推薦">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><h2 className="font-semibold text-violet-950">不知道吃什麼？幫我抽</h2><p className="mt-1 text-sm leading-6 text-violet-800">依近 30 天完成訂單的熱銷趨勢推薦，也保留探索其他商品的機會；結帳折扣會另外獨立抽取。</p></div>
-              <button ref={lotteryButtonRef} type="button" disabled={!orderingEnabled || isDrawingLottery} onClick={() => void drawLottery()} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50"><Dices className="h-4 w-4" />{isDrawingLottery ? "抽取中…" : lotteryDraw ? "查看今日結果" : "開始抽抽樂"}</button>
-            </div>
-            {lotteryDraw ? <div className="mt-3 border-t border-violet-200 pt-3"><span data-testid="lottery-recommendation-basis" className="inline-flex rounded-full bg-white px-2 py-1 text-xs font-semibold text-violet-900">{lotteryDraw.bestSellerRank ? `近 30 天熱銷第 ${lotteryDraw.bestSellerRank} 名` : "探索人氣推薦"}</span><p role="status" className="mt-2 text-sm font-semibold text-violet-950">推薦你點「{lotteryDraw.productName}」{lotteryDraw.discountWon && lotteryDraw.discountLabel ? `，並抽中 ${lotteryDraw.discountLabel}！` : "。"}</p>{lotteryDraw.discountWon ? <p className="mt-1 text-xs text-violet-800">折扣僅套用未標示「不適用訂單折扣」的商品。</p> : null}</div> : null}
+        {activeOrderingMode === "PREORDER" && fulfillmentTimePicker ? (
+          <section className="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-4" aria-label={fulfillmentTimeLabel}>
+            <p className="mb-3 text-sm leading-6 text-sky-900">{copy.preorderSelectTimeFirst}</p>
+            {fulfillmentTimePicker}
           </section>
         ) : null}
 
-        <nav aria-label={copy.categoryNavigation} className="sticky top-0 z-20 -mx-4 mt-5 flex gap-2 overflow-x-auto border-y border-stone-200 bg-stone-50/95 px-4 py-2 backdrop-blur md:static md:mx-0 md:border-x-0 md:bg-transparent md:px-0">
-          {categories.map((category, index) => (
-            <a key={category} href={`#qr-category-${index}`} className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700">
-              {localizedQrCategory(locale, category)}
-            </a>
-          ))}
-        </nav>
+        {session.lotteryEnabled && activeOrderingMode === "DEFAULT" ? (
+          <section className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-4" aria-label={copy.lotteryRegionLabel}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><h2 className="font-semibold text-violet-950">{copy.lotterySectionTitle}</h2><p className="mt-1 text-sm leading-6 text-violet-800">{copy.lotterySectionDescription}</p></div>
+              <button ref={lotteryButtonRef} type="button" disabled={!orderingEnabled || isDrawingLottery} onClick={() => void drawLottery()} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50"><Dices className="h-4 w-4" />{isDrawingLottery ? copy.lotteryDrawingButton : lotteryDraw ? copy.lotteryAlreadyDrawn : copy.lotteryStart}</button>
+            </div>
+            {lotteryError ? (
+              <p role="alert" className="mt-3 text-sm font-medium text-red-700">
+                {lotteryError === "PRODUCT_UNAVAILABLE"
+                  ? copy.lotteryUnavailableProduct
+                  : copy.lotteryUnavailable}
+              </p>
+            ) : null}
+            {lotteryDraw ? <div className="mt-3 border-t border-violet-200 pt-3"><span data-testid="lottery-recommendation-basis" className="inline-flex rounded-full bg-white px-2 py-1 text-xs font-semibold text-violet-900">{lotteryDraw.recommendationBasis === "BEST_SELLER" ? copy.lotteryBestSellerBasis : copy.lotteryDiscoveryBasis}</span><p role="status" className="mt-2 text-sm font-semibold text-violet-950">{copy.lotteryRecommendation(lotteryResultProduct ? localizedProduct(lotteryResultProduct).name : lotteryDraw.productName)}{lotteryDraw.discountWon && lotteryDraw.discountLabel ? <> {copy.lotteryDiscountResult(lotteryDraw.discountLabel)}</> : null}</p>{lotteryDraw.discountWon ? <p className="mt-1 text-xs text-violet-800">{copy.lotteryDiscountNotice}</p> : null}</div> : null}
+          </section>
+        ) : null}
 
-        <div className="mt-6 space-y-7">
-          {activeOrderingMode === "PREORDER" && visibleProducts.length === 0 ? (
+        {categories.length > 0 ? (
+          <nav aria-label={copy.categoryNavigation} className="sticky top-0 z-20 -mx-4 mt-5 flex gap-2 overflow-x-auto border-y border-stone-200 bg-stone-50/95 px-4 py-2 backdrop-blur md:static md:mx-0 md:border-x-0 md:bg-transparent md:px-0">
+            {categories.map((category, index) => (
+              <a key={category} href={`#qr-category-${index}`} className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700">
+                {localizedQrCategory(locale, category)}
+              </a>
+            ))}
+          </nav>
+        ) : null}
+
+        <div className="mt-5 space-y-6 sm:mt-6 sm:space-y-7">
+          {activeOrderingMode === "PREORDER" && !scheduledPickupAt ? (
+            <p role="status" className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm font-medium text-sky-950">
+              請先確認並套用預約取餐時間，完成後才會顯示可點商品。
+            </p>
+          ) : activeOrderingMode === "PREORDER" && visibleProducts.length === 0 ? (
             <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-950">
               此時段暫無可預約商品，請選擇其他取餐時間。
             </p>
           ) : null}
           {categories.map((category, categoryIndex) => (
             <section key={category} id={`qr-category-${categoryIndex}`} className="scroll-mt-16">
-              <h2 className="mb-3 text-sm font-semibold text-stone-500">{localizedQrCategory(locale, category)}</h2>
-              <div className="grid gap-3">
+              <h2 className="mb-2 text-sm font-semibold text-stone-500 sm:mb-3">{localizedQrCategory(locale, category)}</h2>
+              <div className="grid gap-2 sm:gap-3">
                 {visibleProducts.filter((product) => product.category === category).map((product) => {
                   const configurable = product.noteGroups.length > 0 || product.bundleChoiceGroups.length > 0;
                   const draft = productDrafts[product.id] ?? {
@@ -1332,22 +1690,25 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
                     noteOptionIds: [],
                     bundleChoiceIds: [],
                   };
-                  const committedQuantity = qrCartProductQuantity(cartLines, product.id);
-                  const displayedQuantity = configurable ? draft.quantity : committedQuantity;
-                  return (
+                   const committedQuantity = qrCartProductQuantity(cartLines, product.id);
+                   const displayedQuantity = configurable ? draft.quantity : committedQuantity;
+                   const configurationComplete = noteSelectionIsValid(product.noteGroups, draft.noteOptionIds)
+                     && bundleSelectionIsValid(product.bundleChoiceGroups, draft.bundleChoiceIds);
+                   return (
                   <article
                     key={product.id}
                     id={`qr-product-${product.id}`}
                     data-best-seller-rank={product.rank ?? undefined}
-                    className="rounded-lg border border-stone-200 bg-white p-4"
+                    tabIndex={-1}
+                    className="rounded-lg border border-stone-200 bg-white p-3 sm:p-4"
                   >
-                    <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:gap-4">
-                      {product.imageUrl ? <ProductImage src={product.imageUrl} alt={copy.productImage(localizedProduct(product).name)} width={80} height={80} sizes="(max-width: 639px) 64px, 80px" className="h-16 w-16 shrink-0 rounded-md object-cover sm:h-20 sm:w-20" /> : <div aria-hidden="true" className="h-16 w-16 rounded-md bg-stone-100 sm:h-20 sm:w-20" />}
+                    <div className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:gap-4">
+                      {product.imageUrl ? <ProductImage src={product.imageUrl} alt={copy.productImage(localizedProduct(product).name)} width={80} height={80} sizes="(max-width: 639px) 56px, 80px" className="h-14 w-14 shrink-0 rounded-md object-cover sm:h-20 sm:w-20" /> : <div aria-hidden="true" className="h-14 w-14 rounded-md bg-stone-100 sm:h-20 sm:w-20" />}
                       <div className="min-w-0 flex-1">
-                        {product.isBestSeller && product.rank !== null ? <span data-testid="best-seller-badge" className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950">近 30 天熱銷第 {product.rank} 名</span> : null}
+                        {product.isBestSeller ? <span data-testid="best-seller-badge" className="mb-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950"><Flame aria-hidden="true" className="h-3.5 w-3.5" />{copy.hotSellerBadge}</span> : null}
                         {!product.isOrderDiscountEligible ? <span data-testid="discount-ineligible-badge" className="mb-1 ml-1 inline-flex rounded-full bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">不適用訂單折扣</span> : null}
                         <h3 className="font-semibold">{localizedProduct(product).name}</h3>
-                        <p className="mt-1 text-sm leading-6 text-stone-600">{localizedProduct(product).description}</p>
+                        <p className="mt-1 line-clamp-2 text-sm leading-5 text-stone-600">{localizedProduct(product).description}</p>
                         <p className="mt-2 font-semibold">{formatMoney(Math.max(
                           0,
                           product.price
@@ -1356,16 +1717,45 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
                         ), session.stall.currency, locale)}</p>
                         {configurable && committedQuantity > 0 ? <p className="mt-1 text-xs font-medium text-teal-800">{copy.cartProductQuantity(committedQuantity)}</p> : null}
                       </div>
-                      <div className="col-span-2 grid grid-cols-[44px_32px_44px] items-center justify-self-end gap-2 sm:col-span-1">
-                        <button type="button" title={copy.decrease(localizedProduct(product).name)} aria-label={copy.decrease(localizedProduct(product).name)} disabled={!orderingEnabled || displayedQuantity <= 0} onClick={() => updateQuantity(product.id, displayedQuantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
+                      <div aria-hidden={configuringProductId === product.id ? true : undefined} className="col-span-2 grid grid-cols-[44px_32px_44px] items-center justify-self-end gap-2 sm:col-span-1">
+                        <button type="button" title={copy.decrease(localizedProduct(product).name)} aria-label={copy.decrease(localizedProduct(product).name)} disabled={!orderingEnabled || configuringProductId === product.id || displayedQuantity <= 0} onClick={() => updateQuantity(product.id, displayedQuantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
                           <Minus className="h-4 w-4" />
                         </button>
                         <span className="text-center font-semibold">{displayedQuantity}</span>
-                        <button type="button" title={copy.increase(localizedProduct(product).name)} aria-label={copy.increase(localizedProduct(product).name)} disabled={!orderingEnabled} onClick={() => updateQuantity(product.id, displayedQuantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
+                        <button type="button" title={copy.increase(localizedProduct(product).name)} aria-label={copy.increase(localizedProduct(product).name)} disabled={!orderingEnabled || configuringProductId === product.id} onClick={() => updateQuantity(product.id, displayedQuantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
                           <Plus className="h-4 w-4" />
                         </button>
                       </div>
                     </div>
+                    {configurable && configuringProductId === product.id && !sessionExpiryDialogOpen && draft.quantity > 0 ? (
+                      <>
+                        <button type="button" aria-label={copy.close} onClick={() => cancelProductConfiguration(product.id)} className="fixed inset-0 z-40 bg-black/50" />
+                        <section
+                          ref={productConfigurationRef}
+                          role="dialog"
+                          aria-modal="true"
+                          aria-labelledby={`qr-product-configuration-${product.id}`}
+                          tabIndex={-1}
+                          data-testid="qr-product-configuration"
+                          className="safe-area-bottom fixed inset-x-0 bottom-0 z-50 max-h-[88dvh] overflow-y-auto rounded-t-xl bg-white p-5 text-stone-900 shadow-2xl outline-none sm:left-1/2 sm:max-w-lg sm:-translate-x-1/2 sm:rounded-xl"
+                        >
+                          <div className="flex items-start justify-between gap-3 border-b border-stone-200 pb-4">
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-teal-800">{editingLineIds[product.id] ? copy.editCartItem : copy.addToCart}</p>
+                              <h2 id={`qr-product-configuration-${product.id}`} className="mt-1 text-xl font-semibold">{localizedProduct(product).name}</h2>
+                            </div>
+                            <button type="button" title={copy.close} aria-label={copy.close} onClick={() => cancelProductConfiguration(product.id)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300">
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div className="mt-4 flex items-center justify-between gap-3 rounded-md bg-stone-50 p-3">
+                            <span className="text-sm font-semibold">{copy.itemCount(draft.quantity)}</span>
+                            <div className="grid grid-cols-[44px_32px_44px] items-center gap-2">
+                              <button type="button" aria-label={copy.decrease(localizedProduct(product).name)} disabled={!orderingEnabled || draft.quantity <= 1} onClick={() => updateQuantity(product.id, draft.quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Minus className="h-4 w-4" /></button>
+                              <span className="text-center font-semibold">{draft.quantity}</span>
+                              <button type="button" aria-label={copy.increase(localizedProduct(product).name)} disabled={!orderingEnabled} onClick={() => updateQuantity(product.id, draft.quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40"><Plus className="h-4 w-4" /></button>
+                            </div>
+                          </div>
                     {draft.quantity > 0 && product.noteGroups.length > 0 ? (
                       <div className="mt-4 space-y-4 border-t border-stone-200 pt-4">
                         {product.noteGroups.map((group) => {
@@ -1446,9 +1836,13 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
                       </div>
                     ) : null}
                     {configurable && draft.quantity > 0 ? (
-                      <button type="button" onClick={() => addProductDraft(product)} disabled={!orderingEnabled} className="mt-4 min-h-11 w-full rounded-md bg-teal-700 px-4 text-sm font-semibold text-white disabled:opacity-40">
-                        {copy.addToCart}
+                      <button id={`qr-product-action-${product.id}`} type="button" onClick={() => addProductDraft(product)} disabled={!orderingEnabled || !configurationComplete} className="mt-4 min-h-11 w-full scroll-mb-24 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white disabled:opacity-40">
+                        {editingLineIds[product.id] ? copy.finishEditingCartItem : copy.addToCart}
                       </button>
+                    ) : null}
+                          {!configurationComplete ? <p role="status" className="mt-3 text-sm font-medium text-amber-800">{copy.requiredNotes(localizedProduct(product).name)}</p> : null}
+                        </section>
+                      </>
                     ) : null}
                   </article>
                   );
@@ -1459,13 +1853,15 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         </div>
       </section>
 
-      {cartOpen ? <button type="button" aria-label={copy.close} onClick={() => setCartOpen(false)} className="fixed inset-0 z-30 bg-black/45 md:hidden" /> : null}
+      {cartDialogOpen ? <button type="button" aria-label={copy.close} onClick={closeCart} className="fixed inset-0 z-30 bg-black/45 md:hidden" /> : null}
       <aside
+        ref={cartPanelRef}
         data-testid="qr-cart-panel"
-        role={cartOpen ? "dialog" : undefined}
-        aria-modal={cartOpen ? true : undefined}
+        role={cartDialogOpen ? "dialog" : undefined}
+        aria-modal={cartDialogOpen ? true : undefined}
         aria-labelledby="qr-cart-heading"
-        className={`${cartOpen ? "safe-area-bottom fixed inset-x-0 bottom-0 z-40 max-h-[88dvh] overflow-y-auto rounded-t-lg border-t border-stone-200 shadow-2xl" : "hidden"} bg-white p-5 md:sticky md:top-5 md:block md:h-fit md:max-h-none md:overflow-visible md:rounded-lg md:border md:shadow-none`}
+        tabIndex={cartDialogOpen ? -1 : undefined}
+        className={`${cartDialogOpen ? "safe-area-bottom fixed inset-x-0 bottom-0 z-40 max-h-[88dvh] overflow-y-auto rounded-t-lg border-t border-stone-200 shadow-2xl" : "hidden"} bg-white p-5 md:sticky md:top-5 md:block md:h-fit md:max-h-none md:overflow-visible md:rounded-lg md:border md:shadow-none`}
       >
         {cartPanel}
       </aside>
@@ -1482,83 +1878,57 @@ export function QrOrderFlow({ qrToken, orderingMode = "DEFAULT", initialMenu = n
         </button>
       ) : null}
       {totalQuantity > 0 && !cartOpen ? (
-        <button data-testid="qr-mobile-cart-summary" type="button" onClick={() => setCartOpen(true)} className="safe-area-bottom fixed inset-x-3 bottom-0 z-30 flex min-h-16 items-center gap-3 rounded-t-lg bg-stone-900 px-4 pt-3 text-left text-white shadow-2xl md:hidden">
+        <button ref={cartTriggerRef} data-testid="qr-mobile-cart-summary" type="button" onClick={() => { setCartStep("CART"); setCartOpen(true); }} className="safe-area-bottom fixed inset-x-3 bottom-0 z-30 flex min-h-16 items-center gap-3 rounded-t-lg bg-stone-900 px-4 pt-3 text-left text-white shadow-2xl md:hidden">
           <ShoppingCart className="h-5 w-5 shrink-0" />
           <span className="min-w-0 flex-1"><span className="block text-xs text-stone-300">{copy.itemCount(totalQuantity)}</span><strong>{formatMoney(total, session.stall.currency, locale)}</strong></span>
           <span className="inline-flex items-center gap-1 text-sm font-semibold">{copy.viewOrder}<ChevronDown className="h-4 w-4 rotate-180" /></span>
         </button>
       ) : null}
-      <LotteryDailyLimitDialog
-        open={lotteryLimitDialogOpen}
-        onClose={closeLotteryLimitDialog}
-        returnFocusRef={lotteryButtonRef}
-      />
+      {lotteryLimitDialogOpen && !sessionExpiryDialogOpen ? (
+        <LotteryDailyLimitDialog
+          onClose={closeLotteryLimitDialog}
+          returnFocusRef={lotteryButtonRef}
+          title={copy.lotteryDailyLimitTitle}
+          description={copy.lotteryDailyLimitDescription}
+          buttonLabel={copy.lotteryAcknowledge}
+        />
+      ) : null}
+      {lotteryDialogVisible ? (
+        <LotteryResultDialog
+          drawing={isDrawingLottery}
+          product={lotteryResultProduct}
+          carouselProductNames={lotteryCarouselProductNames}
+          prefersReducedMotion={prefersReducedMotion}
+          draw={lotteryDraw}
+          title={isDrawingLottery ? copy.lotteryDrawingTitle : copy.lotteryResultTitle}
+          drawingDescription={copy.lotteryDrawingDescription}
+          recommendationBasis={lotteryDraw?.recommendationBasis === "BEST_SELLER"
+            ? copy.lotteryBestSellerBasis
+            : copy.lotteryDiscoveryBasis}
+          recommendation={lotteryDraw
+            ? copy.lotteryRecommendation(lotteryResultProduct ? localizedProduct(lotteryResultProduct).name : lotteryDraw.productName)
+            : ""}
+          discountResult={lotteryDraw?.discountWon && lotteryDraw.discountLabel
+            ? copy.lotteryDiscountResult(lotteryDraw.discountLabel)
+            : copy.lotteryNoDiscountResult}
+          discountNotice={copy.lotteryDiscountNotice}
+          acceptLabel={copy.lotteryAccept}
+          cancelLabel={copy.lotteryCancel}
+          onAccept={acceptLotteryRecommendation}
+          onCancel={cancelLotteryRecommendation}
+        />
+      ) : null}
+      {sessionExpiryDialogOpen && !lotteryDialogVisible ? (
+        <SessionExpiryDialog
+          expired={sessionTimePhase === "EXPIRED"}
+          title={sessionTimePhase === "EXPIRED" ? copy.sessionExpiredTitle : copy.sessionExpiringTitle}
+          description={sessionTimePhase === "EXPIRED"
+            ? copy.sessionExpiredRefreshDescription
+            : copy.sessionExpiringDescription}
+          buttonLabel={copy.refreshSession}
+          onRefresh={reloadWithPersistedCart}
+        />
+      ) : null}
     </main>
-  );
-}
-
-function LotteryDailyLimitDialog({
-  open,
-  onClose,
-  returnFocusRef,
-}: {
-  open: boolean;
-  onClose: () => void;
-  returnFocusRef: RefObject<HTMLButtonElement | null>;
-}) {
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const returnFocusElement = returnFocusRef.current;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const focusFrame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-      if (event.key === "Tab") {
-        event.preventDefault();
-        closeButtonRef.current?.focus();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.cancelAnimationFrame(focusFrame);
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-      returnFocusElement?.focus();
-    };
-  }, [onClose, open, returnFocusRef]);
-
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
-      <section
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="lottery-daily-limit-title"
-        aria-describedby="lottery-daily-limit-description"
-        className="w-full max-w-sm rounded-xl bg-white p-5 text-stone-900 shadow-2xl"
-      >
-        <h2 id="lottery-daily-limit-title" className="text-lg font-semibold">
-          此瀏覽器今日已抽取過
-        </h2>
-        <p id="lottery-daily-limit-description" className="mt-2 text-sm leading-6 text-stone-600">
-          同一瀏覽器資料每日只能抽取一次；今天的商品推薦與折扣結果已保留，明天可再次抽取。
-        </p>
-        <button
-          ref={closeButtonRef}
-          type="button"
-          onClick={onClose}
-          className="mt-5 min-h-11 w-full rounded-md bg-violet-700 px-4 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700"
-        >
-          我知道了
-        </button>
-      </section>
-    </div>
   );
 }

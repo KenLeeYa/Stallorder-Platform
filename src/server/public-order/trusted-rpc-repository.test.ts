@@ -55,4 +55,27 @@ describe("trusted public-order fulfillment-time RPC", () => {
     expect(query.values).toContain("0912345678");
     expect(query.values).toContain("台北市測試路 1 號");
   });
+
+  it.each([
+    ["DEFAULT", "lookup_resumable_public_order"],
+    ["PREORDER", "lookup_resumable_public_order"],
+    ["DELIVERY", "lookup_resumable_public_delivery_order"],
+  ] as const)("passes the requested %s mode to the isolated resumable-order RPC", async (orderingMode, rpcName) => {
+    queryRaw.mockResolvedValueOnce([{ result: null }]);
+    const { lookupResumablePublicOrder } = await import("./trusted-rpc-repository");
+
+    await lookupResumablePublicOrder({
+      orderingMode,
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      deviceHash: "device-hash",
+      ipHash: "ip-hash",
+      qrTokenHash: "qr-hash",
+      behaviorHash: "behavior-hash",
+      requestId: "request-test",
+    });
+
+    const query = queryRaw.mock.calls.at(-1)?.[0] as { strings: string[]; values: unknown[] };
+    expect(query.strings.join("")).toContain(`public.${rpcName}`);
+    expect(query.values.at(-1)).toBe(orderingMode);
+  });
 });

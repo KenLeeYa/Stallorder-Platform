@@ -272,6 +272,12 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
 
     try {
       await page.goto(`/merchant/stalls/${stallId}/settings/modules`);
+      await expect(page.getByLabel("顧客外帶預約網址")).toHaveValue(/\/s\/aming-chicken$/);
+      await expect(page.getByLabel("顧客外送網址")).toHaveValue(/\/delivery\/aming-chicken$/);
+      await expect(page.getByLabel("LINE 自動回覆內容")).toContainText("外帶預約：");
+      await expect(page.getByLabel("LINE 自動回覆內容")).toContainText("外送：");
+      await expect(page.getByRole("button", { name: "複製外帶預約網址", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "複製外送網址", exact: true })).toBeVisible();
       const preorderSwitch = page.getByRole("switch", { name: /外帶預約單/ });
       const lotterySwitch = page.getByRole("switch", { name: /抽抽樂推薦/ });
       await expect(preorderSwitch).toHaveAttribute("aria-checked", "false");
@@ -436,7 +442,12 @@ async function verifyLiveLottery(browser: Browser) {
       discountWon: true,
     });
     expect([temporaryDiscountName, secondTemporaryDiscountName]).toContain(drawPayload.discountLabel);
-    await expect(lottery.getByRole("status")).toContainText(`並抽中 ${String(drawPayload.discountLabel)}！`);
+    const resultDialog = page.getByTestId("lottery-result-dialog");
+    await expect(resultDialog).toHaveAttribute("data-phase", "result", { timeout: 2_500 });
+    await expect(resultDialog.getByTestId("lottery-discount-result"))
+      .toContainText(String(drawPayload.discountLabel));
+    await resultDialog.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(page.getByTestId("qr-mobile-cart-summary")).toHaveCount(0);
   } finally {
     await context.close();
   }
@@ -452,13 +463,25 @@ async function verifyClosedPreorder(browser: Browser) {
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
-    const sessionResponsePromise = page.waitForResponse((response) => (
+    const physicalQrSessionPromise = page.waitForResponse((response) => (
       new URL(response.url()).pathname.endsWith("/create-order-session")
       && response.request().method() === "POST"
     ));
     await page.goto(`/q/${takeoutQrToken}`);
+    const physicalQrSession = await physicalQrSessionPromise;
+    expect(physicalQrSession.request().postDataJSON()).toMatchObject({ orderingMode: "DEFAULT" });
+    expect(physicalQrSession.status()).toBeGreaterThanOrEqual(400);
+    await expect(page.getByRole("heading", { name: "目前無法使用此 QR Code", exact: true })).toBeVisible();
+    await expect(page.getByTestId("qr-preorder-fulfillment-time-fields")).toHaveCount(0);
+
+    const sessionResponsePromise = page.waitForResponse((response) => (
+      new URL(response.url()).pathname.endsWith("/create-order-session")
+      && response.request().method() === "POST"
+    ));
+    await page.goto("/s/aming-chicken");
     const sessionResponse = await sessionResponsePromise;
     expect([200, 201]).toContain(sessionResponse.status());
+    expect(sessionResponse.request().postDataJSON()).toMatchObject({ orderingMode: "PREORDER" });
     const sessionPayload = await sessionResponse.json() as Record<string, unknown>;
     expect(sessionPayload.orderingMode).toBe("PREORDER");
     expect(sessionPayload.lotteryEnabled).not.toBe(true);
@@ -482,7 +505,7 @@ async function verifyClosedPreorder(browser: Browser) {
     ))).toBe(true);
     await expect(page.getByRole("region", { name: "抽抽樂推薦" })).toHaveCount(0);
     expect(pageErrors).toEqual([]);
-    expect(consoleErrors).toEqual([]);
+    expect(consoleErrors.filter((message) => !message.includes("status of 409 (Conflict)"))).toEqual([]);
   } finally {
     await context.close();
   }

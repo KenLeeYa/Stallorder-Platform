@@ -289,11 +289,11 @@ export function MultiStallDashboard({
 
   const summary = overview?.summary;
   return (
-    <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-7 md:px-8">
-      <div className="border-b border-stone-200 pb-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div><p className="text-sm font-semibold text-teal-800">多攤位營運總覽</p><h1 className="mt-1 text-3xl font-semibold">{organizationName}</h1><p className="mt-2 text-sm text-stone-600">依攤位時區彙整的銷售、訂單與付款資料。</p></div>
-          <div className="flex flex-wrap items-center gap-3">
+    <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-3 sm:py-4 md:px-8 md:py-7">
+      <div className="border-b border-stone-200 pb-3 sm:pb-5">
+        <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div><p className="text-sm font-semibold text-teal-800">多攤位營運總覽</p><h1 className="mt-1 text-3xl font-semibold">{organizationName}</h1><p className="mt-2 hidden text-sm text-stone-600 sm:block">依攤位時區彙整的銷售、訂單與付款資料。</p></div>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <span className={`inline-flex min-h-10 items-center gap-2 text-xs font-medium ${realtimeState === "LIVE" ? "text-emerald-700" : "text-amber-700"}`} title={realtimeState === "LIVE" ? "Supabase Realtime 已連線" : "即時連線未就緒，使用 45 秒自動更新備援"}>
               {realtimeState === "LIVE" ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
               {realtimeState === "LIVE" ? "即時更新中" : realtimeState === "CONNECTING" ? "即時連線中" : "自動更新中"}
@@ -302,7 +302,7 @@ export function MultiStallDashboard({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,420px)]">
+        <div className="mt-3 grid gap-3 sm:mt-5 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,420px)]">
           <div>
             <div className="flex flex-wrap gap-1" aria-label="日期範圍">
               {([[
@@ -310,7 +310,7 @@ export function MultiStallDashboard({
                 <button key={value} type="button" aria-pressed={preset === value} onClick={() => choosePreset(value)} className={`min-h-10 rounded-md px-3 text-sm font-semibold ${preset === value ? "bg-stone-900 text-white" : "border border-stone-300 bg-white"}`}>{label}</button>
               ))}
             </div>
-            {preset === "CUSTOM" ? <div className="mt-3 flex flex-wrap gap-3"><label className="text-sm text-stone-600">開始日期<input type="date" value={dateRange.dateFrom} onChange={(event) => setDateRange((current) => ({ ...current, dateFrom: event.target.value }))} className="ml-2 rounded-md border border-stone-300 px-2 py-2 text-stone-900" /></label><label className="text-sm text-stone-600">結束日期<input type="date" value={dateRange.dateTo} onChange={(event) => setDateRange((current) => ({ ...current, dateTo: event.target.value }))} className="ml-2 rounded-md border border-stone-300 px-2 py-2 text-stone-900" /></label></div> : <p className="mt-3 text-sm text-stone-600">{dateRange.dateFrom} 至 {dateRange.dateTo}</p>}
+            {preset === "CUSTOM" ? <div className="mt-2 flex flex-wrap gap-2 sm:mt-3 sm:gap-3"><label className="text-sm text-stone-600">開始日期<input type="date" value={dateRange.dateFrom} onChange={(event) => setDateRange((current) => ({ ...current, dateFrom: event.target.value }))} className="ml-2 rounded-md border border-stone-300 px-2 py-2 text-stone-900" /></label><label className="text-sm text-stone-600">結束日期<input type="date" value={dateRange.dateTo} onChange={(event) => setDateRange((current) => ({ ...current, dateTo: event.target.value }))} className="ml-2 rounded-md border border-stone-300 px-2 py-2 text-stone-900" /></label></div> : <p className="mt-2 text-sm text-stone-600 sm:mt-3">{dateRange.dateFrom} 至 {dateRange.dateTo}</p>}
           </div>
           <details className="border-y border-stone-200 py-2">
             <summary className="cursor-pointer list-none py-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">攤位範圍 · 已選 {selectedStallIds.length} 個</summary>
@@ -318,9 +318,9 @@ export function MultiStallDashboard({
             {stalls.map((stall) => <label key={stall.id} className="flex min-h-10 items-center gap-2 border-t border-stone-100 text-sm"><input type="checkbox" checked={selectedStallIds.includes(stall.id)} onChange={() => toggleStall(stall.id)} />{stall.name}</label>)}
           </details>
         </div>
-        {!multiStallEnabled && stalls.length > 1 ? <p className="mt-4 border-y border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">目前方案僅支援單攤位檢視；升級後可同時比較與批次管理多個攤位。</p> : null}
+        {!multiStallEnabled && stalls.length > 1 ? <p className="mt-3 border-y border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 sm:mt-4 sm:py-3">目前方案僅支援單攤位檢視；升級後可同時比較與批次管理多個攤位。</p> : null}
         {canManageOrdering && multiStallEnabled ? (
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-4">
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3 sm:mt-4 sm:pt-4">
             <button type="button" disabled={selectedStallIds.length === 0 || batchRunning} onClick={() => setPendingBatchAction("PAUSE")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-amber-300 px-3 text-sm font-semibold text-amber-900 disabled:opacity-50"><Pause className="h-4 w-4" />暫停已選攤位</button>
             <button type="button" disabled={selectedStallIds.length === 0 || batchRunning} onClick={() => setPendingBatchAction("RESUME")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-emerald-300 px-3 text-sm font-semibold text-emerald-800 disabled:opacity-50"><Play className="h-4 w-4" />恢復已選攤位</button>
             <span className="text-xs text-stone-500">操作範圍：{selectedStallIds.length} 個攤位</span>
@@ -328,16 +328,16 @@ export function MultiStallDashboard({
         ) : null}
       </div>
 
-      {error ? <div role="alert" className="mt-5 flex items-center gap-2 border-y border-red-200 py-3 text-sm font-medium text-red-800"><CircleAlert className="h-4 w-4" />{error}</div> : null}
-      {controlMessage ? <p role="status" className="mt-4 border-y border-stone-200 py-3 text-sm font-medium text-stone-700">{controlMessage}</p> : null}
+      {error ? <div role="alert" className="mt-3 flex items-center gap-2 border-y border-red-200 py-3 text-sm font-medium text-red-800 sm:mt-5"><CircleAlert className="h-4 w-4" />{error}</div> : null}
+      {controlMessage ? <p role="status" className="mt-3 border-y border-stone-200 py-3 text-sm font-medium text-stone-700 sm:mt-4">{controlMessage}</p> : null}
       {loading && !overview ? <DashboardDataSkeleton /> : null}
 
       {overview?.alerts.length ? (
-        <section className="border-b border-stone-200 py-5" aria-labelledby="operational-alerts-title">
+        <section className="border-b border-stone-200 py-4 sm:py-5" aria-labelledby="operational-alerts-title">
           <div className="flex items-center gap-2"><TriangleAlert className="h-5 w-5 text-amber-700" /><h2 id="operational-alerts-title" className="text-lg font-semibold">營運警示</h2></div>
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <div className="mt-2 grid gap-2 sm:mt-3 sm:gap-3 lg:grid-cols-2">
             {overview.alerts.map((alert) => (
-              <article key={alert.id} className={`border-l-4 bg-stone-50 p-4 ${alert.severity === "CRITICAL" ? "border-red-600" : "border-amber-500"}`}>
+              <article key={alert.id} className={`border-l-4 bg-stone-50 p-3 sm:p-4 ${alert.severity === "CRITICAL" ? "border-red-600" : "border-amber-500"}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div><p className="text-sm font-semibold">{alert.stallName}</p><p className="mt-1 text-sm text-stone-700">{alert.message}</p></div>
                   {alert.status === "ACTIVE" && canManageOrdering ? <button type="button" disabled={updatingAlertId === alert.id} onClick={() => void acknowledgeAlert(alert.id)} className="min-h-10 rounded-md border border-stone-300 bg-white px-3 text-xs font-semibold disabled:opacity-50">{updatingAlertId === alert.id ? "處理中..." : "確認收到"}</button> : <span className="text-xs font-medium text-stone-500">已確認</span>}
@@ -349,7 +349,7 @@ export function MultiStallDashboard({
       ) : null}
 
       {summary ? <>
-        <section className="grid border-b border-stone-200 sm:grid-cols-2 lg:grid-cols-4" aria-label="營運摘要">
+        <section className="grid grid-cols-2 gap-px border-x border-b border-stone-200 bg-stone-200 min-[360px]:grid-cols-3 sm:grid-cols-2 sm:gap-0 sm:border-x-0 sm:bg-transparent lg:grid-cols-4" aria-label="營運摘要">
           <Metric icon={<Banknote />} label="總銷售額" value={formatMoney(summary.totalSales, currency)} />
           <Metric icon={<ShoppingBag />} label="訂單總數" value={String(summary.orderCount)} />
           <Metric icon={<CircleCheck />} label="已完成訂單" value={String(summary.completedOrderCount)} />
@@ -360,18 +360,18 @@ export function MultiStallDashboard({
           <Metric icon={<ArrowUpDown />} label="取消率" value={percent(summary.cancellationRate)} />
         </section>
 
-        <section className="grid gap-5 border-b border-stone-200 py-5 sm:grid-cols-2">
+        <section className="grid gap-3 border-b border-stone-200 py-4 sm:grid-cols-2 sm:gap-5 sm:py-5">
           <div><p className="text-sm text-stone-500">最佳銷售攤位</p><p className="mt-1 font-semibold">{summary.bestPerformingStall ? `${summary.bestPerformingStall.stallName} · ${formatMoney(summary.bestPerformingStall.totalSales, currency)}` : "尚無完成銷售"}</p></div>
           <div><p className="text-sm text-stone-500">最忙碌攤位</p><p className="mt-1 font-semibold">{summary.busiestStall ? `${summary.busiestStall.stallName} · ${summary.busiestStall.orderCount} 筆訂單` : "尚無訂單"}</p></div>
         </section>
 
-        <section className="py-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-xl font-semibold">攤位比較</h2><p className="mt-1 text-xs text-stone-500">更新時間 {formatTaipeiDateTime(overview.generatedAt)}</p></div><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"><label className="relative min-w-0"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><input type="search" aria-label="搜尋攤位" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋攤位" className="h-11 w-full min-w-0 rounded-md border border-stone-300 pl-9 pr-3 text-sm" /></label><select aria-label="排序攤位" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="h-11 rounded-md border border-stone-300 bg-white px-2 text-sm"><option value="sales">銷售額</option><option value="orders">訂單數</option><option value="pending">待處理</option><option value="name">攤位名稱</option></select></div></div>
+        <section className="py-4 sm:py-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"><div><h2 className="text-xl font-semibold">攤位比較</h2><p className="mt-1 text-xs text-stone-500">更新時間 {formatTaipeiDateTime(overview.generatedAt)}</p></div><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"><label className="relative min-w-0"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><input type="search" aria-label="搜尋攤位" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋攤位" className="h-11 w-full min-w-0 rounded-md border border-stone-300 pl-9 pr-3 text-sm" /></label><select aria-label="排序攤位" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="h-11 rounded-md border border-stone-300 bg-white px-2 text-sm"><option value="sales">銷售額</option><option value="orders">訂單數</option><option value="pending">待處理</option><option value="name">攤位名稱</option></select></div></div>
 
           <div className="mt-4 hidden md:block">
             <table className="w-full table-fixed border-y border-stone-200 text-left text-xs"><thead className="text-stone-500"><tr><th className="w-[15%] py-3">攤位</th><th>狀態</th><th>訂單</th><th>完成</th><th>銷售額</th><th>客單價</th><th>待處理</th><th>未付款</th><th>取消率</th><th className="w-[13%]">最後訂單</th></tr></thead><tbody>{visibleStalls.map((stall) => <tr key={stall.stallId} className="border-t border-stone-100"><td className="py-4 pr-2"><Link href={`/merchant/stalls/${stall.stallId}/dashboard`} className="font-semibold text-teal-800">{stall.stallName}</Link><div className="mt-1 text-stone-400">{stall.stallCode}</div></td><td><Status status={stall.businessStatus} /></td><td>{stall.orderCount}</td><td>{stall.completedOrderCount}</td><td>{formatMoney(stall.totalSales, currency)}</td><td>{formatMoney(stall.averageOrderValue, currency)}</td><td>{stall.pendingOrderCount}</td><td>{stall.unpaidOrderCount}</td><td>{percent(stall.cancellationRate)}</td><td>{stall.lastOrderAt ? formatTaipeiDateTime(stall.lastOrderAt).slice(5, 16) : "-"}</td></tr>)}</tbody></table>
           </div>
-          <div className="mt-4 grid gap-3 md:hidden">{visibleStalls.map((stall) => <article key={stall.stallId} className="rounded-md border border-stone-200 bg-white p-4"><div className="flex items-center justify-between gap-3"><Link href={`/merchant/stalls/${stall.stallId}/dashboard`} className="font-semibold text-teal-800">{stall.stallName}</Link><Status status={stall.businessStatus} /></div><dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><MobileMetric label="銷售額" value={formatMoney(stall.totalSales, currency)} /><MobileMetric label="訂單 / 完成" value={`${stall.orderCount} / ${stall.completedOrderCount}`} /><MobileMetric label="待處理 / 未付款" value={`${stall.pendingOrderCount} / ${stall.unpaidOrderCount}`} /><MobileMetric label="客單價 / 取消率" value={`${formatMoney(stall.averageOrderValue, currency)} / ${percent(stall.cancellationRate)}`} /></dl></article>)}</div>
+          <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3 md:hidden">{visibleStalls.map((stall) => <article key={stall.stallId} className="rounded-md border border-stone-200 bg-white p-3 sm:p-4"><div className="flex items-center justify-between gap-3"><Link href={`/merchant/stalls/${stall.stallId}/dashboard`} className="font-semibold text-teal-800">{stall.stallName}</Link><Status status={stall.businessStatus} /></div><dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:mt-4 sm:gap-3"><MobileMetric label="銷售額" value={formatMoney(stall.totalSales, currency)} /><MobileMetric label="訂單 / 完成" value={`${stall.orderCount} / ${stall.completedOrderCount}`} /><MobileMetric label="待處理 / 未付款" value={`${stall.pendingOrderCount} / ${stall.unpaidOrderCount}`} /><MobileMetric label="客單價 / 取消率" value={`${formatMoney(stall.averageOrderValue, currency)} / ${percent(stall.cancellationRate)}`} /></dl></article>)}</div>
           {visibleStalls.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">此範圍沒有符合條件的攤位資料。</p> : null}
         </section>
       </> : null}
@@ -393,15 +393,15 @@ export function MultiStallDashboard({
 }
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return <div className="flex min-h-28 items-center gap-3 border-t border-stone-200 py-5 first:border-t-0 sm:px-4 lg:border-t-0 lg:border-r lg:last:border-r-0">{<span className="text-teal-700 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>}<div><div className="text-sm text-stone-500">{label}</div><div className="mt-1 text-xl font-semibold">{value}</div></div></div>;
+  return <div className="min-h-20 min-w-0 bg-white p-2 sm:flex sm:min-h-28 sm:items-center sm:gap-3 sm:border-t sm:border-stone-200 sm:px-4 sm:py-5 sm:first:border-t-0 lg:border-t-0 lg:border-r lg:last:border-r-0">{<span className="block text-teal-700 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>}<div className="mt-2 min-w-0 sm:mt-0"><div className="text-xs leading-4 text-stone-500 sm:text-sm">{label}</div><div className="mt-1 break-words text-base font-semibold sm:text-xl">{value}</div></div></div>;
 }
 
 function DashboardDataSkeleton() {
   return (
-    <section aria-busy="true" className="grid border-b border-stone-200 py-5 sm:grid-cols-2 lg:grid-cols-4">
+    <section aria-busy="true" className="grid grid-cols-2 gap-px border-x border-b border-stone-200 bg-stone-200 min-[360px]:grid-cols-3 sm:grid-cols-2 sm:gap-0 sm:border-x-0 sm:bg-transparent sm:py-5 lg:grid-cols-4">
       <span className="sr-only">正在載入營運資料</span>
       {Array.from({ length: 8 }, (_, index) => (
-        <div key={index} className="min-h-28 animate-pulse border-t border-stone-200 py-5 sm:px-4 lg:border-t-0">
+        <div key={index} className="min-h-20 animate-pulse bg-white p-2 sm:min-h-28 sm:border-t sm:border-stone-200 sm:px-4 sm:py-5 lg:border-t-0">
           <div className="h-3 w-20 rounded bg-stone-200" />
           <div className="mt-3 h-7 w-28 rounded bg-stone-100" />
         </div>

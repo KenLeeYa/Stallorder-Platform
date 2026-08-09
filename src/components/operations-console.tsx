@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, RefreshCw, ScrollText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatTaipeiDateTime } from "@/lib/date-time";
+import { auditActionLabel, auditEntityTypeLabel } from "@/lib/audit-log-labels";
 import {
   OPERATIONS_PAGE_SIZES,
   type OperationsPageMeta,
@@ -191,8 +192,8 @@ export function OperationsConsole({
           <div className="mt-4 divide-y divide-stone-100 border-y border-stone-200">
             {auditLogs.map((log) => (
               <details key={log.id} className="group py-3">
-                <summary className="grid cursor-pointer list-none gap-2 text-sm sm:grid-cols-[170px_minmax(180px,1fr)_130px_160px] sm:items-center [&::-webkit-details-marker]:hidden"><span className="text-xs text-stone-500">{formatTaipeiDateTime(log.createdAt)}</span><span className="min-w-0 truncate font-semibold">{log.action}</span><span className={log.outcome === "SUCCESS" ? "text-emerald-700" : "text-red-700"}>{log.outcome === "SUCCESS" ? "成功" : log.outcome === "DENIED" ? "拒絕" : "失敗"}</span><span className="truncate text-xs text-stone-500">{log.actorName} · {log.stallName}</span></summary>
-                <div className="mt-3 grid gap-3 bg-stone-50 p-3 text-xs text-stone-700 md:grid-cols-2"><dl className="grid grid-cols-[100px_1fr] gap-2"><dt className="text-stone-500">資料類型</dt><dd>{log.entityType}</dd><dt className="text-stone-500">資料 ID</dt><dd className="break-all">{log.entityId ?? "-"}</dd><dt className="text-stone-500">Request ID</dt><dd className="break-all">{log.requestId}</dd><dt className="text-stone-500">操作員</dt><dd className="break-all">{log.actorEmail ?? log.actorName}</dd></dl><div><p className="text-stone-500">變更內容</p><pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px]">{formatAuditPayload(log)}</pre></div></div>
+                <summary className="grid cursor-pointer list-none gap-2 text-sm sm:grid-cols-[170px_minmax(180px,1fr)_130px_160px] sm:items-center [&::-webkit-details-marker]:hidden"><span className="text-xs text-stone-500">{formatTaipeiDateTime(log.createdAt)}</span><span className="min-w-0 truncate font-semibold">{auditActionLabel(log.action)}</span><span className={log.outcome === "SUCCESS" ? "text-emerald-700" : "text-red-700"}>{log.outcome === "SUCCESS" ? "成功" : log.outcome === "DENIED" ? "拒絕" : "失敗"}</span><span className="truncate text-xs text-stone-500">{log.actorName} · {log.stallName}</span></summary>
+                <div className="mt-3 grid gap-3 bg-stone-50 p-3 text-xs text-stone-700 md:grid-cols-2"><dl className="grid grid-cols-[112px_1fr] gap-2"><dt className="text-stone-500">資料類型</dt><dd>{auditEntityTypeLabel(log.entityType)}</dd><dt className="text-stone-500">目標資料 ID</dt><dd className="break-all">{log.entityId ?? "-"}</dd><dt className="text-stone-500">操作追蹤碼</dt><dd className="break-all">{log.requestId}</dd><dt className="text-stone-500">操作員</dt><dd className="break-all">{log.actorEmail ?? log.actorName}</dd><dt className="text-stone-500">原始動作代碼</dt><dd className="break-all font-mono text-[11px]">{log.action}</dd><dt className="text-stone-500">原始類型代碼</dt><dd className="break-all font-mono text-[11px]">{log.entityType}</dd></dl><div><p className="text-stone-500">原始變更資料</p><pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px]">{formatAuditPayload(log)}</pre></div></div>
               </details>
             ))}
             {auditLogs.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">目前篩選範圍沒有稽核紀錄。</p> : null}

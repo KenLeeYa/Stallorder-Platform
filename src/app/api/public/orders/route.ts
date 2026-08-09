@@ -1,4 +1,5 @@
 import { createRequestId } from "@/lib/security";
+import { getPublicOrderOperationId } from "@/lib/public-order-operation-id";
 import { readJson } from "@/lib/http";
 import { createPerformanceTiming } from "@/lib/performance-timing";
 import {
@@ -16,9 +17,11 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
+  const operationId = getPublicOrderOperationId(request);
   const timing = createPerformanceTiming({
     route: "/api/public/orders",
     requestId,
+    operationId,
   });
 
   try {
@@ -26,7 +29,7 @@ export async function POST(request: Request) {
     const clientIp = requireCircuitBClientIp(request);
     const body = await readJson(request, requestId);
     if (body.error) {
-      return finalizeCircuitBResponse(body.error, requestId, timing);
+      return finalizeCircuitBResponse(body.error, requestId, timing, operationId);
     }
     const parsed = createPublicOrderSchema.safeParse(body.data);
     if (!parsed.success) {
@@ -35,6 +38,7 @@ export async function POST(request: Request) {
         400,
         requestId,
         timing,
+        operationId,
       );
     }
 
@@ -43,13 +47,14 @@ export async function POST(request: Request) {
       requestId,
       timing,
     });
-    return circuitBResponse(result.body, result.status, requestId, timing);
+    return circuitBResponse(result.body, result.status, requestId, timing, operationId);
   } catch (error) {
     return circuitBFailureResponse(
       error,
       requestId,
       timing,
       "PUBLIC_ORDER_CIRCUIT_B_FAILED",
+      operationId,
     );
   }
 }

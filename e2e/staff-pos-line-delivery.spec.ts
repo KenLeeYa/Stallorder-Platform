@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { buildFulfillmentTimeSlots } from "../src/lib/fulfillment-time-options";
 
@@ -10,14 +10,23 @@ let originalStaffDeliveryEnabled = false;
 let originalDineInEnabled = false;
 let originalTakeoutPreorderEnabled = false;
 let cashShiftId = "";
+type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
+let ownerAuthCookies: AuthCookies | null = null;
 
 async function login(page: Page) {
+  if (ownerAuthCookies) {
+    await page.context().addCookies(ownerAuthCookies);
+    await page.goto("/merchant/dashboard");
+    await expect(page).toHaveURL(/\/merchant\/dashboard(?:\?organizationId=|$)/, { timeout: 30_000 });
+    return;
+  }
   await page.goto("/login");
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/merchant\/dashboard(?:\?organizationId=|$)/, { timeout: 30_000 });
+  ownerAuthCookies = await page.context().cookies();
 }
 
 test.beforeAll(async () => {
@@ -436,6 +445,25 @@ test("店員可將同商品不同註記分列加入購物車，並移除選錯�
   await product.getByRole("checkbox", { name: /加起司/ }).check();
   await product.getByRole("button", { name: "加入購物車", exact: true }).click();
   await expect(cartLines).toHaveCount(2);
+  const editableCheeseLine = cartLines.filter({ hasText: "加起司" });
+  const editableLineId = await editableCheeseLine.getAttribute("data-cart-line-id");
+  expect(editableLineId).not.toBeNull();
+  await editableCheeseLine.getByRole("button", { name: "修改客製", exact: true }).click();
+  await expect(product.getByRole("checkbox", { name: /加起司/ })).toBeChecked();
+  await editableCheeseLine.getByRole("button", { name: "增加 香酥雞排（加起司）", exact: true }).click();
+  await expect(editableCheeseLine).toContainText("2 × 香酥雞排");
+  await product.getByRole("checkbox", { name: /加蛋/ }).check();
+  await expect(product.getByRole("button", { name: "修改完成", exact: true })).toBeVisible();
+  await product.getByRole("button", { name: "修改完成", exact: true }).click();
+  await expect(cartLines).toHaveCount(2);
+  const editedLine = dialog.locator(`[data-testid="staff-cart-line"][data-cart-line-id="${editableLineId!}"]`);
+  await expect(editedLine).toContainText("2 × 香酥雞排");
+  await expect(editedLine).toContainText("加蛋、加起司");
+  await editedLine.getByRole("button", { name: "修改客製", exact: true }).click();
+  await editedLine.getByRole("button", { name: /減少 香酥雞排/ }).click();
+  await expect(editedLine).toContainText("1 × 香酥雞排");
+  await product.getByRole("button", { name: "修改完成", exact: true }).click();
+  await expect(editedLine).toContainText("1 × 香酥雞排");
   await dialog.getByRole("button", { name: "稍後結帳", exact: true }).click();
 
   const orderResponsePromise = page.waitForResponse((response) => (
@@ -453,6 +481,7 @@ test("店員可將同商品不同註記分列加入購物車，並移除選錯�
   expect(requestItems).toHaveLength(2);
   expect(new Set(requestItems.map((item) => item.productId)).size).toBe(1);
   expect(requestItems.map((item) => item.quantity).sort()).toEqual([1, 2]);
+  expect(requestItems.map((item) => item.noteOptionIds.length).sort()).toEqual([1, 2]);
   expect(requestItems[0]?.noteOptionIds).not.toEqual(requestItems[1]?.noteOptionIds);
 
   const payload = await orderResponse.json();
@@ -464,7 +493,7 @@ test("店員可將同商品不同註記分列加入購物車，並移除選錯�
   expect(stored.items).toHaveLength(2);
   expect(stored.items.map((item) => item.quantity).sort()).toEqual([1, 2]);
   expect(stored.items.flatMap((item) => item.noteOptions.map((option) => option.optionName)).sort())
-    .toEqual(["加蛋", "加起司"]);
+    .toEqual(["加蛋", "加蛋", "加起司"]);
 });
 
 test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確認", async ({ browser, page }, testInfo) => {
@@ -485,6 +514,7 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
     await settingsContext.close();
   }
 
+  await page.setExtraHTTPHeaders({ "cf-connecting-ip": "203.0.113.101" });
   await page.setViewportSize({ width: 390, height: 844 });
   const customerName = `LINE 外送 QA ${Date.now()}`;
   const deliveryAddress = "台北市信義區測試路 1 號 2 樓";
@@ -535,9 +565,11 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
   }
   await deliveryProduct.getByRole("button", { name: "加入購物車", exact: true }).click();
   await page.getByTestId("qr-mobile-cart-summary").click();
-  await expect(page.getByTestId("qr-cart-panel")).toHaveAttribute("role", "dialog");
-  await expect(page.getByLabel("聯絡電話")).toBeVisible();
-  await expect(page.getByLabel("外送地址")).toBeVisible();
+  const deliveryCartPanel = page.getByTestId("qr-cart-panel");
+  await expect(deliveryCartPanel).toHaveAttribute("role", "dialog");
+  await deliveryCartPanel.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
+  await expect(deliveryCartPanel.getByLabel("聯絡電話")).toBeVisible();
+  await expect(deliveryCartPanel.getByLabel("外送地址")).toBeVisible();
   await expect(page.getByRole("radio", { name: "儘快，不指定時間" })).toBeChecked();
   await page.getByRole("radio", { name: "指定送達時間" }).check();
   const deliveryFields = page.getByTestId("qr-delivery-fulfillment-time-fields");
@@ -567,8 +599,45 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
   await page.getByLabel("顧客稱呼").fill(customerName);
   await page.getByLabel("聯絡電話").fill("0912345678");
   await page.getByLabel("外送地址").fill(deliveryAddress);
-  const submit = page.getByRole("button", { name: "送出訂單", exact: true });
-  const waitAcknowledgment = page.getByRole("checkbox", {
+
+  await expect.poll(() => page.evaluate(() => {
+    const raw = Object.entries(window.localStorage)
+      .find(([key]) => key.startsWith("stallorder_qr_cart:") && key.endsWith(":delivery"))?.[1];
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as {
+      orderingMode?: string;
+      scheduledPickupAt?: string;
+      customerPhone?: string;
+      deliveryAddress?: string;
+    };
+    return {
+      orderingMode: draft.orderingMode,
+      scheduledPickupAt: draft.scheduledPickupAt,
+      customerPhone: draft.customerPhone,
+      deliveryAddress: draft.deliveryAddress,
+    };
+  })).toEqual({
+    orderingMode: "DELIVERY",
+    scheduledPickupAt: requestedFulfillmentAt,
+    customerPhone: "0912345678",
+    deliveryAddress,
+  });
+
+  await page.reload();
+  await page.getByTestId("qr-mobile-cart-summary").click();
+  const restoredDeliveryCartPanel = page.getByRole("dialog", { name: "您的訂單" });
+  await expect(restoredDeliveryCartPanel).toBeVisible();
+  await restoredDeliveryCartPanel.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
+  await expect(restoredDeliveryCartPanel.getByRole("radio", { name: "指定送達時間" })).toBeChecked();
+  const restoredDeliveryFields = restoredDeliveryCartPanel.getByTestId("qr-delivery-fulfillment-time-fields");
+  await expect(restoredDeliveryFields.getByLabel("送達日期")).toHaveValue(requestedSlot.date);
+  await expect(restoredDeliveryFields.getByLabel("送達時間－時")).toHaveValue(requestedSlot.hour);
+  await expect(restoredDeliveryFields.getByLabel("送達時間－分")).toHaveValue(requestedSlot.minute);
+  await expect(restoredDeliveryCartPanel.getByLabel("顧客稱呼")).toHaveValue(customerName);
+  await expect(restoredDeliveryCartPanel.getByLabel("聯絡電話")).toHaveValue("0912345678");
+  await expect(restoredDeliveryCartPanel.getByLabel("外送地址")).toHaveValue(deliveryAddress);
+  const submit = restoredDeliveryCartPanel.getByRole("button", { name: "送出訂單", exact: true });
+  const waitAcknowledgment = restoredDeliveryCartPanel.getByRole("checkbox", {
     name: /我已了解目前預估等候時間為/,
   });
   if (session.requiresWaitAcknowledgment) {
@@ -710,19 +779,31 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
 });
 
 test("外送頁依瀏覽器語系顯示英文欄位", async ({ browser }) => {
-  const context = await browser.newContext({ locale: "en-US", viewport: { width: 390, height: 844 } });
+  const context = await browser.newContext({
+    locale: "en-US",
+    viewport: { width: 390, height: 844 },
+    extraHTTPHeaders: { "cf-connecting-ip": "203.0.113.102" },
+  });
   try {
     const page = await context.newPage();
     const appUrl = process.env.PLAYWRIGHT_APP_URL ?? "http://localhost:3001";
+    const sessionResponsePromise = page.waitForResponse((response) => (
+      new URL(response.url()).pathname.endsWith("/create-order-session")
+      && response.request().method() === "POST"
+    ));
     await page.goto(`${appUrl}/delivery/aming-chicken`);
+    expect([200, 201]).toContain((await sessionResponsePromise).status());
     const deliveryProduct = page.getByRole("article").filter({
       has: page.getByRole("heading", { name: "Deep-Fried Chicken Cutlet", exact: true }),
     });
     await deliveryProduct.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet", exact: true }).click();
     await deliveryProduct.getByRole("button", { name: "Add to cart", exact: true }).click();
     await page.getByTestId("qr-mobile-cart-summary").click();
-    await expect(page.getByLabel("Contact phone")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByLabel("Delivery address")).toBeVisible();
+    const deliveryCartPanel = page.getByTestId("qr-cart-panel");
+    await expect(deliveryCartPanel).toHaveAttribute("role", "dialog");
+    await deliveryCartPanel.getByRole("button", { name: "Continue to checkout", exact: true }).click();
+    await expect(deliveryCartPanel.getByLabel("Contact phone")).toBeVisible({ timeout: 30_000 });
+    await expect(deliveryCartPanel.getByLabel("Delivery address")).toBeVisible();
     await expect(page.getByText("Delivery", { exact: true })).toBeVisible();
   } finally {
     await context.close();

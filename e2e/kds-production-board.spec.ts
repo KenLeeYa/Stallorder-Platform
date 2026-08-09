@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -20,6 +20,14 @@ async function login(page: Page, email: string) {
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await response).status()).toBe(200);
+}
+
+async function waitForReactHydration(control: Locator) {
+  await expect.poll(() => control.evaluate((element) => (
+    Object.keys(element).some((key) => (
+      key.startsWith("__reactProps$") || key.startsWith("__reactFiber$")
+    ))
+  )), { message: "等待 React 完成控制項 hydration" }).toBe(true);
 }
 
 test.beforeAll(async () => {
@@ -174,12 +182,78 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
 
 test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
   await login(page, "owner@stallorder.test");
+  await page.setViewportSize({ width: 320, height: 360 });
+  await page.goto("/kitchen?stall=aming-chicken");
+  const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
+  const cancelButton = orderCard.getByRole("button", { name: "取消", exact: true });
+  await cancelButton.focus();
+  await cancelButton.click();
+  const cancellationDialog = page.getByRole("alertdialog", { name: `取消訂單 ${orderNo}？` });
+  await expect(cancellationDialog).toBeVisible();
+  await expect(cancellationDialog.getByText("此操作無法復原", { exact: true })).toBeVisible();
+  await expect(cancellationDialog.getByText(/停止此訂單的所有廚房工作/)).toBeVisible();
+  await expect(cancellationDialog.getByRole("button", { name: "返回", exact: true })).toBeFocused();
+  await expect(cancellationDialog.getByLabel("取消原因")).toHaveValue("SOLD_OUT");
+  const dialogLayout = await cancellationDialog.evaluate((element) => {
+    const scrollRegion = element.querySelector("form")!;
+    return {
+      dialogWidth: element.clientWidth,
+      dialogScrollWidth: element.scrollWidth,
+      clientHeight: scrollRegion.clientHeight,
+      scrollHeight: scrollRegion.scrollHeight,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  expect(dialogLayout.dialogScrollWidth).toBeLessThanOrEqual(dialogLayout.dialogWidth);
+  expect(dialogLayout.clientHeight).toBeLessThanOrEqual(dialogLayout.viewportHeight - 16);
+  expect(dialogLayout.scrollHeight).toBeGreaterThan(dialogLayout.clientHeight);
+
+  await cancellationDialog.getByLabel("取消原因").selectOption("OTHER");
+  await cancellationDialog.getByRole("button", { name: "確認取消", exact: true }).click();
+  const detailInput = cancellationDialog.getByLabel("補充說明（必填）");
+  await expect(cancellationDialog.getByText("選擇其他原因時，請填寫補充說明。", { exact: true })).toBeVisible();
+  await expect(detailInput).toBeFocused();
+  await detailInput.fill("KDS E2E 僅驗證介面，不送出取消");
+  const confirmationInput = cancellationDialog.getByLabel("確認訂單編號");
+  await confirmationInput.fill("WRONG-ORDER");
+  await cancellationDialog.getByRole("button", { name: "確認取消", exact: true }).click();
+  await expect(cancellationDialog.getByText(`請完整輸入訂單編號 ${orderNo}。`, { exact: true })).toBeVisible();
+  await expect(confirmationInput).toBeFocused();
+  expect((await prisma.order.findUniqueOrThrow({ where: { id: orderId }, select: { status: true } })).status).not.toBe("CANCELLED");
+
+  await page.keyboard.press("Escape");
+  await expect(cancellationDialog).toBeHidden();
+  await expect(cancelButton).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await cancelButton.click();
+  await expect(cancellationDialog).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await cancellationDialog.getByRole("button", { name: "返回", exact: true }).click();
+  await expect(cancellationDialog).toBeHidden();
+  await expect(cancelButton).toBeFocused();
+
+  await cancelButton.click();
+  await cancellationDialog.getByLabel("取消原因").selectOption("OTHER");
+  await cancellationDialog.getByLabel("補充說明（必填）").fill("KDS E2E 完整取消流程");
+  await cancellationDialog.getByLabel("確認訂單編號").fill(orderNo);
+  const cancellationResponse = page.waitForResponse((response) => (
+    response.url().endsWith(`/api/stalls/aming-chicken/orders/${orderId}`)
+    && response.request().method() === "PATCH"
+  ));
+  await cancellationDialog.getByRole("button", { name: "確認取消", exact: true }).click();
+  expect((await cancellationResponse).status()).toBe(200);
+  await expect(cancellationDialog).toBeHidden();
+  await expect(orderCard).toHaveCount(0);
+  expect((await prisma.order.findUniqueOrThrow({ where: { id: orderId }, select: { status: true } })).status).toBe("CANCELLED");
+
   await page.goto("/kitchen/stations?stall=aming-chicken");
   await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/kitchen/stations\\?source=kitchen$`));
   await expect(page.getByRole("link", { name: "返回生產看板", exact: true }))
     .toHaveAttribute("href", "/kitchen?stall=aming-chicken");
   await expect(page.getByRole("heading", { name: "工作站與品項分流" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "綜合工作站", exact: true }).last()).toBeVisible();
+  const createStationButton = page.getByRole("button", { name: "新增工作站", exact: true });
+  await waitForReactHydration(createStationButton);
   const newStationName = page.getByLabel("名稱", { exact: true }).first();
   const newStationCode = page.getByLabel("代碼", { exact: true }).first();
   await newStationName.fill("錯誤代碼測試");
@@ -188,7 +262,7 @@ test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
     response.url().endsWith("/api/stalls/aming-chicken/kitchen/stations")
     && response.request().method() === "PATCH"
   ));
-  await page.getByRole("button", { name: "新增工作站", exact: true }).click();
+  await createStationButton.click();
   expect((await invalidStationResponse).status()).toBe(400);
   await expect(newStationCode).toHaveAttribute("aria-invalid", "true");
   await expect(newStationCode).toBeFocused();
@@ -199,15 +273,20 @@ test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "KDS 顯示設定" })).toBeVisible();
   await expect(page.getByRole("spinbutton", { name: "警示時間（分鐘）", exact: true }).last()).toHaveValue("5");
   await expect(page.getByRole("spinbutton", { name: "嚴重逾時（分鐘）", exact: true }).last()).toHaveValue("10");
+  const saveSettingsButton = page.getByRole("button", { name: "儲存設定", exact: true });
+  await waitForReactHydration(saveSettingsButton);
   const warningMinutes = page.getByRole("spinbutton", { name: "警示時間（分鐘）", exact: true }).last();
   const criticalMinutes = page.getByRole("spinbutton", { name: "嚴重逾時（分鐘）", exact: true }).last();
   await warningMinutes.fill("10");
+  await expect(warningMinutes).toHaveValue("10");
   await criticalMinutes.fill("8");
+  await expect(criticalMinutes).toHaveValue("8");
+  await expect(warningMinutes).toHaveValue("10");
   const invalidSettingsResponse = page.waitForResponse((response) => (
     response.url().endsWith("/api/stalls/aming-chicken/kitchen/settings")
     && response.request().method() === "PATCH"
   ));
-  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+  await saveSettingsButton.click();
   expect((await invalidSettingsResponse).status()).toBe(400);
   await expect(criticalMinutes).toHaveAttribute("aria-invalid", "true");
   await expect(criticalMinutes).toBeFocused();

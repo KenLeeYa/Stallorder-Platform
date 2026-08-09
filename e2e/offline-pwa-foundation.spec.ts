@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import { offlineSyncRequestSchema } from "../src/offline/offline-order-contract";
+import { gotoLocalPath } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -18,6 +19,17 @@ const deviceName = "P4 E2E 離線主機";
 const flagReason = "P4 E2E temporary offline device validation";
 const offlineCustomerName = "P5 E2E 離線顧客";
 const productionOfflineRuntime = process.env.PLAYWRIGHT_PRODUCTION_SERVER === "true";
+
+async function waitForReactHandler(control: Locator, handler: "onClick" | "onChange") {
+  await expect.poll(() => control.evaluate((element, eventName) => {
+    const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps$"));
+    if (!propsKey) return false;
+    const props = (element as unknown as Record<string, unknown>)[propsKey];
+    return typeof props === "object"
+      && props !== null
+      && typeof (props as Record<string, unknown>)[eventName] === "function";
+  }, handler), { message: `等待 React 掛載 ${handler}` }).toBe(true);
+}
 
 test.describe("P4 離線 PWA 基礎", () => {
   test.describe.configure({ mode: "serial" });
@@ -54,6 +66,7 @@ test.describe("P4 離線 PWA 基礎", () => {
   });
 
   test("裝置須由管理者指定唯一 Leader 後才取得離線 Permit", async ({ browser }, testInfo) => {
+    test.setTimeout(productionOfflineRuntime ? 60_000 : 180_000);
     const staffContext = await browser.newContext({
       viewport: { width: 390, height: 844 },
       locale: "zh-TW",
@@ -70,11 +83,39 @@ test.describe("P4 離線 PWA 基礎", () => {
 
     try {
       await login(staffPage, "staff@stallorder.test", /\/staff\/aming-chicken/);
-      await staffPage.goto(`/staff/${stallSlug}`);
+      if (!productionOfflineRuntime) {
+        for (const path of [
+          `/api/stalls/${stallSlug}/offline/devices`,
+          `/api/stalls/${stallSlug}/offline/bootstrap`,
+          "/api/offline/sync",
+        ]) {
+          const warmupResponse = await staffContext.request.get(path);
+          expect(warmupResponse.status()).toBe(405);
+          await warmupResponse.dispose();
+        }
+        const assetWarmupResponse = await staffContext.request.get(
+          "/api/assets/offline-menus/e2e-warmup",
+        );
+        expect(assetWarmupResponse.status()).toBe(404);
+        await assetWarmupResponse.dispose();
+      }
+      await gotoLocalPath(staffPage, `/staff/${stallSlug}`);
       const staffBoard = staffPage.locator("main:visible").last();
-      await staffBoard.getByTitle("離線裝置").click();
-      await staffBoard.getByLabel("裝置名稱").fill(deviceName);
-      await staffBoard.getByRole("button", { name: "登錄並準備離線資料" }).click();
+      const offlineDeviceButton = staffBoard.getByTitle("離線裝置", { exact: true });
+      await waitForReactHandler(offlineDeviceButton, "onClick");
+      await offlineDeviceButton.click();
+      const deviceNameInput = staffBoard.getByLabel("裝置名稱");
+      await waitForReactHandler(deviceNameInput, "onChange");
+      await deviceNameInput.fill(deviceName);
+      const registerDeviceButton = staffBoard.getByRole("button", { name: "登錄並準備離線資料" });
+      await waitForReactHandler(registerDeviceButton, "onClick");
+      const registerDeviceResponse = staffPage.waitForResponse((response) => (
+        new URL(response.url()).pathname === `/api/stalls/${stallSlug}/offline/devices`
+        && response.request().method() === "POST"
+        && response.request().postDataJSON()?.displayName === deviceName
+      ));
+      await registerDeviceButton.click();
+      expect((await registerDeviceResponse).status()).toBe(202);
       await expect(staffBoard.getByText(/裝置已送出登錄/)).toBeVisible();
 
       const device = await prisma.clientDevice.findFirstOrThrow({
@@ -95,17 +136,29 @@ test.describe("P4 離線 PWA 基礎", () => {
       });
 
       await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard\?organizationId=/);
-      await ownerPage.goto(`/merchant/stalls/${stallId}/offline`);
+      if (!productionOfflineRuntime) {
+        for (const path of [
+          `/api/merchant/stalls/${stallId}/offline`,
+          `/api/merchant/stalls/${stallId}/offline/conflicts`,
+        ]) {
+          const warmupResponse = await ownerContext.request.get(path);
+          expect(warmupResponse.status()).toBe(200);
+          await warmupResponse.dispose();
+        }
+      }
+      await gotoLocalPath(ownerPage, `/merchant/stalls/${stallId}/offline`);
       const ownerSettings = ownerPage.locator("main:visible").last();
       await expect(ownerSettings.getByRole("heading", { name: "離線裝置" })).toBeVisible();
       await expect(ownerSettings.getByRole("heading", { name: deviceName, exact: true })).toBeVisible();
 
       const policyReasonField = ownerSettings.getByLabel("異動原因");
+      const saveOfflinePolicyButton = ownerSettings.getByRole("button", { name: "儲存離線政策" });
+      await waitForReactHandler(saveOfflinePolicyButton, "onClick");
       const blankPolicyResponse = ownerPage.waitForResponse((response) => (
         response.url().endsWith(`/api/merchant/stalls/${stallId}/offline`)
         && response.request().method() === "PATCH"
       ));
-      await ownerSettings.getByRole("button", { name: "儲存離線政策" }).click();
+      await saveOfflinePolicyButton.click();
       expect((await blankPolicyResponse).status()).toBe(400);
       await expect(ownerSettings.getByText("異動原因不可空白。", { exact: true }).first()).toBeVisible();
       await expect(policyReasonField).toHaveAttribute("aria-invalid", "true");
@@ -114,10 +167,20 @@ test.describe("P4 離線 PWA 基礎", () => {
       await ownerSettings.getByRole("switch", { name: "允許離線收單" }).check();
       await ownerSettings.getByLabel("Leader 裝置").selectOption(device.id);
       await policyReasonField.fill("核准本機 E2E 離線主機測試");
-      await ownerSettings.getByRole("button", { name: "儲存離線政策" }).click();
+      const updatePolicyResponse = ownerPage.waitForResponse((response) => (
+        response.url().endsWith(`/api/merchant/stalls/${stallId}/offline`)
+        && response.request().method() === "PATCH"
+        && response.request().postDataJSON()?.operation === "UPDATE_POLICY"
+        && response.request().postDataJSON()?.reason === "核准本機 E2E 離線主機測試"
+      ));
+      await saveOfflinePolicyButton.click();
+      expect((await updatePolicyResponse).status()).toBe(200);
       await expect(ownerSettings.getByRole("status")).toContainText("離線裝置設定已更新");
 
-      const conflictCard = ownerSettings.getByRole("article").filter({ hasText: "價格已變更" });
+      const conflictCard = ownerSettings
+        .getByRole("article")
+        .filter({ hasText: deviceName })
+        .filter({ hasText: "E2E_INVALID_SUBMIT" });
       const resolutionField = conflictCard.getByLabel("處理結果");
       const blankConflictResponse = ownerPage.waitForResponse((response) => (
         response.url().endsWith(`/api/merchant/stalls/${stallId}/offline/conflicts`)
@@ -153,7 +216,30 @@ test.describe("P4 離線 PWA 基礎", () => {
       expect(approved.offlineRole).toBe("OFFLINE_LEADER");
       expect(approved.offlineEnabled).toBe(true);
 
-      await staffBoard.getByRole("button", { name: "登錄並準備離線資料" }).click();
+      const offlineDeviceTrigger = staffBoard.getByTitle("離線裝置", { exact: true });
+      if (await offlineDeviceTrigger.getAttribute("aria-expanded") !== "true") {
+        await waitForReactHandler(offlineDeviceTrigger, "onClick");
+        await offlineDeviceTrigger.click();
+        await expect(offlineDeviceTrigger).toHaveAttribute("aria-expanded", "true");
+      }
+      const approvedDeviceNameInput = staffBoard.getByLabel("裝置名稱");
+      await waitForReactHandler(approvedDeviceNameInput, "onChange");
+      await approvedDeviceNameInput.fill(deviceName);
+      const prepareOfflineDataButton = staffBoard.getByRole("button", { name: "登錄並準備離線資料" });
+      await expect(prepareOfflineDataButton).toBeVisible();
+      await waitForReactHandler(prepareOfflineDataButton, "onClick");
+      const approvedDeviceResponse = staffPage.waitForResponse((response) => (
+        new URL(response.url()).pathname === `/api/stalls/${stallSlug}/offline/devices`
+        && response.request().method() === "POST"
+        && response.request().postDataJSON()?.displayName === deviceName
+      ));
+      const bootstrapResponse = staffPage.waitForResponse((response) => (
+        new URL(response.url()).pathname === `/api/stalls/${stallSlug}/offline/bootstrap`
+        && response.request().method() === "POST"
+      ));
+      await prepareOfflineDataButton.click();
+      expect((await approvedDeviceResponse).status()).toBe(200);
+      expect((await bootstrapResponse).status()).toBe(200);
       await expect(staffBoard.getByText(/離線資料已安全儲存/)).toBeVisible();
       const localData = await staffPage.evaluate(async () => {
         const database = await new Promise<IDBDatabase>((resolveDatabase, reject) => {
@@ -232,7 +318,7 @@ test.describe("P4 離線 PWA 基礎", () => {
         () => staffPage.evaluate(() => Boolean(navigator.serviceWorker.controller)),
       ).toBe(true);
 
-      await staffPage.goto("/offline");
+      await gotoLocalPath(staffPage, "/offline");
       await expect(staffPage.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
       await staffContext.setOffline(true);
       await staffPage.reload({ waitUntil: "domcontentloaded" });
@@ -290,7 +376,7 @@ test.describe("P4 離線 PWA 基礎", () => {
       expect(await serviceWorkerPendingRecords(staffPage)).toBeGreaterThan(0);
       await staffPage.close();
       staffPage = await staffContext.newPage();
-      await staffPage.goto("/offline", { waitUntil: "domcontentloaded" });
+      await gotoLocalPath(staffPage, "/offline");
       const persistedCard = staffPage.getByTestId("offline-order-card").filter({
         hasText: localNumber,
       });
@@ -517,7 +603,7 @@ async function cleanup() {
 }
 
 async function removeLocalSnapshotObjects(objectPaths: string[]) {
-  const url = process.env.PRIMARY_SUPABASE_URL;
+  const url = process.env.PRIMARY_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.PRIMARY_SUPABASE_SECRET_KEY
     ?? process.env.PRIMARY_SUPABASE_SERVICE_ROLE_KEY
     ?? process.env.SUPABASE_SECRET_KEY;
@@ -534,7 +620,7 @@ async function removeLocalSnapshotObjects(objectPaths: string[]) {
 }
 
 async function login(page: Page, email: string, expectedUrl: RegExp) {
-  await page.goto("/login");
+  await gotoLocalPath(page, "/login");
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);

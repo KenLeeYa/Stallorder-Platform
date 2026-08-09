@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
+import { gotoLocalPath } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -17,6 +18,17 @@ const qrToken = "billing-phase1-e2e-qr-token";
 let organizationId = "";
 let subscriptionId = "";
 let invoiceId = "";
+
+async function waitForReactHandler(control: Locator, handler: "onClick" | "onChange") {
+  await expect.poll(() => control.evaluate((element, eventName) => {
+    const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps$"));
+    if (!propsKey) return false;
+    const props = (element as unknown as Record<string, unknown>)[propsKey];
+    return typeof props === "object"
+      && props !== null
+      && typeof (props as Record<string, unknown>)[eventName] === "function";
+  }, handler), { message: `等待 React 掛載 ${handler}` }).toBe(true);
+}
 
 test.describe("Phase 1 商業帳務完整流程", () => {
   test.describe.configure({ mode: "serial" });
@@ -148,8 +160,22 @@ test.describe("Phase 1 商業帳務完整流程", () => {
   test("停權會阻擋新訂單，歷史帳務可讀，且可受控恢復", async ({ page }) => {
     await page.context().clearCookies();
     await login(page, adminEmail);
-    await page.goto(`/admin/subscriptions/${subscriptionId}`);
-    await page.getByRole("button", { name: "停權", exact: true }).click();
+    const subscriptionApiPath = `/api/admin/billing/subscriptions/${subscriptionId}`;
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      const warmupResponse = await page.context().request.get(subscriptionApiPath);
+      expect(warmupResponse.status()).toBe(405);
+      await warmupResponse.dispose();
+    }
+    await gotoLocalPath(page, `/admin/subscriptions/${subscriptionId}`);
+    const suspendButton = page.getByRole("button", { name: "停權", exact: true });
+    await waitForReactHandler(suspendButton, "onClick");
+    const suspendResponse = page.waitForResponse((response) => (
+      new URL(response.url()).pathname === subscriptionApiPath
+      && response.request().method() === "PATCH"
+      && response.request().postDataJSON().operation === "SUSPEND"
+    ));
+    await suspendButton.click();
+    expect((await suspendResponse).status()).toBe(200);
     await expect.poll(async () => (await prisma.subscription.findUnique({ where: { id: subscriptionId } }))?.status).toBe("SUSPENDED");
 
     await page.context().clearCookies();
@@ -161,8 +187,16 @@ test.describe("Phase 1 商業帳務完整流程", () => {
 
     await page.context().clearCookies();
     await login(page, adminEmail);
-    await page.goto(`/admin/subscriptions/${subscriptionId}`);
-    await page.getByRole("button", { name: "恢復訂閱" }).click();
+    await gotoLocalPath(page, `/admin/subscriptions/${subscriptionId}`);
+    const resumeButton = page.getByRole("button", { name: "恢復訂閱", exact: true });
+    await waitForReactHandler(resumeButton, "onClick");
+    const resumeResponse = page.waitForResponse((response) => (
+      new URL(response.url()).pathname === subscriptionApiPath
+      && response.request().method() === "PATCH"
+      && response.request().postDataJSON().operation === "REACTIVATE"
+    ));
+    await resumeButton.click();
+    expect((await resumeResponse).status()).toBe(200);
     await expect.poll(async () => (await prisma.subscription.findUnique({ where: { id: subscriptionId } }))?.status).toBe("ACTIVE");
   });
 

@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(14);
+select plan(17);
 
 select ok(
   exists (
@@ -120,6 +120,35 @@ select is(
   )->>'deliveryAddress',
   '台北市信義區測試路 1 號',
   '公開訂單追蹤可取得自己的外送地址'
+);
+select is(
+  public.lookup_resumable_public_delivery_order(
+    'demo-aming-chicken-qr-2026-rotate-me',
+    encode(extensions.digest('delivery-device', 'sha256'), 'hex'),
+    'legacy-delivery-resume-ip', 'legacy-delivery-resume-qr',
+    'legacy-delivery-resume-behavior', 'legacy-delivery-resume-request'
+  )->>'order_id',
+  '78000000-0000-4000-8000-000000000002',
+  '舊版外送找回 RPC 安全委派到 DELIVERY 模式'
+);
+select is(
+  public.lookup_resumable_public_delivery_order(
+    'demo-aming-chicken-qr-2026-rotate-me',
+    encode(extensions.digest('delivery-device', 'sha256'), 'hex'),
+    'delivery-resume-ip', 'delivery-resume-qr',
+    'delivery-resume-behavior', 'delivery-resume-request', 'DELIVERY'
+  )->>'order_id',
+  '78000000-0000-4000-8000-000000000002',
+  '外送網址只以 DELIVERY 模式找回外送訂單'
+);
+select ok(
+  public.lookup_resumable_public_delivery_order(
+    'demo-aming-chicken-qr-2026-rotate-me',
+    encode(extensions.digest('delivery-device', 'sha256'), 'hex'),
+    'delivery-preorder-ip', 'delivery-preorder-qr',
+    'delivery-preorder-behavior', 'delivery-preorder-request', 'PREORDER'
+  ) is null,
+  'PREORDER 模式不得透過外送找回 RPC 取得 DELIVERY 訂單'
 );
 
 update public.orders

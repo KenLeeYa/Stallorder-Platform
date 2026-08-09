@@ -21,6 +21,7 @@ import {
   type StorageCapability,
 } from "@/offline/storage-capability";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { createWebUuid } from "@/lib/web-uuid";
 
 type DeviceRegistrationResponse = {
   device: {
@@ -102,22 +103,13 @@ function installationStorageKey(stallSlug: string) {
   return `stallorder:offline-installation:${stallSlug}`;
 }
 
-function fallbackUuid() {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  return [...bytes].map((byte, index) => (
-    [4, 6, 8, 10].includes(index) ? `-${byte.toString(16).padStart(2, "0")}` : byte.toString(16).padStart(2, "0")
-  )).join("");
-}
-
 function getOrCreateInstallationId(stallSlug: string) {
   const key = installationStorageKey(stallSlug);
   const current = window.localStorage.getItem(key);
   if (current && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(current)) {
     return current;
   }
-  const next = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : fallbackUuid();
+  const next = createWebUuid();
   window.localStorage.setItem(key, next);
   return next;
 }

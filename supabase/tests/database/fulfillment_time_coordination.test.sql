@@ -134,7 +134,7 @@ set initial_result = public.create_public_order_with_fulfillment_time(
   'fa400000-0000-4000-8000-000000000001', repeat('i', 64),
   'Fulfillment replay customer', null, null, '',
   jsonb_build_array(jsonb_build_object(
-    'product_id', '44444444-4444-4444-8444-444444444444',
+    'product_id', '44444444-4444-4444-8444-444444444441',
     'quantity', 1,
     'note', '',
     'modifier_option_ids', '[]'::jsonb,
@@ -171,7 +171,7 @@ set same_replay_result = public.create_public_order_with_fulfillment_time(
   'fa400000-0000-4000-8000-000000000001', repeat('i', 64),
   'Fulfillment replay customer', null, null, '',
   jsonb_build_array(jsonb_build_object(
-    'product_id', '44444444-4444-4444-8444-444444444444',
+    'product_id', '44444444-4444-4444-8444-444444444441',
     'quantity', 1,
     'note', '',
     'modifier_option_ids', '[]'::jsonb,
@@ -221,7 +221,7 @@ set expired_replay_result = public.create_public_order_with_fulfillment_time(
   'fa400000-0000-4000-8000-000000000001', repeat('i', 64),
   'Fulfillment replay customer', null, null, '',
   jsonb_build_array(jsonb_build_object(
-    'product_id', '44444444-4444-4444-8444-444444444444',
+    'product_id', '44444444-4444-4444-8444-444444444441',
     'quantity', 1,
     'note', '',
     'modifier_option_ids', '[]'::jsonb,
@@ -250,7 +250,7 @@ set conflict_result = public.create_public_order_with_fulfillment_time(
   'fa400000-0000-4000-8000-000000000001', repeat('i', 64),
   'Fulfillment replay customer', null, null, '',
   jsonb_build_array(jsonb_build_object(
-    'product_id', '44444444-4444-4444-8444-444444444444',
+    'product_id', '44444444-4444-4444-8444-444444444441',
     'quantity', 1,
     'note', '',
     'modifier_option_ids', '[]'::jsonb,

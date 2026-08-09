@@ -4,6 +4,7 @@ import {
   errorMessage,
   getCorsHeaders,
   getGatewayClientIp,
+  getPublicOrderOperationId,
   HttpInputError,
   jsonResponse,
   readBoundedJson,
@@ -104,10 +105,15 @@ async function persistPickupCodeDisplay(
 
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
-  const timing = createEdgePerformanceTiming({ route: "/functions/v1/create-public-order", requestId });
+  const operationId = getPublicOrderOperationId(request);
+  const timing = createEdgePerformanceTiming({
+    route: "/functions/v1/create-public-order",
+    requestId,
+    operationId,
+  });
   let corsHeaders: Record<string, string> = {};
   const respond = (body: unknown, status: number) => finalizeEdgeResponse(
-    jsonResponse(body, status, corsHeaders, requestId),
+    jsonResponse(body, status, corsHeaders, requestId, operationId),
     timing,
   );
 
@@ -270,6 +276,7 @@ Deno.serve(async (request) => {
         level: "warn",
         event: "TURNSTILE_REJECTED",
         requestId,
+        operationId,
         reason: turnstile.code,
         errors: turnstile.errors.slice(0, 5),
       }));
@@ -384,6 +391,7 @@ Deno.serve(async (request) => {
         level: "error",
         event: "PUBLIC_ORDER_EDGE_FAILED",
         requestId,
+        operationId,
         detail,
       }));
     }

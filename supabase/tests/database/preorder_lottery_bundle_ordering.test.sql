@@ -29,7 +29,8 @@ where stall_id = '22222222-2222-4222-8222-222222222222';
 update public.stall_capacity_settings
 set pause_source = 'NONE',
     auto_pause_enabled = false,
-    manual_wait_minutes = null
+    manual_wait_minutes = null,
+    acknowledgment_threshold_minutes = 120
 where stall_id = '22222222-2222-4222-8222-222222222222';
 
 update public.stalls

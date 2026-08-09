@@ -19,10 +19,12 @@ const PUBLIC_MENU_TTL_SECONDS = 45;
 const ACTIVE_ORGANIZATION_STATUSES = ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] as const;
 
 type OrderingMode = "DEFAULT" | "DELIVERY" | "PREORDER";
+type PublicQrMenuOptions = { includeOptionalPreorderSlots?: boolean };
 
 export async function getCachedPublicMenuForQrToken(
   qrToken: string,
   orderingMode: OrderingMode = "DEFAULT",
+  options: PublicQrMenuOptions = {},
 ): Promise<PublicMenu | null> {
   const qrTag = publicQrCacheTag(qrToken);
   const getQrContext = unstable_cache(
@@ -35,11 +37,7 @@ export async function getCachedPublicMenuForQrToken(
 
   const liveOrderingAvailable = publicQrContextIsLive(context);
   const preorderAvailable = publicQrContextSupportsPreorder(context);
-  const resolvedOrderingMode: OrderingMode = orderingMode === "DEFAULT"
-    && !liveOrderingAvailable
-    && preorderAvailable
-    ? "PREORDER"
-    : orderingMode;
+  const resolvedOrderingMode: OrderingMode = orderingMode;
   if (resolvedOrderingMode === "PREORDER" ? !preorderAvailable : !liveOrderingAvailable) {
     return null;
   }
@@ -71,6 +69,7 @@ export async function getCachedPublicMenuForQrToken(
       ? Promise.resolve(null)
       : calculateCapacitySnapshot(context.stallId),
     supportsRequestedFulfillmentTime
+      && (resolvedOrderingMode === "PREORDER" || options.includeOptionalPreorderSlots !== false)
       ? getTakeoutPreorderSlots(context.stallId)
       : Promise.resolve([]),
   ]);
@@ -110,23 +109,7 @@ export async function getCachedPublicMenuForQrToken(
 }
 
 export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promise<PublicMenu | null> {
-  const stall = await prisma.stall.findUnique({
-    where: { slug: stallSlug },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      location: true,
-      currency: true,
-      timezone: true,
-      isActive: true,
-      orderingEnabled: true,
-      businessStatus: true,
-      orderingState: true,
-      isSoldOut: true,
-      organization: { select: { status: true } },
-    },
-  });
+  const stall = await findPublicStallBySlug(stallSlug);
   if (!stall || !publicStallIsAvailable(stall)) return null;
 
   const [menu, capacity] = await Promise.all([
@@ -145,6 +128,31 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
     estimatedWaitMaxMinutes: capacity.quoteMaxMinutes,
     waitAcknowledgmentThresholdMinutes: capacity.acknowledgmentThresholdMinutes,
     requiresWaitAcknowledgment: capacity.requiresAcknowledgment,
+    stall: {
+      name: stall.name,
+      slug: stall.slug,
+      location: stall.location,
+      currency: stall.currency,
+      timezone: stall.timezone,
+      fulfillmentType: "TAKEOUT",
+      table: null,
+    },
+  };
+}
+
+export async function getCachedPublicDisplayMenuForStallSlug(
+  stallSlug: string,
+): Promise<PublicMenu | null> {
+  const stall = await findPublicStallBySlug(stallSlug);
+  if (!stall || !publicStallCanDisplayMenu(stall)) return null;
+
+  const menu = await getCachedStallMenu(stall.id);
+  if (!menu) return null;
+  return {
+    ...menu,
+    orderingMode: "DEFAULT",
+    preorderSlots: [],
+    lotteryEnabled: false,
     stall: {
       name: stall.name,
       slug: stall.slug,
@@ -185,6 +193,26 @@ async function getCachedStallMenu(stallId: string) {
     { revalidate: PUBLIC_MENU_TTL_SECONDS, tags: [tag] },
   );
   return getMenu();
+}
+
+async function findPublicStallBySlug(stallSlug: string) {
+  return prisma.stall.findUnique({
+    where: { slug: stallSlug },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      location: true,
+      currency: true,
+      timezone: true,
+      isActive: true,
+      orderingEnabled: true,
+      businessStatus: true,
+      orderingState: true,
+      isSoldOut: true,
+      organization: { select: { status: true } },
+    },
+  });
 }
 
 async function loadQrContext(qrToken: string) {
@@ -315,6 +343,16 @@ function publicStallIsAvailable(stall: {
     && stall.businessStatus === "OPEN"
     && stall.orderingState === "OPEN"
     && !stall.isSoldOut
+    && ACTIVE_ORGANIZATION_STATUSES.includes(
+      stall.organization.status as (typeof ACTIVE_ORGANIZATION_STATUSES)[number],
+    );
+}
+
+function publicStallCanDisplayMenu(stall: {
+  isActive: boolean;
+  organization: { status: string };
+}) {
+  return stall.isActive
     && ACTIVE_ORGANIZATION_STATUSES.includes(
       stall.organization.status as (typeof ACTIVE_ORGANIZATION_STATUSES)[number],
     );

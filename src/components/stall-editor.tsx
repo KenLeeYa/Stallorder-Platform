@@ -10,6 +10,7 @@ import {
   PUBLIC_IDENTIFIER_MIN_LENGTH,
   PUBLIC_IDENTIFIER_PATTERN,
 } from "@/lib/public-identifier";
+import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
 import { useUnsavedSettings } from "@/lib/unsaved-settings";
 
 type StallDraft = {
@@ -187,7 +188,7 @@ export function StallEditor({
             ) : null}
             <Field label="說明" field="description" error={fieldErrors.description} full><textarea {...fieldValidationProps("description", fieldErrors.description)} value={draft.description} onChange={(event) => update("description", event.target.value)} maxLength={500} rows={3} className={`${inputClass(fieldErrors.description)} resize-y`} /></Field>
             <Field label="地址" field="address" error={fieldErrors.address} full><input {...fieldValidationProps("address", fieldErrors.address)} type="text" value={draft.address} onChange={(event) => update("address", event.target.value)} required maxLength={200} className={inputClass(fieldErrors.address)} /></Field>
-            <Field label="電話" field="phone" error={fieldErrors.phone}><input {...fieldValidationProps("phone", fieldErrors.phone)} type="tel" inputMode="tel" value={draft.phone} onChange={(event) => update("phone", event.target.value)} maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" autoComplete="tel" className={inputClass(fieldErrors.phone)} /></Field>
+            <Field label="電話" field="phone" error={fieldErrors.phone}><input {...fieldValidationProps("phone", fieldErrors.phone)} type="tel" inputMode="tel" value={draft.phone} onChange={(event) => update("phone", event.target.value)} maxLength={30} pattern={PHONE_INPUT_PATTERN} autoComplete="tel" className={inputClass(fieldErrors.phone)} /></Field>
             <Field label="時區" field="timezone" error={fieldErrors.timezone}><select {...fieldValidationProps("timezone", fieldErrors.timezone)} value={draft.timezone} onChange={(event) => update("timezone", event.target.value)} className={`${inputClass(fieldErrors.timezone)} bg-white`}><option value="Asia/Taipei">Asia/Taipei</option><option value="Asia/Tokyo">Asia/Tokyo</option><option value="Asia/Hong_Kong">Asia/Hong_Kong</option></select></Field>
             <Field label="幣別" field="currency" error={fieldErrors.currency}><select {...fieldValidationProps("currency", fieldErrors.currency)} value={draft.currency} onChange={(event) => update("currency", event.target.value)} className={`${inputClass(fieldErrors.currency)} bg-white`}><option value="TWD">TWD</option><option value="JPY">JPY</option><option value="HKD">HKD</option></select></Field>
           </div>

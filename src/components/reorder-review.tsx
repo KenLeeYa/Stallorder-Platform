@@ -11,6 +11,7 @@ import {
   publicEdgeUrl,
 } from "@/lib/public-order-client";
 import { qrCartStorageKey, serializeQrCartDraft } from "@/lib/qr-cart";
+import { createWebUuid } from "@/lib/web-uuid";
 
 type ReorderData = {
   qrToken: string;
@@ -64,12 +65,14 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
       window.localStorage.setItem(
         qrCartStorageKey(data.qrToken, data.orderingMode),
         serializeQrCartDraft({
+          orderingMode: data.orderingMode,
+          scheduledPickupAt: "",
           customerName: "",
           customerNote: "",
           customerPhone: "",
           deliveryAddress: "",
           lines: data.availableItems.map((item) => ({
-            id: crypto.randomUUID(),
+            id: createWebUuid(),
             productId: item.productId,
             quantity: item.quantity,
             note: "",

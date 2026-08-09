@@ -48,6 +48,7 @@ describe("public bundle menu", () => {
       slug: "test-stall",
       location: "台北",
       currency: "TWD",
+      timezone: "Asia/Taipei",
       isActive: true,
       orderingEnabled: true,
       businessStatus: "OPEN",
@@ -171,5 +172,67 @@ describe("public bundle menu", () => {
         }],
       }],
     });
+  });
+
+  it("keeps the read-only display menu available while live ordering is paused", async () => {
+    stallFindUnique.mockResolvedValue({
+      id: "stall-a",
+      name: "測試攤位",
+      slug: "test-stall",
+      location: "台北",
+      currency: "TWD",
+      timezone: "Asia/Taipei",
+      isActive: true,
+      orderingEnabled: false,
+      businessStatus: "CLOSED",
+      orderingState: "PAUSED",
+      isSoldOut: false,
+      organization: { status: "ACTIVE" },
+    });
+    stallProductFindMany.mockResolvedValue([{
+      priceOverride: null,
+      sortOrder: 1,
+      availableFrom: new Date("2099-01-01T00:00:00.000Z"),
+      availableUntil: null,
+      product: {
+        ...baseProduct,
+        id: "product-a",
+        name: "展示商品",
+        kind: "SINGLE",
+        bundleChoiceGroups: [],
+      },
+    }]);
+
+    const {
+      getCachedPublicDisplayMenuForStallSlug,
+      getCachedPublicMenuForStallSlug,
+    } = await import("./public-menu");
+
+    await expect(getCachedPublicMenuForStallSlug("test-stall")).resolves.toBeNull();
+    const displayMenu = await getCachedPublicDisplayMenuForStallSlug("test-stall");
+    expect(displayMenu?.products.map((product) => product.name)).toEqual(["展示商品"]);
+    expect(displayMenu?.products[0]?.availableFrom).toBe("2099-01-01T00:00:00.000Z");
+    expect(displayMenu?.stall).toMatchObject({ name: "測試攤位", slug: "test-stall" });
+  });
+
+  it("does not expose a display menu for a disabled tenant", async () => {
+    stallFindUnique.mockResolvedValue({
+      id: "stall-a",
+      name: "停權攤位",
+      slug: "disabled-stall",
+      location: "台北",
+      currency: "TWD",
+      timezone: "Asia/Taipei",
+      isActive: true,
+      orderingEnabled: true,
+      businessStatus: "OPEN",
+      orderingState: "OPEN",
+      isSoldOut: false,
+      organization: { status: "SUSPENDED" },
+    });
+    const { getCachedPublicDisplayMenuForStallSlug } = await import("./public-menu");
+
+    await expect(getCachedPublicDisplayMenuForStallSlug("disabled-stall")).resolves.toBeNull();
+    expect(stallProductFindMany).not.toHaveBeenCalled();
   });
 });

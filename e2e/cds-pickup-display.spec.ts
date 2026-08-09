@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { Prisma, PrismaClient, type OrderStatus } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -295,8 +295,17 @@ test("CDS 即時連線中斷時以輪詢同步", async ({ page }) => {
 
 test("管理者可輪替與撤銷 Token，且跨組織管理遭拒", async ({ page }) => {
   await loginAsOwner(page);
+  if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+    const warmupResponse = await page.context().request.get(
+      `/api/merchant/stalls/${stallId}/display`,
+    );
+    expect(warmupResponse.status()).toBe(200);
+    await warmupResponse.dispose();
+  }
   await page.goto(`/merchant/stalls/${stallId}/display`);
   await expect(page.getByRole("heading", { name: "CDS 取餐顯示" })).toBeVisible();
+  const saveSettingsButton = page.getByRole("button", { name: "儲存設定", exact: true });
+  await waitForReactHydration(saveSettingsButton);
 
   const preparingRetentionField = page.getByLabel("製作中保留時間（分鐘）");
   await preparingRetentionField.fill("");
@@ -304,7 +313,7 @@ test("管理者可輪替與撤銷 Token，且跨組織管理遭拒", async ({ pa
     response.url().endsWith(`/api/merchant/stalls/${stallId}/display`)
     && response.request().method() === "PATCH"
   ));
-  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+  await saveSettingsButton.click();
   expect((await blankSettingsResponse).status()).toBe(400);
   await expect(page.getByText("「製作中保留時間」輸入不正確，請依欄位限制重新輸入。", { exact: true }).first()).toBeVisible();
   await expect(preparingRetentionField).toHaveAttribute("aria-invalid", "true");
@@ -318,7 +327,7 @@ test("管理者可輪替與撤銷 Token，且跨組織管理遭拒", async ({ pa
     response.url().endsWith(`/api/merchant/stalls/${stallId}/display`)
     && response.request().method() === "PATCH"
   ));
-  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+  await saveSettingsButton.click();
   expect((await invalidLocaleResponse).status()).toBe(400);
   await expect(page.getByText("「語音語系」輸入不正確，請依欄位限制重新輸入。", { exact: true }).first()).toBeVisible();
   await expect(voiceLocaleField).toHaveAttribute("aria-invalid", "true");
@@ -363,3 +372,11 @@ test("管理者可輪替與撤銷 Token，且跨組織管理遭拒", async ({ pa
   });
   expect(audits).toBeGreaterThanOrEqual(2);
 });
+
+async function waitForReactHydration(control: Locator) {
+  await expect.poll(() => control.evaluate((element) => (
+    Object.keys(element).some((key) => (
+      key.startsWith("__reactProps$") || key.startsWith("__reactFiber$")
+    ))
+  )), { message: "等待 React 完成控制項 hydration" }).toBe(true);
+}

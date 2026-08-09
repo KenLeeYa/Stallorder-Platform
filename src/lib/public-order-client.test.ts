@@ -153,10 +153,12 @@ describe("requestPublicOrder", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-test-key");
   }
 
-  it("falls back to Circuit B on an infrastructure response with identical order identifiers", async () => {
+  it("falls back to Circuit B with identical order identifiers and operation id", async () => {
     configureDirectEdge();
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     const bodies: string[] = [];
+    const operationIds: Array<string | null> = [];
+    const operationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === "/api/availability/config") {
@@ -164,11 +166,19 @@ describe("requestPublicOrder", () => {
       }
       if (url.endsWith("/create-public-order")) {
         bodies.push(String(init?.body));
-        return Response.json({ code: "ORDER_CREATE_ERROR" }, { status: 503 });
+        operationIds.push(new Headers(init?.headers).get("x-stallorder-operation-id"));
+        return Response.json({ code: "ORDER_CREATE_ERROR" }, {
+          status: 503,
+          headers: { "x-stallorder-operation-id": operationId },
+        });
       }
       if (url === "/api/public/orders") {
         bodies.push(String(init?.body));
-        return Response.json({ trackingToken: "sto_result" }, { status: 201 });
+        operationIds.push(new Headers(init?.headers).get("x-stallorder-operation-id"));
+        return Response.json({ trackingToken: "sto_result" }, {
+          status: 201,
+          headers: { "x-stallorder-operation-id": operationId },
+        });
       }
       throw new Error(`unexpected request: ${url}`);
     });
@@ -183,15 +193,102 @@ describe("requestPublicOrder", () => {
     const response = await requestPublicOrder(
       "create-public-order",
       payload,
-      { fetchImpl },
+      { fetchImpl, operationId },
     );
 
     expect(response.status).toBe(201);
     expect(bodies).toEqual([JSON.stringify(payload), JSON.stringify(payload)]);
+    expect(operationIds).toEqual([operationId, operationId]);
+    expect(response.headers.get("x-stallorder-operation-id")).toBe(operationId);
     expect(fetchImpl).toHaveBeenCalledWith(
       "/api/public/orders",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("creates one operation id when the caller omits it", async () => {
+    configureDirectEdge();
+    let operationId: string | null = null;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/availability/config") {
+        return Response.json({ orderIntake: "EDGE_PRIMARY" });
+      }
+      if (url.endsWith("/get-public-order")) {
+        operationId = new Headers(init?.headers).get("x-stallorder-operation-id");
+        return Response.json({ order: { orderNo: "A001" } }, {
+          headers: { "x-stallorder-operation-id": operationId ?? "" },
+        });
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    const { requestPublicOrder } = await import("./public-order-client");
+
+    const response = await requestPublicOrder(
+      "get-public-order",
+      { deviceId: "11111111-1111-4111-8111-111111111111" },
+      { fetchImpl },
+    );
+
+    expect(operationId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(response.headers.get("x-stallorder-operation-id")).toBe(operationId);
+  });
+
+  it("rejects a caller-supplied invalid operation id before transport", async () => {
+    const fetchImpl = vi.fn();
+    const { requestPublicOrder } = await import("./public-order-client");
+
+    await expect(requestPublicOrder(
+      "create-order-session",
+      {},
+      { fetchImpl, operationId: "invalid" },
+    )).rejects.toThrow("INVALID_PUBLIC_ORDER_OPERATION_ID");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("lets a caller retain the operation id across a separate 5xx retry", async () => {
+    configureDirectEdge();
+    const operationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const sessionRequestId = "55555555-5555-4555-8555-555555555555";
+    const edgeRequests: Array<{ body: string; operationId: string | null }> = [];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/availability/config") {
+        return Response.json({ orderIntake: "EDGE_PRIMARY" });
+      }
+      if (url.endsWith("/create-order-session")) {
+        edgeRequests.push({
+          body: String(init?.body),
+          operationId: new Headers(init?.headers).get("x-stallorder-operation-id"),
+        });
+        return edgeRequests.length === 1
+          ? Response.json({ code: "ORDER_CREATE_ERROR" }, { status: 503 })
+          : Response.json({ orderSessionToken: "stos_result" }, { status: 201 });
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    const { requestPublicOrder } = await import("./public-order-client");
+    const payload = {
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      sessionRequestId,
+    };
+
+    const first = await requestPublicOrder(
+      "create-order-session",
+      payload,
+      { fetchImpl, operationId },
+    );
+    const retry = await requestPublicOrder(
+      "create-order-session",
+      payload,
+      { fetchImpl, operationId },
+    );
+
+    expect([first.status, retry.status]).toEqual([503, 201]);
+    expect(edgeRequests).toEqual([
+      { body: JSON.stringify(payload), operationId },
+      { body: JSON.stringify(payload), operationId },
+    ]);
   });
 
   it.each([

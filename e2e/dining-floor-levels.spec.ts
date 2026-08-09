@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient, type DiningTableShape } from "@prisma/client";
+import { gotoLocalPath } from "./local-navigation";
 
 const prisma = new PrismaClient();
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -13,6 +14,7 @@ let originalTables: Array<{
   shape: DiningTableShape;
   rotationDegrees: number;
 }> = [];
+let originalLayoutCaptured = false;
 
 async function login(page: Page) {
   await page.goto("/login");
@@ -23,53 +25,79 @@ async function login(page: Page) {
   await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/, { timeout: 30_000 });
 }
 
+async function waitForReactClickHandler(control: Locator) {
+  await expect.poll(() => control.evaluate((element) => {
+    const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps$"));
+    if (!propsKey) return false;
+    const props = (element as unknown as Record<string, unknown>)[propsKey];
+    return typeof props === "object"
+      && props !== null
+      && typeof (props as Record<string, unknown>).onClick === "function";
+  }), { message: "等待 React 掛載 onClick" }).toBe(true);
+}
+
 test.beforeAll(async () => {
-  [originalFloors, originalTables] = await Promise.all([
+  const [floors, tables] = await Promise.all([
     prisma.diningFloor.findMany({ where: { stallId }, select: { id: true } }),
     prisma.diningTable.findMany({
       where: { stallId },
       select: { id: true, floorId: true, shape: true, rotationDegrees: true },
     }),
   ]);
+  originalFloors = floors;
+  originalTables = tables;
+  originalLayoutCaptured = true;
   await prisma.diningTable.deleteMany({ where: { stallId, code: qaTableCode } });
 });
 
 test.afterAll(async () => {
-  await prisma.diningTable.deleteMany({ where: { stallId, code: qaTableCode } });
-  for (const table of originalTables) {
-    await prisma.diningTable.update({
-      where: { id: table.id },
-      data: {
-        floorId: table.floorId,
-        shape: table.shape,
-        rotationDegrees: table.rotationDegrees,
+  try {
+    if (!originalLayoutCaptured) return;
+    await prisma.diningTable.deleteMany({ where: { stallId, code: qaTableCode } });
+    for (const table of originalTables) {
+      await prisma.diningTable.update({
+        where: { id: table.id },
+        data: {
+          floorId: table.floorId,
+          shape: table.shape,
+          rotationDegrees: table.rotationDegrees,
+        },
+      });
+    }
+    const originalFloorIds = originalFloors.map((floor) => floor.id);
+    await prisma.diningFloor.deleteMany({
+      where: {
+        stallId,
+        ...(originalFloorIds.length > 0 ? { id: { notIn: originalFloorIds } } : {}),
       },
     });
+  } finally {
+    await prisma.$disconnect();
   }
-  const originalFloorIds = originalFloors.map((floor) => floor.id);
-  await prisma.diningFloor.deleteMany({
-    where: {
-      stallId,
-      ...(originalFloorIds.length > 0 ? { id: { notIn: originalFloorIds } } : {}),
-    },
-  });
-  await prisma.$disconnect();
 });
 
 test("樓層桌型會連動商家配置、員工看板與店員點餐", async ({ page }) => {
   test.setTimeout(120_000);
   await login(page);
-  await page.goto(`/merchant/stalls/${stallId}/settings/modules`);
+  const modulesApiPath = `/api/merchant/stalls/${stallId}/modules`;
+  if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+    const warmupResponse = await page.context().request.get(modulesApiPath);
+    expect(warmupResponse.status()).toBe(405);
+    await warmupResponse.dispose();
+  }
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/modules`);
 
   await expect(page.getByRole("tab", { name: "1樓", exact: true })).toBeVisible();
   await page.locator('[data-field-key="new-floor:name"]').fill("2樓");
   await page.locator('[data-field-key="new-floor:sortOrder"]').fill("2");
   const createFloorResponse = page.waitForResponse((response) => (
-    response.url().endsWith(`/api/merchant/stalls/${stallId}/modules`)
+    new URL(response.url()).pathname === modulesApiPath
     && response.request().method() === "PATCH"
     && response.request().postDataJSON()?.operation === "CREATE_FLOOR"
   ));
-  await page.getByTestId("create-dining-floor").click();
+  const createFloorButton = page.getByTestId("create-dining-floor");
+  await waitForReactClickHandler(createFloorButton);
+  await createFloorButton.click();
   expect((await createFloorResponse).status()).toBe(200);
   await expect(page.getByRole("tab", { name: "2樓", exact: true })).toHaveAttribute("aria-selected", "true");
 

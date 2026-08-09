@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
+import { gotoLocalPath } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -90,7 +91,13 @@ test.describe("撤回後重新申請與平台追蹤", () => {
   test("保留撤回案件、建立新草稿，並讓平台追蹤完整歷程", async ({ page }) => {
     test.setTimeout(90_000);
     await loginForOnboarding(page);
-    await page.goto("/onboarding/status");
+    const onboardingApiPath = "/api/onboarding";
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      const warmupResponse = await page.context().request.get(onboardingApiPath);
+      expect(warmupResponse.status()).toBe(200);
+      await warmupResponse.dispose();
+    }
+    await gotoLocalPath(page, "/onboarding/status");
 
     await expect(page.getByText("已撤回", { exact: true })).toBeVisible();
     await expect(page.getByText(/舊案仍會保留供日後查閱/)).toBeVisible();
@@ -100,7 +107,15 @@ test.describe("撤回後重新申請與平台追蹤", () => {
     await expect(page.getByRole("heading", { name: "重新申請商家" })).toBeVisible();
     await expect(page.getByRole("status")).toContainText("前次申請會保留為歷史紀錄");
     await expect(page.getByLabel("聯絡電話")).toHaveValue("0916665504");
-    await page.getByRole("button", { name: "儲存草稿" }).click();
+    const saveDraftButton = page.getByRole("button", { name: "儲存草稿" });
+    await waitForReactClickHandler(saveDraftButton);
+    const saveDraftResponse = page.waitForResponse((response) => (
+      new URL(response.url()).pathname === onboardingApiPath
+      && response.request().method() === "POST"
+      && response.request().postDataJSON()?.intent === "SAVE_DRAFT"
+    ));
+    await saveDraftButton.click();
+    expect((await saveDraftResponse).status()).toBe(200);
     await expect(page.getByText("草稿已儲存", { exact: true })).toBeVisible();
 
     const applications = await prisma.merchantApplication.findMany({
@@ -144,6 +159,17 @@ test.describe("撤回後重新申請與平台追蹤", () => {
     await expect(page.getByText("目前案件", { exact: true })).toHaveCount(1);
   });
 });
+
+async function waitForReactClickHandler(control: Locator) {
+  await expect.poll(() => control.evaluate((element) => {
+    const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps$"));
+    if (!propsKey) return false;
+    const props = (element as unknown as Record<string, unknown>)[propsKey];
+    return typeof props === "object"
+      && props !== null
+      && typeof (props as Record<string, unknown>).onClick === "function";
+  }), { message: "等待 React 掛載 onClick" }).toBe(true);
+}
 
 async function login(page: Page, email: string) {
   await page.goto("/login");

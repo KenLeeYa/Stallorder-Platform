@@ -8,6 +8,7 @@ describe("performance timing", () => {
     const timing = createPerformanceTiming({
       route: "/api/example",
       requestId: "request-id",
+      operationId: "operation-id",
       now: () => times.shift() ?? 160,
       logger,
     });
@@ -22,6 +23,7 @@ describe("performance timing", () => {
     expect(logger).toHaveBeenCalledWith("info", "request_completed", {
       route: "/api/example",
       requestId: "request-id",
+      operationId: "operation-id",
       status: 200,
       totalMs: 60,
       dbQueryCount: 1,

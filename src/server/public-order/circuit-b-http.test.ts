@@ -26,14 +26,18 @@ describe("Circuit B failure diagnostics", () => {
       "request-test",
       timing(),
       "ORDER_SESSION_CIRCUIT_B_FAILED",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     );
 
     expect(response.status).toBe(500);
+    expect(response.headers.get("x-stallorder-operation-id"))
+      .toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     expect(consoleError).toHaveBeenCalledTimes(1);
     const record = JSON.parse(String(consoleError.mock.calls[0][0])) as Record<string, unknown>;
     expect(record).toMatchObject({
       event: "ORDER_SESSION_CIRCUIT_B_FAILED",
       requestId: "request-test",
+      operationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       circuit: "B",
       errorName: "PrismaClientKnownRequestError",
       prismaCode: "P2010",
@@ -57,6 +61,7 @@ describe("Circuit B failure diagnostics", () => {
       "request-test",
       timing(),
       "ORDER_SESSION_CIRCUIT_B_FAILED",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     );
 
     const record = JSON.parse(String(consoleError.mock.calls[0][0])) as Record<string, unknown>;

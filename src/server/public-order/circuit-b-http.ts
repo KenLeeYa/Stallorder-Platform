@@ -8,6 +8,7 @@ import {
   finalizePerformanceResponse,
 } from "@/lib/performance-timing";
 import { trustedPublicOrderClientIp } from "@/lib/public-order-proxy-headers";
+import { PUBLIC_ORDER_OPERATION_ID_HEADER } from "@/lib/public-order-operation-id";
 import { isTrustedOrigin } from "@/lib/security";
 import {
   errorMessage,
@@ -51,11 +52,13 @@ export function circuitBResponse(
   status: number,
   requestId: string,
   timing: Timing,
+  operationId: string,
 ) {
   return finalizeCircuitBResponse(
     NextResponse.json(body, { status }),
     requestId,
     timing,
+    operationId,
   );
 }
 
@@ -63,10 +66,12 @@ export function finalizeCircuitBResponse<T extends Response>(
   response: T,
   requestId: string,
   timing: Timing,
+  operationId: string,
 ) {
   response.headers.set("cache-control", "no-store");
   response.headers.set("x-order-circuit", "B");
   response.headers.set("x-request-id", requestId);
+  response.headers.set(PUBLIC_ORDER_OPERATION_ID_HEADER, operationId);
   return finalizePerformanceResponse(response, timing);
 }
 
@@ -75,6 +80,7 @@ export function circuitBFailureResponse(
   requestId: string,
   timing: Timing,
   event: string,
+  operationId: string,
 ) {
   const code = error instanceof PublicOrderCircuitError
     ? error.code
@@ -86,6 +92,7 @@ export function circuitBFailureResponse(
   if (!(error instanceof PublicOrderCircuitError)) {
     logEvent("error", event, {
       requestId,
+      operationId,
       circuit: "B",
       ...safeCircuitBErrorDiagnostic(error),
     });
@@ -102,6 +109,7 @@ export function circuitBFailureResponse(
     status,
     requestId,
     timing,
+    operationId,
   );
 }
 

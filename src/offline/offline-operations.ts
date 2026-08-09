@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { PaymentOptionKind, UserRole } from "@prisma/client";
 import { orderItemsExceedLimits } from "@/lib/order-item-limits";
 import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
+import { createWebUuid } from "@/lib/web-uuid";
 import { OFFLINE_APP_PROTOCOL_VERSION } from "@/offline/offline-contract";
 import {
   canTransitionOfflineOrder,
@@ -497,7 +498,7 @@ export function prepareOfflineOrderItemSnapshots(
       product.price + noteOptions.reduce((sum, option) => sum + option.priceDelta, 0),
     );
     return {
-      localItemId: crypto.randomUUID(),
+      localItemId: createWebUuid(),
       productId: product.id,
       name: product.name,
       baseUnitPrice: product.price,
@@ -626,7 +627,7 @@ export async function createOfflineOrder(
 
     let method: OfflinePaymentMethod | null = null;
     let payment: OfflinePayment | null = null;
-    const offlineOrderId = crypto.randomUUID();
+    const offlineOrderId = createWebUuid();
     if (draft.paymentTiming === "PAY_NOW") {
       if (!permit.allowed_offline_actions.includes("RECORD_CASH_PAYMENT")) {
         throw new OfflineLocalOperationError("OFFLINE_PAYMENT_NOT_ALLOWED");
@@ -645,7 +646,7 @@ export async function createOfflineOrder(
         }
         const received = draft.cashReceived ?? subtotal;
         payment = parseRecord(offlinePaymentSchema, {
-          localPaymentId: crypto.randomUUID(),
+          localPaymentId: createWebUuid(),
           offlineOrderId,
           paymentOptionId: option.id,
           method,
@@ -688,7 +689,7 @@ export async function createOfflineOrder(
           throw new OfflineLocalOperationError("OFFLINE_MANAGER_REQUIRED");
         }
         payment = parseRecord(offlinePaymentSchema, {
-          localPaymentId: crypto.randomUUID(),
+          localPaymentId: createWebUuid(),
           offlineOrderId,
           paymentOptionId: option.id,
           method,
@@ -739,7 +740,7 @@ export async function createOfflineOrder(
       protocolVersion: permit.app_protocol_version,
     }, "OFFLINE_ITEM_LIMIT_EXCEEDED");
     const event = parseRecord(offlineOrderEventSchema, {
-      eventId: crypto.randomUUID(),
+      eventId: createWebUuid(),
       offlineOrderId,
       previousState: null,
       nextState: "LOCAL_CONFIRMED",
@@ -749,7 +750,7 @@ export async function createOfflineOrder(
     const printJob = draft.queuePrint && catalog.modules.print
       && permit.allowed_offline_actions.includes("QUEUE_PRINT_JOB")
       ? parseRecord(offlinePrintJobSchema, {
-          printJobId: crypto.randomUUID(),
+          printJobId: createWebUuid(),
           offlineOrderId,
           printerId: null,
           templateVersion: "offline-v1",
@@ -759,7 +760,7 @@ export async function createOfflineOrder(
           deduplicationKey: `offline-order:${offlineOrderId}:receipt:v1`,
         }, "OFFLINE_ACTION_NOT_ALLOWED")
       : null;
-    const queueId = crypto.randomUUID();
+    const queueId = createWebUuid();
     const queue = withOfflineRecordMetadata({
       queue_id: queueId,
       idempotency_key: order.idempotencyKey,
@@ -879,7 +880,7 @@ export async function queueOfflinePrintJob(
       throw new OfflineLocalOperationError("OFFLINE_ACTION_NOT_ALLOWED");
     }
     const printJob = offlinePrintJobSchema.parse({
-      printJobId: crypto.randomUUID(),
+      printJobId: createWebUuid(),
       offlineOrderId,
       printerId: null,
       templateVersion: "offline-v1",
@@ -938,7 +939,7 @@ export async function transitionOfflineOrder(
       syncStatus: "PENDING",
     });
     const event = offlineOrderEventSchema.parse({
-      eventId: crypto.randomUUID(),
+      eventId: createWebUuid(),
       offlineOrderId,
       previousState: order.orderStatus,
       nextState,
@@ -1002,8 +1003,8 @@ export async function createOfflineCashEvent(
     if (shift.status !== "OPEN" || !shift.shift_id) {
       throw new OfflineLocalOperationError("OFFLINE_CASH_SHIFT_REQUIRED");
     }
-    const cashEventId = crypto.randomUUID();
-    const queueId = crypto.randomUUID();
+    const cashEventId = createWebUuid();
+    const queueId = createWebUuid();
     const event = offlineCashEventSchema.parse({
       cashEventId,
       deviceId: device.id,
@@ -1017,7 +1018,7 @@ export async function createOfflineCashEvent(
         : null,
       reason: input.reason,
       occurredAtDevice: now.toISOString(),
-      idempotencyKey: crypto.randomUUID(),
+      idempotencyKey: createWebUuid(),
       promotionEpoch: permit.promotion_epoch,
       protocolVersion: permit.app_protocol_version,
     });

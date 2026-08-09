@@ -9,6 +9,7 @@ import {
   errorMessage,
   getCorsHeaders,
   getGatewayClientIp,
+  getPublicOrderOperationId,
   HttpInputError,
   jsonResponse,
   readBoundedJson,
@@ -29,10 +30,15 @@ import {
 
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
-  const timing = createEdgePerformanceTiming({ route: "/functions/v1/create-order-session", requestId });
+  const operationId = getPublicOrderOperationId(request);
+  const timing = createEdgePerformanceTiming({
+    route: "/functions/v1/create-order-session",
+    requestId,
+    operationId,
+  });
   let corsHeaders: Record<string, string> = {};
   const respond = (body: unknown, status: number) => finalizeEdgeResponse(
-    jsonResponse(body, status, corsHeaders, requestId),
+    jsonResponse(body, status, corsHeaders, requestId, operationId),
     timing,
   );
 
@@ -50,17 +56,7 @@ Deno.serve(async (request) => {
     const abuseSecret = requireEnv("ABUSE_HASH_SECRET");
     const clientIp = getGatewayClientIp(request);
     const admin = createServiceClient();
-    const { data: resolvedMode, error: resolvedModeError } = await timing.measureDb(() => admin.rpc(
-      "resolve_public_ordering_mode",
-      {
-        p_qr_token: parsed.data.qrToken,
-        p_requested_mode: parsed.data.orderingMode,
-      },
-    ));
-    if (resolvedModeError) throw resolvedModeError;
-    const orderingMode = parsed.data.orderingMode === "DEFAULT" && resolvedMode === "PREORDER"
-      ? "PREORDER"
-      : parsed.data.orderingMode;
+    const orderingMode = parsed.data.orderingMode;
     const [ipHash, deviceHash, qrTokenHash, behaviorHash] = await Promise.all([
       hmacHex(abuseSecret, `ip:${clientIp}`),
       hmacHex(abuseSecret, `device:${parsed.data.deviceId}`),
@@ -110,6 +106,7 @@ Deno.serve(async (request) => {
         p_qr_token_hash: qrTokenHash,
         p_behavior_hash: behaviorHash,
         p_request_id: requestId,
+        p_ordering_mode: orderingMode,
       },
     ));
     if (resumableOrderError) throw resumableOrderError;
@@ -175,18 +172,7 @@ Deno.serve(async (request) => {
       return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const [stallQuery, stallProductsQuery, settingsQuery, qrQuery] = await timing.measureDb(() => Promise.all([
-      admin.from("stalls")
-        .select("organization_id, name, slug, location, currency, timezone")
-        .eq("id", result.stall_id)
-        .single(),
-      admin.from("stall_products")
-        .select("product_id, price_override, sort_order, available_from, available_until")
-        .eq("stall_id", result.stall_id)
-        .eq("is_enabled", true)
-        .eq("is_sold_out", false)
-        .order("sort_order", { ascending: true })
-        .limit(100),
+    const [settingsQuery, qrQuery, fullMenuQueries] = await timing.measureDb(() => Promise.all([
       admin.from("stall_ordering_settings")
         .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length, dine_in_enabled, delivery_module_enabled, takeout_preorder_enabled, enabled_locales, estimated_wait_minutes, lottery_enabled")
         .eq("stall_id", result.stall_id)
@@ -195,10 +181,28 @@ Deno.serve(async (request) => {
         .select("dining_table_id, fulfillment_type_context")
         .eq("id", result.qr_code_id)
         .single(),
-    ]), 4);
+      parsed.data.includeMenu
+        ? Promise.all([
+          admin.from("stalls")
+            .select("organization_id, name, slug, location, currency, timezone")
+            .eq("id", result.stall_id)
+            .single(),
+          admin.from("stall_products")
+            .select("product_id, price_override, sort_order, available_from, available_until")
+            .eq("stall_id", result.stall_id)
+            .eq("is_enabled", true)
+            .eq("is_sold_out", false)
+            .order("sort_order", { ascending: true })
+            .limit(100),
+        ])
+        : Promise.resolve(null),
+    ]), parsed.data.includeMenu ? 4 : 2);
 
-    if (stallQuery.error || stallProductsQuery.error || settingsQuery.error || qrQuery.error) {
-      throw stallQuery.error ?? stallProductsQuery.error ?? settingsQuery.error ?? qrQuery.error;
+    if (settingsQuery.error || qrQuery.error) {
+      throw settingsQuery.error ?? qrQuery.error;
+    }
+    if (fullMenuQueries?.[0].error || fullMenuQueries?.[1].error) {
+      throw fullMenuQueries[0].error ?? fullMenuQueries[1].error;
     }
 
     if (
@@ -240,6 +244,8 @@ Deno.serve(async (request) => {
           : result.capacity?.requires_acknowledgment === true,
       }, result.idempotent_replay ? 200 : 201);
     }
+
+    const [stallQuery, stallProductsQuery] = fullMenuQueries!;
 
     const lastTableOrderQuery = tableQuery.data
       ? await timing.measureDb(() => admin.from("orders")
@@ -608,6 +614,7 @@ Deno.serve(async (request) => {
         level: "error",
         event: "ORDER_SESSION_EDGE_FAILED",
         requestId,
+        operationId,
         detail,
       }));
     }
