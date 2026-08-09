@@ -90,7 +90,7 @@ describe("Next public preorder menu", () => {
 
   it("loads future assignments for offered slots and disables lottery in PREORDER", async () => {
     const { getCachedPublicMenuForQrToken } = await import("./public-menu");
-    const menu = await getCachedPublicMenuForQrToken("preorder-qr");
+    const menu = await getCachedPublicMenuForQrToken("preorder-qr", "PREORDER");
 
     expect(menu).toMatchObject({
       orderingMode: "PREORDER",
@@ -106,6 +106,14 @@ describe("Next public preorder menu", () => {
     const query = stallProductFindMany.mock.calls[0]?.[0];
     expect(query.where.OR).toBeUndefined();
     expect(query.where.AND).toBeUndefined();
+  });
+
+  it("does not turn a closed physical QR DEFAULT request into a preorder", async () => {
+    const { getCachedPublicMenuForQrToken } = await import("./public-menu");
+
+    await expect(getCachedPublicMenuForQrToken("closed-physical-qr", "DEFAULT"))
+      .resolves.toBeNull();
+    expect(stallProductFindMany).not.toHaveBeenCalled();
   });
 
   it("offers configured slots as an optional time while live takeaway ordering remains DEFAULT", async () => {
@@ -139,6 +147,43 @@ describe("Next public preorder menu", () => {
       orderingMode: "DEFAULT",
       preorderSlots: ["2099-08-03T05:00:00.000Z"],
     });
+  });
+
+  it("skips optional preorder slots for the physical QR server render", async () => {
+    const context = await qrCodeFindUnique();
+    qrCodeFindUnique.mockClear();
+    qrCodeFindUnique.mockResolvedValue({
+      ...context,
+      stall: {
+        ...context.stall,
+        businessStatus: "OPEN",
+        orderingState: "OPEN",
+        orderingEnabled: true,
+      },
+    });
+    stallProductFindMany.mockResolvedValue([{
+      ...(await stallProductFindMany())[0],
+      availableFrom: null,
+      availableUntil: null,
+    }]);
+    calculateCapacitySnapshot.mockResolvedValue({
+      quoteMinMinutes: 10,
+      quoteMaxMinutes: 15,
+      acknowledgmentThresholdMinutes: 30,
+      requiresAcknowledgment: false,
+    });
+    const { getCachedPublicMenuForQrToken } = await import("./public-menu");
+
+    const menu = await getCachedPublicMenuForQrToken(
+      "physical-live-takeaway-qr",
+      "DEFAULT",
+      { includeOptionalPreorderSlots: false },
+    );
+
+    expect(menu).toMatchObject({ orderingMode: "DEFAULT", preorderSlots: [] });
+    expect(queryRaw.mock.calls.some(([template]) => (
+      String(template).includes("get_takeout_preorder_slots")
+    ))).toBe(false);
   });
 
   it("offers fulfillment slots to a delivery-only QR session", async () => {
@@ -257,7 +302,7 @@ describe("Next public preorder menu", () => {
     }]);
     const { getCachedPublicMenuForQrToken } = await import("./public-menu");
 
-    const menu = await getCachedPublicMenuForQrToken("optional-bundle-qr");
+    const menu = await getCachedPublicMenuForQrToken("optional-bundle-qr", "PREORDER");
 
     expect(menu?.products).toMatchObject([{
       id: "optional-bundle",

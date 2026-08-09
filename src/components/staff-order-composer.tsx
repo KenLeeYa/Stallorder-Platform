@@ -8,11 +8,13 @@ import { StaffDiscountSelector } from "@/components/staff-discount-selector";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { calculateOrderDiscount } from "@/lib/checkout";
 import { formatMoney } from "@/lib/money";
+import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
 import {
   addQrCartLine,
   qrCartProductQuantity,
   qrCartTotalQuantity,
+  replaceQrCartLine,
   updateQrCartLineQuantity,
   type QrCartLine,
 } from "@/lib/qr-cart";
@@ -20,6 +22,7 @@ import { hasPermission } from "@/lib/rbac";
 import type { StaffOrderDto } from "@/lib/orders";
 import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
 import { buildFulfillmentTimeSlots } from "@/lib/fulfillment-time-options";
+import { createWebUuid } from "@/lib/web-uuid";
 
 const PHONE_NUMBER = /^\+?[0-9][0-9 ().-]{5,29}$/;
 
@@ -46,7 +49,7 @@ export function StaffOrderComposer({
   onCreated,
   onClose,
 }: Props) {
-  const idempotencyKeyRef = useRef(crypto.randomUUID());
+  const idempotencyKeyRef = useRef(createWebUuid());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const defaultPayment = modules.payment
     ? paymentOptions[0] ?? null
@@ -62,6 +65,7 @@ export function StaffOrderComposer({
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [noteSelections, setNoteSelections] = useState<Record<string, string[]>>({});
   const [bundleSelections, setBundleSelections] = useState<Record<string, string[]>>({});
+  const [editingLineIds, setEditingLineIds] = useState<Record<string, string>>({});
   const [paymentTiming, setPaymentTiming] = useState<"PAY_NOW" | "PAY_LATER">("PAY_NOW");
   const [paymentOptionId, setPaymentOptionId] = useState(defaultPayment?.id ?? null);
   const [discountOptionId, setDiscountOptionId] = useState<string | null>(null);
@@ -161,13 +165,17 @@ export function StaffOrderComposer({
 
   function setQuantity(productId: string, nextQuantity: number) {
     const next = Math.max(0, nextQuantity);
-    const distinctProducts = new Set(cartLines.map((line) => line.productId));
+    const editingLineId = editingLineIds[productId];
+    const effectiveLines = editingLineId
+      ? cartLines.filter((line) => line.id !== editingLineId)
+      : cartLines;
+    const distinctProducts = new Set(effectiveLines.map((line) => line.productId));
     const nextUnique = distinctProducts.size + (
       next > 0 && !distinctProducts.has(productId) ? 1 : 0
     );
     if (
-      qrCartProductQuantity(cartLines, productId) + next > catalog.limits.maxItemQuantity
-      || totalQuantity + next > catalog.limits.maxTotalQuantity
+      qrCartProductQuantity(effectiveLines, productId) + next > catalog.limits.maxItemQuantity
+      || qrCartTotalQuantity(effectiveLines) + next > catalog.limits.maxTotalQuantity
       || nextUnique > catalog.limits.maxUniqueProducts
     ) {
       setMessage("已達此攤位設定的商品數量上限。");
@@ -205,13 +213,17 @@ export function StaffOrderComposer({
       setMessage(`${product.name} 的套餐選項尚未完成。`);
       return;
     }
-    const nextLines = addQrCartLine(cartLines, {
+    const editingLineId = editingLineIds[product.id];
+    const nextLine = {
       productId: product.id,
       quantity,
       note: "",
       noteOptionIds,
       bundleChoiceIds,
-    }, catalog.limits, () => crypto.randomUUID());
+    };
+    const nextLines = editingLineId
+      ? replaceQrCartLine(cartLines, editingLineId, nextLine, catalog.limits)
+      : addQrCartLine(cartLines, nextLine, catalog.limits, createWebUuid);
     if (!nextLines) {
       setMessage("已達此攤位設定的商品數量上限。");
       return;
@@ -232,6 +244,11 @@ export function StaffOrderComposer({
       delete nextSelections[product.id];
       return nextSelections;
     });
+    setEditingLineIds((current) => {
+      const nextLineIds = { ...current };
+      delete nextLineIds[product.id];
+      return nextLineIds;
+    });
     setMessage("");
   }
 
@@ -242,7 +259,52 @@ export function StaffOrderComposer({
       return;
     }
     setCartLines(nextLines);
+    const changedLine = cartLines.find((line) => line.id === lineId);
+    if (changedLine && editingLineIds[changedLine.productId] === lineId) {
+      if (quantity <= 0) {
+        setQuantities((current) => {
+          const nextQuantities = { ...current };
+          delete nextQuantities[changedLine.productId];
+          return nextQuantities;
+        });
+        setNoteSelections((current) => {
+          const nextSelections = { ...current };
+          delete nextSelections[changedLine.productId];
+          return nextSelections;
+        });
+        setBundleSelections((current) => {
+          const nextSelections = { ...current };
+          delete nextSelections[changedLine.productId];
+          return nextSelections;
+        });
+        setEditingLineIds((current) => {
+          const nextLineIds = { ...current };
+          delete nextLineIds[changedLine.productId];
+          return nextLineIds;
+        });
+      } else {
+        setQuantities((current) => current[changedLine.productId] === undefined
+          ? current
+          : { ...current, [changedLine.productId]: quantity });
+      }
+    }
     setMessage("");
+  }
+
+  function editCartLine(line: QrCartLine) {
+    const product = productsById.get(line.productId);
+    if (!product || (product.noteGroups.length === 0 && (product.bundleChoiceGroups?.length ?? 0) === 0)) return;
+    setQuantities((current) => ({ ...current, [line.productId]: line.quantity }));
+    setNoteSelections((current) => ({ ...current, [line.productId]: line.noteOptionIds }));
+    setBundleSelections((current) => ({ ...current, [line.productId]: line.bundleChoiceIds }));
+    setEditingLineIds((current) => ({ ...current, [line.productId]: line.id }));
+    setCatalogExpanded(true);
+    setActiveCategory(product.category);
+    switchPane("MENU");
+    window.setTimeout(() => document.getElementById(`staff-product-${line.productId}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    }), 0);
   }
 
   function selectNoteOption(
@@ -387,7 +449,7 @@ export function StaffOrderComposer({
         await createOfflineFallback(new Error("ORDER_RESPONSE_MISSING"));
         return;
       }
-      idempotencyKeyRef.current = crypto.randomUUID();
+      idempotencyKeyRef.current = createWebUuid();
       onCreated(payload.order);
     } catch (error) {
       setMessage(error instanceof Error ? offlineErrorMessage(error.message) : "目前無法建立訂單。");
@@ -433,7 +495,7 @@ export function StaffOrderComposer({
         queuePrint: modules.print,
         items: requestBody.items,
       });
-      idempotencyKeyRef.current = crypto.randomUUID();
+      idempotencyKeyRef.current = createWebUuid();
       onCreated(offlineOrderToStaffOrder(created.order));
     }
   }
@@ -463,7 +525,7 @@ export function StaffOrderComposer({
 
             <div className="mt-5 grid items-start gap-3 sm:grid-cols-2">
               <TextField className="mt-0" label="顧客名稱（選填）" value={customerName} maxLength={50} autoComplete="name" onChange={setCustomerName} />
-              {(fulfillmentType === "TAKEOUT" || fulfillmentType === "DELIVERY") ? <TextField className="mt-0" label={fulfillmentType === "DELIVERY" ? "聯絡電話" : "聯絡電話（選填）"} value={customerPhone} maxLength={30} type="tel" inputMode="tel" autoComplete="tel" pattern="\+?[0-9][0-9 ().-]{5,29}" onChange={setCustomerPhone} /> : null}
+              {(fulfillmentType === "TAKEOUT" || fulfillmentType === "DELIVERY") ? <TextField className="mt-0" label={fulfillmentType === "DELIVERY" ? "聯絡電話" : "聯絡電話（選填）"} value={customerPhone} maxLength={30} type="tel" inputMode="tel" autoComplete="tel" pattern={PHONE_INPUT_PATTERN} onChange={setCustomerPhone} /> : null}
               {fulfillmentType === "DINE_IN" ? <label className="block text-xs font-semibold text-stone-600">桌位<select value={diningTableId} onChange={(event) => setDiningTableId(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{tableGroups.map(([floorName, tables]) => <optgroup key={floorName} label={floorName}>{tables.map((table) => <option key={table.id} value={table.id}>{table.label}</option>)}</optgroup>)}</select></label> : null}
               {fulfillmentType === "DELIVERY" ? <label className="text-xs font-semibold text-stone-600 sm:col-span-2">外送地址<textarea autoComplete="street-address" value={deliveryAddress} maxLength={300} onChange={(event) => setDeliveryAddress(event.target.value)} className="form-input mt-1 min-h-20" /></label> : null}
               {fulfillmentType === "TAKEOUT" && fulfillmentTimeSlots.length > 0 ? (
@@ -535,7 +597,7 @@ export function StaffOrderComposer({
                           + bundlePriceAdjustment(product, bundleSelected)
                           + notePriceAdjustment(product.noteGroups, noteSelected),
                       );
-                      return <article key={product.id} data-testid="staff-product-card" className="py-4">
+                      return <article key={product.id} id={`staff-product-${product.id}`} data-testid="staff-product-card" className="py-4">
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                           <div className="min-w-0">
                             <h4 className="font-semibold">{product.name}{product.kind === "BUNDLE" ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">套餐</span> : null}</h4>
@@ -567,7 +629,7 @@ export function StaffOrderComposer({
                           })}
                         </div> : null}
                         {quantity > 0 && product.noteGroups.length > 0 ? <div className="mt-4 space-y-3 border-l-2 border-teal-700 pl-3">{product.noteGroups.map((group) => { const optionIds = new Set(group.options.map((option) => option.id)); const selectedCount = noteSelected.filter((id) => optionIds.has(id)).length; return <fieldset key={group.id}><legend className="text-sm font-semibold">{group.name}{group.isRequired ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.selectionMode === "SINGLE" ? "單選" : group.maxSelections ? `最多 ${group.maxSelections} 項` : "複選"}</span></legend><div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">{group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-note-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectNoteOption(product.id, group, null)} />不選</label> : null}{group.options.map((option) => { const checked = noteSelected.includes(option.id); const maxed = group.maxSelections !== null && selectedCount >= group.maxSelections; return <label key={option.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`staff-note-${product.id}-${group.id}`} checked={checked} disabled={group.selectionMode === "MULTIPLE" && maxed && !checked} onChange={() => selectNoteOption(product.id, group, option.id)} />{option.name}{option.priceDelta !== 0 ? <span className="text-teal-800">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, stall.currency)}</span> : null}</label>; })}</div></fieldset>; })}</div> : null}
-                        {quantity > 0 ? <button type="button" onClick={() => addProductToCart(product)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white"><ShoppingCart className="h-4 w-4" />加入購物車</button> : null}
+                        {quantity > 0 ? <button type="button" onClick={() => addProductToCart(product)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white"><ShoppingCart className="h-4 w-4" />{editingLineIds[product.id] ? "修改完成" : "加入購物車"}</button> : null}
                       </article>;
                     })}
                   </div>
@@ -600,7 +662,7 @@ export function StaffOrderComposer({
                   + bundlePriceAdjustment(product, bundleChoiceIds)
                   + notePriceAdjustment(product.noteGroups, noteOptionIds),
               );
-              return <div key={cartLineId} data-testid="staff-cart-line" className="py-3 text-sm">
+              return <div key={cartLineId} data-testid="staff-cart-line" data-cart-line-id={cartLineId} className="py-3 text-sm">
                 <div className="flex justify-between gap-3"><span>{quantity} × {product.name}</span><strong>{formatMoney(unitPrice * quantity, stall.currency)}</strong></div>
                 {selectedBundleChoices.length > 0 ? <p className="mt-1 text-xs text-amber-800">{selectedBundleChoices.map((choice) => `${choice.name} × ${choice.quantity}`).join("、")}</p> : null}
                 {selectedNoteNames.length > 0 ? <p className="mt-1 text-xs text-teal-800">{selectedNoteNames.join("、")}</p> : null}
@@ -608,6 +670,7 @@ export function StaffOrderComposer({
                   <button type="button" aria-label={`減少 ${product.name}（${configurationLabel}）`} onClick={() => changeCartLineQuantity(cartLineId, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Minus className="h-4 w-4" /></button>
                   <span className="min-w-8 text-center font-semibold" aria-label={`${product.name}（${configurationLabel}）數量`}>{quantity}</span>
                   <button type="button" aria-label={`增加 ${product.name}（${configurationLabel}）`} onClick={() => changeCartLineQuantity(cartLineId, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Plus className="h-4 w-4" /></button>
+                  {(product.noteGroups.length > 0 || (product.bundleChoiceGroups?.length ?? 0) > 0) ? <button type="button" onClick={() => editCartLine({ id: cartLineId, productId: product.id, quantity, note: "", noteOptionIds, bundleChoiceIds })} className="min-h-11 rounded-md border border-teal-300 bg-white px-3 font-semibold text-teal-800">修改客製</button> : null}
                   <button type="button" aria-label={`移除 ${product.name}（${configurationLabel}）`} onClick={() => changeCartLineQuantity(cartLineId, 0)} className="min-h-11 rounded-md border border-red-300 bg-white px-3 font-semibold text-red-700">移除</button>
                 </div>
               </div>;

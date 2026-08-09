@@ -1,4 +1,12 @@
 import { PublicOrderCircuitBreaker } from "@/lib/public-order-circuit-breaker";
+import { createWebUuid } from "@/lib/web-uuid";
+import {
+  createPublicOrderOperationId,
+  normalizePublicOrderOperationId,
+  PUBLIC_ORDER_OPERATION_ID_HEADER,
+} from "@/lib/public-order-operation-id";
+
+export { createPublicOrderOperationId } from "@/lib/public-order-operation-id";
 
 const DEVICE_COOKIE = "stallorder_device";
 const DEVICE_STORAGE_KEY = "stallorder_device:v1";
@@ -18,10 +26,11 @@ export type PublicOrderOperation =
   | "create-public-order"
   | "get-public-order";
 
-type PublicOrderRequestOptions = {
+export type PublicOrderRequestOptions = {
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
   now?: () => number;
+  operationId?: string;
 };
 
 export type PublicAvailabilityStatus =
@@ -79,7 +88,7 @@ export function getOrCreateDeviceId() {
     return storedDevice.id;
   }
 
-  const deviceId = crypto.randomUUID();
+  const deviceId = createWebUuid();
   persistDeviceCookie(deviceId);
   persistDeviceStorage(deviceId);
   return deviceId;
@@ -188,6 +197,10 @@ export async function requestPublicOrder(
   const fetchImpl = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? CIRCUIT_TIMEOUT_MS;
   const now = options.now ?? browserNow;
+  const operationId = options.operationId === undefined
+    ? createPublicOrderOperationId()
+    : normalizePublicOrderOperationId(options.operationId);
+  if (!operationId) throw new Error("INVALID_PUBLIC_ORDER_OPERATION_ID");
   const deviceId = typeof input.deviceId === "string" ? input.deviceId : "";
   const serializedBody = JSON.stringify(input);
   const availability = resolveDualOrderIntake(fetchImpl, deviceId);
@@ -195,11 +208,12 @@ export async function requestPublicOrder(
   const primaryAllowed = breaker.allowRequest();
 
   if (!primaryAllowed && await availability) {
-    logCircuitFallback(operation, "CIRCUIT_OPEN", null, 0);
+    logCircuitFallback(operation, operationId, "CIRCUIT_OPEN", null, 0);
     return requestCircuitB(
       operation,
       input,
       serializedBody,
+      operationId,
       fetchImpl,
       timeoutMs,
       now,
@@ -210,6 +224,7 @@ export async function requestPublicOrder(
   try {
     const primaryResponse = await requestCircuitA(
       operation,
+      operationId,
       serializedBody,
       fetchImpl,
       timeoutMs,
@@ -224,6 +239,7 @@ export async function requestPublicOrder(
     if (!await availability) return primaryResponse;
     logCircuitFallback(
       operation,
+      operationId,
       "INFRASTRUCTURE_RESPONSE",
       primaryResponse.status,
       now() - primaryStartedAt,
@@ -232,6 +248,7 @@ export async function requestPublicOrder(
       operation,
       input,
       serializedBody,
+      operationId,
       fetchImpl,
       timeoutMs,
       now,
@@ -241,6 +258,7 @@ export async function requestPublicOrder(
     if (!await availability) throw new Error("PUBLIC_ORDER_PRIMARY_UNAVAILABLE");
     logCircuitFallback(
       operation,
+      operationId,
       "TRANSPORT_FAILURE",
       null,
       now() - primaryStartedAt,
@@ -249,6 +267,7 @@ export async function requestPublicOrder(
       operation,
       input,
       serializedBody,
+      operationId,
       fetchImpl,
       timeoutMs,
       now,
@@ -266,6 +285,7 @@ function getOperationBreaker(operation: PublicOrderOperation) {
 
 function requestCircuitA(
   operation: PublicOrderOperation,
+  operationId: string,
   serializedBody: string,
   fetchImpl: typeof fetch,
   timeoutMs: number,
@@ -275,6 +295,7 @@ function requestCircuitA(
     headers: {
       "content-type": "application/json",
       "x-stallorder-protocol-version": PUBLIC_ORDER_PROTOCOL_VERSION,
+      [PUBLIC_ORDER_OPERATION_ID_HEADER]: operationId,
       ...publicEdgeHeaders(),
     },
     body: serializedBody,
@@ -287,6 +308,7 @@ async function requestCircuitB(
   operation: PublicOrderOperation,
   input: Record<string, unknown>,
   serializedBody: string,
+  operationId: string,
   fetchImpl: typeof fetch,
   timeoutMs: number,
   now: () => number,
@@ -294,6 +316,7 @@ async function requestCircuitB(
   const startedAt = now();
   const commonHeaders = {
     "x-stallorder-protocol-version": PUBLIC_ORDER_PROTOCOL_VERSION,
+    [PUBLIC_ORDER_OPERATION_ID_HEADER]: operationId,
   };
   const response = operation === "get-public-order"
     ? await fetchImpl(
@@ -325,6 +348,7 @@ async function requestCircuitB(
     );
   logCircuitEvent("PUBLIC_ORDER_CIRCUIT_B_COMPLETED", {
     operation,
+    operationId,
     status: response.status,
     latencyMs: Math.max(0, Math.round((now() - startedAt) * 10) / 10),
   });
@@ -420,12 +444,14 @@ function resolveDualOrderIntake(fetchImpl: typeof fetch, deviceId: string) {
 
 function logCircuitFallback(
   operation: PublicOrderOperation,
+  operationId: string,
   reason: string,
   status: number | null,
   latencyMs: number,
 ) {
   logCircuitEvent("PUBLIC_ORDER_CIRCUIT_FALLBACK", {
     operation,
+    operationId,
     from: "A",
     to: "B",
     reason,

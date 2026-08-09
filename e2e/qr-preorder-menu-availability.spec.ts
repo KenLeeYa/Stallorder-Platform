@@ -50,7 +50,8 @@ const baseProduct = {
   noteGroups: [],
 };
 
-test("PREORDER QR 依取餐時段更新商品與套餐選項並清除失效購物車", async ({ page }) => {
+test("分享外帶連結依取餐時段更新商品與套餐選項並清除失效購物車", async ({ page }) => {
+  let sessionExpiresSoon = false;
   await page.route("**/api/availability/config", async (route) => {
     await route.fulfill({
       status: 200,
@@ -66,7 +67,7 @@ test("PREORDER QR 依取餐時段更新商品與套餐選項並清除失效購�
       headers: { "access-control-allow-origin": "*" },
       body: JSON.stringify({
         orderSessionToken: `stos_${"p".repeat(43)}`,
-        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        expiresAt: new Date(Date.now() + (sessionExpiresSoon ? 30_000 : 10 * 60_000)).toISOString(),
         orderingMode: "PREORDER",
         preorderSlots: [firstPickupSlot, secondPickupSlot],
         // PREORDER must hide lottery UI even if an older session payload still enables it.
@@ -169,7 +170,7 @@ test("PREORDER QR 依取餐時段更新商品與套餐選項並清除失效購�
     });
   });
 
-  await page.goto(`/q/preorder-availability-${Date.now()}`);
+  await page.goto("/s/aming-chicken");
 
   await expect(page.getByRole("heading", { name: "預約時段測試攤位" })).toBeVisible();
   await expect(page.getByText("目前為非營業時間，僅接受預約外帶。", { exact: true })).toBeVisible();
@@ -185,6 +186,12 @@ test("PREORDER QR 依取餐時段更新商品與套餐選項並清除失效購�
   for (const control of [preorderDate, preorderHour, preorderMinute]) {
     expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
+  const applyPickupTime = page.getByRole("button", { name: "套用這個時間", exact: true });
+  await expect(page.getByText("請先確認並套用預約取餐時間，完成後才會顯示可點商品。", { exact: true })).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(0);
+  await expect(applyPickupTime).toBeEnabled();
+  await applyPickupTime.click();
+
   await expect(page.getByRole("article").filter({ hasText: "早鳥飯糰" })).toBeVisible();
   await expect(page.getByRole("article").filter({ hasText: "晚場便當" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "抽抽樂推薦" })).toHaveCount(0);
@@ -214,7 +221,6 @@ test("PREORDER QR 依取餐時段更新商品與套餐選項並清除失效購�
   await expect(cart).toContainText("共 2 份");
   await expect(cart).toContainText("$270");
   await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeDisabled();
-  const applyPickupTime = page.getByRole("button", { name: "套用這個時間", exact: true });
   await expect(applyPickupTime).toBeEnabled();
   await applyPickupTime.click();
 
@@ -227,6 +233,7 @@ test("PREORDER QR 依取餐時段更新商品與套餐選項並清除失效購�
   await expect(cart).toContainText("共 1 份");
   await expect(cart).toContainText("$150");
   await expect(page.getByRole("region", { name: "抽抽樂推薦" })).toHaveCount(0);
+  await bundle.getByRole("dialog", { name: "時段限定套餐" }).getByRole("button", { name: "關閉" }).click();
 
   await selectFulfillmentSlot(page, "qr-preorder-fulfillment-time-fields", {
     date: "預約取餐日期",
@@ -238,16 +245,55 @@ test("PREORDER QR 依取餐時段更新商品與套餐選項並清除失效購�
   await expect(bundle.getByRole("radio", { name: /晨間紅茶/ })).not.toBeChecked();
   await expect(cart).toContainText("共 1 份");
   await expect(cart).toContainText("$150");
+  await bundle.getByRole("dialog", { name: "時段限定套餐" }).getByRole("button", { name: "關閉" }).click();
 
   await selectFulfillmentSlot(page, "qr-preorder-fulfillment-time-fields", {
     date: "預約取餐日期",
     time: "預約取餐時間",
   }, secondPickupSlot);
   await page.getByRole("button", { name: "套用這個時間", exact: true }).click();
+  await bundle.getByRole("dialog", { name: "時段限定套餐" }).getByRole("button", { name: "關閉" }).click();
   const bundleCartLine = page.getByTestId("qr-cart-line").filter({ hasText: "時段限定套餐" });
   await bundleCartLine.getByRole("button", { name: "移除", exact: true }).click();
   const laterItem = page.locator("article#qr-product-later-item");
   await laterItem.getByRole("button", { name: "增加 晚場便當" }).click();
+
+  await expect.poll(() => page.evaluate(() => {
+    const raw = Object.entries(window.localStorage)
+      .find(([key]) => key.startsWith("stallorder_qr_cart:") && key.endsWith(":preorder"))?.[1];
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as {
+      orderingMode?: string;
+      scheduledPickupAt?: string;
+      lines?: Array<{ productId?: string }>;
+    };
+    return {
+      orderingMode: draft.orderingMode,
+      scheduledPickupAt: draft.scheduledPickupAt,
+      productIds: draft.lines?.map((line) => line.productId),
+    };
+  })).toEqual({
+    orderingMode: "PREORDER",
+    scheduledPickupAt: secondPickupSlot,
+    productIds: ["later-item"],
+  });
+
+  sessionExpiresSoon = true;
+  await page.reload();
+  const expiryDialog = page.getByTestId("qr-session-expiry-dialog");
+  await expect(expiryDialog).toHaveAttribute("data-expired", "false");
+  sessionExpiresSoon = false;
+  await Promise.all([
+    page.waitForEvent("load"),
+    expiryDialog.getByRole("button", { name: "重新整理並繼續點餐" }).click(),
+  ]);
+  await expect(expiryDialog).toHaveCount(0);
+  await expect(preorderDate).toHaveValue(fulfillmentSlot(secondPickupSlot).date);
+  await expect(preorderHour).toHaveValue(fulfillmentSlot(secondPickupSlot).hour);
+  await expect(preorderMinute).toHaveValue(fulfillmentSlot(secondPickupSlot).minute);
+  await expect(page.locator("article#qr-product-later-item")).toBeVisible();
+  await expect(cart).toContainText("共 1 份");
+  await expect(cart).toContainText("$120");
 
   const orderRequest = page.waitForRequest((request) => (
     new URL(request.url()).pathname.endsWith("/create-public-order")
@@ -262,7 +308,7 @@ test("PREORDER QR 依取餐時段更新商品與套餐選項並清除失效購�
   });
 });
 
-test("營業中的 QR 外帶可選預計取餐時間，未選時預設為儘快", async ({ page }) => {
+test("營業中的實體 QR 不顯示取餐時間且送單固定為即時外帶", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("**/api/availability/config", async (route) => {
     await route.fulfill({
@@ -333,30 +379,13 @@ test("營業中的 QR 外帶可選預計取餐時間，未選時預設為儘快"
   const product = page.getByRole("article").filter({ hasText: "外帶測試餐" });
   await product.getByRole("button", { name: "增加 外帶測試餐" }).click();
   await page.getByTestId("qr-mobile-cart-summary").click();
-  await expect(page.getByRole("radio", { name: "儘快，不指定時間" })).toBeChecked();
-  await page.getByRole("radio", { name: "指定取餐時間" }).check();
-  const { fields, slot } = await selectFulfillmentSlot(page, "qr-default-fulfillment-time-fields", {
-    date: "取餐日期",
-    time: "取餐時間",
-  }, fiveMinutePickupSlot);
-  const pickupDate = fields.getByLabel("取餐日期");
-  const pickupHour = fields.getByLabel("取餐時間－時");
-  const pickupMinute = fields.getByLabel("取餐時間－分");
-  await expect(pickupDate).toHaveAttribute("type", "date");
-  await expect(pickupHour).toHaveValue(slot.hour);
-  await expect(pickupMinute).toHaveValue("05");
-  expect((await pickupHour.locator("option").allTextContents()).every((hour) => (
-    /^(?:[01]\d|2[0-3])$/.test(hour)
-  ))).toBe(true);
-  expect((await pickupMinute.locator("option").allTextContents()).every((minute) => (
-    /^(?:[0-5]\d)$/.test(minute) && Number(minute) % 5 === 0
-  ))).toBe(true);
-  for (const control of [pickupDate, pickupHour, pickupMinute]) {
-    expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
-  }
+  await expect(page.getByRole("radio", { name: "儘快，不指定時間" })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "指定取餐時間" })).toHaveCount(0);
+  await expect(page.locator('[data-testid$="fulfillment-time-fields"]')).toHaveCount(0);
   expect(await page.evaluate(() => (
     document.documentElement.scrollWidth <= document.documentElement.clientWidth
   ))).toBe(true);
+  await page.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
 
   const orderRequest = page.waitForRequest((request) => (
     new URL(request.url()).pathname.endsWith("/create-public-order")
@@ -366,6 +395,6 @@ test("營業中的 QR 外帶可選預計取餐時間，未選時預設為儘快"
   const body = (await orderRequest).postDataJSON() as Record<string, unknown>;
   expect(body).toMatchObject({
     orderingMode: "DEFAULT",
-    scheduledPickupAt: fiveMinutePickupSlot,
+    scheduledPickupAt: null,
   });
 });

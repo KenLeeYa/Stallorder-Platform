@@ -3,7 +3,17 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, Building2, CreditCard, FileChartColumn, Package, ScrollText, Store } from "lucide-react";
+import {
+  BarChart3,
+  Building2,
+  ChevronDown,
+  ChevronUp,
+  CreditCard,
+  FileChartColumn,
+  Package,
+  ScrollText,
+  Store,
+} from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
@@ -12,6 +22,27 @@ import { buildWorkModeDestinations } from "@/lib/work-mode";
 import type { WorkspaceOrganization } from "@/lib/workspace";
 
 const ORGANIZATION_STORAGE_KEY = "stallorder.organization.preference";
+
+export function resolveMerchantRouteContext(
+  workspaces: WorkspaceOrganization[],
+  pathname: string,
+  queryOrganizationId: string | null,
+) {
+  const pathStall = workspaces
+    .flatMap((workspace) => workspace.stalls)
+    .find((stall) => {
+      const stallSettingsPath = `/merchant/stalls/${stall.id}`;
+      return pathname === `/merchant/${stall.slug}`
+        || pathname.includes(`/staff/${stall.slug}`)
+        || pathname === stallSettingsPath
+        || pathname.startsWith(`${stallSettingsPath}/`);
+    });
+
+  return {
+    pathStall,
+    routeOrganizationId: pathStall?.organizationId ?? queryOrganizationId ?? null,
+  };
+}
 
 export function MerchantWorkspaceHeader({
   workspaces,
@@ -23,15 +54,17 @@ export function MerchantWorkspaceHeader({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const pathStall = workspaces
-    .flatMap((workspace) => workspace.stalls)
-    .find((stall) => pathname === `/merchant/${stall.slug}` || pathname.includes(`/staff/${stall.slug}`));
   const queryOrganizationId = searchParams.get("organizationId");
-  const initialOrganizationId = queryOrganizationId
-    ?? pathStall?.organizationId
-    ?? workspaces[0]?.id
-    ?? "";
-  const [organizationId, setOrganizationId] = useState(initialOrganizationId);
+  const { pathStall, routeOrganizationId } = resolveMerchantRouteContext(
+    workspaces,
+    pathname,
+    queryOrganizationId,
+  );
+  const [preferredOrganizationId, setPreferredOrganizationId] = useState(
+    routeOrganizationId ?? workspaces[0]?.id ?? "",
+  );
+  const organizationId = routeOrganizationId ?? preferredOrganizationId;
+  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
 
   const workspace = useMemo(
     () => workspaces.find((candidate) => candidate.id === organizationId) ?? workspaces[0],
@@ -45,11 +78,12 @@ export function MerchantWorkspaceHeader({
     () => buildWorkModeDestinations(workspaces),
     [workspaces],
   );
-  const selectedScope = pathStall?.id
-    ?? (workspace?.canUseAllStalls ? "ALL_STALLS" : activeStalls[0]?.id ?? "");
+  const selectedScope = pathStall?.organizationId === workspace?.id
+    ? pathStall.id
+    : (workspace?.canUseAllStalls ? "ALL_STALLS" : activeStalls[0]?.id ?? "");
 
   function selectOrganization(nextOrganizationId: string) {
-    setOrganizationId(nextOrganizationId);
+    setPreferredOrganizationId(nextOrganizationId);
     window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, nextOrganizationId);
     router.push(`/merchant/stalls?organizationId=${nextOrganizationId}`);
   }
@@ -67,100 +101,119 @@ export function MerchantWorkspaceHeader({
 
   return (
     <header className="sticky top-0 z-30 border-b border-stone-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 md:px-8">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-2 md:gap-3 md:px-8 md:py-3">
         <Link
           href={workspace ? `/merchant/stalls?organizationId=${workspace.id}` : "/merchant/stalls"}
-          className="inline-flex min-h-11 w-full items-center gap-2 font-semibold text-stone-950 md:mr-auto md:w-auto"
+          className="order-1 inline-flex min-h-11 min-w-0 flex-1 items-center gap-2 font-semibold text-stone-950 md:mr-auto md:flex-none"
         >
-          <Store className="h-5 w-5 text-teal-700" />
-          攤點通
+          <Store className="h-5 w-5 shrink-0 text-teal-700" />
+          <span className="truncate">攤點通</span>
         </Link>
 
-        <div className="flex w-full min-w-0 flex-wrap items-end gap-3 md:w-auto">
-          {showOrganizationSelector ? (
-          <label className="min-w-40 flex-1 text-xs font-medium text-stone-500 md:flex-none">
-            商家
-            <select
-              aria-label="選擇商家"
-              value={workspace?.id ?? ""}
-              onChange={(event) => selectOrganization(event.target.value)}
-              className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[190px]"
-            >
-              {workspaces.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>{candidate.businessName}</option>
-              ))}
-            </select>
-          </label>
-          ) : null}
-
-          {showStallSelector ? (
-          <label className="min-w-40 flex-1 text-xs font-medium text-stone-500 md:flex-none">
-            攤位
-            <select
-              aria-label="選擇攤位"
-              value={selectedScope}
-              onChange={(event) => selectScope(event.target.value)}
-              className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[190px]"
-            >
-              {workspace?.canUseAllStalls ? <option value="ALL_STALLS">全部攤位</option> : null}
-              {activeStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}
-            </select>
-          </label>
-          ) : singleStall ? (
-            <Link
-              href={`/merchant/${singleStall.slug}`}
-              aria-label={`前往攤位 ${singleStall.name}`}
-              className="inline-flex h-10 max-w-full items-center gap-2 rounded-full border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-900 transition-colors hover:border-teal-600 hover:bg-teal-50"
-            >
-              <Store className="h-4 w-4 shrink-0 text-teal-700" />
-              <span className="truncate">{singleStall.name}</span>
-            </Link>
-          ) : null}
-
-          {workspace ? (
-            <WorkModeSwitcher
-              destinations={workModeDestinations}
-              currentMode="MERCHANT"
-              organizationId={workspace.id}
-            />
-          ) : null}
+        <div className="order-2 ml-auto flex shrink-0 items-center gap-1 md:order-3 md:ml-0">
+          <PwaControls />
+          <span className="hidden max-w-36 truncate text-sm text-stone-600 lg:inline">{displayName}</span>
+          <LogoutButton />
+          <button
+            type="button"
+            aria-expanded={mobileOptionsOpen}
+            aria-controls="merchant-mobile-options"
+            aria-label={mobileOptionsOpen ? "收合商戶選項" : "展開商戶選項"}
+            title={mobileOptionsOpen ? "收合商戶選項" : "展開商戶選項"}
+            onClick={() => setMobileOptionsOpen((open) => !open)}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-stone-300 bg-white text-stone-700 md:hidden"
+          >
+            {mobileOptionsOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </button>
         </div>
 
-        <nav className="flex w-full min-w-0 items-center gap-1 overflow-x-auto md:w-auto" aria-label="商戶功能">
-          <Link title="儀表板" href={`/merchant/dashboard?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-            <BarChart3 className="h-5 w-5" /><span className="sr-only">儀表板</span>
-          </Link>
-          {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN" || role === "FINANCE_VIEWER") ? (
-            <Link title="跨攤位報表" href={`/merchant/reports/overview?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-              <FileChartColumn className="h-5 w-5" /><span className="sr-only">跨攤位報表</span>
-            </Link>
-          ) : null}
-          <Link title="管理攤位" href={`/merchant/stalls?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-            <Building2 className="h-5 w-5" /><span className="sr-only">管理攤位</span>
-          </Link>
-          {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN") ? (
-            <Link title="共用商品" href={`/merchant/catalog?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-              <Package className="h-5 w-5" /><span className="sr-only">共用商品</span>
-            </Link>
-          ) : null}
-          {workspace && (
-            workspace.roles.some((role) => hasPermission(role, "VIEW_AUDIT_LOGS"))
-            || workspace.stalls.some((stall) => stall.roles.some((role) => hasPermission(role, "MANAGE_OPERATIONAL_ALERTS")))
-          ) ? (
-            <Link title="稽核與營運警示" href={`/merchant/operations?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-              <ScrollText className="h-5 w-5" /><span className="sr-only">稽核與營運警示</span>
-            </Link>
-          ) : null}
-          {workspace?.roles.some((role) => hasPermission(role, "VIEW_BILLING")) ? (
-            <Link title="訂閱與帳務" href={`/merchant/billing?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
-              <CreditCard className="h-5 w-5" /><span className="sr-only">訂閱與帳務</span>
-            </Link>
-          ) : null}
-        </nav>
+        <div
+          id="merchant-mobile-options"
+          className={`${mobileOptionsOpen ? "flex" : "hidden"} order-3 w-full min-w-0 flex-col gap-3 border-t border-stone-200 pt-3 md:order-2 md:flex md:w-auto md:flex-row md:items-end md:border-0 md:pt-0`}
+        >
+          <div className="flex w-full min-w-0 flex-wrap items-end gap-2 md:w-auto md:gap-3">
+            {showOrganizationSelector ? (
+            <label className="order-2 min-w-40 flex-1 text-xs font-medium text-stone-500 md:order-1 md:flex-none">
+              商家
+              <select
+                aria-label="選擇商家"
+                value={workspace?.id ?? ""}
+                onChange={(event) => selectOrganization(event.target.value)}
+                className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[190px]"
+              >
+                {workspaces.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>{candidate.businessName}</option>
+                ))}
+              </select>
+            </label>
+            ) : null}
 
-        <PwaControls />
-        <span className="hidden max-w-36 truncate text-sm text-stone-600 lg:inline">{displayName}</span>
-        <LogoutButton />
+            {showStallSelector ? (
+            <label className="order-3 min-w-40 flex-1 text-xs font-medium text-stone-500 md:order-2 md:flex-none">
+              攤位
+              <select
+                aria-label="選擇攤位"
+                value={selectedScope}
+                onChange={(event) => selectScope(event.target.value)}
+                className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[190px]"
+              >
+                {workspace?.canUseAllStalls ? <option value="ALL_STALLS">全部攤位</option> : null}
+                {activeStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}
+              </select>
+            </label>
+            ) : singleStall ? (
+              <Link
+                href={`/merchant/${singleStall.slug}`}
+                aria-label={`前往攤位 ${singleStall.name}`}
+                className="order-2 ml-auto inline-flex h-10 max-w-full items-center gap-2 rounded-full border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-900 transition-colors hover:border-teal-600 hover:bg-teal-50 md:ml-0"
+              >
+                <Store className="h-4 w-4 shrink-0 text-teal-700" />
+                <span className="truncate">{singleStall.name}</span>
+              </Link>
+            ) : null}
+
+            {workspace ? (
+              <WorkModeSwitcher
+                destinations={workModeDestinations}
+                currentMode="MERCHANT"
+                organizationId={workspace.id}
+                className="order-1 min-w-[180px] flex-1 md:order-3 md:flex-none"
+              />
+            ) : null}
+          </div>
+
+          <nav className="flex w-full min-w-0 items-center gap-1 overflow-x-auto md:w-auto" aria-label="商戶功能">
+            <Link title="儀表板" href={`/merchant/dashboard?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <BarChart3 className="h-5 w-5" /><span className="sr-only">儀表板</span>
+            </Link>
+            {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN" || role === "FINANCE_VIEWER") ? (
+              <Link title="跨攤位報表" href={`/merchant/reports/overview?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+                <FileChartColumn className="h-5 w-5" /><span className="sr-only">跨攤位報表</span>
+              </Link>
+            ) : null}
+            <Link title="管理攤位" href={`/merchant/stalls?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+              <Building2 className="h-5 w-5" /><span className="sr-only">管理攤位</span>
+            </Link>
+            {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN") ? (
+              <Link title="共用商品" href={`/merchant/catalog?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+                <Package className="h-5 w-5" /><span className="sr-only">共用商品</span>
+              </Link>
+            ) : null}
+            {workspace && (
+              workspace.roles.some((role) => hasPermission(role, "VIEW_AUDIT_LOGS"))
+              || workspace.stalls.some((stall) => stall.roles.some((role) => hasPermission(role, "MANAGE_OPERATIONAL_ALERTS")))
+            ) ? (
+              <Link title="稽核與營運警示" href={`/merchant/operations?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+                <ScrollText className="h-5 w-5" /><span className="sr-only">稽核與營運警示</span>
+              </Link>
+            ) : null}
+            {workspace?.roles.some((role) => hasPermission(role, "VIEW_BILLING")) ? (
+              <Link title="訂閱與帳務" href={`/merchant/billing?organizationId=${workspace.id}`} className="inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-stone-100">
+                <CreditCard className="h-5 w-5" /><span className="sr-only">訂閱與帳務</span>
+              </Link>
+            ) : null}
+          </nav>
+        </div>
       </div>
     </header>
   );

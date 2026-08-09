@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   createOrderThroughCircuitB: vi.fn(),
 }));
 const testOrigin = "https://app.qidaigo.com";
+const operationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 vi.mock("@/server/public-order/circuit-b-service", () => ({
   PublicOrderCircuitError: class PublicOrderCircuitError extends Error {
@@ -51,6 +52,7 @@ function orderRequest(body: unknown, headers: Record<string, string> = {}) {
       origin: testOrigin,
       "x-real-ip": "203.0.113.8",
       "x-stallorder-protocol-version": "1",
+      "x-stallorder-operation-id": operationId,
       ...headers,
     },
     body: JSON.stringify(body),
@@ -82,6 +84,8 @@ describe("POST /api/public/orders", () => {
     expect(response.status).toBe(201);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("x-order-circuit")).toBe("B");
+    expect(response.headers.get("x-stallorder-operation-id")).toBe(operationId);
+    expect(response.headers.get("x-request-id")).not.toBe(operationId);
     expect(mocks.createOrderThroughCircuitB).toHaveBeenCalledWith(
       validOrder,
       expect.objectContaining({

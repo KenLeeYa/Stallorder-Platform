@@ -23,12 +23,14 @@ const product = (
   name,
   description: `${name} 說明`,
   price: 100,
+  kind: "SINGLE",
   category,
   rank,
   isBestSeller: rank !== null,
   imageUrl: null,
   translations: [],
   noteGroups: [],
+  bundleChoiceGroups: [],
 });
 
 test("QR 菜單在原分類內優先顯示熱銷推薦", async ({ page }) => {
@@ -47,6 +49,7 @@ test("QR 菜單在原分類內優先顯示熱銷推薦", async ({ page }) => {
       body: JSON.stringify({
         orderSessionToken: `stos_${"a".repeat(43)}`,
         expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        orderingMode: "DEFAULT",
         stall: {
           name: "熱銷測試攤位",
           slug: "bestseller-e2e",
@@ -56,12 +59,14 @@ test("QR 菜單在原分類內優先顯示熱銷推薦", async ({ page }) => {
           table: null,
         },
         products: [
-          product("meal-best", "熱銷主餐", "主餐", 2),
-          product("meal-regular", "一般主餐", "主餐", null),
-          product("drink-best", "熱銷飲品", "飲品", 1),
-          product("drink-regular", "一般飲品", "飲品", null),
+          product("11111111-1111-4111-8111-111111111111", "熱銷主餐", "主餐", 2),
+          product("22222222-2222-4222-8222-222222222222", "一般主餐", "主餐", null),
+          product("33333333-3333-4333-8333-333333333333", "熱銷飲品", "飲品", 1),
+          product("44444444-4444-4444-8444-444444444444", "一般飲品", "飲品", null),
         ],
         supportedLocales: ["zh-TW"],
+        preorderSlots: [],
+        lotteryEnabled: false,
         estimatedWaitMinutes: 10,
         estimatedWaitMinMinutes: 8,
         estimatedWaitMaxMinutes: 10,
@@ -88,8 +93,9 @@ test("QR 菜單在原分類內優先顯示熱銷推薦", async ({ page }) => {
   await expect(articles.nth(2)).toContainText("熱銷飲品");
   await expect(articles.nth(3)).toContainText("一般飲品");
   await expect(page.getByTestId("best-seller-badge")).toHaveCount(2);
-  await expect(articles.nth(0)).toContainText("近 30 天熱銷第 2 名");
-  await expect(articles.nth(2)).toContainText("近 30 天熱銷第 1 名");
+  await expect(page.getByTestId("best-seller-badge").nth(0)).toHaveText("熱銷");
+  await expect(page.getByTestId("best-seller-badge").nth(1)).toHaveText("熱銷");
+  await expect(page.getByText(/熱銷第/u)).toHaveCount(0);
   await expect(articles.nth(0)).toHaveAttribute("data-best-seller-rank", "2");
   await expect(articles.nth(2)).toHaveAttribute("data-best-seller-rank", "1");
 });

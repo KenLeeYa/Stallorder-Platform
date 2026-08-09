@@ -67,8 +67,12 @@ select throws_ok(
   '營業時間拒絕無效星期'
 );
 
-delete from public.cash_movements where stall_id = '22222222-2222-4222-8222-222222222222';
-delete from public.cash_shifts where stall_id = '22222222-2222-4222-8222-222222222222';
+update public.cash_shifts
+set status = 'CLOSED',
+    closed_at = coalesce(closed_at, now()),
+    closed_by = coalesce(closed_by, opened_by)
+where stall_id = '22222222-2222-4222-8222-222222222222'
+  and status = 'OPEN';
 insert into public.cash_shifts (
   id, organization_id, stall_id, opening_amount, opened_by
 ) values (

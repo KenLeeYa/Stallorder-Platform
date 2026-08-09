@@ -38,7 +38,6 @@ import {
   lookupResumablePublicOrder,
   persistPickupCodeDisplay,
   recordPublicOrderAttempt,
-  resolvePublicOrderingMode,
   revokeOrderSession,
   type StoredPublicOrder,
 } from "@/server/public-order/trusted-rpc-repository";
@@ -142,12 +141,7 @@ export async function issueOrderSessionThroughCircuitB(
   },
 ) {
   await assertCircuitBEnabled(input.deviceId, context.timing);
-  const resolvedOrderingMode = await context.timing.measureDb(
-    () => resolvePublicOrderingMode(input.qrToken, input.orderingMode),
-  );
-  const orderingMode = input.orderingMode === "DEFAULT" && resolvedOrderingMode === "PREORDER"
-    ? "PREORDER"
-    : input.orderingMode;
+  const orderingMode = input.orderingMode;
   const hashes = await publicHashes({
     scope: "SESSION",
     clientIp: context.clientIp,

@@ -1,15 +1,17 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { gotoLocalPath } from "./local-navigation";
 
 const prisma = new PrismaClient();
 const stallId = "22222222-2222-4222-8222-222222222222";
 const stallSlug = "aming-chicken";
 const qrToken = "demo-aming-chicken-qr-2026-rotate-me";
 const qrCodeId = "33333333-3333-4333-8333-333333333333";
+const capacityApiPath = `/api/stalls/${stallSlug}/capacity`;
 
 let originalCapacity: Awaited<ReturnType<typeof loadCapacity>>;
 let originalStall: Awaited<ReturnType<typeof loadStall>>;
-let originalQrCode: Awaited<ReturnType<typeof loadQrCode>>;
+let originalQrCodes: Awaited<ReturnType<typeof loadQrCodes>> = [];
 
 async function loadCapacity() {
   return prisma.stallCapacitySettings.findUniqueOrThrow({ where: { stallId } });
@@ -34,6 +36,25 @@ async function loadQrCode() {
   });
 }
 
+async function loadQrCodes() {
+  return prisma.qrCode.findMany({
+    where: { stallId },
+    select: { id: true, state: true, expiresAt: true },
+    orderBy: { id: "asc" },
+  });
+}
+
+async function waitForReactHandler(control: Locator, handler: "onClick" | "onChange") {
+  await expect.poll(() => control.evaluate((element, eventName) => {
+    const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps$"));
+    if (!propsKey) return false;
+    const props = (element as unknown as Record<string, unknown>)[propsKey];
+    return typeof props === "object"
+      && props !== null
+      && typeof (props as Record<string, unknown>)[eventName] === "function";
+  }, handler), { message: `等待 React 掛載 ${handler}` }).toBe(true);
+}
+
 async function resetOpenCapacity() {
   await prisma.$transaction([
     prisma.stallCapacitySettings.update({
@@ -56,8 +77,8 @@ async function resetOpenCapacity() {
         isSoldOut: false,
       },
     }),
-    prisma.qrCode.update({
-      where: { id: qrCodeId },
+    prisma.qrCode.updateMany({
+      where: { stallId },
       data: { state: "ACTIVE", expiresAt: null },
     }),
   ]);
@@ -78,10 +99,10 @@ async function login(page: Page, email: string) {
 
 test.describe.serial("產能與等候時間", () => {
   test.beforeAll(async () => {
-    [originalCapacity, originalStall, originalQrCode] = await Promise.all([
+    [originalCapacity, originalStall, originalQrCodes] = await Promise.all([
       loadCapacity(),
       loadStall(),
-      loadQrCode(),
+      loadQrCodes(),
     ]);
   });
 
@@ -90,7 +111,7 @@ test.describe.serial("產能與等候時間", () => {
   });
 
   test.afterAll(async () => {
-    if (originalCapacity && originalStall && originalQrCode) {
+    if (originalCapacity && originalStall) {
       await prisma.$transaction([
         prisma.stallCapacitySettings.update({
           where: { stallId },
@@ -113,7 +134,10 @@ test.describe.serial("產能與等候時間", () => {
           },
         }),
         prisma.stall.update({ where: { id: stallId }, data: originalStall }),
-        prisma.qrCode.update({ where: { id: qrCodeId }, data: originalQrCode }),
+        ...originalQrCodes.map((qrCode) => prisma.qrCode.update({
+          where: { id: qrCode.id },
+          data: { state: qrCode.state, expiresAt: qrCode.expiresAt },
+        })),
       ]);
     }
     await prisma.$disconnect();
@@ -147,17 +171,25 @@ test.describe.serial("產能與等候時間", () => {
   test("店員可手動暫停及恢復公開接單", async ({ page }) => {
     await login(page, "staff@stallorder.test");
     await expect(page).toHaveURL(/\/staff\/aming-chicken/, { timeout: 30_000 });
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      const warmupResponse = await page.context().request.get(capacityApiPath);
+      expect(warmupResponse.status()).toBe(200);
+      await warmupResponse.dispose();
+    }
+    await gotoLocalPath(page, `/staff/${stallSlug}`);
 
     const panel = page.locator("details").filter({ hasText: "產能與等候時間" }).first();
     await expect(panel).toBeVisible();
     await panel.locator("summary").click();
     await panel.getByLabel("操作原因").fill("E2E 現場人力調整");
 
+    const pauseButton = panel.getByRole("button", { name: "暫停接單", exact: true });
+    await waitForReactHandler(pauseButton, "onClick");
     const pauseResponse = page.waitForResponse((response) => (
-      response.url().endsWith(`/api/stalls/${stallSlug}/capacity`)
+      new URL(response.url()).pathname === capacityApiPath
       && response.request().method() === "PATCH"
     ));
-    await panel.getByRole("button", { name: "暫停接單", exact: true }).click();
+    await pauseButton.click();
     expect((await pauseResponse).status()).toBe(200);
     await expect(panel.getByRole("status")).toHaveText("已暫停公開接單。");
     await expect.poll(async () => (await loadCapacity()).pauseSource).toBe("MANUAL");
@@ -165,11 +197,13 @@ test.describe.serial("產能與等候時間", () => {
     await expect.poll(async () => (await loadQrCode()).state).toBe("PAUSED");
 
     await panel.getByLabel("操作原因").fill("E2E 現場恢復正常");
+    const resumeButton = panel.getByRole("button", { name: "恢復接單", exact: true });
+    await waitForReactHandler(resumeButton, "onClick");
     const resumeResponse = page.waitForResponse((response) => (
-      response.url().endsWith(`/api/stalls/${stallSlug}/capacity`)
+      new URL(response.url()).pathname === capacityApiPath
       && response.request().method() === "PATCH"
     ));
-    await panel.getByRole("button", { name: "恢復接單", exact: true }).click();
+    await resumeButton.click();
     expect((await resumeResponse).status()).toBe(200);
     await expect(panel.getByRole("status")).toHaveText("已恢復公開接單。");
     await expect.poll(async () => (await loadCapacity()).pauseSource).toBe("NONE");
@@ -211,6 +245,7 @@ test.describe.serial("產能與等候時間", () => {
     await product.getByRole("button", { name: "增加 香酥雞排" }).click();
     await product.getByRole("button", { name: "加入購物車", exact: true }).click();
     await page.getByTestId("qr-mobile-cart-summary").click();
+    await page.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
 
     const submit = page.getByRole("button", { name: "送出訂單", exact: true });
     const acknowledgement = page.getByRole("checkbox", { name: /我已了解目前預估等候時間為 35 分鐘/ });

@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   lookupResumablePublicOrder: vi.fn(),
   persistPickupCodeDisplay: vi.fn(),
   recordPublicOrderAttempt: vi.fn(),
-  resolvePublicOrderingMode: vi.fn(),
   revokeOrderSession: vi.fn(),
 }));
 
@@ -53,7 +52,6 @@ vi.mock("@/server/public-order/trusted-rpc-repository", () => ({
   lookupResumablePublicOrder: mocks.lookupResumablePublicOrder,
   persistPickupCodeDisplay: mocks.persistPickupCodeDisplay,
   recordPublicOrderAttempt: mocks.recordPublicOrderAttempt,
-  resolvePublicOrderingMode: mocks.resolvePublicOrderingMode,
   revokeOrderSession: mocks.revokeOrderSession,
 }));
 
@@ -93,9 +91,6 @@ describe("Circuit B public order service", () => {
     });
     mocks.checkGlobalPublicRequestGate.mockResolvedValue({ ok: true });
     mocks.checkPublicOrderIntakeAvailability.mockResolvedValue({ ok: true });
-    mocks.resolvePublicOrderingMode.mockImplementation(
-      async (_qrToken: string, orderingMode: string) => orderingMode,
-    );
     mocks.lookupResumablePublicOrder.mockResolvedValue(null);
     mocks.getOrderSessionMode.mockResolvedValue({
       id: "66666666-6666-4666-8666-666666666666",
@@ -214,8 +209,7 @@ describe("Circuit B public order service", () => {
     expect(mocks.checkGlobalPublicRequestGate).not.toHaveBeenCalled();
   });
 
-  it("uses the resolved preorder mode for resume, session issue, menu cache, and response", async () => {
-    mocks.resolvePublicOrderingMode.mockResolvedValue("PREORDER");
+  it("uses an explicitly requested preorder mode for resume, session issue, menu cache, and response", async () => {
     mocks.issueIdempotentOrderSession.mockResolvedValue({
       ok: true,
       stall_id: "88888888-8888-4888-8888-888888888888",
@@ -248,7 +242,7 @@ describe("Circuit B public order service", () => {
       qrToken: "demo-aming-chicken-qr-2026-rotate-me",
       deviceId: "11111111-1111-4111-8111-111111111111",
       sessionRequestId: "22222222-2222-4222-8222-222222222222",
-      orderingMode: "DEFAULT",
+      orderingMode: "PREORDER",
       includeMenu: true,
     }, {
       clientIp: "203.0.113.8",
@@ -274,6 +268,68 @@ describe("Circuit B public order service", () => {
       estimatedWaitMinMinutes: 0,
       estimatedWaitMaxMinutes: 0,
       waitAcknowledgmentThresholdMinutes: null,
+      requiresWaitAcknowledgment: false,
+    });
+  });
+
+  it("keeps a physical QR DEFAULT session immediate instead of promoting it to preorder", async () => {
+    mocks.issueIdempotentOrderSession.mockResolvedValue({
+      ok: true,
+      stall_id: "88888888-8888-4888-8888-888888888888",
+      order_session_id: "66666666-6666-4666-8666-666666666666",
+      expires_at: "2026-08-02T12:00:00.000Z",
+      capacity: {
+        quote_min_minutes: 10,
+        quote_max_minutes: 15,
+        acknowledgment_threshold_minutes: 20,
+        requires_acknowledgment: false,
+      },
+    });
+    mocks.getPublicSessionMenuContext.mockResolvedValue({
+      diningTable: null,
+      stall: {
+        orderingSettings: {
+          dineInEnabled: true,
+          deliveryModuleEnabled: true,
+        },
+      },
+    });
+    mocks.getCachedPublicMenuForQrToken.mockResolvedValue({
+      orderingMode: "DEFAULT",
+      preorderSlots: [],
+      lotteryEnabled: false,
+    });
+    const { issueOrderSessionThroughCircuitB } = await import("./circuit-b-service");
+
+    const result = await issueOrderSessionThroughCircuitB({
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      sessionRequestId: "22222222-2222-4222-8222-222222222222",
+      orderingMode: "DEFAULT",
+      includeMenu: true,
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    });
+
+    expect(mocks.lookupResumablePublicOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ orderingMode: "DEFAULT" }),
+    );
+    expect(mocks.issueIdempotentOrderSession).toHaveBeenCalledWith(
+      expect.objectContaining({ orderingMode: "DEFAULT" }),
+    );
+    expect(mocks.getCachedPublicMenuForQrToken).toHaveBeenCalledWith(
+      "demo-aming-chicken-qr-2026-rotate-me",
+      "DEFAULT",
+    );
+    expect(result.body).toMatchObject({
+      orderingMode: "DEFAULT",
+      preorderSlots: [],
+      estimatedWaitMinutes: 15,
+      estimatedWaitMinMinutes: 10,
+      estimatedWaitMaxMinutes: 15,
+      waitAcknowledgmentThresholdMinutes: 20,
       requiresWaitAcknowledgment: false,
     });
   });

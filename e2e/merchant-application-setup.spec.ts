@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
+import { gotoLocalPath } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -94,7 +95,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
   test("申請不建商家；核准後維持 CLOSED/PAUSED，完成測試訂單才開放", async ({ page }) => {
     test.setTimeout(120_000);
     await login(page, adminEmail);
-    await page.goto(`/admin/merchant-applications/${applicationId}`);
+    await gotoLocalPath(page, `/admin/merchant-applications/${applicationId}`);
     await expect(page.getByRole("heading", { name: "申請流程測試商家" })).toBeVisible();
     await page.getByText("要求補件或核准", { exact: true }).click();
     page.once("dialog", (dialog) => dialog.accept());
@@ -136,13 +137,13 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     ]);
     expect(organization.merchantSetupProgress?.goLiveCompleted).toBe(false);
 
-    await page.goto(`/merchant/dashboard?organizationId=${organizationId}`);
+    await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organizationId}`);
     await expect(page.getByLabel("選擇商家")).toBeVisible();
     await page.getByLabel("選擇商家").selectOption(demoOrganizationId);
     await expect(page).toHaveURL(
       new RegExp(`/merchant/stalls\\?organizationId=${demoOrganizationId}$`),
     );
-    await page.goto(`/merchant/dashboard?organizationId=${organizationId}`);
+    await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organizationId}`);
     await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);
 
     await page.context().clearCookies();
@@ -151,12 +152,12 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     await expect(page.getByRole("heading", { name: "開店設定" })).toBeVisible();
     await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);
 
-    await page.goto(`/merchant/stalls/${organization.stalls[0].id}`);
+    await gotoLocalPath(page, `/merchant/stalls/${organization.stalls[0].id}`);
     await expect(page.getByRole("link", { name: "開店設定", exact: true })).toHaveAttribute(
       "href",
       `/merchant/setup?organizationId=${organizationId}`,
     );
-    await page.goto(`/merchant/setup?organizationId=${organizationId}`);
+    await gotoLocalPath(page, `/merchant/setup?organizationId=${organizationId}`);
 
     const merchantProfileStep = page.getByRole("article").filter({ hasText: "商家資料" });
     const stallProfileStep = page.getByRole("article").filter({ hasText: "攤位資料" });
@@ -178,7 +179,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
       const step = page.getByRole("article").filter({ hasText: label });
       const href = await step.getByRole("link", { name: "前往設定" }).getAttribute("href");
       if (!href) throw new Error(`${label} 缺少設定連結`);
-      await page.goto(href);
+      await gotoLocalPath(page, href);
       const backLink = page.getByRole("link", { name: "返回開店設定", exact: true });
       await expect(backLink).toHaveAttribute("href", `/merchant/setup?organizationId=${organizationId}`);
       await backLink.click();
@@ -203,7 +204,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
       where: { organizationId, referenceId: createdTestOrder.id, eventType: "BILLABLE_ORDER_COMPLETED" },
     })).toBe(0);
 
-    await page.goto(`/staff/${requestedSlug}`);
+    await gotoLocalPath(page, `/staff/${requestedSlug}`);
     const orderCard = page.getByRole("article").filter({ hasText: createdTestOrder.orderNo });
     await expect(orderCard.getByText("開店測試訂單")).toBeVisible();
     await orderCard.getByRole("button", { name: "確認接單" }).click();
@@ -216,7 +217,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
       where: { organizationId, referenceId: createdTestOrder.id, eventType: "BILLABLE_ORDER_COMPLETED" },
     })).toBe(0);
 
-    await page.goto(`/merchant/setup?organizationId=${organizationId}`);
+    await gotoLocalPath(page, `/merchant/setup?organizationId=${organizationId}`);
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "正式開放 QR 接單" }).click();
     await expect(page.getByText("QR 點餐已開放，攤位目前可接收正式訂單。")).toBeVisible();
@@ -238,9 +239,14 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
       { timeout: 30_000 },
     );
     await expect(page.getByText("多攤位營運總覽", { exact: true })).toBeVisible();
+    await gotoLocalPath(page, `/merchant/stalls/${live.stall.id}`);
+    await expect(page.getByRole("link", { name: "開店設定", exact: true })).toHaveAttribute(
+      "href",
+      `/merchant/setup?organizationId=${organizationId}`,
+    );
 
     await prisma.merchantSetupProgress.delete({ where: { organizationId } });
-    await page.goto(`/merchant/setup?organizationId=${organizationId}`);
+    await gotoLocalPath(page, `/merchant/setup?organizationId=${organizationId}`);
     await expect(page.getByRole("heading", { name: "目前沒有待完成的開店流程" })).toBeVisible();
     await expect(page.getByRole("main").getByRole("link", { name: "管理攤位" })).toBeVisible();
     await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);
@@ -248,7 +254,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
 });
 
 async function login(page: Page, email: string) {
-  await page.goto("/login");
+  await gotoLocalPath(page, "/login");
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);

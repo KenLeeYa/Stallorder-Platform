@@ -1,6 +1,8 @@
 export const QR_CART_TTL_MS = 24 * 60 * 60 * 1000;
-export const QR_CART_VERSION = 2;
+export const QR_CART_VERSION = 3;
 export const QR_CART_MAX_LINES = 100;
+
+export type QrCartOrderingMode = "DEFAULT" | "DELIVERY" | "PREORDER";
 
 export type QrCartLine = {
   id: string;
@@ -14,6 +16,8 @@ export type QrCartLine = {
 export type QrCartDraft = {
   version: typeof QR_CART_VERSION;
   savedAt: number;
+  orderingMode: QrCartOrderingMode;
+  scheduledPickupAt: string;
   customerName: string;
   customerNote: string;
   customerPhone?: string;
@@ -32,6 +36,10 @@ export type QrCartLimits = {
   maxUniqueProducts: number;
   maxTotalQuantity: number;
   maxNoteLength: number;
+};
+
+type QrCartRestoreContext = {
+  orderingMode: QrCartOrderingMode;
 };
 
 type LegacyQrCartDraft = {
@@ -103,6 +111,34 @@ export function updateQrCartLineQuantity(
   return lines.map((line) => line.id === lineId ? { ...line, quantity: nextQuantity } : line);
 }
 
+export function replaceQrCartLine(
+  lines: readonly QrCartLine[],
+  lineId: string,
+  input: Omit<QrCartLine, "id">,
+  limits: QrCartLimits,
+): QrCartLine[] | null {
+  const current = lines.find((line) => line.id === lineId);
+  const quantity = Math.trunc(input.quantity);
+  if (!current || quantity < 1) return null;
+
+  const otherLines = lines.filter((line) => line.id !== lineId);
+  if (qrCartProductQuantity(otherLines, input.productId) + quantity > limits.maxItemQuantity) return null;
+  if (qrCartTotalQuantity(otherLines) + quantity > limits.maxTotalQuantity) return null;
+
+  const distinctProducts = new Set(otherLines.map((line) => line.productId));
+  if (!distinctProducts.has(input.productId) && distinctProducts.size >= limits.maxUniqueProducts) return null;
+
+  const duplicate = otherLines.find((line) => qrCartLineKey(line) === qrCartLineKey(input));
+  const replacement = {
+    ...input,
+    id: lineId,
+    quantity: quantity + (duplicate?.quantity ?? 0),
+  };
+  return lines
+    .filter((line) => line.id !== duplicate?.id)
+    .map((line) => line.id === lineId ? replacement : line);
+}
+
 export function serializeQrCartDraft(draft: Omit<QrCartDraft, "version" | "savedAt">, now = Date.now()) {
   return JSON.stringify({ ...draft, version: QR_CART_VERSION, savedAt: now });
 }
@@ -112,6 +148,7 @@ export function restoreQrCartDraft(
   products: CatalogProduct[],
   limits: QrCartLimits,
   now = Date.now(),
+  context?: QrCartRestoreContext,
 ): QrCartDraft | null {
   if (!raw) return null;
   let parsed: unknown;
@@ -124,8 +161,24 @@ export function restoreQrCartDraft(
     || now - Number(parsed.savedAt) > QR_CART_TTL_MS
     || now < Number(parsed.savedAt)) return null;
 
+  const isCurrentDraft = parsed.version === QR_CART_VERSION;
+  const isPreviousLineDraft = parsed.version === 2;
+  const parsedOrderingMode = isQrCartOrderingMode(parsed.orderingMode)
+    ? parsed.orderingMode
+    : null;
+  if (isCurrentDraft && (!parsedOrderingMode
+    || (context && parsedOrderingMode !== context.orderingMode))) return null;
+  const orderingMode = isCurrentDraft
+    ? parsedOrderingMode as QrCartOrderingMode
+    : context?.orderingMode ?? "DEFAULT";
+  const scheduledPickupAt = orderingMode !== "DEFAULT"
+    && isCurrentDraft
+    && typeof parsed.scheduledPickupAt === "string"
+    ? parsed.scheduledPickupAt.slice(0, 64)
+    : "";
+
   const productsById = new Map(products.map((product) => [product.id, product]));
-  const rawLines = parsed.version === QR_CART_VERSION && Array.isArray(parsed.lines)
+  const rawLines = (isCurrentDraft || isPreviousLineDraft) && Array.isArray(parsed.lines)
     ? parsed.lines
     : legacyLines(parsed, products);
   const lines: QrCartLine[] = [];
@@ -173,11 +226,14 @@ export function restoreQrCartDraft(
     : "";
   const customerPhone = typeof parsed.customerPhone === "string" ? parsed.customerPhone.slice(0, 30) : "";
   const deliveryAddress = typeof parsed.deliveryAddress === "string" ? parsed.deliveryAddress.slice(0, 300) : "";
-  if (lines.length === 0 && !customerName && !customerNote && !customerPhone && !deliveryAddress) return null;
+  if (lines.length === 0 && !customerName && !customerNote && !customerPhone && !deliveryAddress
+    && !(orderingMode !== "DEFAULT" && scheduledPickupAt)) return null;
 
   return {
     version: QR_CART_VERSION,
     savedAt: Number(parsed.savedAt),
+    orderingMode,
+    scheduledPickupAt,
     customerName,
     customerNote,
     customerPhone,
@@ -210,4 +266,8 @@ function sanitizedIds(value: unknown, allowed: ReadonlySet<string>) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isQrCartOrderingMode(value: unknown): value is QrCartOrderingMode {
+  return value === "DEFAULT" || value === "DELIVERY" || value === "PREORDER";
 }

@@ -5,6 +5,9 @@ import {
 import { isSupportedPublicOrderProtocol } from "./public-order-protocol.ts";
 
 const MAX_CONTENT_LENGTH = 32_000;
+const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export const PUBLIC_ORDER_OPERATION_ID_HEADER = "x-stallorder-operation-id";
 
 export { errorMessage, statusForCode };
 
@@ -25,7 +28,8 @@ export function getCorsHeaders(request: Request, allowedOrigins: readonly string
   return {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "authorization, apikey, content-type, x-client-info, x-stallorder-protocol-version",
+    "access-control-allow-headers": `authorization, apikey, content-type, x-client-info, x-stallorder-protocol-version, ${PUBLIC_ORDER_OPERATION_ID_HEADER}`,
+    "access-control-expose-headers": `x-request-id, ${PUBLIC_ORDER_OPERATION_ID_HEADER}`,
     "access-control-max-age": "86400",
     "vary": "Origin",
   };
@@ -37,11 +41,19 @@ export function assertSupportedPublicOrderProtocol(request: Request) {
   }
 }
 
+export function getPublicOrderOperationId(request: Request) {
+  const candidate = request.headers.get(PUBLIC_ORDER_OPERATION_ID_HEADER)?.trim();
+  return candidate && UUID_V4_PATTERN.test(candidate)
+    ? candidate.toLowerCase()
+    : crypto.randomUUID();
+}
+
 export function jsonResponse(
   body: unknown,
   status: number,
   corsHeaders: Record<string, string>,
   requestId: string,
+  operationId?: string,
 ) {
   return Response.json(body, {
     status,
@@ -50,6 +62,7 @@ export function jsonResponse(
       "cache-control": "no-store",
       "x-content-type-options": "nosniff",
       "x-request-id": requestId,
+      ...(operationId ? { [PUBLIC_ORDER_OPERATION_ID_HEADER]: operationId } : {}),
     },
   });
 }

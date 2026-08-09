@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 
 loadLocalEnv();
@@ -46,7 +46,9 @@ test.describe.serial("現金交班與短溢收", () => {
   test.afterAll(async () => {
     try {
       await cleanupFixtures();
-      await prisma.authSession.deleteMany({ where: { profileId: financeProfileId || undefined } });
+      if (financeProfileId) {
+        await prisma.authSession.deleteMany({ where: { profileId: financeProfileId } });
+      }
       await prisma.profile.deleteMany({ where: { email: financeEmail } });
       await prisma.rateLimitBucket.deleteMany();
     } finally {
@@ -59,6 +61,8 @@ test.describe.serial("現金交班與短溢收", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page, "staff@stallorder.test", /\/staff\/aming-chicken/);
     await page.goto(`/staff/${stallSlug}/cash`);
+    await page.getByRole("button", { name: "開始現金班次" }).click();
+    await expect(page.getByRole("dialog", { name: "開啟現金班次" })).toBeVisible();
     await page.getByLabel("開班金額").fill("1000");
     await page.getByLabel("備註（選填）").fill("Cash shift E2E 班次");
     await page.getByRole("button", { name: "開始班次" }).click();
@@ -69,9 +73,19 @@ test.describe.serial("現金交班與短溢收", () => {
       select: { id: true },
     })).id;
 
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      const warmupResponse = await page.context().request.get(
+        `/api/stalls/${stallSlug}/pos-configuration?includeCatalog=true`,
+      );
+      expect(warmupResponse.status()).toBe(200);
+      await warmupResponse.dispose();
+    }
     await page.goto(`/staff/${stallSlug}`);
-    await page.getByRole("button", { name: "店員點餐" }).click();
+    const openComposerButton = page.getByRole("button", { name: "店員點餐" });
+    await waitForReactHydration(openComposerButton);
+    await openComposerButton.click();
     const composer = page.getByRole("dialog", { name: "店員點餐與結帳" });
+    await expect(composer).toBeVisible();
     await composer.getByTitle(/^增加 /).first().click();
     const requiredGroups = composer.locator("fieldset");
     for (let index = 0; index < await requiredGroups.count(); index += 1) {
@@ -103,6 +117,7 @@ test.describe.serial("現金交班與短溢收", () => {
     expect(paidOrder.payment?.cashShiftId).toBe(shiftId);
 
     await page.goto(`/staff/${stallSlug}/cash`);
+    await page.getByRole("button", { name: "記錄收支" }).click();
     await page.getByLabel("金額", { exact: true }).fill("200");
     await page.getByLabel("原因", { exact: true }).fill("補入零用金");
     const movementButton = page.getByRole("button", { name: "新增紀錄" });
@@ -113,6 +128,7 @@ test.describe.serial("現金交班與短溢收", () => {
     await movementButton.click();
     expect((await cashInResponse).status()).toBe(200);
     await expect(page.getByText(/補入零用金/)).toBeVisible();
+    await page.getByRole("button", { name: "記錄收支" }).click();
     await page.getByLabel("類型").selectOption("CASH_OUT");
     await page.getByLabel("金額", { exact: true }).fill("50");
     await page.getByLabel("原因", { exact: true }).fill("臨時採買");
@@ -124,10 +140,12 @@ test.describe.serial("現金交班與短溢收", () => {
     expect((await cashOutResponse).status()).toBe(200);
     await expect(page.getByText(/臨時採買/)).toBeVisible();
 
+    await page.getByRole("button", { name: "現金退款" }).click();
     await page.getByLabel("原付款").selectOption(paidOrder.payment!.id);
     await page.getByLabel("退款原因").fill("顧客取消餐點");
     await page.getByRole("button", { name: "確認退款" }).click();
     await expect(page.getByRole("status")).toContainText("現金退款已記錄");
+    await page.getByRole("button", { name: "盤點交班" }).click();
     await page.getByLabel("實際盤點金額").fill("1100");
     await expect(page.getByText("短收", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "送出交班複核" }).click();
@@ -155,16 +173,100 @@ test.describe.serial("現金交班與短溢收", () => {
     expect(completed.reviews.at(-1)?.decision).toBe("APPROVED");
   });
 
+  test("手機現金 Dashboard 在 320、390 與 768 寬度可掃讀且操作視窗可捲動與還原焦點", async ({ page }) => {
+    await login(page, "staff@stallorder.test", /\/staff\/aming-chicken/);
+    await page.goto(`/staff/${stallSlug}/cash`);
+
+    for (const viewport of [
+      { width: 320, height: 568 },
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect(page.getByTestId("cash-shift-dashboard")).toBeVisible();
+      const layout = await page.evaluate(() => ({
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      }));
+      expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
+    }
+
+    await page.setViewportSize({ width: 320, height: 260 });
+    const openButton = page.getByRole("button", { name: "開始現金班次" });
+    await openButton.focus();
+    await openButton.click();
+    const dialog = page.getByRole("dialog", { name: "開啟現金班次" });
+    await expect(dialog).toBeVisible();
+    await expect(page.getByLabel("開班金額")).toBeFocused();
+    const dialogLayout = await dialog.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      viewportHeight: window.innerHeight,
+    }));
+    expect(dialogLayout.clientHeight).toBeLessThanOrEqual(dialogLayout.viewportHeight - 16);
+    expect(dialogLayout.scrollHeight).toBeGreaterThan(dialogLayout.clientHeight);
+    expect(dialogLayout.scrollWidth).toBeLessThanOrEqual(dialogLayout.clientWidth);
+    await dialog.getByRole("button", { name: "開始班次" }).scrollIntoViewIfNeeded();
+    await expect(dialog.getByRole("button", { name: "開始班次" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(openButton).toBeFocused();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openButton.click();
+    await page.getByLabel("開班金額").fill("500");
+    await page.getByLabel("備註（選填）").fill("Cash shift E2E responsive dashboard");
+    await page.getByRole("button", { name: "開始班次" }).click();
+    await expect(page.getByText("班次進行中", { exact: true })).toBeVisible();
+
+    for (const viewport of [
+      { width: 320, height: 568, metricColumns: 2, actionColumns: 2 },
+      { width: 390, height: 844, metricColumns: 3, actionColumns: 3 },
+      { width: 768, height: 1024, metricColumns: 4, actionColumns: 3 },
+    ]) {
+      await page.setViewportSize(viewport);
+      const columns = await page.evaluate(() => ({
+        metrics: getComputedStyle(document.querySelector<HTMLElement>("[data-testid='cash-shift-dashboard']")!).gridTemplateColumns.split(" ").length,
+        actions: getComputedStyle(document.querySelector<HTMLElement>("[data-testid='cash-shift-actions-dashboard']")!).gridTemplateColumns.split(" ").length,
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      }));
+      expect(columns.metrics).toBe(viewport.metricColumns);
+      expect(columns.actions).toBe(viewport.actionColumns);
+      expect(columns.scrollWidth).toBeLessThanOrEqual(columns.clientWidth);
+    }
+  });
+
   test("財務角色唯讀，廚房角色無法存取現金資料", async ({ browser }) => {
     const financePage = await newRolePage(browser, financeEmail, /\/merchant\/dashboard/);
     await financePage.goto(`/staff/${stallSlug}/cash`);
     await expect(financePage.getByText(/目前為唯讀模式/)).toBeVisible();
-    await expect(financePage.getByRole("button", { name: "開始班次" })).toHaveCount(0);
+    await expect(financePage.getByRole("button", { name: "開始現金班次", exact: true })).toHaveCount(0);
     await financePage.goto(`/merchant/reports/cash-shifts?organizationId=${organizationId}&stallId=${stallId}`);
     await expect(financePage.getByRole("heading", { name: "現金交班與短溢收" })).toBeVisible();
     const reportRow = financePage.getByRole("article").filter({ hasText: "$1,150" });
     await expect(reportRow).toContainText("已結班");
     await expect(reportRow).toContainText("-$50");
+    for (const viewport of [
+      { width: 320, height: 568 },
+      { width: 390, height: 844 },
+    ]) {
+      await financePage.setViewportSize(viewport);
+      const summaryDashboard = financePage.getByTestId("cash-shift-report-dashboard");
+      await expect(summaryDashboard).toBeVisible();
+      await expect(summaryDashboard).toContainText("現金銷售");
+      await expect(summaryDashboard).toContainText("短溢收合計");
+      await expect(summaryDashboard).toContainText("待複核");
+      const layout = await financePage.evaluate(() => ({
+        columns: getComputedStyle(document.querySelector<HTMLElement>("[data-testid='cash-shift-report-dashboard']")!).gridTemplateColumns.split(" ").length,
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      }));
+      expect(layout.columns).toBe(2);
+      expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
+    }
     await financePage.context().close();
 
     const kitchenPage = await newRolePage(browser, "kitchen@stallorder.test", /\/kitchen/);
@@ -177,6 +279,14 @@ test.describe.serial("現金交班與短溢收", () => {
     await kitchenPage.context().close();
   });
 });
+
+async function waitForReactHydration(control: Locator) {
+  await expect.poll(() => control.evaluate((element) => (
+    Object.keys(element).some((key) => (
+      key.startsWith("__reactProps$") || key.startsWith("__reactFiber$")
+    ))
+  )), { message: "等待 React 完成控制項 hydration" }).toBe(true);
+}
 
 async function newRolePage(browser: Browser, email: string, destination: RegExp) {
   const context = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });

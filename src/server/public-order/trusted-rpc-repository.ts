@@ -90,7 +90,8 @@ export function lookupResumablePublicOrder(input: {
     ${input.ipHash}::text,
     ${input.qrTokenHash}::text,
     ${input.behaviorHash}::text,
-    ${input.requestId}::text
+    ${input.requestId}::text,
+    ${input.orderingMode}::text
   `;
   return input.orderingMode === "DELIVERY"
     ? jsonResult<{ order_id: string; order_status: string }>(Prisma.sql`

@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(37);
+select plan(42);
 
 delete from public.public_order_attempts;
 delete from public.public_rate_limit_buckets;
@@ -105,6 +105,18 @@ select ok(
   'anonymous users cannot execute the trusted capacity calculator'
 );
 select ok(
+  not has_function_privilege(
+    'anon', 'public.refresh_stall_capacity(uuid,boolean,text)', 'EXECUTE'
+  ),
+  'anonymous users cannot execute the trusted capacity refresh'
+);
+select ok(
+  has_function_privilege(
+    'service_role', 'public.refresh_stall_capacity(uuid,boolean,text)', 'EXECUTE'
+  ),
+  'the service role retains access to the trusted capacity refresh'
+);
+select ok(
   exists (
     select 1 from public.plan_entitlements
     where feature_code = 'WAIT_TIME_QUOTE' and is_enabled
@@ -135,6 +147,32 @@ set window_minutes = 15,
     auto_resume_enabled = false,
     pause_source = 'NONE'
 where stall_id = '22222222-2222-4222-8222-222222222222';
+
+create temporary table capacity_refresh_results (
+  name text primary key,
+  snapshot jsonb not null
+);
+insert into capacity_refresh_results values (
+  'no_action_expected',
+  public.calculate_stall_capacity(
+    '22222222-2222-4222-8222-222222222222',
+    '[]'::jsonb
+  )
+), (
+  'no_action_actual',
+  public.refresh_stall_capacity(
+    '22222222-2222-4222-8222-222222222222',
+    false,
+    'NO_ACTION_SNAPSHOT_TEST'
+  )
+);
+select is(
+  (select (snapshot - 'window_start') - 'window_end'
+   from capacity_refresh_results where name = 'no_action_actual'),
+  (select (snapshot - 'window_start') - 'window_end'
+   from capacity_refresh_results where name = 'no_action_expected'),
+  'a refresh without state changes returns the authoritative first snapshot'
+);
 
 create temporary table capacity_test_values (
   name text primary key,
@@ -195,6 +233,38 @@ select ok(
   > (select value from capacity_test_values where name = 'empty_quote'),
   'the quoted wait increases when confirmed workload increases'
 );
+
+update public.stall_capacity_settings
+set warning_utilization_percent = 50
+where stall_id = '22222222-2222-4222-8222-222222222222';
+insert into capacity_refresh_results values (
+  'warning_only',
+  public.refresh_stall_capacity(
+    '22222222-2222-4222-8222-222222222222',
+    false,
+    'WARNING_WITHOUT_STATE_CHANGE_TEST'
+  )
+);
+select is(
+  (select jsonb_build_object(
+     'pause_source', snapshot->>'pause_source',
+     'accepting_public_orders', (snapshot->>'accepting_public_orders')::boolean
+   ) from capacity_refresh_results where name = 'warning_only'),
+  jsonb_build_object(
+    'pause_source', 'NONE',
+    'accepting_public_orders', true
+  ),
+  'a warning-only refresh returns an open snapshot without changing ordering state'
+);
+select is(
+  (select count(*)::integer from public.capacity_events
+   where event_type = 'CAPACITY_WARNING'),
+  1,
+  'a warning-only refresh emits one capacity warning event'
+);
+update public.stall_capacity_settings
+set warning_utilization_percent = 75
+where stall_id = '22222222-2222-4222-8222-222222222222';
 
 delete from public.orders where id = 'c1000000-0000-4000-8000-000000000001';
 insert into public.product_capacity_rules (

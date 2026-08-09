@@ -94,10 +94,19 @@ test.describe("中央設定欄位錯誤", () => {
     test.setTimeout(120_000);
     await login(page);
 
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      const warmupResponse = await page.context().request.get(
+        `/api/merchant/organizations/${organizationId}/profile`,
+      );
+      expect(warmupResponse.status()).toBe(405);
+      await warmupResponse.dispose();
+    }
     await page.goto(`/merchant/organization?organizationId=${organizationId}`);
+    const saveOrganizationButton = page.getByRole("button", { name: "儲存商家資料" });
+    await waitForReactHydration(saveOrganizationButton);
     const businessName = page.getByLabel("商家名稱");
     await businessName.fill("");
-    await page.getByRole("button", { name: "儲存商家資料" }).click();
+    await saveOrganizationButton.click();
     await expectInvalidField(page, businessName, "「商家名稱」輸入不正確，請依欄位限制重新輸入。");
     await expect(businessName).toHaveValue("");
 
@@ -143,6 +152,14 @@ async function expectInvalidField(page: Page, field: Locator, message: string) {
   await expect(field).toHaveAttribute("aria-invalid", "true");
   await expect(field).toBeFocused();
   await expect(field).toHaveAttribute("aria-describedby", /-error$/);
+}
+
+async function waitForReactHydration(control: Locator) {
+  await expect.poll(() => control.evaluate((element) => (
+    Object.keys(element).some((key) => (
+      key.startsWith("__reactProps$") || key.startsWith("__reactFiber$")
+    ))
+  )), { message: "等待 React 完成控制項 hydration" }).toBe(true);
 }
 
 async function login(page: Page) {

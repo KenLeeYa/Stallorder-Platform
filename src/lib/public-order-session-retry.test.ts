@@ -19,6 +19,7 @@ describe("public order session request id retry policy", () => {
   });
 
   it.each([
+    [408, "ORDER_CREATE_ERROR"],
     [500, "ORDER_CREATE_ERROR"],
     [503, "QR_ORDERING_UNAVAILABLE"],
     [502, ""],

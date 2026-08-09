@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  QR_LOCALES,
   localizedPublicOrderError,
   localizedQrCategory,
   preserveSupportedQrLocale,
+  qrOrderMessages,
   resolvePreferredQrLocale,
 } from "./qr-order-i18n";
 
@@ -70,5 +72,23 @@ describe("QR 點餐介面翻譯", () => {
   it("使用目前語系顯示後端錯誤", () => {
     expect(localizedPublicOrderError("ja", "QR_REVOKED")).toContain("QRコード");
     expect(localizedPublicOrderError("th", "RATE_LIMITED")).toContain("บ่อยเกินไป");
+  });
+
+  it.each(QR_LOCALES)("%s 提供完整抽抽樂操作文案且熱銷標章不顯示名次", (locale) => {
+    const copy = qrOrderMessages[locale];
+    expect([
+      copy.lotteryRegionLabel,
+      copy.lotterySectionTitle,
+      copy.lotteryDrawingTitle,
+      copy.lotteryResultTitle,
+      copy.lotteryAccept,
+      copy.lotteryCancel,
+      copy.lotteryDailyLimitTitle,
+      copy.lotteryUnavailable,
+      copy.hotSellerBadge,
+    ].every((message) => message.trim().length > 0)).toBe(true);
+    expect(copy.lotteryRecommendation("Test")).toContain("Test");
+    expect(copy.lotteryDiscountResult("10%")).toContain("10%");
+    expect(copy.hotSellerBadge).not.toMatch(/[0-9第名]/u);
   });
 });

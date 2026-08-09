@@ -1,10 +1,22 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
+import { gotoLocalPath } from "./local-navigation";
 
 const stallId = "22222222-2222-4222-8222-222222222222";
 const password = "StallOrderDemo!2026";
 const trackingToken = `sto_${"t".repeat(48)}`;
 const qrToken = "reorder-e2e-qr-token-that-is-long-enough";
 const productId = "77777777-7777-4777-8777-777777777771";
+
+async function waitForReactHandler(control: Locator, handler: "onClick" | "onChange") {
+  await expect.poll(() => control.evaluate((element, eventName) => {
+    const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps$"));
+    if (!propsKey) return false;
+    const props = (element as unknown as Record<string, unknown>)[propsKey];
+    return typeof props === "object"
+      && props !== null
+      && typeof (props as Record<string, unknown>)[eventName] === "function";
+  }, handler), { message: `等待 React 掛載 ${handler}` }).toBe(true);
+}
 
 test.describe("LINE 通知與再次點餐", () => {
   test("商家可開啟 LINE 設定，KITCHEN 無管理權限", async ({ page, browser }) => {
@@ -55,11 +67,21 @@ test.describe("LINE 通知與再次點餐", () => {
   test("訂單追蹤可顯示 LINE 控制，並以目前價格重建新的 QR 購物車", async ({ page }) => {
     await mockPublicFunctions(page);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`/order/${trackingToken}`);
+    const trackerPath = `/order/${trackingToken}`;
+    const reorderPath = `${trackerPath}/reorder`;
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      const warmupResponse = await page.context().request.get(reorderPath);
+      expect(warmupResponse.status()).toBe(200);
+      await warmupResponse.dispose();
+    }
+    await gotoLocalPath(page, trackerPath);
     await expect(page.getByRole("heading", { name: "測試攤位" })).toBeVisible();
     await expect(page.getByRole("button", { name: "使用 LINE 接收通知" })).toBeVisible();
-    await page.getByRole("link", { name: "再次點餐" }).click();
+    const reorderLink = page.getByRole("link", { name: "再次點餐" });
+    await waitForReactHandler(reorderLink, "onClick");
+    await reorderLink.click();
 
+    await expect(page).toHaveURL(new RegExp(`${reorderPath}$`));
     await expect(page.getByRole("heading", { name: "再次點餐" })).toBeVisible();
     await expect(page.getByText("2 × 現在雞排")).toBeVisible();
     await expect(page.getByText("原 $100", { exact: true })).toBeVisible();

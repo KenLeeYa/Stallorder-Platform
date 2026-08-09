@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(31);
+select plan(35);
 
 delete from public.public_order_attempts;
 delete from public.public_rate_limit_buckets;
@@ -165,7 +165,7 @@ select is(
   public.lookup_resumable_public_order(
     'demo-aming-chicken-qr-2026-rotate-me',
     encode(extensions.digest('device-a', 'sha256'), 'hex'),
-    'resume-ip', 'resume-qr', 'resume-behavior', 'resume-request'
+    'resume-ip', 'resume-qr', 'resume-behavior', 'resume-request', 'DEFAULT'
   )->>'order_id',
   '70000000-0000-4000-8000-000000000003',
   '同一裝置重掃原 QR 可找回進行中的訂單'
@@ -173,15 +173,60 @@ select is(
 select ok(
   public.lookup_resumable_public_order(
     'demo-aming-chicken-qr-2026-rotate-me',
+    encode(extensions.digest('device-a', 'sha256'), 'hex'),
+    'resume-ip-preorder-miss', 'resume-qr-preorder-miss',
+    'resume-behavior-preorder-miss', 'resume-request-preorder-miss', 'PREORDER'
+  ) is null,
+  'PREORDER 分享連結不得找回同裝置的 DEFAULT 實體 QR 訂單'
+);
+
+update public.order_sessions
+set ordering_mode = 'PREORDER'
+where order_id = '70000000-0000-4000-8000-000000000003';
+select ok(
+  public.lookup_resumable_public_order(
+    'demo-aming-chicken-qr-2026-rotate-me',
+    encode(extensions.digest('device-a', 'sha256'), 'hex'),
+    'resume-ip-default-miss', 'resume-qr-default-miss',
+    'resume-behavior-default-miss', 'resume-request-default-miss', 'DEFAULT'
+  ) is null,
+  'DEFAULT 實體 QR 不得找回同裝置的 PREORDER 分享連結訂單'
+);
+select is(
+  public.lookup_resumable_public_order(
+    'demo-aming-chicken-qr-2026-rotate-me',
+    encode(extensions.digest('device-a', 'sha256'), 'hex'),
+    'resume-ip-preorder', 'resume-qr-preorder',
+    'resume-behavior-preorder', 'resume-request-preorder', 'PREORDER'
+  )->>'order_id',
+  '70000000-0000-4000-8000-000000000003',
+  'PREORDER 分享連結只找回 PREORDER 訂單'
+);
+update public.order_sessions
+set ordering_mode = 'DEFAULT'
+where order_id = '70000000-0000-4000-8000-000000000003';
+
+select ok(
+  public.lookup_resumable_public_order(
+    'demo-aming-chicken-qr-2026-rotate-me',
     encode(extensions.digest('device-b', 'sha256'), 'hex'),
-    'resume-ip-b', 'resume-qr-b', 'resume-behavior-b', 'resume-request-b'
+    'resume-ip-b', 'resume-qr-b', 'resume-behavior-b', 'resume-request-b', 'DEFAULT'
   ) is null,
   '不同裝置重掃同一 QR 不得取得其他顧客訂單'
 );
 select ok(
+  public.lookup_resumable_public_order(
+    'demo-aming-chicken-qr-2026-rotate-me',
+    encode(extensions.digest('device-a', 'sha256'), 'hex'),
+    'legacy-resume-ip', 'legacy-resume-qr',
+    'legacy-resume-behavior', 'legacy-resume-request'
+  ) is null,
+  '舊版未指定點餐模式的找回 RPC 安全失敗，不跨 DEFAULT 與 PREORDER 找回訂單'
+);
+select ok(
   not has_function_privilege(
     'anon',
-    'public.lookup_resumable_public_order(text,text,text,text,text,text)',
+    'public.lookup_resumable_public_order(text,text,text,text,text,text,text)',
     'EXECUTE'
   ),
   'anon 無法直接執行訂單找回 RPC'
@@ -304,7 +349,7 @@ select ok(
   public.lookup_resumable_public_order(
     'demo-aming-chicken-qr-2026-rotate-me',
     encode(extensions.digest('device-a', 'sha256'), 'hex'),
-    'resume-ip-expired', 'resume-qr-expired', 'resume-behavior-expired', 'resume-request-expired'
+    'resume-ip-expired', 'resume-qr-expired', 'resume-behavior-expired', 'resume-request-expired', 'DEFAULT'
   ) is null,
   '已逾時訂單不可再由 QR 找回'
 );

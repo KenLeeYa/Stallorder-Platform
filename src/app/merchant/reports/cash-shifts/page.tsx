@@ -42,10 +42,10 @@ export default async function CashShiftReportPage({ searchParams }: PageProps) {
   const currency = scope.workspace.defaultCurrency;
 
   return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-7 md:px-8">
-    <header><p className="text-sm font-semibold text-teal-800">跨攤位報表</p><h1 className="mt-1 text-3xl font-semibold">現金交班與短溢收</h1><p className="mt-2 text-sm text-stone-600">檢視開班、現金收支、系統應有、實際盤點及複核狀態。</p></header>
+    <header><p className="text-sm font-semibold text-teal-800">跨攤位報表</p><h1 className="mt-1 text-2xl font-semibold sm:text-3xl">現金交班與短溢收</h1><p className="mt-2 text-sm text-stone-600">檢視開班、現金收支、系統應有、實際盤點及複核狀態。</p></header>
     <ReportNavigation organizationId={scope.workspace.id} active="cash-shifts" />
     <ReportFilters organizationId={scope.workspace.id} stalls={scope.availableStalls} selectedStallIds={scope.stalls.map((stall) => stall.id)} dateFrom={scope.dateFrom} dateTo={scope.dateTo} />
-    <section className="grid border-b border-stone-200 sm:grid-cols-3 lg:grid-cols-6">
+    <section aria-label="現金交班摘要" data-testid="cash-shift-report-dashboard" className="grid grid-cols-2 gap-2 border-b border-stone-200 py-5 sm:grid-cols-3 lg:grid-cols-6">
       <SummaryMetric label="班次" value={`${rows.length} 班`} />
       <SummaryMetric label="現金銷售" value={formatMoney(summary.cashSales, currency)} />
       <SummaryMetric label="現金退款" value={formatMoney(summary.cashRefunds, currency)} />
@@ -56,8 +56,8 @@ export default async function CashShiftReportPage({ searchParams }: PageProps) {
     <section className="py-7">
       <h2 className="text-xl font-semibold">班次明細</h2>
       <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">
-        {rows.map((row) => <article key={row.id} className="py-5">
-          <div className="flex flex-wrap items-start justify-between gap-3"><div><strong>{row.stallName}</strong><p className="mt-1 text-xs text-stone-500">{row.openedByName} · {formatTaipeiDateTime(row.openedAt)}{row.closedAt ? ` 至 ${formatTaipeiDateTime(row.closedAt)}` : ""}</p></div><span className="rounded bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">{statusLabel(row.status)}</span></div>
+        {rows.map((row) => <article key={row.id} className="min-w-0 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><strong className="break-words">{row.stallName}</strong><p className="mt-1 break-words text-xs text-stone-500">{row.openedByName} · {formatTaipeiDateTime(row.openedAt)}{row.closedAt ? ` 至 ${formatTaipeiDateTime(row.closedAt)}` : ""}</p></div><span className="rounded bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">{statusLabel(row.status)}</span></div>
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4 lg:grid-cols-8">
             <Amount label="開班" value={row.openingAmount} currency={currency} />
             <Amount label="銷售" value={row.cashSales} currency={currency} />
@@ -77,11 +77,11 @@ export default async function CashShiftReportPage({ searchParams }: PageProps) {
 }
 
 function SummaryMetric({ label, value, alert = false }: { label: string; value: string; alert?: boolean }) {
-  return <div className="border-t border-stone-200 py-5 sm:px-4 lg:border-t-0"><div className="text-sm text-stone-500">{label}</div><div className={`mt-1 text-xl font-semibold ${alert ? "text-amber-800" : "text-stone-950"}`}>{value}</div></div>;
+  return <div className={`min-w-0 rounded-lg border p-3 shadow-sm ${alert ? "border-amber-200 bg-amber-50" : "border-stone-200 bg-white"}`}><div className="text-xs text-stone-500 sm:text-sm">{label}</div><div className={`mt-1 break-words text-lg font-semibold sm:text-xl ${alert ? "text-amber-800" : "text-stone-950"}`}>{value}</div></div>;
 }
 
 function Amount({ label, value, currency, signed = false, alert = false }: { label: string; value: number | null; currency: string; signed?: boolean; alert?: boolean }) {
-  return <div><dt className="text-xs text-stone-500">{label}</dt><dd className={`mt-1 font-semibold ${alert ? "text-amber-800" : "text-stone-900"}`}>{value === null ? "-" : signed ? formatSignedMoney(value, currency) : formatMoney(value, currency)}</dd></div>;
+  return <div className="min-w-0"><dt className="text-xs text-stone-500">{label}</dt><dd className={`mt-1 break-words font-semibold ${alert ? "text-amber-800" : "text-stone-900"}`}>{value === null ? "-" : signed ? formatSignedMoney(value, currency) : formatMoney(value, currency)}</dd></div>;
 }
 
 function formatSignedMoney(amount: number, currency: string) {

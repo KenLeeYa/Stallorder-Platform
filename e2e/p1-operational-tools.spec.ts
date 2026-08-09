@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 
 loadLocalEnv();
@@ -111,17 +111,25 @@ test.describe("P1 營運功能", () => {
     test.setTimeout(180_000);
     await login(page, "staff@stallorder.test");
     await page.goto("/staff/aming-chicken/cash");
-    await page.getByLabel("開班金額").fill("2000");
-    await page.getByLabel("備註（選填）").fill("P1 E2E 班次");
-    await page.getByRole("button", { name: "開始班次" }).click();
+    const openShiftTrigger = page.getByRole("button", { name: "開始現金班次", exact: true });
+    await expect(openShiftTrigger).toBeVisible();
+    await openShiftTrigger.click();
+    const openShiftDialog = page.getByRole("dialog", { name: "開啟現金班次", exact: true });
+    await expect(openShiftDialog).toBeVisible();
+    await openShiftDialog.getByLabel("開班金額").fill("2000");
+    await openShiftDialog.getByLabel("備註（選填）").fill("P1 E2E 班次");
+    await openShiftDialog.getByRole("button", { name: "開始班次", exact: true }).click();
     await expect(page.getByText("班次進行中", { exact: true })).toBeVisible();
-    await page.getByLabel("金額", { exact: true }).fill("500");
-    await page.getByLabel("原因", { exact: true }).fill("P1 E2E 備用金");
+    await page.getByRole("button", { name: /^記錄收支/ }).click();
+    const movementDialog = page.getByRole("dialog", { name: "記錄現金收支", exact: true });
+    await expect(movementDialog).toBeVisible();
+    await movementDialog.getByLabel("金額", { exact: true }).fill("500");
+    await movementDialog.getByLabel("原因", { exact: true }).fill("P1 E2E 備用金");
     const movementResponse = page.waitForResponse((response) => (
       response.url().endsWith("/api/stalls/aming-chicken/cash-shifts")
       && response.request().method() === "POST"
     ));
-    await page.getByRole("button", { name: "新增紀錄" }).click();
+    await movementDialog.getByRole("button", { name: "新增紀錄", exact: true }).click();
     expect((await movementResponse).status()).toBe(200);
     await expect(page.getByText(/P1 E2E 備用金/)).toBeVisible();
 
@@ -168,26 +176,37 @@ test.describe("P1 營運功能", () => {
     expect(new Set(checkedOutOrders.map((order) => order.payment?.checkoutGroupId)).size).toBe(1);
 
     await page.goto("/staff/aming-chicken/print");
-    await page.getByRole("button", { name: "本機接手" }).first().click();
+    const takeOverPrinter = page.getByRole("button", { name: "本機接手" }).first();
+    await waitForReactHydration(takeOverPrinter);
+    const heartbeatResponse = waitForPrintOperation(page, "HEARTBEAT");
+    await takeOverPrinter.click();
+    expect((await heartbeatResponse).status()).toBe(200);
+    await expect(page.getByText(/本機接手中/)).toBeVisible();
     const initialJob = page.getByRole("article").filter({ hasText: firstOrderNo }).first();
     await expect(initialJob).toContainText("待列印");
-    await initialJob.getByRole("button", { name: "開始列印" }).click();
-    await initialJob.getByRole("button", { name: "成功" }).click();
+    await runPrintAction(page, initialJob.getByRole("button", { name: "開始列印" }), "CLAIM");
+    await runPrintAction(page, initialJob.getByRole("button", { name: "成功" }), "SUCCESS");
     await expect(initialJob).toContainText("列印成功");
-    await initialJob.getByRole("button", { name: "補印" }).click();
-    const reprintJob = page.getByRole("article").filter({ hasText: firstOrderNo }).first();
+    await runPrintAction(page, initialJob.getByRole("button", { name: "補印" }), "REPRINT");
+    const reprintJob = page.getByRole("article")
+      .filter({ hasText: firstOrderNo })
+      .filter({ hasText: "補印" })
+      .first();
     await expect(reprintJob).toContainText("補印");
-    await reprintJob.getByRole("button", { name: "開始列印" }).click();
-    await reprintJob.getByRole("button", { name: "失敗" }).click();
+    await runPrintAction(page, reprintJob.getByRole("button", { name: "開始列印" }), "CLAIM");
+    await runPrintAction(page, reprintJob.getByRole("button", { name: "失敗" }), "FAIL");
     await expect(reprintJob).toContainText("列印失敗");
-    await reprintJob.getByRole("button", { name: "重試" }).click();
+    await runPrintAction(page, reprintJob.getByRole("button", { name: "重試" }), "RETRY");
     await expect(reprintJob).toContainText("待列印");
 
     await page.goto("/staff/aming-chicken/cash");
     await expect(page.getByText("$2,606", { exact: true })).toBeVisible();
-    await page.getByLabel("實際盤點金額").fill("2606");
+    await page.getByRole("button", { name: /^盤點交班/ }).click();
+    const closeShiftDialog = page.getByRole("dialog", { name: "盤點並交班", exact: true });
+    await expect(closeShiftDialog).toBeVisible();
+    await closeShiftDialog.getByLabel("實際盤點金額").fill("2606");
     await expect(page.getByText("帳款相符", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "送出交班複核" }).click();
+    await closeShiftDialog.getByRole("button", { name: "送出交班複核", exact: true }).click();
     await expect(page.getByText("等待複核", { exact: true })).toBeVisible();
     const pendingShift = await prisma.cashShift.findFirstOrThrow({ where: { stallId: primaryStallId, note: "P1 E2E 班次" }, orderBy: { openedAt: "desc" } });
     expect(pendingShift.status).toBe("CLOSING");
@@ -277,6 +296,38 @@ async function createDineInOrder(page: Page, customerName: string, productName: 
   const orderText = await page.getByText(/^訂單 /).first().textContent();
   if (!orderText) throw new Error("找不到新訂單編號");
   return orderText.replace(/^訂單\s+/, "").trim();
+}
+
+async function waitForReactHydration(control: Locator) {
+  await expect.poll(() => control.evaluate((element) => (
+    Object.keys(element).some((key) => (
+      key.startsWith("__reactProps$") || key.startsWith("__reactFiber$")
+    ))
+  )), { message: "等待 React 完成控制項 hydration" }).toBe(true);
+}
+
+function waitForPrintOperation(page: Page, operation: string) {
+  return page.waitForResponse((response) => {
+    if (
+      !new URL(response.url()).pathname.endsWith("/print-jobs")
+      || response.request().method() !== "POST"
+    ) return false;
+    try {
+      const body = response.request().postDataJSON() as { operation?: string };
+      return body.operation === operation;
+    } catch {
+      return false;
+    }
+  });
+}
+
+async function runPrintAction(page: Page, control: Locator, operation: string) {
+  await expect(control).toBeEnabled();
+  await waitForReactHydration(control);
+  await expect(control).toBeEnabled();
+  const response = waitForPrintOperation(page, operation);
+  await control.click();
+  expect((await response).status()).toBe(200);
 }
 
 function assertLocalDatabase() {

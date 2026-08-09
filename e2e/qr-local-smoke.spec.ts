@@ -24,6 +24,7 @@ test("手機 QR 點餐使用固定訂單摘要且不產生水平溢位", async (
   await summary.click();
   const cart = page.getByTestId("qr-cart-panel");
   await expect(cart).toHaveAttribute("role", "dialog");
+  await cart.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
   await expect(cart.locator('input[type="text"]')).toHaveAttribute("maxlength", "50");
   await expect(cart.locator("textarea").last()).toHaveAttribute("maxlength", /^\d+$/);
 });
@@ -62,4 +63,32 @@ test("本機 QA 可透過示範 QR 建立點餐 session", async ({ page }) => {
   expect((await restoredSession).status()).toBe(201);
   await expect(page.getByText("已恢復上次尚未送出的點餐內容。")).toBeVisible();
   await expect(page.getByTestId("qr-cart-panel").getByText("共 1 份")).toBeVisible();
+});
+
+test("輕量 session 更新不載入菜單查詢", async ({ request }) => {
+  const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.replace(/\/$/, "");
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  expect(functionsUrl).toBeTruthy();
+  expect(publishableKey).toBeTruthy();
+
+  const lightweightSession = await request.post(`${functionsUrl}/create-order-session`, {
+    headers: {
+      origin: "http://localhost:3001",
+      apikey: publishableKey!,
+      authorization: `Bearer ${publishableKey}`,
+      "x-stallorder-protocol-version": "1",
+      "cf-connecting-ip": "203.0.113.45",
+    },
+    data: {
+      qrToken: demoQrToken,
+      deviceId: crypto.randomUUID(),
+      sessionRequestId: crypto.randomUUID(),
+      orderingMode: "DEFAULT",
+      includeMenu: false,
+    },
+  });
+
+  expect([200, 201]).toContain(lightweightSession.status());
+  expect(lightweightSession.headers()["server-timing"]).toMatch(/db-query-count;dur=6(?:,|$)/);
+  await expect(lightweightSession.json()).resolves.not.toHaveProperty("products");
 });

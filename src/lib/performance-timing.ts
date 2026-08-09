@@ -13,6 +13,7 @@ export type PerformanceTimingField =
 type PerformanceTimingOptions = {
   route: string;
   requestId: string;
+  operationId?: string;
   now?: () => number;
   logger?: PerformanceLogger;
 };
@@ -92,6 +93,7 @@ export function createPerformanceTiming(options: PerformanceTimingOptions) {
     logger(level, "request_completed", {
       route: options.route,
       requestId: options.requestId,
+      ...(options.operationId ? { operationId: options.operationId } : {}),
       status,
       totalMs,
       ...(dbQueryCount > 0 ? { dbQueryCount } : {}),

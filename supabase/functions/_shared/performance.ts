@@ -3,6 +3,7 @@ export type EdgePerformanceField = "sessionMs" | "dbMs" | "turnstileMs" | "exter
 type Options = {
   route: string;
   requestId: string;
+  operationId?: string;
   now?: () => number;
   logger?: (record: Record<string, string | number>) => void;
 };
@@ -56,6 +57,7 @@ export function createEdgePerformanceTiming(options: Options) {
       event: "request_completed",
       route: options.route,
       requestId: options.requestId,
+      ...(options.operationId ? { operationId: options.operationId } : {}),
       status,
       totalMs,
       edgeFunctionMs: totalMs,
@@ -75,7 +77,10 @@ export function finalizeEdgeResponse(
 ) {
   response.headers.set("server-timing", timing.finish(response.status).serverTiming);
   if (response.headers.has("access-control-allow-origin")) {
-    response.headers.set("access-control-expose-headers", "server-timing, x-request-id");
+    response.headers.set(
+      "access-control-expose-headers",
+      "server-timing, x-request-id, x-stallorder-operation-id",
+    );
   }
   return response;
 }

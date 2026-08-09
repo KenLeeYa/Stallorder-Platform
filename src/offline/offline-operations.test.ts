@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { prepareOfflineOrderItemSnapshots } from "@/offline/offline-operations";
 
 const productId = "10000000-0000-4000-8000-000000000001";
@@ -52,6 +52,8 @@ const catalog = {
 };
 
 describe("offline staff order item preparation", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("creates independent snapshots for one product with different notes", () => {
     const snapshots = prepareOfflineOrderItemSnapshots([
       { productId, quantity: 2, note: "", noteOptionIds: [eggId] },
@@ -63,5 +65,17 @@ describe("offline staff order item preparation", () => {
     expect(snapshots.map((item) => item.quantity)).toEqual([2, 1]);
     expect(snapshots.map((item) => item.noteOptions[0]?.optionName)).toEqual(["加蛋", "加起司"]);
     expect(snapshots.map((item) => item.unitPrice)).toEqual([110, 115]);
+  });
+
+  it("creates item identifiers when HTTP LAN browsers only expose getRandomValues", () => {
+    const getRandomValues = vi.fn((bytes: Uint8Array) => bytes.fill(0));
+    vi.stubGlobal("crypto", { getRandomValues });
+
+    const [snapshot] = prepareOfflineOrderItemSnapshots([
+      { productId, quantity: 1, note: "", noteOptionIds: [] },
+    ], catalog, new Date("2026-08-06T01:00:00.000Z"));
+
+    expect(snapshot.localItemId).toBe("00000000-0000-4000-8000-000000000000");
+    expect(getRandomValues).toHaveBeenCalledOnce();
   });
 });

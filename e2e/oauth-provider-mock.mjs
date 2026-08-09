@@ -3,7 +3,10 @@ import { PrismaClient } from "@prisma/client";
 
 loadLocalEnv();
 
-const port = 55431;
+const port = Number(process.env.PLAYWRIGHT_OAUTH_MOCK_PORT ?? "55431");
+if (!Number.isSafeInteger(port) || port < 1_024 || port > 65_535) {
+  throw new Error("PLAYWRIGHT_OAUTH_MOCK_PORT_INVALID");
+}
 const ownerEmail = "owner@stallorder.test";
 const onboardingEmail = "onboarding.application.e2e@stallorder.test";
 const platformAdminEmail = "platform.admin.e2e@stallorder.test";

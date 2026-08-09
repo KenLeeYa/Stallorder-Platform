@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { UserRole } from "@prisma/client";
+import type { CancellationReason, UserRole } from "@prisma/client";
 import {
   CheckCheck,
   ChefHat,
@@ -14,6 +14,7 @@ import {
   RefreshCw,
   RotateCcw,
   Rows3,
+  TriangleAlert,
   Volume2,
   VolumeX,
   Wifi,
@@ -22,6 +23,7 @@ import {
 import { LogoutButton } from "@/components/logout-button";
 import { PwaControls } from "@/components/pwa-controls";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { deliveryProviderLabel } from "@/lib/delivery-platform-labels";
 import {
   aggregateKitchenItems,
@@ -44,6 +46,20 @@ type Props = {
   role: UserRole;
 };
 
+type PendingCancellation = {
+  orderId: string;
+  orderNo: string;
+  reason: CancellationReason;
+  detail: string;
+  confirmationOrderNo: string;
+};
+
+type CancellationErrors = {
+  detail?: string;
+  confirmationOrderNo?: string;
+  request?: string;
+};
+
 const orderStatusLabels: Record<KitchenBoardTask["orderStatus"], string> = {
   CONFIRMED: "待製作",
   PREPARING: "製作中",
@@ -62,6 +78,14 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [alertsEnabled, setAlertsEnabled] = useState(false);
+  const [pendingCancellation, setPendingCancellation] = useState<PendingCancellation | null>(null);
+  const [cancellationErrors, setCancellationErrors] = useState<CancellationErrors>({});
+  const cancellationDialogRef = useRef<HTMLDialogElement>(null);
+  const cancellationTriggerRef = useRef<HTMLElement | null>(null);
+  const cancellationDetailRef = useRef<HTMLTextAreaElement>(null);
+  const cancellationConfirmationRef = useRef<HTMLInputElement>(null);
+  const cancellationBusyRef = useRef(false);
+  const pendingCancellationOrderId = pendingCancellation?.orderId ?? null;
 
   const notifyNewOrders = useCallback((count: number) => {
     if (!alertsEnabledRef.current) return;
@@ -115,6 +139,17 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
     };
   }, [refresh, stall.slug]);
 
+  useEffect(() => {
+    if (!pendingCancellationOrderId) return;
+    const dialog = cancellationDialogRef.current;
+    if (!dialog) return;
+    if (!dialog.open) dialog.showModal();
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialog.querySelector<HTMLElement>("[data-cancellation-initial-focus]")?.focus();
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [pendingCancellationOrderId]);
+
   async function mutate(body: Record<string, unknown>, busyKey: string) {
     setBusyId(busyKey);
     setMessage("");
@@ -144,6 +179,78 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
     if (next) playNotificationTone();
   }
 
+  function openCancellation(orderId: string, orderNo: string) {
+    if (busyId !== null) return;
+    if (document.activeElement instanceof HTMLElement) cancellationTriggerRef.current = document.activeElement;
+    setMessage("");
+    setCancellationErrors({});
+    setPendingCancellation({
+      orderId,
+      orderNo,
+      reason: "SOLD_OUT",
+      detail: "",
+      confirmationOrderNo: "",
+    });
+  }
+
+  function finishCancellation() {
+    const previousFocus = cancellationTriggerRef.current;
+    setPendingCancellation(null);
+    setCancellationErrors({});
+    window.requestAnimationFrame(() => {
+      if (previousFocus?.isConnected && !previousFocus.matches(":disabled")) previousFocus.focus();
+    });
+  }
+
+  function dismissCancellation() {
+    if (cancellationBusyRef.current) return;
+    finishCancellation();
+  }
+
+  async function confirmCancellation() {
+    if (!pendingCancellation || busyId !== null || cancellationBusyRef.current) return;
+    const errors: CancellationErrors = {};
+    if (pendingCancellation.reason === "OTHER" && !pendingCancellation.detail.trim()) {
+      errors.detail = "選擇其他原因時，請填寫補充說明。";
+    }
+    if (pendingCancellation.confirmationOrderNo.trim() !== pendingCancellation.orderNo) {
+      errors.confirmationOrderNo = `請完整輸入訂單編號 ${pendingCancellation.orderNo}。`;
+    }
+    if (Object.keys(errors).length > 0) {
+      setCancellationErrors(errors);
+      window.requestAnimationFrame(() => {
+        if (errors.detail) cancellationDetailRef.current?.focus();
+        else cancellationConfirmationRef.current?.focus();
+      });
+      return;
+    }
+
+    cancellationBusyRef.current = true;
+    setBusyId(pendingCancellation.orderId);
+    setCancellationErrors({});
+    try {
+      const response = await fetch(`/api/stalls/${stall.slug}/orders/${pendingCancellation.orderId}`, {
+        method: "PATCH",
+        headers: csrfHeaders(),
+        body: JSON.stringify({
+          status: "CANCELLED",
+          confirmationOrderNo: pendingCancellation.confirmationOrderNo.trim(),
+          cancellationReason: pendingCancellation.reason,
+          cancellationDetail: pendingCancellation.detail.trim() || null,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "無法取消訂單。");
+      await refresh(true);
+      finishCancellation();
+    } catch (error) {
+      setCancellationErrors({ request: error instanceof Error ? error.message : "無法取消訂單。" });
+    } finally {
+      cancellationBusyRef.current = false;
+      setBusyId(null);
+    }
+  }
+
   const visibleTasks = mode === "STATION" && stationId
     ? data.tasks.filter((task) => task.station.id === stationId)
     : data.tasks;
@@ -152,14 +259,14 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
   const canCancelOrder = ["PLATFORM_ADMIN", "ORGANIZATION_OWNER", "ORGANIZATION_ADMIN", "STALL_MANAGER"].includes(role);
 
   return (
-    <main className="mx-auto max-w-[1600px] px-3 py-4 md:px-6 md:py-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-4">
-        <div className="inline-flex min-h-11 overflow-hidden rounded-md border border-stone-300 bg-white" role="group" aria-label="看板模式">
+    <main className="mx-auto max-w-[1600px] px-3 py-3 md:px-6 md:py-6">
+      <div className="flex flex-col gap-2 border-b border-stone-200 pb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:pb-4">
+        <div className="inline-flex min-h-11 shrink-0 overflow-hidden rounded-md border border-stone-300 bg-white" role="group" aria-label="看板模式">
           <ModeButton active={mode === "ORDER"} icon={Rows3} label="訂單" onClick={() => setMode("ORDER")} />
           <ModeButton active={mode === "ITEM"} icon={ListChecks} label="品項" onClick={() => setMode("ITEM")} />
           <ModeButton active={mode === "STATION"} icon={ChefHat} label="工作站" onClick={() => setMode("STATION")} />
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex w-full min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto contain-paint pb-1 [&>*]:shrink-0 sm:w-auto sm:justify-end sm:overflow-visible sm:contain-none sm:pb-0">
           <span title={connection === "CONNECTED" ? "廚房即時更新已連線" : "即時連線未就緒，已啟用 12 秒輪詢備援"} className={`inline-flex min-h-10 items-center gap-2 text-sm font-medium ${connection === "CONNECTED" ? "text-emerald-700" : "text-amber-700"}`}>
             {connection === "CONNECTED" ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
             <span>{connection === "CONNECTED" ? "即時連線" : connection === "CONNECTING" ? "連線中" : "輪詢備援"}</span>
@@ -222,7 +329,7 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
                       canCancelOrder={canCancelOrder}
                       onTask={(taskId, nextStatus) => mutate({ operation: "UPDATE_TASK", taskId, status: nextStatus }, taskId)}
                       onComplete={() => mutate({ operation: "COMPLETE_ORDER", orderId: order.id }, order.id)}
-                      onCancel={() => cancelOrder(stall.slug, order.id, order.orderNo, refresh, setMessage, setBusyId)}
+                      onCancel={() => openCancellation(order.id, order.orderNo)}
                     />
                   ))}
                 </div>
@@ -235,6 +342,49 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
       {visibleTasks.length === 0 ? (
         <div className="mt-16 text-center text-stone-500"><PackageCheck className="mx-auto h-10 w-10" /><p className="mt-3 font-medium">目前沒有待處理的生產工作</p></div>
       ) : null}
+
+      {pendingCancellation ? <dialog
+        ref={cancellationDialogRef}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="kds-cancellation-title"
+        aria-describedby="kds-cancellation-warning"
+        onCancel={(event) => {
+          if (cancellationBusyRef.current) event.preventDefault();
+        }}
+        onClose={dismissCancellation}
+        data-testid="kds-cancellation-dialog"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-1rem)] max-w-md overscroll-contain rounded-xl border border-stone-200 bg-white p-0 text-stone-950 shadow-2xl backdrop:bg-stone-950/60"
+      >
+        <form onSubmit={(event) => { event.preventDefault(); void confirmCancellation(); }} className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:p-6">
+          <div className="flex items-start gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-red-50 text-red-700"><TriangleAlert className="h-5 w-5" /></span>
+            <div className="min-w-0">
+              <h2 id="kds-cancellation-title" className="break-words text-lg font-semibold">取消訂單 {pendingCancellation.orderNo}？</h2>
+              <p className="mt-1 text-sm font-medium text-red-800">此操作無法復原</p>
+            </div>
+          </div>
+          <p id="kds-cancellation-warning" className="mt-4 text-sm leading-6 text-stone-600">取消後會停止此訂單的所有廚房工作。請先確認尚未出餐，並與前台或顧客完成溝通。</p>
+          {cancellationErrors.request ? <p role="alert" className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{cancellationErrors.request}</p> : null}
+          <label className="mt-4 block text-xs font-semibold text-stone-700">取消原因<select value={pendingCancellation.reason} onChange={(event) => {
+            const reason = event.target.value as CancellationReason;
+            setPendingCancellation((current) => current ? { ...current, reason } : null);
+            setCancellationErrors((current) => ({ ...current, detail: undefined, request: undefined }));
+          }} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{cancellationReasonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label className="mt-4 block text-xs font-semibold text-stone-700">補充說明{pendingCancellation.reason === "OTHER" ? "（必填）" : "（選填）"}<textarea ref={cancellationDetailRef} value={pendingCancellation.detail} maxLength={200} aria-invalid={Boolean(cancellationErrors.detail)} aria-describedby={cancellationErrors.detail ? "kds-cancellation-detail-error" : undefined} onChange={(event) => {
+            setPendingCancellation((current) => current ? { ...current, detail: event.target.value } : null);
+            setCancellationErrors((current) => ({ ...current, detail: undefined, request: undefined }));
+          }} className="mt-1 min-h-20 w-full resize-y rounded-md border border-stone-300 p-3 text-sm" />{cancellationErrors.detail ? <span id="kds-cancellation-detail-error" role="alert" className="mt-1 block text-xs text-red-700">{cancellationErrors.detail}</span> : null}</label>
+          <label className="mt-4 block text-xs font-semibold text-stone-700">確認訂單編號<input ref={cancellationConfirmationRef} type="text" autoComplete="off" spellCheck={false} maxLength={32} value={pendingCancellation.confirmationOrderNo} aria-invalid={Boolean(cancellationErrors.confirmationOrderNo)} aria-describedby={`kds-cancellation-order-hint${cancellationErrors.confirmationOrderNo ? " kds-cancellation-order-error" : ""}`} onChange={(event) => {
+            setPendingCancellation((current) => current ? { ...current, confirmationOrderNo: event.target.value } : null);
+            setCancellationErrors((current) => ({ ...current, confirmationOrderNo: undefined, request: undefined }));
+          }} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /><span id="kds-cancellation-order-hint" className="mt-1 block text-xs font-normal text-stone-500">請完整輸入 {pendingCancellation.orderNo}</span>{cancellationErrors.confirmationOrderNo ? <span id="kds-cancellation-order-error" role="alert" className="mt-1 block text-xs text-red-700">{cancellationErrors.confirmationOrderNo}</span> : null}</label>
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <button type="button" data-cancellation-initial-focus disabled={busyId !== null} onClick={dismissCancellation} className="min-h-11 rounded-md border border-stone-300 px-3 py-2 text-sm font-medium disabled:opacity-50">返回</button>
+            <button type="submit" disabled={busyId !== null} className="min-h-11 rounded-md bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{busyId === pendingCancellation.orderId ? "取消處理中…" : "確認取消"}</button>
+          </div>
+        </form>
+      </dialog> : null}
     </main>
   );
 }
@@ -336,25 +486,6 @@ function formatKitchenTime(value: string) {
     minute: "2-digit",
     timeZone: "Asia/Taipei",
   }).format(new Date(value));
-}
-
-async function cancelOrder(stallSlug: string, orderId: string, orderNo: string, refresh: (silent?: boolean) => Promise<void>, setMessage: (message: string) => void, setBusyId: (value: string | null) => void) {
-  const confirmation = window.prompt(`為避免誤觸，請輸入訂單編號 ${orderNo} 確認取消。`);
-  if (confirmation !== orderNo) {
-    if (confirmation !== null) setMessage("訂單編號不符，未取消訂單。");
-    return;
-  }
-  setBusyId(orderId);
-  try {
-    const response = await fetch(`/api/stalls/${stallSlug}/orders/${orderId}`, { method: "PATCH", headers: csrfHeaders(), body: JSON.stringify({ status: "CANCELLED", confirmationOrderNo: orderNo, cancellationReason: "OTHER", cancellationDetail: "由 KDS 管理人員取消" }) });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error ?? "無法取消訂單。");
-    await refresh(true);
-  } catch (error) {
-    setMessage(error instanceof Error ? error.message : "無法取消訂單。");
-  } finally {
-    setBusyId(null);
-  }
 }
 
 function taskStatusLabel(status: KitchenTaskState) {
