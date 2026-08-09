@@ -14,7 +14,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "concurrently --kill-others --success command-1 \"npm run functions:serve:e2e\" \"playwright test\"",
-    "test:e2e:resilience:production": "cross-env PLAYWRIGHT_PRODUCTION_SERVER=true PLAYWRIGHT_APP_URL=http://127.0.0.1:3000 concurrently --kill-others --success command-1 \"npm run functions:serve:e2e\" \"playwright test e2e/offline-pwa-foundation.spec.ts e2e/qr-degraded-mode.spec.ts e2e/resilience-failure-injection.spec.ts\"",
+    "test:e2e:resilience:production": "cross-env PLAYWRIGHT_PRODUCTION_SERVER=true PLAYWRIGHT_APP_URL=http://127.0.0.1:3000 PLAYWRIGHT_TRUSTED_CLIENT_IP=203.0.113.200 concurrently --kill-others --success command-1 \"npm run functions:serve:e2e\" \"playwright test e2e/offline-pwa-foundation.spec.ts e2e/qr-degraded-mode.spec.ts e2e/resilience-failure-injection.spec.ts\"",
     "typecheck": "tsc --noEmit",
     "ui:audit": "node scripts/audit-ui-controls.mjs",
     "local:doctor": "node scripts/local-dev-doctor.mjs",

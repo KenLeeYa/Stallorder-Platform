@@ -51,6 +51,7 @@ if (!reuseExistingServer) {
 }
 const parsedAppUrl = new URL(appUrl);
 const appPort = Number.parseInt(parsedAppUrl.port || "80", 10);
+const trustedClientIp = process.env.PLAYWRIGHT_TRUSTED_CLIENT_IP ?? "203.0.113.10";
 if (
   !reuseExistingServer
   && (!['localhost', '127.0.0.1'].includes(parsedAppUrl.hostname)
@@ -82,8 +83,8 @@ export default defineConfig({
     baseURL: appUrl,
     extraHTTPHeaders: productionServer
       ? {
-          "x-vercel-forwarded-for": "203.0.113.10",
-          "cf-connecting-ip": "203.0.113.10",
+          "x-vercel-forwarded-for": trustedClientIp,
+          "cf-connecting-ip": trustedClientIp,
         }
       : undefined,
     locale: "zh-TW",
