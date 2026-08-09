@@ -440,6 +440,10 @@ select ok(
 update public.stall_ordering_settings
 set preorder_slot_minutes = 15
 where stall_id = '22222222-2222-4222-8222-222222222222';
+-- Cadence assertions should not change when the real clock approaches midnight.
+update five_minute_test_context
+set reference_time = date_trunc('day', reference_time at time zone 'Asia/Taipei')
+  at time zone 'Asia/Taipei';
 create temporary table fifteen_minute_test_slots (
   slot timestamptz primary key
 ) on commit drop;
