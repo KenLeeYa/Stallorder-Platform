@@ -81,7 +81,7 @@ export default defineConfig({
     ...devices["Desktop Chrome"],
     baseURL: appUrl,
     extraHTTPHeaders: productionServer
-      ? { "x-vercel-forwarded-for": "203.0.113.10" }
+      ? { "cf-connecting-ip": "203.0.113.10" }
       : undefined,
     locale: "zh-TW",
     timezoneId: "Asia/Taipei",
