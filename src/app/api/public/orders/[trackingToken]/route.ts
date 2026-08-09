@@ -1,4 +1,5 @@
 import { createRequestId } from "@/lib/security";
+import { getPublicOrderOperationId } from "@/lib/public-order-operation-id";
 import { createPerformanceTiming } from "@/lib/performance-timing";
 import {
   assertCircuitBRequest,
@@ -17,9 +18,11 @@ export async function GET(
   { params }: { params: Promise<{ trackingToken: string }> },
 ) {
   const requestId = createRequestId();
+  const operationId = getPublicOrderOperationId(request);
   const timing = createPerformanceTiming({
     route: "/api/public/orders/:trackingToken",
     requestId,
+    operationId,
   });
 
   try {
@@ -36,6 +39,7 @@ export async function GET(
         400,
         requestId,
         timing,
+        operationId,
       );
     }
 
@@ -44,13 +48,14 @@ export async function GET(
       requestId,
       timing,
     });
-    return circuitBResponse(result.body, result.status, requestId, timing);
+    return circuitBResponse(result.body, result.status, requestId, timing, operationId);
   } catch (error) {
     return circuitBFailureResponse(
       error,
       requestId,
       timing,
       "PUBLIC_ORDER_TRACKING_CIRCUIT_B_FAILED",
+      operationId,
     );
   }
 }

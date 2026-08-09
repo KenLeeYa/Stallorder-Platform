@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { gotoLocalPath } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -181,14 +182,32 @@ test.describe("多攤位商戶關鍵流程", () => {
       where: { organizationId: organization.id, action: "GOOGLE_LOGIN_SUCCESS" },
     })).toBeGreaterThan(0);
 
-    await page.goto(`/merchant/stalls/new?organizationId=${organization.id}`);
+    const createStallApiPath = `/api/merchant/organizations/${organization.id}/stalls`;
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      const warmupResponse = await page.context().request.get(createStallApiPath);
+      expect(warmupResponse.status()).toBe(405);
+      await warmupResponse.dispose();
+      await gotoLocalPath(
+        page,
+        `/merchant/stalls/${firstStall.id}?organizationId=${organization.id}`,
+      );
+    }
+    await gotoLocalPath(page, `/merchant/stalls/new?organizationId=${organization.id}`);
     await page.getByLabel("攤位名稱").fill("E2E 夜市二號攤");
     await page.getByLabel("攤位代碼").fill("E2E-02");
     await page.getByLabel("公開識別名稱").fill(secondStallSlug);
     await page.getByLabel("說明").fill("多攤位自動驗收測試");
     await page.getByLabel("地址").fill("台北市測試夜市二區");
     await page.getByLabel("電話").fill("0900-000-002");
-    await page.getByRole("button", { name: "建立攤位" }).click();
+    const createStallButton = page.getByRole("button", { name: "建立攤位" });
+    await waitForReactHandler(createStallButton, "onSubmit", "form");
+    const createStallResponse = page.waitForResponse((response) => (
+      new URL(response.url()).pathname === createStallApiPath
+      && response.request().method() === "POST"
+      && response.request().postDataJSON()?.slug === secondStallSlug
+    ));
+    await createStallButton.click();
+    expect((await createStallResponse).status()).toBe(201);
     await expect(page).toHaveURL(/\/merchant\/stalls\/[0-9a-f-]+\?organizationId=/);
 
     secondStall = await prisma.stall.findUniqueOrThrow({
@@ -267,12 +286,40 @@ test.describe("多攤位商戶關鍵流程", () => {
     await expect(page).toHaveURL(
       new RegExp(`/merchant/dashboard\\?organizationId=${organization.id}$`),
     );
-    await page.goto(`/merchant/catalog?organizationId=${organization.id}`);
-    await page.getByRole("button", { name: `分派 ${sharedProductName}` }).click();
+    const sharedProduct = await prisma.product.findFirstOrThrow({
+      where: { organizationId: organization.id, name: sharedProductName },
+      select: { id: true },
+    });
+    const catalogApiPath = `/api/merchant/organizations/${organization.id}/catalog`;
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      for (const path of [
+        catalogApiPath,
+        `/api/merchant/stalls/${secondStall.id}/products/${sharedProduct.id}`,
+      ]) {
+        const warmupResponse = await page.context().request.get(path);
+        expect(warmupResponse.status()).toBe(405);
+        await warmupResponse.dispose();
+      }
+    }
+    await gotoLocalPath(page, `/merchant/catalog?organizationId=${organization.id}`);
+    const openAssignmentsButton = page.getByRole("button", { name: `分派 ${sharedProductName}` });
+    await waitForReactHandler(openAssignmentsButton, "onClick");
+    await openAssignmentsButton.click();
     const assignmentDialog = page.getByRole("dialog", { name: `分派「${sharedProductName}」` });
-    await assignmentDialog.getByLabel("全部授權攤位").check();
-    await assignmentDialog.getByRole("button", { name: "儲存分派" }).click();
-    await expect(page.getByRole("status")).toContainText("攤位分派已更新");
+    const allStallsCheckbox = assignmentDialog.getByLabel("全部授權攤位");
+    await waitForReactHandler(allStallsCheckbox, "onChange");
+    await allStallsCheckbox.check();
+    const saveAssignmentsButton = assignmentDialog.getByRole("button", { name: "儲存分派" });
+    await waitForReactHandler(saveAssignmentsButton, "onClick");
+    const assignmentResponse = page.waitForResponse((response) => (
+      new URL(response.url()).pathname === catalogApiPath
+      && response.request().method() === "POST"
+      && response.request().postDataJSON()?.operation === "SET_ASSIGNMENTS"
+      && response.request().postDataJSON()?.productId === sharedProduct.id
+    ));
+    await saveAssignmentsButton.click();
+    expect((await assignmentResponse).status()).toBe(200);
+    await expect(page.getByText("攤位分派已更新。", { exact: true })).toBeVisible();
     await expect.poll(() => prisma.stallProduct.count({
       where: {
         organizationId: organization.id,
@@ -281,12 +328,27 @@ test.describe("多攤位商戶關鍵流程", () => {
       },
     })).toBe(2);
 
-    await page.goto(`/merchant/${secondStall.slug}`);
+    const secondStallPath = `/merchant/${secondStall.slug}`;
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      const warmupResponse = await page.context().request.get(secondStallPath);
+      expect(warmupResponse.status()).toBe(200);
+      await warmupResponse.dispose();
+    }
+    await gotoLocalPath(page, secondStallPath);
+    await expect(page).toHaveURL(new RegExp(`/merchant/${secondStall.slug}$`));
     const productRow = page
       .getByRole("heading", { name: sharedProductName, exact: true })
       .locator("../../..");
     await productRow.getByLabel("覆寫價格").fill("109");
-    await productRow.getByRole("button", { name: `儲存 ${sharedProductName}` }).click();
+    const saveProduct = productRow.getByRole("button", { name: `儲存 ${sharedProductName}` });
+    await waitForReactHandler(saveProduct, "onClick");
+    const saveProductResponse = page.waitForResponse((response) => (
+      new URL(response.url()).pathname.startsWith(`/api/merchant/stalls/${secondStall.id}/products/`)
+      && response.request().method() === "PATCH"
+      && response.request().postDataJSON()?.priceOverride === 109
+    ));
+    await saveProduct.click();
+    expect((await saveProductResponse).status()).toBe(200);
     await expect(page.getByRole("status")).toContainText(`「${sharedProductName}」設定已儲存`);
     await expect.poll(async () => {
       const assignment = await prisma.stallProduct.findFirst({
@@ -313,8 +375,19 @@ test.describe("多攤位商戶關鍵流程", () => {
   });
 
   test("儀表板範圍、staff、finance、kitchen 與跨組織 URL 權限", async ({ page }) => {
+    test.setTimeout(180_000);
     await loginWithPassword(page, ownerEmail);
-    await page.goto(`/merchant/dashboard?organizationId=${organization.id}`);
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      for (const path of [
+        `/staff/${firstStall.slug}`,
+        `/kitchen?stall=${firstStall.slug}`,
+      ]) {
+        const warmupResponse = await page.context().request.get(path);
+        expect(warmupResponse.status()).toBe(200);
+        await warmupResponse.dispose();
+      }
+    }
+    await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organization.id}`);
     await expect(page.getByLabel("選擇商家")).toHaveCount(0);
     const stallSelector = page.getByLabel("選擇攤位");
     await expect(stallSelector).toBeVisible();
@@ -327,7 +400,7 @@ test.describe("多攤位商戶關鍵流程", () => {
     await expect(page).toHaveURL(
       new RegExp(`/merchant/stalls\\?organizationId=${organization.id}$`),
     );
-    await page.goto(`/merchant/dashboard?organizationId=${organization.id}`);
+    await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organization.id}`);
     await expect(page.getByLabel("營運摘要")).toContainText("1,500");
     await expect(page.getByRole("heading", { name: "攤位比較" })).toBeVisible();
     await expect(page.getByRole("link", { name: firstStall.name, exact: true })).toBeVisible();
@@ -338,21 +411,26 @@ test.describe("多攤位商戶關鍵流程", () => {
     await expect(workMode.locator(`option[value="staff:${firstStall.id}"]`)).toHaveText(`店員 · ${firstStall.name}`);
     await expect(workMode.locator(`option[value="kitchen:${firstStall.id}"]`)).toHaveText(`廚房 · ${firstStall.name}`);
 
+    await waitForReactHandler(workMode, "onChange");
     await workMode.selectOption(`staff:${firstStall.id}`);
     await expect(page).toHaveURL(new RegExp(`/staff/${firstStall.slug}$`));
     await expect(page.getByRole("heading", { name: firstStall.name, exact: true })).toBeVisible();
     await expect(page.getByLabel("切換工作模式")).toHaveValue(`staff:${firstStall.id}`);
 
-    await page.getByLabel("切換工作模式").selectOption(`kitchen:${firstStall.id}`);
+    const staffWorkMode = page.getByLabel("切換工作模式");
+    await waitForReactHandler(staffWorkMode, "onChange");
+    await staffWorkMode.selectOption(`kitchen:${firstStall.id}`);
     await expect(page).toHaveURL(new RegExp(`/kitchen\\?stall=${firstStall.slug}$`));
     await expect(page.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
     await expect(page.getByLabel("切換工作模式")).toHaveValue(`kitchen:${firstStall.id}`);
 
-    await page.getByLabel("切換工作模式").selectOption(`merchant:${organization.id}`);
+    const kitchenWorkMode = page.getByLabel("切換工作模式");
+    await waitForReactHandler(kitchenWorkMode, "onChange");
+    await kitchenWorkMode.selectOption(`merchant:${organization.id}`);
     await expect(page).toHaveURL(new RegExp(`/merchant/dashboard\\?organizationId=${organization.id}$`));
     await expect(page.getByRole("heading", { name: organization.businessName, exact: true })).toBeVisible();
 
-    await page.goto(`/merchant/dashboard?organizationId=${organization.id}&stallId=${secondStall.id}`);
+    await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organization.id}&stallId=${secondStall.id}`);
     await expect(page.locator("details").filter({ hasText: "攤位範圍" }).locator("summary")).toContainText("已選 1 個");
     const comparisonTable = page.getByRole("table");
     await expect(comparisonTable.getByRole("link", { name: secondStall.name, exact: true })).toBeVisible();
@@ -361,10 +439,16 @@ test.describe("多攤位商戶關鍵流程", () => {
     const crossOrganizationResponse = await page.goto(`/merchant/stalls/${otherStall.id}`);
     expect(crossOrganizationResponse?.status()).toBe(404);
     const today = taipeiToday();
+    const crossOrganizationOverviewPath = `/api/merchant/dashboard/overview?organizationId=${await otherOrganizationId()}&dateFrom=${today}&dateTo=${today}`;
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      const warmupResponse = await page.context().request.get(crossOrganizationOverviewPath);
+      expect(warmupResponse.status()).toBe(404);
+      await warmupResponse.dispose();
+    }
     const crossOrganizationApiStatus = await page.evaluate(async (url) => {
       const response = await fetch(url, { credentials: "same-origin" });
       return response.status;
-    }, `/api/merchant/dashboard/overview?organizationId=${await otherOrganizationId()}&dateFrom=${today}&dateTo=${today}`);
+    }, crossOrganizationOverviewPath);
     expect(crossOrganizationApiStatus).toBe(404);
 
     await page.context().clearCookies();
@@ -380,6 +464,13 @@ test.describe("多攤位商戶關鍵流程", () => {
     await expect(page).toHaveURL(
       new RegExp(`/merchant/dashboard\\?organizationId=${organization.id}$`),
     );
+    const financeMutationOrderId = randomUUID();
+    const financeOrderApiPath = `/api/stalls/${firstStall.slug}/orders/${financeMutationOrderId}`;
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      const warmupResponse = await page.context().request.get(financeOrderApiPath);
+      expect(warmupResponse.status()).toBe(405);
+      await warmupResponse.dispose();
+    }
     const financeMutation = await page.evaluate(async ({ stallSlug, orderId }) => {
       const csrf = document.cookie
         .split(";")
@@ -395,7 +486,7 @@ test.describe("多攤位商戶關鍵流程", () => {
         body: JSON.stringify({ status: "CONFIRMED" }),
       });
       return { status: response.status, payload: await response.json() };
-    }, { stallSlug: firstStall.slug, orderId: randomUUID() });
+    }, { stallSlug: firstStall.slug, orderId: financeMutationOrderId });
     expect(financeMutation.status).toBe(403);
     expect(String(financeMutation.payload.error)).toContain("權限");
 
@@ -413,9 +504,25 @@ test.describe("多攤位商戶關鍵流程", () => {
   test("多攤位介面在手機寬度無水平溢出", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginWithPassword(page, ownerEmail);
-    await page.goto(`/merchant/dashboard?organizationId=${organization.id}`);
+    await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organization.id}`);
+    await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeHidden();
+    await expect(page.getByLabel("應用程式狀態")).toBeVisible();
+    const brand = page.getByRole("link", { name: "攤點通", exact: true });
+    const appStatus = page.getByLabel("應用程式狀態");
+    const [brandBox, appStatusBox] = await Promise.all([brand.boundingBox(), appStatus.boundingBox()]);
+    expect(brandBox).not.toBeNull();
+    expect(appStatusBox).not.toBeNull();
+    expect(appStatusBox!.x).toBeGreaterThan(brandBox!.x);
+    expect(Math.abs(appStatusBox!.y - brandBox!.y)).toBeLessThanOrEqual(4);
+    await page.getByRole("button", { name: "展開商戶選項" }).click();
+    await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeVisible();
+    await expect(page.getByLabel("選擇攤位")).toBeVisible();
     await expect(page.getByRole("heading", { name: "攤位比較" })).toBeVisible();
     await expect(page.getByRole("article").filter({ hasText: secondStall.name })).toBeVisible();
+    const summaryColumnCount = await page.getByLabel("營運摘要").evaluate((element) => (
+      window.getComputedStyle(element).gridTemplateColumns.split(" ").length
+    ));
+    expect(summaryColumnCount).toBe(3);
     const dimensions = await page.evaluate(() => ({
       viewport: window.innerWidth,
       document: document.documentElement.scrollWidth,
@@ -423,11 +530,25 @@ test.describe("多攤位商戶關鍵流程", () => {
     }));
     expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport + 1);
     expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport + 1);
+
+    await page.setViewportSize({ width: 320, height: 720 });
+    await expect(page.getByLabel("營運摘要")).toBeVisible();
+    const narrowSummaryColumnCount = await page.getByLabel("營運摘要").evaluate((element) => (
+      window.getComputedStyle(element).gridTemplateColumns.split(" ").length
+    ));
+    expect(narrowSummaryColumnCount).toBe(2);
+    const narrowDimensions = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }));
+    expect(narrowDimensions.document).toBeLessThanOrEqual(narrowDimensions.viewport + 1);
+    expect(narrowDimensions.body).toBeLessThanOrEqual(narrowDimensions.viewport + 1);
   });
 });
 
 async function loginWithPassword(page: Page, email: string) {
-  await page.goto("/login");
+  await gotoLocalPath(page, "/login");
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
@@ -435,10 +556,29 @@ async function loginWithPassword(page: Page, email: string) {
   await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 15_000 });
 }
 
+async function waitForReactHandler(
+  control: Locator,
+  handler: "onClick" | "onChange" | "onSubmit",
+  target: "self" | "form" = "self",
+) {
+  await expect.poll(() => control.evaluate((element, options) => {
+    const eventTarget = options.target === "form"
+      ? (element as HTMLButtonElement).form
+      : element;
+    if (!eventTarget) return false;
+    const propsKey = Object.keys(eventTarget).find((key) => key.startsWith("__reactProps$"));
+    if (!propsKey) return false;
+    const props = (eventTarget as unknown as Record<string, unknown>)[propsKey];
+    return typeof props === "object"
+      && props !== null
+      && typeof (props as Record<string, unknown>)[options.handler] === "function";
+  }, { handler, target }), { message: `等待 React 掛載 ${handler}` }).toBe(true);
+}
+
 async function openCustomerMenu(page: Page, qrToken: string, stallName: string) {
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    await page.goto(`/q/${encodeURIComponent(qrToken)}`);
+    await gotoLocalPath(page, `/q/${encodeURIComponent(qrToken)}`);
     try {
       await expect(page.getByRole("heading", { name: stallName, exact: true })).toBeVisible({ timeout: 7_000 });
       return;

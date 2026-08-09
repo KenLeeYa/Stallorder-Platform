@@ -27,12 +27,16 @@ export async function verifyTurnstile(options: {
   allowTestKeys?: boolean;
   environment?: string;
 }): Promise<TurnstileResult> {
+  const isExplicitOfflineTest = options.secret === OFFICIAL_ALWAYS_PASS_TEST_SECRET
+    && options.allowTestKeys === true
+    && options.environment === "test";
   if (
     options.secret === OFFICIAL_ALWAYS_PASS_TEST_SECRET
     && (options.allowTestKeys !== true || options.environment === "production")
   ) {
     return { ok: false, code: "INVALID_TURNSTILE", errors: ["test_key_not_allowed"] };
   }
+  if (isExplicitOfflineTest) return { ok: true };
   const fetchImpl = options.fetchImpl ?? fetch;
   const form = new FormData();
   form.set("secret", options.secret);

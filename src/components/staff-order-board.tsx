@@ -971,21 +971,22 @@ export function StaffOrderBoard({
     : null;
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-4 py-5 md:px-8">
-      <div className="flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
+    <main className="mx-auto min-h-screen max-w-6xl px-4 py-3 md:px-8 md:py-5">
+      <div className="flex min-w-0 max-w-full flex-col gap-3 print:hidden sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <p className="text-sm font-medium text-teal-800">行動訂單看板</p>
-          <h1 className="text-3xl font-semibold">{stall.name}</h1>
+          <h1 className="text-2xl font-semibold sm:text-3xl">{stall.name}</h1>
           <p className="mt-1 text-xs text-stone-500">{account.displayName} · {roleLabels[account.role]}</p>
         </div>
-        <div className="flex w-full flex-wrap justify-start gap-2 sm:w-auto sm:justify-end">
+        <div className="flex w-full min-w-0 max-w-full gap-2 sm:w-auto sm:flex-wrap sm:justify-end">
+          <div className="flex min-w-0 flex-1 flex-nowrap justify-start gap-2 overflow-x-auto contain-paint pb-1 [&>*]:shrink-0 sm:contents">
           <WorkModeSwitcher
             destinations={workModeDestinations}
             currentMode="STAFF"
             organizationId={stall.organizationId}
             stallId={stall.id}
             offlineGuardStallId={stall.id}
-            className="w-full sm:w-auto"
+            className="w-auto shrink-0"
           />
           {orderCatalog && hasPermission(account.role, "CREATE_ORDERS") ? (
             <button type="button" disabled={posConfigurationLoading} onClick={() => void openComposer()} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60">
@@ -1017,6 +1018,7 @@ export function StaffOrderBoard({
             <span className="sr-only">{alertsEnabled ? "新訂單提醒已開啟" : "新訂單提醒已關閉"}</span>
           </button>
           <PwaControls showWakeLock />
+          </div>
           <OfflineBootstrapControl
             stallId={stall.id}
             stallSlug={stall.slug}
@@ -1037,7 +1039,7 @@ export function StaffOrderBoard({
       {message ? <p role="status" className={`mt-4 text-sm print:hidden ${/(無法|失敗|中斷|錯誤|期限|找不到)/.test(message) ? "text-red-700" : "text-emerald-700"}`}>{message}</p> : null}
       {capacity ? <StaffCapacityControl stallSlug={stall.slug} initialData={capacity} /> : null}
 
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+      <div className="mt-4 flex flex-col gap-2 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 print:hidden">
         <label className="relative block w-full sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-stone-400" />
           <span className="sr-only">搜尋桌號或訂單編號</span>
@@ -1344,7 +1346,7 @@ export function StaffOrderBoard({
             role="dialog"
             aria-modal="true"
             aria-labelledby="checkout-title"
-            className="my-auto w-full max-w-lg rounded-lg bg-white p-5 shadow-xl"
+            className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-lg bg-white p-5 shadow-xl"
           >
             <div className="flex items-start justify-between gap-4">
               <div>

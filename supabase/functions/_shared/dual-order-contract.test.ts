@@ -5,8 +5,27 @@ import {
   createPublicOrderSchema,
   issueOrderSessionSchema,
 } from "./schemas";
+import {
+  normalizePublicOrderOperationId,
+  PUBLIC_ORDER_OPERATION_ID_HEADER as CLIENT_OPERATION_ID_HEADER,
+} from "../../../src/lib/public-order-operation-id";
+import {
+  getPublicOrderOperationId,
+  PUBLIC_ORDER_OPERATION_ID_HEADER as EDGE_OPERATION_ID_HEADER,
+} from "./http";
 
 describe("dual public order contract", () => {
+  it("uses one canonical operation id contract for both circuits", () => {
+    const operationId = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA";
+    const edgeOperationId = getPublicOrderOperationId(new Request(
+      "https://functions.example/create-order-session",
+      { headers: { [EDGE_OPERATION_ID_HEADER]: operationId } },
+    ));
+
+    expect(CLIENT_OPERATION_ID_HEADER).toBe(EDGE_OPERATION_ID_HEADER);
+    expect(normalizePublicOrderOperationId(operationId)).toBe(edgeOperationId);
+  });
+
   it("derives the same opaque session token for Circuit A and Circuit B", async () => {
     const inputs = [
       "11111111-1111-4111-8111-111111111111",

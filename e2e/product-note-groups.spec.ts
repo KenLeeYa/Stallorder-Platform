@@ -1,17 +1,27 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import type { ProductNoteTransfer } from "../src/lib/product-note-transfer";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const password = "StallOrderDemo!2026";
 const takeoutQrToken = "demo-aming-chicken-qr-2026-rotate-me";
+type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
+const authCookies = new Map<string, AuthCookies>();
 
 async function login(page: Page, email: string) {
+  const cachedCookies = authCookies.get(email);
+  if (cachedCookies) {
+    await page.context().addCookies(cachedCookies);
+    await page.goto(email === "staff@stallorder.test" ? "/staff/aming-chicken" : "/merchant/dashboard");
+    await expect(page).toHaveURL(/\/merchant\/dashboard(?:\?organizationId=|$)|\/staff\//);
+    return;
+  }
   await page.goto("/login");
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=|\/staff\//);
+  await expect(page).toHaveURL(/\/merchant\/dashboard(?:\?organizationId=|$)|\/staff\//);
+  authCookies.set(email, await page.context().cookies());
 }
 
 async function openAttachReusableNotesDialog(page: Page, group: Locator) {
@@ -686,9 +696,13 @@ test("QR 依瀏覽器語系自動切換並保留手動選擇", async ({ browser 
     await expect(page.getByRole("heading", { name: "台湾風鶏の唐揚げ" })).toBeVisible();
 
     await page.getByRole("button", { name: "台湾風鶏の唐揚げを増やす" }).click();
-    await expect(page.getByRole("group", { name: /辛さ/ })).toBeVisible();
-    await expect(page.getByLabel("小辛", { exact: true })).toBeVisible();
-    await expect(page.getByRole("group", { name: /追加トッピング/ })).toBeVisible();
+    const japaneseProductDialog = page.getByRole("dialog", { name: "台湾風鶏の唐揚げ" });
+    await expect(japaneseProductDialog).toBeVisible();
+    await expect(japaneseProductDialog.getByRole("group", { name: /辛さ/ })).toBeVisible();
+    await expect(japaneseProductDialog.getByLabel("小辛", { exact: true })).toBeVisible();
+    await expect(japaneseProductDialog.getByRole("group", { name: /追加トッピング/ })).toBeVisible();
+    await japaneseProductDialog.getByRole("button", { name: "閉じる", exact: true }).click();
+    await expect(japaneseProductDialog).toBeHidden();
 
     await page.getByRole("button", { name: "メニュー言語" }).click();
     await page.getByRole("option", { name: "English", exact: true }).click();

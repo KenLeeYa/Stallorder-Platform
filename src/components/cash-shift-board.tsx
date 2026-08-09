@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowDown,
@@ -12,6 +12,7 @@ import {
   RotateCcw,
   ShieldCheck,
   WalletCards,
+  X,
 } from "lucide-react";
 import { OfflineQueueStatus } from "@/components/offline-queue-status";
 import { csrfHeaders } from "@/lib/csrf-client";
@@ -88,6 +89,8 @@ type CashShiftPermissions = {
   reconciliationEnabled: boolean;
 };
 
+type CashShiftAction = "OPEN" | "MOVE" | "REFUND" | "CLOSE";
+
 export function CashShiftBoard({
   stall,
   initialState,
@@ -114,6 +117,8 @@ export function CashShiftBoard({
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [activeAction, setActiveAction] = useState<CashShiftAction | null>(null);
+  const actionTriggerRef = useRef<HTMLElement | null>(null);
   const [offlineSnapshot, setOfflineSnapshot] = useState<Awaited<
     ReturnType<typeof import("@/offline/offline-operations")["getOfflineCashShiftSnapshot"]>
   >>(null);
@@ -122,6 +127,21 @@ export function CashShiftBoard({
     if (payload.state) setState(payload.state);
     if (payload.permissions) setPermissions(payload.permissions);
   }, []);
+
+  function openAction(action: CashShiftAction) {
+    if (document.activeElement instanceof HTMLElement) actionTriggerRef.current = document.activeElement;
+    setMessage("");
+    setActiveAction(action);
+  }
+
+  function closeAction() {
+    if (busy) return;
+    const previousFocus = actionTriggerRef.current;
+    setActiveAction(null);
+    window.requestAnimationFrame(() => {
+      if (previousFocus?.isConnected && !previousFocus.matches(":disabled")) previousFocus.focus();
+    });
+  }
 
   const refresh = useCallback(async () => {
     const response = await fetch(`/api/stalls/${stall.slug}/cash-shifts`, { cache: "no-store" });
@@ -181,6 +201,7 @@ export function CashShiftBoard({
     )) {
       setOpeningAmount("");
       setOpenNote("");
+      closeAction();
     }
   }
 
@@ -197,6 +218,7 @@ export function CashShiftBoard({
       if (saved) {
         setMovementAmount("");
         setMovementReason("");
+        closeAction();
       }
       return;
     }
@@ -209,6 +231,7 @@ export function CashShiftBoard({
     }, "現金收支已記錄。")) {
       setMovementAmount("");
       setMovementReason("");
+      closeAction();
     }
   }
 
@@ -222,6 +245,7 @@ export function CashShiftBoard({
     }, "現金退款已記錄。")) {
       setRefundPaymentId("");
       setRefundReason("");
+      closeAction();
     }
   }
 
@@ -242,6 +266,7 @@ export function CashShiftBoard({
       if (saved) {
         setCountedAmount("");
         setCloseNote("");
+        closeAction();
       }
       return;
     }
@@ -253,6 +278,7 @@ export function CashShiftBoard({
     }, successMessage)) {
       setCountedAmount("");
       setCloseNote("");
+      closeAction();
     }
   }
 
@@ -345,7 +371,7 @@ export function CashShiftBoard({
     </header>
 
     {!permissions.canManage ? <p className="mt-4 border-l-4 border-stone-300 pl-3 text-sm text-stone-600">目前為唯讀模式，您可以查看現金班次與對帳結果。</p> : null}
-    {message ? <p role="status" aria-live="polite" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
+    {message && !activeAction ? <p role="status" aria-live="polite" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
     <OfflineQueueStatus
       stallId={stall.id}
       stallSlug={stall.slug}
@@ -361,17 +387,17 @@ export function CashShiftBoard({
       </section>
     ) : null}
 
-    {!state.openShift ? <section className="mt-6 border-y border-stone-200 py-6">
-      <div className="flex items-center gap-2"><WalletCards className="h-5 w-5 text-teal-700" /><h2 className="text-xl font-semibold">開啟現金班次</h2></div>
-      {permissions.canManage ? <div className="mt-4 grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-end">
-        <MoneyInput label="開班金額" value={openingAmount} onChange={setOpeningAmount} />
-        <TextInput label="備註（選填）" value={openNote} onChange={setOpenNote} maxLength={500} />
-        <button type="button" disabled={busy || openingAmount === ""} onClick={() => void openShift()} className="h-11 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50">開始班次</button>
-      </div> : <p className="mt-3 text-sm text-stone-500">目前沒有進行中的現金班次。</p>}
+    {!state.openShift ? <section aria-labelledby="cash-shift-overview-title" className="mt-6 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:p-5">
+      <div className="flex items-center gap-2"><WalletCards className="h-5 w-5 text-teal-700" /><h2 id="cash-shift-overview-title" className="text-lg font-semibold">現金班次總覽</h2></div>
+      <div data-testid="cash-shift-dashboard" className="mt-4 grid grid-cols-2 gap-2 sm:max-w-lg">
+        <Metric label="目前狀態" value="尚未開班" />
+        <Metric label="交班紀錄" value={`${state.history.length} 筆`} />
+      </div>
+      {permissions.canManage ? <button type="button" disabled={busy} onClick={() => openAction("OPEN")} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto"><WalletCards className="h-4 w-4" />開始現金班次</button> : <p className="mt-3 text-sm text-stone-500">目前沒有進行中的現金班次。</p>}
     </section> : <>
       <section className="mt-6">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold">進行中的班次</h2><p className="mt-1 text-xs text-stone-500">{state.openShift.openedBy.displayName} · {formatTaipeiDateTime(state.openShift.openedAt)}</p></div><StatusBadge status="OPEN" /></div>
-        <div className="mt-4 grid grid-cols-2 border-l border-t border-stone-200 sm:grid-cols-3 lg:grid-cols-7">
+        <div data-testid="cash-shift-dashboard" className="mt-4 grid grid-cols-2 gap-2 min-[380px]:grid-cols-3 sm:grid-cols-4 lg:grid-cols-7">
           <Metric label="開班金額" value={formatMoney(state.openShift.openingAmount, stall.currency)} />
           <Metric label="現金銷售" value={formatMoney(activeOfflineSnapshot?.cashSales ?? state.openShift.cashSales, stall.currency)} />
           <Metric label="現金退款" value={`-${formatMoney(state.openShift.cashRefund, stall.currency)}`} />
@@ -382,64 +408,81 @@ export function CashShiftBoard({
         </div>
       </section>
 
-      {permissions.canManage ? <>
-        <section className="mt-7 border-y border-stone-200 py-5">
-          <h2 className="text-lg font-semibold">記錄現金收支</h2>
-          <div className="mt-3 grid gap-3 sm:grid-cols-[140px_160px_minmax(0,1fr)_auto] sm:items-end">
-            <label className="text-xs font-semibold text-stone-600">類型<select value={movementType} onChange={(event) => setMovementType(event.target.value as "CASH_IN" | "CASH_OUT")} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="CASH_IN">現金收入</option><option value="CASH_OUT">現金支出</option></select></label>
-            <MoneyInput label="金額" value={movementAmount} onChange={setMovementAmount} />
-            <TextInput label="原因" value={movementReason} onChange={setMovementReason} maxLength={200} />
-            <button type="button" disabled={busy || localProvisionalClose || !movementAmount || !movementReason.trim()} onClick={() => void addMovement()} className="h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">新增紀錄</button>
-          </div>
-        </section>
-
-        <section className="border-b border-stone-200 py-5">
-          <div className="flex items-center gap-2"><RotateCcw className="h-5 w-5 text-teal-700" /><h2 className="text-lg font-semibold">現金退款</h2></div>
-          {state.refundablePayments.length > 0 ? <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(220px,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <label className="text-xs font-semibold text-stone-600">原付款<select value={refundPaymentId} onChange={(event) => setRefundPaymentId(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="">請選擇付款</option>{state.refundablePayments.map((payment) => <option key={payment.id} value={payment.id}>{payment.order.orderNo} · {formatMoney(payment.amount, stall.currency)}</option>)}</select></label>
-            <TextInput label="退款原因" value={refundReason} onChange={setRefundReason} maxLength={200} />
-            <button type="button" disabled={busy || !refundPaymentId || !refundReason.trim()} onClick={() => void refundPayment()} className="h-11 rounded-md border border-red-300 px-4 text-sm font-semibold text-red-800 disabled:opacity-50">確認退款</button>
-          </div> : <p className="mt-3 text-sm text-stone-500">目前沒有可退款的現金付款。</p>}
-        </section>
-
-        <section className="py-6">
-          <h2 className="text-xl font-semibold">盤點並交班</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]"><MoneyInput label="實際盤點金額" value={countedAmount} onChange={setCountedAmount} /><TextInput label="交班備註（選填）" value={closeNote} onChange={setCloseNote} maxLength={500} /></div>
-          {liveVariance !== null ? <Variance amount={liveVariance} currency={stall.currency} /> : null}
-          <button type="button" disabled={busy || localProvisionalClose || counted === null || counted < 0} onClick={() => void closeShift()} className="mt-4 inline-flex h-11 items-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />{localProvisionalClose ? "已暫時關班，等待同步" : permissions.reconciliationEnabled ? "送出交班複核" : "完成交班"}</button>
-        </section>
-      </> : null}
+      {permissions.canManage ? <section aria-labelledby="cash-shift-actions-title" className="mt-7 border-y border-stone-200 py-5">
+        <h2 id="cash-shift-actions-title" className="text-lg font-semibold">常用現金操作</h2>
+        <div data-testid="cash-shift-actions-dashboard" className="mt-3 grid grid-cols-2 gap-2 min-[380px]:grid-cols-3">
+          <ActionCard label="記錄收支" description="收入或支出" icon={<CircleDollarSign className="h-5 w-5" />} disabled={busy || localProvisionalClose} onClick={() => openAction("MOVE")} />
+          <ActionCard label="現金退款" description={state.refundablePayments.length > 0 ? `${state.refundablePayments.length} 筆可退款` : "目前無可退款款項"} icon={<RotateCcw className="h-5 w-5" />} disabled={busy || state.refundablePayments.length === 0} onClick={() => openAction("REFUND")} />
+          <ActionCard label="盤點交班" description={permissions.reconciliationEnabled ? "送出店長複核" : "完成本班交接"} icon={<CheckCircle2 className="h-5 w-5" />} disabled={busy || localProvisionalClose} onClick={() => openAction("CLOSE")} />
+        </div>
+      </section> : null}
 
       <MovementList movements={state.openShift.movements} currency={stall.currency} />
     </>}
 
+    {activeAction === "OPEN" ? <CashShiftDialog title="開啟現金班次" description="輸入錢櫃的開班預備金；備註可留給接班人查看。" busy={busy} message={message} onDismiss={closeAction}>
+      <form onSubmit={(event) => { event.preventDefault(); void openShift(); }} className="grid gap-4">
+        <MoneyInput label="開班金額" value={openingAmount} onChange={setOpeningAmount} initialFocus />
+        <TextInput label="備註（選填）" value={openNote} onChange={setOpenNote} maxLength={500} />
+        <button type="submit" disabled={busy || openingAmount === ""} className="min-h-11 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50">開始班次</button>
+      </form>
+    </CashShiftDialog> : null}
+
+    {activeAction === "MOVE" && state.openShift ? <CashShiftDialog title="記錄現金收支" description="只記錄非訂單產生的現金收入或支出。" busy={busy} message={message} onDismiss={closeAction}>
+      <form onSubmit={(event) => { event.preventDefault(); void addMovement(); }} className="grid gap-4">
+        <label className="text-xs font-semibold text-stone-600">類型<select data-dialog-initial-focus value={movementType} onChange={(event) => setMovementType(event.target.value as "CASH_IN" | "CASH_OUT")} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="CASH_IN">現金收入</option><option value="CASH_OUT">現金支出</option></select></label>
+        <MoneyInput label="金額" value={movementAmount} onChange={setMovementAmount} />
+        <TextInput label="原因" value={movementReason} onChange={setMovementReason} maxLength={200} />
+        <button type="submit" disabled={busy || localProvisionalClose || !movementAmount || !movementReason.trim()} className="min-h-11 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50">新增紀錄</button>
+      </form>
+    </CashShiftDialog> : null}
+
+    {activeAction === "REFUND" && state.openShift ? <CashShiftDialog title="現金退款" description="選擇原現金付款，退款後將自動連動本班應有金額。" busy={busy} message={message} onDismiss={closeAction}>
+      <form onSubmit={(event) => { event.preventDefault(); void refundPayment(); }} className="grid gap-4">
+        <label className="text-xs font-semibold text-stone-600">原付款<select data-dialog-initial-focus value={refundPaymentId} onChange={(event) => setRefundPaymentId(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="">請選擇付款</option>{state.refundablePayments.map((payment) => <option key={payment.id} value={payment.id}>{payment.order.orderNo} · {formatMoney(payment.amount, stall.currency)}</option>)}</select></label>
+        <TextInput label="退款原因" value={refundReason} onChange={setRefundReason} maxLength={200} />
+        <button type="submit" disabled={busy || !refundPaymentId || !refundReason.trim()} className="min-h-11 rounded-md bg-red-700 px-4 text-sm font-semibold text-white disabled:opacity-50">確認退款</button>
+      </form>
+    </CashShiftDialog> : null}
+
+    {activeAction === "CLOSE" && state.openShift ? <CashShiftDialog title="盤點並交班" description={`系統應有 ${formatMoney(activeExpectedAmount, stall.currency)}，請輸入錢櫃實際盤點金額。`} busy={busy} message={message} onDismiss={closeAction}>
+      <form onSubmit={(event) => { event.preventDefault(); void closeShift(); }} className="grid gap-4">
+        <MoneyInput label="實際盤點金額" value={countedAmount} onChange={setCountedAmount} initialFocus />
+        <TextInput label="交班備註（選填）" value={closeNote} onChange={setCloseNote} maxLength={500} />
+        {liveVariance !== null ? <Variance amount={liveVariance} currency={stall.currency} /> : null}
+        <button type="submit" disabled={busy || localProvisionalClose || counted === null || counted < 0} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />{localProvisionalClose ? "已暫時關班，等待同步" : permissions.reconciliationEnabled ? "送出交班複核" : "完成交班"}</button>
+      </form>
+    </CashShiftDialog> : null}
+
     <section className="border-t border-stone-200 py-6">
       <div className="flex items-center gap-2"><CircleDollarSign className="h-5 w-5 text-teal-700" /><h2 className="text-xl font-semibold">交班與複核紀錄</h2></div>
-      <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">
-        {state.history.map((shift) => <article key={shift.id} className="py-5">
+      <div className="mt-3 grid gap-3">
+        {state.history.map((shift) => <article key={shift.id} className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><strong>{formatTaipeiDateTime(shift.openedAt)}</strong><p className="mt-1 text-xs text-stone-500">{shift.openedBy.displayName} → {shift.closedBy?.displayName ?? "-"} · {shift.closedAt ? formatTaipeiDateTime(shift.closedAt) : "-"}</p></div>
+            <div className="min-w-0"><strong>{formatTaipeiDateTime(shift.openedAt)}</strong><p className="mt-1 break-words text-xs text-stone-500">{shift.openedBy.displayName} → {shift.closedBy?.displayName ?? "-"} · {shift.closedAt ? formatTaipeiDateTime(shift.closedAt) : "-"}</p></div>
             <StatusBadge status={shift.status} />
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm min-[380px]:grid-cols-4">
             <HistoryMetric label="開班" value={formatMoney(shift.openingAmount, stall.currency)} />
             <HistoryMetric label="系統應有" value={formatMoney(shift.systemExpectedAmount ?? 0, stall.currency)} />
             <HistoryMetric label="實際盤點" value={formatMoney(shift.countedAmount ?? 0, stall.currency)} />
             <HistoryMetric label="短溢收" value={formatSignedMoney(shift.varianceAmount ?? 0, stall.currency)} emphasize={(shift.varianceAmount ?? 0) !== 0} />
           </div>
-          {shift.note ? <p className="mt-3 text-sm text-stone-600">交班備註：{shift.note}</p> : null}
-          {shift.reviews.length > 0 ? <div className="mt-4 border-l-2 border-stone-200 pl-3"><h3 className="text-sm font-semibold">複核歷程</h3>{shift.reviews.map((review) => <p key={review.id} className="mt-2 text-xs text-stone-600">{reviewDecisionLabel(review.decision)} · {review.reviewedBy.displayName} · {formatTaipeiDateTime(review.reviewedAt)}{review.comment ? ` · ${review.comment}` : ""}</p>)}</div> : null}
+          <CollapsibleHistoryDetails initiallyOpen={shift.status === "CLOSING" || shift.status === "REVIEW_REQUIRED"}>
+            {shift.note ? <p className="break-words text-sm text-stone-600">交班備註：{shift.note}</p> : <p className="text-sm text-stone-500">本班沒有交班備註。</p>}
+            {shift.reviews.length > 0 ? <div className="mt-4 border-l-2 border-stone-200 pl-3"><h3 className="text-sm font-semibold">複核歷程</h3>{shift.reviews.map((review) => <p key={review.id} className="mt-2 break-words text-xs text-stone-600">{reviewDecisionLabel(review.decision)} · {review.reviewedBy.displayName} · {formatTaipeiDateTime(review.reviewedAt)}{review.comment ? ` · ${review.comment}` : ""}</p>)}</div> : null}
 
-          {permissions.canReview && (shift.status === "CLOSING" || shift.status === "REVIEW_REQUIRED") ? <div className="mt-4 border-t border-stone-200 pt-4">
-            <label className="text-xs font-semibold text-stone-600">複核意見<textarea value={reviewComments[shift.id] ?? ""} maxLength={500} onChange={(event) => setReviewComments((current) => ({ ...current, [shift.id]: event.target.value }))} className="mt-1 min-h-20 w-full rounded-md border border-stone-300 p-3 text-sm" /></label>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" disabled={busy} onClick={() => void reviewShift(shift.id, "APPROVED")} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:opacity-50"><ShieldCheck className="h-4 w-4" />核准結班</button>
-              <button type="button" disabled={busy} onClick={() => void reviewShift(shift.id, "ADJUSTMENT_REQUIRED")} className="h-10 rounded-md border border-amber-300 px-3 text-sm font-semibold text-amber-900 disabled:opacity-50">要求更正</button>
-              <button type="button" disabled={busy} onClick={() => void reviewShift(shift.id, "REJECTED")} className="h-10 rounded-md border border-red-300 px-3 text-sm font-semibold text-red-800 disabled:opacity-50">退回複核</button>
-            </div>
-            {shift.status === "REVIEW_REQUIRED" ? <button type="button" onClick={() => setAdjustingShiftId(adjustingShiftId === shift.id ? null : shift.id)} className="mt-3 text-sm font-semibold text-teal-800">{adjustingShiftId === shift.id ? "收合帳務更正" : "新增帳務更正"}</button> : null}
-            {adjustingShiftId === shift.id ? <div className="mt-3 grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-end"><SignedMoneyInput label="更正金額（可為負數）" value={adjustmentAmount} onChange={setAdjustmentAmount} /><TextInput label="更正原因" value={adjustmentReason} onChange={setAdjustmentReason} maxLength={200} /><button type="button" disabled={busy || !adjustmentAmount || Number(adjustmentAmount) === 0 || !adjustmentReason.trim()} onClick={() => void adjustShift()} className="h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">送出更正</button></div> : null}
-          </div> : null}
+            {permissions.canReview && (shift.status === "CLOSING" || shift.status === "REVIEW_REQUIRED") ? <div className="mt-4 border-t border-stone-200 pt-4">
+              <label className="text-xs font-semibold text-stone-600">複核意見<textarea value={reviewComments[shift.id] ?? ""} maxLength={500} onChange={(event) => setReviewComments((current) => ({ ...current, [shift.id]: event.target.value }))} className="mt-1 min-h-20 w-full rounded-md border border-stone-300 p-3 text-sm" /></label>
+              <div className="mt-3 grid grid-cols-2 gap-2 min-[380px]:flex min-[380px]:flex-wrap">
+                <button type="button" disabled={busy} onClick={() => void reviewShift(shift.id, "APPROVED")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:opacity-50"><ShieldCheck className="h-4 w-4" />核准結班</button>
+                <button type="button" disabled={busy} onClick={() => void reviewShift(shift.id, "ADJUSTMENT_REQUIRED")} className="min-h-10 rounded-md border border-amber-300 px-3 text-sm font-semibold text-amber-900 disabled:opacity-50">要求更正</button>
+                <button type="button" disabled={busy} onClick={() => void reviewShift(shift.id, "REJECTED")} className="min-h-10 rounded-md border border-red-300 px-3 text-sm font-semibold text-red-800 disabled:opacity-50">退回複核</button>
+              </div>
+              {shift.status === "REVIEW_REQUIRED" ? <button type="button" onClick={() => setAdjustingShiftId(adjustingShiftId === shift.id ? null : shift.id)} className="mt-3 min-h-10 text-sm font-semibold text-teal-800">{adjustingShiftId === shift.id ? "收合帳務更正" : "新增帳務更正"}</button> : null}
+              {adjustingShiftId === shift.id ? <div className="mt-3 grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-end"><SignedMoneyInput label="更正金額（可為負數）" value={adjustmentAmount} onChange={setAdjustmentAmount} /><TextInput label="更正原因" value={adjustmentReason} onChange={setAdjustmentReason} maxLength={200} /><button type="button" disabled={busy || !adjustmentAmount || Number(adjustmentAmount) === 0 || !adjustmentReason.trim()} onClick={() => void adjustShift()} className="min-h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">送出更正</button></div> : null}
+            </div> : null}
+          </CollapsibleHistoryDetails>
         </article>)}
       </div>
       {state.history.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">尚無交班紀錄。</p> : null}
@@ -448,18 +491,56 @@ export function CashShiftBoard({
 }
 
 function Metric({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
-  return <div className="min-w-0 border-b border-r border-stone-200 p-3"><div className="text-xs text-stone-500">{label}</div><div className={`mt-1 break-words ${strong ? "text-lg font-semibold text-teal-800" : "text-sm font-semibold"}`}>{value}</div></div>;
+  return <div className={`min-w-0 rounded-lg border border-stone-200 bg-white p-3 shadow-sm ${strong ? "col-span-2 border-teal-200 bg-teal-50 min-[380px]:col-span-3 sm:col-span-2 lg:col-span-1" : ""}`}><div className="text-xs text-stone-500">{label}</div><div className={`mt-1 break-words ${strong ? "text-lg font-semibold text-teal-800" : "text-sm font-semibold"}`}>{value}</div></div>;
 }
 
 function HistoryMetric({ label, value, emphasize = false }: { label: string; value: string; emphasize?: boolean }) {
-  return <div><span className="text-xs text-stone-500">{label}</span><div className={`mt-0.5 font-semibold ${emphasize ? "text-amber-800" : "text-stone-900"}`}>{value}</div></div>;
+  return <div className="min-w-0 rounded-md bg-stone-50 px-3 py-2"><span className="text-xs text-stone-500">{label}</span><div className={`mt-0.5 break-words font-semibold ${emphasize ? "text-amber-800" : "text-stone-900"}`}>{value}</div></div>;
+}
+
+function CollapsibleHistoryDetails({ initiallyOpen, children }: { initiallyOpen: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(initiallyOpen);
+  return <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)} className="group mt-3 border-t border-stone-100 pt-3"><summary className="min-h-10 cursor-pointer rounded-md py-2 text-sm font-semibold text-teal-800 outline-none focus-visible:ring-2 focus-visible:ring-teal-600 group-open:mb-3">查看交班詳情</summary>{children}</details>;
 }
 
 function MovementList({ movements, currency }: { movements: Movement[]; currency: string }) {
-  return <section className="border-t border-stone-200 py-6"><h2 className="text-lg font-semibold">本班現金明細</h2><div className="mt-3 divide-y divide-stone-100">{movements.map((movement) => {
-    const direction = movementDirection(movement);
-    return <div key={movement.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3 text-sm">{direction >= 0 ? <ArrowDown className="h-4 w-4 text-emerald-700" /> : <ArrowUp className="h-4 w-4 text-red-700" />}<div className="min-w-0"><strong>{movementLabel(movement.type)} · {movement.reason}</strong><p className="mt-0.5 text-xs text-stone-500">{movement.recordedBy.displayName} · {formatTaipeiDateTime(movement.createdAt)}</p></div><span className={direction >= 0 ? "text-emerald-700" : "text-red-700"}>{formatSignedMoney(direction * Math.abs(movement.amount), currency)}</span></div>;
-  })}</div>{movements.length === 0 ? <p className="py-5 text-sm text-stone-500">本班尚無現金明細。</p> : null}</section>;
+  const visibleMovements = movements.slice(0, 4);
+  const olderMovements = movements.slice(4);
+  return <section className="border-t border-stone-200 py-6"><div className="flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">本班現金明細</h2>{movements.length > 0 ? <span className="text-xs text-stone-500">共 {movements.length} 筆</span> : null}</div><div className="mt-3 grid gap-2">{visibleMovements.map((movement) => <MovementRow key={movement.id} movement={movement} currency={currency} />)}</div>{olderMovements.length > 0 ? <details className="mt-3 rounded-lg border border-stone-200 bg-white p-3"><summary className="min-h-10 cursor-pointer py-2 text-sm font-semibold text-teal-800 outline-none focus-visible:ring-2 focus-visible:ring-teal-600">顯示較早的 {olderMovements.length} 筆明細</summary><div className="mt-2 grid gap-2">{olderMovements.map((movement) => <MovementRow key={movement.id} movement={movement} currency={currency} />)}</div></details> : null}{movements.length === 0 ? <p className="py-5 text-sm text-stone-500">本班尚無現金明細。</p> : null}</section>;
+}
+
+function MovementRow({ movement, currency }: { movement: Movement; currency: string }) {
+  const direction = movementDirection(movement);
+  return <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-lg border border-stone-100 bg-white p-3 text-sm min-[380px]:grid-cols-[auto_minmax(0,1fr)_auto] min-[380px]:items-center">{direction >= 0 ? <ArrowDown className="h-4 w-4 text-emerald-700" /> : <ArrowUp className="h-4 w-4 text-red-700" />}<div className="min-w-0"><strong className="break-words">{movementLabel(movement.type)} · {movement.reason}</strong><p className="mt-0.5 break-words text-xs text-stone-500">{movement.recordedBy.displayName} · {formatTaipeiDateTime(movement.createdAt)}</p></div><span className={`col-start-2 font-semibold min-[380px]:col-start-auto ${direction >= 0 ? "text-emerald-700" : "text-red-700"}`}>{formatSignedMoney(direction * Math.abs(movement.amount), currency)}</span></div>;
+}
+
+function ActionCard({ label, description, icon, disabled, onClick }: { label: string; description: string; icon: ReactNode; disabled: boolean; onClick: () => void }) {
+  return <button type="button" disabled={disabled} onClick={onClick} className="min-w-0 rounded-lg border border-stone-200 bg-white p-3 text-left shadow-sm transition hover:border-teal-300 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50"><span className="text-teal-800">{icon}</span><strong className="mt-2 block break-words text-sm">{label}</strong><span className="mt-1 block break-words text-xs text-stone-500">{description}</span></button>;
+}
+
+function CashShiftDialog({ title, description, busy, message, onDismiss, children }: { title: string; description: string; busy: boolean; message: string; onDismiss: () => void; children: ReactNode }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (!dialog.open) dialog.showModal();
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialog.querySelector<HTMLElement>("[data-dialog-initial-focus]")?.focus();
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, []);
+
+  return <dialog ref={dialogRef} aria-labelledby="cash-shift-dialog-title" aria-describedby="cash-shift-dialog-description" onCancel={(event) => { if (busy) event.preventDefault(); }} onClose={onDismiss} data-testid="cash-shift-dialog" className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-xl border border-stone-200 bg-white p-0 text-stone-950 shadow-2xl backdrop:bg-stone-950/60">
+    <div className="p-5 sm:p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0"><h2 id="cash-shift-dialog-title" className="break-words text-xl font-semibold">{title}</h2><p id="cash-shift-dialog-description" className="mt-1 break-words text-sm text-stone-600">{description}</p></div>
+        <button type="button" disabled={busy} onClick={onDismiss} aria-label={`關閉${title}`} className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-stone-300 text-stone-700 disabled:opacity-50"><X className="h-4 w-4" /></button>
+      </div>
+      {message ? <p role="status" aria-live="polite" className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-950">{message}</p> : null}
+      <div className="mt-5">{children}</div>
+    </div>
+  </dialog>;
 }
 
 function Variance({ amount, currency }: { amount: number; currency: string }) {
@@ -472,8 +553,8 @@ function StatusBadge({ status }: { status: ShiftStatus }) {
   return <span className={`rounded px-3 py-1 text-xs font-semibold ${styles[status]}`}>{labels[status]}</span>;
 }
 
-function MoneyInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="text-xs font-semibold text-stone-600">{label}<input type="text" inputMode="numeric" maxLength={9} pattern="[0-9]{0,9}" value={value} onChange={(event) => onChange(event.target.value.replace(/\D/g, "").slice(0, 9))} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>;
+function MoneyInput({ label, value, onChange, initialFocus = false }: { label: string; value: string; onChange: (value: string) => void; initialFocus?: boolean }) {
+  return <label className="text-xs font-semibold text-stone-600">{label}<input data-dialog-initial-focus={initialFocus ? true : undefined} type="text" inputMode="numeric" maxLength={9} pattern="[0-9]{0,9}" value={value} onChange={(event) => onChange(event.target.value.replace(/\D/g, "").slice(0, 9))} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>;
 }
 
 function SignedMoneyInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {

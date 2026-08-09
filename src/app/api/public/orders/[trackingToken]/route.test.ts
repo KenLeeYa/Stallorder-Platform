@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getOrderThroughCircuitB: vi.fn(),
 }));
 const testOrigin = "https://app.qidaigo.com";
+const operationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 vi.mock("@/server/public-order/circuit-b-service", () => ({
   PublicOrderCircuitError: class PublicOrderCircuitError extends Error {
@@ -46,6 +47,7 @@ describe("GET /api/public/orders/:trackingToken", () => {
             "x-real-ip": "203.0.113.8",
             "x-stallorder-device-id": "11111111-1111-4111-8111-111111111111",
             "x-stallorder-protocol-version": "1",
+            "x-stallorder-operation-id": operationId,
           },
         },
       ),
@@ -53,6 +55,8 @@ describe("GET /api/public/orders/:trackingToken", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("x-stallorder-operation-id")).toBe(operationId);
+    expect(response.headers.get("x-request-id")).not.toBe(operationId);
     expect(mocks.getOrderThroughCircuitB).toHaveBeenCalledWith(
       {
         trackingToken,

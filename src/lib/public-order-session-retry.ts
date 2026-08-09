@@ -1,5 +1,5 @@
 export function shouldRotateSessionRequestId(status: number, code: string) {
-  return code.length > 0 && status >= 400 && status < 500;
+  return status !== 408 && code.length > 0 && status >= 400 && status < 500;
 }
 
 export type PublicOrderingMode = "DEFAULT" | "DELIVERY" | "PREORDER";

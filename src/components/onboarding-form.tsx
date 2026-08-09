@@ -17,6 +17,7 @@ import {
   PUBLIC_IDENTIFIER_MIN_LENGTH,
   PUBLIC_IDENTIFIER_PATTERN,
 } from "@/lib/public-identifier";
+import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
 import { taiwanCityOptions } from "@/lib/taiwan-address";
 
 type InitialValues = {
@@ -407,7 +408,7 @@ function ApplicantStep({ profile, state, update, fieldErrors }: StepProps & { pr
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-stone-100" aria-hidden="true"><UserRound className="h-7 w-7 text-stone-500" /></span>
       <div><strong>{profile.displayName}</strong><p className="text-sm text-stone-500">{profile.email ?? "未提供電子郵件"}</p><p className="mt-1 text-xs text-teal-800">已驗證登入身分</p></div>
     </div>
-    <Field field="phone" label="聯絡電話" error={fieldErrors.phone}><input {...fieldValidationProps("phone", fieldErrors)} type="tel" inputMode="tel" required value={state.phone} onChange={(event) => update("phone", event.target.value)} autoComplete="tel" minLength={6} maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" className={inputClass} /></Field>
+    <Field field="phone" label="聯絡電話" error={fieldErrors.phone}><input {...fieldValidationProps("phone", fieldErrors)} type="tel" inputMode="tel" required value={state.phone} onChange={(event) => update("phone", event.target.value)} autoComplete="tel" minLength={6} maxLength={30} pattern={PHONE_INPUT_PATTERN} className={inputClass} /></Field>
     <Field field="lineId" label="LINE ID（選填）" error={fieldErrors.lineId}><input {...fieldValidationProps("lineId", fieldErrors)} type="text" value={state.lineId} onChange={(event) => update("lineId", event.target.value)} maxLength={80} className={inputClass} /></Field>
     <Field field="preferredContactMethod" label="偏好聯絡方式" error={fieldErrors.preferredContactMethod}><select {...fieldValidationProps("preferredContactMethod", fieldErrors)} value={state.preferredContactMethod} onChange={(event) => update("preferredContactMethod", event.target.value as FormState["preferredContactMethod"])} className={inputClass}><option value="PHONE">電話</option><option value="LINE">LINE</option><option value="EMAIL">電子郵件</option></select></Field>
   </div>;
@@ -431,7 +432,7 @@ function MerchantStep({ state, update, updateMerchantName, fieldErrors, business
     <Field field="businessType" label="營業類型" error={fieldErrors.businessType}><select {...fieldValidationProps("businessType", fieldErrors)} value={state.businessType} onChange={(event) => update("businessType", event.target.value as FormState["businessType"])} className={inputClass}>{options.map((option) => <option key={option.code} value={option.legacyType}>{option.name}</option>)}</select></Field>
     <Field field="businessRegistrationNumber" label="統一編號（選填）" error={fieldErrors.businessRegistrationNumber}><input {...fieldValidationProps("businessRegistrationNumber", fieldErrors)} type="text" value={state.businessRegistrationNumber} onChange={(event) => update("businessRegistrationNumber", event.target.value)} maxLength={30} className={inputClass} /></Field>
     <Field field="contactName" label="負責聯絡人" error={fieldErrors.contactName}><input {...fieldValidationProps("contactName", fieldErrors)} type="text" required value={state.contactName} onChange={(event) => update("contactName", event.target.value)} minLength={2} maxLength={80} className={inputClass} /></Field>
-    <Field field="businessPhone" label="商家電話" error={fieldErrors.businessPhone}><input {...fieldValidationProps("businessPhone", fieldErrors)} type="tel" inputMode="tel" required value={state.businessPhone} onChange={(event) => update("businessPhone", event.target.value)} autoComplete="tel" minLength={6} maxLength={30} pattern="\+?[0-9][0-9 ().-]{5,29}" className={inputClass} /></Field>
+    <Field field="businessPhone" label="商家電話" error={fieldErrors.businessPhone}><input {...fieldValidationProps("businessPhone", fieldErrors)} type="tel" inputMode="tel" required value={state.businessPhone} onChange={(event) => update("businessPhone", event.target.value)} autoComplete="tel" minLength={6} maxLength={30} pattern={PHONE_INPUT_PATTERN} className={inputClass} /></Field>
     <Field field="city" label="縣市" error={fieldErrors.city}><select {...fieldValidationProps("city", fieldErrors)} required value={state.city} onChange={(event) => update("city", event.target.value)} className={inputClass}><option value="">請選擇縣市</option>{taiwanCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></Field>
     <Field field="businessAddress" label="商家地址" error={fieldErrors.businessAddress} full><input {...fieldValidationProps("businessAddress", fieldErrors)} type="text" required value={state.businessAddress} onChange={(event) => update("businessAddress", event.target.value)} minLength={5} maxLength={200} className={inputClass} /></Field>
     <Field field="merchantDescription" label="商家簡介（選填）" error={fieldErrors.merchantDescription} full><textarea {...fieldValidationProps("merchantDescription", fieldErrors)} value={state.merchantDescription} onChange={(event) => update("merchantDescription", event.target.value)} maxLength={1000} rows={4} className={inputClass} /></Field>

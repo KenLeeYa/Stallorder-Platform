@@ -80,7 +80,10 @@ test.describe("Staging 平台管理員 Google 登入", () => {
     const googleLogin = page.getByRole("link", { name: "使用 Google 登入", exact: true });
     await expect(googleLogin).toHaveAttribute("href", "/auth/google");
     await googleLogin.click();
-    await expect(page).toHaveURL(/^http:\/\/127\.0\.0\.1:55431\/auth\/v1\/authorize/);
+    const oauthMockPort = String(Number(process.env.PLAYWRIGHT_OAUTH_MOCK_PORT ?? "55431"));
+    await expect(page).toHaveURL(
+      new RegExp(`^http:\\/\\/127\\.0\\.0\\.1:${oauthMockPort}\\/auth\\/v1\\/authorize`),
+    );
     await page.getByRole("link", { name: email, exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/billing$/, { timeout: 20_000 });
     await expect(page.getByRole("link", { name: "平台管理後台", exact: true })).toBeVisible();

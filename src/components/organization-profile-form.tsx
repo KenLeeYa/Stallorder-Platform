@@ -10,6 +10,7 @@ import {
   withoutFieldError,
   type FieldErrors,
 } from "@/lib/form-field-errors";
+import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
 import { useUnsavedSettings } from "@/lib/unsaved-settings";
 
 type OrganizationProfile = {
@@ -120,7 +121,7 @@ export function OrganizationProfileForm({
             required
             minLength={6}
             maxLength={30}
-            pattern="\+?[0-9][0-9 ().-]{5,29}"
+            pattern={PHONE_INPUT_PATTERN}
             value={draft.phone}
             data-field-key="phone"
             aria-invalid={Boolean(fieldErrors.phone)}

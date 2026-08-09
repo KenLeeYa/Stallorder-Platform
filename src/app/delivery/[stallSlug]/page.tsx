@@ -24,8 +24,13 @@ export default async function DeliveryOrderPage({ params }: PageProps) {
       qrCodes: {
         where: {
           diningTableId: null,
+          marketEventId: null,
+          stallScheduleId: null,
           state: "ACTIVE",
-          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          AND: [
+            { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+            { OR: [{ fulfillmentTypeContext: null }, { fulfillmentTypeContext: "DELIVERY" }] },
+          ],
         },
         orderBy: [{ tokenVersion: "desc" }, { updatedAt: "desc" }],
         take: 1,
@@ -50,5 +55,5 @@ export default async function DeliveryOrderPage({ params }: PageProps) {
   }
 
   const initialMenu = await getCachedPublicMenuForQrToken(qrToken, "DELIVERY");
-  return <QrOrderFlow qrToken={qrToken} orderingMode="DELIVERY" initialMenu={initialMenu} />;
+  return <QrOrderFlow qrToken={qrToken} orderingMode="DELIVERY" initialMenu={initialMenu} entryChannel="SHARED_LINK" />;
 }

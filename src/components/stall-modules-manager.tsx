@@ -145,8 +145,9 @@ export function StallModulesManager({
     () => new Set(moduleSectionKeys),
   );
   const allSectionsExpanded = moduleSectionKeys.every((section) => openSections.has(section));
+  const takeoutUrl = `${appUrl.replace(/\/$/, "")}/s/${encodeURIComponent(stallSlug)}`;
   const deliveryUrl = `${appUrl.replace(/\/$/, "")}/delivery/${encodeURIComponent(stallSlug)}`;
-  const lineReply = `您好，請點擊以下連結選擇餐點並填寫外送資料：\n${deliveryUrl}`;
+  const lineReply = `您好，請依需求選擇點餐連結：\n外帶預約：${takeoutUrl}\n外送：${deliveryUrl}`;
   const floorTabs = useMemo(() => getDiningFloorTabs(state.floors, state.tables), [state.floors, state.tables]);
   const activeFloor = floorTabs.find((floor) => floor.key === activeFloorKey) ?? floorTabs[0] ?? null;
   const activeFloorRecord = activeFloor?.id ? state.floors.find((floor) => floor.id === activeFloor.id) ?? null : null;
@@ -184,6 +185,17 @@ export function StallModulesManager({
 
   function setAllSections(isOpen: boolean) {
     setOpenSections(isOpen ? new Set(moduleSectionKeys) : new Set());
+  }
+
+  async function copyShareText(value: string, label: string) {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("CLIPBOARD_UNAVAILABLE");
+      await navigator.clipboard.writeText(value);
+      setMessageKind("success");
+      setMessage(`${label}已複製。`);
+    } catch {
+      window.prompt(`請手動複製${label}`, value);
+    }
   }
 
   async function run(command: Record<string, unknown>, success: string) {
@@ -472,12 +484,14 @@ export function StallModulesManager({
         data-module-section="delivery"
         className="mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
       >
-        <CollapsibleSectionSummary icon={Truck} title="外送與 LINE 連結" description="固定網址可放入 LINE 官方帳號的關鍵字自動回覆。" level={3} />
+        <CollapsibleSectionSummary icon={Truck} title="外帶、外送與 LINE 連結" description="分享連結才會讓顧客選擇取餐或送達時間；現場 QR 維持即時點餐。" level={3} />
         <div className="pb-6">
+          {!state.settings.takeoutPreorderEnabled ? <p className="mb-3 text-sm text-amber-800">請先開啟並儲存「外帶預約單」模組，顧客才能使用外帶預約連結。</p> : null}
           {!state.settings.deliveryModuleEnabled ? <p className="mb-3 text-sm text-amber-800">請先開啟並儲存「線上外送」模組，顧客才能使用此連結。</p> : null}
-          <label className="block text-xs font-semibold text-stone-600">顧客外送網址<div className="mt-1 flex gap-2"><input type="text" readOnly value={deliveryUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製外送網址" onClick={() => void navigator.clipboard.writeText(deliveryUrl)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
+          <label className="block text-xs font-semibold text-stone-600">顧客外帶預約網址<div className="mt-1 flex gap-2"><input type="text" readOnly value={takeoutUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製外帶預約網址" onClick={() => void copyShareText(takeoutUrl, "外帶預約網址")} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
+          <label className="mt-4 block text-xs font-semibold text-stone-600">顧客外送網址<div className="mt-1 flex gap-2"><input type="text" readOnly value={deliveryUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製外送網址" onClick={() => void copyShareText(deliveryUrl, "外送網址")} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
           <label className="mt-4 block text-xs font-semibold text-stone-600">LINE 自動回覆內容<textarea readOnly value={lineReply} className="mt-1 min-h-24 w-full rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm" /></label>
-          <button type="button" onClick={() => void navigator.clipboard.writeText(lineReply)} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MessageCircle className="h-4 w-4" />複製 LINE 回覆內容</button>
+          <button type="button" onClick={() => void copyShareText(lineReply, "LINE 回覆內容")} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MessageCircle className="h-4 w-4" />複製 LINE 回覆內容</button>
         </div>
       </details>
 
@@ -614,7 +628,7 @@ export function StallModulesManager({
                     <button type="button" disabled={busy} onClick={() => { if (window.confirm(`確定刪除 ${table.label}？`)) void run({ operation: "DELETE_TABLE", tableId: table.id }, "桌位已刪除。"); }} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-300 text-red-700" title={`刪除 ${table.label}`}><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </div>
-                {qrUrl ? <div className="flex flex-col items-center gap-2 border-l-0 border-stone-200 lg:border-l lg:pl-4"><QRCodeSVG value={qrUrl} size={120} level="M" /><button type="button" onClick={() => void navigator.clipboard.writeText(qrUrl)} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-800"><Copy className="h-3.5 w-3.5" />複製網址</button><span className="text-xs text-stone-500">QR v{table.qrCode?.tokenVersion}</span></div> : null}
+                {qrUrl ? <div className="flex flex-col items-center gap-2 border-l-0 border-stone-200 lg:border-l lg:pl-4"><QRCodeSVG value={qrUrl} size={120} level="M" /><button type="button" onClick={() => void copyShareText(qrUrl, `${table.label} QR 網址`)} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-800"><Copy className="h-3.5 w-3.5" />複製網址</button><span className="text-xs text-stone-500">QR v{table.qrCode?.tokenVersion}</span></div> : null}
               </div>;
             })}
             {activeFloorTables.length === 0 ? <p className="py-6 text-sm text-stone-500">{activeFloor?.name ?? "此樓層"}尚未建立內用桌位。</p> : null}

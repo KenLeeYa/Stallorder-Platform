@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { generatePublicIdentifierSuggestion } from "../src/lib/public-identifier-suggestion";
 
@@ -16,6 +16,14 @@ const merchantName = `申請流程測試商家 ${runId}`;
 const updatedMerchantName = `${merchantName} 更新`;
 const requestedSlug = `onboarding-flow-${runId}`;
 let profileId = "";
+
+async function waitForReactHydration(control: Locator) {
+  await expect.poll(() => control.evaluate((element) => (
+    Object.keys(element).some((key) => (
+      key.startsWith("__reactProps$") || key.startsWith("__reactFiber$")
+    ))
+  )), { message: "等待 React 完成控制項 hydration" }).toBe(true);
+}
 
 test.describe("商家申請表單流程", () => {
   test.beforeAll(async () => {
@@ -59,11 +67,19 @@ test.describe("商家申請表單流程", () => {
 
   test("已驗證且尚無商戶的帳號可送出申請，但不會直接建立組織", async ({ page }) => {
     await loginForOnboarding(page);
+    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+      const warmupResponse = await page.context().request.get("/api/onboarding");
+      expect(warmupResponse.status()).toBe(200);
+      await warmupResponse.dispose();
+      expect((await page.reload())?.status()).toBe(200);
+    }
     await expect(page.getByRole("heading", { name: "商家申請" })).toBeVisible();
     await expect(page.getByText("已驗證登入身分")).toBeVisible();
     await expect(page.getByText("送出後由平台人工審核，不會立即建立商家工作區。")).toBeVisible();
 
-    await page.getByRole("button", { name: "下一步" }).click();
+    const firstNextButton = page.getByRole("button", { name: "下一步" });
+    await waitForReactHydration(firstNextButton);
+    await firstNextButton.click();
     await expect(page.getByText("請填寫「聯絡電話」。", { exact: true })).toBeVisible();
     await expect(page.getByLabel("聯絡電話")).toBeFocused();
 

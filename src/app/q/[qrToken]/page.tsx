@@ -13,7 +13,11 @@ export default async function QrOrderPage({ params }: PageProps) {
   const renderStartedAt = timing.start();
   const { qrToken } = await params;
   const initialMenu = await timing.measureDb(
-    () => getCachedPublicMenuForQrToken(qrToken),
+    () => getCachedPublicMenuForQrToken(
+      qrToken,
+      "DEFAULT",
+      { includeOptionalPreorderSlots: false },
+    ),
     0,
   );
   timing.addSince("renderMs", renderStartedAt);
@@ -23,6 +27,7 @@ export default async function QrOrderPage({ params }: PageProps) {
       qrToken={qrToken}
       orderingMode={initialMenu?.orderingMode ?? "DEFAULT"}
       initialMenu={initialMenu}
+      entryChannel="QR"
     />
   );
 }

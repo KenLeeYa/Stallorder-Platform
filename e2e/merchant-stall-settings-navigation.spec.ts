@@ -6,35 +6,7 @@ const stallId = "22222222-2222-4222-8222-222222222222";
 test.use({ viewport: { width: 375, height: 812 } });
 
 test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) => {
-  await page.goto("/login");
-  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
-  await page.getByLabel("電子郵件").fill("owner@stallorder.test");
-  await page.getByLabel("密碼").fill("StallOrderDemo!2026");
-  await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(
-    new RegExp(`/merchant/dashboard\\?organizationId=${organizationId}$`),
-    { timeout: 30_000 },
-  );
-
-  await page.goto(`/merchant/stalls/${stallId}`);
-  await expect(page.getByRole("link", { name: "攤點通", exact: true })).toHaveAttribute(
-    "href",
-    `/merchant/stalls?organizationId=${organizationId}`,
-  );
-  await expect(page.getByLabel("選擇商家")).toHaveCount(0);
-  await expect(page.getByLabel("選擇攤位")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "前往攤位 阿明鹽酥雞", exact: true }))
-    .toHaveAttribute("href", "/merchant/aming-chicken");
-
-  for (const heading of ["攤位設定", "營運工具", "組織管理"]) {
-    await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
-  }
-  await expect(page.getByRole("link", { name: "現金交班報表", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "KDS 工作站", exact: true }))
-    .toHaveAttribute("href", `/merchant/stalls/${stallId}/kitchen/stations`);
-  await expect(page.getByRole("link", { name: "KDS 設定", exact: true }))
-    .toHaveAttribute("href", `/merchant/stalls/${stallId}/kitchen/settings`);
-
+  const overviewPath = `/merchant/stalls/${stallId}`;
   const sectionLinks = [
     ["基本資料", "basic"],
     ["營運狀態", "operations"],
@@ -51,9 +23,79 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     templates: "stall-template",
     members: "stall-team",
   };
+  const organizationLinks = [
+    ["商家資料", "organization"],
+    ["翻譯完整度", "localization"],
+    ["市集活動", "events"],
+    ["團隊與權限", "team"],
+    ["排程寄送", "report-schedules"],
+  ] as const;
+
+  await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
+  await page.getByLabel("電子郵件").fill("owner@stallorder.test");
+  await page.getByLabel("密碼").fill("StallOrderDemo!2026");
+  await page.getByRole("button", { name: "登入", exact: true }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/merchant/dashboard\\?organizationId=${organizationId}$`),
+    { timeout: 30_000 },
+  );
+
+  if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
+    const destinationPaths = [
+      ...sectionLinks.map(([, section]) => `/merchant/stalls/${stallId}/settings/${section}`),
+      ...organizationLinks.map(([, route]) => (
+        `/merchant/${route}?organizationId=${organizationId}&stallId=${stallId}`
+      )),
+    ];
+    for (const destinationPath of destinationPaths) {
+      const warmupResponse = await page.context().request.get(destinationPath);
+      expect(warmupResponse.status()).toBe(200);
+      await warmupResponse.dispose();
+    }
+  }
+  await page.goto(overviewPath);
+  await expect(page.getByLabel("應用程式狀態")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeHidden();
+  const expandMerchantOptions = page.getByRole("button", { name: "展開商戶選項" });
+  await expect(expandMerchantOptions).toHaveAttribute("aria-expanded", "false");
+  await expandMerchantOptions.click();
+  await expect(page.getByRole("button", { name: "收合商戶選項" })).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("link", { name: "攤點通", exact: true })).toHaveAttribute(
+    "href",
+    `/merchant/stalls?organizationId=${organizationId}`,
+  );
+  await expect(page.getByLabel("選擇商家")).toHaveCount(0);
+  await expect(page.getByLabel("選擇攤位")).toHaveCount(0);
+  const stallShortcut = page.getByRole("link", { name: "前往攤位 阿明鹽酥雞", exact: true });
+  await expect(stallShortcut).toHaveAttribute("href", "/merchant/aming-chicken");
+  const workMode = page.getByLabel("切換工作模式");
+  const [stallShortcutBox, workModeBox] = await Promise.all([
+    stallShortcut.boundingBox(),
+    workMode.boundingBox(),
+  ]);
+  expect(stallShortcutBox).not.toBeNull();
+  expect(workModeBox).not.toBeNull();
+  expect(stallShortcutBox!.x).toBeGreaterThan(workModeBox!.x);
+  expect(Math.abs(stallShortcutBox!.y - workModeBox!.y)).toBeLessThanOrEqual(2);
+
+  await page.getByRole("button", { name: "收合商戶選項" }).click();
+  await expect(stallShortcut).toBeHidden();
+  await expect(workMode).toBeHidden();
+  await expect(page.getByLabel("應用程式狀態")).toBeVisible();
+  await page.getByRole("button", { name: "展開商戶選項" }).click();
+
+  for (const heading of ["攤位設定", "營運工具", "組織管理"]) {
+    await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("link", { name: "現金交班報表", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "KDS 工作站", exact: true }))
+    .toHaveAttribute("href", `/merchant/stalls/${stallId}/kitchen/stations`);
+  await expect(page.getByRole("link", { name: "KDS 設定", exact: true }))
+    .toHaveAttribute("href", `/merchant/stalls/${stallId}/kitchen/settings`);
 
   for (const [label, section] of sectionLinks) {
-    await page.goto(`/merchant/stalls/${stallId}`);
+    await page.goto(overviewPath);
     const link = page.getByRole("link", { name: label, exact: true });
     await expect(link).toHaveAttribute("href", `/merchant/stalls/${stallId}/settings/${section}`);
     await link.click();
@@ -72,16 +114,8 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     expect(hasSectionOverflow, `${label} 不應產生手機版水平溢位`).toBe(false);
   }
 
-  const organizationLinks = [
-    ["商家資料", "organization"],
-    ["翻譯完整度", "localization"],
-    ["市集活動", "events"],
-    ["團隊與權限", "team"],
-    ["排程寄送", "report-schedules"],
-  ] as const;
-
   for (const [label, route] of organizationLinks) {
-    await page.goto(`/merchant/stalls/${stallId}`);
+    await page.goto(overviewPath);
     const link = page.getByRole("link", { name: label, exact: true });
     const destination = `/merchant/${route}?organizationId=${organizationId}&stallId=${stallId}`;
     await expect(link).toHaveAttribute("href", destination);

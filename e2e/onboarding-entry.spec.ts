@@ -19,7 +19,8 @@ test("登入頁的申請開通會使用目前啟用的驗證帳號流程", async
   const location = response.headers().location;
   expect(location).toBeTruthy();
   const authorizeUrl = new URL(location!);
-  expect(authorizeUrl.origin).toBe("http://127.0.0.1:55431");
+  const oauthMockPort = String(Number(process.env.PLAYWRIGHT_OAUTH_MOCK_PORT ?? "55431"));
+  expect(authorizeUrl.origin).toBe(`http://127.0.0.1:${oauthMockPort}`);
   expect(authorizeUrl.pathname).toBe("/auth/v1/authorize");
   expect(authorizeUrl.searchParams.get("provider")).toBe("google");
   expect(authorizeUrl.searchParams.get("prompt")).toBe("select_account");

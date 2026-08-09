@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Banknote } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
+import { createWebUuid } from "@/lib/web-uuid";
 
 export function ManualPaymentForm({ organizationId, invoiceId, amountDue, currency }: {
   organizationId: string;
@@ -16,7 +17,7 @@ export function ManualPaymentForm({ organizationId, invoiceId, amountDue, curren
   const [method, setMethod] = useState("BANK_TRANSFER");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const [idempotencyKey, setIdempotencyKey] = useState(createWebUuid);
 
   async function submit(formData: FormData) {
     setSaving(true);
@@ -39,7 +40,7 @@ export function ManualPaymentForm({ organizationId, invoiceId, amountDue, curren
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "目前無法送出付款資料。");
       setMessage("付款資料已送出，等待平台管理員確認。");
-      setIdempotencyKey(crypto.randomUUID());
+      setIdempotencyKey(createWebUuid());
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "目前無法送出付款資料。");

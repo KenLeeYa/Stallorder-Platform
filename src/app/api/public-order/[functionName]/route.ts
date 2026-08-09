@@ -5,6 +5,10 @@ import {
   trustedPublicOrderClientIp,
 } from "@/lib/public-order-proxy-headers";
 import { createRequestId } from "@/lib/security";
+import {
+  getPublicOrderOperationId,
+  PUBLIC_ORDER_OPERATION_ID_HEADER,
+} from "@/lib/public-order-operation-id";
 
 const ALLOWED_FUNCTIONS = new Set([
   "create-order-session",
@@ -55,11 +59,19 @@ export async function POST(
   { params }: { params: Promise<{ functionName: string }> },
 ) {
   const requestId = createRequestId();
-  const timing = createPerformanceTiming({ route: "/api/public-order/:functionName", requestId });
+  const operationId = getPublicOrderOperationId(request);
+  const timing = createPerformanceTiming({
+    route: "/api/public-order/:functionName",
+    requestId,
+    operationId,
+  });
   const { functionName } = await params;
   if (!ALLOWED_FUNCTIONS.has(functionName)) {
     return finalizePerformanceResponse(
-      NextResponse.json({ error: "找不到此公開點餐服務。", code: "FUNCTION_NOT_FOUND" }, { status: 404 }),
+      NextResponse.json(
+        { error: "找不到此公開點餐服務。", code: "FUNCTION_NOT_FOUND" },
+        { status: 404, headers: { [PUBLIC_ORDER_OPERATION_ID_HEADER]: operationId } },
+      ),
       timing,
     );
   }
@@ -73,6 +85,7 @@ export async function POST(
       "content-type": request.headers.get("content-type") ?? "application/json",
       "x-stallorder-protocol-version":
         request.headers.get("x-stallorder-protocol-version") ?? "1",
+      [PUBLIC_ORDER_OPERATION_ID_HEADER]: operationId,
       origin: publicFunctionOrigin(),
       ...publicFunctionGatewayHeaders(),
       ...publicOrderUpstreamIpHeaders(clientIp),
@@ -87,6 +100,7 @@ export async function POST(
       "content-type": upstream.headers.get("content-type") ?? "application/json",
       "cache-control": "no-store",
       "x-upstream-request-id": upstream.headers.get("x-request-id") ?? "",
+      [PUBLIC_ORDER_OPERATION_ID_HEADER]: operationId,
     },
   }), timing);
 }

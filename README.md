@@ -138,6 +138,7 @@ npm run resilience:game-day -- --verify-dry-runs
 - [後續議題](docs/MULTI_STALL_GITHUB_ISSUES.md)
 - [安全基線](docs/SECURITY.md)
 - [監控基線](docs/MONITORING.md)
+- [QR 訂購與架構改善 Phase 0–3 Checklist](docs/QR_ORDERING_PHASE_0_3_CHECKLIST.md)
 - [P2 排程報表寄送](docs/P2_REPORT_DELIVERY.md)
 - [Supabase 報表排程 Cron](docs/SUPABASE_REPORT_DELIVERY_CRON.md)
 - [qidaigo.com 正式部署](docs/PRODUCTION_DEPLOYMENT_QIDAIGO.md)

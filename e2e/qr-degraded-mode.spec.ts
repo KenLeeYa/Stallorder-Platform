@@ -50,7 +50,9 @@ test("後端降級時保留 QR 菜單並停用所有送單操作", async ({ page
 
   await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "線上送單暫時停用", exact: true })).toBeVisible();
-  await expect(page.getByText("您仍可查看菜單，請至攤位櫃台點餐。", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "線上送單暫時停用", exact: true })
+    .locator("..")
+    .getByText("您仍可查看菜單，請至攤位櫃台點餐。", { exact: true })).toBeVisible();
   await expect(page.getByRole("article").filter({ hasText: "香酥雞排" })).toBeVisible();
   await expect(page.getByRole("button", { name: "增加 香酥雞排" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toHaveCount(0);
@@ -60,8 +62,13 @@ test("後端降級時保留 QR 菜單並停用所有送單操作", async ({ page
 
 test("安全工作階段失敗時顯示錯誤並可重新建立", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    const nativeTimeout = AbortSignal.timeout.bind(AbortSignal);
+    AbortSignal.timeout = (milliseconds) => nativeTimeout(Math.max(milliseconds, 30_000));
+  });
   let sessionAttempts = 0;
   const sessionRequestIds: string[] = [];
+  const operationIds: string[] = [];
   let releaseInitialFailure!: () => void;
   const initialFailure = new Promise<void>((resolve) => {
     releaseInitialFailure = resolve;
@@ -78,6 +85,7 @@ test("安全工作階段失敗時顯示錯誤並可重新建立", async ({ page 
     sessionAttempts += 1;
     const requestBody = route.request().postDataJSON() as { sessionRequestId?: string };
     sessionRequestIds.push(String(requestBody.sessionRequestId ?? ""));
+    operationIds.push(String(route.request().headers()["x-stallorder-operation-id"] ?? ""));
     if (sessionAttempts === 1) {
       await initialFailure;
       await route.fulfill({
@@ -135,12 +143,15 @@ test("安全工作階段失敗時顯示錯誤並可重新建立", async ({ page 
   await expect.poll(() => sessionAttempts).toBe(2);
   await expect(sessionStatus).toHaveAttribute("data-ordering-availability", "UNAVAILABLE");
   expect(sessionRequestIds[1]).toBe(sessionRequestIds[0]);
+  expect(operationIds[0]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  expect(operationIds[1]).toBe(operationIds[0]);
 
   await page.getByRole("button", { name: "重新檢查", exact: true }).click();
 
   await expect.poll(() => sessionAttempts).toBe(3);
   await expect(sessionStatus).toHaveAttribute("data-ordering-availability", "UNAVAILABLE");
   expect(sessionRequestIds[2]).not.toBe(sessionRequestIds[1]);
+  expect(operationIds[2]).not.toBe(operationIds[1]);
 
   await page.getByRole("button", { name: "重新檢查", exact: true }).click();
 
@@ -149,6 +160,7 @@ test("安全工作階段失敗時顯示錯誤並可重新建立", async ({ page 
   await expect(page.getByRole("heading", { name: "線上送單暫時停用", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "增加 香酥雞排" })).toBeEnabled();
   expect(sessionRequestIds[3]).not.toBe(sessionRequestIds[2]);
+  expect(operationIds[3]).not.toBe(operationIds[2]);
 });
 
 test("後端 target 切換時忽略舊工作階段的晚到失敗", async ({ page }) => {

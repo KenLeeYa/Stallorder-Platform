@@ -3,6 +3,7 @@ import {
   releaseOfflineSyncLease,
   renewOfflineSyncLease,
 } from "@/offline/offline-db";
+import { createWebUuid } from "@/lib/web-uuid";
 
 type BrowserLock = object;
 
@@ -46,7 +47,7 @@ async function withIndexedDbLease<T>(
   installationId: string,
   operation: () => Promise<T>,
 ): Promise<OfflineSyncLockResult<T>> {
-  const ownerId = crypto.randomUUID();
+  const ownerId = createWebUuid();
   const acquired = await acquireOfflineSyncLease(
     installationId,
     ownerId,

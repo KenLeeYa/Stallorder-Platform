@@ -36,8 +36,8 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage, w
   ];
   return (
     <header className="border-b border-stone-200 bg-white">
-      <div className="mx-auto max-w-[1600px] px-4 py-4 md:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="mx-auto max-w-[1600px] px-4 py-3 sm:py-4 md:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <ChefHat className="h-7 w-7 shrink-0 text-teal-700" />
             <div className="min-w-0">
@@ -45,13 +45,13 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage, w
               <p className="truncate text-sm text-stone-600">{stall.name}</p>
             </div>
           </div>
-          <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
+          <div className="flex w-full flex-nowrap items-end gap-2 overflow-x-auto pb-1 [&>*]:shrink-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:pb-0">
             <WorkModeSwitcher
               destinations={workModeDestinations}
               currentMode="KITCHEN"
               organizationId={stall.organizationId}
               stallId={stall.id}
-              className="w-full sm:w-auto"
+              className="w-auto shrink-0"
             />
             {availableStalls.length > 1 ? (
               <form method="get" className="flex items-end gap-2">
@@ -66,7 +66,7 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage, w
             ) : null}
           </div>
         </div>
-        <nav className="mt-4 flex gap-1 overflow-x-auto" aria-label="KDS 導覽">
+        <nav className="mt-3 flex gap-1 overflow-x-auto sm:mt-4" aria-label="KDS 導覽">
           {links.map(({ key, href, label, icon: Icon }) => (
             <Link
               key={key}

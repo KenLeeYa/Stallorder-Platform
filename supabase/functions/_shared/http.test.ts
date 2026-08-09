@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { errorMessage, getGatewayClientIp, statusForCode } from "./http";
+import {
+  errorMessage,
+  getCorsHeaders,
+  getGatewayClientIp,
+  getPublicOrderOperationId,
+  jsonResponse,
+  PUBLIC_ORDER_OPERATION_ID_HEADER,
+  statusForCode,
+} from "./http";
 
 describe("Edge 用戶端 IP", () => {
   it("只讀取部署時指定的可信標頭", () => {
@@ -47,5 +55,48 @@ describe("Edge 公開錯誤契約", () => {
     expect(errorMessage("INVALID_PRODUCT_BUNDLE")).toContain("套餐");
     expect(errorMessage("LOTTERY_RATE_LIMITED")).toContain("抽抽樂");
     expect(errorMessage("FULFILLMENT_TIME_PROPOSAL_EXPIRED")).toContain("逾期");
+  });
+});
+
+describe("Edge 公開訂單 operation id", () => {
+  const origin = "https://app.qidaigo.com";
+  const operationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+  it("allows the request header and echoes it separately from request id", () => {
+    const request = new Request("https://functions.example/create-order-session", {
+      headers: {
+        origin,
+        [PUBLIC_ORDER_OPERATION_ID_HEADER]: operationId.toUpperCase(),
+      },
+    });
+    const corsHeaders = getCorsHeaders(request, [origin]);
+    const resolvedOperationId = getPublicOrderOperationId(request);
+    const response = jsonResponse(
+      { ok: true },
+      200,
+      corsHeaders,
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      resolvedOperationId,
+    );
+
+    expect(corsHeaders["access-control-allow-headers"])
+      .toContain(PUBLIC_ORDER_OPERATION_ID_HEADER);
+    expect(corsHeaders["access-control-expose-headers"])
+      .toContain(PUBLIC_ORDER_OPERATION_ID_HEADER);
+    expect(resolvedOperationId).toBe(operationId);
+    expect(response.headers.get(PUBLIC_ORDER_OPERATION_ID_HEADER)).toBe(operationId);
+    expect(response.headers.get("x-request-id"))
+      .toBe("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+  });
+
+  it("replaces an invalid external value with a valid server-generated id", () => {
+    const resolvedOperationId = getPublicOrderOperationId(new Request(
+      "https://functions.example/create-public-order",
+      { headers: { [PUBLIC_ORDER_OPERATION_ID_HEADER]: "invalid" } },
+    ));
+
+    expect(resolvedOperationId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
   });
 });

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   issueOrderSessionThroughCircuitB: vi.fn(),
 }));
 const testOrigin = "https://app.qidaigo.com";
+const operationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 vi.mock("@/server/public-order/circuit-b-service", () => ({
   PublicOrderCircuitError: class PublicOrderCircuitError extends Error {
@@ -52,12 +53,15 @@ describe("POST /api/public/order-session", () => {
           origin: testOrigin,
           "x-real-ip": "203.0.113.8",
           "x-stallorder-protocol-version": "1",
+          "x-stallorder-operation-id": operationId,
         },
         body: JSON.stringify(body),
       },
     ));
 
     expect(response.status).toBe(201);
+    expect(response.headers.get("x-stallorder-operation-id")).toBe(operationId);
+    expect(response.headers.get("x-request-id")).not.toBe(operationId);
     expect(mocks.issueOrderSessionThroughCircuitB).toHaveBeenCalledWith(
       body,
       expect.objectContaining({ clientIp: "203.0.113.8" }),
