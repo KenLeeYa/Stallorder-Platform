@@ -625,8 +625,8 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
 
   await page.reload();
   await page.getByTestId("qr-mobile-cart-summary").click();
-  const restoredDeliveryCartPanel = page.getByTestId("qr-cart-panel");
-  await expect(restoredDeliveryCartPanel).toHaveAttribute("role", "dialog");
+  const restoredDeliveryCartPanel = page.getByRole("dialog", { name: "您的訂單" });
+  await expect(restoredDeliveryCartPanel).toBeVisible();
   await restoredDeliveryCartPanel.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
   await expect(restoredDeliveryCartPanel.getByRole("radio", { name: "指定送達時間" })).toBeChecked();
   const restoredDeliveryFields = restoredDeliveryCartPanel.getByTestId("qr-delivery-fulfillment-time-fields");
