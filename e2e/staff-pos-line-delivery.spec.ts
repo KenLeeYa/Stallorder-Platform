@@ -514,7 +514,7 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
     await settingsContext.close();
   }
 
-  await page.setExtraHTTPHeaders({ "x-vercel-forwarded-for": "203.0.113.101" });
+  await page.setExtraHTTPHeaders({ "cf-connecting-ip": "203.0.113.101" });
   await page.setViewportSize({ width: 390, height: 844 });
   const customerName = `LINE 外送 QA ${Date.now()}`;
   const deliveryAddress = "台北市信義區測試路 1 號 2 樓";
@@ -782,7 +782,7 @@ test("外送頁依瀏覽器語系顯示英文欄位", async ({ browser }) => {
   const context = await browser.newContext({
     locale: "en-US",
     viewport: { width: 390, height: 844 },
-    extraHTTPHeaders: { "x-vercel-forwarded-for": "203.0.113.102" },
+    extraHTTPHeaders: { "cf-connecting-ip": "203.0.113.102" },
   });
   try {
     const page = await context.newPage();
