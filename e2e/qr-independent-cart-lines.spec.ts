@@ -134,6 +134,8 @@ test("QR 同商品可加入兩個不同註記列，報價低頻更新且返回�
   await product.getByRole("radio", { name: /加蛋/ }).check();
   await expect(firstConfiguration.getByRole("button", { name: "加入購物車", exact: true })).toBeEnabled();
   await firstConfiguration.getByRole("button", { name: "加入購物車", exact: true }).click();
+  await expect(product).toContainText("購物車已有 1 份");
+  await expect(product.getByText("本次再加", { exact: true })).toBeVisible();
   await product.getByRole("button", { name: "增加 測試雞排" }).click();
   await product.getByRole("radio", { name: /加起司/ }).check();
   const addSecondLine = product.getByRole("button", { name: "加入購物車" });
