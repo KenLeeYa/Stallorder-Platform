@@ -91,4 +91,8 @@ describe("QR 點餐介面翻譯", () => {
     expect(copy.lotteryDiscountResult("10%")).toContain("10%");
     expect(copy.hotSellerBadge).not.toMatch(/[0-9第名]/u);
   });
+
+  it.each(QR_LOCALES)("%s 會標示客製商品步進器是本次加購數量", (locale) => {
+    expect(qrOrderMessages[locale].additionalQuantity.trim().length).toBeGreaterThan(0);
+  });
 });
