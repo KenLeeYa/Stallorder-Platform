@@ -76,6 +76,7 @@ export type QrOrderMessages = {
   finishEditingCartItem: string;
   removeCartItem: string;
   cartProductQuantity: (count: number) => string;
+  additionalQuantity: string;
   backToTop: string;
   quantityLimit: string;
   singleChoice: string;
@@ -167,6 +168,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     finishEditingCartItem: "修改完成",
     removeCartItem: "移除",
     cartProductQuantity: (count) => `購物車已有 ${count} 份`,
+    additionalQuantity: "本次再加",
     backToTop: "返回頁面頂端",
     quantityLimit: "已達本攤位的點餐數量限制。",
     singleChoice: "單選",
@@ -273,6 +275,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     finishEditingCartItem: "Save changes",
     removeCartItem: "Remove",
     cartProductQuantity: (count) => `${count} already in cart`,
+    additionalQuantity: "Add more",
     backToTop: "Back to top",
     quantityLimit: "You have reached this stall's ordering limit.",
     singleChoice: "Choose one",
@@ -379,6 +382,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     finishEditingCartItem: "変更を保存",
     removeCartItem: "削除",
     cartProductQuantity: (count) => `カートに${count}点`,
+    additionalQuantity: "追加",
     backToTop: "ページ上部へ戻る",
     quantityLimit: "この店舗の注文数量上限に達しました。",
     singleChoice: "1つ選択",
@@ -485,6 +489,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     finishEditingCartItem: "수정 완료",
     removeCartItem: "삭제",
     cartProductQuantity: (count) => `장바구니에 ${count}개`,
+    additionalQuantity: "추가 수량",
     backToTop: "맨 위로",
     quantityLimit: "이 매장의 주문 수량 한도에 도달했습니다.",
     singleChoice: "1개 선택",
@@ -591,6 +596,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     finishEditingCartItem: "Lưu thay đổi",
     removeCartItem: "Xóa",
     cartProductQuantity: (count) => `Đã có ${count} phần trong giỏ`,
+    additionalQuantity: "Thêm",
     backToTop: "Về đầu trang",
     quantityLimit: "Bạn đã đạt giới hạn số lượng đặt món của quầy.",
     singleChoice: "Chọn một",
@@ -697,6 +703,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     finishEditingCartItem: "บันทึกการแก้ไข",
     removeCartItem: "ลบ",
     cartProductQuantity: (count) => `มี ${count} รายการในตะกร้า`,
+    additionalQuantity: "เพิ่มอีก",
     backToTop: "กลับไปด้านบน",
     quantityLimit: "ถึงขีดจำกัดจำนวนการสั่งซื้อของร้านแล้ว",
     singleChoice: "เลือก 1 รายการ",

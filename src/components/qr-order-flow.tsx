@@ -1717,11 +1717,12 @@ export function QrOrderFlow({
                         ), session.stall.currency, locale)}</p>
                         {configurable && committedQuantity > 0 ? <p className="mt-1 text-xs font-medium text-teal-800">{copy.cartProductQuantity(committedQuantity)}</p> : null}
                       </div>
-                      <div aria-hidden={configuringProductId === product.id ? true : undefined} className="col-span-2 grid grid-cols-[44px_32px_44px] items-center justify-self-end gap-2 sm:col-span-1">
+                      <div aria-hidden={configuringProductId === product.id ? true : undefined} className="col-span-2 flex items-center justify-self-end gap-2 sm:col-span-1">
+                        {configurable && committedQuantity > 0 ? <span className="mr-1 text-xs font-medium text-stone-500">{copy.additionalQuantity}</span> : null}
                         <button type="button" title={copy.decrease(localizedProduct(product).name)} aria-label={copy.decrease(localizedProduct(product).name)} disabled={!orderingEnabled || configuringProductId === product.id || displayedQuantity <= 0} onClick={() => updateQuantity(product.id, displayedQuantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
                           <Minus className="h-4 w-4" />
                         </button>
-                        <span className="text-center font-semibold">{displayedQuantity}</span>
+                        <span className="w-8 text-center font-semibold">{displayedQuantity}</span>
                         <button type="button" title={copy.increase(localizedProduct(product).name)} aria-label={copy.increase(localizedProduct(product).name)} disabled={!orderingEnabled || configuringProductId === product.id} onClick={() => updateQuantity(product.id, displayedQuantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
                           <Plus className="h-4 w-4" />
                         </button>
