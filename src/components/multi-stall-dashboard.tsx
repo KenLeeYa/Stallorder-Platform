@@ -356,7 +356,7 @@ export function MultiStallDashboard({
           <Metric icon={<WalletCards />} label="平均客單價" value={formatMoney(summary.averageOrderValue, currency)} />
           <Metric icon={<Clock3 />} label="待處理訂單" value={String(summary.pendingOrderCount)} />
           <Metric icon={<CircleAlert />} label="未付款訂單" value={String(summary.unpaidOrderCount)} />
-          <Metric icon={<Store />} label="營業 / 暫停 / 關閉" value={`${summary.openStallCount} / ${summary.pausedStallCount} / ${summary.closedStallCount}`} />
+          <Metric className="min-[360px]:col-span-2 sm:col-span-1" icon={<Store />} label="營業 / 暫停 / 關閉" value={`${summary.openStallCount} / ${summary.pausedStallCount} / ${summary.closedStallCount}`} />
           <Metric icon={<ArrowUpDown />} label="取消率" value={percent(summary.cancellationRate)} />
         </section>
 
@@ -392,8 +392,8 @@ export function MultiStallDashboard({
   );
 }
 
-function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return <div className="min-h-20 min-w-0 bg-white p-2 sm:flex sm:min-h-28 sm:items-center sm:gap-3 sm:border-t sm:border-stone-200 sm:px-4 sm:py-5 sm:first:border-t-0 lg:border-t-0 lg:border-r lg:last:border-r-0">{<span className="block text-teal-700 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>}<div className="mt-2 min-w-0 sm:mt-0"><div className="text-xs leading-4 text-stone-500 sm:text-sm">{label}</div><div className="mt-1 break-words text-base font-semibold sm:text-xl">{value}</div></div></div>;
+function Metric({ icon, label, value, className = "" }: { icon: React.ReactNode; label: string; value: string; className?: string }) {
+  return <div className={`${className} min-h-20 min-w-0 bg-white p-2 sm:flex sm:min-h-28 sm:items-center sm:gap-3 sm:border-t sm:border-stone-200 sm:px-4 sm:py-5 sm:first:border-t-0 lg:border-t-0 lg:border-r lg:last:border-r-0`}>{<span className="block text-teal-700 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>}<div className="mt-2 min-w-0 sm:mt-0"><div className="text-xs leading-4 text-stone-500 sm:text-sm">{label}</div><div className="mt-1 break-words text-base font-semibold sm:text-xl">{value}</div></div></div>;
 }
 
 function DashboardDataSkeleton() {

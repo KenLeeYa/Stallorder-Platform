@@ -523,6 +523,8 @@ test.describe("多攤位商戶關鍵流程", () => {
       window.getComputedStyle(element).gridTemplateColumns.split(" ").length
     ));
     expect(summaryColumnCount).toBe(3);
+    await expect(page.getByLabel("營運摘要").locator(":scope > div").nth(6))
+      .toHaveCSS("grid-column-end", "span 2");
     const dimensions = await page.evaluate(() => ({
       viewport: window.innerWidth,
       document: document.documentElement.scrollWidth,
@@ -537,6 +539,8 @@ test.describe("多攤位商戶關鍵流程", () => {
       window.getComputedStyle(element).gridTemplateColumns.split(" ").length
     ));
     expect(narrowSummaryColumnCount).toBe(2);
+    await expect(page.getByLabel("營運摘要").locator(":scope > div").nth(6))
+      .toHaveCSS("grid-column-end", "auto");
     const narrowDimensions = await page.evaluate(() => ({
       viewport: window.innerWidth,
       document: document.documentElement.scrollWidth,
