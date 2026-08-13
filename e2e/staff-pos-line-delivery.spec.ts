@@ -528,12 +528,16 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
 
   await page.reload();
-  const futureOrdersToggle = page.locator('button[aria-controls="future-scheduled-orders"]');
+  await expect(staffMain).toHaveCount(1);
+  const futureOrdersToggle = staffMain.locator('button[aria-controls="future-scheduled-orders"]:visible');
+  await expect(futureOrdersToggle).toHaveCount(1);
   await expect(futureOrdersToggle).toContainText("未來預約訂單（1）");
   await expect(futureOrdersToggle).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("article").filter({ hasText: `訂單 ${payload.order.orderNo}` })).toHaveCount(0);
   await futureOrdersToggle.click();
-  const futureTicket = page.locator("#future-scheduled-orders article").filter({ hasText: `訂單 ${payload.order.orderNo}` });
+  const futureOrders = staffMain.locator("#future-scheduled-orders:visible");
+  await expect(futureOrders).toHaveCount(1);
+  const futureTicket = futureOrders.locator("article").filter({ hasText: `訂單 ${payload.order.orderNo}` });
   await expect(futureTicket).toBeVisible();
   await expect(futureTicket).toContainText("未到製作日");
   await expect(futureTicket).toContainText("此區不提供開始製作操作");
