@@ -71,6 +71,9 @@ type PendingTimeProposal = {
   reason: string;
 };
 
+const staffFunctionTileClass = "inline-flex min-h-16 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-center text-[11px] font-semibold leading-tight sm:h-10 sm:min-h-10 sm:w-10 sm:flex-none sm:px-0";
+const staffFunctionIconClass = "h-5 w-5 sm:h-4 sm:w-4";
+
 export function StaffOrderBoard({
   stall,
   initialOrders,
@@ -972,63 +975,71 @@ export function StaffOrderBoard({
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-3 md:px-8 md:py-5">
-      <div className="flex min-w-0 max-w-full flex-col gap-3 print:hidden sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="flex min-w-0 max-w-full flex-col gap-3 print:hidden sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <p className="text-sm font-medium text-teal-800">行動訂單看板</p>
           <h1 className="text-2xl font-semibold sm:text-3xl">{stall.name}</h1>
           <p className="mt-1 text-xs text-stone-500">{account.displayName} · {roleLabels[account.role]}</p>
         </div>
-        <div className="flex w-full min-w-0 max-w-full gap-2 sm:w-auto sm:flex-wrap sm:justify-end">
-          <div className="flex min-w-0 flex-1 flex-nowrap justify-start gap-2 overflow-x-auto contain-paint pb-1 [&>*]:shrink-0 sm:contents">
-          <WorkModeSwitcher
-            destinations={workModeDestinations}
-            currentMode="STAFF"
-            organizationId={stall.organizationId}
-            stallId={stall.id}
-            offlineGuardStallId={stall.id}
-            className="w-auto shrink-0"
-          />
-          {orderCatalog && hasPermission(account.role, "CREATE_ORDERS") ? (
-            <button type="button" disabled={posConfigurationLoading} onClick={() => void openComposer()} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60">
-              <ShoppingCart className="h-4 w-4" />
-              <span>店員點餐</span>
-            </button>
-          ) : null}
-          {modules.dineIn ? (
-            <Link href={`/staff/${stall.slug}/floor`} title="桌位平面圖" className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold">
-              <MapPinned className="h-4 w-4" />
-              <span className="hidden sm:inline">桌位平面圖</span>
-            </Link>
-          ) : null}
-          {modules.print && hasPermission(account.role, "MANAGE_PRINT_QUEUE") ? (
-            <Link href={`/staff/${stall.slug}/print`} title="列印工作佇列" className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold">
-              <Printer className="h-4 w-4" />
-              <span className="hidden lg:inline">列印佇列</span>
-            </Link>
-          ) : null}
-          {hasPermission(account.role, "MANAGE_CASH_SHIFT") ? (
-            <Link href={`/staff/${stall.slug}/cash`} title="現金交班" className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold">
-              <WalletCards className="h-4 w-4" />
-              <span className="hidden lg:inline">現金交班</span>
-            </Link>
-          ) : null}
-          <LiveConnectionBadge state={liveConnection} />
-          <button type="button" role="switch" aria-checked={alertsEnabled} onClick={toggleAlerts} title={alertsEnabled ? "關閉新訂單聲音與震動" : "開啟新訂單聲音與震動"} className={`inline-flex h-10 w-10 items-center justify-center rounded-md border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
-            {alertsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-            <span className="sr-only">{alertsEnabled ? "新訂單提醒已開啟" : "新訂單提醒已關閉"}</span>
-          </button>
-          <PwaControls showWakeLock />
+        <div className="flex w-full min-w-0 max-w-full flex-col gap-2 sm:w-auto sm:items-end">
+          <div className="flex max-w-full flex-wrap items-center gap-2 sm:justify-end">
+            <WorkModeSwitcher
+              destinations={workModeDestinations}
+              currentMode="STAFF"
+              organizationId={stall.organizationId}
+              stallId={stall.id}
+              offlineGuardStallId={stall.id}
+              className="w-auto shrink-0"
+            />
+            <LiveConnectionBadge state={liveConnection} />
+            <PwaControls showWakeLock />
           </div>
-          <OfflineBootstrapControl
-            stallId={stall.id}
-            stallSlug={stall.slug}
-            appVersion={appVersion}
-          />
-          <button type="button" onClick={() => void refreshOrders()} title="重新整理" className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-stone-300 bg-white">
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            <span className="sr-only">重新整理</span>
-          </button>
-          <LogoutButton offlineStallId={stall.id} />
+          <nav aria-label="店員功能" data-testid="staff-function-grid" className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:max-w-full sm:flex-nowrap sm:justify-end sm:overflow-visible">
+            {orderCatalog && hasPermission(account.role, "CREATE_ORDERS") ? (
+              <button type="button" title="店員點餐" disabled={posConfigurationLoading} onClick={() => void openComposer()} className={`${staffFunctionTileClass} bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}>
+                <ShoppingCart className={staffFunctionIconClass} />
+                <span className="sm:sr-only">店員點餐</span>
+              </button>
+            ) : null}
+            {modules.dineIn ? (
+              <Link href={`/staff/${stall.slug}/floor`} title="桌位平面圖" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
+                <MapPinned className={staffFunctionIconClass} />
+                <span className="sm:sr-only">桌位平面圖</span>
+              </Link>
+            ) : null}
+            {modules.print && hasPermission(account.role, "MANAGE_PRINT_QUEUE") ? (
+              <Link href={`/staff/${stall.slug}/print`} title="列印工作佇列" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
+                <Printer className={staffFunctionIconClass} />
+                <span className="sm:sr-only">列印佇列</span>
+              </Link>
+            ) : null}
+            {hasPermission(account.role, "MANAGE_CASH_SHIFT") ? (
+              <Link href={`/staff/${stall.slug}/cash`} title="現金交班" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
+                <WalletCards className={staffFunctionIconClass} />
+                <span className="sm:sr-only">現金交班</span>
+              </Link>
+            ) : null}
+            <button type="button" role="switch" aria-checked={alertsEnabled} aria-label={alertsEnabled ? "新訂單提醒已開啟" : "新訂單提醒已關閉"} onClick={toggleAlerts} title={alertsEnabled ? "關閉新訂單聲音與震動" : "開啟新訂單聲音與震動"} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
+              {alertsEnabled ? <Volume2 className={staffFunctionIconClass} /> : <VolumeX className={staffFunctionIconClass} />}
+              <span aria-hidden="true" className="sm:sr-only">訂單提醒</span>
+            </button>
+            <div data-testid="staff-function-offline" className={`${staffFunctionTileClass} relative border border-stone-300 bg-white text-stone-700 [&>div>button:first-child]:h-11 [&>div>button:first-child]:w-11 [&>div>button:first-child]:border-0 sm:[&>div>button:first-child]:h-10 sm:[&>div>button:first-child]:w-10`}>
+              <OfflineBootstrapControl
+                stallId={stall.id}
+                stallSlug={stall.slug}
+                appVersion={appVersion}
+              />
+              <span className="sm:sr-only">離線裝置</span>
+            </div>
+            <button type="button" onClick={() => void refreshOrders()} title="重新整理" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
+              <RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} />
+              <span className="sm:sr-only">重新整理</span>
+            </button>
+            <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border-0 sm:[&>button]:h-10 sm:[&>button]:w-10`}>
+              <LogoutButton offlineStallId={stall.id} />
+              <span className="sm:sr-only">登出</span>
+            </div>
+          </nav>
         </div>
       </div>
       <OfflineQueueStatus

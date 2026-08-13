@@ -7,10 +7,18 @@ import { readJson } from "@/lib/http";
 import { getPrintQueueState, printQueueCommandSchema } from "@/lib/print-queue";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
+import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
+import { entitlementService } from "@/server/billing/entitlement-service";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
 class PrintQueueNotFoundError extends Error {}
 class PrintQueueConflictError extends Error {}
+const capabilityGatedOperations = new Set([
+  "REGISTER_PRINTER",
+  "QUEUE",
+  "CLAIM",
+  "REPRINT",
+]);
 
 export async function GET(request: Request, context: RouteContext) {
   const { stallSlug } = await context.params;
@@ -46,6 +54,20 @@ export async function POST(request: Request, context: RouteContext) {
   const organizationId = authorization.stall.organizationId;
   const stallId = authorization.stall.id;
   try {
+    if (capabilityGatedOperations.has(command.operation)) {
+      await entitlementService.assertFeatureEnabled(organizationId, "PRINTER_INTEGRATION");
+      const settings = await prisma.stallOrderingSettings.findFirst({
+        where: { organizationId, stallId },
+        select: { printModuleEnabled: true },
+      });
+      if (!settings?.printModuleEnabled) {
+        return NextResponse.json(
+          { error: "列印模組目前未啟用。", code: "PRINT_MODULE_DISABLED" },
+          { status: 409, headers: { "x-request-id": authorization.requestId } },
+        );
+      }
+    }
+
     const entityId = await prisma.$transaction(async (transaction) => {
       if (command.operation === "REGISTER_PRINTER") {
         const printer = await transaction.printer.create({
@@ -163,6 +185,8 @@ export async function POST(request: Request, context: RouteContext) {
       { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
     );
   } catch (error) {
+    const entitlementResponse = entitlementErrorResponse(error, authorization.requestId);
+    if (entitlementResponse) return entitlementResponse;
     const duplicate = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
     const notFound = error instanceof PrintQueueNotFoundError;
     const conflict = error instanceof PrintQueueConflictError;

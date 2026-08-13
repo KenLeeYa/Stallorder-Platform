@@ -1,4 +1,6 @@
+import { LoginApplicationPrompt } from "@/components/login-application-prompt";
 import { LoginForm } from "@/components/login-form";
+import { LocaleSelector } from "@/components/locale-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { isSupabaseAuthConfigured } from "@/lib/supabase-auth";
 import { getOAuthLoginUiConfig } from "@/server/auth/oauth/provider-registry";
@@ -32,7 +34,8 @@ export default async function LoginPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-8">
-      <div className="fixed right-4 top-4 z-10">
+      <div className="fixed right-4 top-4 z-10 flex items-center gap-2">
+        <LocaleSelector />
         <ThemeToggle />
       </div>
       <LoginForm
@@ -40,21 +43,7 @@ export default async function LoginPage() {
         oauthOnly={oauth.oauthOnly}
         oauthProviders={providers}
       />
-      <div className="mt-5 max-w-md text-center text-sm text-stone-600">
-        <p>
-          還沒有商家帳號？{" "}
-          {applicationUrl ? (
-            <a href={applicationUrl} className="font-semibold text-teal-800">
-              使用已驗證帳號申請開通
-            </a>
-          ) : (
-            <span className="font-semibold text-stone-500">申請開通暫時無法使用</span>
-          )}
-        </p>
-        <p className="mt-2 text-xs text-stone-500">
-          申請開通需具備已驗證的聯絡電子郵件；已受邀成為店員或廚房人員請直接登入。
-        </p>
-      </div>
+      <LoginApplicationPrompt applicationUrl={applicationUrl} />
     </main>
   );
 }

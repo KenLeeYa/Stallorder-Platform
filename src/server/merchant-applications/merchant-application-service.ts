@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma, type MerchantApplicationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { PUBLIC_IDENTIFIER_MAX_LENGTH } from "@/lib/public-identifier";
 import { hashToken } from "@/lib/security";
 import type { MerchantApplicationFields } from "@/lib/merchant-application-contract";
 import {
@@ -426,7 +427,7 @@ function copyApplicationDataForReapplication(
   };
 }
 
-async function findDuplicateRiskReasons(
+export async function findDuplicateRiskReasons(
   transaction: Prisma.TransactionClient,
   input: {
     applicationId: string;
@@ -440,7 +441,8 @@ async function findDuplicateRiskReasons(
   const visibleStatuses: MerchantApplicationStatus[] = [
     "SUBMITTED", "PENDING_REVIEW", "NEEDS_INFO", "APPROVED",
   ];
-  const [email, phone, registration, slugApplication, stallSlug, priorRejection] = await Promise.all([
+  const requestedCode = input.requestedSlug.toUpperCase().slice(0, PUBLIC_IDENTIFIER_MAX_LENGTH);
+  const [email, phone, registration, slugApplication, stallSlug, stallCode, priorRejection] = await Promise.all([
     transaction.merchantApplication.count({
       where: {
         id: { not: input.applicationId }, applicantEmail: input.email, status: { in: visibleStatuses },
@@ -466,6 +468,9 @@ async function findDuplicateRiskReasons(
       },
     }),
     transaction.stall.count({ where: { slug: input.requestedSlug } }),
+    transaction.stall.count({
+      where: { code: { equals: requestedCode, mode: "insensitive" } },
+    }),
     transaction.merchantApplication.count({
       where: { applicantProfileId: input.profileId, status: "REJECTED" },
     }),
@@ -474,7 +479,7 @@ async function findDuplicateRiskReasons(
   if (email > 0) reasons.push("DUPLICATE_EMAIL");
   if (phone > 0) reasons.push("DUPLICATE_PHONE");
   if (registration > 0) reasons.push("DUPLICATE_REGISTRATION_NUMBER");
-  if (slugApplication > 0 || stallSlug > 0) reasons.push("DUPLICATE_SLUG");
+  if (slugApplication > 0 || stallSlug > 0 || stallCode > 0) reasons.push("DUPLICATE_SLUG");
   if (priorRejection > 0) reasons.push("PRIOR_REJECTION");
   return reasons;
 }

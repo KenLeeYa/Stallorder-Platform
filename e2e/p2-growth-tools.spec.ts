@@ -31,14 +31,19 @@ test.describe("P2 後續成長功能", () => {
     const manifestResponse = await request.get("/manifest.webmanifest");
     expect(manifestResponse.ok()).toBe(true);
     const manifest = await manifestResponse.json();
-    expect(manifest).toMatchObject({ name: "StallOrder 攤點通", display: "standalone", start_url: "/login?source=pwa" });
+    expect(manifest).toMatchObject({ name: "StallOrder 攤點通", display: "standalone", start_url: "/launch" });
     expect(manifest.icons).toHaveLength(2);
 
     const serviceWorkerResponse = await request.get("/sw.js");
     expect(serviceWorkerResponse.ok()).toBe(true);
     const serviceWorker = await serviceWorkerResponse.text();
     expect(serviceWorker).toContain('if (request.method !== "GET") return');
+    expect(serviceWorker).toContain('const CACHE_NAME = "stallorder-shell-v5"');
     expect(serviceWorker).toContain('const OFFLINE_DB_NAME = "stallorder-offline-pos"');
+    expect(serviceWorker).toContain('const isLegacyStorefrontNavigation = /^\\/(?:menu|s|delivery)\\/[^/]+$/.test(url.pathname)');
+    expect(serviceWorker).toContain('if (isLegacyStorefrontNavigation) return');
+    expect(serviceWorker).toContain('|| /^\\/store\\/[^/]+$/.test(url.pathname)');
+    expect(serviceWorker).not.toContain('|| /^\\/delivery\\/[^/]+$/.test(url.pathname)');
     expect(serviceWorker).toContain('event.data?.type === "ACTIVATE_UPDATE"');
     expect(serviceWorker).toContain("countUnsynchronizedRecords");
 

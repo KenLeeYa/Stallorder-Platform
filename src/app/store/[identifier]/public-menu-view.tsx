@@ -1,44 +1,13 @@
-import type { Metadata } from "next";
-import { cache } from "react";
 import { Flame, MapPin, Package, Store } from "lucide-react";
-import { notFound } from "next/navigation";
 import { ProductImage } from "@/components/product-image";
 import { formatMoney } from "@/lib/money";
-import { getCachedPublicDisplayMenuForStallSlug } from "@/lib/public-menu";
-import type { PublicMenuProduct } from "@/lib/public-menu-types";
+import type { PublicMenu, PublicMenuProduct } from "@/lib/public-menu-types";
 
-type PageProps = { params: Promise<{ stallSlug: string }> };
-
-const getDisplayMenu = cache(getCachedPublicDisplayMenuForStallSlug);
-
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { stallSlug } = await params;
-  const menu = await getDisplayMenu(stallSlug);
-  if (!menu) return { title: "找不到公開菜單" };
-
-  const title = `${menu.stall.name}｜公開菜單`;
-  const description = `查看 ${menu.stall.name} 最新上架的商品、套餐與售價。菜單內容由商家即時更新。`;
-  return {
-    title,
-    description,
-    openGraph: {
-      type: "website",
-      title,
-      description,
-      siteName: "攤點通",
-    },
-  };
-}
-
-export default async function PublicDisplayMenuPage({ params }: PageProps) {
-  const { stallSlug } = await params;
-  const menu = await getDisplayMenu(stallSlug);
-  if (!menu) notFound();
-
+export function PublicMenuView({ menu }: { menu: PublicMenu }) {
   const sections = groupProductsByCategory(menu.products);
 
   return (
-    <main className="min-h-screen bg-[#f5f1e8] text-stone-950 print:bg-white">
+    <main data-testid="storefront-menu-view" className="min-h-screen bg-[#f5f1e8] text-stone-950 print:bg-white">
       <header className="border-b border-stone-900/10 bg-[#0f766e] text-white print:border-stone-300 print:bg-white print:text-stone-950">
         <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-11 lg:px-8">
           <div className="flex items-start gap-4">

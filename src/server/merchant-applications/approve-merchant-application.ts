@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { newStallOrderingSettings } from "@/lib/new-stall-ordering-defaults";
 import { prisma } from "@/lib/prisma";
+import { PUBLIC_IDENTIFIER_MAX_LENGTH } from "@/lib/public-identifier";
 
 export type MerchantApprovalErrorCode =
   | "APPLICATION_NOT_FOUND"
@@ -100,20 +101,27 @@ export async function approveMerchantApplication(
         throw new MerchantApprovalError("APPLICATION_INCOMPLETE");
       }
 
-      const [organizationMemberships, stallMemberships, slugConflict, emailConflict] = await Promise.all([
+      const requestedSlug = application.requestedSlug as string;
+      const requestedCode = requestedSlug.toUpperCase().slice(0, PUBLIC_IDENTIFIER_MAX_LENGTH);
+      const [organizationMemberships, stallMemberships, slugConflict, codeConflict, emailConflict] = await Promise.all([
         transaction.organizationMembership.count({
           where: { profileId: application.applicantProfileId, isActive: true },
         }),
         transaction.stallMembership.count({
           where: { profileId: application.applicantProfileId, isActive: true },
         }),
-        transaction.stall.count({ where: { slug: application.requestedSlug as string } }),
+        transaction.stall.count({ where: { slug: requestedSlug } }),
+        transaction.stall.count({
+          where: { code: { equals: requestedCode, mode: "insensitive" } },
+        }),
         transaction.organization.count({ where: { email: application.applicantEmail } }),
       ]);
       if (organizationMemberships > 0 || stallMemberships > 0 || emailConflict > 0) {
         throw new MerchantApprovalError("APPLICANT_ALREADY_ONBOARDED");
       }
-      if (slugConflict > 0) throw new MerchantApprovalError("SLUG_UNAVAILABLE");
+      if (slugConflict > 0 || codeConflict > 0) {
+        throw new MerchantApprovalError("SLUG_UNAVAILABLE");
+      }
 
       const now = new Date();
       const trialVersion = await transaction.planVersion.findFirst({
@@ -131,7 +139,6 @@ export async function approveMerchantApplication(
       const trialEndsAt = new Date(now.getTime() + trialDays * 86_400_000);
       const billingPeriodStart = utcDate(now);
       const billingPeriodEnd = utcDate(trialEndsAt);
-      const requestedSlug = application.requestedSlug as string;
       const organization = await transaction.organization.create({
         data: {
           name: application.merchantName as string,
@@ -172,7 +179,7 @@ export async function approveMerchantApplication(
           organizationId: organization.id,
           name: application.stallName as string,
           slug: requestedSlug,
-          code: requestedSlug.toUpperCase().slice(0, 50),
+          code: requestedCode,
           description: application.merchantDescription ?? "",
           address: application.businessAddress as string,
           phone: application.businessPhone as string,

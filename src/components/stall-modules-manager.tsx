@@ -108,14 +108,22 @@ const moduleSectionControlIds = moduleSectionKeys.map((section) => (
 )).join(" ");
 type MessageKind = "success" | "error";
 
+export function buildPublicStorefrontShare(appUrl: string, stallCode: string) {
+  const storefrontUrl = `${appUrl.replace(/\/+$/, "")}/store/${encodeURIComponent(stallCode.trim().toLowerCase())}`;
+  return {
+    storefrontUrl,
+    lineReply: `您好，請開啟以下連結，選擇線上 Menu、外帶自取或外送：\n${storefrontUrl}`,
+  };
+}
+
 export function StallModulesManager({
   stallId,
-  stallSlug,
+  stallCode,
   appUrl,
   initialState,
 }: {
   stallId: string;
-  stallSlug: string;
+  stallCode: string;
   appUrl: string;
   initialState: ModuleState;
 }) {
@@ -145,9 +153,7 @@ export function StallModulesManager({
     () => new Set(moduleSectionKeys),
   );
   const allSectionsExpanded = moduleSectionKeys.every((section) => openSections.has(section));
-  const takeoutUrl = `${appUrl.replace(/\/$/, "")}/s/${encodeURIComponent(stallSlug)}`;
-  const deliveryUrl = `${appUrl.replace(/\/$/, "")}/delivery/${encodeURIComponent(stallSlug)}`;
-  const lineReply = `您好，請依需求選擇點餐連結：\n外帶預約：${takeoutUrl}\n外送：${deliveryUrl}`;
+  const { storefrontUrl, lineReply } = buildPublicStorefrontShare(appUrl, stallCode);
   const floorTabs = useMemo(() => getDiningFloorTabs(state.floors, state.tables), [state.floors, state.tables]);
   const activeFloor = floorTabs.find((floor) => floor.key === activeFloorKey) ?? floorTabs[0] ?? null;
   const activeFloorRecord = activeFloor?.id ? state.floors.find((floor) => floor.id === activeFloor.id) ?? null : null;
@@ -413,7 +419,7 @@ export function StallModulesManager({
         <ModuleSwitch label="訂單列印" icon={<Printer className="h-4 w-4" />} checked={state.settings.printModuleEnabled} onChange={(printModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, printModuleEnabled } }))} />
         <ModuleSwitch label="多元付款" icon={<WalletCards className="h-4 w-4" />} checked={state.settings.paymentModuleEnabled} onChange={(paymentModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, paymentModuleEnabled } }))} />
         <ModuleSwitch label="結帳折扣" icon={<Percent className="h-4 w-4" />} checked={state.settings.discountModuleEnabled} onChange={(discountModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, discountModuleEnabled } }))} />
-        <ModuleSwitch label="外帶預約單" icon={<CalendarClock className="h-4 w-4" />} checked={state.settings.takeoutPreorderEnabled} onChange={(takeoutPreorderEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, takeoutPreorderEnabled }) }))} />
+        <ModuleSwitch label="外帶自取" icon={<CalendarClock className="h-4 w-4" />} checked={state.settings.takeoutPreorderEnabled} onChange={(takeoutPreorderEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, takeoutPreorderEnabled }) }))} />
         <ModuleSwitch label="抽抽樂推薦" icon={<Dices className="h-4 w-4" />} checked={state.settings.lotteryEnabled} onChange={(lotteryEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, lotteryEnabled }) }))} />
       </div>
       {state.settings.takeoutPreorderEnabled ? <div className="mt-4 grid gap-3 rounded-lg border border-stone-200 p-4 sm:grid-cols-3">
@@ -486,10 +492,9 @@ export function StallModulesManager({
       >
         <CollapsibleSectionSummary icon={Truck} title="外帶、外送與 LINE 連結" description="分享連結才會讓顧客選擇取餐或送達時間；現場 QR 維持即時點餐。" level={3} />
         <div className="pb-6">
-          {!state.settings.takeoutPreorderEnabled ? <p className="mb-3 text-sm text-amber-800">請先開啟並儲存「外帶預約單」模組，顧客才能使用外帶預約連結。</p> : null}
-          {!state.settings.deliveryModuleEnabled ? <p className="mb-3 text-sm text-amber-800">請先開啟並儲存「線上外送」模組，顧客才能使用此連結。</p> : null}
-          <label className="block text-xs font-semibold text-stone-600">顧客外帶預約網址<div className="mt-1 flex gap-2"><input type="text" readOnly value={takeoutUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製外帶預約網址" onClick={() => void copyShareText(takeoutUrl, "外帶預約網址")} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
-          <label className="mt-4 block text-xs font-semibold text-stone-600">顧客外送網址<div className="mt-1 flex gap-2"><input type="text" readOnly value={deliveryUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製外送網址" onClick={() => void copyShareText(deliveryUrl, "外送網址")} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
+          {!state.settings.takeoutPreorderEnabled ? <p className="mb-3 text-sm text-amber-800">請先開啟並儲存「外帶自取」模組，顧客才能選擇外帶自取。</p> : null}
+          {!state.settings.deliveryModuleEnabled ? <p className="mb-3 text-sm text-amber-800">請先開啟並儲存「線上外送」模組，顧客才能選擇外送。</p> : null}
+          <label className="block text-xs font-semibold text-stone-600">顧客公開點餐網址<div className="mt-1 flex gap-2"><input type="text" readOnly value={storefrontUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製公開點餐網址" onClick={() => void copyShareText(storefrontUrl, "公開點餐網址")} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
           <label className="mt-4 block text-xs font-semibold text-stone-600">LINE 自動回覆內容<textarea readOnly value={lineReply} className="mt-1 min-h-24 w-full rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm" /></label>
           <button type="button" onClick={() => void copyShareText(lineReply, "LINE 回覆內容")} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MessageCircle className="h-4 w-4" />複製 LINE 回覆內容</button>
         </div>
