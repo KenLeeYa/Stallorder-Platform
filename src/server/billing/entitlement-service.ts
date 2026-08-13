@@ -78,6 +78,8 @@ type FeatureSubscriptionContext = {
   status: string;
   trialEndsAt: Date | null;
   planVersion: {
+    version: number;
+    plan: { code: string };
     entitlements: Array<{
       featureCode: string;
       isEnabled: boolean;
@@ -96,7 +98,7 @@ export class EntitlementService {
       where: { organizationId },
       include: {
         plan: true,
-        planVersion: { include: { entitlements: true } },
+        planVersion: { include: { plan: true, entitlements: true } },
         items: {
           where: {
             status: "ACTIVE",
@@ -135,14 +137,8 @@ export class EntitlementService {
   private async getEffectiveEntitlementsForContext(context: SubscriptionContext) {
     const effective = new Map<string, EffectiveEntitlement>();
 
-    for (const entitlement of context.planVersion.entitlements) {
-      effective.set(entitlement.featureCode, {
-        featureCode: entitlement.featureCode,
-        isEnabled: entitlement.isEnabled,
-        limitValue: entitlement.limitValue,
-        configuration: entitlement.configurationJson,
-        source: "PLAN",
-      });
+    for (const entitlement of resolvePlanEntitlements(context.planVersion)) {
+      effective.set(entitlement.featureCode, entitlement);
     }
 
     const itemCodes = context.items
@@ -324,13 +320,14 @@ export class EntitlementService {
     if (!context) throw new EntitlementError("SUBSCRIPTION_NOT_ACTIVE");
     if (requireUsableSubscription) this.ensureSubscriptionUsable(context);
 
-    const planEntitlement = context.planVersion.entitlements[0];
+    const planEntitlement = resolvePlanEntitlements(context.planVersion)
+      .find((entitlement) => entitlement.featureCode === featureCode);
     if (planEntitlement?.isEnabled) {
       return {
         featureCode: planEntitlement.featureCode,
         isEnabled: true,
         limitValue: planEntitlement.limitValue,
-        configuration: planEntitlement.configurationJson,
+        configuration: planEntitlement.configuration,
         source: "PLAN",
       } satisfies EffectiveEntitlement;
     }
@@ -372,6 +369,8 @@ export class EntitlementService {
         trialEndsAt: true,
         planVersion: {
           select: {
+            version: true,
+            plan: { select: { code: true } },
             entitlements: {
               where: { featureCode },
               select: {
@@ -407,6 +406,48 @@ export class EntitlementService {
 }
 
 export const entitlementService = new EntitlementService();
+
+type PlanEntitlementSnapshot = {
+  featureCode: string;
+  isEnabled: boolean;
+  limitValue: number | null;
+  configurationJson: Prisma.JsonValue | null;
+};
+
+type PlanVersionEntitlementSnapshot = {
+  version: number;
+  plan: { code: string };
+  entitlements: PlanEntitlementSnapshot[];
+};
+
+export function resolvePlanEntitlements(
+  planVersion: PlanVersionEntitlementSnapshot,
+): EffectiveEntitlement[] {
+  const resolved = planVersion.entitlements.map((entitlement) => ({
+    featureCode: entitlement.featureCode,
+    isEnabled: entitlement.isEnabled,
+    limitValue: entitlement.limitValue,
+    configuration: entitlement.configurationJson,
+    source: "PLAN" as const,
+  }));
+  const hasStoredPrinterEntitlement = resolved.some(
+    (entitlement) => entitlement.featureCode === "PRINTER_INTEGRATION",
+  );
+  if (
+    !hasStoredPrinterEntitlement
+    && planVersion.version === 1
+    && ["PRO", "ENTERPRISE"].includes(planVersion.plan.code)
+  ) {
+    resolved.push({
+      featureCode: "PRINTER_INTEGRATION",
+      isEnabled: true,
+      limitValue: null,
+      configuration: { merchantModuleOptIn: true },
+      source: "PLAN",
+    });
+  }
+  return resolved.sort((left, right) => left.featureCode.localeCompare(right.featureCode));
+}
 
 export function evaluateSubscriptionUsability(input: { status: string; trialEndsAt: Date | null }) {
   if (input.status === "SUSPENDED") return "SUBSCRIPTION_SUSPENDED" as const;

@@ -80,6 +80,8 @@ describe("EntitlementService policy helpers", () => {
       status: "ACTIVE",
       trialEndsAt: null,
       planVersion: {
+        version: 1,
+        plan: { code: "STANDARD" },
         entitlements: [{
           featureCode: "KDS",
           isEnabled: true,
@@ -101,12 +103,12 @@ describe("EntitlementService policy helpers", () => {
     expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({
       select: expect.objectContaining({
         planVersion: {
-          select: {
+          select: expect.objectContaining({
             entitlements: expect.objectContaining({
               where: { featureCode: "KDS" },
               take: 1,
             }),
-          },
+          }),
         },
       }),
     }));
@@ -117,7 +119,7 @@ describe("EntitlementService policy helpers", () => {
     const findUnique = vi.fn().mockResolvedValue({
       status: "ACTIVE",
       trialEndsAt: null,
-      planVersion: { entitlements: [] },
+      planVersion: { version: 1, plan: { code: "STANDARD" }, entitlements: [] },
       items: [{ code: "KDS_ADD_ON" }],
     });
     const addOnFindFirst = vi.fn().mockResolvedValue({ featureCode: "KDS" });
@@ -142,6 +144,8 @@ describe("EntitlementService policy helpers", () => {
       status: "ACTIVE",
       trialEndsAt: null,
       planVersion: {
+        version: 1,
+        plan: { code: "STANDARD" },
         entitlements: [{
           featureCode: "WAIT_TIME_QUOTE",
           isEnabled: true,
@@ -165,5 +169,156 @@ describe("EntitlementService policy helpers", () => {
     ]);
     expect(findUnique).toHaveBeenCalledTimes(1);
     expect(addOnFindMany).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["PRO", "ENTERPRISE"])(
+    "grants legacy %s v1 printer compatibility through authorization and effective entitlements",
+    async (planCode) => {
+      const subscriptionContext = {
+        status: "ACTIVE",
+        trialEndsAt: null,
+        planVersion: {
+          version: 1,
+          plan: { code: planCode },
+          entitlements: [],
+        },
+        items: [],
+      };
+      const findUnique = vi.fn().mockResolvedValue(subscriptionContext);
+      const service = new EntitlementService({
+        subscription: { findUnique },
+        addOnCatalog: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn() },
+      } as never);
+
+      await expect(service.assertFeatureEnabled("organization-id", "PRINTER_INTEGRATION"))
+        .resolves.toMatchObject({
+          featureCode: "PRINTER_INTEGRATION",
+          configuration: { merchantModuleOptIn: true },
+          source: "PLAN",
+        });
+      await expect(service.getUsableEntitlements("organization-id"))
+        .resolves.toContainEqual(expect.objectContaining({
+          featureCode: "PRINTER_INTEGRATION",
+          isEnabled: true,
+          source: "PLAN",
+        }));
+    },
+  );
+
+  it.each(["TRIAL", "LITE", "STANDARD"])(
+    "does not grant printer compatibility to %s v1",
+    async (planCode) => {
+      const service = new EntitlementService({
+        subscription: {
+          findUnique: vi.fn().mockResolvedValue({
+            status: "ACTIVE",
+            trialEndsAt: null,
+            planVersion: { version: 1, plan: { code: planCode }, entitlements: [] },
+            items: [],
+          }),
+        },
+        addOnCatalog: { findFirst: vi.fn() },
+      } as never);
+
+      await expect(service.assertFeatureEnabled("organization-id", "PRINTER_INTEGRATION"))
+        .rejects.toMatchObject({ code: "FEATURE_NOT_INCLUDED" });
+    },
+  );
+
+  it.each(["PRO", "ENTERPRISE"])(
+    "does not extend the legacy printer compatibility rule to future %s versions",
+    async (planCode) => {
+    const service = new EntitlementService({
+      subscription: {
+        findUnique: vi.fn().mockResolvedValue({
+          status: "ACTIVE",
+          trialEndsAt: null,
+          planVersion: { version: 2, plan: { code: planCode }, entitlements: [] },
+          items: [],
+        }),
+      },
+      addOnCatalog: { findFirst: vi.fn() },
+    } as never);
+
+    await expect(service.assertFeatureEnabled("organization-id", "PRINTER_INTEGRATION"))
+      .rejects.toMatchObject({ code: "FEATURE_NOT_INCLUDED" });
+    },
+  );
+
+  it("preserves an explicit disabled printer entitlement on legacy Pro", async () => {
+    const service = new EntitlementService({
+      subscription: {
+        findUnique: vi.fn().mockResolvedValue({
+          status: "ACTIVE",
+          trialEndsAt: null,
+          planVersion: {
+            version: 1,
+            plan: { code: "PRO" },
+            entitlements: [{
+              featureCode: "PRINTER_INTEGRATION",
+              isEnabled: false,
+              limitValue: null,
+              configurationJson: null,
+            }],
+          },
+          items: [],
+        }),
+      },
+      addOnCatalog: { findFirst: vi.fn() },
+    } as never);
+
+    await expect(service.assertFeatureEnabled("organization-id", "PRINTER_INTEGRATION"))
+      .rejects.toMatchObject({ code: "FEATURE_NOT_INCLUDED" });
+  });
+
+  it("allows an active add-on to override an explicit disabled plan entitlement", async () => {
+    const subscriptionContext = {
+      status: "ACTIVE",
+      trialEndsAt: null,
+      planVersion: {
+        version: 1,
+        plan: { code: "STANDARD" },
+        entitlements: [{
+          featureCode: "KDS",
+          isEnabled: false,
+          limitValue: null,
+          configurationJson: null,
+        }],
+      },
+      items: [{ itemType: "ADD_ON", code: "KDS_ADD_ON" }],
+    };
+    const service = new EntitlementService({
+      subscription: { findUnique: vi.fn().mockResolvedValue(subscriptionContext) },
+      addOnCatalog: {
+        findFirst: vi.fn().mockResolvedValue({ featureCode: "KDS" }),
+        findMany: vi.fn().mockResolvedValue([{ featureCode: "KDS" }]),
+      },
+    } as never);
+
+    await expect(service.assertFeatureEnabled("organization-id", "KDS"))
+      .resolves.toMatchObject({ featureCode: "KDS", isEnabled: true, source: "ADD_ON" });
+    await expect(service.getEffectiveEntitlements("organization-id"))
+      .resolves.toContainEqual(expect.objectContaining({
+        featureCode: "KDS",
+        isEnabled: true,
+        source: "ADD_ON",
+      }));
+  });
+
+  it("does not bypass subscription usability for legacy Pro printer access", async () => {
+    const service = new EntitlementService({
+      subscription: {
+        findUnique: vi.fn().mockResolvedValue({
+          status: "SUSPENDED",
+          trialEndsAt: null,
+          planVersion: { version: 1, plan: { code: "PRO" }, entitlements: [] },
+          items: [],
+        }),
+      },
+      addOnCatalog: { findFirst: vi.fn() },
+    } as never);
+
+    await expect(service.assertFeatureEnabled("organization-id", "PRINTER_INTEGRATION"))
+      .rejects.toMatchObject({ code: "SUBSCRIPTION_SUSPENDED" });
   });
 });

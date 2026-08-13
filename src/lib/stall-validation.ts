@@ -104,6 +104,7 @@ export function getCreateStallConflictFieldErrors(target: unknown) {
   ) || [
     "stalls_organization_code_key",
     "stalls_organization_id_code_key",
+    "stalls_code_lower_guard",
     "stalls_code_lower_unique_idx",
   ].includes(constraint);
   const slugConflict = (
