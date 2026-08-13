@@ -504,6 +504,17 @@ export function QrOrderFlow({
   }, [cancelProductConfiguration, configuringProductId, sessionExpiryDialogOpen]);
 
   useEffect(() => {
+    if (
+      !lotteryError
+      || isDrawingLottery
+      || lotteryDialogOpen
+      || sessionExpiryDialogOpen
+    ) return;
+
+    lotteryButtonRef.current?.focus();
+  }, [isDrawingLottery, lotteryDialogOpen, lotteryError, sessionExpiryDialogOpen]);
+
+  useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
     const currentDeviceId = getOrCreateDeviceId();
@@ -1132,7 +1143,6 @@ export function QrOrderFlow({
     } catch {
       setLotteryDialogOpen(false);
       setLotteryError(failureReason);
-      window.requestAnimationFrame(() => lotteryButtonRef.current?.focus());
     } finally {
       setIsDrawingLottery(false);
     }
