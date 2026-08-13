@@ -75,6 +75,7 @@ export function StaffOrderComposer({
   onClose,
 }: Props) {
   const { locale, t } = useOperationsLocale();
+  const optionSeparator = locale === "zh-TW" || locale === "ja" ? "、" : ", ";
   const idempotencyKeyRef = useRef(createWebUuid());
   const menuScrollRef = useRef<HTMLDivElement>(null);
   const cartScrollRef = useRef<HTMLElement>(null);
@@ -970,8 +971,8 @@ export function StaffOrderComposer({
               );
               return <div key={cartLineId} data-testid="staff-cart-line" data-cart-line-id={cartLineId} className="py-3 text-sm">
                   <div className="flex justify-between gap-3"><span>{quantity} × {product.name}</span><strong>{formatMoney(unitPrice * quantity, stall.currency, locale)}</strong></div>
-                {selectedBundleChoices.length > 0 ? <p className="mt-1 text-xs text-amber-800">{selectedBundleChoices.map((choice) => `${choice.name} × ${choice.quantity}`).join(", ")}</p> : null}
-                {selectedNoteNames.length > 0 ? <p className="mt-1 text-xs text-teal-800">{selectedNoteNames.join(", ")}</p> : null}
+                {selectedBundleChoices.length > 0 ? <p className="mt-1 text-xs text-amber-800">{selectedBundleChoices.map((choice) => `${choice.name} × ${choice.quantity}`).join(optionSeparator)}</p> : null}
+                {selectedNoteNames.length > 0 ? <p className="mt-1 text-xs text-teal-800">{selectedNoteNames.join(optionSeparator)}</p> : null}
                 <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
                   <button type="button" aria-label={t("composer.decreaseConfiguredItem", { item: product.name, configuration: configurationLabel })} onClick={() => changeCartLineQuantity(cartLineId, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Minus className="h-4 w-4" /></button>
                   <span className="min-w-8 text-center font-semibold" aria-label={t("composer.itemQuantity", { item: product.name, configuration: configurationLabel })}>{quantity}</span>

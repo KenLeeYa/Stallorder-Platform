@@ -454,7 +454,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await dialog.getByTestId("staff-open-drafts").click();
   const draftManager = page.getByRole("dialog", { name: "此裝置的暫存訂單" });
   await expect(draftManager.getByTestId("staff-draft-card")).toHaveCount(1);
-  await draftManager.getByRole("button", { name: "恢復", exact: true }).click();
+  await draftManager.getByRole("button", { name: "繼續點餐", exact: true }).click();
   await expect(dialog.getByLabel("顧客名稱（選填）")).toHaveValue("");
   await expect(dialog.getByLabel("聯絡電話（選填）")).toHaveValue("");
   await expect(dialog.getByLabel("整單備註")).toHaveValue("");
@@ -467,7 +467,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await page.getByTitle("關閉暫存訂單").click();
   await dialog.getByTestId("staff-save-draft").click();
   await dialog.getByTestId("staff-open-drafts").click();
-  await page.getByRole("dialog", { name: "此裝置的暫存訂單" }).getByRole("button", { name: "恢復", exact: true }).click();
+  await page.getByRole("dialog", { name: "此裝置的暫存訂單" }).getByRole("button", { name: "繼續點餐", exact: true }).click();
   await expect(dialog.getByTestId("staff-cart-line")).toHaveCount(1);
   const catalogToggle = dialog.getByTestId("staff-product-list-toggle");
   await catalogToggle.click();
