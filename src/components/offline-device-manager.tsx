@@ -1,5 +1,6 @@
 "use client";
 
+import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import { useMemo, useRef, useState } from "react";
 import {
   Ban,
@@ -12,7 +13,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
-import { formatTaipeiDateTime } from "@/lib/date-time";
+import { formatAppDateTime } from "@/lib/locale-format";
 import {
   focusFirstInvalidField,
   parseFieldErrors,
@@ -108,6 +109,7 @@ export function OfflineDeviceManager({
   stallId: string;
   initialData: OfflineManagementState;
 }) {
+  const { locale, m, label } = useMerchantMessages();
   const [data, setData] = useState(initialData);
   const [policy, setPolicy] = useState(() => normalizePolicy(initialData.policy));
   const [savedPolicy, setSavedPolicy] = useState(() => normalizePolicy(initialData.policy));
@@ -147,7 +149,7 @@ export function OfflineDeviceManager({
       if (!response.ok) {
         const nextFieldErrors = parseFieldErrors(payload.fieldErrors);
         setFieldErrors(nextFieldErrors);
-        setMessage(payload.error ?? "無法更新離線裝置設定。");
+        setMessage(payload.error ?? label("無法更新離線裝置設定。"));
         setHasError(true);
         focusFirstInvalidField(managerRef.current, nextFieldErrors);
         return;
@@ -157,9 +159,9 @@ export function OfflineDeviceManager({
       setPolicy(nextPolicy);
       setSavedPolicy(nextPolicy);
       setReason("");
-      setMessage("離線裝置設定已更新。");
+      setMessage(label("離線裝置設定已更新。"));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "無法更新離線裝置設定。");
+      setMessage(error instanceof Error ? error.message : label("無法更新離線裝置設定。"));
       setHasError(true);
     } finally {
       setBusyKey(null);
@@ -194,8 +196,8 @@ export function OfflineDeviceManager({
       ["REVOKE", "MARK_LOST"].includes(action)
       && !window.confirm(
         action === "REVOKE"
-          ? `確定撤銷「${device.displayName}」？現有離線 Permit 將立即失效。`
-          : `確定將「${device.displayName}」標記為遺失？此裝置將無法同步。`,
+          ? m("確定撤銷「{value0}」？現有離線 Permit 將立即失效。", { value0: device.displayName })
+          : m("確定將「{value0}」標記為遺失？此裝置將無法同步。", { value0: device.displayName }),
       )
     ) {
       return;
@@ -231,9 +233,9 @@ export function OfflineDeviceManager({
           <div className="flex gap-3">
             <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
-              <h2 className="font-semibold">離線收單模組尚未開放</h2>
+              <h2 className="font-semibold">{label("離線收單模組尚未開放")}</h2>
               <p className="mt-1 text-sm">
-                目前裝置維持線上操作；啟用模組後仍須由管理者核准裝置並指定唯一 Leader。
+                {label("目前裝置維持線上操作；啟用模組後仍須由管理者核准裝置並指定唯一 Leader。")}
               </p>
             </div>
           </div>
@@ -245,20 +247,20 @@ export function OfflineDeviceManager({
           <div>
             <h2 className="flex items-center gap-2 text-xl font-semibold">
               <ShieldCheck className="h-5 w-5 text-teal-700" />
-              離線收單政策
+              {label("離線收單政策")}
             </h2>
             <p className="mt-1 text-sm text-stone-600">
-              每個攤位僅允許一台核准裝置在斷線時建立訂單，其餘裝置維持唯讀。
+              {label("每個攤位僅允許一台核准裝置在斷線時建立訂單，其餘裝置維持唯讀。")}
             </p>
           </div>
           <span className={`text-sm font-semibold ${data.policy.offlineEnabled ? "text-emerald-700" : "text-stone-500"}`}>
-            {data.policy.offlineEnabled ? "已啟用" : "已停用"}
+            {data.policy.offlineEnabled ? label("已啟用") : label("已停用")}
           </span>
         </div>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <label className={`flex min-h-12 flex-wrap items-center justify-between gap-3 rounded-md border px-3 text-sm font-medium ${fieldErrors.offlineEnabled ? "border-red-500 bg-red-50" : "border-stone-300"} ${!featureAvailable ? "opacity-50" : ""}`}>
-            <span>允許離線收單</span>
+            <span>{label("允許離線收單")}</span>
             <input
               type="checkbox"
               role="switch"
@@ -283,7 +285,7 @@ export function OfflineDeviceManager({
             {fieldErrors.offlineEnabled ? <FieldError field="offlineEnabled" error={fieldErrors.offlineEnabled} /> : null}
           </label>
           <label className="text-sm font-medium">
-            Leader 裝置
+            {label("Leader 裝置")}
             <select
               value={policy.offlineLeaderDeviceId ?? ""}
               data-field-key="offlineLeaderDeviceId"
@@ -299,7 +301,7 @@ export function OfflineDeviceManager({
               }}
               className={`form-input mt-1 ${fieldErrors.offlineLeaderDeviceId ? "border-red-500 bg-red-50" : ""}`}
             >
-              <option value="">請選擇已登錄裝置</option>
+              <option value="">{label("請選擇已登錄裝置")}</option>
               {leaderCandidates.map((device) => (
                 <option key={device.id} value={device.id}>
                   {device.displayName} · {device.platform}
@@ -312,7 +314,7 @@ export function OfflineDeviceManager({
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <NumberField
-            label="最長離線時間（分鐘）"
+            label={label("最長離線時間（分鐘）")}
             fieldKey="maxOfflineDurationMinutes"
             error={fieldErrors.maxOfflineDurationMinutes}
             min={15}
@@ -322,7 +324,7 @@ export function OfflineDeviceManager({
             onChange={(value) => updateLimit("maxOfflineDurationMinutes", value)}
           />
           <NumberField
-            label="待同步訂單上限"
+            label={label("待同步訂單上限")}
             fieldKey="maxPendingOrders"
             error={fieldErrors.maxPendingOrders}
             min={1}
@@ -332,7 +334,7 @@ export function OfflineDeviceManager({
             onChange={(value) => updateLimit("maxPendingOrders", value)}
           />
           <NumberField
-            label="離線累計金額上限"
+            label={label("離線累計金額上限")}
             fieldKey="maxTotalAmount"
             error={fieldErrors.maxTotalAmount}
             min={0}
@@ -342,7 +344,7 @@ export function OfflineDeviceManager({
             onChange={(value) => updateLimit("maxTotalAmount", value)}
           />
           <NumberField
-            label="單筆訂單金額上限"
+            label={label("單筆訂單金額上限")}
             fieldKey="maxSingleOrderAmount"
             error={fieldErrors.maxSingleOrderAmount}
             min={0}
@@ -355,7 +357,7 @@ export function OfflineDeviceManager({
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <NumberField
-            label="單筆人工付款上限"
+            label={label("單筆人工付款上限")}
             fieldKey="maxManualPaymentAmount"
             error={fieldErrors.maxManualPaymentAmount}
             min={0}
@@ -365,7 +367,7 @@ export function OfflineDeviceManager({
             onChange={(value) => updateLimit("maxManualPaymentAmount", value)}
           />
           <NumberField
-            label="人工付款累計上限"
+            label={label("人工付款累計上限")}
             fieldKey="maxTotalManualPaymentAmount"
             error={fieldErrors.maxTotalManualPaymentAmount}
             min={0}
@@ -375,7 +377,7 @@ export function OfflineDeviceManager({
             onChange={(value) => updateLimit("maxTotalManualPaymentAmount", value)}
           />
           <NumberField
-            label="需留聯絡方式門檻"
+            label={label("需留聯絡方式門檻")}
             fieldKey="requireCustomerContactAboveAmount"
             error={fieldErrors.requireCustomerContactAboveAmount}
             min={0}
@@ -385,7 +387,7 @@ export function OfflineDeviceManager({
             onChange={(value) => updateLimit("requireCustomerContactAboveAmount", value)}
           />
           <NumberField
-            label="管理者操作門檻"
+            label={label("管理者操作門檻")}
             fieldKey="managerApprovalThreshold"
             error={fieldErrors.managerApprovalThreshold}
             min={0}
@@ -397,7 +399,7 @@ export function OfflineDeviceManager({
         </div>
 
         <label className="mt-5 block text-sm font-medium">
-          異動原因
+          {label("異動原因")}
           <input
             type="text"
             value={reason}
@@ -407,7 +409,7 @@ export function OfflineDeviceManager({
             minLength={5}
             maxLength={500}
             onChange={(event) => { clearFieldError("reason"); setReason(event.target.value); }}
-            placeholder="例如：核准櫃台平板作為離線主機"
+            placeholder={label("例如：核准櫃台平板作為離線主機")}
             className={`form-input mt-1 ${fieldErrors.reason ? "border-red-500 bg-red-50" : ""}`}
           />
           {fieldErrors.reason ? <FieldError field="reason" error={fieldErrors.reason} /> : null}
@@ -419,7 +421,7 @@ export function OfflineDeviceManager({
           className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"
         >
           {busyKey === "policy" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          儲存離線政策
+          {label("儲存離線政策")}
         </button>
       </section>
 
@@ -427,16 +429,16 @@ export function OfflineDeviceManager({
         <div className="flex items-start gap-3">
           <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" />
           <div>
-            <h2 className="text-xl font-semibold">已登錄裝置</h2>
+            <h2 className="text-xl font-semibold">{label("已登錄裝置")}</h2>
             <p className="mt-1 text-sm text-stone-600">
-              裝置須先由店員端送出登錄，再由管理者核准。撤銷或遺失會使 Permit 失效。
+              {label("裝置須先由店員端送出登錄，再由管理者核准。撤銷或遺失會使 Permit 失效。")}
             </p>
           </div>
         </div>
 
         <div className="mt-4 divide-y divide-stone-200 border-y border-stone-200">
           {data.devices.length === 0 ? (
-            <p className="py-6 text-sm text-stone-500">尚無裝置送出登錄申請。</p>
+            <p className="py-6 text-sm text-stone-500">{label("尚無裝置送出登錄申請。")}</p>
           ) : data.devices.map((device) => (
             <article key={device.id} className="grid gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
               <div className="min-w-0">
@@ -444,16 +446,16 @@ export function OfflineDeviceManager({
                   <h3 className="font-semibold">{device.displayName}</h3>
                   <StatusBadge status={device.status} />
                   <span className="rounded bg-stone-100 px-2 py-0.5 text-xs font-semibold text-stone-700">
-                    {roleLabel(device.offlineRole)}
+                    {label(roleLabel(device.offlineRole))}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-stone-600">
-                  {device.platform} · 應用程式 {device.appVersion} · {device.pwaInstalled ? "已安裝 PWA" : "瀏覽器模式"}
+                  {device.platform} {label("· 應用程式")} {device.appVersion} · {device.pwaInstalled ? label("已安裝 PWA") : label("瀏覽器模式")}
                 </p>
                 <p className="mt-1 text-xs text-stone-500">
-                  最後上線：{device.lastOnlineAt ? formatTaipeiDateTime(device.lastOnlineAt) : "尚無紀錄"}
+                  {label("最後上線：")}{device.lastOnlineAt ? formatAppDateTime(locale, device.lastOnlineAt, { timeZone: "Asia/Taipei", dateStyle: "medium", timeStyle: "short" }) : label("尚無紀錄")}
                   {device.activePermitExpiresAt
-                    ? ` · Permit 到期：${formatTaipeiDateTime(device.activePermitExpiresAt)}`
+                    ? m(" · Permit 到期：{value0}", { value0: formatAppDateTime(locale, device.activePermitExpiresAt, { timeZone: "Asia/Taipei", dateStyle: "medium", timeStyle: "short" }) })
                     : ""}
                 </p>
               </div>
@@ -467,7 +469,7 @@ export function OfflineDeviceManager({
                     className="inline-flex min-h-10 items-center gap-2 rounded-md border border-emerald-300 px-3 text-xs font-semibold text-emerald-800 disabled:opacity-50"
                   >
                     <Check className="h-4 w-4" />
-                    核准唯讀
+                    {label("核准唯讀")}
                   </button>
                 ) : null}
                 {device.status === "ACTIVE" ? (
@@ -478,7 +480,7 @@ export function OfflineDeviceManager({
                     className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-semibold disabled:opacity-50"
                   >
                     <Ban className="h-4 w-4" />
-                    停用
+                    {label("停用")}
                   </button>
                 ) : null}
                 {!terminalDeviceStatuses.has(device.status) ? (
@@ -489,7 +491,7 @@ export function OfflineDeviceManager({
                       onClick={() => void updateDevice(device, "REVOKE")}
                       className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-300 px-3 text-xs font-semibold text-red-700 disabled:opacity-50"
                     >
-                      撤銷
+                      {label("撤銷")}
                     </button>
                     <button
                       type="button"
@@ -498,7 +500,7 @@ export function OfflineDeviceManager({
                       className="inline-flex min-h-10 items-center gap-2 rounded-md border border-amber-400 px-3 text-xs font-semibold text-amber-800 disabled:opacity-50"
                     >
                       <TriangleAlert className="h-4 w-4" />
-                      標記遺失
+                      {label("標記遺失")}
                     </button>
                   </>
                 ) : null}
@@ -509,7 +511,7 @@ export function OfflineDeviceManager({
       </section>
 
       <p className="text-xs leading-5 text-stone-500">
-        瀏覽器儲存空間可能被系統清除；非持久儲存裝置會自動套用較低的時間、訂單與金額上限。
+        {label("瀏覽器儲存空間可能被系統清除；非持久儲存裝置會自動套用較低的時間、訂單與金額上限。")}
       </p>
       {message ? (
         <p
@@ -576,6 +578,14 @@ function numberOrOriginal(value: number | string) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { label } = useMerchantMessages();
+  const statusLabel = ({
+    ACTIVE: "已核准",
+    DISABLED: "待核准／已停用",
+    REVOKED: "已撤銷",
+    LOST: "已遺失",
+    REPLACED: "已更換",
+  } as Record<string, string>)[status];
   const styles = status === "ACTIVE"
     ? "bg-emerald-50 text-emerald-800"
     : ["REVOKED", "LOST"].includes(status)
@@ -583,13 +593,7 @@ function StatusBadge({ status }: { status: string }) {
       : "bg-stone-100 text-stone-700";
   return (
     <span className={`rounded px-2 py-0.5 text-xs font-semibold ${styles}`}>
-      {({
-        ACTIVE: "已核准",
-        DISABLED: "待核准／已停用",
-        REVOKED: "已撤銷",
-        LOST: "已遺失",
-        REPLACED: "已更換",
-      } as Record<string, string>)[status] ?? status}
+      {statusLabel ? label(statusLabel) : status}
     </span>
   );
 }

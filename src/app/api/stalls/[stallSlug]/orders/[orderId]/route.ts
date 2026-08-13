@@ -5,7 +5,7 @@ import { CashShiftOperationError, requireOpenCashShift } from "@/lib/cash-shifts
 import { validateCsrf } from "@/lib/csrf";
 import { DiscountApprovalError } from "@/lib/discount-approval";
 import { readJson } from "@/lib/http";
-import { fulfillmentTimeBlocksProduction } from "@/lib/fulfillment-time";
+import { classifyStallOrderForProduction } from "@/lib/fulfillment-time";
 import { cancellationMatchesOrder, orderStatusUpdateSchema } from "@/lib/order-status-update";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
@@ -84,6 +84,12 @@ async function handlePatch(
   const order = await timing.measureDb(() => prisma.order.findFirst({
     where: { id: orderId, stallId: authorization.stall.id },
     include: {
+      stall: {
+        select: {
+          timezone: true,
+          orderingSettings: { select: { businessDayCutoffHour: true } },
+        },
+      },
       items: {
         select: {
           unitPrice: true,
@@ -144,9 +150,14 @@ async function handlePatch(
       { status: 409, headers: { "x-request-id": authorization.requestId } },
     );
   }
-  if (nextStatus === "PREPARING" && fulfillmentTimeBlocksProduction(order.fulfillmentTimeState)) {
+  if (nextStatus === "PREPARING"
+    && order.status === "CONFIRMED"
+    && classifyStallOrderForProduction(order).productionBlocked) {
     return NextResponse.json(
-      { error: "請先確認顧客要求的取餐或送達時間，才能開始製作。" },
+      {
+        error: "此訂單的履約營業日尚未到，或履約時間尚未確認，暫時不能開始製作。",
+        code: "PRODUCTION_NOT_DUE",
+      },
       { status: 409, headers: { "x-request-id": authorization.requestId } },
     );
   }

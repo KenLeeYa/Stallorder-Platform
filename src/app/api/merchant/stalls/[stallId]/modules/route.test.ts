@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   validateCsrf: vi.fn(),
   readJson: vi.fn(),
   qrFindMany: vi.fn(),
+  qrFindFirst: vi.fn(),
+  settingsFindUnique: vi.fn(),
   transaction: vi.fn(),
   discountFindMany: vi.fn(),
   discountFindFirst: vi.fn(),
@@ -24,6 +26,8 @@ const mocks = vi.hoisted(() => ({
   recordAuditEvent: vi.fn(),
   invalidatePublicMenu: vi.fn(),
   invalidatePublicQrToken: vi.fn(),
+  assertFeatureEnabled: vi.fn(),
+  entitlementErrorResponse: vi.fn(),
 }));
 
 vi.mock("@/lib/authorization", () => ({
@@ -41,11 +45,13 @@ vi.mock("@/lib/public-menu", () => ({
   invalidatePublicQrToken: mocks.invalidatePublicQrToken,
 }));
 vi.mock("@/lib/stall-modules", () => ({ getStallModuleState: mocks.getState }));
-vi.mock("@/server/billing/entitlement-http", () => ({ entitlementErrorResponse: () => null }));
+vi.mock("@/server/billing/entitlement-http", () => ({
+  entitlementErrorResponse: mocks.entitlementErrorResponse,
+}));
 vi.mock("@/server/billing/entitlement-service", () => ({
   entitlementService: {
     assertLimitAvailable: vi.fn(),
-    assertFeatureEnabled: vi.fn(),
+    assertFeatureEnabled: mocks.assertFeatureEnabled,
   },
 }));
 vi.mock("@/server/dining-floor-service", () => ({
@@ -55,7 +61,8 @@ vi.mock("@/server/dining-floor-service", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    qrCode: { findMany: mocks.qrFindMany },
+    qrCode: { findMany: mocks.qrFindMany, findFirst: mocks.qrFindFirst },
+    stallOrderingSettings: { findUnique: mocks.settingsFindUnique },
     $transaction: mocks.transaction,
   },
 }));
@@ -70,6 +77,10 @@ beforeEach(() => {
   });
   mocks.validateCsrf.mockReturnValue(true);
   mocks.qrFindMany.mockResolvedValue([]);
+  mocks.qrFindFirst.mockResolvedValue(null);
+  mocks.settingsFindUnique.mockResolvedValue({ printModuleEnabled: false });
+  mocks.assertFeatureEnabled.mockResolvedValue({ featureCode: "PRINTER_INTEGRATION" });
+  mocks.entitlementErrorResponse.mockReturnValue(null);
   mocks.getState.mockResolvedValue({ settings: {} });
   mocks.executeRaw.mockResolvedValue(1);
   mocks.queryRaw.mockResolvedValue([{
@@ -95,6 +106,67 @@ beforeEach(() => {
     $executeRaw: mocks.executeRaw,
     $queryRaw: mocks.queryRaw,
   }));
+});
+
+describe("merchant printer module entitlement", () => {
+  it("checks printer entitlement before enabling the stall module", async () => {
+    mocks.discountFindMany.mockResolvedValue([
+      { id: firstDiscountId },
+      { id: secondDiscountId },
+    ]);
+    mocks.readJson.mockResolvedValue({
+      data: { ...updateModulesCommand(), printModuleEnabled: true },
+    });
+
+    const response = await patchModules();
+
+    expect(response.status).toBe(200);
+    expect(mocks.settingsFindUnique).toHaveBeenCalledWith({
+      where: { stallId },
+      select: { printModuleEnabled: true },
+    });
+    expect(mocks.assertFeatureEnabled).toHaveBeenCalledWith(
+      organizationId,
+      "PRINTER_INTEGRATION",
+    );
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { stallId, organizationId },
+      data: expect.objectContaining({ printModuleEnabled: true }),
+    }));
+  });
+
+  it("does not write settings when printer entitlement is denied", async () => {
+    const denial = new Error("FEATURE_NOT_INCLUDED");
+    mocks.assertFeatureEnabled.mockRejectedValue(denial);
+    mocks.entitlementErrorResponse.mockReturnValue(Response.json(
+      { code: "FEATURE_NOT_INCLUDED" },
+      { status: 403 },
+    ));
+    mocks.readJson.mockResolvedValue({
+      data: { ...updateModulesCommand(), printModuleEnabled: true },
+    });
+
+    const response = await patchModules();
+
+    expect(response.status).toBe(403);
+    expect(mocks.entitlementErrorResponse).toHaveBeenCalledWith(denial, "request-id");
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.settingsUpdate).not.toHaveBeenCalled();
+  });
+
+  it("does not require a printer entitlement when disabling the module", async () => {
+    mocks.discountFindMany.mockResolvedValue([
+      { id: firstDiscountId },
+      { id: secondDiscountId },
+    ]);
+    mocks.readJson.mockResolvedValue({ data: updateModulesCommand() });
+
+    const response = await patchModules();
+
+    expect(response.status).toBe(200);
+    expect(mocks.settingsFindUnique).not.toHaveBeenCalled();
+    expect(mocks.assertFeatureEnabled).not.toHaveBeenCalled();
+  });
 });
 
 describe("merchant lottery module writes", () => {

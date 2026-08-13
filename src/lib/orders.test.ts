@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { serializeStaffOrder } from "./orders";
+import { getContextualOrderStatusLabel, serializeStaffOrder } from "@/lib/orders";
 
 describe("serializeStaffOrder legacy fulfillment compatibility", () => {
   it("shows a scheduled-only QR takeout upgrade fixture as confirmed", () => {
@@ -47,5 +47,27 @@ describe("serializeStaffOrder legacy fulfillment compatibility", () => {
       fulfillmentTimeState: "CONFIRMED",
       fulfillmentTimeVersion: 0,
     });
+  });
+});
+
+describe("getContextualOrderStatusLabel", () => {
+  it.each([
+    ["staff unpaid", { source: "STAFF_POS", paymentStatus: "UNPAID", fulfillmentType: "TAKEOUT" }, "待結帳"],
+    ["dine in", { source: "STAFF_POS", paymentStatus: "PAID", fulfillmentType: "DINE_IN" }, "待出餐"],
+    ["unpaid dine in", { source: "STAFF_POS", paymentStatus: "UNPAID", fulfillmentType: "DINE_IN" }, "待出餐"],
+    ["paid delivery", { source: "STAFF_POS", paymentStatus: "PAID", fulfillmentType: "DELIVERY" }, "待交付外送"],
+    ["paid takeout", { source: "STAFF_POS", paymentStatus: "PAID", fulfillmentType: "TAKEOUT" }, "待取餐"],
+    ["QR pickup semantics", { source: "QR_MENU", paymentStatus: "PAID", fulfillmentType: "DELIVERY" }, "可取餐"],
+  ])("labels READY in %s context", (_label, order, expected) => {
+    expect(getContextualOrderStatusLabel({ status: "READY", ...order } as never)).toBe(expected);
+  });
+
+  it("keeps existing labels outside READY", () => {
+    expect(getContextualOrderStatusLabel({
+      status: "PREPARING",
+      source: "STAFF_POS",
+      paymentStatus: "UNPAID",
+      fulfillmentType: "TAKEOUT",
+    })).toBe("製作中");
   });
 });

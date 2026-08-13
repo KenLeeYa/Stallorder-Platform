@@ -23,7 +23,6 @@ export async function GET(request: Request, context: RouteContext) {
   const orders = await prisma.order.findMany({
     where: { stallId: authorization.stall.id, status: { in: [...activeOrderStatuses] } },
     orderBy: { createdAt: "asc" },
-    take: 50,
     select: staffOrderSelect,
   });
 

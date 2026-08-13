@@ -21,12 +21,20 @@ import {
   WifiOff,
 } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
+import { useOperationsLocale } from "@/components/operations-locale";
 import { PwaControls } from "@/components/pwa-controls";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { deliveryProviderLabel } from "@/lib/delivery-platform-labels";
+import { resolveEffectiveFulfillmentAt } from "@/lib/fulfillment-time";
+import type { AppLocale } from "@/lib/app-locale";
+import {
+  getOperationsErrorMessage,
+  type OperationsMessageKey,
+} from "@/lib/messages/operations";
 import {
   aggregateKitchenItems,
+  kitchenWaitDisplay,
   kitchenWaitLevel,
   type KitchenBoardMode,
   type KitchenBoardTask,
@@ -34,9 +42,16 @@ import {
 } from "@/lib/kitchen-board-contract";
 
 type BoardData = {
-  settings: { warningMinutes: number; criticalMinutes: number; defaultView: KitchenBoardMode };
+  settings: {
+    warningMinutes: number;
+    criticalMinutes: number;
+    defaultView: KitchenBoardMode;
+    timeZone: string;
+    businessDayCutoffHour: number;
+  };
   stations: Array<{ id: string; name: string; code: string }>;
   tasks: KitchenBoardTask[];
+  futureReservations: KitchenBoardTask[];
   serverNow: string;
 };
 
@@ -60,14 +75,8 @@ type CancellationErrors = {
   request?: string;
 };
 
-const orderStatusLabels: Record<KitchenBoardTask["orderStatus"], string> = {
-  CONFIRMED: "待製作",
-  PREPARING: "製作中",
-  PACKING: "包裝中",
-  READY: "已完成",
-};
-
 export function KitchenBoard({ stall, initialData, role }: Props) {
+  const { locale, t } = useOperationsLocale();
   const knownOrderIdsRef = useRef(new Set(initialData.tasks.map((task) => task.orderId)));
   const alertsEnabledRef = useRef(false);
   const [data, setData] = useState(initialData);
@@ -91,15 +100,17 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
     if (!alertsEnabledRef.current) return;
     if ("vibrate" in navigator) navigator.vibrate([180, 80, 180]);
     playNotificationTone();
-    setMessage(count === 1 ? "收到 1 筆新廚房訂單。" : `收到 ${count} 筆新廚房訂單。`);
-  }, []);
+    setMessage(t("kitchen.board.newOrders", { count }));
+  }, [t]);
 
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setBusyId("refresh");
     try {
       const response = await fetch(`/api/stalls/${stall.slug}/kitchen/board`, { cache: "no-store" });
-      const payload: BoardData & { error?: string } = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "無法重新載入生產看板。");
+      const payload: BoardData & { error?: string; code?: string } = await response.json();
+      if (!response.ok) throw new Error(payload.code
+        ? getOperationsErrorMessage(locale, payload.code, "kitchen.board.reloadFailed")
+        : t("kitchen.board.reloadFailed"));
       const nextOrderIds = new Set(payload.tasks.map((task) => task.orderId));
       const newOrderCount = [...nextOrderIds].filter((orderId) => !knownOrderIdsRef.current.has(orderId)).length;
       nextOrderIds.forEach((orderId) => knownOrderIdsRef.current.add(orderId));
@@ -108,11 +119,11 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
       setMessage("");
       if (newOrderCount > 0) notifyNewOrders(newOrderCount);
     } catch (error) {
-      if (!silent) setMessage(error instanceof Error ? error.message : "無法重新載入生產看板。");
+      if (!silent) setMessage(error instanceof Error ? error.message : t("kitchen.board.reloadFailed"));
     } finally {
       if (!silent) setBusyId(null);
     }
-  }, [notifyNewOrders, stall.slug]);
+  }, [locale, notifyNewOrders, stall.slug, t]);
 
   useEffect(() => {
     const preferenceTimer = window.setTimeout(() => {
@@ -159,12 +170,14 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
         headers: csrfHeaders(),
         body: JSON.stringify(body),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "KDS 操作失敗。");
+      const payload = await response.json() as { error?: string; code?: string };
+      if (!response.ok) throw new Error(payload.code
+        ? getOperationsErrorMessage(locale, payload.code, "kitchen.board.operationFailed")
+        : t("kitchen.board.operationFailed"));
       await refresh(true);
       return true;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "KDS 操作失敗。");
+      setMessage(error instanceof Error ? error.message : t("kitchen.board.operationFailed"));
       return false;
     } finally {
       setBusyId(null);
@@ -211,10 +224,10 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
     if (!pendingCancellation || busyId !== null || cancellationBusyRef.current) return;
     const errors: CancellationErrors = {};
     if (pendingCancellation.reason === "OTHER" && !pendingCancellation.detail.trim()) {
-      errors.detail = "選擇其他原因時，請填寫補充說明。";
+      errors.detail = t("kitchen.cancel.detailRequired");
     }
     if (pendingCancellation.confirmationOrderNo.trim() !== pendingCancellation.orderNo) {
-      errors.confirmationOrderNo = `請完整輸入訂單編號 ${pendingCancellation.orderNo}。`;
+      errors.confirmationOrderNo = t("kitchen.cancel.orderNoMismatch", { orderNo: pendingCancellation.orderNo });
     }
     if (Object.keys(errors).length > 0) {
       setCancellationErrors(errors);
@@ -239,12 +252,14 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
           cancellationDetail: pendingCancellation.detail.trim() || null,
         }),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "無法取消訂單。");
+      const payload = await response.json() as { error?: string; code?: string };
+      if (!response.ok) throw new Error(payload.code
+        ? getOperationsErrorMessage(locale, payload.code, "kitchen.cancel.failed")
+        : t("kitchen.cancel.failed"));
       await refresh(true);
       finishCancellation();
     } catch (error) {
-      setCancellationErrors({ request: error instanceof Error ? error.message : "無法取消訂單。" });
+      setCancellationErrors({ request: error instanceof Error ? error.message : t("kitchen.cancel.failed") });
     } finally {
       cancellationBusyRef.current = false;
       setBusyId(null);
@@ -254,38 +269,51 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
   const visibleTasks = mode === "STATION" && stationId
     ? data.tasks.filter((task) => task.station.id === stationId)
     : data.tasks;
+  const visibleFutureTasks = mode === "STATION" && stationId
+    ? data.futureReservations.filter((task) => task.station.id === stationId)
+    : data.futureReservations;
   const groupedOrders = useMemo(() => groupTasksByOrder(visibleTasks), [visibleTasks]);
+  const groupedFutureOrders = useMemo(
+    () => groupTasksByOrder(visibleFutureTasks),
+    [visibleFutureTasks],
+  );
   const itemAggregates = useMemo(() => aggregateKitchenItems(visibleTasks), [visibleTasks]);
   const canCancelOrder = ["PLATFORM_ADMIN", "ORGANIZATION_OWNER", "ORGANIZATION_ADMIN", "STALL_MANAGER"].includes(role);
+  const orderStatusLabels: Record<KitchenBoardTask["orderStatus"], string> = {
+    CONFIRMED: t("kitchen.status.confirmed"),
+    PREPARING: t("kitchen.status.preparing"),
+    PACKING: t("kitchen.status.packing"),
+    READY: t("kitchen.status.ready"),
+  };
 
   return (
     <main className="mx-auto max-w-[1600px] px-3 py-3 md:px-6 md:py-6">
       <div className="flex flex-col gap-2 border-b border-stone-200 pb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:pb-4">
-        <div className="inline-flex min-h-11 shrink-0 overflow-hidden rounded-md border border-stone-300 bg-white" role="group" aria-label="看板模式">
-          <ModeButton active={mode === "ORDER"} icon={Rows3} label="訂單" onClick={() => setMode("ORDER")} />
-          <ModeButton active={mode === "ITEM"} icon={ListChecks} label="品項" onClick={() => setMode("ITEM")} />
-          <ModeButton active={mode === "STATION"} icon={ChefHat} label="工作站" onClick={() => setMode("STATION")} />
+        <div className="inline-flex min-h-11 shrink-0 overflow-hidden rounded-md border border-stone-300 bg-white" role="group" aria-label={t("kitchen.mode.label")}>
+          <ModeButton active={mode === "ORDER"} icon={Rows3} label={t("kitchen.mode.ordersShort")} onClick={() => setMode("ORDER")} />
+          <ModeButton active={mode === "ITEM"} icon={ListChecks} label={t("kitchen.mode.itemsShort")} onClick={() => setMode("ITEM")} />
+          <ModeButton active={mode === "STATION"} icon={ChefHat} label={t("kitchen.mode.stationsShort")} onClick={() => setMode("STATION")} />
         </div>
         <div className="flex w-full min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto contain-paint pb-1 [&>*]:shrink-0 sm:w-auto sm:justify-end sm:overflow-visible sm:contain-none sm:pb-0">
-          <span title={connection === "CONNECTED" ? "廚房即時更新已連線" : "即時連線未就緒，已啟用 12 秒輪詢備援"} className={`inline-flex min-h-10 items-center gap-2 text-sm font-medium ${connection === "CONNECTED" ? "text-emerald-700" : "text-amber-700"}`}>
+          <span title={connection === "CONNECTED" ? t("kitchen.connection.connectedTitle") : t("kitchen.connection.fallbackTitle")} className={`inline-flex min-h-10 items-center gap-2 text-sm font-medium ${connection === "CONNECTED" ? "text-emerald-700" : "text-amber-700"}`}>
             {connection === "CONNECTED" ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-            <span>{connection === "CONNECTED" ? "即時連線" : connection === "CONNECTING" ? "連線中" : "輪詢備援"}</span>
+            <span>{connection === "CONNECTED" ? t("kitchen.connection.connected") : connection === "CONNECTING" ? t("kitchen.connection.connecting") : t("kitchen.connection.polling")}</span>
           </span>
-          <button type="button" role="switch" aria-checked={alertsEnabled} onClick={toggleAlerts} title={alertsEnabled ? "關閉新訂單聲音與震動" : "開啟新訂單聲音與震動"} className={`grid h-11 w-11 place-items-center rounded-md border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
+          <button type="button" role="switch" aria-checked={alertsEnabled} onClick={toggleAlerts} title={alertsEnabled ? t("kitchen.alert.disable") : t("kitchen.alert.enable")} className={`grid h-11 w-11 place-items-center rounded-md border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
             {alertsEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
-            <span className="sr-only">{alertsEnabled ? "新訂單提醒已開啟" : "新訂單提醒已關閉"}</span>
+            <span className="sr-only">{alertsEnabled ? t("kitchen.alert.enabledSr") : t("kitchen.alert.disabledSr")}</span>
           </button>
           <PwaControls showWakeLock />
-          <button type="button" title="重新整理" disabled={busyId !== null} onClick={() => void refresh()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-50">
+          <button type="button" title={t("common.refresh")} disabled={busyId !== null} onClick={() => void refresh()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-50">
             <RefreshCw className={`h-5 w-5 ${busyId === "refresh" ? "animate-spin" : ""}`} />
-            <span className="sr-only">重新整理</span>
+            <span className="sr-only">{t("common.refresh")}</span>
           </button>
           <LogoutButton />
         </div>
       </div>
 
       {mode === "STATION" ? (
-        <label className="mt-4 block max-w-sm text-sm font-semibold">工作站
+        <label className="mt-4 block max-w-sm text-sm font-semibold">{t("kitchen.station.filter")}
           <select value={stationId} onChange={(event) => setStationId(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3">
             {data.stations.map((station) => <option key={station.id} value={station.id}>{station.name}</option>)}
           </select>
@@ -294,8 +322,28 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
 
       {message ? <p role="alert" className="mt-4 border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">{message}</p> : null}
 
+      {groupedFutureOrders.length > 0 ? (
+        <details className="mt-4 rounded-md border border-sky-200 bg-sky-50" data-testid="kds-future-reservations">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-sky-950">
+            {t("kitchen.future.summary", { orders: groupedFutureOrders.length, items: visibleFutureTasks.length })}
+          </summary>
+          <div className="grid gap-3 border-t border-sky-200 p-3 md:grid-cols-2 xl:grid-cols-3">
+            {groupedFutureOrders.map((order) => {
+              const fulfillmentAt = resolveEffectiveFulfillmentAt(order);
+              return <article key={order.id} className="rounded-md border border-sky-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div><h2 className="font-semibold">#{order.orderNo}</h2><p className="mt-1 text-xs text-stone-600">{fulfillmentLabel(t, order.fulfillmentType, order.tableLabel)}</p></div>
+                  <time className="text-sm font-semibold text-sky-900">{fulfillmentAt ? formatKitchenDateTime(locale, fulfillmentAt, data.settings.timeZone) : t("kitchen.future.timePending")}</time>
+                </div>
+                <ul className="mt-3 space-y-1 text-sm text-stone-700">{order.tasks.map((task) => <li key={task.id}>{task.itemName} × {task.quantity}</li>)}</ul>
+              </article>;
+            })}
+          </div>
+        </details>
+      ) : null}
+
       {mode === "ITEM" ? (
-        <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="品項彙總">
+        <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label={t("kitchen.items.aria")}>
           {itemAggregates.map((item) => (
             <article key={item.key} className="rounded-md border border-stone-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
@@ -303,9 +351,9 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
                 <strong className="text-3xl tabular-nums">× {item.quantity}</strong>
               </div>
               {item.modifiers.length > 0 ? <p className="mt-3 text-sm text-stone-600">{item.modifiers.join("、")}</p> : null}
-              {item.itemNote ? <p className="mt-2 text-sm font-medium text-amber-800">備註：{item.itemNote}</p> : null}
-              {item.orderNote ? <p className="mt-2 text-sm font-medium text-amber-900">整單備註：{item.orderNote}</p> : null}
-              <p className="mt-3 text-xs text-stone-500">{item.taskIds.length} 張訂單品項</p>
+              {item.itemNote ? <p className="mt-2 text-sm font-medium text-amber-800">{t("staff.order.note", { note: item.itemNote })}</p> : null}
+              {item.orderNote ? <p className="mt-2 text-sm font-medium text-amber-900">{t("kitchen.items.orderNote", { note: item.orderNote })}</p> : null}
+              <p className="mt-3 text-xs text-stone-500">{t("kitchen.items.orderItems", { count: item.taskIds.length })}</p>
             </article>
           ))}
         </section>
@@ -325,6 +373,7 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
                       now={now}
                       warningMinutes={data.settings.warningMinutes}
                       criticalMinutes={data.settings.criticalMinutes}
+                      timeZone={data.settings.timeZone}
                       busyId={busyId}
                       canCancelOrder={canCancelOrder}
                       onTask={(taskId, nextStatus) => mutate({ operation: "UPDATE_TASK", taskId, status: nextStatus }, taskId)}
@@ -340,7 +389,7 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
       )}
 
       {visibleTasks.length === 0 ? (
-        <div className="mt-16 text-center text-stone-500"><PackageCheck className="mx-auto h-10 w-10" /><p className="mt-3 font-medium">目前沒有待處理的生產工作</p></div>
+        <div className="mt-16 text-center text-stone-500"><PackageCheck className="mx-auto h-10 w-10" /><p className="mt-3 font-medium">{t("kitchen.empty")}</p></div>
       ) : null}
 
       {pendingCancellation ? <dialog
@@ -360,28 +409,28 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
           <div className="flex items-start gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-red-50 text-red-700"><TriangleAlert className="h-5 w-5" /></span>
             <div className="min-w-0">
-              <h2 id="kds-cancellation-title" className="break-words text-lg font-semibold">取消訂單 {pendingCancellation.orderNo}？</h2>
-              <p className="mt-1 text-sm font-medium text-red-800">此操作無法復原</p>
+              <h2 id="kds-cancellation-title" className="break-words text-lg font-semibold">{t("kitchen.cancel.title", { orderNo: pendingCancellation.orderNo })}</h2>
+              <p className="mt-1 text-sm font-medium text-red-800">{t("kitchen.cancel.irreversible")}</p>
             </div>
           </div>
-          <p id="kds-cancellation-warning" className="mt-4 text-sm leading-6 text-stone-600">取消後會停止此訂單的所有廚房工作。請先確認尚未出餐，並與前台或顧客完成溝通。</p>
+          <p id="kds-cancellation-warning" className="mt-4 text-sm leading-6 text-stone-600">{t("kitchen.cancel.warning")}</p>
           {cancellationErrors.request ? <p role="alert" className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">{cancellationErrors.request}</p> : null}
-          <label className="mt-4 block text-xs font-semibold text-stone-700">取消原因<select value={pendingCancellation.reason} onChange={(event) => {
+          <label className="mt-4 block text-xs font-semibold text-stone-700">{t("kitchen.cancel.reason")}<select value={pendingCancellation.reason} onChange={(event) => {
             const reason = event.target.value as CancellationReason;
             setPendingCancellation((current) => current ? { ...current, reason } : null);
             setCancellationErrors((current) => ({ ...current, detail: undefined, request: undefined }));
-          }} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{cancellationReasonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <label className="mt-4 block text-xs font-semibold text-stone-700">補充說明{pendingCancellation.reason === "OTHER" ? "（必填）" : "（選填）"}<textarea ref={cancellationDetailRef} value={pendingCancellation.detail} maxLength={200} aria-invalid={Boolean(cancellationErrors.detail)} aria-describedby={cancellationErrors.detail ? "kds-cancellation-detail-error" : undefined} onChange={(event) => {
+          }} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{cancellationReasonOptions.map((option) => <option key={option.value} value={option.value}>{t(cancellationReasonMessageKey(option.value))}</option>)}</select></label>
+          <label className="mt-4 block text-xs font-semibold text-stone-700">{t("kitchen.cancel.details")}{pendingCancellation.reason === "OTHER" ? t("kitchen.cancel.required") : t("kitchen.cancel.optional")}<textarea ref={cancellationDetailRef} value={pendingCancellation.detail} maxLength={200} aria-invalid={Boolean(cancellationErrors.detail)} aria-describedby={cancellationErrors.detail ? "kds-cancellation-detail-error" : undefined} onChange={(event) => {
             setPendingCancellation((current) => current ? { ...current, detail: event.target.value } : null);
             setCancellationErrors((current) => ({ ...current, detail: undefined, request: undefined }));
           }} className="mt-1 min-h-20 w-full resize-y rounded-md border border-stone-300 p-3 text-sm" />{cancellationErrors.detail ? <span id="kds-cancellation-detail-error" role="alert" className="mt-1 block text-xs text-red-700">{cancellationErrors.detail}</span> : null}</label>
-          <label className="mt-4 block text-xs font-semibold text-stone-700">確認訂單編號<input ref={cancellationConfirmationRef} type="text" autoComplete="off" spellCheck={false} maxLength={32} value={pendingCancellation.confirmationOrderNo} aria-invalid={Boolean(cancellationErrors.confirmationOrderNo)} aria-describedby={`kds-cancellation-order-hint${cancellationErrors.confirmationOrderNo ? " kds-cancellation-order-error" : ""}`} onChange={(event) => {
+          <label className="mt-4 block text-xs font-semibold text-stone-700">{t("kitchen.cancel.confirmOrderNo")}<input ref={cancellationConfirmationRef} type="text" autoComplete="off" spellCheck={false} maxLength={32} value={pendingCancellation.confirmationOrderNo} aria-invalid={Boolean(cancellationErrors.confirmationOrderNo)} aria-describedby={`kds-cancellation-order-hint${cancellationErrors.confirmationOrderNo ? " kds-cancellation-order-error" : ""}`} onChange={(event) => {
             setPendingCancellation((current) => current ? { ...current, confirmationOrderNo: event.target.value } : null);
             setCancellationErrors((current) => ({ ...current, confirmationOrderNo: undefined, request: undefined }));
-          }} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /><span id="kds-cancellation-order-hint" className="mt-1 block text-xs font-normal text-stone-500">請完整輸入 {pendingCancellation.orderNo}</span>{cancellationErrors.confirmationOrderNo ? <span id="kds-cancellation-order-error" role="alert" className="mt-1 block text-xs text-red-700">{cancellationErrors.confirmationOrderNo}</span> : null}</label>
+          }} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /><span id="kds-cancellation-order-hint" className="mt-1 block text-xs font-normal text-stone-500">{t("kitchen.cancel.enterOrderNo", { orderNo: pendingCancellation.orderNo })}</span>{cancellationErrors.confirmationOrderNo ? <span id="kds-cancellation-order-error" role="alert" className="mt-1 block text-xs text-red-700">{cancellationErrors.confirmationOrderNo}</span> : null}</label>
           <div className="mt-6 grid grid-cols-2 gap-3">
-            <button type="button" data-cancellation-initial-focus disabled={busyId !== null} onClick={dismissCancellation} className="min-h-11 rounded-md border border-stone-300 px-3 py-2 text-sm font-medium disabled:opacity-50">返回</button>
-            <button type="submit" disabled={busyId !== null} className="min-h-11 rounded-md bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{busyId === pendingCancellation.orderId ? "取消處理中…" : "確認取消"}</button>
+            <button type="button" data-cancellation-initial-focus disabled={busyId !== null} onClick={dismissCancellation} className="min-h-11 rounded-md border border-stone-300 px-3 py-2 text-sm font-medium disabled:opacity-50">{t("common.back")}</button>
+            <button type="submit" disabled={busyId !== null} className="min-h-11 rounded-md bg-red-700 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{busyId === pendingCancellation.orderId ? t("kitchen.cancel.processing") : t("kitchen.cancel.confirm")}</button>
           </div>
         </form>
       </dialog> : null}
@@ -389,18 +438,40 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
   );
 }
 
-function OrderTicket({ order, now, warningMinutes, criticalMinutes, busyId, canCancelOrder, onTask, onComplete, onCancel }: {
+function OrderTicket({ order, now, warningMinutes, criticalMinutes, timeZone, busyId, canCancelOrder, onTask, onComplete, onCancel }: {
   order: ReturnType<typeof groupTasksByOrder>[number];
   now: number;
   warningMinutes: number;
   criticalMinutes: number;
+  timeZone: string;
   busyId: string | null;
   canCancelOrder: boolean;
   onTask: (taskId: string, status: "PENDING" | "PREPARING" | "COMPLETED") => Promise<boolean>;
   onComplete: () => Promise<boolean>;
   onCancel: () => void;
 }) {
-  const elapsed = Math.max(0, Math.floor((now - Date.parse(order.confirmedAt ?? order.createdAt)) / 60_000));
+  const { locale, t } = useOperationsLocale();
+  const effectiveFulfillmentAt = resolveEffectiveFulfillmentAt(order);
+  const productionStartedAt = order.tasks.reduce<number | null>((earliest, task) => {
+    if (!task.startedAt) return earliest;
+    const startedAt = Date.parse(task.startedAt);
+    return earliest === null ? startedAt : Math.min(earliest, startedAt);
+  }, null);
+  const fallbackStartedAt = productionStartedAt
+    ?? Date.parse(order.confirmedAt ?? order.createdAt);
+  const wait = kitchenWaitDisplay(
+    now,
+    order.status === "CONFIRMED" && productionStartedAt === null
+      ? effectiveFulfillmentAt?.getTime() ?? null
+      : null,
+    fallbackStartedAt,
+  );
+  const elapsed = wait.elapsedMinutes;
+  const waitLabel = wait.beforeFulfillment
+    ? t("kitchen.wait.until", { minutes: Math.ceil(((effectiveFulfillmentAt?.getTime() ?? now) - now) / 60_000) })
+    : effectiveFulfillmentAt && order.status === "CONFIRMED" && productionStartedAt === null
+      ? t("kitchen.wait.overdue", { minutes: elapsed })
+      : t("kitchen.wait.elapsed", { minutes: elapsed });
   const level = kitchenWaitLevel(elapsed, warningMinutes, criticalMinutes);
   const border = level === "CRITICAL" ? "border-red-500" : level === "WARNING" ? "border-amber-500" : "border-stone-200";
   return (
@@ -411,19 +482,19 @@ function OrderTicket({ order, now, warningMinutes, criticalMinutes, busyId, canC
             <h3 className="text-xl font-bold">#{order.orderNo}</h3>
             {order.externalProvider ? <span className="rounded bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-800">{deliveryProviderLabel(order.externalProvider)}</span> : null}
           </div>
-          <p className="mt-1 text-sm text-stone-600">{fulfillmentLabel(order.fulfillmentType, order.tableLabel)} · {sourceLabel(order.source)}</p>
-          {order.externalOrderNumber ? <p className="mt-1 text-xs font-medium text-stone-600">平台單號：{order.externalOrderNumber}</p> : null}
-          {order.scheduledPickupAt ? <p className="mt-1 text-xs font-medium text-teal-800">預約取餐：{formatKitchenTime(order.scheduledPickupAt)}</p> : null}
-          {order.externalProvider ? <p className="mt-1 text-xs font-medium text-stone-600">{order.riderPickupAt ? `外送員已於 ${formatKitchenTime(order.riderPickupAt)} 取餐` : "等待外送員取餐"}</p> : null}
+          <p className="mt-1 text-sm text-stone-600">{fulfillmentLabel(t, order.fulfillmentType, order.tableLabel)} · {sourceLabel(t, order.source)}</p>
+          {order.externalOrderNumber ? <p className="mt-1 text-xs font-medium text-stone-600">{t("kitchen.order.platformNo", { number: order.externalOrderNumber })}</p> : null}
+          {effectiveFulfillmentAt ? <p className="mt-1 text-xs font-medium text-teal-800">{t("kitchen.reservation.time", { time: formatKitchenDateTime(locale, effectiveFulfillmentAt, timeZone) })}</p> : null}
+          {order.externalProvider ? <p className="mt-1 text-xs font-medium text-stone-600">{order.riderPickupAt ? t("kitchen.order.riderPickedUp", { time: formatKitchenTime(locale, order.riderPickupAt, timeZone) }) : t("kitchen.order.awaitRider")}</p> : null}
         </div>
         <div className={`text-right ${level === "CRITICAL" ? "text-red-700" : level === "WARNING" ? "text-amber-700" : "text-stone-600"}`}>
-          <span className="inline-flex items-center gap-1 text-sm font-semibold"><Clock3 className="h-4 w-4" />{elapsed} 分</span>
+          <span className="inline-flex items-center gap-1 text-sm font-semibold"><Clock3 className="h-4 w-4" />{waitLabel}</span>
           {level !== "NORMAL" ? (
             <p className="mt-1 text-xs font-bold" role="status">
-              {level === "CRITICAL" ? "嚴重逾時" : "等候警示"}
+              {level === "CRITICAL" ? t("kitchen.wait.critical") : t("kitchen.wait.warning")}
             </p>
           ) : null}
-          {order.pickupCode ? <p className="mt-1 font-mono text-lg font-bold">取餐 {order.pickupCode}</p> : null}
+          {order.pickupCode ? <p className="mt-1 font-mono text-lg font-bold">{t("kitchen.order.pickupCode", { code: order.pickupCode })}</p> : null}
         </div>
       </div>
       <div className="divide-y divide-stone-100">
@@ -437,29 +508,30 @@ function OrderTicket({ order, now, warningMinutes, criticalMinutes, busyId, canC
           />
         ))}
       </div>
-      {order.note ? <div className="mt-3 flex gap-2 bg-amber-50 p-3 text-sm text-amber-900"><MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" /><span>{order.externalProvider ? "平台備註：" : ""}{order.note}</span></div> : null}
+      {order.note ? <div className="mt-3 flex gap-2 bg-amber-50 p-3 text-sm text-amber-900"><MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" /><span>{order.externalProvider ? t("kitchen.order.platformNote") : ""}{order.note}</span></div> : null}
       <div className="mt-4 flex flex-wrap gap-2">
         {order.tasks.some((task) => task.status !== "COMPLETED") ? (
-          <button type="button" disabled={busyId !== null} onClick={() => void onComplete()} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50"><CheckCheck className="h-5 w-5" />整單完成</button>
+          <button type="button" disabled={busyId !== null} onClick={() => void onComplete()} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50"><CheckCheck className="h-5 w-5" />{t("kitchen.order.complete")}</button>
         ) : null}
-        {canCancelOrder ? <button type="button" disabled={busyId !== null} onClick={onCancel} className="min-h-11 rounded-md border border-red-300 px-4 text-sm font-semibold text-red-700 disabled:opacity-50">取消</button> : null}
+        {canCancelOrder ? <button type="button" disabled={busyId !== null} onClick={onCancel} className="min-h-11 rounded-md border border-red-300 px-4 text-sm font-semibold text-red-700 disabled:opacity-50">{t("common.cancel")}</button> : null}
       </div>
     </article>
   );
 }
 
 function TaskRow({ task, busy, locked, onTask }: { task: KitchenBoardTask; busy: boolean; locked: boolean; onTask: (taskId: string, status: "PENDING" | "PREPARING" | "COMPLETED") => Promise<boolean> }) {
+  const { t } = useOperationsLocale();
   const action = task.status === "PENDING"
-    ? { status: "PREPARING" as const, label: "開始製作", icon: Play }
+    ? { status: "PREPARING" as const, label: t("kitchen.task.start"), icon: Play }
     : task.status === "PREPARING"
-      ? { status: "COMPLETED" as const, label: "完成品項", icon: PackageCheck }
-      : { status: "PENDING" as const, label: "退回待製作", icon: RotateCcw };
+      ? { status: "COMPLETED" as const, label: t("kitchen.task.complete"), icon: PackageCheck }
+      : { status: "PENDING" as const, label: t("kitchen.task.return"), icon: RotateCcw };
   const Icon = action.icon;
   return (
     <div className="py-3">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0"><p className="font-semibold">{task.itemName} × {task.quantity}</p><p className="mt-1 text-xs font-medium text-teal-700">{task.station.name}</p>{task.modifiers.length > 0 ? <p className="mt-1 text-sm text-stone-600">{task.modifiers.join("、")}</p> : null}{task.itemNote ? <p className="mt-1 text-sm text-amber-800">備註：{task.itemNote}</p> : null}</div>
-        <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${task.status === "COMPLETED" ? "bg-emerald-100 text-emerald-800" : task.status === "PREPARING" ? "bg-blue-100 text-blue-800" : "bg-stone-100 text-stone-700"}`}>{taskStatusLabel(task.status)}</span>
+        <div className="min-w-0"><p className="font-semibold">{task.itemName} × {task.quantity}</p><p className="mt-1 text-xs font-medium text-teal-700">{task.station.name}</p>{task.modifiers.length > 0 ? <p className="mt-1 text-sm text-stone-600">{task.modifiers.join("、")}</p> : null}{task.itemNote ? <p className="mt-1 text-sm text-amber-800">{t("staff.order.note", { note: task.itemNote })}</p> : null}</div>
+        <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${task.status === "COMPLETED" ? "bg-emerald-100 text-emerald-800" : task.status === "PREPARING" ? "bg-blue-100 text-blue-800" : "bg-stone-100 text-stone-700"}`}>{taskStatusLabel(t, task.status)}</span>
       </div>
       {!locked ? <button type="button" disabled={busy} onClick={() => void onTask(task.id, action.status)} className={`mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold disabled:opacity-50 ${task.status === "COMPLETED" ? "border border-stone-300 bg-white" : "bg-stone-900 text-white"}`}>{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}{action.label}</button> : null}
     </div>
@@ -471,41 +543,72 @@ function ModeButton({ active, icon: Icon, label, onClick }: { active: boolean; i
 }
 
 function groupTasksByOrder(tasks: KitchenBoardTask[]) {
-  const groups = new Map<string, { id: string; orderNo: string; pickupCode: string | null; source: string; externalProvider: string | null; externalOrderNumber: string | null; scheduledPickupAt: string | null; riderPickupAt: string | null; fulfillmentType: KitchenBoardTask["fulfillmentType"]; tableLabel: string | null; note: string | null; status: KitchenBoardTask["orderStatus"]; createdAt: string; confirmedAt: string | null; tasks: KitchenBoardTask[] }>();
+  const groups = new Map<string, { id: string; orderNo: string; pickupCode: string | null; source: string; externalProvider: string | null; externalOrderNumber: string | null; scheduledPickupAt: string | null; requestedFulfillmentAt: string | null; committedFulfillmentAt: string | null; riderPickupAt: string | null; fulfillmentType: KitchenBoardTask["fulfillmentType"]; tableLabel: string | null; note: string | null; status: KitchenBoardTask["orderStatus"]; createdAt: string; confirmedAt: string | null; tasks: KitchenBoardTask[] }>();
   for (const task of tasks) {
     const current = groups.get(task.orderId);
     if (current) current.tasks.push(task);
-    else groups.set(task.orderId, { id: task.orderId, orderNo: task.orderNo, pickupCode: task.pickupCode, source: task.source, externalProvider: task.externalProvider, externalOrderNumber: task.externalOrderNumber, scheduledPickupAt: task.scheduledPickupAt, riderPickupAt: task.riderPickupAt, fulfillmentType: task.fulfillmentType, tableLabel: task.tableLabel, note: task.orderNote, status: task.orderStatus, createdAt: task.orderCreatedAt, confirmedAt: task.confirmedAt, tasks: [task] });
+    else groups.set(task.orderId, { id: task.orderId, orderNo: task.orderNo, pickupCode: task.pickupCode, source: task.source, externalProvider: task.externalProvider, externalOrderNumber: task.externalOrderNumber, scheduledPickupAt: task.scheduledPickupAt, requestedFulfillmentAt: task.requestedFulfillmentAt, committedFulfillmentAt: task.committedFulfillmentAt, riderPickupAt: task.riderPickupAt, fulfillmentType: task.fulfillmentType, tableLabel: task.tableLabel, note: task.orderNote, status: task.orderStatus, createdAt: task.orderCreatedAt, confirmedAt: task.confirmedAt, tasks: [task] });
   }
   return [...groups.values()].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
-function formatKitchenTime(value: string) {
-  return new Intl.DateTimeFormat("zh-TW", {
+function formatKitchenTime(locale: AppLocale, value: string, timeZone: string) {
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Asia/Taipei",
+    timeZone,
   }).format(new Date(value));
 }
 
-function taskStatusLabel(status: KitchenTaskState) {
-  if (status === "PREPARING") return "製作中";
-  if (status === "COMPLETED") return "已完成";
-  if (status === "CANCELLED") return "已取消";
-  return "待製作";
+function formatKitchenDateTime(locale: AppLocale, value: Date | string, timeZone: string) {
+  return new Intl.DateTimeFormat(locale, {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone,
+  }).format(new Date(value));
 }
 
-function fulfillmentLabel(type: KitchenBoardTask["fulfillmentType"], tableLabel: string | null) {
-  if (type === "DINE_IN") return tableLabel ? `內用 ${tableLabel}` : "內用";
-  if (type === "DELIVERY") return "外送";
-  return "外帶";
+function taskStatusLabel(
+  t: (key: OperationsMessageKey, values?: Record<string, string | number>) => string,
+  status: KitchenTaskState,
+) {
+  if (status === "PREPARING") return t("kitchen.status.preparing");
+  if (status === "COMPLETED") return t("kitchen.status.ready");
+  if (status === "CANCELLED") return t("staff.status.cancelled");
+  return t("kitchen.status.confirmed");
 }
 
-function sourceLabel(source: string) {
-  if (source === "QR_MENU") return "QR 點餐";
-  if (source === "STAFF_POS") return "店員點餐";
-  if (source.includes("DELIVERY")) return "線上外送";
-  return "現場訂單";
+function fulfillmentLabel(
+  t: (key: OperationsMessageKey, values?: Record<string, string | number>) => string,
+  type: KitchenBoardTask["fulfillmentType"],
+  tableLabel: string | null,
+) {
+  if (type === "DINE_IN") return tableLabel
+    ? t("kitchen.fulfillment.dineInTable", { table: tableLabel })
+    : t("kitchen.fulfillment.dineIn");
+  if (type === "DELIVERY") return t("kitchen.fulfillment.delivery");
+  return t("kitchen.fulfillment.takeout");
+}
+
+function sourceLabel(
+  t: (key: OperationsMessageKey, values?: Record<string, string | number>) => string,
+  source: string,
+) {
+  if (source === "QR_MENU") return t("kitchen.source.qr");
+  if (source === "STAFF_POS") return t("kitchen.source.staff");
+  if (source.includes("DELIVERY")) return t("kitchen.source.delivery");
+  return t("kitchen.source.walkIn");
+}
+
+function cancellationReasonMessageKey(reason: CancellationReason): OperationsMessageKey {
+  if (reason === "SOLD_OUT") return "cancelReason.soldOut";
+  if (reason === "CUSTOMER_CANCELLED") return "cancelReason.customer";
+  if (reason === "WAIT_TOO_LONG") return "cancelReason.wait";
+  if (reason === "DUPLICATE_ORDER") return "cancelReason.duplicate";
+  return "cancelReason.other";
 }
 
 function playNotificationTone() {

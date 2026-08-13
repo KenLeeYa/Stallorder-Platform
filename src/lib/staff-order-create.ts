@@ -180,7 +180,7 @@ export async function createStaffOrder(input: {
           customerName: input.request.customerName || "現場顧客",
           customerPhone: input.request.customerPhone || null,
           deliveryAddress: input.request.fulfillmentType === "DELIVERY"
-            ? input.request.deliveryAddress
+            ? input.request.deliveryAddress || null
             : null,
           tableLabel: prepared.tableLabel,
           diningTableId: prepared.diningTableId,
@@ -455,6 +455,59 @@ async function prepareOrder(
   stallId: string,
   request: CreateStaffOrderInput,
 ) {
+  const preparedItems = await prepareStaffOrderItems(client, organizationId, stallId, request);
+  const { settings, items, subtotal, discountEligibleSubtotal } = preparedItems;
+
+  let diningTableId: string | null = null;
+  let tableLabel: string | null = null;
+  const fulfillmentError = getStaffFulfillmentError(request.fulfillmentType, settings);
+  if (fulfillmentError) throw new StaffOrderCreateError(fulfillmentError);
+  if (request.fulfillmentType === "DINE_IN") {
+    const table = await client.diningTable.findFirst({
+      where: { id: request.diningTableId, organizationId, stallId, isActive: true },
+      select: { id: true, label: true },
+    });
+    if (!table) throw new StaffOrderCreateError("TABLE_UNAVAILABLE");
+    diningTableId = table.id;
+    tableLabel = table.label;
+  }
+
+  const requestedFulfillmentAt = request.fulfillmentType === "DINE_IN"
+    || !request.requestedFulfillmentAt
+    ? null
+    : new Date(request.requestedFulfillmentAt);
+  if (requestedFulfillmentAt) {
+    const [validation] = await client.$queryRaw<Array<{ code: string | null }>>`
+      select public.validate_requested_fulfillment_slot(
+        ${stallId}::uuid,
+        ${request.fulfillmentType}::public.fulfillment_type,
+        'STAFF_NEW_ORDER',
+        ${requestedFulfillmentAt}::timestamptz,
+        now()
+      ) as code
+    `;
+    if (!validation || validation.code !== null) {
+      throw new StaffOrderCreateError("FULFILLMENT_TIME_INVALID");
+    }
+  }
+
+  return {
+    unconfirmedOrderTimeoutSeconds: settings.unconfirmedOrderTimeoutSeconds,
+    requestedFulfillmentAt,
+    diningTableId,
+    tableLabel,
+    subtotal,
+    discountEligibleSubtotal,
+    items,
+  };
+}
+
+export async function prepareStaffOrderItems(
+  client: OrderDataClient,
+  organizationId: string,
+  stallId: string,
+  request: Pick<CreateStaffOrderInput, "items" | "customerNote">,
+) {
   const now = new Date();
   const requestedProductIds = [...new Set(request.items.map((item) => item.productId))];
   const [settings, assignments] = await Promise.all([
@@ -566,39 +619,6 @@ async function prepareOrder(
     throw new StaffOrderCreateError("PRODUCT_UNAVAILABLE");
   }
 
-  let diningTableId: string | null = null;
-  let tableLabel: string | null = null;
-  const fulfillmentError = getStaffFulfillmentError(request.fulfillmentType, settings);
-  if (fulfillmentError) throw new StaffOrderCreateError(fulfillmentError);
-  if (request.fulfillmentType === "DINE_IN") {
-    const table = await client.diningTable.findFirst({
-      where: { id: request.diningTableId, organizationId, stallId, isActive: true },
-      select: { id: true, label: true },
-    });
-    if (!table) throw new StaffOrderCreateError("TABLE_UNAVAILABLE");
-    diningTableId = table.id;
-    tableLabel = table.label;
-  }
-
-  const requestedFulfillmentAt = request.fulfillmentType === "DINE_IN"
-    || !request.requestedFulfillmentAt
-    ? null
-    : new Date(request.requestedFulfillmentAt);
-  if (requestedFulfillmentAt) {
-    const [validation] = await client.$queryRaw<Array<{ code: string | null }>>`
-      select public.validate_requested_fulfillment_slot(
-        ${stallId}::uuid,
-        ${request.fulfillmentType}::public.fulfillment_type,
-        'STAFF_NEW_ORDER',
-        ${requestedFulfillmentAt}::timestamptz,
-        now()
-      ) as code
-    `;
-    if (!validation || validation.code !== null) {
-      throw new StaffOrderCreateError("FULFILLMENT_TIME_INVALID");
-    }
-  }
-
   const assignmentsByProduct = new Map(assignments.map((assignment) => [assignment.productId, assignment]));
   const items = request.items.map((requested) => {
     const assignment = assignmentsByProduct.get(requested.productId);
@@ -613,10 +633,7 @@ async function prepareOrder(
   });
 
   return {
-    unconfirmedOrderTimeoutSeconds: settings.unconfirmedOrderTimeoutSeconds,
-    requestedFulfillmentAt,
-    diningTableId,
-    tableLabel,
+    settings,
     subtotal: items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
     discountEligibleSubtotal: items.reduce((sum, item) => (
       sum + (item.isOrderDiscountEligible ? item.unitPrice * item.quantity : 0)

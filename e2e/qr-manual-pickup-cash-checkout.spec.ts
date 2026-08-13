@@ -189,9 +189,10 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       await staffPage.goto("/staff/aming-chicken");
       const staffOrder = staffPage.getByRole("article").filter({ hasText: testMarker });
       await expect(staffOrder).toBeVisible();
+      await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
 
       const confirmResponsePromise = waitForOrderPatch(staffPage, createdOrderId);
-      await staffOrder.getByRole("button", { name: "確認接單", exact: true }).click();
+      await staffOrder.getByRole("button", { name: "待製作", exact: true }).click();
       const confirmResponse = await confirmResponsePromise;
       expect(confirmResponse.status()).toBe(200);
       expect(confirmResponse.request().postDataJSON()).toMatchObject({ status: "CONFIRMED" });
@@ -207,7 +208,7 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       const readyResponse = await readyResponsePromise;
       expect(readyResponse.status()).toBe(200);
       expect(readyResponse.request().postDataJSON()).toEqual({ status: "READY" });
-      await expect(staffOrder.getByLabel("三位數取餐碼")).toBeVisible();
+      await expect(staffOrder.getByLabel("3 位數取餐碼")).toBeVisible();
 
       await staffOrder.getByRole("button", { name: "無法取得取餐碼", exact: true }).click();
       const manualPickupDialog = staffPage.getByRole("alertdialog", { name: "人工核對取餐" });
@@ -234,7 +235,7 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       });
       await expect(staffOrder).toContainText("已完成人工取餐核對");
 
-      await staffOrder.getByRole("button", { name: "完成訂單", exact: true }).click();
+      await staffOrder.getByRole("button", { name: "代結帳", exact: true }).first().click();
       const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
       await checkout.getByRole("button", { name: "現金", exact: true }).click();
       await checkout.getByRole("button", { name: "剛好", exact: true }).click();

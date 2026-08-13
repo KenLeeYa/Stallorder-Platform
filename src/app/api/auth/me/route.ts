@@ -37,6 +37,7 @@ export async function GET(request: Request) {
   return NextResponse.json(
     {
       authenticated: true,
+      sessionExpiresAt: principal.sessionExpiresAt.toISOString(),
       user: {
         id: principal.user.id,
         email: principal.user.email,

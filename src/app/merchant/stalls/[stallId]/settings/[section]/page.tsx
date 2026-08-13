@@ -12,6 +12,7 @@ import { StallTemplateCopyManager } from "@/components/stall-template-copy-manag
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 import { getStallModuleState } from "@/lib/stall-modules";
+import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
 import { requireWorkspacePage } from "@/lib/workspace";
 
 const sectionLabels = {
@@ -35,6 +36,7 @@ function isSettingsSection(value: string): value is SettingsSection {
 }
 
 export default async function StallSettingsSectionPage({ params, searchParams }: PageProps) {
+  const { label } = await getRequestMerchantMessages();
   const { stallId, section: rawSection } = await params;
   const { source } = await searchParams;
   if (!isSettingsSection(rawSection)) notFound();
@@ -177,7 +179,7 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
       <header className="mt-4 border-b border-stone-200 pb-5">
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <h1 className="mt-1 text-3xl font-semibold">{stall.name}</h1>
-        <p className="mt-2 text-sm text-stone-600">{sectionLabels[rawSection]}</p>
+        <p className="mt-2 text-sm text-stone-600">{label(sectionLabels[rawSection])}</p>
       </header>
       <div className="py-7">
         <StallSettingsShell showToolbar={false}>{content}</StallSettingsShell>

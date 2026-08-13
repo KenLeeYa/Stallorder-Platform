@@ -13,19 +13,30 @@ const localeNames: Record<AppLocale, string> = {
   th: "ไทย",
 };
 
-export function LocaleSelector({ className = "" }: { className?: string }) {
+export function LocaleSelector({
+  className = "",
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const { locale, setLocale, t } = useAppLocale();
   const label = t("locale.label");
 
   return (
-    <label className={`inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-2 text-sm text-stone-700 ${className}`}>
+    <label
+      title={label}
+      className={`relative inline-flex min-h-10 items-center rounded-md border border-stone-300 bg-white text-sm text-stone-700 focus-within:ring-2 focus-within:ring-teal-600 focus-within:ring-offset-1 ${compact ? "h-10 w-10 justify-center" : "gap-2 px-2"} ${className}`}
+    >
       <Languages className="h-4 w-4 text-teal-700" aria-hidden="true" />
       <span className="sr-only">{label}</span>
       <select
         aria-label={label}
         value={locale}
         onChange={(event) => setLocale(event.target.value as AppLocale)}
-        className="h-9 max-w-32 bg-transparent text-sm font-medium outline-none"
+        className={compact
+          ? "absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          : "h-9 max-w-32 bg-transparent text-sm font-medium outline-none"}
       >
         {APP_LOCALES.map((candidate) => (
           <option key={candidate} value={candidate}>{localeNames[candidate]}</option>

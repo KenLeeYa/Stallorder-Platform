@@ -8,6 +8,7 @@ export function FeatureUpgradeNotice({
   billingHref,
   returnHref,
   returnLabel = "返回上一頁",
+  billingLabel = "查看訂閱與帳務",
   returnStallId,
 }: {
   title?: string;
@@ -15,6 +16,7 @@ export function FeatureUpgradeNotice({
   billingHref?: string;
   returnHref?: string;
   returnLabel?: string;
+  billingLabel?: string;
   returnStallId?: string;
 }) {
   return (
@@ -44,7 +46,7 @@ export function FeatureUpgradeNotice({
                   href={billingHref}
                   className="inline-flex min-h-10 items-center rounded-md bg-stone-900 px-4 text-sm font-semibold text-white"
                 >
-                  查看訂閱與帳務
+                  {billingLabel}
                 </Link>
               ) : null}
             </div>
