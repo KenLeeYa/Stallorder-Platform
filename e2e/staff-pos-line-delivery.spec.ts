@@ -91,6 +91,27 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   await page.setViewportSize({ width: 1024, height: 768 });
   await login(page);
   await page.goto("/staff/aming-chicken");
+  const staffMain = page.getByRole("main");
+  await expect(staffMain).toHaveCount(1);
+  const functionGrid = staffMain.getByTestId("staff-function-grid");
+  await expect(functionGrid).toHaveCount(1);
+  await expect(functionGrid).toBeVisible();
+  expect(await functionGrid.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return { display: style.display, flexWrap: style.flexWrap, overflowY: style.overflowY };
+  })).toEqual({ display: "flex", flexWrap: "nowrap", overflowY: "visible" });
+  const desktopFunctionPositions = await functionGrid.locator(":scope > *").evaluateAll((elements) => (
+    elements.map((element) => {
+      const bounds = element.getBoundingClientRect();
+      return { x: bounds.x, y: bounds.y };
+    })
+  ));
+  expect(desktopFunctionPositions.length).toBeLessThanOrEqual(12);
+  expect(desktopFunctionPositions.every(({ y }) => Math.abs(y - desktopFunctionPositions[0]!.y) <= 1)).toBe(true);
+  expect(desktopFunctionPositions.every(({ x }, index) => index === 0 || x > desktopFunctionPositions[index - 1]!.x)).toBe(true);
+  await functionGrid.getByTitle("離線裝置", { exact: true }).click();
+  await expect(page.getByRole("region", { name: "離線裝置", exact: true })).toBeVisible();
+  await page.getByTitle("關閉離線裝置視窗", { exact: true }).click();
   const configurationResponsePromise = page.waitForResponse((response) => (
     new URL(response.url()).pathname.endsWith("/api/stalls/aming-chicken/pos-configuration")
     && response.request().method() === "GET"
@@ -103,6 +124,12 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   const catalogToggle = dialog.getByTestId("staff-product-list-toggle");
   await expect(catalogToggle).toHaveAttribute("aria-expanded", "true");
   await expect(dialog.getByTestId("staff-product-list")).toBeVisible();
+  const friedGroup = dialog.locator('[data-testid="staff-product-group"][data-category="炸物"]');
+  const drinkGroup = dialog.locator('[data-testid="staff-product-group"][data-category="飲料"]');
+  await friedGroup.getByRole("button", { name: "收合商品群組 炸物", exact: true }).click();
+  await expect(friedGroup.getByRole("button", { name: "展開商品群組 炸物", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expect(friedGroup.getByTestId("staff-product-card")).toHaveCount(0);
+  await expect(drinkGroup.getByTestId("staff-product-card").first()).toBeVisible();
   await catalogToggle.click();
   await expect(catalogToggle).toHaveAttribute("aria-expanded", "false");
   await expect(catalogToggle).toHaveText("展開全部商品");
@@ -111,6 +138,8 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   await expect(catalogToggle).toHaveAttribute("aria-expanded", "true");
   await expect(catalogToggle).toHaveText("收合全部商品");
   await expect(dialog.getByTestId("staff-product-list")).toBeVisible();
+  await expect(friedGroup.getByRole("button", { name: "收合商品群組 炸物", exact: true })).toHaveAttribute("aria-expanded", "true");
+  await expect(friedGroup.getByTestId("staff-product-card").first()).toBeVisible();
   await dialog.getByRole("button", { name: "內用", exact: true }).click();
   const customerNameInput = dialog.getByLabel("顧客名稱（選填）");
   const tableSelect = dialog.getByLabel("桌位");
@@ -238,6 +267,21 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await page.goto("/staff/aming-chicken");
+  const staffMain = page.getByRole("main");
+  await expect(staffMain).toHaveCount(1);
+  const functionGrid = staffMain.getByTestId("staff-function-grid");
+  await expect(functionGrid).toHaveCount(1);
+  await expect(functionGrid).toBeVisible();
+  expect(await functionGrid.evaluate((element) => window.getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(3);
+  expect(await functionGrid.locator(":scope > *").count()).toBeLessThanOrEqual(12);
+  const [staffOrderBox, floorPlanBox] = await Promise.all([
+    functionGrid.getByRole("button", { name: "店員點餐", exact: true }).boundingBox(),
+    functionGrid.getByRole("link", { name: "桌位平面圖", exact: true }).boundingBox(),
+  ]);
+  expect(staffOrderBox).not.toBeNull();
+  expect(floorPlanBox).not.toBeNull();
+  expect(Math.abs(staffOrderBox!.width - floorPlanBox!.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(staffOrderBox!.height - floorPlanBox!.height)).toBeLessThanOrEqual(1);
   await expect(page.getByRole("button", { name: "店員點餐" })).toBeVisible();
   const configurationResponsePromise = page.waitForResponse((response) => (
     new URL(response.url()).pathname.endsWith("/api/stalls/aming-chicken/pos-configuration")
@@ -448,7 +492,13 @@ test("店員可將同商品不同註記分列加入購物車，並移除選錯�
   const editableCheeseLine = cartLines.filter({ hasText: "加起司" });
   const editableLineId = await editableCheeseLine.getAttribute("data-cart-line-id");
   expect(editableLineId).not.toBeNull();
+  const friedGroupToggle = dialog.getByRole("button", { name: "收合商品群組 炸物", exact: true });
+  await friedGroupToggle.click();
+  await expect(dialog.getByRole("button", { name: "展開商品群組 炸物", exact: true })).toHaveAttribute("aria-expanded", "false");
+  await expect(product).toHaveCount(0);
   await editableCheeseLine.getByRole("button", { name: "修改客製", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "收合商品群組 炸物", exact: true })).toHaveAttribute("aria-expanded", "true");
+  await expect(product).toBeVisible();
   await expect(product.getByRole("checkbox", { name: /加起司/ })).toBeChecked();
   await editableCheeseLine.getByRole("button", { name: "增加 香酥雞排（加起司）", exact: true }).click();
   await expect(editableCheeseLine).toContainText("2 × 香酥雞排");
@@ -547,7 +597,7 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
   }
   const requestedFulfillmentAt = requestedSlot.iso;
   const proposedFulfillmentAt = proposedSlot.iso;
-  await expect(page.locator("#main-content").getByText("外送", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText("外送", { exact: true })).toBeVisible();
   await expect(page.getByTestId("qr-cart-panel")).toBeHidden();
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("line-delivery-mobile.png"), fullPage: true });

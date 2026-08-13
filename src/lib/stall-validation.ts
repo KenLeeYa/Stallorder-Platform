@@ -23,7 +23,7 @@ const stallFields = {
   name: singleLineText({ minimum: 2, maximum: 80, requiredMessage: "攤位名稱至少需要 2 個字元。" }),
   code: z.string().trim()
     .min(2, "攤位代碼至少需要 2 個字元。")
-    .max(30, "攤位代碼不可超過 30 個字元。")
+    .max(PUBLIC_IDENTIFIER_MAX_LENGTH, "攤位代碼不可超過 50 個字元。")
     .regex(/^[A-Za-z0-9-]+$/, "攤位代碼僅可使用英文字母、數字與連字號。")
     .transform((value) => value.toUpperCase()),
   description: multilineText({ maximum: 500 }),
@@ -101,7 +101,11 @@ export function getCreateStallConflictFieldErrors(target: unknown) {
     fields.length === 2
     && fields.includes("code")
     && fields.some((field) => ["organization_id", "organizationid"].includes(field))
-  ) || ["stalls_organization_code_key", "stalls_organization_id_code_key"].includes(constraint);
+  ) || [
+    "stalls_organization_code_key",
+    "stalls_organization_id_code_key",
+    "stalls_code_lower_unique_idx",
+  ].includes(constraint);
   const slugConflict = (
     fields.length === 1 && fields[0] === "slug"
   ) || constraint === "stalls_slug_key";

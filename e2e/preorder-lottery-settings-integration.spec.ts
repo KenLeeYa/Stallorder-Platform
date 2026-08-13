@@ -272,13 +272,12 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
 
     try {
       await page.goto(`/merchant/stalls/${stallId}/settings/modules`);
-      await expect(page.getByLabel("顧客外帶預約網址")).toHaveValue(/\/s\/aming-chicken$/);
-      await expect(page.getByLabel("顧客外送網址")).toHaveValue(/\/delivery\/aming-chicken$/);
-      await expect(page.getByLabel("LINE 自動回覆內容")).toContainText("外帶預約：");
-      await expect(page.getByLabel("LINE 自動回覆內容")).toContainText("外送：");
-      await expect(page.getByRole("button", { name: "複製外帶預約網址", exact: true })).toBeVisible();
-      await expect(page.getByRole("button", { name: "複製外送網址", exact: true })).toBeVisible();
-      const preorderSwitch = page.getByRole("switch", { name: /外帶預約單/ });
+      await expect(page.getByLabel("顧客公開點餐網址")).toHaveValue(/\/store\/aming-01$/);
+      await expect(page.getByLabel("LINE 自動回覆內容")).toContainText("選擇線上 Menu、外帶自取或外送");
+      await expect(page.getByLabel("LINE 自動回覆內容")).toContainText(/\/store\/aming-01$/);
+      await expect(page.getByRole("button", { name: "複製公開點餐網址", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "複製 LINE 回覆內容", exact: true })).toBeVisible();
+      const preorderSwitch = page.getByRole("switch", { name: /外帶自取/ });
       const lotterySwitch = page.getByRole("switch", { name: /抽抽樂推薦/ });
       await expect(preorderSwitch).toHaveAttribute("aria-checked", "false");
       await expect(lotterySwitch).toHaveAttribute("aria-checked", "false");
@@ -321,7 +320,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       await expect(page.getByRole("status")).toHaveText("模組開關已儲存。");
 
       await page.reload();
-      await expect(page.getByRole("switch", { name: /外帶預約單/ })).toHaveAttribute("aria-checked", "true");
+      await expect(page.getByRole("switch", { name: /外帶自取/ })).toHaveAttribute("aria-checked", "true");
       await expect(page.getByRole("switch", { name: /抽抽樂推薦/ })).toHaveAttribute("aria-checked", "true");
       await expect(page.getByLabel("最少提前（分鐘）")).toHaveValue("45");
       await expect(page.getByLabel("最多預約天數")).toHaveValue("5");
@@ -478,7 +477,7 @@ async function verifyClosedPreorder(browser: Browser) {
       new URL(response.url()).pathname.endsWith("/create-order-session")
       && response.request().method() === "POST"
     ));
-    await page.goto("/s/aming-chicken");
+    await page.goto("/store/aming-01?view=pickup");
     const sessionResponse = await sessionResponsePromise;
     expect([200, 201]).toContain(sessionResponse.status());
     expect(sessionResponse.request().postDataJSON()).toMatchObject({ orderingMode: "PREORDER" });
@@ -489,7 +488,7 @@ async function verifyClosedPreorder(browser: Browser) {
     expect((sessionPayload.preorderSlots as unknown[]).length).toBeGreaterThan(0);
     rememberSessionToken(sessionPayload.orderSessionToken);
 
-    await expect(page.getByText("目前為非營業時間，僅接受預約外帶。", { exact: true })).toBeVisible();
+    await expect(page.getByText("目前為非營業時間，僅接受外帶自取預約。", { exact: true })).toBeVisible();
     const preorderFields = page.getByTestId("qr-preorder-fulfillment-time-fields");
     const preorderDate = preorderFields.getByLabel("預約取餐日期");
     const preorderHour = preorderFields.getByLabel("預約取餐時間－時");
@@ -515,7 +514,7 @@ async function restoreThroughUi(page: Page) {
   if (!originalSettings || !originalStall) return;
 
   await page.goto(`/merchant/stalls/${stallId}/settings/modules`);
-  await setSwitch(page, /外帶預約單/, originalSettings.takeoutPreorderEnabled);
+  await setSwitch(page, /外帶自取/, originalSettings.takeoutPreorderEnabled);
   await setSwitch(page, /抽抽樂推薦/, originalSettings.lotteryEnabled);
   if (originalSettings.takeoutPreorderEnabled) {
     await page.getByLabel("最少提前（分鐘）").fill(String(originalSettings.preorderMinLeadMinutes));

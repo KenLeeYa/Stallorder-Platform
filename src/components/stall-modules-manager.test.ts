@@ -1,6 +1,10 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
+  buildPublicStorefrontShare,
   mergeModuleStateAfterCommand,
+  StallModulesManager,
   type ModuleState,
 } from "@/components/stall-modules-manager";
 
@@ -110,5 +114,33 @@ describe("mergeModuleStateAfterCommand", () => {
     expect(merged.discounts[0].isEnabled).toBe(false);
     expect(merged.settings.lotteryDiscountChances).toEqual([]);
     expect(merged.settings.lotteryDiscountOptionId).toBeNull();
+  });
+});
+
+describe("buildPublicStorefrontShare", () => {
+  it("uses the lower-case stall code for one shared public URL and LINE reply", () => {
+    const share = buildPublicStorefrontShare("https://app.qidaigo.com/", "VIET-FOOD-YC");
+
+    expect(share.storefrontUrl).toBe("https://app.qidaigo.com/store/viet-food-yc");
+    expect(share.lineReply).toContain("線上 Menu、外帶自取或外送");
+    expect(share.lineReply.match(/https:\/\/app\.qidaigo\.com/g)).toHaveLength(1);
+    expect(share.lineReply).not.toContain("/s/");
+    expect(share.lineReply).not.toContain("/delivery/");
+    expect(share.lineReply).not.toContain("外帶預約");
+  });
+
+  it("renders one customer URL field with the unified pickup label", () => {
+    const html = renderToStaticMarkup(createElement(StallModulesManager, {
+      stallId: "stall-1",
+      stallCode: "VIET-FOOD-YC",
+      appUrl: "https://app.qidaigo.com",
+      initialState: moduleState(),
+    }));
+
+    expect(html.match(/https:\/\/app\.qidaigo\.com\/store\/viet-food-yc/g)).toHaveLength(2);
+    expect(html.match(/顧客公開點餐網址/g)).toHaveLength(1);
+    expect(html).toContain("外帶自取");
+    expect(html).not.toContain("顧客外帶預約網址");
+    expect(html).not.toContain("顧客外送網址");
   });
 });

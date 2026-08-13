@@ -46,6 +46,7 @@ export default async function MerchantPage({ params }: PageProps) {
         id: stall.id,
         name: stall.name,
         slug: stall.slug,
+        code: stall.code,
         currency: stall.currency,
         orderingState: stall.orderingState,
         isSoldOut: stall.isSoldOut,

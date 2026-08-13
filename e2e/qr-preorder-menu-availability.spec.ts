@@ -173,7 +173,7 @@ test("分享外帶連結依取餐時段更新商品與套餐選項並清除失�
   await page.goto("/s/aming-chicken");
 
   await expect(page.getByRole("heading", { name: "預約時段測試攤位" })).toBeVisible();
-  await expect(page.getByText("目前為非營業時間，僅接受預約外帶。", { exact: true })).toBeVisible();
+  await expect(page.getByText("目前為非營業時間，僅接受外帶自取預約。", { exact: true })).toBeVisible();
   const initialPickupSlot = fulfillmentSlot(firstPickupSlot);
   const preorderFields = page.getByTestId("qr-preorder-fulfillment-time-fields");
   const preorderDate = preorderFields.getByLabel("預約取餐日期");
