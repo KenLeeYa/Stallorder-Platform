@@ -12,9 +12,12 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
+import { useOperationsLocale } from "@/components/operations-locale";
 import { OfflineQueueStatus } from "@/components/offline-queue-status";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
 import { usePwaRuntime } from "@/components/pwa-runtime";
+import { formatAppDateTime } from "@/lib/locale-format";
+import type { OperationsMessageKey } from "@/lib/messages/operations";
 import { formatMoney } from "@/lib/money";
 import type { OfflineOrder, OfflineOrderState } from "@/offline/offline-order-contract";
 import {
@@ -25,16 +28,17 @@ import {
   type OfflineRecoveryWorkspace,
 } from "@/offline/offline-operations";
 
-const statusLabels: Record<OfflineOrderState, string> = {
-  LOCAL_NEW: "本機新訂單",
-  LOCAL_CONFIRMED: "等待製作",
-  LOCAL_PREPARING: "製作中",
-  LOCAL_READY: "可取餐",
-  LOCAL_COMPLETED: "已完成",
-  LOCAL_CANCELLED: "已取消",
+const statusLabelKeys: Record<OfflineOrderState, OperationsMessageKey> = {
+  LOCAL_NEW: "staff.status.waiting",
+  LOCAL_CONFIRMED: "staff.status.confirmed",
+  LOCAL_PREPARING: "staff.status.preparing",
+  LOCAL_READY: "staff.status.ready",
+  LOCAL_COMPLETED: "staff.status.completed",
+  LOCAL_CANCELLED: "staff.status.cancelled",
 };
 
 export function OfflinePosRecovery() {
+  const { locale, t } = useOperationsLocale();
   const { online } = usePwaRuntime();
   const [workspaces, setWorkspaces] = useState<OfflineRecoveryWorkspace[]>([]);
   const [selectedStallId, setSelectedStallId] = useState("");
@@ -62,11 +66,11 @@ export function OfflinePosRecovery() {
     } catch {
       setWorkspaces([]);
       setSelectedStallId("");
-      setMessage("此瀏覽器無法讀取離線營運資料。");
+      setMessage(t("offline.recovery.readFailed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const refreshOrders = useCallback(async () => {
     if (!selectedStallId) {
@@ -77,9 +81,9 @@ export function OfflinePosRecovery() {
       setOrders(await listUnsynchronizedOfflineOrders(selectedStallId));
     } catch {
       setOrders([]);
-      setMessage("本機訂單讀取失敗，請勿清除瀏覽器資料。");
+      setMessage(t("offline.recovery.ordersReadFailed"));
     }
-  }, [selectedStallId]);
+  }, [selectedStallId, t]);
 
   useEffect(() => {
     const initialRefresh = window.setTimeout(() => void refresh(), 0);
@@ -116,7 +120,7 @@ export function OfflinePosRecovery() {
   ) {
     if (
       nextState === "LOCAL_CANCELLED"
-      && !window.confirm(`確定要取消本機訂單 ${order.localDisplayNumber}？取消後無法復原。`)
+      && !window.confirm(t("offline.recovery.cancelConfirm", { number: order.localDisplayNumber }))
     ) {
       return;
     }
@@ -126,7 +130,7 @@ export function OfflinePosRecovery() {
       await transitionOfflineOrder(order.offlineOrderId, nextState, reason);
       await refreshOrders();
     } catch {
-      setMessage("訂單狀態無法更新；資料仍保留於本機，請重新整理後再試。");
+      setMessage(t("offline.recovery.updateFailed"));
     } finally {
       setBusyOrderId(null);
     }
@@ -137,9 +141,9 @@ export function OfflinePosRecovery() {
     setMessage("");
     try {
       await queueOfflinePrintJob(order.offlineOrderId);
-      setMessage(`${order.localDisplayNumber} 已加入本機列印佇列。`);
+      setMessage(t("offline.recovery.printQueued", { number: order.localDisplayNumber }));
     } catch {
-      setMessage("目前無法加入列印佇列；訂單資料未受影響。");
+      setMessage(t("offline.recovery.printFailed"));
     } finally {
       setBusyOrderId(null);
     }
@@ -147,7 +151,7 @@ export function OfflinePosRecovery() {
 
   function onOrderCreated() {
     setComposerOpen(false);
-    setMessage("本機訂單已建立，恢復連線後會以相同冪等鍵安全同步。");
+    setMessage(t("offline.recovery.created"));
     void refreshOrders();
   }
 
@@ -156,7 +160,7 @@ export function OfflinePosRecovery() {
       <main className="mx-auto min-h-screen max-w-6xl px-4 py-8 sm:px-6">
         <p className="flex items-center gap-2 text-sm text-stone-600">
           <RefreshCw className="h-4 w-4 animate-spin" />
-          正在讀取本機營運資料…
+          {t("offline.recovery.loading")}
         </p>
       </main>
     );
@@ -167,13 +171,13 @@ export function OfflinePosRecovery() {
       <main className="mx-auto grid min-h-screen max-w-xl place-items-center px-5 py-10">
         <section className="w-full border-y border-stone-200 py-10 text-center">
           <WifiOff className="mx-auto h-10 w-10 text-amber-700" aria-hidden="true" />
-          <h1 className="mt-5 text-2xl font-semibold">目前沒有可用的離線資料</h1>
+          <h1 className="mt-5 text-2xl font-semibold">{t("offline.recovery.noDataTitle")}</h1>
           <p className="mt-3 text-sm leading-6 text-stone-600">
-            請先在線上進入店員介面，由管理者核准此裝置並完成離線資料初始化。
+            {t("offline.recovery.noDataDescription")}
           </p>
           <Link href="/login" className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white">
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            恢復連線並登入
+            {t("offline.recovery.login")}
           </Link>
         </section>
       </main>
@@ -191,7 +195,7 @@ export function OfflinePosRecovery() {
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-teal-800">
             <ChefHat className="h-5 w-5" />
-            攤點通離線營運
+            {t("offline.recovery.brand")}
           </p>
           <h1 className="mt-1 text-2xl font-semibold">{workspace.stall.name}</h1>
         </div>
@@ -202,14 +206,14 @@ export function OfflinePosRecovery() {
               : "border-amber-300 bg-amber-50 text-amber-950"
           }`}>
             {online ? <Cloud className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-            {online ? "網路已恢復" : "目前離線"}
+            {online ? t("offline.recovery.online") : t("offline.recovery.offline")}
           </span>
           {online ? (
             <Link
               href={`/staff/${workspace.stall.slug}`}
               className="inline-flex min-h-10 items-center rounded-md bg-stone-900 px-3 text-sm font-semibold text-white"
             >
-              返回店員介面
+              {t("offline.recovery.backToStaff")}
             </Link>
           ) : null}
         </div>
@@ -217,7 +221,7 @@ export function OfflinePosRecovery() {
 
       {workspaces.length > 1 ? (
         <label className="mt-5 block max-w-sm text-sm font-semibold">
-          離線攤位
+          {t("offline.recovery.stall")}
           <select
             value={selectedStallId}
             onChange={(event) => setSelectedStallId(event.target.value)}
@@ -243,10 +247,10 @@ export function OfflinePosRecovery() {
           <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />
           <div>
             <p className="font-semibold">
-              {permitExpired ? "離線授權已到期" : "離線菜單已到期"}
+              {permitExpired ? t("offline.recovery.permitExpired") : t("offline.recovery.menuExpired")}
             </p>
             <p className="mt-1 text-xs leading-5">
-              既有未同步資料仍保留，但不可建立新訂單；請恢復連線後重新初始化。
+              {t("offline.recovery.expiredDescription")}
             </p>
           </div>
         </section>
@@ -255,9 +259,9 @@ export function OfflinePosRecovery() {
       <section className="mt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold">本機待同步訂單</h2>
+            <h2 className="text-xl font-semibold">{t("offline.recovery.ordersTitle")}</h2>
             <p className="mt-1 text-sm text-stone-600">
-              重新載入或關閉後再開啟，資料仍保留於此裝置。
+              {t("offline.recovery.ordersDescription")}
             </p>
           </div>
           <button
@@ -267,7 +271,7 @@ export function OfflinePosRecovery() {
             className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-40"
           >
             <ShoppingCart className="h-4 w-4" />
-            新增現場訂單
+            {t("offline.recovery.newOrder")}
           </button>
         </div>
 
@@ -289,26 +293,26 @@ export function OfflinePosRecovery() {
                   <p data-testid="offline-order-number" className="font-mono text-xs text-stone-500">
                     {order.localDisplayNumber}
                   </p>
-                  <h3 className="mt-1 text-lg font-semibold">{statusLabels[order.orderStatus]}</h3>
+                  <h3 className="mt-1 text-lg font-semibold">{order.orderStatus === "LOCAL_READY" && order.paymentStatus === "UNPAID" ? t("staff.status.awaitingCheckout") : t(statusLabelKeys[order.orderStatus])}</h3>
                   <p className="mt-1 text-sm text-stone-700">
-                    {order.customerLabel || "現場顧客"}
+                    {order.customerLabel || t("offline.recovery.walkIn")}
                   </p>
                   <p className="mt-1 text-xs text-stone-500">
-                    {new Date(order.createdAtDevice).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}
+                    {formatAppDateTime(locale, order.createdAtDevice, { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Taipei" })}
                   </p>
                 </div>
-                <strong>{formatMoney(order.total, order.currency)}</strong>
+                <strong>{formatMoney(order.total, order.currency, locale)}</strong>
               </div>
               <ul className="mt-4 divide-y divide-stone-100 border-y border-stone-200">
                 {order.itemsSnapshot.map((item) => (
                   <li key={item.localItemId} className="py-2 text-sm">
                     <div className="flex justify-between gap-3">
                       <span>{item.quantity} × {item.name}</span>
-                      <span>{formatMoney(item.unitPrice * item.quantity, order.currency)}</span>
+                      <span>{formatMoney(item.unitPrice * item.quantity, order.currency, locale)}</span>
                     </div>
                     {item.noteOptions.length > 0 ? (
                       <p className="mt-1 text-xs text-teal-800">
-                        {item.noteOptions.map((option) => option.optionName).join("、")}
+                        {item.noteOptions.map((option) => option.optionName).join(", ")}
                       </p>
                     ) : null}
                   </li>
@@ -323,7 +327,7 @@ export function OfflinePosRecovery() {
                     className="inline-flex min-h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white"
                   >
                     <ChefHat className="h-4 w-4" />
-                    開始製作
+                    {t("offline.recovery.startPreparing")}
                   </button>
                 ) : null}
                 {order.orderStatus === "LOCAL_CONFIRMED" || order.orderStatus === "LOCAL_PREPARING" ? (
@@ -333,7 +337,7 @@ export function OfflinePosRecovery() {
                     onClick={() => void transition(order, "LOCAL_READY")}
                     className="min-h-10 rounded-md border border-teal-700 bg-teal-50 px-3 text-sm font-semibold text-teal-900"
                   >
-                    餐點完成
+                    {t("offline.recovery.foodReady")}
                   </button>
                 ) : null}
                 {order.orderStatus === "LOCAL_READY" ? (
@@ -343,13 +347,13 @@ export function OfflinePosRecovery() {
                     onClick={() => void transition(order, "LOCAL_COMPLETED")}
                     className="min-h-10 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white disabled:opacity-40"
                   >
-                    完成訂單
+                    {t("offline.recovery.completeOrder")}
                   </button>
                 ) : null}
                 {workspace.modules.print && !["LOCAL_COMPLETED", "LOCAL_CANCELLED"].includes(order.orderStatus) ? (
                   <button
                     type="button"
-                    title="加入本機列印佇列"
+                    title={t("offline.recovery.queuePrint")}
                     disabled={busyOrderId === order.offlineOrderId}
                     onClick={() => void queuePrint(order)}
                     className="grid h-10 w-10 place-items-center rounded-md border border-stone-300"
@@ -360,9 +364,9 @@ export function OfflinePosRecovery() {
                 {!["LOCAL_COMPLETED", "LOCAL_CANCELLED"].includes(order.orderStatus) ? (
                   <button
                     type="button"
-                    title="取消本機訂單"
+                    title={t("offline.recovery.cancelOrder")}
                     disabled={busyOrderId === order.offlineOrderId}
-                    onClick={() => void transition(order, "LOCAL_CANCELLED", "店員於離線營運頁取消")}
+                    onClick={() => void transition(order, "LOCAL_CANCELLED", "STAFF_OFFLINE_RECOVERY_CANCELLED")}
                     className="grid h-10 w-10 place-items-center rounded-md border border-red-300 text-red-700"
                   >
                     <XCircle className="h-4 w-4" />
@@ -374,7 +378,7 @@ export function OfflinePosRecovery() {
         </div>
         {orders.length === 0 ? (
           <p className="mt-5 border-y border-stone-200 py-10 text-center text-sm text-stone-500">
-            目前沒有待同步的本機訂單。
+            {t("offline.recovery.empty")}
           </p>
         ) : null}
       </section>

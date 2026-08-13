@@ -3,6 +3,7 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Grip, Move } from "lucide-react";
 import { DiningTableShapeGraphic } from "@/components/dining-table-shape";
+import { useOperationsLocale } from "@/components/operations-locale";
 import type { DiningTableShape } from "@/lib/dining-floor";
 import {
   clampFloorCoordinate,
@@ -35,6 +36,7 @@ export function DiningFloorEditor({
   disabled: boolean;
   onMove: (tableId: string, position: { layoutX: number; layoutY: number }) => void;
 }) {
+  const { t } = useOperationsLocale();
   const boardRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
 
@@ -71,7 +73,7 @@ export function DiningFloorEditor({
   }
 
   return (
-    <div role="region" aria-label="桌位平面配置">
+    <div role="region" aria-label={t("dining.editor.region")}>
       <div
         ref={boardRef}
         className="relative aspect-[4/3] w-full overflow-hidden rounded-md border border-stone-300 bg-stone-50"
@@ -84,7 +86,7 @@ export function DiningFloorEditor({
           <button
             key={table.id}
             type="button"
-            aria-label={`移動 ${table.label}`}
+            aria-label={t("dining.editor.move", { table: table.label })}
             disabled={disabled}
             onPointerDown={(event) => beginDrag(event, table)}
             onPointerMove={(event) => continueDrag(event, table.id)}
@@ -110,11 +112,11 @@ export function DiningFloorEditor({
           </button>
         ))}
         {tables.length === 0 ? (
-          <div className="absolute inset-0 grid place-items-center text-sm text-stone-500">請先新增內用桌位</div>
+          <div className="absolute inset-0 grid place-items-center text-sm text-stone-500">{t("dining.editor.empty")}</div>
         ) : null}
       </div>
       <p className="mt-2 flex items-center gap-2 text-xs text-stone-500">
-        <Move className="h-3.5 w-3.5" />拖曳桌位調整位置；鍵盤方向鍵可微調，Shift 加方向鍵可快速移動。
+        <Move className="h-3.5 w-3.5" />{t("dining.editor.hint")}
       </p>
     </div>
   );

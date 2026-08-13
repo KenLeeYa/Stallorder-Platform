@@ -7,7 +7,7 @@ import {
   createRequestId,
   hashClientIp,
   hashClientUserAgent,
-  getSessionDeviceId,
+  resolveSessionDeviceId,
   sanitizeRedirectPath,
 } from "@/lib/security";
 import { getDefaultWorkspacePath, getWorkspaceAccess } from "@/lib/workspace";
@@ -168,13 +168,14 @@ async function callback(
       firstPartyUser: input.firstPartyUser,
     });
     const authenticatedProfileId = await recentLinkPrincipal(request, claimed);
+    const deviceId = resolveSessionDeviceId(request);
     const result = await completeOAuthLogin({
       transactionId: claimed.id,
       claims,
       authenticatedProfileId,
       requestId,
       sessionEvidence: {
-        deviceId: getSessionDeviceId(request),
+        deviceId,
         ipHash,
         userAgentHash: hashClientUserAgent(request),
       },
@@ -197,7 +198,7 @@ async function callback(
       ? fallback
       : sanitizeRedirectPath(result.returnTo, fallback);
     const response = NextResponse.redirect(`${appOrigin}${destination}`);
-    setSessionCookies(response, result.session);
+    setSessionCookies(response, result.session, deviceId);
     response.headers.set("cache-control", "no-store");
     response.headers.set("x-request-id", requestId);
     return response;

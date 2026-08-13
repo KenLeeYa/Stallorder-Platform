@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import { PickupDisplayBoard } from "@/components/pickup-display-board";
+import { getRequestAppLocale } from "@/lib/app-locale-server";
+import { getOperationsMessage } from "@/lib/messages/operations";
 
-export const metadata: Metadata = {
-  title: "取餐顯示 | StallOrder",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { locale } = await getRequestAppLocale();
+  return {
+    title: `${getOperationsMessage(locale, "pickup.title")} | StallOrder`,
+    robots: { index: false, follow: false },
+  };
+}
 
 type PageProps = { params: Promise<{ stallSlug: string }> };
 

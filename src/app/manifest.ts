@@ -1,18 +1,22 @@
 import type { MetadataRoute } from "next";
+import { getRequestAppLocale } from "@/lib/app-locale-server";
+import { getAppMessage } from "@/lib/app-messages";
 
-export default function manifest(): MetadataRoute.Manifest {
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const { locale } = await getRequestAppLocale();
+
   return {
     id: "/",
-    name: "StallOrder 攤點通",
+    name: getAppMessage(locale, "app.name"),
     short_name: "StallOrder",
-    description: "攤位 QR 點餐、店員接單與營運管理",
+    description: getAppMessage(locale, "app.manifest.description"),
     start_url: "/launch",
     scope: "/",
     display: "standalone",
     background_color: "#fafaf9",
     theme_color: "#0f766e",
     orientation: "any",
-    lang: "zh-Hant-TW",
+    lang: locale,
     categories: ["business", "food"],
     icons: [
       {

@@ -216,10 +216,10 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
     try {
       const japanesePage = await japaneseContext.newPage();
       await gotoLocalPath(japanesePage, "/q/demo-aming-chicken-qr-2026-rotate-me");
-      const languageMenu = japanesePage.getByRole("button", { name: "點餐語言" });
-      await expect(languageMenu).toHaveAttribute("data-current-locale", "zh-TW");
+      const languageMenu = japanesePage.getByRole("button", { name: "メニュー言語" });
+      await expect(languageMenu).toHaveAttribute("data-current-locale", "ja");
       await languageMenu.click();
-      await expect(japanesePage.getByRole("option", { name: "日本語", exact: true })).toHaveCount(0);
+      await expect(japanesePage.getByRole("option", { name: "日本語", exact: true })).toBeVisible();
     } finally {
       await japaneseContext.close();
     }
@@ -248,7 +248,11 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
       await noteEditor.getByRole("button", { name: "關閉" }).click();
 
       await gotoLocalPath(localizationPage, `/merchant/localization?organizationId=${organizationId}`);
-      await expect(localizationPage.getByText("日本語", { exact: true })).toHaveCount(0);
+      await expect(
+        localizationPage
+          .getByRole("complementary", { name: "QR 語系預覽" })
+          .getByText("日本語", { exact: true }),
+      ).toHaveCount(0);
       const disabledPreviewStatus = await localizationPage.evaluate(async (url) => {
         const response = await fetch(url, { credentials: "same-origin" });
         return response.status;
@@ -333,9 +337,11 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(page.getByRole("button", { name: "日", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "週", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "月", exact: true })).toBeVisible();
-  const hourlySales = page.getByRole("heading", { name: "每小時銷售", exact: true }).locator("..");
-  await expect(hourlySales.getByText("00:00", { exact: true })).toBeVisible();
-  await expect(hourlySales.getByText("23:00", { exact: true })).toBeVisible();
+  const hourlySales = page.getByTestId("hourly-sales-dashboard");
+  const hourlySalesCells = hourlySales.getByTestId("hourly-sales-cell");
+  await expect(hourlySalesCells).toHaveCount(24);
+  await expect(hourlySalesCells.first().getByText("00:00", { exact: true })).toBeVisible();
+  await expect(hourlySalesCells.last().getByText("23:00", { exact: true })).toBeVisible();
 
   await gotoLocalPath(page, "/merchant/aming-chicken");
   const unifiedPublicLink = page.getByRole("link", { name: "開啟公開頁", exact: true });

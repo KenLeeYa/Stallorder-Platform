@@ -3,6 +3,7 @@ import { Building2 } from "lucide-react";
 import { MerchantSetupBackLink } from "@/components/merchant-setup-back-link";
 import { OrganizationProfileForm } from "@/components/organization-profile-form";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
+import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
@@ -10,6 +11,7 @@ import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/worksp
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string }> };
 
 export default async function OrganizationProfilePage({ searchParams }: PageProps) {
+  const { m } = await getRequestMerchantMessages();
   const { organizationId, stallId } = await searchParams;
   const { workspaces } = await requireWorkspacePage();
   if (!organizationId && workspaces.length > 1) redirect("/select-organization");
@@ -32,10 +34,10 @@ export default async function OrganizationProfilePage({ searchParams }: PageProp
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold">
           <Building2 className="h-7 w-7 text-teal-700" />
-          商家資料
+          {m("商家資料")}
         </h1>
         <p className="mt-2 text-sm text-stone-600">
-          此資料用於商家聯絡與平台通知，不會公開顯示於顧客 QR 菜單。
+          {m("此資料用於商家聯絡與平台通知，不會公開顯示於顧客 QR 菜單。")}
         </p>
       </header>
       <div className="py-7">

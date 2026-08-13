@@ -221,7 +221,7 @@ test.describe.serial("產能與等候時間", () => {
     expect(capacityStatus).toBe(403);
 
     await page.goto(`/merchant/stalls/${stallId}/capacity`);
-    await expect(page.getByText("404", { exact: true }).last()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "找不到此頁面", exact: true })).toBeVisible();
   });
 
   test("高等候時間須由顧客確認後才能送出", async ({ page }) => {

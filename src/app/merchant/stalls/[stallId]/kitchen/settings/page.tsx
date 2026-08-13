@@ -2,6 +2,7 @@ import { Settings2 } from "lucide-react";
 import { KitchenSettingsForm } from "@/components/kitchen-settings-form";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { getKitchenSettings } from "@/lib/kitchen";
+import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
 import { requireKitchenManagementPage } from "@/lib/kitchen-access";
 
 type PageProps = {
@@ -10,6 +11,7 @@ type PageProps = {
 };
 
 export default async function KitchenDisplaySettingsPage({ params, searchParams }: PageProps) {
+  const { m } = await getRequestMerchantMessages();
   const { stallId } = await params;
   const { source } = await searchParams;
   const { workspace, stall } = await requireKitchenManagementPage(stallId);
@@ -22,7 +24,7 @@ export default async function KitchenDisplaySettingsPage({ params, searchParams 
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold">
           <Settings2 className="h-7 w-7 text-teal-700" />
-          KDS 設定
+          {m("KDS 設定")}
         </h1>
         <p className="mt-2 text-sm text-stone-600">{stall.name}</p>
       </header>

@@ -125,7 +125,7 @@ test.describe("中央設定欄位錯誤", () => {
     const scheduleName = page.getByLabel("排程名稱");
     await scheduleName.fill("");
     await page.getByRole("button", { name: "儲存排程" }).click();
-    await expectInvalidField(page, scheduleName, "「排程名稱」輸入不正確，請依欄位限制重新輸入。");
+    await expectInvalidField(page, scheduleName, "請檢查此欄位。");
     await expect(scheduleName).toHaveValue("");
 
     await page.goto(`/merchant/integrations/delivery?stallId=${stallId}`);

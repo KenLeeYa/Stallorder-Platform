@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { Download } from "lucide-react";
+import { useAppLocale } from "@/components/locale-provider";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { createReportTranslator } from "@/lib/messages/reports";
 
 export function ReportExportButton({
   organizationId,
@@ -15,6 +17,8 @@ export function ReportExportButton({
   dateFrom: string;
   dateTo: string;
 }) {
+  const { locale } = useAppLocale();
+  const t = createReportTranslator(locale);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
 
@@ -29,7 +33,7 @@ export function ReportExportButton({
       });
       if (!response.ok) {
         const payload = await response.json();
-        throw new Error(payload.error ?? "目前無法匯出報表。");
+        throw new Error(payload.error ?? t("reports.export.error"));
       }
       const blob = await response.blob();
       const disposition = response.headers.get("content-disposition") ?? "";
@@ -41,7 +45,7 @@ export function ReportExportButton({
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "目前無法匯出報表。");
+      setError(caughtError instanceof Error ? caughtError.message : t("reports.export.error"));
     } finally {
       setExporting(false);
     }
@@ -56,7 +60,7 @@ export function ReportExportButton({
         className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold disabled:opacity-50"
       >
         <Download className="h-4 w-4" />
-        {exporting ? "匯出中..." : "匯出 CSV"}
+        {exporting ? t("reports.export.progress") : t("reports.export.action")}
       </button>
       {error ? <p role="alert" className="mt-2 text-xs text-red-700">{error}</p> : null}
     </div>

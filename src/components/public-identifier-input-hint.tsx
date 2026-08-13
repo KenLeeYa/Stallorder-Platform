@@ -1,21 +1,24 @@
 import { Check, Info } from "lucide-react";
-
-const rules = [
-  "只能使用小寫英文字母 a-z",
-  "可使用數字 0-9",
-  "可使用連字號 -",
-  "長度 3～50 字元",
-  "第一個與最後一個字元必須是英文字母或數字",
-  "不可和其他攤位重複",
-] as const;
+import type { AppLocale } from "@/lib/app-locale";
+import { onboardingMessages } from "@/lib/messages/onboarding";
 
 export function PublicIdentifierInputHint({
   children,
   hintId,
+  locale = "zh-TW",
 }: {
   children: React.ReactNode;
   hintId: string;
+  locale?: AppLocale;
 }) {
+  const rules = [
+    onboardingMessages.get(locale, "identifierRuleLetters"),
+    onboardingMessages.get(locale, "identifierRuleNumbers"),
+    onboardingMessages.get(locale, "identifierRuleHyphen"),
+    onboardingMessages.get(locale, "identifierRuleLength"),
+    onboardingMessages.get(locale, "identifierRuleEnds"),
+    onboardingMessages.get(locale, "identifierRuleUnique"),
+  ];
   return (
     <div className="group relative">
       {children}
@@ -26,7 +29,7 @@ export function PublicIdentifierInputHint({
       >
         <p className="flex items-center gap-2 font-semibold text-stone-900">
           <Info className="h-4 w-4 shrink-0 text-teal-700" />
-          公開識別名稱規則
+          {onboardingMessages.get(locale, "identifierRulesTitle")}
         </p>
         <ul className="mt-2 space-y-1.5">
           {rules.map((rule) => (

@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const source = readFileSync(fileURLToPath(new URL("./index.ts", import.meta.url)), "utf8");
+const source = readFileSync(fileURLToPath(new URL("./index.ts", import.meta.url)), "utf8")
+  .replaceAll("\r\n", "\n");
 
 describe("create-order-session lightweight query plan", () => {
   it("runs only the two context queries when the menu is omitted", () => {

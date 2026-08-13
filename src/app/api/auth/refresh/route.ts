@@ -11,10 +11,10 @@ import { prisma } from "@/lib/prisma";
 import {
   createRequestId,
   getCookieValue,
-  getSessionDeviceId,
   hashClientIp,
   hashClientUserAgent,
   hashToken,
+  resolveSessionDeviceId,
 } from "@/lib/security";
 
 export async function POST(request: Request) {
@@ -42,8 +42,9 @@ export async function POST(request: Request) {
       { status: 503, headers: { "x-request-id": requestId } },
     );
   }
+  const deviceId = resolveSessionDeviceId(request);
   const result = await rotateRequestSession(request, {
-    deviceId: getSessionDeviceId(request),
+    deviceId,
     ipHash,
     userAgentHash: hashClientUserAgent(request),
   });
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
     { ok: true, expiresAt: result.session.expiresAt.toISOString() },
     { headers: { "cache-control": "no-store", "x-request-id": requestId } },
   );
-  setSessionCookies(response, result.session);
+  setSessionCookies(response, result.session, deviceId);
   await recordAuditEvent({
     action: "SESSION_REFRESHED",
     entityType: "AUTH_SESSION",

@@ -1,9 +1,10 @@
 "use client";
 
+import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import { useMemo, useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, RefreshCw, ShieldAlert } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
-import { formatTaipeiDateTime } from "@/lib/date-time";
+import { formatAppDateTime } from "@/lib/locale-format";
 import {
   focusFirstInvalidField,
   parseFieldErrors,
@@ -69,6 +70,7 @@ export function OfflineConflictManager({
   stallId: string;
   initialConflicts: OfflineConflictView[];
 }) {
+  const { locale, m, label } = useMerchantMessages();
   const [conflicts, setConflicts] = useState(initialConflicts);
   const [resolutionById, setResolutionById] = useState<Record<string, string>>({});
   const [reasonById, setReasonById] = useState<Record<string, string>>({});
@@ -103,11 +105,11 @@ export function OfflineConflictManager({
         error?: string;
       };
       if (!response.ok || !payload.conflicts) {
-        throw new Error(payload.error ?? "目前無法重新載入同步衝突。");
+        throw new Error(payload.error ?? label("目前無法重新載入同步衝突。"));
       }
       setConflicts(payload.conflicts);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "目前無法重新載入同步衝突。");
+      setMessage(error instanceof Error ? error.message : label("目前無法重新載入同步衝突。"));
       setHasError(true);
     } finally {
       setBusyId(null);
@@ -119,7 +121,7 @@ export function OfflineConflictManager({
     const reason = reasonById[conflict.id]?.trim() ?? "";
     if (
       ["REJECTED", "CANCELLED"].includes(resolutionStatus)
-      && !window.confirm("確定套用此處理結果？系統會保留稽核紀錄，送出後不可直接復原。")
+      && !window.confirm(label("確定套用此處理結果？系統會保留稽核紀錄，送出後不可直接復原。"))
     ) {
       return;
     }
@@ -147,7 +149,7 @@ export function OfflineConflictManager({
         const parsedFieldErrors = parseFieldErrors(payload.fieldErrors);
         const nextFieldErrors = Object.fromEntries(Object.entries(parsedFieldErrors).map(([field, error]) => [fieldKey(conflict.id, field), error]));
         setFieldErrors(nextFieldErrors);
-        setMessage(payload.error ?? "目前無法處理同步衝突。");
+        setMessage(payload.error ?? label("目前無法處理同步衝突。"));
         setHasError(true);
         focusFirstInvalidField(sectionRef.current, nextFieldErrors);
         return;
@@ -155,9 +157,9 @@ export function OfflineConflictManager({
       setConflicts(payload.conflicts);
       setResolutionById((current) => ({ ...current, [conflict.id]: "" }));
       setReasonById((current) => ({ ...current, [conflict.id]: "" }));
-      setMessage("同步衝突已處理並寫入稽核紀錄。");
+      setMessage(label("同步衝突已處理並寫入稽核紀錄。"));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "目前無法處理同步衝突。");
+      setMessage(error instanceof Error ? error.message : label("目前無法處理同步衝突。"));
       setHasError(true);
     } finally {
       setBusyId(null);
@@ -170,17 +172,17 @@ export function OfflineConflictManager({
         <div>
           <h2 className="flex items-center gap-2 text-xl font-semibold">
             <ShieldAlert className="h-5 w-5 text-orange-700" />
-            同步衝突
+            {label("同步衝突")}
           </h2>
           <p className="mt-1 text-sm text-stone-600">
-            衝突不會自動刪除；請核對正式訂單、付款或列印狀態後留下處理原因。
+            {label("衝突不會自動刪除；請核對正式訂單、付款或列印狀態後留下處理原因。")}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-stone-600">待處理 {openCount} 筆</span>
+          <span className="text-sm font-semibold text-stone-600">{label("待處理")} {openCount} {label("筆")}</span>
           <button
             type="button"
-            title="重新載入同步衝突"
+            title={label("重新載入同步衝突")}
             disabled={busyId !== null}
             onClick={() => void refresh()}
             className="grid h-10 w-10 place-items-center rounded-md border border-stone-300 disabled:opacity-40"
@@ -207,28 +209,28 @@ export function OfflineConflictManager({
                     {open
                       ? <CircleAlert className="h-4 w-4 text-orange-700" />
                       : <CheckCircle2 className="h-4 w-4 text-emerald-700" />}
-                    {conflictLabels[conflict.conflictType] ?? conflict.conflictType}
+                    {label(conflictLabels[conflict.conflictType] ?? conflict.conflictType)}
                   </p>
                   <p className="mt-1 text-xs text-stone-500">
-                    {conflict.deviceName} · {formatTaipeiDateTime(conflict.detectedAt)}
+                    {conflict.deviceName} · {formatAppDateTime(locale, conflict.detectedAt, { timeZone: "Asia/Taipei", dateStyle: "medium", timeStyle: "short" })}
                   </p>
                 </div>
                 <span className={`text-sm font-semibold ${open ? "text-orange-700" : "text-emerald-700"}`}>
-                  {resolutionLabels[conflict.resolutionStatus] ?? conflict.resolutionStatus}
+                  {label(resolutionLabels[conflict.resolutionStatus] ?? conflict.resolutionStatus)}
                 </span>
               </div>
               <dl className="mt-3 grid gap-2 border-y border-stone-200 py-3 text-sm sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs text-stone-500">資料類型</dt>
-                  <dd>{entityLabel(conflict.localEntityType)}</dd>
+                  <dt className="text-xs text-stone-500">{label("資料類型")}</dt>
+                  <dd>{label(entityLabel(conflict.localEntityType))}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-stone-500">正式訂單</dt>
-                  <dd>{conflict.canonicalOrderNumber ?? "尚未建立"}</dd>
+                  <dt className="text-xs text-stone-500">{label("正式訂單")}</dt>
+                  <dd>{conflict.canonicalOrderNumber ?? label("尚未建立")}</dd>
                 </div>
                 {Object.entries(conflict.details).map(([key, value]) => (
                   <div key={key}>
-                    <dt className="text-xs text-stone-500">{detailLabel(key)}</dt>
+                    <dt className="text-xs text-stone-500">{label(detailLabel(key))}</dt>
                     <dd>{String(value)}</dd>
                   </div>
                 ))}
@@ -236,7 +238,7 @@ export function OfflineConflictManager({
               {open ? (
                 <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,240px)_minmax(0,1fr)_auto] sm:items-end">
                   <label className="text-sm font-medium">
-                    處理結果
+                    {label("處理結果")}
                     <select
                       value={resolutionById[conflict.id] ?? ""}
                       data-field-key={fieldKey(conflict.id, "resolutionStatus")}
@@ -252,15 +254,15 @@ export function OfflineConflictManager({
                       }}
                       className={`form-input mt-1 ${fieldErrors[fieldKey(conflict.id, "resolutionStatus")] ? "border-red-500 bg-red-50" : ""}`}
                     >
-                      <option value="">請選擇</option>
+                      <option value="">{label("請選擇")}</option>
                       {resolutionOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
+                        <option key={option.value} value={option.value}>{label(option.label)}</option>
                       ))}
                     </select>
                     {fieldErrors[fieldKey(conflict.id, "resolutionStatus")] ? <FieldError id={fieldErrorId(conflict.id, "resolutionStatus")} error={fieldErrors[fieldKey(conflict.id, "resolutionStatus")]} /> : null}
                   </label>
                   <label className="text-sm font-medium">
-                    處理原因
+                    {label("處理原因")}
                     <input
                       type="text"
                       value={reasonById[conflict.id] ?? ""}
@@ -287,13 +289,13 @@ export function OfflineConflictManager({
                     onClick={() => void resolveConflict(conflict)}
                     className="min-h-11 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-40"
                   >
-                    確認處理
+                    {label("確認處理")}
                   </button>
                 </div>
               ) : (
                 <p className="mt-3 text-xs text-stone-500">
-                  {conflict.resolvedBy ? `處理人：${conflict.resolvedBy}` : ""}
-                  {conflict.resolvedAt ? ` · ${formatTaipeiDateTime(conflict.resolvedAt)}` : ""}
+                  {conflict.resolvedBy ? m("處理人：{value0}", { value0: conflict.resolvedBy }) : ""}
+                  {conflict.resolvedAt ? ` · ${formatAppDateTime(locale, conflict.resolvedAt, { timeZone: "Asia/Taipei", dateStyle: "medium", timeStyle: "short" })}` : ""}
                 </p>
               )}
             </article>
@@ -302,7 +304,7 @@ export function OfflineConflictManager({
       </div>
       {conflicts.length === 0 ? (
         <p className="mt-5 border-y border-stone-200 py-8 text-center text-sm text-stone-500">
-          目前沒有同步衝突。
+          {label("目前沒有同步衝突。")}
         </p>
       ) : null}
     </section>

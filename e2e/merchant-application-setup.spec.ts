@@ -210,8 +210,9 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
 
     await gotoLocalPath(page, `/staff/${requestedSlug}`);
     const orderCard = page.getByRole("article").filter({ hasText: createdTestOrder.orderNo });
+    await orderCard.getByRole("button", { name: "查看明細", exact: true }).click();
     await expect(orderCard.getByText("開店測試訂單")).toBeVisible();
-    await orderCard.getByRole("button", { name: "確認接單" }).click();
+    await orderCard.getByRole("button", { name: "待製作", exact: true }).click();
     await orderCard.getByRole("button", { name: /全部開始製作/ }).click();
     await orderCard.getByRole("button", { name: /全部餐點完成/ }).click();
     await expect.poll(async () => (await prisma.order.findUnique({ where: { id: createdTestOrder.id } }))?.status).toBe("READY");

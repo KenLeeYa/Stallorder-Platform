@@ -5,7 +5,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
-import { fulfillmentTimeBlocksProduction } from "@/lib/fulfillment-time";
+import { classifyStallOrderForProduction } from "@/lib/fulfillment-time";
 import { canTransitionOrderItem, deriveOrderStatusFromItems } from "@/lib/order-item-status";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
@@ -62,10 +62,20 @@ export async function PATCH(request: Request, context: RouteContext) {
       await transaction.$queryRaw`select id from public.orders where id = ${orderId}::uuid for update`;
       const order = await transaction.order.findFirst({
         where: { id: orderId, stallId: authorization.stall.id },
-        include: { items: { select: { id: true, status: true } } },
+        include: {
+          stall: {
+            select: {
+              timezone: true,
+              orderingSettings: { select: { businessDayCutoffHour: true } },
+            },
+          },
+          items: { select: { id: true, status: true } },
+        },
       });
       if (!order) throw new BulkItemTransitionConflict("NOT_FOUND");
-      if (parsed.data.status === "PREPARING" && fulfillmentTimeBlocksProduction(order.fulfillmentTimeState)) {
+      if (parsed.data.status === "PREPARING"
+        && order.status === "CONFIRMED"
+        && classifyStallOrderForProduction(order).productionBlocked) {
         throw new BulkItemTransitionConflict("FULFILLMENT_TIME");
       }
       if (!["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.status)) {
@@ -148,8 +158,16 @@ export async function PATCH(request: Request, context: RouteContext) {
   } catch (error) {
     if (!(error instanceof BulkItemTransitionConflict)) throw error;
     const notFound = error.message === "NOT_FOUND";
+    const productionNotDue = error.message === "FULFILLMENT_TIME";
     return NextResponse.json(
-      { error: notFound ? "找不到此訂單。" : "餐點已被其他人更新，請確認最新狀態。" },
+      {
+        error: notFound
+          ? "找不到此訂單。"
+          : productionNotDue
+            ? "此訂單的履約營業日尚未到，或履約時間尚未確認，暫時不能開始製作。"
+            : "餐點已被其他人更新，請確認最新狀態。",
+        ...(productionNotDue ? { code: "PRODUCTION_NOT_DUE" } : {}),
+      },
       { status: notFound ? 404 : 409, headers: { "x-request-id": authorization.requestId } },
     );
   }

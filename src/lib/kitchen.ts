@@ -3,11 +3,13 @@ import "server-only";
 import { Prisma, type OrderItemStatus, type OrderStatus } from "@prisma/client";
 import {
   canTransitionKitchenTask,
+  partitionKitchenTasksByFulfillmentDate,
   preserveKitchenOrderProgress,
   type KitchenBoardMode,
   type KitchenBoardTask,
   type KitchenOperationalOrderStatus,
 } from "@/lib/kitchen-contract";
+import { classifyStallOrderForProduction } from "@/lib/fulfillment-time";
 import { prisma } from "@/lib/prisma";
 import { entitlementService } from "@/server/billing/entitlement-service";
 import { persistExternalOrderTransitionForOrder } from "@/server/delivery-platforms/external-order-status-service";
@@ -17,6 +19,7 @@ export class KitchenOperationError extends Error {
     | "TASK_NOT_FOUND"
     | "TASK_TRANSITION_INVALID"
     | "ORDER_NOT_ACTIVE"
+    | "PRODUCTION_NOT_DUE"
     | "STATION_NOT_FOUND"
     | "STATION_IN_USE"
     | "DEFAULT_STATION_REQUIRED"
@@ -54,6 +57,9 @@ const kitchenTaskInclude = {
       externalProvider: true,
       externalOrderNumber: true,
       scheduledPickupAt: true,
+      requestedFulfillmentAt: true,
+      committedFulfillmentAt: true,
+      fulfillmentTimeState: true,
       riderPickupAt: true,
       fulfillmentType: true,
       tableLabel: true,
@@ -72,14 +78,25 @@ export async function getKitchenBoardData(
   stallId: string,
   stationId?: string,
 ) {
-  const [, settings, stations, tasks] = await Promise.all([
+  const serverNow = new Date();
+  const [, stallConfiguration, stations, tasks] = await Promise.all([
     prisma.$queryRaw`select public.refresh_kds_operational_alerts(
       ${organizationId}::uuid,
       ${stallId}::uuid
     )`,
-    prisma.stallOrderingSettings.findFirst({
-      where: { organizationId, stallId },
-      select: { kdsWarningMinutes: true, kdsCriticalMinutes: true, kdsDefaultView: true },
+    prisma.stall.findFirst({
+      where: { organizationId, id: stallId },
+      select: {
+        timezone: true,
+        orderingSettings: {
+          select: {
+            kdsWarningMinutes: true,
+            kdsCriticalMinutes: true,
+            kdsDefaultView: true,
+            businessDayCutoffHour: true,
+          },
+        },
+      },
     }),
     prisma.kitchenStation.findMany({
       where: {
@@ -112,16 +129,27 @@ export async function getKitchenBoardData(
       include: kitchenTaskInclude,
     }),
   ]);
+  const serializedTasks = tasks.map(serializeKitchenTask);
+  const settings = stallConfiguration?.orderingSettings;
+  const timeZone = stallConfiguration?.timezone ?? "Asia/Taipei";
+  const partitioned = partitionKitchenTasksByFulfillmentDate(serializedTasks, {
+    timeZone,
+    businessDayCutoffHour: settings?.businessDayCutoffHour ?? 0,
+    now: serverNow,
+  });
 
   return {
     settings: {
       warningMinutes: settings?.kdsWarningMinutes ?? 5,
       criticalMinutes: settings?.kdsCriticalMinutes ?? 10,
       defaultView: normalizeDefaultView(settings?.kdsDefaultView),
+      timeZone,
+      businessDayCutoffHour: settings?.businessDayCutoffHour ?? 0,
     },
     stations,
-    tasks: tasks.map(serializeKitchenTask),
-    serverNow: new Date().toISOString(),
+    tasks: partitioned.currentTasks,
+    futureReservations: partitioned.futureReservations,
+    serverNow: serverNow.toISOString(),
   };
 }
 
@@ -203,9 +231,31 @@ export async function applyKitchenTaskUpdate(input: {
   status: "PENDING" | "PREPARING" | "COMPLETED";
 }) {
   return prisma.$transaction(async (transaction) => {
+    const taskOwner = await transaction.orderProductionTask.findFirst({
+      where: { id: input.taskId, organizationId: input.organizationId, stallId: input.stallId },
+      select: { orderId: true, orderItemId: true },
+    });
+    if (!taskOwner) throw new KitchenOperationError("TASK_NOT_FOUND");
+
+    await transaction.$queryRaw`
+      select id from public.orders
+      where id = ${taskOwner.orderId}::uuid
+        and organization_id = ${input.organizationId}::uuid
+        and stall_id = ${input.stallId}::uuid
+      for update
+    `;
+    await transaction.$queryRaw`
+      select id from public.order_items
+      where id = ${taskOwner.orderItemId}::uuid
+        and order_id = ${taskOwner.orderId}::uuid
+        and organization_id = ${input.organizationId}::uuid
+        and stall_id = ${input.stallId}::uuid
+      for update
+    `;
     await transaction.$queryRaw`
       select id from public.order_production_tasks
       where id = ${input.taskId}::uuid
+        and order_id = ${taskOwner.orderId}::uuid
         and organization_id = ${input.organizationId}::uuid
         and stall_id = ${input.stallId}::uuid
       for update
@@ -213,7 +263,24 @@ export async function applyKitchenTaskUpdate(input: {
     const task = await transaction.orderProductionTask.findFirst({
       where: { id: input.taskId, organizationId: input.organizationId, stallId: input.stallId },
       include: {
-        order: { select: { id: true, status: true, organizationId: true, stallId: true } },
+        order: {
+          select: {
+            id: true,
+            status: true,
+            organizationId: true,
+            stallId: true,
+            scheduledPickupAt: true,
+            requestedFulfillmentAt: true,
+            committedFulfillmentAt: true,
+            fulfillmentTimeState: true,
+            stall: {
+              select: {
+                timezone: true,
+                orderingSettings: { select: { businessDayCutoffHour: true } },
+              },
+            },
+          },
+        },
         orderItem: { select: { id: true, status: true } },
       },
     });
@@ -226,6 +293,11 @@ export async function applyKitchenTaskUpdate(input: {
     }
     if (!canTransitionKitchenTask(task.status, input.status)) {
       throw new KitchenOperationError("TASK_TRANSITION_INVALID");
+    }
+    if (input.status === "PREPARING"
+      && task.order.status === "CONFIRMED"
+      && classifyStallOrderForProduction(task.order).productionBlocked) {
+      throw new KitchenOperationError("PRODUCTION_NOT_DUE");
     }
     if (task.orderItem.status === "SERVED") {
       throw new KitchenOperationError("TASK_TRANSITION_INVALID");
@@ -296,11 +368,25 @@ export async function completeKitchenOrder(input: {
       select: {
         id: true,
         status: true,
+        scheduledPickupAt: true,
+        requestedFulfillmentAt: true,
+        committedFulfillmentAt: true,
+        fulfillmentTimeState: true,
+        stall: {
+          select: {
+            timezone: true,
+            orderingSettings: { select: { businessDayCutoffHour: true } },
+          },
+        },
         items: { select: { id: true, status: true } },
         productionTasks: { where: { status: { not: "CANCELLED" } }, select: { id: true } },
       },
     });
     if (!order) throw new KitchenOperationError("TASK_NOT_FOUND");
+    if (order.status === "CONFIRMED"
+      && classifyStallOrderForProduction(order).productionBlocked) {
+      throw new KitchenOperationError("PRODUCTION_NOT_DUE");
+    }
     if (!["CONFIRMED", "PREPARING", "PACKING"].includes(order.status)) {
       throw new KitchenOperationError("ORDER_NOT_ACTIVE");
     }
@@ -469,6 +555,9 @@ function serializeKitchenTask(task: KitchenTaskRecord): KitchenBoardTask {
     externalProvider: task.order.externalProvider,
     externalOrderNumber: task.order.externalOrderNumber,
     scheduledPickupAt: task.order.scheduledPickupAt?.toISOString() ?? null,
+    requestedFulfillmentAt: task.order.requestedFulfillmentAt?.toISOString() ?? null,
+    committedFulfillmentAt: task.order.committedFulfillmentAt?.toISOString() ?? null,
+    fulfillmentTimeState: task.order.fulfillmentTimeState,
     riderPickupAt: task.order.riderPickupAt?.toISOString() ?? null,
     fulfillmentType: task.order.fulfillmentType,
     tableLabel: task.order.tableLabel,

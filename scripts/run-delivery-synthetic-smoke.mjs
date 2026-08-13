@@ -111,7 +111,7 @@ try {
     "sec-fetch-site": "same-origin",
     origin: baseUrl.origin,
     referer: `${baseUrl.origin}/staff/orders`,
-    cookie: `stallorder_session=${encodeURIComponent(session.token)}; stallorder_csrf=${encodeURIComponent(session.csrfToken)}`,
+    cookie: `stallorder_session=${encodeURIComponent(session.token)}; stallorder_csrf=${encodeURIComponent(session.csrfToken)}; stallorder_auth_device=${encodeURIComponent(session.deviceId)}`,
   };
 
   const confirmationResponse = await requestJson(
@@ -381,18 +381,20 @@ async function createSyntheticSession() {
   }
   const token = randomBytes(32).toString("base64url");
   const csrfToken = randomBytes(32).toString("base64url");
+  const deviceId = randomUUID();
   const stored = await prisma.authSession.create({
     data: {
       profileId: profile.id,
       tokenHash: sha256(token),
       csrfTokenHash: sha256(csrfToken),
       profileSessionVersion: profile.sessionVersion,
+      deviceId,
       userAgentHash: sha256("stallorder-ephemeral-preview-smoke"),
       expiresAt: new Date(Date.now() + 15 * 60_000),
     },
     select: { id: true },
   });
-  return { id: stored.id, token, csrfToken };
+  return { id: stored.id, token, csrfToken, deviceId };
 }
 
 function createFixture(runId, externalOrderId) {

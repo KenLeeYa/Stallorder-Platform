@@ -4,12 +4,14 @@ import { OrganizationInvitationManager } from "@/components/organization-invitat
 import { OrganizationMembershipManager } from "@/components/organization-membership-manager";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { prisma } from "@/lib/prisma";
+import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
 import { authorizedStallIdsForPermission, roleLabels } from "@/lib/rbac";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string; source?: string }> };
 
 export default async function MerchantTeamPage({ searchParams }: PageProps) {
+  const { m } = await getRequestMerchantMessages();
   const { organizationId, stallId, source } = await searchParams;
   const { workspaces } = await requireWorkspacePage();
   if (!organizationId && workspaces.length > 1) redirect("/select-organization");
@@ -75,7 +77,7 @@ export default async function MerchantTeamPage({ searchParams }: PageProps) {
           <StallSettingsBackLink stallId={returnStallId} />
         </div>
       ) : null}
-      <div className="border-b border-stone-200 pb-6"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 text-3xl font-semibold">團隊與權限</h1></div>
+      <div className="border-b border-stone-200 pb-6"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 text-3xl font-semibold">{m("團隊與權限")}</h1></div>
 
       <OrganizationInvitationManager
         organizationId={workspace.id}
@@ -102,12 +104,12 @@ export default async function MerchantTeamPage({ searchParams }: PageProps) {
       ) : null}
 
       <section className="border-t border-stone-200 py-7">
-        <h2 className="text-lg font-semibold">攤位成員</h2>
+        <h2 className="text-lg font-semibold">{m("攤位成員")}</h2>
         <div className="mt-4 divide-y divide-stone-200 border-y border-stone-200">
           {stallMemberships.map((membership) => (
             <div key={membership.id} className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <div><div className="font-medium">{membership.profile.displayName}</div><div className="mt-1 text-sm text-stone-500">{membership.profile.email ?? "未提供電子郵件"} · {membership.stall.name}</div></div>
-              <div className="flex items-center gap-2"><span className="rounded-md bg-stone-100 px-2 py-1 text-xs font-semibold">{roleLabels[membership.role]}</span>{!membership.isActive ? <span className="text-xs font-semibold text-red-700">已停用</span> : null}</div>
+              <div><div className="font-medium">{membership.profile.displayName}</div><div className="mt-1 text-sm text-stone-500">{membership.profile.email ?? m("未提供電子郵件")} · {membership.stall.name}</div></div>
+              <div className="flex items-center gap-2"><span className="rounded-md bg-stone-100 px-2 py-1 text-xs font-semibold">{roleLabels[membership.role]}</span>{!membership.isActive ? <span className="text-xs font-semibold text-red-700">{m("已停用")}</span> : null}</div>
             </div>
           ))}
         </div>

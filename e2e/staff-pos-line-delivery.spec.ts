@@ -119,13 +119,33 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   await page.getByRole("button", { name: "店員點餐" }).click();
   expect((await configurationResponsePromise).status()).toBe(200);
 
-  const dialog = page.getByRole("dialog", { name: "店員點餐與結帳" });
+  const dialog = page.getByRole("dialog", { name: "店員點餐" });
   await expect(dialog.getByRole("region", { name: "結帳折扣" })).toBeVisible();
+  const menuPanel = dialog.getByTestId("staff-order-menu-panel");
+  const cartPanel = dialog.getByTestId("staff-order-cart-panel");
+  const cartLines = dialog.getByTestId("staff-order-cart-lines");
+  const checkoutControls = dialog.getByTestId("staff-order-checkout-controls");
+  const categoryNavigation = dialog.getByTestId("staff-category-navigation");
+  await expect(categoryNavigation).toBeVisible();
+  expect(await categoryNavigation.evaluate((element) => window.getComputedStyle(element).position)).toBe("sticky");
+  expect(await menuPanel.evaluate((element) => window.getComputedStyle(element).overflowY)).toBe("auto");
+  expect(await cartPanel.evaluate((element) => window.getComputedStyle(element).overflowY)).toBe("hidden");
+  expect(await cartLines.evaluate((element) => window.getComputedStyle(element).overflowY)).toBe("auto");
+  expect(await checkoutControls.evaluate((element) => window.getComputedStyle(element).flexShrink)).toBe("0");
   const catalogToggle = dialog.getByTestId("staff-product-list-toggle");
   await expect(catalogToggle).toHaveAttribute("aria-expanded", "true");
   await expect(dialog.getByTestId("staff-product-list")).toBeVisible();
   const friedGroup = dialog.locator('[data-testid="staff-product-group"][data-category="炸物"]');
   const drinkGroup = dialog.locator('[data-testid="staff-product-group"][data-category="飲料"]');
+  await expect(friedGroup).toBeVisible();
+  await expect(drinkGroup).toBeVisible();
+  const cartPositionBeforeCategoryJump = await cartPanel.boundingBox();
+  await categoryNavigation.getByRole("link", { name: "飲料", exact: true }).click();
+  await expect.poll(async () => menuPanel.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  const cartPositionAfterCategoryJump = await cartPanel.boundingBox();
+  expect(cartPositionBeforeCategoryJump).not.toBeNull();
+  expect(cartPositionAfterCategoryJump).not.toBeNull();
+  expect(Math.abs(cartPositionAfterCategoryJump!.y - cartPositionBeforeCategoryJump!.y)).toBeLessThanOrEqual(1);
   await friedGroup.getByRole("button", { name: "收合商品群組 炸物", exact: true }).click();
   await expect(friedGroup.getByRole("button", { name: "展開商品群組 炸物", exact: true })).toHaveAttribute("aria-expanded", "false");
   await expect(friedGroup.getByTestId("staff-product-card")).toHaveCount(0);
@@ -181,14 +201,14 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
       delivery: true,
     });
 
-    const dialog = page.getByRole("dialog", { name: "店員點餐與結帳" });
+    const dialog = page.getByRole("dialog", { name: "店員點餐" });
     const dineInButton = dialog.getByRole("button", { name: "內用", exact: true });
     const deliveryButton = dialog.getByRole("button", { name: "外送", exact: true });
     await expect(dineInButton).toBeEnabled();
     await expect(deliveryButton).toBeEnabled();
     await deliveryButton.click();
-    await dialog.getByLabel("聯絡電話").fill("0912345678");
-    await dialog.getByLabel("外送地址").fill("台北市信義區店員外送測試路 1 號");
+    await expect(dialog.getByLabel("聯絡電話（選填）", { exact: true })).toHaveValue("");
+    await expect(dialog.getByLabel("地址（選填）", { exact: true })).toHaveValue("");
     await dialog.getByTitle(/^增加 /).first().click();
     const fieldsets = dialog.locator("fieldset");
     for (let index = 0; index < await fieldsets.count(); index += 1) {
@@ -248,7 +268,7 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
       dineIn: true,
       delivery: false,
     });
-    const refreshedDialog = page.getByRole("dialog", { name: "店員點餐與結帳" });
+    const refreshedDialog = page.getByRole("dialog", { name: "店員點餐" });
     await expect(refreshedDialog.getByRole("button", { name: "內用", exact: true })).toBeEnabled();
     await expect(refreshedDialog.getByRole("button", { name: "外送", exact: true })).toBeDisabled();
   } finally {
@@ -300,8 +320,16 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   const targetPickupSlot = fulfillmentTimeSlots.at(-1);
   if (!targetPickupSlot) throw new Error("店員指定時間 E2E 找不到 5 分鐘單位的可用時段。");
 
-  const dialog = page.getByRole("dialog", { name: "店員點餐與結帳" });
+  const dialog = page.getByRole("dialog", { name: "店員點餐" });
   await expect(dialog).toBeVisible();
+  const categoryNavigation = dialog.getByTestId("staff-category-navigation");
+  const menuPanel = dialog.getByTestId("staff-order-menu-panel");
+  await expect(categoryNavigation).toBeVisible();
+  expect(await categoryNavigation.evaluate((element) => window.getComputedStyle(element).position)).toBe("sticky");
+  await expect(dialog.locator('[data-testid="staff-product-group"][data-category="炸物"]')).toBeVisible();
+  await expect(dialog.locator('[data-testid="staff-product-group"][data-category="飲料"]')).toBeVisible();
+  await categoryNavigation.getByRole("link", { name: "飲料", exact: true }).click();
+  await expect.poll(async () => menuPanel.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   await expect(dialog.getByRole("radio", { name: "儘快，不指定時間" })).toBeChecked();
   await expect(dialog.getByTestId("staff-takeout-fulfillment-time-fields")).toHaveCount(0);
   await dialog.getByRole("radio", { name: "指定取餐時間" }).check();
@@ -361,7 +389,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await deliveryMinute.selectOption(targetPickupSlot.minute);
   await expect(deliveryMinute).toHaveValue(targetPickupSlot.minute);
 
-  await dialog.getByRole("button", { name: "外帶", exact: true }).click();
+  await dialog.getByRole("button", { name: "外帶自取", exact: true }).click();
   await expect(dialog.getByTestId("staff-delivery-fulfillment-time-fields")).toHaveCount(0);
   await expect(dialog.getByRole("radio", { name: "儘快，不指定時間" })).toBeChecked();
   await dialog.getByRole("radio", { name: "指定取餐時間" }).check();
@@ -384,6 +412,63 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   const addToCart = dialog.getByRole("button", { name: "加入購物車", exact: true });
   await expect.poll(async () => (await addToCart.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
   await addToCart.click();
+  const draftCustomerName = `現場暫存 ${Date.now()}`;
+  const draftCustomerPhone = "0912345678";
+  const draftCustomerNote = `敏感備註 ${Date.now()}`;
+  await dialog.getByLabel("顧客名稱（選填）").fill(draftCustomerName);
+  await dialog.getByLabel("聯絡電話（選填）").fill(draftCustomerPhone);
+  await dialog.getByTestId("staff-order-cart-tab").click();
+  await expect(dialog.getByTestId("staff-order-cart-panel")).toBeVisible();
+  await dialog.getByLabel("整單備註").fill(draftCustomerNote);
+  await dialog.getByTestId("staff-save-draft").click();
+  await expect(dialog.getByRole("status")).toContainText("暫存在此裝置");
+  await expect(dialog.getByTestId("staff-cart-line")).toHaveCount(0);
+  const storedDraft = await page.evaluate(() => {
+    const entry = Object.entries(window.localStorage).find(([key]) => key.startsWith("stallorder_staff_order_drafts:"));
+    if (!entry) return null;
+    const drafts = JSON.parse(entry[1]) as Array<{ label: string; cartDraft: string; managerPassword?: string; cashReceived?: string }>;
+    return { count: drafts.length, first: drafts[0], raw: entry[1] };
+  });
+  expect(storedDraft).not.toBeNull();
+  expect(storedDraft?.count).toBe(1);
+  expect(storedDraft?.raw).not.toContain("managerPassword");
+  expect(storedDraft?.raw).not.toContain("cashReceived");
+  expect(storedDraft?.raw).not.toContain(draftCustomerName);
+  expect(storedDraft?.raw).not.toContain(draftCustomerPhone);
+  expect(storedDraft?.raw).not.toContain(draftCustomerNote);
+  const storedCartDraft = JSON.parse(storedDraft?.first?.cartDraft ?? "{}") as {
+    customerName?: string;
+    customerPhone?: string;
+    customerNote?: string;
+    deliveryAddress?: string;
+    lines?: Array<{ note?: string }>;
+  };
+  expect(storedCartDraft).toMatchObject({
+    customerName: "",
+    customerPhone: "",
+    customerNote: "",
+    deliveryAddress: "",
+  });
+  expect(storedCartDraft.lines?.every((line) => !line.note)).toBe(true);
+
+  await dialog.getByTestId("staff-open-drafts").click();
+  const draftManager = page.getByRole("dialog", { name: "此裝置的暫存訂單" });
+  await expect(draftManager.getByTestId("staff-draft-card")).toHaveCount(1);
+  await draftManager.getByRole("button", { name: "繼續點餐", exact: true }).click();
+  await expect(dialog.getByLabel("顧客名稱（選填）")).toHaveValue("");
+  await expect(dialog.getByLabel("聯絡電話（選填）")).toHaveValue("");
+  await expect(dialog.getByLabel("整單備註")).toHaveValue("");
+  await expect(dialog.getByTestId("staff-cart-line")).toHaveCount(1);
+
+  await dialog.getByTestId("staff-open-drafts").click();
+  page.once("dialog", (confirmation) => confirmation.accept());
+  await page.getByRole("dialog", { name: "此裝置的暫存訂單" }).getByRole("button", { name: `刪除暫存單 ${storedDraft?.first?.label}` }).click();
+  await expect(page.getByRole("dialog", { name: "此裝置的暫存訂單" }).getByTestId("staff-draft-card")).toHaveCount(0);
+  await page.getByTitle("關閉暫存訂單").click();
+  await dialog.getByTestId("staff-save-draft").click();
+  await dialog.getByTestId("staff-open-drafts").click();
+  await page.getByRole("dialog", { name: "此裝置的暫存訂單" }).getByRole("button", { name: "繼續點餐", exact: true }).click();
+  await expect(dialog.getByTestId("staff-cart-line")).toHaveCount(1);
   const catalogToggle = dialog.getByTestId("staff-product-list-toggle");
   await catalogToggle.click();
   await expect(catalogToggle).toHaveAttribute("aria-expanded", "false");
@@ -416,6 +501,10 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   });
   const payload = await orderResponse.json();
   createdOrderIds.push(payload.order.id);
+  await expect.poll(() => page.evaluate(() => {
+    const entry = Object.entries(window.localStorage).find(([key]) => key.startsWith("stallorder_staff_order_drafts:"));
+    return entry ? (JSON.parse(entry[1]) as unknown[]).length : 0;
+  })).toBe(0);
   expect(payload.order).toMatchObject({
     source: "STAFF_POS",
     status: "CONFIRMED",
@@ -438,16 +527,43 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await page.screenshot({ path: testInfo.outputPath("staff-pos-mobile.png"), fullPage: true });
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
 
-  await prisma.order.update({ where: { id: payload.order.id }, data: { status: "READY" } });
   await page.reload();
-  const ticket = page.locator("article").filter({ hasText: `訂單 ${payload.order.orderNo}` });
-  const prematureCompletion = page.waitForResponse((response) => (
-    response.url().endsWith(`/api/stalls/aming-chicken/orders/${payload.order.id}`)
-    && response.request().method() === "PATCH"
-  ));
-  await ticket.getByRole("button", { name: "完成訂單", exact: true }).click();
-  expect((await prematureCompletion).status()).toBe(409);
-  await expect(page.getByText("仍有餐點尚未完成製作。", { exact: true })).toBeVisible();
+  const futureOrdersToggle = page.locator('button[aria-controls="future-scheduled-orders"]');
+  await expect(futureOrdersToggle).toContainText("未來預約訂單（1）");
+  await expect(futureOrdersToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("article").filter({ hasText: `訂單 ${payload.order.orderNo}` })).toHaveCount(0);
+  await futureOrdersToggle.click();
+  const futureTicket = page.locator("#future-scheduled-orders article").filter({ hasText: `訂單 ${payload.order.orderNo}` });
+  await expect(futureTicket).toBeVisible();
+  await expect(futureTicket).toContainText("未到製作日");
+  await expect(futureTicket).toContainText("此區不提供開始製作操作");
+  await expect(futureTicket.getByRole("button", { name: /開始製作|全部開始製作|完成訂單/ })).toHaveCount(0);
+
+  const prematureProduction = await page.evaluate(async (orderId) => {
+    const csrf = document.cookie
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith("stallorder_csrf="))
+      ?.split("=").slice(1).join("=");
+    const response = await fetch(`/api/stalls/aming-chicken/orders/${orderId}`, {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "x-csrf-token": decodeURIComponent(csrf ?? ""),
+      },
+      body: JSON.stringify({ status: "PREPARING" }),
+    });
+    return { status: response.status, payload: await response.json() };
+  }, payload.order.id);
+  expect(prematureProduction).toMatchObject({
+    status: 409,
+    payload: { code: "PRODUCTION_NOT_DUE" },
+  });
+  await expect.poll(async () => (await prisma.order.findUniqueOrThrow({
+    where: { id: payload.order.id },
+    select: { status: true },
+  })).status).toBe("CONFIRMED");
 });
 
 test("店員可將同商品不同註記分列加入購物車，並移除選錯的獨立列", async ({ page }) => {
@@ -456,7 +572,7 @@ test("店員可將同商品不同註記分列加入購物車，並移除選錯�
   await page.goto("/staff/aming-chicken");
   await page.getByRole("button", { name: "店員點餐" }).click();
 
-  const dialog = page.getByRole("dialog", { name: "店員點餐與結帳" });
+  const dialog = page.getByRole("dialog", { name: "店員點餐" });
   const product = dialog.getByTestId("staff-product-card").filter({ hasText: "香酥雞排" });
   const increase = product.getByTitle("增加 香酥雞排");
 
@@ -748,6 +864,7 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
     await login(staffPage);
     await staffPage.goto("/staff/aming-chicken");
     const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
+    await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
     await expect(staffOrder).toContainText("顧客希望送達");
     await staffOrder.getByRole("button", { name: "提出新時間", exact: true }).click();
 
@@ -854,7 +971,7 @@ test("外送頁依瀏覽器語系顯示英文欄位", async ({ browser }) => {
     await deliveryCartPanel.getByRole("button", { name: "Continue to checkout", exact: true }).click();
     await expect(deliveryCartPanel.getByLabel("Contact phone")).toBeVisible({ timeout: 30_000 });
     await expect(deliveryCartPanel.getByLabel("Delivery address")).toBeVisible();
-    await expect(page.getByText("Delivery", { exact: true })).toBeVisible();
+    await expect(deliveryCartPanel.getByRole("heading", { name: "Details and confirmation", exact: true })).toBeVisible();
   } finally {
     await context.close();
   }
