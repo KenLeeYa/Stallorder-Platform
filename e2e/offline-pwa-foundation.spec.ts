@@ -384,7 +384,7 @@ test.describe("P4 離線 PWA 基礎", () => {
       await persistedCard.getByRole("button", { name: "開始製作" }).click();
       await expect(persistedCard.getByText("製作中", { exact: true })).toBeVisible();
       await persistedCard.getByRole("button", { name: "餐點完成" }).click();
-      await expect(persistedCard.getByText("可取餐", { exact: true })).toBeVisible();
+      await expect(persistedCard.getByText("待結帳", { exact: true })).toBeVisible();
 
       await staffPage.evaluate(() => {
         const originalFetch = window.fetch.bind(window);

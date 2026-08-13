@@ -947,9 +947,9 @@ export function StaffOrderComposer({
             {selectedItems.length > 0 ? <button data-testid="staff-mobile-cart-summary" type="button" onClick={() => switchPane("CART")} className="safe-area-bottom fixed inset-x-3 bottom-0 z-30 flex min-h-16 items-center gap-3 rounded-t-lg bg-stone-900 px-4 pt-3 text-left text-white shadow-2xl md:hidden"><ShoppingCart className="h-5 w-5" /><span className="flex-1"><span className="block text-xs text-stone-300">{t("common.portions", { count: totalQuantity })}</span><strong>{formatMoney(total, stall.currency, locale)}</strong></span><span className="text-sm font-semibold">{t("composer.checkout")}</span></button> : null}
           </div>
 
-          <aside ref={cartScrollRef} data-testid="staff-order-cart-panel" className={`${activePane === "CART" ? "flex" : "hidden"} safe-area-bottom min-h-0 flex-col overflow-y-auto overscroll-contain border-t border-stone-200 bg-stone-50 px-4 py-5 sm:px-6 md:flex md:h-full md:overflow-hidden md:border-l md:border-t-0`}>
+          <aside ref={cartScrollRef} data-testid="staff-order-cart-panel" className={`${activePane === "CART" ? "flex" : "hidden"} safe-area-bottom min-h-0 flex-col overflow-y-auto overscroll-contain border-t border-stone-200 bg-stone-50 px-4 py-5 sm:px-6 md:flex md:h-full md:border-l md:border-t-0`}>
             <div className="flex shrink-0 items-center gap-2"><ShoppingCart className="h-4 w-4 text-teal-800" /><h3 className="font-semibold">{t("composer.currentOrder")}</h3><span className="ml-auto text-sm text-stone-500">{t("common.portions", { count: totalQuantity })}</span></div>
-            <div data-testid="staff-order-cart-lines" className="mt-3 divide-y divide-stone-200 border-y border-stone-200 md:min-h-0 md:flex-1 md:overflow-y-auto md:overscroll-contain md:pr-1">{selectedItems.map(({ cartLineId, product, quantity, noteOptionIds, bundleChoiceIds }) => {
+            <div data-testid="staff-order-cart-lines" className="mt-3 shrink-0 divide-y divide-stone-200 border-y border-stone-200">{selectedItems.map(({ cartLineId, product, quantity, noteOptionIds, bundleChoiceIds }) => {
               const selectedBundleChoices = (product.bundleChoiceGroups ?? []).flatMap((group) => (
                 group.choices.filter((choice) => bundleChoiceIds.includes(choice.id))
               ));
@@ -981,7 +981,7 @@ export function StaffOrderComposer({
                 </div>
               </div>;
             })}</div>
-            <div data-testid="staff-order-checkout-controls" className="md:shrink-0">
+            <div data-testid="staff-order-checkout-controls" className="shrink-0">
               <label className="mt-4 block text-xs font-semibold text-stone-600">{t("composer.customerNote")}<textarea value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-1 min-h-20" /></label>
 
             <div className="mt-5 grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("composer.paymentTiming")}>

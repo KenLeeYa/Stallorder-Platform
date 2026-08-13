@@ -15,6 +15,7 @@ import { StaffDiscountSelector } from "@/components/staff-discount-selector";
 import { StaffCapacityControl } from "@/components/staff-capacity-control";
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
 import type { StaffCapacityData } from "@/lib/capacity-contract";
+import type { AppLocale } from "@/lib/app-locale";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { buildFulfillmentTimeSlots } from "@/lib/fulfillment-time-options";
 import { classifyFulfillmentForProduction, type FulfillmentProductionTiming } from "@/lib/fulfillment-time";
@@ -94,6 +95,23 @@ const staffFunctionTileClass = "inline-flex min-h-16 w-full min-w-0 flex-col ite
 const staffFunctionIconClass = "h-5 w-5 sm:h-4 sm:w-4";
 type OperationsTranslator = ReturnType<typeof useOperationsLocale>["t"];
 const cancellationReasons: CancellationReason[] = ["SOLD_OUT", "CUSTOMER_CANCELLED", "WAIT_TOO_LONG", "DUPLICATE_ORDER", "OTHER"];
+
+function formatStaffNoteOptions(
+  locale: AppLocale,
+  noteOptions: Array<{ groupName: string; optionName: string; priceDelta: number }>,
+  currency: string,
+  includePrice: boolean,
+) {
+  const usesCjkPunctuation = locale === "zh-TW" || locale === "ja";
+  const pairSeparator = usesCjkPunctuation ? "：" : ": ";
+  const optionSeparator = usesCjkPunctuation ? "、" : ", ";
+  return noteOptions.map((option) => {
+    const price = includePrice && option.priceDelta !== 0
+      ? ` (${option.priceDelta > 0 ? "+" : ""}${formatMoney(option.priceDelta, currency, locale)})`
+      : "";
+    return `${option.groupName}${pairSeparator}${option.optionName}${price}`;
+  }).join(optionSeparator);
+}
 
 export function StaffOrderBoard({
   stall,
@@ -575,7 +593,7 @@ export function StaffOrderBoard({
       unitPrice: item.unitPrice,
       quantity: item.quantity,
       details: [
-        item.noteOptions.map((option) => `${option.groupName}：${option.optionName}`).join("、"),
+        formatStaffNoteOptions(locale, item.noteOptions, stall.currency, false),
         item.note ? t("staff.order.note", { note: item.note }) : "",
       ].filter(Boolean).join(" · "),
     })));
@@ -1056,7 +1074,7 @@ export function StaffOrderBoard({
       for (const item of order.items) {
         if (item.status === "SERVED") continue;
         const notes = [
-          item.noteOptions.map((option) => `${option.groupName}：${option.optionName}`).join("、"),
+          formatStaffNoteOptions(locale, item.noteOptions, stall.currency, false),
           item.note ?? "",
         ].filter(Boolean).join(" · ");
         const key = JSON.stringify([item.name, notes, item.status]);
@@ -1076,7 +1094,7 @@ export function StaffOrderBoard({
       }
     }
     return [...groups.values()].sort((left, right) => left.status.localeCompare(right.status) || left.name.localeCompare(right.name, "zh-TW"));
-  }, [operationalOrders]);
+  }, [locale, operationalOrders, stall.currency]);
   const diningTableGroups = useMemo(() => {
     const groups = new Map<string, { diningTableId: string; tableLabel: string; orders: OrderWithItems[] }>();
     for (const order of operationalOrders) {
@@ -1396,7 +1414,7 @@ export function StaffOrderBoard({
                       <span className="font-medium">{item.quantity} × {item.name}</span>
                       <span>{formatMoney(item.unitPrice * item.quantity, stall.currency, locale)}</span>
                     </div>
-                    {item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{item.noteOptions.map((noteOption) => `${noteOption.groupName}: ${noteOption.optionName}${noteOption.priceDelta === 0 ? "" : ` (${noteOption.priceDelta > 0 ? "+" : ""}${formatMoney(noteOption.priceDelta, stall.currency, locale)})`}`).join(", ")}</p> : null}
+                    {item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{formatStaffNoteOptions(locale, item.noteOptions, stall.currency, true)}</p> : null}
                     {item.note ? <p className="mt-1 text-xs text-stone-600">{t("staff.order.note", { note: item.note })}</p> : null}
                     <span className={`mt-1 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${item.status === "SERVED" ? "bg-emerald-50 text-emerald-800" : item.status === "READY" ? "bg-blue-50 text-blue-800" : item.status === "PREPARING" ? "bg-amber-50 text-amber-800" : "bg-stone-100 text-stone-600"}`}>
                     {orderItemStatusLabel(item.status, t)}
@@ -1547,7 +1565,7 @@ export function StaffOrderBoard({
                     </div>
                     {order.fulfillmentType === "DELIVERY" ? <p className="mt-3 rounded bg-stone-50 px-3 py-2 text-sm">{t("staff.future.delivery", { details: `${order.deliveryAddress || t("staff.delivery.noAddress")}${order.customerPhone ? ` · ${order.customerPhone}` : ""}` })}</p> : null}
                     <ul className="mt-3 divide-y divide-stone-100 border-y border-stone-200 text-sm">
-                      {order.items.map((item) => <li key={item.id} className="py-2"><div className="flex justify-between gap-3"><span>{item.quantity} × {item.name}</span><span>{formatMoney(item.unitPrice * item.quantity, stall.currency, locale)}</span></div>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{item.noteOptions.map((option) => `${option.groupName}: ${option.optionName}`).join(", ")}</p> : null}{item.note ? <p className="mt-1 text-xs text-stone-600">{t("staff.order.note", { note: item.note })}</p> : null}</li>)}
+                      {order.items.map((item) => <li key={item.id} className="py-2"><div className="flex justify-between gap-3"><span>{item.quantity} × {item.name}</span><span>{formatMoney(item.unitPrice * item.quantity, stall.currency, locale)}</span></div>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{formatStaffNoteOptions(locale, item.noteOptions, stall.currency, false)}</p> : null}{item.note ? <p className="mt-1 text-xs text-stone-600">{t("staff.order.note", { note: item.note })}</p> : null}</li>)}
                     </ul>
                     {order.note ? <p className="mt-3 rounded bg-amber-50 p-2 text-sm text-amber-900">{t("staff.order.orderNote", { note: order.note })}</p> : null}
                     <div className="mt-3 flex items-center justify-between"><strong>{formatMoney(order.total, stall.currency, locale)}</strong><span className="text-sm text-stone-600">{paymentStatusLabel(order.paymentStatus, t)}</span></div>

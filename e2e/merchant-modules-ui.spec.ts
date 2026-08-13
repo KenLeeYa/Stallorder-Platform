@@ -248,7 +248,11 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
       await noteEditor.getByRole("button", { name: "關閉" }).click();
 
       await gotoLocalPath(localizationPage, `/merchant/localization?organizationId=${organizationId}`);
-      await expect(localizationPage.getByText("日本語", { exact: true })).toHaveCount(0);
+      await expect(
+        localizationPage
+          .getByRole("complementary", { name: "QR 語系預覽" })
+          .getByText("日本語", { exact: true }),
+      ).toHaveCount(0);
       const disabledPreviewStatus = await localizationPage.evaluate(async (url) => {
         const response = await fetch(url, { credentials: "same-origin" });
         return response.status;

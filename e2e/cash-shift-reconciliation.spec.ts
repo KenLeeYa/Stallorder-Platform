@@ -256,7 +256,7 @@ test.describe.serial("現金交班與短溢收", () => {
       await financePage.setViewportSize(viewport);
       const summaryDashboard = financePage.getByTestId("cash-shift-report-dashboard");
       await expect(summaryDashboard).toBeVisible();
-      await expect(summaryDashboard).toContainText("現金銷售");
+      await expect(summaryDashboard).toContainText("實收現金");
       await expect(summaryDashboard).toContainText("短溢收合計");
       await expect(summaryDashboard).toContainText("待複核");
       const layout = await financePage.evaluate(() => ({
@@ -275,7 +275,7 @@ test.describe.serial("現金交班與短溢收", () => {
     ).status, stallSlug);
     expect(apiStatus).toBe(403);
     await kitchenPage.goto(`/staff/${stallSlug}/cash`);
-    await expect(kitchenPage.getByText("404", { exact: true }).last()).toBeVisible();
+    await expect(kitchenPage.getByRole("heading", { name: "找不到此頁面", exact: true })).toBeVisible();
     await kitchenPage.context().close();
   });
 });

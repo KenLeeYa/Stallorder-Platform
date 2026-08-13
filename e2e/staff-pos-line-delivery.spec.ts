@@ -208,7 +208,7 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
     await expect(deliveryButton).toBeEnabled();
     await deliveryButton.click();
     await expect(dialog.getByLabel("聯絡電話（選填）", { exact: true })).toHaveValue("");
-    await expect(dialog.getByLabel("外送地址（選填）", { exact: true })).toHaveValue("");
+    await expect(dialog.getByLabel("地址（選填）", { exact: true })).toHaveValue("");
     await dialog.getByTitle(/^增加 /).first().click();
     const fieldsets = dialog.locator("fieldset");
     for (let index = 0; index < await fieldsets.count(); index += 1) {
@@ -389,7 +389,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await deliveryMinute.selectOption(targetPickupSlot.minute);
   await expect(deliveryMinute).toHaveValue(targetPickupSlot.minute);
 
-  await dialog.getByRole("button", { name: "外帶", exact: true }).click();
+  await dialog.getByRole("button", { name: "外帶自取", exact: true }).click();
   await expect(dialog.getByTestId("staff-delivery-fulfillment-time-fields")).toHaveCount(0);
   await expect(dialog.getByRole("radio", { name: "儘快，不指定時間" })).toBeChecked();
   await dialog.getByRole("radio", { name: "指定取餐時間" }).check();
@@ -942,7 +942,7 @@ test("外送頁依瀏覽器語系顯示英文欄位", async ({ browser }) => {
     await deliveryCartPanel.getByRole("button", { name: "Continue to checkout", exact: true }).click();
     await expect(deliveryCartPanel.getByLabel("Contact phone")).toBeVisible({ timeout: 30_000 });
     await expect(deliveryCartPanel.getByLabel("Delivery address")).toBeVisible();
-    await expect(deliveryCartPanel.getByText("Delivery", { exact: true })).toBeVisible();
+    await expect(deliveryCartPanel.getByRole("heading", { name: "Details and confirmation", exact: true })).toBeVisible();
   } finally {
     await context.close();
   }

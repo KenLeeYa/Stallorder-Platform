@@ -208,7 +208,7 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       const readyResponse = await readyResponsePromise;
       expect(readyResponse.status()).toBe(200);
       expect(readyResponse.request().postDataJSON()).toEqual({ status: "READY" });
-      await expect(staffOrder.getByLabel("三位數取餐碼")).toBeVisible();
+      await expect(staffOrder.getByLabel("3 位數取餐碼")).toBeVisible();
 
       await staffOrder.getByRole("button", { name: "無法取得取餐碼", exact: true }).click();
       const manualPickupDialog = staffPage.getByRole("alertdialog", { name: "人工核對取餐" });
