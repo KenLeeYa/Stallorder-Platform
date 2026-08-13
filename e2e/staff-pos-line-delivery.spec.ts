@@ -417,6 +417,8 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   const draftCustomerNote = `敏感備註 ${Date.now()}`;
   await dialog.getByLabel("顧客名稱（選填）").fill(draftCustomerName);
   await dialog.getByLabel("聯絡電話（選填）").fill(draftCustomerPhone);
+  await dialog.getByTestId("staff-order-cart-tab").click();
+  await expect(dialog.getByTestId("staff-order-cart-panel")).toBeVisible();
   await dialog.getByLabel("整單備註").fill(draftCustomerNote);
   await dialog.getByTestId("staff-save-draft").click();
   await expect(dialog.getByRole("status")).toContainText("暫存在此裝置");

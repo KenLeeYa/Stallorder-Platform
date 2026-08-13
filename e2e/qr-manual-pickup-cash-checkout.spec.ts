@@ -235,7 +235,7 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       });
       await expect(staffOrder).toContainText("已完成人工取餐核對");
 
-      await staffOrder.getByRole("button", { name: "完成訂單", exact: true }).click();
+      await staffOrder.getByRole("button", { name: "代結帳", exact: true }).first().click();
       const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
       await checkout.getByRole("button", { name: "現金", exact: true }).click();
       await checkout.getByRole("button", { name: "剛好", exact: true }).click();

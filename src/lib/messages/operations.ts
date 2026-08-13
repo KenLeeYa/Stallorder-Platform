@@ -590,6 +590,8 @@ const definitions = {
   "composer.inCart": { "zh-TW": "購物車已有 {count} 份", en: "{count} already in cart", ja: "カートに {count} 点", ko: "장바구니에 {count}개", vi: "Đã có {count} trong giỏ", th: "มีในตะกร้าแล้ว {count} รายการ" },
   "composer.decreaseItem": { "zh-TW": "減少 {item}", en: "Decrease {item}", ja: "{item} を減らす", ko: "{item} 줄이기", vi: "Giảm {item}", th: "ลด {item}" },
   "composer.increaseItem": { "zh-TW": "增加 {item}", en: "Increase {item}", ja: "{item} を増やす", ko: "{item} 늘리기", vi: "Tăng {item}", th: "เพิ่ม {item}" },
+  "composer.decreaseConfiguredItem": { "zh-TW": "減少 {item}（{configuration}）", en: "Decrease {item} ({configuration})", ja: "{item}（{configuration}）を減らす", ko: "{item}({configuration}) 줄이기", vi: "Giảm {item} ({configuration})", th: "ลด {item} ({configuration})" },
+  "composer.increaseConfiguredItem": { "zh-TW": "增加 {item}（{configuration}）", en: "Increase {item} ({configuration})", ja: "{item}（{configuration}）を増やす", ko: "{item}({configuration}) 늘리기", vi: "Tăng {item} ({configuration})", th: "เพิ่ม {item} ({configuration})" },
   "composer.removeItem": { "zh-TW": "移除 {item}（{configuration}）", en: "Remove {item} ({configuration})", ja: "{item}（{configuration}）を削除", ko: "{item}({configuration}) 제거", vi: "Xóa {item} ({configuration})", th: "ลบ {item} ({configuration})" },
   "composer.itemQuantity": { "zh-TW": "{item}（{configuration}）數量", en: "Quantity for {item} ({configuration})", ja: "{item}（{configuration}）の数量", ko: "{item}({configuration}) 수량", vi: "Số lượng {item} ({configuration})", th: "จำนวน {item} ({configuration})" },
   "composer.bundleGroup": { "zh-TW": "套餐群組", en: "Bundle group", ja: "セットグループ", ko: "세트 그룹", vi: "Nhóm combo", th: "กลุ่มชุด" },

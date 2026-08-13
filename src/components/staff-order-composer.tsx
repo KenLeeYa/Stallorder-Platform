@@ -947,9 +947,9 @@ export function StaffOrderComposer({
             {selectedItems.length > 0 ? <button data-testid="staff-mobile-cart-summary" type="button" onClick={() => switchPane("CART")} className="safe-area-bottom fixed inset-x-3 bottom-0 z-30 flex min-h-16 items-center gap-3 rounded-t-lg bg-stone-900 px-4 pt-3 text-left text-white shadow-2xl md:hidden"><ShoppingCart className="h-5 w-5" /><span className="flex-1"><span className="block text-xs text-stone-300">{t("common.portions", { count: totalQuantity })}</span><strong>{formatMoney(total, stall.currency, locale)}</strong></span><span className="text-sm font-semibold">{t("composer.checkout")}</span></button> : null}
           </div>
 
-          <aside ref={cartScrollRef} data-testid="staff-order-cart-panel" className={`${activePane === "CART" ? "flex" : "hidden"} safe-area-bottom min-h-0 flex-col overflow-y-auto overscroll-contain border-t border-stone-200 bg-stone-50 px-4 py-5 sm:px-6 md:flex md:h-full md:border-l md:border-t-0`}>
+          <aside ref={cartScrollRef} data-testid="staff-order-cart-panel" className={`${activePane === "CART" ? "flex" : "hidden"} safe-area-bottom min-h-0 flex-col overflow-y-auto overscroll-contain border-t border-stone-200 bg-stone-50 px-4 py-5 sm:px-6 md:flex md:h-full md:overflow-hidden md:border-l md:border-t-0`}>
             <div className="flex shrink-0 items-center gap-2"><ShoppingCart className="h-4 w-4 text-teal-800" /><h3 className="font-semibold">{t("composer.currentOrder")}</h3><span className="ml-auto text-sm text-stone-500">{t("common.portions", { count: totalQuantity })}</span></div>
-            <div data-testid="staff-order-cart-lines" className="mt-3 shrink-0 divide-y divide-stone-200 border-y border-stone-200">{selectedItems.map(({ cartLineId, product, quantity, noteOptionIds, bundleChoiceIds }) => {
+            <div data-testid="staff-order-cart-lines" className="mt-3 divide-y divide-stone-200 border-y border-stone-200 md:min-h-32 md:flex-1 md:overflow-y-auto md:overscroll-contain md:pr-1">{selectedItems.map(({ cartLineId, product, quantity, noteOptionIds, bundleChoiceIds }) => {
               const selectedBundleChoices = (product.bundleChoiceGroups ?? []).flatMap((group) => (
                 group.choices.filter((choice) => bundleChoiceIds.includes(choice.id))
               ));
@@ -973,15 +973,15 @@ export function StaffOrderComposer({
                 {selectedBundleChoices.length > 0 ? <p className="mt-1 text-xs text-amber-800">{selectedBundleChoices.map((choice) => `${choice.name} × ${choice.quantity}`).join(", ")}</p> : null}
                 {selectedNoteNames.length > 0 ? <p className="mt-1 text-xs text-teal-800">{selectedNoteNames.join(", ")}</p> : null}
                 <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-                  <button type="button" aria-label={t("composer.decreaseItem", { item: product.name })} onClick={() => changeCartLineQuantity(cartLineId, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Minus className="h-4 w-4" /></button>
+                  <button type="button" aria-label={t("composer.decreaseConfiguredItem", { item: product.name, configuration: configurationLabel })} onClick={() => changeCartLineQuantity(cartLineId, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Minus className="h-4 w-4" /></button>
                   <span className="min-w-8 text-center font-semibold" aria-label={t("composer.itemQuantity", { item: product.name, configuration: configurationLabel })}>{quantity}</span>
-                  <button type="button" aria-label={t("composer.increaseItem", { item: product.name })} onClick={() => changeCartLineQuantity(cartLineId, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Plus className="h-4 w-4" /></button>
+                  <button type="button" aria-label={t("composer.increaseConfiguredItem", { item: product.name, configuration: configurationLabel })} onClick={() => changeCartLineQuantity(cartLineId, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Plus className="h-4 w-4" /></button>
                   {(product.noteGroups.length > 0 || (product.bundleChoiceGroups?.length ?? 0) > 0) ? <button type="button" onClick={() => editCartLine({ id: cartLineId, productId: product.id, quantity, note: "", noteOptionIds, bundleChoiceIds })} className="min-h-11 rounded-md border border-teal-300 bg-white px-3 font-semibold text-teal-800">{t("composer.editCustomization")}</button> : null}
                   <button type="button" aria-label={t("composer.removeItem", { item: product.name, configuration: configurationLabel })} onClick={() => changeCartLineQuantity(cartLineId, 0)} className="min-h-11 rounded-md border border-red-300 bg-white px-3 font-semibold text-red-700">{t("composer.remove")}</button>
                 </div>
               </div>;
             })}</div>
-            <div data-testid="staff-order-checkout-controls" className="shrink-0">
+            <div data-testid="staff-order-checkout-controls" className="shrink-0 md:max-h-[55%] md:overflow-y-auto md:overscroll-contain md:pr-1">
               <label className="mt-4 block text-xs font-semibold text-stone-600">{t("composer.customerNote")}<textarea value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-1 min-h-20" /></label>
 
             <div className="mt-5 grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("composer.paymentTiming")}>

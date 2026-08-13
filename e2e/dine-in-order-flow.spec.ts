@@ -289,9 +289,13 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   expect(await staffPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await staffPage.getByRole("link", { name: "訂單看板" }).click();
   await expect(staffPage).toHaveURL(/\/staff\/aming-chicken$/);
+  await expect(staffOrder.getByText("待結帳／交付", { exact: true })).toBeVisible();
+  const summaryCheckoutButton = staffOrder.getByRole("button", { name: "代結帳", exact: true }).first();
+  await expect(summaryCheckoutButton).toBeVisible();
+  await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
   await expect(staffOrder.getByText("已出餐", { exact: true })).toHaveCount(2);
-  await expect(staffOrder.getByLabel("三位數取餐碼")).toHaveCount(0);
-  await staffOrder.getByRole("button", { name: "完成訂單" }).click();
+  await expect(staffOrder.getByLabel("3 位數取餐碼")).toHaveCount(0);
+  await summaryCheckoutButton.click();
 
   const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
   await expect(checkout.getByRole("button", { name: "LINE Pay" })).toBeVisible();
