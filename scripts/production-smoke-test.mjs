@@ -2,6 +2,7 @@ import {
   productionTestQrToken,
   resolveProductionTestQrUrl,
 } from "./lib/production-smoke-qr-url.mjs";
+import { isExpectedPublicSiteResponse } from "./lib/production-smoke-public-site.mjs";
 
 const baseUrl = new URL(process.env.PRODUCTION_BASE_URL ?? "https://app.qidaigo.com");
 const allowHttp = process.env.SMOKE_ALLOW_HTTP === "true";
@@ -47,6 +48,20 @@ async function checkRedirect(name, source) {
     name,
     redirectStatus && target?.origin === baseUrl.origin,
     `status=${response.status}, location=${location ?? "missing"}`,
+  );
+}
+
+async function checkPublicSite(name, source) {
+  const response = await request(source, { redirect: "manual" });
+  const body = await response.text();
+  assert(
+    name,
+    isExpectedPublicSiteResponse({
+      status: response.status,
+      contentType: response.headers.get("content-type"),
+      body,
+    }),
+    `status=${response.status}, content-type=${response.headers.get("content-type") ?? "missing"}`,
   );
 }
 
@@ -116,10 +131,10 @@ async function run() {
   }
 
   if (!skipDomainRedirects) {
-    await checkRedirect("Root domain redirects", process.env.ROOT_DOMAIN_URL ?? "https://qidaigo.com");
+    await checkPublicSite("Root domain website loads", process.env.ROOT_DOMAIN_URL ?? "https://qidaigo.com");
     await checkRedirect("WWW domain redirects", process.env.WWW_DOMAIN_URL ?? "https://www.qidaigo.com");
   } else {
-    record("Root and WWW redirects", true, "SKIPPED by SMOKE_SKIP_DOMAIN_REDIRECTS=true");
+    record("Root website and WWW redirect", true, "SKIPPED by SMOKE_SKIP_DOMAIN_REDIRECTS=true");
   }
 
   const testQrUrl = resolveProductionTestQrUrl({
