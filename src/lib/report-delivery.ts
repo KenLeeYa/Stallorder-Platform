@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { ReportSchedule, ReportScheduleType } from "@prisma/client";
+import type { PaymentMethod, ReportSchedule, ReportScheduleType } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { logEvent } from "@/lib/audit";
 import { formatMoney } from "@/lib/money";
@@ -11,7 +11,7 @@ import {
   reportScheduleTypeLabels,
   type ScheduledReportType,
 } from "@/lib/report-scheduling";
-import { getPaymentMethodReport } from "@/lib/report-data";
+import { getPaymentMethodReport, sumPaidAmountByMethod } from "@/lib/report-data";
 
 type CashVarianceRow = {
   stall_id: string;
@@ -44,7 +44,13 @@ type ReportPayload = {
     cancelledOrderCount: number;
     netSales: number;
   }>;
-  payments: Array<{ stallName: string; methodLabel: string; paymentCount: number; amount: number }>;
+  payments: Array<{
+    stallName: string;
+    method: PaymentMethod;
+    methodLabel: string;
+    paymentCount: number;
+    amount: number;
+  }>;
   variances: Array<{
     stallName: string;
     closedAt: string;
@@ -271,12 +277,13 @@ async function buildReportPayload({
       cancelledOrderCount: summaries.reduce((sum, item) => sum + item.cancelledOrderCount, 0),
       netSales: summaries.reduce((sum, item) => sum + item.netSales, 0),
       discountAmount: summaries.reduce((sum, item) => sum + item.discountAmount, 0),
-      cashAmount: summaries.reduce((sum, item) => sum + item.cashAmount, 0),
+      cashAmount: sumPaidAmountByMethod(payments, "CASH"),
       paymentVariance: mappedVariances.reduce((sum, item) => sum + item.varianceAmount, 0),
     },
     stalls: [...byStall.values()],
     payments: payments.map((payment) => ({
       stallName: payment.stallName,
+      method: payment.method,
       methodLabel: payment.methodLabel,
       paymentCount: payment.paymentCount,
       amount: payment.amount,
@@ -290,10 +297,10 @@ function renderReport(payload: ReportPayload) {
   const lines = [
     payload.organizationName,
     `${typeLabel}（${payload.periodStart} 至 ${payload.periodEnd}）`,
-    `淨銷售額：${formatMoney(payload.totals.netSales, payload.currency)}`,
+    `訂單登記額：${formatMoney(payload.totals.netSales, payload.currency)}`,
     `訂單／完成／取消：${payload.totals.orderCount}／${payload.totals.completedOrderCount}／${payload.totals.cancelledOrderCount}`,
     `折扣：${formatMoney(payload.totals.discountAmount, payload.currency)}`,
-    `現金：${formatMoney(payload.totals.cashAmount, payload.currency)}`,
+    `實收現金（依收款日）：${formatMoney(payload.totals.cashAmount, payload.currency)}`,
     `現金短溢收：${formatMoney(payload.totals.paymentVariance, payload.currency)}`,
     "",
     ...payload.stalls.map((stall) => `${stall.stallName}：${formatMoney(stall.netSales, payload.currency)}，訂單 ${stall.orderCount}`),
@@ -302,7 +309,7 @@ function renderReport(payload: ReportPayload) {
   ];
   const tableRows = payload.stalls.map((stall) => `<tr><td>${escapeHtml(stall.stallName)}</td><td>${stall.orderCount}</td><td>${stall.completedOrderCount}</td><td>${escapeHtml(formatMoney(stall.netSales, payload.currency))}</td></tr>`).join("");
   const varianceRows = payload.variances.map((variance) => `<tr><td>${escapeHtml(variance.stallName)}</td><td>${escapeHtml(formatMoney(variance.expectedAmount, payload.currency))}</td><td>${escapeHtml(formatMoney(variance.countedAmount, payload.currency))}</td><td>${escapeHtml(formatMoney(variance.varianceAmount, payload.currency))}</td></tr>`).join("");
-  const html = `<!doctype html><html lang="zh-Hant-TW"><body style="margin:0;background:#fafaf9;color:#1c1917;font-family:Arial,sans-serif"><main style="max-width:720px;margin:0 auto;padding:28px 20px"><p style="margin:0;color:#0f766e;font-weight:700">StallOrder</p><h1 style="font-size:24px;margin:8px 0 4px">${escapeHtml(typeLabel)}</h1><p style="margin:0 0 24px;color:#57534e">${escapeHtml(payload.organizationName)} · ${payload.periodStart} 至 ${payload.periodEnd}</p><table style="width:100%;border-collapse:collapse;margin-bottom:24px"><tr><td style="padding:12px;border-bottom:1px solid #e7e5e4">淨銷售額</td><td style="padding:12px;border-bottom:1px solid #e7e5e4;font-weight:700">${escapeHtml(formatMoney(payload.totals.netSales, payload.currency))}</td></tr><tr><td style="padding:12px;border-bottom:1px solid #e7e5e4">訂單／完成／取消</td><td style="padding:12px;border-bottom:1px solid #e7e5e4">${payload.totals.orderCount}／${payload.totals.completedOrderCount}／${payload.totals.cancelledOrderCount}</td></tr><tr><td style="padding:12px;border-bottom:1px solid #e7e5e4">現金短溢收</td><td style="padding:12px;border-bottom:1px solid #e7e5e4">${escapeHtml(formatMoney(payload.totals.paymentVariance, payload.currency))}</td></tr></table><h2 style="font-size:18px">攤位摘要</h2><table style="width:100%;border-collapse:collapse"><thead><tr><th align="left">攤位</th><th align="left">訂單</th><th align="left">完成</th><th align="left">淨銷售</th></tr></thead><tbody>${tableRows || '<tr><td colspan="4" style="padding:16px 0;color:#78716c">此期間沒有銷售資料。</td></tr>'}</tbody></table>${payload.variances.length ? `<h2 style="font-size:18px;margin-top:28px">付款差異</h2><table style="width:100%;border-collapse:collapse"><thead><tr><th align="left">攤位</th><th align="left">應有</th><th align="left">盤點</th><th align="left">差異</th></tr></thead><tbody>${varianceRows}</tbody></table>` : ""}<p style="margin-top:32px;color:#78716c;font-size:12px">此信由 StallOrder 排程寄送，請勿直接回覆。</p></main></body></html>`;
+  const html = `<!doctype html><html lang="zh-Hant-TW"><body style="margin:0;background:#fafaf9;color:#1c1917;font-family:Arial,sans-serif"><main style="max-width:720px;margin:0 auto;padding:28px 20px"><p style="margin:0;color:#0f766e;font-weight:700">StallOrder</p><h1 style="font-size:24px;margin:8px 0 4px">${escapeHtml(typeLabel)}</h1><p style="margin:0 0 24px;color:#57534e">${escapeHtml(payload.organizationName)} · ${payload.periodStart} 至 ${payload.periodEnd}</p><table style="width:100%;border-collapse:collapse;margin-bottom:24px"><tr><td style="padding:12px;border-bottom:1px solid #e7e5e4">訂單登記額</td><td style="padding:12px;border-bottom:1px solid #e7e5e4;font-weight:700">${escapeHtml(formatMoney(payload.totals.netSales, payload.currency))}</td></tr><tr><td style="padding:12px;border-bottom:1px solid #e7e5e4">實收現金（依收款日）</td><td style="padding:12px;border-bottom:1px solid #e7e5e4;font-weight:700">${escapeHtml(formatMoney(payload.totals.cashAmount, payload.currency))}</td></tr><tr><td style="padding:12px;border-bottom:1px solid #e7e5e4">訂單／完成／取消</td><td style="padding:12px;border-bottom:1px solid #e7e5e4">${payload.totals.orderCount}／${payload.totals.completedOrderCount}／${payload.totals.cancelledOrderCount}</td></tr><tr><td style="padding:12px;border-bottom:1px solid #e7e5e4">現金短溢收</td><td style="padding:12px;border-bottom:1px solid #e7e5e4">${escapeHtml(formatMoney(payload.totals.paymentVariance, payload.currency))}</td></tr></table><h2 style="font-size:18px">攤位摘要</h2><table style="width:100%;border-collapse:collapse"><thead><tr><th align="left">攤位</th><th align="left">訂單</th><th align="left">完成</th><th align="left">訂單登記額</th></tr></thead><tbody>${tableRows || '<tr><td colspan="4" style="padding:16px 0;color:#78716c">此期間沒有銷售資料。</td></tr>'}</tbody></table>${payload.variances.length ? `<h2 style="font-size:18px;margin-top:28px">付款差異</h2><table style="width:100%;border-collapse:collapse"><thead><tr><th align="left">攤位</th><th align="left">應有</th><th align="left">盤點</th><th align="left">差異</th></tr></thead><tbody>${varianceRows}</tbody></table>` : ""}<p style="margin-top:32px;color:#78716c;font-size:12px">此信由 StallOrder 排程寄送，請勿直接回覆。</p></main></body></html>`;
   return { html, text: lines.join("\n") };
 }
 

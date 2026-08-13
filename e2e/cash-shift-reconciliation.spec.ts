@@ -84,7 +84,7 @@ test.describe.serial("現金交班與短溢收", () => {
     const openComposerButton = page.getByRole("button", { name: "店員點餐" });
     await waitForReactHydration(openComposerButton);
     await openComposerButton.click();
-    const composer = page.getByRole("dialog", { name: "店員點餐與結帳" });
+    const composer = page.getByRole("dialog", { name: "店員點餐" });
     await expect(composer).toBeVisible();
     await composer.getByTitle(/^增加 /).first().click();
     const requiredGroups = composer.locator("fieldset");

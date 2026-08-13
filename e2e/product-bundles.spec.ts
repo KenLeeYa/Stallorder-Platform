@@ -128,7 +128,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
 
   await page.goto("/staff/aming-chicken");
   await page.getByRole("button", { name: "店員點餐", exact: true }).click();
-  const staffComposer = page.getByRole("dialog", { name: "店員點餐與結帳" });
+  const staffComposer = page.getByRole("dialog", { name: "店員點餐" });
   await expect(staffComposer.getByTestId("staff-product-card").filter({ hasText: bundleName })).toBeVisible();
 
   await page.goto("/q/demo-aming-chicken-qr-2026-rotate-me");

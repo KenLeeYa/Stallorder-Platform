@@ -216,10 +216,10 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
     try {
       const japanesePage = await japaneseContext.newPage();
       await gotoLocalPath(japanesePage, "/q/demo-aming-chicken-qr-2026-rotate-me");
-      const languageMenu = japanesePage.getByRole("button", { name: "點餐語言" });
-      await expect(languageMenu).toHaveAttribute("data-current-locale", "zh-TW");
+      const languageMenu = japanesePage.getByRole("button", { name: "メニュー言語" });
+      await expect(languageMenu).toHaveAttribute("data-current-locale", "ja");
       await languageMenu.click();
-      await expect(japanesePage.getByRole("option", { name: "日本語", exact: true })).toHaveCount(0);
+      await expect(japanesePage.getByRole("option", { name: "日本語", exact: true })).toBeVisible();
     } finally {
       await japaneseContext.close();
     }

@@ -1,13 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useAppLocale } from "@/components/locale-provider";
 import { csrfHeaders } from "@/lib/csrf-client";
-
-const labels: Record<string, string> = {
-  GOOGLE: "使用 Google 綁定",
-  LINE: "使用 LINE 綁定",
-  APPLE: "使用 Apple 綁定",
-};
+import { publicMessages } from "@/lib/messages/public";
 
 export function IdentityLinkInvitationForm({
   token,
@@ -16,6 +12,7 @@ export function IdentityLinkInvitationForm({
   token: string;
   providers: string[];
 }) {
+  const { locale } = useAppLocale();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -33,11 +30,11 @@ export function IdentityLinkInvitationForm({
       });
       const payload = await response.json();
       if (!response.ok || typeof payload.authorizationUrl !== "string") {
-        throw new Error(payload.error ?? "目前無法啟動帳號綁定。");
+        throw new Error(publicMessages.get(locale, "authLinkError"));
       }
       window.location.assign(payload.authorizationUrl);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "目前無法啟動帳號綁定。");
+      setError(caughtError instanceof Error ? caughtError.message : publicMessages.get(locale, "authLinkError"));
       setPending(null);
     }
   }
@@ -52,7 +49,19 @@ export function IdentityLinkInvitationForm({
           onClick={() => void start(provider)}
           className="min-h-12 border border-stone-300 bg-white px-4 text-sm font-semibold disabled:opacity-50"
         >
-          {pending === provider ? "前往驗證中..." : labels[provider] ?? `使用 ${provider} 綁定`}
+          {pending === provider
+            ? publicMessages.get(locale, "authLinkStarting")
+            : publicMessages.get(
+                locale,
+                provider === "GOOGLE"
+                  ? "authLinkGoogle"
+                  : provider === "LINE"
+                    ? "authLinkLine"
+                    : provider === "APPLE"
+                      ? "authLinkApple"
+                      : "authLinkProvider",
+                { provider },
+              )}
         </button>
       ))}
       {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}

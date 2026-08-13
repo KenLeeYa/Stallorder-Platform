@@ -2,22 +2,27 @@ import { CashShiftBoard, type CashShiftState } from "@/components/cash-shift-boa
 import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { requirePagePermission } from "@/lib/authorization";
 import { getCashShiftState } from "@/lib/cash-shifts";
+import { getRequestAppLocale } from "@/lib/app-locale-server";
+import { getOperationsMessage } from "@/lib/messages/operations";
 import { hasPermission } from "@/lib/rbac";
 import { getFeatureAccess } from "@/server/billing/feature-access";
 
 type PageProps = { params: Promise<{ stallSlug: string }> };
 
 export default async function CashShiftPage({ params }: PageProps) {
+  const { locale } = await getRequestAppLocale();
+  const t = (key: Parameters<typeof getOperationsMessage>[1]) => getOperationsMessage(locale, key);
   const { stallSlug } = await params;
   const { stall, roles } = await requirePagePermission(stallSlug, "VIEW_CASH_SHIFT", `/staff/${stallSlug}/cash`);
   const cashShiftAccess = await getFeatureAccess(stall.organizationId, "CASH_SHIFT");
   if (!cashShiftAccess.allowed) {
     return <FeatureUpgradeNotice
-      title="現金交班目前無法使用"
-      message={cashShiftAccess.message}
+      title={t("cash.featureUnavailable")}
+      message={t("cash.featureMessage")}
       billingHref={`/merchant/subscription?organizationId=${stall.organizationId}`}
       returnHref={`/staff/${stallSlug}`}
-      returnLabel="返回店員畫面"
+      returnLabel={t("cash.featureBack")}
+      billingLabel={t("cash.featureBilling")}
     />;
   }
   const reconciliationAccess = await getFeatureAccess(stall.organizationId, "CASH_RECONCILIATION");

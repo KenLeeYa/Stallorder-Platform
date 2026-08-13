@@ -1,17 +1,21 @@
+"use client";
+
 import Link from "next/link";
+import { useMerchantMessages } from "@/lib/messages/merchant-client";
 
 export function BillingNavigation({ organizationId, active }: {
   organizationId: string;
   active: "billing" | "plans" | "usage" | "invoices";
 }) {
+  const { m } = useMerchantMessages();
   const items = [
-    ["billing", "帳務總覽", "/merchant/billing"],
-    ["plans", "方案", "/merchant/plans"],
-    ["usage", "用量", "/merchant/usage"],
-    ["invoices", "帳單", "/merchant/billing/invoices"],
+    ["billing", m("帳務總覽"), "/merchant/billing"],
+    ["plans", m("方案"), "/merchant/plans"],
+    ["usage", m("用量"), "/merchant/usage"],
+    ["invoices", m("帳單"), "/merchant/billing/invoices"],
   ] as const;
   return (
-    <nav aria-label="訂閱與帳務" className="mt-6 flex gap-1 overflow-x-auto border-b border-stone-200">
+    <nav aria-label={m("訂閱與帳務")} className="mt-6 flex gap-1 overflow-x-auto border-b border-stone-200">
       {items.map(([key, label, href]) => (
         <Link
           key={key}

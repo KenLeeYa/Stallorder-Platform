@@ -117,6 +117,7 @@ export async function getStaffOrderPageConfiguration(
         paymentModuleEnabled: true,
         discountModuleEnabled: true,
         discountApprovalThresholdBps: true,
+        businessDayCutoffHour: true,
         maxItemQuantity: true,
         maxUniqueProducts: true,
         maxTotalQuantity: true,
@@ -131,6 +132,7 @@ export async function getStaffOrderPageConfiguration(
         paymentModuleEnabled: true,
         discountModuleEnabled: true,
         discountApprovalThresholdBps: true,
+        businessDayCutoffHour: true,
         maxItemQuantity: true,
         maxUniqueProducts: true,
         maxTotalQuantity: true,
@@ -203,6 +205,7 @@ export async function getStaffOrderPageConfiguration(
   });
 
   return {
+    businessDayCutoffHour: settings?.businessDayCutoffHour ?? 0,
     modules: {
       ...fulfillmentModules,
       print: settings?.printModuleEnabled ?? false,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { useOperationsLocale } from "@/components/operations-locale";
 import {
   findFulfillmentTimeSlot,
   uniqueFulfillmentTimeValues,
@@ -34,12 +35,13 @@ export function FulfillmentTimePicker({
   timeLabel,
   unavailableDateMessage,
   allowAsap = true,
-  asapLabel = "儘快，不指定時間",
+  asapLabel,
   required = false,
   disabled = false,
   testId,
   className = "",
 }: Props) {
+  const { t } = useOperationsLocale();
   const radioName = useId();
   const dateListId = useId();
   const selected = slots.find((slot) => slot.iso === value) ?? slots[0] ?? null;
@@ -76,7 +78,7 @@ export function FulfillmentTimePicker({
               disabled={disabled}
               onChange={() => onChange("")}
             />
-            {asapLabel}
+            {asapLabel ?? t("fulfillment.asap")}
           </label>
           <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-medium">
             <input
@@ -120,9 +122,9 @@ export function FulfillmentTimePicker({
             <p className="text-xs font-semibold text-stone-600">{timeLabel}</p>
             <div className="mt-1 grid min-w-0 grid-cols-2 gap-2">
               <label className="min-w-0 text-xs font-medium text-stone-600">
-                時（24 小時制）
+                {t("fulfillment.hour24")}
                 <select
-                  aria-label={`${timeLabel}－時`}
+                  aria-label={t("fulfillment.hourAria", { label: timeLabel })}
                   value={selected.hour}
                   required={required}
                   disabled={disabled}
@@ -136,9 +138,9 @@ export function FulfillmentTimePicker({
                 </select>
               </label>
               <label className="min-w-0 text-xs font-medium text-stone-600">
-                分（每 5 分鐘）
+                {t("fulfillment.minute5")}
                 <select
-                  aria-label={`${timeLabel}－分`}
+                  aria-label={t("fulfillment.minuteAria", { label: timeLabel })}
                   value={selected.minute}
                   required={required}
                   disabled={disabled}
@@ -154,7 +156,7 @@ export function FulfillmentTimePicker({
               </label>
             </div>
           </div>
-          <p className="text-xs text-stone-500">只會顯示店家目前可接受的日期與時段。</p>
+          <p className="text-xs text-stone-500">{t("fulfillment.availableSlotsOnly")}</p>
         </div>
       ) : null}
     </fieldset>

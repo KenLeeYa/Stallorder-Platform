@@ -189,9 +189,10 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       await staffPage.goto("/staff/aming-chicken");
       const staffOrder = staffPage.getByRole("article").filter({ hasText: testMarker });
       await expect(staffOrder).toBeVisible();
+      await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
 
       const confirmResponsePromise = waitForOrderPatch(staffPage, createdOrderId);
-      await staffOrder.getByRole("button", { name: "確認接單", exact: true }).click();
+      await staffOrder.getByRole("button", { name: "待製作", exact: true }).click();
       const confirmResponse = await confirmResponsePromise;
       expect(confirmResponse.status()).toBe(200);
       expect(confirmResponse.request().postDataJSON()).toMatchObject({ status: "CONFIRMED" });

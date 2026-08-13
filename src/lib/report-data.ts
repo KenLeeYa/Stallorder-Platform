@@ -1,11 +1,18 @@
 import "server-only";
 
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma, type PaymentMethod, type PrismaClient } from "@prisma/client";
 import { withDatabaseRead } from "@/server/database/read-router";
 
 type ProductRow = { stall_id: string; stall_name: string; product_name: string; quantity: bigint; revenue: bigint };
 type HourRow = { stall_id: string; stall_name: string; sale_hour: number; order_count: bigint; sales: bigint };
-type PaymentRow = { stall_id: string; stall_name: string; method_label: string; payment_count: bigint; amount: bigint };
+type PaymentRow = {
+  stall_id: string;
+  stall_name: string;
+  method: PaymentMethod;
+  method_label: string;
+  payment_count: bigint;
+  amount: bigint;
+};
 type CancellationRow = { stall_id: string; stall_name: string; reason: string; cancellation_count: bigint };
 type CashShiftRow = {
   id: string;
@@ -28,6 +35,15 @@ type CashShiftRow = {
   latest_review_decision: string | null;
   latest_reviewer_name: string | null;
 };
+
+export function sumPaidAmountByMethod(
+  payments: Array<{ method: PaymentMethod; amount: number }>,
+  method: PaymentMethod,
+) {
+  return payments
+    .filter((payment) => payment.method === method)
+    .reduce((sum, payment) => sum + payment.amount, 0);
+}
 
 export async function getProductAndHourlyReport(
   organizationId: string,
@@ -151,6 +167,7 @@ export async function getPaymentMethodReport(
       select
         payment.stall_id,
         stall.name as stall_name,
+        payment.method,
         payment.method_label,
         count(*)::bigint as payment_count,
         sum(payment.amount)::bigint as amount
@@ -162,13 +179,14 @@ export async function getPaymentMethodReport(
         and not order_record.is_test
         and payment.status = 'PAID'::public.payment_status
         and public.stall_business_date(stall.id, payment.paid_at) between ${dateFrom}::date and ${dateTo}::date
-      group by payment.stall_id, stall.name, payment.method_label
+      group by payment.stall_id, stall.name, payment.method, payment.method_label
       order by amount desc, payment.method_label asc
     `),
   );
   return rows.map((row) => ({
     stallId: row.stall_id,
     stallName: row.stall_name,
+    method: row.method,
     methodLabel: row.method_label,
     paymentCount: Number(row.payment_count),
     amount: Number(row.amount),

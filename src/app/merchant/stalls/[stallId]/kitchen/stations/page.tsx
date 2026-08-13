@@ -2,6 +2,7 @@ import { ListTree } from "lucide-react";
 import { KitchenStationsManager } from "@/components/kitchen-stations-manager";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { getKitchenStationConfiguration } from "@/lib/kitchen";
+import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
 import { requireKitchenManagementPage } from "@/lib/kitchen-access";
 
 type PageProps = {
@@ -10,6 +11,7 @@ type PageProps = {
 };
 
 export default async function KitchenStationsSettingsPage({ params, searchParams }: PageProps) {
+  const { m } = await getRequestMerchantMessages();
   const { stallId } = await params;
   const { source } = await searchParams;
   const { workspace, stall } = await requireKitchenManagementPage(stallId);
@@ -22,7 +24,7 @@ export default async function KitchenStationsSettingsPage({ params, searchParams
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold">
           <ListTree className="h-7 w-7 text-teal-700" />
-          KDS 工作站
+          {m("KDS 工作站")}
         </h1>
         <p className="mt-2 text-sm text-stone-600">{stall.name}</p>
       </header>

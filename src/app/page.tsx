@@ -1,7 +1,16 @@
 import Link from "next/link";
 import { ArrowRight, BarChart3, CheckCircle2, LogIn, QrCode, Store, Utensils } from "lucide-react";
+import { getRequestAppLocale } from "@/lib/app-locale-server";
+import { publicMessages } from "@/lib/messages/public";
 
-export default function Home() {
+export default async function Home() {
+  const { locale } = await getRequestAppLocale();
+  const features = [
+    ["homeQrTitle", "homeQrBody", QrCode],
+    ["homeStaffTitle", "homeStaffBody", CheckCircle2],
+    ["homePaymentTitle", "homePaymentBody", Utensils],
+    ["homeReportTitle", "homeReportBody", BarChart3],
+  ] as const;
   return (
     <main className="min-h-screen">
       <section className="border-b border-stone-200 bg-white">
@@ -12,39 +21,34 @@ export default function Home() {
               StallOrder
             </div>
             <h1 className="max-w-3xl text-5xl font-semibold tracking-normal text-stone-950 md:text-7xl">
-              攤點通
+              {publicMessages.get(locale, "homeTitle")}
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-600">
-              從顧客 QR Code 點餐、店員接單、廚房出餐到付款與銷售報表，協助商家用手機掌握現場營運，快速完成每日開店與結帳。
+              {publicMessages.get(locale, "homeDescription")}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/onboarding"
                 className="inline-flex items-center gap-2 rounded-md bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800"
               >
-                開始商戶申請
+                {publicMessages.get(locale, "homeApply")}
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/login"
                 className="inline-flex items-center gap-2 rounded-md border border-stone-300 bg-white px-5 py-3 text-sm font-semibold text-stone-900 hover:bg-stone-100"
               >
-                商戶與員工登入
+                {publicMessages.get(locale, "homeLogin")}
                 <LogIn className="h-4 w-4" />
               </Link>
             </div>
           </div>
           <div className="grid gap-4">
-            {[
-              ["顧客 QR Code 點餐", "適合行動裝置的快速選餐與送單流程。", QrCode],
-              ["員工確認訂單", "清楚管理待確認、製作中、可取餐與取消狀態。", CheckCircle2],
-              ["多元付款與折扣", "由授權員工記錄付款、折扣、實收與找零。", Utensils],
-              ["每日銷售報表", "檢視營業額、訂單數、未付款訂單與熱銷商品。", BarChart3],
-            ].map(([title, body, Icon]) => (
-              <div key={title as string} className="rounded-lg border border-stone-200 bg-stone-50 p-5">
+            {features.map(([titleKey, bodyKey, Icon]) => (
+              <div key={titleKey} className="rounded-lg border border-stone-200 bg-stone-50 p-5">
                 <Icon className="mb-4 h-6 w-6 text-teal-700" />
-                <h2 className="text-base font-semibold text-stone-950">{title as string}</h2>
-                <p className="mt-2 text-sm leading-6 text-stone-600">{body as string}</p>
+                <h2 className="text-base font-semibold text-stone-950">{publicMessages.get(locale, titleKey)}</h2>
+                <p className="mt-2 text-sm leading-6 text-stone-600">{publicMessages.get(locale, bodyKey)}</p>
               </div>
             ))}
           </div>

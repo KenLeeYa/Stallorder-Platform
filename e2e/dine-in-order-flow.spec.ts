@@ -242,14 +242,15 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await login(staffPage, "staff@stallorder.test");
   await staffPage.goto("/staff/aming-chicken");
   const staffMain = staffPage.getByRole("main");
-  await expect(staffMain.getByRole("switch", { name: /新訂單提醒/ })).toBeVisible();
+  await expect(staffMain.getByRole("switch", { name: /新單提示音已(?:開啟|關閉)/ })).toBeVisible();
   await staffMain.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("A1");
   const staffOrder = staffMain.getByRole("article").filter({ hasText: customerName });
   await expect(staffOrder).toContainText("內用 · A1 桌");
-  await staffOrder.getByRole("button", { name: "確認接單" }).click();
-  await expect(staffOrder).toContainText("已確認");
+  await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
+  await staffOrder.getByRole("button", { name: "待製作", exact: true }).click();
+  await expect(staffOrder).toContainText("待製作");
   await captureMobileScreenshot(staffPage, testInfo, "03-staff-order-confirmed");
-  await verifyCompactViewport(staffPage, [staffOrder, staffOrder.getByText("已確認", { exact: true })]);
+  await verifyCompactViewport(staffPage, [staffOrder, staffOrder.getByText("待製作", { exact: true }).first()]);
 
   const kitchenContext = await browser.newContext({
     locale: "zh-TW",

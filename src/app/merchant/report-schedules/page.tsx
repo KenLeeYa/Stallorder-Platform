@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { ReportScheduleManager } from "@/components/report-schedule-manager";
 import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
+import { getRequestAppLocale } from "@/lib/app-locale-server";
+import { createReportScheduleTranslator } from "@/lib/messages/report-schedules";
 import { hasPermission } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getReportScheduleManagementData, reportDeliveryMode } from "@/lib/report-schedule-data";
@@ -10,6 +12,8 @@ import { getFeatureAccess } from "@/server/billing/feature-access";
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string }> };
 
 export default async function ReportSchedulesPage({ searchParams }: PageProps) {
+  const { locale } = await getRequestAppLocale();
+  const t = createReportScheduleTranslator(locale);
   const { organizationId, stallId } = await searchParams;
   const { workspaces } = await requireWorkspacePage();
   if (!organizationId && workspaces.length > 1) redirect("/select-organization");
@@ -20,11 +24,11 @@ export default async function ReportSchedulesPage({ searchParams }: PageProps) {
   if (!featureAccess.allowed) {
     return (
       <FeatureUpgradeNotice
-        title="排程報表尚未開放"
+        title={t("schedule.featureTitle")}
         message={featureAccess.message}
         billingHref={`/merchant/subscription?organizationId=${workspace.id}`}
         returnHref={`/merchant/stalls?organizationId=${workspace.id}`}
-        returnLabel="返回管理攤位"
+        returnLabel={t("schedule.backToStalls")}
         returnStallId={returnStallId}
       />
     );

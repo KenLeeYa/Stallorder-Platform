@@ -3,9 +3,13 @@ import {
   QR_LOCALES,
   localizedPublicOrderError,
   localizedQrCategory,
+  parseQrLocalePreference,
   preserveSupportedQrLocale,
   qrOrderMessages,
+  resolveQrCatalogLocale,
+  resolveQrUiLocale,
   resolvePreferredQrLocale,
+  serializeQrLocalePreference,
 } from "./qr-order-i18n";
 
 describe("commercial QR errors", () => {
@@ -57,6 +61,48 @@ describe("QR 點餐瀏覽器語系", () => {
     expect(preserveSupportedQrLocale("ja", ["en", "ja"])).toBe("ja");
     expect(preserveSupportedQrLocale("en", ["en", "ja"])).toBe("en");
     expect(preserveSupportedQrLocale("ja", ["en"])).toBe("zh-TW");
+  });
+});
+
+describe("QR 介面語系與商品語系分離", () => {
+  it("明確的 ?locale=vi 優先於既有手動偏好與系統語系", () => {
+    const resolved = resolveQrUiLocale({
+      queryLocale: "vi",
+      storedPreference: serializeQrLocalePreference("ja"),
+      legacyLocale: "ko",
+      appLocale: "en",
+    });
+
+    expect(resolved).toEqual({ locale: "vi", source: "query", shouldMigrateLegacy: false });
+  });
+
+  it("保留新版手動選擇，並安全遷移舊版手動選擇", () => {
+    expect(resolveQrUiLocale({
+      storedPreference: serializeQrLocalePreference("th"),
+      legacyLocale: "ko",
+      appLocale: "en",
+    })).toEqual({ locale: "th", source: "manual", shouldMigrateLegacy: false });
+    expect(resolveQrUiLocale({ legacyLocale: "ko", appLocale: "en" })).toEqual({
+      locale: "ko",
+      source: "legacy",
+      shouldMigrateLegacy: true,
+    });
+  });
+
+  it("忽略無效偏好並使用 AppLocale", () => {
+    expect(parseQrLocalePreference("not-json")).toBeNull();
+    expect(parseQrLocalePreference(JSON.stringify({ version: 1, locale: "vi", source: "manual" }))).toBeNull();
+    expect(resolveQrUiLocale({
+      queryLocale: "fr",
+      storedPreference: JSON.stringify({ version: 2, locale: "fr", source: "manual" }),
+      legacyLocale: "fr",
+      appLocale: "ja",
+    })).toEqual({ locale: "ja", source: "app", shouldMigrateLegacy: false });
+  });
+
+  it("介面維持越南文，商家無越南文商品時僅商品內容回退繁中", () => {
+    expect(resolveQrCatalogLocale("vi", ["en", "ja"])).toBe("zh-TW");
+    expect(resolveQrCatalogLocale("vi", ["vi", "en"])).toBe("vi");
   });
 });
 

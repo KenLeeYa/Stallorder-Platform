@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { Clock3, Save } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { businessDayLabels } from "@/lib/business-hours";
+import { formatAppDate } from "@/lib/locale-format";
+import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import { useUnsavedSettings } from "@/lib/unsaved-settings";
 
 export type BusinessHourView = {
@@ -14,6 +16,7 @@ export type BusinessHourView = {
 };
 
 export function StallBusinessHoursManager({ stallId, initialHours }: { stallId: string; initialHours: BusinessHourView[] }) {
+  const { locale, m, label } = useMerchantMessages();
   const normalized = businessDayLabels.map((_, dayOfWeek) => initialHours.find((hour) => hour.dayOfWeek === dayOfWeek) ?? { dayOfWeek, opensAt: "17:00", closesAt: "23:00", isClosed: false });
   const [hours, setHours] = useState(normalized);
   const [savedHours, setSavedHours] = useState(normalized);
@@ -42,9 +45,11 @@ export function StallBusinessHoursManager({ stallId, initialHours }: { stallId: 
       });
       const payload = await response.json();
       if (!response.ok) {
-        const nextFieldErrors = parseFieldErrors(payload.fieldErrors);
+        const nextFieldErrors = Object.fromEntries(
+          Object.entries(parseFieldErrors(payload.fieldErrors)).map(([field, error]) => [field, label(error)]),
+        );
         setFieldErrors(nextFieldErrors);
-        setMessage(payload.error ?? "目前無法儲存營業時間。");
+        setMessage(typeof payload.error === "string" ? label(payload.error) : m("目前無法儲存營業時間。"));
         setHasError(true);
         focusFirstInvalidField(containerRef.current, nextFieldErrors);
         return;
@@ -52,21 +57,21 @@ export function StallBusinessHoursManager({ stallId, initialHours }: { stallId: 
       const next = businessDayLabels.map((_, dayOfWeek) => payload.hours.find((hour: BusinessHourView) => hour.dayOfWeek === dayOfWeek));
       setHours(next);
       setSavedHours(next);
-      setMessage("營業時間已儲存。");
+      setMessage(m("營業時間已儲存。"));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "目前無法儲存營業時間。");
+      setMessage(error instanceof Error ? label(error.message) : m("目前無法儲存營業時間。"));
       setHasError(true);
     } finally {
       setBusy(false);
     }
   }
 
-  return <section ref={containerRef} aria-labelledby="business-hours-heading" data-settings-section data-settings-scope="business-hours" data-settings-search="營業時間 星期 開店 打烊 公休 多攤位範本" className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500">
+  return <section ref={containerRef} aria-labelledby="business-hours-heading" data-settings-section data-settings-scope="business-hours" data-settings-search={m("營業時間 星期 開店 打烊 公休 多攤位範本")} className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500">
     <div className="flex min-h-14 items-center gap-3 py-3 text-left">
       <Clock3 aria-hidden="true" className="h-5 w-5 shrink-0 text-teal-700" />
       <div className="min-w-0 flex-1">
-        <h2 id="business-hours-heading" className="text-lg font-semibold">營業時間</h2>
-        <p className="mt-1 text-sm text-stone-600">{dirty ? "有尚未儲存的變更" : "可供多攤位範本複製。"}</p>
+        <h2 id="business-hours-heading" className="text-lg font-semibold">{m("營業時間")}</h2>
+        <p className="mt-1 text-sm text-stone-600">{dirty ? m("有尚未儲存的變更") : m("可供多攤位範本複製。")}</p>
       </div>
     </div>
     <div className="pb-6">
@@ -74,9 +79,9 @@ export function StallBusinessHoursManager({ stallId, initialHours }: { stallId: 
       <div className="divide-y divide-stone-200 border-y border-stone-200">{hours.map((hour, index) => {
         const opensAtKey = `hours.${index}.opensAt`;
         const closesAtKey = `hours.${index}.closesAt`;
-        return <div key={hour.dayOfWeek} className="grid gap-3 py-3 sm:grid-cols-[100px_100px_1fr] sm:items-center"><strong className="text-sm">{businessDayLabels[hour.dayOfWeek]}</strong><label className="flex items-center gap-2 text-xs font-semibold text-stone-600"><input type="checkbox" checked={hour.isClosed} onChange={(event) => update(hour.dayOfWeek, { isClosed: event.target.checked })} />公休</label><div className="grid grid-cols-2 gap-3"><label className="text-xs font-semibold text-stone-600">開始<input {...fieldValidationProps(opensAtKey, fieldErrors[opensAtKey])} type="time" disabled={hour.isClosed} value={hour.opensAt} onChange={(event) => update(hour.dayOfWeek, { opensAt: event.target.value })} className={timeInputClass(fieldErrors[opensAtKey])} />{fieldErrors[opensAtKey] ? <span id={fieldErrorId(opensAtKey)} role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors[opensAtKey]}</span> : null}</label><label className="text-xs font-semibold text-stone-600">結束<input {...fieldValidationProps(closesAtKey, fieldErrors[closesAtKey])} type="time" disabled={hour.isClosed} value={hour.closesAt} onChange={(event) => update(hour.dayOfWeek, { closesAt: event.target.value })} className={timeInputClass(fieldErrors[closesAtKey])} />{fieldErrors[closesAtKey] ? <span id={fieldErrorId(closesAtKey)} role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors[closesAtKey]}</span> : null}</label></div></div>;
+        return <div key={hour.dayOfWeek} className="grid gap-3 py-3 sm:grid-cols-[100px_100px_1fr] sm:items-center"><strong className="text-sm">{formatAppDate(locale, new Date(Date.UTC(2024, 0, 7 + hour.dayOfWeek)), { weekday: "long", timeZone: "UTC" })}</strong><label className="flex items-center gap-2 text-xs font-semibold text-stone-600"><input type="checkbox" checked={hour.isClosed} onChange={(event) => update(hour.dayOfWeek, { isClosed: event.target.checked })} />{m("公休")}</label><div className="grid grid-cols-2 gap-3"><label className="text-xs font-semibold text-stone-600">{m("開始")}<input {...fieldValidationProps(opensAtKey, fieldErrors[opensAtKey])} type="time" disabled={hour.isClosed} value={hour.opensAt} onChange={(event) => update(hour.dayOfWeek, { opensAt: event.target.value })} className={timeInputClass(fieldErrors[opensAtKey])} />{fieldErrors[opensAtKey] ? <span id={fieldErrorId(opensAtKey)} role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors[opensAtKey]}</span> : null}</label><label className="text-xs font-semibold text-stone-600">{m("結束")}<input {...fieldValidationProps(closesAtKey, fieldErrors[closesAtKey])} type="time" disabled={hour.isClosed} value={hour.closesAt} onChange={(event) => update(hour.dayOfWeek, { closesAt: event.target.value })} className={timeInputClass(fieldErrors[closesAtKey])} />{fieldErrors[closesAtKey] ? <span id={fieldErrorId(closesAtKey)} role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors[closesAtKey]}</span> : null}</label></div></div>;
       })}</div>
-      <button type="button" disabled={busy || !dirty} onClick={() => void save()} className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存營業時間</button>
+      <button type="button" disabled={busy || !dirty} onClick={() => void save()} className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{m("儲存營業時間")}</button>
     </div>
   </section>;
 }
