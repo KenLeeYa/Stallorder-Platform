@@ -35,6 +35,8 @@ jobs:
       PREVIEW_BRANCH_NAME: ${{ github.event_name == 'pull_request' && format('pr-{0}-oauth-delivery', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
       PREVIEW_RESOURCE_KEY: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      OPENAI_TRANSLATION_ENABLED: "true"
+      AI_TRANSLATION_PROVIDER: vercel-ai-gateway
       ALLOW_DEMO_SEED: "false"
     steps:
       - uses: actions/checkout@v4
@@ -327,6 +329,8 @@ jobs:
               --build-env "BACKEND_ACTIVE_TARGET=$BACKEND_ACTIVE_TARGET" \
               --build-env "AUTH_PROJECT_CODE=$AUTH_PROJECT_CODE" \
               --build-env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
+              --build-env "OPENAI_TRANSLATION_ENABLED=$OPENAI_TRANSLATION_ENABLED" \
+              --build-env "AI_TRANSLATION_PROVIDER=$AI_TRANSLATION_PROVIDER" \
               --env "DATABASE_URL=$DATABASE_URL" \
               --env "DIRECT_URL=$DIRECT_URL" \
               --env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
@@ -349,6 +353,8 @@ jobs:
               --env "BACKEND_ACTIVE_TARGET=$BACKEND_ACTIVE_TARGET" \
               --env "AUTH_PROJECT_CODE=$AUTH_PROJECT_CODE" \
               --env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
+              --env "OPENAI_TRANSLATION_ENABLED=$OPENAI_TRANSLATION_ENABLED" \
+              --env "AI_TRANSLATION_PROVIDER=$AI_TRANSLATION_PROVIDER" \
               --env "REPORT_DELIVERY_MODE=simulate"
           )"
           deployment_id="$(jq -r '.deployment.id // .id // empty' <<<"$deployment")"

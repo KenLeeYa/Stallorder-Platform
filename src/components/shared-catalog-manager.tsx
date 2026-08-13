@@ -206,6 +206,7 @@ export function SharedCatalogManager({
   initialReusableNotes,
   enabledTranslationLocales,
   aiTranslationConfigured,
+  aiTranslationProviderLabel,
 }: {
   organizationId: string;
   currency: string;
@@ -215,6 +216,7 @@ export function SharedCatalogManager({
   initialReusableNotes: ReusableProductNoteView[];
   enabledTranslationLocales: TranslationLocale[];
   aiTranslationConfigured: boolean;
+  aiTranslationProviderLabel: string;
 }) {
   const [catalog, setCatalog] = useState(initialCatalog);
   const [catalogOpen, setCatalogOpen] = useState(true);
@@ -341,7 +343,7 @@ export function SharedCatalogManager({
 
   async function translateMissingContent() {
     const confirmed = window.confirm(
-      "將把已啟用商品與註記的繁體中文名稱、說明傳送至 OpenAI，補齊目前啟用語系的缺漏翻譯。既有人工翻譯不會被覆蓋。確定執行？",
+      `將把已啟用商品與註記的繁體中文名稱、說明傳送至 ${aiTranslationProviderLabel}，補齊目前啟用語系的缺漏翻譯。既有人工翻譯不會被覆蓋。確定執行？`,
     );
     if (!confirmed) return;
     setAiTranslating(true);

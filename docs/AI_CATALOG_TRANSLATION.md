@@ -19,7 +19,7 @@
 2. 驗證 CSRF、JSON Content-Type、內容大小與嚴格的 Zod 請求格式。
 3. 套用操作人與組織兩個維度的 rate limit。
 4. 從資料庫讀取已啟用商品與註記，建立「只補缺漏」計畫。
-5. 依語系分批呼叫 OpenAI Responses API。
+5. 依語系分批呼叫已設定供應器的 Responses API（OpenAI Direct 或 Vercel AI Gateway）。
 6. 使用 Structured Outputs 驗證欄位型態，再驗證鍵值完整、無重複、無未知項目。
 7. 全部批次成功後，才在單一 Prisma transaction 內合併翻譯。
 8. 寫入前重新讀取翻譯；若翻譯期間有人補上人工內容，保留人工內容。
@@ -46,16 +46,25 @@
 - Session、CSRF、QR、Turnstile token
 - 資料庫連線或其他 Secret
 
-OpenAI 請求設定 `store: false`。介面執行前會明確告知商家上述內容將送至 OpenAI。
+介面執行前會明確顯示實際供應器與模型。OpenAI Direct 請求設定 `store: false`；
+Vercel AI Gateway 請求設定每次 `zeroDataRetention: true`，Gateway 不留存提示詞或輸出，
+並只路由至具 ZDR 協議的下游供應器。預設 Gateway 模型為
+`openai/gpt-5.4`。每筆請求會將混合中文中的連續拉丁字詞視為商家刻意保留字；寫入前會
+驗證這些字詞的 NFKC 相容形式、順序與邊界，並以 NFKC 後的數字序列驗證數字沒有新增、
+遺漏或調換。
+單位及一般語意正確性由模型指令、五語金標菜單與原生語者 QA 驗證；此程式防線不宣稱能
+完整理解所有語言的單位或辨識純拉丁來源中的每一個品牌。
 
 ## 環境變數
 
 ```dotenv
 OPENAI_TRANSLATION_ENABLED="true"
+AI_TRANSLATION_PROVIDER="openai"
 OPENAI_API_KEY="<server-only-secret>"
 OPENAI_TRANSLATION_MODEL="gpt-5.6-luna"
 ```
 
+- `AI_TRANSLATION_PROVIDER` 未設定時預設為 `openai`；也可設為 `vercel-ai-gateway`。
 - `OPENAI_API_KEY` 只能存在於伺服器環境，不得使用 `NEXT_PUBLIC_` 前綴。
 - `OPENAI_TRANSLATION_ENABLED` 是緊急停用開關；預設為 `false`。
 - `OPENAI_TRANSLATION_MODEL` 可覆寫模型，但只接受安全的模型名稱格式。
@@ -63,6 +72,31 @@ OPENAI_TRANSLATION_MODEL="gpt-5.6-luna"
   並將 reasoning effort 設為 `none`，降低此明確翻譯工作的等待時間。
 - 建議先只在 Staging 設定並執行人工 QA，再同步至 Production。
 - 應在 OpenAI 專案設定獨立的支出與速率上限。
+
+Vercel AI Gateway 設定：
+
+```dotenv
+OPENAI_TRANSLATION_ENABLED="true"
+AI_TRANSLATION_PROVIDER="vercel-ai-gateway"
+AI_GATEWAY_TRANSLATION_MODEL="openai/gpt-5.4"
+```
+
+- Vercel build 可讀取平台注入的 `VERCEL_OIDC_TOKEN`；Vercel Function 則在每個請求的
+  `x-vercel-oidc-token` header 提供短效憑證。本功能使用官方 `@vercel/oidc`
+  `getVercelOidcToken()` 於 request context 動態取得，不快取也不傳到瀏覽器。
+- 本機開發可用 `vercel env pull` 取得短效 `VERCEL_OIDC_TOKEN`，或設定持久的
+  `AI_GATEWAY_API_KEY`。優先序為 `AI_GATEWAY_API_KEY`、當次 request OIDC、
+  本機 `VERCEL_OIDC_TOKEN`。
+- `vercel env pull` 取得的 OIDC token 只有 12 小時效期，不得另存成 Vercel
+  runtime 環境變數；到期時應重新執行 `vercel env pull`。
+- 取用 OIDC 時保留六分鐘到期緩衝，避免最長五分鐘的翻譯工作在執行途中失效。
+- Gateway 每次請求強制 ZDR（Vercel Pro 或 Enterprise）；若所選模型沒有可用的
+  ZDR 下游供應器，請求會失敗且不寫入翻譯。
+- OIDC 只處理認證；Gateway team/project 仍須有 credits，且不得超過 budget。
+  失敗稽核會以不含上游訊息或憑證的固定分類記錄：認證、餘額／預算、速率限制、
+  權限／驗證、模型／路由或一般上游失敗。
+- Preview 驗證需包含五個目標語系的實際寫回抽查。升級到 Staging 或 Production 前，
+  必須另做目前模型可用性檢查、金標菜單評測與原生語者審核；Preview 成功不等同 Production 核准。
 
 未完成設定時，介面的 AI 翻譯按鈕會停用，API 也會以 `503` 拒絕。
 
@@ -113,3 +147,7 @@ Rate limit：
 - [OpenAI Responses API text generation](https://developers.openai.com/api/docs/guides/text)
 - [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
 - [GPT-5.6 Luna model](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
+- [Vercel AI Gateway OIDC](https://vercel.com/docs/ai-gateway/authentication-and-byok/oidc)
+- [Vercel AI Gateway Zero Data Retention](https://vercel.com/docs/ai-gateway/security-and-compliance/zdr)
+- [Vercel AI Gateway Budgets](https://vercel.com/docs/ai-gateway/observability-and-spend/budgets)
+- [Vercel AI Gateway models endpoint](https://ai-gateway.vercel.sh/v1/models)
