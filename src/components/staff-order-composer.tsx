@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { PaymentOptionKind, UserRole } from "@prisma/client";
-import { List, Minus, Package, Plus, Send, ShoppingCart, Truck, Utensils, X } from "lucide-react";
+import { ChevronDown, List, Minus, Package, Plus, Send, ShoppingCart, Truck, Utensils, X } from "lucide-react";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
 import { StaffDiscountSelector } from "@/components/staff-discount-selector";
 import { csrfHeaders } from "@/lib/csrf-client";
@@ -77,6 +77,7 @@ export function StaffOrderComposer({
   const [message, setMessage] = useState("");
   const [activePane, setActivePane] = useState<"MENU" | "CART">("MENU");
   const [catalogExpanded, setCatalogExpanded] = useState(true);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => new Set());
 
   const productsById = useMemo(
     () => new Map(catalog.products.map((product) => [product.id, product])),
@@ -154,6 +155,33 @@ export function StaffOrderComposer({
   function switchPane(pane: "MENU" | "CART") {
     setActivePane(pane);
     scrollContainerRef.current?.scrollTo({ top: 0 });
+  }
+
+  function expandCategory(category: string) {
+    setCollapsedCategories((current) => {
+      if (!current.has(category)) return current;
+      const next = new Set(current);
+      next.delete(category);
+      return next;
+    });
+  }
+
+  function toggleCategory(category: string) {
+    setCollapsedCategories((current) => {
+      const next = new Set(current);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  }
+
+  function toggleCatalog() {
+    if (catalogExpanded) {
+      setCatalogExpanded(false);
+      return;
+    }
+    setCollapsedCategories(new Set());
+    setCatalogExpanded(true);
   }
 
   function selectFulfillmentType(next: "TAKEOUT" | "DINE_IN" | "DELIVERY") {
@@ -299,6 +327,7 @@ export function StaffOrderComposer({
     setBundleSelections((current) => ({ ...current, [line.productId]: line.bundleChoiceIds }));
     setEditingLineIds((current) => ({ ...current, [line.productId]: line.id }));
     setCatalogExpanded(true);
+    expandCategory(product.category);
     setActiveCategory(product.category);
     switchPane("MENU");
     window.setTimeout(() => document.getElementById(`staff-product-${line.productId}`)?.scrollIntoView({
@@ -569,7 +598,7 @@ export function StaffOrderComposer({
                 data-testid="staff-product-list-toggle"
                 aria-expanded={catalogExpanded}
                 aria-controls="staff-product-list"
-                onClick={() => setCatalogExpanded((expanded) => !expanded)}
+                onClick={toggleCatalog}
                 className="min-h-11 rounded-md border border-stone-300 px-3 text-sm font-semibold text-teal-800"
               >
                 {catalogExpanded ? "收合全部商品" : "展開全部商品"}
@@ -578,14 +607,32 @@ export function StaffOrderComposer({
 
             {catalogExpanded ? <div id="staff-product-list" data-testid="staff-product-list">
             <nav aria-label="商品分類" className="-mx-4 mt-2 flex gap-2 overflow-x-auto border-b border-stone-200 px-4 py-2 sm:-mx-6 sm:px-6 lg:hidden">
-              {categories.map((category) => <button key={category} type="button" aria-pressed={activeCategory === category} onClick={() => setActiveCategory(category)} className={`min-h-11 shrink-0 rounded-md border px-3 text-sm font-semibold ${activeCategory === category ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-700"}`}>{category}</button>)}
+              {categories.map((category) => <button key={category} type="button" aria-pressed={activeCategory === category} onClick={() => { setActiveCategory(category); expandCategory(category); }} className={`min-h-11 shrink-0 rounded-md border px-3 text-sm font-semibold ${activeCategory === category ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-700"}`}>{category}</button>)}
             </nav>
 
             <div className="mt-7 space-y-7">
-              {categories.map((category) => (
-                <section key={category} className={activeCategory === category ? "block" : "hidden lg:block"}>
-                  <h3 className="border-b border-stone-200 pb-2 text-sm font-semibold text-stone-600">{category}</h3>
-                  <div className="divide-y divide-stone-100">
+              {categories.map((category, categoryIndex) => {
+                const categoryCollapsed = collapsedCategories.has(category);
+                const categoryPanelId = `staff-product-group-${categoryIndex}`;
+                return (
+                <section key={category} data-testid="staff-product-group" data-category={category} className={activeCategory === category ? "block" : "hidden lg:block"}>
+                  <h3 className="border-b border-stone-200">
+                    <button
+                      type="button"
+                      aria-expanded={!categoryCollapsed}
+                      aria-controls={categoryPanelId}
+                      aria-label={`${categoryCollapsed ? "展開" : "收合"}商品群組 ${category}`}
+                      onClick={() => toggleCategory(category)}
+                      className="flex min-h-11 w-full items-center justify-between gap-3 pb-2 text-left text-sm font-semibold text-stone-600"
+                    >
+                      <span>{category}</span>
+                      <span className="inline-flex items-center gap-1 text-xs text-teal-800">
+                        {categoryCollapsed ? "展開" : "收合"}
+                        <ChevronDown className={`h-4 w-4 transition-transform ${categoryCollapsed ? "" : "rotate-180"}`} />
+                      </span>
+                    </button>
+                  </h3>
+                  {!categoryCollapsed ? <div id={categoryPanelId} className="divide-y divide-stone-100">
                     {catalog.products.filter((product) => product.category === category).map((product) => {
                       const quantity = quantities[product.id] ?? 0;
                       const cartQuantity = cartQuantitiesByProduct.get(product.id) ?? 0;
@@ -632,9 +679,10 @@ export function StaffOrderComposer({
                         {quantity > 0 ? <button type="button" onClick={() => addProductToCart(product)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white"><ShoppingCart className="h-4 w-4" />{editingLineIds[product.id] ? "修改完成" : "加入購物車"}</button> : null}
                       </article>;
                     })}
-                  </div>
+                  </div> : null}
                 </section>
-              ))}
+                );
+              })}
               {catalog.products.length === 0 ? <p className="py-12 text-center text-sm text-stone-500">目前沒有可供應商品。</p> : null}
             </div>
             </div> : <p role="status" className="py-5 text-center text-sm text-stone-500">商品列表已收合，已選商品仍保留在購物車。</p>}

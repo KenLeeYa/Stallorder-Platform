@@ -21,10 +21,10 @@ const routes = [
 ];
 
 const publicRoutes = [
-  "/menu/aming-chicken",
+  "/store/aming-01?view=menu",
   "/q/demo-aming-chicken-qr-2026-rotate-me",
-  "/s/aming-chicken",
-  "/delivery/aming-chicken",
+  "/store/aming-01?view=pickup",
+  "/store/aming-01?view=delivery",
 ];
 
 const canonicalRoutePaths: Record<string, string> = {
@@ -69,6 +69,19 @@ test("核心營運頁面在手機、平板與桌面不產生全頁水平溢位",
   }
 });
 
+test("舊公開連結在 HTTP 層導向攤位代碼入口", async ({ request }) => {
+  for (const [legacyPath, view] of [
+    ["/menu/aming-chicken", "menu"],
+    ["/s/aming-chicken", "pickup"],
+    ["/delivery/aming-chicken", "delivery"],
+  ] as const) {
+    const response = await request.get(legacyPath, { maxRedirects: 0 });
+    expect(response.status()).toBe(307);
+    const location = response.headers().location;
+    expect(location).toBe(`/store/aming-01?view=${view}`);
+  }
+});
+
 for (const viewport of [
   { name: "compact-mobile", width: 320, height: 568 },
   { name: "mobile", width: 390, height: 844 },
@@ -78,7 +91,7 @@ for (const viewport of [
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
 
     for (const route of publicRoutes) {
-      await gotoLocalPath(page, route);
+      await gotoLocalPath(page, route, canonicalRoutePaths[route] ?? route);
       await expect(page.locator("body")).toBeVisible();
       await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
       expect(

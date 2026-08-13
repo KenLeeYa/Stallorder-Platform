@@ -169,7 +169,24 @@ export function StallEditor({
         <form ref={basicFormRef} noValidate onSubmit={submitBasic} className="pb-7">
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <Field label="攤位名稱" field="name" error={fieldErrors.name}><input {...fieldValidationProps("name", fieldErrors.name)} type="text" value={draft.name} onChange={(event) => update("name", event.target.value)} required maxLength={80} className={inputClass(fieldErrors.name)} /></Field>
-            <Field label="攤位代碼" field="code" error={fieldErrors.code}><input {...fieldValidationProps("code", fieldErrors.code)} type="text" value={draft.code} onChange={(event) => update("code", event.target.value.toUpperCase())} required maxLength={30} pattern="[A-Za-z0-9-]+" className={`${inputClass(fieldErrors.code)} uppercase`} /></Field>
+            <Field label="攤位代碼" field="code" error={fieldErrors.code}>
+              <input
+                {...fieldValidationProps("code", fieldErrors.code, isEditing ? "stall-code-immutable-hint" : undefined)}
+                type="text"
+                value={draft.code}
+                onChange={(event) => update("code", event.target.value.toUpperCase())}
+                readOnly={isEditing}
+                required
+                maxLength={PUBLIC_IDENTIFIER_MAX_LENGTH}
+                pattern="[A-Za-z0-9-]+"
+                className={`${inputClass(fieldErrors.code)} uppercase read-only:cursor-not-allowed read-only:bg-stone-100 read-only:text-stone-600`}
+              />
+              {isEditing ? (
+                <span id="stall-code-immutable-hint" className="mt-1.5 block text-xs leading-5 text-stone-600">
+                  為確保公開商店網址穩定，攤位建立後代碼即鎖定；如需更正，請聯絡平台管理員。
+                </span>
+              ) : null}
+            </Field>
             {!isEditing ? (
               <Field label="公開識別名稱" field="slug" error={fieldErrors.slug} full>
                 <PublicIdentifierInputHint hintId="new-stall-public-identifier-rules">

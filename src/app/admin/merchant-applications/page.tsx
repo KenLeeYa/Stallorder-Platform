@@ -35,7 +35,7 @@ export default async function MerchantApplicationsAdminPage({
           {riskLevels.map((risk) => <option key={risk} value={risk}>{riskLabel(risk)}</option>)}
         </FilterSelect>
         <FilterSelect name="duplicateReason" label="重複訊號" value={value(query.duplicateReason)}>
-          <option value="DUPLICATE_EMAIL">電子郵件</option><option value="DUPLICATE_PHONE">電話</option><option value="DUPLICATE_SLUG">網址</option>
+          <option value="DUPLICATE_EMAIL">電子郵件</option><option value="DUPLICATE_PHONE">電話</option><option value="DUPLICATE_SLUG">網址／攤位代碼</option>
         </FilterSelect>
         <FilterSelect name="reviewer" label="審核人" value={value(query.reviewer)}>
           <option value="UNASSIGNED">未指派</option><option value="ASSIGNED">已指派</option>

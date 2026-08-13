@@ -1,4 +1,4 @@
-const CACHE_NAME = "stallorder-shell-v4";
+const CACHE_NAME = "stallorder-shell-v5";
 const OFFLINE_URL = "/offline";
 const OFFLINE_DB_NAME = "stallorder-offline-pos";
 const SHELL_ASSETS = [
@@ -168,8 +168,10 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
+    const isLegacyStorefrontNavigation = /^\/(?:menu|s|delivery)\/[^/]+$/.test(url.pathname);
+    if (isLegacyStorefrontNavigation) return;
     const isPublicMenuNavigation = /^\/q\/[^/]+$/.test(url.pathname)
-      || /^\/delivery\/[^/]+$/.test(url.pathname);
+      || /^\/store\/[^/]+$/.test(url.pathname);
     event.respondWith(isPublicMenuNavigation
       ? networkFirstPublicMenuNavigation(request)
       : fetch(request).catch(() => caches.match(OFFLINE_URL)));

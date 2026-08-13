@@ -151,6 +151,10 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     await expect(page).toHaveURL(new RegExp(`/merchant/setup\\?organizationId=${organizationId}`));
     await expect(page.getByRole("heading", { name: "開店設定" })).toBeVisible();
     await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "返回攤位設定", exact: true })).toHaveAttribute(
+      "href",
+      `/merchant/stalls/${organization.stalls[0].id}`,
+    );
 
     await gotoLocalPath(page, `/merchant/stalls/${organization.stalls[0].id}`);
     await expect(page.getByRole("link", { name: "開店設定", exact: true })).toHaveAttribute(

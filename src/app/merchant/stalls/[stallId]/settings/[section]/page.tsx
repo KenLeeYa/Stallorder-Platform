@@ -102,7 +102,7 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
     content = (
       <StallModulesManager
         stallId={stall.id}
-        stallSlug={stall.slug}
+        stallCode={stall.code}
         appUrl={process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}
         initialState={moduleState}
       />

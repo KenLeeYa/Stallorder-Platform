@@ -31,7 +31,12 @@
 | MULTI_STALL_BASIC | 關 | 關 | 開 | 開 | 可設定 |
 | MULTI_STALL_DASHBOARD / ADVANCED_REPORTS | 關 | 關 | 關 | 開 | 可設定 |
 | SCHEDULED_REPORTS / CUSTOM_BRANDING / AUDIT_VIEWER / OPERATIONAL_ALERTS | 關 | 關 | 關 | 開 | 可設定 |
+| PRINTER_INTEGRATION | 關 | 關 | 關 | 包含；攤位層級選擇啟用 | 包含且可設定；攤位層級選擇啟用 |
 | API_ACCESS / WEBHOOK_ACCESS / CUSTOM_DOMAIN / WHITE_LABEL / SSO | 關 | 關 | 關 | 關 | 可設定且需人工核准 |
+
+`20260813090000_enable_pro_printer_entitlement.sql` 是明確且可稽核的既有合約權益授予：所有已存在的 PRO 與 ENTERPRISE `plan_versions`（不論目錄啟用狀態或生效區間）均取得 `PRINTER_INTEGRATION`。Migration 保留既有 `limit_value` 與其他 `configuration_json` 設定，只合併 `merchantModuleOptIn: true`；它不會自動開啟任何攤位的 `print_module_enabled`。
+
+這項一次性授予只涵蓋 migration 執行當下已存在的版本。之後建立 PRO 或 ENTERPRISE 版本時，必須在不可變的 entitlement snapshot 中明確寫入 `PRINTER_INTEGRATION`，不得依方案 code 或此歷史 migration 動態推論。
 
 ## 限制策略
 
@@ -44,7 +49,9 @@
 
 Phase 1 可用：額外攤位、人工 order package、custom service line item。
 
-Phase 1 只顯示且不自動化：Custom Domain、Printer Integration、Scheduled Reports、White Label、API Access。狀態只允許 `COMING_SOON` 或 `MANUAL_APPROVAL_REQUIRED`。
+Phase 1 只顯示且不自動化：Custom Domain、Scheduled Reports、White Label、API Access。狀態只允許 `COMING_SOON` 或 `MANUAL_APPROVAL_REQUIRED`。
+
+`add_on_catalog` 的 Printer Integration 仍只代表尚未自動化的列印訂閱 add-on 目錄項目；其 `COMING_SOON` 狀態與 PRO／ENTERPRISE 已包含的方案權益是兩份獨立合約，不表示系統已支援自動購買、計費或開通列印 add-on。
 
 ## Server-only Feature Flags
 

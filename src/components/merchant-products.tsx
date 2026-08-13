@@ -13,7 +13,7 @@ type QrState = { token: string; state: QrCodeState; tokenVersion: number } | nul
 type ControlAction = "PAUSE" | "RESUME" | "REVOKE_QR" | "ROTATE_QR" | "MARK_SOLD_OUT" | "MARK_AVAILABLE" | "CLOSE" | "OPEN";
 
 type Props = {
-  stall: { id: string; name: string; slug: string; currency: string; orderingState: StallOrderingState; isSoldOut: boolean };
+  stall: { id: string; name: string; slug: string; code: string; currency: string; orderingState: StallOrderingState; isSoldOut: boolean };
   products: StallCatalogProduct[];
   sourceStalls: Array<{ id: string; name: string; code: string }>;
   sharedCatalogUrl?: string;
@@ -31,7 +31,7 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
   const [menuLinkMessage, setMenuLinkMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const orderUrl = useMemo(() => ordering.qrCode ? `${appBaseUrl.replace(/\/$/, "")}/q/${ordering.qrCode.token}` : "", [appBaseUrl, ordering.qrCode]);
-  const publicMenuPath = `/menu/${stall.slug}`;
+  const publicStorefrontPath = `/store/${encodeURIComponent(stall.code.trim().toLowerCase())}`;
 
   async function requestOrderingUpdate(body: Record<string, unknown>) {
     setMessage("");
@@ -54,14 +54,14 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
     await requestOrderingUpdate({ action });
   }
 
-  async function copyPublicMenuUrl() {
+  async function copyPublicStorefrontUrl() {
     setMenuLinkMessage("");
-    const publicMenuUrl = new URL(publicMenuPath, window.location.origin).toString();
+    const publicMenuUrl = new URL(publicStorefrontPath, window.location.origin).toString();
     try {
       await navigator.clipboard.writeText(publicMenuUrl);
-      setMenuLinkMessage("公開菜單連結已複製。");
+      setMenuLinkMessage("統一公開連結已複製。");
     } catch {
-      window.prompt("請複製公開菜單連結", publicMenuUrl);
+      window.prompt("請複製統一公開連結", publicMenuUrl);
       setMenuLinkMessage("請在提示視窗中複製公開菜單連結。");
     }
   }
@@ -87,12 +87,12 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
         ) : <p className="mt-5 text-sm text-red-700">目前沒有可用的 QR Code，請執行輪替以建立新 QR。</p>}
 
         <section aria-labelledby="public-menu-link-title" className="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-4">
-          <h2 id="public-menu-link-title" className="font-semibold text-teal-950">公開 Menu 連結</h2>
-          <p className="mt-1 text-xs leading-5 text-teal-900">可貼到 LINE、Google 商家或社群平台；連結不會因 QR 輪替而改變，且不提供下單功能。</p>
-          <p className="mt-3 break-all rounded-md bg-white px-3 py-2 text-xs text-stone-600">永久路徑：{publicMenuPath}</p>
+          <h2 id="public-menu-link-title" className="font-semibold text-teal-950">統一公開連結</h2>
+          <p className="mt-1 text-xs leading-5 text-teal-900">可貼到 LINE、Google 商家或社群平台；顧客可在同一頁查看線上 Menu、選擇外帶自取或外送。</p>
+          <p className="mt-3 break-all rounded-md bg-white px-3 py-2 text-xs text-stone-600">永久路徑：{publicStorefrontPath}</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <a href={publicMenuPath} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900"><ExternalLink className="h-4 w-4" />開啟菜單</a>
-            <button type="button" onClick={() => void copyPublicMenuUrl()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white"><Copy className="h-4 w-4" />複製連結</button>
+            <a href={publicStorefrontPath} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900"><ExternalLink className="h-4 w-4" />開啟公開頁</a>
+            <button type="button" onClick={() => void copyPublicStorefrontUrl()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white"><Copy className="h-4 w-4" />複製連結</button>
           </div>
           {menuLinkMessage ? <p role="status" className="mt-2 text-xs font-medium text-teal-900">{menuLinkMessage}</p> : null}
         </section>

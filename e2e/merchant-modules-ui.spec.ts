@@ -338,6 +338,9 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(hourlySales.getByText("23:00", { exact: true })).toBeVisible();
 
   await gotoLocalPath(page, "/merchant/aming-chicken");
+  const unifiedPublicLink = page.getByRole("link", { name: "開啟公開頁", exact: true });
+  await expect(unifiedPublicLink).toHaveAttribute("href", "/store/aming-01");
+  await expect(page.getByText("永久路徑：/store/aming-01", { exact: true })).toBeVisible();
   const stallProductList = page.locator("details[data-stall-product-list]");
   await expect(stallProductList).toHaveAttribute("open", "");
   await stallProductList.locator("summary").first().click();

@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
+import { LocaleProvider } from "@/components/locale-provider";
 import { PwaRuntime } from "@/components/pwa-runtime";
 import { VercelPerformanceMonitoring } from "@/components/vercel-performance-monitoring";
+import { getRequestAppLocale } from "@/lib/app-locale-server";
+import { getAppMessage } from "@/lib/app-messages";
 import { initializeThemeScript } from "@/lib/theme";
 import "./globals.css";
 
@@ -35,14 +38,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const { locale, hasLocaleCookie } = await getRequestAppLocale();
+
   return (
     <html
-      lang="zh-Hant-TW"
+      lang={locale}
       data-theme="light"
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
@@ -55,10 +60,12 @@ export default function RootLayout({
         />
       </head>
       <body suppressHydrationWarning className="min-h-full bg-stone-50 text-stone-950">
-        <a href="#main-content" className="skip-link">跳至主要內容</a>
-        <PwaRuntime>
-          <div id="main-content" tabIndex={-1}>{children}</div>
-        </PwaRuntime>
+        <a href="#main-content" className="skip-link">{getAppMessage(locale, "shell.skipToMain")}</a>
+        <LocaleProvider initialLocale={locale} hasLocaleCookie={hasLocaleCookie}>
+          <PwaRuntime>
+            <div id="main-content" tabIndex={-1}>{children}</div>
+          </PwaRuntime>
+        </LocaleProvider>
         {process.env.VERCEL === "1" ? <VercelPerformanceMonitoring /> : null}
       </body>
     </html>
