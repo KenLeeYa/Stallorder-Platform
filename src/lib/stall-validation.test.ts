@@ -68,6 +68,9 @@ describe("攤位資料驗證", () => {
     expect(getCreateStallConflictFieldErrors("stalls_code_lower_unique_idx")).toEqual({
       code: "此攤位代碼已被使用，請改用其他代碼。",
     });
+    expect(getCreateStallConflictFieldErrors("stalls_code_lower_guard")).toEqual({
+      code: "此攤位代碼已被使用，請改用其他代碼。",
+    });
     expect(getCreateStallConflictFieldErrors("stalls_slug_key")).toEqual({
       slug: "此公開識別名稱已被使用，請改用其他名稱。",
     });

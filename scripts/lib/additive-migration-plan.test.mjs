@@ -204,6 +204,24 @@ describe("additive DR migration plan", () => {
     expect(() => assertAdditiveMigrationSql(sql)).toThrow();
   });
 
+  it.each([
+    "insert into public.plan_entitlements (feature_code) values ('PRINTER_INTEGRATION');",
+    "update public.plan_entitlements set is_enabled = true;",
+    "insert into public.plan_entitlements (feature_code) values ('PRINTER_INTEGRATION') on conflict (feature_code) do update set is_enabled = true;",
+  ])("rejects replicated-table DML from additive DR schema plans: %s", (sql) => {
+    expect(() => assertAdditiveMigrationSql(sql)).toThrow("MIGRATION_STATEMENT_FORBIDDEN");
+  });
+
+  it("rejects arbitrary tagged procedural blocks from additive DR schema plans", () => {
+    expect(() => assertAdditiveMigrationSql(`
+      do $migration$
+      begin
+        raise exception 'blocked';
+      end
+      $migration$;
+    `)).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
+  });
+
   it("binds the exact pending filenames and contents into the immutable plan", () => {
     const plan = createAdditiveMigrationPlan({
       migrationList: `

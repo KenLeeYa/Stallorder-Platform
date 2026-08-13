@@ -15,7 +15,7 @@ export default async function MerchantBillingPage({ searchParams }: PageProps) {
   const { workspace, canManage, canViewFinancials } = await requireBillingWorkspace(organizationId);
   const data = await getMerchantBillingPortalData(workspace.id);
   if (!data) notFound();
-  const { subscription, usage, warnings, notifications } = data;
+  const { subscription, usage, warnings, effectiveEntitlements, notifications } = data;
   const includedOrders = subscription.planVersion.includedOrders;
   const orderLimit = includedOrders === null ? null : includedOrders + usage.orderPackageQuantity;
 
@@ -39,8 +39,8 @@ export default async function MerchantBillingPage({ searchParams }: PageProps) {
       {canViewFinancials ? <section className="py-6"><div className="flex items-center justify-between gap-3"><h2 className="text-xl font-semibold">最近帳單</h2><Link href={`/merchant/billing/invoices?organizationId=${workspace.id}`} className="text-sm font-semibold text-teal-800">查看全部</Link></div><div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{subscription.invoices.slice(0, 5).map((invoice) => <Link key={invoice.id} href={`/merchant/billing/invoices/${invoice.id}?organizationId=${workspace.id}`} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-4 py-3 text-sm"><span><strong>{invoice.invoiceNumber}</strong><span className="ml-3 text-stone-500">{invoiceStatusLabels[invoice.status] ?? invoice.status}</span></span><strong>{formatMoney(invoice.amountDue, invoice.currency)} 未付</strong></Link>)}{subscription.invoices.length === 0 ? <p className="py-6 text-sm text-stone-500">目前沒有帳單。</p> : null}</div></section> : null}
 
       <section className="grid gap-6 border-t border-stone-200 py-6 md:grid-cols-2">
-        <div><h2 className="text-xl font-semibold">已啟用功能</h2><ul className="mt-3 columns-1 space-y-2 text-sm text-stone-700 sm:columns-2">{subscription.planVersion.entitlements.filter((item) => item.isEnabled).map((item) => <li key={item.id}>{featureLabel(item.featureCode)}</li>)}</ul></div>
-        <div><h2 className="text-xl font-semibold">未包含功能</h2><ul className="mt-3 columns-1 space-y-2 text-sm text-stone-500 sm:columns-2">{Object.keys(billingFeatureLabels).filter((code) => !subscription.planVersion.entitlements.some((item) => item.featureCode === code && item.isEnabled)).map((code) => <li key={code}>{featureLabel(code)}</li>)}</ul></div>
+        <div><h2 className="text-xl font-semibold">已啟用功能</h2><ul className="mt-3 columns-1 space-y-2 text-sm text-stone-700 sm:columns-2">{effectiveEntitlements.filter((item) => item.isEnabled).map((item) => <li key={item.featureCode}>{featureLabel(item.featureCode)}</li>)}</ul></div>
+        <div><h2 className="text-xl font-semibold">未包含功能</h2><ul className="mt-3 columns-1 space-y-2 text-sm text-stone-500 sm:columns-2">{Object.keys(billingFeatureLabels).filter((code) => !effectiveEntitlements.some((item) => item.featureCode === code && item.isEnabled)).map((code) => <li key={code}>{featureLabel(code)}</li>)}</ul></div>
       </section>
 
       <section className="border-t border-stone-200 py-6"><h2 className="text-xl font-semibold">人工付款說明</h2><p className="mt-2 text-sm leading-6 text-stone-600">請先等待平台建立正式帳單，再依雙方確認的銀行轉帳、現金或 LINE Pay 方式付款。送出參考資料不代表付款成功，必須由平台管理員核對後才會啟用或續訂。</p></section>
