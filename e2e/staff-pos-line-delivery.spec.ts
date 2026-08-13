@@ -527,16 +527,43 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await page.screenshot({ path: testInfo.outputPath("staff-pos-mobile.png"), fullPage: true });
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
 
-  await prisma.order.update({ where: { id: payload.order.id }, data: { status: "READY" } });
   await page.reload();
-  const ticket = page.locator("article").filter({ hasText: `訂單 ${payload.order.orderNo}` });
-  const prematureCompletion = page.waitForResponse((response) => (
-    response.url().endsWith(`/api/stalls/aming-chicken/orders/${payload.order.id}`)
-    && response.request().method() === "PATCH"
-  ));
-  await ticket.getByRole("button", { name: "完成訂單", exact: true }).click();
-  expect((await prematureCompletion).status()).toBe(409);
-  await expect(page.getByText("仍有餐點尚未完成製作。", { exact: true })).toBeVisible();
+  const futureOrdersToggle = page.locator('button[aria-controls="future-scheduled-orders"]');
+  await expect(futureOrdersToggle).toContainText("未來預約訂單（1）");
+  await expect(futureOrdersToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("article").filter({ hasText: `訂單 ${payload.order.orderNo}` })).toHaveCount(0);
+  await futureOrdersToggle.click();
+  const futureTicket = page.locator("#future-scheduled-orders article").filter({ hasText: `訂單 ${payload.order.orderNo}` });
+  await expect(futureTicket).toBeVisible();
+  await expect(futureTicket).toContainText("未到製作日");
+  await expect(futureTicket).toContainText("此區不提供開始製作操作");
+  await expect(futureTicket.getByRole("button", { name: /開始製作|全部開始製作|完成訂單/ })).toHaveCount(0);
+
+  const prematureProduction = await page.evaluate(async (orderId) => {
+    const csrf = document.cookie
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith("stallorder_csrf="))
+      ?.split("=").slice(1).join("=");
+    const response = await fetch(`/api/stalls/aming-chicken/orders/${orderId}`, {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "x-csrf-token": decodeURIComponent(csrf ?? ""),
+      },
+      body: JSON.stringify({ status: "PREPARING" }),
+    });
+    return { status: response.status, payload: await response.json() };
+  }, payload.order.id);
+  expect(prematureProduction).toMatchObject({
+    status: 409,
+    payload: { code: "PRODUCTION_NOT_DUE" },
+  });
+  await expect.poll(async () => (await prisma.order.findUniqueOrThrow({
+    where: { id: payload.order.id },
+    select: { status: true },
+  })).status).toBe("CONFIRMED");
 });
 
 test("店員可將同商品不同註記分列加入購物車，並移除選錯的獨立列", async ({ page }) => {
