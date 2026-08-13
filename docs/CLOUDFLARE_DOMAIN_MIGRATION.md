@@ -1,12 +1,19 @@
 # Cloudflare Domain Migration Automation
 
-目標架構：
+> **歷史遷移文件：不要直接執行 Apply。** 目前 `qidaigo.com` 是品牌公開網站、
+> `www.qidaigo.com` 永久導向 root、`app.qidaigo.com` 才是應用。下列 DNS 值與
+> automation 是舊 Vercel 單專案架構的遷移紀錄；任何變更前必須重新從目前的
+> 應用與公開網站專案匯出 Domain 設定並另做 dry-run 稽核。
+
+歷史目標架構：
 
 GoDaddy Registrar -> Cloudflare Authoritative DNS -> Vercel Next.js Production -> Supabase Backend
 
-Primary hostname: `app.qidaigo.com`
+Application hostname: `app.qidaigo.com`
 
-Redirect hostnames: `qidaigo.com`, `www.qidaigo.com`
+Current public canonical hostname: `qidaigo.com`
+
+Current redirect hostname: `www.qidaigo.com` -> `https://qidaigo.com/`
 
 ## Vercel Supplied DNS Records
 
@@ -65,7 +72,8 @@ npm run domain:migration
 
 ## Apply
 
-確認 dry-run plan 後才執行：
+此歷史 Apply 指令不得用於目前架構；完成新的 domain ownership 與 DNS records
+稽核、更新 automation 並產生新 plan 前，請勿執行：
 
 ```powershell
 npm run domain:migration:apply
@@ -90,6 +98,9 @@ npm run domain:migration:apply
 7. 確認 Vercel 顯示 domain verified 與 HTTPS certificate active。
 
 ## GoDaddy Nameserver 自動化
+
+> 此段同屬歷史遷移流程。現行 nameserver 不得因本文件直接變更；必須先完成
+> 目前 domain ownership、DNS records 與回復方案的獨立稽核及核准。
 
 若已建立 GoDaddy Domains v3 Personal Access Token，設定：
 

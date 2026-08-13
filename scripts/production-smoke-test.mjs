@@ -2,9 +2,14 @@ import {
   productionTestQrToken,
   resolveProductionTestQrUrl,
 } from "./lib/production-smoke-qr-url.mjs";
-import { isExpectedPublicSiteResponse } from "./lib/production-smoke-public-site.mjs";
+import {
+  isExpectedCanonicalRedirect,
+  isExpectedPublicSiteResponse,
+} from "./lib/production-smoke-public-site.mjs";
 
 const baseUrl = new URL(process.env.PRODUCTION_BASE_URL ?? "https://app.qidaigo.com");
+const publicSiteUrl = process.env.ROOT_DOMAIN_URL ?? "https://qidaigo.com";
+const wwwUrl = process.env.WWW_DOMAIN_URL ?? "https://www.qidaigo.com";
 const allowHttp = process.env.SMOKE_ALLOW_HTTP === "true";
 const skipDomainRedirects = process.env.SMOKE_SKIP_DOMAIN_REDIRECTS === "true";
 const requireTestQr = process.env.PRODUCTION_TEST_QR_REQUIRED === "true";
@@ -39,14 +44,17 @@ function containsDebugDetails(body) {
   return /PrismaClientKnownRequestError|postgres(?:ql)?:\/\/|DATABASE_URL|at\s+[^\n]+\([^\n]+:\d+:\d+\)/i.test(body);
 }
 
-async function checkRedirect(name, source) {
+async function checkCanonicalRedirect(name, source, canonical) {
   const response = await request(source, { redirect: "manual" });
   const location = response.headers.get("location");
-  const target = location ? new URL(location, source) : null;
-  const redirectStatus = [301, 302, 307, 308].includes(response.status);
   assert(
     name,
-    redirectStatus && target?.origin === baseUrl.origin,
+    isExpectedCanonicalRedirect({
+      status: response.status,
+      location,
+      sourceUrl: source,
+      canonicalUrl: canonical,
+    }),
     `status=${response.status}, location=${location ?? "missing"}`,
   );
 }
@@ -131,8 +139,8 @@ async function run() {
   }
 
   if (!skipDomainRedirects) {
-    await checkPublicSite("Root domain website loads", process.env.ROOT_DOMAIN_URL ?? "https://qidaigo.com");
-    await checkRedirect("WWW domain redirects", process.env.WWW_DOMAIN_URL ?? "https://www.qidaigo.com");
+    await checkPublicSite("Root domain website loads", publicSiteUrl);
+    await checkCanonicalRedirect("WWW domain redirects", wwwUrl, publicSiteUrl);
   } else {
     record("Root website and WWW redirect", true, "SKIPPED by SMOKE_SKIP_DOMAIN_REDIRECTS=true");
   }

@@ -2,7 +2,8 @@
 
 目標 Team：`ada76145-8663's projects`。目標專案：`stallorder-platform`。GitHub repository：`KenLeeYa/Stallorder-Platform`。Framework：Next.js。Production branch：`main`。
 
-目前 Vercel Team 沒有專案，因此需建立或由第一次 deployment 自動建立。
+Vercel Team 已有 `stallorder-platform` 正式專案；以下建立步驟僅供災難復原或
+重新連結時參考，不得在日常發布流程重建專案。
 
 ## USER ACTION REQUIRED
 
@@ -55,10 +56,10 @@ npm run production:smoke
 
 ## 網域
 
-加入：
+本專案只管理應用網域；品牌網站由獨立的公開網站專案管理：
 
 - `app.qidaigo.com`：primary production domain。
-- `qidaigo.com`：redirect 到 `https://app.qidaigo.com`。
-- `www.qidaigo.com`：redirect 到 `https://app.qidaigo.com`。
+- `qidaigo.com`：StallOrder／攤點通品牌公開網站的 canonical domain。
+- `www.qidaigo.com`：以永久 301／308 redirect 到 `https://qidaigo.com/`。
 
-加入後以 Vercel Project Domain API／Dashboard／`vercel domains inspect` 取得每個網域實際 A／CNAME／TXT 與驗證狀態，再填入 [GODADDY_DNS_SETUP.md](./GODADDY_DNS_SETUP.md)。不得使用網路文章的通用記錄代替專案回傳值。
+調整前需分別從應用與公開網站專案的 Domain API／Dashboard 取得實際 A／CNAME／TXT 與驗證狀態，再填入 [GODADDY_DNS_SETUP.md](./GODADDY_DNS_SETUP.md)。不得使用舊文件或網路文章的通用記錄代替專案回傳值。

@@ -4,14 +4,16 @@
 
 實際 DNS 變更需由使用者登入 GoDaddy：`Domain Portfolio` → `qidaigo.com` → `DNS` → `Manage DNS`。
 
-Vercel 專案與三個 domain 尚未建立，因此目前沒有可驗證的專案專屬 DNS 值。下表不得以通用 Vercel 範例補值；Vercel 回傳後，先更新表格再執行 GoDaddy 變更。
+應用與品牌網站均已上線；下表保留為變更前的重新查核模板，不代表目前 DNS
+狀態。任何變更前必須由目前的應用與公開網站專案重新取得專案專屬 DNS 值，
+不得以舊值或通用 Vercel 範例補值。
 
 | Type | Name | Value | TTL | Purpose | Vercel verification status |
 | --- | --- | --- | --- | --- | --- |
-| 等待 Vercel 回傳 | `app` | 尚未回傳，禁止猜值 | 依 Vercel／GoDaddy 實際要求 | `app.qidaigo.com` primary | 尚未加入 Vercel |
-| 等待 Vercel 回傳 | `@` | 尚未回傳，禁止猜值 | 依 Vercel／GoDaddy 實際要求 | root redirect | 尚未加入 Vercel |
-| 等待 Vercel 回傳 | `www` | 尚未回傳，禁止猜值 | 依 Vercel／GoDaddy 實際要求 | www redirect | 尚未加入 Vercel |
-| 視 Vercel challenge | Vercel 回傳的 verification name | Vercel 回傳的 verification value | 依 Vercel 實際要求 | domain ownership | 尚未回傳 challenge |
+| 重新查核 | `app` | 由應用專案重新取得 | 依管理平台／GoDaddy 實際要求 | `app.qidaigo.com` application | 待本次變更前確認 |
+| 重新查核 | `@` | 由公開網站專案重新取得 | 依管理平台／GoDaddy 實際要求 | canonical public site | 待本次變更前確認 |
+| 重新查核 | `www` | 由公開網站專案重新取得 | 依管理平台／GoDaddy 實際要求 | redirect 到 root | 待本次變更前確認 |
+| 視 ownership challenge | 管理平台回傳的 verification name | 管理平台回傳的 verification value | 依實際要求 | domain ownership | 待本次變更前確認 |
 
 ## 變更前盤點
 
@@ -22,15 +24,14 @@ Vercel 專案與三個 domain 尚未建立，因此目前沒有可驗證的專�
 
 ## 取得確切要求
 
-Vercel 加入 domain 後，對每個網域執行 Dashboard Inspect 或：
+任何網域變更前，分別在目前負責該網域的 Dashboard Inspect；`app` 亦可使用：
 
 ```powershell
 npx vercel domains inspect app.qidaigo.com
-npx vercel domains inspect qidaigo.com
-npx vercel domains inspect www.qidaigo.com
 ```
 
-將輸出的 required record 與 verification challenge 原樣填入上表，不記錄 Vercel token。
+品牌網站的 root／www 請從其目前管理平台匯出設定。將 required record 與
+verification challenge 原樣填入上表，不記錄 access token。
 
 ## GoDaddy 變更
 
@@ -47,4 +48,4 @@ curl.exe -I https://qidaigo.com
 curl.exe -I https://www.qidaigo.com
 ```
 
-驗收：Vercel 顯示 verified、HTTPS certificate active、`app` 可載入、root／www 只 redirect 到 `https://app.qidaigo.com`、Turnstile allowed hostname 完全一致。HTTPS 尚未 active 前不得開放真實 QR 點餐。
+驗收：應用與公開網站的管理平台都顯示 verified、HTTPS certificate active、`app` 可載入、root 回傳品牌網站、`www` 以永久 301／308 redirect 到 `https://qidaigo.com/`，且 Turnstile allowed hostname 完全一致。HTTPS 尚未 active 前不得開放真實 QR 點餐。
