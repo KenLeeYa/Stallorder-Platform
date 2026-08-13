@@ -1,6 +1,11 @@
 import "server-only";
 
-import OpenAI from "openai";
+import OpenAI, {
+  APIConnectionError,
+  APIConnectionTimeoutError,
+  APIError,
+  OpenAIError,
+} from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import type { TranslationLocale } from "@/lib/enabled-locales";
 import {
@@ -11,6 +16,14 @@ import {
 
 const DEFAULT_TRANSLATION_MODEL = "gpt-5.6-luna";
 const MODEL_NAME_PATTERN = /^[a-zA-Z0-9._-]{1,100}$/;
+const PROVIDER_ERROR_VALUE_PATTERN = /^[a-zA-Z0-9._-]{1,100}$/;
+
+type CatalogTranslationProviderFailure = {
+  providerStatus: number | null;
+  providerCode: string | null;
+  providerType: string | null;
+  providerErrorKind: "API_ERROR" | "CONNECTION_TIMEOUT" | "CONNECTION_ERROR" | "OPENAI_ERROR" | "UNKNOWN";
+};
 
 const targetLanguageInstructions: Record<TranslationLocale, string> = {
   en: "natural international English used on professional food-ordering menus",
@@ -28,6 +41,14 @@ export class CatalogTranslationConfigurationError extends Error {
 
 export class CatalogTranslationProviderError extends Error {
   readonly code = "AI_TRANSLATION_PROVIDER_FAILED";
+
+  constructor(
+    message: string,
+    readonly failure?: CatalogTranslationProviderFailure,
+  ) {
+    super(message);
+    this.name = "CatalogTranslationProviderError";
+  }
 }
 
 export function isCatalogAiTranslationConfigured() {
@@ -87,9 +108,48 @@ export class OpenAiCatalogTranslationProvider implements CatalogTranslationProvi
       return catalogTranslationOutputSchema.parse(response.output_parsed);
     } catch (error) {
       if (error instanceof CatalogTranslationProviderError) throw error;
-      throw new CatalogTranslationProviderError("翻譯供應器暫時無法使用。");
+      throw new CatalogTranslationProviderError(
+        "翻譯供應器暫時無法使用。",
+        getCatalogTranslationProviderFailure(error),
+      );
     }
   }
+}
+
+export function getCatalogTranslationProviderFailure(error: unknown): CatalogTranslationProviderFailure {
+  if (error instanceof APIConnectionTimeoutError) {
+    return emptyProviderFailure("CONNECTION_TIMEOUT");
+  }
+  if (error instanceof APIConnectionError) {
+    return emptyProviderFailure("CONNECTION_ERROR");
+  }
+  if (error instanceof APIError) {
+    return {
+      providerStatus: Number.isInteger(error.status) ? error.status ?? null : null,
+      providerCode: safeProviderErrorValue(error.code),
+      providerType: safeProviderErrorValue(error.type),
+      providerErrorKind: "API_ERROR",
+    };
+  }
+  if (error instanceof OpenAIError) {
+    return emptyProviderFailure("OPENAI_ERROR");
+  }
+  return emptyProviderFailure("UNKNOWN");
+}
+
+function safeProviderErrorValue(value: string | null | undefined) {
+  return value && PROVIDER_ERROR_VALUE_PATTERN.test(value) ? value : null;
+}
+
+function emptyProviderFailure(
+  providerErrorKind: CatalogTranslationProviderFailure["providerErrorKind"],
+): CatalogTranslationProviderFailure {
+  return {
+    providerStatus: null,
+    providerCode: null,
+    providerType: null,
+    providerErrorKind,
+  };
 }
 
 function getConfiguration() {

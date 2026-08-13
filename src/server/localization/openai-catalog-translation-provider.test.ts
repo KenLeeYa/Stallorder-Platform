@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { APIConnectionTimeoutError, APIError } from "openai";
 
 vi.mock("server-only", () => ({}));
 
-import { isCatalogAiTranslationConfigured } from "@/server/localization/openai-catalog-translation-provider";
+import {
+  getCatalogTranslationProviderFailure,
+  isCatalogAiTranslationConfigured,
+} from "@/server/localization/openai-catalog-translation-provider";
 
 const originalEnabled = process.env.OPENAI_TRANSLATION_ENABLED;
 const originalApiKey = process.env.OPENAI_API_KEY;
@@ -33,6 +37,49 @@ describe("isCatalogAiTranslationConfigured", () => {
     process.env.OPENAI_TRANSLATION_MODEL = model;
 
     expect(isCatalogAiTranslationConfigured()).toBe(false);
+  });
+});
+
+describe("getCatalogTranslationProviderFailure", () => {
+  it("retains only safe API error metadata", () => {
+    const error = new APIError(
+      401,
+      { code: "invalid_api_key", type: "invalid_request_error" },
+      "sensitive provider message",
+      new Headers(),
+    );
+
+    expect(getCatalogTranslationProviderFailure(error)).toEqual({
+      providerStatus: 401,
+      providerCode: "invalid_api_key",
+      providerType: "invalid_request_error",
+      providerErrorKind: "API_ERROR",
+    });
+  });
+
+  it("does not retain messages or untrusted metadata", () => {
+    const error = new APIError(
+      400,
+      { code: "unsafe\nvalue", type: "invalid request" },
+      "sensitive provider message",
+      new Headers(),
+    );
+
+    expect(getCatalogTranslationProviderFailure(error)).toEqual({
+      providerStatus: 400,
+      providerCode: null,
+      providerType: null,
+      providerErrorKind: "API_ERROR",
+    });
+  });
+
+  it("classifies connection timeouts without exposing the error message", () => {
+    expect(getCatalogTranslationProviderFailure(new APIConnectionTimeoutError())).toEqual({
+      providerStatus: null,
+      providerCode: null,
+      providerType: null,
+      providerErrorKind: "CONNECTION_TIMEOUT",
+    });
   });
 });
 

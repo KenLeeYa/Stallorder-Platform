@@ -164,11 +164,18 @@ export async function POST(request: Request, context: RouteContext) {
     if (entitlementResponse) return entitlementResponse;
 
     const known = translationErrorResponse(error);
+    const providerFailure = error instanceof CatalogTranslationProviderError
+      ? error.failure
+      : undefined;
     logEvent(known.status >= 500 ? "error" : "warn", "CATALOG_AI_TRANSLATION_FAILED", {
       requestId,
       organizationId,
       actorProfileId,
       errorCode: known.code,
+      providerStatus: providerFailure?.providerStatus,
+      providerCode: providerFailure?.providerCode,
+      providerType: providerFailure?.providerType,
+      providerErrorKind: providerFailure?.providerErrorKind,
     });
     await recordAuditEvent({
       organizationId,
