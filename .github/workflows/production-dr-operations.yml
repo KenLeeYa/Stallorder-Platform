@@ -197,11 +197,14 @@ jobs:
                 --schema public,app_private,internal \
                 --level warning --fail-on warning \
                 2>&1 | tee artifacts/dr-schema-lint.txt
-              {
-                sha256sum artifacts/dr-schema-migration-list.txt | cut -d ' ' -f 1
-                sha256sum artifacts/dr-schema-additive-plan.json | cut -d ' ' -f 1
-                sha256sum artifacts/dr-schema-push-dry-run.txt | cut -d ' ' -f 1
-              } | sha256sum | cut -d ' ' -f 1 \
+              node --input-type=module -e '
+                import { readFileSync } from "node:fs";
+                const plan = JSON.parse(readFileSync(process.argv[1], "utf8"));
+                if (!/^[0-9a-f]{64}$/u.test(plan.planDigest ?? "")) {
+                  throw new Error("ADDITIVE_PLAN_DIGEST_INVALID");
+                }
+                console.log(plan.planDigest);
+              ' artifacts/dr-schema-additive-plan.json \
                 > artifacts/dr-schema-plan-digest.txt
               node --input-type=module -e '
                 console.log(JSON.stringify({
@@ -441,14 +444,14 @@ jobs:
             --schema public,app_private,internal \
             --level warning --fail-on warning \
             2>&1 | tee dr-schema-artifacts/dr-schema-lint-before.txt
-          actual_digest="$({
-            sha256sum dr-schema-artifacts/dr-schema-migration-list-before.txt \
-              | cut -d ' ' -f 1
-            sha256sum dr-schema-artifacts/dr-schema-additive-plan-before.json \
-              | cut -d ' ' -f 1
-            sha256sum dr-schema-artifacts/dr-schema-push-dry-run-before.txt \
-              | cut -d ' ' -f 1
-          } | sha256sum | cut -d ' ' -f 1)"
+          actual_digest="$(node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const plan = JSON.parse(readFileSync(process.argv[1], "utf8"));
+            if (!/^[0-9a-f]{64}$/u.test(plan.planDigest ?? "")) {
+              throw new Error("ADDITIVE_PLAN_DIGEST_INVALID");
+            }
+            console.log(plan.planDigest);
+          ' dr-schema-artifacts/dr-schema-additive-plan-before.json)"
           expected_digest="$(tr -d '[:space:]' \
             < approved-dr-schema-plan/dr-schema-plan-digest.txt)"
           [[ "$expected_digest" =~ ^[0-9a-f]{64}$ ]] || {
