@@ -139,14 +139,14 @@ describe("OpenAiCatalogTranslationProvider", () => {
       timeout: 20_000,
     });
     expect(openAiMocks.parse).toHaveBeenCalledWith(expect.objectContaining({
-      model: "anthropic/claude-sonnet-4.6",
+      model: "google/gemini-2.5-pro",
       store: false,
       providerOptions: {
         gateway: { zeroDataRetention: true },
       },
     }));
     expect(getCatalogAiTranslationProviderLabel()).toBe(
-      "Vercel AI Gateway（anthropic/claude-sonnet-4.6）",
+      "Vercel AI Gateway（google/gemini-2.5-pro）",
     );
   });
 

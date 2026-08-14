@@ -12,7 +12,7 @@ import {
 } from "@/server/localization/catalog-translation-contract";
 
 const DEFAULT_OPENAI_TRANSLATION_MODEL = "gpt-5.6-luna";
-const DEFAULT_GATEWAY_TRANSLATION_MODEL = "anthropic/claude-sonnet-4.6";
+const DEFAULT_GATEWAY_TRANSLATION_MODEL = "google/gemini-2.5-pro";
 const VERCEL_AI_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v1";
 const OPENAI_MODEL_NAME_PATTERN = /^[a-zA-Z0-9._-]{1,100}$/;
 const GATEWAY_MODEL_NAME_PATTERN = /^[a-zA-Z0-9._-]{1,100}\/[a-zA-Z0-9._-]{1,100}$/;
