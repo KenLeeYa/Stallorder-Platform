@@ -1,5 +1,8 @@
 "use client";
 
+import { useMerchantMessages } from "@/lib/messages/merchant-client";
+import type { AppLocale } from "@/lib/app-locale";
+import { getMerchantMessage } from "@/lib/messages/merchant";
 import { type SyntheticEvent, useMemo, useRef, useState } from "react";
 import { CalendarClock, ChevronsUpDown, Copy, Dices, Languages, MapPinned, MessageCircle, Percent, Plus, Printer, QrCode, RotateCw, Save, SlidersHorizontal, Trash2, Truck, Utensils, WalletCards } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -108,11 +111,11 @@ const moduleSectionControlIds = moduleSectionKeys.map((section) => (
 )).join(" ");
 type MessageKind = "success" | "error";
 
-export function buildPublicStorefrontShare(appUrl: string, stallCode: string) {
+export function buildPublicStorefrontShare(appUrl: string, stallCode: string, locale: AppLocale = "zh-TW") {
   const storefrontUrl = `${appUrl.replace(/\/+$/, "")}/store/${encodeURIComponent(stallCode.trim().toLowerCase())}`;
   return {
     storefrontUrl,
-    lineReply: `您好，請開啟以下連結，選擇線上 Menu、外帶自取或外送：\n${storefrontUrl}`,
+    lineReply: getMerchantMessage(locale, "您好，請開啟以下連結，選擇線上 Menu、外帶自取或外送：\n{value0}", { value0: storefrontUrl }),
   };
 }
 
@@ -127,12 +130,13 @@ export function StallModulesManager({
   appUrl: string;
   initialState: ModuleState;
 }) {
+  const { locale, m, label } = useMerchantMessages();
   const [state, setState] = useState(initialState);
   const [savedState, setSavedState] = useState(initialState);
   const initialFloorTabs = getDiningFloorTabs(initialState.floors, initialState.tables);
   const initialNewFloorNumber = Math.max(2, initialState.floors.length + 1);
   const [activeFloorKey, setActiveFloorKey] = useState(initialFloorTabs[0]?.key ?? "");
-  const [newFloor, setNewFloor] = useState<FloorDraft>({ name: `${initialNewFloorNumber}樓`, sortOrder: initialNewFloorNumber });
+  const [newFloor, setNewFloor] = useState<FloorDraft>({ name: m("{value0}樓", { value0: initialNewFloorNumber }), sortOrder: initialNewFloorNumber });
   const [newTable, setNewTable] = useState<TableDraft>({
     floorId: initialFloorTabs[0]?.id ?? null,
     code: "",
@@ -153,14 +157,14 @@ export function StallModulesManager({
     () => new Set(moduleSectionKeys),
   );
   const allSectionsExpanded = moduleSectionKeys.every((section) => openSections.has(section));
-  const { storefrontUrl, lineReply } = buildPublicStorefrontShare(appUrl, stallCode);
+  const { storefrontUrl, lineReply } = buildPublicStorefrontShare(appUrl, stallCode, locale);
   const floorTabs = useMemo(() => getDiningFloorTabs(state.floors, state.tables), [state.floors, state.tables]);
   const activeFloor = floorTabs.find((floor) => floor.key === activeFloorKey) ?? floorTabs[0] ?? null;
   const activeFloorRecord = activeFloor?.id ? state.floors.find((floor) => floor.id === activeFloor.id) ?? null : null;
   const activeFloorTables = state.tables.filter((table) => table.floorId === (activeFloor?.id ?? null));
   const unsavedFloorMoves = getUnsavedDiningTableFloorMoves(state.tables, savedState.tables);
   const pendingFloorMoveMessage = unsavedFloorMoves.length > 0
-    ? `請先儲存「${unsavedFloorMoves.map((table) => table.label).join("、")}」的樓層變更，再儲存桌位位置。`
+    ? m("請先儲存「{value0}」的樓層變更，再儲存桌位位置。", { value0: unsavedFloorMoves.map((table) => table.label).join("、") })
     : "";
   const lotteryDiscountChances = state.settings.lotteryDiscountChances ?? [];
   const lotteryChanceByDiscountId = new Map(
@@ -198,9 +202,9 @@ export function StallModulesManager({
       if (!navigator.clipboard?.writeText) throw new Error("CLIPBOARD_UNAVAILABLE");
       await navigator.clipboard.writeText(value);
       setMessageKind("success");
-      setMessage(`${label}已複製。`);
+      setMessage(m("{value0}已複製。", { value0: label }));
     } catch {
-      window.prompt(`請手動複製${label}`, value);
+      window.prompt(m("請手動複製{value0}", { value0: label }), value);
     }
   }
 
@@ -222,7 +226,7 @@ export function StallModulesManager({
           ...omitScopeErrors(current, scope),
           ...Object.fromEntries(Object.entries(nextFieldErrors).map(([field, error]) => [fieldKey(scope, field), error])),
         }));
-        setMessage(payload.error ?? "目前無法更新模組設定。");
+        setMessage(payload.error ?? label("目前無法更新模組設定。"));
         setMessageKind("error");
         focusFirstInvalidField(managerRef.current, scope, nextFieldErrors);
         return false;
@@ -243,7 +247,7 @@ export function StallModulesManager({
       setMessageKind("success");
       return mergedState;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "目前無法更新模組設定。");
+      setMessage(error instanceof Error ? error.message : label("目前無法更新模組設定。"));
       setMessageKind("error");
       return false;
     } finally {
@@ -337,13 +341,13 @@ export function StallModulesManager({
       lotteryDiscountOptionId: firstLotteryDiscount?.discountOptionId ?? null,
       lotteryDiscountWinRateBps: firstLotteryDiscount?.winRateBps ?? 0,
       lotteryDiscountChances: settings.lotteryDiscountChances ?? [],
-    }, "模組開關已儲存。");
+    }, label("模組開關已儲存。"));
   }
 
   async function saveLocales() {
     await run(
       { operation: "UPDATE_LOCALES", enabledLocales: state.settings.enabledLocales },
-      "QR 點餐語系已儲存。",
+      label("QR 點餐語系已儲存。"),
     );
   }
 
@@ -362,7 +366,7 @@ export function StallModulesManager({
         layoutX: table.layoutX,
         layoutY: table.layoutY,
       })),
-    }, "桌位平面配置已儲存。");
+    }, label("桌位平面配置已儲存。"));
   }
 
   function updateLocale(locale: QrLocale, enabled: boolean) {
@@ -381,7 +385,7 @@ export function StallModulesManager({
   }
 
   return (
-    <section ref={managerRef} className="mt-8" aria-label="營運模組與內用桌位">
+    <section ref={managerRef} className="mt-8" aria-label={label("營運模組與內用桌位")}>
       <div className="mb-3 flex justify-end">
         <button
           type="button"
@@ -392,7 +396,7 @@ export function StallModulesManager({
           className="inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"
         >
           <ChevronsUpDown className="h-4 w-4" />
-          {allSectionsExpanded ? "全部摺疊" : "全部展開"}
+          {allSectionsExpanded ? label("全部摺疊") : label("全部展開")}
         </button>
       </div>
       <details
@@ -402,35 +406,35 @@ export function StallModulesManager({
         data-module-section="overview"
         data-settings-section
         data-settings-scope="stall-modules"
-        data-settings-search="營運模組 內用桌位 外送 LINE 專屬 QR 點餐語系 訂單列印 付款方式 結帳折扣 桌位平面配置"
+        data-settings-search={label("營運模組 內用桌位 外送 LINE 專屬 QR 點餐語系 訂單列印 付款方式 結帳折扣 桌位平面配置")}
         className="border-y border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180"
       >
         <CollapsibleSectionSummary
           icon={SlidersHorizontal}
-          title="營運模組與內用桌位"
-          description={moduleDirty ? "有尚未儲存的變更" : "模組關閉後保留既有資料與歷史對帳，不會刪除紀錄。"}
+          title={label("營運模組與內用桌位")}
+          description={moduleDirty ? label("有尚未儲存的變更") : label("模組關閉後保留既有資料與歷史對帳，不會刪除紀錄。")}
         />
         <div className="pb-7">
 
       <div data-module-switch-grid className="mt-5 grid gap-3 sm:grid-cols-2">
-        <ModuleSwitch label="內用桌位" icon={<Utensils className="h-4 w-4" />} checked={state.settings.dineInEnabled} onChange={(dineInEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, dineInEnabled } }))} />
-        <ModuleSwitch label="線上外送" icon={<Truck className="h-4 w-4" />} checked={state.settings.deliveryModuleEnabled} onChange={(deliveryModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, deliveryModuleEnabled } }))} />
-        <ModuleSwitch label="店員外送點餐" icon={<Truck className="h-4 w-4" />} checked={state.settings.staffDeliveryEnabled} onChange={(staffDeliveryEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, staffDeliveryEnabled } }))} />
-        <ModuleSwitch label="訂單列印" icon={<Printer className="h-4 w-4" />} checked={state.settings.printModuleEnabled} onChange={(printModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, printModuleEnabled } }))} />
-        <ModuleSwitch label="多元付款" icon={<WalletCards className="h-4 w-4" />} checked={state.settings.paymentModuleEnabled} onChange={(paymentModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, paymentModuleEnabled } }))} />
-        <ModuleSwitch label="結帳折扣" icon={<Percent className="h-4 w-4" />} checked={state.settings.discountModuleEnabled} onChange={(discountModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, discountModuleEnabled } }))} />
-        <ModuleSwitch label="外帶自取" icon={<CalendarClock className="h-4 w-4" />} checked={state.settings.takeoutPreorderEnabled} onChange={(takeoutPreorderEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, takeoutPreorderEnabled }) }))} />
-        <ModuleSwitch label="抽抽樂推薦" icon={<Dices className="h-4 w-4" />} checked={state.settings.lotteryEnabled} onChange={(lotteryEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, lotteryEnabled }) }))} />
+        <ModuleSwitch label={label("內用桌位")} icon={<Utensils className="h-4 w-4" />} checked={state.settings.dineInEnabled} onChange={(dineInEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, dineInEnabled } }))} />
+        <ModuleSwitch label={label("線上外送")} icon={<Truck className="h-4 w-4" />} checked={state.settings.deliveryModuleEnabled} onChange={(deliveryModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, deliveryModuleEnabled } }))} />
+        <ModuleSwitch label={label("店員外送點餐")} icon={<Truck className="h-4 w-4" />} checked={state.settings.staffDeliveryEnabled} onChange={(staffDeliveryEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, staffDeliveryEnabled } }))} />
+        <ModuleSwitch label={label("訂單列印")} icon={<Printer className="h-4 w-4" />} checked={state.settings.printModuleEnabled} onChange={(printModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, printModuleEnabled } }))} />
+        <ModuleSwitch label={label("多元付款")} icon={<WalletCards className="h-4 w-4" />} checked={state.settings.paymentModuleEnabled} onChange={(paymentModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, paymentModuleEnabled } }))} />
+        <ModuleSwitch label={label("結帳折扣")} icon={<Percent className="h-4 w-4" />} checked={state.settings.discountModuleEnabled} onChange={(discountModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, discountModuleEnabled } }))} />
+        <ModuleSwitch label={label("外帶自取")} icon={<CalendarClock className="h-4 w-4" />} checked={state.settings.takeoutPreorderEnabled} onChange={(takeoutPreorderEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, takeoutPreorderEnabled }) }))} />
+        <ModuleSwitch label={label("抽抽樂推薦")} icon={<Dices className="h-4 w-4" />} checked={state.settings.lotteryEnabled} onChange={(lotteryEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, lotteryEnabled }) }))} />
       </div>
       {state.settings.takeoutPreorderEnabled ? <div className="mt-4 grid gap-3 rounded-lg border border-stone-200 p-4 sm:grid-cols-3">
-        <NumberInput label="最少提前（分鐘）" value={state.settings.preorderMinLeadMinutes} fieldKey={fieldKey("modules", "preorderMinLeadMinutes")} error={errorFor("modules", "preorderMinLeadMinutes")} min={15} max={1440} onChange={(preorderMinLeadMinutes) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMinLeadMinutes } }))} />
-        <NumberInput label="最多預約天數" value={state.settings.preorderMaxDays} fieldKey={fieldKey("modules", "preorderMaxDays")} error={errorFor("modules", "preorderMaxDays")} min={1} max={30} onChange={(preorderMaxDays) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMaxDays } }))} />
-        <label className="text-xs font-medium text-stone-600">時段間隔<select {...validationAttributes(fieldKey("modules", "preorderSlotMinutes"), errorFor("modules", "preorderSlotMinutes"))} value={state.settings.preorderSlotMinutes} onChange={(event) => setState((current) => ({ ...current, settings: { ...current.settings, preorderSlotMinutes: Number(event.target.value) as 5 | 15 | 30 | 60 | 120 } }))} className={`${inputClass(errorFor("modules", "preorderSlotMinutes"))} bg-white`}><option value={5}>5 分鐘</option><option value={15}>15 分鐘</option><option value={30}>30 分鐘</option><option value={60}>60 分鐘</option><option value={120}>120 分鐘</option></select><FieldError fieldKey={fieldKey("modules", "preorderSlotMinutes")} error={errorFor("modules", "preorderSlotMinutes")} /></label>
-        <p className="text-xs text-stone-500 sm:col-span-3">關店期間只接受營業時間內的合法外帶時段；暫停接單與售罄仍會阻擋預約。</p>
+        <NumberInput label={label("最少提前（分鐘）")} value={state.settings.preorderMinLeadMinutes} fieldKey={fieldKey("modules", "preorderMinLeadMinutes")} error={errorFor("modules", "preorderMinLeadMinutes")} min={15} max={1440} onChange={(preorderMinLeadMinutes) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMinLeadMinutes } }))} />
+        <NumberInput label={label("最多預約天數")} value={state.settings.preorderMaxDays} fieldKey={fieldKey("modules", "preorderMaxDays")} error={errorFor("modules", "preorderMaxDays")} min={1} max={30} onChange={(preorderMaxDays) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMaxDays } }))} />
+        <label className="text-xs font-medium text-stone-600">{label("時段間隔")}<select {...validationAttributes(fieldKey("modules", "preorderSlotMinutes"), errorFor("modules", "preorderSlotMinutes"))} value={state.settings.preorderSlotMinutes} onChange={(event) => setState((current) => ({ ...current, settings: { ...current.settings, preorderSlotMinutes: Number(event.target.value) as 5 | 15 | 30 | 60 | 120 } }))} className={`${inputClass(errorFor("modules", "preorderSlotMinutes"))} bg-white`}><option value={5}>{label("5 分鐘")}</option><option value={15}>{label("15 分鐘")}</option><option value={30}>{label("30 分鐘")}</option><option value={60}>{label("60 分鐘")}</option><option value={120}>{label("120 分鐘")}</option></select><FieldError fieldKey={fieldKey("modules", "preorderSlotMinutes")} error={errorFor("modules", "preorderSlotMinutes")} /></label>
+        <p className="text-xs text-stone-500 sm:col-span-3">{label("關店期間只接受營業時間內的合法外帶時段；暫停接單與售罄仍會阻擋預約。")}</p>
       </div> : null}
       {state.settings.lotteryEnabled ? <fieldset className="mt-4 rounded-lg border border-stone-200 p-4">
-        <legend className="px-1 text-sm font-semibold text-stone-800">抽抽樂折扣獎項</legend>
-        <p className="text-xs leading-5 text-stone-500">商品推薦依近 30 天已完成訂單的熱銷排行加權，並保留探索其他可抽商品的機會；折扣獎項會依下方設定的機率獨立抽取。</p>
+        <legend className="px-1 text-sm font-semibold text-stone-800">{label("抽抽樂折扣獎項")}</legend>
+        <p className="text-xs leading-5 text-stone-500">{label("商品推薦依近 30 天已完成訂單的熱銷排行加權，並保留探索其他可抽商品的機會；折扣獎項會依下方設定的機率獨立抽取。")}</p>
         <div
           {...validationAttributes(fieldKey("modules", "lotteryDiscountChances"), errorFor("modules", "lotteryDiscountChances"))}
           tabIndex={-1}
@@ -444,18 +448,18 @@ export function StallModulesManager({
                 <input
                   id={checkboxId}
                   type="checkbox"
-                  aria-label={`${discount.name}，付款比例 ${formatPercentage(discount.rateBps)}`}
+                  aria-label={m("{value0}，付款比例 {value1}", { value0: discount.name, value1: formatPercentage(discount.rateBps) })}
                   checked={Boolean(chance)}
                   disabled={!chance && lotteryNoDiscountRateBps === 0}
                   onChange={(event) => setLotteryDiscountEnabled(discount.id, event.target.checked)}
                   className="h-5 w-5 shrink-0"
                 />
-                <span className="min-w-0"><span className="block truncate">{discount.name}</span><span className="block text-xs font-normal text-stone-500">付款比例 {formatPercentage(discount.rateBps)}</span></span>
+                <span className="min-w-0"><span className="block truncate">{discount.name}</span><span className="block text-xs font-normal text-stone-500">{label("付款比例")} {formatPercentage(discount.rateBps)}</span></span>
               </label>
-              <label className="text-xs font-medium text-stone-600">中獎率（%）
+              <label className="text-xs font-medium text-stone-600">{label("中獎率（%）")}
                 <input
                   type="number"
-                  aria-label={`${discount.name} 中獎率（%）`}
+                  aria-label={m("{value0} 中獎率（%）", { value0: discount.name })}
                   data-testid={`lottery-discount-rate-${discount.id}`}
                   min={0.01}
                   max={100}
@@ -471,17 +475,17 @@ export function StallModulesManager({
               </label>
             </div>;
           })}
-          {state.discounts.every((discount) => !discount.isEnabled) ? <p className="p-3 text-sm text-amber-800">請先在下方「結帳折扣」新增並啟用折扣；也可以維持只推薦商品、不發折扣。</p> : null}
+          {state.discounts.every((discount) => !discount.isEnabled) ? <p className="p-3 text-sm text-amber-800">{label("請先在下方「結帳折扣」新增並啟用折扣；也可以維持只推薦商品、不發折扣。")}</p> : null}
         </div>
         <FieldError fieldKey={fieldKey("modules", "lotteryDiscountChances")} error={errorFor("modules", "lotteryDiscountChances")} />
         <div className={`mt-3 flex flex-wrap justify-between gap-2 rounded-md px-3 py-2 text-sm font-semibold ${lotteryChanceTotalBps > 10_000 ? "bg-red-50 text-red-800" : "bg-teal-50 text-teal-900"}`}>
-          <span>折扣中獎率合計 {formatPercentage(lotteryChanceTotalBps)}</span>
-          <span>未中獎／只推薦 {formatPercentage(lotteryNoDiscountRateBps)}</span>
+          <span>{label("折扣中獎率合計")} {formatPercentage(lotteryChanceTotalBps)}</span>
+          <span>{label("未中獎／只推薦")} {formatPercentage(lotteryNoDiscountRateBps)}</span>
         </div>
-        <p className="mt-3 text-xs text-stone-500">每台裝置每天一次；商品與折扣由伺服器抽取，下單時一次性兌換且不可與其他折扣疊加。</p>
+        <p className="mt-3 text-xs text-stone-500">{label("每台裝置每天一次；商品與折扣由伺服器抽取，下單時一次性兌換且不可與其他折扣疊加。")}</p>
       </fieldset> : null}
-      {state.settings.discountModuleEnabled ? <label className="mt-4 block max-w-xs text-xs font-semibold text-stone-600">超過此折扣需經理核准（%）<input {...validationAttributes(fieldKey("modules", "discountApprovalThresholdBps"), errorFor("modules", "discountApprovalThresholdBps"))} type="number" min={0} max={100} step={1} value={(10_000 - state.settings.discountApprovalThresholdBps) / 100} onChange={(event) => { const percent = Math.max(0, Math.min(100, Number(event.target.value) || 0)); setState((current) => ({ ...current, settings: { ...current.settings, discountApprovalThresholdBps: 10_000 - percent * 100 } })); }} className={inputClass(errorFor("modules", "discountApprovalThresholdBps"))} /><FieldError fieldKey={fieldKey("modules", "discountApprovalThresholdBps")} error={errorFor("modules", "discountApprovalThresholdBps")} /><span className="mt-1 block font-normal text-stone-500">例如設定 20%，折扣超過 20%（低於 8 折）時需要經理驗證。</span></label> : null}
-      <button type="button" disabled={busy} onClick={() => void saveModules()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存模組開關</button>
+      {state.settings.discountModuleEnabled ? <label className="mt-4 block max-w-xs text-xs font-semibold text-stone-600">{label("超過此折扣需經理核准（%）")}<input {...validationAttributes(fieldKey("modules", "discountApprovalThresholdBps"), errorFor("modules", "discountApprovalThresholdBps"))} type="number" min={0} max={100} step={1} value={(10_000 - state.settings.discountApprovalThresholdBps) / 100} onChange={(event) => { const percent = Math.max(0, Math.min(100, Number(event.target.value) || 0)); setState((current) => ({ ...current, settings: { ...current.settings, discountApprovalThresholdBps: 10_000 - percent * 100 } })); }} className={inputClass(errorFor("modules", "discountApprovalThresholdBps"))} /><FieldError fieldKey={fieldKey("modules", "discountApprovalThresholdBps")} error={errorFor("modules", "discountApprovalThresholdBps")} /><span className="mt-1 block font-normal text-stone-500">{label("例如設定 20%，折扣超過 20%（低於 8 折）時需要經理驗證。")}</span></label> : null}
+      <button type="button" disabled={busy} onClick={() => void saveModules()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{label("儲存模組開關")}</button>
 
       <details
         id="stall-module-section-delivery"
@@ -490,13 +494,13 @@ export function StallModulesManager({
         data-module-section="delivery"
         className="mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
       >
-        <CollapsibleSectionSummary icon={Truck} title="外帶、外送與 LINE 連結" description="分享連結才會讓顧客選擇取餐或送達時間；現場 QR 維持即時點餐。" level={3} />
+        <CollapsibleSectionSummary icon={Truck} title={label("外帶、外送與 LINE 連結")} description={label("分享連結才會讓顧客選擇取餐或送達時間；現場 QR 維持即時點餐。")} level={3} />
         <div className="pb-6">
-          {!state.settings.takeoutPreorderEnabled ? <p className="mb-3 text-sm text-amber-800">請先開啟並儲存「外帶自取」模組，顧客才能選擇外帶自取。</p> : null}
-          {!state.settings.deliveryModuleEnabled ? <p className="mb-3 text-sm text-amber-800">請先開啟並儲存「線上外送」模組，顧客才能選擇外送。</p> : null}
-          <label className="block text-xs font-semibold text-stone-600">顧客公開點餐網址<div className="mt-1 flex gap-2"><input type="text" readOnly value={storefrontUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title="複製公開點餐網址" onClick={() => void copyShareText(storefrontUrl, "公開點餐網址")} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
-          <label className="mt-4 block text-xs font-semibold text-stone-600">LINE 自動回覆內容<textarea readOnly value={lineReply} className="mt-1 min-h-24 w-full rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm" /></label>
-          <button type="button" onClick={() => void copyShareText(lineReply, "LINE 回覆內容")} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MessageCircle className="h-4 w-4" />複製 LINE 回覆內容</button>
+          {!state.settings.takeoutPreorderEnabled ? <p className="mb-3 text-sm text-amber-800">{label("請先開啟並儲存「外帶自取」模組，顧客才能選擇外帶自取。")}</p> : null}
+          {!state.settings.deliveryModuleEnabled ? <p className="mb-3 text-sm text-amber-800">{label("請先開啟並儲存「線上外送」模組，顧客才能選擇外送。")}</p> : null}
+          <label className="block text-xs font-semibold text-stone-600">{label("顧客公開點餐網址")}<div className="mt-1 flex gap-2"><input type="text" readOnly value={storefrontUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title={label("複製公開點餐網址")} onClick={() => void copyShareText(storefrontUrl, label("公開點餐網址"))} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
+          <label className="mt-4 block text-xs font-semibold text-stone-600">{label("LINE 自動回覆內容")}<textarea readOnly value={lineReply} className="mt-1 min-h-24 w-full rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm" /></label>
+          <button type="button" onClick={() => void copyShareText(lineReply, label("LINE 回覆內容"))} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MessageCircle className="h-4 w-4" />{label("複製 LINE 回覆內容")}</button>
         </div>
       </details>
 
@@ -505,25 +509,25 @@ export function StallModulesManager({
         open={openSections.has("locales")}
         onToggle={(event) => handleSectionToggle("locales", event)}
         data-module-section="locales"
-        aria-label="QR 點餐語系"
+        aria-label={label("QR 點餐語系")}
         className="mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
       >
-        <CollapsibleSectionSummary icon={Languages} title="QR 點餐語系" level={3} />
+        <CollapsibleSectionSummary icon={Languages} title={label("QR 點餐語系")} level={3} />
         <div className="pb-6">
-          <p className="mb-3 text-sm text-stone-600">只向顧客提供已開啟的語系；瀏覽器語言若已關閉，會自動改用繁體中文。</p>
+          <p className="mb-3 text-sm text-stone-600">{label("只向顧客提供已開啟的語系；瀏覽器語言若已關閉，會自動改用繁體中文。")}</p>
           <div data-locale-switch-grid className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {QR_LOCALES.map((locale) => (
               <ModuleSwitch
                 key={locale}
                 icon={<LocaleFlag locale={locale} />}
-                label={`${QR_LOCALE_LABELS[locale]}${locale === "zh-TW" ? "（預設）" : ""}`}
+                label={`${label(QR_LOCALE_LABELS[locale])}${locale === "zh-TW" ? label("（預設）") : ""}`}
                 checked={state.settings.enabledLocales.includes(locale)}
                 disabled={locale === "zh-TW"}
                 onChange={(enabled) => updateLocale(locale, enabled)}
               />
             ))}
           </div>
-          <button type="button" disabled={busy} onClick={() => void saveLocales()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存語系設定</button>
+          <button type="button" disabled={busy} onClick={() => void saveLocales()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{label("儲存語系設定")}</button>
         </div>
       </details>
 
@@ -534,10 +538,10 @@ export function StallModulesManager({
         data-module-section="tables"
         className="border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
       >
-        <CollapsibleSectionSummary icon={QrCode} title="內用桌位與專屬 QR" level={3} />
+        <CollapsibleSectionSummary icon={QrCode} title={label("內用桌位與專屬 QR")} level={3} />
         <div className="pb-6">
           <div className="mb-5 border-b border-stone-200 pb-5">
-            <div role="tablist" aria-label="樓層" className="flex gap-2 overflow-x-auto pb-2">
+            <div role="tablist" aria-label={label("樓層")} className="flex gap-2 overflow-x-auto pb-2">
               {floorTabs.map((floor) => (
                 <button
                   key={floor.key}
@@ -555,31 +559,31 @@ export function StallModulesManager({
               ))}
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_90px_auto] sm:items-end">
-              <TextInput label="新增樓層名稱" value={newFloor.name} fieldKey={fieldKey("new-floor", "name")} error={errorFor("new-floor", "name")} maxLength={40} onChange={(name) => setNewFloor({ ...newFloor, name })} />
-              <NumberInput label="排序" value={newFloor.sortOrder} fieldKey={fieldKey("new-floor", "sortOrder")} error={errorFor("new-floor", "sortOrder")} onChange={(sortOrder) => setNewFloor({ ...newFloor, sortOrder })} />
+              <TextInput label={label("新增樓層名稱")} value={newFloor.name} fieldKey={fieldKey("new-floor", "name")} error={errorFor("new-floor", "name")} maxLength={40} onChange={(name) => setNewFloor({ ...newFloor, name })} />
+              <NumberInput label={label("排序")} value={newFloor.sortOrder} fieldKey={fieldKey("new-floor", "sortOrder")} error={errorFor("new-floor", "sortOrder")} onChange={(sortOrder) => setNewFloor({ ...newFloor, sortOrder })} />
               <button type="button" data-testid="create-dining-floor" disabled={busy} onClick={async () => {
                 const createdName = newFloor.name.trim();
-                const nextState = await run({ operation: "CREATE_FLOOR", ...newFloor }, "樓層已新增。");
+                const nextState = await run({ operation: "CREATE_FLOOR", ...newFloor }, label("樓層已新增。"));
                 if (nextState) {
                   const createdFloor = nextState.floors.find((floor) => floor.name === createdName);
                   if (createdFloor) {
                     setActiveFloorKey(createdFloor.id);
                     setNewTable((current) => ({ ...current, floorId: createdFloor.id }));
                   }
-                  setNewFloor({ name: `${nextState.floors.length + 1}樓`, sortOrder: nextState.floors.length + 1 });
+                  setNewFloor({ name: m("{value0}樓", { value0: nextState.floors.length + 1 }), sortOrder: nextState.floors.length + 1 });
                 }
-              }} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-40"><Plus className="h-4 w-4" />新增樓層</button>
+              }} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-40"><Plus className="h-4 w-4" />{label("新增樓層")}</button>
             </div>
             {activeFloorRecord ? (
               <div className="mt-3 grid gap-2 rounded-md bg-stone-50 p-3 sm:grid-cols-[1fr_90px_auto] sm:items-end">
-                <TextInput label="目前樓層名稱" value={activeFloorRecord.name} fieldKey={fieldKey(`floor-${activeFloorRecord.id}`, "name")} error={errorFor(`floor-${activeFloorRecord.id}`, "name")} maxLength={40} onChange={(name) => updateFloor(activeFloorRecord.id, { name })} />
-                <NumberInput label="排序" value={activeFloorRecord.sortOrder} fieldKey={fieldKey(`floor-${activeFloorRecord.id}`, "sortOrder")} error={errorFor(`floor-${activeFloorRecord.id}`, "sortOrder")} onChange={(sortOrder) => updateFloor(activeFloorRecord.id, { sortOrder })} />
+                <TextInput label={label("目前樓層名稱")} value={activeFloorRecord.name} fieldKey={fieldKey(`floor-${activeFloorRecord.id}`, "name")} error={errorFor(`floor-${activeFloorRecord.id}`, "name")} maxLength={40} onChange={(name) => updateFloor(activeFloorRecord.id, { name })} />
+                <NumberInput label={label("排序")} value={activeFloorRecord.sortOrder} fieldKey={fieldKey(`floor-${activeFloorRecord.id}`, "sortOrder")} error={errorFor(`floor-${activeFloorRecord.id}`, "sortOrder")} onChange={(sortOrder) => updateFloor(activeFloorRecord.id, { sortOrder })} />
                 <div className="flex gap-2">
-                  <button type="button" title={`儲存 ${activeFloorRecord.name}`} disabled={busy} onClick={() => void run({ operation: "UPDATE_FLOOR", floorId: activeFloorRecord.id, name: activeFloorRecord.name, sortOrder: activeFloorRecord.sortOrder }, "樓層已儲存。")} className="grid h-10 w-10 place-items-center rounded-md bg-stone-900 text-white"><Save className="h-4 w-4" /></button>
-                  <button type="button" title={`刪除 ${activeFloorRecord.name}`} disabled={busy} onClick={() => { if (window.confirm(`確定刪除 ${activeFloorRecord.name}？樓層必須沒有桌位。`)) void run({ operation: "DELETE_FLOOR", floorId: activeFloorRecord.id }, "樓層已刪除。"); }} className="grid h-10 w-10 place-items-center rounded-md border border-red-300 text-red-700"><Trash2 className="h-4 w-4" /></button>
+                  <button type="button" title={m("儲存 {value0}", { value0: activeFloorRecord.name })} disabled={busy} onClick={() => void run({ operation: "UPDATE_FLOOR", floorId: activeFloorRecord.id, name: activeFloorRecord.name, sortOrder: activeFloorRecord.sortOrder }, label("樓層已儲存。"))} className="grid h-10 w-10 place-items-center rounded-md bg-stone-900 text-white"><Save className="h-4 w-4" /></button>
+                  <button type="button" title={m("刪除 {value0}", { value0: activeFloorRecord.name })} disabled={busy} onClick={() => { if (window.confirm(m("確定刪除 {value0}？樓層必須沒有桌位。", { value0: activeFloorRecord.name }))) void run({ operation: "DELETE_FLOOR", floorId: activeFloorRecord.id }, label("樓層已刪除。")); }} className="grid h-10 w-10 place-items-center rounded-md border border-red-300 text-red-700"><Trash2 className="h-4 w-4" /></button>
                 </div>
               </div>
-            ) : <p className="mt-3 text-xs text-stone-500">目前顯示相容舊資料的虛擬 {DEFAULT_DINING_FLOOR_NAME}；首次新增桌位或儲存位置時會自動建立樓層。</p>}
+            ) : <p className="mt-3 text-xs text-stone-500">{label("目前顯示相容舊資料的虛擬")} {DEFAULT_DINING_FLOOR_NAME}{label("；首次新增桌位或儲存位置時會自動建立樓層。")}</p>}
           </div>
           <details
             id="stall-module-section-floor"
@@ -588,31 +592,31 @@ export function StallModulesManager({
             data-module-section="floor"
             className="mb-6 border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
           >
-            <CollapsibleSectionSummary icon={MapPinned} title="桌位平面配置" description="此位置會同步到員工手機的桌位看板。" level={4} />
+            <CollapsibleSectionSummary icon={MapPinned} title={label("桌位平面配置")} description={label("此位置會同步到員工手機的桌位看板。")} level={4} />
             <div className="pb-6">
             <DiningFloorEditor
               tables={activeFloorTables}
               disabled={busy}
               onMove={(tableId, position) => updateTable(tableId, position)}
             />
-            <button type="button" disabled={busy || activeFloorTables.length === 0 || Boolean(pendingFloorMoveMessage)} title={pendingFloorMoveMessage || undefined} onClick={() => void saveTableLayout()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />儲存桌位位置</button>
+            <button type="button" disabled={busy || activeFloorTables.length === 0 || Boolean(pendingFloorMoveMessage)} title={pendingFloorMoveMessage || undefined} onClick={() => void saveTableLayout()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{label("儲存桌位位置")}</button>
             <FieldError fieldKey={fieldKey("table-layout", "tables")} error={pendingFloorMoveMessage || errorFor("table-layout", "tables")} />
             </div>
           </details>
           <div className="grid gap-2 border-b border-stone-200 pb-4 sm:grid-cols-2 lg:grid-cols-[120px_1fr_120px_120px_90px_auto]">
-            <TextInput label="桌位代碼" value={newTable.code} fieldKey={fieldKey("new-table", "code")} error={errorFor("new-table", "code")} maxLength={20} pattern="[A-Za-z0-9-]+" onChange={(code) => setNewTable({ ...newTable, code: code.toUpperCase() })} />
-            <TextInput label="顯示名稱" value={newTable.label} fieldKey={fieldKey("new-table", "label")} error={errorFor("new-table", "label")} maxLength={40} onChange={(label) => setNewTable({ ...newTable, label })} />
+            <TextInput label={label("桌位代碼")} value={newTable.code} fieldKey={fieldKey("new-table", "code")} error={errorFor("new-table", "code")} maxLength={20} pattern="[A-Za-z0-9-]+" onChange={(code) => setNewTable({ ...newTable, code: code.toUpperCase() })} />
+            <TextInput label={label("顯示名稱")} value={newTable.label} fieldKey={fieldKey("new-table", "label")} error={errorFor("new-table", "label")} maxLength={40} onChange={(label) => setNewTable({ ...newTable, label })} />
             <TableShapeSelect value={newTable.shape} fieldKey={fieldKey("new-table", "shape")} error={errorFor("new-table", "shape")} onChange={(shape) => setNewTable({ ...newTable, shape })} />
             <TableRotationSelect value={newTable.rotationDegrees} fieldKey={fieldKey("new-table", "rotationDegrees")} error={errorFor("new-table", "rotationDegrees")} onChange={(rotationDegrees) => setNewTable({ ...newTable, rotationDegrees })} />
-            <NumberInput label="排序" value={newTable.sortOrder} fieldKey={fieldKey("new-table", "sortOrder")} error={errorFor("new-table", "sortOrder")} onChange={(sortOrder) => setNewTable({ ...newTable, sortOrder })} />
+            <NumberInput label={label("排序")} value={newTable.sortOrder} fieldKey={fieldKey("new-table", "sortOrder")} error={errorFor("new-table", "sortOrder")} onChange={(sortOrder) => setNewTable({ ...newTable, sortOrder })} />
             <button type="button" disabled={busy} onClick={async () => {
-              const nextState = await run({ operation: "CREATE_TABLE", ...newTable }, "桌位與專屬 QR 已建立。");
+              const nextState = await run({ operation: "CREATE_TABLE", ...newTable }, label("桌位與專屬 QR 已建立。"));
               if (nextState) {
                 const nextFloorId = newTable.floorId ?? nextState.floors.find((floor) => floor.name === DEFAULT_DINING_FLOOR_NAME)?.id ?? null;
                 if (nextFloorId) setActiveFloorKey(nextFloorId);
                 setNewTable({ floorId: nextFloorId, code: "", label: "", isActive: true, sortOrder: nextState.tables.length + 1, shape: "SQUARE", rotationDegrees: 0 });
               }
-            }} className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-40"><Plus className="h-4 w-4" />新增</button>
+            }} className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-40"><Plus className="h-4 w-4" />{label("新增")}</button>
             <div className="sm:col-span-2 lg:col-span-6"><FloorSelect floors={floorTabs} value={newTable.floorId} fieldKey={fieldKey("new-table", "floorId")} error={errorFor("new-table", "floorId")} onChange={(floorId) => setNewTable({ ...newTable, floorId })} /></div>
           </div>
           <div className="divide-y divide-stone-200">
@@ -620,23 +624,23 @@ export function StallModulesManager({
               const qrUrl = table.qrCode ? `${appUrl.replace(/\/$/, "")}/q/${encodeURIComponent(table.qrCode.token)}` : "";
               return <div key={table.id} className="grid gap-4 py-5 lg:grid-cols-[1fr_160px]">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[120px_1fr_120px_120px_90px]">
-                  <TextInput label="桌位代碼" value={table.code} fieldKey={fieldKey(`table-${table.id}`, "code")} error={errorFor(`table-${table.id}`, "code")} maxLength={20} pattern="[A-Za-z0-9-]+" onChange={(code) => updateTable(table.id, { code: code.toUpperCase() })} />
-                  <TextInput label="顯示名稱" value={table.label} fieldKey={fieldKey(`table-${table.id}`, "label")} error={errorFor(`table-${table.id}`, "label")} maxLength={40} onChange={(label) => updateTable(table.id, { label })} />
+                  <TextInput label={label("桌位代碼")} value={table.code} fieldKey={fieldKey(`table-${table.id}`, "code")} error={errorFor(`table-${table.id}`, "code")} maxLength={20} pattern="[A-Za-z0-9-]+" onChange={(code) => updateTable(table.id, { code: code.toUpperCase() })} />
+                  <TextInput label={label("顯示名稱")} value={table.label} fieldKey={fieldKey(`table-${table.id}`, "label")} error={errorFor(`table-${table.id}`, "label")} maxLength={40} onChange={(label) => updateTable(table.id, { label })} />
                   <TableShapeSelect value={table.shape} fieldKey={fieldKey(`table-${table.id}`, "shape")} error={errorFor(`table-${table.id}`, "shape")} onChange={(shape) => updateTable(table.id, { shape })} />
                   <TableRotationSelect value={table.rotationDegrees} fieldKey={fieldKey(`table-${table.id}`, "rotationDegrees")} error={errorFor(`table-${table.id}`, "rotationDegrees")} onChange={(rotationDegrees) => updateTable(table.id, { rotationDegrees })} />
-                  <NumberInput label="排序" value={table.sortOrder} fieldKey={fieldKey(`table-${table.id}`, "sortOrder")} error={errorFor(`table-${table.id}`, "sortOrder")} onChange={(sortOrder) => updateTable(table.id, { sortOrder })} />
+                  <NumberInput label={label("排序")} value={table.sortOrder} fieldKey={fieldKey(`table-${table.id}`, "sortOrder")} error={errorFor(`table-${table.id}`, "sortOrder")} onChange={(sortOrder) => updateTable(table.id, { sortOrder })} />
                   <div className="sm:col-span-2 lg:col-span-5"><FloorSelect floors={floorTabs} value={table.floorId} fieldKey={fieldKey(`table-${table.id}`, "floorId")} error={errorFor(`table-${table.id}`, "floorId")} onChange={(floorId) => updateTable(table.id, { floorId })} /></div>
-                  <label className="flex min-h-10 items-center gap-2 text-sm sm:col-span-2 lg:col-span-5"><input type="checkbox" checked={table.isActive} onChange={(event) => updateTable(table.id, { isActive: event.target.checked })} />啟用桌位</label>
+                  <label className="flex min-h-10 items-center gap-2 text-sm sm:col-span-2 lg:col-span-5"><input type="checkbox" checked={table.isActive} onChange={(event) => updateTable(table.id, { isActive: event.target.checked })} />{label("啟用桌位")}</label>
                   <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-5">
-                    <button type="button" disabled={busy} onClick={() => void run({ operation: "UPDATE_TABLE", tableId: table.id, floorId: table.floorId, code: table.code, label: table.label, sortOrder: table.sortOrder, isActive: table.isActive, shape: table.shape, rotationDegrees: table.rotationDegrees }, `${table.label} 已儲存。`)} className="inline-flex h-10 items-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white"><Save className="h-4 w-4" />儲存</button>
-                    <button type="button" disabled={busy} onClick={() => { if (window.confirm(`確定輪替 ${table.label} 的 QR？舊 QR 將立即失效。`)) void run({ operation: "ROTATE_TABLE_QR", tableId: table.id }, "桌位 QR 已輪替。"); }} className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><RotateCw className="h-4 w-4" />輪替 QR</button>
-                    <button type="button" disabled={busy} onClick={() => { if (window.confirm(`確定刪除 ${table.label}？`)) void run({ operation: "DELETE_TABLE", tableId: table.id }, "桌位已刪除。"); }} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-300 text-red-700" title={`刪除 ${table.label}`}><Trash2 className="h-4 w-4" /></button>
+                    <button type="button" disabled={busy} onClick={() => void run({ operation: "UPDATE_TABLE", tableId: table.id, floorId: table.floorId, code: table.code, label: table.label, sortOrder: table.sortOrder, isActive: table.isActive, shape: table.shape, rotationDegrees: table.rotationDegrees }, m("{value0} 已儲存。", { value0: table.label }))} className="inline-flex h-10 items-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white"><Save className="h-4 w-4" />{label("儲存")}</button>
+                    <button type="button" disabled={busy} onClick={() => { if (window.confirm(m("確定輪替 {value0} 的 QR？舊 QR 將立即失效。", { value0: table.label }))) void run({ operation: "ROTATE_TABLE_QR", tableId: table.id }, label("桌位 QR 已輪替。")); }} className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><RotateCw className="h-4 w-4" />{label("輪替 QR")}</button>
+                    <button type="button" disabled={busy} onClick={() => { if (window.confirm(m("確定刪除 {value0}？", { value0: table.label }))) void run({ operation: "DELETE_TABLE", tableId: table.id }, label("桌位已刪除。")); }} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-300 text-red-700" title={m("刪除 {value0}", { value0: table.label })}><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </div>
-                {qrUrl ? <div className="flex flex-col items-center gap-2 border-l-0 border-stone-200 lg:border-l lg:pl-4"><QRCodeSVG value={qrUrl} size={120} level="M" /><button type="button" onClick={() => void copyShareText(qrUrl, `${table.label} QR 網址`)} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-800"><Copy className="h-3.5 w-3.5" />複製網址</button><span className="text-xs text-stone-500">QR v{table.qrCode?.tokenVersion}</span></div> : null}
+                {qrUrl ? <div className="flex flex-col items-center gap-2 border-l-0 border-stone-200 lg:border-l lg:pl-4"><QRCodeSVG value={qrUrl} size={120} level="M" /><button type="button" onClick={() => void copyShareText(qrUrl, m("{value0} QR 網址", { value0: table.label }))} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-800"><Copy className="h-3.5 w-3.5" />{label("複製網址")}</button><span className="text-xs text-stone-500">QR v{table.qrCode?.tokenVersion}</span></div> : null}
               </div>;
             })}
-            {activeFloorTables.length === 0 ? <p className="py-6 text-sm text-stone-500">{activeFloor?.name ?? "此樓層"}尚未建立內用桌位。</p> : null}
+            {activeFloorTables.length === 0 ? <p className="py-6 text-sm text-stone-500">{activeFloor?.name ?? label("此樓層")}{label("尚未建立內用桌位。")}</p> : null}
           </div>
         </div>
       </details>
@@ -648,20 +652,20 @@ export function StallModulesManager({
         data-module-section="payments"
         className="border-b border-stone-200 scroll-mt-24 [&[open]>summary_.section-chevron]:rotate-180"
       >
-        <CollapsibleSectionSummary icon={WalletCards} title="付款方式" level={3} />
+        <CollapsibleSectionSummary icon={WalletCards} title={label("付款方式")} level={3} />
         <div className="pb-6">
           <div className="grid gap-2 border-b border-stone-200 pb-4 sm:grid-cols-[110px_1fr_150px_80px_auto]">
-            <TextInput label="代碼" value={newPayment.code} fieldKey={fieldKey("new-payment", "code")} error={errorFor("new-payment", "code")} maxLength={30} pattern="[A-Za-z0-9_-]+" onChange={(code) => setNewPayment({ ...newPayment, code: code.toUpperCase() })} />
-            <TextInput label="名稱" value={newPayment.name} fieldKey={fieldKey("new-payment", "name")} error={errorFor("new-payment", "name")} onChange={(name) => setNewPayment({ ...newPayment, name })} />
+            <TextInput label={label("代碼")} value={newPayment.code} fieldKey={fieldKey("new-payment", "code")} error={errorFor("new-payment", "code")} maxLength={30} pattern="[A-Za-z0-9_-]+" onChange={(code) => setNewPayment({ ...newPayment, code: code.toUpperCase() })} />
+            <TextInput label={label("名稱")} value={newPayment.name} fieldKey={fieldKey("new-payment", "name")} error={errorFor("new-payment", "name")} onChange={(name) => setNewPayment({ ...newPayment, name })} />
             <PaymentKind value={newPayment.kind} fieldKey={fieldKey("new-payment", "kind")} error={errorFor("new-payment", "kind")} onChange={(kind) => setNewPayment({ ...newPayment, kind })} />
-            <NumberInput label="排序" value={newPayment.sortOrder} fieldKey={fieldKey("new-payment", "sortOrder")} error={errorFor("new-payment", "sortOrder")} onChange={(sortOrder) => setNewPayment({ ...newPayment, sortOrder })} />
+            <NumberInput label={label("排序")} value={newPayment.sortOrder} fieldKey={fieldKey("new-payment", "sortOrder")} error={errorFor("new-payment", "sortOrder")} onChange={(sortOrder) => setNewPayment({ ...newPayment, sortOrder })} />
             <button type="button" disabled={busy} onClick={async () => {
-              if (await run({ operation: "CREATE_PAYMENT_OPTION", ...newPayment }, "付款方式已新增。")) setNewPayment({ code: "", name: "", kind: "CUSTOM", isEnabled: true, sortOrder: state.paymentOptions.length + 2 });
-            }} className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-40"><Plus className="h-4 w-4" />新增</button>
+              if (await run({ operation: "CREATE_PAYMENT_OPTION", ...newPayment }, label("付款方式已新增。"))) setNewPayment({ code: "", name: "", kind: "CUSTOM", isEnabled: true, sortOrder: state.paymentOptions.length + 2 });
+            }} className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-40"><Plus className="h-4 w-4" />{label("新增")}</button>
           </div>
           <div className="divide-y divide-stone-200">{state.paymentOptions.map((option) => {
             const scope = `payment-${option.id}`;
-            return <div key={option.id} className="grid gap-2 py-4 sm:grid-cols-[110px_1fr_150px_80px_auto] sm:items-end"><TextInput label="代碼" value={option.code} fieldKey={fieldKey(scope, "code")} error={errorFor(scope, "code")} maxLength={30} pattern="[A-Za-z0-9_-]+" onChange={(code) => updatePayment(option.id, { code: code.toUpperCase() })} /><TextInput label="名稱" value={option.name} fieldKey={fieldKey(scope, "name")} error={errorFor(scope, "name")} onChange={(name) => updatePayment(option.id, { name })} /><PaymentKind value={option.kind} fieldKey={fieldKey(scope, "kind")} error={errorFor(scope, "kind")} onChange={(kind) => updatePayment(option.id, { kind })} /><NumberInput label="排序" value={option.sortOrder} fieldKey={fieldKey(scope, "sortOrder")} error={errorFor(scope, "sortOrder")} onChange={(sortOrder) => updatePayment(option.id, { sortOrder })} /><div className="flex gap-2"><button type="button" role="switch" aria-checked={option.isEnabled} onClick={() => updatePayment(option.id, { isEnabled: !option.isEnabled })} className="h-10 rounded-md border border-stone-300 px-3 text-xs font-semibold">{option.isEnabled ? "已啟用" : "已停用"}</button><button type="button" title={`儲存 ${option.name}`} onClick={() => void run({ operation: "UPDATE_PAYMENT_OPTION", paymentOptionId: option.id, code: option.code, name: option.name, kind: option.kind, isEnabled: option.isEnabled, sortOrder: option.sortOrder }, "付款方式已儲存。")} className="grid h-10 w-10 place-items-center rounded-md bg-stone-900 text-white"><Save className="h-4 w-4" /></button><button type="button" title={`刪除 ${option.name}`} onClick={() => { if (window.confirm(`確定刪除 ${option.name}？歷史付款仍會保留名稱。`)) void run({ operation: "DELETE_PAYMENT_OPTION", paymentOptionId: option.id }, "付款方式已刪除。"); }} className="grid h-10 w-10 place-items-center rounded-md border border-red-300 text-red-700"><Trash2 className="h-4 w-4" /></button></div></div>;
+            return <div key={option.id} className="grid gap-2 py-4 sm:grid-cols-[110px_1fr_150px_80px_auto] sm:items-end"><TextInput label={label("代碼")} value={option.code} fieldKey={fieldKey(scope, "code")} error={errorFor(scope, "code")} maxLength={30} pattern="[A-Za-z0-9_-]+" onChange={(code) => updatePayment(option.id, { code: code.toUpperCase() })} /><TextInput label={label("名稱")} value={option.name} fieldKey={fieldKey(scope, "name")} error={errorFor(scope, "name")} onChange={(name) => updatePayment(option.id, { name })} /><PaymentKind value={option.kind} fieldKey={fieldKey(scope, "kind")} error={errorFor(scope, "kind")} onChange={(kind) => updatePayment(option.id, { kind })} /><NumberInput label={label("排序")} value={option.sortOrder} fieldKey={fieldKey(scope, "sortOrder")} error={errorFor(scope, "sortOrder")} onChange={(sortOrder) => updatePayment(option.id, { sortOrder })} /><div className="flex gap-2"><button type="button" role="switch" aria-checked={option.isEnabled} onClick={() => updatePayment(option.id, { isEnabled: !option.isEnabled })} className="h-10 rounded-md border border-stone-300 px-3 text-xs font-semibold">{option.isEnabled ? label("已啟用") : label("已停用")}</button><button type="button" title={m("儲存 {value0}", { value0: option.name })} onClick={() => void run({ operation: "UPDATE_PAYMENT_OPTION", paymentOptionId: option.id, code: option.code, name: option.name, kind: option.kind, isEnabled: option.isEnabled, sortOrder: option.sortOrder }, label("付款方式已儲存。"))} className="grid h-10 w-10 place-items-center rounded-md bg-stone-900 text-white"><Save className="h-4 w-4" /></button><button type="button" title={m("刪除 {value0}", { value0: option.name })} onClick={() => { if (window.confirm(m("確定刪除 {value0}？歷史付款仍會保留名稱。", { value0: option.name }))) void run({ operation: "DELETE_PAYMENT_OPTION", paymentOptionId: option.id }, label("付款方式已刪除。")); }} className="grid h-10 w-10 place-items-center rounded-md border border-red-300 text-red-700"><Trash2 className="h-4 w-4" /></button></div></div>;
           })}</div>
         </div>
       </details>
@@ -673,12 +677,12 @@ export function StallModulesManager({
         data-module-section="discounts"
         className="scroll-mt-24 border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
       >
-        <CollapsibleSectionSummary icon={Percent} title="結帳折扣" level={3} />
+        <CollapsibleSectionSummary icon={Percent} title={label("結帳折扣")} level={3} />
         <div className="pb-6">
-          <div className="grid gap-2 border-b border-stone-200 pb-4 sm:grid-cols-[1fr_130px_80px_auto]"><TextInput label="折扣名稱" value={newDiscount.name} fieldKey={fieldKey("new-discount", "name")} error={errorFor("new-discount", "name")} onChange={(name) => setNewDiscount({ ...newDiscount, name })} /><PercentInput value={newDiscount.rateBps} fieldKey={fieldKey("new-discount", "rateBps")} error={errorFor("new-discount", "rateBps")} onChange={(rateBps) => setNewDiscount({ ...newDiscount, rateBps })} /><NumberInput label="排序" value={newDiscount.sortOrder} fieldKey={fieldKey("new-discount", "sortOrder")} error={errorFor("new-discount", "sortOrder")} onChange={(sortOrder) => setNewDiscount({ ...newDiscount, sortOrder })} /><button type="button" disabled={busy} onClick={async () => { if (await run({ operation: "CREATE_DISCOUNT", ...newDiscount }, "折扣已新增。")) setNewDiscount({ name: "", rateBps: 9000, isEnabled: true, sortOrder: state.discounts.length + 2 }); }} className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Plus className="h-4 w-4" />新增</button></div>
+          <div className="grid gap-2 border-b border-stone-200 pb-4 sm:grid-cols-[1fr_130px_80px_auto]"><TextInput label={label("折扣名稱")} value={newDiscount.name} fieldKey={fieldKey("new-discount", "name")} error={errorFor("new-discount", "name")} onChange={(name) => setNewDiscount({ ...newDiscount, name })} /><PercentInput value={newDiscount.rateBps} fieldKey={fieldKey("new-discount", "rateBps")} error={errorFor("new-discount", "rateBps")} onChange={(rateBps) => setNewDiscount({ ...newDiscount, rateBps })} /><NumberInput label={label("排序")} value={newDiscount.sortOrder} fieldKey={fieldKey("new-discount", "sortOrder")} error={errorFor("new-discount", "sortOrder")} onChange={(sortOrder) => setNewDiscount({ ...newDiscount, sortOrder })} /><button type="button" disabled={busy} onClick={async () => { if (await run({ operation: "CREATE_DISCOUNT", ...newDiscount }, label("折扣已新增。"))) setNewDiscount({ name: "", rateBps: 9000, isEnabled: true, sortOrder: state.discounts.length + 2 }); }} className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Plus className="h-4 w-4" />{label("新增")}</button></div>
           <div className="divide-y divide-stone-200">{state.discounts.map((discount) => {
             const scope = `discount-${discount.id}`;
-            return <div key={discount.id} className="grid gap-2 py-4 sm:grid-cols-[1fr_130px_80px_auto] sm:items-end"><TextInput label="折扣名稱" value={discount.name} fieldKey={fieldKey(scope, "name")} error={errorFor(scope, "name")} onChange={(name) => updateDiscount(discount.id, { name })} /><PercentInput value={discount.rateBps} fieldKey={fieldKey(scope, "rateBps")} error={errorFor(scope, "rateBps")} onChange={(rateBps) => updateDiscount(discount.id, { rateBps })} /><NumberInput label="排序" value={discount.sortOrder} fieldKey={fieldKey(scope, "sortOrder")} error={errorFor(scope, "sortOrder")} onChange={(sortOrder) => updateDiscount(discount.id, { sortOrder })} /><div className="flex gap-2"><button type="button" role="switch" aria-checked={discount.isEnabled} onClick={() => updateDiscount(discount.id, { isEnabled: !discount.isEnabled })} className="h-10 rounded-md border border-stone-300 px-3 text-xs font-semibold">{discount.isEnabled ? "已啟用" : "已停用"}</button><button type="button" title={`儲存 ${discount.name}`} onClick={() => void run({ operation: "UPDATE_DISCOUNT", discountId: discount.id, name: discount.name, rateBps: discount.rateBps, isEnabled: discount.isEnabled, sortOrder: discount.sortOrder }, "折扣已儲存。")} className="grid h-10 w-10 place-items-center rounded-md bg-stone-900 text-white"><Save className="h-4 w-4" /></button><button type="button" title={`刪除 ${discount.name}`} onClick={() => { if (window.confirm(`確定刪除 ${discount.name}？`)) void run({ operation: "DELETE_DISCOUNT", discountId: discount.id }, "折扣已刪除。"); }} className="grid h-10 w-10 place-items-center rounded-md border border-red-300 text-red-700"><Trash2 className="h-4 w-4" /></button></div></div>;
+            return <div key={discount.id} className="grid gap-2 py-4 sm:grid-cols-[1fr_130px_80px_auto] sm:items-end"><TextInput label={label("折扣名稱")} value={discount.name} fieldKey={fieldKey(scope, "name")} error={errorFor(scope, "name")} onChange={(name) => updateDiscount(discount.id, { name })} /><PercentInput value={discount.rateBps} fieldKey={fieldKey(scope, "rateBps")} error={errorFor(scope, "rateBps")} onChange={(rateBps) => updateDiscount(discount.id, { rateBps })} /><NumberInput label={label("排序")} value={discount.sortOrder} fieldKey={fieldKey(scope, "sortOrder")} error={errorFor(scope, "sortOrder")} onChange={(sortOrder) => updateDiscount(discount.id, { sortOrder })} /><div className="flex gap-2"><button type="button" role="switch" aria-checked={discount.isEnabled} onClick={() => updateDiscount(discount.id, { isEnabled: !discount.isEnabled })} className="h-10 rounded-md border border-stone-300 px-3 text-xs font-semibold">{discount.isEnabled ? label("已啟用") : label("已停用")}</button><button type="button" title={m("儲存 {value0}", { value0: discount.name })} onClick={() => void run({ operation: "UPDATE_DISCOUNT", discountId: discount.id, name: discount.name, rateBps: discount.rateBps, isEnabled: discount.isEnabled, sortOrder: discount.sortOrder }, label("折扣已儲存。"))} className="grid h-10 w-10 place-items-center rounded-md bg-stone-900 text-white"><Save className="h-4 w-4" /></button><button type="button" title={m("刪除 {value0}", { value0: discount.name })} onClick={() => { if (window.confirm(m("確定刪除 {value0}？", { value0: discount.name }))) void run({ operation: "DELETE_DISCOUNT", discountId: discount.id }, label("折扣已刪除。")); }} className="grid h-10 w-10 place-items-center rounded-md border border-red-300 text-red-700"><Trash2 className="h-4 w-4" /></button></div></div>;
           })}</div>
         </div>
       </details>
@@ -690,7 +694,8 @@ export function StallModulesManager({
 }
 
 function ModuleSwitch({ label, icon, checked, disabled = false, onChange }: { label: string; icon?: React.ReactNode; checked: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
-  return <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)} className={`flex min-h-12 items-center gap-3 rounded-md border px-3 text-left text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 ${checked ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-600"}`}>{icon ? <span aria-hidden="true" className="grid h-5 w-5 shrink-0 place-items-center">{icon}</span> : null}<span>{label}</span><span className="ml-auto text-xs">{checked ? "開啟" : "關閉"}</span></button>;
+  const { label: translateLabel } = useMerchantMessages();
+  return <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)} className={`flex min-h-12 items-center gap-3 rounded-md border px-3 text-left text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-70 ${checked ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-600"}`}>{icon ? <span aria-hidden="true" className="grid h-5 w-5 shrink-0 place-items-center">{icon}</span> : null}<span>{label}</span><span className="ml-auto text-xs">{checked ? translateLabel("開啟") : translateLabel("關閉")}</span></button>;
 }
 
 function TextInput({ label, value, fieldKey: controlFieldKey, error, maxLength = 50, pattern, onChange }: {
@@ -718,11 +723,13 @@ function NumberInput({ label, value, fieldKey: controlFieldKey, error, min = 0, 
 }
 
 function PercentInput({ value, fieldKey: controlFieldKey, error, onChange }: { value: number; fieldKey?: string; error?: string; onChange: (value: number) => void }) {
-  return <label className="text-xs font-medium text-stone-600">付款比例（%）<input {...validationAttributes(controlFieldKey, error)} type="number" min={1} max={100} step={1} value={value / 100} onChange={(event) => onChange(Math.round(Number(event.target.value) * 100))} className={inputClass(error)} /><FieldError fieldKey={controlFieldKey} error={error} /></label>;
+  const { label } = useMerchantMessages();
+  return <label className="text-xs font-medium text-stone-600">{label("付款比例（%）")}<input {...validationAttributes(controlFieldKey, error)} type="number" min={1} max={100} step={1} value={value / 100} onChange={(event) => onChange(Math.round(Number(event.target.value) * 100))} className={inputClass(error)} /><FieldError fieldKey={controlFieldKey} error={error} /></label>;
 }
 
 function PaymentKind({ value, fieldKey: controlFieldKey, error, onChange }: { value: PaymentDraft["kind"]; fieldKey?: string; error?: string; onChange: (value: PaymentDraft["kind"]) => void }) {
-  return <label className="text-xs font-medium text-stone-600">類型<select {...validationAttributes(controlFieldKey, error)} value={value} onChange={(event) => onChange(event.target.value as PaymentDraft["kind"])} className={`${inputClass(error)} bg-white`}><option value="CASH">現金</option><option value="LINE_PAY">LINE Pay</option><option value="JKO_PAY">街口支付</option><option value="CUSTOM">自訂</option></select><FieldError fieldKey={controlFieldKey} error={error} /></label>;
+  const { label } = useMerchantMessages();
+  return <label className="text-xs font-medium text-stone-600">{label("類型")}<select {...validationAttributes(controlFieldKey, error)} value={value} onChange={(event) => onChange(event.target.value as PaymentDraft["kind"])} className={`${inputClass(error)} bg-white`}><option value="CASH">{label("現金")}</option><option value="LINE_PAY">LINE Pay</option><option value="JKO_PAY">{label("街口支付")}</option><option value="CUSTOM">{label("自訂")}</option></select><FieldError fieldKey={controlFieldKey} error={error} /></label>;
 }
 
 function FloorSelect({ floors, value, fieldKey: controlFieldKey, error, onChange }: {
@@ -732,7 +739,8 @@ function FloorSelect({ floors, value, fieldKey: controlFieldKey, error, onChange
   error?: string;
   onChange: (value: string | null) => void;
 }) {
-  return <label className="text-xs font-medium text-stone-600">樓層<select {...validationAttributes(controlFieldKey, error)} value={value ?? ""} onChange={(event) => onChange(event.target.value || null)} className={`${inputClass(error)} bg-white`}>{floors.map((floor) => <option key={floor.key} value={floor.id ?? ""}>{floor.name}{floor.isVirtual ? "（尚未建立）" : ""}</option>)}</select><FieldError fieldKey={controlFieldKey} error={error} /></label>;
+  const { label } = useMerchantMessages();
+  return <label className="text-xs font-medium text-stone-600">{label("樓層")}<select {...validationAttributes(controlFieldKey, error)} value={value ?? ""} onChange={(event) => onChange(event.target.value || null)} className={`${inputClass(error)} bg-white`}>{floors.map((floor) => <option key={floor.key} value={floor.id ?? ""}>{floor.name}{floor.isVirtual ? label("（尚未建立）") : ""}</option>)}</select><FieldError fieldKey={controlFieldKey} error={error} /></label>;
 }
 
 function TableShapeSelect({ value, fieldKey: controlFieldKey, error, onChange }: {
@@ -741,7 +749,8 @@ function TableShapeSelect({ value, fieldKey: controlFieldKey, error, onChange }:
   error?: string;
   onChange: (value: DiningTableShape) => void;
 }) {
-  return <label className="text-xs font-medium text-stone-600">桌型<select {...validationAttributes(controlFieldKey, error)} value={value} onChange={(event) => onChange(event.target.value as DiningTableShape)} className={`${inputClass(error)} bg-white`}>{DINING_TABLE_SHAPES.map((shape) => <option key={shape} value={shape}>{diningTableShapeLabels[shape]}</option>)}</select><FieldError fieldKey={controlFieldKey} error={error} /></label>;
+  const { label } = useMerchantMessages();
+  return <label className="text-xs font-medium text-stone-600">{label("桌型")}<select {...validationAttributes(controlFieldKey, error)} value={value} onChange={(event) => onChange(event.target.value as DiningTableShape)} className={`${inputClass(error)} bg-white`}>{DINING_TABLE_SHAPES.map((shape) => <option key={shape} value={shape}>{label(diningTableShapeLabels[shape])}</option>)}</select><FieldError fieldKey={controlFieldKey} error={error} /></label>;
 }
 
 function TableRotationSelect({ value, fieldKey: controlFieldKey, error, onChange }: {
@@ -750,7 +759,8 @@ function TableRotationSelect({ value, fieldKey: controlFieldKey, error, onChange
   error?: string;
   onChange: (value: number) => void;
 }) {
-  return <label className="text-xs font-medium text-stone-600">旋轉角度<select {...validationAttributes(controlFieldKey, error)} value={value} onChange={(event) => onChange(Number(event.target.value))} className={`${inputClass(error)} bg-white`}>{Array.from({ length: 24 }, (_, index) => index * 15).map((rotation) => <option key={rotation} value={rotation}>{rotation}°</option>)}</select><FieldError fieldKey={controlFieldKey} error={error} /></label>;
+  const { label } = useMerchantMessages();
+  return <label className="text-xs font-medium text-stone-600">{label("旋轉角度")}<select {...validationAttributes(controlFieldKey, error)} value={value} onChange={(event) => onChange(Number(event.target.value))} className={`${inputClass(error)} bg-white`}>{Array.from({ length: 24 }, (_, index) => index * 15).map((rotation) => <option key={rotation} value={rotation}>{rotation}°</option>)}</select><FieldError fieldKey={controlFieldKey} error={error} /></label>;
 }
 
 function fieldKey(scope: string, field: string) {

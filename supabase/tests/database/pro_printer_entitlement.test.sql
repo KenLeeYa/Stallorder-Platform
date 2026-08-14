@@ -2,71 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(5);
-
-select ok(
-  exists (
-    select 1
-    from public.plan_versions version
-    join public.plans plan on plan.id = version.plan_id
-    where plan.code in ('PRO', 'ENTERPRISE')
-  ),
-  'Pro or Enterprise plan versions exist'
-);
-
-select is(
-  (
-    select count(*)::integer
-    from public.plan_versions version
-    join public.plans plan on plan.id = version.plan_id
-    where plan.code in ('PRO', 'ENTERPRISE')
-  ),
-  (
-    select count(*)::integer
-    from public.plan_versions version
-    join public.plans plan on plan.id = version.plan_id
-    join public.plan_entitlements entitlement
-      on entitlement.plan_version_id = version.id
-     and entitlement.feature_code = 'PRINTER_INTEGRATION'
-     and entitlement.is_enabled
-    where plan.code in ('PRO', 'ENTERPRISE')
-  ),
-  'every existing Pro and Enterprise version includes printer integration'
-);
-
-select is(
-  (
-    select count(*)::integer
-    from public.plan_versions version
-    join public.plans plan on plan.id = version.plan_id
-    join public.plan_entitlements entitlement
-      on entitlement.plan_version_id = version.id
-     and entitlement.feature_code = 'PRINTER_INTEGRATION'
-    where plan.code in ('PRO', 'ENTERPRISE')
-      and entitlement.configuration_json @> '{"merchantModuleOptIn": true}'::jsonb
-  ),
-  (
-    select count(*)::integer
-    from public.plan_versions version
-    join public.plans plan on plan.id = version.plan_id
-    where plan.code in ('PRO', 'ENTERPRISE')
-  ),
-  'every existing Pro and Enterprise version allows stall-level printer opt-in'
-);
-
-select is(
-  (
-    select count(*)::integer
-    from public.plan_entitlements entitlement
-    join public.plan_versions version on version.id = entitlement.plan_version_id
-    join public.plans plan on plan.id = version.plan_id
-    where entitlement.feature_code = 'PRINTER_INTEGRATION'
-      and entitlement.is_enabled
-      and plan.code in ('TRIAL', 'LITE', 'STANDARD')
-  ),
-  0,
-  'printer integration is not granted to any lower-plan version'
-);
+select plan(1);
 
 select matches(
   (

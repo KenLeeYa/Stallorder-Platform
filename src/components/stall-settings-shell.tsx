@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
+import { formatAppNumber } from "@/lib/locale-format";
+import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import { SETTINGS_DIRTY_EVENT } from "@/lib/unsaved-settings";
 
 export function StallSettingsShell({
@@ -11,6 +13,7 @@ export function StallSettingsShell({
   children: React.ReactNode;
   showToolbar?: boolean;
 }) {
+  const { locale, m } = useMerchantMessages();
   const rootRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [dirtyScopes, setDirtyScopes] = useState<Set<string>>(new Set());
@@ -46,7 +49,7 @@ export function StallSettingsShell({
       if (!(target instanceof HTMLAnchorElement) || target.target === "_blank") return;
       const destination = new URL(target.href, window.location.href);
       if (destination.href === window.location.href) return;
-      if (!window.confirm("尚有未儲存的設定，確定要離開此頁？")) {
+      if (!window.confirm(m("尚有未儲存的設定，確定要離開此頁？"))) {
         event.preventDefault();
         event.stopPropagation();
       }
@@ -57,23 +60,23 @@ export function StallSettingsShell({
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("click", handleLink, true);
     };
-  }, [dirty]);
+  }, [dirty, m]);
 
   useEffect(() => {
-    const normalized = query.trim().toLocaleLowerCase("zh-TW");
+    const normalized = query.trim().toLocaleLowerCase(locale);
     rootRef.current?.querySelectorAll<HTMLElement>("[data-settings-section]").forEach((section) => {
-      const text = (section.dataset.settingsSearch ?? section.textContent ?? "").toLocaleLowerCase("zh-TW");
+      const text = (section.dataset.settingsSearch ?? section.textContent ?? "").toLocaleLowerCase(locale);
       const visible = !normalized || text.includes(normalized);
       section.hidden = !visible;
       if (visible && normalized && section instanceof HTMLDetailsElement) section.open = true;
     });
-  }, [query]);
+  }, [locale, query]);
 
   return (
     <div ref={rootRef}>
       {showToolbar ? <div className="mb-5 flex flex-col gap-3 border-y border-stone-200 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <label className="relative block w-full sm:max-w-sm"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><span className="sr-only">搜尋攤位設定</span><input type="search" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋設定" className="h-11 w-full rounded-md border border-stone-300 pl-9 pr-3 text-sm" /></label>
-        {dirty ? <span role="status" className="text-xs font-semibold text-amber-800">{dirtyScopes.size} 個區段尚未儲存</span> : null}
+        <label className="relative block w-full sm:max-w-sm"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><span className="sr-only">{m("搜尋攤位設定")}</span><input type="search" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder={m("搜尋設定")} className="h-11 w-full rounded-md border border-stone-300 pl-9 pr-3 text-sm" /></label>
+        {dirty ? <span role="status" className="text-xs font-semibold text-amber-800">{m("{count} 個區段尚未儲存", { count: formatAppNumber(locale, dirtyScopes.size) })}</span> : null}
       </div> : null}
       {children}
     </div>

@@ -5,7 +5,9 @@ import {
   getKitchenFieldErrors,
   kitchenSettingsSchema,
   kitchenStationCommandSchema,
+  kitchenWaitDisplay,
   kitchenWaitLevel,
+  partitionKitchenTasksByFulfillmentDate,
   preserveKitchenOrderProgress,
   type KitchenBoardTask,
 } from "@/lib/kitchen-contract";
@@ -21,6 +23,9 @@ function task(overrides: Partial<KitchenBoardTask> = {}): KitchenBoardTask {
     externalProvider: null,
     externalOrderNumber: null,
     scheduledPickupAt: null,
+    requestedFulfillmentAt: null,
+    committedFulfillmentAt: null,
+    fulfillmentTimeState: "CONFIRMED",
     riderPickupAt: null,
     fulfillmentType: "TAKEOUT",
     tableLabel: null,
@@ -99,5 +104,58 @@ describe("KDS operational helpers", () => {
     expect(preserveKitchenOrderProgress("PREPARING", "CONFIRMED")).toBe("PREPARING");
     expect(preserveKitchenOrderProgress("PACKING", "PREPARING")).toBe("PACKING");
     expect(preserveKitchenOrderProgress("CONFIRMED", "READY")).toBe("READY");
+  });
+
+  it("distinguishes time until a reservation from minutes overdue", () => {
+    const now = Date.parse("2026-08-13T04:00:00.000Z");
+    expect(kitchenWaitDisplay(now, now + 61_000, now - 10 * 60_000)).toEqual({
+      elapsedMinutes: 0,
+      label: "距預約 2 分",
+      beforeFulfillment: true,
+    });
+    expect(kitchenWaitDisplay(now, now - 5 * 60_000, now - 10 * 60_000)).toEqual({
+      elapsedMinutes: 5,
+      label: "已逾預約 5 分",
+      beforeFulfillment: false,
+    });
+    expect(kitchenWaitDisplay(now, null, now - 10 * 60_000)).toEqual({
+      elapsedMinutes: 10,
+      label: "已等待 10 分",
+      beforeFulfillment: false,
+    });
+  });
+
+  it("keeps future reservations off today's production task list", () => {
+    const result = partitionKitchenTasksByFulfillmentDate([
+      task({ id: "due", committedFulfillmentAt: "2026-08-13T04:00:00.000Z" }),
+      task({ id: "future", committedFulfillmentAt: "2026-08-14T04:00:00.000Z" }),
+      task({ id: "asap" }),
+    ], {
+      timeZone: "Asia/Taipei",
+      businessDayCutoffHour: 3,
+      now: new Date("2026-08-13T04:00:00.000Z"),
+    });
+    expect(result.currentTasks.map((entry) => entry.id)).toEqual(["due", "asap"]);
+    expect(result.futureReservations.map((entry) => entry.id)).toEqual(["future"]);
+  });
+
+  it("keeps already-started future work visible for completion and correction", () => {
+    const future = "2026-08-14T04:00:00.000Z";
+    const result = partitionKitchenTasksByFulfillmentDate([
+      task({ id: "pending", committedFulfillmentAt: future }),
+      task({ id: "task-started", committedFulfillmentAt: future, status: "PREPARING" }),
+      task({ id: "order-started", committedFulfillmentAt: future, orderStatus: "PREPARING" }),
+      task({ id: "packing", committedFulfillmentAt: future, orderStatus: "PACKING" }),
+    ], {
+      timeZone: "Asia/Taipei",
+      businessDayCutoffHour: 3,
+      now: new Date("2026-08-13T04:00:00.000Z"),
+    });
+    expect(result.futureReservations.map((entry) => entry.id)).toEqual(["pending"]);
+    expect(result.currentTasks.map((entry) => entry.id)).toEqual([
+      "task-started",
+      "order-started",
+      "packing",
+    ]);
   });
 });

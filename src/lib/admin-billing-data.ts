@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { resolvePlanEntitlements } from "@/server/billing/entitlement-service";
 
 export async function getAdminBillingOverview() {
   const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
@@ -157,7 +158,15 @@ export async function getAdminPlanCatalog() {
     prisma.addOnCatalog.findMany({ orderBy: [{ availabilityStatus: "asc" }, { unitPrice: "asc" }] }),
     prisma.billingFeatureFlag.findMany({ orderBy: [{ phase: "asc" }, { code: "asc" }] }),
   ]);
-  return { plans, versions, addOns, featureFlags };
+  return {
+    plans,
+    versions: versions.map((version) => ({
+      ...version,
+      entitlements: resolvePlanEntitlements(version),
+    })),
+    addOns,
+    featureFlags,
+  };
 }
 
 export function getAdminUsage() {

@@ -1,3 +1,5 @@
+import { classifyFulfillmentForProduction } from "@/lib/fulfillment-time";
+
 export const kitchenBoardModes = ["ORDER", "ITEM", "STATION"] as const;
 export type KitchenBoardMode = (typeof kitchenBoardModes)[number];
 export type KitchenTaskState = "PENDING" | "PREPARING" | "COMPLETED" | "CANCELLED";
@@ -13,6 +15,9 @@ export type KitchenBoardTask = {
   externalProvider: string | null;
   externalOrderNumber: string | null;
   scheduledPickupAt: string | null;
+  requestedFulfillmentAt: string | null;
+  committedFulfillmentAt: string | null;
+  fulfillmentTimeState: string;
   riderPickupAt: string | null;
   fulfillmentType: "TAKEOUT" | "DINE_IN" | "DELIVERY";
   tableLabel: string | null;
@@ -30,6 +35,24 @@ export type KitchenBoardTask = {
   completedAt: string | null;
   assignedTo: { id: string; displayName: string } | null;
 };
+
+export function partitionKitchenTasksByFulfillmentDate(
+  tasks: KitchenBoardTask[],
+  context: { timeZone: string; businessDayCutoffHour: number; now: Date },
+) {
+  const currentTasks: KitchenBoardTask[] = [];
+  const futureReservations: KitchenBoardTask[] = [];
+  for (const task of tasks) {
+    const timing = classifyFulfillmentForProduction(task, context);
+    if (
+      timing.readiness === "FUTURE"
+      && task.orderStatus === "CONFIRMED"
+      && task.status === "PENDING"
+    ) futureReservations.push(task);
+    else currentTasks.push(task);
+  }
+  return { currentTasks, futureReservations };
+}
 
 export type KitchenItemAggregate = {
   key: string;
@@ -59,6 +82,26 @@ export function kitchenWaitLevel(
   if (elapsedMinutes >= criticalMinutes) return "CRITICAL" as const;
   if (elapsedMinutes >= warningMinutes) return "WARNING" as const;
   return "NORMAL" as const;
+}
+
+export function kitchenWaitDisplay(
+  now: number,
+  effectiveFulfillmentAt: number | null,
+  fallbackStartedAt: number,
+) {
+  if (effectiveFulfillmentAt !== null && effectiveFulfillmentAt > now) {
+    const minutesUntil = Math.ceil((effectiveFulfillmentAt - now) / 60_000);
+    return { elapsedMinutes: 0, label: `距預約 ${minutesUntil} 分`, beforeFulfillment: true };
+  }
+  const startedAt = effectiveFulfillmentAt ?? fallbackStartedAt;
+  const elapsedMinutes = Math.max(0, Math.floor((now - startedAt) / 60_000));
+  return {
+    elapsedMinutes,
+    label: effectiveFulfillmentAt === null
+      ? `已等待 ${elapsedMinutes} 分`
+      : `已逾預約 ${elapsedMinutes} 分`,
+    beforeFulfillment: false,
+  };
 }
 
 export function preserveKitchenOrderProgress(

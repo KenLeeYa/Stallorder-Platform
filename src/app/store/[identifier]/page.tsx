@@ -4,6 +4,9 @@ import { CalendarDays, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { QrOrderFlow } from "@/components/qr-order-flow";
+import { isAppLocale, type AppLocale } from "@/lib/app-locale";
+import { getRequestAppLocale } from "@/lib/app-locale-server";
+import { publicMessages } from "@/lib/messages/public";
 import { getCachedPublicDisplayMenuForStallSlug, getCachedPublicMenuForQrToken } from "@/lib/public-menu";
 import {
   buildPublicStorefrontPath,
@@ -26,16 +29,27 @@ type PageProps = {
 const getStorefront = cache(resolvePublicStorefront);
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
-  const [{ identifier }, query] = await Promise.all([params, searchParams]);
+  const [{ identifier }, query, requestLocale] = await Promise.all([
+    params,
+    searchParams,
+    getRequestAppLocale(),
+  ]);
+  const { locale } = resolveStorefrontLocale(query, requestLocale.locale);
   const resolution = await getStorefront(identifier);
-  if (!resolution) return { title: "找不到公開菜單", robots: { index: false, follow: false } };
+  if (!resolution) return {
+    title: publicMessages.get(locale, "storefrontNotFoundTitle"),
+    robots: { index: false, follow: false },
+  };
 
   const view = resolvePublicStorefrontView(query.view);
-  const viewLabel = view === "pickup" ? "外帶自取" : view === "delivery" ? "外送" : "公開菜單";
+  const viewLabel = storefrontViewLabel(locale, view);
   const title = `${resolution.stall.name}｜${viewLabel}`;
   const description = view === "menu"
-    ? `查看 ${resolution.stall.name} 最新上架的商品、套餐與售價。菜單內容由商家即時更新。`
-    : `前往 ${resolution.stall.name} 的${viewLabel}服務。`;
+    ? publicMessages.get(locale, "storefrontMenuDescription", { stallName: resolution.stall.name })
+    : publicMessages.get(locale, "storefrontOrderDescription", {
+        stallName: resolution.stall.name,
+        mode: viewLabel,
+      });
   return {
     title,
     description,
@@ -45,13 +59,18 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       type: "website",
       title,
       description,
-      siteName: "攤點通",
+      siteName: publicMessages.get(locale, "storefrontSiteName"),
     },
   };
 }
 
 export default async function PublicStorefrontPage({ params, searchParams }: PageProps) {
-  const [{ identifier }, query] = await Promise.all([params, searchParams]);
+  const [{ identifier }, query, requestLocale] = await Promise.all([
+    params,
+    searchParams,
+    getRequestAppLocale(),
+  ]);
+  const { locale, requestedLocale } = resolveStorefrontLocale(query, requestLocale.locale);
   const resolution = await getStorefront(identifier);
   if (!resolution) notFound();
 
@@ -90,18 +109,18 @@ export default async function PublicStorefrontPage({ params, searchParams }: Pag
   const availability = {
     menu: {
       enabled: view === "menu" ? Boolean(menu) : Boolean(stall.orderingSettings),
-      reason: "商家目前沒有可顯示的線上 Menu。",
+      reason: publicMessages.get(locale, "storefrontMenuUnavailable"),
     },
     pickup: {
       enabled: pickupReady && (view !== "pickup" || Boolean(pickupMenu)),
-      reason: unavailableReason("pickup", stall.name, {
+      reason: unavailableReason(locale, "pickup", stall.name, {
         moduleEnabled: stall.orderingSettings?.takeoutPreorderEnabled === true,
         hasQr: Boolean(pickupQrToken),
       }),
     },
     delivery: {
       enabled: deliveryReady && (view !== "delivery" || Boolean(deliveryMenu)),
-      reason: unavailableReason("delivery", stall.name, {
+      reason: unavailableReason(locale, "delivery", stall.name, {
         moduleEnabled: stall.orderingSettings?.deliveryModuleEnabled === true,
         hasQr: Boolean(deliveryQrToken),
       }),
@@ -115,14 +134,17 @@ export default async function PublicStorefrontPage({ params, searchParams }: Pag
         currentView={view}
         availability={availability}
         searchParams={query}
+        locale={locale}
       />
-      {view === "menu" && menu ? <PublicMenuView menu={menu} /> : null}
+      {view === "menu" && menu ? <PublicMenuView menu={menu} locale={locale} /> : null}
       {view === "pickup" && pickupMenu && pickupQrToken ? (
         <QrOrderFlow
           qrToken={pickupQrToken}
           orderingMode="PREORDER"
           initialMenu={pickupMenu}
           entryChannel="SHARED_LINK"
+          initialUiLocale={locale}
+          requestedLocale={requestedLocale}
         />
       ) : null}
       {view === "delivery" && deliveryMenu && deliveryQrToken ? (
@@ -131,44 +153,48 @@ export default async function PublicStorefrontPage({ params, searchParams }: Pag
           orderingMode="DELIVERY"
           initialMenu={deliveryMenu}
           entryChannel="SHARED_LINK"
+          initialUiLocale={locale}
+          requestedLocale={requestedLocale}
         />
       ) : null}
       {!availability[view].enabled ? (
-        <UnavailableMode stallName={stall.name} view={view} reason={availability[view].reason} />
+        <UnavailableMode locale={locale} stallName={stall.name} view={view} reason={availability[view].reason} />
       ) : null}
-      {view === "pickup" ? <PickupScheduleLink stallSlug={stall.slug} /> : null}
+      {view === "pickup" ? <PickupScheduleLink locale={locale} identifier={resolution.canonicalIdentifier} /> : null}
     </div>
   );
 }
 
-function PickupScheduleLink({ stallSlug }: { stallSlug: string }) {
+function PickupScheduleLink({ locale, identifier }: { locale: AppLocale; identifier: string }) {
   return (
     <footer data-testid="storefront-pickup-schedule-link" className="mx-auto max-w-5xl px-4 pb-8 md:px-8">
       <Link
-        href={`/s/${encodeURIComponent(stallSlug)}/schedule`}
+        href={`/s/${encodeURIComponent(identifier)}/schedule?locale=${locale}`}
         className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-teal-800"
       >
         <CalendarDays className="h-4 w-4" aria-hidden="true" />
-        查看出攤行程
+        {publicMessages.get(locale, "storefrontPickupSchedule")}
       </Link>
     </footer>
   );
 }
 
 function UnavailableMode({
+  locale,
   stallName,
   view,
   reason,
 }: {
+  locale: AppLocale;
   stallName: string;
   view: PublicStorefrontView;
   reason: string;
 }) {
   const title = view === "pickup"
-    ? "目前未開放外帶自取"
+    ? publicMessages.get(locale, "storefrontPickupUnavailableTitle")
     : view === "delivery"
-      ? "目前未開放外送"
-      : "目前無法顯示線上 Menu";
+      ? publicMessages.get(locale, "storefrontDeliveryUnavailableTitle")
+      : publicMessages.get(locale, "storefrontMenuUnavailableTitle");
   return (
     <main data-testid="storefront-mode-unavailable" className="mx-auto min-h-[60vh] max-w-lg px-5 py-16">
       <ShieldCheck className="h-9 w-9 text-red-700" aria-hidden="true" />
@@ -179,17 +205,41 @@ function UnavailableMode({
 }
 
 function unavailableReason(
+  locale: AppLocale,
   view: "pickup" | "delivery",
   stallName: string,
   state: { moduleEnabled: boolean; hasQr: boolean },
 ) {
   if (!state.moduleEnabled) {
     return view === "pickup"
-      ? `${stallName} 尚未開啟外帶自取服務。`
-      : `${stallName} 尚未開啟外送服務。`;
+      ? publicMessages.get(locale, "storefrontPickupDisabled", { stallName })
+      : publicMessages.get(locale, "storefrontDeliveryDisabled", { stallName });
   }
-  if (!state.hasQr) return "商家尚未建立可供公開連結使用的 QR Code。";
+  if (!state.hasQr) return publicMessages.get(locale, "storefrontQrMissing");
   return view === "pickup"
-    ? "目前沒有可接受的取餐時段，請稍後再試。"
-    : "目前無法接受外送訂單，請稍後再試。";
+    ? publicMessages.get(locale, "storefrontPickupTemporarilyUnavailable")
+    : publicMessages.get(locale, "storefrontDeliveryTemporarilyUnavailable");
+}
+
+function resolveStorefrontLocale(
+  query: PublicStorefrontSearchParams,
+  fallbackLocale: AppLocale,
+) {
+  const rawLocale = Array.isArray(query.locale) ? query.locale[0] : query.locale;
+  const requestedLocale = isAppLocale(rawLocale) ? rawLocale : null;
+  return {
+    locale: requestedLocale ?? fallbackLocale,
+    requestedLocale,
+  };
+}
+
+function storefrontViewLabel(locale: AppLocale, view: PublicStorefrontView) {
+  return publicMessages.get(
+    locale,
+    view === "pickup"
+      ? "storefrontPickup"
+      : view === "delivery"
+        ? "storefrontDelivery"
+        : "storefrontMenu",
+  );
 }

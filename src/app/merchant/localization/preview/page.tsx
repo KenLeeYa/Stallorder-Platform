@@ -6,6 +6,7 @@ import { ProductImage } from "@/components/product-image";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { normalizeEnabledLocales } from "@/lib/enabled-locales";
 import { getLocalizedStallPreview } from "@/lib/localization-data";
+import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
 import { formatMoney } from "@/lib/money";
 import { hasPermission } from "@/lib/rbac";
 import { isQrLocale, localizedQrCategory, qrOrderMessages } from "@/lib/qr-order-i18n";
@@ -14,6 +15,7 @@ import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/worksp
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string; locale?: string; source?: string; returnStallId?: string }> };
 
 export default async function LocalizationPreviewPage({ searchParams }: PageProps) {
+  const { m } = await getRequestMerchantMessages();
   const { organizationId, stallId, locale: rawLocale, source, returnStallId: rawReturnStallId } = await searchParams;
   const { workspaces } = await requireWorkspacePage();
   if (!organizationId && workspaces.length > 1) redirect("/select-organization");
@@ -44,7 +46,7 @@ export default async function LocalizationPreviewPage({ searchParams }: PageProp
     <main className="mx-auto min-h-screen max-w-3xl bg-white px-4 py-6 md:px-8" lang={locale}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-5">
         <div>{source === "setup" ? <MerchantSetupBackLink organizationId={workspace.id} /> : <StallSettingsBackLink organizationId={workspace.id} stallId={returnStallId} source="localization" allowedSources={["localization"]} />}<h1 className="mt-2 text-3xl font-semibold">{stall.name}</h1><p className="mt-1 text-sm text-stone-500">{stall.location}</p></div>
-        <span className="inline-flex min-h-10 items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-900"><Eye className="h-4 w-4" /><LocaleFlag locale={locale} />{copy.localeName} · 預覽模式</span>
+        <span className="inline-flex min-h-10 items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-900"><Eye className="h-4 w-4" /><LocaleFlag locale={locale} />{copy.localeName} · {m("預覽模式")}</span>
       </div>
       <div className="border-b border-stone-200 py-4 text-sm text-stone-600">{copy.confirmationNotice}</div>
       {categories.map((category) => (
@@ -55,7 +57,7 @@ export default async function LocalizationPreviewPage({ searchParams }: PageProp
               <article key={item.product.id} className="rounded-md border border-stone-200 bg-white p-4">
                 <div className="relative aspect-[16/10] overflow-hidden rounded bg-stone-100">
                   {item.product.imageUrl ? <ProductImage src={item.product.imageUrl} alt={copy.productImage(item.localizedName)} width={800} height={500} sizes="(max-width: 640px) 100vw, 50vw" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-stone-400"><ImageOff className="h-8 w-8" /></div>}
-                  {item.isSoldOut ? <span className="absolute inset-x-0 bottom-0 bg-stone-900/90 px-3 py-2 text-center text-sm font-semibold text-white">售罄</span> : null}
+                  {item.isSoldOut ? <span className="absolute inset-x-0 bottom-0 bg-stone-900/90 px-3 py-2 text-center text-sm font-semibold text-white">{m("售罄")}</span> : null}
                 </div>
                 <div className="mt-3 flex items-start justify-between gap-3"><div><h3 className="font-semibold">{item.localizedName}</h3>{item.localizedDescription ? <p className="mt-1 text-sm leading-5 text-stone-600">{item.localizedDescription}</p> : null}</div><span className="shrink-0 font-semibold text-teal-800">{formatMoney(item.priceOverride ?? item.product.defaultPrice, stall.currency)}</span></div>
                 {item.product.noteGroupAssignments.length ? <div className="mt-3 border-t border-stone-100 pt-3">{item.product.noteGroupAssignments.map(({ noteGroup }) => { const groupName = noteGroup.translations.find((translation) => translation.locale === locale)?.name || noteGroup.name; return <div key={noteGroup.id} className="mt-2 first:mt-0"><p className="text-xs font-semibold text-stone-700">{groupName}{noteGroup.isRequired ? " *" : ""}</p><div className="mt-1 flex flex-wrap gap-1.5">{noteGroup.options.map((option) => <span key={option.id} className="rounded border border-stone-200 px-2 py-1 text-xs text-stone-600">{option.translations.find((translation) => translation.locale === locale)?.name || option.name}{option.priceDelta ? ` +${formatMoney(option.priceDelta, stall.currency)}` : ""}</span>)}</div></div>; })}</div> : null}
@@ -64,7 +66,7 @@ export default async function LocalizationPreviewPage({ searchParams }: PageProp
           </div>
         </section>
       ))}
-      <p className="py-8 text-center text-sm text-stone-500">此頁僅供商家檢查翻譯與版面，不會建立訂單。</p>
+      <p className="py-8 text-center text-sm text-stone-500">{m("此頁僅供商家檢查翻譯與版面，不會建立訂單。")}</p>
     </main>
   );
 }

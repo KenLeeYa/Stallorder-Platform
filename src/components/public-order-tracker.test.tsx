@@ -5,6 +5,7 @@ import {
   getOrderHelpGuidance,
   getPublicOrderProgress,
   getPublicOrderStatusLabel,
+  formatOrderRefreshTime,
   OrderHelpPanel,
   OrderProgressPanel,
   startVisibilityAwareOrderPolling,
@@ -71,6 +72,23 @@ describe("public order progress", () => {
     expect(getPublicOrderStatusLabel("READY", "DELIVERY")).toBe("待配送");
     expect(getPublicOrderStatusLabel("READY", "DINE_IN")).toBe("待出餐");
     expect(getPublicOrderStatusLabel("READY", "TAKEOUT")).toBe("可取餐");
+  });
+
+  it("renders Vietnamese progress chrome without translating merchant content", () => {
+    const html = renderToStaticMarkup(
+      <OrderProgressPanel orderStatus="PREPARING" fulfillmentType="TAKEOUT" locale="vi" />,
+    );
+
+    expect(html).toContain("Tiến độ đơn hàng");
+    expect(html).toContain("Món đang được chuẩn bị");
+    expect(getPublicOrderStatusLabel("READY", "DELIVERY", "vi")).toBe("Chờ giao");
+  });
+
+  it("formats refresh timestamps with the active locale", () => {
+    const value = new Date("2026-08-13T08:05:06Z");
+    const options = { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false } as const;
+    expect(formatOrderRefreshTime(value, "en")).toBe(new Intl.DateTimeFormat("en", options).format(value));
+    expect(formatOrderRefreshTime(value, "vi")).toBe(new Intl.DateTimeFormat("vi", options).format(value));
   });
 
   it("renders stopped orders without claiming an unknown progress step", () => {

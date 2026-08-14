@@ -3,6 +3,8 @@ import { isIP } from "node:net";
 
 const LOCAL_IP_HASH_SECRET = "stallorder-development-ip-hash-secret";
 const TEMPORARY_PRODUCTION_TEST_ORIGINS = ["https://stallorder-platform.vercel.app"];
+export const SESSION_DEVICE_COOKIE = "stallorder_auth_device";
+export const SESSION_DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 
 export function createOpaqueToken() {
   return randomBytes(32).toString("base64url");
@@ -75,11 +77,18 @@ export function hashClientUserAgent(request: Request) {
     .digest("hex");
 }
 
-export function getSessionDeviceId(request: Request) {
-  const value = getCookieValue(request, "stallorder_device");
+export function normalizeSessionDeviceId(value: string | null | undefined) {
   return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
     ? value.toLowerCase()
     : undefined;
+}
+
+export function getSessionDeviceId(request: Request) {
+  return normalizeSessionDeviceId(getCookieValue(request, SESSION_DEVICE_COOKIE));
+}
+
+export function resolveSessionDeviceId(request: Request) {
+  return getSessionDeviceId(request) ?? randomUUID();
 }
 
 export function createRequestId() {

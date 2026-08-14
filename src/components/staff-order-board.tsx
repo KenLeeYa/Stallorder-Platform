@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CancellationReason, OrderItemStatus, OrderStatus, PaymentOptionKind, UserRole } from "@prisma/client";
 import Link from "next/link";
-import { CheckCheck, CheckCircle2, ChefHat, Clock3, KeyRound, ListChecks, LoaderCircle, MapPinned, PackageCheck, Play, Printer, RefreshCw, Search, ShoppingCart, TriangleAlert, Truck, Undo2, Volume2, VolumeX, WalletCards, Wifi, WifiOff, X } from "lucide-react";
+import { CheckCheck, CheckCircle2, ChefHat, ChevronDown, ChevronUp, Clock3, KeyRound, ListChecks, LoaderCircle, MapPinned, Minus, PackageCheck, Pencil, Play, Plus, Printer, RefreshCw, Search, ShoppingCart, TriangleAlert, Truck, Undo2, Volume2, VolumeX, WalletCards, Wifi, WifiOff, X } from "lucide-react";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
+import { useOperationsLocale } from "@/components/operations-locale";
 import { LogoutButton } from "@/components/logout-button";
 import { OfflineBootstrapControl } from "@/components/offline-bootstrap-control";
 import { OfflineQueueStatus } from "@/components/offline-queue-status";
@@ -14,14 +15,17 @@ import { StaffDiscountSelector } from "@/components/staff-discount-selector";
 import { StaffCapacityControl } from "@/components/staff-capacity-control";
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
 import type { StaffCapacityData } from "@/lib/capacity-contract";
-import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
+import type { AppLocale } from "@/lib/app-locale";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { buildFulfillmentTimeSlots } from "@/lib/fulfillment-time-options";
+import { classifyFulfillmentForProduction, type FulfillmentProductionTiming } from "@/lib/fulfillment-time";
 import { formatMoney } from "@/lib/money";
+import { formatAppDateTime } from "@/lib/locale-format";
+import { getOperationsErrorMessage } from "@/lib/messages/operations";
 import { canTransitionOrderItem } from "@/lib/order-item-status";
-import { orderItemStatusLabels, orderStatusLabels, paymentStatusLabels, staffStatusOptions, type StaffOrderDto } from "@/lib/orders";
+import { staffStatusOptions, type StaffOrderDto } from "@/lib/orders";
 import { isCompletePickupCode, normalizePickupCode } from "@/lib/pickup-code";
-import { canTransitionOrder, hasPermission, roleLabels } from "@/lib/rbac";
+import { canTransitionOrder, hasPermission } from "@/lib/rbac";
 import { getStaffCheckoutPreview } from "@/lib/staff-discount-presentation";
 import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
 import type { WorkModeDestination } from "@/lib/work-mode";
@@ -29,7 +33,7 @@ import type { WorkModeDestination } from "@/lib/work-mode";
 type OrderWithItems = StaffOrderDto;
 
 type Props = {
-  stall: { id: string; organizationId: string; slug: string; name: string; currency: string; timezone: string };
+  stall: { id: string; organizationId: string; slug: string; name: string; currency: string; timezone: string; businessDayCutoffHour: number };
   initialOrders: OrderWithItems[];
   initialNow: number;
   account: { displayName: string; role: UserRole };
@@ -70,9 +74,44 @@ type PendingTimeProposal = {
   proposedFulfillmentAt: string;
   reason: string;
 };
+type OrderEditLine = {
+  kind: "EXISTING";
+  key: string;
+  itemId: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  details: string;
+} | {
+  kind: "NEW";
+  key: string;
+  productId: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+};
 
 const staffFunctionTileClass = "inline-flex min-h-16 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-center text-[11px] font-semibold leading-tight sm:h-10 sm:min-h-10 sm:w-10 sm:flex-none sm:px-0";
 const staffFunctionIconClass = "h-5 w-5 sm:h-4 sm:w-4";
+type OperationsTranslator = ReturnType<typeof useOperationsLocale>["t"];
+const cancellationReasons: CancellationReason[] = ["SOLD_OUT", "CUSTOMER_CANCELLED", "WAIT_TOO_LONG", "DUPLICATE_ORDER", "OTHER"];
+
+function formatStaffNoteOptions(
+  locale: AppLocale,
+  noteOptions: Array<{ groupName: string; optionName: string; priceDelta: number }>,
+  currency: string,
+  includePrice: boolean,
+) {
+  const usesCjkPunctuation = locale === "zh-TW" || locale === "ja";
+  const pairSeparator = usesCjkPunctuation ? "：" : ": ";
+  const optionSeparator = usesCjkPunctuation ? "、" : ", ";
+  return noteOptions.map((option) => {
+    const price = includePrice && option.priceDelta !== 0
+      ? ` (${option.priceDelta > 0 ? "+" : ""}${formatMoney(option.priceDelta, currency, locale)})`
+      : "";
+    return `${option.groupName}${pairSeparator}${option.optionName}${price}`;
+  }).join(optionSeparator);
+}
 
 export function StaffOrderBoard({
   stall,
@@ -87,6 +126,7 @@ export function StaffOrderBoard({
   workModeDestinations,
   appVersion,
 }: Props) {
+  const { locale, t } = useOperationsLocale();
   const knownOrderIdsRef = useRef(new Set(initialOrders.map((order) => order.id)));
   const alertsEnabledRef = useRef(false);
   const [orders, setOrders] = useState(initialOrders);
@@ -108,6 +148,7 @@ export function StaffOrderBoard({
   const [managerEmail, setManagerEmail] = useState("");
   const [managerPassword, setManagerPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [cashShiftRequired, setCashShiftRequired] = useState(false);
   const [query, setQuery] = useState("");
   const [now, setNow] = useState(initialNow);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
@@ -121,6 +162,13 @@ export function StaffOrderBoard({
   const [discountOptions, setDiscountOptions] = useState(initialDiscountOptions);
   const [orderCatalog, setOrderCatalog] = useState(initialOrderCatalog);
   const [posConfigurationLoading, setPosConfigurationLoading] = useState(false);
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(new Set());
+  const [futureOrdersExpanded, setFutureOrdersExpanded] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [orderEditLines, setOrderEditLines] = useState<OrderEditLine[]>([]);
+  const [orderEditProductId, setOrderEditProductId] = useState("");
+  const [orderEditBusy, setOrderEditBusy] = useState(false);
+  const [orderEditMessage, setOrderEditMessage] = useState("");
   const fulfillmentTimeSlots = useMemo(() => buildFulfillmentTimeSlots(
     orderCatalog?.fulfillmentSlots ?? [],
     stall.timezone,
@@ -141,15 +189,15 @@ export function StaffOrderBoard({
         `/api/stalls/${stall.slug}/pos-configuration${includeCatalog ? "?includeCatalog=true" : ""}`,
         { cache: "no-store" },
       );
-      const payload = await response.json() as PosConfiguration & { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "目前無法更新店員點餐設定。");
+      const payload = await response.json() as PosConfiguration & { code?: string };
+      if (!response.ok) throw new Error(getOperationsErrorMessage(locale, payload.code, "staff.configurationFailed"));
       setModules(payload.modules);
       setPaymentOptions(payload.paymentOptions);
       setDiscountOptions(payload.discountOptions);
       if (payload.catalog) setOrderCatalog(payload.catalog);
       return payload;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "目前無法更新店員點餐設定，將使用畫面上的現有設定。");
+      setMessage(error instanceof Error ? error.message : t("staff.configurationFallback"));
       return null;
     } finally {
       setPosConfigurationLoading(false);
@@ -160,8 +208,8 @@ export function StaffOrderBoard({
     if (!alertsEnabledRef.current) return;
     if ("vibrate" in navigator) navigator.vibrate([180, 80, 180]);
     playNotificationTone();
-    setMessage(count === 1 ? "收到 1 筆新訂單。" : `收到 ${count} 筆新訂單。`);
-  }, []);
+    setMessage(t("staff.newOrders", { count }));
+  }, [t]);
 
   const refreshOrders = useCallback(async (silent = false) => {
     if (!silent) {
@@ -171,7 +219,7 @@ export function StaffOrderBoard({
     try {
       const response = await fetch(`/api/stalls/${stall.slug}/orders`, { cache: "no-store" });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "目前無法更新訂單。");
+      if (!response.ok) throw new Error(t("staff.error.updateOrder"));
       const nextOrders: OrderWithItems[] = payload.orders ?? [];
       const offlineOrders = await loadOfflineStaffOrders(stall.id);
       const mergedOrders = mergeStaffOrders(nextOrders, offlineOrders);
@@ -194,12 +242,12 @@ export function StaffOrderBoard({
         .filter((order): order is OrderWithItems => Boolean(order)));
     } catch (error) {
       if (!silent) {
-        setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+        setMessage(error instanceof Error ? error.message : t("staff.error.network"));
       }
     } finally {
       if (!silent) setIsRefreshing(false);
     }
-  }, [notifyNewOrders, stall.id, stall.slug]);
+  }, [notifyNewOrders, stall.id, stall.slug, t]);
 
   useEffect(() => {
     let disposed = false;
@@ -235,6 +283,7 @@ export function StaffOrderBoard({
     options: { confirmationOrderNo?: string; cancellationReason?: CancellationReason; cancellationDetail?: string | null; checkout?: CheckoutRequest } = {},
   ) {
     setMessage("");
+    setCashShiftRequired(false);
     setUpdatingOrderId(orderId);
     try {
       const currentOrder = orders.find((order) => order.id === orderId);
@@ -242,7 +291,7 @@ export function StaffOrderBoard({
         const nextState = status === "COMPLETED"
           ? "LOCAL_COMPLETED"
           : status === "CANCELLED" ? "LOCAL_CANCELLED" : null;
-        if (!nextState) throw new Error("此離線訂單狀態只能依序從製作、完成餐點到完成訂單。");
+        if (!nextState) throw new Error(t("staff.error.updateOrder"));
         const [{ transitionOfflineOrder }, { offlineOrderToStaffOrder }] = await Promise.all([
           import("@/offline/offline-operations"),
           import("@/offline/offline-staff-order"),
@@ -251,7 +300,7 @@ export function StaffOrderBoard({
           orderId,
           nextState,
           status === "CANCELLED"
-            ? [options.cancellationReason, options.cancellationDetail].filter(Boolean).join("：") || "現場取消"
+            ? [options.cancellationReason, options.cancellationDetail].filter(Boolean).join(": ") || t("staff.cancel.confirm")
             : null,
         );
         const staffOrder = offlineOrderToStaffOrder(updated);
@@ -261,8 +310,8 @@ export function StaffOrderBoard({
             : current.map((order) => order.id === orderId ? staffOrder : order)
         ));
         setMessage(status === "COMPLETED"
-          ? "離線訂單已在本機完成，恢復連線後會同步。"
-          : "離線訂單已在本機取消，取消紀錄會在恢復連線後同步。");
+          ? t("staff.message.offlineCompleted")
+          : t("staff.message.offlineCancelled"));
         return true;
       }
       const response = await fetch(`/api/stalls/${stall.slug}/orders/${orderId}`, {
@@ -278,8 +327,11 @@ export function StaffOrderBoard({
           ...(status === "COMPLETED" ? options.checkout : {}),
         }),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "目前無法更新訂單。");
+      const payload = await response.json() as { order: OrderWithItems; code?: string };
+      if (!response.ok) {
+        setCashShiftRequired(payload.code === "ACTIVE_SHIFT_REQUIRED");
+        throw new Error(getOperationsErrorMessage(locale, payload.code, "staff.error.updateOrder"));
+      }
       setOrders((current) =>
         status === "COMPLETED" || status === "CANCELLED"
           ? current.filter((order) => order.id !== orderId)
@@ -287,7 +339,7 @@ export function StaffOrderBoard({
       );
       return true;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
       return false;
     } finally {
       setUpdatingOrderId(null);
@@ -330,18 +382,18 @@ export function StaffOrderBoard({
       );
       const payload = await response.json() as { order?: OrderWithItems; error?: string };
       if (!response.ok || !payload.order) {
-        throw new Error(payload.error ?? "目前無法更新取餐或送達時間。");
+        throw new Error(t("staff.error.time"));
       }
       setOrders((current) => current.map((candidate) => (
         candidate.id === order.id ? payload.order! : candidate
       )));
       setPendingTimeProposal(null);
       setMessage(command.operation === "PROPOSE"
-        ? "已通知顧客確認新的時間；顧客回覆前不會開始製作。"
-        : "已接受顧客指定時間。"
+        ? t("staff.message.timeProposed")
+        : t("staff.message.timeAccepted")
       );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "目前無法更新取餐或送達時間。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.time"));
     } finally {
       setUpdatingOrderId(null);
     }
@@ -350,7 +402,7 @@ export function StaffOrderBoard({
   function openTimeProposal(order: OrderWithItems) {
     const slots = fulfillmentTimeSlots;
     if (slots.length === 0) {
-      setMessage("目前沒有可提供給顧客的預約時段，請先檢查營業時間與預約設定。");
+      setMessage(t("staff.error.noSlots"));
       return;
     }
     const preferred = slots.find((slot) => slot.iso !== order.requestedFulfillmentAt)?.iso ?? slots[0]!.iso;
@@ -359,7 +411,7 @@ export function StaffOrderBoard({
       orderNo: order.orderNo,
       version: order.fulfillmentTimeVersion,
       proposedFulfillmentAt: preferred,
-      reason: "目前訂單較多，建議調整時間",
+      reason: t("staff.time.defaultReason"),
     });
   }
 
@@ -380,12 +432,12 @@ export function StaffOrderBoard({
         },
       );
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "目前無法更新餐點狀態。");
+      if (!response.ok) throw new Error(t("staff.error.updateItem"));
       setOrders((current) => current.map((order) => (
         order.id === orderId ? payload.order : order
       )));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
     } finally {
       setUpdatingItemId(null);
     }
@@ -410,8 +462,8 @@ export function StaffOrderBoard({
           ? current.filter((order) => order.id !== orderId)
           : current.map((order) => order.id === orderId ? staffOrder : order));
         setMessage(nextState === "LOCAL_COMPLETED"
-          ? "離線訂單已在本機完成，恢復連線後會同步。"
-          : "離線製作狀態已安全儲存在此裝置。");
+          ? t("staff.message.offlineCompleted")
+          : t("staff.message.offlineSaved"));
         return;
       }
       const response = await fetch(`/api/stalls/${stall.slug}/orders/${orderId}/items`, {
@@ -420,12 +472,12 @@ export function StaffOrderBoard({
         body: JSON.stringify({ status }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "目前無法批次更新餐點狀態。");
+      if (!response.ok) throw new Error(t("staff.error.batch"));
       setOrders((current) => current.map((order) => (
         order.id === orderId ? payload.order : order
       )));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
     } finally {
       setUpdatingItemsOrderId(null);
     }
@@ -445,7 +497,7 @@ export function StaffOrderBoard({
         body: JSON.stringify({ operation: "UPDATE", itemIds, status }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "目前無法批次更新餐點狀態。");
+      if (!response.ok) throw new Error(t("staff.error.batch"));
       replaceOrders(payload.orders as OrderWithItems[]);
       setSelectedItemIds(new Set());
       setUndoBatch({
@@ -454,7 +506,7 @@ export function StaffOrderBoard({
         itemCount: payload.itemCount,
       });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
     } finally {
       setBatchBusy(false);
     }
@@ -471,13 +523,13 @@ export function StaffOrderBoard({
         body: JSON.stringify({ operation: "UNDO", actionId: undoBatch.actionId }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "目前無法復原餐點狀態。");
+      if (!response.ok) throw new Error(t("staff.error.batch"));
       replaceOrders(payload.orders as OrderWithItems[]);
       setUndoBatch(null);
-      setMessage("已復原上一筆批次餐點操作。");
+      setMessage(t("staff.message.undoDone"));
     } catch (error) {
       setUndoBatch(null);
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
     } finally {
       setBatchBusy(false);
     }
@@ -495,10 +547,10 @@ export function StaffOrderBoard({
     setComposerOpen(false);
     setViewMode("TICKETS");
     setMessage(order.source === "OFFLINE_POS"
-      ? `離線訂單 ${order.orderNo} 已安全儲存在此裝置，恢復連線後會自動同步。`
+      ? t("staff.message.createdOffline", { number: order.orderNo })
       : order.paymentStatus === "PAID"
-      ? `訂單 ${order.orderNo} 已建立、完成收款並送入廚房。`
-      : `訂單 ${order.orderNo} 已建立並送入廚房，請稍後結帳。`);
+      ? t("staff.message.createdPaid", { number: order.orderNo })
+      : t("staff.message.createdUnpaid", { number: order.orderNo }));
   }
 
   async function openComposer() {
@@ -506,6 +558,101 @@ export function StaffOrderBoard({
     const latest = await refreshPosConfiguration(true);
     if (!latest?.catalog && !orderCatalog) return;
     setComposerOpen(true);
+  }
+
+  function toggleOrderDetails(orderId: string) {
+    setExpandedOrderIds((current) => {
+      const next = new Set(current);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  }
+
+  function canEditOrderContent(order: OrderWithItems) {
+    return Boolean(
+      orderCatalog
+      && hasPermission(account.role, "UPDATE_ORDERS")
+      && order.source === "STAFF_POS"
+      && order.status === "CONFIRMED"
+      && order.paymentStatus === "UNPAID"
+      && order.items.every((item) => item.status === "PENDING"),
+    );
+  }
+
+  function openOrderEditor(order: OrderWithItems) {
+    if (!canEditOrderContent(order)) return;
+    setEditingOrderId(order.id);
+    setOrderEditMessage("");
+    setOrderEditProductId("");
+    setOrderEditLines(order.items.map((item) => ({
+      kind: "EXISTING" as const,
+      key: item.id,
+      itemId: item.id,
+      name: item.name,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+      details: [
+        formatStaffNoteOptions(locale, item.noteOptions, stall.currency, false),
+        item.note ? t("staff.order.note", { note: item.note }) : "",
+      ].filter(Boolean).join(" · "),
+    })));
+  }
+
+  function changeOrderEditQuantity(key: string, delta: number) {
+    setOrderEditLines((current) => current.map((line) => (
+      line.key === key
+        ? { ...line, quantity: Math.max(1, Math.min(100, line.quantity + delta)) }
+        : line
+    )));
+  }
+
+  function addOrderEditProduct() {
+    const product = orderCatalog?.products.find((candidate) => candidate.id === orderEditProductId);
+    if (!product) return;
+    setOrderEditLines((current) => [...current, {
+      kind: "NEW",
+      key: `new-${crypto.randomUUID()}`,
+      productId: product.id,
+      name: product.name,
+      unitPrice: product.price,
+      quantity: 1,
+    }]);
+    setOrderEditProductId("");
+  }
+
+  async function saveOrderEdit() {
+    if (!editingOrderId || orderEditLines.length === 0) return;
+    setOrderEditBusy(true);
+    setOrderEditMessage("");
+    try {
+      const response = await fetch(`/api/stalls/${stall.slug}/orders/${editingOrderId}/content`, {
+        method: "PATCH",
+        headers: csrfHeaders(),
+        body: JSON.stringify({
+          items: orderEditLines.map((line) => line.kind === "EXISTING"
+            ? { kind: "EXISTING", itemId: line.itemId, quantity: line.quantity }
+            : {
+                kind: "NEW",
+                productId: line.productId,
+                quantity: line.quantity,
+                note: "",
+                noteOptionIds: [],
+                bundleChoiceIds: [],
+              }),
+        }),
+      });
+      const payload = await response.json() as { order?: OrderWithItems; error?: string };
+      if (!response.ok || !payload.order) throw new Error(t("staff.error.edit"));
+      replaceOrders([payload.order]);
+      setEditingOrderId(null);
+      setOrderEditLines([]);
+      setMessage(t("staff.message.editSaved", { number: payload.order.orderNo }));
+    } catch (error) {
+      setOrderEditMessage(error instanceof Error ? error.message : t("staff.error.network"));
+    } finally {
+      setOrderEditBusy(false);
+    }
   }
 
   async function openCheckout(orderOrOrders: OrderWithItems | OrderWithItems[]) {
@@ -553,7 +700,7 @@ export function StaffOrderBoard({
 
     const diningTableId = checkoutOrders[0].diningTableId;
     if (!diningTableId || checkoutOrders.some((order) => order.diningTableId !== diningTableId)) {
-      setMessage("只能合併結帳同一桌的內用訂單。");
+      setMessage(t("staff.message.mergeOnlyTable"));
       return;
     }
     setUpdatingOrderId(checkoutOrders[0].id);
@@ -569,14 +716,14 @@ export function StaffOrderBoard({
         }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "目前無法完成同桌結帳。");
+      if (!response.ok) throw new Error(t("staff.error.updateOrder"));
       const completedIds = new Set<string>(payload.orderIds ?? []);
       setOrders((current) => current.filter((order) => !completedIds.has(order.id)));
       setCheckoutOrders([]);
-      setMessage(`已合併完成 ${completedIds.size} 筆同桌訂單。`);
+      setMessage(t("staff.message.mergeDone", { count: completedIds.size }));
     } catch (error) {
       setManagerPassword("");
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
     } finally {
       setUpdatingOrderId(null);
     }
@@ -597,7 +744,7 @@ export function StaffOrderBoard({
       if (order?.source === "OFFLINE_POS") {
         const { queueOfflinePrintJob } = await import("@/offline/offline-operations");
         await queueOfflinePrintJob(orderId);
-        setMessage("離線訂單已排入本機列印佇列；列印結果會在同步時對帳。");
+        setMessage(t("staff.message.printOffline"));
         return;
       }
       const response = await fetch(`/api/stalls/${stall.slug}/print-jobs`, {
@@ -605,11 +752,10 @@ export function StaffOrderBoard({
         headers: csrfHeaders(),
         body: JSON.stringify({ operation: "QUEUE", orderId }),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "目前無法排入列印工作。");
-      setMessage("訂單已排入列印工作佇列。");
+      if (!response.ok) throw new Error(t("common.apiError"));
+      setMessage(t("staff.message.printQueued"));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
     }
   }
 
@@ -626,7 +772,7 @@ export function StaffOrderBoard({
         body: JSON.stringify({ mode: "CODE", code }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "取餐碼驗證失敗。");
+      if (!response.ok) throw new Error(t("common.apiError"));
       setOrders((current) => current.map((order) => (
         order.id === orderId ? {
           ...order,
@@ -636,7 +782,7 @@ export function StaffOrderBoard({
       )));
       setPickupCodes((current) => ({ ...current, [orderId]: "" }));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
       setPickupCodes((current) => ({ ...current, [orderId]: "" }));
     } finally {
       setVerifyingPickupOrderId(null);
@@ -671,7 +817,7 @@ export function StaffOrderBoard({
         }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "人工取餐核對失敗。");
+      if (!response.ok) throw new Error(t("common.apiError"));
       setOrders((current) => current.map((candidate) => (
         candidate.id === order.id ? {
           ...candidate,
@@ -681,7 +827,7 @@ export function StaffOrderBoard({
       )));
       setPendingManualPickup(null);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
     } finally {
       setVerifyingPickupOrderId(null);
     }
@@ -863,6 +1009,39 @@ export function StaffOrderBoard({
     ? orders.filter((order) => [order.orderNo, order.tableLabel ?? "", order.customerName]
       .some((value) => value.toLocaleLowerCase("zh-TW").includes(normalizedQuery)))
     : orders, [normalizedQuery, orders]);
+  const orderProductionTimings = useMemo(() => new Map(filteredOrders.map((order) => [
+    order.id,
+    classifyFulfillmentForProduction(order, {
+      timeZone: stall.timezone,
+      businessDayCutoffHour: stall.businessDayCutoffHour,
+      now: new Date(now),
+    }),
+  ])), [filteredOrders, now, stall.businessDayCutoffHour, stall.timezone]);
+  const futureOrders = useMemo(() => filteredOrders.filter((order) => {
+    const timing = orderProductionTimings.get(order.id);
+    return Boolean(
+      timing?.fulfillmentBusinessDate
+      && timing.fulfillmentBusinessDate > timing.currentBusinessDate
+      && order.status === "CONFIRMED"
+      && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)
+    );
+  }), [filteredOrders, orderProductionTimings]);
+  const operationalOrders = useMemo(() => filteredOrders.filter((order) => {
+    const timing = orderProductionTimings.get(order.id);
+    return !(
+      timing?.fulfillmentBusinessDate
+      && timing.fulfillmentBusinessDate > timing.currentBusinessDate
+      && order.status === "CONFIRMED"
+      && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)
+    );
+  }), [filteredOrders, orderProductionTimings]);
+  const futureUnpaidTotal = futureOrders.reduce((sum, order) => (
+    sum + (order.paymentStatus === "UNPAID" ? order.total : 0)
+  ), 0);
+  const orderEditProducts = useMemo(() => (orderCatalog?.products ?? []).filter((product) => (
+    product.noteGroups.every((group) => group.minSelections === 0)
+    && (product.bundleChoiceGroups ?? []).every((group) => group.minSelections === 0)
+  )), [orderCatalog]);
   const selectedItems = orders
     .filter((order) => order.source !== "OFFLINE_POS")
     .flatMap((order) => order.items.map((item) => ({
@@ -890,12 +1069,12 @@ export function StaffOrderBoard({
       notes: string;
       tickets: string[];
     }>();
-    for (const order of filteredOrders) {
+    for (const order of operationalOrders) {
       if (order.source === "OFFLINE_POS") continue;
       for (const item of order.items) {
         if (item.status === "SERVED") continue;
         const notes = [
-          item.noteOptions.map((option) => `${option.groupName}：${option.optionName}`).join("、"),
+          formatStaffNoteOptions(locale, item.noteOptions, stall.currency, false),
           item.note ?? "",
         ].filter(Boolean).join(" · ");
         const key = JSON.stringify([item.name, notes, item.status]);
@@ -915,21 +1094,21 @@ export function StaffOrderBoard({
       }
     }
     return [...groups.values()].sort((left, right) => left.status.localeCompare(right.status) || left.name.localeCompare(right.name, "zh-TW"));
-  }, [filteredOrders]);
+  }, [locale, operationalOrders, stall.currency]);
   const diningTableGroups = useMemo(() => {
     const groups = new Map<string, { diningTableId: string; tableLabel: string; orders: OrderWithItems[] }>();
-    for (const order of filteredOrders) {
+    for (const order of operationalOrders) {
       if (order.fulfillmentType !== "DINE_IN" || !order.diningTableId) continue;
       const current = groups.get(order.diningTableId) ?? {
         diningTableId: order.diningTableId,
-        tableLabel: order.tableLabel ?? "未指定桌位",
+        tableLabel: order.tableLabel ?? t("staff.table.unassigned"),
         orders: [],
       };
       current.orders.push(order);
       groups.set(order.diningTableId, current);
     }
-    return [...groups.values()].sort((left, right) => left.tableLabel.localeCompare(right.tableLabel, "zh-TW"));
-  }, [filteredOrders]);
+    return [...groups.values()].sort((left, right) => left.tableLabel.localeCompare(right.tableLabel, locale));
+  }, [locale, operationalOrders, t]);
 
   const checkoutDiscountEligibleSubtotal = checkoutOrders.reduce((orderSum, order) => (
     orderSum + order.items.reduce((itemSum, item) => (
@@ -972,14 +1151,17 @@ export function StaffOrderBoard({
   const timeProposalOrder = pendingTimeProposal
     ? orders.find((order) => order.id === pendingTimeProposal.orderId) ?? null
     : null;
+  const editingOrder = editingOrderId
+    ? orders.find((order) => order.id === editingOrderId) ?? null
+    : null;
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-3 md:px-8 md:py-5">
       <div className="flex min-w-0 max-w-full flex-col gap-3 print:hidden sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-teal-800">行動訂單看板</p>
+          <p className="text-sm font-medium text-teal-800">{t("staff.mobileBoard")}</p>
           <h1 className="text-2xl font-semibold sm:text-3xl">{stall.name}</h1>
-          <p className="mt-1 text-xs text-stone-500">{account.displayName} · {roleLabels[account.role]}</p>
+          <p className="mt-1 text-xs text-stone-500">{account.displayName} · {roleLabel(account.role, t)}</p>
         </div>
         <div className="flex w-full min-w-0 max-w-full flex-col gap-2 sm:w-auto sm:items-end">
           <div className="flex max-w-full flex-wrap items-center gap-2 sm:justify-end">
@@ -991,37 +1173,37 @@ export function StaffOrderBoard({
               offlineGuardStallId={stall.id}
               className="w-auto shrink-0"
             />
-            <LiveConnectionBadge state={liveConnection} />
+            <LiveConnectionBadge state={liveConnection} t={t} />
             <PwaControls showWakeLock />
           </div>
-          <nav aria-label="店員功能" data-testid="staff-function-grid" className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:max-w-full sm:flex-nowrap sm:justify-end sm:overflow-visible">
+          <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:max-w-full sm:flex-nowrap sm:justify-end sm:overflow-visible">
             {orderCatalog && hasPermission(account.role, "CREATE_ORDERS") ? (
-              <button type="button" title="店員點餐" disabled={posConfigurationLoading} onClick={() => void openComposer()} className={`${staffFunctionTileClass} bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}>
+              <button type="button" title={t("staff.action.createOrder")} disabled={posConfigurationLoading} onClick={() => void openComposer()} className={`${staffFunctionTileClass} bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}>
                 <ShoppingCart className={staffFunctionIconClass} />
-                <span className="sm:sr-only">店員點餐</span>
+                <span className="sm:sr-only">{t("staff.action.createOrder")}</span>
               </button>
             ) : null}
             {modules.dineIn ? (
-              <Link href={`/staff/${stall.slug}/floor`} title="桌位平面圖" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
+              <Link href={`/staff/${stall.slug}/floor`} title={t("staff.action.floor")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
                 <MapPinned className={staffFunctionIconClass} />
-                <span className="sm:sr-only">桌位平面圖</span>
+                <span className="sm:sr-only">{t("staff.action.floor")}</span>
               </Link>
             ) : null}
             {modules.print && hasPermission(account.role, "MANAGE_PRINT_QUEUE") ? (
-              <Link href={`/staff/${stall.slug}/print`} title="列印工作佇列" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
+              <Link href={`/staff/${stall.slug}/print`} title={t("staff.action.printQueue")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
                 <Printer className={staffFunctionIconClass} />
-                <span className="sm:sr-only">列印佇列</span>
+                <span className="sm:sr-only">{t("staff.action.printQueue")}</span>
               </Link>
             ) : null}
             {hasPermission(account.role, "MANAGE_CASH_SHIFT") ? (
-              <Link href={`/staff/${stall.slug}/cash`} title="現金交班" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
+              <Link href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
                 <WalletCards className={staffFunctionIconClass} />
-                <span className="sm:sr-only">現金交班</span>
+                <span className="sm:sr-only">{t("staff.action.cashShift")}</span>
               </Link>
             ) : null}
-            <button type="button" role="switch" aria-checked={alertsEnabled} aria-label={alertsEnabled ? "新訂單提醒已開啟" : "新訂單提醒已關閉"} onClick={toggleAlerts} title={alertsEnabled ? "關閉新訂單聲音與震動" : "開啟新訂單聲音與震動"} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
+            <button type="button" role="switch" aria-checked={alertsEnabled} aria-label={alertsEnabled ? t("staff.action.notificationsOn") : t("staff.action.notificationsOff")} onClick={toggleAlerts} title={alertsEnabled ? t("staff.action.notificationsDisable") : t("staff.action.notificationsEnable")} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
               {alertsEnabled ? <Volume2 className={staffFunctionIconClass} /> : <VolumeX className={staffFunctionIconClass} />}
-              <span aria-hidden="true" className="sm:sr-only">訂單提醒</span>
+              <span aria-hidden="true" className="sm:sr-only">{t("staff.action.notifications")}</span>
             </button>
             <div data-testid="staff-function-offline" className={`${staffFunctionTileClass} relative border border-stone-300 bg-white text-stone-700 [&>div>button:first-child]:h-11 [&>div>button:first-child]:w-11 [&>div>button:first-child]:border-0 sm:[&>div>button:first-child]:h-10 sm:[&>div>button:first-child]:w-10`}>
               <OfflineBootstrapControl
@@ -1029,15 +1211,15 @@ export function StaffOrderBoard({
                 stallSlug={stall.slug}
                 appVersion={appVersion}
               />
-              <span className="sm:sr-only">離線裝置</span>
+              <span className="sm:sr-only">{t("staff.action.offlineDevice")}</span>
             </div>
-            <button type="button" onClick={() => void refreshOrders()} title="重新整理" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
+            <button type="button" onClick={() => void refreshOrders()} title={t("common.refresh")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}>
               <RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} />
-              <span className="sm:sr-only">重新整理</span>
+              <span className="sm:sr-only">{t("common.refresh")}</span>
             </button>
             <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border-0 sm:[&>button]:h-10 sm:[&>button]:w-10`}>
               <LogoutButton offlineStallId={stall.id} />
-              <span className="sm:sr-only">登出</span>
+              <span className="sm:sr-only">{t("staff.action.logout")}</span>
             </div>
           </nav>
         </div>
@@ -1047,42 +1229,42 @@ export function StaffOrderBoard({
         stallSlug={stall.slug}
         onSynchronized={() => void refreshOrders(true)}
       />
-      {message ? <p role="status" className={`mt-4 text-sm print:hidden ${/(無法|失敗|中斷|錯誤|期限|找不到)/.test(message) ? "text-red-700" : "text-emerald-700"}`}>{message}</p> : null}
+      {message ? <p role="status" className="mt-4 text-sm text-stone-700 print:hidden">{message}</p> : null}
       {capacity ? <StaffCapacityControl stallSlug={stall.slug} initialData={capacity} /> : null}
 
       <div className="mt-4 flex flex-col gap-2 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 print:hidden">
         <label className="relative block w-full sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-stone-400" />
-          <span className="sr-only">搜尋桌號或訂單編號</span>
-          <input type="search" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋桌號、訂單編號或顧客" className="h-11 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" />
+          <span className="sr-only">{t("staff.search.label")}</span>
+          <input type="search" value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder={t("staff.search.shortPlaceholder")} className="h-11 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" />
         </label>
         {account.role === "KITCHEN" ? (
-          <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label="廚房檢視模式">
-            <button type="button" aria-pressed={viewMode === "TICKETS"} onClick={() => setViewMode("TICKETS")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TICKETS" ? "bg-stone-900 text-white" : "text-stone-600"}`}>訂單票</button>
-            <button type="button" aria-pressed={viewMode === "SUMMARY"} onClick={() => setViewMode("SUMMARY")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "SUMMARY" ? "bg-stone-900 text-white" : "text-stone-600"}`}>同品項彙總</button>
+          <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("staff.view.kitchenMode")}>
+            <button type="button" aria-pressed={viewMode === "TICKETS"} onClick={() => setViewMode("TICKETS")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TICKETS" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.ticket")}</button>
+            <button type="button" aria-pressed={viewMode === "SUMMARY"} onClick={() => setViewMode("SUMMARY")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "SUMMARY" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.itemSummary")}</button>
           </div>
         ) : modules.dineIn ? (
-          <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label="訂單顯示模式">
-            <button type="button" aria-pressed={viewMode === "TICKETS"} onClick={() => setViewMode("TICKETS")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TICKETS" ? "bg-stone-900 text-white" : "text-stone-600"}`}>逐筆訂單</button>
-            <button type="button" aria-pressed={viewMode === "TABLES"} onClick={() => setViewMode("TABLES")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TABLES" ? "bg-stone-900 text-white" : "text-stone-600"}`}>同桌合併</button>
+          <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("staff.view.orderMode")}>
+            <button type="button" aria-pressed={viewMode === "TICKETS"} onClick={() => setViewMode("TICKETS")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TICKETS" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.individual")}</button>
+            <button type="button" aria-pressed={viewMode === "TABLES"} onClick={() => setViewMode("TABLES")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TABLES" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.combineTable")}</button>
           </div>
         ) : null}
       </div>
 
       {selectedItems.length > 0 ? (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-y border-stone-200 bg-stone-50 px-3 py-3 print:hidden">
-          <span className="text-sm font-semibold">已選 {selectedItems.length} 個餐點品項</span>
+          <span className="text-sm font-semibold">{t("staff.selection.count", { count: selectedItems.length })}</span>
           <div className="flex gap-2">
-            <button type="button" onClick={() => setSelectedItemIds(new Set())} className="h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold">清除選取</button>
-            <button type="button" disabled={!canUpdateSelection || batchBusy || !nextSelectedStatus} onClick={() => nextSelectedStatus && void updateSelectedItems(selectedItems.map((item) => item.id), nextSelectedStatus)} className="inline-flex h-9 items-center gap-2 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-40"><ListChecks className="h-4 w-4" />{nextSelectedStatus ? `批次${batchActionLabel(nextSelectedStatus)}` : "請選擇相同狀態"}</button>
+            <button type="button" onClick={() => setSelectedItemIds(new Set())} className="h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold">{t("staff.selection.clear")}</button>
+            <button type="button" disabled={!canUpdateSelection || batchBusy || !nextSelectedStatus} onClick={() => nextSelectedStatus && void updateSelectedItems(selectedItems.map((item) => item.id), nextSelectedStatus)} className="inline-flex h-9 items-center gap-2 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-40"><ListChecks className="h-4 w-4" />{nextSelectedStatus ? t("staff.selection.batch", { action: batchActionLabel(nextSelectedStatus, t) }) : t("staff.selection.sameStatus")}</button>
           </div>
         </div>
       ) : null}
 
       {undoBatch ? (
         <div role="status" className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950 print:hidden">
-          <span>已更新 {undoBatch.itemCount} 個餐點，5 秒內可復原。</span>
-          <button type="button" disabled={batchBusy} onClick={() => void undoSelectedItems()} className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md border border-amber-700 px-3 text-xs font-semibold"><Undo2 className="h-4 w-4" />復原</button>
+          <span>{t("staff.selection.updated", { count: undoBatch.itemCount })}</span>
+          <button type="button" disabled={batchBusy} onClick={() => void undoSelectedItems()} className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md border border-amber-700 px-3 text-xs font-semibold"><Undo2 className="h-4 w-4" />{t("staff.selection.undo")}</button>
         </div>
       ) : null}
 
@@ -1091,9 +1273,9 @@ export function StaffOrderBoard({
           {kitchenGroups.map((group) => {
             const nextStatus = nextOperationalItemStatus(group.status);
             const canUpdate = nextStatus && canTransitionOrderItem(group.status, nextStatus, account.role);
-            return <article key={group.key} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><ChefHat className="h-4 w-4 text-teal-700" /><h2 className="font-semibold">{group.quantity} × {group.name}</h2><span className="rounded bg-stone-100 px-2 py-0.5 text-xs font-semibold">{orderItemStatusLabels[group.status]}</span></div>{group.notes ? <p className="mt-1 text-xs text-teal-800">{group.notes}</p> : null}<p className="mt-2 text-xs text-stone-500">來源：{group.tickets.join("、")}</p></div>{canUpdate && nextStatus ? <button type="button" disabled={batchBusy} onClick={() => void updateSelectedItems(group.itemIds, nextStatus)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-40"><ListChecks className="h-4 w-4" />{batchActionLabel(nextStatus)}全部</button> : null}</article>;
+            return <article key={group.key} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div><div className="flex flex-wrap items-center gap-2"><ChefHat className="h-4 w-4 text-teal-700" /><h2 className="font-semibold">{group.quantity} × {group.name}</h2><span className="rounded bg-stone-100 px-2 py-0.5 text-xs font-semibold">{orderItemStatusLabel(group.status, t)}</span></div>{group.notes ? <p className="mt-1 text-xs text-teal-800">{group.notes}</p> : null}<p className="mt-2 text-xs text-stone-500">{t("staff.item.source", { orders: group.tickets.join(", ") })}</p></div>{canUpdate && nextStatus ? <button type="button" disabled={batchBusy} onClick={() => void updateSelectedItems(group.itemIds, nextStatus)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-40"><ListChecks className="h-4 w-4" />{t("staff.item.all", { action: batchActionLabel(nextStatus, t) })}</button> : null}</article>;
           })}
-          {kitchenGroups.length === 0 ? <p className="py-10 text-center text-sm text-stone-500">目前沒有待製作餐點。</p> : null}
+          {kitchenGroups.length === 0 ? <p className="py-10 text-center text-sm text-stone-500">{t("staff.item.nonePending")}</p> : null}
         </div>
       ) : viewMode === "TABLES" ? (
         <div className="mt-6 grid gap-4 md:grid-cols-2 print:hidden">
@@ -1105,42 +1287,56 @@ export function StaffOrderBoard({
             return (
               <article key={group.diningTableId} className="rounded-lg border border-stone-200 bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div><h2 className="text-lg font-semibold">{group.tableLabel}</h2><p className="mt-1 text-xs text-stone-500">{group.orders.length} 筆追加訂單 · {group.orders.reduce((sum, order) => sum + order.items.reduce((count, item) => count + item.quantity, 0), 0)} 份餐點</p></div>
-                  <strong>{formatMoney(group.orders.reduce((sum, order) => sum + order.total, 0), stall.currency)}</strong>
+                  <div><h2 className="text-lg font-semibold">{group.tableLabel}</h2><p className="mt-1 text-xs text-stone-500">{t("staff.table.summary", { orders: group.orders.length, items: group.orders.reduce((sum, order) => sum + order.items.reduce((count, item) => count + item.quantity, 0), 0) })}</p></div>
+                  <strong>{formatMoney(group.orders.reduce((sum, order) => sum + order.total, 0), stall.currency, locale)}</strong>
                 </div>
-                <div className="mt-4 divide-y divide-stone-100 border-y border-stone-200">{group.orders.map((order) => <div key={order.id} className="py-3"><div className="flex items-center justify-between gap-3 text-sm"><strong>訂單 {order.orderNo}</strong><span className="rounded bg-stone-100 px-2 py-0.5 text-xs font-semibold">{orderStatusLabels[order.status]}</span></div><p className="mt-1 text-xs text-stone-600">{order.items.map((item) => `${item.quantity}×${item.name}`).join("、")}</p><p className="mt-1 text-xs text-stone-500">{paymentStatusLabels[order.paymentStatus]}</p></div>)}</div>
+                <div className="mt-4 divide-y divide-stone-100 border-y border-stone-200">{group.orders.map((order) => <div key={order.id} className="py-3"><div className="flex items-center justify-between gap-3 text-sm"><strong>{t("staff.order.number", { number: order.orderNo })}</strong><span className="rounded bg-stone-100 px-2 py-0.5 text-xs font-semibold">{contextualOrderStatusLabel(order, t)}</span></div><p className="mt-1 text-xs text-stone-600">{order.items.map((item) => `${item.quantity}×${item.name}`).join(", ")}</p><p className="mt-1 text-xs text-stone-500">{paymentStatusLabel(order.paymentStatus, t)}</p></div>)}</div>
                 <div className="mt-4 flex items-center justify-between gap-3">
-                  <span className={`text-xs font-semibold ${pendingItems === 0 ? "text-emerald-700" : "text-amber-800"}`}>{pendingItems === 0 ? "餐點皆已出餐" : `${pendingItems} 個品項尚未出餐`}</span>
-                  <button type="button" disabled={!checkoutEligible || updatingOrderId !== null || posConfigurationLoading} onClick={() => unpaidOrders.length > 0 ? void openCheckout(unpaidOrders) : void completePaidOrders(group.orders)} className="h-10 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{unpaidOrders.length > 0 ? unpaidOrders.length > 1 ? `合併結帳（${unpaidOrders.length} 筆）` : "完成此桌結帳" : "完成此桌"}</button>
+                  <span className={`text-xs font-semibold ${pendingItems === 0 ? "text-emerald-700" : "text-amber-800"}`}>{pendingItems === 0 ? t("staff.table.allServed") : t("staff.table.pendingItems", { count: pendingItems })}</span>
+                  <button type="button" disabled={!checkoutEligible || updatingOrderId !== null || posConfigurationLoading} onClick={() => unpaidOrders.length > 0 ? void openCheckout(unpaidOrders) : void completePaidOrders(group.orders)} className="h-10 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{unpaidOrders.length > 0 ? unpaidOrders.length > 1 ? t("staff.table.mergeCheckout", { count: unpaidOrders.length }) : t("staff.table.completeCheckout") : t("staff.table.complete")}</button>
                 </div>
               </article>
             );
           })}
-          {diningTableGroups.length === 0 ? <p className="py-10 text-center text-sm text-stone-500 md:col-span-2">目前沒有內用桌位訂單。</p> : null}
+          {diningTableGroups.length === 0 ? <p className="py-10 text-center text-sm text-stone-500 md:col-span-2">{t("staff.table.empty")}</p> : null}
         </div>
       ) : (
       <div className="mt-6 grid gap-4 md:grid-cols-2 print:block">
-        {filteredOrders.map((order) => (
+        <div className="md:col-span-2 print:hidden">
+          <h2 className="text-lg font-semibold">{t("staff.today.title")}</h2>
+          <p className="mt-1 text-xs text-stone-500">{t("staff.today.description")}</p>
+        </div>
+        {operationalOrders.map((order) => (
           <article
             key={order.id}
-            className={`rounded-lg border p-4 ${orderAgeClasses(order.createdAt, now)}`}
+            className={`rounded-lg border p-4 ${orderAgeClasses(order, orderProductionTimings.get(order.id), now)}`}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-500"><span>訂單 {order.orderNo}</span>{order.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">開店測試訂單</span> : null}{order.source === "OFFLINE_POS" ? <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-900">本機待同步</span> : null}</div>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-500"><span>{t("staff.order.number", { number: order.orderNo })}</span>{order.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">{t("staff.order.test")}</span> : null}{order.source === "OFFLINE_POS" ? <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-900">{t("staff.order.localPending")}</span> : null}</div>
                 <h2 className="mt-1 font-semibold">{order.customerName}</h2>
-                <p className="mt-1 text-sm text-stone-500">
-                  {order.fulfillmentType === "DINE_IN"
-                    ? `內用 · ${order.tableLabel ?? "未指定桌位"}`
-                    : order.fulfillmentType === "DELIVERY" ? "外送訂單" : "外帶取餐"} · {new Date(order.createdAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })} · 已等待 {orderAgeMinutes(order.createdAt, now)} 分
-                </p>
+            <p className="mt-1 text-sm text-stone-500">{orderTimingSummary(order, orderProductionTimings.get(order.id), now, stall.timezone, locale, t)}</p>
               </div>
-              <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">{orderStatusLabels[order.status]}</span>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">{contextualOrderStatusLabel(order, t)}</span>
+                <button type="button" aria-expanded={expandedOrderIds.has(order.id)} aria-controls={`order-details-${order.id}`} onClick={() => toggleOrderDetails(order.id)} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-stone-300 px-2 text-xs font-semibold print:hidden">
+                  {expandedOrderIds.has(order.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {expandedOrderIds.has(order.id) ? t("staff.order.collapseShort") : t("staff.order.viewDetails")}
+                </button>
+              </div>
             </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-3 print:hidden">
+              <p className="text-sm text-stone-600">{t("common.portions", { count: order.items.reduce((sum, item) => sum + item.quantity, 0) })} · <strong className="text-stone-950">{formatMoney(order.total, stall.currency, locale)}</strong> · {paymentStatusLabel(order.paymentStatus, t)}</p>
+              <div className="flex flex-wrap gap-2">
+                {canEditOrderContent(order) ? <button type="button" onClick={() => openOrderEditor(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Pencil className="h-4 w-4" />{t("staff.order.edit")}</button> : null}
+                {order.status === "READY" && order.paymentStatus === "UNPAID" && hasPermission(account.role, "CHECKOUT_ORDERS") && (order.fulfillmentType !== "DINE_IN" || order.items.every((item) => item.status === "SERVED")) ? <button type="button" disabled={updatingOrderId === order.id || posConfigurationLoading} onClick={() => void openCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{t("staff.order.checkoutForCustomer")}</button> : null}
+              </div>
+            </div>
+            {expandedOrderIds.has(order.id) ? <div id={`order-details-${order.id}`}>
             {order.fulfillmentType === "DELIVERY" ? (
               <div className="mt-3 flex items-start gap-2 border-y border-stone-200 bg-stone-50 px-3 py-3 text-sm">
                 <Truck className="mt-0.5 h-4 w-4 shrink-0 text-teal-800" />
-                <div className="min-w-0"><p className="font-medium break-words">{order.deliveryAddress}</p>{order.customerPhone ? <p className="mt-1 text-stone-600">{order.customerPhone}</p> : null}</div>
+                <div className="min-w-0"><p className="font-medium break-words">{order.deliveryAddress || t("staff.delivery.noAddress")}</p>{order.customerPhone ? <p className="mt-1 text-stone-600">{order.customerPhone}</p> : <p className="mt-1 text-stone-500">{t("staff.delivery.noPhone")}</p>}</div>
               </div>
             ) : null}
             {order.fulfillmentType !== "DINE_IN" && order.fulfillmentTimeState !== "NOT_REQUESTED" ? (
@@ -1148,21 +1344,21 @@ export function StaffOrderBoard({
                 <div className="flex items-start gap-2">
                   <Clock3 className="mt-0.5 h-4 w-4 shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{fulfillmentTimeTitle(order)}</p>
-                    {order.fulfillmentTimeChangeReason ? <p className="mt-1 text-xs">原因：{order.fulfillmentTimeChangeReason}</p> : null}
-                    {order.fulfillmentTimeResponseExpiresAt && order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? <p className="mt-1 text-xs">顧客需於 {formatStaffFulfillmentTime(order.fulfillmentTimeResponseExpiresAt)} 前回覆。</p> : null}
+                    <p className="font-semibold">{fulfillmentTimeTitle(order, locale, t)}</p>
+                    {order.fulfillmentTimeChangeReason ? <p className="mt-1 text-xs">{t("staff.order.reason", { reason: order.fulfillmentTimeChangeReason })}</p> : null}
+                    {order.fulfillmentTimeResponseExpiresAt && order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? <p className="mt-1 text-xs">{t("staff.order.replyBy", { time: formatStaffFulfillmentTime(order.fulfillmentTimeResponseExpiresAt, locale) })}</p> : null}
                   </div>
                 </div>
                 {order.source !== "OFFLINE_POS" && ["WAITING_CONFIRMATION", "CONFIRMED"].includes(order.status) ? (
                   <div className="mt-3 flex flex-wrap gap-2 print:hidden">
-                    {order.fulfillmentTimeState === "REQUESTED" ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void updateFulfillmentTime(order, { operation: "CONFIRM_REQUESTED", version: order.fulfillmentTimeVersion })} className="min-h-9 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50">接受原時間</button> : null}
-                    <button type="button" disabled={updatingOrderId === order.id || fulfillmentTimeSlots.length === 0} onClick={() => openTimeProposal(order)} className="min-h-9 rounded-md border border-current px-3 text-xs font-semibold disabled:opacity-40">{order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? "修改提議" : "提出新時間"}</button>
+                    {order.fulfillmentTimeState === "REQUESTED" ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void updateFulfillmentTime(order, { operation: "CONFIRM_REQUESTED", version: order.fulfillmentTimeVersion })} className="min-h-9 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50">{t("staff.order.acceptOriginalTime")}</button> : null}
+                    <button type="button" disabled={updatingOrderId === order.id || fulfillmentTimeSlots.length === 0} onClick={() => openTimeProposal(order)} className="min-h-9 rounded-md border border-current px-3 text-xs font-semibold disabled:opacity-40">{order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? t("staff.order.editProposal") : t("staff.order.proposeTime")}</button>
                   </div>
                 ) : null}
               </div>
             ) : null}
             {order.status === "WAITING_CONFIRMATION" ? (
-              <p className="mt-3 text-xs font-medium text-amber-800">確認後才可開始製作；逾時時間 {new Date(order.confirmationExpiresAt).toLocaleTimeString("zh-TW")}</p>
+              <p className="mt-3 text-xs font-medium text-amber-800">{t("staff.order.confirmBeforeProduction", { time: formatAppDateTime(locale, order.confirmationExpiresAt, { timeStyle: "short", timeZone: stall.timezone }) })}</p>
             ) : null}
             {order.status !== "WAITING_CONFIRMATION" ? (
               <div className="mt-4 flex flex-wrap gap-2 print:hidden">
@@ -1176,7 +1372,7 @@ export function StaffOrderBoard({
                       className="inline-flex min-h-10 items-center gap-2 rounded-md bg-amber-700 px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Play className="h-4 w-4" />
-                      全部開始製作（{order.items.filter((item) => item.status === "PENDING").length}）
+                      {t("staff.order.allStart", { count: order.items.filter((item) => item.status === "PENDING").length })}
                     </button>
                   ) : null}
                 {order.items.some((item) => item.status === "PREPARING")
@@ -1188,7 +1384,7 @@ export function StaffOrderBoard({
                       className="inline-flex min-h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <CheckCheck className="h-4 w-4" />
-                      全部餐點完成（{order.items.filter((item) => item.status === "PREPARING").length}）
+                      {t("staff.order.allReady", { count: order.items.filter((item) => item.status === "PREPARING").length })}
                     </button>
                   ) : null}
                 {order.items.some((item) => item.status === "READY")
@@ -1200,7 +1396,11 @@ export function StaffOrderBoard({
                       className="inline-flex min-h-10 items-center gap-2 rounded-md bg-emerald-800 px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <PackageCheck className="h-4 w-4" />
-                      全部標記已出餐（{order.items.filter((item) => item.status === "READY").length}）
+                      {order.fulfillmentType === "DINE_IN"
+                        ? t("staff.order.allServed", { count: order.items.filter((item) => item.status === "READY").length })
+                        : order.fulfillmentType === "DELIVERY"
+                          ? t("staff.order.allDelivered", { count: order.items.filter((item) => item.status === "READY").length })
+                          : t("staff.order.allPickedUp", { count: order.items.filter((item) => item.status === "READY").length })}
                     </button>
                   ) : null}
               </div>
@@ -1208,16 +1408,16 @@ export function StaffOrderBoard({
             <ul className="mt-4 divide-y divide-stone-100 border-y border-stone-200 text-sm">
               {order.items.map((item) => (
                 <li key={item.id} className="relative grid gap-2 py-3 sm:grid-cols-[1fr_auto] sm:items-center">
-                  {order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, account.role) && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)) ? <input type="checkbox" aria-label={`選取 ${order.orderNo} 的 ${item.name}`} checked={selectedItemIds.has(item.id)} onChange={(event) => setSelectedItemIds((current) => { const next = new Set(current); if (event.target.checked) next.add(item.id); else next.delete(item.id); return next; })} className="absolute left-0 top-4 h-4 w-4 print:hidden" /> : null}
+                  {order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, account.role) && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)) ? <input type="checkbox" aria-label={t("staff.order.selectItem", { order: order.orderNo, item: item.name })} checked={selectedItemIds.has(item.id)} onChange={(event) => setSelectedItemIds((current) => { const next = new Set(current); if (event.target.checked) next.add(item.id); else next.delete(item.id); return next; })} className="absolute left-0 top-4 h-4 w-4 print:hidden" /> : null}
                   <div className={`min-w-0 ${order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, account.role) && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)) ? "pl-7" : ""}`}>
                     <div className="flex justify-between gap-3">
                       <span className="font-medium">{item.quantity} × {item.name}</span>
-                      <span>{formatMoney(item.unitPrice * item.quantity, stall.currency)}</span>
+                      <span>{formatMoney(item.unitPrice * item.quantity, stall.currency, locale)}</span>
                     </div>
-                    {item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{item.noteOptions.map((noteOption) => `${noteOption.groupName}：${noteOption.optionName}${noteOption.priceDelta === 0 ? "" : ` (${noteOption.priceDelta > 0 ? "+" : ""}${formatMoney(noteOption.priceDelta, stall.currency)})`}`).join("、")}</p> : null}
-                    {item.note ? <p className="mt-1 text-xs text-stone-600">備註：{item.note}</p> : null}
+                    {item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{formatStaffNoteOptions(locale, item.noteOptions, stall.currency, true)}</p> : null}
+                    {item.note ? <p className="mt-1 text-xs text-stone-600">{t("staff.order.note", { note: item.note })}</p> : null}
                     <span className={`mt-1 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${item.status === "SERVED" ? "bg-emerald-50 text-emerald-800" : item.status === "READY" ? "bg-blue-50 text-blue-800" : item.status === "PREPARING" ? "bg-amber-50 text-amber-800" : "bg-stone-100 text-stone-600"}`}>
-                      {orderItemStatusLabels[item.status]}
+                    {orderItemStatusLabel(item.status, t)}
                     </span>
                   </div>
                   {order.source !== "OFFLINE_POS" && item.status !== "SERVED" && order.status !== "WAITING_CONFIRMATION" && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)) ? (
@@ -1225,6 +1425,7 @@ export function StaffOrderBoard({
                       itemStatus={item.status}
                       role={account.role}
                       busy={updatingItemId === item.id || updatingItemsOrderId === order.id}
+                      t={t}
                       onUpdate={(status) => void updateItemStatus(order.id, item.id, status)}
                     />
                   ) : null}
@@ -1234,10 +1435,10 @@ export function StaffOrderBoard({
             {order.note ? <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900">{order.note}</p> : null}
             <div className="mt-4 flex items-center justify-between border-t border-stone-200 pt-4">
               <div>
-                {order.discountAmount > 0 ? <div className="text-xs text-stone-500">原價 {formatMoney(order.subtotal, stall.currency)} · {order.discountLabel}</div> : null}
-                <strong>{formatMoney(order.total, stall.currency)}</strong>
+                {order.discountAmount > 0 ? <div className="text-xs text-stone-500">{t("staff.order.originalPrice", { amount: formatMoney(order.subtotal, stall.currency, locale) })} · {order.discountLabel}</div> : null}
+                <strong>{formatMoney(order.total, stall.currency, locale)}</strong>
               </div>
-              <span className="text-sm text-stone-600">{paymentStatusLabels[order.paymentStatus]}</span>
+                <span className="text-sm text-stone-600">{paymentStatusLabel(order.paymentStatus, t)}</span>
             </div>
 
             {modules.print && !order.isTest ? (
@@ -1246,7 +1447,7 @@ export function StaffOrderBoard({
                 onClick={() => void printOrder(order.id)}
                 className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-medium hover:bg-stone-100 print:hidden"
               >
-                <Printer className="h-4 w-4" />排入列印
+                <Printer className="h-4 w-4" />{t("staff.order.queuePrint")}
               </button>
             ) : null}
 
@@ -1254,7 +1455,7 @@ export function StaffOrderBoard({
               order.pickupVerifiedAt ? (
                 <div className="mt-4 flex items-center gap-2 text-sm font-medium text-teal-800">
                   <CheckCircle2 className="h-4 w-4" />
-                  {order.pickupVerificationMethod === "MANUAL" ? "已完成人工取餐核對" : "取餐碼已驗證"}
+                  {order.pickupVerificationMethod === "MANUAL" ? t("staff.pickup.manualVerified") : t("staff.pickup.codeVerified")}
                 </div>
               ) : (
                 <div className="mt-4">
@@ -1262,7 +1463,7 @@ export function StaffOrderBoard({
                     <input type="text"
                       inputMode="numeric"
                       autoComplete="one-time-code"
-                      aria-label={`${order.pickupCodeLength === 6 ? "六" : "三"}位數取餐碼`}
+                      aria-label={t("staff.pickup.codeLabel", { digits: order.pickupCodeLength })}
                       aria-busy={verifyingPickupOrderId === order.id}
                       disabled={verifyingPickupOrderId === order.id}
                       maxLength={order.pickupCodeLength === 6 ? 6 : 3}
@@ -1270,12 +1471,12 @@ export function StaffOrderBoard({
                       value={pickupCodes[order.id] ?? ""}
                       onChange={(event) => handlePickupCodeChange(order.id, event.target.value)}
                       className="h-11 w-full rounded-md border border-stone-300 px-3 pr-11 font-mono text-lg disabled:bg-stone-50"
-                      placeholder={`${order.pickupCodeLength === 6 ? "六" : "三"}位取餐碼`}
+                      placeholder={t("staff.pickup.codePlaceholder", { digits: order.pickupCodeLength })}
                     />
                     {verifyingPickupOrderId === order.id ? (
                       <span className="absolute inset-y-0 right-3 grid place-items-center text-teal-700" role="status">
                         <LoaderCircle className="h-5 w-5 animate-spin" />
-                        <span className="sr-only">正在驗證取餐碼</span>
+                        <span className="sr-only">{t("staff.pickup.verifying")}</span>
                       </span>
                     ) : null}
                   </div>
@@ -1289,7 +1490,7 @@ export function StaffOrderBoard({
                     })}
                     className="mt-2 inline-flex min-h-9 items-center gap-2 text-sm font-semibold text-stone-700 hover:text-stone-950 disabled:opacity-50"
                   >
-                    <KeyRound className="h-4 w-4" />無法取得取餐碼
+                    <KeyRound className="h-4 w-4" />{t("staff.pickup.unavailable")}
                   </button>
                 </div>
               )
@@ -1327,15 +1528,55 @@ export function StaffOrderBoard({
                     }}
                     className={`rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${option.value === "CANCELLED" ? "border-red-300 text-red-700 hover:bg-red-50" : "border-stone-300 hover:bg-stone-100"}`}
                   >
-                    {option.label}
+                    {option.value === "COMPLETED" && order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : staffStatusActionLabel(option.value, t)}
                   </button>
                 ))}
             </div>
+            </div> : null}
           </article>
         ))}
       </div>
       )}
-      {viewMode === "TICKETS" && filteredOrders.length === 0 ? <p className="mt-10 text-center text-sm text-stone-500 print:hidden">{query ? "找不到符合條件的訂單。" : "目前沒有待處理訂單。"}</p> : null}
+      {viewMode === "TICKETS" && operationalOrders.length === 0 ? <p className="mt-10 text-center text-sm text-stone-500 print:hidden">{query ? t("staff.order.emptySearch") : t("staff.order.emptyToday")}</p> : null}
+
+      {viewMode === "TICKETS" && futureOrders.length > 0 ? (
+        <section className="mt-6 rounded-lg border border-sky-200 bg-sky-50 print:hidden">
+          <button type="button" aria-expanded={futureOrdersExpanded} aria-controls="future-scheduled-orders" onClick={() => setFutureOrdersExpanded((current) => !current)} className="flex min-h-16 w-full items-center justify-between gap-4 px-4 py-3 text-left">
+            <div>
+              <h2 className="font-semibold text-sky-950">{t("staff.future.countTitle", { count: futureOrders.length })}</h2>
+              <p className="mt-1 text-xs text-sky-800">{t("staff.future.description", { amount: formatMoney(futureUnpaidTotal, stall.currency, locale) })}</p>
+              <p className="mt-1 text-xs text-sky-700">{t("staff.future.dates", { dates: futureBusinessDateSummary(futureOrders, orderProductionTimings, t) })}</p>
+            </div>
+            {futureOrdersExpanded ? <ChevronUp className="h-5 w-5 shrink-0" /> : <ChevronDown className="h-5 w-5 shrink-0" />}
+          </button>
+          {futureOrdersExpanded ? (
+            <div id="future-scheduled-orders" className="grid gap-3 border-t border-sky-200 p-4 md:grid-cols-2">
+              {futureOrders.map((order) => {
+                const timing = orderProductionTimings.get(order.id);
+                return (
+                  <article key={order.id} className="rounded-md border border-sky-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-stone-500">{t("staff.order.number", { number: order.orderNo })}</p>
+                        <h3 className="mt-1 font-semibold">{order.customerName}</h3>
+                      <p className="mt-1 text-sm font-medium text-sky-900">{futureOrderTimeLabel(order, timing, stall.timezone, locale, t)}</p>
+                      </div>
+                      <span className="rounded bg-sky-100 px-2 py-1 text-xs font-semibold text-sky-900">{t("staff.future.notDue")}</span>
+                    </div>
+                    {order.fulfillmentType === "DELIVERY" ? <p className="mt-3 rounded bg-stone-50 px-3 py-2 text-sm">{t("staff.future.delivery", { details: `${order.deliveryAddress || t("staff.delivery.noAddress")}${order.customerPhone ? ` · ${order.customerPhone}` : ""}` })}</p> : null}
+                    <ul className="mt-3 divide-y divide-stone-100 border-y border-stone-200 text-sm">
+                      {order.items.map((item) => <li key={item.id} className="py-2"><div className="flex justify-between gap-3"><span>{item.quantity} × {item.name}</span><span>{formatMoney(item.unitPrice * item.quantity, stall.currency, locale)}</span></div>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{formatStaffNoteOptions(locale, item.noteOptions, stall.currency, false)}</p> : null}{item.note ? <p className="mt-1 text-xs text-stone-600">{t("staff.order.note", { note: item.note })}</p> : null}</li>)}
+                    </ul>
+                    {order.note ? <p className="mt-3 rounded bg-amber-50 p-2 text-sm text-amber-900">{t("staff.order.orderNote", { note: order.note })}</p> : null}
+                    <div className="mt-3 flex items-center justify-between"><strong>{formatMoney(order.total, stall.currency, locale)}</strong><span className="text-sm text-stone-600">{paymentStatusLabel(order.paymentStatus, t)}</span></div>
+                    <p className="mt-3 text-xs font-medium text-sky-800">{t("staff.future.noProductionAction")}</p>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {composerOpen && orderCatalog ? (
         <StaffOrderComposer
@@ -1351,6 +1592,60 @@ export function StaffOrderBoard({
         />
       ) : null}
 
+      {editingOrder && orderCatalog ? (
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4 print:hidden">
+          <section role="dialog" aria-modal="true" aria-labelledby="order-edit-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-lg bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="order-edit-title" className="text-lg font-semibold">{t("staff.edit.title")}</h2>
+                <p className="mt-1 text-sm text-stone-600">{t("staff.edit.description", { number: editingOrder.orderNo })}</p>
+              </div>
+              <button type="button" title={t("staff.edit.close")} disabled={orderEditBusy} onClick={() => setEditingOrderId(null)} className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-stone-300 disabled:opacity-50"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div className="mt-5 divide-y divide-stone-100 border-y border-stone-200">
+              {orderEditLines.map((line) => (
+                <div key={line.key} className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2"><strong>{line.name}</strong>{line.kind === "NEW" ? <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">{t("staff.edit.new")}</span> : null}</div>
+                    {line.kind === "EXISTING" && line.details ? <p className="mt-1 text-xs text-stone-600">{line.details}</p> : null}
+                    <p className="mt-1 text-xs text-stone-500">{formatMoney(line.unitPrice, stall.currency, locale)} × {line.quantity} = {formatMoney(line.unitPrice * line.quantity, stall.currency, locale)}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" aria-label={t("staff.edit.decrease", { item: line.name })} disabled={orderEditBusy || line.quantity <= 1} onClick={() => changeOrderEditQuantity(line.key, -1)} className="grid h-9 w-9 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Minus className="h-4 w-4" /></button>
+                    <span className="w-8 text-center font-semibold">{line.quantity}</span>
+                    <button type="button" aria-label={t("staff.edit.increase", { item: line.name })} disabled={orderEditBusy || line.quantity >= 100} onClick={() => changeOrderEditQuantity(line.key, 1)} className="grid h-9 w-9 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Plus className="h-4 w-4" /></button>
+                    <button type="button" disabled={orderEditBusy} onClick={() => setOrderEditLines((current) => current.filter((candidate) => candidate.key !== line.key))} className="ml-1 min-h-9 rounded-md border border-red-300 px-3 text-xs font-semibold text-red-700 disabled:opacity-40">{t("composer.remove")}</button>
+                  </div>
+                </div>
+              ))}
+              {orderEditLines.length === 0 ? <p className="py-6 text-center text-sm text-red-700">{t("staff.edit.minOne")}</p> : null}
+            </div>
+
+            <div className="mt-5 rounded-md border border-stone-200 bg-stone-50 p-4">
+              <label htmlFor="order-edit-product" className="text-xs font-semibold text-stone-700">{t("staff.edit.addProduct")}</label>
+              <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <select id="order-edit-product" value={orderEditProductId} onChange={(event) => setOrderEditProductId(event.target.value)} disabled={orderEditBusy} className="h-11 min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm disabled:opacity-50">
+                  <option value="">{t("staff.edit.selectSimple")}</option>
+                  {orderEditProducts.map((product) => <option key={product.id} value={product.id}>{product.name} · {formatMoney(product.price, stall.currency, locale)}</option>)}
+                </select>
+                <button type="button" disabled={orderEditBusy || !orderEditProductId} onClick={addOrderEditProduct} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold disabled:opacity-40"><Plus className="h-4 w-4" />{t("staff.edit.add")}</button>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-stone-600">{t("staff.edit.customizationWarning")}</p>
+            </div>
+
+            {orderEditMessage ? <p role="alert" className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-900">{orderEditMessage}</p> : null}
+            <div className="mt-5 flex items-center justify-between gap-4 border-t border-stone-200 pt-4">
+              <div><p className="text-xs text-stone-500">{t("staff.edit.estimatedSubtotal")}</p><strong>{formatMoney(orderEditLines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0), stall.currency, locale)}</strong></div>
+              <div className="flex gap-2">
+                <button type="button" disabled={orderEditBusy} onClick={() => setEditingOrderId(null)} className="min-h-10 rounded-md border border-stone-300 px-4 text-sm font-medium disabled:opacity-50">{t("common.back")}</button>
+                <button type="button" disabled={orderEditBusy || orderEditLines.length === 0} onClick={() => void saveOrderEdit()} className="min-h-10 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{orderEditBusy ? t("staff.edit.repricing") : t("staff.edit.save")}</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {checkoutOrder ? (
         <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4 print:hidden">
           <section
@@ -1361,15 +1656,15 @@ export function StaffOrderBoard({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 id="checkout-title" className="text-lg font-semibold">{checkoutOrders.length > 1 ? "同桌合併結帳" : "完成訂單"}</h2>
+                <h2 id="checkout-title" className="text-lg font-semibold">{checkoutOrders.length > 1 ? t("staff.checkout.combined") : t("staff.checkout.completeOrder")}</h2>
                 <p className="mt-1 text-sm text-stone-600">
-                  {checkoutOrders.length > 1 ? `${checkoutOrder.tableLabel} · ${checkoutOrders.length} 筆訂單` : `訂單 ${checkoutOrder.orderNo} · ${checkoutOrder.fulfillmentType === "DINE_IN" ? checkoutOrder.tableLabel : checkoutOrder.customerName}`}
+                  {checkoutOrders.length > 1 ? t("staff.checkout.summary", { table: checkoutOrder.tableLabel ?? t("staff.table.unassigned"), count: checkoutOrders.length }) : `${t("staff.order.number", { number: checkoutOrder.orderNo })} · ${checkoutOrder.fulfillmentType === "DINE_IN" ? checkoutOrder.tableLabel : checkoutOrder.customerName}`}
                 </p>
                 {checkoutOrders.length > 1 ? <p className="mt-1 text-xs text-stone-500">{checkoutOrders.map((order) => order.orderNo).join("、")}</p> : null}
               </div>
               <button
                 type="button"
-                title="關閉結帳視窗"
+                title={t("staff.checkout.close")}
                 disabled={updatingOrderId === checkoutOrder.id}
                 onClick={() => setCheckoutOrders([])}
                 className="grid h-9 w-9 place-items-center rounded-md border border-stone-300"
@@ -1379,7 +1674,7 @@ export function StaffOrderBoard({
             </div>
 
             <div className="mt-5">
-              <h3 className="text-xs font-semibold text-stone-600">付款方式</h3>
+              <h3 className="text-xs font-semibold text-stone-600">{t("staff.checkout.paymentMethod")}</h3>
               {modules.payment ? (
                 paymentOptions.length > 0 ? (
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -1398,9 +1693,9 @@ export function StaffOrderBoard({
                       </button>
                     ))}
                   </div>
-                ) : <p className="mt-2 text-sm text-red-700">尚未設定可用付款方式，請先至攤位設定新增。</p>
+                ) : <p className="mt-2 text-sm text-red-700">{t("staff.checkout.noMethods")}</p>
               ) : (
-                <div className="mt-2 rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm font-semibold">現金</div>
+                <div className="mt-2 rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm font-semibold">{t("composer.cash")}</div>
               )}
             </div>
 
@@ -1412,29 +1707,29 @@ export function StaffOrderBoard({
               settingsHref={hasPermission(account.role, "MANAGE_STALL") ? `/merchant/stalls/${stall.id}/settings/modules?source=staff#discount-options` : undefined}
               isApplicable={checkoutDiscountEligibleSubtotal > 0}
               existingDiscountLabel={checkoutPreview.discountAmount > 0
-                ? checkoutPreview.discountLabel ?? "訂單既有折扣"
+                ? checkoutPreview.discountLabel ?? t("staff.checkout.existingDiscount")
                 : null}
             />
 
-            {checkoutDiscountEligibleSubtotal < checkoutSubtotal ? <p className="mt-2 text-xs text-amber-800">折扣適用金額：{formatMoney(checkoutDiscountEligibleSubtotal, stall.currency)}；其餘商品不套用訂單折扣。</p> : null}
+            {checkoutDiscountEligibleSubtotal < checkoutSubtotal ? <p className="mt-2 text-xs text-amber-800">{t("composer.discountEligible", { amount: formatMoney(checkoutDiscountEligibleSubtotal, stall.currency, locale) })}</p> : null}
 
             {checkoutNeedsApproval ? (
               <div className="mt-5 rounded-md border border-amber-300 bg-amber-50 p-4">
-                <div className="flex items-start gap-2"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" /><div><h3 className="text-sm font-semibold text-amber-950">此折扣超過店員免核准門檻</h3><p className="mt-1 text-xs text-amber-900">請填寫原因；店員另須由經理輸入帳號密碼驗證。</p></div></div>
-                <label className="mt-3 block text-xs font-semibold text-stone-700">折扣原因<input type="text" value={discountApprovalReason} maxLength={200} onChange={(event) => setDiscountApprovalReason(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label>
-                {!operatorCanApproveDiscount ? <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-stone-700">經理帳號<input type="email" autoComplete="username" value={managerEmail} maxLength={254} onChange={(event) => setManagerEmail(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label><label className="text-xs font-semibold text-stone-700">經理密碼<input type="password" autoComplete="current-password" value={managerPassword} maxLength={128} onChange={(event) => setManagerPassword(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label></div> : <p className="mt-3 text-xs font-semibold text-emerald-800">您的角色可直接核准，系統仍會記錄操作員與原因。</p>}
+                <div className="flex items-start gap-2"><TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" /><div><h3 className="text-sm font-semibold text-amber-950">{t("staff.checkout.approvalTitle")}</h3><p className="mt-1 text-xs text-amber-900">{t("staff.checkout.approvalHelp")}</p></div></div>
+                <label className="mt-3 block text-xs font-semibold text-stone-700">{t("staff.checkout.discountReason")}<input type="text" value={discountApprovalReason} maxLength={200} onChange={(event) => setDiscountApprovalReason(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label>
+                {!operatorCanApproveDiscount ? <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-stone-700">{t("composer.managerEmail")}<input type="email" autoComplete="username" value={managerEmail} maxLength={254} onChange={(event) => setManagerEmail(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label><label className="text-xs font-semibold text-stone-700">{t("composer.managerPassword")}<input type="password" autoComplete="current-password" value={managerPassword} maxLength={128} onChange={(event) => setManagerPassword(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label></div> : <p className="mt-3 text-xs font-semibold text-emerald-800">{t("staff.checkout.directApproval")}</p>}
               </div>
             ) : null}
 
             <dl className="mt-5 space-y-2 border-y border-stone-200 py-4 text-sm">
-              <div className="flex justify-between"><dt>商品小計</dt><dd>{formatMoney(checkoutSubtotal, stall.currency)}</dd></div>
-              {checkoutPreview.discountAmount > 0 ? <div className="flex justify-between text-emerald-800"><dt>{checkoutPreview.discountLabel ?? "訂單既有折扣"}</dt><dd>-{formatMoney(checkoutPreview.discountAmount, stall.currency)}</dd></div> : null}
-              <div className="flex justify-between text-lg font-semibold"><dt>應收金額</dt><dd>{formatMoney(checkoutTotal, stall.currency)}</dd></div>
+              <div className="flex justify-between"><dt>{t("composer.subtotal")}</dt><dd>{formatMoney(checkoutSubtotal, stall.currency, locale)}</dd></div>
+              {checkoutPreview.discountAmount > 0 ? <div className="flex justify-between text-emerald-800"><dt>{checkoutPreview.discountLabel ?? t("staff.checkout.existingDiscount")}</dt><dd>-{formatMoney(checkoutPreview.discountAmount, stall.currency, locale)}</dd></div> : null}
+              <div className="flex justify-between text-lg font-semibold"><dt>{t("composer.amountDue")}</dt><dd>{formatMoney(checkoutTotal, stall.currency, locale)}</dd></div>
             </dl>
 
             {checkoutUsesCash ? (
               <div className="mt-5">
-                <label className="text-xs font-semibold text-stone-600" htmlFor="cash-received">客戶實收金額</label>
+                <label className="text-xs font-semibold text-stone-600" htmlFor="cash-received">{t("staff.checkout.cashReceived")}</label>
                 <input type="text"
                   id="cash-received"
                   inputMode="numeric"
@@ -1454,12 +1749,12 @@ export function StaffOrderBoard({
                       onClick={() => setCashReceived(String(value))}
                       className="h-10 rounded-md border border-stone-300 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      {index === 0 ? "剛好" : formatMoney(value, stall.currency)}
+                      {index === 0 ? t("composer.exact") : formatMoney(value, stall.currency, locale)}
                     </button>
                   ))}
                 </div>
                 <div className="mt-3 flex justify-between rounded-md bg-emerald-50 px-3 py-3 text-sm font-semibold text-emerald-900">
-                  <span>找零</span><span>{formatMoney(checkoutChange, stall.currency)}</span>
+                  <span>{t("composer.change")}</span><span>{formatMoney(checkoutChange, stall.currency, locale)}</span>
                 </div>
               </div>
             ) : null}
@@ -1470,12 +1765,12 @@ export function StaffOrderBoard({
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                   <p className="font-semibold">{message}</p>
                 </div>
-                {message === "現金交易前必須先開啟現金班次。" ? (
+                {cashShiftRequired ? (
                   <Link
                     href={`/staff/${stall.slug}/cash`}
                     className="mt-3 inline-flex min-h-10 items-center rounded-md bg-teal-800 px-4 py-2 font-semibold text-white"
                   >
-                    前往現金交班
+                    {t("staff.checkout.cashShift")}
                   </Link>
                 ) : null}
               </div>
@@ -1488,7 +1783,7 @@ export function StaffOrderBoard({
                 onClick={() => setCheckoutOrders([])}
                 className="rounded-md border border-stone-300 px-3 py-2 text-sm font-medium"
               >
-                返回
+                {t("common.back")}
               </button>
               <button
                 type="button"
@@ -1496,7 +1791,7 @@ export function StaffOrderBoard({
                 onClick={() => void completeCheckout()}
                 className="rounded-md bg-teal-800 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {updatingOrderId === checkoutOrder.id ? "處理中…" : "完成訂單"}
+                {updatingOrderId === checkoutOrder.id ? t("staff.checkout.processing") : t("staff.checkout.completeOrder")}
               </button>
             </div>
           </section>
@@ -1508,10 +1803,10 @@ export function StaffOrderBoard({
           <section role="dialog" aria-modal="true" aria-labelledby="time-proposal-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 id="time-proposal-title" className="text-lg font-semibold">提出新的{timeProposalOrder.fulfillmentType === "DELIVERY" ? "送達" : "取餐"}時間</h2>
-                <p className="mt-1 text-sm text-stone-600">訂單 {pendingTimeProposal.orderNo}；送出後會通知顧客確認。</p>
+                <h2 id="time-proposal-title" className="text-lg font-semibold">{t("staff.time.title", { kind: timeProposalOrder.fulfillmentType === "DELIVERY" ? t("staff.fulfillment.delivery") : t("staff.fulfillment.pickup") })}</h2>
+                <p className="mt-1 text-sm text-stone-600">{t("staff.time.description", { number: pendingTimeProposal.orderNo })}</p>
               </div>
-              <button type="button" title="關閉時間調整" disabled={updatingOrderId === timeProposalOrder.id} onClick={() => setPendingTimeProposal(null)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 disabled:opacity-50"><X className="h-4 w-4" /></button>
+              <button type="button" title={t("staff.time.close")} disabled={updatingOrderId === timeProposalOrder.id} onClick={() => setPendingTimeProposal(null)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 disabled:opacity-50"><X className="h-4 w-4" /></button>
             </div>
             <FulfillmentTimePicker
               slots={fulfillmentTimeSlots}
@@ -1519,22 +1814,22 @@ export function StaffOrderBoard({
               onChange={(value) => setPendingTimeProposal((current) => (
                 current ? { ...current, proposedFulfillmentAt: value } : null
               ))}
-              legend="建議時間"
-              scheduledLabel={timeProposalOrder.fulfillmentType === "DELIVERY" ? "指定送達時間" : "指定取餐時間"}
-              dateLabel={timeProposalOrder.fulfillmentType === "DELIVERY" ? "送達日期" : "取餐日期"}
-              timeLabel={timeProposalOrder.fulfillmentType === "DELIVERY" ? "送達時間" : "取餐時間"}
-              unavailableDateMessage="所選日期目前沒有可提供給顧客的時段。"
+              legend={t("staff.time.suggestion")}
+              scheduledLabel={timeProposalOrder.fulfillmentType === "DELIVERY" ? t("composer.scheduledDelivery") : t("composer.scheduledPickup")}
+              dateLabel={timeProposalOrder.fulfillmentType === "DELIVERY" ? t("composer.deliveryDate") : t("composer.pickupDate")}
+              timeLabel={timeProposalOrder.fulfillmentType === "DELIVERY" ? t("composer.deliveryTime") : t("composer.pickupTime")}
+              unavailableDateMessage={t("staff.time.unavailable")}
               allowAsap={false}
               required
               disabled={updatingOrderId === timeProposalOrder.id}
               testId="staff-time-proposal-fields"
               className="mt-5"
             />
-            <label className="mt-4 block text-xs font-semibold text-stone-700">調整原因<textarea value={pendingTimeProposal.reason} maxLength={200} onChange={(event) => setPendingTimeProposal((current) => current ? { ...current, reason: event.target.value } : null)} className="mt-1 min-h-20 w-full resize-y rounded-md border border-stone-300 p-3 text-sm" /></label>
-            <p className="mt-3 text-xs leading-5 text-amber-800">顧客接受前會保留原本已確認的時間，且訂單不會開始製作。</p>
+            <label className="mt-4 block text-xs font-semibold text-stone-700">{t("staff.time.reason")}<textarea value={pendingTimeProposal.reason} maxLength={200} onChange={(event) => setPendingTimeProposal((current) => current ? { ...current, reason: event.target.value } : null)} className="mt-1 min-h-20 w-full resize-y rounded-md border border-stone-300 p-3 text-sm" /></label>
+            <p className="mt-3 text-xs leading-5 text-amber-800">{t("staff.time.holdOriginal")}</p>
             <div className="mt-5 grid grid-cols-2 gap-3">
-              <button type="button" disabled={updatingOrderId === timeProposalOrder.id} onClick={() => setPendingTimeProposal(null)} className="min-h-11 rounded-md border border-stone-300 px-3 py-2 text-sm font-medium disabled:opacity-50">返回訂單</button>
-              <button type="button" disabled={updatingOrderId === timeProposalOrder.id || pendingTimeProposal.reason.trim().length < 2 || !pendingTimeProposal.proposedFulfillmentAt} onClick={() => void updateFulfillmentTime(timeProposalOrder, { operation: "PROPOSE", version: pendingTimeProposal.version, proposedFulfillmentAt: pendingTimeProposal.proposedFulfillmentAt, reason: pendingTimeProposal.reason.trim() })} className="min-h-11 rounded-md bg-teal-800 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{updatingOrderId === timeProposalOrder.id ? "通知中…" : "通知顧客確認"}</button>
+              <button type="button" disabled={updatingOrderId === timeProposalOrder.id} onClick={() => setPendingTimeProposal(null)} className="min-h-11 rounded-md border border-stone-300 px-3 py-2 text-sm font-medium disabled:opacity-50">{t("staff.time.back")}</button>
+              <button type="button" disabled={updatingOrderId === timeProposalOrder.id || pendingTimeProposal.reason.trim().length < 2 || !pendingTimeProposal.proposedFulfillmentAt} onClick={() => void updateFulfillmentTime(timeProposalOrder, { operation: "PROPOSE", version: pendingTimeProposal.version, proposedFulfillmentAt: pendingTimeProposal.proposedFulfillmentAt, reason: pendingTimeProposal.reason.trim() })} className="min-h-11 rounded-md bg-teal-800 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{updatingOrderId === timeProposalOrder.id ? t("staff.time.notifying") : t("staff.time.notify")}</button>
             </div>
           </section>
         </div>
@@ -1551,14 +1846,14 @@ export function StaffOrderBoard({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 id="manual-pickup-title" className="text-lg font-semibold">人工核對取餐</h2>
+                <h2 id="manual-pickup-title" className="text-lg font-semibold">{t("staff.manual.title")}</h2>
                 <p className="mt-1 text-sm font-medium text-stone-800">
-                  訂單 {manualPickupOrder.orderNo} · {manualPickupOrder.customerName}
+                  {t("staff.order.number", { number: manualPickupOrder.orderNo })} · {manualPickupOrder.customerName}
                 </p>
               </div>
               <button
                 type="button"
-                title="關閉人工核對視窗"
+                title={t("staff.manual.close")}
                 disabled={verifyingPickupOrderId === manualPickupOrder.id}
                 onClick={() => setPendingManualPickup(null)}
                 className="grid h-9 w-9 place-items-center rounded-md border border-stone-300"
@@ -1567,18 +1862,18 @@ export function StaffOrderBoard({
               </button>
             </div>
             <p id="manual-pickup-description" className="mt-4 text-sm leading-6 text-stone-600">
-              僅限顧客無法開啟訂單追蹤頁時使用。請先向顧客核對稱呼與餐點內容，系統會保留人工放行紀錄。
+              {t("staff.manual.help")}
             </p>
             <ul className="mt-3 divide-y divide-stone-100 border-y border-stone-200 text-sm">
               {manualPickupOrder.items.map((item) => (
                 <li key={item.id} className="flex justify-between gap-3 py-2">
                   <span>{item.quantity} × {item.name}</span>
-                  <span className="text-stone-500">{orderItemStatusLabels[item.status]}</span>
+                <span className="text-stone-500">{orderItemStatusLabel(item.status, t)}</span>
                 </li>
               ))}
             </ul>
             <label className="mt-4 block text-xs font-semibold text-stone-600">
-              無法取得原因
+              {t("staff.manual.reason")}
               <select
                 value={pendingManualPickup.reason}
                 onChange={(event) => setPendingManualPickup((current) => current ? {
@@ -1587,9 +1882,9 @@ export function StaffOrderBoard({
                 } : null)}
                 className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"
               >
-                <option value="DEVICE_LOST">顧客手機遺失或無法使用</option>
-                <option value="TRACKING_UNAVAILABLE">訂單追蹤頁無法開啟</option>
-                <option value="OTHER">其他已核實原因</option>
+                <option value="DEVICE_LOST">{t("staff.manual.deviceLost")}</option>
+                <option value="TRACKING_UNAVAILABLE">{t("staff.manual.trackingUnavailable")}</option>
+                <option value="OTHER">{t("staff.manual.other")}</option>
               </select>
             </label>
             <label className="mt-4 flex items-start gap-3 text-sm leading-6 text-stone-700">
@@ -1602,7 +1897,7 @@ export function StaffOrderBoard({
                 } : null)}
                 className="mt-1 h-4 w-4"
               />
-              已向顧客核對稱呼與全部餐點內容
+              {t("staff.manual.confirmed")}
             </label>
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
@@ -1611,7 +1906,7 @@ export function StaffOrderBoard({
                 onClick={() => setPendingManualPickup(null)}
                 className="rounded-md border border-stone-300 px-3 py-2 text-sm font-medium disabled:opacity-50"
               >
-                返回
+                {t("common.back")}
               </button>
               <button
                 type="button"
@@ -1622,7 +1917,7 @@ export function StaffOrderBoard({
                 onClick={() => void verifyManualPickup()}
                 className="rounded-md bg-teal-800 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {verifyingPickupOrderId === manualPickupOrder.id ? "核對中…" : "確認人工取餐"}
+                {verifyingPickupOrderId === manualPickupOrder.id ? t("staff.manual.checking") : t("staff.manual.confirm")}
               </button>
             </div>
           </section>
@@ -1643,17 +1938,17 @@ export function StaffOrderBoard({
                 <TriangleAlert className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <h2 id="cancel-order-title" className="text-lg font-semibold">確認取消訂單？</h2>
+                <h2 id="cancel-order-title" className="text-lg font-semibold">{t("staff.cancel.title")}</h2>
                 <p className="mt-1 break-words text-sm font-medium text-stone-800">
-                  訂單 {pendingCancellation.orderNo} · {pendingCancellation.customerName}
+                  {t("staff.order.number", { number: pendingCancellation.orderNo })} · {pendingCancellation.customerName}
                 </p>
               </div>
             </div>
             <p id="cancel-order-description" className="mt-4 text-sm leading-6 text-stone-600">
-              取消後無法恢復。請先確認尚未開始製作，或已經與顧客完成溝通。
+              {t("staff.cancel.warning")}
             </p>
-            <label className="mt-4 block text-xs font-semibold text-stone-700">取消原因<select value={pendingCancellation.reason} onChange={(event) => setPendingCancellation((current) => current ? { ...current, reason: event.target.value as CancellationReason } : null)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{cancellationReasonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-            <label className="mt-4 block text-xs font-semibold text-stone-700">補充說明{pendingCancellation.reason === "OTHER" ? "（必填）" : "（選填）"}<textarea value={pendingCancellation.detail} maxLength={200} onChange={(event) => setPendingCancellation((current) => current ? { ...current, detail: event.target.value } : null)} className="mt-1 min-h-20 w-full resize-y rounded-md border border-stone-300 p-3 text-sm" /></label>
+            <label className="mt-4 block text-xs font-semibold text-stone-700">{t("staff.cancel.reason")}<select value={pendingCancellation.reason} onChange={(event) => setPendingCancellation((current) => current ? { ...current, reason: event.target.value as CancellationReason } : null)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{cancellationReasons.map((reason) => <option key={reason} value={reason}>{cancellationReasonLabel(reason, t)}</option>)}</select></label>
+            <label className="mt-4 block text-xs font-semibold text-stone-700">{t("staff.cancel.detail", { requirement: pendingCancellation.reason === "OTHER" ? t("staff.cancel.required") : t("staff.cancel.optional") })}<textarea value={pendingCancellation.detail} maxLength={200} onChange={(event) => setPendingCancellation((current) => current ? { ...current, detail: event.target.value } : null)} className="mt-1 min-h-20 w-full resize-y rounded-md border border-stone-300 p-3 text-sm" /></label>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button
                 type="button"
@@ -1662,7 +1957,7 @@ export function StaffOrderBoard({
                 onClick={() => setPendingCancellation(null)}
                 className="rounded-md border border-stone-300 px-3 py-2 text-sm font-medium hover:bg-stone-100 disabled:opacity-50"
               >
-                返回訂單
+                {t("staff.time.back")}
               </button>
               <button
                 type="button"
@@ -1670,7 +1965,7 @@ export function StaffOrderBoard({
                 onClick={() => void confirmCancellation()}
                 className="rounded-md bg-red-700 px-3 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {updatingOrderId === pendingCancellation.id ? "取消處理中…" : "確認取消訂單"}
+                {updatingOrderId === pendingCancellation.id ? t("staff.cancel.processing") : t("staff.cancel.confirm")}
               </button>
             </div>
           </section>
@@ -1705,22 +2000,22 @@ function mergeStaffOrders(
     .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
-function LiveConnectionBadge({ state }: { state: LiveConnectionState }) {
+function LiveConnectionBadge({ state, t }: { state: LiveConnectionState; t: OperationsTranslator }) {
   const connected = state === "sse" || state === "realtime";
   const label = state === "sse"
-    ? "SSE 即時"
+    ? t("staff.live.sse")
     : state === "realtime"
-      ? "Realtime 備援"
+      ? t("staff.live.realtime")
       : state === "polling"
-        ? "5 秒輪詢"
-        : "連線中";
+        ? t("staff.live.polling")
+        : t("staff.live.connecting");
   const title = state === "sse"
-    ? "已連上授權 SSE，事件只觸發重新取得伺服器資料"
+    ? t("staff.live.sseTitle")
     : state === "realtime"
-      ? "SSE 未就緒，已切換 Supabase Realtime 通知"
+      ? t("staff.live.realtimeTitle")
       : state === "polling"
-        ? "SSE 與 Realtime 未就緒，已啟用 5 秒輪詢"
-        : "正在建立即時更新連線";
+        ? t("staff.live.pollingTitle")
+        : t("staff.live.connectingTitle");
 
   return (
     <span
@@ -1738,11 +2033,13 @@ function ItemStatusButton({
   itemStatus,
   role,
   busy,
+  t,
   onUpdate,
 }: {
   itemStatus: OrderItemStatus;
   role: UserRole;
   busy: boolean;
+  t: OperationsTranslator;
   onUpdate: (status: Exclude<OrderItemStatus, "PENDING">) => void;
 }) {
   const nextStatus = itemStatus === "PENDING"
@@ -1754,11 +2051,6 @@ function ItemStatusButton({
         : null;
   if (!nextStatus || !canTransitionOrderItem(itemStatus, nextStatus, role)) return null;
 
-  const labels = {
-    PREPARING: "開始製作",
-    READY: "餐點完成",
-    SERVED: "標記已出餐",
-  } as const;
   return (
     <button
       type="button"
@@ -1766,7 +2058,7 @@ function ItemStatusButton({
       onClick={() => onUpdate(nextStatus)}
       className="min-h-10 rounded-md border border-stone-300 px-3 text-xs font-semibold hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50 print:hidden"
     >
-      {busy ? "更新中…" : labels[nextStatus]}
+      {busy ? t("staff.action.updating") : batchActionLabel(nextStatus, t)}
     </button>
   );
 }
@@ -1788,8 +2080,8 @@ function fulfillmentTimeNeedsResponse(state: StaffOrderDto["fulfillmentTimeState
   return state === "REQUESTED" || state === "CUSTOMER_ACTION_REQUIRED";
 }
 
-function formatStaffFulfillmentTime(value: string) {
-  return new Intl.DateTimeFormat("zh-TW", {
+function formatStaffFulfillmentTime(value: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     month: "numeric",
     day: "numeric",
     weekday: "short",
@@ -1798,41 +2090,189 @@ function formatStaffFulfillmentTime(value: string) {
   }).format(new Date(value));
 }
 
-function fulfillmentTimeTitle(order: StaffOrderDto) {
-  const label = order.fulfillmentType === "DELIVERY" ? "送達" : "取餐";
+function fulfillmentTimeTitle(order: StaffOrderDto, locale: string, t: OperationsTranslator) {
+  const kind = order.fulfillmentType === "DELIVERY" ? t("staff.fulfillment.delivery") : t("staff.fulfillment.pickup");
   if (order.fulfillmentTimeState === "REQUESTED" && order.requestedFulfillmentAt) {
-    return `顧客希望${label}：${formatStaffFulfillmentTime(order.requestedFulfillmentAt)}`;
+    return t("staff.fulfillment.customerRequested", { kind, time: formatStaffFulfillmentTime(order.requestedFulfillmentAt, locale) });
   }
   if (order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" && order.pendingFulfillmentAt) {
-    return `等待顧客確認新${label}時間：${formatStaffFulfillmentTime(order.pendingFulfillmentAt)}`;
+    return t("staff.fulfillment.waitingCustomer", { kind, time: formatStaffFulfillmentTime(order.pendingFulfillmentAt, locale) });
   }
   if (order.fulfillmentTimeState === "CONFIRMED" && order.committedFulfillmentAt) {
-    return `已確認${label}：${formatStaffFulfillmentTime(order.committedFulfillmentAt)}`;
+    return t("staff.fulfillment.confirmed", { kind, time: formatStaffFulfillmentTime(order.committedFulfillmentAt, locale) });
   }
   if (order.fulfillmentTimeState === "DECLINED") {
     return order.committedFulfillmentAt
-      ? `顧客未接受新時間，維持 ${formatStaffFulfillmentTime(order.committedFulfillmentAt)}`
-      : "顧客未接受店員建議的時間";
+      ? t("staff.fulfillment.kept", { time: formatStaffFulfillmentTime(order.committedFulfillmentAt, locale) })
+      : t("staff.fulfillment.rejected");
   }
   if (order.fulfillmentTimeState === "EXPIRED") {
-    return "顧客尚未在期限內回覆時間調整";
+    return t("staff.fulfillment.expired");
   }
-  return `${label}時間尚未確認`;
+  return t("staff.fulfillment.unconfirmed", { kind });
 }
 
-function batchActionLabel(status: "PREPARING" | "READY" | "SERVED") {
-  return status === "PREPARING" ? "開始製作" : status === "READY" ? "餐點完成" : "標記已出餐";
+function batchActionLabel(status: "PREPARING" | "READY" | "SERVED", t: OperationsTranslator) {
+  return status === "PREPARING" ? t("staff.action.startPreparing") : status === "READY" ? t("staff.action.markReady") : t("staff.action.markServed");
 }
 
-function orderAgeMinutes(createdAt: string, now: number) {
-  return Math.max(0, Math.floor((now - new Date(createdAt).getTime()) / 60_000));
+function orderItemStatusLabel(status: OrderItemStatus, t: OperationsTranslator) {
+  return t(status === "PENDING"
+    ? "staff.item.pending"
+    : status === "PREPARING"
+      ? "staff.item.preparing"
+      : status === "READY"
+        ? "staff.item.ready"
+        : status === "SERVED"
+          ? "staff.item.served"
+          : "staff.item.cancelled");
 }
 
-function orderAgeClasses(createdAt: string, now: number) {
-  const minutes = orderAgeMinutes(createdAt, now);
+function roleLabel(role: UserRole, t: OperationsTranslator) {
+  return t(role === "ORGANIZATION_OWNER" || role === "MERCHANT_OWNER"
+    ? "staff.role.owner"
+    : role === "STALL_MANAGER" || role === "MERCHANT_MANAGER"
+      ? "staff.role.manager"
+      : role === "KITCHEN"
+        ? "staff.role.kitchen"
+        : role === "FINANCE_VIEWER"
+          ? "staff.role.finance"
+          : role === "STAFF"
+            ? "staff.role.staff"
+            : "staff.role.admin");
+}
+
+function paymentStatusLabel(status: StaffOrderDto["paymentStatus"], t: OperationsTranslator) {
+  return t(status === "UNPAID"
+    ? "staff.payment.unpaid"
+    : status === "PENDING_RECONCILIATION"
+      ? "staff.payment.reconciliation"
+      : status === "PAID"
+        ? "staff.payment.paid"
+        : "staff.payment.refunded");
+}
+
+function orderStatusLabel(status: OrderStatus, t: OperationsTranslator) {
+  return t(status === "WAITING_CONFIRMATION"
+    ? "staff.status.waiting"
+    : status === "CONFIRMED"
+      ? "staff.status.confirmed"
+      : status === "PREPARING"
+        ? "staff.status.preparing"
+        : status === "PACKING"
+          ? "staff.status.packing"
+          : status === "READY"
+            ? "staff.status.ready"
+            : status === "COMPLETED"
+              ? "staff.status.completed"
+              : status === "CANCELLED"
+                ? "staff.status.cancelled"
+                : "staff.status.expired");
+}
+
+function contextualOrderStatusLabel(order: Pick<StaffOrderDto, "status" | "source" | "paymentStatus" | "fulfillmentType">, t: OperationsTranslator) {
+  if (order.status !== "READY" || order.source === "QR_MENU") return orderStatusLabel(order.status, t);
+  if (order.fulfillmentType === "DINE_IN") return t("staff.status.awaitingService");
+  if (order.source === "STAFF_POS" && order.paymentStatus === "UNPAID") return t("staff.status.awaitingCheckout");
+  if (order.fulfillmentType === "DELIVERY" && order.paymentStatus === "PAID") return t("staff.status.awaitingDelivery");
+  if (order.fulfillmentType === "TAKEOUT" && order.paymentStatus === "PAID") return t("staff.status.awaitingPickup");
+  return orderStatusLabel(order.status, t);
+}
+
+function staffStatusActionLabel(status: StaffStatus, t: OperationsTranslator) {
+  return status === "CONFIRMED"
+    ? t("staff.status.confirmed")
+    : status === "PREPARING"
+      ? t("staff.action.startPreparing")
+      : status === "PACKING"
+        ? t("staff.status.packing")
+        : status === "READY"
+          ? t("staff.action.markReady")
+          : status === "COMPLETED"
+            ? t("staff.checkout.completeOrder")
+            : t("staff.cancel.confirm");
+}
+
+function cancellationReasonLabel(reason: CancellationReason, t: OperationsTranslator) {
+  return t(reason === "SOLD_OUT"
+    ? "staff.cancel.soldOut"
+    : reason === "CUSTOMER_CANCELLED"
+      ? "staff.cancel.customerRequest"
+      : reason === "WAIT_TOO_LONG"
+        ? "staff.cancel.waitTooLong"
+        : reason === "DUPLICATE_ORDER"
+          ? "staff.cancel.duplicate"
+          : "staff.cancel.other");
+}
+
+function orderAgeMinutes(order: StaffOrderDto, timing: FulfillmentProductionTiming | undefined, now: number) {
+  const anchor = timing?.effectiveFulfillmentAt?.getTime() ?? new Date(order.createdAt).getTime();
+  return Math.max(0, Math.floor((now - anchor) / 60_000));
+}
+
+function orderAgeClasses(order: StaffOrderDto, timing: FulfillmentProductionTiming | undefined, now: number) {
+  const minutes = orderAgeMinutes(order, timing, now);
   if (minutes >= 20) return "border-red-300 bg-red-50";
   if (minutes >= 10) return "border-amber-300 bg-amber-50";
   return "border-stone-200 bg-white";
+}
+
+function orderTimingSummary(
+  order: StaffOrderDto,
+  timing: FulfillmentProductionTiming | undefined,
+  now: number,
+  timeZone: string,
+  locale: string,
+  t: OperationsTranslator,
+) {
+  const fulfillment = order.fulfillmentType === "DINE_IN"
+    ? t("staff.timing.dineIn", { table: order.tableLabel ?? t("staff.table.unassigned") })
+    : order.fulfillmentType === "DELIVERY" ? t("staff.timing.deliveryOrder") : t("staff.timing.takeout");
+  if (timing?.effectiveFulfillmentAt) {
+    const label = order.fulfillmentType === "DELIVERY" ? t("staff.timing.scheduledDelivery") : t("staff.timing.scheduledPickup");
+    const deltaMs = timing.effectiveFulfillmentAt.getTime() - now;
+    const relative = deltaMs > 0
+      ? t("staff.timing.until", { minutes: Math.ceil(deltaMs / 60_000) })
+      : t("staff.timing.overdue", { minutes: Math.max(0, Math.floor(-deltaMs / 60_000)) });
+    return `${fulfillment} · ${label} ${formatZonedDateTime(timing.effectiveFulfillmentAt, timeZone, locale)} · ${relative}`;
+  }
+  return t("staff.timing.orderedWait", { fulfillment, time: formatZonedDateTime(new Date(order.createdAt), timeZone, locale, false), minutes: orderAgeMinutes(order, timing, now) });
+}
+
+function futureOrderTimeLabel(
+  order: StaffOrderDto,
+  timing: FulfillmentProductionTiming | undefined,
+  timeZone: string,
+  locale: string,
+  t: OperationsTranslator,
+) {
+  const label = order.fulfillmentType === "DELIVERY" ? t("staff.timing.scheduledDelivery") : t("staff.timing.scheduledPickup");
+  return timing?.effectiveFulfillmentAt
+    ? `${label}: ${formatZonedDateTime(timing.effectiveFulfillmentAt, timeZone, locale)}`
+    : t("staff.future.pendingTime", { label });
+}
+
+function futureBusinessDateSummary(
+  orders: StaffOrderDto[],
+  timings: Map<string, FulfillmentProductionTiming>,
+  t: OperationsTranslator,
+) {
+  const counts = new Map<string, number>();
+  for (const order of orders) {
+    const date = timings.get(order.id)?.fulfillmentBusinessDate ?? t("staff.future.unknownDate");
+    counts.set(date, (counts.get(date) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([date, count]) => t("staff.future.dateCount", { date, count })).join(", ");
+}
+
+function formatZonedDateTime(value: Date, timeZone: string, locale: string, includeDate = true) {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone,
+    ...(includeDate ? { month: "numeric", day: "numeric" } : {}),
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(value);
 }
 
 function playNotificationTone() {

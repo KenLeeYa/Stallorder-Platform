@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { Save } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { formatAppNumber } from "@/lib/locale-format";
+import type { MessageValues } from "@/lib/message-catalog";
+import type { MerchantMessageKey } from "@/lib/messages/merchant";
+import { useMerchantMessages } from "@/lib/messages/merchant-client";
 
 export type StallOrderLimits = {
   orderSessionTtlSeconds: number;
@@ -20,7 +24,7 @@ export type StallOrderLimits = {
 
 type LimitKey = keyof StallOrderLimits;
 type LimitsDraft = Record<LimitKey, string>;
-type LimitRule = { label: string; min: number; max: number };
+type LimitRule = { label: MerchantMessageKey; min: number; max: number };
 
 const limitRules = {
   orderSessionTtlSeconds: { label: "點餐工作階段秒數", min: 60, max: 1800 },
@@ -55,6 +59,7 @@ export function StallOrderLimitsForm({
   stallSlug: string;
   initialSettings: StallOrderLimits;
 }) {
+  const { locale, m, label } = useMerchantMessages();
   const [draft, setDraft] = useState<LimitsDraft>(() => toLimitsDraft(initialSettings));
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<LimitKey, string>>>({});
   const [message, setMessage] = useState("");
@@ -73,11 +78,11 @@ export function StallOrderLimitsForm({
 
   async function saveLimits() {
     setMessage("");
-    const validation = validateLimitsDraft(draft);
+    const validation = validateLimitsDraft(draft, m, locale);
     setFieldErrors(validation.fieldErrors);
     if (!validation.settings) {
       setIsError(true);
-      setMessage("請修正標示欄位後再儲存。");
+      setMessage(m("請修正標示欄位後再儲存。"));
       const firstInvalidKey = Object.keys(validation.fieldErrors)[0] as LimitKey | undefined;
       if (firstInvalidKey) {
         window.requestAnimationFrame(() => document.getElementById(`order-limit-${firstInvalidKey}`)?.focus());
@@ -93,14 +98,14 @@ export function StallOrderLimitsForm({
         body: JSON.stringify({ action: "UPDATE_LIMITS", settings: validation.settings }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "目前無法更新安全與訂單限制。");
+      if (!response.ok) throw new Error(typeof payload.error === "string" ? label(payload.error) : m("目前無法更新安全與訂單限制。"));
       if (payload.state?.orderingSettings) setDraft(toLimitsDraft(payload.state.orderingSettings));
       setFieldErrors({});
       setIsError(false);
-      setMessage("安全與訂單限制已更新。");
+      setMessage(m("安全與訂單限制已更新。"));
     } catch (error) {
       setIsError(true);
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? label(error.message) : m("網路連線中斷，請稍後再試。"));
     } finally {
       setIsSaving(false);
     }
@@ -109,8 +114,8 @@ export function StallOrderLimitsForm({
   return (
     <section aria-labelledby="stall-order-limits-heading">
       <div className="border-b border-stone-200 pb-4">
-        <h2 id="stall-order-limits-heading" className="text-2xl font-semibold">安全與訂單限制</h2>
-        <p className="mt-2 text-sm text-stone-600">設定 QR 點餐工作階段、訂單數量限制與顧客看到的預估等候時間。</p>
+        <h2 id="stall-order-limits-heading" className="text-2xl font-semibold">{m("安全與訂單限制")}</h2>
+        <p className="mt-2 text-sm text-stone-600">{m("設定 QR 點餐工作階段、訂單數量限制與顧客看到的預估等候時間。")}</p>
       </div>
 
       {message ? (
@@ -122,7 +127,7 @@ export function StallOrderLimitsForm({
       <form noValidate className="mt-6" onSubmit={(event) => { event.preventDefault(); void saveLimits(); }}>
         <div className="mb-6 grid gap-4 border-b border-stone-200 pb-6 sm:grid-cols-2">
           <label className="text-sm font-medium text-stone-700">
-            顧客預估等候分鐘
+            {m("顧客預估等候分鐘")}
             <input
               id="order-limit-estimatedWaitMinutes"
               type="number"
@@ -143,7 +148,7 @@ export function StallOrderLimitsForm({
             ) : null}
           </label>
           <label className="text-sm font-medium text-stone-700">
-            營業日切換時間
+            {m("營業日切換時間")}
             <select
               id="order-limit-businessDayCutoffHour"
               value={draft.businessDayCutoffHour}
@@ -161,14 +166,14 @@ export function StallOrderLimitsForm({
                 {fieldErrors.businessDayCutoffHour}
               </span>
             ) : null}
-            <span className="mt-1 block text-xs font-normal text-stone-500">切換前完成的訂單計入前一個營業日。</span>
+            <span className="mt-1 block text-xs font-normal text-stone-500">{m("切換前完成的訂單計入前一個營業日。")}</span>
           </label>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {limitFields.map((key) => (
             <label key={key} className="text-sm font-medium text-stone-700">
-              {limitRules[key].label}
+              {m(limitRules[key].label)}
               <input
                 id={`order-limit-${key}`}
                 type="number"
@@ -197,7 +202,7 @@ export function StallOrderLimitsForm({
           className="mt-6 inline-flex items-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
           <Save className="h-4 w-4" />
-          {isSaving ? "儲存中…" : "儲存限制"}
+          {isSaving ? m("儲存中...") : m("儲存限制")}
         </button>
       </form>
     </section>
@@ -220,7 +225,11 @@ function toLimitsDraft(settings: StallOrderLimits): LimitsDraft {
   };
 }
 
-function validateLimitsDraft(draft: LimitsDraft) {
+function validateLimitsDraft(
+  draft: LimitsDraft,
+  m: (key: MerchantMessageKey, values?: MessageValues) => string,
+  locale: Parameters<typeof formatAppNumber>[0],
+) {
   const settings = {} as StallOrderLimits;
   const fieldErrors: Partial<Record<LimitKey, string>> = {};
 
@@ -228,17 +237,21 @@ function validateLimitsDraft(draft: LimitsDraft) {
     const rawValue = draft[key].trim();
     const rule = limitRules[key];
     if (!rawValue) {
-      fieldErrors[key] = `${rule.label}為必填欄位。`;
+      fieldErrors[key] = m("{field}為必填欄位。", { field: m(rule.label) });
       continue;
     }
 
     const value = Number(rawValue);
     if (!Number.isFinite(value) || !Number.isInteger(value)) {
-      fieldErrors[key] = `${rule.label}請輸入整數。`;
+      fieldErrors[key] = m("{field}請輸入整數。", { field: m(rule.label) });
       continue;
     }
     if (value < rule.min || value > rule.max) {
-      fieldErrors[key] = `${rule.label}請輸入 ${rule.min} 到 ${rule.max} 之間。`;
+      fieldErrors[key] = m("{field}請輸入 {min} 到 {max} 之間。", {
+        field: m(rule.label),
+        min: formatAppNumber(locale, rule.min),
+        max: formatAppNumber(locale, rule.max),
+      });
       continue;
     }
     settings[key] = value;
@@ -249,7 +262,7 @@ function validateLimitsDraft(draft: LimitsDraft) {
     && !fieldErrors.maxTotalQuantity
     && settings.maxTotalQuantity < settings.maxItemQuantity
   ) {
-    fieldErrors.maxTotalQuantity = "總數量上限不得低於單品上限。";
+    fieldErrors.maxTotalQuantity = m("總數量上限不得低於單品上限。");
   }
 
   return {

@@ -1,6 +1,11 @@
+"use client";
+
+import { useAppLocale } from "@/components/locale-provider";
+
 type Props = { variant: "menu" | "orders" | "dashboard" | "reports" };
 
 export function RouteLoadingSkeleton({ variant }: Props) {
+  const { t } = useAppLocale();
   const columns = variant === "orders"
     ? "md:grid-cols-3"
     : variant === "dashboard"
@@ -10,7 +15,7 @@ export function RouteLoadingSkeleton({ variant }: Props) {
 
   return (
     <main aria-busy="true" className="mx-auto min-h-screen w-full max-w-6xl px-4 py-6 md:px-8">
-      <span className="sr-only">載入中</span>
+      <span className="sr-only">{t("route.loading")}</span>
       <div className="h-4 w-28 animate-pulse rounded bg-stone-200" />
       <div className="mt-3 h-9 w-full max-w-sm animate-pulse rounded bg-stone-200" />
       <div className="mt-3 h-4 w-full max-w-xl animate-pulse rounded bg-stone-100" />

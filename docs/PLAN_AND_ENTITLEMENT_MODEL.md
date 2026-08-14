@@ -34,9 +34,9 @@
 | PRINTER_INTEGRATION | 關 | 關 | 關 | 包含；攤位層級選擇啟用 | 包含且可設定；攤位層級選擇啟用 |
 | API_ACCESS / WEBHOOK_ACCESS / CUSTOM_DOMAIN / WHITE_LABEL / SSO | 關 | 關 | 關 | 關 | 可設定且需人工核准 |
 
-`20260813090000_enable_pro_printer_entitlement.sql` 是明確且可稽核的既有合約權益授予：所有已存在的 PRO 與 ENTERPRISE `plan_versions`（不論目錄啟用狀態或生效區間）均取得 `PRINTER_INTEGRATION`。Migration 保留既有 `limit_value` 與其他 `configuration_json` 設定，只合併 `merchantModuleOptIn: true`；它不會自動開啟任何攤位的 `print_module_enabled`。
+Legacy PRO 與 ENTERPRISE v1 由中央 server-side entitlement resolver 提供 `PRINTER_INTEGRATION` 相容權益。此規則只在 entitlement snapshot 缺少該功能資料列時生效；既有資料列（包括明確停用）仍優先，也不會自動開啟任何攤位的 `print_module_enabled`。
 
-這項一次性授予只涵蓋 migration 執行當下已存在的版本。之後建立 PRO 或 ENTERPRISE 版本時，必須在不可變的 entitlement snapshot 中明確寫入 `PRINTER_INTEGRATION`，不得依方案 code 或此歷史 migration 動態推論。
+這項相容規則只涵蓋 legacy v1。之後建立 PRO 或 ENTERPRISE 版本時，必須在不可變的 entitlement snapshot 中明確寫入 `PRINTER_INTEGRATION`，不得依方案 code 或 legacy 規則動態推論。
 
 ## 限制策略
 

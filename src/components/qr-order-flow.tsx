@@ -90,13 +90,15 @@ import type {
 } from "@/lib/public-menu-types";
 import {
   isQrLocale,
-  localizedPublicOrderError,
   localizedQrCategory,
+  localizedPublicOrderError,
   QR_LOCALES,
   QR_LOCALE_STORAGE_KEY,
+  QR_UI_LOCALE_STORAGE_KEY,
   qrOrderMessages,
-  preserveSupportedQrLocale,
-  resolvePreferredQrLocale,
+  resolveQrCatalogLocale,
+  resolveQrUiLocale,
+  serializeQrLocalePreference,
   type QrLocale,
 } from "@/lib/qr-order-i18n";
 
@@ -115,6 +117,8 @@ type Props = {
   orderingMode?: "DEFAULT" | "DELIVERY" | "PREORDER";
   initialMenu?: PublicMenu | null;
   entryChannel?: "QR" | "SHARED_LINK";
+  initialUiLocale?: QrLocale;
+  requestedLocale?: QrLocale | null;
 };
 
 type ProductDraft = {
@@ -132,6 +136,8 @@ export function QrOrderFlow({
   orderingMode = "DEFAULT",
   initialMenu = null,
   entryChannel = "QR",
+  initialUiLocale = "zh-TW",
+  requestedLocale = null,
 }: Props) {
   const usableInitialMenu = entryChannel === "QR" && initialMenu?.orderingMode !== "DEFAULT"
     ? null
@@ -141,7 +147,7 @@ export function QrOrderFlow({
   const sessionRequestIdRef = useRef<string | null>(null);
   const sessionOperationIdRef = useRef<string | null>(null);
   const sessionAttemptGenerationRef = useRef(0);
-  const localeRef = useRef<QrLocale>("zh-TW");
+  const localeRef = useRef<QrLocale>(initialUiLocale);
   const availabilityTargetRef = useRef<string | null>(null);
   const lotteryButtonRef = useRef<HTMLButtonElement>(null);
   const productConfigurationRef = useRef<HTMLElement>(null);
@@ -194,7 +200,7 @@ export function QrOrderFlow({
   const [isLoading, setIsLoading] = useState(!usableInitialMenu);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sessionTimePhase, setSessionTimePhase] = useState<SessionCountdownPhase>("INACTIVE");
-  const [locale, setLocale] = useState<QrLocale>("zh-TW");
+  const [locale, setLocale] = useState<QrLocale>(initialUiLocale);
   const [cartReady, setCartReady] = useState(false);
   const [cartRestored, setCartRestored] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -330,12 +336,6 @@ export function QrOrderFlow({
           rank: typeof product.rank === "number" ? product.rank : null,
         })),
       };
-      const nextLocale = preserveSupportedQrLocale(
-        localeRef.current,
-        orderSession.supportedLocales,
-      );
-      localeRef.current = nextLocale;
-      setLocale(nextLocale);
       let restoredDraft: ReturnType<typeof restoreQrCartDraft> = null;
       try {
         restoredDraft = restoreQrCartDraft(
@@ -518,20 +518,38 @@ export function QrOrderFlow({
     if (startedRef.current) return;
     startedRef.current = true;
     const currentDeviceId = getOrCreateDeviceId();
-    const preferredLocales = navigator.languages.length > 0 ? navigator.languages : [navigator.language];
-    let storedLocale: QrLocale | null = null;
+    let storedPreference: string | null = null;
+    let legacyLocale: string | null = null;
     try {
-      const stored = window.localStorage.getItem(QR_LOCALE_STORAGE_KEY);
-      storedLocale = stored && isQrLocale(stored) ? stored : null;
+      storedPreference = window.localStorage.getItem(QR_UI_LOCALE_STORAGE_KEY);
+      legacyLocale = window.localStorage.getItem(QR_LOCALE_STORAGE_KEY);
     } catch {
-      storedLocale = null;
+      storedPreference = null;
+      legacyLocale = null;
     }
-    const browserLocale = storedLocale ?? resolvePreferredQrLocale(preferredLocales, QR_LOCALES);
+    const resolvedLocale = resolveQrUiLocale({
+      queryLocale: requestedLocale,
+      storedPreference,
+      legacyLocale,
+      appLocale: initialUiLocale,
+    });
+    const browserLocale = resolvedLocale.locale;
+    if (resolvedLocale.source === "query" || resolvedLocale.shouldMigrateLegacy) {
+      try {
+        window.localStorage.setItem(
+          QR_UI_LOCALE_STORAGE_KEY,
+          serializeQrLocalePreference(browserLocale, resolvedLocale.source === "query" ? "query" : "manual"),
+        );
+        window.localStorage.removeItem(QR_LOCALE_STORAGE_KEY);
+      } catch {
+        // Browsers can block storage in private or restricted contexts.
+      }
+    }
     localeRef.current = browserLocale;
     setLocale(browserLocale);
     setDeviceId(currentDeviceId);
     void startOrderSession(currentDeviceId, browserLocale);
-  }, [startOrderSession]);
+  }, [initialUiLocale, requestedLocale, startOrderSession]);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -806,18 +824,19 @@ export function QrOrderFlow({
     && session.stall.fulfillmentType !== "DINE_IN"
     && fulfillmentTimeSlots.length > 0;
   const fulfillmentTimeLabel = activeOrderingMode === "PREORDER"
-    ? "預約取餐時間"
+    ? copy.preorderPickupTime
     : activeOrderingMode === "DELIVERY"
-      ? "指定送達時間（選填）"
-      : "預計取餐時間（選填）";
+      ? copy.optionalDeliveryTime
+      : copy.optionalPickupTime;
   const hasUnappliedFulfillmentTime = activeOrderingMode === "PREORDER"
     && draftScheduledPickupAt !== scheduledPickupAt;
+  const catalogLocale = resolveQrCatalogLocale(locale, session?.supportedLocales ?? []);
   const localizedProduct = useCallback((product: Product) => {
-    const translation = product.translations.find((item) => item.locale === locale);
+    const translation = product.translations.find((item) => item.locale === catalogLocale);
     return translation ? { name: translation.name, description: translation.description } : product;
-  }, [locale]);
-  const localizedGroupName = useCallback((group: NoteGroup) => group.translations.find((item) => item.locale === locale)?.name ?? group.name, [locale]);
-  const localizedOptionName = useCallback((option: NoteOption) => option.translations.find((item) => item.locale === locale)?.name ?? option.name, [locale]);
+  }, [catalogLocale]);
+  const localizedGroupName = useCallback((group: NoteGroup) => group.translations.find((item) => item.locale === catalogLocale)?.name ?? group.name, [catalogLocale]);
+  const localizedOptionName = useCallback((option: NoteOption) => option.translations.find((item) => item.locale === catalogLocale)?.name ?? option.name, [catalogLocale]);
   const bundleChoiceLabel = useCallback((option: BundleChoiceOption) => (
     option.quantity > 1
       ? `${option.componentProductName} × ${option.quantity}`
@@ -834,7 +853,11 @@ export function QrOrderFlow({
     setLocale(nextLocale);
     setMessage("");
     try {
-      window.localStorage.setItem(QR_LOCALE_STORAGE_KEY, nextLocale);
+      window.localStorage.setItem(
+        QR_UI_LOCALE_STORAGE_KEY,
+        serializeQrLocalePreference(nextLocale),
+      );
+      window.localStorage.removeItem(QR_LOCALE_STORAGE_KEY);
     } catch {
       // Browsers can block storage in private or restricted contexts.
     }
@@ -1219,7 +1242,7 @@ export function QrOrderFlow({
       return;
     }
     if (hasUnappliedFulfillmentTime) {
-      setMessage("取餐時間尚未套用，請先按下「套用這個時間」。");
+      setMessage(copy.applyPickupTimeRequired);
       return;
     }
     if (!sessionReady || !session || !deviceId || !turnstileToken || selectedItems.length === 0) {
@@ -1239,7 +1262,7 @@ export function QrOrderFlow({
       return;
     }
     if (activeOrderingMode === "PREORDER" && !scheduledPickupAt) {
-      setMessage("請先選擇預約取餐時間。");
+      setMessage(copy.selectPreorderTimeRequired);
       return;
     }
     const invalidLine = cartLines.find((line) => {
@@ -1346,9 +1369,7 @@ export function QrOrderFlow({
     );
   }
 
-  const availableLocales = QR_LOCALES.filter((candidate) => (
-    candidate === "zh-TW" || session.supportedLocales.includes(candidate)
-  ));
+  const availableLocales = [...QR_LOCALES];
   const fulfillmentTimePicker = canSelectFulfillmentTime ? (
     <div className="min-w-0">
       <FulfillmentTimePicker
@@ -1361,14 +1382,14 @@ export function QrOrderFlow({
             }
           : changeScheduledPickupAt}
         legend={fulfillmentTimeLabel}
-        scheduledLabel={activeOrderingMode === "DELIVERY" ? "指定送達時間" : "指定取餐時間"}
+        scheduledLabel={activeOrderingMode === "DELIVERY" ? copy.scheduledDeliveryTime : copy.scheduledPickupTime}
         dateLabel={activeOrderingMode === "PREORDER"
-          ? "預約取餐日期"
-          : activeOrderingMode === "DELIVERY" ? "送達日期" : "取餐日期"}
+          ? copy.preorderPickupDate
+          : activeOrderingMode === "DELIVERY" ? copy.deliveryDate : copy.pickupDate}
         timeLabel={activeOrderingMode === "PREORDER"
-          ? "預約取餐時間"
-          : activeOrderingMode === "DELIVERY" ? "送達時間" : "取餐時間"}
-        unavailableDateMessage="所選日期目前沒有可接受的時段。"
+          ? copy.preorderPickupTime
+          : activeOrderingMode === "DELIVERY" ? copy.deliveryTime : copy.pickupTime}
+        unavailableDateMessage={copy.unavailableDate}
         allowAsap={activeOrderingMode !== "PREORDER"}
         required={activeOrderingMode === "PREORDER"}
         disabled={!orderingEnabled}
@@ -1382,11 +1403,11 @@ export function QrOrderFlow({
             onClick={() => changeScheduledPickupAt(draftScheduledPickupAt)}
             className="min-h-11 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:bg-stone-200 disabled:text-stone-500"
           >
-            {hasUnappliedFulfillmentTime ? "套用這個時間" : "時間已套用"}
+            {hasUnappliedFulfillmentTime ? copy.applyTime : copy.timeApplied}
           </button>
           {hasUnappliedFulfillmentTime ? (
             <p role="status" className="text-xs font-medium text-amber-800">
-              尚未套用新的取餐時間；套用後才會更新可點商品與購物車。
+              {copy.unappliedTimeNotice}
             </p>
           ) : null}
         </div>
@@ -1410,7 +1431,7 @@ export function QrOrderFlow({
     : totalQuantity === 0
       ? copy.selectAtLeastOne
       : hasUnappliedFulfillmentTime
-        ? "取餐時間尚未套用，請先按下「套用這個時間」。"
+        ? copy.applyPickupTimeRequired
         : !sessionReady
           ? copy.sessionLoading
           : sessionTimePhase === "EXPIRED"
@@ -1605,7 +1626,7 @@ export function QrOrderFlow({
           </div>
         </div>
         <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? copy.dineIn(session.stall.table?.label ?? "") : session.stall.fulfillmentType === "DELIVERY" ? deliveryCopy.delivery : copy.takeout}</p>
-        {activeOrderingMode === "PREORDER" ? <p className="mt-2 rounded-md bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900">目前為非營業時間，僅接受外帶自取預約。</p> : null}
+        {activeOrderingMode === "PREORDER" ? <p className="mt-2 rounded-md bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900">{copy.preorderOnlyNotice}</p> : null}
         {degradedMode ? (
           <div role="alert" className="mt-4 border-y border-amber-300 bg-amber-50 px-3 py-4 text-amber-950">
             <div className="flex items-start gap-3">
@@ -1640,7 +1661,7 @@ export function QrOrderFlow({
           onPhaseChange={setSessionTimePhase}
         />
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-y border-stone-200 py-3 text-sm text-stone-700">
-          <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{activeOrderingMode === "PREORDER" ? "請依選擇的預約時段取餐" : copy.estimatedWaitRange(session.estimatedWaitMinMinutes, session.estimatedWaitMaxMinutes)}</span>
+          <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{activeOrderingMode === "PREORDER" ? copy.preorderTimeGuidance : copy.estimatedWaitRange(session.estimatedWaitMinMinutes, session.estimatedWaitMaxMinutes)}</span>
           {session.lastTableOrderAt ? <span className="inline-flex items-center gap-2"><History className="h-4 w-4 text-stone-500" />{copy.lastTableOrder(new Date(session.lastTableOrderAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }))}</span> : null}
         </div>
         {cartRestored ? <p role="status" className="mt-3 text-sm font-medium text-emerald-800">{copy.cartRestored}</p> : null}
@@ -1673,7 +1694,7 @@ export function QrOrderFlow({
           <nav aria-label={copy.categoryNavigation} className="sticky top-0 z-20 -mx-4 mt-5 flex gap-2 overflow-x-auto border-y border-stone-200 bg-stone-50/95 px-4 py-2 backdrop-blur md:static md:mx-0 md:border-x-0 md:bg-transparent md:px-0">
             {categories.map((category, index) => (
               <a key={category} href={`#qr-category-${index}`} className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700">
-                {localizedQrCategory(locale, category)}
+                  {localizedQrCategory(catalogLocale, category)}
               </a>
             ))}
           </nav>
@@ -1682,16 +1703,16 @@ export function QrOrderFlow({
         <div className="mt-5 space-y-6 sm:mt-6 sm:space-y-7">
           {activeOrderingMode === "PREORDER" && !scheduledPickupAt ? (
             <p role="status" className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm font-medium text-sky-950">
-              請先確認並套用預約取餐時間，完成後才會顯示可點商品。
+              {copy.applyPreorderTimeGuidance}
             </p>
           ) : activeOrderingMode === "PREORDER" && visibleProducts.length === 0 ? (
             <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-950">
-              此時段暫無可預約商品，請選擇其他取餐時間。
+              {copy.noProductsForSlot}
             </p>
           ) : null}
           {categories.map((category, categoryIndex) => (
             <section key={category} id={`qr-category-${categoryIndex}`} className="scroll-mt-16">
-              <h2 className="mb-2 text-sm font-semibold text-stone-500 sm:mb-3">{localizedQrCategory(locale, category)}</h2>
+              <h2 className="mb-2 text-sm font-semibold text-stone-500 sm:mb-3">{localizedQrCategory(catalogLocale, category)}</h2>
               <div className="grid gap-2 sm:gap-3">
                 {visibleProducts.filter((product) => product.category === category).map((product) => {
                   const configurable = product.noteGroups.length > 0 || product.bundleChoiceGroups.length > 0;
@@ -1716,7 +1737,7 @@ export function QrOrderFlow({
                       {product.imageUrl ? <ProductImage src={product.imageUrl} alt={copy.productImage(localizedProduct(product).name)} width={80} height={80} sizes="(max-width: 639px) 56px, 80px" className="h-14 w-14 shrink-0 rounded-md object-cover sm:h-20 sm:w-20" /> : <div aria-hidden="true" className="h-14 w-14 rounded-md bg-stone-100 sm:h-20 sm:w-20" />}
                       <div className="min-w-0 flex-1">
                         {product.isBestSeller ? <span data-testid="best-seller-badge" className="mb-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950"><Flame aria-hidden="true" className="h-3.5 w-3.5" />{copy.hotSellerBadge}</span> : null}
-                        {!product.isOrderDiscountEligible ? <span data-testid="discount-ineligible-badge" className="mb-1 ml-1 inline-flex rounded-full bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">不適用訂單折扣</span> : null}
+                        {!product.isOrderDiscountEligible ? <span data-testid="discount-ineligible-badge" className="mb-1 ml-1 inline-flex rounded-full bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">{copy.discountIneligible}</span> : null}
                         <h3 className="font-semibold">{localizedProduct(product).name}</h3>
                         <p className="mt-1 line-clamp-2 text-sm leading-5 text-stone-600">{localizedProduct(product).description}</p>
                         <p className="mt-2 font-semibold">{formatMoney(Math.max(
@@ -1798,12 +1819,12 @@ export function QrOrderFlow({
                           return (
                             <fieldset key={group.id} className="rounded-md border border-teal-200 bg-teal-50/60 p-3">
                               <legend className="px-2 text-sm font-bold text-teal-950">
-                                <span className="mr-2 rounded-full bg-teal-700 px-2 py-0.5 text-[11px] text-white">套餐群組</span>
+                                <span className="mr-2 rounded-full bg-teal-700 px-2 py-0.5 text-[11px] text-white">{copy.bundleGroup}</span>
                                 {group.name}{group.minSelections > 0 ? " *" : ""}
                                 <span className="ml-2 text-xs font-normal text-teal-800">
                                   {group.maxSelections === 1
-                                    ? "單選"
-                                    : `選 ${group.minSelections}～${group.maxSelections} 項`}
+                                    ? copy.singleChoice
+                                    : copy.selectionRange(group.minSelections, group.maxSelections)}
                                 </span>
                               </legend>
                               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
@@ -1816,7 +1837,7 @@ export function QrOrderFlow({
                                       disabled={!orderingEnabled}
                                       onChange={() => selectBundleChoice(product.id, group, null)}
                                     />
-                                    不選擇
+                                    {copy.noSelection}
                                   </label>
                                 ) : null}
                                 {group.options.map((option) => {

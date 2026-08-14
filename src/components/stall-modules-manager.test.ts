@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { LocaleProvider } from "@/components/locale-provider";
 import {
   buildPublicStorefrontShare,
   mergeModuleStateAfterCommand,
@@ -130,12 +131,15 @@ describe("buildPublicStorefrontShare", () => {
   });
 
   it("renders one customer URL field with the unified pickup label", () => {
-    const html = renderToStaticMarkup(createElement(StallModulesManager, {
-      stallId: "stall-1",
-      stallCode: "VIET-FOOD-YC",
-      appUrl: "https://app.qidaigo.com",
-      initialState: moduleState(),
-    }));
+    const html = renderToStaticMarkup(createElement(LocaleProvider, {
+      initialLocale: "zh-TW",
+      hasLocaleCookie: true,
+    } as Parameters<typeof LocaleProvider>[0], createElement(StallModulesManager, {
+        stallId: "stall-1",
+        stallCode: "VIET-FOOD-YC",
+        appUrl: "https://app.qidaigo.com",
+        initialState: moduleState(),
+    })));
 
     expect(html.match(/https:\/\/app\.qidaigo\.com\/store\/viet-food-yc/g)).toHaveLength(2);
     expect(html.match(/顧客公開點餐網址/g)).toHaveLength(1);

@@ -1,7 +1,21 @@
 export const QR_LOCALES = ["zh-TW", "en", "ja", "ko", "vi", "th"] as const;
 export const QR_LOCALE_STORAGE_KEY = "stallorder_qr_locale";
+export const QR_UI_LOCALE_STORAGE_KEY = "stallorder_qr_ui_locale_v2";
 
 export type QrLocale = (typeof QR_LOCALES)[number];
+export type QrLocalePreferenceSource = "manual" | "query";
+
+export type QrLocalePreference = {
+  version: 2;
+  locale: QrLocale;
+  source: QrLocalePreferenceSource;
+};
+
+export type ResolvedQrUiLocale = {
+  locale: QrLocale;
+  source: "app" | "legacy" | QrLocalePreferenceSource;
+  shouldMigrateLegacy: boolean;
+};
 
 type ErrorMessageKey =
   | "invalidRequest"
@@ -107,6 +121,29 @@ export type QrOrderMessages = {
   submitting: string;
   submitOrder: string;
   confirmationNotice: string;
+  preorderPickupTime: string;
+  optionalDeliveryTime: string;
+  optionalPickupTime: string;
+  applyPickupTimeRequired: string;
+  selectPreorderTimeRequired: string;
+  scheduledDeliveryTime: string;
+  scheduledPickupTime: string;
+  preorderPickupDate: string;
+  deliveryDate: string;
+  pickupDate: string;
+  deliveryTime: string;
+  pickupTime: string;
+  unavailableDate: string;
+  applyTime: string;
+  timeApplied: string;
+  unappliedTimeNotice: string;
+  preorderOnlyNotice: string;
+  preorderTimeGuidance: string;
+  applyPreorderTimeGuidance: string;
+  noProductsForSlot: string;
+  discountIneligible: string;
+  bundleGroup: string;
+  selectionRange: (minimum: number, maximum: number) => string;
   errors: Record<ErrorMessageKey, string>;
 };
 
@@ -199,6 +236,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     submitting: "送出中...",
     submitOrder: "送出訂單",
     confirmationNotice: "送出後須由店員確認，確認前不會開始製作。",
+    preorderPickupTime: "預約取餐時間", optionalDeliveryTime: "指定送達時間（選填）", optionalPickupTime: "預計取餐時間（選填）", applyPickupTimeRequired: "取餐時間尚未套用，請先按下「套用這個時間」。", selectPreorderTimeRequired: "請先選擇預約取餐時間。", scheduledDeliveryTime: "指定送達時間", scheduledPickupTime: "指定取餐時間", preorderPickupDate: "預約取餐日期", deliveryDate: "送達日期", pickupDate: "取餐日期", deliveryTime: "送達時間", pickupTime: "取餐時間", unavailableDate: "所選日期目前沒有可接受的時段。", applyTime: "套用這個時間", timeApplied: "時間已套用", unappliedTimeNotice: "尚未套用新的取餐時間；套用後才會更新可點商品與購物車。", preorderOnlyNotice: "目前為非營業時間，僅接受外帶自取預約。", preorderTimeGuidance: "請依選擇的預約時段取餐", applyPreorderTimeGuidance: "請先確認並套用預約取餐時間，完成後才會顯示可點商品。", noProductsForSlot: "此時段暫無可預約商品，請選擇其他取餐時間。", discountIneligible: "不適用訂單折扣", bundleGroup: "套餐群組", selectionRange: (minimum, maximum) => `選 ${minimum}～${maximum} 項`,
     errors: {
       invalidRequest: "訂單資料不正確，請重新確認。",
       qrUnavailable: "此 QR Code 目前無法使用，請洽詢店員。",
@@ -306,6 +344,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     submitting: "Submitting...",
     submitOrder: "Place order",
     confirmationNotice: "Staff must confirm your order before preparation begins.",
+    preorderPickupTime: "Scheduled pickup time", optionalDeliveryTime: "Delivery time (optional)", optionalPickupTime: "Pickup time (optional)", applyPickupTimeRequired: "Apply the pickup time before continuing.", selectPreorderTimeRequired: "Choose a pickup time first.", scheduledDeliveryTime: "Delivery time", scheduledPickupTime: "Pickup time", preorderPickupDate: "Pickup date", deliveryDate: "Delivery date", pickupDate: "Pickup date", deliveryTime: "Delivery time", pickupTime: "Pickup time", unavailableDate: "No available time slots on the selected date.", applyTime: "Apply this time", timeApplied: "Time applied", unappliedTimeNotice: "The new pickup time has not been applied. Applying it updates available items and the cart.", preorderOnlyNotice: "Outside business hours, only scheduled pickup orders are accepted.", preorderTimeGuidance: "Pick up during your selected time slot", applyPreorderTimeGuidance: "Choose and apply a pickup time to see available items.", noProductsForSlot: "No items are available for this time slot. Choose another pickup time.", discountIneligible: "Not eligible for order discount", bundleGroup: "Set group", selectionRange: (minimum, maximum) => `Choose ${minimum}–${maximum}`,
     errors: {
       invalidRequest: "The order details are invalid. Review them and try again.",
       qrUnavailable: "This QR code is unavailable. Please ask a staff member for help.",
@@ -413,6 +452,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     submitting: "送信中...",
     submitOrder: "注文を送信",
     confirmationNotice: "送信後、スタッフの確認が完了するまで調理は開始されません。",
+    preorderPickupTime: "予約受取時間", optionalDeliveryTime: "配達時間（任意）", optionalPickupTime: "受取時間（任意）", applyPickupTimeRequired: "受取時間を適用してください。", selectPreorderTimeRequired: "先に受取時間を選択してください。", scheduledDeliveryTime: "配達時間", scheduledPickupTime: "受取時間", preorderPickupDate: "受取日", deliveryDate: "配達日", pickupDate: "受取日", deliveryTime: "配達時間", pickupTime: "受取時間", unavailableDate: "選択した日に利用可能な時間帯がありません。", applyTime: "この時間を適用", timeApplied: "適用済み", unappliedTimeNotice: "新しい受取時間は未適用です。適用すると商品とカートが更新されます。", preorderOnlyNotice: "営業時間外は予約受取のみ受け付けています。", preorderTimeGuidance: "選択した時間帯にお受け取りください", applyPreorderTimeGuidance: "受取時間を選択して適用すると、注文可能な商品が表示されます。", noProductsForSlot: "この時間帯に予約できる商品はありません。別の時間を選択してください。", discountIneligible: "注文割引対象外", bundleGroup: "セットグループ", selectionRange: (minimum, maximum) => `${minimum}～${maximum}品を選択`,
     errors: {
       invalidRequest: "注文内容が正しくありません。確認して再度お試しください。",
       qrUnavailable: "このQRコードはご利用いただけません。スタッフにお尋ねください。",
@@ -520,6 +560,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     submitting: "전송 중...",
     submitOrder: "주문하기",
     confirmationNotice: "주문 후 직원이 확인해야 조리가 시작됩니다.",
+    preorderPickupTime: "예약 수령 시간", optionalDeliveryTime: "배송 시간(선택)", optionalPickupTime: "수령 시간(선택)", applyPickupTimeRequired: "수령 시간을 적용해 주세요.", selectPreorderTimeRequired: "먼저 예약 수령 시간을 선택해 주세요.", scheduledDeliveryTime: "배송 시간", scheduledPickupTime: "수령 시간", preorderPickupDate: "수령 날짜", deliveryDate: "배송 날짜", pickupDate: "수령 날짜", deliveryTime: "배송 시간", pickupTime: "수령 시간", unavailableDate: "선택한 날짜에 이용 가능한 시간이 없습니다.", applyTime: "이 시간 적용", timeApplied: "시간 적용됨", unappliedTimeNotice: "새 수령 시간이 아직 적용되지 않았습니다. 적용하면 상품과 장바구니가 업데이트됩니다.", preorderOnlyNotice: "영업시간 외에는 예약 수령 주문만 받습니다.", preorderTimeGuidance: "선택한 예약 시간에 수령해 주세요", applyPreorderTimeGuidance: "수령 시간을 선택하고 적용하면 주문 가능한 상품이 표시됩니다.", noProductsForSlot: "이 시간에는 예약 가능한 상품이 없습니다. 다른 시간을 선택해 주세요.", discountIneligible: "주문 할인 제외", bundleGroup: "세트 그룹", selectionRange: (minimum, maximum) => `${minimum}–${maximum}개 선택`,
     errors: {
       invalidRequest: "주문 정보가 올바르지 않습니다. 다시 확인해 주세요.",
       qrUnavailable: "이 QR 코드를 사용할 수 없습니다. 직원에게 문의해 주세요.",
@@ -627,6 +668,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     submitting: "Đang gửi...",
     submitOrder: "Gửi đơn hàng",
     confirmationNotice: "Nhân viên phải xác nhận đơn trước khi bắt đầu chế biến.",
+    preorderPickupTime: "Giờ nhận món đã hẹn", optionalDeliveryTime: "Giờ giao (không bắt buộc)", optionalPickupTime: "Giờ nhận (không bắt buộc)", applyPickupTimeRequired: "Vui lòng áp dụng giờ nhận món trước.", selectPreorderTimeRequired: "Vui lòng chọn giờ nhận món trước.", scheduledDeliveryTime: "Giờ giao", scheduledPickupTime: "Giờ nhận", preorderPickupDate: "Ngày nhận", deliveryDate: "Ngày giao", pickupDate: "Ngày nhận", deliveryTime: "Giờ giao", pickupTime: "Giờ nhận", unavailableDate: "Ngày đã chọn không có khung giờ khả dụng.", applyTime: "Áp dụng giờ này", timeApplied: "Đã áp dụng", unappliedTimeNotice: "Giờ nhận mới chưa được áp dụng. Sau khi áp dụng, món và giỏ hàng sẽ được cập nhật.", preorderOnlyNotice: "Ngoài giờ mở cửa, chỉ nhận đơn tự đến lấy theo lịch hẹn.", preorderTimeGuidance: "Vui lòng nhận món theo khung giờ đã chọn", applyPreorderTimeGuidance: "Chọn và áp dụng giờ nhận để xem món có thể đặt.", noProductsForSlot: "Khung giờ này không có món để đặt trước. Vui lòng chọn giờ khác.", discountIneligible: "Không áp dụng giảm giá đơn", bundleGroup: "Nhóm combo", selectionRange: (minimum, maximum) => `Chọn ${minimum}–${maximum} món`,
     errors: {
       invalidRequest: "Thông tin đơn hàng không hợp lệ. Vui lòng kiểm tra lại.",
       qrUnavailable: "Mã QR này không khả dụng. Vui lòng liên hệ nhân viên.",
@@ -734,6 +776,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     submitting: "กำลังส่ง...",
     submitOrder: "ส่งคำสั่งซื้อ",
     confirmationNotice: "พนักงานต้องยืนยันคำสั่งซื้อก่อนจึงจะเริ่มเตรียมอาหาร",
+    preorderPickupTime: "เวลารับอาหารที่จอง", optionalDeliveryTime: "เวลาจัดส่ง (ไม่บังคับ)", optionalPickupTime: "เวลารับ (ไม่บังคับ)", applyPickupTimeRequired: "โปรดใช้เวลารับอาหารก่อน", selectPreorderTimeRequired: "โปรดเลือกเวลารับอาหารก่อน", scheduledDeliveryTime: "เวลาจัดส่ง", scheduledPickupTime: "เวลารับ", preorderPickupDate: "วันที่รับ", deliveryDate: "วันที่จัดส่ง", pickupDate: "วันที่รับ", deliveryTime: "เวลาจัดส่ง", pickupTime: "เวลารับ", unavailableDate: "วันที่เลือกไม่มีช่วงเวลาที่รับได้", applyTime: "ใช้เวลานี้", timeApplied: "ใช้เวลาแล้ว", unappliedTimeNotice: "ยังไม่ได้ใช้เวลารับใหม่ เมื่อใช้แล้วสินค้าและตะกร้าจะอัปเดต", preorderOnlyNotice: "นอกเวลาทำการ รับเฉพาะคำสั่งซื้อแบบนัดรับ", preorderTimeGuidance: "โปรดรับอาหารตามช่วงเวลาที่เลือก", applyPreorderTimeGuidance: "เลือกและใช้เวลารับเพื่อดูสินค้าที่สั่งได้", noProductsForSlot: "ช่วงเวลานี้ไม่มีสินค้าที่จองได้ โปรดเลือกเวลาอื่น", discountIneligible: "ไม่ร่วมส่วนลดคำสั่งซื้อ", bundleGroup: "กลุ่มชุด", selectionRange: (minimum, maximum) => `เลือก ${minimum}–${maximum} รายการ`,
     errors: {
       invalidRequest: "ข้อมูลคำสั่งซื้อไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง",
       qrUnavailable: "ไม่สามารถใช้ QR Code นี้ได้ โปรดสอบถามพนักงาน",
@@ -868,6 +911,71 @@ export function preserveSupportedQrLocale(
     if (isQrLocale(locale)) available.add(locale);
   });
   return available.has(currentLocale) ? currentLocale : "zh-TW";
+}
+
+export function parseQrLocalePreference(raw: string | null): QrLocalePreference | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<QrLocalePreference>;
+    if (
+      parsed.version !== 2
+      || typeof parsed.locale !== "string"
+      || !isQrLocale(parsed.locale)
+      || (parsed.source !== "manual" && parsed.source !== "query")
+    ) return null;
+    return {
+      version: 2,
+      locale: parsed.locale,
+      source: parsed.source,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function serializeQrLocalePreference(
+  locale: QrLocale,
+  source: QrLocalePreferenceSource = "manual",
+) {
+  return JSON.stringify({ version: 2, locale, source } satisfies QrLocalePreference);
+}
+
+export function resolveQrUiLocale({
+  queryLocale,
+  storedPreference,
+  legacyLocale,
+  appLocale,
+}: {
+  queryLocale?: string | null;
+  storedPreference?: string | null;
+  legacyLocale?: string | null;
+  appLocale: QrLocale;
+}): ResolvedQrUiLocale {
+  if (queryLocale && isQrLocale(queryLocale)) {
+    return { locale: queryLocale, source: "query", shouldMigrateLegacy: false };
+  }
+
+  const preference = parseQrLocalePreference(storedPreference ?? null);
+  if (preference) {
+    return {
+      locale: preference.locale,
+      source: preference.source,
+      shouldMigrateLegacy: false,
+    };
+  }
+
+  if (legacyLocale && isQrLocale(legacyLocale)) {
+    return { locale: legacyLocale, source: "legacy", shouldMigrateLegacy: true };
+  }
+
+  return { locale: appLocale, source: "app", shouldMigrateLegacy: false };
+}
+
+export function resolveQrCatalogLocale(
+  uiLocale: QrLocale,
+  supportedLocales: readonly string[],
+): QrLocale {
+  return supportedLocales.some((locale) => locale === uiLocale) ? uiLocale : "zh-TW";
 }
 
 export function localizedQrCategory(locale: QrLocale, category: string) {

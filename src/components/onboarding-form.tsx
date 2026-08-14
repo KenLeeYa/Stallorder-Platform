@@ -3,8 +3,10 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Check, ChevronLeft, ChevronRight, ClipboardCheck, MapPin, RefreshCw, Save, UserRound } from "lucide-react";
+import { useAppLocale } from "@/components/locale-provider";
 import { PublicIdentifierInputHint } from "@/components/public-identifier-input-hint";
 import { csrfHeaders } from "@/lib/csrf-client";
+import type { AppLocale } from "@/lib/app-locale";
 import type { MerchantBusinessTypeOptionDto } from "@/lib/merchant-business-type-options";
 import {
   merchantApplicationFieldLabels,
@@ -17,6 +19,7 @@ import {
   PUBLIC_IDENTIFIER_MIN_LENGTH,
   PUBLIC_IDENTIFIER_PATTERN,
 } from "@/lib/public-identifier";
+import { onboardingMessages } from "@/lib/messages/onboarding";
 import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
 import { taiwanCityOptions } from "@/lib/taiwan-address";
 
@@ -82,11 +85,13 @@ type FormState = {
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
 
-const steps = [
-  { label: "申請人", icon: UserRound },
-  { label: "商家資料", icon: Building2 },
-  { label: "第一個攤位", icon: MapPin },
-  { label: "試用與同意", icon: ClipboardCheck },
+type OnboardingMessageKey = Parameters<typeof onboardingMessages.get>[1];
+
+const steps: Array<{ labelKey: OnboardingMessageKey; icon: typeof UserRound }> = [
+  { labelKey: "stepApplicant", icon: UserRound },
+  { labelKey: "stepMerchant", icon: Building2 },
+  { labelKey: "stepStall", icon: MapPin },
+  { labelKey: "stepConsent", icon: ClipboardCheck },
 ];
 
 export function OnboardingForm({
@@ -105,6 +110,8 @@ export function OnboardingForm({
   isReapplication?: boolean;
 }) {
   const router = useRouter();
+  const { locale } = useAppLocale();
+  const t = (key: OnboardingMessageKey, values?: Record<string, string | number>) => onboardingMessages.get(locale, key, values);
   const formRef = useRef<HTMLFormElement>(null);
   const [step, setStep] = useState(Math.min(initialValues?.currentStep ?? 1, 4));
   const [error, setError] = useState("");
@@ -197,7 +204,7 @@ export function OnboardingForm({
       );
       const result = await response.json();
       if (!response.ok || typeof result.suggestion !== "string") {
-        throw new Error(typeof result.error === "string" ? result.error : "目前無法自動產生公開識別名稱。");
+        throw new Error(t("slugSuggestionError"));
       }
       if (slugSuggestionRequestRef.current !== requestVersion) return;
       setState((current) => ({ ...current, requestedSlug: result.suggestion }));
@@ -208,7 +215,7 @@ export function OnboardingForm({
       setSlugSuggestionError(
         suggestionError instanceof Error
           ? suggestionError.message
-          : "目前無法自動產生，請自行輸入公開識別名稱。",
+          : t("slugSuggestionManual"),
       );
     } finally {
       if (slugSuggestionRequestRef.current === requestVersion) setIsGeneratingSlug(false);
@@ -226,9 +233,9 @@ export function OnboardingForm({
 
   function showResponseError(result: unknown, fallback: string) {
     const response = isRecord(result) ? result : {};
-    const nextFieldErrors = parseFieldErrors(response.fieldErrors);
+    const nextFieldErrors = parseFieldErrors(response.fieldErrors, locale);
     setFieldErrors(nextFieldErrors);
-    setError(typeof response.error === "string" ? response.error : fallback);
+    setError(fallback);
     focusFirstInvalidField(formRef.current, nextFieldErrors);
   }
 
@@ -237,9 +244,9 @@ export function OnboardingForm({
     const target = event.target;
     if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement)) return;
     if (!isFormField(target.name)) return;
-    const message = nativeValidationMessage(target.name, target);
+    const message = nativeValidationMessage(target.name, target, locale);
     setFieldErrors((current) => ({ ...current, [target.name]: message }));
-    setError("請檢查標示欄位後再繼續。");
+    setError(t("checkFields"));
     requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>(":invalid")?.focus());
   }
 
@@ -257,8 +264,8 @@ export function OnboardingForm({
       return;
     }
     if (slugState === "taken") {
-      setError("此公開識別名稱已被使用，請更換後再送出。");
-      const nextFieldErrors = { requestedSlug: "此公開識別名稱格式不正確或已被其他攤位使用。" };
+      setError(t("slugTakenSubmit"));
+      const nextFieldErrors = { requestedSlug: t("slugInvalidOrTaken") };
       setFieldErrors(nextFieldErrors);
       focusFirstInvalidField(formRef.current, nextFieldErrors);
       return;
@@ -272,14 +279,14 @@ export function OnboardingForm({
       });
       const result = await response.json();
       if (!response.ok) {
-        showResponseError(result, "目前無法送出商家申請，請稍後再試。");
+        showResponseError(result, t("submitError"));
         if (result.next) router.push(result.next);
         return;
       }
       router.push(result.next ?? "/onboarding/status");
       router.refresh();
     } catch {
-      setError("目前無法連線，請確認網路後重試。");
+      setError(t("networkError"));
     } finally {
       setIsSubmitting(false);
     }
@@ -299,14 +306,14 @@ export function OnboardingForm({
       });
       const result = await response.json();
       if (!response.ok) {
-        showResponseError(result, "目前無法儲存草稿。");
+        showResponseError(result, t("saveError"));
         if (result.next) router.push(result.next);
         return false;
       }
-      setNotice("草稿已儲存");
+      setNotice(t("draftSaved"));
       return true;
     } catch {
-      setError("目前無法連線，請確認網路後重試。");
+      setError(t("networkError"));
       return false;
     } finally {
       setIsSubmitting(false);
@@ -320,7 +327,7 @@ export function OnboardingForm({
       setSlugState("taken");
       setFieldErrors((current) => ({
         ...current,
-        requestedSlug: "公開識別名稱只能使用小寫英文字母、數字與連字號，且首尾必須是英文字母或數字。",
+        requestedSlug: t("slugPattern"),
       }));
       return;
     }
@@ -333,9 +340,7 @@ export function OnboardingForm({
       setFieldErrors((current) => {
         const next = { ...current };
         if (available) delete next.requestedSlug;
-        else next.requestedSlug = typeof result.error === "string"
-          ? result.error
-          : "此公開識別名稱已被其他攤位使用，請更換後再試。";
+        else next.requestedSlug = t("slugTaken");
         return next;
       });
     } catch {
@@ -350,51 +355,51 @@ export function OnboardingForm({
         <div className="flex items-center gap-3">
           <ActiveIcon className="h-6 w-6 text-teal-700" />
           <div>
-            <h1 className="text-2xl font-semibold">{isReapplication ? "重新申請商家" : "商家申請"}</h1>
+            <h1 className="text-2xl font-semibold">{isReapplication ? t("reapplyTitle") : t("applicationTitle")}</h1>
             <p className="text-sm text-stone-600">
               {isReapplication
-                ? "已帶入前次資料；送出後會建立新的申請編號並重新進入人工審核。"
-                : "送出後由平台人工審核，不會立即建立商家工作區。"}
+                ? t("reapplyDescription")
+                : t("applicationDescription")}
             </p>
           </div>
         </div>
-        <div className="mt-5 grid grid-cols-4 border border-stone-200" aria-label="申請進度">
+        <div className="mt-5 grid grid-cols-4 border border-stone-200" aria-label={t("progress")}>
           {steps.map((item, index) => {
             const Icon = item.icon;
             const active = index + 1 === step;
             const completed = index + 1 < step;
             return (
-              <div key={item.label} className={`flex min-h-14 items-center justify-center gap-2 px-2 text-xs font-semibold sm:text-sm ${active ? "bg-teal-50 text-teal-900" : "text-stone-500"}`}>
+              <div key={item.labelKey} className={`flex min-h-14 items-center justify-center gap-2 px-2 text-xs font-semibold sm:text-sm ${active ? "bg-teal-50 text-teal-900" : "text-stone-500"}`}>
                 {completed ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
               </div>
             );
           })}
         </div>
       </header>
 
-      {isReapplication ? <p role="status" className="mt-5 border-l-4 border-teal-600 bg-teal-50 px-4 py-3 text-sm text-teal-950">前次申請會保留為歷史紀錄，不會被修改或重新開啟。請重新確認資料與同意事項後再送出。</p> : null}
-      {needsInfoNote ? <p className="mt-5 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950">平台補件說明：{needsInfoNote}</p> : null}
+      {isReapplication ? <p role="status" className="mt-5 border-l-4 border-teal-600 bg-teal-50 px-4 py-3 text-sm text-teal-950">{t("reapplyHistory")}</p> : null}
+      {needsInfoNote ? <p className="mt-5 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950">{t("needsInfo", { note: needsInfoNote })}</p> : null}
 
       <section className="min-h-[420px] py-6">
-        {step === 1 ? <ApplicantStep profile={authenticatedProfile} state={state} update={update} fieldErrors={fieldErrors} /> : null}
-        {step === 2 ? <MerchantStep state={state} update={update} updateMerchantName={updateMerchantName} fieldErrors={fieldErrors} businessTypeOptions={businessTypeOptions ?? []} /> : null}
-        {step === 3 ? <StallStep state={state} update={update} updateRequestedSlug={updateRequestedSlug} regenerateRequestedSlug={regenerateRequestedSlug} isSlugManuallyEdited={isSlugManuallyEdited} isGeneratingSlug={isGeneratingSlug} slugSuggestionError={slugSuggestionError} fieldErrors={fieldErrors} slugState={slugState} checkSlug={checkSlug} /> : null}
-        {step === 4 ? <ConsentStep state={state} update={update} fieldErrors={fieldErrors} trial={trial} /> : null}
+        {step === 1 ? <ApplicantStep locale={locale} profile={authenticatedProfile} state={state} update={update} fieldErrors={fieldErrors} /> : null}
+        {step === 2 ? <MerchantStep locale={locale} state={state} update={update} updateMerchantName={updateMerchantName} fieldErrors={fieldErrors} businessTypeOptions={businessTypeOptions ?? []} /> : null}
+        {step === 3 ? <StallStep locale={locale} state={state} update={update} updateRequestedSlug={updateRequestedSlug} regenerateRequestedSlug={regenerateRequestedSlug} isSlugManuallyEdited={isSlugManuallyEdited} isGeneratingSlug={isGeneratingSlug} slugSuggestionError={slugSuggestionError} fieldErrors={fieldErrors} slugState={slugState} checkSlug={checkSlug} /> : null}
+        {step === 4 ? <ConsentStep locale={locale} state={state} update={update} fieldErrors={fieldErrors} trial={trial} /> : null}
       </section>
 
       {error ? <p role="alert" className="mb-4 text-sm font-medium text-red-700">{error}</p> : null}
       {notice ? <p role="status" className="mb-4 text-sm font-medium text-teal-800">{notice}</p> : null}
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-5">
         <button type="button" disabled={step === 1 || isSubmitting} onClick={() => setStep((current) => Math.max(1, current - 1))} className="inline-flex min-h-11 items-center gap-2 px-3 text-sm font-semibold text-stone-700 disabled:opacity-40">
-          <ChevronLeft className="h-4 w-4" />上一步
+          <ChevronLeft className="h-4 w-4" />{t("previous")}
         </button>
         <div className="flex flex-wrap gap-2">
           <button type="button" disabled={isSubmitting} onClick={() => void saveDraft(step)} className="inline-flex min-h-11 items-center gap-2 border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">
-            <Save className="h-4 w-4" />儲存草稿
+            <Save className="h-4 w-4" />{t("saveDraft")}
           </button>
           <button type="submit" disabled={isSubmitting} className="inline-flex min-h-11 items-center gap-2 bg-teal-700 px-5 text-sm font-semibold text-white disabled:opacity-50">
-            {step < 4 ? <>下一步<ChevronRight className="h-4 w-4" /></> : isSubmitting ? "送出中..." : "送出商家申請"}
+            {step < 4 ? <>{t("next")}<ChevronRight className="h-4 w-4" /></> : isSubmitting ? t("submitting") : t("submit")}
           </button>
         </div>
       </footer>
@@ -402,22 +407,24 @@ export function OnboardingForm({
   );
 }
 
-function ApplicantStep({ profile, state, update, fieldErrors }: StepProps & { profile: { displayName: string; email: string | null; avatarUrl: string | null } }) {
+function ApplicantStep({ locale, profile, state, update, fieldErrors }: StepProps & { profile: { displayName: string; email: string | null; avatarUrl: string | null } }) {
+  const t = messageGetter(locale);
   return <div className="grid gap-5">
     <div className="flex items-center gap-4 border-b border-stone-200 pb-4">
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-stone-100" aria-hidden="true"><UserRound className="h-7 w-7 text-stone-500" /></span>
-      <div><strong>{profile.displayName}</strong><p className="text-sm text-stone-500">{profile.email ?? "未提供電子郵件"}</p><p className="mt-1 text-xs text-teal-800">已驗證登入身分</p></div>
+      <div><strong>{profile.displayName}</strong><p className="text-sm text-stone-500">{profile.email ?? t("emailMissing")}</p><p className="mt-1 text-xs text-teal-800">{t("verifiedIdentity")}</p></div>
     </div>
-    <Field field="phone" label="聯絡電話" error={fieldErrors.phone}><input {...fieldValidationProps("phone", fieldErrors)} type="tel" inputMode="tel" required value={state.phone} onChange={(event) => update("phone", event.target.value)} autoComplete="tel" minLength={6} maxLength={30} pattern={PHONE_INPUT_PATTERN} className={inputClass} /></Field>
-    <Field field="lineId" label="LINE ID（選填）" error={fieldErrors.lineId}><input {...fieldValidationProps("lineId", fieldErrors)} type="text" value={state.lineId} onChange={(event) => update("lineId", event.target.value)} maxLength={80} className={inputClass} /></Field>
-    <Field field="preferredContactMethod" label="偏好聯絡方式" error={fieldErrors.preferredContactMethod}><select {...fieldValidationProps("preferredContactMethod", fieldErrors)} value={state.preferredContactMethod} onChange={(event) => update("preferredContactMethod", event.target.value as FormState["preferredContactMethod"])} className={inputClass}><option value="PHONE">電話</option><option value="LINE">LINE</option><option value="EMAIL">電子郵件</option></select></Field>
+    <Field field="phone" label={t("fieldPhone")} error={fieldErrors.phone}><input {...fieldValidationProps("phone", fieldErrors)} type="tel" inputMode="tel" required value={state.phone} onChange={(event) => update("phone", event.target.value)} autoComplete="tel" minLength={6} maxLength={30} pattern={PHONE_INPUT_PATTERN} className={inputClass} /></Field>
+    <Field field="lineId" label={t("fieldLineId")} error={fieldErrors.lineId}><input {...fieldValidationProps("lineId", fieldErrors)} type="text" value={state.lineId} onChange={(event) => update("lineId", event.target.value)} maxLength={80} className={inputClass} /></Field>
+    <Field field="preferredContactMethod" label={t("fieldContactMethod")} error={fieldErrors.preferredContactMethod}><select {...fieldValidationProps("preferredContactMethod", fieldErrors)} value={state.preferredContactMethod} onChange={(event) => update("preferredContactMethod", event.target.value as FormState["preferredContactMethod"])} className={inputClass}><option value="PHONE">{t("contactPhone")}</option><option value="LINE">{t("contactLine")}</option><option value="EMAIL">{t("contactEmail")}</option></select></Field>
   </div>;
 }
 
-function MerchantStep({ state, update, updateMerchantName, fieldErrors, businessTypeOptions }: StepProps & {
+function MerchantStep({ locale, state, update, updateMerchantName, fieldErrors, businessTypeOptions }: StepProps & {
   businessTypeOptions: MerchantBusinessTypeOptionDto[];
   updateMerchantName(merchantName: string): void;
 }) {
+  const t = messageGetter(locale);
   const options = businessTypeOptions.length
     ? businessTypeOptions
     : merchantBusinessTypes.map((type, index) => ({
@@ -428,18 +435,19 @@ function MerchantStep({ state, update, updateMerchantName, fieldErrors, business
         isActive: true,
       }));
   return <div className="grid gap-4 md:grid-cols-2">
-    <Field field="merchantName" label="商家或品牌名稱" error={fieldErrors.merchantName}><input {...fieldValidationProps("merchantName", fieldErrors)} type="text" required value={state.merchantName} onChange={(event) => updateMerchantName(event.target.value)} minLength={2} maxLength={120} className={inputClass} /></Field>
-    <Field field="businessType" label="營業類型" error={fieldErrors.businessType}><select {...fieldValidationProps("businessType", fieldErrors)} value={state.businessType} onChange={(event) => update("businessType", event.target.value as FormState["businessType"])} className={inputClass}>{options.map((option) => <option key={option.code} value={option.legacyType}>{option.name}</option>)}</select></Field>
-    <Field field="businessRegistrationNumber" label="統一編號（選填）" error={fieldErrors.businessRegistrationNumber}><input {...fieldValidationProps("businessRegistrationNumber", fieldErrors)} type="text" value={state.businessRegistrationNumber} onChange={(event) => update("businessRegistrationNumber", event.target.value)} maxLength={30} className={inputClass} /></Field>
-    <Field field="contactName" label="負責聯絡人" error={fieldErrors.contactName}><input {...fieldValidationProps("contactName", fieldErrors)} type="text" required value={state.contactName} onChange={(event) => update("contactName", event.target.value)} minLength={2} maxLength={80} className={inputClass} /></Field>
-    <Field field="businessPhone" label="商家電話" error={fieldErrors.businessPhone}><input {...fieldValidationProps("businessPhone", fieldErrors)} type="tel" inputMode="tel" required value={state.businessPhone} onChange={(event) => update("businessPhone", event.target.value)} autoComplete="tel" minLength={6} maxLength={30} pattern={PHONE_INPUT_PATTERN} className={inputClass} /></Field>
-    <Field field="city" label="縣市" error={fieldErrors.city}><select {...fieldValidationProps("city", fieldErrors)} required value={state.city} onChange={(event) => update("city", event.target.value)} className={inputClass}><option value="">請選擇縣市</option>{taiwanCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></Field>
-    <Field field="businessAddress" label="商家地址" error={fieldErrors.businessAddress} full><input {...fieldValidationProps("businessAddress", fieldErrors)} type="text" required value={state.businessAddress} onChange={(event) => update("businessAddress", event.target.value)} minLength={5} maxLength={200} className={inputClass} /></Field>
-    <Field field="merchantDescription" label="商家簡介（選填）" error={fieldErrors.merchantDescription} full><textarea {...fieldValidationProps("merchantDescription", fieldErrors)} value={state.merchantDescription} onChange={(event) => update("merchantDescription", event.target.value)} maxLength={1000} rows={4} className={inputClass} /></Field>
+    <Field field="merchantName" label={t("fieldMerchantName")} error={fieldErrors.merchantName}><input {...fieldValidationProps("merchantName", fieldErrors)} type="text" required value={state.merchantName} onChange={(event) => updateMerchantName(event.target.value)} minLength={2} maxLength={120} className={inputClass} /></Field>
+    <Field field="businessType" label={t("fieldBusinessType")} error={fieldErrors.businessType}><select {...fieldValidationProps("businessType", fieldErrors)} value={state.businessType} onChange={(event) => update("businessType", event.target.value as FormState["businessType"])} className={inputClass}>{options.map((option) => <option key={option.code} value={option.legacyType}>{option.name}</option>)}</select></Field>
+    <Field field="businessRegistrationNumber" label={t("fieldRegistration")} error={fieldErrors.businessRegistrationNumber}><input {...fieldValidationProps("businessRegistrationNumber", fieldErrors)} type="text" value={state.businessRegistrationNumber} onChange={(event) => update("businessRegistrationNumber", event.target.value)} maxLength={30} className={inputClass} /></Field>
+    <Field field="contactName" label={t("fieldContactName")} error={fieldErrors.contactName}><input {...fieldValidationProps("contactName", fieldErrors)} type="text" required value={state.contactName} onChange={(event) => update("contactName", event.target.value)} minLength={2} maxLength={80} className={inputClass} /></Field>
+    <Field field="businessPhone" label={t("fieldBusinessPhone")} error={fieldErrors.businessPhone}><input {...fieldValidationProps("businessPhone", fieldErrors)} type="tel" inputMode="tel" required value={state.businessPhone} onChange={(event) => update("businessPhone", event.target.value)} autoComplete="tel" minLength={6} maxLength={30} pattern={PHONE_INPUT_PATTERN} className={inputClass} /></Field>
+    <Field field="city" label={t("fieldCity")} error={fieldErrors.city}><select {...fieldValidationProps("city", fieldErrors)} required value={state.city} onChange={(event) => update("city", event.target.value)} className={inputClass}><option value="">{t("selectCity")}</option>{taiwanCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}</select></Field>
+    <Field field="businessAddress" label={t("fieldAddress")} error={fieldErrors.businessAddress} full><input {...fieldValidationProps("businessAddress", fieldErrors)} type="text" required value={state.businessAddress} onChange={(event) => update("businessAddress", event.target.value)} minLength={5} maxLength={200} className={inputClass} /></Field>
+    <Field field="merchantDescription" label={t("fieldDescription")} error={fieldErrors.merchantDescription} full><textarea {...fieldValidationProps("merchantDescription", fieldErrors)} value={state.merchantDescription} onChange={(event) => update("merchantDescription", event.target.value)} maxLength={1000} rows={4} className={inputClass} /></Field>
   </div>;
 }
 
 function StallStep({
+  locale,
   state,
   update,
   updateRequestedSlug,
@@ -459,13 +467,14 @@ function StallStep({
   slugState: string;
   checkSlug(): Promise<void>;
 }) {
+  const t = messageGetter(locale);
   return <div className="grid gap-4 md:grid-cols-2">
-    <Field field="stallName" label="第一個攤位名稱" error={fieldErrors.stallName}><input {...fieldValidationProps("stallName", fieldErrors)} type="text" required value={state.stallName} onChange={(event) => update("stallName", event.target.value)} minLength={2} maxLength={120} className={inputClass} /></Field>
-    <Field field="stallLocation" label="主要營業地點" error={fieldErrors.stallLocation}><input {...fieldValidationProps("stallLocation", fieldErrors)} type="text" required value={state.stallLocation} onChange={(event) => update("stallLocation", event.target.value)} minLength={2} maxLength={200} className={inputClass} /></Field>
-    <Field field="expectedStartDate" label="預計開始日期" error={fieldErrors.expectedStartDate}><input {...fieldValidationProps("expectedStartDate", fieldErrors)} type="date" value={state.expectedStartDate} onChange={(event) => update("expectedStartDate", event.target.value)} className={inputClass} /></Field>
-    <Field field="estimatedDailyOrders" label="預估每日訂單" error={fieldErrors.estimatedDailyOrders}><input {...fieldValidationProps("estimatedDailyOrders", fieldErrors)} type="number" min={0} max={100000} value={state.estimatedDailyOrders} onChange={(event) => update("estimatedDailyOrders", event.target.value)} className={inputClass} /></Field>
-    <Field field="requestedSlug" label="公開識別名稱" error={fieldErrors.requestedSlug} full>
-      <PublicIdentifierInputHint hintId="onboarding-public-identifier-rules">
+    <Field field="stallName" label={t("fieldStallName")} error={fieldErrors.stallName}><input {...fieldValidationProps("stallName", fieldErrors)} type="text" required value={state.stallName} onChange={(event) => update("stallName", event.target.value)} minLength={2} maxLength={120} className={inputClass} /></Field>
+    <Field field="stallLocation" label={t("fieldStallLocation")} error={fieldErrors.stallLocation}><input {...fieldValidationProps("stallLocation", fieldErrors)} type="text" required value={state.stallLocation} onChange={(event) => update("stallLocation", event.target.value)} minLength={2} maxLength={200} className={inputClass} /></Field>
+    <Field field="expectedStartDate" label={t("fieldStartDate")} error={fieldErrors.expectedStartDate}><input {...fieldValidationProps("expectedStartDate", fieldErrors)} type="date" value={state.expectedStartDate} onChange={(event) => update("expectedStartDate", event.target.value)} className={inputClass} /></Field>
+    <Field field="estimatedDailyOrders" label={t("fieldDailyOrders")} error={fieldErrors.estimatedDailyOrders}><input {...fieldValidationProps("estimatedDailyOrders", fieldErrors)} type="number" min={0} max={100000} value={state.estimatedDailyOrders} onChange={(event) => update("estimatedDailyOrders", event.target.value)} className={inputClass} /></Field>
+    <Field field="requestedSlug" label={t("fieldSlug")} error={fieldErrors.requestedSlug} full>
+      <PublicIdentifierInputHint hintId="onboarding-public-identifier-rules" locale={locale}>
         <input type="text"
           {...fieldValidationProps(
             "requestedSlug",
@@ -484,19 +493,19 @@ function StallStep({
       </PublicIdentifierInputHint>
       {slugState !== "idle" ? (
         <p id="slug-state" aria-live="polite" className={`mt-1 text-xs ${slugState === "available" ? "text-teal-700" : slugState === "taken" ? "text-red-700" : "text-stone-500"}`}>
-          {slugState === "checking" ? "檢查中..." : slugState === "available" ? "此公開識別名稱可使用" : "格式不正確或已被使用"}
+          {slugState === "checking" ? t("slugChecking") : slugState === "available" ? t("slugAvailable") : t("slugInvalid")}
         </p>
       ) : null}
     </Field>
     <div className="-mt-2 flex flex-wrap items-center justify-between gap-2 md:col-span-2">
       <p className="text-xs text-stone-600">
         {isGeneratingSlug
-          ? "正在依商家名稱產生建議..."
+          ? t("slugGenerating")
           : slugSuggestionError
             ? slugSuggestionError
             : isSlugManuallyEdited
-              ? "目前使用自行修改的名稱，系統不會覆蓋。"
-              : "已依商家名稱自動產生，可直接使用或自行修改。"}
+              ? t("slugManual")
+              : t("slugAutomatic")}
       </p>
       <button
         type="button"
@@ -505,50 +514,51 @@ function StallStep({
         className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-xs font-semibold text-stone-800 disabled:opacity-50"
       >
         <RefreshCw className="h-3.5 w-3.5" />
-        依商家名稱重新產生
+        {t("slugRegenerate")}
       </button>
     </div>
     <Toggle
       id="needs-multiple-staff"
-      label="預計邀請其他員工共同使用"
-      description="開通後可邀請店員、廚房人員或管理者使用各自帳號。"
+      label={t("multiStaff")}
+      description={t("multiStaffDescription")}
       checked={state.needsMultipleStaff}
       onChange={(checked) => update("needsMultipleStaff", checked)}
     />
     <Toggle
       id="needs-kitchen-view"
-      label="預計使用廚房生產看板（KDS）"
-      description="開通後可在廚房看板接收訂單，並更新製作與完成狀態。"
+      label={t("kitchenView")}
+      description={t("kitchenViewDescription")}
       checked={state.needsKitchenView}
       onChange={(checked) => update("needsKitchenView", checked)}
     />
   </div>;
 }
 
-function ConsentStep({ state, update, fieldErrors, trial }: StepProps & { trial: Trial }) {
+function ConsentStep({ locale, state, update, fieldErrors, trial }: StepProps & { trial: Trial }) {
+  const t = messageGetter(locale);
   return <div className="space-y-6">
     <section className="border-y border-stone-200 bg-stone-50 py-4">
       <h2 className="font-semibold">{trial.displayName}</h2>
       <dl className="mt-3 grid grid-cols-2 gap-x-5 gap-y-2 text-sm sm:grid-cols-3">
-        <Metric label="試用天數" value={`${trial.trialDays ?? 14} 天`} />
-        <Metric label="攤位" value={`${trial.maxStalls ?? 1} 個`} />
-        <Metric label="員工" value={`${trial.maxStaff ?? 2} 人`} />
-        <Metric label="商品" value={`${trial.maxProducts ?? 50} 項`} />
-        <Metric label="QR Code" value={`${trial.maxQrCodes ?? 1} 個`} />
-        <Metric label="完成訂單" value={`${trial.includedOrders ?? 100} 筆`} />
+        <Metric label={t("trialDays")} value={t("daysValue", { count: trial.trialDays ?? 14 })} />
+        <Metric label={t("stalls")} value={t("stallsValue", { count: trial.maxStalls ?? 1 })} />
+        <Metric label={t("staff")} value={t("staffValue", { count: trial.maxStaff ?? 2 })} />
+        <Metric label={t("products")} value={t("productsValue", { count: trial.maxProducts ?? 50 })} />
+        <Metric label="QR Code" value={t("qrValue", { count: trial.maxQrCodes ?? 1 })} />
+        <Metric label={t("completedOrders")} value={t("ordersValue", { count: trial.includedOrders ?? 100 })} />
       </dl>
-      <p className="mt-3 text-xs text-stone-500">試用期從平台核准日起算；核准後仍需完成設定與測試訂單才會開放接單。</p>
+      <p className="mt-3 text-xs text-stone-500">{t("trialNotice")}</p>
     </section>
     <div className="space-y-3">
-      <Consent field="termsAccepted" label="我同意服務條款" checked={state.termsAccepted} error={fieldErrors.termsAccepted} onChange={(checked) => update("termsAccepted", checked)} />
-      <Consent field="privacyAccepted" label="我同意隱私權政策" checked={state.privacyAccepted} error={fieldErrors.privacyAccepted} onChange={(checked) => update("privacyAccepted", checked)} />
-      <Consent field="dataProcessingAccepted" label="我同意資料處理告知事項" checked={state.dataProcessingAccepted} error={fieldErrors.dataProcessingAccepted} onChange={(checked) => update("dataProcessingAccepted", checked)} />
-      <Consent field="informationConfirmed" label="我確認上述申請資料正確" checked={state.informationConfirmed} error={fieldErrors.informationConfirmed} onChange={(checked) => update("informationConfirmed", checked)} />
+      <Consent field="termsAccepted" label={t("terms")} checked={state.termsAccepted} error={fieldErrors.termsAccepted} onChange={(checked) => update("termsAccepted", checked)} />
+      <Consent field="privacyAccepted" label={t("privacy")} checked={state.privacyAccepted} error={fieldErrors.privacyAccepted} onChange={(checked) => update("privacyAccepted", checked)} />
+      <Consent field="dataProcessingAccepted" label={t("dataProcessing")} checked={state.dataProcessingAccepted} error={fieldErrors.dataProcessingAccepted} onChange={(checked) => update("dataProcessingAccepted", checked)} />
+      <Consent field="informationConfirmed" label={t("confirmInformation")} checked={state.informationConfirmed} error={fieldErrors.informationConfirmed} onChange={(checked) => update("informationConfirmed", checked)} />
     </div>
   </div>;
 }
 
-type StepProps = { state: FormState; fieldErrors: FieldErrors; update<K extends keyof FormState>(key: K, value: FormState[K]): void };
+type StepProps = { locale: AppLocale; state: FormState; fieldErrors: FieldErrors; update<K extends keyof FormState>(key: K, value: FormState[K]): void };
 const inputClass = "min-h-11 w-full border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100";
 
 function Field({ field, label, error, full, children }: { field: keyof FormState; label: string; error?: string; full?: boolean; children: React.ReactNode }) {
@@ -641,12 +651,14 @@ function fieldValidationProps(field: keyof FormState, fieldErrors: FieldErrors, 
   };
 }
 
-function parseFieldErrors(value: unknown): FieldErrors {
+function parseFieldErrors(value: unknown, locale: AppLocale): FieldErrors {
   if (!isRecord(value)) return {};
   const fieldErrors: FieldErrors = {};
   for (const [field, message] of Object.entries(value)) {
     if (isFormField(field) && typeof message === "string" && message.trim()) {
-      fieldErrors[field] = message;
+      fieldErrors[field] = onboardingMessages.get(locale, "validationGeneric", {
+        label: localizedFieldLabel(field, locale),
+      });
     }
   }
   return fieldErrors;
@@ -659,26 +671,61 @@ function isFormField(field: string): field is keyof FormState {
 function nativeValidationMessage(
   field: keyof FormState,
   target: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+  locale: AppLocale,
 ) {
-  const label = merchantApplicationFieldLabels[field];
+  const label = localizedFieldLabel(field, locale);
   if (target.validity.valueMissing) {
     return target instanceof HTMLInputElement && target.type === "checkbox"
-      ? `請勾選「${label}」。`
-      : `請填寫「${label}」。`;
+      ? onboardingMessages.get(locale, "validationCheck", { label })
+      : onboardingMessages.get(locale, "validationFill", { label });
   }
   if (target.validity.tooShort && target instanceof HTMLInputElement) {
-    return `「${label}」至少需要 ${target.minLength} 個字元。`;
+    return onboardingMessages.get(locale, "validationTooShort", { label, count: target.minLength });
   }
-  if (target.validity.tooLong) return `「${label}」輸入內容過長。`;
+  if (target.validity.tooLong) return onboardingMessages.get(locale, "validationTooLong", { label });
   if (target.validity.patternMismatch) {
     return field === "requestedSlug"
-      ? "公開識別名稱只能使用小寫英文字母、數字與連字號，且首尾必須是英文字母或數字。"
-      : `「${label}」格式不正確，請確認後再試。`;
+      ? onboardingMessages.get(locale, "slugPattern")
+      : onboardingMessages.get(locale, "validationFormat", { label });
   }
   if (target.validity.rangeUnderflow || target.validity.rangeOverflow || target.validity.badInput) {
-    return `「${label}」的數值不在允許範圍內。`;
+    return onboardingMessages.get(locale, "validationRange", { label });
   }
-  return `「${label}」的格式或內容不符合輸入要求。`;
+  return onboardingMessages.get(locale, "validationGeneric", { label });
+}
+
+function messageGetter(locale: AppLocale) {
+  return (key: OnboardingMessageKey, values?: Record<string, string | number>) => onboardingMessages.get(locale, key, values);
+}
+
+function localizedFieldLabel(field: keyof FormState, locale: AppLocale) {
+  const keyByField: Partial<Record<keyof FormState, OnboardingMessageKey>> = {
+    phone: "fieldPhone",
+    lineId: "fieldLineId",
+    preferredContactMethod: "fieldContactMethod",
+    merchantName: "fieldMerchantName",
+    businessType: "fieldBusinessType",
+    businessRegistrationNumber: "fieldRegistration",
+    contactName: "fieldContactName",
+    businessPhone: "fieldBusinessPhone",
+    businessAddress: "fieldAddress",
+    city: "fieldCity",
+    merchantDescription: "fieldDescription",
+    stallName: "fieldStallName",
+    stallLocation: "fieldStallLocation",
+    requestedSlug: "fieldSlug",
+    estimatedDailyOrders: "fieldDailyOrders",
+    expectedStartDate: "fieldStartDate",
+    requestedPlanCode: "fieldPlan",
+    needsMultipleStaff: "multiStaff",
+    needsKitchenView: "kitchenView",
+    termsAccepted: "terms",
+    privacyAccepted: "privacy",
+    dataProcessingAccepted: "dataProcessing",
+    informationConfirmed: "confirmInformation",
+  };
+  const key = keyByField[field];
+  return key ? onboardingMessages.get(locale, key) : merchantApplicationFieldLabels[field];
 }
 
 function focusFirstInvalidField(form: HTMLFormElement | null, fieldErrors: FieldErrors) {

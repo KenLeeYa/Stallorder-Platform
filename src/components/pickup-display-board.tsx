@@ -12,6 +12,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { useOperationsLocale } from "@/components/operations-locale";
 import { ProductImage } from "@/components/product-image";
 import {
   collectUnannouncedReadyOrders,
@@ -29,6 +30,7 @@ export function PickupDisplayBoard({
   dataEndpoint: string;
   streamEndpoint: string;
 }) {
+  const { locale, t } = useOperationsLocale();
   const [display, setDisplay] = useState<PublicPickupDisplay | null>(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(true);
@@ -42,16 +44,16 @@ export function PickupDisplayBoard({
       const response = await fetch(dataEndpoint, { cache: "no-store" });
       const payload = await response.json() as { display?: PublicPickupDisplay; error?: string };
       if (!response.ok || !payload.display) {
-        throw new Error(payload.error ?? "目前無法載入取餐顯示。");
+        throw new Error(t("pickup.loadFailed"));
       }
       setDisplay(payload.display);
       setError("");
     } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : "目前無法載入取餐顯示。");
+      setError(refreshError instanceof Error ? refreshError.message : t("pickup.loadFailed"));
     } finally {
       setRefreshing(false);
     }
-  }, [dataEndpoint]);
+  }, [dataEndpoint, t]);
 
   useEffect(() => {
     const originTimer = window.setTimeout(() => setOrigin(window.location.origin), 0);
@@ -121,10 +123,10 @@ export function PickupDisplayBoard({
       <main className="grid min-h-screen place-items-center bg-stone-50 px-6 text-center">
         <div>
           <WifiOff className="mx-auto h-12 w-12 text-red-700" />
-          <h1 className="mt-5 text-3xl font-semibold">目前無法使用取餐顯示</h1>
+          <h1 className="mt-5 text-3xl font-semibold">{t("pickup.unavailable")}</h1>
           <p role="alert" className="mt-3 text-stone-600">{error}</p>
           <button type="button" onClick={() => void refresh()} className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 font-semibold text-white">
-            <RefreshCw className="h-4 w-4" />重新載入
+            <RefreshCw className="h-4 w-4" />{t("pickup.reload")}
           </button>
         </div>
       </main>
@@ -138,22 +140,22 @@ export function PickupDisplayBoard({
       <header className="border-b border-stone-300 bg-white/90 px-4 py-4 backdrop-blur-sm md:px-7">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-4">
           {display.stall.logoUrl ? (
-            <ProductImage src={display.stall.logoUrl} alt={`${display.stall.name} 標誌`} width={72} height={72} sizes="72px" className="h-14 w-14 rounded-md object-cover md:h-16 md:w-16" />
+            <ProductImage src={display.stall.logoUrl} alt={t("pickup.logoAlt", { stall: display.stall.name })} width={72} height={72} sizes="72px" className="h-14 w-14 rounded-md object-cover md:h-16 md:w-16" />
           ) : null}
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold" style={{ color: "var(--cds-accent)" }}>取餐顯示</p>
+            <p className="text-sm font-semibold" style={{ color: "var(--cds-accent)" }}>{t("pickup.title")}</p>
             <h1 className="truncate text-2xl font-semibold md:text-4xl">{display.stall.name}</h1>
           </div>
           <ConnectionBadge state={connection} />
           {display.voice.enabled ? (
-            <button type="button" title={voiceMuted ? "開啟語音" : "關閉語音"} onClick={() => setVoiceMuted((current) => !current)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white">
+            <button type="button" title={voiceMuted ? t("pickup.voiceOn") : t("pickup.voiceOff")} onClick={() => setVoiceMuted((current) => !current)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white">
               {voiceMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
             </button>
           ) : null}
-          <button type="button" title="重新整理" disabled={refreshing} onClick={() => void refresh()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-50">
+          <button type="button" title={t("common.refresh")} disabled={refreshing} onClick={() => void refresh()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-50">
             <RefreshCw className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} />
           </button>
-          <button type="button" title="全螢幕" onClick={() => void document.documentElement.requestFullscreen?.()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white">
+          <button type="button" title={t("pickup.fullscreen")} onClick={() => void document.documentElement.requestFullscreen?.()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white">
             <Maximize2 className="h-5 w-5" />
           </button>
         </div>
@@ -167,28 +169,28 @@ export function PickupDisplayBoard({
 
       <div className="mx-auto grid max-w-[1600px] gap-5 px-4 py-5 md:px-7 lg:grid-cols-2 lg:gap-7">
         <DisplayColumn
-          title="製作中"
+          title={t("pickup.preparing")}
           icon={<Clock3 className="h-7 w-7" />}
           orders={display.preparing}
-          emptyMessage="目前沒有製作中的訂單"
+          emptyMessage={t("pickup.emptyPreparing")}
         />
         <DisplayColumn
-          title="可以取餐"
+          title={t("pickup.ready")}
           icon={<CheckCircle2 className="h-7 w-7" />}
           orders={display.ready}
-          emptyMessage="目前沒有可取餐的訂單"
+          emptyMessage={t("pickup.emptyReady")}
           ready
         />
       </div>
 
       <footer className="mx-auto flex max-w-[1600px] flex-wrap items-end justify-between gap-5 px-4 pb-6 md:px-7">
         <p className="text-xs text-stone-500">
-          更新時間 {formatTime(display.refreshedAt)}
+          {t("pickup.updatedAt", { time: formatTime(locale, display.refreshedAt) })}
         </p>
         {menuUrl ? (
-          <a href={menuUrl} className="flex items-center gap-3 rounded-md border border-stone-300 bg-white p-3 text-sm font-semibold" aria-label="掃描 QR Code 返回點餐菜單">
+          <a href={menuUrl} className="flex items-center gap-3 rounded-md border border-stone-300 bg-white p-3 text-sm font-semibold" aria-label={t("pickup.menuAria")}>
             <QRCodeSVG value={menuUrl} size={72} level="M" />
-            <span>掃碼點餐</span>
+            <span>{t("pickup.scanMenu")}</span>
           </a>
         ) : null}
       </footer>
@@ -209,6 +211,7 @@ function DisplayColumn({
   emptyMessage: string;
   ready?: boolean;
 }) {
+  const { locale, t } = useOperationsLocale();
   return (
     <section aria-label={title} className="min-h-[36vh] border-y border-stone-300 bg-white/85 px-3 py-4 md:px-5">
       <div className="flex items-center gap-3 border-b border-stone-200 pb-4" style={ready ? { color: "var(--cds-accent)" } : undefined}>
@@ -220,11 +223,11 @@ function DisplayColumn({
         <div className="grid gap-3 py-4 sm:grid-cols-2 xl:grid-cols-3">
           {orders.map((order) => (
             <article key={`${order.orderNo}:${order.readyAt ?? "preparing"}`} className={`rounded-md border p-4 ${ready ? "border-teal-600 bg-teal-50" : "border-stone-300 bg-white"}`}>
-              <p className="text-sm font-semibold text-stone-500">訂單</p>
+              <p className="text-sm font-semibold text-stone-500">{t("pickup.order")}</p>
               <p className="mt-1 break-all text-3xl font-bold tabular-nums md:text-4xl">{order.orderNo}</p>
-              {order.pickupCode ? <p className="mt-3 text-xl font-semibold tabular-nums">取餐碼 {order.pickupCode}</p> : null}
+              {order.pickupCode ? <p className="mt-3 text-xl font-semibold tabular-nums">{t("pickup.code", { code: order.pickupCode })}</p> : null}
               {order.customerName ? <p className="mt-2 truncate text-base text-stone-700">{order.customerName}</p> : null}
-              {ready && order.readyAt ? <p className="mt-3 text-sm text-stone-600">完成時間 {formatTime(order.readyAt)}</p> : null}
+              {ready && order.readyAt ? <p className="mt-3 text-sm text-stone-600">{t("pickup.readyAt", { time: formatTime(locale, order.readyAt) })}</p> : null}
             </article>
           ))}
         </div>
@@ -234,11 +237,12 @@ function DisplayColumn({
 }
 
 function ConnectionBadge({ state }: { state: ConnectionState }) {
+  const { t } = useOperationsLocale();
   const realtime = state === "REALTIME";
   return (
     <span role="status" className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold ${realtime ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
       {realtime ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-      {realtime ? "即時連線" : state === "CONNECTING" ? "連線中" : "輪詢同步"}
+      {realtime ? t("kitchen.connection.connected") : state === "CONNECTING" ? t("kitchen.connection.connecting") : t("kitchen.connection.polling")}
     </span>
   );
 }
@@ -256,8 +260,8 @@ function PickupDisplayLoading() {
   );
 }
 
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat("zh-TW", {
+function formatTime(locale: ReturnType<typeof useOperationsLocale>["locale"], value: string) {
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,

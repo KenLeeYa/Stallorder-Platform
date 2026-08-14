@@ -10,14 +10,25 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/components/qr-order-flow", () => ({
-  QrOrderFlow: (props: { qrToken: string; orderingMode: string; entryChannel: string }) => (
+  QrOrderFlow: (props: {
+    qrToken: string;
+    orderingMode: string;
+    entryChannel: string;
+    initialUiLocale: string;
+    requestedLocale: string | null;
+  }) => (
     <div
       data-testid="mock-qr-order-flow"
       data-token={props.qrToken}
       data-mode={props.orderingMode}
       data-channel={props.entryChannel}
+      data-ui-locale={props.initialUiLocale}
+      data-requested-locale={props.requestedLocale ?? ""}
     />
   ),
+}));
+vi.mock("@/lib/app-locale-server", () => ({
+  getRequestAppLocale: () => Promise.resolve({ locale: "zh-TW", hasLocaleCookie: false }),
 }));
 vi.mock("@/lib/public-menu", () => ({
   getCachedPublicDisplayMenuForStallSlug: mocks.getDisplayMenu,
@@ -32,7 +43,9 @@ vi.mock("next/navigation", () => ({
   redirect: mocks.redirect,
 }));
 vi.mock("./public-menu-view", () => ({
-  PublicMenuView: () => <main data-testid="mock-public-menu" />,
+  PublicMenuView: (props: { menu: { stall: { name: string } } }) => (
+    <main data-testid="mock-public-menu">{props.menu.stall.name}</main>
+  ),
 }));
 
 import PublicStorefrontPage, { generateMetadata } from "./page";
@@ -74,7 +87,7 @@ describe("public storefront page", () => {
   it("smoke-renders one interface with all modes and a table QR instruction", async () => {
     const element = await PublicStorefrontPage({
       params: Promise.resolve({ identifier: "viet-food-yc" }),
-      searchParams: Promise.resolve({ locale: "vi" }),
+      searchParams: Promise.resolve({}),
     });
     const html = renderToStaticMarkup(element);
 
@@ -88,6 +101,20 @@ describe("public storefront page", () => {
     expect(mocks.getOrderMenu).not.toHaveBeenCalled();
   });
 
+  it("uses ?locale=vi for public chrome while preserving merchant content", async () => {
+    const element = await PublicStorefrontPage({
+      params: Promise.resolve({ identifier: "viet-food-yc" }),
+      searchParams: Promise.resolve({ locale: "vi" }),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain("Menu trực tuyến");
+    expect(html).toContain("Tự đến lấy");
+    expect(html).toContain("Giao hàng");
+    expect(html).toContain("越好吃一中店");
+    expect(html).not.toContain("線上 Menu");
+  });
+
   it("renders pickup with PREORDER semantics without creating an order", async () => {
     const element = await PublicStorefrontPage({
       params: Promise.resolve({ identifier: "viet-food-yc" }),
@@ -98,10 +125,11 @@ describe("public storefront page", () => {
     expect(html).toContain("data-token=\"generic-token\"");
     expect(html).toContain("data-mode=\"PREORDER\"");
     expect(html).toContain("data-channel=\"SHARED_LINK\"");
+    expect(html).toContain("data-ui-locale=\"zh-TW\"");
     expect(mocks.getOrderMenu).toHaveBeenCalledWith("generic-token", "PREORDER");
     expect(mocks.getOrderMenu).toHaveBeenCalledTimes(1);
     expect(mocks.getDisplayMenu).not.toHaveBeenCalled();
-    expect(html).toContain('href="/s/a-hong-he-fen/schedule"');
+    expect(html).toContain('href="/s/viet-food-yc/schedule?locale=zh-TW"');
     expect(html).toContain("查看出攤行程");
   });
 
@@ -116,7 +144,7 @@ describe("public storefront page", () => {
     expect(mocks.getOrderMenu).toHaveBeenCalledWith("generic-token", "DELIVERY");
     expect(mocks.getOrderMenu).toHaveBeenCalledTimes(1);
     expect(mocks.getDisplayMenu).not.toHaveBeenCalled();
-    expect(html).not.toContain("/s/a-hong-he-fen/schedule");
+    expect(html).not.toContain("/s/viet-food-yc/schedule");
   });
 
   it("disables a mode and explains when its public QR is missing", async () => {
@@ -136,7 +164,7 @@ describe("public storefront page", () => {
     expect(html).toContain("目前未開放外帶自取");
     expect(html).toContain("商家尚未建立可供公開連結使用的 QR Code");
     expect(html).toContain("aria-disabled=\"true\"");
-    expect(html).toContain('href="/s/a-hong-he-fen/schedule"');
+    expect(html).toContain('href="/s/viet-food-yc/schedule?locale=zh-TW"');
     expect(mocks.getOrderMenu).not.toHaveBeenCalled();
   });
 
@@ -187,7 +215,7 @@ describe("public storefront page", () => {
     });
 
     expect(menuMetadata).toMatchObject({
-      title: "越好吃一中店｜公開菜單",
+      title: "越好吃一中店｜線上 Menu",
       alternates: { canonical: "/store/viet-food-yc" },
     });
     expect(menuMetadata.robots).toBeUndefined();
