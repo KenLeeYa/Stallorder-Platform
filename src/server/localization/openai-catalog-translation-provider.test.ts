@@ -139,14 +139,14 @@ describe("OpenAiCatalogTranslationProvider", () => {
       timeout: 20_000,
     });
     expect(openAiMocks.parse).toHaveBeenCalledWith(expect.objectContaining({
-      model: "google/gemini-2.5-pro",
+      model: "google/gemini-3-flash",
       store: false,
       providerOptions: {
         gateway: { zeroDataRetention: true },
       },
     }));
     expect(getCatalogAiTranslationProviderLabel()).toBe(
-      "Vercel AI Gateway（google/gemini-2.5-pro）",
+      "Vercel AI Gateway（google/gemini-3-flash）",
     );
   });
 
