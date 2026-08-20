@@ -120,16 +120,32 @@ jobs:
               --log-level error >/dev/null
           fi
 
+          branch_status=""
+          preview_project_status=""
           for attempt in $(seq 1 30); do
             branches="$(supabase branches list \
               --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
               --output json \
               --log-level error)"
-            branch_ref="$(
-              jq -r --arg name "$PREVIEW_BRANCH_NAME" \
-                '.[] | select(.name == $name and .with_data == false) | .project_ref' <<<"$branches"
+            branch_json="$(
+              jq -c --arg name "$PREVIEW_BRANCH_NAME" \
+                '.[] | select(.name == $name and .with_data == false)' <<<"$branches"
             )"
-            if [ -n "$branch_ref" ] && [ "$branch_ref" != "$SUPABASE_PARENT_PROJECT_REF" ]; then
+            branch_ref="$(
+              jq -r '.project_ref // empty' <<<"$branch_json"
+            )"
+            branch_status="$(jq -r '.status // empty' <<<"$branch_json")"
+            preview_project_status="$(
+              jq -r '.preview_project_status // empty' <<<"$branch_json"
+            )"
+            case "$branch_status" in
+              ACTIVE_HEALTHY|MIGRATIONS_FAILED) branch_action_terminal=true ;;
+              *) branch_action_terminal=false ;;
+            esac
+            if [ -n "$branch_ref" ] \
+              && [ "$branch_ref" != "$SUPABASE_PARENT_PROJECT_REF" ] \
+              && [ "$preview_project_status" = "ACTIVE_HEALTHY" ] \
+              && [ "$branch_action_terminal" = "true" ]; then
               break
             fi
             sleep 5
@@ -139,6 +155,20 @@ jobs:
             echo "::error::Data-less Preview Branch did not become available."
             exit 1
           }
+          [ "$preview_project_status" = "ACTIVE_HEALTHY" ] || {
+            echo "::error::Preview Branch database did not become healthy."
+            exit 1
+          }
+          case "$branch_status" in
+            ACTIVE_HEALTHY) ;;
+            MIGRATIONS_FAILED)
+              echo "::warning::Hosted Branching migrations ended before the isolated reviewed migration gate."
+              ;;
+            *)
+              echo "::error::Hosted Preview Branch action did not reach a terminal state."
+              exit 1
+              ;;
+          esac
           echo "branch_ref=$branch_ref" >> "$GITHUB_OUTPUT"
 
       - name: Load and mask Preview Branch configuration
@@ -177,6 +207,29 @@ jobs:
             echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$anon_key"
             echo "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$supabase_url/functions/v1"
           } >> "$GITHUB_ENV"
+
+      - name: Wait for Preview Branch database stability
+        shell: bash
+        run: |
+          set -euo pipefail
+          stable_connections=0
+          for attempt in $(seq 1 12); do
+            if supabase migration list --db-url "$EPHEMERAL_DATABASE_URL" >/dev/null 2>&1; then
+              stable_connections="$((stable_connections + 1))"
+              if [ "$stable_connections" -ge 2 ]; then
+                break
+              fi
+            else
+              stable_connections=0
+            fi
+            if [ "$attempt" -lt 12 ]; then
+              sleep 5
+            fi
+          done
+          [ "$stable_connections" -ge 2 ] || {
+            echo "::error::Preview Branch database did not remain reachable for two consecutive probes."
+            exit 1
+          }
 
       - name: Apply reviewed migrations and synthetic fixtures
         run: |

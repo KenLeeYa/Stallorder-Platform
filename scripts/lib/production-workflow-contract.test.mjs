@@ -198,6 +198,31 @@ describe("Production workflow approval contract", () => {
     expect(vercel.git.deploymentEnabled).toEqual({ main: false });
   });
 
+  it("waits for the hosted branch action and stable database before Preview migrations", () => {
+    expect(ephemeralPreview).toContain("preview_project_status");
+    expect(ephemeralPreview).toContain("ACTIVE_HEALTHY|MIGRATIONS_FAILED");
+    expect(ephemeralPreview).toContain(
+      '[ "$preview_project_status" = "ACTIVE_HEALTHY" ]',
+    );
+
+    const stability = ephemeralPreview.indexOf(
+      "name: Wait for Preview Branch database stability",
+    );
+    const migrations = ephemeralPreview.indexOf(
+      "name: Apply reviewed migrations and synthetic fixtures",
+    );
+    const stabilityStep = ephemeralPreview.slice(stability, migrations);
+
+    expect(stability).toBeGreaterThan(-1);
+    expect(stability).toBeLessThan(migrations);
+    expect(stabilityStep).toContain("for attempt in $(seq 1 12); do");
+    expect(stabilityStep).toContain("stable_connections");
+    expect(stabilityStep).toContain(
+      'supabase migration list --db-url "$EPHEMERAL_DATABASE_URL"',
+    );
+    expect(stabilityStep).toContain('[ "$stable_connections" -ge 2 ]');
+  });
+
   it("makes Preview Function deployment bounded and fail closed", () => {
     expect(ephemeralPreview).toContain(
       "for function_directory in supabase/functions/*; do",
