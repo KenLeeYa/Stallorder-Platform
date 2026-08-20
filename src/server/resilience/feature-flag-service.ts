@@ -39,9 +39,35 @@ export const resilienceFeatureFlagCodes = [
   "FOODPANDA_INTEGRATION_ENABLED",
   "FOODPANDA_PARTNER_API_ENABLED",
   "FOODPANDA_WEBHOOK_ENABLED",
+  "DIGITAL_WAITLIST_FOUNDATION_ENABLED",
+  "ONLINE_ORDER_PAYMENT_ENABLED",
+  "RESERVATION_PREORDER_ENABLED",
+  "DYNAMIC_ORDERING_QR_FOUNDATION_ENABLED",
+  "CRM_LOYALTY_CONSENT_FOUNDATION_ENABLED",
 ] as const;
 
 export type ResilienceFeatureFlagCode = (typeof resilienceFeatureFlagCodes)[number];
+
+export const phaseThreeDormantFeatureFlagCodes = [
+  "DIGITAL_WAITLIST_FOUNDATION_ENABLED",
+  "ONLINE_ORDER_PAYMENT_ENABLED",
+  "RESERVATION_PREORDER_ENABLED",
+  "DYNAMIC_ORDERING_QR_FOUNDATION_ENABLED",
+  "CRM_LOYALTY_CONSENT_FOUNDATION_ENABLED",
+] as const satisfies readonly ResilienceFeatureFlagCode[];
+
+const phaseThreeDormantFeatureFlagCodeSet = new Set<ResilienceFeatureFlagCode>(
+  phaseThreeDormantFeatureFlagCodes,
+);
+
+export function assertResilienceFeatureFlagActivationAllowed(
+  code: ResilienceFeatureFlagCode,
+  enabled: boolean,
+) {
+  if (enabled && phaseThreeDormantFeatureFlagCodeSet.has(code)) {
+    throw new Error("RESILIENCE_PHASE_THREE_FLAG_LOCKED");
+  }
+}
 
 export const resilienceFeatureFlagDefaults: Record<ResilienceFeatureFlagCode, boolean> = {
   DUAL_ORDER_INTAKE_ENABLED: false,
@@ -75,6 +101,11 @@ export const resilienceFeatureFlagDefaults: Record<ResilienceFeatureFlagCode, bo
   FOODPANDA_INTEGRATION_ENABLED: false,
   FOODPANDA_PARTNER_API_ENABLED: false,
   FOODPANDA_WEBHOOK_ENABLED: false,
+  DIGITAL_WAITLIST_FOUNDATION_ENABLED: false,
+  ONLINE_ORDER_PAYMENT_ENABLED: false,
+  RESERVATION_PREORDER_ENABLED: false,
+  DYNAMIC_ORDERING_QR_FOUNDATION_ENABLED: false,
+  CRM_LOYALTY_CONSENT_FOUNDATION_ENABLED: false,
 };
 
 export const resilienceFlagScopeTypes = [
@@ -185,6 +216,7 @@ export function evaluateResilienceFeatureFlag(
   now = new Date(),
 ): ResilienceFlagState {
   const code = flag.code as ResilienceFeatureFlagCode;
+  if (phaseThreeDormantFeatureFlagCodeSet.has(code)) return fallbackState(code);
   const active = flag.overrides.filter((override) => (
     !override.expiresAt || override.expiresAt.getTime() > now.getTime()
   ));
@@ -374,6 +406,7 @@ export async function setResilienceFeatureFlagOverride(
   command: ResilienceFlagOverrideCommand,
   actor: FeatureFlagActor,
 ) {
+  assertResilienceFeatureFlagActivationAllowed(code, command.enabled);
   const flag = await prisma.resilienceFeatureFlag.findUnique({ where: { code } });
   if (!flag) throw new Error("RESILIENCE_FLAG_NOT_FOUND");
   if (code === "LOCAL_EDGE_GATEWAY_ENABLED" && command.enabled) {

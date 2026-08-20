@@ -1,9 +1,6 @@
 set lock_timeout = '5s';
 set statement_timeout = '2min';
 
-alter function public.refresh_kds_operational_alerts(uuid, uuid)
-  rename to refresh_kds_operational_alerts_legacy_20260813;
-
 create or replace function public.refresh_kds_operational_alerts(
   p_organization_id uuid,
   p_stall_id uuid
@@ -186,9 +183,6 @@ begin
   return v_changed;
 end;
 $$;
-
-alter function public.calculate_stall_capacity(uuid, jsonb)
-  rename to calculate_stall_capacity_legacy_20260813;
 
 create or replace function public.calculate_stall_capacity(
   p_stall_id uuid,
@@ -441,16 +435,3 @@ begin
   );
 end;
 $$;
-
-revoke all on function public.refresh_kds_operational_alerts_legacy_20260813(uuid, uuid)
-from public, anon, authenticated;
-revoke all on function public.calculate_stall_capacity_legacy_20260813(uuid, jsonb)
-from public, anon, authenticated;
-revoke all on function public.refresh_kds_operational_alerts(uuid, uuid)
-from public, anon, authenticated;
-revoke all on function public.calculate_stall_capacity(uuid, jsonb)
-from public, anon, authenticated;
-grant execute on function public.refresh_kds_operational_alerts(uuid, uuid)
-to service_role;
-grant execute on function public.calculate_stall_capacity(uuid, jsonb)
-to service_role;

@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { deriveOrderSessionToken } from "./crypto";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it, vi } from "vitest";
+import { deriveOrderSessionToken, derivePublicOrderTokens } from "./crypto";
+import { createPerformanceTiming } from "../../../src/lib/performance-timing";
 import {
   canonicalPublicOrderBehavior,
+  createPublicOrderValidationCode,
   createPublicOrderSchema,
   issueOrderSessionSchema,
 } from "./schemas";
@@ -10,9 +14,41 @@ import {
   PUBLIC_ORDER_OPERATION_ID_HEADER as CLIENT_OPERATION_ID_HEADER,
 } from "../../../src/lib/public-order-operation-id";
 import {
+  errorMessage as edgeErrorMessage,
   getPublicOrderOperationId,
   PUBLIC_ORDER_OPERATION_ID_HEADER as EDGE_OPERATION_ID_HEADER,
+  statusForCode as edgeStatusForCode,
 } from "./http";
+import {
+  errorMessage as circuitBErrorMessage,
+  statusForCode as circuitBStatusForCode,
+} from "./public-order-errors";
+import { createEdgePerformanceTiming } from "./performance";
+import {
+  canonicalPublicOrderTimestamp,
+  publicOrderReplayPickupCodeLength,
+} from "./public-order-replay";
+
+const publicOrderErrorSource = readFileSync(
+  fileURLToPath(new URL("./public-order-errors.ts", import.meta.url)),
+  "utf8",
+);
+const createPublicOrderSource = readFileSync(
+  fileURLToPath(new URL("../create-public-order/index.ts", import.meta.url)),
+  "utf8",
+);
+const createOrderSessionSource = readFileSync(
+  fileURLToPath(new URL("../create-order-session/index.ts", import.meta.url)),
+  "utf8",
+);
+const circuitBServiceSource = readFileSync(
+  fileURLToPath(new URL("../../../src/server/public-order/circuit-b-service.ts", import.meta.url)),
+  "utf8",
+);
+const trustedRpcRepositorySource = readFileSync(
+  fileURLToPath(new URL("../../../src/server/public-order/trusted-rpc-repository.ts", import.meta.url)),
+  "utf8",
+);
 
 describe("dual public order contract", () => {
   it("uses one canonical operation id contract for both circuits", () => {
@@ -43,6 +79,144 @@ describe("dual public order contract", () => {
     expect(circuitA).toMatch(/^stos_[A-Za-z0-9_-]{43}$/);
   });
 
+  it("preserves the configured pickup-code length across Circuit A and B replay", async () => {
+    const orderId = "11111111-1111-4111-8111-111111111111";
+    const secret = "test-secret";
+
+    for (const storedLength of [3, 6] as const) {
+      const pickupCodeLength = publicOrderReplayPickupCodeLength(storedLength);
+      const [circuitA, circuitB] = await Promise.all([
+        derivePublicOrderTokens(orderId, secret, pickupCodeLength),
+        derivePublicOrderTokens(orderId, secret, pickupCodeLength),
+      ]);
+
+      expect(circuitA).toEqual(circuitB);
+      expect(circuitA.pickupCode).toHaveLength(storedLength);
+    }
+  });
+
+  it("canonicalizes PostgreSQL timestamps with and without an explicit UTC offset", () => {
+    expect(canonicalPublicOrderTimestamp("2026-08-12T20:08:30.770455+00:00"))
+      .toBe("2026-08-12T20:08:30.770Z");
+    expect(canonicalPublicOrderTimestamp("2026-08-12T20:08:30.770455"))
+      .toBe("2026-08-12T20:08:30.770Z");
+    expect(canonicalPublicOrderTimestamp("2026-08-12T20:08:30.770555+00:00"))
+      .toBe("2026-08-12T20:08:30.771Z");
+  });
+
+  it("uses one pure formatter contract for successful order and session responses", () => {
+    expect(createPublicOrderSource).toContain("buildPublicOrderResponse(");
+    expect(circuitBServiceSource).toContain("buildPublicOrderResponse(");
+    expect(createPublicOrderSource).not.toMatch(/^function publicOrderResponse/m);
+    expect(circuitBServiceSource).not.toMatch(/^function publicOrderResponse/m);
+
+    expect(createOrderSessionSource).toContain("buildPublicOrderSessionResponse(");
+    expect(circuitBServiceSource).toContain("buildPublicOrderSessionResponse(");
+    expect(createOrderSessionSource).toContain("buildPublicOrderResumeResponse(");
+    expect(circuitBServiceSource).toContain("buildPublicOrderResumeResponse(");
+  });
+
+  it("keeps every declared public error response identical across both circuits", () => {
+    const publicErrorCodes = [...new Set(
+      [...publicOrderErrorSource.matchAll(/^\s{4}([A-Z][A-Z0-9_]+):/gm)]
+        .map((match) => match[1]),
+    )];
+    const unknownMessage = edgeErrorMessage("UNKNOWN_GOLDEN_ERROR");
+
+    expect(publicErrorCodes.length).toBeGreaterThan(70);
+    for (const code of publicErrorCodes) {
+      expect(edgeErrorMessage(code)).not.toBe(unknownMessage);
+      expect(edgeErrorMessage(code)).toBe(circuitBErrorMessage(code));
+      expect(edgeStatusForCode(code)).toBe(circuitBStatusForCode(code));
+      expect(edgeStatusForCode(code)).toBeGreaterThanOrEqual(400);
+      expect(edgeStatusForCode(code)).toBeLessThan(600);
+    }
+  });
+
+  it("maps unavailable table state to a resource conflict in both circuits", () => {
+    expect(edgeStatusForCode("TABLE_UNAVAILABLE")).toBe(409);
+    expect(circuitBStatusForCode("TABLE_UNAVAILABLE")).toBe(409);
+  });
+
+  it("uses one canonical DB preflight while retaining the same transaction RPCs", () => {
+    expect(createOrderSessionSource).toMatch(/admin\.rpc\(\s*"public_order_preflight"/);
+    expect(createPublicOrderSource).toMatch(/admin\.rpc\(\s*"public_order_preflight"/);
+    expect(trustedRpcRepositorySource).toContain("select public.public_order_preflight(");
+    expect(circuitBServiceSource.match(/preflightPublicOrder\(/g)).toHaveLength(2);
+
+    expect(createOrderSessionSource).toContain(
+      'admin.rpc("issue_idempotent_order_session_with_schedule_targeted"',
+    );
+    expect(createPublicOrderSource).toContain(
+      '"create_public_order_with_fulfillment_time_targeted"',
+    );
+    expect(createOrderSessionSource).not.toContain(
+      'admin.rpc("issue_idempotent_order_session_with_schedule",',
+    );
+    expect(createPublicOrderSource).not.toContain(
+      '"create_public_order_with_fulfillment_time",',
+    );
+    expect(circuitBServiceSource).toContain("issueIdempotentOrderSession({");
+    expect(circuitBServiceSource).toContain("createPublicOrderWithSchedule({");
+
+    const forbiddenPreflightCalls = [
+      "lookupResumablePublicOrder(",
+      "lookupPublicOrderIdempotency(",
+      "getOrderSessionMode(sessionHash)",
+      "getPublicSessionMenuContext(",
+    ];
+    for (const call of forbiddenPreflightCalls) {
+      expect(circuitBServiceSource).not.toContain(call);
+    }
+  });
+
+  it("keeps query-budget and audit-correlation fields aligned", async () => {
+    const requestId = "request-golden-test";
+    const operationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const edgeLogger = vi.fn();
+    const circuitBLogger = vi.fn();
+    const edgeNowValues = [0, 1, 2, 3];
+    const circuitBNowValues = [0, 1, 2, 3];
+    const edgeTiming = createEdgePerformanceTiming({
+      route: "/functions/v1/create-order-session",
+      requestId,
+      operationId,
+      now: () => edgeNowValues.shift() ?? 3,
+      logger: edgeLogger,
+    });
+    const circuitBTiming = createPerformanceTiming({
+      route: "/api/public/order-session",
+      requestId,
+      operationId,
+      now: () => circuitBNowValues.shift() ?? 3,
+      logger: circuitBLogger,
+    });
+
+    await edgeTiming.measureDb(async () => undefined, 4);
+    await circuitBTiming.measureDb(async () => undefined, 5);
+    const edgeResult = edgeTiming.finish(201);
+    const circuitBResult = circuitBTiming.finish({ status: 201 });
+
+    expect(edgeResult.serverTiming).toContain("db-query-count;dur=4");
+    expect(circuitBResult.serverTiming).toContain("db-query-count;dur=5");
+    expect(edgeLogger).toHaveBeenCalledWith(expect.objectContaining({
+      requestId,
+      operationId,
+      status: 201,
+      dbQueryCount: 4,
+    }));
+    expect(circuitBLogger).toHaveBeenCalledWith(
+      "info",
+      "request_completed",
+      expect.objectContaining({
+        requestId,
+        operationId,
+        status: 201,
+        dbQueryCount: 5,
+      }),
+    );
+  });
+
   it("accepts stable cross-circuit identifiers and rejects tenant injection", () => {
     expect(issueOrderSessionSchema.safeParse({
       qrToken: "demo-aming-chicken-qr-2026-rotate-me",
@@ -67,6 +241,32 @@ describe("dual public order contract", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("preserves the specific missing PREORDER time code without weakening strict validation", () => {
+    const base = {
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      orderSessionToken: `stos_${"a".repeat(43)}`,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      idempotencyKey: "22222222-2222-4222-8222-222222222222",
+      orderingMode: "PREORDER" as const,
+      scheduledPickupAt: null,
+      items: [{
+        productId: "55555555-5555-4555-8555-555555555555",
+        quantity: 1,
+        noteOptionIds: [],
+        bundleChoiceIds: [],
+      }],
+      turnstileToken: "turnstile-token",
+    };
+    const missingTime = createPublicOrderSchema.safeParse(base);
+    const tampered = createPublicOrderSchema.safeParse({ ...base, organizationId: crypto.randomUUID() });
+
+    expect(missingTime.success).toBe(false);
+    expect(tampered.success).toBe(false);
+    if (missingTime.success || tampered.success) throw new Error("expected validation failures");
+    expect(createPublicOrderValidationCode(missingTime.error)).toBe("PREORDER_TIME_REQUIRED");
+    expect(createPublicOrderValidationCode(tampered.error)).toBe("INVALID_REQUEST");
   });
 
   it("allows the same product with distinct options but rejects an identical split line", () => {

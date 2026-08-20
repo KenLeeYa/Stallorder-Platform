@@ -10,7 +10,14 @@ import {
   requireCircuitBClientIp,
 } from "@/server/public-order/circuit-b-http";
 import { createOrderThroughCircuitB } from "@/server/public-order/circuit-b-service";
-import { createPublicOrderSchema } from "../../../../../supabase/functions/_shared/schemas";
+import {
+  createPublicOrderSchema,
+  createPublicOrderValidationCode,
+} from "../../../../../supabase/functions/_shared/schemas";
+import {
+  errorMessage,
+  statusForCode,
+} from "../../../../../supabase/functions/_shared/public-order-errors";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -33,9 +40,10 @@ export async function POST(request: Request) {
     }
     const parsed = createPublicOrderSchema.safeParse(body.data);
     if (!parsed.success) {
+      const code = createPublicOrderValidationCode(parsed.error);
       return circuitBResponse(
-        { error: "訂單資料不正確。", code: "INVALID_REQUEST" },
-        400,
+        { error: errorMessage(code), code },
+        statusForCode(code),
         requestId,
         timing,
         operationId,

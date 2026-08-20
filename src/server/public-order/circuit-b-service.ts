@@ -21,6 +21,20 @@ import {
 } from "../../../supabase/functions/_shared/schemas";
 import { verifyTurnstile } from "../../../supabase/functions/_shared/turnstile";
 import { statusForCode } from "../../../supabase/functions/_shared/public-order-errors";
+import {
+  canonicalPublicOrderTimestamp,
+  publicOrderReplayPickupCodeLength,
+} from "../../../supabase/functions/_shared/public-order-replay";
+import {
+  buildPublicOrderCapacityDetails,
+  buildPublicOrderResponse,
+  buildPublicOrderResumeResponse,
+  buildPublicOrderSessionResponse,
+  publicOrderItemsToRpc,
+  publicOrderNeedsPickupCode,
+  publicOrderSessionAbuseBehavior,
+  publicOrderSubmissionAbuseBehavior,
+} from "../../../supabase/functions/_shared/public-order-contract";
 import { resolveResilienceFeatureFlags } from "@/server/resilience/feature-flag-service";
 import {
   checkGlobalPublicRequestGate,
@@ -30,13 +44,11 @@ import {
   getLastDiningTableOrder,
   getOrderQuote,
   getOrderSessionMode,
-  getPublicSessionMenuContext,
   getTrackedOrderContext,
   getTrackedPublicOrder,
   issueIdempotentOrderSession,
-  lookupPublicOrderIdempotency,
-  lookupResumablePublicOrder,
   persistPickupCodeDisplay,
+  preflightPublicOrder,
   recordPublicOrderAttempt,
   revokeOrderSession,
   type StoredPublicOrder,
@@ -99,36 +111,12 @@ async function publicHashes(input: {
   return { ipHash, deviceHash, qrTokenHash, behaviorHash };
 }
 
-function publicOrderResponse(order: StoredPublicOrder, trackingToken: string, pickupCode: string) {
-  const fulfillmentType = order.fulfillment_type ?? "TAKEOUT";
-  const pickupRequired = order.pickup_required === true
-    || (order.pickup_required === undefined && fulfillmentType === "TAKEOUT");
-  return {
-    orderNo: order.order_no,
-    trackingToken,
-    pickupVerificationCode: pickupRequired ? pickupCode : null,
-    fulfillmentType,
-    orderStatus: order.order_status,
-    paymentStatus: order.payment_status,
-    totalAmount: order.total_amount,
-    quotedWaitMinutes: order.quoted_wait_minutes ?? null,
-    quotedReadyAt: order.quoted_ready_at ?? null,
-    scheduledPickupAt: order.scheduled_pickup_at ?? null,
-    requestedFulfillmentAt: order.requested_fulfillment_at ?? null,
-    discountAmount: order.discount_amount ?? 0,
-    createdAt: order.created_at,
-  };
-}
-
 async function persistPickupCode(
   order: StoredPublicOrder,
   pickupCode: string,
   timing: Timing,
 ) {
-  const fulfillmentType = order.fulfillment_type ?? "TAKEOUT";
-  const pickupRequired = order.pickup_required === true
-    || (order.pickup_required === undefined && fulfillmentType === "TAKEOUT");
-  if (!pickupRequired) return;
+  if (!publicOrderNeedsPickupCode(order)) return;
   await timing.measureDb(() => persistPickupCodeDisplay(order.order_id, pickupCode));
 }
 
@@ -147,7 +135,12 @@ export async function issueOrderSessionThroughCircuitB(
     clientIp: context.clientIp,
     deviceId: input.deviceId,
     qrToken: input.qrToken,
-    behavior: `scan:${orderingMode}:${context.clientIp}:${input.deviceId}:${input.qrToken}`,
+    behavior: publicOrderSessionAbuseBehavior({
+      orderingMode,
+      clientIp: context.clientIp,
+      deviceId: input.deviceId,
+      qrToken: input.qrToken,
+    }),
   });
   const intake = await context.timing.measureDb(
     () => checkPublicOrderIntakeAvailability(input.qrToken, input.deviceId),
@@ -163,7 +156,8 @@ export async function issueOrderSessionThroughCircuitB(
   }));
   gateError(globalGate);
 
-  const resumableOrder = await context.timing.measureDb(() => lookupResumablePublicOrder({
+  const preflight = await context.timing.measureDb(() => preflightPublicOrder({
+    scope: "SESSION",
     orderingMode,
     qrToken: input.qrToken,
     deviceHash: hashes.deviceHash,
@@ -171,7 +165,9 @@ export async function issueOrderSessionThroughCircuitB(
     qrTokenHash: hashes.qrTokenHash,
     behaviorHash: hashes.behaviorHash,
     requestId: context.requestId,
+    intakeCode: intake?.code ?? null,
   }));
+  const resumableOrder = preflight?.resumable_order;
   if (resumableOrder) {
     const { trackingToken } = await derivePublicOrderTokens(
       resumableOrder.order_id,
@@ -179,16 +175,17 @@ export async function issueOrderSessionThroughCircuitB(
     );
     return {
       status: 200,
-      body: {
+      body: buildPublicOrderResumeResponse(
         orderingMode,
-        resumeOrder: {
-          trackingToken,
-          orderStatus: resumableOrder.order_status,
-        },
-      },
+        trackingToken,
+        resumableOrder.order_status,
+      ),
     };
   }
-  intakeError(intake);
+  if (!preflight?.ok) {
+    const code = preflight?.code ?? "QR_ORDERING_UNAVAILABLE";
+    throw new PublicOrderCircuitError(code, statusForCode(code));
+  }
 
   const sessionToken = await deriveOrderSessionToken(
     input.sessionRequestId ?? randomUUID(),
@@ -215,40 +212,12 @@ export async function issueOrderSessionThroughCircuitB(
     throw new PublicOrderCircuitError(code, statusForCode(code));
   }
 
-  const menuContext = await context.timing.measureDb(
-    () => getPublicSessionMenuContext(result.order_session_id!, result.stall_id!),
-  );
-  const settings = menuContext?.stall.orderingSettings;
-  if (
-    orderingMode === "DELIVERY"
-    && (menuContext?.diningTable || !settings?.deliveryModuleEnabled)
-  ) {
-    await context.timing.measureDb(() => revokeOrderSession(result.order_session_id!));
-    throw new PublicOrderCircuitError("DELIVERY_UNAVAILABLE", 409);
-  }
-  if (
-    orderingMode === "DEFAULT"
-    && menuContext?.diningTable
-    && (!menuContext.diningTable.isActive || !settings?.dineInEnabled)
-  ) {
-    throw new PublicOrderCircuitError("TABLE_UNAVAILABLE", 409);
-  }
-
-  const capacity = result.capacity;
-  const preorderSession = orderingMode === "PREORDER";
-  const sessionResponse = {
+  const sessionResponse = buildPublicOrderSessionResponse({
     orderSessionToken: sessionToken,
-    expiresAt: result.expires_at,
-    estimatedWaitMinutes: preorderSession ? 0 : capacity?.quote_max_minutes ?? null,
-    estimatedWaitMinMinutes: preorderSession ? 0 : capacity?.quote_min_minutes ?? null,
-    estimatedWaitMaxMinutes: preorderSession ? 0 : capacity?.quote_max_minutes ?? null,
-    waitAcknowledgmentThresholdMinutes:
-      preorderSession ? null : capacity?.acknowledgment_threshold_minutes ?? null,
-    requiresWaitAcknowledgment: preorderSession
-      ? false
-      : capacity?.requires_acknowledgment === true,
+    expiresAt: canonicalPublicOrderTimestamp(result.expires_at),
     orderingMode,
-  };
+    capacity: result.capacity,
+  });
 
   if (!input.includeMenu) {
     return {
@@ -320,7 +289,14 @@ export async function createOrderThroughCircuitB(
     clientIp: context.clientIp,
     deviceId: input.deviceId,
     qrToken: input.qrToken,
-    behavior: `order:${input.orderingMode}:${input.deviceId}:${input.qrToken}:${input.scheduledPickupAt ?? ""}:${input.lotteryDrawId ?? ""}:${sortedBehavior}`,
+    behavior: publicOrderSubmissionAbuseBehavior({
+      orderingMode: input.orderingMode,
+      deviceId: input.deviceId,
+      qrToken: input.qrToken,
+      scheduledPickupAt: input.scheduledPickupAt,
+      lotteryDrawId: input.lotteryDrawId,
+      canonicalItems: sortedBehavior,
+    }),
   });
   const [sessionHash, idempotencyHash] = await Promise.all([
     sha256Hex(input.orderSessionToken),
@@ -350,52 +326,51 @@ export async function createOrderThroughCircuitB(
   }));
   gateError(globalGate);
 
-  const session = await context.timing.measureDb(() => getOrderSessionMode(sessionHash));
-  if (!session) {
-    await recordSubmissionFailure("SESSION_NOT_FOUND", failureValues, context.timing);
-    throw new PublicOrderCircuitError("SESSION_NOT_FOUND", 404);
-  }
-  if (session.orderingMode !== input.orderingMode) {
-    await recordSubmissionFailure("ORDER_MODE_CONFLICT", failureValues, context.timing);
-    throw new PublicOrderCircuitError("ORDER_MODE_CONFLICT", 409);
+  const preflight = await context.timing.measureDb(() => preflightPublicOrder({
+    scope: "ORDER",
+    orderingMode: input.orderingMode,
+    qrToken: input.qrToken,
+    deviceHash: hashes.deviceHash,
+    ipHash: hashes.ipHash,
+    qrTokenHash: hashes.qrTokenHash,
+    behaviorHash: hashes.behaviorHash,
+    requestId: context.requestId,
+    sessionTokenHash: sessionHash,
+    idempotencyKey: input.idempotencyKey,
+    idempotencyHash,
+    requestedFulfillmentAt: input.scheduledPickupAt,
+    lotteryDrawId: input.lotteryDrawId,
+    items: publicOrderItemsToRpc(input.items),
+    waitAcknowledged: input.waitAcknowledged,
+    intakeCode: intake?.code ?? null,
+  }));
+  if (!preflight?.ok) {
+    const code = preflight?.code ?? "ORDER_CREATE_ERROR";
+    throw new PublicOrderCircuitError(
+      code,
+      statusForCode(code),
+      buildPublicOrderCapacityDetails(preflight?.capacity),
+    );
   }
 
-  const existing = await context.timing.measureDb(
-    () => lookupPublicOrderIdempotency(sessionHash, input.idempotencyKey),
-  );
+  const existing = preflight.idempotent_order;
   if (existing) {
-    const quote = await context.timing.measureDb(() => getOrderQuote(existing.order_id));
-    const requestedPickupTime = input.scheduledPickupAt
-      ? new Date(input.scheduledPickupAt).getTime()
-      : null;
-    const storedPickupTime = quote?.requestedFulfillmentAt?.getTime() ?? null;
-    if (
-      requestedPickupTime !== storedPickupTime
-      || (quote?.lotteryDrawId ?? null) !== input.lotteryDrawId
-    ) {
-      await recordSubmissionFailure("IDEMPOTENCY_CONFLICT", failureValues, context.timing);
-      throw new PublicOrderCircuitError("IDEMPOTENCY_CONFLICT", 409);
-    }
-    existing.fulfillment_type = quote?.fulfillmentType ?? existing.fulfillment_type;
-    existing.pickup_required = quote?.fulfillmentType === "TAKEOUT";
-    existing.quoted_wait_minutes = quote?.quotedWaitMinutes ?? null;
-    existing.quoted_ready_at = quote?.quotedReadyAt?.toISOString() ?? null;
-    existing.scheduled_pickup_at = quote?.scheduledPickupAt?.toISOString() ?? null;
-    existing.requested_fulfillment_at = quote?.requestedFulfillmentAt?.toISOString() ?? null;
-    existing.discount_amount = quote?.discountAmount ?? 0;
     const tokens = await derivePublicOrderTokens(
       existing.order_id,
       requireSecret("TOKEN_DERIVATION_SECRET"),
-      quote?.pickupCodeLength === 6 ? 6 : 3,
+      publicOrderReplayPickupCodeLength(existing.pickup_code_length),
     );
     await persistPickupCode(existing, tokens.pickupCode, context.timing);
     return {
       status: 200,
-      body: publicOrderResponse(existing, tokens.trackingToken, tokens.pickupCode),
+      body: buildPublicOrderResponse(
+        existing,
+        tokens.trackingToken,
+        tokens.pickupCode,
+        canonicalPublicOrderTimestamp(existing.created_at),
+      ),
     };
   }
-  intakeError(intake);
-
   const submissionGate = await context.timing.measureDb(() => checkPublicOrderSubmissionGate({
     sessionTokenHash: sessionHash,
     ipHash: hashes.ipHash,
@@ -445,13 +420,7 @@ export async function createOrderThroughCircuitB(
     customerPhone: input.customerPhone,
     deliveryAddress: input.deliveryAddress,
     customerNote: input.customerNote,
-    items: input.items.map((item) => ({
-      product_id: item.productId,
-      quantity: item.quantity,
-      note: item.note,
-      modifier_option_ids: item.noteOptionIds,
-      bundle_choice_ids: item.bundleChoiceIds,
-    })),
+    items: publicOrderItemsToRpc(input.items),
     trackingTokenHash,
     pickupCodeHash,
     requestId: context.requestId,
@@ -461,14 +430,11 @@ export async function createOrderThroughCircuitB(
   }));
   if (!result?.ok || !result.order) {
     const code = result?.code ?? "ORDER_CREATE_ERROR";
-    throw new PublicOrderCircuitError(code, statusForCode(code), result?.capacity ? {
-      capacity: {
-        estimatedWaitMinMinutes: result.capacity.quote_min_minutes ?? null,
-        estimatedWaitMaxMinutes: result.capacity.quote_max_minutes ?? null,
-        requiresWaitAcknowledgment:
-          result.capacity.requires_acknowledgment === true,
-      },
-    } : undefined);
+    throw new PublicOrderCircuitError(
+      code,
+      statusForCode(code),
+      buildPublicOrderCapacityDetails(result?.capacity),
+    );
   }
 
   const finalTokens = result.order.order_id === orderId
@@ -488,7 +454,12 @@ export async function createOrderThroughCircuitB(
   await persistPickupCode(result.order, finalTokens.pickupCode, context.timing);
   return {
     status: result.idempotent_replay ? 200 : 201,
-    body: publicOrderResponse(result.order, finalTokens.trackingToken, finalTokens.pickupCode),
+    body: buildPublicOrderResponse(
+      result.order,
+      finalTokens.trackingToken,
+      finalTokens.pickupCode,
+      canonicalPublicOrderTimestamp(result.order.created_at),
+    ),
   };
 }
 

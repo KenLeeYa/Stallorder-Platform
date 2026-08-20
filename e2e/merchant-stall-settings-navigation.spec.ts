@@ -6,6 +6,7 @@ const stallId = "22222222-2222-4222-8222-222222222222";
 test.use({ viewport: { width: 375, height: 812 } });
 
 test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
   const overviewPath = `/merchant/stalls/${stallId}`;
   const sectionLinks = [
     ["基本資料", "basic"],

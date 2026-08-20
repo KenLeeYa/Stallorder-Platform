@@ -13,19 +13,22 @@ describe("future fulfillment production load migration", () => {
     expect(assertAdditiveMigrationSql(migrationSource)).toBe(true);
   });
 
-  it("pairs both legacy function renames with compatible replacements", () => {
-    expect(migrationSource).toContain([
-      "alter function public.refresh_kds_operational_alerts(uuid, uuid)",
-      "  rename to refresh_kds_operational_alerts_legacy_20260813;",
-      "",
+  it("replaces both function bodies in place so existing dependencies retain identity", () => {
+    expect(migrationSource).toContain(
       "create or replace function public.refresh_kds_operational_alerts(",
-    ].join("\n"));
-    expect(migrationSource).toContain([
-      "alter function public.calculate_stall_capacity(uuid, jsonb)",
-      "  rename to calculate_stall_capacity_legacy_20260813;",
-      "",
+    );
+    expect(migrationSource).toContain(
       "create or replace function public.calculate_stall_capacity(",
-    ].join("\n"));
+    );
+    expect(migrationSource).not.toMatch(/\balter\s+function\b/i);
+    expect(migrationSource).not.toContain("_legacy_20260813");
+    expect(migrationSource).not.toMatch(/\b(?:revoke|grant)\b/i);
+  });
+
+  it("rejects any change outside the hash-bound reviewed function migration", () => {
+    expect(() => assertAdditiveMigrationSql(
+      migrationSource.replace("v_critical_minutes integer;", "v_critical_minutes bigint;"),
+    )).toThrow("FUNCTION_REPLACEMENT_EXISTING_OBJECT_FORBIDDEN");
   });
 
   it("excludes unstarted future business dates while retaining started work", () => {
