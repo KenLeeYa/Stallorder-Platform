@@ -183,6 +183,7 @@ begin
   return v_changed;
 end;
 $$;
+
 create or replace function public.calculate_stall_capacity(
   p_stall_id uuid,
   p_items jsonb default '[]'::jsonb
@@ -434,4 +435,3 @@ begin
   );
 end;
 $$;
-
