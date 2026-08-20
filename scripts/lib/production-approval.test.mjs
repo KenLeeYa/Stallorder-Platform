@@ -71,6 +71,24 @@ describe("production approval receipts", () => {
     });
   });
 
+  it("binds an application-only release to its dedicated workflow", () => {
+    const receipt = validReceipt({
+      operation: "production-application",
+      parameters: { databaseChanges: false, edgeFunctionChanges: false },
+    });
+
+    expect(validate(receipt, {
+      expected: {
+        operation: "production-application",
+        parameters: { databaseChanges: false, edgeFunctionChanges: false },
+      },
+      runMetadata: validMetadata({
+        path: ".github/workflows/production-application-release.yml",
+        event: "workflow_dispatch",
+      }),
+    })).toMatchObject({ operation: "production-application" });
+  });
+
   it("binds predecessor evidence to a completed successful operation run", () => {
     const evidence = createProductionOperationEvidence({
       repository: "KenLeeYa/Stallorder-Platform",
