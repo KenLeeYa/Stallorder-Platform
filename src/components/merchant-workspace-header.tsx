@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   BarChart3,
   Building2,
@@ -21,57 +21,35 @@ import { hasPermission } from "@/lib/rbac";
 import { buildWorkModeDestinations } from "@/lib/work-mode";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import type { WorkspaceOrganization } from "@/lib/workspace";
+import type { WorkspaceRouteContext } from "@/lib/workspace-route-context";
 
 const ORGANIZATION_STORAGE_KEY = "stallorder.organization.preference";
-
-export function resolveMerchantRouteContext(
-  workspaces: WorkspaceOrganization[],
-  pathname: string,
-  queryOrganizationId: string | null,
-) {
-  const pathStall = workspaces
-    .flatMap((workspace) => workspace.stalls)
-    .find((stall) => {
-      const stallSettingsPath = `/merchant/stalls/${stall.id}`;
-      return pathname === `/merchant/${stall.slug}`
-        || pathname.includes(`/staff/${stall.slug}`)
-        || pathname === stallSettingsPath
-        || pathname.startsWith(`${stallSettingsPath}/`);
-    });
-
-  return {
-    pathStall,
-    routeOrganizationId: pathStall?.organizationId ?? queryOrganizationId ?? null,
-  };
-}
 
 export function MerchantWorkspaceHeader({
   workspaces,
   displayName,
+  routeContext,
 }: {
   workspaces: WorkspaceOrganization[];
   displayName: string;
+  routeContext: WorkspaceRouteContext;
 }) {
   const { m } = useMerchantMessages();
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const queryOrganizationId = searchParams.get("organizationId");
-  const { pathStall, routeOrganizationId } = resolveMerchantRouteContext(
-    workspaces,
-    pathname,
-    queryOrganizationId,
-  );
   const [preferredOrganizationId, setPreferredOrganizationId] = useState(
-    routeOrganizationId ?? workspaces[0]?.id ?? "",
+    routeContext.organizationId ?? workspaces[0]?.id ?? "",
   );
-  const organizationId = routeOrganizationId ?? preferredOrganizationId;
+  const organizationId = routeContext.organizationId ?? preferredOrganizationId;
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false);
 
   const workspace = useMemo(
     () => workspaces.find((candidate) => candidate.id === organizationId) ?? workspaces[0],
     [organizationId, workspaces],
   );
+  const routeStall = routeContext.stallId
+    ? workspaces.flatMap((candidate) => candidate.stalls)
+      .find((stall) => stall.id === routeContext.stallId)
+    : undefined;
   const activeStalls = workspace?.stalls.filter((stall) => stall.isActive) ?? [];
   const showOrganizationSelector = workspaces.length > 1;
   const showStallSelector = activeStalls.length > 1;
@@ -80,8 +58,8 @@ export function MerchantWorkspaceHeader({
     () => buildWorkModeDestinations(workspaces),
     [workspaces],
   );
-  const selectedScope = pathStall?.organizationId === workspace?.id
-    ? pathStall.id
+  const selectedScope = routeStall?.organizationId === workspace?.id
+    ? routeStall.id
     : (workspace?.canUseAllStalls ? "ALL_STALLS" : activeStalls[0]?.id ?? "");
 
   function selectOrganization(nextOrganizationId: string) {

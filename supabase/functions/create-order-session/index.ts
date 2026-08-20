@@ -19,6 +19,12 @@ import {
 import { issueOrderSessionSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
 import { createEdgePerformanceTiming, finalizeEdgeResponse } from "../_shared/performance.ts";
+import { canonicalPublicOrderTimestamp } from "../_shared/public-order-replay.ts";
+import {
+  buildPublicOrderResumeResponse,
+  buildPublicOrderSessionResponse,
+  publicOrderSessionAbuseBehavior,
+} from "../_shared/public-order-contract.ts";
 import {
   applyBestSellerRanking,
   type BestSellerRankRow,
@@ -61,7 +67,12 @@ Deno.serve(async (request) => {
       hmacHex(abuseSecret, `ip:${clientIp}`),
       hmacHex(abuseSecret, `device:${parsed.data.deviceId}`),
       hmacHex(abuseSecret, `qr:${parsed.data.qrToken}`),
-      hmacHex(abuseSecret, `scan:${orderingMode}:${clientIp}:${parsed.data.deviceId}:${parsed.data.qrToken}`),
+      hmacHex(abuseSecret, publicOrderSessionAbuseBehavior({
+        orderingMode,
+        clientIp,
+        deviceId: parsed.data.deviceId,
+        qrToken: parsed.data.qrToken,
+      })),
     ]);
 
     const { data: intakeResult, error: intakeError } = await timing.measureDb(() => admin.rpc(
@@ -95,39 +106,75 @@ Deno.serve(async (request) => {
       return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const { data: resumableOrder, error: resumableOrderError } = await timing.measureDb(() => admin.rpc(
-      orderingMode === "DELIVERY"
-        ? "lookup_resumable_public_delivery_order"
-        : "lookup_resumable_public_order",
+    const { data: preflightResult, error: preflightError } = await timing.measureDb(() => admin.rpc(
+      "public_order_preflight",
       {
+        p_scope: "SESSION",
         p_qr_token: parsed.data.qrToken,
+        p_ordering_mode: orderingMode,
         p_device_hash: deviceHash,
         p_ip_hash: ipHash,
         p_qr_token_hash: qrTokenHash,
         p_behavior_hash: behaviorHash,
         p_request_id: requestId,
-        p_ordering_mode: orderingMode,
+        p_session_token_hash: null,
+        p_idempotency_key: null,
+        p_idempotency_hash: null,
+        p_requested_fulfillment_at: null,
+        p_lottery_draw_id: null,
+        p_items: [],
+        p_wait_acknowledged: false,
+        p_intake_code: intake.ok ? null : intake.code ?? "QR_ORDERING_UNAVAILABLE",
       },
     ));
-    if (resumableOrderError) throw resumableOrderError;
+    if (preflightError) throw preflightError;
+    const preflight = preflightResult as {
+      ok: boolean;
+      code?: string;
+      capacity?: {
+        quote_min_minutes?: number;
+        quote_max_minutes?: number;
+        acknowledgment_threshold_minutes?: number;
+        requires_acknowledgment?: boolean;
+      };
+      resumable_order?: { order_id: string; order_status: string } | null;
+      qr_context?: {
+        dining_table_id?: string | null;
+        fulfillment_type_context?: string | null;
+        table?: { id: string; label: string; code: string; is_active: boolean } | null;
+        settings?: {
+          max_item_quantity: number;
+          max_unique_products: number;
+          max_total_quantity: number;
+          max_note_length: number;
+          dine_in_enabled: boolean;
+          delivery_module_enabled: boolean;
+          takeout_preorder_enabled: boolean;
+          enabled_locales: string[];
+          estimated_wait_minutes: number;
+          lottery_enabled: boolean;
+        };
+      } | null;
+    };
+    const resumableOrder = preflight.resumable_order;
     if (resumableOrder) {
-      const recovered = resumableOrder as { order_id: string; order_status: string };
       const { trackingToken } = await derivePublicOrderTokens(
-        recovered.order_id,
+        resumableOrder.order_id,
         requireEnv("TOKEN_DERIVATION_SECRET"),
       );
-      return respond({
+      return respond(buildPublicOrderResumeResponse(
         orderingMode,
-        resumeOrder: {
-          trackingToken,
-          orderStatus: recovered.order_status,
-        },
-      }, 200);
+        trackingToken,
+        resumableOrder.order_status,
+      ), 200);
     }
-    if (!intake.ok) {
-      const code = intake.code ?? "QR_ORDERING_UNAVAILABLE";
+    if (!preflight.ok) {
+      const code = preflight.code ?? "QR_ORDERING_UNAVAILABLE";
       return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
+    const qrContext = preflight.qr_context;
+    const settings = qrContext?.settings;
+    if (!qrContext || !settings) throw new Error("PUBLIC_ORDER_PREFLIGHT_CONTEXT_MISSING");
 
     const sessionToken = await deriveOrderSessionToken(
       parsed.data.sessionRequestId ?? crypto.randomUUID(),
@@ -139,7 +186,7 @@ Deno.serve(async (request) => {
 
     const { data: sessionResult, error: sessionError } = await timing.measure(
       "sessionMs",
-      () => timing.measureDb(() => admin.rpc("issue_idempotent_order_session_with_schedule", {
+      () => timing.measureDb(() => admin.rpc("issue_idempotent_order_session_with_schedule_targeted", {
         p_qr_token: parsed.data.qrToken,
         p_session_token_hash: sessionTokenHash,
         p_ip_hash: ipHash,
@@ -172,97 +219,53 @@ Deno.serve(async (request) => {
       return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const [settingsQuery, qrQuery, fullMenuQueries] = await timing.measureDb(() => Promise.all([
-      admin.from("stall_ordering_settings")
-        .select("max_item_quantity, max_unique_products, max_total_quantity, max_note_length, dine_in_enabled, delivery_module_enabled, takeout_preorder_enabled, enabled_locales, estimated_wait_minutes, lottery_enabled")
-        .eq("stall_id", result.stall_id)
-        .single(),
-      admin.from("qr_codes")
-        .select("dining_table_id, fulfillment_type_context")
-        .eq("id", result.qr_code_id)
-        .single(),
-      parsed.data.includeMenu
-        ? Promise.all([
-          admin.from("stalls")
-            .select("organization_id, name, slug, location, currency, timezone")
-            .eq("id", result.stall_id)
-            .single(),
-          admin.from("stall_products")
-            .select("product_id, price_override, sort_order, available_from, available_until")
-            .eq("stall_id", result.stall_id)
-            .eq("is_enabled", true)
-            .eq("is_sold_out", false)
-            .order("sort_order", { ascending: true })
-            .limit(100),
-        ])
-        : Promise.resolve(null),
-    ]), parsed.data.includeMenu ? 4 : 2);
-
-    if (settingsQuery.error || qrQuery.error) {
-      throw settingsQuery.error ?? qrQuery.error;
-    }
+    const fullMenuQueries = parsed.data.includeMenu
+      ? await timing.measureDb(() => Promise.all([
+        admin.from("stalls")
+          .select("organization_id, name, slug, location, currency, timezone")
+          .eq("id", result.stall_id)
+          .single(),
+        admin.from("stall_products")
+          .select("product_id, price_override, sort_order, available_from, available_until")
+          .eq("stall_id", result.stall_id)
+          .eq("is_enabled", true)
+          .eq("is_sold_out", false)
+          .order("sort_order", { ascending: true })
+          .limit(100),
+      ]), 2)
+      : null;
     if (fullMenuQueries?.[0].error || fullMenuQueries?.[1].error) {
       throw fullMenuQueries[0].error ?? fullMenuQueries[1].error;
     }
 
-    if (
-      orderingMode === "DELIVERY"
-      && (qrQuery.data.dining_table_id || !settingsQuery.data.delivery_module_enabled)
-    ) {
-      await timing.measureDb(() => admin.from("order_sessions")
-        .update({ status: "REVOKED", revoked_at: new Date().toISOString() })
-        .eq("id", result.order_session_id)
-        .eq("status", "ACTIVE"));
-      throw new HttpInputError("DELIVERY_UNAVAILABLE", 409);
-    }
-
-    const tableQuery = qrQuery.data.dining_table_id
-      ? await timing.measureDb(() => admin.from("dining_tables")
-        .select("id, label, code, is_active")
-        .eq("id", qrQuery.data.dining_table_id)
-        .eq("stall_id", result.stall_id)
-        .single())
-      : { data: null, error: null };
-    if (tableQuery.error) throw tableQuery.error;
-    if (tableQuery.data && (!tableQuery.data.is_active || !settingsQuery.data.dine_in_enabled)) {
-      throw new HttpInputError("TABLE_UNAVAILABLE", 409);
-    }
-
     if (!parsed.data.includeMenu) {
-      const preorderSession = orderingMode === "PREORDER";
-      return respond({
+      return respond(buildPublicOrderSessionResponse({
         orderSessionToken: sessionToken,
-        expiresAt: result.expires_at,
+        expiresAt: canonicalPublicOrderTimestamp(result.expires_at),
         orderingMode,
-        estimatedWaitMinutes: preorderSession ? 0 : result.capacity?.quote_max_minutes ?? null,
-        estimatedWaitMinMinutes: preorderSession ? 0 : result.capacity?.quote_min_minutes ?? null,
-        estimatedWaitMaxMinutes: preorderSession ? 0 : result.capacity?.quote_max_minutes ?? null,
-        waitAcknowledgmentThresholdMinutes:
-          preorderSession ? null : result.capacity?.acknowledgment_threshold_minutes ?? null,
-        requiresWaitAcknowledgment: preorderSession
-          ? false
-          : result.capacity?.requires_acknowledgment === true,
-      }, result.idempotent_replay ? 200 : 201);
+        capacity: result.capacity,
+      }), result.idempotent_replay ? 200 : 201);
     }
 
     const [stallQuery, stallProductsQuery] = fullMenuQueries!;
 
-    const lastTableOrderQuery = tableQuery.data
+    const table = qrContext.table;
+    const lastTableOrderQuery = table
       ? await timing.measureDb(() => admin.from("orders")
         .select("created_at")
         .eq("stall_id", result.stall_id)
-        .eq("dining_table_id", tableQuery.data.id)
+        .eq("dining_table_id", table.id)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle())
       : { data: null, error: null };
     if (lastTableOrderQuery.error) throw lastTableOrderQuery.error;
 
-    const supportsRequestedFulfillmentTime = !qrQuery.data.dining_table_id
-      && qrQuery.data.fulfillment_type_context !== "DINE_IN"
+    const supportsRequestedFulfillmentTime = !qrContext.dining_table_id
+      && qrContext.fulfillment_type_context !== "DINE_IN"
       && (orderingMode === "DELIVERY"
-        ? settingsQuery.data.delivery_module_enabled === true
-        : settingsQuery.data.takeout_preorder_enabled === true);
+        ? settings.delivery_module_enabled === true
+        : settings.takeout_preorder_enabled === true);
     const preorderSlotsQuery = supportsRequestedFulfillmentTime
       ? await timing.measureDb(() => admin.rpc("get_takeout_preorder_slots", {
         p_stall_id: result.stall_id,
@@ -273,7 +276,7 @@ Deno.serve(async (request) => {
       ? preorderSlotsQuery.data.filter((slot): slot is string => typeof slot === "string")
       : [];
 
-    const enabledLocales = settingsQuery.data.enabled_locales as string[];
+    const enabledLocales = settings.enabled_locales;
 
     const now = Date.now();
     const productIds = stallProductsQuery.data.map((assignment) => assignment.product_id);
@@ -557,10 +560,14 @@ Deno.serve(async (request) => {
       ? filterPublicMenuProductsForTimeWindow(rankedProducts, preorderSlots)
       : filterPublicMenuProductsForTime(rankedProducts, now);
 
-    const settings = settingsQuery.data;
     return respond({
-      orderSessionToken: sessionToken,
-      expiresAt: result.expires_at,
+      ...buildPublicOrderSessionResponse({
+        orderSessionToken: sessionToken,
+        expiresAt: canonicalPublicOrderTimestamp(result.expires_at),
+        orderingMode,
+        capacity: result.capacity,
+        fallbackWaitMinutes: settings.estimated_wait_minutes,
+      }),
       stall: {
         name: stallQuery.data.name,
         slug: stallQuery.data.slug,
@@ -569,32 +576,13 @@ Deno.serve(async (request) => {
         timezone: stallQuery.data.timezone,
         fulfillmentType: orderingMode === "DELIVERY"
           ? "DELIVERY"
-          : tableQuery.data ? "DINE_IN" : "TAKEOUT",
-        table: tableQuery.data ? { id: tableQuery.data.id, code: tableQuery.data.code, label: tableQuery.data.label } : null,
+          : table ? "DINE_IN" : "TAKEOUT",
+        table: table ? { id: table.id, code: table.code, label: table.label } : null,
       },
       products,
-      orderingMode,
       preorderSlots,
       lotteryEnabled: orderingMode === "DEFAULT" && settings.lottery_enabled === true,
       supportedLocales: enabledLocales,
-      estimatedWaitMinutes: orderingMode === "PREORDER"
-        ? 0
-        : result.capacity?.quote_max_minutes ?? settings.estimated_wait_minutes,
-      estimatedWaitMinMinutes:
-        orderingMode === "PREORDER"
-          ? 0
-          : result.capacity?.quote_min_minutes ?? settings.estimated_wait_minutes,
-      estimatedWaitMaxMinutes:
-        orderingMode === "PREORDER"
-          ? 0
-          : result.capacity?.quote_max_minutes ?? settings.estimated_wait_minutes,
-      waitAcknowledgmentThresholdMinutes:
-        orderingMode === "PREORDER"
-          ? null
-          : result.capacity?.acknowledgment_threshold_minutes ?? null,
-      requiresWaitAcknowledgment: orderingMode === "PREORDER"
-        ? false
-        : result.capacity?.requires_acknowledgment === true,
       lastTableOrderAt: lastTableOrderQuery.data?.created_at ?? null,
       limits: {
         maxItemQuantity: settings.max_item_quantity,

@@ -101,7 +101,7 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: `cross-env NEXT_PUBLIC_APP_URL=${appUrl} PUBLIC_ORDER_FUNCTION_ORIGIN=${appUrl} NEXT_PUBLIC_SUPABASE_URL=${oauthMockUrl} PRIMARY_SUPABASE_URL=${localPrimarySupabaseUrl} NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT=true CRON_SECRET=e2e-cron-secret OFFLINE_PERMIT_SIGNING_SECRET=e2e-only-offline-permit-signing-key-20260809 REPORT_DELIVERY_MODE=simulate VERCEL_ENV=preview VERCEL_GIT_COMMIT_REF=staging STAGING_PLATFORM_ADMIN_BOOTSTRAP_EMAILS=platform.admin.e2e@stallorder.test ${appServerCommand}`,
+      command: `cross-env NEXT_PUBLIC_APP_URL=${appUrl} PUBLIC_ORDER_FUNCTION_ORIGIN=${appUrl} NEXT_PUBLIC_SUPABASE_URL=${oauthMockUrl} NEXT_PUBLIC_SUPABASE_REALTIME_URL=${localPrimarySupabaseUrl} PRIMARY_SUPABASE_URL=${localPrimarySupabaseUrl} NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT=true CRON_SECRET=e2e-cron-secret OFFLINE_PERMIT_SIGNING_SECRET=e2e-only-offline-permit-signing-key-20260809 REPORT_DELIVERY_MODE=simulate VERCEL_ENV=preview VERCEL_GIT_COMMIT_REF=staging STAGING_PLATFORM_ADMIN_BOOTSTRAP_EMAILS=platform.admin.e2e@stallorder.test ${appServerCommand}`,
       url: `${appUrl}/api/health`,
       reuseExistingServer: false,
       timeout: 120_000,

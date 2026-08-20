@@ -173,7 +173,13 @@ async function waitForReactClickHandler(control: Locator) {
 
 async function login(page: Page, email: string) {
   await page.goto("/login");
-  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
+  const passwordLogin = page.getByRole("button", {
+    name: "使用電子郵件與密碼登入",
+    exact: true,
+  });
+  await waitForReactClickHandler(passwordLogin);
+  await passwordLogin.click();
+  await expect(page.getByLabel("電子郵件")).toBeVisible();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();

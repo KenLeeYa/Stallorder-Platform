@@ -206,6 +206,119 @@ describe("requestPublicOrder", () => {
     );
   });
 
+  it("does not duplicate a session when Circuit A commits before Circuit B fallback", async () => {
+    configureDirectEdge();
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const sessions = new Map<string, string>();
+    let sessionWrites = 0;
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/availability/config") {
+        return Response.json({ orderIntake: "DUAL" });
+      }
+      const payload = JSON.parse(String(init?.body)) as { sessionRequestId: string };
+      const existingToken = sessions.get(payload.sessionRequestId);
+      if (url.endsWith("/create-order-session")) {
+        if (!existingToken) {
+          sessionWrites += 1;
+          sessions.set(payload.sessionRequestId, "stos_committed_session");
+        }
+        return Response.json({ code: "ORDER_CREATE_ERROR" }, { status: 503 });
+      }
+      if (url === "/api/public/order-session") {
+        if (!existingToken) {
+          sessionWrites += 1;
+          sessions.set(payload.sessionRequestId, "stos_committed_session");
+        }
+        return Response.json({
+          orderSessionToken: sessions.get(payload.sessionRequestId),
+        }, { status: 200 });
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    const { requestPublicOrder } = await import("./public-order-client");
+    const payload = {
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      sessionRequestId: "55555555-5555-4555-8555-555555555555",
+    };
+
+    const response = await requestPublicOrder(
+      "create-order-session",
+      payload,
+      { fetchImpl, operationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      orderSessionToken: "stos_committed_session",
+    });
+    expect(sessionWrites).toBe(1);
+    expect(sessions.size).toBe(1);
+  });
+
+  it("does not duplicate an order when Circuit A commits before Circuit B fallback", async () => {
+    configureDirectEdge();
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const orders = new Map<string, Record<string, unknown>>();
+    let orderWrites = 0;
+    const committedOrder = {
+      orderNo: "A001",
+      trackingToken: "sto_committed_order",
+      pickupVerificationCode: "123456",
+      fulfillmentType: "TAKEOUT",
+      orderStatus: "WAITING_CONFIRMATION",
+      paymentStatus: "UNPAID",
+      totalAmount: 100,
+      quotedWaitMinutes: 10,
+      quotedReadyAt: "2026-08-13T00:10:00.000Z",
+      scheduledPickupAt: null,
+      requestedFulfillmentAt: null,
+      discountAmount: 0,
+      createdAt: "2026-08-13T00:00:00.000Z",
+    };
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/availability/config") {
+        return Response.json({ orderIntake: "DUAL" });
+      }
+      const payload = JSON.parse(String(init?.body)) as { idempotencyKey: string };
+      const existingOrder = orders.get(payload.idempotencyKey);
+      if (url.endsWith("/create-public-order")) {
+        if (!existingOrder) {
+          orderWrites += 1;
+          orders.set(payload.idempotencyKey, committedOrder);
+        }
+        return Response.json({ code: "ORDER_CREATE_ERROR" }, { status: 503 });
+      }
+      if (url === "/api/public/orders") {
+        if (!existingOrder) {
+          orderWrites += 1;
+          orders.set(payload.idempotencyKey, committedOrder);
+        }
+        return Response.json(orders.get(payload.idempotencyKey), { status: 200 });
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    const { requestPublicOrder } = await import("./public-order-client");
+    const payload = {
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      idempotencyKey: "22222222-2222-4222-8222-222222222222",
+      clientOrderId: "33333333-3333-4333-8333-333333333333",
+      turnstileIdempotencyKey: "44444444-4444-4444-8444-444444444444",
+    };
+
+    const response = await requestPublicOrder(
+      "create-public-order",
+      payload,
+      { fetchImpl, operationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(committedOrder);
+    expect(orderWrites).toBe(1);
+    expect(orders.size).toBe(1);
+  });
+
   it("creates one operation id when the caller omits it", async () => {
     configureDirectEdge();
     let operationId: string | null = null;
@@ -354,6 +467,56 @@ describe("requestPublicOrder", () => {
     expect(fetchImpl.mock.calls.map(([input]) => String(input))).toContain(
       "/api/public/order-session",
     );
+  });
+
+  it("aborts a delayed Circuit B request when the caller cancels", async () => {
+    configureDirectEdge();
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const abort = new AbortController();
+    const fallbackRequest: {
+      signal?: AbortSignal;
+      reject?: (reason?: unknown) => void;
+    } = {};
+    const fetchImpl = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/availability/config") {
+        return Promise.resolve(Response.json({ orderIntake: "DUAL" }));
+      }
+      if (url.endsWith("/create-order-session")) {
+        return Promise.resolve(Response.json({ code: "ORDER_CREATE_ERROR" }, { status: 503 }));
+      }
+      if (url === "/api/public/order-session") {
+        fallbackRequest.signal = init?.signal ?? undefined;
+        return new Promise<Response>((_resolve, reject) => {
+          fallbackRequest.reject = reject;
+          fallbackRequest.signal?.addEventListener("abort", () => reject(
+            fallbackRequest.signal?.reason,
+          ), {
+            once: true,
+          });
+        });
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+    const { requestPublicOrder } = await import("./public-order-client");
+    const reason = new DOMException("tracker stopped", "AbortError");
+
+    const request = requestPublicOrder(
+      "create-order-session",
+      {
+        deviceId: "11111111-1111-4111-8111-111111111111",
+        sessionRequestId: "55555555-5555-4555-8555-555555555555",
+      },
+      { fetchImpl, signal: abort.signal },
+    );
+    await vi.waitFor(() => expect(fallbackRequest.signal).toBeDefined());
+
+    abort.abort(reason);
+    const underlyingRequestWasAborted = fallbackRequest.signal?.aborted;
+    fallbackRequest.reject?.(reason);
+
+    await expect(request).rejects.toBe(reason);
+    expect(underlyingRequestWasAborted).toBe(true);
   });
 });
 

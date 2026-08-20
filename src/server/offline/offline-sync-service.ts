@@ -1380,6 +1380,9 @@ async function importOfflineOrder(
           status: orderStatus,
           hasConflict: conflictTypes.length > 0,
         },
+        status: "CANCELLED",
+        processedAt: serverReceivedAt,
+        lastErrorCode: "DOMAIN_OUTBOX_DORMANT_NO_CONSUMER",
       },
     });
     await transaction.auditLog.create({
@@ -1613,6 +1616,9 @@ async function importOfflineCashEvent(
           eventType: event.eventType,
           hasConflict: conflictTypes.size > 0,
         },
+        status: "CANCELLED",
+        processedAt: serverReceivedAt,
+        lastErrorCode: "DOMAIN_OUTBOX_DORMANT_NO_CONSUMER",
       },
     });
     await transaction.auditLog.create({

@@ -28,7 +28,9 @@ export function formatAppDate(
   value: AppDateInput,
   options: Intl.DateTimeFormatOptions = { dateStyle: "medium" },
 ) {
-  return new Intl.DateTimeFormat(locale, options).format(toDate(value));
+  return new Intl.DateTimeFormat(locale, options)
+    .format(toDate(value))
+    .replace(/[\u00a0\u2007\u2009\u202f]/gu, " ");
 }
 
 export function formatAppDateTime(

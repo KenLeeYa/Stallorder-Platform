@@ -52,6 +52,56 @@ export type PublicOrderIntakeAvailability = {
   code?: "QR_ORDERING_DEGRADED" | "QR_ORDERING_UNAVAILABLE";
 };
 
+export type PublicOrderPreflightResult = {
+  ok: boolean;
+  code?: string;
+  scope?: "SESSION" | "ORDER";
+  ordering_mode?: "DEFAULT" | "DELIVERY" | "PREORDER";
+  qr_context?: {
+    tenant_id: string;
+    organization_id: string;
+    stall_id: string;
+    qr_code_id: string;
+    dining_table_id?: string | null;
+    fulfillment_type_context?: string | null;
+    table?: {
+      id: string;
+      label: string;
+      code: string;
+      is_active: boolean;
+    } | null;
+    settings?: {
+      max_item_quantity?: number;
+      max_unique_products?: number;
+      max_total_quantity?: number;
+      max_note_length?: number;
+      dine_in_enabled?: boolean;
+      delivery_module_enabled?: boolean;
+      takeout_preorder_enabled?: boolean;
+      enabled_locales?: string[];
+      estimated_wait_minutes?: number;
+      lottery_enabled?: boolean;
+    };
+  } | null;
+  schedule_context?: {
+    ok: boolean;
+    code?: string | null;
+  } | null;
+  capacity?: SessionIssueResult["capacity"] & {
+    product_limit_exceeded?: boolean;
+    pause_source?: string;
+    accepting_public_orders?: boolean;
+  };
+  resumable_order?: {
+    order_id: string;
+    order_status: string;
+  } | null;
+  idempotent_order?: StoredPublicOrder & {
+    lottery_draw_id?: string | null;
+    pickup_code_length?: number | null;
+  } | null;
+};
+
 async function jsonResult<T>(query: Prisma.Sql) {
   const rows = await prisma.$queryRaw<Array<{ result: T | null }>>(query);
   return rows[0]?.result ?? null;
@@ -71,6 +121,46 @@ export function checkGlobalPublicRequestGate(input: {
       ${input.deviceHash}::text,
       ${input.behaviorHash}::text,
       ${input.requestId}::text
+    ) as result
+  `);
+}
+
+export function preflightPublicOrder(input: {
+  scope: "SESSION" | "ORDER";
+  qrToken: string;
+  orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
+  deviceHash: string;
+  ipHash: string;
+  qrTokenHash: string;
+  behaviorHash: string;
+  requestId: string;
+  sessionTokenHash?: string | null;
+  idempotencyKey?: string | null;
+  idempotencyHash?: string | null;
+  requestedFulfillmentAt?: string | null;
+  lotteryDrawId?: string | null;
+  items?: Array<Record<string, unknown>>;
+  waitAcknowledged?: boolean;
+  intakeCode?: string | null;
+}) {
+  return jsonResult<PublicOrderPreflightResult>(Prisma.sql`
+    select public.public_order_preflight(
+      ${input.scope}::text,
+      ${input.qrToken}::text,
+      ${input.orderingMode}::text,
+      ${input.deviceHash}::text,
+      ${input.ipHash}::text,
+      ${input.qrTokenHash}::text,
+      ${input.behaviorHash}::text,
+      ${input.requestId}::text,
+      ${input.sessionTokenHash ?? null}::text,
+      ${input.idempotencyKey ?? null}::uuid,
+      ${input.idempotencyHash ?? null}::text,
+      ${input.requestedFulfillmentAt ?? null}::timestamptz,
+      ${input.lotteryDrawId ?? null}::uuid,
+      ${JSON.stringify(input.items ?? [])}::jsonb,
+      ${input.waitAcknowledged ?? false}::boolean,
+      ${input.intakeCode ?? null}::text
     ) as result
   `);
 }
@@ -137,7 +227,7 @@ export function issueIdempotentOrderSession(input: {
   orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
 }) {
   return jsonResult<SessionIssueResult>(Prisma.sql`
-    select public.issue_idempotent_order_session_with_schedule(
+    select public.issue_idempotent_order_session_with_schedule_targeted(
       ${input.qrToken}::text,
       ${input.sessionTokenHash}::text,
       ${input.ipHash}::text,
@@ -267,7 +357,7 @@ export function createPublicOrderWithSchedule(input: {
   lotteryDrawId: string | null;
 }) {
   return jsonResult<OrderCreateResult>(Prisma.sql`
-    select public.create_public_order_with_fulfillment_time(
+    select public.create_public_order_with_fulfillment_time_targeted(
       ${input.orderId}::uuid,
       ${input.qrToken}::text,
       ${input.sessionTokenHash}::text,

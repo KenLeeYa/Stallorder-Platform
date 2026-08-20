@@ -1,7 +1,7 @@
 create index if not exists stalls_code_lower_lookup_idx
 on public.stalls ((lower(code)));
 
-create or replace function public.enforce_global_stall_code_guard()
+create function public.enforce_global_stall_code_guard()
 returns trigger
 language plpgsql
 security definer

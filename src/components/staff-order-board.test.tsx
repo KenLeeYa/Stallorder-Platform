@@ -119,14 +119,14 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toContain('<span class="sr-only">店員點餐</span>');
   });
 
-  it("renders eligible tickets compact by default with detail and edit affordances", () => {
+  it("keeps the item summary and primary actions visible while detailed controls stay compact", () => {
     const html = render([order()]);
 
     expect(html).toContain("查看明細");
     expect(html).toContain("修改訂單內容");
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain(`aria-controls="order-details-${orderId}"`);
-    expect(html).not.toContain("測試餐點");
+    expect(html).toContain("1 × 測試餐點");
   });
 
   it("keeps completed-food unpaid tickets compact but exposes 待結帳 and 代結帳", () => {
@@ -137,7 +137,13 @@ describe("StaffOrderBoard ticket presentation", () => {
 
     expect(html).toContain("待結帳");
     expect(html).toContain("代結帳");
-    expect(html).not.toContain("測試餐點");
+    expect(html).toContain("1 × 測試餐點");
+  });
+
+  it("labels the pending-order transition as an acceptance action", () => {
+    const html = render([order({ status: "WAITING_CONFIRMATION" })]);
+
+    expect(html).toContain("確認接單");
   });
 
   it("separates cross-business-date reservations into a collapsed future section", () => {
@@ -162,6 +168,7 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toContain("預約取餐");
     expect(html).toContain("距預約 20 分");
     expect(html).not.toContain("已等待 1450 分");
+    expect(html).not.toMatch(/[\u00a0\u2007\u2009\u202f]/u);
   });
 
   it("labels a passed fulfillment time as overdue instead of generic waiting", () => {

@@ -732,14 +732,30 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await page.getByLabel("顧客稱呼").fill(customerName);
   await page.getByLabel("訂單備註").fill("胡椒少一點");
   await expect(page.getByTestId("qr-cart-panel").getByText("$90", { exact: true }).last()).toBeVisible();
-  await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeEnabled({ timeout: 20_000 });
+  const waitAcknowledgment = page.getByRole("checkbox", { name: /我已了解目前預估等候時間/u });
+  if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
+  const submitOrder = page.getByRole("button", { name: "送出訂單", exact: true });
+  await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
 
-  const createResponse = page.waitForResponse((response) => (
+  let createResponsePromise = page.waitForResponse((response) => (
     new URL(response.url()).pathname.endsWith("/create-public-order")
     && response.request().method() === "POST"
   ));
-  await page.getByRole("button", { name: "送出訂單", exact: true }).click();
-  expect((await createResponse).status()).toBe(201);
+  await submitOrder.click();
+  let createResponse = await createResponsePromise;
+  if (createResponse.status() === 422) {
+    await expect(createResponse.json()).resolves.toMatchObject({ code: "WAIT_ACKNOWLEDGMENT_REQUIRED" });
+    await expect(waitAcknowledgment).toBeVisible();
+    await waitAcknowledgment.check();
+    await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
+    createResponsePromise = page.waitForResponse((response) => (
+      new URL(response.url()).pathname.endsWith("/create-public-order")
+      && response.request().method() === "POST"
+    ));
+    await submitOrder.click();
+    createResponse = await createResponsePromise;
+  }
+  expect(createResponse.status()).toBe(201);
   await expect(page).toHaveURL(/\/order\//);
   await expect(page.getByText(/辣度：中辣.*加料：加蛋/)).toBeVisible();
 
@@ -757,7 +773,12 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await staffOrder.getByRole("button", { name: "取消訂單" }).click();
   const cancellation = staffPage.getByRole("alertdialog", { name: "確認取消訂單？" });
   await expect(cancellation).toContainText(customerName);
+  const cancellationResponse = staffPage.waitForResponse((response) => (
+    new URL(response.url()).pathname.includes("/api/stalls/aming-chicken/orders/")
+    && response.request().method() === "PATCH"
+  ), { timeout: 30_000 });
   await cancellation.getByRole("button", { name: "確認取消訂單" }).click();
+  expect((await cancellationResponse).status()).toBe(200);
   await expect(staffOrder).toHaveCount(0);
   await staffContext.close();
 });

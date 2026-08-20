@@ -45,7 +45,11 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
   it("collapses only the selectors while keeping a sticky horizontal function row", () => {
     const html = renderToStaticMarkup(
       <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
-        <MerchantWorkspaceHeader workspaces={[workspace]} displayName="店主" />
+        <MerchantWorkspaceHeader
+          workspaces={[workspace]}
+          displayName="店主"
+          routeContext={{ organizationId: workspace.id, stallId: null }}
+        />
       </LocaleProvider>,
     );
 

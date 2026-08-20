@@ -146,12 +146,25 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
     if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
     await expect(page.getByRole("button", { name: "Place order", exact: true })).toBeEnabled({ timeout: 20_000 });
 
-    const createOrderResponsePromise = page.waitForResponse((response) => (
+    let createOrderResponsePromise = page.waitForResponse((response) => (
       new URL(response.url()).pathname.endsWith("/create-public-order")
       && response.request().method() === "POST"
     ));
-    await page.getByRole("button", { name: "Place order", exact: true }).click();
-    const createOrderResponse = await createOrderResponsePromise;
+    const submitOrder = page.getByRole("button", { name: "Place order", exact: true });
+    await submitOrder.click();
+    let createOrderResponse = await createOrderResponsePromise;
+    if (createOrderResponse.status() === 422) {
+      await expect(createOrderResponse.json()).resolves.toMatchObject({ code: "WAIT_ACKNOWLEDGMENT_REQUIRED" });
+      await expect(waitAcknowledgment).toBeVisible();
+      await waitAcknowledgment.check();
+      await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
+      createOrderResponsePromise = page.waitForResponse((response) => (
+        new URL(response.url()).pathname.endsWith("/create-public-order")
+        && response.request().method() === "POST"
+      ));
+      await submitOrder.click();
+      createOrderResponse = await createOrderResponsePromise;
+    }
     expect(createOrderResponse.status()).toBe(201);
     await expect(page).toHaveURL(/\/order\//);
     await expect(page.getByTestId("pickup-code")).toHaveText(/^\d{3}$/);
@@ -192,7 +205,7 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
 
       const confirmResponsePromise = waitForOrderPatch(staffPage, createdOrderId);
-      await staffOrder.getByRole("button", { name: "待製作", exact: true }).click();
+      await staffOrder.getByRole("button", { name: "確認接單", exact: true }).click();
       const confirmResponse = await confirmResponsePromise;
       expect(confirmResponse.status()).toBe(200);
       expect(confirmResponse.request().postDataJSON()).toMatchObject({ status: "CONFIRMED" });

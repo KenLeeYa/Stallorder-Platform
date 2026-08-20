@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertResilienceFeatureFlagActivationAllowed,
   evaluateResilienceFeatureFlag,
+  phaseThreeDormantFeatureFlagCodes,
+  resilienceFeatureFlagCodes,
+  resilienceFeatureFlagDefaults,
   resilienceFlagOverrideCommandSchema,
 } from "@/server/resilience/feature-flag-service";
 
@@ -23,6 +27,30 @@ function override(
 }
 
 describe("resilience feature flag evaluation", () => {
+  it("keeps every Phase 3 foundation disabled in the typed server catalog", () => {
+    const phaseThreeCodes = [
+      "DIGITAL_WAITLIST_FOUNDATION_ENABLED",
+      "ONLINE_ORDER_PAYMENT_ENABLED",
+      "RESERVATION_PREORDER_ENABLED",
+      "DYNAMIC_ORDERING_QR_FOUNDATION_ENABLED",
+      "CRM_LOYALTY_CONSENT_FOUNDATION_ENABLED",
+    ] as const;
+
+    expect(resilienceFeatureFlagCodes).toEqual(expect.arrayContaining([...phaseThreeCodes]));
+    for (const code of phaseThreeCodes) {
+      expect(resilienceFeatureFlagDefaults[code]).toBe(false);
+      expect(evaluateResilienceFeatureFlag({
+        code,
+        defaultEnabled: false,
+        overrides: [override({ enabled: true })],
+      }, {}, now)).toMatchObject({
+        enabled: false,
+        source: "DEFAULT",
+        overrideId: null,
+      });
+    }
+  });
+
   it("uses the catalog default when no active override exists", () => {
     expect(evaluateResilienceFeatureFlag({
       code: "OFFLINE_POS_ENABLED",
@@ -107,6 +135,17 @@ describe("resilience feature flag evaluation", () => {
 });
 
 describe("resilience feature flag command validation", () => {
+  it("hard-locks every Phase 3 foundation against enabled overrides", () => {
+    for (const code of phaseThreeDormantFeatureFlagCodes) {
+      expect(() => assertResilienceFeatureFlagActivationAllowed(code, true))
+        .toThrow("RESILIENCE_PHASE_THREE_FLAG_LOCKED");
+      expect(() => assertResilienceFeatureFlagActivationAllowed(code, false)).not.toThrow();
+    }
+
+    expect(() => assertResilienceFeatureFlagActivationAllowed("OFFLINE_POS_ENABLED", true))
+      .not.toThrow();
+  });
+
   it("accepts a complete Stall override", () => {
     expect(resilienceFlagOverrideCommandSchema.safeParse({
       scopeType: "STALL",
