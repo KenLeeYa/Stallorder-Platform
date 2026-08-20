@@ -14,6 +14,7 @@ async function login(page: Page, email: string) {
 
 test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核對", async ({ browser, page }) => {
   test.setTimeout(120_000);
+  await page.setExtraHTTPHeaders({ "cf-connecting-ip": "203.0.113.103" });
   const customerName = `重掃 QA ${Date.now()}`;
   await page.goto(`/q/${takeoutQrToken}`);
   await page.getByRole("button", { name: "點餐語言" }).click();

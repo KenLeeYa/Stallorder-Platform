@@ -354,7 +354,7 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         await kitchenContext.close();
       }
 
-      const staffRefresh = staffPage.getByTitle("重新整理").first();
+      const staffRefresh = staffPage.getByTitle("重新整理", { exact: true });
       await expectActionInViewport(staffRefresh);
       await waitForReactHydration(staffRefresh);
       await staffRefresh.click({ timeout: 20_000 });
