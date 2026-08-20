@@ -221,6 +221,19 @@ describe("Production workflow approval contract", () => {
       'supabase migration list --db-url "$EPHEMERAL_DATABASE_URL"',
     );
     expect(stabilityStep).toContain('[ "$stable_connections" -ge 2 ]');
+
+    const migrationHistory = ephemeralPreview.indexOf(
+      "name: Verify isolated migration history",
+    );
+    const migrationStep = ephemeralPreview.slice(migrations, migrationHistory);
+
+    expect(migrationStep).toContain("max_attempts=3");
+    expect(migrationStep).toContain(
+      "terminating connection due to administrator command|Connection timed out|failed to connect to postgres",
+    );
+    expect(migrationStep).toContain(
+      "Preview migration push failed with a non-transient error.",
+    );
   });
 
   it("makes Preview Function deployment bounded and fail closed", () => {
