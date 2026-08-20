@@ -180,7 +180,6 @@ export function assertAdditiveMigrationSql(sql) {
     if (/^create\s+extension\b/iu.test(statement)) {
       assertSafeExtensionInstall(statement);
     }
-    assertAllowedStatement(statement, phaseThreeHardLock);
     if (
       /^drop\s+index\b/iu.test(statement)
       && !/^drop\s+index\s+(?:concurrently\s+)?(?:if\s+exists\s+)?[^\s,;]+(?:\s+restrict)?$/iu.test(statement)
@@ -212,6 +211,7 @@ export function assertAdditiveMigrationSql(sql) {
         throw new AdditiveMigrationPlanError("DESTRUCTIVE_DDL_FORBIDDEN");
       }
     }
+    assertAllowedStatement(statement, phaseThreeHardLock);
   }
   assertReplacementPairs(replacements);
   assertSecurityObjectProvenance(
@@ -1109,10 +1109,44 @@ function assertDoBlocksSafe(scan) {
   }
 }
 
+function isAllowedAlterTableStatement(statement) {
+  const table = statement.match(new RegExp(
+    `^alter\\s+table\\s+(?:if\\s+exists\\s+)?${QUALIFIED_IDENTIFIER_SOURCE}\\s+([\\s\\S]+)$`,
+    "iu",
+  ));
+  if (!table) return false;
+
+  const localIdentifier = `(?:${IDENTIFIER_SOURCE}|"(?:[^"]|"")+")`;
+  const allowedActions = [
+    new RegExp(
+      `^add\\s+(?:column\\s+)?(?:if\\s+not\\s+exists\\s+)?(?!constraint\\b)${localIdentifier}\\s+[\\s\\S]+$`,
+      "iu",
+    ),
+    new RegExp(
+      `^add\\s+constraint\\s+${localIdentifier}\\s+[\\s\\S]+$`,
+      "iu",
+    ),
+    new RegExp(
+      `^drop\\s+constraint\\s+(?:if\\s+exists\\s+)?${localIdentifier}(?:\\s+restrict)?$`,
+      "iu",
+    ),
+    new RegExp(`^owner\\s+to\\s+${localIdentifier}$`, "iu"),
+    /^(?:enable|disable|force|no\s+force)\s+row\s+level\s+security$/iu,
+    new RegExp(
+      `^(?:enable|disable)\\s+(?:(?:always|replica)\\s+)?trigger\\s+(?:${localIdentifier}|all|user)$`,
+      "iu",
+    ),
+  ];
+  const actions = splitTopLevelComma(table[1]);
+  return actions.length > 0 && actions.every((action) => (
+    allowedActions.some((pattern) => pattern.test(action))
+  ));
+}
+
 function assertAllowedStatement(statement, phaseThreeHardLock) {
   const allowed = [
     phaseThreeHardLock && isPhaseThreeHardLockCleanup(statement),
-    /^alter\s+table\b/iu,
+    isAllowedAlterTableStatement(statement),
     /^alter\s+type\b[\s\S]*\badd\s+value\b/iu,
     /^create\s+(?:or\s+replace\s+)?function\b/iu,
     /^create\s+table\b/iu,
@@ -1136,7 +1170,11 @@ function assertAllowedStatement(statement, phaseThreeHardLock) {
     typeof pattern === "boolean" ? pattern : pattern.test(statement)
   ));
   if (!allowed) {
-    throw new AdditiveMigrationPlanError("MIGRATION_STATEMENT_FORBIDDEN");
+    throw new AdditiveMigrationPlanError(
+      /^alter\s+table\b/iu.test(statement)
+        ? "ALTER_TABLE_ACTION_FORBIDDEN"
+        : "MIGRATION_STATEMENT_FORBIDDEN",
+    );
   }
 }
 

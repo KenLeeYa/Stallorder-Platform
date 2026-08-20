@@ -26,6 +26,7 @@ type SettingsSnapshot = {
   preorderMinLeadMinutes: number;
   preorderMaxDays: number;
   preorderSlotMinutes: number;
+  businessDayCutoffHour: number;
   lotteryEnabled: boolean;
 };
 
@@ -69,6 +70,7 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
           preorderMinLeadMinutes: true,
           preorderMaxDays: true,
           preorderSlotMinutes: true,
+          businessDayCutoffHour: true,
           lotteryEnabled: true,
         },
       }),
@@ -110,6 +112,7 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
     originalSettings = settings;
     originalStall = stall;
     originalHours = hours;
+    const businessDayCutoffHour = currentHourInTimeZone(testTimeZone);
 
     await prisma.$transaction([
       prisma.stallOrderingSettings.update({
@@ -119,6 +122,7 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
           preorderMinLeadMinutes: 15,
           preorderMaxDays: 1,
           preorderSlotMinutes: 30,
+          businessDayCutoffHour,
           lotteryEnabled: false,
         },
       }),
@@ -599,6 +603,16 @@ async function selectPickupSlot(page: Page, iso: string) {
   await fields.getByLabel("預約取餐日期").fill(slot.date);
   await fields.getByLabel("預約取餐時間－時").selectOption(slot.hour);
   await fields.getByLabel("預約取餐時間－分").selectOption(slot.minute);
+}
+
+function currentHourInTimeZone(timeZone: string) {
+  const hour = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date()).find((part) => part.type === "hour")?.value;
+  if (hour === undefined) throw new Error(`無法取得 ${timeZone} 的目前小時。`);
+  return Number(hour);
 }
 
 async function resolveCreatedRecords() {

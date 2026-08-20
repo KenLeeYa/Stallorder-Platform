@@ -209,14 +209,14 @@ test.describe("多攤位商戶關鍵流程", () => {
       );
     }
     await gotoLocalPath(page, `/merchant/stalls/new?organizationId=${organization.id}`);
+    const createStallButton = page.getByRole("button", { name: "建立攤位" });
+    await waitForReactHandler(createStallButton, "onSubmit", "form");
     await page.getByLabel("攤位名稱").fill("E2E 夜市二號攤");
     await page.getByLabel("攤位代碼").fill("E2E-02");
     await page.getByLabel("公開識別名稱").fill(secondStallSlug);
     await page.getByLabel("說明").fill("多攤位自動驗收測試");
     await page.getByLabel("地址").fill("台北市測試夜市二區");
     await page.getByLabel("電話").fill("0900-000-002");
-    const createStallButton = page.getByRole("button", { name: "建立攤位" });
-    await waitForReactHandler(createStallButton, "onSubmit", "form");
     const createStallResponse = page.waitForResponse((response) => (
       new URL(response.url()).pathname === createStallApiPath
       && response.request().method() === "POST"

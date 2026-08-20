@@ -488,6 +488,20 @@ describe("additive DR migration plan", () => {
     expect(() => assertAdditiveMigrationSql(sql)).toThrow();
   });
 
+  it.each([
+    "alter table public.orders alter column organization_id set default gen_random_uuid();",
+    "alter table public.orders replica identity nothing;",
+    "alter table public.orders disable rule orders_guard;",
+    "alter table public.orders set (autovacuum_enabled = false);",
+    "alter table public.orders attach partition public.orders_2026 for values from (1) to (2);",
+    "alter table public.orders detach partition public.orders_2025;",
+    "alter table public.orders add column note text, replica identity nothing;",
+  ])("rejects unclassified ALTER TABLE actions: %s", (sql) => {
+    expect(() => assertAdditiveMigrationSql(sql)).toThrow(
+      "ALTER_TABLE_ACTION_FORBIDDEN",
+    );
+  });
+
   it("rejects destructive DO blocks even when comments split DO and its body", () => {
     for (const sql of [
       "do /* misleading */ $$ begin execute 'drop table public.orders'; end $$;",
