@@ -782,24 +782,68 @@ export function StaffOrderComposer({
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/45 print:hidden sm:p-6">
       <section role="dialog" aria-modal="true" aria-labelledby="staff-order-title" className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl sm:rounded-lg">
-        <header className="z-20 flex shrink-0 flex-wrap items-start justify-between gap-4 border-b border-stone-200 bg-white px-4 py-4 sm:rounded-t-lg sm:px-6">
+        <header className="z-20 flex shrink-0 flex-wrap items-start justify-between gap-2 border-b border-stone-200 bg-white px-4 py-3 sm:rounded-t-lg sm:px-6 md:gap-4 md:py-4">
           <div>
             <h2 id="staff-order-title" className="text-xl font-semibold">{t("composer.title")}</h2>
-            <p className="mt-1 text-sm text-stone-600">{t("composer.description")}</p>
+            <p className="mt-1 hidden text-sm text-stone-600 md:block">{t("composer.description")}</p>
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
-            <button data-testid="staff-save-draft" type="button" disabled={busy} onClick={saveCurrentDraft} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-teal-300 bg-teal-50 px-3 text-sm font-semibold text-teal-900 disabled:opacity-50"><Save className="h-4 w-4" />{t("composer.draft.saveNew")}</button>
-            <button data-testid="staff-open-drafts" type="button" disabled={busy} onClick={() => setDraftManagerOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-700 disabled:opacity-50"><ArchiveRestore className="h-4 w-4" />{t("composer.draft.count", { count: savedDrafts.length, limit: STAFF_ORDER_DRAFT_LIMIT })}</button>
-            <button type="button" title={t("composer.close")} disabled={busy} onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-4 w-4" /></button>
+          <div data-testid="staff-composer-mobile-toolbar" className="grid w-full grid-cols-5 gap-2 md:flex md:w-auto md:flex-wrap md:justify-end">
+            <button
+              data-testid="staff-save-draft"
+              type="button"
+              title={t("composer.draft.saveNew")}
+              aria-label={t("composer.draft.saveNew")}
+              disabled={busy}
+              onClick={saveCurrentDraft}
+              className="grid h-11 min-w-0 place-items-center rounded-md border border-teal-300 bg-teal-50 text-sm font-semibold text-teal-900 disabled:opacity-50 md:inline-flex md:w-auto md:gap-2 md:px-3"
+            >
+              <Save className="h-5 w-5 md:h-4 md:w-4" />
+              <span className="sr-only md:not-sr-only">{t("composer.draft.saveNew")}</span>
+            </button>
+            <button
+              data-testid="staff-open-drafts"
+              type="button"
+              title={t("composer.draft.count", { count: savedDrafts.length, limit: STAFF_ORDER_DRAFT_LIMIT })}
+              aria-label={t("composer.draft.count", { count: savedDrafts.length, limit: STAFF_ORDER_DRAFT_LIMIT })}
+              disabled={busy}
+              onClick={() => setDraftManagerOpen(true)}
+              className="relative grid h-11 min-w-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold text-stone-700 disabled:opacity-50 md:inline-flex md:w-auto md:gap-2 md:px-3"
+            >
+              <ArchiveRestore className="h-5 w-5 md:h-4 md:w-4" />
+              <span className="sr-only md:not-sr-only">{t("composer.draft.count", { count: savedDrafts.length, limit: STAFF_ORDER_DRAFT_LIMIT })}</span>
+              <span aria-hidden="true" className="absolute right-1 top-1 min-w-4 rounded-full bg-stone-800 px-1 text-center text-[10px] leading-4 text-white md:hidden">{savedDrafts.length}</span>
+            </button>
+            <button
+              data-testid="staff-order-menu-tab"
+              type="button"
+              title={t("composer.chooseProducts")}
+              aria-label={t("composer.chooseProducts")}
+              aria-pressed={activePane === "MENU"}
+              onClick={() => switchPane("MENU")}
+              className={`grid h-11 min-w-0 place-items-center rounded-md border md:hidden ${activePane === "MENU" ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 text-stone-600"}`}
+            >
+              <List className="h-5 w-5" />
+              <span className="sr-only">{t("composer.chooseProducts")}</span>
+            </button>
+            <button
+              data-testid="staff-order-cart-tab"
+              type="button"
+              title={t("composer.orderAndCheckout", { count: totalQuantity })}
+              aria-label={t("composer.orderAndCheckout", { count: totalQuantity })}
+              aria-pressed={activePane === "CART"}
+              onClick={() => switchPane("CART")}
+              className={`relative grid h-11 min-w-0 place-items-center rounded-md border md:hidden ${activePane === "CART" ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 text-stone-600"}`}
+            >
+              <ShoppingCart className="h-5 w-5" />
+              <span className="sr-only">{t("composer.orderAndCheckout", { count: totalQuantity })}</span>
+              <span aria-hidden="true" className="absolute right-1 top-1 min-w-4 rounded-full bg-stone-800 px-1 text-center text-[10px] leading-4 text-white">{totalQuantity}</span>
+            </button>
+            <button type="button" title={t("composer.close")} aria-label={t("composer.close")} disabled={busy} onClick={onClose} className="grid h-11 min-w-0 place-items-center rounded-md border border-stone-300 md:w-11"><X className="h-5 w-5 md:h-4 md:w-4" /></button>
           </div>
-          <div className="w-full border-t border-stone-100 pt-3 text-xs leading-5 text-stone-600">
-            <p>{t("composer.draft.policy")}</p>
-            {activeDraftId ? <p className="mt-1 font-semibold text-teal-800">{t("composer.draft.editing")}</p> : null}
-            {draftNotice ? <p role="status" className="mt-1 font-semibold text-teal-800">{draftNotice}</p> : null}
-          </div>
-          <div className="grid w-full grid-cols-2 rounded-md border border-stone-300 bg-stone-50 p-1 md:hidden" aria-label={t("composer.steps")}>
-            <button data-testid="staff-order-menu-tab" type="button" aria-pressed={activePane === "MENU"} onClick={() => switchPane("MENU")} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded text-sm font-semibold ${activePane === "MENU" ? "bg-white text-stone-950 shadow-sm" : "text-stone-600"}`}><List className="h-4 w-4" />{t("composer.chooseProducts")}</button>
-            <button data-testid="staff-order-cart-tab" type="button" aria-pressed={activePane === "CART"} onClick={() => switchPane("CART")} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded text-sm font-semibold ${activePane === "CART" ? "bg-white text-stone-950 shadow-sm" : "text-stone-600"}`}><ShoppingCart className="h-4 w-4" />{t("composer.orderAndCheckout", { count: totalQuantity })}</button>
+          <div className={`w-full text-xs leading-5 text-stone-600 ${activeDraftId || draftNotice ? "block" : "hidden md:block"}`}>
+            <p className="hidden border-t border-stone-100 pt-3 md:block">{t("composer.draft.policy")}</p>
+            {activeDraftId ? <p className="font-semibold text-teal-800 md:mt-1">{t("composer.draft.editing")}</p> : null}
+            {draftNotice ? <p role="status" className="font-semibold text-teal-800 md:mt-1">{draftNotice}</p> : null}
           </div>
         </header>
 

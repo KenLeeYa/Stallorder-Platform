@@ -141,7 +141,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     await expect(page.getByLabel("選擇商家")).toBeVisible();
     await page.getByLabel("選擇商家").selectOption(demoOrganizationId);
     await expect(page).toHaveURL(
-      new RegExp(`/merchant/stalls\\?organizationId=${demoOrganizationId}$`),
+      new RegExp(`/merchant/dashboard\\?organizationId=${demoOrganizationId}$`),
     );
     await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organizationId}`);
     await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);

@@ -48,7 +48,11 @@ describe("StaffOrderBoard presentation characterization", () => {
 
   it("retains mobile toolbar and ticket layouts plus accessibility contracts", () => {
     expect(presentationSource).toContain('data-testid="staff-function-grid"');
-    expect(presentationSource).toContain("grid w-full grid-cols-3 gap-2 sm:flex");
+    expect(presentationSource).toContain("relative mt-3 flex w-full min-w-0");
+    expect(presentationSource).toContain("sm:overflow-x-visible");
+    expect(presentationSource).toContain('data-testid="staff-function-status-group"');
+    expect(presentationSource).toContain('data-testid="staff-function-order-group"');
+    expect(presentationSource).toContain('data-testid="staff-function-device-group"');
     expect(presentationSource).toContain("sm:flex-row sm:items-center sm:justify-between");
     expect(presentationSource).toContain('aria-label={t("staff.view.kitchenMode")}');
     expect(presentationSource).toContain('aria-label={t("staff.view.orderMode")}');

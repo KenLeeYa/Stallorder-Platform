@@ -521,7 +521,7 @@ test.describe("多攤位商戶關鍵流程", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginWithPassword(page, ownerEmail);
     await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organization.id}`);
-    await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeHidden();
+    await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeVisible();
     await expect(page.getByLabel("應用程式狀態")).toBeVisible();
     const brand = page.getByRole("link", { name: "攤點通", exact: true });
     const appStatus = page.getByLabel("應用程式狀態");
@@ -740,7 +740,7 @@ async function expectRenderedMerchantScope(
     .toHaveCount(0);
   await expect(page.getByRole("link", { name: "攤點通", exact: true })).toHaveAttribute(
     "href",
-    `/merchant/stalls?organizationId=${expected.organizationId}`,
+    `/merchant/dashboard?organizationId=${expected.organizationId}`,
   );
   await expect(page.getByLabel("切換工作模式")).toHaveValue(
     `merchant:${expected.organizationId}`,

@@ -106,6 +106,19 @@ function render(orders: StaffOrderDto[]) {
 }
 
 describe("StaffOrderBoard ticket presentation", () => {
+  it("groups the icon-only toolbar by status, ordering, and device actions", () => {
+    const html = render([]);
+
+    expect(html).toContain('data-testid="staff-function-grid"');
+    expect(html).toContain('data-testid="staff-function-status-group"');
+    expect(html).toContain('data-testid="staff-function-order-group"');
+    expect(html).toContain('data-testid="staff-function-device-group"');
+    expect(html).toContain("overflow-x-auto");
+    expect(html).toContain("sm:overflow-x-visible");
+    expect(html).toContain("relative mt-3 flex");
+    expect(html).toContain('<span class="sr-only">店員點餐</span>');
+  });
+
   it("keeps the item summary and primary actions visible while detailed controls stay compact", () => {
     const html = render([order()]);
 

@@ -78,8 +78,8 @@ import { canTransitionOrder, hasPermission } from "@/lib/rbac";
 import type { WorkModeDestination } from "@/lib/work-mode";
 
 type OperationsTranslator = ReturnType<typeof useOperationsLocale>["t"];
-const staffFunctionTileClass = "inline-flex min-h-16 w-full min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 text-center text-[11px] font-semibold leading-tight sm:h-10 sm:min-h-10 sm:w-10 sm:flex-none sm:px-0";
-const staffFunctionIconClass = "h-5 w-5 sm:h-4 sm:w-4";
+const staffFunctionTileClass = "inline-grid h-11 w-11 shrink-0 place-items-center rounded-md";
+const staffFunctionIconClass = "h-5 w-5";
 
 export type StaffOrderBoardViewMode = "TICKETS" | "TABLES" | "SUMMARY";
 
@@ -376,33 +376,45 @@ function StaffOrderBoardToolbar({
   const role = account.role;
   return (
     <>
-      <div className="flex min-w-0 max-w-full flex-col gap-3 print:hidden sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+      <div className="flex min-w-0 max-w-full items-start justify-between gap-3 print:hidden sm:gap-4">
         <div className="min-w-0">
           <p className="text-sm font-medium text-teal-800">{t("staff.mobileBoard")}</p>
           <h1 className="text-2xl font-semibold sm:text-3xl">{stall.name}</h1>
           <p className="mt-1 text-xs text-stone-500">{account.displayName} · {roleLabel(role, t)}</p>
         </div>
-        <div className="flex w-full min-w-0 max-w-full flex-col gap-2 sm:w-auto sm:items-end">
-          <div className="flex max-w-full flex-wrap items-center gap-2 sm:justify-end">
-            <WorkModeSwitcher destinations={workModeDestinations} currentMode="STAFF" organizationId={stall.organizationId} stallId={stall.id} offlineGuardStallId={stall.id} className="w-auto shrink-0" />
-            <LiveConnectionBadge state={liveConnection} t={t} />
+        <WorkModeSwitcher
+          destinations={workModeDestinations}
+          currentMode="STAFF"
+          organizationId={stall.organizationId}
+          stallId={stall.id}
+          offlineGuardStallId={stall.id}
+          compactOnMobile
+          className="w-[min(52vw,220px)] shrink-0"
+        />
+      </div>
+      <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="relative mt-3 flex w-full min-w-0 items-center gap-2 overflow-x-auto border-y border-stone-200 py-2 print:hidden sm:overflow-x-visible [&>*]:shrink-0">
+        <div data-testid="staff-function-status-group" className="flex items-center gap-1 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:px-0">
+          <LiveConnectionBadge state={liveConnection} t={t} />
+          <div className="shrink-0">
             <PwaControls showWakeLock />
           </div>
-          <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:max-w-full sm:flex-nowrap sm:justify-end">
-            {orderCatalog && hasPermission(role, "CREATE_ORDERS") ? <button type="button" title={t("staff.action.createOrder")} disabled={posConfigurationLoading} onClick={() => void actions.onOpenComposer()} className={`${staffFunctionTileClass} bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}><ShoppingCart className={staffFunctionIconClass} /><span className="sm:sr-only">{t("staff.action.createOrder")}</span></button> : null}
-            {modules.dineIn ? <Link href={`/staff/${stall.slug}/floor`} title={t("staff.action.floor")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><MapPinned className={staffFunctionIconClass} /><span className="sm:sr-only">{t("staff.action.floor")}</span></Link> : null}
-            {modules.print && hasPermission(role, "MANAGE_PRINT_QUEUE") ? <Link href={`/staff/${stall.slug}/print`} title={t("staff.action.printQueue")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><Printer className={staffFunctionIconClass} /><span className="sm:sr-only">{t("staff.action.printQueue")}</span></Link> : null}
-            {hasPermission(role, "MANAGE_CASH_SHIFT") ? <Link href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><WalletCards className={staffFunctionIconClass} /><span className="sm:sr-only">{t("staff.action.cashShift")}</span></Link> : null}
-            <button type="button" role="switch" aria-checked={alertsEnabled} aria-label={alertsEnabled ? t("staff.action.notificationsOn") : t("staff.action.notificationsOff")} onClick={actions.onToggleAlerts} title={alertsEnabled ? t("staff.action.notificationsDisable") : t("staff.action.notificationsEnable")} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>{alertsEnabled ? <Volume2 className={staffFunctionIconClass} /> : <VolumeX className={staffFunctionIconClass} />}<span aria-hidden="true" className="sm:sr-only">{t("staff.action.notifications")}</span></button>
-            <div data-testid="staff-function-offline" className={`${staffFunctionTileClass} relative border border-stone-300 bg-white text-stone-700 [&>div>button:first-child]:h-11 [&>div>button:first-child]:w-11 [&>div>button:first-child]:border-0 sm:[&>div>button:first-child]:h-10 sm:[&>div>button:first-child]:w-10`}><OfflineBootstrapControl stallId={stall.id} stallSlug={stall.slug} appVersion={appVersion} /><span className="sm:sr-only">{t("staff.action.offlineDevice")}</span></div>
-            <button type="button" onClick={actions.onRefresh} title={t("common.refresh")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} /><span className="sm:sr-only">{t("common.refresh")}</span></button>
-            <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border-0 sm:[&>button]:h-10 sm:[&>button]:w-10`}><LogoutButton offlineStallId={stall.id} /><span className="sm:sr-only">{t("staff.action.logout")}</span></div>
-          </nav>
         </div>
-      </div>
+        <div data-testid="staff-function-order-group" className="flex items-center gap-2 border-r border-stone-200 pr-2">
+          {orderCatalog && hasPermission(role, "CREATE_ORDERS") ? <button type="button" title={t("staff.action.createOrder")} disabled={posConfigurationLoading} onClick={() => void actions.onOpenComposer()} className={`${staffFunctionTileClass} bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}><ShoppingCart className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.createOrder")}</span></button> : null}
+          {modules.dineIn ? <Link href={`/staff/${stall.slug}/floor`} title={t("staff.action.floor")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><MapPinned className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.floor")}</span></Link> : null}
+          {modules.print && hasPermission(role, "MANAGE_PRINT_QUEUE") ? <Link href={`/staff/${stall.slug}/print`} title={t("staff.action.printQueue")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><Printer className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.printQueue")}</span></Link> : null}
+          {hasPermission(role, "MANAGE_CASH_SHIFT") ? <Link href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><WalletCards className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.cashShift")}</span></Link> : null}
+          {capacity ? <StaffCapacityControl stallSlug={stall.slug} initialData={capacity} compact /> : null}
+        </div>
+        <div data-testid="staff-function-device-group" className="flex items-center gap-2">
+          <button type="button" role="switch" aria-checked={alertsEnabled} aria-label={alertsEnabled ? t("staff.action.notificationsOn") : t("staff.action.notificationsOff")} onClick={actions.onToggleAlerts} title={alertsEnabled ? t("staff.action.notificationsDisable") : t("staff.action.notificationsEnable")} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>{alertsEnabled ? <Volume2 className={staffFunctionIconClass} /> : <VolumeX className={staffFunctionIconClass} />}<span aria-hidden="true" className="sr-only">{t("staff.action.notifications")}</span></button>
+          <div data-testid="staff-function-offline" className={`${staffFunctionTileClass} relative border border-stone-300 bg-white text-stone-700 [&>div>button:first-child]:h-11 [&>div>button:first-child]:w-11 [&>div>button:first-child]:border-0`}><OfflineBootstrapControl stallId={stall.id} stallSlug={stall.slug} appVersion={appVersion} /><span className="sr-only">{t("staff.action.offlineDevice")}</span></div>
+          <button type="button" onClick={actions.onRefresh} title={t("common.refresh")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} /><span className="sr-only">{t("common.refresh")}</span></button>
+          <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border-0`}><LogoutButton offlineStallId={stall.id} /><span className="sr-only">{t("staff.action.logout")}</span></div>
+        </div>
+      </nav>
       <OfflineQueueStatus stallId={stall.id} stallSlug={stall.slug} onSynchronized={actions.onSynchronized} />
       {message ? <p role="status" className="mt-4 text-sm text-stone-700 print:hidden">{message}</p> : null}
-      {capacity ? <StaffCapacityControl stallSlug={stall.slug} initialData={capacity} /> : null}
       <div className="mt-4 flex flex-col gap-2 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 print:hidden">
         <label className="relative block w-full sm:max-w-sm"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-stone-400" /><span className="sr-only">{t("staff.search.label")}</span><input type="search" value={query} maxLength={120} onChange={(event) => actions.onQueryChange(event.target.value)} placeholder={t("staff.search.shortPlaceholder")} className="h-11 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" /></label>
         {role === "KITCHEN" ? (
@@ -693,7 +705,7 @@ function LiveConnectionBadge({ state, t }: { state: StaffOrderLiveConnectionStat
       : state === "polling"
         ? t("staff.live.pollingTitle")
         : t("staff.live.connectingTitle");
-  return <span role="status" className={`inline-flex h-10 items-center gap-1.5 text-xs font-medium ${connected ? "text-emerald-700" : "text-amber-700"}`} title={title}>{connected ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}<span className="hidden sm:inline">{label}</span></span>;
+  return <span role="status" aria-label={label} className={`grid h-11 w-11 shrink-0 place-items-center rounded-md border text-xs font-medium ${connected ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-50 text-amber-700"}`} title={title}>{connected ? <Wifi className="h-5 w-5" /> : <WifiOff className="h-5 w-5" />}<span className="sr-only">{label}</span></span>;
 }
 
 function ItemStatusButton({ itemStatus, role, busy, t, onUpdate }: { itemStatus: OrderItemStatus; role: UserRole; busy: boolean; t: OperationsTranslator; onUpdate: (status: Exclude<OrderItemStatus, "PENDING">) => void }) {
