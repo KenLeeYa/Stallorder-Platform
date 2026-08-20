@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 
 const ANSI_PATTERN = /\u001b\[[0-9;]*m/gu;
 const MIGRATION_VERSION_PATTERN = /^\d{14}$/u;
+const REPORT_DELIVERY_SCHEDULER_FUNCTION_BODY_SHA256 =
+  "ed13e2ade80350ba6a7484c015c614e80f4bf0ba14e5821a0f7a036e313ad809";
 const IDENTIFIER_SOURCE = "[a-z_][a-z0-9_$]*";
 const QUALIFIED_IDENTIFIER_SOURCE = `${IDENTIFIER_SOURCE}(?:\\.${IDENTIFIER_SOURCE})?`;
 const QUALIFIED_IDENTIFIER_PATTERN = new RegExp(
@@ -440,6 +442,7 @@ function assertDoBlocksSafe(scan) {
     .map((statement, index) => (/^do\s+\$\$$/iu.test(statement) ? index : -1))
     .filter((index) => index >= 0);
   let safeCollisionAuditCount = 0;
+  let safeReportDeliverySchedulerCount = 0;
 
   if (
     (beginIndices.length > 0 || commitIndices.length > 0)
@@ -460,6 +463,7 @@ function assertDoBlocksSafe(scan) {
   for (const [doBlockIndex, body] of scan.doBlocks.entries()) {
     const safeCreateEnum = /^\s*begin\s+create\s+type\s+(?:"?[a-z_][a-z0-9_$]*"?\.)?"?[a-z_][a-z0-9_$]*"?\s+as\s+enum\s*\(\s*'(?:[^']|'')+'(?:\s*,\s*'(?:[^']|'')+')*\s*\)\s*;\s*exception\s+when\s+duplicate_object\s+then\s+null\s*;\s*end\s*;?\s*$/iu;
     const safeCollisionAudit = /^\s*declare\s+collision_code\s+text\s*;\s*begin\s+select\s+pg_catalog\.lower\(stall\.code\)\s+into\s+collision_code\s+from\s+public\.stalls\s+stall\s+group\s+by\s+pg_catalog\.lower\(stall\.code\)\s+having\s+pg_catalog\.count\(\*\)\s*>\s*1\s+order\s+by\s+pg_catalog\.lower\(stall\.code\)\s+limit\s+1\s*;\s*if\s+found\s+then\s+raise\s+unique_violation\s+using\s+message\s*=\s*'GLOBAL_STALL_CODE_COLLISION'\s*,\s*detail\s*=\s*pg_catalog\.format\(\s*'normalized code %L already exists more than once'\s*,\s*collision_code\s*\)\s*,\s*constraint\s*=\s*'stalls_code_lower_guard'\s*;\s*end\s+if\s*;\s*end\s*;?\s*$/iu;
+    const safeReportDeliveryScheduler = /^\s*begin\s+perform\s+cron\.unschedule\(jobid\)\s+from\s+cron\.job\s+where\s+jobname\s*=\s*'stallorder-report-deliveries'\s*;\s*perform\s+cron\.schedule\(\s*'stallorder-report-deliveries'\s*,\s*'\*\/5 \* \* \* \*'\s*,\s*'select app_private\.invoke_due_report_deliveries\(\)'\s*\)\s*;\s*end\s*;?\s*$/iu;
     const doStatementIndex = doStatementIndices[doBlockIndex] ?? -1;
 
     if (safeCollisionAudit.test(body)) {
@@ -478,6 +482,40 @@ function assertDoBlocksSafe(scan) {
         || lockIndex >= doStatementIndex
         || doStatementIndex >= commitIndices[0]
         || commitIndices[0] !== statements.length - 1
+      ) {
+        throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
+      }
+      continue;
+    }
+    if (safeReportDeliveryScheduler.test(body)) {
+      safeReportDeliverySchedulerCount += 1;
+      const functionIndices = statements
+        .map((statement, index) => (
+          createFunctionIdentity(statement)
+            === "app_private.invoke_due_report_deliveries()"
+            ? index
+            : -1
+        ))
+        .filter((index) => index >= 0);
+      const functionBlocks = scan.functionBlocks.filter((block) => (
+        createFunctionIdentity(`${block.prefix} $$`)
+          === "app_private.invoke_due_report_deliveries()"
+      ));
+      const functionIndex = functionIndices[0] ?? -1;
+      const functionBodyDigest = functionBlocks.length === 1
+        ? sha256(functionBlocks[0].body.replace(/\r\n/gu, "\n").trim())
+        : null;
+      if (
+        safeReportDeliverySchedulerCount !== 1
+        || functionIndices.length !== 1
+        || functionBlocks.length !== 1
+        || functionBodyDigest !== REPORT_DELIVERY_SCHEDULER_FUNCTION_BODY_SHA256
+        || beginIndices.length !== 1
+        || commitIndices.length !== 1
+        || functionIndex < 0
+        || beginIndices[0] >= functionIndex
+        || functionIndex >= doStatementIndex
+        || doStatementIndex >= commitIndices[0]
       ) {
         throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
       }
@@ -610,6 +648,7 @@ function scanSql(sql) {
   let output = "";
   let statementStart = 0;
   const doBlocks = [];
+  const functionBlocks = [];
   for (let index = 0; index < sql.length;) {
     if (sql.startsWith("--", index)) {
       const end = sql.indexOf("\n", index + 2);
@@ -662,13 +701,16 @@ function scanSql(sql) {
     if (sql[index] === "$") {
       const delimiter = sql.slice(index).match(/^\$[A-Za-z0-9_]*\$/u)?.[0];
       if (delimiter) {
+        const prefix = output.slice(statementStart).trim();
         const bodyStart = index + delimiter.length;
         const end = sql.indexOf(delimiter, bodyStart);
         if (end === -1) {
           throw new AdditiveMigrationPlanError("MIGRATION_SQL_DOLLAR_QUOTE_INVALID");
         }
-        if (/^do$/iu.test(output.slice(statementStart).trim())) {
+        if (/^do$/iu.test(prefix)) {
           doBlocks.push(sql.slice(bodyStart, end));
+        } else if (/^create\s+(?:or\s+replace\s+)?function\b/iu.test(prefix)) {
+          functionBlocks.push({ prefix, body: sql.slice(bodyStart, end) });
         }
         output += " $$ ";
         index = end + delimiter.length;
@@ -679,7 +721,7 @@ function scanSql(sql) {
     if (sql[index] === ";") statementStart = output.length;
     index += 1;
   }
-  return { scrubbedSql: output, doBlocks };
+  return { scrubbedSql: output, doBlocks, functionBlocks };
 }
 
 function sha256(value) {

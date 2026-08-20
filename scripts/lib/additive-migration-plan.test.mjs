@@ -1,9 +1,16 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assertAdditiveMigrationSql,
   createAdditiveMigrationPlan,
   parseSupabaseMigrationList,
 } from "./additive-migration-plan.mjs";
+
+const reportDeliverySchedulerMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260820071255_restore_report_delivery_scheduler_contract.sql",
+), "utf8");
 
 describe("additive DR migration plan", () => {
   it("parses exact pending versions from ASCII or Unicode Supabase output", () => {
@@ -286,6 +293,28 @@ describe("additive DR migration plan", () => {
     expect(assertAdditiveMigrationSql(
       "create table public.parser_probe (id uuid); -- trailing comment",
     )).toBe(true);
+  });
+
+  it("allows the bounded report delivery scheduler repair", () => {
+    expect(assertAdditiveMigrationSql(reportDeliverySchedulerMigration)).toBe(true);
+  });
+
+  it("rejects a scheduler repair for any other cron job", () => {
+    expect(() => assertAdditiveMigrationSql(
+      reportDeliverySchedulerMigration.replaceAll(
+        "stallorder-report-deliveries",
+        "unreviewed-job",
+      ),
+    )).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
+  });
+
+  it("rejects a scheduler repair with a modified function body", () => {
+    expect(() => assertAdditiveMigrationSql(
+      reportDeliverySchedulerMigration.replace(
+        "return v_request_id;",
+        "return 0;",
+      ),
+    )).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
   });
 
   it.each([
