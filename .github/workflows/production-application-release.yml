@@ -1,0 +1,292 @@
+name: Production Application Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Create a Plan or apply an approved application-only release
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+      plan_run_id:
+        description: Successful application Plan run ID required for Apply
+        required: false
+        type: string
+        default: ""
+      confirmation:
+        description: Type APPLY_PRODUCTION_APPLICATION when applying
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  actions: read
+  contents: read
+  statuses: read
+
+concurrency:
+  group: production-application-release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: inputs.operation == 'plan'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: production
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Validate application Plan invocation
+        env:
+          INPUT_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::Production application Plans must run from main."
+            exit 1
+          }
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+            echo "::error::Only the repository owner may create a Production application Plan."
+            exit 1
+          }
+          test -z "$INPUT_PLAN_RUN_ID" || {
+            echo "::error::Plan must not include a prior Plan run ID."
+            exit 1
+          }
+          test -z "$INPUT_CONFIRMATION" || {
+            echo "::error::Plan must not include an Apply confirmation."
+            exit 1
+          }
+          for name in VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            test -n "${!name:-}" || {
+              echo "::error::Missing protected configuration: ${name}"
+              exit 1
+            }
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run production:check
+      - run: npm run lint
+      - run: npm run ui:audit
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=moderate
+
+      - name: Create immutable Production application Plan receipt
+        env:
+          PRODUCTION_APPROVAL_OPERATION: production-application
+          PRODUCTION_APPROVAL_PARAMETERS_JSON: '{"databaseChanges":false,"edgeFunctionChanges":false}'
+          PRODUCTION_APPROVAL_RECEIPT_PATH: artifacts/production-application-approval.json
+        run: node scripts/production-approval.mjs create
+
+      - name: Upload Production application Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-application-plan-${{ github.run_id }}
+          path: artifacts/production-application-approval.json
+          if-no-files-found: error
+          retention-days: 1
+
+  apply:
+    if: inputs.operation == 'apply'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: production
+    env:
+      APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Validate application Apply invocation
+        env:
+          INPUT_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::Production application Apply must run from main."
+            exit 1
+          }
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+            echo "::error::Only the repository owner may apply a Production application release."
+            exit 1
+          }
+          [[ "$INPUT_PLAN_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
+            echo "::error::Apply requires the successful application Plan run ID."
+            exit 1
+          }
+          test "$INPUT_CONFIRMATION" = "APPLY_PRODUCTION_APPLICATION" || {
+            echo "::error::Confirmation must be APPLY_PRODUCTION_APPLICATION."
+            exit 1
+          }
+          for name in APP_BASE_URL VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            test -n "${!name:-}" || {
+              echo "::error::Missing protected configuration: ${name}"
+              exit 1
+            }
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run production:check
+      - run: npm audit --audit-level=moderate
+
+      - name: Download approved Production application Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: production-application-plan-${{ inputs.plan_run_id }}
+          path: approved-application-plan
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.plan_run_id }}
+
+      - name: Verify application approval is bound to the immutable Plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PRODUCTION_APPROVAL_OPERATION: production-application
+          PRODUCTION_APPROVAL_PARAMETERS_JSON: '{"databaseChanges":false,"edgeFunctionChanges":false}'
+          PRODUCTION_APPROVAL_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          PRODUCTION_APPROVAL_RECEIPT_PATH: approved-application-plan/production-application-approval.json
+        run: node scripts/production-approval.mjs verify
+
+      - name: Validate protected Production application configuration
+        env:
+          PRODUCTION_TEST_QR_URL: ${{ secrets.PRODUCTION_TEST_QR_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in PRODUCTION_TEST_QR_URL VERCEL_TOKEN; do
+            test -n "${!name:-}" || {
+              echo "::error::Missing protected configuration: ${name}"
+              exit 1
+            }
+          done
+          node --input-type=module -e '
+            import { resolveProductionTestQrUrl } from "./scripts/lib/production-smoke-qr-url.mjs";
+            resolveProductionTestQrUrl({
+              baseUrl: process.env.APP_BASE_URL,
+              configuredUrl: process.env.PRODUCTION_TEST_QR_URL,
+              required: true,
+            });
+          '
+
+      - name: Normalize protected Vercel token
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node scripts/export-normalized-vercel-token.mjs
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global vercel@56.3.1
+
+      - name: Build application-only Production deployment without assigning domains
+        env:
+          APPROVAL_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployment="$(
+            vercel deploy . \
+              --prod \
+              --skip-domain \
+              --force \
+              --yes \
+              --token "$VERCEL_TOKEN" \
+              --meta "approval_plan_run_id=$APPROVAL_PLAN_RUN_ID" \
+              --meta "release_mode=application_only" \
+              --meta "git_commit=${GITHUB_SHA}"
+          )"
+          [[ "$deployment" == https://*.vercel.app ]] || {
+            echo "::error::Vercel deployment URL was not returned."
+            exit 1
+          }
+          echo "APPROVED_PRODUCTION_DEPLOYMENT=$deployment" >> "$GITHUB_ENV"
+
+      - name: Smoke application deployment before promotion
+        env:
+          PRODUCTION_TEST_QR_REQUIRED: "false"
+          SMOKE_SKIP_DOMAIN_REDIRECTS: "true"
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PRODUCTION_BASE_URL="$APPROVED_PRODUCTION_DEPLOYMENT" \
+            npm run production:smoke
+
+      - name: Promote approved application deployment and smoke Production
+        env:
+          PRODUCTION_BASE_URL: ${{ vars.APP_BASE_URL }}
+          PRODUCTION_TEST_QR_REQUIRED: "true"
+          PRODUCTION_TEST_QR_URL: ${{ secrets.PRODUCTION_TEST_QR_URL }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          promoted=false
+          rollback_on_error() {
+            if [ "$promoted" = "true" ]; then
+              echo "::warning::Production smoke failed; rolling back the Vercel alias."
+              vercel rollback --yes --token "$VERCEL_TOKEN"
+            fi
+          }
+          trap rollback_on_error ERR
+          vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+          promoted=true
+          npm run production:smoke
+          trap - ERR
+
+      - name: Create immutable successful application release evidence
+        env:
+          PRODUCTION_APPROVAL_OPERATION: production-application
+          PRODUCTION_EVIDENCE_PATH: artifacts/production-application-evidence.json
+        run: node scripts/production-approval.mjs create-evidence
+
+      - name: Upload successful application release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-application-${{ github.run_id }}
+          path: artifacts/production-application-evidence.json
+          if-no-files-found: error
+          retention-days: 30

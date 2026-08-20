@@ -2,14 +2,14 @@ import { createHash } from "node:crypto";
 
 const ANSI_PATTERN = /\u001b\[[0-9;]*m/gu;
 const MIGRATION_VERSION_PATTERN = /^\d{14}$/u;
+const REPORT_DELIVERY_SCHEDULER_FUNCTION_BODY_SHA256 =
+  "ed13e2ade80350ba6a7484c015c614e80f4bf0ba14e5821a0f7a036e313ad809";
 const IDENTIFIER_SOURCE = "[a-z_][a-z0-9_$]*";
 const QUALIFIED_IDENTIFIER_SOURCE = `${IDENTIFIER_SOURCE}(?:\\.${IDENTIFIER_SOURCE})?`;
 const QUALIFIED_IDENTIFIER_PATTERN = new RegExp(
   `^${QUALIFIED_IDENTIFIER_SOURCE}$`,
   "iu",
 );
-const REPORT_DELIVERY_CRON_SCHEDULE_SQL_PATTERN = /select\s+cron\.schedule\(\s*'stallorder-report-deliveries'\s*,\s*'\*\/5 \* \* \* \*'\s*,\s*'select app_private\.invoke_due_report_deliveries\(\)'\s*\)/giu;
-const SCRUBBED_CRON_SCHEDULE_PATTERN = /^select\s+cron\.schedule\(\s*''\s*,\s*''\s*,\s*''\s*\)$/iu;
 
 export class AdditiveMigrationPlanError extends Error {
   constructor(code, details = {}) {
@@ -135,9 +135,9 @@ export function assertAdditiveMigrationSql(sql) {
   if (typeof sql !== "string" || sql.trim().length === 0) {
     throw new AdditiveMigrationPlanError("MIGRATION_SQL_INVALID");
   }
-  assertApprovedCronSchedules(sql);
-  assertDoBlocksSafe(sql);
-  const statements = scrubSql(sql)
+  const scan = scanSql(sql);
+  assertDoBlocksSafe(scan);
+  const statements = scan.scrubbedSql
     .split(";")
     .map((statement) => statement.trim())
     .filter(Boolean);
@@ -315,7 +315,7 @@ function assertCommentsTargetCreatedObjects(statements) {
 
 function assertSafeTimeout(statement) {
   const match = statement.match(
-    /^set\s+(lock_timeout|statement_timeout)\s*=\s*'(\d+)(ms|s|min)'$/iu,
+    /^set\s+(?:local\s+)?(lock_timeout|statement_timeout)\s*=\s*'(\d+)(ms|s|min)'$/iu,
   );
   if (!match) {
     throw new AdditiveMigrationPlanError("TIMEOUT_STATEMENT_UNSAFE");
@@ -417,13 +417,117 @@ function functionArgumentTypes(value, declarationsIncludeNames) {
   return types;
 }
 
-function assertDoBlocksSafe(sql) {
-  for (const match of sql.matchAll(/\bdo\s+(\$[A-Za-z0-9_]*\$)([\s\S]*?)\1/giu)) {
-    const body = match[2];
+function assertDoBlocksSafe(scan) {
+  const statements = scan.scrubbedSql
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+  const lockIndex = statements.findIndex((statement) => (
+    /^lock\s+table\s+public\.stalls\s+in\s+share\s+row\s+exclusive\s+mode$/iu
+      .test(statement)
+  ));
+  const lockTimeoutIndex = statements.findIndex((statement) => (
+    /^set\s+local\s+lock_timeout\s*=\s*'\d+(?:ms|s|min)'$/iu.test(statement)
+  ));
+  const statementTimeoutIndex = statements.findIndex((statement) => (
+    /^set\s+local\s+statement_timeout\s*=\s*'\d+(?:ms|s|min)'$/iu.test(statement)
+  ));
+  const beginIndices = statements
+    .map((statement, index) => (/^begin$/iu.test(statement) ? index : -1))
+    .filter((index) => index >= 0);
+  const commitIndices = statements
+    .map((statement, index) => (/^commit$/iu.test(statement) ? index : -1))
+    .filter((index) => index >= 0);
+  const doStatementIndices = statements
+    .map((statement, index) => (/^do\s+\$\$$/iu.test(statement) ? index : -1))
+    .filter((index) => index >= 0);
+  let safeCollisionAuditCount = 0;
+  let safeReportDeliverySchedulerCount = 0;
+
+  if (
+    (beginIndices.length > 0 || commitIndices.length > 0)
+    && (
+      beginIndices.length !== 1
+      || commitIndices.length !== 1
+      || beginIndices[0] !== 0
+      || commitIndices[0] !== statements.length - 1
+    )
+  ) {
+    throw new AdditiveMigrationPlanError("TRANSACTION_WRAPPER_UNSAFE");
+  }
+
+  if (scan.doBlocks.length !== doStatementIndices.length) {
+    throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
+  }
+
+  for (const [doBlockIndex, body] of scan.doBlocks.entries()) {
     const safeCreateEnum = /^\s*begin\s+create\s+type\s+(?:"?[a-z_][a-z0-9_$]*"?\.)?"?[a-z_][a-z0-9_$]*"?\s+as\s+enum\s*\(\s*'(?:[^']|'')+'(?:\s*,\s*'(?:[^']|'')+')*\s*\)\s*;\s*exception\s+when\s+duplicate_object\s+then\s+null\s*;\s*end\s*;?\s*$/iu;
+    const safeCollisionAudit = /^\s*declare\s+collision_code\s+text\s*;\s*begin\s+select\s+pg_catalog\.lower\(stall\.code\)\s+into\s+collision_code\s+from\s+public\.stalls\s+stall\s+group\s+by\s+pg_catalog\.lower\(stall\.code\)\s+having\s+pg_catalog\.count\(\*\)\s*>\s*1\s+order\s+by\s+pg_catalog\.lower\(stall\.code\)\s+limit\s+1\s*;\s*if\s+found\s+then\s+raise\s+unique_violation\s+using\s+message\s*=\s*'GLOBAL_STALL_CODE_COLLISION'\s*,\s*detail\s*=\s*pg_catalog\.format\(\s*'normalized code %L already exists more than once'\s*,\s*collision_code\s*\)\s*,\s*constraint\s*=\s*'stalls_code_lower_guard'\s*;\s*end\s+if\s*;\s*end\s*;?\s*$/iu;
+    const safeReportDeliveryScheduler = /^\s*begin\s+perform\s+cron\.unschedule\(jobid\)\s+from\s+cron\.job\s+where\s+jobname\s*=\s*'stallorder-report-deliveries'\s*;\s*perform\s+cron\.schedule\(\s*'stallorder-report-deliveries'\s*,\s*'\*\/5 \* \* \* \*'\s*,\s*'select app_private\.invoke_due_report_deliveries\(\)'\s*\)\s*;\s*end\s*;?\s*$/iu;
+    const doStatementIndex = doStatementIndices[doBlockIndex] ?? -1;
+
+    if (safeCollisionAudit.test(body)) {
+      safeCollisionAuditCount += 1;
+      if (
+        safeCollisionAuditCount !== 1
+        || beginIndices.length !== 1
+        || commitIndices.length !== 1
+        || lockTimeoutIndex < 0
+        || statementTimeoutIndex < 0
+        || lockIndex < 0
+        || beginIndices[0] >= lockTimeoutIndex
+        || beginIndices[0] >= statementTimeoutIndex
+        || lockTimeoutIndex >= lockIndex
+        || statementTimeoutIndex >= lockIndex
+        || lockIndex >= doStatementIndex
+        || doStatementIndex >= commitIndices[0]
+        || commitIndices[0] !== statements.length - 1
+      ) {
+        throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
+      }
+      continue;
+    }
+    if (safeReportDeliveryScheduler.test(body)) {
+      safeReportDeliverySchedulerCount += 1;
+      const functionIndices = statements
+        .map((statement, index) => (
+          createFunctionIdentity(statement)
+            === "app_private.invoke_due_report_deliveries()"
+            ? index
+            : -1
+        ))
+        .filter((index) => index >= 0);
+      const functionBlocks = scan.functionBlocks.filter((block) => (
+        createFunctionIdentity(`${block.prefix} $$`)
+          === "app_private.invoke_due_report_deliveries()"
+      ));
+      const functionIndex = functionIndices[0] ?? -1;
+      const functionBodyDigest = functionBlocks.length === 1
+        ? sha256(functionBlocks[0].body.replace(/\r\n/gu, "\n").trim())
+        : null;
+      if (
+        safeReportDeliverySchedulerCount !== 1
+        || functionIndices.length !== 1
+        || functionBlocks.length !== 1
+        || functionBodyDigest !== REPORT_DELIVERY_SCHEDULER_FUNCTION_BODY_SHA256
+        || beginIndices.length !== 1
+        || commitIndices.length !== 1
+        || functionIndex < 0
+        || beginIndices[0] >= functionIndex
+        || functionIndex >= doStatementIndex
+        || doStatementIndex >= commitIndices[0]
+      ) {
+        throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
+      }
+      continue;
+    }
     if (!safeCreateEnum.test(body)) {
       throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
     }
+  }
+
+  if (lockIndex >= 0 && safeCollisionAuditCount !== 1) {
+    throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
   }
 }
 
@@ -442,22 +546,14 @@ function assertAllowedStatement(statement) {
     /^revoke\b/iu,
     /^grant\b/iu,
     /^comment\s+on\s+(?:column|function)\b/iu,
-    /^set\s+(?:lock_timeout|statement_timeout)\s*=/iu,
+    /^begin$/iu,
+    /^commit$/iu,
+    /^set\s+(?:local\s+)?(?:lock_timeout|statement_timeout)\s*=/iu,
+    /^lock\s+table\s+public\.stalls\s+in\s+share\s+row\s+exclusive\s+mode$/iu,
     /^do\s+\$\$/iu,
-    SCRUBBED_CRON_SCHEDULE_PATTERN,
   ].some((pattern) => pattern.test(statement));
   if (!allowed) {
     throw new AdditiveMigrationPlanError("MIGRATION_STATEMENT_FORBIDDEN");
-  }
-}
-
-function assertApprovedCronSchedules(sql) {
-  const withoutApprovedSchedule = sql.replace(
-    REPORT_DELIVERY_CRON_SCHEDULE_SQL_PATTERN,
-    "",
-  );
-  if (/\bcron\.schedule\s*\(/iu.test(withoutApprovedSchedule)) {
-    throw new AdditiveMigrationPlanError("CRON_SCHEDULE_FORBIDDEN");
   }
 }
 
@@ -548,12 +644,15 @@ function normalizeIdentifier(value) {
   return value.includes('"') ? `quoted:${value}` : value.toLowerCase();
 }
 
-function scrubSql(sql) {
+function scanSql(sql) {
   let output = "";
+  let statementStart = 0;
+  const doBlocks = [];
+  const functionBlocks = [];
   for (let index = 0; index < sql.length;) {
     if (sql.startsWith("--", index)) {
       const end = sql.indexOf("\n", index + 2);
-      if (end === -1) return output;
+      if (end === -1) break;
       output += "\n";
       index = end + 1;
       continue;
@@ -602,9 +701,16 @@ function scrubSql(sql) {
     if (sql[index] === "$") {
       const delimiter = sql.slice(index).match(/^\$[A-Za-z0-9_]*\$/u)?.[0];
       if (delimiter) {
-        const end = sql.indexOf(delimiter, index + delimiter.length);
+        const prefix = output.slice(statementStart).trim();
+        const bodyStart = index + delimiter.length;
+        const end = sql.indexOf(delimiter, bodyStart);
         if (end === -1) {
           throw new AdditiveMigrationPlanError("MIGRATION_SQL_DOLLAR_QUOTE_INVALID");
+        }
+        if (/^do$/iu.test(prefix)) {
+          doBlocks.push(sql.slice(bodyStart, end));
+        } else if (/^create\s+(?:or\s+replace\s+)?function\b/iu.test(prefix)) {
+          functionBlocks.push({ prefix, body: sql.slice(bodyStart, end) });
         }
         output += " $$ ";
         index = end + delimiter.length;
@@ -612,9 +718,10 @@ function scrubSql(sql) {
       }
     }
     output += sql[index];
+    if (sql[index] === ";") statementStart = output.length;
     index += 1;
   }
-  return output;
+  return { scrubbedSql: output, doBlocks, functionBlocks };
 }
 
 function sha256(value) {

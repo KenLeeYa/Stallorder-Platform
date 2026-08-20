@@ -1,5 +1,4 @@
-set lock_timeout = '5s';
-set statement_timeout = '2min';
+begin;
 
 create or replace function app_private.invoke_due_report_deliveries()
 returns bigint
@@ -69,3 +68,19 @@ $$;
 
 revoke all on function app_private.invoke_due_report_deliveries()
 from public, anon, authenticated;
+
+do $scheduler$
+begin
+  perform cron.unschedule(jobid)
+  from cron.job
+  where jobname = 'stallorder-report-deliveries';
+
+  perform cron.schedule(
+    'stallorder-report-deliveries',
+    '*/5 * * * *',
+    'select app_private.invoke_due_report_deliveries()'
+  );
+end;
+$scheduler$;
+
+commit;

@@ -5,6 +5,10 @@ import { Prisma } from "@prisma/client";
 import { newStallOrderingSettings } from "@/lib/new-stall-ordering-defaults";
 import { prisma } from "@/lib/prisma";
 import { PUBLIC_IDENTIFIER_MAX_LENGTH } from "@/lib/public-identifier";
+import {
+  assertGlobalStallCodeAvailable,
+  GlobalStallCodeConflictError,
+} from "@/server/stalls/global-stall-code-guard";
 
 export type MerchantApprovalErrorCode =
   | "APPLICATION_NOT_FOUND"
@@ -103,7 +107,8 @@ export async function approveMerchantApplication(
 
       const requestedSlug = application.requestedSlug as string;
       const requestedCode = requestedSlug.toUpperCase().slice(0, PUBLIC_IDENTIFIER_MAX_LENGTH);
-      const [organizationMemberships, stallMemberships, slugConflict, codeConflict, emailConflict] = await Promise.all([
+      await assertGlobalStallCodeAvailable(transaction, requestedCode);
+      const [organizationMemberships, stallMemberships, slugConflict, emailConflict] = await Promise.all([
         transaction.organizationMembership.count({
           where: { profileId: application.applicantProfileId, isActive: true },
         }),
@@ -111,15 +116,12 @@ export async function approveMerchantApplication(
           where: { profileId: application.applicantProfileId, isActive: true },
         }),
         transaction.stall.count({ where: { slug: requestedSlug } }),
-        transaction.stall.count({
-          where: { code: { equals: requestedCode, mode: "insensitive" } },
-        }),
         transaction.organization.count({ where: { email: application.applicantEmail } }),
       ]);
       if (organizationMemberships > 0 || stallMemberships > 0 || emailConflict > 0) {
         throw new MerchantApprovalError("APPLICANT_ALREADY_ONBOARDED");
       }
-      if (slugConflict > 0 || codeConflict > 0) {
+      if (slugConflict > 0) {
         throw new MerchantApprovalError("SLUG_UNAVAILABLE");
       }
 
@@ -302,6 +304,9 @@ export async function approveMerchantApplication(
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
     if (error instanceof MerchantApprovalError) throw error;
+    if (error instanceof GlobalStallCodeConflictError) {
+      throw new MerchantApprovalError("SLUG_UNAVAILABLE");
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       throw new MerchantApprovalError("PROVISIONING_CONFLICT");
     }
