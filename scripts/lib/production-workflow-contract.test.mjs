@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "../..");
 const readiness = read(".github/workflows/production-readiness.yml");
+const applicationRelease = read(".github/workflows/production-application-release.yml");
 const disasterRecovery = read(".github/workflows/production-dr-operations.yml");
 const ephemeralPreview = read(".github/workflows/ephemeral-preview.yml");
 const statusPage = read(".github/workflows/status-page-deploy.yml");
@@ -22,6 +23,29 @@ describe("Production workflow approval contract", () => {
     expect(readiness).toMatch(
       /name: Promote approved deployment and smoke Production\r?\n\s+if: inputs\.apply_migrations/u,
     );
+  });
+
+  it("supports an immutable application-only release without database mutation", () => {
+    const deploy = applicationRelease.indexOf(
+      "name: Build application-only Production deployment without assigning domains",
+    );
+    const previewSmoke = applicationRelease.indexOf(
+      "name: Smoke application deployment before promotion",
+    );
+    const promote = applicationRelease.indexOf(
+      "name: Promote approved application deployment and smoke Production",
+    );
+
+    expect(productionApproval).toContain('"production-application"');
+    expect(applicationRelease).toContain("APPLY_PRODUCTION_APPLICATION");
+    expect(applicationRelease).toContain("production-approval.mjs verify");
+    expect(applicationRelease).toContain("production-application-plan-${{ github.run_id }}");
+    expect(deploy).toBeGreaterThan(-1);
+    expect(deploy).toBeLessThan(previewSmoke);
+    expect(previewSmoke).toBeLessThan(promote);
+    expect(applicationRelease).not.toMatch(/supabase\s+db\s+(?:push|reset)/u);
+    expect(applicationRelease).not.toContain("supabase functions deploy");
+    expect(applicationRelease).not.toContain("production-primary-migration");
   });
 
   it("requires a prior Plan receipt for every DR and status-page Apply", () => {
