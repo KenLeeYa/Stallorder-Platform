@@ -220,7 +220,11 @@ test("分享外帶連結依取餐時段更新商品與套餐選項並清除失�
   await expect(page.locator("article#qr-product-later-item")).toHaveCount(0);
   await expect(cart).toContainText("共 2 份");
   await expect(cart).toContainText("$270");
-  await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeDisabled();
+  const checkoutBlocker = page.getByTestId("qr-checkout-blocker");
+  const submitOrder = page.getByRole("button", { name: "送出訂單", exact: true });
+  await expect(checkoutBlocker).toHaveAttribute("role", "status");
+  await expect(checkoutBlocker).toHaveText("取餐時間尚未套用，請先按下「套用這個時間」。");
+  await expect(submitOrder).toBeDisabled();
   await expect(applyPickupTime).toBeEnabled();
   await applyPickupTime.click();
 
@@ -232,6 +236,8 @@ test("分享外帶連結依取餐時段更新商品與套餐選項並清除失�
   await expect(bundle).toContainText("$150");
   await expect(cart).toContainText("共 1 份");
   await expect(cart).toContainText("$150");
+  await expect(checkoutBlocker).toHaveText("請完成「時段限定套餐」的必選註記。");
+  await expect(submitOrder).toBeDisabled();
   await expect(page.getByRole("region", { name: "抽抽樂推薦" })).toHaveCount(0);
   await bundle.getByRole("dialog", { name: "時段限定套餐" }).getByRole("button", { name: "關閉" }).click();
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { BadgeCheck, ChevronDown, CircleHelp, CircleX, Clock3, RefreshCw } from "lucide-react";
 import { LineNotificationControls } from "@/components/line-notification-controls";
 import {
@@ -9,6 +9,7 @@ import {
   requestPublicOrder,
   respondToFulfillmentTime,
 } from "@/lib/public-order-client";
+import { useLiveResource } from "@/lib/use-live-resource";
 
 type FulfillmentTimeState =
   | "NOT_REQUESTED"
@@ -286,88 +287,6 @@ export function OrderHelpPanel({
   );
 }
 
-type OrderPollingEnvironment = {
-  visibilityState: () => DocumentVisibilityState;
-  online: () => boolean;
-  scheduleInterval: (callback: () => void, intervalMs: number) => number;
-  cancelInterval: (timer: number) => void;
-  onVisibilityChange: (listener: () => void) => () => void;
-  onOnline: (listener: () => void) => () => void;
-  onOffline: (listener: () => void) => () => void;
-};
-
-export function startVisibilityAwareOrderPolling(input: {
-  environment: OrderPollingEnvironment;
-  refresh: () => void | Promise<void>;
-  onConnectivityChange: (online: boolean) => void;
-  intervalMs?: number;
-}) {
-  const intervalMs = input.intervalMs ?? 10_000;
-  let refreshTimer: number | null = null;
-  let refreshInFlight = false;
-  let refreshQueued = false;
-  let stopped = false;
-
-  const stopInterval = () => {
-    if (refreshTimer === null) return;
-    input.environment.cancelInterval(refreshTimer);
-    refreshTimer = null;
-  };
-  const runRefresh = () => {
-    if (refreshInFlight) {
-      refreshQueued = true;
-      return;
-    }
-    refreshInFlight = true;
-    const finish = () => {
-      refreshInFlight = false;
-      if (stopped || !refreshQueued) return;
-      refreshQueued = false;
-      tick();
-    };
-    try {
-      const result = input.refresh();
-      if (result) void result.then(finish, finish);
-      else finish();
-    } catch {
-      finish();
-    }
-  };
-  const tick = () => {
-    if (input.environment.visibilityState() !== "visible" || !input.environment.online()) {
-      stopInterval();
-      return;
-    }
-    runRefresh();
-  };
-  const synchronize = () => {
-    const online = input.environment.online();
-    input.onConnectivityChange(online);
-    if (input.environment.visibilityState() !== "visible" || !online) {
-      stopInterval();
-      return;
-    }
-    runRefresh();
-    if (refreshTimer === null) {
-      refreshTimer = input.environment.scheduleInterval(tick, intervalMs);
-    }
-  };
-
-  const unsubscribeVisibility = input.environment.onVisibilityChange(synchronize);
-  const unsubscribeOnline = input.environment.onOnline(synchronize);
-  const unsubscribeOffline = input.environment.onOffline(synchronize);
-  synchronize();
-
-  return () => {
-    stopped = true;
-    refreshQueued = false;
-    stopInterval();
-    unsubscribeVisibility();
-    unsubscribeOnline();
-    unsubscribeOffline();
-  };
-}
-
 export function formatOrderRefreshTime(updatedAt: Date) {
   return new Intl.DateTimeFormat("zh-TW", {
     hour: "2-digit",
@@ -518,7 +437,6 @@ function FulfillmentTimePanel({
 }
 
 export function PublicOrderTracker({ trackingToken }: { trackingToken: string }) {
-  const loadRequestGenerationRef = useRef(0);
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -527,80 +445,44 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
   const [isResponding, setIsResponding] = useState(false);
   const [fulfillmentFeedback, setFulfillmentFeedback] = useState<FulfillmentFeedback | null>(null);
 
-  const loadOrder = useCallback(async () => {
-    const requestGeneration = loadRequestGenerationRef.current + 1;
-    loadRequestGenerationRef.current = requestGeneration;
-    if (!navigator.onLine) {
-      setIsOnline(false);
-      setMessage("目前裝置離線，恢復連線後會自動更新。");
-      setIsLoading(false);
-      return;
+  const loadOrder = useCallback(async ({ signal }: { signal: AbortSignal }) => {
+    signal.throwIfAborted();
+    const response = await requestPublicOrder("get-public-order", {
+      trackingToken,
+      deviceId: getOrCreateDeviceId(),
+    }, { signal });
+    const payload = await parseEdgeResponse(response);
+    signal.throwIfAborted();
+    if (!response.ok) {
+      throw new Error(response.status === 404
+        ? "找不到此訂單，請確認連結是否正確。"
+        : "目前無法更新訂單狀態，請稍後重試。");
     }
-    setIsLoading(true);
-    try {
-      const response = await requestPublicOrder("get-public-order", {
-        trackingToken,
-        deviceId: getOrCreateDeviceId(),
-      });
-      const payload = await parseEdgeResponse(response);
-      if (requestGeneration !== loadRequestGenerationRef.current) return;
-      if (!response.ok) {
-        throw new Error(response.status === 404
-          ? "找不到此訂單，請確認連結是否正確。"
-          : "目前無法更新訂單狀態，請稍後重試。");
-      }
-      setOrder(payload.order as unknown as PublicOrder);
+    return { value: payload.order as unknown as PublicOrder };
+  }, [trackingToken]);
+
+  const { refresh: refreshOrder } = useLiveResource<PublicOrder>({
+    resourceKey: trackingToken,
+    load: loadOrder,
+    onData: (nextOrder) => {
+      setOrder(nextOrder);
       setLastUpdatedAt(new Date());
       setMessage("");
-    } catch (error) {
-      if (requestGeneration !== loadRequestGenerationRef.current) return;
+    },
+    onError: (error) => {
       setMessage(error instanceof Error && error.message.startsWith("找不到此訂單")
         ? error.message
         : "目前無法更新訂單狀態，請稍後重試。");
-    } finally {
-      if (requestGeneration === loadRequestGenerationRef.current) setIsLoading(false);
-    }
-  }, [trackingToken]);
-
-  useEffect(() => {
-    let stopPolling: (() => void) | null = null;
-    const initialTimer = window.setTimeout(() => {
-      stopPolling = startVisibilityAwareOrderPolling({
-        environment: {
-          visibilityState: () => document.visibilityState,
-          online: () => navigator.onLine,
-          scheduleInterval: (callback, intervalMs) => window.setInterval(callback, intervalMs),
-          cancelInterval: (timer) => window.clearInterval(timer),
-          onVisibilityChange: (listener) => {
-            document.addEventListener("visibilitychange", listener);
-            return () => document.removeEventListener("visibilitychange", listener);
-          },
-          onOnline: (listener) => {
-            window.addEventListener("online", listener);
-            return () => window.removeEventListener("online", listener);
-          },
-          onOffline: (listener) => {
-            window.addEventListener("offline", listener);
-            return () => window.removeEventListener("offline", listener);
-          },
-        },
-        refresh: loadOrder,
-        onConnectivityChange: (online) => {
-          setIsOnline(online);
-          if (!online) {
-            loadRequestGenerationRef.current += 1;
-            setMessage("目前裝置離線，恢復連線後會自動更新。");
-            setIsLoading(false);
-          }
-        },
-      });
-    }, 0);
-    return () => {
-      loadRequestGenerationRef.current += 1;
-      window.clearTimeout(initialTimer);
-      stopPolling?.();
-    };
-  }, [loadOrder]);
+    },
+    onLoadingChange: setIsLoading,
+    onOnlineChange: (online) => {
+      setIsOnline(online);
+      if (!online) {
+        setMessage("目前裝置離線，恢復連線後會自動更新。");
+        setIsLoading(false);
+      }
+    },
+  });
 
   const respondToProposal = useCallback(async (responseValue: "ACCEPT" | "DECLINE") => {
     if (!order || order.fulfillmentTimeState !== "CUSTOMER_ACTION_REQUIRED") return;
@@ -623,7 +505,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
           ? "已接受店家提議的新時間。"
           : "已通知店家此時間無法配合，請等候店家聯絡。",
       });
-      await loadOrder();
+      await refreshOrder();
     } catch (error) {
       setFulfillmentFeedback({
         kind: "error",
@@ -632,7 +514,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
     } finally {
       setIsResponding(false);
     }
-  }, [loadOrder, order, trackingToken]);
+  }, [order, refreshOrder, trackingToken]);
 
   return (
     <main className="mx-auto min-h-screen max-w-xl px-4 py-6 sm:px-5 sm:py-10">
@@ -650,7 +532,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
                   : "等待更新…"}
           </p>
         </div>
-        <button type="button" title="重新整理" aria-label="重新整理訂單" disabled={isLoading || !isOnline} onClick={() => void loadOrder()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:cursor-not-allowed disabled:opacity-60">
+        <button type="button" title="重新整理" aria-label="重新整理訂單" disabled={isLoading || !isOnline} onClick={() => void refreshOrder()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:cursor-not-allowed disabled:opacity-60">
           <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
         </button>
       </div>
@@ -707,7 +589,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
             fulfillmentType={order.fulfillmentType}
             isOnline={isOnline}
             isRefreshing={isLoading}
-            onRefresh={() => void loadOrder()}
+            onRefresh={() => void refreshOrder()}
           />
           <LineNotificationControls trackingToken={trackingToken} />
         </section>

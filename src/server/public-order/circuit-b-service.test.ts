@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   lookupPublicOrderIdempotency: vi.fn(),
   lookupResumablePublicOrder: vi.fn(),
   persistPickupCodeDisplay: vi.fn(),
+  preflightPublicOrder: vi.fn(),
   recordPublicOrderAttempt: vi.fn(),
   revokeOrderSession: vi.fn(),
 }));
@@ -51,6 +52,7 @@ vi.mock("@/server/public-order/trusted-rpc-repository", () => ({
   lookupPublicOrderIdempotency: mocks.lookupPublicOrderIdempotency,
   lookupResumablePublicOrder: mocks.lookupResumablePublicOrder,
   persistPickupCodeDisplay: mocks.persistPickupCodeDisplay,
+  preflightPublicOrder: mocks.preflightPublicOrder,
   recordPublicOrderAttempt: mocks.recordPublicOrderAttempt,
   revokeOrderSession: mocks.revokeOrderSession,
 }));
@@ -92,6 +94,21 @@ describe("Circuit B public order service", () => {
     mocks.checkGlobalPublicRequestGate.mockResolvedValue({ ok: true });
     mocks.checkPublicOrderIntakeAvailability.mockResolvedValue({ ok: true });
     mocks.lookupResumablePublicOrder.mockResolvedValue(null);
+    mocks.preflightPublicOrder.mockImplementation(async (input: { intakeCode?: string | null }) => ({
+      ok: !input.intakeCode,
+      code: input.intakeCode ?? undefined,
+      resumable_order: null,
+      idempotent_order: null,
+      qr_context: {
+        dining_table_id: null,
+        fulfillment_type_context: "TAKEOUT",
+        table: null,
+        settings: {
+          dine_in_enabled: true,
+          delivery_module_enabled: true,
+        },
+      },
+    }));
     mocks.getOrderSessionMode.mockResolvedValue({
       id: "66666666-6666-4666-8666-666666666666",
       organizationId: "77777777-7777-4777-8777-777777777777",
@@ -150,7 +167,9 @@ describe("Circuit B public order service", () => {
       code: "QR_ORDERING_DEGRADED",
       status: 503,
     });
-    expect(mocks.lookupResumablePublicOrder).toHaveBeenCalledOnce();
+    expect(mocks.preflightPublicOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "SESSION", intakeCode: "QR_ORDERING_DEGRADED" }),
+    );
     expect(mocks.issueIdempotentOrderSession).not.toHaveBeenCalled();
   });
 
@@ -159,9 +178,12 @@ describe("Circuit B public order service", () => {
       ok: false,
       code: "QR_ORDERING_DEGRADED",
     });
-    mocks.lookupResumablePublicOrder.mockResolvedValue({
-      order_id: "33333333-3333-4333-8333-333333333333",
-      order_status: "WAITING_CONFIRMATION",
+    mocks.preflightPublicOrder.mockResolvedValue({
+      ok: true,
+      resumable_order: {
+        order_id: "33333333-3333-4333-8333-333333333333",
+        order_status: "WAITING_CONFIRMATION",
+      },
     });
     const { issueOrderSessionThroughCircuitB } = await import("./circuit-b-service");
 
@@ -250,8 +272,8 @@ describe("Circuit B public order service", () => {
       timing: timing(),
     });
 
-    expect(mocks.lookupResumablePublicOrder).toHaveBeenCalledWith(
-      expect.objectContaining({ orderingMode: "PREORDER" }),
+    expect(mocks.preflightPublicOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "SESSION", orderingMode: "PREORDER" }),
     );
     expect(mocks.issueIdempotentOrderSession).toHaveBeenCalledWith(
       expect.objectContaining({ orderingMode: "PREORDER" }),
@@ -313,8 +335,8 @@ describe("Circuit B public order service", () => {
       timing: timing(),
     });
 
-    expect(mocks.lookupResumablePublicOrder).toHaveBeenCalledWith(
-      expect.objectContaining({ orderingMode: "DEFAULT" }),
+    expect(mocks.preflightPublicOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "SESSION", orderingMode: "DEFAULT" }),
     );
     expect(mocks.issueIdempotentOrderSession).toHaveBeenCalledWith(
       expect.objectContaining({ orderingMode: "DEFAULT" }),
@@ -332,6 +354,55 @@ describe("Circuit B public order service", () => {
       waitAcknowledgmentThresholdMinutes: 20,
       requiresWaitAcknowledgment: false,
     });
+  });
+
+  it("keeps the lightweight session query budget and audit correlation", async () => {
+    mocks.issueIdempotentOrderSession.mockResolvedValue({
+      ok: true,
+      stall_id: "88888888-8888-4888-8888-888888888888",
+      order_session_id: "66666666-6666-4666-8666-666666666666",
+      expires_at: "2026-08-13T12:00:00.000Z",
+    });
+    mocks.getPublicSessionMenuContext.mockResolvedValue({
+      diningTable: null,
+      stall: {
+        orderingSettings: {
+          dineInEnabled: true,
+          deliveryModuleEnabled: true,
+        },
+      },
+    });
+    const logger = vi.fn();
+    const requestTiming = createPerformanceTiming({
+      route: "/api/public/order-session",
+      requestId: "request-budget-test",
+      operationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      now: () => 0,
+      logger,
+    });
+    const { issueOrderSessionThroughCircuitB } = await import("./circuit-b-service");
+
+    const result = await issueOrderSessionThroughCircuitB({
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      sessionRequestId: "22222222-2222-4222-8222-222222222222",
+      orderingMode: "DEFAULT",
+      includeMenu: false,
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-budget-test",
+      timing: requestTiming,
+    });
+    requestTiming.finish({ status: result.status });
+
+    expect(result.status).toBe(201);
+    expect(mocks.getCachedPublicMenuForQrToken).not.toHaveBeenCalled();
+    expect(logger).toHaveBeenCalledWith("info", "request_completed", expect.objectContaining({
+      requestId: "request-budget-test",
+      operationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      status: 201,
+      dbQueryCount: 5,
+    }));
   });
 
   it("always disables lottery in a delivery session response", async () => {
@@ -452,21 +523,21 @@ describe("Circuit B public order service", () => {
       ok: false,
       code: "QR_ORDERING_DEGRADED",
     });
-    mocks.lookupPublicOrderIdempotency.mockResolvedValue({
-      order_id: "33333333-3333-4333-8333-333333333333",
-      order_no: "A001",
-      order_status: "WAITING_CONFIRMATION",
-      payment_status: "UNPAID",
-      total_amount: 100,
-      fulfillment_type: "TAKEOUT",
-      pickup_required: true,
-      created_at: "2026-07-29T00:00:00.000Z",
-    });
-    mocks.getOrderQuote.mockResolvedValue({
-      fulfillmentType: "TAKEOUT",
-      pickupCodeLength: 3,
-      quotedWaitMinutes: 10,
-      quotedReadyAt: new Date("2026-07-29T00:10:00.000Z"),
+    mocks.preflightPublicOrder.mockResolvedValue({
+      ok: true,
+      idempotent_order: {
+        order_id: "33333333-3333-4333-8333-333333333333",
+        order_no: "A001",
+        order_status: "WAITING_CONFIRMATION",
+        payment_status: "UNPAID",
+        total_amount: 100,
+        fulfillment_type: "TAKEOUT",
+        pickup_required: true,
+        pickup_code_length: 6,
+        quoted_wait_minutes: 10,
+        quoted_ready_at: "2026-07-29T00:10:00.000Z",
+        created_at: "2026-07-29T00:00:00.000Z",
+      },
     });
     mocks.persistPickupCodeDisplay.mockResolvedValue({ count: 1 });
     const { createOrderThroughCircuitB } = await import("./circuit-b-service");
@@ -482,6 +553,7 @@ describe("Circuit B public order service", () => {
       orderNo: "A001",
       orderStatus: "WAITING_CONFIRMATION",
     });
+    expect(result.body.pickupVerificationCode).toHaveLength(6);
     expect(mocks.verifyTurnstile).not.toHaveBeenCalled();
     expect(mocks.checkPublicOrderSubmissionGate).not.toHaveBeenCalled();
     expect(mocks.createPublicOrderWithSchedule).not.toHaveBeenCalled();
@@ -493,25 +565,25 @@ describe("Circuit B public order service", () => {
       ...validOrder(),
       scheduledPickupAt: requestedFulfillmentAt.toISOString(),
     });
-    mocks.lookupPublicOrderIdempotency.mockResolvedValue({
-      order_id: "33333333-3333-4333-8333-333333333333",
-      order_no: "A002",
-      order_status: "WAITING_CONFIRMATION",
-      payment_status: "UNPAID",
-      total_amount: 100,
-      fulfillment_type: "TAKEOUT",
-      pickup_required: true,
-      created_at: "2026-07-29T00:00:00.000Z",
-    });
-    mocks.getOrderQuote.mockResolvedValue({
-      fulfillmentType: "TAKEOUT",
-      pickupCodeLength: 3,
-      quotedWaitMinutes: 10,
-      quotedReadyAt: new Date("2026-07-29T00:10:00.000Z"),
-      scheduledPickupAt: null,
-      requestedFulfillmentAt,
-      lotteryDrawId: null,
-      discountAmount: 0,
+    mocks.preflightPublicOrder.mockResolvedValue({
+      ok: true,
+      idempotent_order: {
+        order_id: "33333333-3333-4333-8333-333333333333",
+        order_no: "A002",
+        order_status: "WAITING_CONFIRMATION",
+        payment_status: "UNPAID",
+        total_amount: 100,
+        fulfillment_type: "TAKEOUT",
+        pickup_required: true,
+        pickup_code_length: 3,
+        quoted_wait_minutes: 10,
+        quoted_ready_at: "2026-07-29T00:10:00.000Z",
+        scheduled_pickup_at: null,
+        requested_fulfillment_at: requestedFulfillmentAt.toISOString(),
+        lottery_draw_id: null,
+        discount_amount: 0,
+        created_at: "2026-07-29T00:00:00.000Z",
+      },
     });
     mocks.persistPickupCodeDisplay.mockResolvedValue({ count: 1 });
     const { createOrderThroughCircuitB } = await import("./circuit-b-service");

@@ -223,7 +223,12 @@ test.describe("P1 營運功能", () => {
     const cancellation = page.getByRole("alertdialog", { name: "確認取消訂單？" });
     await cancellation.getByLabel("取消原因").selectOption("SOLD_OUT");
     await cancellation.getByLabel(/補充說明/).fill("P1 E2E 商品售罄");
+    const cancellationResponse = page.waitForResponse((response) => (
+      new URL(response.url()).pathname.includes("/api/stalls/aming-chicken/orders/")
+      && response.request().method() === "PATCH"
+    ), { timeout: 30_000 });
     await cancellation.getByRole("button", { name: "確認取消訂單" }).click();
+    expect((await cancellationResponse).status()).toBe(200);
     await expect(cancelledOrder).toHaveCount(0);
     const cancelledRecord = await prisma.order.findFirstOrThrow({ where: { stallId: primaryStallId, orderNo: cancelledOrderNo } });
     expect(cancelledRecord.cancellationReason).toBe("SOLD_OUT");
@@ -269,12 +274,24 @@ test.describe("P1 營運功能", () => {
 });
 
 async function login(page: Page, email: string) {
+  const warmupResponse = await page.context().request.get("/api/auth/login");
+  expect(warmupResponse.status()).toBe(405);
+  await warmupResponse.dispose();
   await page.goto("/login");
-  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
+  const emailLogin = page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true });
+  await waitForReactHydration(emailLogin);
+  await emailLogin.click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
-  await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=|\/staff\//);
+  const submit = page.getByRole("button", { name: "登入", exact: true });
+  await waitForReactHydration(submit);
+  const loginResponse = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === "/api/auth/login"
+    && response.request().method() === "POST"
+  ), { timeout: 30_000 });
+  await submit.click();
+  expect((await loginResponse).status()).toBe(200);
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=|\/staff\//, { timeout: 30_000 });
 }
 
 async function createDineInOrder(page: Page, customerName: string, productName: string) {

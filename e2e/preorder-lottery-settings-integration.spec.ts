@@ -426,6 +426,13 @@ async function verifyLiveLottery(browser: Browser) {
     const sessionPayload = await sessionResponse.json() as Record<string, unknown>;
     expect(sessionPayload.orderingMode).toBe("DEFAULT");
     rememberSessionToken(sessionPayload.orderSessionToken);
+    expect(typeof sessionPayload.orderSessionToken).toBe("string");
+    if (typeof sessionPayload.orderSessionToken !== "string") {
+      throw new Error("create-order-session 未回傳 orderSessionToken");
+    }
+    const sessionTokenHash = createHash("sha256")
+      .update(sessionPayload.orderSessionToken)
+      .digest("hex");
 
     const lottery = page.getByRole("region", { name: "抽抽樂推薦" });
     await expect(lottery).toBeVisible();
@@ -436,16 +443,27 @@ async function verifyLiveLottery(browser: Browser) {
     await lottery.getByRole("button", { name: "開始抽抽樂", exact: true }).click();
     const drawResponse = await drawResponsePromise;
     expect(drawResponse.status()).toBe(200);
-    const drawPayload = await drawResponse.json() as Record<string, unknown>;
-    expect(drawPayload).toMatchObject({
-      ok: true,
-      discountWon: true,
-    });
-    expect([temporaryDiscountName, secondTemporaryDiscountName]).toContain(drawPayload.discountLabel);
     const resultDialog = page.getByTestId("lottery-result-dialog");
     await expect(resultDialog).toHaveAttribute("data-phase", "result", { timeout: 2_500 });
+
+    const [draw] = await prisma.$queryRaw<Array<{
+      discountLabel: string | null;
+      discountOptionId: string | null;
+    }>>`
+      select
+        draw.discount_label as "discountLabel",
+        draw.discount_option_id as "discountOptionId"
+      from public.public_lottery_draws draw
+      join public.order_sessions session_record
+        on session_record.id = draw.order_session_id
+      where session_record.token_hash = ${sessionTokenHash}
+      limit 1
+    `;
+    expect(draw).toBeDefined();
+    expect([temporaryDiscountId, secondTemporaryDiscountId]).toContain(draw?.discountOptionId);
+    expect([temporaryDiscountName, secondTemporaryDiscountName]).toContain(draw?.discountLabel);
     await expect(resultDialog.getByTestId("lottery-discount-result"))
-      .toContainText(String(drawPayload.discountLabel));
+      .toContainText(String(draw?.discountLabel));
     await resultDialog.getByRole("button", { name: "取消", exact: true }).click();
     await expect(page.getByTestId("qr-mobile-cart-summary")).toHaveCount(0);
   } finally {

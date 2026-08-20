@@ -756,7 +756,12 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await staffOrder.getByRole("button", { name: "取消訂單" }).click();
   const cancellation = staffPage.getByRole("alertdialog", { name: "確認取消訂單？" });
   await expect(cancellation).toContainText(customerName);
+  const cancellationResponse = staffPage.waitForResponse((response) => (
+    new URL(response.url()).pathname.includes("/api/stalls/aming-chicken/orders/")
+    && response.request().method() === "PATCH"
+  ), { timeout: 30_000 });
   await cancellation.getByRole("button", { name: "確認取消訂單" }).click();
+  expect((await cancellationResponse).status()).toBe(200);
   await expect(staffOrder).toHaveCount(0);
   await staffContext.close();
 });

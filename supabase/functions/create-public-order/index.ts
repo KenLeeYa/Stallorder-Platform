@@ -11,26 +11,26 @@ import {
   statusForCode,
   assertSupportedPublicOrderProtocol,
 } from "../_shared/http.ts";
-import { canonicalPublicOrderBehavior, createPublicOrderSchema } from "../_shared/schemas.ts";
+import {
+  canonicalPublicOrderBehavior,
+  createPublicOrderSchema,
+  createPublicOrderValidationCode,
+} from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
 import { verifyTurnstile } from "../_shared/turnstile.ts";
 import { createEdgePerformanceTiming, finalizeEdgeResponse } from "../_shared/performance.ts";
+import { canonicalPublicOrderTimestamp } from "../_shared/public-order-replay.ts";
+import {
+  buildPublicOrderFailureBody,
+  buildPublicOrderResponse,
+  publicOrderItemsToRpc,
+  publicOrderNeedsPickupCode,
+  publicOrderSubmissionAbuseBehavior,
+  type StoredPublicOrderContract,
+} from "../_shared/public-order-contract.ts";
+import { deriveCreatePublicOrderReplayTokens } from "./replay.ts";
 
-type StoredOrder = {
-  order_id: string;
-  order_no: string;
-  order_status: string;
-  payment_status: string;
-  total_amount: number;
-  fulfillment_type?: string;
-  pickup_required?: boolean;
-  quoted_wait_minutes?: number | null;
-  quoted_ready_at?: string | null;
-  scheduled_pickup_at?: string | null;
-  requested_fulfillment_at?: string | null;
-  discount_amount?: number;
-  created_at: string;
-};
+type StoredOrder = StoredPublicOrderContract;
 
 async function safeRecordSubmissionFailure(
   admin: ReturnType<typeof createServiceClient>,
@@ -67,36 +67,12 @@ async function safeRecordSubmissionFailure(
   });
 }
 
-function publicOrderResponse(order: StoredOrder, trackingToken: string, pickupCode: string) {
-  const fulfillmentType = order.fulfillment_type ?? "TAKEOUT";
-  const pickupRequired = order.pickup_required === true
-    || (order.pickup_required === undefined && fulfillmentType === "TAKEOUT");
-  return {
-    orderNo: order.order_no,
-    trackingToken,
-    pickupVerificationCode: pickupRequired ? pickupCode : null,
-    fulfillmentType,
-    orderStatus: order.order_status,
-    paymentStatus: order.payment_status,
-    totalAmount: order.total_amount,
-    quotedWaitMinutes: order.quoted_wait_minutes ?? null,
-    quotedReadyAt: order.quoted_ready_at ?? null,
-    scheduledPickupAt: order.scheduled_pickup_at ?? null,
-    requestedFulfillmentAt: order.requested_fulfillment_at ?? null,
-    discountAmount: order.discount_amount ?? 0,
-    createdAt: order.created_at,
-  };
-}
-
 async function persistPickupCodeDisplay(
   admin: ReturnType<typeof createServiceClient>,
   order: StoredOrder,
   pickupCode: string,
 ) {
-  const fulfillmentType = order.fulfillment_type ?? "TAKEOUT";
-  const pickupRequired = order.pickup_required === true
-    || (order.pickup_required === undefined && fulfillmentType === "TAKEOUT");
-  if (!pickupRequired) return;
+  if (!publicOrderNeedsPickupCode(order)) return;
   const { error } = await admin.from("orders")
     .update({ pickup_code_display: pickupCode })
     .eq("id", order.order_id);
@@ -126,7 +102,10 @@ Deno.serve(async (request) => {
     assertSupportedPublicOrderProtocol(request);
 
     const parsed = createPublicOrderSchema.safeParse(await readBoundedJson(request));
-    if (!parsed.success) throw new HttpInputError("INVALID_REQUEST", 400);
+    if (!parsed.success) {
+      const code = createPublicOrderValidationCode(parsed.error);
+      throw new HttpInputError(code, statusForCode(code));
+    }
     const input = parsed.data;
 
     const abuseSecret = requireEnv("ABUSE_HASH_SECRET");
@@ -138,7 +117,14 @@ Deno.serve(async (request) => {
       hmacHex(abuseSecret, `ip:${clientIp}`),
       hmacHex(abuseSecret, `device:${input.deviceId}`),
       hmacHex(abuseSecret, `qr:${input.qrToken}`),
-      hmacHex(abuseSecret, `order:${input.orderingMode}:${input.deviceId}:${input.qrToken}:${input.scheduledPickupAt ?? ""}:${input.lotteryDrawId ?? ""}:${sortedBehavior}`),
+      hmacHex(abuseSecret, publicOrderSubmissionAbuseBehavior({
+        orderingMode: input.orderingMode,
+        deviceId: input.deviceId,
+        qrToken: input.qrToken,
+        scheduledPickupAt: input.scheduledPickupAt,
+        lotteryDrawId: input.lotteryDrawId,
+        canonicalItems: sortedBehavior,
+      })),
       hmacHex(abuseSecret, `idempotency:${input.idempotencyKey}`),
     ]);
 
@@ -174,66 +160,60 @@ Deno.serve(async (request) => {
       return respond({ error: errorMessage(code), code }, statusForCode(code));
     }
 
-    const { data: sessionContext, error: sessionContextError } = await timing.measureDb(() => admin.from("order_sessions")
-      .select("ordering_mode")
-      .eq("token_hash", sessionHash)
-      .maybeSingle());
-    if (sessionContextError) throw sessionContextError;
-    if (!sessionContext) {
-      const code = "SESSION_NOT_FOUND";
-      await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
-        requestId, code, ipHash, deviceHash, qrTokenHash, sessionHash, behaviorHash, idempotencyHash,
-      }));
-      return respond({ error: errorMessage(code), code }, statusForCode(code));
-    }
-    if (sessionContext.ordering_mode !== input.orderingMode) {
-      const code = "ORDER_MODE_CONFLICT";
-      await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
-        requestId, code, ipHash, deviceHash, qrTokenHash, sessionHash, behaviorHash, idempotencyHash,
-      }));
-      return respond({ error: errorMessage(code), code }, statusForCode(code));
+    const preflightItems = publicOrderItemsToRpc(input.items);
+    const { data: preflightResult, error: preflightError } = await timing.measureDb(() => admin.rpc(
+      "public_order_preflight",
+      {
+        p_scope: "ORDER",
+        p_qr_token: input.qrToken,
+        p_ordering_mode: input.orderingMode,
+        p_device_hash: deviceHash,
+        p_ip_hash: ipHash,
+        p_qr_token_hash: qrTokenHash,
+        p_behavior_hash: behaviorHash,
+        p_request_id: requestId,
+        p_session_token_hash: sessionHash,
+        p_idempotency_key: input.idempotencyKey,
+        p_idempotency_hash: idempotencyHash,
+        p_requested_fulfillment_at: input.scheduledPickupAt,
+        p_lottery_draw_id: input.lotteryDrawId,
+        p_items: preflightItems,
+        p_wait_acknowledged: input.waitAcknowledged,
+        p_intake_code: intake.ok ? null : intake.code ?? "QR_ORDERING_UNAVAILABLE",
+      },
+    ));
+    if (preflightError) throw preflightError;
+    const preflight = preflightResult as {
+      ok: boolean;
+      code?: string;
+      capacity?: {
+        quote_min_minutes?: number;
+        quote_max_minutes?: number;
+        requires_acknowledgment?: boolean;
+      };
+      idempotent_order?: (StoredOrder & {
+        lottery_draw_id?: string | null;
+        pickup_code_length?: number | null;
+      }) | null;
+    };
+    if (!preflight.ok) {
+      const code = preflight.code ?? "ORDER_CREATE_ERROR";
+      return respond(
+        buildPublicOrderFailureBody(code, errorMessage(code), preflight.capacity),
+        statusForCode(code),
+      );
     }
 
-    const { data: existing, error: existingError } = await timing.measureDb(() => admin.rpc("lookup_public_order_idempotency", {
-      p_session_token_hash: sessionHash,
-      p_idempotency_key: input.idempotencyKey,
-    }));
-    if (existingError) throw existingError;
+    const existing = preflight.idempotent_order;
     if (existing) {
-      const order = existing as StoredOrder;
-      const { data: quote, error: quoteError } = await timing.measureDb(() => admin.from("orders")
-        .select("quoted_wait_minutes, quoted_ready_at, scheduled_pickup_at, requested_fulfillment_at, lottery_draw_id, discount_amount")
-        .eq("id", order.order_id)
-        .single());
-      if (quoteError) throw quoteError;
-      const requestedPickupTime = input.scheduledPickupAt
-        ? Date.parse(input.scheduledPickupAt)
-        : null;
-      const storedPickupTime = quote.requested_fulfillment_at
-        ? Date.parse(quote.requested_fulfillment_at)
-        : null;
-      if (
-        requestedPickupTime !== storedPickupTime
-        || (quote.lottery_draw_id ?? null) !== input.lotteryDrawId
-      ) {
-        const code = "IDEMPOTENCY_CONFLICT";
-        await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
-          requestId, code, ipHash, deviceHash, qrTokenHash, sessionHash, behaviorHash, idempotencyHash,
-        }));
-        return respond({ error: errorMessage(code), code }, statusForCode(code));
-      }
-      order.quoted_wait_minutes = quote.quoted_wait_minutes;
-      order.quoted_ready_at = quote.quoted_ready_at;
-      order.scheduled_pickup_at = quote.scheduled_pickup_at;
-      order.requested_fulfillment_at = quote.requested_fulfillment_at;
-      order.discount_amount = quote.discount_amount;
-      const tokens = await derivePublicOrderTokens(order.order_id, tokenSecret);
-      await timing.measureDb(() => persistPickupCodeDisplay(admin, order, tokens.pickupCode));
-      return respond(publicOrderResponse(order, tokens.trackingToken, tokens.pickupCode), 200);
-    }
-    if (!intake.ok) {
-      const code = intake.code ?? "QR_ORDERING_UNAVAILABLE";
-      return respond({ error: errorMessage(code), code }, statusForCode(code));
+      const tokens = await deriveCreatePublicOrderReplayTokens(existing.order_id, tokenSecret, existing);
+      await timing.measureDb(() => persistPickupCodeDisplay(admin, existing, tokens.pickupCode));
+      return respond(buildPublicOrderResponse(
+        existing,
+        tokens.trackingToken,
+        tokens.pickupCode,
+        canonicalPublicOrderTimestamp(existing.created_at),
+      ), 200);
     }
 
     const { data: gateResult, error: gateError } = await timing.measureDb(() => admin.rpc("check_public_order_submission_gate", {
@@ -306,13 +286,7 @@ Deno.serve(async (request) => {
       p_customer_phone: input.customerPhone,
       p_delivery_address: input.deliveryAddress,
       p_customer_note: input.customerNote,
-      p_items: input.items.map((item) => ({
-        product_id: item.productId,
-        quantity: item.quantity,
-        note: item.note,
-        modifier_option_ids: item.noteOptionIds,
-        bundle_choice_ids: item.bundleChoiceIds,
-      })),
+      p_items: preflightItems,
       p_tracking_token_hash: trackingTokenHash,
       p_pickup_code_hash: pickupCodeHash,
       p_request_id: requestId,
@@ -321,7 +295,7 @@ Deno.serve(async (request) => {
       p_lottery_draw_id: input.lotteryDrawId,
     };
     const { data: createResult, error: createError } = await timing.measureDb(() => admin.rpc(
-      "create_public_order_with_fulfillment_time",
+      "create_public_order_with_fulfillment_time_targeted",
       createArguments,
     ));
     if (createError) {
@@ -358,18 +332,10 @@ Deno.serve(async (request) => {
     };
     if (!result.ok || !result.order) {
       const code = result.code ?? "ORDER_CREATE_ERROR";
-      return respond({
-        error: errorMessage(code),
-        code,
-        ...(result.capacity ? {
-          capacity: {
-            estimatedWaitMinMinutes: result.capacity.quote_min_minutes ?? null,
-            estimatedWaitMaxMinutes: result.capacity.quote_max_minutes ?? null,
-            requiresWaitAcknowledgment:
-              result.capacity.requires_acknowledgment === true,
-          },
-        } : {}),
-      }, statusForCode(code));
+      return respond(
+        buildPublicOrderFailureBody(code, errorMessage(code), result.capacity),
+        statusForCode(code),
+      );
     }
 
     const finalTokens = result.order.order_id === orderId
@@ -377,7 +343,12 @@ Deno.serve(async (request) => {
       : await derivePublicOrderTokens(result.order.order_id, tokenSecret);
     await timing.measureDb(() => persistPickupCodeDisplay(admin, result.order!, finalTokens.pickupCode));
     return respond(
-      publicOrderResponse(result.order, finalTokens.trackingToken, finalTokens.pickupCode),
+      buildPublicOrderResponse(
+        result.order,
+        finalTokens.trackingToken,
+        finalTokens.pickupCode,
+        canonicalPublicOrderTimestamp(result.order.created_at),
+      ),
       result.idempotent_replay ? 200 : 201,
     );
   } catch (error) {

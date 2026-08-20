@@ -89,6 +89,6 @@ test("輕量 session 更新不載入菜單查詢", async ({ request }) => {
   });
 
   expect([200, 201]).toContain(lightweightSession.status());
-  expect(lightweightSession.headers()["server-timing"]).toMatch(/db-query-count;dur=6(?:,|$)/);
+  expect(lightweightSession.headers()["server-timing"]).toMatch(/db-query-count;dur=4(?:,|$)/);
   await expect(lightweightSession.json()).resolves.not.toHaveProperty("products");
 });
