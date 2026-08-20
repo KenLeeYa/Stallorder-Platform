@@ -8,6 +8,8 @@ const QUALIFIED_IDENTIFIER_PATTERN = new RegExp(
   `^${QUALIFIED_IDENTIFIER_SOURCE}$`,
   "iu",
 );
+const REPORT_DELIVERY_CRON_SCHEDULE_SQL_PATTERN = /select\s+cron\.schedule\(\s*'stallorder-report-deliveries'\s*,\s*'\*\/5 \* \* \* \*'\s*,\s*'select app_private\.invoke_due_report_deliveries\(\)'\s*\)/giu;
+const SCRUBBED_CRON_SCHEDULE_PATTERN = /^select\s+cron\.schedule\(\s*''\s*,\s*''\s*,\s*''\s*\)$/iu;
 
 export class AdditiveMigrationPlanError extends Error {
   constructor(code, details = {}) {
@@ -133,6 +135,7 @@ export function assertAdditiveMigrationSql(sql) {
   if (typeof sql !== "string" || sql.trim().length === 0) {
     throw new AdditiveMigrationPlanError("MIGRATION_SQL_INVALID");
   }
+  assertApprovedCronSchedules(sql);
   assertDoBlocksSafe(sql);
   const statements = scrubSql(sql)
     .split(";")
@@ -441,9 +444,20 @@ function assertAllowedStatement(statement) {
     /^comment\s+on\s+(?:column|function)\b/iu,
     /^set\s+(?:lock_timeout|statement_timeout)\s*=/iu,
     /^do\s+\$\$/iu,
+    SCRUBBED_CRON_SCHEDULE_PATTERN,
   ].some((pattern) => pattern.test(statement));
   if (!allowed) {
     throw new AdditiveMigrationPlanError("MIGRATION_STATEMENT_FORBIDDEN");
+  }
+}
+
+function assertApprovedCronSchedules(sql) {
+  const withoutApprovedSchedule = sql.replace(
+    REPORT_DELIVERY_CRON_SCHEDULE_SQL_PATTERN,
+    "",
+  );
+  if (/\bcron\.schedule\s*\(/iu.test(withoutApprovedSchedule)) {
+    throw new AdditiveMigrationPlanError("CRON_SCHEDULE_FORBIDDEN");
   }
 }
 

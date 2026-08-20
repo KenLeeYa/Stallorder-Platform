@@ -69,3 +69,9 @@ $$;
 
 revoke all on function app_private.invoke_due_report_deliveries()
 from public, anon, authenticated;
+
+select cron.schedule(
+  'stallorder-report-deliveries',
+  '*/5 * * * *',
+  'select app_private.invoke_due_report_deliveries()'
+);

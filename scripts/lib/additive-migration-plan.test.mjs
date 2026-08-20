@@ -80,6 +80,34 @@ describe("additive DR migration plan", () => {
     `)).toBe(true);
   });
 
+  it("allows only the fixed report-delivery cron repair schedule", () => {
+    expect(assertAdditiveMigrationSql(`
+      select cron.schedule(
+        'stallorder-report-deliveries',
+        '*/5 * * * *',
+        'select app_private.invoke_due_report_deliveries()'
+      );
+    `)).toBe(true);
+
+    expect(() => assertAdditiveMigrationSql(`
+      select cron.schedule(
+        'stallorder-report-deliveries',
+        '* * * * *',
+        'select app_private.invoke_due_report_deliveries()'
+      );
+    `)).toThrow("CRON_SCHEDULE_FORBIDDEN");
+    expect(() => assertAdditiveMigrationSql(`
+      select cron.schedule(
+        'unreviewed-job',
+        '*/5 * * * *',
+        'select app_private.invoke_due_report_deliveries()'
+      );
+    `)).toThrow("CRON_SCHEDULE_FORBIDDEN");
+    expect(() => assertAdditiveMigrationSql(
+      "select cron.unschedule('stallorder-report-deliveries');",
+    )).toThrow("MIGRATION_STATEMENT_FORBIDDEN");
+  });
+
   it("allows a function rename only when the original signature is recreated", () => {
     expect(assertAdditiveMigrationSql(`
       alter function public.calculate_order(uuid, text)
