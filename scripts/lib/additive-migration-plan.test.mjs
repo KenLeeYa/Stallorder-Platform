@@ -251,6 +251,7 @@ describe("additive DR migration plan", () => {
 
   it("allows a bounded fail-closed duplicate audit inside an additive migration", () => {
     expect(assertAdditiveMigrationSql(`
+      begin;
       set local lock_timeout = '5s';
       set local statement_timeout = '2min';
       lock table public.stalls in share row exclusive mode;
@@ -277,6 +278,7 @@ describe("additive DR migration plan", () => {
         end if;
       end;
       $migration$;
+      commit;
     `)).toBe(true);
   });
 
@@ -287,6 +289,38 @@ describe("additive DR migration plan", () => {
   });
 
   it.each([
+    "begin; create table public.parser_probe (id uuid);",
+    "create table public.parser_probe (id uuid); commit;",
+  ])("rejects an incomplete explicit transaction wrapper", (sql) => {
+    expect(() => assertAdditiveMigrationSql(sql)).toThrow(
+      "TRANSACTION_WRAPPER_UNSAFE",
+    );
+  });
+
+  it.each([
+    ["missing transaction wrapper", `
+      set local lock_timeout = '5s';
+      set local statement_timeout = '2min';
+      lock table public.stalls in share row exclusive mode;
+      do $migration$
+      declare
+        collision_code text;
+      begin
+        select pg_catalog.lower(stall.code) into collision_code
+        from public.stalls stall
+        group by pg_catalog.lower(stall.code)
+        having pg_catalog.count(*) > 1
+        order by pg_catalog.lower(stall.code)
+        limit 1;
+        if found then
+          raise unique_violation using
+            message = 'GLOBAL_STALL_CODE_COLLISION',
+            detail = pg_catalog.format('normalized code %L already exists more than once', collision_code),
+            constraint = 'stalls_code_lower_guard';
+        end if;
+      end;
+      $migration$;
+    `],
     ["missing lock", `
       set local lock_timeout = '5s';
       set local statement_timeout = '2min';

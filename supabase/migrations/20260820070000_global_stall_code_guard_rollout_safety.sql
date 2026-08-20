@@ -1,3 +1,5 @@
+begin;
+
 set local lock_timeout = '5s';
 set local statement_timeout = '2min';
 
@@ -64,3 +66,5 @@ begin
   end if;
 end;
 $migration$;
+
+commit;

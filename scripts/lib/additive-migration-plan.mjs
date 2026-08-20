@@ -430,10 +430,28 @@ function assertDoBlocksSafe(scan) {
   const statementTimeoutIndex = statements.findIndex((statement) => (
     /^set\s+local\s+statement_timeout\s*=\s*'\d+(?:ms|s|min)'$/iu.test(statement)
   ));
+  const beginIndices = statements
+    .map((statement, index) => (/^begin$/iu.test(statement) ? index : -1))
+    .filter((index) => index >= 0);
+  const commitIndices = statements
+    .map((statement, index) => (/^commit$/iu.test(statement) ? index : -1))
+    .filter((index) => index >= 0);
   const doStatementIndices = statements
     .map((statement, index) => (/^do\s+\$\$$/iu.test(statement) ? index : -1))
     .filter((index) => index >= 0);
   let safeCollisionAuditCount = 0;
+
+  if (
+    (beginIndices.length > 0 || commitIndices.length > 0)
+    && (
+      beginIndices.length !== 1
+      || commitIndices.length !== 1
+      || beginIndices[0] !== 0
+      || commitIndices[0] !== statements.length - 1
+    )
+  ) {
+    throw new AdditiveMigrationPlanError("TRANSACTION_WRAPPER_UNSAFE");
+  }
 
   if (scan.doBlocks.length !== doStatementIndices.length) {
     throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
@@ -448,12 +466,18 @@ function assertDoBlocksSafe(scan) {
       safeCollisionAuditCount += 1;
       if (
         safeCollisionAuditCount !== 1
+        || beginIndices.length !== 1
+        || commitIndices.length !== 1
         || lockTimeoutIndex < 0
         || statementTimeoutIndex < 0
         || lockIndex < 0
+        || beginIndices[0] >= lockTimeoutIndex
+        || beginIndices[0] >= statementTimeoutIndex
         || lockTimeoutIndex >= lockIndex
         || statementTimeoutIndex >= lockIndex
         || lockIndex >= doStatementIndex
+        || doStatementIndex >= commitIndices[0]
+        || commitIndices[0] !== statements.length - 1
       ) {
         throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
       }
@@ -484,6 +508,8 @@ function assertAllowedStatement(statement) {
     /^revoke\b/iu,
     /^grant\b/iu,
     /^comment\s+on\s+(?:column|function)\b/iu,
+    /^begin$/iu,
+    /^commit$/iu,
     /^set\s+(?:local\s+)?(?:lock_timeout|statement_timeout)\s*=/iu,
     /^lock\s+table\s+public\.stalls\s+in\s+share\s+row\s+exclusive\s+mode$/iu,
     /^do\s+\$\$/iu,
