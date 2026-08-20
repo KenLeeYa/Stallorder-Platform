@@ -133,8 +133,9 @@ export function assertAdditiveMigrationSql(sql) {
   if (typeof sql !== "string" || sql.trim().length === 0) {
     throw new AdditiveMigrationPlanError("MIGRATION_SQL_INVALID");
   }
-  assertDoBlocksSafe(sql);
-  const statements = scrubSql(sql)
+  const scan = scanSql(sql);
+  assertDoBlocksSafe(scan);
+  const statements = scan.scrubbedSql
     .split(";")
     .map((statement) => statement.trim())
     .filter(Boolean);
@@ -312,7 +313,7 @@ function assertCommentsTargetCreatedObjects(statements) {
 
 function assertSafeTimeout(statement) {
   const match = statement.match(
-    /^set\s+(lock_timeout|statement_timeout)\s*=\s*'(\d+)(ms|s|min)'$/iu,
+    /^set\s+(?:local\s+)?(lock_timeout|statement_timeout)\s*=\s*'(\d+)(ms|s|min)'$/iu,
   );
   if (!match) {
     throw new AdditiveMigrationPlanError("TIMEOUT_STATEMENT_UNSAFE");
@@ -414,13 +415,57 @@ function functionArgumentTypes(value, declarationsIncludeNames) {
   return types;
 }
 
-function assertDoBlocksSafe(sql) {
-  for (const match of sql.matchAll(/\bdo\s+(\$[A-Za-z0-9_]*\$)([\s\S]*?)\1/giu)) {
-    const body = match[2];
+function assertDoBlocksSafe(scan) {
+  const statements = scan.scrubbedSql
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+  const lockIndex = statements.findIndex((statement) => (
+    /^lock\s+table\s+public\.stalls\s+in\s+share\s+row\s+exclusive\s+mode$/iu
+      .test(statement)
+  ));
+  const lockTimeoutIndex = statements.findIndex((statement) => (
+    /^set\s+local\s+lock_timeout\s*=\s*'\d+(?:ms|s|min)'$/iu.test(statement)
+  ));
+  const statementTimeoutIndex = statements.findIndex((statement) => (
+    /^set\s+local\s+statement_timeout\s*=\s*'\d+(?:ms|s|min)'$/iu.test(statement)
+  ));
+  const doStatementIndices = statements
+    .map((statement, index) => (/^do\s+\$\$$/iu.test(statement) ? index : -1))
+    .filter((index) => index >= 0);
+  let safeCollisionAuditCount = 0;
+
+  if (scan.doBlocks.length !== doStatementIndices.length) {
+    throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
+  }
+
+  for (const [doBlockIndex, body] of scan.doBlocks.entries()) {
     const safeCreateEnum = /^\s*begin\s+create\s+type\s+(?:"?[a-z_][a-z0-9_$]*"?\.)?"?[a-z_][a-z0-9_$]*"?\s+as\s+enum\s*\(\s*'(?:[^']|'')+'(?:\s*,\s*'(?:[^']|'')+')*\s*\)\s*;\s*exception\s+when\s+duplicate_object\s+then\s+null\s*;\s*end\s*;?\s*$/iu;
+    const safeCollisionAudit = /^\s*declare\s+collision_code\s+text\s*;\s*begin\s+select\s+pg_catalog\.lower\(stall\.code\)\s+into\s+collision_code\s+from\s+public\.stalls\s+stall\s+group\s+by\s+pg_catalog\.lower\(stall\.code\)\s+having\s+pg_catalog\.count\(\*\)\s*>\s*1\s+order\s+by\s+pg_catalog\.lower\(stall\.code\)\s+limit\s+1\s*;\s*if\s+found\s+then\s+raise\s+unique_violation\s+using\s+message\s*=\s*'GLOBAL_STALL_CODE_COLLISION'\s*,\s*detail\s*=\s*pg_catalog\.format\(\s*'normalized code %L already exists more than once'\s*,\s*collision_code\s*\)\s*,\s*constraint\s*=\s*'stalls_code_lower_guard'\s*;\s*end\s+if\s*;\s*end\s*;?\s*$/iu;
+    const doStatementIndex = doStatementIndices[doBlockIndex] ?? -1;
+
+    if (safeCollisionAudit.test(body)) {
+      safeCollisionAuditCount += 1;
+      if (
+        safeCollisionAuditCount !== 1
+        || lockTimeoutIndex < 0
+        || statementTimeoutIndex < 0
+        || lockIndex < 0
+        || lockTimeoutIndex >= lockIndex
+        || statementTimeoutIndex >= lockIndex
+        || lockIndex >= doStatementIndex
+      ) {
+        throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
+      }
+      continue;
+    }
     if (!safeCreateEnum.test(body)) {
       throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
     }
+  }
+
+  if (lockIndex >= 0 && safeCollisionAuditCount !== 1) {
+    throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
   }
 }
 
@@ -439,7 +484,8 @@ function assertAllowedStatement(statement) {
     /^revoke\b/iu,
     /^grant\b/iu,
     /^comment\s+on\s+(?:column|function)\b/iu,
-    /^set\s+(?:lock_timeout|statement_timeout)\s*=/iu,
+    /^set\s+(?:local\s+)?(?:lock_timeout|statement_timeout)\s*=/iu,
+    /^lock\s+table\s+public\.stalls\s+in\s+share\s+row\s+exclusive\s+mode$/iu,
     /^do\s+\$\$/iu,
   ].some((pattern) => pattern.test(statement));
   if (!allowed) {
@@ -534,12 +580,14 @@ function normalizeIdentifier(value) {
   return value.includes('"') ? `quoted:${value}` : value.toLowerCase();
 }
 
-function scrubSql(sql) {
+function scanSql(sql) {
   let output = "";
+  let statementStart = 0;
+  const doBlocks = [];
   for (let index = 0; index < sql.length;) {
     if (sql.startsWith("--", index)) {
       const end = sql.indexOf("\n", index + 2);
-      if (end === -1) return output;
+      if (end === -1) break;
       output += "\n";
       index = end + 1;
       continue;
@@ -588,9 +636,13 @@ function scrubSql(sql) {
     if (sql[index] === "$") {
       const delimiter = sql.slice(index).match(/^\$[A-Za-z0-9_]*\$/u)?.[0];
       if (delimiter) {
-        const end = sql.indexOf(delimiter, index + delimiter.length);
+        const bodyStart = index + delimiter.length;
+        const end = sql.indexOf(delimiter, bodyStart);
         if (end === -1) {
           throw new AdditiveMigrationPlanError("MIGRATION_SQL_DOLLAR_QUOTE_INVALID");
+        }
+        if (/^do$/iu.test(output.slice(statementStart).trim())) {
+          doBlocks.push(sql.slice(bodyStart, end));
         }
         output += " $$ ";
         index = end + delimiter.length;
@@ -598,9 +650,10 @@ function scrubSql(sql) {
       }
     }
     output += sql[index];
+    if (sql[index] === ";") statementStart = output.length;
     index += 1;
   }
-  return output;
+  return { scrubbedSql: output, doBlocks };
 }
 
 function sha256(value) {

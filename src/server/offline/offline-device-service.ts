@@ -12,6 +12,10 @@ import {
 import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/security";
 import { getCashShiftRuntimeTotals } from "@/lib/cash-shifts";
+import {
+  EntitlementError,
+  entitlementService,
+} from "@/server/billing/entitlement-service";
 import { createOrReuseOfflineMenuSnapshot } from "@/server/offline/offline-menu-snapshot-service";
 import {
   requireOfflinePermitSigningSecret,
@@ -75,6 +79,25 @@ type IssueBootstrapInput = {
   command: OfflineBootstrapCommand;
   actor: OfflineActor;
 };
+
+type PrinterEntitlementChecker = {
+  assertFeatureEnabled(organizationId: string, featureCode: string): Promise<unknown>;
+};
+
+export async function canIssueOfflinePrintPermit(
+  organizationId: string,
+  printModuleEnabled: boolean,
+  checker: PrinterEntitlementChecker = entitlementService,
+) {
+  if (!printModuleEnabled) return false;
+  try {
+    await checker.assertFeatureEnabled(organizationId, "PRINTER_INTEGRATION");
+    return true;
+  } catch (error) {
+    if (error instanceof EntitlementError) return false;
+    throw error;
+  }
+}
 
 function jsonMetadata(value: Record<string, string | number | boolean | null>) {
   return JSON.stringify(value);
@@ -705,7 +728,12 @@ export async function issueOfflineBootstrap(input: IssueBootstrapInput) {
   ) {
     allowedOfflineActions.push("RECORD_CASH_PAYMENT");
   }
-  if (catalog.modules.print) allowedOfflineActions.push("QUEUE_PRINT_JOB");
+  if (await canIssueOfflinePrintPermit(
+    input.organizationId,
+    catalog.modules.print,
+  )) {
+    allowedOfflineActions.push("QUEUE_PRINT_JOB");
+  }
 
   const permitId = randomUUID();
   const payload: OfflinePermitPayload = {

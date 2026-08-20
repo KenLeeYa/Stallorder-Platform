@@ -249,6 +249,133 @@ describe("additive DR migration plan", () => {
     });
   });
 
+  it("allows a bounded fail-closed duplicate audit inside an additive migration", () => {
+    expect(assertAdditiveMigrationSql(`
+      set local lock_timeout = '5s';
+      set local statement_timeout = '2min';
+      lock table public.stalls in share row exclusive mode;
+      do $migration$
+      declare
+        collision_code text;
+      begin
+        select pg_catalog.lower(stall.code)
+          into collision_code
+        from public.stalls stall
+        group by pg_catalog.lower(stall.code)
+        having pg_catalog.count(*) > 1
+        order by pg_catalog.lower(stall.code)
+        limit 1;
+
+        if found then
+          raise unique_violation using
+            message = 'GLOBAL_STALL_CODE_COLLISION',
+            detail = pg_catalog.format(
+              'normalized code %L already exists more than once',
+              collision_code
+            ),
+            constraint = 'stalls_code_lower_guard';
+        end if;
+      end;
+      $migration$;
+    `)).toBe(true);
+  });
+
+  it("allows additive SQL followed by a trailing line comment", () => {
+    expect(assertAdditiveMigrationSql(
+      "create table public.parser_probe (id uuid); -- trailing comment",
+    )).toBe(true);
+  });
+
+  it.each([
+    ["missing lock", `
+      set local lock_timeout = '5s';
+      set local statement_timeout = '2min';
+      do $migration$
+      declare
+        collision_code text;
+      begin
+        select pg_catalog.lower(stall.code) into collision_code
+        from public.stalls stall
+        group by pg_catalog.lower(stall.code)
+        having pg_catalog.count(*) > 1
+        order by pg_catalog.lower(stall.code)
+        limit 1;
+        if found then
+          raise unique_violation using
+            message = 'GLOBAL_STALL_CODE_COLLISION',
+            detail = pg_catalog.format('normalized code %L already exists more than once', collision_code),
+            constraint = 'stalls_code_lower_guard';
+        end if;
+      end;
+      $migration$;
+    `],
+    ["wrong table", `
+      set local lock_timeout = '5s';
+      set local statement_timeout = '2min';
+      lock table public.orders in share row exclusive mode;
+      do $migration$
+      declare
+        collision_code text;
+      begin
+        select pg_catalog.lower(stall.code) into collision_code
+        from public.stalls stall
+        group by pg_catalog.lower(stall.code)
+        having pg_catalog.count(*) > 1
+        order by pg_catalog.lower(stall.code)
+        limit 1;
+        if found then
+          raise unique_violation using
+            message = 'GLOBAL_STALL_CODE_COLLISION',
+            detail = pg_catalog.format('normalized code %L already exists more than once', collision_code),
+            constraint = 'stalls_code_lower_guard';
+        end if;
+      end;
+      $migration$;
+    `],
+    ["data mutation", `
+      set local lock_timeout = '5s';
+      set local statement_timeout = '2min';
+      lock table public.stalls in share row exclusive mode;
+      do $migration$
+      begin
+        update public.stalls set code = code;
+      end;
+      $migration$;
+    `],
+    ["comment-hidden data mutation", `
+      set local lock_timeout = '5s';
+      set local statement_timeout = '2min';
+      lock table public.stalls in share row exclusive mode;
+      do /* validator gap */ $hidden$
+      begin
+        update public.stalls set code = code;
+      end;
+      $hidden$;
+      do $migration$
+      declare
+        collision_code text;
+      begin
+        select pg_catalog.lower(stall.code) into collision_code
+        from public.stalls stall
+        group by pg_catalog.lower(stall.code)
+        having pg_catalog.count(*) > 1
+        order by pg_catalog.lower(stall.code)
+        limit 1;
+        if found then
+          raise unique_violation using
+            message = 'GLOBAL_STALL_CODE_COLLISION',
+            detail = pg_catalog.format('normalized code %L already exists more than once', collision_code),
+            constraint = 'stalls_code_lower_guard';
+        end if;
+      end;
+      $migration$;
+    `],
+  ])("rejects an unsafe duplicate audit: %s", (_name, sql) => {
+    expect(() => assertAdditiveMigrationSql(sql)).toThrow(
+      "DESTRUCTIVE_DO_BLOCK_FORBIDDEN",
+    );
+  });
+
   it("fails when CLI output omits a repository migration", () => {
     expect(() => createAdditiveMigrationPlan({
       migrationList: "20260805000000 | 20260805000000 | 2026-08-05",
