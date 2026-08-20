@@ -114,6 +114,8 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toContain('data-testid="staff-function-order-group"');
     expect(html).toContain('data-testid="staff-function-device-group"');
     expect(html).toContain("overflow-x-auto");
+    expect(html).toContain("sm:overflow-x-visible");
+    expect(html).toContain("relative mt-3 flex");
     expect(html).toContain('<span class="sr-only">店員點餐</span>');
   });
 

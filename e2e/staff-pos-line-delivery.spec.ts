@@ -292,7 +292,13 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   const functionGrid = staffMain.getByTestId("staff-function-grid");
   await expect(functionGrid).toHaveCount(1);
   await expect(functionGrid).toBeVisible();
-  expect(await functionGrid.evaluate((element) => window.getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(3);
+  expect(await functionGrid.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return { display: style.display, flexWrap: style.flexWrap, overflowX: style.overflowX };
+  })).toEqual({ display: "flex", flexWrap: "nowrap", overflowX: "auto" });
+  expect(await functionGrid.locator(":scope > [data-testid^='staff-function-']").count()).toBe(3);
+  expect(await functionGrid.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   expect(await functionGrid.locator(":scope > *").count()).toBeLessThanOrEqual(12);
   const [staffOrderBox, floorPlanBox] = await Promise.all([
     functionGrid.getByRole("button", { name: "店員點餐", exact: true }).boundingBox(),

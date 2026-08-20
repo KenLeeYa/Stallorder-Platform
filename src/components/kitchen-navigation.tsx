@@ -77,7 +77,6 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage, w
               key={key}
               href={href}
               title={label}
-              aria-label={label}
               className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-2 border-b-2 px-2 text-sm font-semibold sm:shrink-0 sm:justify-start sm:px-3 ${active === key ? "border-teal-700 text-teal-800" : "border-transparent text-stone-600 hover:text-stone-950"}`}
             >
               <Icon className="h-5 w-5 sm:h-4 sm:w-4" />

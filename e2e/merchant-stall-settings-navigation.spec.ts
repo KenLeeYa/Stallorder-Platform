@@ -56,14 +56,14 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
   }
   await page.goto(overviewPath);
   await expect(page.getByLabel("應用程式狀態")).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeHidden();
+  await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeVisible();
   const expandMerchantOptions = page.getByRole("button", { name: "展開商戶選項" });
   await expect(expandMerchantOptions).toHaveAttribute("aria-expanded", "false");
   await expandMerchantOptions.click();
   await expect(page.getByRole("button", { name: "收合商戶選項" })).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("link", { name: "攤點通", exact: true })).toHaveAttribute(
     "href",
-    `/merchant/stalls?organizationId=${organizationId}`,
+    `/merchant/dashboard?organizationId=${organizationId}`,
   );
   await expect(page.getByLabel("選擇商家")).toHaveCount(0);
   await expect(page.getByLabel("選擇攤位")).toHaveCount(0);
@@ -82,6 +82,7 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
   await page.getByRole("button", { name: "收合商戶選項" }).click();
   await expect(stallShortcut).toBeHidden();
   await expect(workMode).toBeHidden();
+  await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeVisible();
   await expect(page.getByLabel("應用程式狀態")).toBeVisible();
   await page.getByRole("button", { name: "展開商戶選項" }).click();
 

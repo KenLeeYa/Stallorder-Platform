@@ -1173,7 +1173,7 @@ export function StaffOrderBoard({
           className="w-[min(52vw,220px)] shrink-0"
         />
       </div>
-      <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="mt-3 flex w-full min-w-0 items-center gap-2 overflow-x-auto border-y border-stone-200 py-2 print:hidden [&>*]:shrink-0">
+      <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="relative mt-3 flex w-full min-w-0 items-center gap-2 overflow-x-auto border-y border-stone-200 py-2 print:hidden sm:overflow-x-visible [&>*]:shrink-0">
         <div data-testid="staff-function-status-group" className="flex items-center gap-1 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:px-0">
           <LiveConnectionBadge state={liveConnection} t={t} />
           <div className="shrink-0">
