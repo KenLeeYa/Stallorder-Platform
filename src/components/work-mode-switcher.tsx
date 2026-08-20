@@ -14,6 +14,7 @@ export function WorkModeSwitcher({
   organizationId,
   stallId,
   offlineGuardStallId,
+  compactOnMobile = false,
   className = "",
 }: {
   destinations: readonly WorkModeDestination[];
@@ -21,6 +22,7 @@ export function WorkModeSwitcher({
   organizationId: string;
   stallId?: string;
   offlineGuardStallId?: string;
+  compactOnMobile?: boolean;
   className?: string;
 }) {
   const router = useRouter();
@@ -46,15 +48,16 @@ export function WorkModeSwitcher({
 
   return (
     <label className={`block min-w-0 text-xs font-medium text-stone-500 ${className}`}>
-      <span className="inline-flex items-center gap-1.5">
+      <span className={`${compactOnMobile ? "sr-only sm:not-sr-only sm:inline-flex" : "inline-flex"} items-center gap-1.5`}>
         <BriefcaseBusiness className="h-3.5 w-3.5 text-teal-700" />
         {t("workMode.label")}
       </span>
       <select
         aria-label={t("workMode.switchLabel")}
+        title={t("workMode.switchLabel")}
         value={selectedValue}
         onChange={(event) => void switchMode(event.target.value)}
-        className="mt-1 block h-10 w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[220px]"
+        className={`${compactOnMobile ? "mt-0 h-11 sm:mt-1 sm:h-10" : "mt-1 h-10"} block w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[220px]`}
       >
         {destinations.map((destination) => (
           <option key={destination.value} value={destination.value}>{destination.label}</option>
