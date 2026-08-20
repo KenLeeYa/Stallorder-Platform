@@ -24,14 +24,30 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
   await chickenCutlet.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet" }).click();
   await chickenCutlet.getByRole("button", { name: "Add to cart", exact: true }).click();
   await page.getByLabel("Customer name").fill(customerName);
-  await expect(page.getByRole("button", { name: "Place order", exact: true })).toBeEnabled({ timeout: 15_000 });
+  const waitAcknowledgment = page.getByRole("checkbox", { name: /I understand the estimated wait/ });
+  if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
+  const submitOrder = page.getByRole("button", { name: "Place order", exact: true });
+  await expect(submitOrder).toBeEnabled({ timeout: 15_000 });
 
-  const createResponse = page.waitForResponse((response) => (
+  let createResponsePromise = page.waitForResponse((response) => (
     new URL(response.url()).pathname.endsWith("/create-public-order")
     && response.request().method() === "POST"
   ));
-  await page.getByRole("button", { name: "Place order", exact: true }).click();
-  expect((await createResponse).status()).toBe(201);
+  await submitOrder.click();
+  let createResponse = await createResponsePromise;
+  if (createResponse.status() === 422) {
+    await expect(createResponse.json()).resolves.toMatchObject({ code: "WAIT_ACKNOWLEDGMENT_REQUIRED" });
+    await expect(waitAcknowledgment).toBeVisible();
+    await waitAcknowledgment.check();
+    await expect(submitOrder).toBeEnabled({ timeout: 15_000 });
+    createResponsePromise = page.waitForResponse((response) => (
+      new URL(response.url()).pathname.endsWith("/create-public-order")
+      && response.request().method() === "POST"
+    ));
+    await submitOrder.click();
+    createResponse = await createResponsePromise;
+  }
+  expect(createResponse.status()).toBe(201);
   await expect(page).toHaveURL(/\/order\//);
   await expect(page.getByTestId("pickup-code")).toHaveText(/^\d{3}$/);
   const orderNumberText = await page.getByText(/^訂單 /).textContent();
@@ -55,7 +71,7 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
     await staffPage.goto("/staff/aming-chicken");
     const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
     await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
-    await staffOrder.getByRole("button", { name: "待製作", exact: true }).click();
+    await staffOrder.getByRole("button", { name: "確認接單", exact: true }).click();
     await staffOrder.getByRole("button", { name: "全部開始製作（1）", exact: true }).click();
     await staffOrder.getByRole("button", { name: "全部餐點完成（1）", exact: true }).click();
     await expect(staffOrder.getByLabel("3 位數取餐碼")).toBeVisible();

@@ -173,10 +173,10 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
     await expect(cart).toContainText(productName);
     await page.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
     await page.getByLabel("顧客稱呼").fill(customerName);
-    const waitAcknowledgment = page.getByRole("checkbox", { name: /我了解預估等候/u });
+    const waitAcknowledgment = page.getByRole("checkbox", { name: /我已了解目前預估等候時間/u });
     if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
 
-    const createOrderResponsePromise = page.waitForResponse((response) => (
+    let createOrderResponsePromise = page.waitForResponse((response) => (
       new URL(response.url()).pathname.endsWith("/create-public-order")
       && response.request().method() === "POST"
     ));
@@ -184,7 +184,19 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
     await expectActionInViewport(submitOrder);
     await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
     await submitOrder.click();
-    const createOrderResponse = await createOrderResponsePromise;
+    let createOrderResponse = await createOrderResponsePromise;
+    if (createOrderResponse.status() === 422) {
+      await expect(createOrderResponse.json()).resolves.toMatchObject({ code: "WAIT_ACKNOWLEDGMENT_REQUIRED" });
+      await expect(waitAcknowledgment).toBeVisible();
+      await waitAcknowledgment.check();
+      await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
+      createOrderResponsePromise = page.waitForResponse((response) => (
+        new URL(response.url()).pathname.endsWith("/create-public-order")
+        && response.request().method() === "POST"
+      ));
+      await submitOrder.click();
+      createOrderResponse = await createOrderResponsePromise;
+    }
     expect(createOrderResponse.status()).toBe(201);
     const createOrderRequest = createOrderResponse.request().postDataJSON() as {
       clientOrderId?: string;
@@ -257,7 +269,7 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       await staffPage.goto(`/staff/${stallSlug}`);
       await expect(staffPage).toHaveURL(new RegExp(`/staff/${stallSlug}$`, "u"));
       await expect(staffPage.getByRole("heading", { name: stallName, exact: true })).toBeVisible();
-      await staffPage.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill(customerName);
+      await staffPage.getByRole("searchbox", { name: "搜尋桌號或訂單編號" }).fill(customerName);
       const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
       await expect(staffOrder).toBeVisible();
       await expect(staffOrder).toContainText(`訂單 ${orderNo}`);
@@ -275,7 +287,8 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       const confirmResponse = await confirmResponsePromise;
       expect(confirmResponse.status()).toBe(200);
       expect(confirmResponse.request().postDataJSON()).toMatchObject({ status: "CONFIRMED" });
-      await expect(staffOrder).toContainText("已確認");
+      await expect(staffOrder).toContainText("待製作");
+      await expect(confirmOrder).toHaveCount(0);
 
       await expect.poll(async () => prisma.order.findUnique({
         where: { id: createdOrderId },
@@ -313,7 +326,7 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         await expect(kitchenPage.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
         const kitchenOrder = kitchenPage.getByRole("article").filter({ hasText: `#${orderNo}` });
         await expect(kitchenOrder).toBeVisible();
-        await expect(kitchenOrder).toContainText("外帶 · QR 點餐");
+        await expect(kitchenOrder).toContainText("外帶自取 · QR 點餐");
         await expect(kitchenOrder).toContainText(productName);
         const startPreparation = kitchenOrder
           .getByRole("button", { name: "開始製作", exact: true })

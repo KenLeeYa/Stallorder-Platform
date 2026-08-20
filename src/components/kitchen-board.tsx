@@ -28,6 +28,7 @@ import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { deliveryProviderLabel } from "@/lib/delivery-platform-labels";
 import { resolveEffectiveFulfillmentAt } from "@/lib/fulfillment-time";
 import type { AppLocale } from "@/lib/app-locale";
+import { formatAppDateTime } from "@/lib/locale-format";
 import {
   getOperationsErrorMessage,
   type OperationsMessageKey,
@@ -553,22 +554,22 @@ function groupTasksByOrder(tasks: KitchenBoardTask[]) {
 }
 
 function formatKitchenTime(locale: AppLocale, value: string, timeZone: string) {
-  return new Intl.DateTimeFormat(locale, {
+  return formatAppDateTime(locale, value, {
     hour: "2-digit",
     minute: "2-digit",
     timeZone,
-  }).format(new Date(value));
+  });
 }
 
 function formatKitchenDateTime(locale: AppLocale, value: Date | string, timeZone: string) {
-  return new Intl.DateTimeFormat(locale, {
+  return formatAppDateTime(locale, value, {
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
     timeZone,
-  }).format(new Date(value));
+  });
 }
 
 function taskStatusLabel(

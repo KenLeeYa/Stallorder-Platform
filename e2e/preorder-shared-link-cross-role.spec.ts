@@ -360,17 +360,29 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
     const continueButton = page.getByRole("button", { name: "繼續填寫訂購資料", exact: true });
     if (await continueButton.isVisible()) await continueButton.click();
     await page.getByLabel("顧客稱呼").fill(customerName);
-    const waitAcknowledgment = page.getByRole("checkbox", { name: /我了解預估等候/u });
+    const waitAcknowledgment = page.getByRole("checkbox", { name: /我已了解目前預估等候時間/u });
     if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
 
-    const createOrderResponsePromise = page.waitForResponse((response) => (
+    let createOrderResponsePromise = page.waitForResponse((response) => (
       new URL(response.url()).pathname.endsWith("/create-public-order")
       && response.request().method() === "POST"
     ));
     const submitOrder = page.getByRole("button", { name: "送出訂單", exact: true });
     await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
     await submitOrder.click();
-    const createOrderResponse = await createOrderResponsePromise;
+    let createOrderResponse = await createOrderResponsePromise;
+    if (createOrderResponse.status() === 422) {
+      await expect(createOrderResponse.json()).resolves.toMatchObject({ code: "WAIT_ACKNOWLEDGMENT_REQUIRED" });
+      await expect(waitAcknowledgment).toBeVisible();
+      await waitAcknowledgment.check();
+      await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
+      createOrderResponsePromise = page.waitForResponse((response) => (
+        new URL(response.url()).pathname.endsWith("/create-public-order")
+        && response.request().method() === "POST"
+      ));
+      await submitOrder.click();
+      createOrderResponse = await createOrderResponsePromise;
+    }
     expect(createOrderResponse.status()).toBe(201);
     const createOrderRequest = createOrderResponse.request().postDataJSON() as {
       clientOrderId?: string;
@@ -491,7 +503,22 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       ));
       await staffOrder.getByRole("button", { name: "接受原時間", exact: true }).click();
       const acceptTimeResponse = await acceptTimeResponsePromise;
-      expect(acceptTimeResponse.status()).toBe(200);
+      const acceptTimeBody = await acceptTimeResponse.json().catch(() => null);
+      const acceptTimeDbOrder = await prisma.order.findUnique({
+        where: { id: createdOrderId },
+        select: {
+          stallId: true,
+          status: true,
+          fulfillmentTimeState: true,
+          fulfillmentTimeVersion: true,
+        },
+      });
+      expect(acceptTimeResponse.status(), JSON.stringify({
+        url: acceptTimeResponse.url(),
+        requestId: acceptTimeResponse.headers()["x-request-id"] ?? null,
+        response: acceptTimeBody,
+        dbOrder: acceptTimeDbOrder,
+      })).toBe(200);
       expect(acceptTimeResponse.request().postDataJSON()).toEqual({
         operation: "CONFIRM_REQUESTED",
         version: 1,
@@ -506,7 +533,8 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       const confirmOrderResponse = await confirmOrderResponsePromise;
       expect(confirmOrderResponse.status()).toBe(200);
       expect(confirmOrderResponse.request().postDataJSON()).toMatchObject({ status: "CONFIRMED" });
-      await expect(staffOrder).toContainText("已確認");
+      await expect(staffOrder).toContainText("待製作");
+      await expect(staffOrder.getByRole("button", { name: "確認接單", exact: true })).toHaveCount(0);
 
       await expect.poll(async () => prisma.order.findUniqueOrThrow({
         where: { id: createdOrderId },
@@ -544,8 +572,8 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
         await kitchenPage.goto("/kitchen?stall=aming-chicken");
         const kitchenOrder = kitchenPage.getByRole("article").filter({ hasText: `#${orderNo}` });
         await expect(kitchenOrder).toBeVisible();
-        await expect(kitchenOrder).toContainText("外帶 · QR 點餐");
-        await expect(kitchenOrder).toContainText("預約取餐");
+        await expect(kitchenOrder).toContainText("外帶自取 · QR 點餐");
+        await expect(kitchenOrder).toContainText("預約時間：");
         await expect(kitchenOrder).toContainText(retainedProductName);
         await expect(kitchenOrder).toContainText(noteOptionName);
         await expect(kitchenOrder).not.toContainText(prunedProductName);

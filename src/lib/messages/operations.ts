@@ -684,6 +684,7 @@ const definitions = {
   "staff.item.all": { "zh-TW": "{action}全部", en: "{action} all", ja: "すべて{action}", ko: "모두 {action}", vi: "{action} tất cả", th: "{action} ทั้งหมด" },
   "staff.item.nonePending": { "zh-TW": "目前沒有待製作餐點。", en: "No items are waiting for preparation.", ja: "製作待ちの商品はありません。", ko: "조리 대기 중인 품목이 없습니다.", vi: "Không có món chờ chế biến.", th: "ไม่มีอาหารรอผลิต" },
   "staff.action.startPreparing": { "zh-TW": "開始製作", en: "Start preparing", ja: "製作開始", ko: "조리 시작", vi: "Bắt đầu chế biến", th: "เริ่มผลิต" },
+  "staff.action.confirmOrder": { "zh-TW": "確認接單", en: "Accept order", ja: "注文を確定", ko: "주문 접수", vi: "Xác nhận nhận đơn", th: "ยืนยันรับออเดอร์" },
   "staff.action.markReady": { "zh-TW": "餐點完成", en: "Mark ready", ja: "商品完成", ko: "조리 완료", vi: "Món đã xong", th: "อาหารเสร็จ" },
   "staff.action.markServed": { "zh-TW": "標記已出餐", en: "Mark served", ja: "提供済みにする", ko: "제공 완료 표시", vi: "Đánh dấu đã phục vụ", th: "ทำเครื่องหมายว่าเสิร์ฟแล้ว" },
   "staff.action.updating": { "zh-TW": "更新中…", en: "Updating…", ja: "更新中…", ko: "업데이트 중…", vi: "Đang cập nhật…", th: "กำลังอัปเดต…" },

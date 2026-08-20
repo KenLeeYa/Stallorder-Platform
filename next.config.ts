@@ -10,6 +10,15 @@ const publicEdgeOrigin = (() => {
     return "http://127.0.0.1:54321";
   }
 })();
+const publicRealtimeOrigin = (() => {
+  try {
+    const value = process.env.NEXT_PUBLIC_SUPABASE_REALTIME_URL
+      ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+    return value ? new URL(value).origin : publicEdgeOrigin;
+  } catch {
+    return publicEdgeOrigin;
+  }
+})();
 const productImageRemotePatterns = (() => {
   try {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return [];
@@ -30,7 +39,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: https: ${publicEdgeOrigin}`,
   "font-src 'self'",
-  `connect-src 'self' ${publicEdgeOrigin} https://challenges.cloudflare.com`,
+  `connect-src 'self' ${publicEdgeOrigin} ${publicRealtimeOrigin} https://challenges.cloudflare.com`,
   "frame-src https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",

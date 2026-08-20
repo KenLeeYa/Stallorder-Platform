@@ -247,7 +247,20 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   const staffOrder = staffMain.getByRole("article").filter({ hasText: customerName });
   await expect(staffOrder).toContainText("內用 · A1 桌");
   await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
-  await staffOrder.getByRole("button", { name: "待製作", exact: true }).click();
+  const confirmationResponse = staffPage.waitForResponse((response) => {
+    if (
+      !new URL(response.url()).pathname.includes("/api/stalls/aming-chicken/orders/")
+      || response.request().method() !== "PATCH"
+    ) return false;
+    try {
+      return (response.request().postDataJSON() as { status?: string }).status === "CONFIRMED";
+    } catch {
+      return false;
+    }
+  });
+  await staffOrder.getByRole("button", { name: "確認接單", exact: true }).click();
+  expect((await confirmationResponse).status()).toBe(200);
+  await expect(staffOrder.getByRole("button", { name: "確認接單", exact: true })).toHaveCount(0);
   await expect(staffOrder).toContainText("待製作");
   await captureMobileScreenshot(staffPage, testInfo, "03-staff-order-confirmed");
   await verifyCompactViewport(staffPage, [staffOrder, staffOrder.getByText("待製作", { exact: true }).first()]);
@@ -344,8 +357,11 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await staffPage.goto("/staff/aming-chicken/floor");
   const cleaningTable = staffPage.getByRole("button", { name: /A1 桌，待清潔/ });
   await expect(cleaningTable).toBeVisible({ timeout: 10_000 });
+  await waitForReactHydration(cleaningTable);
   await cleaningTable.click();
-  await staffPage.getByRole("button", { name: "清潔完成，設為空桌" }).click();
+  const finishCleaning = staffPage.getByRole("button", { name: "清潔完成，設為空桌" });
+  await expect(finishCleaning).toBeVisible();
+  await finishCleaning.click();
   await expect(staffPage.getByRole("button", { name: /A1 桌，空桌/ })).toBeVisible();
 
   await page.getByRole("button", { name: "重新整理訂單" }).click();

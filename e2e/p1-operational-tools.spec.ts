@@ -145,7 +145,7 @@ test.describe("P1 營運功能", () => {
     for (const customerName of ["P1 E2E 同桌甲", "P1 E2E 同桌乙"]) {
       const order = page.getByRole("article").filter({ hasText: customerName });
       await order.getByRole("button", { name: "查看明細", exact: true }).click();
-      await order.getByRole("button", { name: "待製作", exact: true }).click();
+      await order.getByRole("button", { name: "確認接單", exact: true }).click();
       await order.getByRole("button", { name: "全部開始製作（1）" }).click();
       await order.getByRole("button", { name: "全部餐點完成（1）" }).click();
       await order.getByRole("button", { name: "全部標記已出餐（1）" }).click();
@@ -308,9 +308,19 @@ async function createDineInOrder(page: Page, customerName: string, productName: 
   await page.getByLabel("Customer name").fill(customerName);
   const submitButton = page.getByRole("button", { name: "Place order", exact: true });
   await expect(submitButton).toBeEnabled({ timeout: 15_000 });
-  const responsePromise = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith("/create-public-order") && response.request().method() === "POST");
+  let responsePromise = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith("/create-public-order") && response.request().method() === "POST");
   await submitButton.click();
-  expect((await responsePromise).status()).toBe(201);
+  let response = await responsePromise;
+  if (response.status() === 422) {
+    await expect(response.json()).resolves.toMatchObject({ code: "WAIT_ACKNOWLEDGMENT_REQUIRED" });
+    await expect(waitAcknowledgment).toBeVisible();
+    await waitAcknowledgment.check();
+    await expect(submitButton).toBeEnabled({ timeout: 15_000 });
+    responsePromise = page.waitForResponse((nextResponse) => new URL(nextResponse.url()).pathname.endsWith("/create-public-order") && nextResponse.request().method() === "POST");
+    await submitButton.click();
+    response = await responsePromise;
+  }
+  expect(response.status()).toBe(201);
   await expect(page).toHaveURL(/\/order\//);
   const orderText = await page.getByText(/^訂單 /).first().textContent();
   if (!orderText) throw new Error("找不到新訂單編號");
