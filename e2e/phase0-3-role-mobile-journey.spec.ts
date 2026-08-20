@@ -279,11 +279,12 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       await expectActionInViewport(confirmOrder);
       await expectNoHorizontalOverflow(staffPage);
 
+      await waitForReactHydration(confirmOrder);
       const confirmResponsePromise = staffPage.waitForResponse((response) => (
         new URL(response.url()).pathname.endsWith(`/orders/${createdOrderId}`)
         && response.request().method() === "PATCH"
-      ));
-      await confirmOrder.click();
+      ), { timeout: 20_000 });
+      await confirmOrder.click({ timeout: 20_000 });
       const confirmResponse = await confirmResponsePromise;
       expect(confirmResponse.status()).toBe(200);
       expect(confirmResponse.request().postDataJSON()).toMatchObject({ status: "CONFIRMED" });
