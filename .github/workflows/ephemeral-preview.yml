@@ -180,15 +180,41 @@ jobs:
 
       - name: Apply reviewed migrations and synthetic fixtures
         run: |
+          set -o pipefail
           test "${{ steps.preview.outputs.branch_ref }}" != "$SUPABASE_PARENT_PROJECT_REF" || {
             echo "::error::Refusing to seed the parent Supabase project."
             exit 1
           }
-          supabase db push \
-            --db-url "$EPHEMERAL_DATABASE_URL" \
-            --include-all \
-            --include-seed \
-            --yes
+
+          max_attempts=3
+          for attempt in $(seq 1 "$max_attempts"); do
+            migration_log="$(mktemp)"
+            if supabase db push \
+              --db-url "$EPHEMERAL_DATABASE_URL" \
+              --include-all \
+              --include-seed \
+              --yes 2>&1 | tee "$migration_log"; then
+              rm -f "$migration_log"
+              break
+            fi
+
+            if ! grep -Eq \
+              'terminating connection due to administrator command|Connection timed out|failed to connect to postgres' \
+              "$migration_log"; then
+              rm -f "$migration_log"
+              echo "::error::Preview migration push failed with a non-transient error."
+              exit 1
+            fi
+
+            rm -f "$migration_log"
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "::error::Preview database did not stabilize after $max_attempts migration attempts."
+              exit 1
+            fi
+
+            echo "::warning::Preview database restarted during migration attempt $attempt; retrying after provisioning settles."
+            sleep $((attempt * 15))
+          done
 
       - name: Verify isolated migration history
         run: supabase migration list --db-url "$EPHEMERAL_DATABASE_URL"
