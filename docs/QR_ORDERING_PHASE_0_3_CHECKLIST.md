@@ -8,15 +8,15 @@
 | --- | --- |
 | 更新日期 | 2026-08-20 |
 | 分支 | **codex/mobile-ui-followups-20260812** |
-| 本機實測 executable snapshot | **HEAD 5d39ca128a1335de64fecc409e933ed9182bc3a7 + tracked diff Git blob def9b4b6f0c3fbf4ec4966b64af29ec606030008 + src/lib/supabase-browser.test.ts blob 8409045a92d5ced1d6c017a6cd5cf90af9b90273**；尚非可發布的 clean commit |
-| Staging 整合基準 | 目前 snapshot 只含舊基準 **78ff24e75d680feb1118237b798284e1263047ac**；本機 **origin/staging 已移至 ba378d9eea57e0328bf9c45d975aadde9a766853** 且不是 HEAD ancestor，發布前必須重新整合並完整重驗 |
-| CodeGraph | 已以目前索引核對 QrOrderFlow、StaffOrderBoard、live resource、WorkspaceRouteContext 與 Circuit A/B 主要路徑；兩個 public entry 均為 14 行 composition boundary |
+| 本機實測 executable snapshot | **8a1cf624cf7f19ceea7252dbf12b7b363b5c5974**；4 個必要程式／測試修正已獨立 commit，目前 tracked 差異僅為本 checklist，既有 untracked 本機資料與 QA artifacts 明確排除於 executable snapshot |
+| Staging 整合基準 | **origin/staging@ba378d9eea57e0328bf9c45d975aadde9a766853** 已合併，且為目前 HEAD ancestor；合併後 static、DB 與完整 browser QA 已重驗 |
+| CodeGraph | 已以目前索引核對 QrOrderFlow、StaffOrderBoard、live resource、WorkspaceRouteContext、Circuit A/B 與 additive migration Plan／Apply 主要路徑；兩個 public entry 均為 14 行 composition boundary，ALTER TABLE positive allowlist 位於 Plan digest 之前且保留 provenance checks |
 | Local DB | **PASS**；Docker Desktop **4.87.0.236836** 恢復後，隔離 L1B Supabase runtime 健康；98 個 migration fresh reset／hash 核對、58 個 pgTAP 檔／1,373 assertions 與 DB lint 通過 |
 | CI／Preview | 未執行 |
 | Staging | 未執行 |
 | Production | 未執行 |
 
-工作樹仍為 dirty，因此下列狀態以上述 executable snapshot 為界：
+工作樹含既有 untracked 本機資料與本 checklist 的文件差異，因此下列狀態只以上述已 commit 的 executable snapshot 為界；後續純 checklist commit 不改變 executable evidence：
 
 - **LOCAL STATIC PASS**：上述 executable snapshot 的 typecheck、lint、unit／contract、UI audit、Prisma validation 與 production build 已通過。
 - **LOCAL RUNTIME PASS**：同一 executable snapshot 已通過 Local Supabase、DB／RLS／migration、Playwright 與 mobile visual QA。
@@ -30,7 +30,7 @@
 - [x] 保留 RLS／tenant scope、短效單次 session、Turnstile、rate limiting、stall／QR lock、server-side pricing 與 idempotency。
 - [x] Transport error 或 5xx response-loss 重試沿用同一 logical operation ID；terminal backend code 才旋轉 session identity。
 - [x] Circuit A/B 保留不同 transport 與部署故障域，但以 canonical response、token、error、audit 與 replay contract 校驗。
-- [x] migration validator 對兩個既有 Staging migration 僅接受 exact SHA-256 綁定的相容性例外；其餘本輪 migration 依 additive 規則檢查。
+- [x] migration validator 對兩個既有 Staging migration 僅接受 exact SHA-256 綁定的相容性例外；其餘 migration 的 `ALTER TABLE` action 逐項比對 positive allowlist，unknown syntax 以 `ALTER_TABLE_ACTION_FORBIDDEN` fail closed，並保留 replacement／OWNER／RLS／trigger provenance checks。
 - [ ] Staging 前仍須核對 remote migration ledger 與兩個既有 migration 的實際已套用狀態；未取得該證據前不得宣稱 remote-safe。
 - [x] Phase 3 五個旗標預設 OFF；未通過 activation Gate 前不得對顧客或商家顯示。
 - [x] 同一 executable snapshot 的完整 Local runtime Gate；Docker／Local Supabase blocker 已排除。
@@ -47,9 +47,9 @@
 
 | Phase | 正式狀態 | 已證明範圍 | 尚未關閉 |
 | --- | --- | --- | --- |
-| Phase 0 | **LOCAL RUNTIME PASS** | P0-01～07 source、unit／contract、QR／PREORDER、多角色、KDS、390×844 跨角色與 360×740 顧客入口實測通過 | CI／Preview、最新 Staging tree 重驗；尚無鎖定流量的 latency benchmark |
-| Phase 1 | **LOCAL RUNTIME PASS** | 98-migration reset、58 個 pgTAP／1,373 assertions、DB lint、query budget、concurrency、outbox、commit-loss replay 與 A/B terminal matrix 通過 | CI／Preview 與最新 Staging tree 的 remote ledger／lint／負載量測 |
-| Phase 2 | **LOCAL RUNTIME PASS** | QrOrderFlow 與 StaffOrderBoard public entry 均為 14 行 composition-only boundary；Staff／KDS／POS／offline／multi-stall browser journey 通過 | controller／presentation 仍大型，但屬後續維護範圍；發布前仍須 Staging 重驗 |
+| Phase 0 | **LOCAL RUNTIME PASS** | P0-01～07 source、unit／contract、QR／PREORDER、多角色、KDS、390×844 跨角色與 360×740 顧客入口實測通過 | CI／Preview、遠端 Staging；尚無鎖定流量的 latency benchmark |
+| Phase 1 | **LOCAL RUNTIME PASS** | 98-migration reset、58 個 pgTAP／1,373 assertions、DB lint、query budget、concurrency、outbox、commit-loss replay 與 A/B terminal matrix 通過 | CI／Preview、遠端 Staging migration ledger／lint 與負載量測 |
+| Phase 2 | **LOCAL RUNTIME PASS** | QrOrderFlow 與 StaffOrderBoard public entry 均為 14 行 composition-only boundary；Staff／KDS／POS／offline／multi-stall browser journey 通過 | controller／presentation 仍大型，但屬後續維護範圍；遠端 Staging 尚待驗證 |
 | Phase 3 | **DORMANT FOUNDATION / LOCAL DB RUNTIME PASS / BLOCKED FOR ACTIVATION** | 五項 schema／RLS／service／ADR／mock 或 contract 基礎已通過 fresh reset 與 pgTAP，五個旗標保持 hard OFF | 真實 migration-window 雙連線 race 尚無獨立自動化證據；active UI、真實 provider、營運／同意治理、sandbox／Staging 激活驗證 |
 
 ## 4. Phase 0 — 正確性與立即 UX
@@ -378,25 +378,25 @@ composition-only public boundary 的 Phase 2 acceptance 已滿足；controller �
 
 | Gate | 結果 | 證據強度／限制 |
 | --- | --- | --- |
-| Local snapshot lock | **PASS（local only）** | `HEAD 5d39ca128a1335de64fecc409e933ed9182bc3a7` + tracked diff blob `def9b4b6f0c3fbf4ec4966b64af29ec606030008` + untracked test blob `8409045a92d5ced1d6c017a6cd5cf90af9b90273`；dirty snapshot 不能當作發布 commit |
+| Local snapshot lock | **PASS（local only）** | executable commit `8a1cf624cf7f19ceea7252dbf12b7b363b5c5974`；`origin/staging@ba378d9eea57e0328bf9c45d975aadde9a766853` 為 ancestor；目前 tracked 差異僅為本 checklist，既有 untracked 本機資料不納入發布 |
 | TypeScript | **PASS** | `npm run typecheck` |
 | ESLint | **PASS** | `npm run lint` |
-| Unit／contract | **PASS** | 298 files passed、2 skipped；1,855 tests passed、9 skipped，0 failed |
+| Unit／contract | **PASS** | 298 files passed、2 skipped；1,863 tests passed、9 skipped，0 failed |
 | UI audit | **PASS** | 220 TSX files；`npm run ui:audit` |
 | Prisma validator | **PASS** | `npm run prisma:validate` |
-| Migration focused suite | **PASS** | 7 files／79 tests；含 Staging merge resolution、transaction wrapper、collision audit、scheduler body 與 exact migration digest checks |
-| Production guard | **PASS** | `node scripts/production-readiness.mjs` 的 98-migration／production guard 通過；一項歷史 data-copy warning 保留人工審查 |
-| DB health | **PASS** | Docker Desktop 4.87.0.236836／Engine 29.7.2；11 個 L1B 容器 running，核心 Supabase 容器 healthy；Vector 依隔離 QA 設定停止 |
+| Migration／security focused suite | **PASS** | remediation 後 7 files／103 tests；sealed rescan 前再跑 migration classifier＋4 個 migration contract，共 5 files／77 tests；unknown ALTER TABLE actions 全數 fail closed，合法 additive column／constraint 與既有 exact-digest migration 保持通過 |
+| Production guard | **PASS** | exact executable commit `8a1cf624cf7f19ceea7252dbf12b7b363b5c5974` 的 detached clean worktree：1,489 tracked files、98 migrations；production guard 通過，一項歷史 data-copy warning 保留人工審查 |
+| DB health | **PASS** | Docker Desktop 4.87.0.236836／Engine 29.7.2；Local QA 期間 11 個 L1B 容器 running、核心 Supabase 容器 healthy；測試結束後 Edge Functions 測試容器已停止，Vector 依隔離 QA 設定停止 |
 | DB reset | **PASS** | fresh reset 98 個 migrations；runtime ledger 與 repository migration hash **98/98 match** |
 | DB tests／RLS／RPC | **PASS** | 58 個 pgTAP 檔／1,373 assertions；A/B DB replay、terminal matrix、capacity／schedule concurrency、outbox 與 Phase 3 hard-lock runtime 通過 |
 | DB lint | **PASS** | Local PostgreSQL schema lint 通過 |
 | Production build | **79/79 pages PASS** | fresh production build |
 | Targeted E2E | **PASS** | wait-ack／PREORDER／product-note 組合 **9/9**；production-mode KDS **3/3**；跨角色 390×844 trace 單檔 **1/1** |
-| Full E2E | **PASS** | **112 passed、1 expected skip、0 failed**，8.7 分鐘；skip 僅為非 production-server 模式下的 Service Worker 導覽快取案例 |
+| Full E2E | **PASS** | **112 passed、1 expected skip、0 failed**，11.6 分鐘；skip 僅為非 production-server 模式下的 Service Worker 導覽快取案例 |
 | Dependency audit | **PASS** | `npm audit --audit-level=moderate`：0 vulnerabilities |
 | Diff hygiene | **PASS** | executable snapshot 的 `git diff --check` |
 | Dangerous-pattern review | **PASS** | 新增差異中的 dynamic code、unsafe HTML、unsafe raw SQL、weak random、CSRF skip 均為 0 |
-| Security diff | **PASS** | sealed scan `c3bd09c2-28d6-4035-b657-3346666900cf`；293/293 review items、coverage complete、0 reportable finding；snapshot `aaead79dfaeadd1ff1b76e1e40d9aaa1640867402db2047b770d5e77e1fc0084` |
+| Security diff | **PASS（current executable commit）** | 首輪 sealed scan `b000dc52-0c96-4698-a24c-460757d02190` 確認 1 個 Medium/P2 finding（blanket ALTER TABLE allow）；修正後 sealed scan `2279cee3-922c-4ae2-9204-1126b0dd0ca0` 鎖定 `3600372..8a1cf62`，4/4 review items、coverage complete、0 findings |
 | Mobile visual QA | **PASS** | 390×844 商家、顧客菜單／結帳、Tracker、Staff、KDS trace；360×740 顧客 QR 入口；無水平 overflow，主要 CTA 可見／可操作 |
 | Visual artifacts | **PASS** | `artifacts/phase0-3-mobile-visual-20260820/`；390 trace SHA-256 `54EA27CD707E05094CBC466F5FB4B9CE43356D02C199388AE4DBADFE6ACE804D` |
 | Cross-role live order | **PASS** | 同一張 Local DB 外帶單完成商家→顧客→Tracker→Staff 接單→KDS 開始製作→Tracker 製作中；E2E 測試資料於 afterAll 清理 |
@@ -405,30 +405,30 @@ composition-only public boundary 的 Phase 2 acceptance 已滿足；controller �
 
 - [x] fresh typecheck。
 - [x] fresh full lint。
-- [x] fresh full unit／contract：1,855 passed、9 conditional skipped、0 failed。
+- [x] fresh full unit／contract：1,863 passed、9 conditional skipped、0 failed。
 - [x] fresh UI audit。
 - [x] fresh Prisma validation、migration focused suite 與 clean production guard。
 - [x] fresh production build：79/79 pages。
 - [x] dependency audit、diff hygiene 與 dangerous-pattern review。
-- [x] sealed security diff scan；293/293 review items、coverage complete、0 reportable finding。
+- [x] 最新 executable commit 的 sealed security diff scan：`2279cee3-922c-4ae2-9204-1126b0dd0ca0`，4/4 review items、coverage complete、0 findings。
 - [x] Docker／Local Supabase health。
 - [x] fresh 98-migration reset、pgTAP、DB lint、RLS／RPC、concurrency 與 A/B commit-loss replay。
 - [x] KDS 3、Phase role journey、PREORDER shared-role、QR local smoke 與 wait-ack targeted E2E。
 - [x] fresh full Playwright；112 passed、1 expected skip、0 failed、0 flaky。
 - [x] 390×844 跨角色／360×740 顧客 QR mobile walkthrough；驗證單頁首要資訊、CTA、overflow、focus 與 loading／status 轉換。
-- [ ] 最終 executable diff security scan 與 live DB／browser coverage 結論尚待本輪重新 sealed。
+- [x] 最終 executable diff security scan 已 sealed；原 Medium/P2 migration validator finding 已修復並由第二次 scan 關閉。
 
-**Final Local Runtime Gate：PASS（LOCAL ONLY）。** Docker、DB、KDS、多角色、QR／PREORDER、手機畫面、完整 Playwright 與 final diff security 已在同一 executable snapshot 驗證。此結果只關閉本機 Gate，不能跳過最新 Staging tree 整合與發布 Gate。
+**Final Local Runtime Gate：PASS（LOCAL ONLY）。** Docker、DB、KDS、多角色、QR／PREORDER、手機畫面、完整 Playwright 與 current executable security seal 已在最新 Staging 整合後的同一 executable snapshot 驗證。此結果不能跳過 CI／Preview、遠端 Staging 與發布 Gate。
 
 ## 9. Release Gate
 
 | Gate | 狀態 | 必要證據 |
 | --- | --- | --- |
 | Local static | **PASS** | executable snapshot 的 typecheck、lint、unit／contract、UI audit、Prisma validation、build、audit 與 static migration checks 通過 |
-| Local DB／runtime | **FUNCTIONAL PASS** | Docker／Supabase health、98-migration reset、58 個 pgTAP／1,373 assertions、DB lint、targeted＋full E2E 與 mobile visual QA 完成 |
+| Local DB／runtime | **PASS** | Docker／Supabase health、98-migration reset、58 個 pgTAP／1,373 assertions、DB lint、targeted＋full E2E 與 mobile visual QA 完成 |
 | Phase scope | **LOCAL ACCEPTANCE PASS** | Phase 0–2 已滿足目前 Local acceptance；Phase 3 僅按既定範圍完成 dormant foundations 並保持五旗標 hard OFF，不代表 active product complete |
-| Branch integration | **FAIL／STAGING DRIFT** | 目前 HEAD 與 `origin/staging@ba378d9eea57e0328bf9c45d975aadde9a766853` 的 merge-base 仍是 `78ff24e75d680feb1118237b798284e1263047ac`；最新 Staging 尚未整合，不得沿用本次 Local 證據發布 |
-| Security review | **PASS（LOCAL）** | sealed scan `c3bd09c2-28d6-4035-b657-3346666900cf`；293/293、coverage complete、0 finding；整合最新 Staging 後仍須對新 tree 重跑 |
+| Branch integration | **PASS（LOCAL）** | `origin/staging@ba378d9eea57e0328bf9c45d975aadde9a766853` 已合併且為 executable commit `8a1cf624cf7f19ceea7252dbf12b7b363b5c5974` 的 ancestor；合併後 local static、DB、browser QA 與 security review 已重跑 |
+| Security review | **PASS（LOCAL CURRENT EXECUTABLE COMMIT）** | sealed scan `2279cee3-922c-4ae2-9204-1126b0dd0ca0` 為 4/4 review items、coverage complete、0 findings；掃描 revision 為 `8a1cf624cf7f19ceea7252dbf12b7b363b5c5974` |
 | CI／Preview | **未執行** | 同一 commit 的 required checks、Preview smoke |
 | Staging | **未執行** | 與預計發布相同 tree；Staging accounts、DB／Edge／Vercel smoke |
 | DR Plan／Apply | **未執行** | 當次 workflow IDs 與成功摘要 |
@@ -437,7 +437,7 @@ composition-only public boundary 的 Phase 2 acceptance 已滿足；controller �
 | Production Apply | **未執行／未授權** | Plan-bound confirmation 後才能觸發 |
 | Post-deploy | **未執行** | QR／service／DB smoke、rollback observability |
 
-**Overall Release Gate：FAIL CLOSED。** Local functional QA 與 final diff security 已通過，但目前仍是 dirty local snapshot，而且最新 `origin/staging` 已 drift。下一個可執行順序是：以明確 allowlist 建立 clean local commit → 整合最新 Staging tree 並完整重驗 → CI／Preview → Staging DB／Edge／Vercel smoke → DR → immutable Production Plan → plan-bound owner confirmation → Production Apply。在此之前不得 push、部署或宣稱 Production-ready。
+**Overall Release Gate：FAIL CLOSED。** 最新 Staging 已在本機整合，local static、DB、完整 browser QA 與 current executable security seal 已通過；CI／Preview、遠端 Staging、DR 與 Production gates 仍未執行。下一個可執行順序是：checklist commit → CI／Preview → Staging DB／Edge／Vercel smoke → DR → immutable Production Plan → plan-bound owner confirmation → Production Apply。在此之前不得部署或宣稱 Production-ready。
 
 ## 10. 歷史紀錄（STALE，不代表目前 Gate）
 
