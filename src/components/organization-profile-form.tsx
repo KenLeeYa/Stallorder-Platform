@@ -11,6 +11,7 @@ import {
   type FieldErrors,
 } from "@/lib/form-field-errors";
 import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
+import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import { useUnsavedSettings } from "@/lib/unsaved-settings";
 
 type OrganizationProfile = {
@@ -27,6 +28,7 @@ export function OrganizationProfileForm({
   initial: OrganizationProfile;
 }) {
   const router = useRouter();
+  const { m, label } = useMerchantMessages();
   const formRef = useRef<HTMLFormElement>(null);
   const [draft, setDraft] = useState(initial);
   const [saved, setSaved] = useState(initial);
@@ -58,16 +60,16 @@ export function OrganizationProfileForm({
         setFieldErrors(nextFieldErrors);
         focusFirstInvalidField(formRef.current, nextFieldErrors);
         setHasError(true);
-        setMessage(typeof payload.error === "string" ? payload.error : "目前無法更新商家資料。");
+        setMessage(typeof payload.error === "string" ? label(payload.error) : m("目前無法更新商家資料。"));
         return;
       }
       setDraft(payload.organization);
       setSaved(payload.organization);
-      setMessage("商家資料已更新。");
+      setMessage(m("商家資料已更新。"));
       router.refresh();
     } catch (error) {
       setHasError(true);
-      setMessage(error instanceof Error ? error.message : "目前無法更新商家資料。");
+      setMessage(error instanceof Error ? label(error.message) : m("目前無法更新商家資料。"));
     } finally {
       setBusy(false);
     }
@@ -82,7 +84,7 @@ export function OrganizationProfileForm({
     <form ref={formRef} noValidate onSubmit={submit} className="border-y border-stone-200 py-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-medium sm:col-span-2">
-          商家名稱
+          {m("商家名稱")}
           <input
             type="text"
             required
@@ -99,7 +101,7 @@ export function OrganizationProfileForm({
           {fieldErrors.businessName ? <span id="organization-business-name-error" role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors.businessName}</span> : null}
         </label>
         <label className="text-sm font-medium">
-          聯絡電子郵件
+          {m("聯絡電子郵件")}
           <input
             type="email"
             required
@@ -115,7 +117,7 @@ export function OrganizationProfileForm({
           {fieldErrors.email ? <span id="organization-email-error" role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors.email}</span> : null}
         </label>
         <label className="text-sm font-medium">
-          聯絡電話
+          {m("聯絡電話")}
           <input
             type="tel"
             required
@@ -137,9 +139,7 @@ export function OrganizationProfileForm({
       {message ? (
         <p
           role={hasError ? "alert" : "status"}
-          className={message === "商家資料已更新。"
-            ? "mt-4 text-sm text-emerald-700"
-            : "mt-4 text-sm text-red-700"}
+          className={hasError ? "mt-4 text-sm text-red-700" : "mt-4 text-sm text-emerald-700"}
         >
           {message}
         </p>
@@ -150,7 +150,7 @@ export function OrganizationProfileForm({
         className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
       >
         <Save className="h-4 w-4" />
-        {busy ? "儲存中..." : "儲存商家資料"}
+        {busy ? m("儲存中...") : m("儲存商家資料")}
       </button>
     </form>
   );

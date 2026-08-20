@@ -5,7 +5,13 @@ import { resolveProjectOAuthLinkProfile } from "@/lib/oauth-linking";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { isStagingPlatformAdminBootstrapEmail } from "@/lib/platform-admin-bootstrap";
 import { prisma } from "@/lib/prisma";
-import { createRequestId, hashClientIp, sanitizeRedirectPath } from "@/lib/security";
+import {
+  createRequestId,
+  hashClientIp,
+  hashClientUserAgent,
+  resolveSessionDeviceId,
+  sanitizeRedirectPath,
+} from "@/lib/security";
 import { createSupabaseAuthClient } from "@/lib/supabase-auth";
 import { getDefaultWorkspacePath, getWorkspaceAccess } from "@/lib/workspace";
 import { getPendingMerchantSetupPath } from "@/server/merchant-applications/merchant-setup-service";
@@ -47,6 +53,7 @@ export async function GET(request: Request) {
   if (!code) return finalize(NextResponse.redirect(`${appOrigin}/login?oauthError=callback-failed`));
 
   try {
+    const ipHash = hashClientIp(request);
     const supabase = await timing.measure("sessionMs", () => createSupabaseAuthClient());
     const { data, error } = await timing.measure(
       "externalApiMs",
@@ -198,6 +205,7 @@ export async function GET(request: Request) {
       return profile;
     }), 3);
 
+    const deviceId = resolveSessionDeviceId(request);
     const [workspaces, session, pendingSetupPath] = await Promise.all([
       timing.measureDb(
         () => getWorkspaceAccess(profile.id, profile.platformRole),
@@ -205,7 +213,11 @@ export async function GET(request: Request) {
       ),
       timing.measure(
         "sessionMs",
-        () => timing.measureDb(() => createSession(profile.id), 2),
+        () => timing.measureDb(() => createSession(profile.id, {
+          deviceId,
+          ipHash,
+          userAgentHash: hashClientUserAgent(request),
+        }), 2),
       ),
       timing.measureDb(() => getPendingMerchantSetupPath(profile.id)),
     ]);
@@ -218,7 +230,7 @@ export async function GET(request: Request) {
         : "/onboarding?oauth=1";
     const next = requestedNext || fallback;
     const response = NextResponse.redirect(`${appOrigin}${next}`);
-    setSessionCookies(response, session);
+    setSessionCookies(response, session, deviceId);
     await timing.measureDb(() => recordAuditEvent({
       organizationId: workspaces[0]?.id,
       stallId: workspaces[0]?.stalls[0]?.id,
@@ -227,7 +239,7 @@ export async function GET(request: Request) {
       entityType: "AUTH",
       outcome: "SUCCESS",
       requestId,
-      ipHash: hashClientIp(request),
+      ipHash,
     }));
     return finalize(response);
   } catch (error) {

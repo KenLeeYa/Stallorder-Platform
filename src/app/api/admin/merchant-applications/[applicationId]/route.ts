@@ -71,7 +71,7 @@ function merchantApplicationAdminErrorResponse(error: unknown, requestId: string
     APPLICANT_ALREADY_ONBOARDED: "申請者已具有商家工作區權限，無法重複核准。",
     APPLICATION_INCOMPLETE: "申請資料或同意事項不完整，請先要求補件。",
     APPLICATION_RISK_BLOCKED: "申請已被標記為封鎖，必須先解除風險狀態。",
-    SLUG_UNAVAILABLE: "申請的公開識別名稱已被使用，請先要求補件。",
+    SLUG_UNAVAILABLE: "申請的公開識別名稱或衍生攤位代碼已被使用，請先要求補件變更公開識別名稱。",
     TRIAL_PLAN_NOT_AVAILABLE: "目前沒有可用的 Trial Plan Version。",
     PROVISIONING_CONFLICT: "商家建立發生唯一性衝突，未建立任何部分資料。",
     REVIEWER_NOT_AVAILABLE: "指定的審核人員不存在或已停用。",

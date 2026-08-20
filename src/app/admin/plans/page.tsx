@@ -1,9 +1,53 @@
 import { AdminCatalogNavigation } from "@/components/admin-catalog-navigation";
 import { getAdminPlanCatalog } from "@/lib/admin-billing-data";
-import { formatMoney } from "@/lib/money";
+import { getRequestAppLocale } from "@/lib/app-locale-server";
+import { formatAppCurrency, formatAppNumber } from "@/lib/locale-format";
+import { createAdminTranslator } from "@/lib/messages/admin";
 
 export default async function AdminPlansPage() {
-  const { plans, featureFlags } = await getAdminPlanCatalog();
-  return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-6xl px-4 py-7 md:px-8"><header><h1 className="text-3xl font-semibold">方案目錄</h1><p className="mt-2 text-sm text-stone-600">既有訂閱固定參照特定方案版本；調價必須建立新版本，不回寫舊合約。</p><AdminCatalogNavigation /></header><section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{plans.map((plan) => <article key={plan.id} className="rounded-md border border-stone-200 p-5"><div className="flex justify-between gap-3"><h2 className="text-xl font-semibold">{plan.displayName}</h2><span className="text-sm">{plan.isActive ? "啟用" : "停用"}</span></div><p className="mt-2 text-sm text-stone-600">代碼 {plan.code}</p><dl className="mt-4 space-y-2 text-sm"><Row label="參考月費" value={formatMoney(plan.basePrice)} /><Row label="包含攤位" value={plan.includedStalls} /><Row label="最大攤位" value={plan.maxStalls ?? "依合約"} /><Row label="方案版本" value={plan._count.versions} /><Row label="訂閱數" value={plan._count.subscriptions} /></dl></article>)}</section><section className="mt-8 border-y border-stone-200 py-5"><h2 className="text-xl font-semibold">商業功能旗標</h2><p className="mt-2 text-sm text-stone-600">Phase 2／3 功能維持伺服器端停用。</p><div className="mt-3 divide-y divide-stone-200">{featureFlags.map((flag) => <div key={flag.code} className="grid gap-1 py-3 text-sm sm:grid-cols-[minmax(260px,1fr)_100px_100px]"><strong>{flag.code}</strong><span>Phase {flag.phase}</span><span className={flag.isEnabled ? "text-emerald-700" : "text-stone-500"}>{flag.isEnabled ? "啟用" : "停用"}</span><p className="text-stone-600 sm:col-span-3">{flag.description}</p></div>)}</div></section></main>;
+  const [{ locale }, { plans, featureFlags }] = await Promise.all([getRequestAppLocale(), getAdminPlanCatalog()]);
+  const m = createAdminTranslator(locale);
+
+  return (
+    <main className="mx-auto min-h-[calc(100vh-76px)] max-w-6xl px-4 py-7 md:px-8">
+      <header>
+        <h1 className="text-3xl font-semibold">{m("Plan catalog")}</h1>
+        <p className="mt-2 text-sm text-stone-600">{m("Existing subscriptions are pinned to a plan version. Price changes require a new version and never rewrite old contracts.")}</p>
+        <AdminCatalogNavigation />
+      </header>
+      <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {plans.map((plan) => (
+          <article key={plan.id} className="rounded-md border border-stone-200 p-5">
+            <div className="flex justify-between gap-3"><h2 className="text-xl font-semibold">{plan.displayName}</h2><span className="text-sm">{m(plan.isActive ? "Active" : "Inactive")}</span></div>
+            <p className="mt-2 text-sm text-stone-600">{m("Code {code}", { code: plan.code })}</p>
+            <dl className="mt-4 space-y-2 text-sm">
+              <Row label={m("Reference monthly fee")} value={formatAppCurrency(locale, plan.basePrice)} />
+              <Row label={m("Included stalls")} value={formatAppNumber(locale, plan.includedStalls)} />
+              <Row label={m("Maximum stalls")} value={plan.maxStalls === null ? m("Per contract") : formatAppNumber(locale, plan.maxStalls)} />
+              <Row label={m("Plan versions")} value={formatAppNumber(locale, plan._count.versions)} />
+              <Row label={m("Subscriptions")} value={formatAppNumber(locale, plan._count.subscriptions)} />
+            </dl>
+          </article>
+        ))}
+      </section>
+      <section className="mt-8 border-y border-stone-200 py-5">
+        <h2 className="text-xl font-semibold">{m("Commercial feature flags")}</h2>
+        <p className="mt-2 text-sm text-stone-600">{m("Phase 2/3 features remain disabled on the server.")}</p>
+        <div className="mt-3 divide-y divide-stone-200">
+          {featureFlags.map((flag) => (
+            <div key={flag.code} className="grid gap-1 py-3 text-sm sm:grid-cols-[minmax(260px,1fr)_100px_100px]">
+              <strong>{flag.code}</strong>
+              <span>{m("Phase {phase}", { phase: flag.phase })}</span>
+              <span className={flag.isEnabled ? "text-emerald-700" : "text-stone-500"}>{m(flag.isEnabled ? "Enabled" : "Disabled")}</span>
+              <p className="text-stone-600 sm:col-span-3">{flag.description}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
 }
-function Row({ label, value }: { label: string; value: string | number }) { return <div className="flex justify-between gap-3"><dt className="text-stone-500">{label}</dt><dd>{value}</dd></div>; }
+
+function Row({ label, value }: { label: string; value: string | number }) {
+  return <div className="flex justify-between gap-3"><dt className="text-stone-500">{label}</dt><dd>{value}</dd></div>;
+}

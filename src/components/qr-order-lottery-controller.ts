@@ -201,6 +201,16 @@ export function useQrOrderLotteryController(input: {
     sessionExpiryDialogOpen: input.sessionExpiryDialogOpen,
   });
 
+  useEffect(() => {
+    if (
+      !state.error
+      || state.isDrawing
+      || state.dialogOpen
+      || input.sessionExpiryDialogOpen
+    ) return;
+    lotteryButtonRef.current?.focus();
+  }, [input.sessionExpiryDialogOpen, state.dialogOpen, state.error, state.isDrawing]);
+
   const draw = useCallback(async () => {
     if (input.sessionExpiryDialogOpen) return;
     if (state.draw) {
@@ -229,7 +239,6 @@ export function useQrOrderLotteryController(input: {
       return;
     }
     dispatch({ type: "DRAW_FAILURE", reason: result.reason });
-    scheduleQrLotteryTriggerFocus(lotteryButtonRef.current, "FRAME");
   }, [input, state.draw, state.isDrawing, state.prefersReducedMotion]);
 
   const cancelRecommendation = useCallback(() => {

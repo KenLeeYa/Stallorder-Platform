@@ -83,6 +83,7 @@ function kitchenErrorResponse(error: KitchenOperationError, requestId: string) {
     TASK_NOT_FOUND: "找不到此生產工作。",
     TASK_TRANSITION_INVALID: "此工作已更新或目前不能執行該操作。",
     ORDER_NOT_ACTIVE: "訂單已結束，無法再修改製作狀態。",
+    PRODUCTION_NOT_DUE: "此訂單的履約營業日尚未到，當天才可開始製作。",
     STATION_NOT_FOUND: "找不到此工作站。",
     STATION_IN_USE: "工作站已有歷史工作，請停用而非刪除。",
     DEFAULT_STATION_REQUIRED: "預設工作站不可刪除或變更代碼。",

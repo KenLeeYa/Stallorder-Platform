@@ -98,11 +98,11 @@ export function QrOrderMenu({
       <div className="mt-5 space-y-6 sm:mt-6 sm:space-y-7">
         {activeOrderingMode === "PREORDER" && !scheduledPickupAt ? (
           <p role="status" className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm font-medium text-sky-950">
-            請先確認並套用預約取餐時間，完成後才會顯示可點商品。
+            {copy.applyPreorderTimeGuidance}
           </p>
         ) : activeOrderingMode === "PREORDER" && visibleProducts.length === 0 ? (
           <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-950">
-            此時段暫無可預約商品，請選擇其他取餐時間。
+            {copy.noProductsForSlot}
           </p>
         ) : null}
         {categories.map((category, categoryIndex) => (
@@ -132,7 +132,7 @@ export function QrOrderMenu({
                       {product.imageUrl ? <ProductImage src={product.imageUrl} alt={copy.productImage(localizedProduct(product).name)} width={80} height={80} sizes="(max-width: 639px) 56px, 80px" className="h-14 w-14 shrink-0 rounded-md object-cover sm:h-20 sm:w-20" /> : <div aria-hidden="true" className="h-14 w-14 rounded-md bg-stone-100 sm:h-20 sm:w-20" />}
                       <div className="min-w-0 flex-1">
                         {product.isBestSeller ? <span data-testid="best-seller-badge" className="mb-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950"><Flame aria-hidden="true" className="h-3.5 w-3.5" />{copy.hotSellerBadge}</span> : null}
-                        {!product.isOrderDiscountEligible ? <span data-testid="discount-ineligible-badge" className="mb-1 ml-1 inline-flex rounded-full bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">不適用訂單折扣</span> : null}
+                        {!product.isOrderDiscountEligible ? <span data-testid="discount-ineligible-badge" className="mb-1 ml-1 inline-flex rounded-full bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">{copy.discountIneligible}</span> : null}
                         <h3 className="font-semibold">{localizedProduct(product).name}</h3>
                         <p className="mt-1 line-clamp-2 text-sm leading-5 text-stone-600">{localizedProduct(product).description}</p>
                         <p className="mt-2 font-semibold">{formatMoney(Math.max(
@@ -214,12 +214,12 @@ export function QrOrderMenu({
                                 return (
                                   <fieldset key={group.id} className="rounded-md border border-teal-200 bg-teal-50/60 p-3">
                                     <legend className="px-2 text-sm font-bold text-teal-950">
-                                      <span className="mr-2 rounded-full bg-teal-700 px-2 py-0.5 text-[11px] text-white">套餐群組</span>
+                                      <span className="mr-2 rounded-full bg-teal-700 px-2 py-0.5 text-[11px] text-white">{copy.bundleGroup}</span>
                                       {group.name}{group.minSelections > 0 ? " *" : ""}
                                       <span className="ml-2 text-xs font-normal text-teal-800">
                                         {group.maxSelections === 1
-                                          ? "單選"
-                                          : `選 ${group.minSelections}～${group.maxSelections} 項`}
+                                          ? copy.singleChoice
+                                          : copy.selectionRange(group.minSelections, group.maxSelections)}
                                       </span>
                                     </legend>
                                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
@@ -232,7 +232,7 @@ export function QrOrderMenu({
                                             disabled={!orderingEnabled}
                                             onChange={() => onSelectBundleChoice(product.id, group, null)}
                                           />
-                                          不選擇
+                                          {copy.noSelection}
                                         </label>
                                       ) : null}
                                       {group.options.map((option) => {

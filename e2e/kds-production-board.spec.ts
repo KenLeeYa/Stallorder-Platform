@@ -113,12 +113,12 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   await login(page, "kitchen@stallorder.test");
   await expect(page).toHaveURL(/\/kitchen\?stall=aming-chicken/);
   await expect(page.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
-  await expect(page.getByText("輪詢備援", { exact: true })).toBeVisible();
+  await expect(page.getByText("輪詢同步", { exact: true })).toBeVisible();
   const board = page.locator("main").last();
-  const soundButton = board.getByTitle("開啟新訂單聲音與震動");
+  const soundButton = board.getByTitle("開啟新單提示音");
   await expect(soundButton).toBeVisible();
   await soundButton.click();
-  await expect(board.getByTitle("關閉新訂單聲音與震動")).toBeVisible();
+  await expect(board.getByTitle("關閉新單提示音")).toBeVisible();
   expect(await page.evaluate(() => window.localStorage.getItem("stallorder_kitchen_order_alerts"))).toBe("enabled");
   const wakeButton = board.getByTitle("開啟螢幕保持喚醒");
   await expect(wakeButton).toBeVisible();
@@ -173,7 +173,7 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   await expect(orderCard.getByText("製作中", { exact: true })).toBeVisible();
 
   await page.goto(`/merchant/stalls/${stallId}/kitchen/stations`);
-  await expect(page.getByText("404", { exact: true }).last()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "找不到此頁面", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "工作站與品項分流" })).toHaveCount(0);
   await page.goto("/kitchen?stall=aming-chicken");
   await page.locator("main").last().getByTitle("登出").click();

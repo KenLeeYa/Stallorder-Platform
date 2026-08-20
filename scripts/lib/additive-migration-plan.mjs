@@ -10,6 +10,10 @@ const QUALIFIED_IDENTIFIER_PATTERN = new RegExp(
 );
 const PHASE_THREE_HARD_LOCK_MIGRATION_DIGEST =
   "2592e2e05074e2d4170e69160c0c05f9ab351c3743d617f10536efc76d901f28";
+const COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST =
+  "f5800627472b5df8278ff6a11f6d9a514201706e06021852b5bf5f37a67b8891";
+const EXISTING_TABLE_TRIGGER_MIGRATION_DIGEST =
+  "f05d1e7dc42860f348b7607fd792ddd0d961d2cb48035dfac5ed8fa3d2532999";
 
 export class AdditiveMigrationPlanError extends Error {
   constructor(code, details = {}) {
@@ -136,6 +140,10 @@ export function assertAdditiveMigrationSql(sql) {
     throw new AdditiveMigrationPlanError("MIGRATION_SQL_INVALID");
   }
   const phaseThreeHardLock = isApprovedPhaseThreeHardLockMigration(sql);
+  const compatibleFunctionBodyMigration =
+    isApprovedCompatibleFunctionBodyMigration(sql);
+  const existingTableTriggerMigration =
+    isApprovedExistingTableTriggerMigration(sql);
   const sqlWithoutComments = stripSqlComments(sql);
   assertDoBlocksSafe(sqlWithoutComments);
   const statements = scrubSql(sqlWithoutComments)
@@ -200,7 +208,12 @@ export function assertAdditiveMigrationSql(sql) {
     }
   }
   assertReplacementPairs(replacements);
-  assertSecurityObjectProvenance(statements, phaseThreeHardLock);
+  assertSecurityObjectProvenance(
+    statements,
+    phaseThreeHardLock,
+    compatibleFunctionBodyMigration,
+    existingTableTriggerMigration,
+  );
   assertReplacementObjectProvenance(statements, replacements);
   return true;
 }
@@ -219,7 +232,12 @@ function assertFunctionDeclarationsParseable(statements) {
   }
 }
 
-function assertSecurityObjectProvenance(statements, phaseThreeHardLock) {
+function assertSecurityObjectProvenance(
+  statements,
+  phaseThreeHardLock,
+  compatibleFunctionBodyMigration,
+  existingTableTriggerMigration,
+) {
   const createdTables = new Map();
   const createdFunctions = new Map();
   const rlsEnabledTables = new Set();
@@ -255,6 +273,7 @@ function assertSecurityObjectProvenance(statements, phaseThreeHardLock) {
       if (
         functionDeclaration.replaces
         && !(Number.isInteger(createdAt) && createdAt < index)
+        && !compatibleFunctionBodyMigration
       ) {
         throw new AdditiveMigrationPlanError(
           "FUNCTION_REPLACEMENT_EXISTING_OBJECT_FORBIDDEN",
@@ -354,6 +373,10 @@ function assertSecurityObjectProvenance(statements, phaseThreeHardLock) {
           phaseThreeHardLock
           && isPhaseThreeHardLockTrigger(statement, tableIdentity)
         )
+        && !(
+          existingTableTriggerMigration
+          && isGlobalStallCodeGuardTrigger(statement, tableIdentity)
+        )
       ) {
         throw new AdditiveMigrationPlanError(
           "SECURITY_MUTATION_EXISTING_OBJECT_FORBIDDEN",
@@ -371,12 +394,18 @@ function assertSecurityObjectProvenance(statements, phaseThreeHardLock) {
           "SECURITY_MUTATION_STATEMENT_UNPARSEABLE",
         );
       }
-      assertObjectCreatedEarlier(
-        createdTables,
-        normalizeIdentifier(droppedSecurityObject[1]),
-        index,
-        "SECURITY_MUTATION_EXISTING_OBJECT_FORBIDDEN",
-      );
+      const tableIdentity = normalizeIdentifier(droppedSecurityObject[1]);
+      if (
+        !objectWasCreatedEarlier(createdTables, tableIdentity, index)
+        && !(
+          existingTableTriggerMigration
+          && isGlobalStallCodeGuardTrigger(statement, tableIdentity)
+        )
+      ) {
+        throw new AdditiveMigrationPlanError(
+          "SECURITY_MUTATION_EXISTING_OBJECT_FORBIDDEN",
+        );
+      }
     }
 
     const publicRevoke = parseFunctionPublicRevoke(statement);
@@ -388,7 +417,10 @@ function assertSecurityObjectProvenance(statements, phaseThreeHardLock) {
   }
 
   for (const identity of createdFunctions.keys()) {
-    if (!functionsRevokedFromPublic.has(identity)) {
+    if (
+      !functionsRevokedFromPublic.has(identity)
+      && !compatibleFunctionBodyMigration
+    ) {
       throw new AdditiveMigrationPlanError("FUNCTION_PUBLIC_REVOKE_REQUIRED");
     }
   }
@@ -815,6 +847,22 @@ function assertSafeFeatureFlagSeed(statement) {
 function isApprovedPhaseThreeHardLockMigration(sql) {
   return sha256(sql.replace(/\r\n/gu, "\n").trim())
     === PHASE_THREE_HARD_LOCK_MIGRATION_DIGEST;
+}
+
+function isApprovedCompatibleFunctionBodyMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST;
+}
+
+function isApprovedExistingTableTriggerMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === EXISTING_TABLE_TRIGGER_MIGRATION_DIGEST;
+}
+
+function isGlobalStallCodeGuardTrigger(statement, tableIdentity) {
+  return tableIdentity === "public.stalls"
+    && /^(?:create|drop)\s+trigger\s+(?:if\s+exists\s+)?stalls_validate_global_code_before_write\b/iu
+      .test(statement);
 }
 
 function isPhaseThreeHardLockCleanup(statement) {

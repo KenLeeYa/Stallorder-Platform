@@ -10,7 +10,12 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/components/qr-order-flow", () => ({ QrOrderFlow: () => null }));
+vi.mock("@/components/qr-order-flow", () => ({
+  QrOrderFlow: () => null,
+}));
+vi.mock("@/lib/app-locale-server", () => ({
+  getRequestAppLocale: () => Promise.resolve({ locale: "en", hasLocaleCookie: false }),
+}));
 vi.mock("@/lib/performance-timing", () => ({
   createPerformanceTiming: () => mocks.timing,
 }));
@@ -35,5 +40,26 @@ describe("physical QR order page", () => {
       "DEFAULT",
       { includeOptionalPreorderSlots: false },
     );
+  });
+
+  it("passes an explicit ?locale=vi UI locale without tying it to menu translations", async () => {
+    const element = await QrOrderPage({
+      params: Promise.resolve({ qrToken: "physical-qr-token" }),
+      searchParams: Promise.resolve({ locale: "vi" }),
+    });
+
+    expect(element.props).toMatchObject({
+      initialUiLocale: "en",
+      requestedLocale: "vi",
+    });
+  });
+
+  it("ignores unsupported locale query values", async () => {
+    const element = await QrOrderPage({
+      params: Promise.resolve({ qrToken: "physical-qr-token" }),
+      searchParams: Promise.resolve({ locale: "fr" }),
+    });
+
+    expect(element.props).toMatchObject({ initialUiLocale: "en", requestedLocale: null });
   });
 });

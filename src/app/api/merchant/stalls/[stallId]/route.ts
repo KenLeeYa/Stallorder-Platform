@@ -58,6 +58,12 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
       });
       if (!before) throw new Error("STALL_NOT_FOUND");
+      if (
+        command.operation === "UPDATE_BASIC"
+        && normalizeImmutableStallCode(command.code) !== normalizeImmutableStallCode(before.code)
+      ) {
+        throw new Error("STALL_CODE_IMMUTABLE");
+      }
 
       if (command.operation === "UPDATE_OPERATIONS" && !before.isActive && command.isActive) {
         await transaction.$queryRaw`
@@ -99,7 +105,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       const updateData = command.operation === "UPDATE_BASIC"
         ? {
             name: command.name,
-            code: command.code,
             description: command.description,
             address: command.address,
             location: command.address,
@@ -170,6 +175,17 @@ export async function PATCH(request: Request, context: RouteContext) {
         { status: 404, headers: { "x-request-id": authorization.requestId } },
       );
     }
+    if (code === "STALL_CODE_IMMUTABLE") {
+      return NextResponse.json(
+        {
+          error: "攤位代碼建立後無法變更。",
+          fieldErrors: {
+            code: "為確保公開商店網址穩定，既有攤位代碼已鎖定，無法變更。",
+          },
+        },
+        { status: 409, headers: { "x-request-id": authorization.requestId } },
+      );
+    }
     const entitlementMessages: Record<string, string> = {
       SUBSCRIPTION_REQUIRED: "此組織尚未建立訂閱，無法啟用攤位。",
       SUBSCRIPTION_INACTIVE: "訂閱目前不可啟用攤位，請先處理訂閱狀態。",
@@ -185,4 +201,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       { status: conflict || entitlementMessage ? 409 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }
+}
+
+function normalizeImmutableStallCode(code: string) {
+  return code.trim().toUpperCase();
 }

@@ -748,6 +748,7 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await login(staffPage, "staff@stallorder.test");
   await staffPage.goto("/staff/aming-chicken");
   const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
+  await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
   await expect(staffOrder).toContainText("辣度：中辣");
   await expect(staffOrder).toContainText("加料：加蛋");
   await expect(staffOrder).toContainText("胡椒少一點");

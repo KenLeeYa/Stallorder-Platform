@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
+import { useOperationsLocale } from "@/components/operations-locale";
 import {
   OFFLINE_APP_PROTOCOL_VERSION,
   type OfflineStorageClass,
@@ -21,6 +22,8 @@ import {
   type StorageCapability,
 } from "@/offline/storage-capability";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { formatAppDateTime } from "@/lib/locale-format";
+import { getOperationsErrorMessage } from "@/lib/messages/operations";
 import { createWebUuid } from "@/lib/web-uuid";
 
 type DeviceRegistrationResponse = {
@@ -37,6 +40,7 @@ type DeviceRegistrationResponse = {
   };
   approvalRequired: boolean;
   error?: string;
+  code?: string;
 };
 
 type OfflineBootstrapResponse = {
@@ -95,6 +99,7 @@ type OfflineBootstrapResponse = {
     expectedAmount: number;
   } | null;
   error?: string;
+  code?: string;
 };
 
 type LocalState = "UNKNOWN" | "PENDING" | "READ_ONLY" | "READY" | "ERROR";
@@ -124,15 +129,6 @@ function isPwaInstalled() {
     || ("standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
 }
 
-function storageLabel(storageClass: OfflineStorageClass | null) {
-  return ({
-    PERSISTENT: "持久儲存",
-    BEST_EFFORT: "一般儲存（套用較低上限）",
-    INSUFFICIENT: "空間不足（唯讀）",
-    UNAVAILABLE: "不支援離線儲存（唯讀）",
-  } as Record<OfflineStorageClass, string>)[storageClass ?? "UNAVAILABLE"];
-}
-
 export function OfflineBootstrapControl({
   stallId,
   stallSlug,
@@ -142,6 +138,7 @@ export function OfflineBootstrapControl({
   stallSlug: string;
   appVersion: string;
 }) {
+  const { locale, t } = useOperationsLocale();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [state, setState] = useState<LocalState>("UNKNOWN");
@@ -155,7 +152,7 @@ export function OfflineBootstrapControl({
     async function initializeLocalState() {
       await Promise.resolve();
       if (cancelled) return;
-      setDisplayName(`${detectPlatform()} ${isPwaInstalled() ? "PWA" : "瀏覽器"}`);
+      setDisplayName(`${detectPlatform()} ${isPwaInstalled() ? "PWA" : t("offline.bootstrap.browser")}`);
       try {
         const records = await getAllOfflineRecords("offline_permit");
         if (cancelled) return;
@@ -176,7 +173,7 @@ export function OfflineBootstrapControl({
     return () => {
       cancelled = true;
     };
-  }, [stallId]);
+  }, [stallId, t]);
 
   async function postJson<T>(path: string, body: Record<string, unknown>) {
     const response = await fetch(path, {
@@ -184,15 +181,15 @@ export function OfflineBootstrapControl({
       headers: csrfHeaders(),
       body: JSON.stringify(body),
     });
-    const payload = await response.json() as T & { error?: string };
-    if (!response.ok) throw new Error(payload.error ?? "目前無法啟用離線裝置。");
+    const payload = await response.json() as T & { error?: string; code?: string };
+    if (!response.ok) throw new Error(getOperationsErrorMessage(locale, payload.code, "offline.bootstrap.error.generic"));
     return payload;
   }
 
   async function registerAndBootstrap() {
     const safeName = displayName.trim();
     if (!safeName) {
-      setMessage("請輸入裝置名稱。");
+      setMessage(t("offline.bootstrap.nameRequired"));
       return;
     }
 
@@ -218,7 +215,7 @@ export function OfflineBootstrapControl({
         || capability.classification === "UNAVAILABLE"
       ) {
         setState("READ_ONLY");
-        setMessage("此裝置僅能使用離線唯讀資料；請釋放空間或改用支援持久儲存的瀏覽器。");
+        setMessage(t("offline.bootstrap.readOnlyStorage"));
         return;
       }
       if (
@@ -226,12 +223,12 @@ export function OfflineBootstrapControl({
         || !registration.device.offlineEnabled
       ) {
         setState("PENDING");
-        setMessage("裝置已送出登錄，請由管理者在攤位設定的「離線裝置」核准。");
+        setMessage(t("offline.bootstrap.pendingApproval"));
         return;
       }
       if (registration.device.offlineRole !== "OFFLINE_LEADER") {
         setState("READ_ONLY");
-        setMessage("此裝置已核准為唯讀；請由管理者指定為本攤位唯一 Leader 才能離線收單。");
+        setMessage(t("offline.bootstrap.leaderRequired"));
         return;
       }
 
@@ -321,10 +318,10 @@ export function OfflineBootstrapControl({
       window.dispatchEvent(new CustomEvent("stallorder:offline-data-changed"));
       setState("READY");
       setPermitExpiresAt(bootstrap.permit.expiresAt);
-      setMessage("離線資料已安全儲存在此裝置；斷線時可依核准風險上限建立現場訂單。");
+      setMessage(t("offline.bootstrap.readyMessage"));
     } catch (error) {
       setState("ERROR");
-      setMessage(error instanceof Error ? error.message : "目前無法啟用離線裝置。");
+      setMessage(error instanceof Error ? error.message : t("offline.bootstrap.error.generic"));
     } finally {
       setBusy(false);
     }
@@ -334,7 +331,7 @@ export function OfflineBootstrapControl({
     <div className="relative">
       <button
         type="button"
-        title="離線裝置"
+        title={t("staff.action.offlineDevice")}
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
         className={`inline-flex h-10 w-10 items-center justify-center rounded-md border ${
@@ -344,26 +341,26 @@ export function OfflineBootstrapControl({
         }`}
       >
         <DatabaseZap className="h-4 w-4" />
-        <span className="sr-only">離線裝置</span>
+        <span className="sr-only">{t("staff.action.offlineDevice")}</span>
       </button>
       {open ? (
         <section
-          aria-label="離線裝置"
+          aria-label={t("staff.action.offlineDevice")}
           className="fixed inset-x-4 top-20 z-50 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-md border border-stone-300 bg-white p-4 shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-96"
         >
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="flex items-center gap-2 font-semibold">
                 <ShieldCheck className="h-5 w-5 text-teal-700" />
-                離線裝置
+                {t("staff.action.offlineDevice")}
               </h2>
               <p className="mt-1 text-xs leading-5 text-stone-600">
-                本機登錄後仍須管理者核准並指定唯一 Leader。
+                {t("offline.bootstrap.description")}
               </p>
             </div>
             <button
               type="button"
-              title="關閉離線裝置視窗"
+              title={t("offline.bootstrap.close")}
               onClick={() => setOpen(false)}
               className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-stone-300"
             >
@@ -371,7 +368,7 @@ export function OfflineBootstrapControl({
             </button>
           </div>
           <label className="mt-4 block text-sm font-medium">
-            裝置名稱
+            {t("offline.bootstrap.deviceName")}
             <input
               type="text"
               value={displayName}
@@ -382,13 +379,13 @@ export function OfflineBootstrapControl({
             />
           </label>
           <div className="mt-4 border-y border-stone-200 py-3 text-xs text-stone-600">
-            <p>本機狀態：{stateLabel(state)}</p>
+            <p>{t("offline.bootstrap.localState", { state: stateLabel(state, t) })}</p>
             <p className="mt-1">
-              儲存能力：{storageLabel(storage?.classification ?? null)}
+              {t("offline.bootstrap.storageCapability", { storage: storageLabel(storage?.classification ?? null, t) })}
             </p>
             {permitExpiresAt ? (
               <p className="mt-1">
-                Permit 到期：{new Date(permitExpiresAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}
+                {t("offline.bootstrap.permitExpires", { time: formatAppDateTime(locale, permitExpiresAt, { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Taipei" }) })}
               </p>
             ) : null}
           </div>
@@ -399,7 +396,7 @@ export function OfflineBootstrapControl({
             className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"
           >
             {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <HardDriveDownload className="h-4 w-4" />}
-            {state === "READY" ? "重新檢查並更新離線資料" : "登錄並準備離線資料"}
+            {state === "READY" ? t("offline.bootstrap.refresh") : t("offline.bootstrap.register")}
           </button>
           {message ? (
             <p
@@ -415,12 +412,23 @@ export function OfflineBootstrapControl({
   );
 }
 
-function stateLabel(state: LocalState) {
-  return ({
-    UNKNOWN: "尚未檢查",
-    PENDING: "等待管理者核准",
-    READ_ONLY: "唯讀",
-    READY: "離線資料已就緒",
-    ERROR: "啟用失敗",
-  } as Record<LocalState, string>)[state];
+type OperationsTranslator = ReturnType<typeof useOperationsLocale>["t"];
+
+function storageLabel(storageClass: OfflineStorageClass | null, t: OperationsTranslator) {
+  switch (storageClass) {
+    case "PERSISTENT": return t("offline.bootstrap.storage.persistent");
+    case "BEST_EFFORT": return t("offline.bootstrap.storage.bestEffort");
+    case "INSUFFICIENT": return t("offline.bootstrap.storage.insufficient");
+    default: return t("offline.bootstrap.storage.unavailable");
+  }
+}
+
+function stateLabel(state: LocalState, t: OperationsTranslator) {
+  switch (state) {
+    case "PENDING": return t("offline.bootstrap.state.pending");
+    case "READ_ONLY": return t("offline.bootstrap.state.readOnly");
+    case "READY": return t("offline.bootstrap.state.ready");
+    case "ERROR": return t("offline.bootstrap.state.error");
+    default: return t("offline.bootstrap.state.unknown");
+  }
 }

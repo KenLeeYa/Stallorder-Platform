@@ -59,8 +59,11 @@ import {
   localizedPublicOrderError,
   QR_LOCALES,
   QR_LOCALE_STORAGE_KEY,
+  QR_UI_LOCALE_STORAGE_KEY,
   qrOrderMessages,
-  resolvePreferredQrLocale,
+  resolveQrCatalogLocale,
+  resolveQrUiLocale,
+  serializeQrLocalePreference,
   type QrLocale,
 } from "@/lib/qr-order-i18n";
 
@@ -69,6 +72,8 @@ export type QrOrderFlowControllerInput = {
   orderingMode?: "DEFAULT" | "DELIVERY" | "PREORDER";
   initialMenu?: PublicMenu | null;
   entryChannel?: QrOrderEntryChannel;
+  initialUiLocale?: QrLocale;
+  requestedLocale?: QrLocale | null;
 };
 
 export function useQrOrderFlowController({
@@ -76,12 +81,14 @@ export function useQrOrderFlowController({
   orderingMode = "DEFAULT",
   initialMenu = null,
   entryChannel = "QR",
+  initialUiLocale = "zh-TW",
+  requestedLocale = null,
 }: QrOrderFlowControllerInput) {
   const usableInitialMenu = usableQrInitialMenu(entryChannel, initialMenu);
   const startedRef = useRef(false);
   const sessionReadyRef = useRef(false);
   const [sessionController] = useState(() => createQrOrderSessionController());
-  const localeRef = useRef<QrLocale>("zh-TW");
+  const localeRef = useRef<QrLocale>(initialUiLocale);
   const productConfigurationRef = useRef<HTMLElement>(null);
   const cartPanelRef = useRef<HTMLElement>(null);
   const cartCloseButtonRef = useRef<HTMLButtonElement>(null);
@@ -114,7 +121,7 @@ export function useQrOrderFlowController({
   const [isLoading, setIsLoading] = useState(!usableInitialMenu);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sessionTimePhase, setSessionTimePhase] = useState<SessionCountdownPhase>("INACTIVE");
-  const [locale, setLocale] = useState<QrLocale>("zh-TW");
+  const [locale, setLocale] = useState<QrLocale>(initialUiLocale);
   const [cartReady, setCartReady] = useState(false);
   const [cartRestored, setCartRestored] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -138,10 +145,11 @@ export function useQrOrderFlowController({
       ? publicMenuProductsForPickup(session.products, scheduledPickupAt)
       : session.products;
   }, [activeOrderingMode, scheduledPickupAt, session]);
+  const catalogLocale = resolveQrCatalogLocale(locale, session?.supportedLocales ?? []);
   const localizedProduct = useCallback((product: Product) => {
-    const translation = product.translations.find((item) => item.locale === locale);
+    const translation = product.translations.find((item) => item.locale === catalogLocale);
     return translation ? { name: translation.name, description: translation.description } : product;
-  }, [locale]);
+  }, [catalogLocale]);
   const focusConfiguredProduct = useCallback((productId: string) => {
     window.setTimeout(() => document.getElementById(`qr-product-${productId}`)?.focus(), 0);
   }, []);
@@ -327,20 +335,41 @@ export function useQrOrderFlowController({
     if (startedRef.current) return;
     startedRef.current = true;
     const currentDeviceId = getOrCreateDeviceId();
-    const preferredLocales = navigator.languages.length > 0 ? navigator.languages : [navigator.language];
-    let storedLocale: QrLocale | null = null;
+    let storedPreference: string | null = null;
+    let legacyLocale: string | null = null;
     try {
-      const stored = window.localStorage.getItem(QR_LOCALE_STORAGE_KEY);
-      storedLocale = stored && isQrLocale(stored) ? stored : null;
+      storedPreference = window.localStorage.getItem(QR_UI_LOCALE_STORAGE_KEY);
+      legacyLocale = window.localStorage.getItem(QR_LOCALE_STORAGE_KEY);
     } catch {
-      storedLocale = null;
+      storedPreference = null;
+      legacyLocale = null;
     }
-    const browserLocale = storedLocale ?? resolvePreferredQrLocale(preferredLocales, QR_LOCALES);
+    const resolvedLocale = resolveQrUiLocale({
+      queryLocale: requestedLocale,
+      storedPreference,
+      legacyLocale,
+      appLocale: initialUiLocale,
+    });
+    const browserLocale = resolvedLocale.locale;
+    if (resolvedLocale.source === "query" || resolvedLocale.shouldMigrateLegacy) {
+      try {
+        window.localStorage.setItem(
+          QR_UI_LOCALE_STORAGE_KEY,
+          serializeQrLocalePreference(
+            browserLocale,
+            resolvedLocale.source === "query" ? "query" : "manual",
+          ),
+        );
+        window.localStorage.removeItem(QR_LOCALE_STORAGE_KEY);
+      } catch {
+        // Browsers can block storage in private or restricted contexts.
+      }
+    }
     localeRef.current = browserLocale;
     setLocale(browserLocale);
     setDeviceId(currentDeviceId);
     void startOrderSession(currentDeviceId, browserLocale);
-  }, [startOrderSession]);
+  }, [initialUiLocale, requestedLocale, startOrderSession]);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -473,8 +502,8 @@ export function useQrOrderFlowController({
     draftScheduledPickupAt,
   }), [activeOrderingMode, draftScheduledPickupAt, entryChannel, scheduledPickupAt, session]);
   const hasUnappliedFulfillmentTime = fulfillment.hasUnappliedTime;
-  const localizedGroupName = useCallback((group: NoteGroup) => group.translations.find((item) => item.locale === locale)?.name ?? group.name, [locale]);
-  const localizedOptionName = useCallback((option: NoteOption) => option.translations.find((item) => item.locale === locale)?.name ?? option.name, [locale]);
+  const localizedGroupName = useCallback((group: NoteGroup) => group.translations.find((item) => item.locale === catalogLocale)?.name ?? group.name, [catalogLocale]);
+  const localizedOptionName = useCallback((option: NoteOption) => option.translations.find((item) => item.locale === catalogLocale)?.name ?? option.name, [catalogLocale]);
   const bundleChoiceLabel = useCallback((option: BundleChoiceOption) => (
     option.quantity > 1
       ? `${option.componentProductName} × ${option.quantity}`
@@ -491,7 +520,11 @@ export function useQrOrderFlowController({
     setLocale(nextLocale);
     setMessage("");
     try {
-      window.localStorage.setItem(QR_LOCALE_STORAGE_KEY, nextLocale);
+      window.localStorage.setItem(
+        QR_UI_LOCALE_STORAGE_KEY,
+        serializeQrLocalePreference(nextLocale),
+      );
+      window.localStorage.removeItem(QR_LOCALE_STORAGE_KEY);
     } catch {
       // Browsers can block storage in private or restricted contexts.
     }
@@ -581,13 +614,13 @@ export function useQrOrderFlowController({
       messages: {
         orderingUnavailable: copy.degradedMessage,
         emptyCart: copy.selectAtLeastOne,
-        unappliedFulfillmentTime: "取餐時間尚未套用，請先按下「套用這個時間」。",
+        unappliedFulfillmentTime: copy.applyPickupTimeRequired,
         sessionLoading: copy.sessionLoading,
         sessionExpired: copy.sessionExpired,
         deliveryDetailsMissing: deliveryCopy.detailsRequired,
         waitAcknowledgmentRequired: copy.waitAcknowledgmentRequired,
         securityRequired: copy.securityRequired,
-        preorderTimeRequired: "請先選擇預約取餐時間。",
+        preorderTimeRequired: copy.selectPreorderTimeRequired,
         productUnavailable: copy.errors.productUnavailable,
         requiredNotes: copy.requiredNotes,
       },
@@ -621,11 +654,7 @@ export function useQrOrderFlowController({
     });
   }
 
-  const availableLocales = session
-    ? QR_LOCALES.filter((candidate) => (
-      candidate === "zh-TW" || session.supportedLocales.includes(candidate)
-    ))
-    : ["zh-TW" as QrLocale];
+  const availableLocales = [...QR_LOCALES];
   const checkoutBlocker = createQrOrderCheckoutModel(checkoutFlowInput()).blocker;
 
   return {
@@ -646,6 +675,7 @@ export function useQrOrderFlowController({
     cartPanelRef,
     cartRestored,
     cartTriggerRef,
+    catalogLocale,
     categories,
     changeCartLineQuantity,
     changeLocale,

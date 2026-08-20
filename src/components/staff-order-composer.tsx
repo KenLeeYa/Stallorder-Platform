@@ -1,20 +1,26 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PaymentOptionKind, UserRole } from "@prisma/client";
-import { List, Minus, Package, Plus, Send, ShoppingCart, Truck, Utensils, X } from "lucide-react";
+import { ArchiveRestore, ChevronDown, List, Minus, Package, Plus, Save, Send, ShoppingCart, Trash2, Truck, Utensils, X } from "lucide-react";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
+import { useOperationsLocale } from "@/components/operations-locale";
 import { StaffDiscountSelector } from "@/components/staff-discount-selector";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { calculateOrderDiscount } from "@/lib/checkout";
 import { formatMoney } from "@/lib/money";
+import { formatAppDateTime } from "@/lib/locale-format";
+import { getOperationsErrorMessage } from "@/lib/messages/operations";
 import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
 import {
   addQrCartLine,
+  QR_CART_TTL_MS,
   qrCartProductQuantity,
   qrCartTotalQuantity,
   replaceQrCartLine,
+  restoreQrCartDraft,
+  serializeQrCartDraft,
   updateQrCartLineQuantity,
   type QrCartLine,
 } from "@/lib/qr-cart";
@@ -25,6 +31,25 @@ import { buildFulfillmentTimeSlots } from "@/lib/fulfillment-time-options";
 import { createWebUuid } from "@/lib/web-uuid";
 
 const PHONE_NUMBER = /^\+?[0-9][0-9 ().-]{5,29}$/;
+const STAFF_ORDER_DRAFT_VERSION = 2;
+const STAFF_ORDER_DRAFT_LIMIT = 5;
+const STAFF_ORDER_DRAFT_MAX_BYTES = 250_000;
+
+type StaffOrderDraft = {
+  version: typeof STAFF_ORDER_DRAFT_VERSION;
+  id: string;
+  savedAt: number;
+  label: string;
+  itemCount: number;
+  cartDraft: string;
+  fulfillmentType: "TAKEOUT" | "DINE_IN" | "DELIVERY";
+  diningTableId: string;
+  requestedFulfillmentAt: string;
+  paymentTiming: "PAY_NOW" | "PAY_LATER";
+  paymentOptionId: string | null;
+  discountOptionId: string | null;
+  discountApprovalReason: string;
+};
 
 type Props = {
   stall: { id: string; organizationId: string; slug: string; currency: string; timezone?: string };
@@ -49,8 +74,11 @@ export function StaffOrderComposer({
   onCreated,
   onClose,
 }: Props) {
+  const { locale, t } = useOperationsLocale();
+  const optionSeparator = locale === "zh-TW" || locale === "ja" ? "、" : ", ";
   const idempotencyKeyRef = useRef(createWebUuid());
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const menuScrollRef = useRef<HTMLDivElement>(null);
+  const cartScrollRef = useRef<HTMLElement>(null);
   const defaultPayment = modules.payment
     ? paymentOptions[0] ?? null
     : paymentOptions.find((option) => option.kind === "CASH") ?? null;
@@ -77,11 +105,24 @@ export function StaffOrderComposer({
   const [message, setMessage] = useState("");
   const [activePane, setActivePane] = useState<"MENU" | "CART">("MENU");
   const [catalogExpanded, setCatalogExpanded] = useState(true);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(() => new Set());
+  const [savedDrafts, setSavedDrafts] = useState<StaffOrderDraft[]>([]);
+  const [draftManagerOpen, setDraftManagerOpen] = useState(false);
+  const [draftNotice, setDraftNotice] = useState("");
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const draftStorageKey = staffOrderDraftStorageKey(stall.organizationId, stall.id);
 
   const productsById = useMemo(
     () => new Map(catalog.products.map((product) => [product.id, product])),
     [catalog.products],
   );
+  const restorableProducts = useMemo(() => catalog.products.map((product) => ({
+    id: product.id,
+    noteGroups: product.noteGroups,
+    bundleChoiceGroups: (product.bundleChoiceGroups ?? []).map((group) => ({
+      options: group.choices,
+    })),
+  })), [catalog.products]);
   const selectedItems = useMemo(() => cartLines.flatMap((line) => {
     const product = productsById.get(line.productId);
     return product ? [{
@@ -151,9 +192,246 @@ export function StaffOrderComposer({
   );
   const [activeCategory, setActiveCategory] = useState(categories[0] ?? "");
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const drafts = parseStaffOrderDrafts(window.localStorage.getItem(draftStorageKey));
+        setSavedDrafts(drafts);
+        window.localStorage.setItem(draftStorageKey, JSON.stringify(drafts));
+      } catch {
+        setDraftNotice(t("composer.draft.unavailable"));
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [draftStorageKey, t]);
+
   function switchPane(pane: "MENU" | "CART") {
     setActivePane(pane);
-    scrollContainerRef.current?.scrollTo({ top: 0 });
+    (pane === "MENU" ? menuScrollRef.current : cartScrollRef.current)?.scrollTo({ top: 0 });
+  }
+
+  function scrollToCategory(category: string, categoryIndex: number) {
+    setActiveCategory(category);
+    expandCategory(category);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`staff-category-${categoryIndex}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
+
+  function expandCategory(category: string) {
+    setCollapsedCategories((current) => {
+      if (!current.has(category)) return current;
+      const next = new Set(current);
+      next.delete(category);
+      return next;
+    });
+  }
+
+  function toggleCategory(category: string) {
+    setCollapsedCategories((current) => {
+      const next = new Set(current);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  }
+
+  function toggleCatalog() {
+    if (catalogExpanded) {
+      setCatalogExpanded(false);
+      return;
+    }
+    setCollapsedCategories(new Set());
+    setCatalogExpanded(true);
+  }
+
+  function persistDrafts(nextDrafts: StaffOrderDraft[]) {
+    try {
+      window.localStorage.setItem(draftStorageKey, JSON.stringify(nextDrafts));
+      setSavedDrafts(nextDrafts);
+      return true;
+    } catch {
+      setDraftNotice(t("composer.draft.unavailable"));
+      return false;
+    }
+  }
+
+  function resetCurrentOrder() {
+    idempotencyKeyRef.current = createWebUuid();
+    setFulfillmentType("TAKEOUT");
+    setDiningTableId(catalog.tables[0]?.id ?? "");
+    setCustomerName("");
+    setCustomerPhone("");
+    setDeliveryAddress("");
+    setRequestedFulfillmentAt("");
+    setCustomerNote("");
+    setCartLines([]);
+    setQuantities({});
+    setNoteSelections({});
+    setBundleSelections({});
+    setEditingLineIds({});
+    setPaymentTiming("PAY_NOW");
+    setPaymentOptionId(defaultPayment?.id ?? null);
+    setDiscountOptionId(null);
+    setCashReceived("");
+    setDiscountApprovalReason("");
+    setManagerEmail("");
+    setManagerPassword("");
+    setMessage("");
+    setActivePane("MENU");
+    setCatalogExpanded(true);
+    setCollapsedCategories(new Set());
+    setActiveCategory(categories[0] ?? "");
+    setActiveDraftId(null);
+    menuScrollRef.current?.scrollTo({ top: 0 });
+  }
+
+  function saveCurrentDraft() {
+    if (cartLines.length === 0) {
+      setDraftNotice(Object.values(quantities).some((quantity) => quantity > 0)
+        ? t("composer.draft.pendingItem")
+        : t("composer.draft.noItems"));
+      return;
+    }
+    const previous = activeDraftId
+      ? savedDrafts.find((draft) => draft.id === activeDraftId)
+      : null;
+    if (!previous && savedDrafts.length >= STAFF_ORDER_DRAFT_LIMIT) {
+      setDraftNotice(t("composer.draft.limit", { limit: STAFF_ORDER_DRAFT_LIMIT }));
+      setDraftManagerOpen(true);
+      return;
+    }
+    const cartDraft = serializeQrCartDraft({
+      orderingMode: "DEFAULT",
+      scheduledPickupAt: "",
+      customerName: "",
+      customerNote: "",
+      customerPhone: "",
+      deliveryAddress: "",
+      lines: cartLines.map((line) => ({ ...line, note: "" })),
+    });
+    if (cartDraft.length > STAFF_ORDER_DRAFT_MAX_BYTES) {
+      setDraftNotice(t("composer.draft.tooLarge"));
+      return;
+    }
+    const draft: StaffOrderDraft = {
+      version: STAFF_ORDER_DRAFT_VERSION,
+      id: previous?.id ?? createWebUuid(),
+      savedAt: savedAtFromQrCartDraft(cartDraft),
+      label: t("composer.draft.defaultLabel", {
+        fulfillment: fulfillmentType === "DINE_IN" ? t("composer.dineIn") : fulfillmentType === "DELIVERY" ? t("composer.delivery") : t("composer.takeout"),
+        count: totalQuantity,
+      }),
+      itemCount: totalQuantity,
+      cartDraft,
+      fulfillmentType,
+      diningTableId,
+      requestedFulfillmentAt,
+      paymentTiming,
+      paymentOptionId,
+      discountOptionId: applicableDiscountOptionId,
+      discountApprovalReason: "",
+    };
+    const nextDrafts = [draft, ...savedDrafts.filter((candidate) => candidate.id !== draft.id)]
+      .sort((left, right) => right.savedAt - left.savedAt)
+      .slice(0, STAFF_ORDER_DRAFT_LIMIT);
+    if (!persistDrafts(nextDrafts)) return;
+    resetCurrentOrder();
+    setDraftNotice(t("composer.draft.saved", { label: draft.label }));
+  }
+
+  function restoreSavedDraft(draft: StaffOrderDraft) {
+    const hasCurrentInput = cartLines.length > 0
+      || Object.values(quantities).some((quantity) => quantity > 0)
+      || customerName.trim().length > 0
+      || customerPhone.trim().length > 0
+      || deliveryAddress.trim().length > 0
+      || customerNote.trim().length > 0;
+    if (hasCurrentInput && !window.confirm(t("composer.draft.replaceConfirm"))) return;
+    const restored = restoreQrCartDraft(
+      draft.cartDraft,
+      restorableProducts,
+      catalog.limits,
+      undefined,
+      { orderingMode: "DEFAULT" },
+    );
+    if (!restored || restored.lines.length === 0) {
+      setDraftNotice(t("composer.draft.invalid"));
+      return;
+    }
+    const fulfillmentAvailable = draft.fulfillmentType === "TAKEOUT"
+      || (draft.fulfillmentType === "DELIVERY" && modules.delivery)
+      || (draft.fulfillmentType === "DINE_IN" && modules.dineIn && catalog.tables.length > 0);
+    const nextFulfillmentType = fulfillmentAvailable ? draft.fulfillmentType : "TAKEOUT";
+    const nextDiningTableId = nextFulfillmentType === "DINE_IN"
+      && catalog.tables.some((table) => table.id === draft.diningTableId)
+      ? draft.diningTableId
+      : catalog.tables[0]?.id ?? "";
+    const nextRequestedFulfillmentAt = nextFulfillmentType !== "DINE_IN"
+      && fulfillmentTimeSlots.some((slot) => slot.iso === draft.requestedFulfillmentAt)
+      ? draft.requestedFulfillmentAt
+      : "";
+    const nextPaymentOptionId = draft.paymentOptionId
+      && paymentOptions.some((option) => option.id === draft.paymentOptionId)
+      ? draft.paymentOptionId
+      : defaultPayment?.id ?? null;
+    const nextDiscountOptionId = draft.discountOptionId
+      && discountOptions.some((option) => option.id === draft.discountOptionId)
+      ? draft.discountOptionId
+      : null;
+
+    idempotencyKeyRef.current = createWebUuid();
+    setFulfillmentType(nextFulfillmentType);
+    setDiningTableId(nextDiningTableId);
+    setCustomerName("");
+    setCustomerPhone("");
+    setDeliveryAddress("");
+    setRequestedFulfillmentAt(nextRequestedFulfillmentAt);
+    setCustomerNote("");
+    setCartLines(restored.lines.map((line) => ({ ...line, note: "" })));
+    setQuantities({});
+    setNoteSelections({});
+    setBundleSelections({});
+    setEditingLineIds({});
+    setPaymentTiming(draft.paymentTiming);
+    setPaymentOptionId(nextPaymentOptionId);
+    setDiscountOptionId(nextDiscountOptionId);
+    setCashReceived("");
+    setDiscountApprovalReason("");
+    setManagerEmail("");
+    setManagerPassword("");
+    setMessage("");
+    setCatalogExpanded(true);
+    setCollapsedCategories(new Set());
+    setActiveCategory(categories[0] ?? "");
+    setActivePane("MENU");
+    setActiveDraftId(draft.id);
+    setDraftManagerOpen(false);
+    setDraftNotice([
+      t("composer.draft.restored", { label: draft.label }),
+      fulfillmentAvailable ? "" : t("composer.draft.fulfillmentChanged"),
+      draft.requestedFulfillmentAt && !nextRequestedFulfillmentAt ? t("composer.draft.timeExpired") : "",
+      t("composer.draft.secureFields"),
+    ].filter(Boolean).join(" "));
+    window.requestAnimationFrame(() => menuScrollRef.current?.scrollTo({ top: 0 }));
+  }
+
+  function deleteSavedDraft(draft: StaffOrderDraft) {
+    if (!window.confirm(t("composer.draft.deleteConfirm", { label: draft.label }))) return;
+    const nextDrafts = savedDrafts.filter((candidate) => candidate.id !== draft.id);
+    if (!persistDrafts(nextDrafts)) return;
+    if (activeDraftId === draft.id) setActiveDraftId(null);
+    setDraftNotice(t("composer.draft.deleted", { label: draft.label }));
+  }
+
+  function consumeActiveDraft() {
+    if (!activeDraftId) return;
+    const nextDrafts = savedDrafts.filter((draft) => draft.id !== activeDraftId);
+    persistDrafts(nextDrafts);
+    setActiveDraftId(null);
   }
 
   function selectFulfillmentType(next: "TAKEOUT" | "DINE_IN" | "DELIVERY") {
@@ -178,7 +456,7 @@ export function StaffOrderComposer({
       || qrCartTotalQuantity(effectiveLines) + next > catalog.limits.maxTotalQuantity
       || nextUnique > catalog.limits.maxUniqueProducts
     ) {
-      setMessage("已達此攤位設定的商品數量上限。");
+      setMessage(t("composer.itemLimit"));
       return;
     }
     setMessage("");
@@ -206,11 +484,11 @@ export function StaffOrderComposer({
     const noteOptionIds = noteSelections[product.id] ?? [];
     const bundleChoiceIds = bundleSelections[product.id] ?? [];
     if (!noteSelectionIsValid(product.noteGroups, noteOptionIds)) {
-      setMessage(`${product.name} 的必選註記尚未完成。`);
+      setMessage(t("composer.requiredNotes", { item: product.name }));
       return;
     }
     if (!bundleSelectionIsValid(product, bundleChoiceIds)) {
-      setMessage(`${product.name} 的套餐選項尚未完成。`);
+      setMessage(t("composer.requiredBundle", { item: product.name }));
       return;
     }
     const editingLineId = editingLineIds[product.id];
@@ -225,7 +503,7 @@ export function StaffOrderComposer({
       ? replaceQrCartLine(cartLines, editingLineId, nextLine, catalog.limits)
       : addQrCartLine(cartLines, nextLine, catalog.limits, createWebUuid);
     if (!nextLines) {
-      setMessage("已達此攤位設定的商品數量上限。");
+      setMessage(t("composer.itemLimit"));
       return;
     }
     setCartLines(nextLines);
@@ -255,7 +533,7 @@ export function StaffOrderComposer({
   function changeCartLineQuantity(lineId: string, quantity: number) {
     const nextLines = updateQrCartLineQuantity(cartLines, lineId, quantity, catalog.limits);
     if (!nextLines) {
-      setMessage("已達此攤位設定的商品數量上限。");
+      setMessage(t("composer.itemLimit"));
       return;
     }
     setCartLines(nextLines);
@@ -299,6 +577,7 @@ export function StaffOrderComposer({
     setBundleSelections((current) => ({ ...current, [line.productId]: line.bundleChoiceIds }));
     setEditingLineIds((current) => ({ ...current, [line.productId]: line.id }));
     setCatalogExpanded(true);
+    expandCategory(product.category);
     setActiveCategory(product.category);
     switchPane("MENU");
     window.setTimeout(() => document.getElementById(`staff-product-${line.productId}`)?.scrollIntoView({
@@ -332,34 +611,30 @@ export function StaffOrderComposer({
   async function submit() {
     if (selectedItems.length === 0) {
       setMessage(Object.values(quantities).some((quantity) => quantity > 0)
-        ? "請先按「加入購物車」，再進行結帳。"
-        : "請至少選擇一項商品。");
+        ? t("composer.addPendingItem")
+        : t("composer.addAtLeastOne"));
       return;
     }
     const invalidNotes = selectedItems.find(({ product, noteOptionIds }) => (
       !noteSelectionIsValid(product.noteGroups, noteOptionIds)
     ));
     if (invalidNotes) {
-      setMessage(`${invalidNotes.product.name} 的必選註記尚未完成。`);
+      setMessage(t("composer.requiredNotes", { item: invalidNotes.product.name }));
       return;
     }
     const invalidBundle = selectedItems.find(({ product, bundleChoiceIds }) => (
       !bundleSelectionIsValid(product, bundleChoiceIds)
     ));
     if (invalidBundle) {
-      setMessage(`${invalidBundle.product.name} 的套餐選擇尚未完成。`);
+      setMessage(t("composer.requiredBundle", { item: invalidBundle.product.name }));
       return;
     }
     if (fulfillmentType === "DINE_IN" && !diningTableId) {
-      setMessage("請選擇內用桌位。");
+      setMessage(t("composer.tableRequired"));
       return;
     }
     if (customerPhone.trim() && !PHONE_NUMBER.test(customerPhone.trim())) {
-      setMessage("聯絡電話格式不正確。");
-      return;
-    }
-    if (fulfillmentType === "DELIVERY" && (!PHONE_NUMBER.test(customerPhone.trim()) || !deliveryAddress.trim())) {
-      setMessage("外送訂單必須填寫聯絡電話與地址。");
+      setMessage(t("composer.phoneInvalid"));
       return;
     }
     if (
@@ -367,21 +642,21 @@ export function StaffOrderComposer({
       && requestedFulfillmentAt
       && !fulfillmentTimeSlots.some((slot) => slot.iso === requestedFulfillmentAt)
     ) {
-      setMessage(`請重新選擇有效的 5 分鐘${fulfillmentType === "DELIVERY" ? "送達" : "取餐"}時段。`);
+      setMessage(t("composer.slotInvalid", { kind: fulfillmentType === "DELIVERY" ? t("composer.deliveryTime") : t("composer.pickupTime") }));
       return;
     }
     if (paymentTiming === "PAY_NOW") {
       if (modules.payment && !payment) {
-        setMessage("請選擇付款方式。");
+        setMessage(t("composer.paymentRequired"));
         return;
       }
       if (usesCash && (!Number.isInteger(received) || received < total)) {
-        setMessage("實收金額不可小於應收金額。");
+        setMessage(t("composer.cashInsufficient"));
         return;
       }
       if (needsApproval && (!discountApprovalReason.trim()
         || (!operatorCanApprove && (!managerEmail.trim() || !managerPassword)))) {
-        setMessage("請完成折扣核准資料。");
+        setMessage(t("composer.approvalIncomplete"));
         return;
       }
     }
@@ -428,31 +703,34 @@ export function StaffOrderComposer({
         await createOfflineFallback(error);
         return;
       }
-      let payload: { order?: StaffOrderDto; error?: string };
+      let payload: { order?: StaffOrderDto; code?: string };
       try {
-        payload = await response.json() as { order?: StaffOrderDto; error?: string };
+        payload = await response.json() as { order?: StaffOrderDto; code?: string };
       } catch (error) {
         if (response.ok || isTemporaryOrderFailure(response.status)) {
           await createOfflineFallback(error);
           return;
         }
-        throw new Error("目前無法建立訂單。");
+        throw new Error(t("composer.createFailed"));
       }
       if (!response.ok) {
         if (isTemporaryOrderFailure(response.status)) {
           await createOfflineFallback(new Error("ORDER_INTAKE_TEMPORARILY_UNAVAILABLE"));
           return;
         }
-        throw new Error(payload.error ?? "目前無法建立訂單。");
+        throw new Error(getOperationsErrorMessage(locale, payload.code, "composer.createFailed"));
       }
       if (!payload.order) {
         await createOfflineFallback(new Error("ORDER_RESPONSE_MISSING"));
         return;
       }
       idempotencyKeyRef.current = createWebUuid();
+      consumeActiveDraft();
       onCreated(payload.order);
     } catch (error) {
-      setMessage(error instanceof Error ? offlineErrorMessage(error.message) : "目前無法建立訂單。");
+      setMessage(error instanceof Error
+        ? getOperationsErrorMessage(locale, error.message, "composer.createFailed")
+        : t("composer.createFailed"));
     } finally {
       setBusy(false);
     }
@@ -496,48 +774,58 @@ export function StaffOrderComposer({
         items: requestBody.items,
       });
       idempotencyKeyRef.current = createWebUuid();
+      consumeActiveDraft();
       onCreated(offlineOrderToStaffOrder(created.order));
     }
   }
 
   return (
-    <div ref={scrollContainerRef} className="fixed inset-0 z-50 overflow-y-auto bg-black/45 print:hidden sm:p-6">
-      <section role="dialog" aria-modal="true" aria-labelledby="staff-order-title" className="mx-auto min-h-full w-full max-w-6xl bg-white shadow-xl sm:min-h-0 sm:rounded-lg">
-        <header className="sticky top-0 z-20 flex flex-wrap items-start justify-between gap-4 border-b border-stone-200 bg-white px-4 py-4 sm:rounded-t-lg sm:px-6">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-black/45 print:hidden sm:p-6">
+      <section role="dialog" aria-modal="true" aria-labelledby="staff-order-title" className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl sm:rounded-lg">
+        <header className="z-20 flex shrink-0 flex-wrap items-start justify-between gap-4 border-b border-stone-200 bg-white px-4 py-4 sm:rounded-t-lg sm:px-6">
           <div>
-            <h2 id="staff-order-title" className="text-xl font-semibold">店員點餐與結帳</h2>
-            <p className="mt-1 text-sm text-stone-600">現場代點會直接送入廚房，不需要 QR 或取餐 session。</p>
+            <h2 id="staff-order-title" className="text-xl font-semibold">{t("composer.title")}</h2>
+            <p className="mt-1 text-sm text-stone-600">{t("composer.description")}</p>
           </div>
-          <button type="button" title="關閉店員點餐" disabled={busy} onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-4 w-4" /></button>
-          <div className="grid w-full grid-cols-2 rounded-md border border-stone-300 bg-stone-50 p-1 lg:hidden" aria-label="店員點餐步驟">
-            <button data-testid="staff-order-menu-tab" type="button" aria-pressed={activePane === "MENU"} onClick={() => switchPane("MENU")} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded text-sm font-semibold ${activePane === "MENU" ? "bg-white text-stone-950 shadow-sm" : "text-stone-600"}`}><List className="h-4 w-4" />選擇商品</button>
-            <button data-testid="staff-order-cart-tab" type="button" aria-pressed={activePane === "CART"} onClick={() => switchPane("CART")} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded text-sm font-semibold ${activePane === "CART" ? "bg-white text-stone-950 shadow-sm" : "text-stone-600"}`}><ShoppingCart className="h-4 w-4" />訂單與結帳 ({totalQuantity})</button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button data-testid="staff-save-draft" type="button" disabled={busy} onClick={saveCurrentDraft} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-teal-300 bg-teal-50 px-3 text-sm font-semibold text-teal-900 disabled:opacity-50"><Save className="h-4 w-4" />{t("composer.draft.saveNew")}</button>
+            <button data-testid="staff-open-drafts" type="button" disabled={busy} onClick={() => setDraftManagerOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-700 disabled:opacity-50"><ArchiveRestore className="h-4 w-4" />{t("composer.draft.count", { count: savedDrafts.length, limit: STAFF_ORDER_DRAFT_LIMIT })}</button>
+            <button type="button" title={t("composer.close")} disabled={busy} onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="w-full border-t border-stone-100 pt-3 text-xs leading-5 text-stone-600">
+            <p>{t("composer.draft.policy")}</p>
+            {activeDraftId ? <p className="mt-1 font-semibold text-teal-800">{t("composer.draft.editing")}</p> : null}
+            {draftNotice ? <p role="status" className="mt-1 font-semibold text-teal-800">{draftNotice}</p> : null}
+          </div>
+          <div className="grid w-full grid-cols-2 rounded-md border border-stone-300 bg-stone-50 p-1 md:hidden" aria-label={t("composer.steps")}>
+            <button data-testid="staff-order-menu-tab" type="button" aria-pressed={activePane === "MENU"} onClick={() => switchPane("MENU")} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded text-sm font-semibold ${activePane === "MENU" ? "bg-white text-stone-950 shadow-sm" : "text-stone-600"}`}><List className="h-4 w-4" />{t("composer.chooseProducts")}</button>
+            <button data-testid="staff-order-cart-tab" type="button" aria-pressed={activePane === "CART"} onClick={() => switchPane("CART")} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded text-sm font-semibold ${activePane === "CART" ? "bg-white text-stone-950 shadow-sm" : "text-stone-600"}`}><ShoppingCart className="h-4 w-4" />{t("composer.orderAndCheckout", { count: totalQuantity })}</button>
           </div>
         </header>
 
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className={`${activePane === "MENU" ? "block" : "hidden"} px-4 py-5 pb-28 sm:px-6 lg:block lg:pb-5`}>
-            <div className="grid grid-cols-3 gap-2" aria-label="取餐方式">
-              <ModeButton active={fulfillmentType === "TAKEOUT"} icon={<Package className="h-4 w-4" />} label="外帶" onClick={() => selectFulfillmentType("TAKEOUT")} />
-              <ModeButton active={fulfillmentType === "DINE_IN"} disabled={!modules.dineIn || catalog.tables.length === 0} icon={<Utensils className="h-4 w-4" />} label="內用" onClick={() => selectFulfillmentType("DINE_IN")} />
-              <ModeButton active={fulfillmentType === "DELIVERY"} disabled={!modules.delivery} icon={<Truck className="h-4 w-4" />} label="外送" onClick={() => selectFulfillmentType("DELIVERY")} />
+        <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_360px]">
+          <div ref={menuScrollRef} data-testid="staff-order-menu-panel" className={`${activePane === "MENU" ? "block" : "hidden"} min-h-0 overflow-y-auto overscroll-contain px-4 py-5 pb-28 sm:px-6 md:block md:pb-5`}>
+            <div className="grid grid-cols-3 gap-2" aria-label={t("composer.fulfillmentMethod")}>
+              <ModeButton active={fulfillmentType === "TAKEOUT"} icon={<Package className="h-4 w-4" />} label={t("composer.takeout")} onClick={() => selectFulfillmentType("TAKEOUT")} />
+              <ModeButton active={fulfillmentType === "DINE_IN"} disabled={!modules.dineIn || catalog.tables.length === 0} icon={<Utensils className="h-4 w-4" />} label={t("composer.dineIn")} onClick={() => selectFulfillmentType("DINE_IN")} />
+              <ModeButton active={fulfillmentType === "DELIVERY"} disabled={!modules.delivery} icon={<Truck className="h-4 w-4" />} label={t("composer.delivery")} onClick={() => selectFulfillmentType("DELIVERY")} />
             </div>
 
             <div className="mt-5 grid items-start gap-3 sm:grid-cols-2">
-              <TextField className="mt-0" label="顧客名稱（選填）" value={customerName} maxLength={50} autoComplete="name" onChange={setCustomerName} />
-              {(fulfillmentType === "TAKEOUT" || fulfillmentType === "DELIVERY") ? <TextField className="mt-0" label={fulfillmentType === "DELIVERY" ? "聯絡電話" : "聯絡電話（選填）"} value={customerPhone} maxLength={30} type="tel" inputMode="tel" autoComplete="tel" pattern={PHONE_INPUT_PATTERN} onChange={setCustomerPhone} /> : null}
-              {fulfillmentType === "DINE_IN" ? <label className="block text-xs font-semibold text-stone-600">桌位<select value={diningTableId} onChange={(event) => setDiningTableId(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{tableGroups.map(([floorName, tables]) => <optgroup key={floorName} label={floorName}>{tables.map((table) => <option key={table.id} value={table.id}>{table.label}</option>)}</optgroup>)}</select></label> : null}
-              {fulfillmentType === "DELIVERY" ? <label className="text-xs font-semibold text-stone-600 sm:col-span-2">外送地址<textarea autoComplete="street-address" value={deliveryAddress} maxLength={300} onChange={(event) => setDeliveryAddress(event.target.value)} className="form-input mt-1 min-h-20" /></label> : null}
+              <TextField className="mt-0" label={t("composer.customerNameOptional")} value={customerName} maxLength={50} autoComplete="name" onChange={setCustomerName} />
+              {(fulfillmentType === "TAKEOUT" || fulfillmentType === "DELIVERY") ? <TextField className="mt-0" label={t("composer.contactPhoneOptional")} value={customerPhone} maxLength={30} type="tel" inputMode="tel" autoComplete="tel" pattern={PHONE_INPUT_PATTERN} onChange={setCustomerPhone} /> : null}
+              {fulfillmentType === "DINE_IN" ? <label className="block text-xs font-semibold text-stone-600">{t("composer.table")}<select value={diningTableId} onChange={(event) => setDiningTableId(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm">{tableGroups.map(([floorName, tables]) => <optgroup key={floorName} label={floorName}>{tables.map((table) => <option key={table.id} value={table.id}>{table.label}</option>)}</optgroup>)}</select></label> : null}
+              {fulfillmentType === "DELIVERY" ? <label className="text-xs font-semibold text-stone-600 sm:col-span-2">{t("composer.deliveryAddressOptional")}<textarea autoComplete="street-address" value={deliveryAddress} maxLength={300} onChange={(event) => setDeliveryAddress(event.target.value)} className="form-input mt-1 min-h-20" /></label> : null}
               {fulfillmentType === "TAKEOUT" && fulfillmentTimeSlots.length > 0 ? (
                 <FulfillmentTimePicker
                   slots={fulfillmentTimeSlots}
                   value={requestedFulfillmentAt}
                   onChange={setRequestedFulfillmentAt}
-                  legend="預計取餐時間（選填）"
-                  scheduledLabel="指定取餐時間"
-                  dateLabel="取餐日期"
-                  timeLabel="取餐時間"
-                  unavailableDateMessage="該日期沒有可用取餐時段。"
+                  legend={t("composer.pickupTimeLegend")}
+                  scheduledLabel={t("composer.scheduledPickup")}
+                  dateLabel={t("composer.pickupDate")}
+                  timeLabel={t("composer.pickupTime")}
+                  unavailableDateMessage={t("composer.pickupUnavailable")}
                   allowAsap
                   required={false}
                   testId="staff-takeout-fulfillment-time-fields"
@@ -549,11 +837,11 @@ export function StaffOrderComposer({
                   slots={fulfillmentTimeSlots}
                   value={requestedFulfillmentAt}
                   onChange={setRequestedFulfillmentAt}
-                  legend="指定送達時間（選填）"
-                  scheduledLabel="指定送達時間"
-                  dateLabel="送達日期"
-                  timeLabel="送達時間"
-                  unavailableDateMessage="該日期沒有可用送達時段。"
+                  legend={t("composer.deliveryTimeLegend")}
+                  scheduledLabel={t("composer.scheduledDelivery")}
+                  dateLabel={t("composer.deliveryDate")}
+                  timeLabel={t("composer.deliveryTime")}
+                  unavailableDateMessage={t("composer.deliveryUnavailable")}
                   allowAsap
                   required={false}
                   testId="staff-delivery-fulfillment-time-fields"
@@ -563,29 +851,47 @@ export function StaffOrderComposer({
             </div>
 
             <div className="mt-6 flex min-h-12 items-center justify-between gap-3 border-y border-stone-200 py-2">
-              <p className="text-sm font-semibold text-stone-700">商品列表（{catalog.products.length}）</p>
+              <p className="text-sm font-semibold text-stone-700">{t("composer.productList", { count: catalog.products.length })}</p>
               <button
                 type="button"
                 data-testid="staff-product-list-toggle"
                 aria-expanded={catalogExpanded}
                 aria-controls="staff-product-list"
-                onClick={() => setCatalogExpanded((expanded) => !expanded)}
+                onClick={toggleCatalog}
                 className="min-h-11 rounded-md border border-stone-300 px-3 text-sm font-semibold text-teal-800"
               >
-                {catalogExpanded ? "收合全部商品" : "展開全部商品"}
+                {catalogExpanded ? t("composer.collapseAll") : t("composer.expandAll")}
               </button>
             </div>
 
             {catalogExpanded ? <div id="staff-product-list" data-testid="staff-product-list">
-            <nav aria-label="商品分類" className="-mx-4 mt-2 flex gap-2 overflow-x-auto border-b border-stone-200 px-4 py-2 sm:-mx-6 sm:px-6 lg:hidden">
-              {categories.map((category) => <button key={category} type="button" aria-pressed={activeCategory === category} onClick={() => setActiveCategory(category)} className={`min-h-11 shrink-0 rounded-md border px-3 text-sm font-semibold ${activeCategory === category ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-700"}`}>{category}</button>)}
+            <nav data-testid="staff-category-navigation" aria-label={t("composer.categories")} className="sticky top-0 z-10 -mx-4 mt-2 flex gap-2 overflow-x-auto border-y border-stone-200 bg-white/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
+              {categories.map((category, categoryIndex) => <a key={category} href={`#staff-category-${categoryIndex}`} aria-current={activeCategory === category ? "true" : undefined} onClick={(event) => { event.preventDefault(); scrollToCategory(category, categoryIndex); }} className={`inline-flex min-h-11 shrink-0 items-center rounded-md border px-3 text-sm font-semibold ${activeCategory === category ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-700"}`}>{category}</a>)}
             </nav>
 
             <div className="mt-7 space-y-7">
-              {categories.map((category) => (
-                <section key={category} className={activeCategory === category ? "block" : "hidden lg:block"}>
-                  <h3 className="border-b border-stone-200 pb-2 text-sm font-semibold text-stone-600">{category}</h3>
-                  <div className="divide-y divide-stone-100">
+              {categories.map((category, categoryIndex) => {
+                const categoryCollapsed = collapsedCategories.has(category);
+                const categoryPanelId = `staff-product-group-${categoryIndex}`;
+                return (
+                <section key={category} id={`staff-category-${categoryIndex}`} data-testid="staff-product-group" data-category={category} className="scroll-mt-16">
+                  <h3 className="border-b border-stone-200">
+                    <button
+                      type="button"
+                      aria-expanded={!categoryCollapsed}
+                      aria-controls={categoryPanelId}
+                      aria-label={t("composer.groupToggle", { action: categoryCollapsed ? t("common.expand") : t("common.collapse"), group: category })}
+                      onClick={() => toggleCategory(category)}
+                      className="flex min-h-11 w-full items-center justify-between gap-3 pb-2 text-left text-sm font-semibold text-stone-600"
+                    >
+                      <span>{category}</span>
+                      <span className="inline-flex items-center gap-1 text-xs text-teal-800">
+                        {categoryCollapsed ? t("staff.order.expand") : t("staff.order.collapse")}
+                        <ChevronDown className={`h-4 w-4 transition-transform ${categoryCollapsed ? "" : "rotate-180"}`} />
+                      </span>
+                    </button>
+                  </h3>
+                  {!categoryCollapsed ? <div id={categoryPanelId} className="divide-y divide-stone-100">
                     {catalog.products.filter((product) => product.category === category).map((product) => {
                       const quantity = quantities[product.id] ?? 0;
                       const cartQuantity = cartQuantitiesByProduct.get(product.id) ?? 0;
@@ -600,15 +906,15 @@ export function StaffOrderComposer({
                       return <article key={product.id} id={`staff-product-${product.id}`} data-testid="staff-product-card" className="py-4">
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                           <div className="min-w-0">
-                            <h4 className="font-semibold">{product.name}{product.kind === "BUNDLE" ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">套餐</span> : null}</h4>
+                            <h4 className="font-semibold">{product.name}{product.kind === "BUNDLE" ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{t("composer.bundle")}</span> : null}</h4>
                             {product.description ? <p className="mt-1 text-sm text-stone-500">{product.description}</p> : null}
-                            <p className="mt-1 text-sm font-semibold">{formatMoney(unitPrice, stall.currency)}</p>
-                            {cartQuantity > 0 ? <p className="mt-1 text-xs font-medium text-teal-800">購物車已有 {cartQuantity} 份</p> : null}
+                        <p className="mt-1 text-sm font-semibold">{formatMoney(unitPrice, stall.currency, locale)}</p>
+                            {cartQuantity > 0 ? <p className="mt-1 text-xs font-medium text-teal-800">{t("composer.inCart", { count: cartQuantity })}</p> : null}
                           </div>
                           <div className="grid grid-cols-[44px_32px_44px] items-center gap-2">
-                            <button type="button" title={`減少 ${product.name}`} disabled={quantity === 0} onClick={() => setQuantity(product.id, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Minus className="h-4 w-4" /></button>
+                            <button type="button" title={t("composer.decreaseItem", { item: product.name })} disabled={quantity === 0} onClick={() => setQuantity(product.id, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Minus className="h-4 w-4" /></button>
                             <span className="text-center font-semibold">{quantity}</span>
-                            <button type="button" title={`增加 ${product.name}`} onClick={() => setQuantity(product.id, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-800 text-white"><Plus className="h-4 w-4" /></button>
+                            <button type="button" title={t("composer.increaseItem", { item: product.name })} onClick={() => setQuantity(product.id, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-800 text-white"><Plus className="h-4 w-4" /></button>
                           </div>
                         </div>
                         {quantity > 0 && product.kind === "BUNDLE" ? <div className="mt-4 space-y-3">
@@ -616,34 +922,35 @@ export function StaffOrderComposer({
                             const groupIds = new Set(group.choices.map((choice) => choice.id));
                             const selectedCount = bundleSelected.filter((id) => groupIds.has(id)).length;
                             return <fieldset key={group.id} className="rounded-md border border-teal-200 bg-teal-50/60 p-3">
-                              <legend className="px-2 text-sm font-bold text-teal-950"><span className="mr-2 inline-flex rounded-full bg-teal-800 px-2 py-0.5 text-xs text-white">套餐群組</span>{group.name}{group.minSelections > 0 ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-600">{group.minSelections === group.maxSelections ? `選 ${group.minSelections} 項` : `選 ${group.minSelections}～${group.maxSelections} 項`}</span></legend>
+                              <legend className="px-2 text-sm font-bold text-teal-950"><span className="mr-2 inline-flex rounded-full bg-teal-800 px-2 py-0.5 text-xs text-white">{t("composer.bundleGroup")}</span>{group.name}{group.minSelections > 0 ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-600">{group.minSelections === group.maxSelections ? t("composer.chooseExact", { count: group.minSelections }) : t("composer.chooseRange", { min: group.minSelections, max: group.maxSelections })}</span></legend>
                               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-                                {group.maxSelections === 1 && group.minSelections === 0 ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-bundle-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectBundleChoice(product.id, group, null)} />不選</label> : null}
+                                {group.maxSelections === 1 && group.minSelections === 0 ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-bundle-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectBundleChoice(product.id, group, null)} />{t("composer.noSelection")}</label> : null}
                                 {group.choices.map((choice) => {
                                   const checked = bundleSelected.includes(choice.id);
                                   const maxed = selectedCount >= group.maxSelections;
-                                  return <label key={choice.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.maxSelections === 1 ? "radio" : "checkbox"} name={`staff-bundle-${product.id}-${group.id}`} checked={checked} disabled={group.maxSelections > 1 && maxed && !checked} onChange={() => selectBundleChoice(product.id, group, choice.id)} />{choice.name} × {choice.quantity}{choice.priceDelta !== 0 ? <span className="text-teal-800">{choice.priceDelta > 0 ? "+" : ""}{formatMoney(choice.priceDelta, stall.currency)}</span> : null}</label>;
+                                  return <label key={choice.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.maxSelections === 1 ? "radio" : "checkbox"} name={`staff-bundle-${product.id}-${group.id}`} checked={checked} disabled={group.maxSelections > 1 && maxed && !checked} onChange={() => selectBundleChoice(product.id, group, choice.id)} />{choice.name} × {choice.quantity}{choice.priceDelta !== 0 ? <span className="text-teal-800">{choice.priceDelta > 0 ? "+" : ""}{formatMoney(choice.priceDelta, stall.currency, locale)}</span> : null}</label>;
                                 })}
                               </div>
                             </fieldset>;
                           })}
                         </div> : null}
-                        {quantity > 0 && product.noteGroups.length > 0 ? <div className="mt-4 space-y-3 border-l-2 border-teal-700 pl-3">{product.noteGroups.map((group) => { const optionIds = new Set(group.options.map((option) => option.id)); const selectedCount = noteSelected.filter((id) => optionIds.has(id)).length; return <fieldset key={group.id}><legend className="text-sm font-semibold">{group.name}{group.isRequired ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.selectionMode === "SINGLE" ? "單選" : group.maxSelections ? `最多 ${group.maxSelections} 項` : "複選"}</span></legend><div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">{group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-note-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectNoteOption(product.id, group, null)} />不選</label> : null}{group.options.map((option) => { const checked = noteSelected.includes(option.id); const maxed = group.maxSelections !== null && selectedCount >= group.maxSelections; return <label key={option.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`staff-note-${product.id}-${group.id}`} checked={checked} disabled={group.selectionMode === "MULTIPLE" && maxed && !checked} onChange={() => selectNoteOption(product.id, group, option.id)} />{option.name}{option.priceDelta !== 0 ? <span className="text-teal-800">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, stall.currency)}</span> : null}</label>; })}</div></fieldset>; })}</div> : null}
-                        {quantity > 0 ? <button type="button" onClick={() => addProductToCart(product)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white"><ShoppingCart className="h-4 w-4" />{editingLineIds[product.id] ? "修改完成" : "加入購物車"}</button> : null}
+                        {quantity > 0 && product.noteGroups.length > 0 ? <div className="mt-4 space-y-3 border-l-2 border-teal-700 pl-3">{product.noteGroups.map((group) => { const optionIds = new Set(group.options.map((option) => option.id)); const selectedCount = noteSelected.filter((id) => optionIds.has(id)).length; return <fieldset key={group.id}><legend className="text-sm font-semibold">{group.name}{group.isRequired ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.selectionMode === "SINGLE" ? t("composer.singleChoice") : group.maxSelections ? t("composer.maxChoices", { count: group.maxSelections }) : t("composer.multipleChoice")}</span></legend><div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">{group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-note-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectNoteOption(product.id, group, null)} />{t("composer.noSelection")}</label> : null}{group.options.map((option) => { const checked = noteSelected.includes(option.id); const maxed = group.maxSelections !== null && selectedCount >= group.maxSelections; return <label key={option.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`staff-note-${product.id}-${group.id}`} checked={checked} disabled={group.selectionMode === "MULTIPLE" && maxed && !checked} onChange={() => selectNoteOption(product.id, group, option.id)} />{option.name}{option.priceDelta !== 0 ? <span className="text-teal-800">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, stall.currency, locale)}</span> : null}</label>; })}</div></fieldset>; })}</div> : null}
+                        {quantity > 0 ? <button type="button" onClick={() => addProductToCart(product)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white"><ShoppingCart className="h-4 w-4" />{editingLineIds[product.id] ? t("composer.updateDone") : t("composer.addToCart")}</button> : null}
                       </article>;
                     })}
-                  </div>
+                  </div> : null}
                 </section>
-              ))}
-              {catalog.products.length === 0 ? <p className="py-12 text-center text-sm text-stone-500">目前沒有可供應商品。</p> : null}
+                );
+              })}
+              {catalog.products.length === 0 ? <p className="py-12 text-center text-sm text-stone-500">{t("composer.noProducts")}</p> : null}
             </div>
-            </div> : <p role="status" className="py-5 text-center text-sm text-stone-500">商品列表已收合，已選商品仍保留在購物車。</p>}
-            {selectedItems.length > 0 ? <button data-testid="staff-mobile-cart-summary" type="button" onClick={() => switchPane("CART")} className="safe-area-bottom fixed inset-x-3 bottom-0 z-30 flex min-h-16 items-center gap-3 rounded-t-lg bg-stone-900 px-4 pt-3 text-left text-white shadow-2xl lg:hidden"><ShoppingCart className="h-5 w-5" /><span className="flex-1"><span className="block text-xs text-stone-300">{totalQuantity} 份</span><strong>{formatMoney(total, stall.currency)}</strong></span><span className="text-sm font-semibold">前往結帳</span></button> : null}
+            </div> : <p role="status" className="py-5 text-center text-sm text-stone-500">{t("composer.collapsedNotice")}</p>}
+            {selectedItems.length > 0 ? <button data-testid="staff-mobile-cart-summary" type="button" onClick={() => switchPane("CART")} className="safe-area-bottom fixed inset-x-3 bottom-0 z-30 flex min-h-16 items-center gap-3 rounded-t-lg bg-stone-900 px-4 pt-3 text-left text-white shadow-2xl md:hidden"><ShoppingCart className="h-5 w-5" /><span className="flex-1"><span className="block text-xs text-stone-300">{t("common.portions", { count: totalQuantity })}</span><strong>{formatMoney(total, stall.currency, locale)}</strong></span><span className="text-sm font-semibold">{t("composer.checkout")}</span></button> : null}
           </div>
 
-          <aside data-testid="staff-order-cart-panel" className={`${activePane === "CART" ? "block" : "hidden"} safe-area-bottom border-t border-stone-200 bg-stone-50 px-4 py-5 lg:block lg:border-l lg:border-t-0 sm:px-6`}>
-            <div className="flex items-center gap-2"><ShoppingCart className="h-4 w-4 text-teal-800" /><h3 className="font-semibold">本次訂單</h3><span className="ml-auto text-sm text-stone-500">{totalQuantity} 份</span></div>
-            <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{selectedItems.map(({ cartLineId, product, quantity, noteOptionIds, bundleChoiceIds }) => {
+          <aside ref={cartScrollRef} data-testid="staff-order-cart-panel" className={`${activePane === "CART" ? "flex" : "hidden"} safe-area-bottom min-h-0 flex-col overflow-y-auto overscroll-contain border-t border-stone-200 bg-stone-50 px-4 py-5 sm:px-6 md:flex md:h-full md:overflow-hidden md:border-l md:border-t-0`}>
+            <div className="flex shrink-0 items-center gap-2"><ShoppingCart className="h-4 w-4 text-teal-800" /><h3 className="font-semibold">{t("composer.currentOrder")}</h3><span className="ml-auto text-sm text-stone-500">{t("common.portions", { count: totalQuantity })}</span></div>
+            <div data-testid="staff-order-cart-lines" className="mt-3 divide-y divide-stone-200 border-y border-stone-200 md:min-h-32 md:flex-1 md:overflow-y-auto md:overscroll-contain md:pr-1">{selectedItems.map(({ cartLineId, product, quantity, noteOptionIds, bundleChoiceIds }) => {
               const selectedBundleChoices = (product.bundleChoiceGroups ?? []).flatMap((group) => (
                 group.choices.filter((choice) => bundleChoiceIds.includes(choice.id))
               ));
@@ -655,7 +962,7 @@ export function StaffOrderComposer({
               const configurationLabel = [
                 ...selectedBundleChoices.map((choice) => `${choice.name} × ${choice.quantity}`),
                 ...selectedNoteNames,
-              ].join("、") || "無註記";
+              ].join(" · ") || t("composer.noConfiguration");
               const unitPrice = Math.max(
                 0,
                 product.price
@@ -663,27 +970,28 @@ export function StaffOrderComposer({
                   + notePriceAdjustment(product.noteGroups, noteOptionIds),
               );
               return <div key={cartLineId} data-testid="staff-cart-line" data-cart-line-id={cartLineId} className="py-3 text-sm">
-                <div className="flex justify-between gap-3"><span>{quantity} × {product.name}</span><strong>{formatMoney(unitPrice * quantity, stall.currency)}</strong></div>
-                {selectedBundleChoices.length > 0 ? <p className="mt-1 text-xs text-amber-800">{selectedBundleChoices.map((choice) => `${choice.name} × ${choice.quantity}`).join("、")}</p> : null}
-                {selectedNoteNames.length > 0 ? <p className="mt-1 text-xs text-teal-800">{selectedNoteNames.join("、")}</p> : null}
+                  <div className="flex justify-between gap-3"><span>{quantity} × {product.name}</span><strong>{formatMoney(unitPrice * quantity, stall.currency, locale)}</strong></div>
+                {selectedBundleChoices.length > 0 ? <p className="mt-1 text-xs text-amber-800">{selectedBundleChoices.map((choice) => `${choice.name} × ${choice.quantity}`).join(optionSeparator)}</p> : null}
+                {selectedNoteNames.length > 0 ? <p className="mt-1 text-xs text-teal-800">{selectedNoteNames.join(optionSeparator)}</p> : null}
                 <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-                  <button type="button" aria-label={`減少 ${product.name}（${configurationLabel}）`} onClick={() => changeCartLineQuantity(cartLineId, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Minus className="h-4 w-4" /></button>
-                  <span className="min-w-8 text-center font-semibold" aria-label={`${product.name}（${configurationLabel}）數量`}>{quantity}</span>
-                  <button type="button" aria-label={`增加 ${product.name}（${configurationLabel}）`} onClick={() => changeCartLineQuantity(cartLineId, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Plus className="h-4 w-4" /></button>
-                  {(product.noteGroups.length > 0 || (product.bundleChoiceGroups?.length ?? 0) > 0) ? <button type="button" onClick={() => editCartLine({ id: cartLineId, productId: product.id, quantity, note: "", noteOptionIds, bundleChoiceIds })} className="min-h-11 rounded-md border border-teal-300 bg-white px-3 font-semibold text-teal-800">修改客製</button> : null}
-                  <button type="button" aria-label={`移除 ${product.name}（${configurationLabel}）`} onClick={() => changeCartLineQuantity(cartLineId, 0)} className="min-h-11 rounded-md border border-red-300 bg-white px-3 font-semibold text-red-700">移除</button>
+                  <button type="button" aria-label={t("composer.decreaseConfiguredItem", { item: product.name, configuration: configurationLabel })} onClick={() => changeCartLineQuantity(cartLineId, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Minus className="h-4 w-4" /></button>
+                  <span className="min-w-8 text-center font-semibold" aria-label={t("composer.itemQuantity", { item: product.name, configuration: configurationLabel })}>{quantity}</span>
+                  <button type="button" aria-label={t("composer.increaseConfiguredItem", { item: product.name, configuration: configurationLabel })} onClick={() => changeCartLineQuantity(cartLineId, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white"><Plus className="h-4 w-4" /></button>
+                  {(product.noteGroups.length > 0 || (product.bundleChoiceGroups?.length ?? 0) > 0) ? <button type="button" onClick={() => editCartLine({ id: cartLineId, productId: product.id, quantity, note: "", noteOptionIds, bundleChoiceIds })} className="min-h-11 rounded-md border border-teal-300 bg-white px-3 font-semibold text-teal-800">{t("composer.editCustomization")}</button> : null}
+                  <button type="button" aria-label={t("composer.removeItem", { item: product.name, configuration: configurationLabel })} onClick={() => changeCartLineQuantity(cartLineId, 0)} className="min-h-11 rounded-md border border-red-300 bg-white px-3 font-semibold text-red-700">{t("composer.remove")}</button>
                 </div>
               </div>;
             })}</div>
-            <label className="mt-4 block text-xs font-semibold text-stone-600">訂單備註<textarea value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-1 min-h-20" /></label>
+            <div data-testid="staff-order-checkout-controls" className="shrink-0 md:max-h-[55%] md:overflow-y-auto md:overscroll-contain md:pr-1">
+              <label className="mt-4 block text-xs font-semibold text-stone-600">{t("composer.customerNote")}<textarea value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-1 min-h-20" /></label>
 
-            <div className="mt-5 grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label="付款時間">
-              <button type="button" aria-pressed={paymentTiming === "PAY_NOW"} onClick={() => setPaymentTiming("PAY_NOW")} className={`h-11 rounded text-xs font-semibold ${paymentTiming === "PAY_NOW" ? "bg-stone-900 text-white" : "text-stone-600"}`}>立即結帳</button>
-              <button type="button" aria-pressed={paymentTiming === "PAY_LATER"} onClick={() => setPaymentTiming("PAY_LATER")} className={`h-11 rounded text-xs font-semibold ${paymentTiming === "PAY_LATER" ? "bg-stone-900 text-white" : "text-stone-600"}`}>稍後結帳</button>
+            <div className="mt-5 grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("composer.paymentTiming")}>
+              <button type="button" aria-pressed={paymentTiming === "PAY_NOW"} onClick={() => setPaymentTiming("PAY_NOW")} className={`h-11 rounded text-xs font-semibold ${paymentTiming === "PAY_NOW" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("composer.payNow")}</button>
+              <button type="button" aria-pressed={paymentTiming === "PAY_LATER"} onClick={() => setPaymentTiming("PAY_LATER")} className={`h-11 rounded text-xs font-semibold ${paymentTiming === "PAY_LATER" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("composer.payLater")}</button>
             </div>
 
             {paymentTiming === "PAY_NOW" ? <>
-              {modules.payment ? <div className="mt-4 grid grid-cols-2 gap-2">{paymentOptions.map((option) => <button key={option.id} type="button" aria-pressed={paymentOptionId === option.id} onClick={() => { setPaymentOptionId(option.id); setCashReceived(""); }} className={`min-h-11 rounded-md border px-2 text-xs font-semibold ${paymentOptionId === option.id ? "border-teal-700 bg-teal-50" : "border-stone-300 bg-white"}`}>{option.name}</button>)}</div> : <p className="mt-4 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-semibold">現金</p>}
+              {modules.payment ? <div className="mt-4 grid grid-cols-2 gap-2">{paymentOptions.map((option) => <button key={option.id} type="button" aria-pressed={paymentOptionId === option.id} onClick={() => { setPaymentOptionId(option.id); setCashReceived(""); }} className={`min-h-11 rounded-md border px-2 text-xs font-semibold ${paymentOptionId === option.id ? "border-teal-700 bg-teal-50" : "border-stone-300 bg-white"}`}>{option.name}</button>)}</div> : <p className="mt-4 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-semibold">{t("composer.cash")}</p>}
               <StaffDiscountSelector
                 enabled={modules.discount}
                 options={discountOptions}
@@ -692,49 +1000,138 @@ export function StaffOrderComposer({
                 settingsHref={discountSettingsHref}
                 isApplicable={discountEligibleSubtotal > 0}
               />
-              {discountEligibleSubtotal < subtotal ? <p className="mt-2 text-xs text-amber-800">折扣適用金額：{formatMoney(discountEligibleSubtotal, stall.currency)}；其餘商品不套用訂單折扣。</p> : null}
-              {needsApproval ? <div className="mt-4 border-y border-amber-300 bg-amber-50 py-3"><p className="text-xs font-semibold text-amber-900">此折扣需要經理核准</p><TextField label="核准原因" value={discountApprovalReason} maxLength={200} onChange={setDiscountApprovalReason} />{!operatorCanApprove ? <><TextField label="經理帳號" value={managerEmail} maxLength={254} onChange={setManagerEmail} type="email" autoComplete="username" /><TextField label="經理密碼" value={managerPassword} maxLength={128} onChange={setManagerPassword} type="password" autoComplete="current-password" /></> : null}</div> : null}
-              {usesCash ? <div className="mt-4"><TextField label="實收金額" value={cashReceived} maxLength={9} inputMode="numeric" onChange={(value) => setCashReceived(value.replace(/\D/g, ""))} /><div className="mt-2 grid grid-cols-4 gap-2">{[total, 200, 500, 1000].filter((value, index, values) => values.indexOf(value) === index).map((value, index) => <button key={value} type="button" disabled={value < total} onClick={() => setCashReceived(String(value))} className="h-11 rounded-md border border-stone-300 bg-white text-xs font-semibold disabled:opacity-40">{index === 0 ? "剛好" : value}</button>)}</div><div className="mt-3 flex justify-between bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900"><span>找零</span><span>{formatMoney(change, stall.currency)}</span></div></div> : null}
+              {discountEligibleSubtotal < subtotal ? <p className="mt-2 text-xs text-amber-800">{t("composer.discountEligible", { amount: formatMoney(discountEligibleSubtotal, stall.currency, locale) })}</p> : null}
+              {needsApproval ? <div className="mt-4 border-y border-amber-300 bg-amber-50 py-3"><p className="text-xs font-semibold text-amber-900">{t("composer.approvalRequired")}</p><TextField label={t("composer.approvalReason")} value={discountApprovalReason} maxLength={200} onChange={setDiscountApprovalReason} />{!operatorCanApprove ? <><TextField label={t("composer.managerEmail")} value={managerEmail} maxLength={254} onChange={setManagerEmail} type="email" autoComplete="username" /><TextField label={t("composer.managerPassword")} value={managerPassword} maxLength={128} onChange={setManagerPassword} type="password" autoComplete="current-password" /></> : null}</div> : null}
+              {usesCash ? <div className="mt-4"><TextField label={t("composer.cashReceived")} value={cashReceived} maxLength={9} inputMode="numeric" onChange={(value) => setCashReceived(value.replace(/\D/g, ""))} /><div className="mt-2 grid grid-cols-4 gap-2">{[total, 200, 500, 1000].filter((value, index, values) => values.indexOf(value) === index).map((value, index) => <button key={value} type="button" disabled={value < total} onClick={() => setCashReceived(String(value))} className="h-11 rounded-md border border-stone-300 bg-white text-xs font-semibold disabled:opacity-40">{index === 0 ? t("composer.exact") : value}</button>)}</div><div className="mt-3 flex justify-between bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900"><span>{t("composer.change")}</span><span>{formatMoney(change, stall.currency, locale)}</span></div></div> : null}
             </> : null}
 
-            <dl className="mt-5 space-y-2 border-y border-stone-200 py-4 text-sm"><div className="flex justify-between"><dt>商品小計</dt><dd>{formatMoney(subtotal, stall.currency)}</dd></div>{paymentTiming === "PAY_NOW" && discount ? <div className="flex justify-between text-emerald-800"><dt>{discount.name}</dt><dd>-{formatMoney(subtotal - total, stall.currency)}</dd></div> : null}<div className="flex justify-between text-lg font-semibold"><dt>{paymentTiming === "PAY_NOW" ? "應收金額" : "訂單金額"}</dt><dd>{formatMoney(paymentTiming === "PAY_NOW" ? total : subtotal, stall.currency)}</dd></div></dl>
+            <dl className="mt-5 space-y-2 border-y border-stone-200 py-4 text-sm"><div className="flex justify-between"><dt>{t("composer.subtotal")}</dt><dd>{formatMoney(subtotal, stall.currency, locale)}</dd></div>{paymentTiming === "PAY_NOW" && discount ? <div className="flex justify-between text-emerald-800"><dt>{discount.name}</dt><dd>-{formatMoney(subtotal - total, stall.currency, locale)}</dd></div> : null}<div className="flex justify-between text-lg font-semibold"><dt>{paymentTiming === "PAY_NOW" ? t("composer.amountDue") : t("composer.orderAmount")}</dt><dd>{formatMoney(paymentTiming === "PAY_NOW" ? total : subtotal, stall.currency, locale)}</dd></div></dl>
             {message ? <p role="alert" className="mt-4 text-sm text-red-700">{message}</p> : null}
-            <button type="button" disabled={busy || selectedItems.length === 0} onClick={() => void submit()} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-40"><Send className="h-4 w-4" />{busy ? "建立中…" : paymentTiming === "PAY_NOW" ? "建立訂單並收款" : "建立訂單送入廚房"}</button>
+              <button type="button" disabled={busy || selectedItems.length === 0} onClick={() => void submit()} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-40"><Send className="h-4 w-4" />{busy ? t("composer.creating") : paymentTiming === "PAY_NOW" ? t("composer.createPaid") : t("composer.createKitchen")}</button>
+            </div>
           </aside>
         </div>
       </section>
+      {draftManagerOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-4">
+          <section role="dialog" aria-modal="true" aria-labelledby="staff-drafts-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div><h3 id="staff-drafts-title" className="text-xl font-semibold">{t("composer.draft.deviceTitle")}</h3><p className="mt-1 text-sm leading-6 text-stone-600">{t("composer.draft.expiry")}</p></div>
+              <button type="button" title={t("composer.draft.close")} onClick={() => setDraftManagerOpen(false)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-4 w-4" /></button>
+            </div>
+            <div data-testid="staff-draft-list" className="mt-5 divide-y divide-stone-200 border-y border-stone-200">
+              {savedDrafts.map((draft) => (
+                <article key={draft.id} data-testid="staff-draft-card" className="py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div><h4 className="font-semibold">{draft.label}</h4><p className="mt-1 text-xs text-stone-500">{t("common.portions", { count: draft.itemCount })} · {formatAppDateTime(locale, draft.savedAt, { dateStyle: "short", timeStyle: "short" })}{activeDraftId === draft.id ? ` · ${t("composer.draft.current")}` : ""}</p></div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => restoreSavedDraft(draft)} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white"><ArchiveRestore className="h-4 w-4" />{t("composer.draft.restore")}</button>
+                      <button type="button" aria-label={t("composer.draft.deleteLabel", { label: draft.label })} onClick={() => deleteSavedDraft(draft)} className="grid h-11 w-11 place-items-center rounded-md border border-red-300 text-red-700"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {savedDrafts.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{t("composer.draft.empty")}</p> : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function isTemporaryOrderFailure(status: number) {
-  return status === 502 || status === 503 || status === 504;
+function staffOrderDraftStorageKey(organizationId: string, stallId: string) {
+  return `stallorder_staff_order_drafts:${encodeURIComponent(organizationId)}:${encodeURIComponent(stallId)}`;
 }
 
-function offlineErrorMessage(code: string) {
-  const messages: Record<string, string> = {
-    OFFLINE_READ_ONLY: "目前無法連線，且此裝置尚未具備離線寫入權限。",
-    OFFLINE_TAKEOUT_ONLY: "離線模式目前僅支援現場外帶訂單。",
-    OFFLINE_SCHEDULED_TIME_NOT_ALLOWED: "離線模式無法確認預約時段，請恢復連線後再建立指定時間訂單。",
-    OFFLINE_DISCOUNT_NOT_ALLOWED: "離線模式不支援折扣或經理線上核准，請取消折扣後再試。",
-    OFFLINE_BUNDLE_NOT_ALLOWED: "離線模式目前不支援套餐，請恢復連線後再建立此訂單。",
-    OFFLINE_BOOTSTRAP_REQUIRED: "請先在線上完成此裝置的離線營運初始化。",
-    OFFLINE_PERMIT_EXPIRED: "離線營運許可已到期，請恢復連線後重新取得許可。",
-    OFFLINE_MENU_EXPIRED: "離線菜單已到期，請恢復連線後重新取得最新菜單。",
-    OFFLINE_DEVICE_NOT_LEADER: "此裝置不是目前攤位的離線主裝置，離線時僅能檢視。",
-    OFFLINE_ACTION_NOT_ALLOWED: "目前的離線許可不允許執行此操作。",
-    OFFLINE_PRODUCT_UNAVAILABLE: "離線菜單中的商品已停售、售罄或不在供應時段。",
-    OFFLINE_ITEM_LIMIT_EXCEEDED: "商品數量或備註超過離線營運限制。",
-    OFFLINE_NOTE_SELECTION_INVALID: "商品註記不符合離線菜單規則。",
-    OFFLINE_RISK_LIMIT_REACHED: "已達離線訂單或金額風險上限，請恢復連線同步。",
-    OFFLINE_PAYMENT_NOT_ALLOWED: "此付款方式目前不可在離線模式使用。",
-    OFFLINE_CASH_SHIFT_REQUIRED: "離線現金收款前必須先在線上開啟現金班別。",
-    OFFLINE_CUSTOMER_CONTACT_REQUIRED: "此金額的人工付款需填寫顧客聯絡方式。",
-    OFFLINE_MANAGER_REQUIRED: "此金額的人工付款需由店長或擁有者操作。",
-  };
-  return messages[code] ?? (code.startsWith("OFFLINE_")
-    ? "目前無法安全建立離線訂單，請恢復連線後重試。"
-    : code);
+function savedAtFromQrCartDraft(raw: string) {
+  const parsed = JSON.parse(raw) as { savedAt?: unknown };
+  if (typeof parsed.savedAt !== "number" || !Number.isFinite(parsed.savedAt)) {
+    throw new Error("STAFF_ORDER_DRAFT_TIMESTAMP_MISSING");
+  }
+  return parsed.savedAt;
+}
+
+function parseStaffOrderDrafts(raw: string | null, now = Date.now()): StaffOrderDraft[] {
+  if (!raw || raw.length > STAFF_ORDER_DRAFT_LIMIT * STAFF_ORDER_DRAFT_MAX_BYTES) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.flatMap((candidate): StaffOrderDraft[] => {
+    if (!isRecord(candidate)
+      || candidate.version !== STAFF_ORDER_DRAFT_VERSION
+      || typeof candidate.id !== "string"
+      || typeof candidate.savedAt !== "number"
+      || !Number.isFinite(candidate.savedAt)
+      || candidate.savedAt > now
+      || now - candidate.savedAt > QR_CART_TTL_MS
+      || typeof candidate.label !== "string"
+      || typeof candidate.itemCount !== "number"
+      || !Number.isInteger(candidate.itemCount)
+      || candidate.itemCount < 1
+      || typeof candidate.cartDraft !== "string"
+      || candidate.cartDraft.length > STAFF_ORDER_DRAFT_MAX_BYTES
+      || !isFulfillmentType(candidate.fulfillmentType)
+      || typeof candidate.diningTableId !== "string"
+      || typeof candidate.requestedFulfillmentAt !== "string"
+      || !isPaymentTiming(candidate.paymentTiming)
+      || !(candidate.paymentOptionId === null || typeof candidate.paymentOptionId === "string")
+      || !(candidate.discountOptionId === null || typeof candidate.discountOptionId === "string")
+      || candidate.discountApprovalReason !== ""
+      || !staffOrderCartDraftIsNonSensitive(candidate.cartDraft)) return [];
+    return [{
+      version: STAFF_ORDER_DRAFT_VERSION,
+      id: candidate.id.slice(0, 100),
+      savedAt: candidate.savedAt,
+      label: candidate.label.slice(0, 80),
+      itemCount: candidate.itemCount,
+      cartDraft: candidate.cartDraft,
+      fulfillmentType: candidate.fulfillmentType,
+      diningTableId: candidate.diningTableId.slice(0, 100),
+      requestedFulfillmentAt: candidate.requestedFulfillmentAt.slice(0, 64),
+      paymentTiming: candidate.paymentTiming,
+      paymentOptionId: candidate.paymentOptionId?.slice(0, 100) ?? null,
+      discountOptionId: candidate.discountOptionId?.slice(0, 100) ?? null,
+      discountApprovalReason: candidate.discountApprovalReason.slice(0, 200),
+    }];
+  }).sort((left, right) => right.savedAt - left.savedAt).slice(0, STAFF_ORDER_DRAFT_LIMIT);
+}
+
+function staffOrderCartDraftIsNonSensitive(raw: string) {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isRecord(parsed) || !Array.isArray(parsed.lines)) return false;
+    const sensitiveFields = [
+      parsed.customerName,
+      parsed.customerNote,
+      parsed.customerPhone,
+      parsed.deliveryAddress,
+    ];
+    return sensitiveFields.every((value) => value === "" || value === undefined)
+      && parsed.lines.every((line) => isRecord(line) && (line.note === "" || line.note === undefined));
+  } catch {
+    return false;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFulfillmentType(value: unknown): value is StaffOrderDraft["fulfillmentType"] {
+  return value === "TAKEOUT" || value === "DINE_IN" || value === "DELIVERY";
+}
+
+function isPaymentTiming(value: unknown): value is StaffOrderDraft["paymentTiming"] {
+  return value === "PAY_NOW" || value === "PAY_LATER";
+}
+
+function isTemporaryOrderFailure(status: number) {
+  return status === 502 || status === 503 || status === 504;
 }
 
 type StaffCatalogProduct = StaffOrderCatalog["products"][number];

@@ -51,6 +51,7 @@ export function QrOrderFlowPresentation({
     cartPanelRef,
     cartRestored,
     cartTriggerRef,
+    catalogLocale,
     categories,
     changeCartLineQuantity,
     changeLocale,
@@ -138,17 +139,26 @@ export function QrOrderFlowPresentation({
     );
   }
 
+  const fulfillmentTimeLabel = activeOrderingMode === "PREORDER"
+    ? copy.preorderPickupTime
+    : activeOrderingMode === "DELIVERY"
+      ? copy.optionalDeliveryTime
+      : copy.optionalPickupTime;
   const fulfillmentTimePicker = fulfillment.canSelect ? (
     <div className="min-w-0">
       <FulfillmentTimePicker
         slots={fulfillment.slots}
         value={fulfillment.value}
         onChange={selectFulfillmentTime}
-        legend={fulfillment.label}
-        scheduledLabel={fulfillment.scheduledLabel}
-        dateLabel={fulfillment.dateLabel}
-        timeLabel={fulfillment.timeLabel}
-        unavailableDateMessage="所選日期目前沒有可接受的時段。"
+        legend={fulfillmentTimeLabel}
+        scheduledLabel={activeOrderingMode === "DELIVERY" ? copy.scheduledDeliveryTime : copy.scheduledPickupTime}
+        dateLabel={activeOrderingMode === "PREORDER"
+          ? copy.preorderPickupDate
+          : activeOrderingMode === "DELIVERY" ? copy.deliveryDate : copy.pickupDate}
+        timeLabel={activeOrderingMode === "PREORDER"
+          ? copy.preorderPickupTime
+          : activeOrderingMode === "DELIVERY" ? copy.deliveryTime : copy.pickupTime}
+        unavailableDateMessage={copy.unavailableDate}
         allowAsap={fulfillment.allowAsap}
         required={fulfillment.required}
         disabled={!orderingEnabled}
@@ -162,11 +172,11 @@ export function QrOrderFlowPresentation({
             onClick={() => applyFulfillmentTime(draftScheduledPickupAt)}
             className="min-h-11 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:bg-stone-200 disabled:text-stone-500"
           >
-            {hasUnappliedFulfillmentTime ? "套用這個時間" : "時間已套用"}
+            {hasUnappliedFulfillmentTime ? copy.applyTime : copy.timeApplied}
           </button>
           {hasUnappliedFulfillmentTime ? (
             <p role="status" className="text-xs font-medium text-amber-800">
-              尚未套用新的取餐時間；套用後才會更新可點商品與購物車。
+              {copy.unappliedTimeNotice}
             </p>
           ) : null}
         </div>
@@ -237,7 +247,7 @@ export function QrOrderFlowPresentation({
           </div>
         </div>
         <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? copy.dineIn(session.stall.table?.label ?? "") : session.stall.fulfillmentType === "DELIVERY" ? deliveryCopy.delivery : copy.takeout}</p>
-        {activeOrderingMode === "PREORDER" ? <p className="mt-2 rounded-md bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900">目前為非營業時間，僅接受預約外帶。</p> : null}
+        {activeOrderingMode === "PREORDER" ? <p className="mt-2 rounded-md bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900">{copy.preorderOnlyNotice}</p> : null}
         {degradedMode ? (
           <div role="alert" className="mt-4 border-y border-amber-300 bg-amber-50 px-3 py-4 text-amber-950">
             <div className="flex items-start gap-3">
@@ -272,13 +282,13 @@ export function QrOrderFlowPresentation({
           onPhaseChange={setSessionTimePhase}
         />
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-y border-stone-200 py-3 text-sm text-stone-700">
-          <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{activeOrderingMode === "PREORDER" ? "請依選擇的預約時段取餐" : copy.estimatedWaitRange(session.estimatedWaitMinMinutes, session.estimatedWaitMaxMinutes)}</span>
+          <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{activeOrderingMode === "PREORDER" ? copy.preorderTimeGuidance : copy.estimatedWaitRange(session.estimatedWaitMinMinutes, session.estimatedWaitMaxMinutes)}</span>
           {session.lastTableOrderAt ? <span className="inline-flex items-center gap-2"><History className="h-4 w-4 text-stone-500" />{copy.lastTableOrder(new Date(session.lastTableOrderAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }))}</span> : null}
         </div>
         {cartRestored ? <p role="status" className="mt-3 text-sm font-medium text-emerald-800">{copy.cartRestored}</p> : null}
 
         {activeOrderingMode === "PREORDER" && fulfillmentTimePicker ? (
-          <section className="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-4" aria-label={fulfillment.label}>
+          <section className="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-4" aria-label={fulfillmentTimeLabel}>
             <p className="mb-3 text-sm leading-6 text-sky-900">{copy.preorderSelectTimeFirst}</p>
             {fulfillmentTimePicker}
           </section>
@@ -316,7 +326,7 @@ export function QrOrderFlowPresentation({
           configuringProductId={configuringProductId}
           sessionExpiryDialogOpen={sessionExpiryDialogOpen}
           configurationRef={productConfigurationRef}
-          localizedCategory={(category) => localizedQrCategory(locale, category)}
+          localizedCategory={(category) => localizedQrCategory(catalogLocale, category)}
           localizedProduct={localizedProduct}
           localizedGroupName={localizedGroupName}
           localizedOptionName={localizedOptionName}

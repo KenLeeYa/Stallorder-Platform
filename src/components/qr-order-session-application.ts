@@ -3,7 +3,6 @@ import { localizedDeliveryOrderError } from "@/lib/delivery-order-i18n";
 import type { PublicAvailabilityStatus } from "@/lib/public-order-client";
 import {
   localizedPublicOrderError,
-  preserveSupportedQrLocale,
   qrOrderMessages,
   type QrLocale,
 } from "@/lib/qr-order-i18n";
@@ -70,7 +69,7 @@ export function resolveQrOrderSessionTransition({
     kind: "SESSION",
     session: result.session,
     cartRecovery: result.cartRecovery,
-    locale: preserveSupportedQrLocale(currentLocale, result.session.supportedLocales),
+    locale: currentLocale,
     sessionTimePhase: sessionCountdownPhase(result.session.expiresAt, now),
     availability: currentAvailability === "CHECKING" || currentAvailability === "UNKNOWN"
       ? "AVAILABLE"

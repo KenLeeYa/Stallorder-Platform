@@ -104,9 +104,9 @@ describe("StaffOrderBoard characterization", () => {
   });
 
   it("keeps the existing live badge and manual refresh selectors", () => {
-    expect(presentationSource).toContain("<LiveConnectionBadge state={liveConnection} />");
-    expect(presentationSource).toContain('title="重新整理"');
-    expect(presentationSource).toContain('<span className="sr-only">重新整理</span>');
+    expect(presentationSource).toContain("<LiveConnectionBadge state={liveConnection} t={t} />");
+    expect(presentationSource).toContain('title={t("common.refresh")}');
+    expect(presentationSource).toContain('<span className="sm:sr-only">{t("common.refresh")}</span>');
     expect(presentationSource).toContain('role="status"');
   });
 });

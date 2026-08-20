@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { CircleAlert, RefreshCw, WifiOff } from "lucide-react";
+import { useOperationsLocale } from "@/components/operations-locale";
 
 type NetworkQuality = "GOOD" | "POOR" | "OFFLINE";
 
@@ -67,6 +68,7 @@ function detectedQuality(online: boolean, latencyMs: number | null) {
 }
 
 export function PwaRuntime({ children }: { children: ReactNode }) {
+  const { t } = useOperationsLocale();
   const [online, setOnline] = useState(true);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [effectiveType, setEffectiveType] = useState<string | null>(null);
@@ -305,8 +307,10 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
             ? <WifiOff className="h-4 w-4 shrink-0" />
             : <CircleAlert className="h-4 w-4 shrink-0" />}
           {quality === "OFFLINE"
-            ? "目前離線：僅供檢視；線上寫入已暫停，僅核准的離線 Leader 可使用離線點餐。"
-            : `網路品質不穩定${latencyMs ? `（約 ${latencyMs}ms）` : ""}，資料同步可能延遲。`}
+            ? t("pwa.offline")
+            : latencyMs
+              ? t("pwa.poorNetworkLatency", { latency: latencyMs })
+              : t("pwa.poorNetwork")}
         </div>
       ) : null}
       {updateAvailable ? (
@@ -314,14 +318,14 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
           role="status"
           className="sticky top-0 z-50 flex min-h-10 flex-wrap items-center justify-center gap-3 bg-emerald-50 px-4 py-2 text-center text-xs font-semibold text-emerald-950"
         >
-          <span>{updateBlocked ? "尚有未同步資料，完成同步後才能安全更新。" : "系統更新已就緒。"}</span>
+          <span>{updateBlocked ? t("pwa.updateBlocked") : t("pwa.updateReady")}</span>
           <button
             type="button"
             className="inline-flex min-h-9 items-center gap-2 border border-emerald-800 bg-white px-3 py-1.5 text-emerald-950"
             onClick={applyServiceWorkerUpdate}
           >
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            安全更新
+            {t("pwa.safeUpdate")}
           </button>
         </div>
       ) : null}

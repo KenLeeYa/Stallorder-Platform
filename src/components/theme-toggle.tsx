@@ -8,10 +8,12 @@ import {
   oppositeInterfaceTheme,
   THEME_STORAGE_KEY,
 } from "@/lib/theme";
+import { useAppLocale } from "@/components/locale-provider";
 
 const themeChangeEvent = "stallorder:theme-change";
 
 export function ThemeToggle() {
+  const { t } = useAppLocale();
   const theme = useSyncExternalStore(subscribeToTheme, readTheme, readServerTheme);
 
   function toggleTheme() {
@@ -26,7 +28,7 @@ export function ThemeToggle() {
     window.dispatchEvent(new Event(themeChangeEvent));
   }
 
-  const label = theme === "dark" ? "切換為白光模式" : "切換為暗黑模式";
+  const label = theme === "dark" ? t("theme.toLight") : t("theme.toDark");
 
   return (
     <button

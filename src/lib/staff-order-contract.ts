@@ -2,7 +2,6 @@ import { z } from "zod";
 import {
   multilineText,
   optionalPhoneNumberSchema,
-  phoneNumberSchema,
   singleLineText,
 } from "./input-validation";
 
@@ -48,8 +47,8 @@ export const createStaffOrderSchema = z.discriminatedUnion("fulfillmentType", [
   z.object({
     ...baseOrderFields,
     fulfillmentType: z.literal("DELIVERY"),
-    customerPhone: phoneNumberSchema,
-    deliveryAddress: multilineText({ minimum: 1, maximum: 300 }),
+    customerPhone: optionalPhoneNumberSchema.optional().default(""),
+    deliveryAddress: multilineText({ maximum: 300 }).optional().default(""),
     requestedFulfillmentAt: z.string().datetime({ offset: true }).nullable().optional().default(null),
   }).strict(),
 ]).superRefine((value, context) => {

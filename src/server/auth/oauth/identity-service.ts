@@ -7,7 +7,7 @@ import { hashOAuthEvidence } from "./crypto";
 import type { OAuthIdentityClaims } from "./types";
 
 type SessionEvidence = {
-  deviceId?: string;
+  deviceId: string;
   ipHash: string;
   userAgentHash: string;
 };

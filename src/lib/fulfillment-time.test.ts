@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  classifyFulfillmentForProduction,
   fulfillmentTimeBlocksProduction,
   fulfillmentTimeCommandSchema,
   isUninitializedLegacyQrTakeout,
+  resolveEffectiveFulfillmentAt,
   resolveFulfillmentTimeReadModel,
+  stallBusinessDateKey,
 } from "./fulfillment-time";
 
 describe("fulfillment time commands", () => {
@@ -109,5 +112,71 @@ describe("legacy fulfillment time read model", () => {
       committedFulfillmentAt: legacyOrder.scheduledPickupAt,
       fulfillmentTimeState: "CUSTOMER_ACTION_REQUIRED",
     });
+  });
+});
+
+describe("fulfillment production timing", () => {
+  const base = {
+    fulfillmentTimeState: "CONFIRMED",
+    committedFulfillmentAt: null,
+    requestedFulfillmentAt: null,
+    scheduledPickupAt: null,
+  };
+  const taipeiContext = {
+    timeZone: "Asia/Taipei",
+    businessDayCutoffHour: 3,
+    now: new Date("2026-08-13T04:00:00.000Z"),
+  };
+
+  it("uses committed, requested, then scheduled time as the effective timestamp", () => {
+    expect(resolveEffectiveFulfillmentAt({
+      committedFulfillmentAt: "2026-08-15T04:00:00.000Z",
+      requestedFulfillmentAt: "2026-08-14T04:00:00.000Z",
+      scheduledPickupAt: "2026-08-13T04:00:00.000Z",
+    })?.toISOString()).toBe("2026-08-15T04:00:00.000Z");
+    expect(resolveEffectiveFulfillmentAt({
+      committedFulfillmentAt: null,
+      requestedFulfillmentAt: "2026-08-14T04:00:00.000Z",
+      scheduledPickupAt: "2026-08-13T04:00:00.000Z",
+    })?.toISOString()).toBe("2026-08-14T04:00:00.000Z");
+    expect(resolveEffectiveFulfillmentAt({
+      committedFulfillmentAt: null,
+      requestedFulfillmentAt: null,
+      scheduledPickupAt: "2026-08-13T04:00:00.000Z",
+    })?.toISOString()).toBe("2026-08-13T04:00:00.000Z");
+  });
+
+  it("matches the stall business-day cutoff instead of the runtime timezone", () => {
+    expect(stallBusinessDateKey("2026-08-12T18:59:00.000Z", "Asia/Taipei", 3)).toBe("2026-08-12");
+    expect(stallBusinessDateKey("2026-08-12T19:00:00.000Z", "Asia/Taipei", 3)).toBe("2026-08-13");
+  });
+
+  it("uses wall-clock cutoff semantics across daylight-saving transitions", () => {
+    expect(stallBusinessDateKey("2026-03-08T06:30:00.000Z", "America/New_York", 3)).toBe("2026-03-07");
+    expect(stallBusinessDateKey("2026-11-01T06:30:00.000Z", "America/New_York", 3)).toBe("2026-10-31");
+  });
+
+  it("separates blocked, ASAP, overdue, due and future production", () => {
+    expect(classifyFulfillmentForProduction({
+      ...base,
+      fulfillmentTimeState: "REQUESTED",
+      requestedFulfillmentAt: "2026-08-13T05:00:00.000Z",
+    }, taipeiContext).readiness).toBe("BLOCKED");
+    expect(classifyFulfillmentForProduction(base, taipeiContext).readiness).toBe("ASAP");
+    expect(classifyFulfillmentForProduction({
+      ...base,
+      committedFulfillmentAt: "2026-08-12T04:00:00.000Z",
+    }, taipeiContext).readiness).toBe("OVERDUE");
+    expect(classifyFulfillmentForProduction({
+      ...base,
+      committedFulfillmentAt: "2026-08-13T16:00:00.000Z",
+    }, taipeiContext).readiness).toBe("DUE");
+    const future = classifyFulfillmentForProduction({
+      ...base,
+      committedFulfillmentAt: "2026-08-14T04:00:00.000Z",
+    }, taipeiContext);
+    expect(future.readiness).toBe("FUTURE");
+    expect(future.productionBlocked).toBe(true);
+    expect(future.fulfillmentBusinessDate).toBe("2026-08-14");
   });
 });

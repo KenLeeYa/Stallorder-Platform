@@ -5,7 +5,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
-import { fulfillmentTimeBlocksProduction } from "@/lib/fulfillment-time";
+import { classifyStallOrderForProduction } from "@/lib/fulfillment-time";
 import { canTransitionOrderItem, deriveOrderStatusFromItems } from "@/lib/order-item-status";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
@@ -75,8 +75,18 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!(error instanceof BatchConflict)) throw error;
     const expired = error.message === "UNDO_EXPIRED";
     const notFound = error.message === "NOT_FOUND";
+    const productionNotDue = error.message === "PRODUCTION_NOT_DUE";
     return NextResponse.json(
-      { error: expired ? "復原期限已過，請依最新餐點狀態操作。" : notFound ? "找不到可操作的餐點。" : "餐點已被其他人更新，請確認最新狀態。" },
+      {
+        error: expired
+          ? "復原期限已過，請依最新餐點狀態操作。"
+          : notFound
+            ? "找不到可操作的餐點。"
+            : productionNotDue
+              ? "此訂單的履約營業日尚未到，或履約時間尚未確認，暫時不能開始製作。"
+              : "餐點已被其他人更新，請確認最新狀態。",
+        ...(productionNotDue ? { code: "PRODUCTION_NOT_DUE" } : {}),
+      },
       { status: notFound ? 404 : 409, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -104,13 +114,30 @@ async function applyBatchUpdate(
         preparingAt: true,
         readyAt: true,
         servedAt: true,
-        order: { select: { status: true, fulfillmentTimeState: true } },
+        order: {
+          select: {
+            status: true,
+            fulfillmentTimeState: true,
+            scheduledPickupAt: true,
+            requestedFulfillmentAt: true,
+            committedFulfillmentAt: true,
+            stall: {
+              select: {
+                timezone: true,
+                orderingSettings: { select: { businessDayCutoffHour: true } },
+              },
+            },
+          },
+        },
       },
     });
     if (items.length !== itemIds.length) throw new BatchConflict("NOT_FOUND");
-    if (items.some((item) => (targetStatus === "PREPARING"
-      && fulfillmentTimeBlocksProduction(item.order.fulfillmentTimeState))
-      || !["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(item.order.status)
+    if (targetStatus === "PREPARING"
+      && items.some((item) => item.order.status === "CONFIRMED"
+        && classifyStallOrderForProduction(item.order, now).productionBlocked)) {
+      throw new BatchConflict("PRODUCTION_NOT_DUE");
+    }
+    if (items.some((item) => !["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(item.order.status)
       || !canTransitionOrderItem(item.status, targetStatus, authorization.role))) {
       throw new BatchConflict("INVALID_TRANSITION");
     }

@@ -15,7 +15,7 @@ $env:SMOKE_SKIP_DOMAIN_REDIRECTS='true'
 npm run production:smoke
 ```
 
-Preview 仍必須通過主頁、health、invalid QR、靜態資產、安全標頭與未登入 merchant API；只略過尚未切換的 root／www domain redirect。
+Preview 仍必須通過主頁、health、invalid QR、靜態資產、安全標頭與未登入 merchant API；只略過 Production 的 root 公開網站與 www domain redirect。
 
 ## Production
 
@@ -40,7 +40,7 @@ command history。Preview 未設定時可明確 SKIP 專用 QR 檢查；Producti
 3. `/api/health` 為 200／`status=ok`，不暴露 database details。
 4. Invalid QR 不產生 5xx 或 stack trace。
 5. 至少一個 Next.js static asset 可載入。
-6. root 與 `www` redirect 到 `https://app.qidaigo.com`。
+6. root 公開網站以原網域回傳 200 並包含 StallOrder／攤點通品牌，`www` 以永久 301／308 redirect 到 `ROOT_DOMAIN_URL`。
 7. CSP、HSTS、nosniff、Referrer-Policy、Permissions-Policy、frame-ancestors 存在。
 8. CSP 包含 Cloudflare Turnstile 且沒有 broad `*` wildcard。
 9. 未登入 merchant report API 回傳 401／403。

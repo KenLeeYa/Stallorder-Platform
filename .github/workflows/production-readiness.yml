@@ -214,6 +214,11 @@ jobs:
         run: node scripts/export-dr-database-urls.mjs --primary-only
       - name: Compare migration history
         run: supabase migration list --db-url "$SUPABASE_CI_DATABASE_URL"
+      - name: Audit global stall codes before planning or applying schema
+        run: |
+          supabase db query --db-url "$SUPABASE_CI_DATABASE_URL" \
+            --file scripts/sql/assert-global-stall-code-uniqueness.sql \
+            --log-level error
       - name: Detect pending or divergent migrations
         if: ${{ !inputs.include_all_migrations }}
         run: supabase db push --db-url "$SUPABASE_CI_DATABASE_URL" --dry-run
@@ -301,6 +306,12 @@ jobs:
       - name: Lint remote database after apply
         if: inputs.apply_migrations
         run: supabase db lint --db-url "$SUPABASE_CI_DATABASE_URL" --level warning --fail-on warning
+      - name: Re-audit global stall codes after apply
+        if: inputs.apply_migrations
+        run: |
+          supabase db query --db-url "$SUPABASE_CI_DATABASE_URL" \
+            --file scripts/sql/assert-global-stall-code-uniqueness.sql \
+            --log-level error
       - name: Deploy Production Edge Functions
         if: inputs.apply_migrations
         env:

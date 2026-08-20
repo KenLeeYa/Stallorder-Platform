@@ -10,9 +10,11 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import {
   createRequestId,
   hashClientIp,
+  hashClientUserAgent,
   hashToken,
   isLocalQaLoginRateLimitDisabled,
   isTrustedOrigin,
+  resolveSessionDeviceId,
   sanitizeRedirectPath,
 } from "@/lib/security";
 import { getDefaultWorkspacePath, getWorkspaceAccess } from "@/lib/workspace";
@@ -182,10 +184,15 @@ export async function POST(request: Request) {
     ));
   }
 
+  const deviceId = resolveSessionDeviceId(request);
   const [session, workspaces, pendingSetupPath] = await Promise.all([
     timing.measure(
       "sessionMs",
-      () => timing.measureDb(() => createSession(profile.id), 2),
+      () => timing.measureDb(() => createSession(profile.id, {
+        deviceId,
+        ipHash,
+        userAgentHash: hashClientUserAgent(request),
+      }), 2),
     ),
     timing.measureDb(
       () => getWorkspaceAccess(profile.id, profile.platformRole),
@@ -206,7 +213,7 @@ export async function POST(request: Request) {
     { next: sanitizeRedirectPath(parsed.data.next, fallbackPath) },
     { headers: { "x-request-id": requestId } },
   );
-  setSessionCookies(response, session);
+  setSessionCookies(response, session, deviceId);
 
   await timing.measureDb(() => Promise.all([
     recordAuditEvent({

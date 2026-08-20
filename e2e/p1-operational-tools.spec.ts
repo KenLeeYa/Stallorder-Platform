@@ -144,7 +144,8 @@ test.describe("P1 營運功能", () => {
     await page.getByRole("main").getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 同桌");
     for (const customerName of ["P1 E2E 同桌甲", "P1 E2E 同桌乙"]) {
       const order = page.getByRole("article").filter({ hasText: customerName });
-      await order.getByRole("button", { name: "確認接單" }).click();
+      await order.getByRole("button", { name: "查看明細", exact: true }).click();
+      await order.getByRole("button", { name: "待製作", exact: true }).click();
       await order.getByRole("button", { name: "全部開始製作（1）" }).click();
       await order.getByRole("button", { name: "全部餐點完成（1）" }).click();
       await order.getByRole("button", { name: "全部標記已出餐（1）" }).click();
@@ -219,6 +220,7 @@ test.describe("P1 營運功能", () => {
     const cancellationMain = page.getByRole("main");
     await cancellationMain.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 取消單");
     const cancelledOrder = cancellationMain.getByRole("article").filter({ hasText: "P1 E2E 取消單" });
+    await cancelledOrder.getByRole("button", { name: "查看明細", exact: true }).click();
     await cancelledOrder.getByRole("button", { name: "取消訂單" }).click();
     const cancellation = page.getByRole("alertdialog", { name: "確認取消訂單？" });
     await cancellation.getByLabel("取消原因").selectOption("SOLD_OUT");

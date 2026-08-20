@@ -39,18 +39,20 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain("function StaffPosComposerAndDialogs(");
     expect(presentationSource).toContain("<WorkModeSwitcher");
     expect(presentationSource).toContain('role="switch"');
-    expect(presentationSource).toContain("已選 {selectedItems.length} 個餐點品項");
-    expect(presentationSource).toContain("已更新 {undoBatch.itemCount} 個餐點，5 秒內可復原。");
+    expect(presentationSource).toContain('t("staff.selection.count", { count: selectedItems.length })');
+    expect(presentationSource).toContain('t("staff.selection.updated", { count: undoBatch.itemCount })');
     expect(presentationSource).toContain('account.role === "KITCHEN" && viewMode === "SUMMARY"');
     expect(presentationSource).toContain('viewMode === "TABLES"');
     expect(presentationSource).toContain("orders.map((order) => <StaffOrderTicket");
   });
 
   it("retains mobile toolbar and ticket layouts plus accessibility contracts", () => {
-    expect(presentationSource).toContain("overflow-x-auto contain-paint");
+    expect(presentationSource).toContain('data-testid="staff-function-grid"');
+    expect(presentationSource).toContain("grid w-full grid-cols-3 gap-2 sm:flex");
     expect(presentationSource).toContain("sm:flex-row sm:items-center sm:justify-between");
-    expect(presentationSource).toContain('aria-label="廚房檢視模式"');
-    expect(presentationSource).toContain('aria-label="訂單顯示模式"');
+    expect(presentationSource).toContain('aria-label={t("staff.view.kitchenMode")}');
+    expect(presentationSource).toContain('aria-label={t("staff.view.orderMode")}');
+    expect(presentationSource).toContain("aria-expanded={expanded}");
     expect(presentationSource).toContain('aria-haspopup={option.value === "CANCELLED" ? "dialog" : undefined}');
     expect(presentationSource).toContain('aria-busy={verifyingPickupOrderId === order.id}');
   });

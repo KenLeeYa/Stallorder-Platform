@@ -54,10 +54,11 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
     await login(staffPage, "staff@stallorder.test");
     await staffPage.goto("/staff/aming-chicken");
     const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
-    await staffOrder.getByRole("button", { name: "確認接單" }).click();
+    await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
+    await staffOrder.getByRole("button", { name: "待製作", exact: true }).click();
     await staffOrder.getByRole("button", { name: "全部開始製作（1）", exact: true }).click();
     await staffOrder.getByRole("button", { name: "全部餐點完成（1）", exact: true }).click();
-    await expect(staffOrder.getByLabel("三位數取餐碼")).toBeVisible();
+    await expect(staffOrder.getByLabel("3 位數取餐碼")).toBeVisible();
     await staffOrder.getByRole("button", { name: "無法取得取餐碼" }).click();
 
     const manualDialog = staffPage.getByRole("alertdialog", { name: "人工核對取餐" });

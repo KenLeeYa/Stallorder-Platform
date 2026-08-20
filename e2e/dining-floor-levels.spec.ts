@@ -138,7 +138,7 @@ test("樓層桌型會連動商家配置、員工看板與店員點餐", async ({
 
   await page.goto(`/staff/${stallSlug}`);
   await page.getByRole("button", { name: "店員點餐" }).click();
-  const composer = page.getByRole("dialog", { name: "店員點餐與結帳" });
+  const composer = page.getByRole("dialog", { name: "店員點餐" });
   await composer.getByRole("button", { name: "內用", exact: true }).click();
   const tableSelect = composer.getByLabel("桌位");
   await expect(tableSelect.locator('optgroup[label="1樓"]')).toHaveCount(1);

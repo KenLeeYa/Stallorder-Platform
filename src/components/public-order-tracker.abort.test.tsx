@@ -44,6 +44,10 @@ vi.mock("@/lib/public-order-client", async (importOriginal) => {
   };
 });
 
+vi.mock("@/components/locale-provider", () => ({
+  useAppLocale: () => ({ locale: "zh-TW" }),
+}));
+
 import { PublicOrderTracker } from "./public-order-tracker";
 
 function createEnvironment() {
@@ -160,7 +164,10 @@ describe("public order tracker request cancellation", () => {
 
     expect(firstRequestWasAborted).toBe(true);
     expect(maxActiveRequests).toBe(1);
-    expect(onData).toHaveBeenCalledWith({ orderNo: "fresh" }, undefined);
+    expect(onData).toHaveBeenCalledWith(
+      expect.objectContaining({ orderNo: "fresh" }),
+      undefined,
+    );
     expect(onData).toHaveBeenCalledTimes(1);
     expect(onError).not.toHaveBeenCalled();
     expect(requestedUrls).not.toContain("/api/public/orders/sto_tracker");

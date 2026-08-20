@@ -242,14 +242,15 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await login(staffPage, "staff@stallorder.test");
   await staffPage.goto("/staff/aming-chicken");
   const staffMain = staffPage.getByRole("main");
-  await expect(staffMain.getByRole("switch", { name: /新訂單提醒/ })).toBeVisible();
+  await expect(staffMain.getByRole("switch", { name: /新單提示音已(?:開啟|關閉)/ })).toBeVisible();
   await staffMain.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("A1");
   const staffOrder = staffMain.getByRole("article").filter({ hasText: customerName });
   await expect(staffOrder).toContainText("內用 · A1 桌");
-  await staffOrder.getByRole("button", { name: "確認接單" }).click();
-  await expect(staffOrder).toContainText("已確認");
+  await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
+  await staffOrder.getByRole("button", { name: "待製作", exact: true }).click();
+  await expect(staffOrder).toContainText("待製作");
   await captureMobileScreenshot(staffPage, testInfo, "03-staff-order-confirmed");
-  await verifyCompactViewport(staffPage, [staffOrder, staffOrder.getByText("已確認", { exact: true })]);
+  await verifyCompactViewport(staffPage, [staffOrder, staffOrder.getByText("待製作", { exact: true }).first()]);
 
   const kitchenContext = await browser.newContext({
     locale: "zh-TW",
@@ -275,7 +276,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await expect(kitchenOrder.getByText("已完成", { exact: true })).toHaveCount(2);
   await expect(kitchenOrder.getByRole("button", { name: "退回待製作", exact: true })).toHaveCount(0);
 
-  await expect(staffOrder).toContainText("已完成餐點", { timeout: 10_000 });
+  await expect(staffOrder.getByText("餐點完成", { exact: true })).toHaveCount(2, { timeout: 10_000 });
   await staffPage.getByRole("link", { name: "桌位平面圖" }).click();
   await expect(staffPage).toHaveURL(/\/staff\/aming-chicken\/floor/);
   await expect(staffPage.getByRole("region", { name: "內用桌位平面" })).toBeVisible();
@@ -288,9 +289,13 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   expect(await staffPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await staffPage.getByRole("link", { name: "訂單看板" }).click();
   await expect(staffPage).toHaveURL(/\/staff\/aming-chicken$/);
+  await expect(staffOrder.getByText("待結帳／交付", { exact: true })).toBeVisible();
+  const summaryCheckoutButton = staffOrder.getByRole("button", { name: "代結帳", exact: true }).first();
+  await expect(summaryCheckoutButton).toBeVisible();
+  await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
   await expect(staffOrder.getByText("已出餐", { exact: true })).toHaveCount(2);
-  await expect(staffOrder.getByLabel("三位數取餐碼")).toHaveCount(0);
-  await staffOrder.getByRole("button", { name: "完成訂單" }).click();
+  await expect(staffOrder.getByLabel("3 位數取餐碼")).toHaveCount(0);
+  await summaryCheckoutButton.click();
 
   const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
   await expect(checkout.getByRole("button", { name: "LINE Pay" })).toBeVisible();

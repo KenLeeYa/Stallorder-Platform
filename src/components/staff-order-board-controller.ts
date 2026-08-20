@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UserRole } from "@prisma/client";
+import { useOperationsLocale } from "@/components/operations-locale";
 import type { StaffOrderCheckoutRequest } from "@/components/staff-order-board-checkout";
 import {
   useStaffOrderCheckout,
@@ -59,15 +60,41 @@ import {
   selectStaffOrderKitchenGroups,
 } from "@/components/staff-order-board-selectors";
 import type { LiveResourceController } from "@/lib/use-live-resource";
+import type { AppLocale } from "@/lib/app-locale";
+import { csrfHeaders } from "@/lib/csrf-client";
+import {
+  classifyFulfillmentForProduction,
+  type FulfillmentProductionTiming,
+} from "@/lib/fulfillment-time";
+import { formatMoney } from "@/lib/money";
+import { getOperationsErrorMessage } from "@/lib/messages/operations";
 import { canTransitionOrderItem } from "@/lib/order-item-status";
 import type { StaffOrderDto } from "@/lib/orders";
 import { isCompletePickupCode, normalizePickupCode } from "@/lib/pickup-code";
+import { hasPermission } from "@/lib/rbac";
 import type { WorkModeDestination } from "@/lib/work-mode";
 
 type OrderWithItems = StaffOrderDto;
 
+export type StaffOrderEditLine = {
+  kind: "EXISTING";
+  key: string;
+  itemId: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  details: string;
+} | {
+  kind: "NEW";
+  key: string;
+  productId: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+};
+
 export type StaffOrderBoardControllerInput = {
-  stall: { id: string; organizationId: string; slug: string; name: string; currency: string; timezone: string };
+  stall: { id: string; organizationId: string; slug: string; name: string; currency: string; timezone: string; businessDayCutoffHour: number };
   initialOrders: OrderWithItems[];
   initialNow: number;
   account: { displayName: string; role: UserRole };
@@ -93,6 +120,7 @@ export function useStaffOrderBoardController({
   workModeDestinations,
   appVersion,
 }: StaffOrderBoardControllerInput): StaffOrderBoardPresentationProps {
+  const { locale, t } = useOperationsLocale();
   const knownOrderIdsRef = useRef(new Set(initialOrders.map((order) => order.id)));
   const alertsEnabledRef = useRef(false);
   const [orders, setOrders] = useState(initialOrders);
@@ -106,6 +134,13 @@ export function useStaffOrderBoardController({
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const [viewMode, setViewMode] = useState<StaffOrderBoardViewMode>("TICKETS");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(new Set());
+  const [futureOrdersExpanded, setFutureOrdersExpanded] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [orderEditLines, setOrderEditLines] = useState<StaffOrderEditLine[]>([]);
+  const [orderEditProductId, setOrderEditProductId] = useState("");
+  const [orderEditBusy, setOrderEditBusy] = useState(false);
+  const [orderEditMessage, setOrderEditMessage] = useState("");
   const [posSnapshot, setPosSnapshot] = useState<StaffOrderPosSnapshot>({
     modules: initialModules,
     paymentOptions: initialPaymentOptions,
@@ -157,7 +192,7 @@ export function useStaffOrderBoardController({
     slotValues: orderCatalog?.fulfillmentSlots,
     timeZone: stall.timezone,
     updatingOrderId,
-    onUnavailable: () => setMessage("目前沒有可提供給顧客的預約時段，請先檢查營業時間與預約設定。"),
+    onUnavailable: () => setMessage(t("staff.time.unavailable")),
     onConfirm: confirmTimeProposal,
   });
   const reconcileTimeProposal = timeProposal.reconcile;
@@ -169,7 +204,7 @@ export function useStaffOrderBoardController({
     updatingOrderId,
     onCompleteSingle: completeSingleCheckout,
     onCompleteTable: completeTableCheckout,
-    onInvalidTable: () => setMessage("只能合併結帳同一桌的內用訂單。"),
+    onInvalidTable: () => setMessage(t("staff.message.mergeOnlyTable")),
   });
   const reconcileCheckout = checkout.reconcile;
 
@@ -183,7 +218,7 @@ export function useStaffOrderBoardController({
         includeCatalog,
       });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "目前無法更新店員點餐設定，將使用畫面上的現有設定。");
+      setMessage(error instanceof Error ? error.message : t("staff.configurationFallback"));
       return null;
     } finally {
       setPosConfigurationLoading(false);
@@ -194,8 +229,8 @@ export function useStaffOrderBoardController({
     if (!alertsEnabledRef.current) return;
     if ("vibrate" in navigator) navigator.vibrate([180, 80, 180]);
     playNotificationTone();
-    setMessage(count === 1 ? "收到 1 筆新訂單。" : `收到 ${count} 筆新訂單。`);
-  }, []);
+    setMessage(t("staff.newOrders", { count }));
+  }, [t]);
 
   const loadOrderSnapshot = useCallback((signal?: AbortSignal) => loadStaffOrderSnapshot({
     stallId: stall.id,
@@ -269,12 +304,12 @@ export function useStaffOrderBoardController({
         candidate.id === order.id ? updatedOrder : candidate
       )));
       setMessage(command.operation === "PROPOSE"
-        ? "已通知顧客確認新的時間；顧客回覆前不會開始製作。"
-        : "已接受顧客指定時間。"
+        ? t("staff.message.timeProposed")
+        : t("staff.message.timeAccepted")
       );
       return true;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "目前無法更新取餐或送達時間。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.time"));
       return false;
     } finally {
       setUpdatingOrderId(null);
@@ -297,10 +332,10 @@ export function useStaffOrderBoardController({
     setComposerOpen(false);
     setViewMode("TICKETS");
     setMessage(order.source === "OFFLINE_POS"
-      ? `離線訂單 ${order.orderNo} 已安全儲存在此裝置，恢復連線後會自動同步。`
+      ? t("staff.message.createdOffline", { number: order.orderNo })
       : order.paymentStatus === "PAID"
-      ? `訂單 ${order.orderNo} 已建立、完成收款並送入廚房。`
-      : `訂單 ${order.orderNo} 已建立並送入廚房，請稍後結帳。`);
+        ? t("staff.message.createdPaid", { number: order.orderNo })
+        : t("staff.message.createdUnpaid", { number: order.orderNo }));
   }
 
   async function openComposer() {
@@ -310,6 +345,109 @@ export function useStaffOrderBoardController({
     if (!intake) return;
     setPosSnapshot(intake);
     setComposerOpen(true);
+  }
+
+  function toggleOrderDetails(orderId: string) {
+    setExpandedOrderIds((current) => {
+      const next = new Set(current);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  }
+
+  function canEditOrderContent(order: OrderWithItems) {
+    return Boolean(
+      orderCatalog
+      && hasPermission(account.role, "UPDATE_ORDERS")
+      && order.source === "STAFF_POS"
+      && order.status === "CONFIRMED"
+      && order.paymentStatus === "UNPAID"
+      && order.items.every((item) => item.status === "PENDING"),
+    );
+  }
+
+  function openOrderEditor(order: OrderWithItems) {
+    if (!canEditOrderContent(order)) return;
+    setEditingOrderId(order.id);
+    setOrderEditMessage("");
+    setOrderEditProductId("");
+    setOrderEditLines(order.items.map((item) => ({
+      kind: "EXISTING" as const,
+      key: item.id,
+      itemId: item.id,
+      name: item.name,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+      details: [
+        formatStaffNoteOptions(locale, item.noteOptions, stall.currency),
+        item.note ? t("staff.order.note", { note: item.note }) : "",
+      ].filter(Boolean).join(" · "),
+    })));
+  }
+
+  function changeOrderEditQuantity(key: string, delta: number) {
+    setOrderEditLines((current) => current.map((line) => (
+      line.key === key
+        ? { ...line, quantity: Math.max(1, Math.min(100, line.quantity + delta)) }
+        : line
+    )));
+  }
+
+  function addOrderEditProduct() {
+    const product = orderCatalog?.products.find((candidate) => candidate.id === orderEditProductId);
+    if (!product) return;
+    setOrderEditLines((current) => [...current, {
+      kind: "NEW",
+      key: `new-${crypto.randomUUID()}`,
+      productId: product.id,
+      name: product.name,
+      unitPrice: product.price,
+      quantity: 1,
+    }]);
+    setOrderEditProductId("");
+  }
+
+  async function saveOrderEdit() {
+    if (!editingOrderId || orderEditLines.length === 0) return;
+    setOrderEditBusy(true);
+    setOrderEditMessage("");
+    try {
+      const response = await fetch(`/api/stalls/${stall.slug}/orders/${editingOrderId}/content`, {
+        method: "PATCH",
+        headers: csrfHeaders(),
+        body: JSON.stringify({
+          items: orderEditLines.map((line) => line.kind === "EXISTING"
+            ? { kind: "EXISTING", itemId: line.itemId, quantity: line.quantity }
+            : {
+                kind: "NEW",
+                productId: line.productId,
+                quantity: line.quantity,
+                note: "",
+                noteOptionIds: [],
+                bundleChoiceIds: [],
+              }),
+        }),
+      });
+      const payload = await response.json() as {
+        order?: OrderWithItems;
+        code?: string;
+      };
+      if (!response.ok || !payload.order) {
+        throw new Error(getOperationsErrorMessage(locale, payload.code, "staff.error.edit"));
+      }
+      knownOrderIdsRef.current.add(payload.order.id);
+      setOrders((current) => current.map((order) => (
+        order.id === payload.order!.id ? payload.order! : order
+      )));
+      setEditingOrderId(null);
+      setOrderEditLines([]);
+      setMessage(t("staff.message.editSaved", { number: payload.order.orderNo }));
+    } catch (error) {
+      setOrderEditMessage(error instanceof Error ? error.message : t("staff.error.network"));
+    } finally {
+      setOrderEditBusy(false);
+    }
   }
 
   async function openCheckout(orderOrOrders: OrderWithItems | OrderWithItems[]) {
@@ -351,10 +489,10 @@ export function useStaffOrderBoardController({
         checkout: checkoutRequest,
       }));
       setOrders((current) => current.filter((order) => !completedIds.has(order.id)));
-      setMessage(`已合併完成 ${completedIds.size} 筆同桌訂單。`);
+      setMessage(t("staff.message.mergeDone", { count: completedIds.size }));
       return true;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
       return false;
     } finally {
       setUpdatingOrderId(null);
@@ -379,7 +517,7 @@ export function useStaffOrderBoardController({
         orderSource: order?.source,
       }));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
     }
   }
 
@@ -403,7 +541,7 @@ export function useStaffOrderBoardController({
       )));
       setPickupCodes((current) => ({ ...current, [orderId]: "" }));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
       setPickupCodes((current) => ({ ...current, [orderId]: "" }));
     } finally {
       setVerifyingPickupOrderId(null);
@@ -445,7 +583,7 @@ export function useStaffOrderBoardController({
       )));
       return true;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+      setMessage(error instanceof Error ? error.message : t("staff.error.network"));
       return false;
     } finally {
       setVerifyingPickupOrderId(null);
@@ -474,7 +612,7 @@ export function useStaffOrderBoardController({
       onData: applyOrderSnapshot,
       onError: (error) => {
         if (!manualRefreshActiveRef.current) return;
-        setMessage(error instanceof Error ? error.message : "網路連線中斷，請稍後再試。");
+        setMessage(error instanceof Error ? error.message : t("staff.error.network"));
       },
       refreshBackendAvailability: () => {
         void fetch("/api/availability/config", { cache: "no-store" }).catch(() => undefined);
@@ -486,9 +624,33 @@ export function useStaffOrderBoardController({
       controller.stop();
       if (liveControllerRef.current === controller) liveControllerRef.current = null;
     };
-  }, [applyOrderSnapshot, loadOrderSnapshot, stall.id, stall.slug]);
+  }, [applyOrderSnapshot, loadOrderSnapshot, stall.id, stall.slug, t]);
 
-  const filteredOrders = useMemo(() => filterStaffOrders(orders, query), [orders, query]);
+  const filteredOrders = useMemo(
+    () => filterStaffOrders(orders, query, locale),
+    [locale, orders, query],
+  );
+  const orderProductionTimings = useMemo(() => new Map(filteredOrders.map((order) => [
+    order.id,
+    classifyFulfillmentForProduction(order, {
+      timeZone: stall.timezone,
+      businessDayCutoffHour: stall.businessDayCutoffHour,
+      now: new Date(now),
+    }),
+  ])), [filteredOrders, now, stall.businessDayCutoffHour, stall.timezone]);
+  const futureOrders = useMemo(() => filteredOrders.filter((order) => (
+    isFutureProductionOrder(order, orderProductionTimings.get(order.id))
+  )), [filteredOrders, orderProductionTimings]);
+  const operationalOrders = useMemo(() => filteredOrders.filter((order) => (
+    !isFutureProductionOrder(order, orderProductionTimings.get(order.id))
+  )), [filteredOrders, orderProductionTimings]);
+  const futureUnpaidTotal = futureOrders.reduce((sum, order) => (
+    sum + (order.paymentStatus === "UNPAID" ? order.total : 0)
+  ), 0);
+  const orderEditProducts = useMemo(() => (orderCatalog?.products ?? []).filter((product) => (
+    product.noteGroups.every((group) => group.minSelections === 0)
+    && (product.bundleChoiceGroups ?? []).every((group) => group.minSelections === 0)
+  )), [orderCatalog]);
   const selectedItems = orders
     .filter((order) => order.source !== "OFFLINE_POS")
     .flatMap((order) => order.items.map((item) => ({
@@ -507,12 +669,16 @@ export function useStaffOrderBoardController({
     && !(nextSelectedStatus === "PREPARING" && fulfillmentTimeNeedsResponse(item.fulfillmentTimeState))
   )));
   const kitchenGroups = useMemo(
-    () => selectStaffOrderKitchenGroups(filteredOrders),
-    [filteredOrders],
+    () => selectStaffOrderKitchenGroups(operationalOrders, locale),
+    [locale, operationalOrders],
   );
   const diningTableGroups = useMemo(
-    () => selectStaffOrderDiningTableGroups(filteredOrders),
-    [filteredOrders],
+    () => selectStaffOrderDiningTableGroups(
+      operationalOrders,
+      locale,
+      t("staff.table.unassigned"),
+    ),
+    [locale, operationalOrders, t],
   );
 
   return {
@@ -525,7 +691,12 @@ export function useStaffOrderBoardController({
     capacity,
     workModeDestinations,
     appVersion,
-    filteredOrders,
+    filteredOrders: operationalOrders,
+    futureOrders,
+    futureOrdersExpanded,
+    futureUnpaidTotal,
+    orderProductionTimings,
+    expandedOrderIds,
     orders,
     selectedItems,
     canUpdateSelection,
@@ -553,19 +724,41 @@ export function useStaffOrderBoardController({
     checkout,
     manualPickup,
     timeProposal,
+    orderEditor: {
+      editingOrder: editingOrderId
+        ? orders.find((order) => order.id === editingOrderId) ?? null
+        : null,
+      lines: orderEditLines,
+      products: orderEditProducts,
+      selectedProductId: orderEditProductId,
+      busy: orderEditBusy,
+      message: orderEditMessage,
+      editableOrderIds: new Set(operationalOrders.filter(canEditOrderContent).map((order) => order.id)),
+    },
     actions: {
       onClearSelectedItems: clearSelectedItems,
       onCloseComposer: () => setComposerOpen(false),
       onCompletePaidOrders: completePaidOrders,
       onCreated: handleStaffOrderCreated,
+      onAddOrderEditProduct: addOrderEditProduct,
+      onChangeOrderEditProduct: setOrderEditProductId,
+      onChangeOrderEditQuantity: changeOrderEditQuantity,
+      onCloseOrderEditor: () => setEditingOrderId(null),
       onOpenCheckout: openCheckout,
       onOpenComposer: openComposer,
+      onOpenOrderEditor: openOrderEditor,
       onPickupCodeChange: handlePickupCodeChange,
       onPrintOrder: printOrder,
       onQueryChange: setQuery,
       onRefresh: () => void refreshOrders(),
+      onRemoveOrderEditLine: (key) => setOrderEditLines((current) => (
+        current.filter((line) => line.key !== key)
+      )),
+      onSaveOrderEdit: saveOrderEdit,
       onSynchronized: () => void refreshStaffOrdersAfterOfflineSync(refreshOrders),
       onToggleAlerts: toggleAlerts,
+      onToggleFutureOrders: () => setFutureOrdersExpanded((current) => !current),
+      onToggleOrderDetails: toggleOrderDetails,
       onToggleSelectedItem: production.toggleSelectedItem,
       onUndoSelectedItems: undoSelectedItems,
       onUpdateAllItemStatuses: updateAllItemStatuses,
@@ -576,6 +769,34 @@ export function useStaffOrderBoardController({
       onViewModeChange: setViewMode,
     },
   };
+}
+
+function isFutureProductionOrder(
+  order: OrderWithItems,
+  timing: FulfillmentProductionTiming | undefined,
+) {
+  return Boolean(
+    timing?.fulfillmentBusinessDate
+    && timing.fulfillmentBusinessDate > timing.currentBusinessDate
+    && order.status === "CONFIRMED"
+    && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)
+  );
+}
+
+function formatStaffNoteOptions(
+  locale: AppLocale,
+  noteOptions: Array<{ groupName: string; optionName: string; priceDelta: number }>,
+  currency: string,
+) {
+  const usesCjkPunctuation = locale === "zh-TW" || locale === "ja";
+  const pairSeparator = usesCjkPunctuation ? "：" : ": ";
+  const optionSeparator = usesCjkPunctuation ? "、" : ", ";
+  return noteOptions.map((option) => {
+    const price = option.priceDelta !== 0
+      ? ` (${option.priceDelta > 0 ? "+" : ""}${formatMoney(option.priceDelta, currency, locale)})`
+      : "";
+    return `${option.groupName}${pairSeparator}${option.optionName}${price}`;
+  }).join(optionSeparator);
 }
 function playNotificationTone() {
   try {

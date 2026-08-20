@@ -27,14 +27,22 @@ describe("店員代客點餐契約", () => {
     }).success).toBe(true);
   });
 
-  it("外送必須提供有效電話與地址", () => {
-    const result = createStaffOrderSchema.safeParse({
+  it("外送電話與地址可留空，但非空電話仍必須符合格式", () => {
+    const optional = createStaffOrderSchema.safeParse({
+      ...baseOrder(),
+      fulfillmentType: "DELIVERY",
+      customerPhone: "",
+      deliveryAddress: "",
+    });
+    expect(optional.success).toBe(true);
+
+    const invalidPhone = createStaffOrderSchema.safeParse({
       ...baseOrder(),
       fulfillmentType: "DELIVERY",
       customerPhone: "123",
       deliveryAddress: "",
     });
-    expect(result.success).toBe(false);
+    expect(invalidPhone.success).toBe(false);
   });
 
   it("外帶與外送可指定時間，但內用不可夾帶指定時間", () => {
@@ -47,8 +55,6 @@ describe("店員代客點餐契約", () => {
     expect(createStaffOrderSchema.safeParse({
       ...baseOrder(),
       fulfillmentType: "DELIVERY",
-      customerPhone: "0912345678",
-      deliveryAddress: "台北市信義區測試路 1 號",
       requestedFulfillmentAt,
     }).success).toBe(true);
     expect(createStaffOrderSchema.safeParse({

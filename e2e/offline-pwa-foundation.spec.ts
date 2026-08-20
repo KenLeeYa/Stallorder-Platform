@@ -325,7 +325,7 @@ test.describe("P4 離線 PWA 基礎", () => {
       await expect(staffPage.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
       await expect(staffPage.getByText("目前離線", { exact: true })).toBeVisible();
       await staffPage.getByRole("button", { name: "新增現場訂單" }).click();
-      const composer = staffPage.getByRole("dialog", { name: "店員點餐與結帳" });
+      const composer = staffPage.getByRole("dialog", { name: "店員點餐" });
       await composer.getByLabel("顧客名稱（選填）").fill(offlineCustomerName);
       await composer.getByTitle(/^增加 /).first().click();
       const noteGroups = composer.locator("fieldset");
@@ -384,7 +384,7 @@ test.describe("P4 離線 PWA 基礎", () => {
       await persistedCard.getByRole("button", { name: "開始製作" }).click();
       await expect(persistedCard.getByText("製作中", { exact: true })).toBeVisible();
       await persistedCard.getByRole("button", { name: "餐點完成" }).click();
-      await expect(persistedCard.getByText("可取餐", { exact: true })).toBeVisible();
+      await expect(persistedCard.getByText("待結帳", { exact: true })).toBeVisible();
 
       await staffPage.evaluate(() => {
         const originalFetch = window.fetch.bind(window);

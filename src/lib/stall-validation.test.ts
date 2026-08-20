@@ -24,6 +24,25 @@ describe("攤位資料驗證", () => {
     expect(parsed.currency).toBe("TWD");
   });
 
+  it("建立與更新均接受 50 字元代碼並拒絕 51 字元", () => {
+    const code50 = "A".repeat(50);
+    const basicUpdate = {
+      operation: "UPDATE_BASIC" as const,
+      name: validCreate.name,
+      code: code50,
+      description: validCreate.description,
+      address: validCreate.address,
+      phone: validCreate.phone,
+      timezone: validCreate.timezone,
+      currency: validCreate.currency,
+    };
+
+    expect(createStallSchema.safeParse({ ...validCreate, code: code50 }).success).toBe(true);
+    expect(updateStallSchema.safeParse(basicUpdate).success).toBe(true);
+    expect(createStallSchema.safeParse({ ...validCreate, code: `${code50}A` }).success).toBe(false);
+    expect(updateStallSchema.safeParse({ ...basicUpdate, code: `${code50}A` }).success).toBe(false);
+  });
+
   it("拒絕客戶端夾帶 organizationId", () => {
     expect(createStallSchema.safeParse({ ...validCreate, organizationId: crypto.randomUUID() }).success).toBe(false);
   });
@@ -44,6 +63,12 @@ describe("攤位資料驗證", () => {
 
   it("依唯一鍵 target 只標示真正衝突的建立欄位", () => {
     expect(getCreateStallConflictFieldErrors(["organization_id", "code"])).toEqual({
+      code: "此攤位代碼已被使用，請改用其他代碼。",
+    });
+    expect(getCreateStallConflictFieldErrors("stalls_code_lower_unique_idx")).toEqual({
+      code: "此攤位代碼已被使用，請改用其他代碼。",
+    });
+    expect(getCreateStallConflictFieldErrors("stalls_code_lower_guard")).toEqual({
       code: "此攤位代碼已被使用，請改用其他代碼。",
     });
     expect(getCreateStallConflictFieldErrors("stalls_slug_key")).toEqual({

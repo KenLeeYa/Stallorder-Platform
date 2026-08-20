@@ -1,14 +1,17 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { entitlementService } from "@/server/billing/entitlement-service";
+import {
+  entitlementService,
+  resolvePlanEntitlements,
+} from "@/server/billing/entitlement-service";
 
 export async function getMerchantBillingPortalData(organizationId: string) {
   const subscription = await prisma.subscription.findUnique({
     where: { organizationId },
     include: {
       plan: true,
-      planVersion: { include: { entitlements: { orderBy: { featureCode: "asc" } } } },
+      planVersion: { include: { plan: true, entitlements: { orderBy: { featureCode: "asc" } } } },
       items: { where: { status: "ACTIVE" }, orderBy: { createdAt: "desc" } },
       invoices: {
         orderBy: { createdAt: "desc" },
@@ -26,9 +29,10 @@ export async function getMerchantBillingPortalData(organizationId: string) {
     },
   });
   if (!subscription) return null;
-  const [usage, warnings, notifications, availablePlans, orderPackages] = await Promise.all([
+  const [usage, warnings, effectiveEntitlements, notifications, availablePlans, orderPackages] = await Promise.all([
     entitlementService.getBillingPeriodUsage(organizationId, subscription.billingPeriodStart),
     entitlementService.getUsageWarnings(organizationId),
+    entitlementService.getEffectiveEntitlements(organizationId),
     prisma.billingNotification.findMany({
       where: { organizationId },
       orderBy: { createdAt: "desc" },
@@ -42,7 +46,7 @@ export async function getMerchantBillingPortalData(organizationId: string) {
         OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: new Date() } }],
         plan: { isActive: true, code: { not: "TRIAL" } },
       },
-      include: { plan: true, entitlements: { where: { isEnabled: true }, orderBy: { featureCode: "asc" } } },
+      include: { plan: true, entitlements: { orderBy: { featureCode: "asc" } } },
       orderBy: [{ basePrice: "asc" }, { version: "desc" }],
     }),
     prisma.addOnCatalog.findMany({
@@ -50,7 +54,18 @@ export async function getMerchantBillingPortalData(organizationId: string) {
       orderBy: { unitPrice: "asc" },
     }),
   ]);
-  return { subscription, usage, warnings, notifications, availablePlans, orderPackages };
+  return {
+    subscription,
+    usage,
+    warnings,
+    effectiveEntitlements,
+    notifications,
+    availablePlans: availablePlans.map((version) => ({
+      ...version,
+      entitlements: resolvePlanEntitlements(version).filter((entitlement) => entitlement.isEnabled),
+    })),
+    orderPackages,
+  };
 }
 
 export async function getInvoiceForMerchant(organizationId: string, invoiceId: string) {
