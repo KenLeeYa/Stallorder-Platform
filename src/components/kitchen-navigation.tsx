@@ -45,7 +45,7 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage, w
           <div className="flex min-w-0 items-center gap-3">
             <ChefHat className="h-7 w-7 shrink-0 text-teal-700" />
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-semibold">{t("kitchen.systemTitle")}</h1>
+              <h1 className="truncate text-lg font-semibold sm:text-xl">{t("kitchen.systemTitle")}</h1>
               <p className="truncate text-sm text-stone-600">{stall.name}</p>
             </div>
           </div>
@@ -56,7 +56,7 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage, w
               organizationId={stall.organizationId}
               stallId={stall.id}
               compactOnMobile
-              className="w-[min(52vw,220px)] shrink-0"
+              className="w-[min(46vw,220px)] shrink-0"
             />
             {availableStalls.length > 1 ? (
               <form method="get" className="flex items-end gap-2">
