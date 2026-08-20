@@ -335,7 +335,7 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         await expectActionInViewport(startPreparation);
         await expectNoHorizontalOverflow(kitchenPage);
         await waitForReactHydration(startPreparation);
-        await startPreparation.click();
+        await startPreparation.click({ timeout: 20_000 });
         await expect(kitchenOrder.getByText("製作中", { exact: true }).first()).toBeVisible();
 
         await expect.poll(async () => prisma.order.findUnique({
@@ -355,7 +355,9 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       }
 
       const staffRefresh = staffPage.getByTitle("重新整理").first();
-      await staffRefresh.click();
+      await expectActionInViewport(staffRefresh);
+      await waitForReactHydration(staffRefresh);
+      await staffRefresh.click({ timeout: 20_000 });
       await expect(staffOrder).toContainText("製作中");
       await expect(staffOrder).toContainText(`訂單 ${orderNo}`);
       await expectNoHorizontalOverflow(staffPage);
