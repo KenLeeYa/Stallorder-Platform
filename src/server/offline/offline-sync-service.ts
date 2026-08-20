@@ -127,6 +127,19 @@ type SharedSyncContext = {
   };
 };
 
+type PrinterEntitlementChecker = {
+  assertFeatureEnabled(organizationId: string, featureCode: string): Promise<unknown>;
+};
+
+export async function assertOfflinePrintEntitlement(
+  organizationId: string,
+  hasPrintJobs: boolean,
+  checker: PrinterEntitlementChecker,
+) {
+  if (!hasPrintJobs) return;
+  await checker.assertFeatureEnabled(organizationId, "PRINTER_INTEGRATION");
+}
+
 type PreparedSnapshotItem = OfflineOrderItem & {
   canonicalProductId: string | null;
   canonicalNoteOptions: Array<OfflineOrderItem["noteOptions"][number] & {
@@ -1135,6 +1148,11 @@ async function importOfflineOrder(
         "OFFLINE_PRINT_ACTION_NOT_ALLOWED",
       );
     }
+    await assertOfflinePrintEntitlement(
+      context.organizationId,
+      record.printJobs.length > 0,
+      new EntitlementService(transaction),
+    );
     for (const printJob of record.printJobs) {
       let printerId: string | null = null;
       if (printJob.printerId) {

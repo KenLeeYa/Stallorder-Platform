@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { boundedOfflineRiskLimits } from "@/server/offline/offline-device-service";
+import { describe, expect, it, vi } from "vitest";
+import { EntitlementError } from "@/server/billing/entitlement-service";
+import {
+  boundedOfflineRiskLimits,
+  canIssueOfflinePrintPermit,
+} from "@/server/offline/offline-device-service";
 
 describe("offline device risk limits", () => {
   const policy = {
@@ -37,5 +41,59 @@ describe("offline device risk limits", () => {
       requireCustomerContactAboveAmount: 1_000,
       managerApprovalThreshold: 1_000,
     });
+  });
+});
+
+describe("offline printer permit entitlement", () => {
+  it("includes printing only when both the module and entitlement are usable", async () => {
+    const checker = { assertFeatureEnabled: vi.fn().mockResolvedValue({}) };
+
+    await expect(canIssueOfflinePrintPermit(
+      "organization-1",
+      true,
+      checker,
+    )).resolves.toBe(true);
+    expect(checker.assertFeatureEnabled).toHaveBeenCalledWith(
+      "organization-1",
+      "PRINTER_INTEGRATION",
+    );
+  });
+
+  it.each([
+    "FEATURE_NOT_INCLUDED",
+    "SUBSCRIPTION_SUSPENDED",
+  ] as const)("omits printing for %s", async (code) => {
+    const checker = {
+      assertFeatureEnabled: vi.fn().mockRejectedValue(new EntitlementError(code)),
+    };
+
+    await expect(canIssueOfflinePrintPermit(
+      "organization-1",
+      true,
+      checker,
+    )).resolves.toBe(false);
+  });
+
+  it("does not query billing when the merchant module is disabled", async () => {
+    const checker = { assertFeatureEnabled: vi.fn() };
+
+    await expect(canIssueOfflinePrintPermit(
+      "organization-1",
+      false,
+      checker,
+    )).resolves.toBe(false);
+    expect(checker.assertFeatureEnabled).not.toHaveBeenCalled();
+  });
+
+  it("does not hide unexpected billing failures", async () => {
+    const checker = {
+      assertFeatureEnabled: vi.fn().mockRejectedValue(new Error("DATABASE_UNAVAILABLE")),
+    };
+
+    await expect(canIssueOfflinePrintPermit(
+      "organization-1",
+      true,
+      checker,
+    )).rejects.toThrow("DATABASE_UNAVAILABLE");
   });
 });

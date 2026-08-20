@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   organizationMembershipCount: vi.fn(),
   stallMembershipCount: vi.fn(),
   stallCount: vi.fn(),
+  stallFindFirst: vi.fn(),
   organizationCount: vi.fn(),
 }));
 
@@ -24,7 +25,7 @@ describe("approveMerchantApplication public identifier conflicts", () => {
       merchantApplication: { findUnique: mocks.applicationFindUnique },
       organizationMembership: { count: mocks.organizationMembershipCount },
       stallMembership: { count: mocks.stallMembershipCount },
-      stall: { count: mocks.stallCount },
+      stall: { count: mocks.stallCount, findFirst: mocks.stallFindFirst },
       organization: { count: mocks.organizationCount },
     };
     mocks.transaction.mockImplementation(async (operation) => operation(transactionClient));
@@ -56,9 +57,8 @@ describe("approveMerchantApplication public identifier conflicts", () => {
     mocks.organizationMembershipCount.mockResolvedValue(0);
     mocks.stallMembershipCount.mockResolvedValue(0);
     mocks.organizationCount.mockResolvedValue(0);
-    mocks.stallCount.mockImplementation(async ({ where }) => (
-      "code" in where ? 1 : 0
-    ));
+    mocks.stallCount.mockResolvedValue(0);
+    mocks.stallFindFirst.mockResolvedValue({ id: "existing-stall" });
   });
 
   it("rejects a cross-organization case-insensitive code collision before provisioning", async () => {
@@ -68,9 +68,13 @@ describe("approveMerchantApplication public identifier conflicts", () => {
       ipHash: "ip-hash",
     })).rejects.toMatchObject({ code: "SLUG_UNAVAILABLE" });
 
-    expect(mocks.stallCount).toHaveBeenCalledWith({
-      where: { code: { equals: "SHARED-CODE", mode: "insensitive" } },
+    expect(mocks.stallFindFirst).toHaveBeenCalledWith({
+      where: { code: { equals: "shared-code", mode: "insensitive" } },
+      select: { id: true },
     });
+    expect(mocks.queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+      mocks.stallFindFirst.mock.invocationCallOrder[0],
+    );
     expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 });

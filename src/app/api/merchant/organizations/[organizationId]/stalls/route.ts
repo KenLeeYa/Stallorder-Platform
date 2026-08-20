@@ -16,6 +16,10 @@ import {
 } from "@/lib/stall-validation";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
+import {
+  assertGlobalStallCodeAvailable,
+  GlobalStallCodeConflictError,
+} from "@/server/stalls/global-stall-code-guard";
 
 type RouteContext = { params: Promise<{ organizationId: string }> };
 
@@ -54,6 +58,7 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     await entitlementService.assertLimitAvailable(organizationId, "STALLS", 1);
     const stall = await prisma.$transaction(async (transaction) => {
+      await assertGlobalStallCodeAvailable(transaction, parsed.data.code);
       return transaction.stall.create({
         data: {
           organizationId,
@@ -95,7 +100,7 @@ export async function POST(request: Request, context: RouteContext) {
     const conflictError = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
       ? error
       : null;
-    const conflict = Boolean(conflictError);
+    const conflict = error instanceof GlobalStallCodeConflictError || Boolean(conflictError);
     const entitlementCode = error instanceof Error ? error.message : "";
     const entitlementMessages: Record<string, string> = {
       SUBSCRIPTION_REQUIRED: "此組織尚未建立訂閱，無法新增攤位。",
@@ -107,7 +112,11 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json(
       {
         error: conflict ? "攤位代碼或公開識別名稱已被使用。" : entitlementMessage ?? "目前無法建立攤位。",
-        ...(conflict ? { fieldErrors: getCreateStallConflictFieldErrors(conflictError?.meta?.target) } : {}),
+        ...(conflict ? {
+          fieldErrors: error instanceof GlobalStallCodeConflictError
+            ? { code: "此攤位代碼已被使用，請改用其他代碼。" }
+            : getCreateStallConflictFieldErrors(conflictError?.meta?.target),
+        } : {}),
       },
       { status: conflict || entitlementMessage ? 409 : 500, headers: { "x-request-id": authorization.requestId } },
     );
