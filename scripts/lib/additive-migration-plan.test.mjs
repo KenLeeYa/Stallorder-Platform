@@ -11,6 +11,10 @@ const reportDeliverySchedulerMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260820071255_restore_report_delivery_scheduler_contract.sql",
 ), "utf8");
+const staffKdsSpecialClosuresMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260821193000_staff_kds_special_closures.sql",
+), "utf8");
 const drStandbyCompatibleMigrationFiles = [
   "20260821012140_reservation_preorder_foundation.sql",
   "20260821012142_digital_waitlist_foundation.sql",
@@ -218,6 +222,20 @@ describe("additive DR migration plan", () => {
       )).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
     },
   );
+
+  it("allows only the exact reviewed staff KDS and closure transition", () => {
+    expect(assertAdditiveMigrationSql(staffKdsSpecialClosuresMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      staffKdsSpecialClosuresMigration.replace(
+        "and settings.kds_module_enabled",
+        "or settings.kds_module_enabled",
+      ),
+    )).toThrow("ALTER_TABLE_ACTION_FORBIDDEN");
+    expect(() => assertAdditiveMigrationSql(
+      "alter table public.stall_ordering_settings "
+        + "alter column kds_module_enabled set default false;",
+    )).toThrow("ALTER_TABLE_ACTION_FORBIDDEN");
+  });
 
   it("rejects public exposure even when the table is created in this migration", () => {
     expect(() => assertAdditiveMigrationSql(`
