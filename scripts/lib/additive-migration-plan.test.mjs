@@ -11,6 +11,13 @@ const reportDeliverySchedulerMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260820071255_restore_report_delivery_scheduler_contract.sql",
 ), "utf8");
+const drStandbyCompatibleMigrationFiles = [
+  "20260821012140_reservation_preorder_foundation.sql",
+  "20260821012142_digital_waitlist_foundation.sql",
+  "20260821012143_online_order_payment_reconciliation.sql",
+  "20260821012144_dynamic_ordering_qr_foundation.sql",
+  "20260821012145_crm_loyalty_consent_foundation.sql",
+];
 
 describe("additive DR migration plan", () => {
   it("parses exact pending versions from ASCII or Unicode Supabase output", () => {
@@ -186,17 +193,31 @@ describe("additive DR migration plan", () => {
         "resilience_feature_flags_phase_three_lock_guard",
         "different_guard",
       ),
-    )).toThrow("MIGRATION_STATEMENT_FORBIDDEN");
+    )).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
     expect(() => assertAdditiveMigrationSql(
       migration.replace("set default_enabled = false", "set default_enabled = true"),
-    )).toThrow("MIGRATION_STATEMENT_FORBIDDEN");
+    )).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
     expect(() => assertAdditiveMigrationSql(
       migration.replace(
         "on public.resilience_feature_flag_overrides",
         "on public.orders",
       ),
-    )).toThrow("MIGRATION_STATEMENT_FORBIDDEN");
+    )).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
   });
+
+  it.each(drStandbyCompatibleMigrationFiles)(
+    "allows only the exact reviewed DR standby seed migration: %s",
+    (file) => {
+      const migration = readFileSync(resolve(
+        import.meta.dirname,
+        `../../supabase/migrations/${file}`,
+      ), "utf8");
+      expect(assertAdditiveMigrationSql(migration)).toBe(true);
+      expect(() => assertAdditiveMigrationSql(
+        migration.replace("backend_code = 'DR'", "backend_code = 'PRIMARY'"),
+      )).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
+    },
+  );
 
   it("rejects public exposure even when the table is created in this migration", () => {
     expect(() => assertAdditiveMigrationSql(`

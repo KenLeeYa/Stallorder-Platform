@@ -25,19 +25,35 @@ create type public.loyalty_points_entry_type as enum (
   'REVERSE'
 );
 
-insert into public.resilience_feature_flags (
-  code,
-  description,
-  default_enabled,
-  is_emergency
-)
-values (
-  'CRM_LOYALTY_CONSENT_FOUNDATION_ENABLED',
-  'Provisional QR-P3-05 consent-governed CRM and loyalty foundation. Production activation requires Product and Legal/Privacy approval.',
-  false,
-  false
-)
-on conflict (code) do nothing;
+do $$
+begin
+  if not exists (
+    select 1
+    from public.backend_runtime_state
+    where is_current
+      and backend_code = 'DR'
+      and backend_role = 'READ_ONLY_STANDBY'
+      and not writes_enabled
+      and enforcement_enabled
+  ) then
+    perform app_private.assert_backend_writable();
+
+    insert into public.resilience_feature_flags (
+      code,
+      description,
+      default_enabled,
+      is_emergency
+    )
+    values (
+      'CRM_LOYALTY_CONSENT_FOUNDATION_ENABLED',
+      'Provisional QR-P3-05 consent-governed CRM and loyalty foundation. Production activation requires Product and Legal/Privacy approval.',
+      false,
+      false
+    )
+    on conflict (code) do nothing;
+  end if;
+end;
+$$;
 
 create table public.crm_profiles (
   id uuid primary key default gen_random_uuid(),
@@ -426,21 +442,41 @@ create trigger crm_profiles_touch_updated_at
 before update on public.crm_profiles
 for each row execute function app_private.touch_crm_loyalty_updated_at();
 
+create trigger backend_writable_guard
+before insert or update or delete on public.crm_profiles
+for each statement execute function app_private.enforce_backend_writable();
+
 create trigger loyalty_accounts_touch_updated_at
 before update on public.loyalty_accounts
 for each row execute function app_private.touch_crm_loyalty_updated_at();
+
+create trigger backend_writable_guard
+before insert or update or delete on public.loyalty_accounts
+for each statement execute function app_private.enforce_backend_writable();
 
 create trigger crm_consent_records_immutable_guard
 before update or delete on public.crm_consent_records
 for each row execute function app_private.reject_crm_consent_mutation();
 
+create trigger backend_writable_guard
+before insert or update or delete on public.crm_consent_records
+for each statement execute function app_private.enforce_backend_writable();
+
 create trigger loyalty_points_ledger_immutable_guard
 before update or delete on public.loyalty_points_ledger
 for each row execute function app_private.reject_loyalty_ledger_mutation();
 
+create trigger backend_writable_guard
+before insert or update or delete on public.loyalty_points_ledger
+for each statement execute function app_private.enforce_backend_writable();
+
 create trigger crm_erasure_tombstones_immutable_guard
 before update or delete on public.crm_erasure_tombstones
 for each row execute function app_private.reject_crm_erasure_tombstone_mutation();
+
+create trigger backend_writable_guard
+before insert or update or delete on public.crm_erasure_tombstones
+for each statement execute function app_private.enforce_backend_writable();
 
 create function public.opt_in_crm_loyalty_profile(
   p_organization_id uuid,

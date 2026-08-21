@@ -1,16 +1,32 @@
-insert into public.resilience_feature_flags (
-  code,
-  description,
-  default_enabled,
-  is_emergency
-)
-values (
-  'ONLINE_ORDER_PAYMENT_ENABLED',
-  'Provider-neutral online order payment foundation. Keep disabled until provider and policy approval.',
-  false,
-  false
-)
-on conflict (code) do nothing;
+do $$
+begin
+  if not exists (
+    select 1
+    from public.backend_runtime_state
+    where is_current
+      and backend_code = 'DR'
+      and backend_role = 'READ_ONLY_STANDBY'
+      and not writes_enabled
+      and enforcement_enabled
+  ) then
+    perform app_private.assert_backend_writable();
+
+    insert into public.resilience_feature_flags (
+      code,
+      description,
+      default_enabled,
+      is_emergency
+    )
+    values (
+      'ONLINE_ORDER_PAYMENT_ENABLED',
+      'Provider-neutral online order payment foundation. Keep disabled until provider and policy approval.',
+      false,
+      false
+    )
+    on conflict (code) do nothing;
+  end if;
+end;
+$$;
 
 create unique index if not exists orders_id_organization_stall_key
   on public.orders (id, organization_id, stall_id);
@@ -173,6 +189,10 @@ create trigger online_order_payment_intents_prepare_update
 before update on public.online_order_payment_intents
 for each row execute function app_private.prepare_online_order_payment_intent();
 
+create trigger backend_writable_guard
+before insert or update or delete on public.online_order_payment_intents
+for each statement execute function app_private.enforce_backend_writable();
+
 create function app_private.guard_online_order_payment_event()
 returns trigger
 language plpgsql
@@ -208,6 +228,10 @@ $$;
 create trigger online_order_payment_events_guard_change
 before update or delete on public.online_order_payment_events
 for each row execute function app_private.guard_online_order_payment_event();
+
+create trigger backend_writable_guard
+before insert or update or delete on public.online_order_payment_events
+for each statement execute function app_private.enforce_backend_writable();
 
 create function app_private.record_online_order_payment_audit(
   p_action text,
