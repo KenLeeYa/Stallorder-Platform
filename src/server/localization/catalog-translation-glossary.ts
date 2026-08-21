@@ -1,0 +1,148 @@
+import type { TranslationLocale } from "@/lib/enabled-locales";
+
+const glossary: Record<TranslationLocale, Readonly<Record<string, string>>> = {
+  en: {
+    "大腸包小腸": "Taiwanese Sausage with Sticky Rice",
+    "鹽酥雞": "Taiwanese Popcorn Chicken",
+    "割包": "Taiwanese Pork Belly Bun (Gua Bao)",
+    "刈包": "Taiwanese Pork Belly Bun (Gua Bao)",
+    "彰化肉圓": "Changhua Ba-wan (Taiwanese Meatball)",
+    "傳統碗粿": "Traditional Taiwanese Steamed Rice Cake (Wan Guo)",
+    "蚵仔麵線": "Oyster Thin Noodles",
+    "棺材板": "Coffin Board (Tainan Stuffed Toast)",
+    "冰涼古早味冬瓜茶。": "Chilled traditional Winter Melon Tea.",
+    "冬瓜茶": "Winter Melon Tea",
+    "第二件 5 折雞翅": "Second chicken wings item: half price (5折)",
+    "加購項目": "Add-on item",
+    "取餐": "Pickup",
+    "送達": "Delivery",
+    "內用": "Dine in",
+    "外帶自取": "Pickup",
+    "預約取餐": "Scheduled pickup",
+    "預約送達": "Scheduled delivery",
+  },
+  ja: {
+    "大腸包小腸": "台湾ソーセージのもち米ソーセージ包み",
+    "鹽酥雞": "台湾風ひと口フライドチキン（鹽酥雞）",
+    "割包": "刈包（台湾風豚角煮バーガー）",
+    "刈包": "刈包（台湾風豚角煮バーガー）",
+    "彰化肉圓": "彰化肉圓（バーワン）",
+    "傳統碗粿": "伝統碗粿（台湾風蒸し米ケーキ）",
+    "蚵仔麵線": "牡蠣入り台湾麵線（オアミースア）",
+    "棺材板": "棺材板（台南風クリームシチュートースト）",
+    "冰涼古早味冬瓜茶。": "昔ながらの冬瓜茶を冷たく仕上げました。",
+    "冬瓜茶": "冬瓜茶",
+    "第二件 5 折雞翅": "手羽先の二点目は半額（5折）",
+    "加購項目": "アドオン項目",
+    "取餐": "受取",
+    "送達": "配達",
+    "內用": "店内",
+    "外帶自取": "持ち帰り",
+    "預約取餐": "予約受取",
+    "預約送達": "予約配達",
+  },
+  ko: {
+    "大腸包小腸": "대만식 소시지를 찹쌀 소시지로 감싼 요리",
+    "鹽酥雞": "대만식 팝콘 치킨(옌수지)",
+    "割包": "과바오(대만식 삼겹살 찐빵)",
+    "刈包": "과바오(대만식 삼겹살 찐빵)",
+    "彰化肉圓": "창화 바완(대만식 고기 쌀떡)",
+    "傳統碗粿": "전통 완궈(대만식 쌀찜)",
+    "蚵仔麵線": "굴 대만식 국수(어아미수아)",
+    "棺材板": "관차이반(타이난식 크림스튜 토스트)",
+    "冰涼古早味冬瓜茶。": "시원하게 즐기는 전통 동과차입니다.",
+    "冬瓜茶": "동과차",
+    "第二件 5 折雞翅": "닭날개 두 번째 상품 반값(5折)",
+    "加購項目": "추가 기능 항목",
+    "取餐": "픽업",
+    "送達": "배달",
+    "內用": "매장",
+    "外帶自取": "포장 픽업",
+    "預約取餐": "예약 픽업",
+    "預約送達": "예약 배달",
+  },
+  vi: {
+    "大腸包小腸": "Xúc xích Đài Loan kẹp xúc xích nếp",
+    "鹽酥雞": "Gà chiên giòn kiểu Đài Loan",
+    "割包": "Gua Bao (bánh bao kẹp thịt ba chỉ Đài Loan)",
+    "刈包": "Gua Bao (bánh bao kẹp thịt ba chỉ Đài Loan)",
+    "彰化肉圓": "Ba-wan Chương Hóa (bánh gạo nhân thịt Đài Loan)",
+    "傳統碗粿": "Bánh gạo hấp Đài Loan truyền thống (Wan Guo)",
+    "蚵仔麵線": "Mì sợi hàu kiểu Đài Loan",
+    "棺材板": "Bánh mì quan tài Đài Nam (bánh mì nhân súp kem)",
+    "冰涼古早味冬瓜茶。": "Trà bí đao truyền thống, dùng lạnh.",
+    "冬瓜茶": "Trà bí đao",
+    "第二件 5 折雞翅": "Cánh gà thứ hai nửa giá (5折)",
+    "加購項目": "Hạng mục bổ sung",
+    "取餐": "Nhận món",
+    "送達": "Giao",
+    "內用": "Tại chỗ",
+    "外帶自取": "Tự đến lấy",
+    "預約取餐": "Nhận hẹn giờ",
+    "預約送達": "Giao hẹn giờ",
+  },
+  th: {
+    "大腸包小腸": "ไส้กรอกไต้หวันห่อด้วยไส้กรอกข้าวเหนียว",
+    "鹽酥雞": "ไก่ทอดกรอบสไตล์ไต้หวัน",
+    "割包": "กัวเปา (ซาลาเปาไส้หมูสามชั้นแบบไต้หวัน)",
+    "刈包": "กัวเปา (ซาลาเปาไส้หมูสามชั้นแบบไต้หวัน)",
+    "彰化肉圓": "บะหวั่นจางฮว่า (ขนมแป้งข้าวไส้หมูไต้หวัน)",
+    "傳統碗粿": "หว่านกั่วแบบดั้งเดิม (ขนมข้าวนึ่งไต้หวัน)",
+    "蚵仔麵線": "หมี่ซั่วหอยนางรมแบบไต้หวัน",
+    "棺材板": "กวนไฉป่าน (โทสต์ไส้สตูว์ครีมแบบไถหนาน)",
+    "冰涼古早味冬瓜茶。": "ชาฟักเขียวสูตรดั้งเดิม เสิร์ฟเย็น",
+    "冬瓜茶": "ชาฟักเขียว",
+    "第二件 5 折雞翅": "ปีกไก่ชิ้นที่สองครึ่งราคา (5折)",
+    "加購項目": "รายการส่วนเสริม",
+    "取餐": "รับอาหาร",
+    "送達": "ส่ง",
+    "內用": "ทานที่ร้าน",
+    "外帶自取": "รับเอง",
+    "預約取餐": "รับตามนัด",
+    "預約送達": "ส่งตามนัด",
+  },
+};
+
+export type CatalogGlossaryTermMatch = {
+  start: number;
+  end: number;
+  source: string;
+  translation: string;
+};
+
+export function getCatalogGlossaryTranslation(source: string, locale: TranslationLocale) {
+  return glossary[locale][source.trim().normalize("NFKC")] ?? null;
+}
+
+export function findCatalogGlossaryTermMatches(
+  source: string,
+  locale: TranslationLocale,
+): CatalogGlossaryTermMatch[] {
+  const matches: CatalogGlossaryTermMatch[] = [];
+  const sourceTerms = Object.keys(glossary[locale]).sort(
+    (left, right) => right.length - left.length,
+  );
+
+  for (const sourceTerm of sourceTerms) {
+    let searchFrom = 0;
+
+    while (searchFrom < source.length) {
+      const start = source.indexOf(sourceTerm, searchFrom);
+      if (start === -1) break;
+
+      const end = start + sourceTerm.length;
+      if (!matches.some((match) => start < match.end && end > match.start)) {
+        matches.push({
+          start,
+          end,
+          source: sourceTerm,
+          translation: glossary[locale][sourceTerm],
+        });
+      }
+
+      searchFrom = end;
+    }
+  }
+
+  return matches.sort((left, right) => left.start - right.start);
+}

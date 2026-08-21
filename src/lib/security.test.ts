@@ -4,6 +4,7 @@ import {
   hashToken,
   isLocalQaLoginRateLimitDisabled,
   isTrustedOrigin,
+  resolveAppOrigin,
   safeEqual,
   sanitizeRedirectPath,
 } from "./security";
@@ -94,6 +95,22 @@ describe("安全工具", () => {
 
     expect(isTrustedOrigin(productionAlias)).toBe(true);
     expect(isTrustedOrigin(deploymentUrl)).toBe(true);
+  });
+
+  it("Preview OAuth 使用目前 Vercel deployment origin", () => {
+    expect(resolveAppOrigin(new URL("https://request.example/auth/google"), {
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000",
+      VERCEL_ENV: "preview",
+      VERCEL_URL: "stallorder-platform-preview.vercel.app",
+    })).toBe("https://stallorder-platform-preview.vercel.app");
+  });
+
+  it("Production OAuth 保留固定的正式 app origin", () => {
+    expect(resolveAppOrigin(new URL("https://request.example/auth/google"), {
+      NEXT_PUBLIC_APP_URL: "https://app.qidaigo.com",
+      VERCEL_ENV: "production",
+      VERCEL_URL: "stallorder-platform.vercel.app",
+    })).toBe("https://app.qidaigo.com");
   });
 
   it("只信任明確設定且格式正確的代理 IP 標頭", () => {
