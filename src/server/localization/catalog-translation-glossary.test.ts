@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { findCatalogGlossaryTermMatches } from "./catalog-translation-glossary";
+import {
+  findCatalogGlossaryTermMatches,
+  getCatalogGlossaryTranslation,
+} from "./catalog-translation-glossary";
 
 describe("findCatalogGlossaryTermMatches", () => {
   it("重疊時優先使用最長詞彙，並保留後續獨立短詞", () => {
@@ -34,5 +37,15 @@ describe("findCatalogGlossaryTermMatches", () => {
         translation: "Trà bí đao",
       },
     ]);
+  });
+
+  it.each([
+    ["en", "Chilled traditional Winter Melon Tea."],
+    ["ja", "昔ながらの冬瓜茶を冷たく仕上げました。"],
+    ["ko", "시원하게 즐기는 전통 동과차입니다."],
+    ["vi", "Trà bí đao truyền thống, dùng lạnh."],
+    ["th", "ชาฟักเขียวสูตรดั้งเดิม เสิร์ฟเย็น"],
+  ] as const)("%s 使用人工校訂的完整冬瓜茶說明", (locale, expected) => {
+    expect(getCatalogGlossaryTranslation("冰涼古早味冬瓜茶。", locale)).toBe(expected);
   });
 });

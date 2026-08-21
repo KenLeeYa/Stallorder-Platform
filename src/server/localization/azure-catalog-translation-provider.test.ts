@@ -264,32 +264,32 @@ describe("AzureCatalogTranslationProvider", () => {
     [
       "en",
       "Winter Melon Tea",
-      '<div>Chilled traditional <span class="notranslate">Winter Melon Tea</span>.</div>',
-      "Chilled traditional Winter Melon Tea.",
+      '<div>Freshly brewed daily: <span class="notranslate">Winter Melon Tea</span>.</div>',
+      "Freshly brewed daily: Winter Melon Tea.",
     ],
     [
       "ja",
       "冬瓜茶",
-      '<div>冷たい昔ながらの<span class="notranslate">冬瓜茶</span>。</div>',
-      "冷たい昔ながらの冬瓜茶。",
+      '<div>毎日煮出した<span class="notranslate">冬瓜茶</span>です。</div>',
+      "毎日煮出した冬瓜茶です。",
     ],
     [
       "ko",
       "동과차",
-      '<div>시원한 전통 <span class="notranslate">동과차</span>입니다.</div>',
-      "시원한 전통 동과차입니다.",
+      '<div>매일 끓인 <span class="notranslate">동과차</span>입니다.</div>',
+      "매일 끓인 동과차입니다.",
     ],
     [
       "vi",
       "Trà bí đao",
-      '<div><span class="notranslate">Trà bí đao</span> truyền thống dùng lạnh.</div>',
-      "Trà bí đao truyền thống dùng lạnh.",
+      '<div><span class="notranslate">Trà bí đao</span> được nấu mới mỗi ngày.</div>',
+      "Trà bí đao được nấu mới mỗi ngày.",
     ],
     [
       "th",
       "ชาฟักเขียว",
-      '<div><span class="notranslate">ชาฟักเขียว</span>แบบดั้งเดิมเสิร์ฟเย็น</div>',
-      "ชาฟักเขียวแบบดั้งเดิมเสิร์ฟเย็น",
+      '<div><span class="notranslate">ชาฟักเขียว</span>ต้มสดใหม่ทุกวัน</div>',
+      "ชาฟักเขียวต้มสดใหม่ทุกวัน",
     ],
   ] as const)(
     "以 %s 詞彙表鎖定句中的冬瓜茶",
@@ -299,7 +299,7 @@ describe("AzureCatalogTranslationProvider", () => {
         items: [{
           ...request.items[0],
           sourceName: "冬瓜茶",
-          sourceDescription: "冰涼古早味冬瓜茶。",
+          sourceDescription: "每日現煮冬瓜茶。",
           needsName: false,
           needsDescription: true,
         }],
@@ -316,7 +316,7 @@ describe("AzureCatalogTranslationProvider", () => {
 
       const [, init] = fetchMock.mock.calls[0];
       expect(JSON.parse(String((init as RequestInit).body))).toEqual([{
-        Text: `<div>冰涼古早味<span class="notranslate">${glossaryTerm}</span>。</div>`,
+        Text: `<div>每日現煮<span class="notranslate">${glossaryTerm}</span>。</div>`,
       }]);
     },
   );
@@ -327,7 +327,7 @@ describe("AzureCatalogTranslationProvider", () => {
       items: [{
         ...request.items[0],
         sourceName: "冬瓜茶",
-        sourceDescription: "冰涼古早味冬瓜茶。",
+        sourceDescription: "每日現煮冬瓜茶。",
         needsName: false,
         needsDescription: true,
       }],
