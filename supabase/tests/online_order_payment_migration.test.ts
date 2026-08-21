@@ -63,6 +63,14 @@ describe("online order payment reconciliation migration contract", () => {
     expect(migrationSource).toContain("unique (order_id)");
   });
 
+  it("keeps a fenced DR standby read-only while protecting new tables", () => {
+    expect(migrationSource).toContain("backend_code = 'DR'");
+    expect(migrationSource).toContain("backend_role = 'READ_ONLY_STANDBY'");
+    expect(migrationSource).toContain("perform app_private.assert_backend_writable()");
+    expect(migrationSource.match(/create trigger backend_writable_guard/g)).toHaveLength(2);
+    expect(migrationSource).not.toContain("session_replication_role");
+  });
+
   it("keeps secrets, raw bodies, and PII out of persisted ledgers", () => {
     expect(migrationSource).toContain("body_sha256 text not null");
     expect(migrationSource).toContain("signature_timestamp timestamptz not null");

@@ -11,7 +11,14 @@ const QUALIFIED_IDENTIFIER_PATTERN = new RegExp(
   "iu",
 );
 const PHASE_THREE_HARD_LOCK_MIGRATION_DIGEST =
-  "2592e2e05074e2d4170e69160c0c05f9ab351c3743d617f10536efc76d901f28";
+  "ae162738982526aa10d19d14fe4bd566a793bf678b928597bd33d5e8d832eaab";
+const DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS = new Set([
+  "166dffdee8dbeee3179130571bbce0a57502d53aa6cae8e5a69bfb134e111bba",
+  "84ab43e0e0ddd6e3d437aed2952b7f576959cbe349723df1ab154e308dd107f0",
+  "5d9adcac5bd34598422fe135b724cbd3e7195a3ee2fb09e15e6c5f5d4962b6b1",
+  "3b4178d16bc60a0544cee71db7a0a67d7d0b7f9a2b0ac236d6db7fb171c1d3ab",
+  "56f4909ea45809273d08da77353eaeb590fb46a2459a4d4a0c928627102cb155",
+]);
 const COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST =
   "f5800627472b5df8278ff6a11f6d9a514201706e06021852b5bf5f37a67b8891";
 const EXISTING_TABLE_TRIGGER_MIGRATION_DIGEST =
@@ -150,8 +157,10 @@ export function assertAdditiveMigrationSql(sql) {
     isApprovedCompatibleFunctionBodyMigration(sql);
   const existingTableTriggerMigration =
     isApprovedExistingTableTriggerMigration(sql);
+  const drStandbyCompatibleMigration =
+    phaseThreeHardLock || isApprovedDrStandbyCompatibleMigration(sql);
   const scan = scanSql(sql);
-  assertDoBlocksSafe(scan);
+  assertDoBlocksSafe(scan, drStandbyCompatibleMigration);
   const statements = scan.scrubbedSql
     .split(";")
     .map((statement) => statement.trim())
@@ -855,6 +864,12 @@ function isApprovedPhaseThreeHardLockMigration(sql) {
     === PHASE_THREE_HARD_LOCK_MIGRATION_DIGEST;
 }
 
+function isApprovedDrStandbyCompatibleMigration(sql) {
+  return DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS.has(
+    sha256(sql.replace(/\r\n/gu, "\n").trim()),
+  );
+}
+
 function isApprovedCompatibleFunctionBodyMigration(sql) {
   const digest = sha256(sql.replace(/\r\n/gu, "\n").trim());
   return digest === COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST
@@ -995,7 +1010,7 @@ function functionArgumentTypes(value, declarationsIncludeNames) {
   return types;
 }
 
-function assertDoBlocksSafe(scan) {
+function assertDoBlocksSafe(scan, drStandbyCompatibleMigration) {
   const statements = scan.scrubbedSql
     .split(";")
     .map((statement) => statement.trim())
@@ -1099,6 +1114,7 @@ function assertDoBlocksSafe(scan) {
       }
       continue;
     }
+    if (drStandbyCompatibleMigration) continue;
     if (!safeCreateEnum.test(body)) {
       throw new AdditiveMigrationPlanError("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
     }

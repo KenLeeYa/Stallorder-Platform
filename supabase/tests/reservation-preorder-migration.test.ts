@@ -71,6 +71,14 @@ describe("reservation-linked preorder migration contract", () => {
     expect(migrationSource).not.toMatch(/\bpublic_token\s+text/i);
   });
 
+  it("keeps a fenced DR standby read-only while protecting new tables", () => {
+    expect(migrationSource).toContain("backend_code = 'DR'");
+    expect(migrationSource).toContain("backend_role = 'READ_ONLY_STANDBY'");
+    expect(migrationSource).toContain("perform app_private.assert_backend_writable()");
+    expect(migrationSource.match(/create trigger backend_writable_guard/g)).toHaveLength(2);
+    expect(migrationSource).not.toContain("session_replication_role");
+  });
+
   it("locks a table and rejects concurrent overlapping confirmed ranges", () => {
     expect(migrationSource).toContain("pg_advisory_xact_lock");
     expect(migrationSource).toMatch(/exclude using gist\s*\([\s\S]*tstzrange\(starts_at, ends_at, '\[\)'\)[\s\S]*with &&/i);

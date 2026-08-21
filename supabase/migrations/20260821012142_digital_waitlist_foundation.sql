@@ -9,19 +9,35 @@ create type public.digital_waitlist_status as enum (
   'NO_SHOW'
 );
 
-insert into public.resilience_feature_flags (
-  code,
-  description,
-  default_enabled,
-  is_emergency
-)
-values (
-  'DIGITAL_WAITLIST_FOUNDATION_ENABLED',
-  'Provisional QR-P3-01 digital waitlist foundation. Product and Legal approval is required before Production activation.',
-  false,
-  false
-)
-on conflict (code) do nothing;
+do $$
+begin
+  if not exists (
+    select 1
+    from public.backend_runtime_state
+    where is_current
+      and backend_code = 'DR'
+      and backend_role = 'READ_ONLY_STANDBY'
+      and not writes_enabled
+      and enforcement_enabled
+  ) then
+    perform app_private.assert_backend_writable();
+
+    insert into public.resilience_feature_flags (
+      code,
+      description,
+      default_enabled,
+      is_emergency
+    )
+    values (
+      'DIGITAL_WAITLIST_FOUNDATION_ENABLED',
+      'Provisional QR-P3-01 digital waitlist foundation. Product and Legal approval is required before Production activation.',
+      false,
+      false
+    )
+    on conflict (code) do nothing;
+  end if;
+end;
+$$;
 
 create table public.digital_waitlist_entries (
   id uuid primary key default gen_random_uuid(),
@@ -297,6 +313,14 @@ $$;
 create trigger digital_waitlist_entries_transition_guard
 before update on public.digital_waitlist_entries
 for each row execute function app_private.enforce_digital_waitlist_transition();
+
+create trigger backend_writable_guard
+before insert or update or delete on public.digital_waitlist_entries
+for each statement execute function app_private.enforce_backend_writable();
+
+create trigger backend_writable_guard
+before insert or update or delete on public.digital_waitlist_notifications
+for each statement execute function app_private.enforce_backend_writable();
 
 create function public.join_digital_waitlist(
   p_stall_id uuid,

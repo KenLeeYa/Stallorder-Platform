@@ -74,4 +74,12 @@ describe("Phase 3 feature flag database hard lock migration", () => {
       /grant\s+execute\s+on\s+function\s+app_private\.enforce_phase_three_feature_flag_lock/iu,
     );
   });
+
+  it("skips cleanup only on a fenced DR standby without bypassing fencing", () => {
+    expect(migrationSource).toContain("backend_code = 'DR'");
+    expect(migrationSource).toContain("backend_role = 'READ_ONLY_STANDBY'");
+    expect(migrationSource).toContain("perform app_private.assert_backend_writable()");
+    expect(migrationSource).not.toContain("session_replication_role");
+    expect(migrationSource).not.toContain("set enforcement_enabled = false");
+  });
 });

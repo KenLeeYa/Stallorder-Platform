@@ -1,16 +1,32 @@
-insert into public.resilience_feature_flags (
-  code,
-  description,
-  default_enabled,
-  is_emergency
-)
-values (
-  'DYNAMIC_ORDERING_QR_FOUNDATION_ENABLED',
-  '短效內用 dynamic QR foundation；印刷 static QR 永遠保留為入口與復原路徑。',
-  false,
-  false
-)
-on conflict (code) do nothing;
+do $$
+begin
+  if not exists (
+    select 1
+    from public.backend_runtime_state
+    where is_current
+      and backend_code = 'DR'
+      and backend_role = 'READ_ONLY_STANDBY'
+      and not writes_enabled
+      and enforcement_enabled
+  ) then
+    perform app_private.assert_backend_writable();
+
+    insert into public.resilience_feature_flags (
+      code,
+      description,
+      default_enabled,
+      is_emergency
+    )
+    values (
+      'DYNAMIC_ORDERING_QR_FOUNDATION_ENABLED',
+      '短效內用 dynamic QR foundation；印刷 static QR 永遠保留為入口與復原路徑。',
+      false,
+      false
+    )
+    on conflict (code) do nothing;
+  end if;
+end;
+$$;
 
 create table public.dynamic_qr_service_points (
   id uuid primary key default gen_random_uuid(),
@@ -213,12 +229,18 @@ $$;
 create trigger dynamic_qr_service_points_scope_guard
 before insert or update on public.dynamic_qr_service_points
 for each row execute function app_private.enforce_dynamic_qr_service_point_scope();
+create trigger backend_writable_guard
+before insert or update or delete on public.dynamic_qr_service_points
+for each statement execute function app_private.enforce_backend_writable();
 create trigger dynamic_qr_service_points_touch_updated_at
 before update on public.dynamic_qr_service_points
 for each row execute function app_private.touch_dynamic_qr_updated_at();
 create trigger dynamic_qr_credentials_transition_guard
 before insert or update on public.dynamic_qr_credentials
 for each row execute function app_private.enforce_dynamic_qr_credential_transition();
+create trigger backend_writable_guard
+before insert or update or delete on public.dynamic_qr_credentials
+for each statement execute function app_private.enforce_backend_writable();
 create trigger dynamic_qr_credentials_touch_updated_at
 before update on public.dynamic_qr_credentials
 for each row execute function app_private.touch_dynamic_qr_updated_at();
