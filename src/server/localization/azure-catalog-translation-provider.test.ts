@@ -236,6 +236,114 @@ describe("AzureCatalogTranslationProvider", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["en", "Winter Melon Tea"],
+    ["ja", "冬瓜茶"],
+    ["ko", "동과차"],
+    ["vi", "Trà bí đao"],
+    ["th", "ชาฟักเขียว"],
+  ] as const)("冬瓜茶 glossary 為 %s 提供固定名稱", async (locale, expectedName) => {
+    const fetchMock = vi.fn();
+    const glossaryRequest: CatalogTranslationRequest = {
+      locale,
+      items: [{
+        ...request.items[1],
+        sourceName: "冬瓜茶",
+      }],
+    };
+
+    await expect(
+      new AzureCatalogTranslationProvider(fetchMock as typeof fetch).translate(glossaryRequest),
+    ).resolves.toEqual({
+      items: [{ key: "item-1", name: expectedName, description: null }],
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "en",
+      "Winter Melon Tea",
+      '<div>Chilled traditional <span class="notranslate">Winter Melon Tea</span>.</div>',
+      "Chilled traditional Winter Melon Tea.",
+    ],
+    [
+      "ja",
+      "冬瓜茶",
+      '<div>冷たい昔ながらの<span class="notranslate">冬瓜茶</span>。</div>',
+      "冷たい昔ながらの冬瓜茶。",
+    ],
+    [
+      "ko",
+      "동과차",
+      '<div>시원한 전통 <span class="notranslate">동과차</span>입니다.</div>',
+      "시원한 전통 동과차입니다.",
+    ],
+    [
+      "vi",
+      "Trà bí đao",
+      '<div><span class="notranslate">Trà bí đao</span> truyền thống dùng lạnh.</div>',
+      "Trà bí đao truyền thống dùng lạnh.",
+    ],
+    [
+      "th",
+      "ชาฟักเขียว",
+      '<div><span class="notranslate">ชาฟักเขียว</span>แบบดั้งเดิมเสิร์ฟเย็น</div>',
+      "ชาฟักเขียวแบบดั้งเดิมเสิร์ฟเย็น",
+    ],
+  ] as const)(
+    "以 %s 詞彙表鎖定句中的冬瓜茶",
+    async (locale, glossaryTerm, translatedHtml, expectedDescription) => {
+      const glossaryRequest: CatalogTranslationRequest = {
+        locale,
+        items: [{
+          ...request.items[0],
+          sourceName: "冬瓜茶",
+          sourceDescription: "冰涼古早味冬瓜茶。",
+          needsName: false,
+          needsDescription: true,
+        }],
+      };
+      const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify([{
+        translations: [{ text: translatedHtml, to: locale }],
+      }]), { status: 200 }));
+
+      await expect(
+        new AzureCatalogTranslationProvider(fetchMock as typeof fetch).translate(glossaryRequest),
+      ).resolves.toEqual({
+        items: [{ key: "item-0", name: null, description: expectedDescription }],
+      });
+
+      const [, init] = fetchMock.mock.calls[0];
+      expect(JSON.parse(String((init as RequestInit).body))).toEqual([{
+        Text: `<div>冰涼古早味<span class="notranslate">${glossaryTerm}</span>。</div>`,
+      }]);
+    },
+  );
+
+  it("上游未保留指定詞彙時 fail closed", async () => {
+    const glossaryRequest: CatalogTranslationRequest = {
+      locale: "en",
+      items: [{
+        ...request.items[0],
+        sourceName: "冬瓜茶",
+        sourceDescription: "冰涼古早味冬瓜茶。",
+        needsName: false,
+        needsDescription: true,
+      }],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify([{
+      translations: [{ text: "<div>Chilled traditional winter melon drink.</div>", to: "en" }],
+    }]), { status: 200 }));
+
+    await expect(
+      new AzureCatalogTranslationProvider(fetchMock as typeof fetch).translate(glossaryRequest),
+    ).rejects.toMatchObject({
+      code: "AI_TRANSLATION_PROVIDER_FAILED",
+      message: "翻譯供應器未保留指定詞彙。",
+    });
+  });
+
   it("每次翻譯重新讀取 Key，支援安全輪替", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify([

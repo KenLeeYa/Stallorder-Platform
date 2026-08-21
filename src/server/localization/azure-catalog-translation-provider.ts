@@ -9,7 +9,11 @@ import {
   type CatalogTranslationProvider,
   type CatalogTranslationRequest,
 } from "@/server/localization/catalog-translation-contract";
-import { getCatalogGlossaryTranslation } from "@/server/localization/catalog-translation-glossary";
+import {
+  findCatalogGlossaryTermMatches,
+  getCatalogGlossaryTranslation,
+  type CatalogGlossaryTermMatch,
+} from "@/server/localization/catalog-translation-glossary";
 import {
   CatalogTranslationConfigurationError,
   CatalogTranslationProviderError,
@@ -43,6 +47,7 @@ type TranslationField = {
   itemIndex: number;
   field: "name" | "description";
   source: string;
+  glossaryTerms: CatalogGlossaryTermMatch[];
 };
 
 class AzureTranslatorHttpError extends Error {
@@ -76,7 +81,12 @@ export class AzureCatalogTranslationProvider implements CatalogTranslationProvid
       if (item.needsName) {
         const glossaryName = getCatalogGlossaryTranslation(item.sourceName, request.locale);
         if (glossaryName) items[itemIndex].name = glossaryName;
-        else fields.push({ itemIndex, field: "name", source: item.sourceName });
+        else fields.push({
+          itemIndex,
+          field: "name",
+          source: item.sourceName,
+          glossaryTerms: findCatalogGlossaryTermMatches(item.sourceName, request.locale),
+        });
       }
       if (item.needsDescription) {
         if (!item.sourceDescription) {
@@ -84,7 +94,12 @@ export class AzureCatalogTranslationProvider implements CatalogTranslationProvid
         }
         const glossaryDescription = getCatalogGlossaryTranslation(item.sourceDescription, request.locale);
         if (glossaryDescription) items[itemIndex].description = glossaryDescription;
-        else fields.push({ itemIndex, field: "description", source: item.sourceDescription });
+        else fields.push({
+          itemIndex,
+          field: "description",
+          source: item.sourceDescription,
+          glossaryTerms: findCatalogGlossaryTermMatches(item.sourceDescription, request.locale),
+        });
       }
     });
 
@@ -107,7 +122,9 @@ export class AzureCatalogTranslationProvider implements CatalogTranslationProvid
       const response = await this.fetchImplementation(url, {
         method: "POST",
         headers,
-        body: JSON.stringify(fields.map((field) => ({ Text: buildProtectedHtml(field.source) }))),
+        body: JSON.stringify(fields.map((field) => ({
+          Text: buildProtectedHtml(field.source, field.glossaryTerms),
+        }))),
         signal: AbortSignal.timeout(AZURE_TRANSLATOR_TIMEOUT_MS),
       });
       if (!response.ok) throw new AzureTranslatorHttpError(response.status);
@@ -122,9 +139,11 @@ export class AzureCatalogTranslationProvider implements CatalogTranslationProvid
           throw new CatalogTranslationProviderError("翻譯供應器回傳無效結果。");
         }
         const field = fields[index];
+        assertGlossaryTermsPreserved(translated.text, field.glossaryTerms);
+        const decoded = decodeTranslatedHtml(translated.text);
         items[field.itemIndex][field.field] = normalizeLocaleNumbers(
           field.source,
-          decodeTranslatedHtml(translated.text),
+          decoded,
           request.locale,
         );
       });
@@ -139,15 +158,20 @@ export class AzureCatalogTranslationProvider implements CatalogTranslationProvid
   }
 }
 
-function buildProtectedHtml(source: string) {
-  const ranges: Array<{ start: number; end: number }> = [];
+function buildProtectedHtml(source: string, glossaryTerms: CatalogGlossaryTermMatch[]) {
+  const ranges: Array<{ start: number; end: number; replacement?: string }> = glossaryTerms.map(
+    (term) => ({ start: term.start, end: term.end, replacement: term.translation }),
+  );
   let searchFrom = 0;
 
   for (const token of getProtectedTranslationTokens(source)) {
     const start = source.indexOf(token, searchFrom);
     if (start === -1) continue;
-    ranges.push({ start, end: start + token.length });
-    searchFrom = start + token.length;
+    const end = start + token.length;
+    if (!ranges.some((range) => start < range.end && end > range.start)) {
+      ranges.push({ start, end });
+    }
+    searchFrom = end;
   }
   for (const match of source.matchAll(NUMBER_TOKEN_PATTERN)) {
     const start = match.index;
@@ -162,10 +186,27 @@ function buildProtectedHtml(source: string) {
   let sourceIndex = 0;
   for (const range of ranges) {
     html += escapeHtml(source.slice(sourceIndex, range.start));
-    html += `<span class="notranslate">${escapeHtml(source.slice(range.start, range.end))}</span>`;
+    html += `<span class="notranslate">${escapeHtml(
+      range.replacement ?? source.slice(range.start, range.end),
+    )}</span>`;
     sourceIndex = range.end;
   }
   return `${html}${escapeHtml(source.slice(sourceIndex))}</div>`;
+}
+
+function assertGlossaryTermsPreserved(value: string, glossaryTerms: CatalogGlossaryTermMatch[]) {
+  const protectedValues = [...value.matchAll(
+    /<span\s+class=(?:"notranslate"|'notranslate'|notranslate)\s*>([\s\S]*?)<\/span>/giu,
+  )].map((match) => decodeHtmlEntities(match[1]).normalize("NFKC"));
+
+  for (const term of glossaryTerms) {
+    const translation = term.translation.normalize("NFKC");
+    const index = protectedValues.indexOf(translation);
+    if (index === -1) {
+      throw new CatalogTranslationProviderError("翻譯供應器未保留指定詞彙。");
+    }
+    protectedValues.splice(index, 1);
+  }
 }
 
 function decodeTranslatedHtml(value: string) {
