@@ -364,52 +364,6 @@ jobs:
             echo "::notice::Vercel Preview cloud validation skipped. Configure Preview VERCEL_TOKEN plus VERCEL_ORG_ID and VERCEL_PROJECT_ID."
           fi
 
-      - name: Load and mask verified Staging Preview translation configuration
-        if: steps.vercel-auth.outputs.enabled == 'true'
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-        run: |
-          set -euo pipefail
-          mkdir -p .vercel
-          jq -n \
-            --arg orgId "$VERCEL_ORG_ID" \
-            --arg projectId "$VERCEL_PROJECT_ID" \
-            '{orgId: $orgId, projectId: $projectId}' > .vercel/project.json
-
-          translation_env_file="$(mktemp)"
-          trap 'rm -f "$translation_env_file"' EXIT
-          npx --yes vercel@58.3.0 env pull "$translation_env_file" \
-            --environment preview \
-            --git-branch staging \
-            --project "$VERCEL_PROJECT_ID" \
-            --yes \
-            --token "$VERCEL_TOKEN" >/dev/null
-
-          node --env-file="$translation_env_file" --input-type=module <<'NODE'
-          import { appendFileSync } from "node:fs";
-
-          const provider = process.env.AI_TRANSLATION_PROVIDER;
-          const key = process.env.AZURE_TRANSLATOR_KEY;
-          const region = process.env.AZURE_TRANSLATOR_REGION;
-          const enabled = process.env.CATALOG_TRANSLATION_ENABLED;
-
-          if (provider !== "azure-translator") throw new Error("Preview translation provider must be Azure Translator.");
-          if (!key || key.length > 512 || /\s/u.test(key)) throw new Error("Preview Azure Translator key is invalid.");
-          if (region === undefined || (region && !/^[a-z0-9-]{1,64}$/u.test(region))) throw new Error("Preview Azure Translator region is invalid.");
-          if (enabled !== "true") throw new Error("Preview catalog translation must be enabled.");
-
-          console.log(`::add-mask::${key}`);
-          appendFileSync(process.env.GITHUB_ENV, [
-            `AI_TRANSLATION_PROVIDER=${provider}`,
-            `AZURE_TRANSLATOR_KEY=${key}`,
-            `AZURE_TRANSLATOR_REGION=${region}`,
-            `CATALOG_TRANSLATION_ENABLED=${enabled}`,
-            "",
-          ].join("\n"));
-          NODE
-
       - name: Deploy matching Vercel Preview
         id: vercel-preview
         if: steps.vercel-auth.outputs.enabled == 'true'
@@ -461,10 +415,6 @@ jobs:
               --build-env "BACKEND_ACTIVE_TARGET=$BACKEND_ACTIVE_TARGET" \
               --build-env "AUTH_PROJECT_CODE=$AUTH_PROJECT_CODE" \
               --build-env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
-              --build-env "AI_TRANSLATION_PROVIDER=$AI_TRANSLATION_PROVIDER" \
-              --build-env "AZURE_TRANSLATOR_KEY=$AZURE_TRANSLATOR_KEY" \
-              --build-env "AZURE_TRANSLATOR_REGION=$AZURE_TRANSLATOR_REGION" \
-              --build-env "CATALOG_TRANSLATION_ENABLED=$CATALOG_TRANSLATION_ENABLED" \
               --env "DATABASE_URL=$DATABASE_URL" \
               --env "DIRECT_URL=$DIRECT_URL" \
               --env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
@@ -487,10 +437,6 @@ jobs:
               --env "BACKEND_ACTIVE_TARGET=$BACKEND_ACTIVE_TARGET" \
               --env "AUTH_PROJECT_CODE=$AUTH_PROJECT_CODE" \
               --env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
-              --env "AI_TRANSLATION_PROVIDER=$AI_TRANSLATION_PROVIDER" \
-              --env "AZURE_TRANSLATOR_KEY=$AZURE_TRANSLATOR_KEY" \
-              --env "AZURE_TRANSLATOR_REGION=$AZURE_TRANSLATOR_REGION" \
-              --env "CATALOG_TRANSLATION_ENABLED=$CATALOG_TRANSLATION_ENABLED" \
               --env "REPORT_DELIVERY_MODE=simulate"
           )"
           deployment_id="$(jq -r '.deployment.id // .id // empty' <<<"$deployment")"
