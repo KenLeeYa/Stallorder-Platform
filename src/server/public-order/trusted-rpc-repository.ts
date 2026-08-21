@@ -144,7 +144,7 @@ export function preflightPublicOrder(input: {
   intakeCode?: string | null;
 }) {
   return jsonResult<PublicOrderPreflightResult>(Prisma.sql`
-    select public.public_order_preflight(
+    select public.public_order_preflight_with_special_closure(
       ${input.scope}::text,
       ${input.qrToken}::text,
       ${input.orderingMode}::text,

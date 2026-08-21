@@ -61,9 +61,15 @@ describe("canonical public-order preflight migration", () => {
   });
 
   it("routes both Edge handlers and Circuit B through the same RPC contract", () => {
-    expect(edgeSessionSource).toMatch(/admin\.rpc\(\s*"public_order_preflight"/);
-    expect(edgeOrderSource).toMatch(/admin\.rpc\(\s*"public_order_preflight"/);
-    expect(repositorySource).toContain("select public.public_order_preflight(");
+    expect(edgeSessionSource).toMatch(
+      /admin\.rpc\(\s*"public_order_preflight_with_special_closure"/,
+    );
+    expect(edgeOrderSource).toMatch(
+      /admin\.rpc\(\s*"public_order_preflight_with_special_closure"/,
+    );
+    expect(repositorySource).toContain(
+      "select public.public_order_preflight_with_special_closure(",
+    );
     expect(circuitBSource.match(/preflightPublicOrder\(/g)).toHaveLength(2);
 
     expect(edgeSessionSource).not.toContain('"lookup_resumable_public_order"');
