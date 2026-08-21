@@ -322,10 +322,25 @@ select is(
   '付款完成事件可自動建立顧客明細'
 );
 
+insert into public.client_devices (
+  id, organization_id, stall_id, profile_id, installation_id,
+  display_name, platform, app_version
+) values (
+  '79100000-0000-4000-8000-000000000040',
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  '55555555-5555-4555-8555-555555555552',
+  '79100000-0000-4000-8000-000000000041',
+  '離線列印測試裝置', 'iPadOS', '1.0.0'
+);
+
 insert into public.orders (
   id, tenant_id, organization_id, stall_id, order_no, tracking_token_hash,
   idempotency_key, source, origin, customer_name, fulfillment_type, status,
   payment_status, subtotal, total, device_hash, confirmation_expires_at,
+  source_device_id, offline_order_id, offline_local_sequence,
+  menu_snapshot_version, device_created_at, server_received_at, synced_at,
+  offline_sync_status, device_clock_offset_ms, local_display_number,
   created_at, updated_at
 ) values (
   '79100000-0000-4000-8000-000000000023',
@@ -335,7 +350,12 @@ insert into public.orders (
   'PRINT-RULE-003', repeat('e', 64), '79100000-0000-4000-8000-000000000033',
   'OFFLINE_POS', 'OFFLINE_POS', '離線列印顧客', 'TAKEOUT',
   'WAITING_CONFIRMATION', 'UNPAID', 90, 90, repeat('f', 64),
-  now() + interval '10 minutes', now(), now()
+  now() + interval '10 minutes',
+  '79100000-0000-4000-8000-000000000040',
+  '79100000-0000-4000-8000-000000000042',
+  3, 1, now() - interval '1 minute', now(), now(),
+  'SYNCED', 0, 'OFF-ABC123-20260821-3',
+  now(), now()
 );
 
 update public.orders
