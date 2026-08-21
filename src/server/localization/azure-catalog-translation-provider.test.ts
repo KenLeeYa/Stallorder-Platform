@@ -84,7 +84,7 @@ describe("AzureCatalogTranslationProvider", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toBe(
-      "https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=zh-Hant&to=en",
+      "https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=zh-Hant&to=en&textType=html",
     );
     expect(init).toMatchObject({
       method: "POST",
@@ -95,9 +95,52 @@ describe("AzureCatalogTranslationProvider", () => {
     });
     expect((init as RequestInit).headers).not.toHaveProperty("Ocp-Apim-Subscription-Region");
     expect(JSON.parse(String((init as RequestInit).body))).toEqual([
-      { Text: "香酥雞排" },
-      { Text: "現點現炸，外酥內嫩。" },
-      { Text: "不要胡椒" },
+      { Text: "<div>香酥雞排</div>" },
+      { Text: "<div>現點現炸，外酥內嫩。</div>" },
+      { Text: "<div>不要胡椒</div>" },
+    ]);
+  });
+
+  it("以官方 notranslate HTML 保留商家字詞、代碼與數字，並移除回應標記", async () => {
+    const protectedRequest: CatalogTranslationRequest = {
+      locale: "en",
+      items: [{
+        ...request.items[0],
+        sourceName: "A5 和牛 <限量>",
+        sourceDescription: "使用 StallOrder 醬，固定 60g。",
+      }],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      {
+        translations: [{
+          text: '<div><span class="notranslate">A5</span> Wagyu &lt;Limited&gt;</div>',
+          to: "en",
+        }],
+      },
+      {
+        translations: [{
+          text: '<div>Uses <span class="notranslate">StallOrder</span>sauce, fixed at <span class="notranslate">60g</span>.</div>',
+          to: "en",
+        }],
+      },
+    ]), { status: 200 }));
+
+    await expect(
+      new AzureCatalogTranslationProvider(fetchMock as typeof fetch).translate(protectedRequest),
+    ).resolves.toEqual({
+      items: [{
+        key: "item-0",
+        name: "A5 Wagyu <Limited>",
+        description: "Uses StallOrder sauce, fixed at 60g.",
+      }],
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual([
+      { Text: '<div><span class="notranslate">A5</span> 和牛 &lt;限量&gt;</div>' },
+      {
+        Text: '<div>使用 <span class="notranslate">StallOrder</span> 醬，固定 <span class="notranslate">60g</span>。</div>',
+      },
     ]);
   });
 
@@ -116,6 +159,41 @@ describe("AzureCatalogTranslationProvider", () => {
     });
   });
 
+  it("日文將來源漢字數詞對應的新增數字改回漢字，仍保留來源阿拉伯數字", async () => {
+    const japaneseRequest: CatalogTranslationRequest = {
+      locale: "ja",
+      items: [{
+        ...request.items[0],
+        sourceName: "第二件 5 折測試雞翅",
+        sourceDescription: "同品項每 2 件套用一次優惠。",
+      }],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify([
+      {
+        translations: [{
+          text: '<div>2つ目は<span class="notranslate">5</span>割引のテスト手羽先</div>',
+          to: "ja",
+        }],
+      },
+      {
+        translations: [{
+          text: '<div>同じ商品 <span class="notranslate">2</span> 点ごとに1回適用されます。</div>',
+          to: "ja",
+        }],
+      },
+    ]), { status: 200 }));
+
+    await expect(
+      new AzureCatalogTranslationProvider(fetchMock as typeof fetch).translate(japaneseRequest),
+    ).resolves.toEqual({
+      items: [{
+        key: "item-0",
+        name: "二つ目は5割引のテスト手羽先",
+        description: "同じ商品 2 点ごとに一回適用されます。",
+      }],
+    });
+  });
+
   it("完整字串命中應用程式 glossary 時不呼叫上游", async () => {
     const fetchMock = vi.fn();
     const glossaryRequest: CatalogTranslationRequest = {
@@ -130,6 +208,30 @@ describe("AzureCatalogTranslationProvider", () => {
       new AzureCatalogTranslationProvider(fetchMock as typeof fetch).translate(glossaryRequest),
     ).resolves.toEqual({
       items: [{ key: "item-1", name: "アドオン項目", description: null }],
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["en", "Taiwanese Pork Belly Bun (Gua Bao)"],
+    ["ja", "刈包（台湾風豚角煮バーガー）"],
+    ["ko", "과바오(대만식 삼겹살 찐빵)"],
+    ["vi", "Gua Bao (bánh bao kẹp thịt ba chỉ Đài Loan)"],
+    ["th", "กัวเปา (ซาลาเปาไส้หมูสามชั้นแบบไต้หวัน)"],
+  ] as const)("文化菜名 glossary 為 %s 提供固定名稱", async (locale, expectedName) => {
+    const fetchMock = vi.fn();
+    const glossaryRequest: CatalogTranslationRequest = {
+      locale,
+      items: [{
+        ...request.items[1],
+        sourceName: "割包",
+      }],
+    };
+
+    await expect(
+      new AzureCatalogTranslationProvider(fetchMock as typeof fetch).translate(glossaryRequest),
+    ).resolves.toEqual({
+      items: [{ key: "item-1", name: expectedName, description: null }],
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });

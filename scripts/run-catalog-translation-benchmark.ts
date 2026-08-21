@@ -7,6 +7,7 @@ import {
 } from "./fixtures/catalog-translation-benchmark";
 import {
   validateCatalogTranslationOutput,
+  type CatalogTranslationOutput,
   type CatalogTranslationRequest,
 } from "../src/server/localization/catalog-translation-contract";
 import {
@@ -70,7 +71,13 @@ async function main() {
         needsDescription: true,
       })),
     };
-    const validated = validateCatalogTranslationOutput(request, await provider.translate(request));
+    const output = await provider.translate(request);
+    let validated;
+    try {
+      validated = validateCatalogTranslationOutput(request, output);
+    } catch (error) {
+      throw diagnoseCatalogTranslationFailure(request, output, error);
+    }
     validated.forEach((translation, index) => {
       const source = catalogTranslationBenchmarkCases[index];
       results.push({
@@ -114,6 +121,25 @@ async function main() {
     hardGuardFailures: 0,
     reviewStatus: report.reviewStatus,
   }, null, 2)}\n`);
+}
+
+function diagnoseCatalogTranslationFailure(
+  request: CatalogTranslationRequest,
+  output: CatalogTranslationOutput,
+  originalError: unknown,
+) {
+  for (const item of request.items) {
+    try {
+      validateCatalogTranslationOutput(
+        { locale: request.locale, items: [item] },
+        { items: output.items.filter((translated) => translated.key === item.key) },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "未知錯誤";
+      return new Error(`[${request.locale}/${item.entityId}] ${message}`, { cause: originalError });
+    }
+  }
+  return originalError instanceof Error ? originalError : new Error("翻譯結果未通過 hard guard。");
 }
 
 function resolveOutputPath(argv: readonly string[]) {
