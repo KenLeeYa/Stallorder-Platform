@@ -275,7 +275,13 @@ describe("Production workflow approval contract", () => {
     );
   });
 
-  it("attaches matching Preview to the PR branch before loading Azure secrets", () => {
+  it("loads verified Staging Azure secrets before deploying the matching Preview", () => {
+    const loadTranslation = ephemeralPreview.slice(
+      ephemeralPreview.indexOf(
+        "name: Load and mask verified Staging Preview translation configuration",
+      ),
+      ephemeralPreview.indexOf("name: Deploy matching Vercel Preview"),
+    );
     const deployPreview = ephemeralPreview.slice(
       ephemeralPreview.indexOf("name: Deploy matching Vercel Preview"),
       ephemeralPreview.indexOf("name: Run matching Preview read-only smoke"),
@@ -290,6 +296,10 @@ describe("Production workflow approval contract", () => {
     expect(deployPreview).toContain(
       "Vercel did not attach the matching Preview to the requested Git branch.",
     );
+    expect(loadTranslation).toContain("--git-branch staging");
+    expect(loadTranslation).toContain(
+      'node --env-file="$translation_env_file" --input-type=module',
+    );
     for (const name of [
       "AI_TRANSLATION_PROVIDER",
       "AZURE_TRANSLATOR_KEY",
@@ -297,13 +307,9 @@ describe("Production workflow approval contract", () => {
       "CATALOG_TRANSLATION_ENABLED",
     ]) {
       expect(deployPreview).toContain(name);
+      expect(deployPreview).toContain(`--env "${name}=$${name}"`);
+      expect(deployPreview).toContain(`--build-env "${name}=$${name}"`);
     }
-    expect(deployPreview).not.toContain(
-      '--env "AI_TRANSLATION_PROVIDER=$AI_TRANSLATION_PROVIDER"',
-    );
-    expect(deployPreview).not.toContain(
-      '--build-env "AI_TRANSLATION_PROVIDER=$AI_TRANSLATION_PROVIDER"',
-    );
     expect(ephemeralPreview).not.toContain(
       "AI_TRANSLATION_PROVIDER: vercel-ai-gateway",
     );
