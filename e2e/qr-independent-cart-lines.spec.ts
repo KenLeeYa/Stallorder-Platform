@@ -1,4 +1,32 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function expectMobileSheetActionAvailable(
+  page: Page,
+  sheet: Locator,
+  action: Locator,
+) {
+  await action.scrollIntoViewIfNeeded();
+  await expect.poll(() => page.evaluate(() => (
+    document.documentElement.scrollWidth <= document.documentElement.clientWidth
+  ))).toBe(true);
+  await expect.poll(() => sheet.evaluate((element) => (
+    element.scrollWidth <= element.clientWidth
+  ))).toBe(true);
+  await expect.poll(() => action.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const target = document.elementFromPoint(
+      rect.left + (rect.width / 2),
+      rect.top + (rect.height / 2),
+    );
+    return {
+      insideViewport: rect.left >= 0
+        && rect.right <= window.innerWidth
+        && rect.top >= 0
+        && rect.bottom <= window.innerHeight,
+      unobscured: target === element || element.contains(target),
+    };
+  })).toEqual({ insideViewport: true, unobscured: true });
+}
 
 const availableConfig = {
   mode: "NORMAL_PRIMARY",
@@ -129,11 +157,16 @@ test("QR 同商品可加入兩個不同註記列，報價低頻更新且返回�
 
   await product.getByRole("button", { name: "增加 測試雞排" }).click();
   const firstConfiguration = product.getByRole("dialog", { name: "測試雞排" });
-  await expect(firstConfiguration.getByRole("button", { name: "加入購物車", exact: true })).toBeDisabled();
-  await expect(firstConfiguration.getByText("請完成「測試雞排」的必選註記。", { exact: true })).toBeVisible();
+  const addFirstLine = firstConfiguration.getByRole("button", { name: "加入購物車", exact: true });
+  await expect(addFirstLine).toBeDisabled();
+  await expect(firstConfiguration.getByRole("status")).toHaveText("請完成「測試雞排」的必選註記。");
+  for (const width of [360, 390]) {
+    await page.setViewportSize({ width, height: 500 });
+    await expectMobileSheetActionAvailable(page, firstConfiguration, addFirstLine);
+  }
   await product.getByRole("radio", { name: /加蛋/ }).check();
-  await expect(firstConfiguration.getByRole("button", { name: "加入購物車", exact: true })).toBeEnabled();
-  await firstConfiguration.getByRole("button", { name: "加入購物車", exact: true }).click();
+  await expect(addFirstLine).toBeEnabled();
+  await addFirstLine.click();
   await expect(product).toContainText("購物車已有 1 份");
   await expect(product.getByText("本次再加", { exact: true })).toBeVisible();
   await product.getByRole("button", { name: "增加 測試雞排" }).click();
@@ -145,9 +178,14 @@ test("QR 同商品可加入兩個不同註記列，報價低頻更新且返回�
   await expect(mobileSummary).toContainText("共 2 份");
   await mobileSummary.click();
   const cartPanel = page.getByTestId("qr-cart-panel");
+  const continueToCheckout = cartPanel.getByRole("button", { name: "繼續填寫訂購資料", exact: true });
+  for (const width of [360, 390]) {
+    await page.setViewportSize({ width, height: 500 });
+    await expectMobileSheetActionAvailable(page, cartPanel, continueToCheckout);
+  }
   await expect(cartPanel.getByRole("button", { name: "關閉" })).toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  await expect(cartPanel.getByRole("button", { name: "繼續填寫訂購資料", exact: true })).toBeFocused();
+  await expect(continueToCheckout).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(cartPanel).toBeHidden();
   await expect(mobileSummary).toBeFocused();
@@ -229,7 +267,18 @@ test("QR 同商品可加入兩個不同註記列，報價低頻更新且返回�
   });
   await expect(waitAcknowledgement).toBeVisible();
   await expect(waitAcknowledgement).not.toBeChecked();
-  await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeDisabled();
+  const checkoutBlocker = page.getByTestId("qr-checkout-blocker");
+  const submitOrder = page.getByRole("button", { name: "送出訂單", exact: true });
+  await expect(checkoutBlocker).toHaveAttribute("role", "status");
+  await expect(checkoutBlocker).toHaveText("請先確認目前預估等候時間。");
+  await expect(submitOrder).toBeDisabled();
+  for (const width of [360, 390]) {
+    await page.setViewportSize({ width, height: 500 });
+    await expectMobileSheetActionAvailable(page, cartPanel, submitOrder);
+  }
+  await waitAcknowledgement.check();
+  await expect(checkoutBlocker).toHaveCount(0);
+  await expect(submitOrder).toBeEnabled();
 
   await page.clock.fastForward(8 * 60_000);
   const expiryDialog = page.getByRole("dialog", { name: "即將逾時" });
@@ -243,7 +292,11 @@ test("QR 同商品可加入兩個不同註記列，報價低頻更新且返回�
   await expect(page.getByRole("dialog")).toHaveCount(1);
   expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
   await page.clock.fastForward(60_000);
-  await expect(page.getByRole("dialog", { name: "已逾時" })).toBeVisible();
+  const expiredDialog = page.getByRole("dialog", { name: "已逾時" });
+  await expect(expiredDialog).toBeVisible();
+  await expect(checkoutBlocker).toHaveText("點餐工作階段已逾時，請重新掃描 QR Code。");
+  await expect(cartPanel).toBeHidden();
+  await expect(submitOrder).toHaveCount(0);
   expect(await page.evaluate((token) => {
     const stored = window.localStorage.getItem(`stallorder_qr_cart:${encodeURIComponent(token)}`);
     return stored ? JSON.parse(stored).lines.length : 0;

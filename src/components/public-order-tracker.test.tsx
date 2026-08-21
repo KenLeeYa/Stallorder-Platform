@@ -1,6 +1,6 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   getOrderHelpGuidance,
   getPublicOrderProgress,
@@ -8,7 +8,6 @@ import {
   formatOrderRefreshTime,
   OrderHelpPanel,
   OrderProgressPanel,
-  startVisibilityAwareOrderPolling,
 } from "./public-order-tracker";
 
 type InteractiveElementProps = {
@@ -158,143 +157,5 @@ describe("public order help", () => {
     expect(offlineHtml).toContain("disabled=\"\"");
     expect(offlineHtml).toContain("aria-live=\"polite\"");
     expect(offlineHtml).toContain("目前裝置離線");
-  });
-});
-
-describe("public order visibility-aware polling", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("pauses while hidden and refreshes immediately when visible again", () => {
-    vi.useFakeTimers();
-    let visibility: DocumentVisibilityState = "visible";
-    let online = true;
-    const visibilityListeners = new Set<() => void>();
-    const onlineListeners = new Set<() => void>();
-    const offlineListeners = new Set<() => void>();
-    const refresh = vi.fn();
-    const onConnectivityChange = vi.fn();
-
-    const stop = startVisibilityAwareOrderPolling({
-      environment: {
-        visibilityState: () => visibility,
-        online: () => online,
-        scheduleInterval: (callback, intervalMs) => setInterval(callback, intervalMs) as unknown as number,
-        cancelInterval: (timer) => clearInterval(timer),
-        onVisibilityChange: (listener) => {
-          visibilityListeners.add(listener);
-          return () => visibilityListeners.delete(listener);
-        },
-        onOnline: (listener) => {
-          onlineListeners.add(listener);
-          return () => onlineListeners.delete(listener);
-        },
-        onOffline: (listener) => {
-          offlineListeners.add(listener);
-          return () => offlineListeners.delete(listener);
-        },
-      },
-      refresh,
-      onConnectivityChange,
-    });
-
-    expect(refresh).toHaveBeenCalledTimes(1);
-    vi.advanceTimersByTime(10_000);
-    expect(refresh).toHaveBeenCalledTimes(2);
-
-    visibility = "hidden";
-    visibilityListeners.forEach((listener) => listener());
-    vi.advanceTimersByTime(30_000);
-    expect(refresh).toHaveBeenCalledTimes(2);
-
-    visibility = "visible";
-    visibilityListeners.forEach((listener) => listener());
-    expect(refresh).toHaveBeenCalledTimes(3);
-    vi.advanceTimersByTime(10_000);
-    expect(refresh).toHaveBeenCalledTimes(4);
-
-    online = false;
-    offlineListeners.forEach((listener) => listener());
-    vi.advanceTimersByTime(20_000);
-    expect(refresh).toHaveBeenCalledTimes(4);
-    expect(onConnectivityChange).toHaveBeenLastCalledWith(false);
-
-    online = true;
-    onlineListeners.forEach((listener) => listener());
-    expect(refresh).toHaveBeenCalledTimes(5);
-    expect(onConnectivityChange).toHaveBeenLastCalledWith(true);
-
-    stop();
-    vi.advanceTimersByTime(20_000);
-    expect(refresh).toHaveBeenCalledTimes(5);
-    expect(visibilityListeners.size).toBe(0);
-    expect(onlineListeners.size).toBe(0);
-    expect(offlineListeners.size).toBe(0);
-  });
-
-  it("does not fetch on a hidden initial render", () => {
-    vi.useFakeTimers();
-    let visibility: DocumentVisibilityState = "hidden";
-    const visibilityListeners = new Set<() => void>();
-    const refresh = vi.fn();
-
-    const stop = startVisibilityAwareOrderPolling({
-      environment: {
-        visibilityState: () => visibility,
-        online: () => true,
-        scheduleInterval: (callback, intervalMs) => setInterval(callback, intervalMs) as unknown as number,
-        cancelInterval: (timer) => clearInterval(timer),
-        onVisibilityChange: (listener) => {
-          visibilityListeners.add(listener);
-          return () => visibilityListeners.delete(listener);
-        },
-        onOnline: () => () => undefined,
-        onOffline: () => () => undefined,
-      },
-      refresh,
-      onConnectivityChange: vi.fn(),
-    });
-
-    expect(refresh).not.toHaveBeenCalled();
-    visibility = "visible";
-    visibilityListeners.forEach((listener) => listener());
-    expect(refresh).toHaveBeenCalledTimes(1);
-    stop();
-  });
-
-  it("coalesces slow refreshes so polling requests never overlap", async () => {
-    vi.useFakeTimers();
-    const pendingResolvers: Array<() => void> = [];
-    const refresh = vi.fn(() => new Promise<void>((resolve) => pendingResolvers.push(resolve)));
-
-    const stop = startVisibilityAwareOrderPolling({
-      environment: {
-        visibilityState: () => "visible",
-        online: () => true,
-        scheduleInterval: (callback, intervalMs) => setInterval(callback, intervalMs) as unknown as number,
-        cancelInterval: (timer) => clearInterval(timer),
-        onVisibilityChange: () => () => undefined,
-        onOnline: () => () => undefined,
-        onOffline: () => () => undefined,
-      },
-      refresh,
-      onConnectivityChange: vi.fn(),
-    });
-
-    expect(refresh).toHaveBeenCalledTimes(1);
-    vi.advanceTimersByTime(30_000);
-    expect(refresh).toHaveBeenCalledTimes(1);
-
-    pendingResolvers.shift()?.();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(refresh).toHaveBeenCalledTimes(2);
-
-    stop();
-    pendingResolvers.shift()?.();
-    await Promise.resolve();
-    vi.advanceTimersByTime(20_000);
-    expect(refresh).toHaveBeenCalledTimes(2);
   });
 });

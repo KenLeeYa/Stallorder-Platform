@@ -10,6 +10,7 @@ import {
   type CatalogTranslationProvider,
   type CatalogTranslationRequest,
 } from "@/server/localization/catalog-translation-contract";
+import { isCatalogTranslationEnabled } from "@/server/localization/catalog-translation-settings";
 
 const DEFAULT_OPENAI_TRANSLATION_MODEL = "gpt-5.6-luna";
 const DEFAULT_GATEWAY_TRANSLATION_MODEL = "google/gemini-3-flash";
@@ -51,7 +52,7 @@ export class CatalogTranslationProviderError extends Error {
 
 export async function resolveCatalogAiTranslationRequestCredential() {
   if (
-    process.env.OPENAI_TRANSLATION_ENABLED !== "true"
+    !isCatalogTranslationEnabled()
     || process.env.AI_TRANSLATION_PROVIDER?.trim() !== "vercel-ai-gateway"
     || process.env.AI_GATEWAY_API_KEY?.trim()
   ) {
@@ -67,12 +68,12 @@ export async function resolveCatalogAiTranslationRequestCredential() {
 }
 
 export function isCatalogAiTranslationConfigured(requestCredential?: string) {
-  return process.env.OPENAI_TRANSLATION_ENABLED === "true"
+  return isCatalogTranslationEnabled()
     && Boolean(readConfiguration(requestCredential));
 }
 
 export function getCatalogAiTranslationProviderLabel(requestCredential?: string) {
-  if (process.env.OPENAI_TRANSLATION_ENABLED !== "true") return null;
+  if (!isCatalogTranslationEnabled()) return null;
   const configuration = readConfiguration(requestCredential);
   if (!configuration) return null;
   return configuration.provider === "vercel-ai-gateway"
@@ -169,7 +170,7 @@ function classifyUpstreamFailure(error: unknown): CatalogTranslationUpstreamFail
 }
 
 function getConfiguration(requestCredential?: string) {
-  if (process.env.OPENAI_TRANSLATION_ENABLED !== "true") {
+  if (!isCatalogTranslationEnabled()) {
     throw new CatalogTranslationConfigurationError("AI 翻譯尚未啟用。");
   }
   const configuration = readConfiguration(requestCredential);

@@ -13,6 +13,12 @@ describe("global public storefront identifier guard migration", () => {
     expect(assertAdditiveMigrationSql(migrationSource)).toBe(true);
   });
 
+  it("rejects any change outside the hash-bound reviewed trigger migration", () => {
+    expect(() => assertAdditiveMigrationSql(
+      migrationSource.replace("Stall code is already in use.", "Stall code conflict."),
+    )).toThrow("SECURITY_MUTATION_EXISTING_OBJECT_FORBIDDEN");
+  });
+
   it("creates a non-unique lookup index without risking DR replication", () => {
     expect(migrationSource).toContain([
       "create index if not exists stalls_code_lower_lookup_idx",

@@ -127,6 +127,19 @@ type SharedSyncContext = {
   };
 };
 
+type PrinterEntitlementChecker = {
+  assertFeatureEnabled(organizationId: string, featureCode: string): Promise<unknown>;
+};
+
+export async function assertOfflinePrintEntitlement(
+  organizationId: string,
+  hasPrintJobs: boolean,
+  checker: PrinterEntitlementChecker,
+) {
+  if (!hasPrintJobs) return;
+  await checker.assertFeatureEnabled(organizationId, "PRINTER_INTEGRATION");
+}
+
 type PreparedSnapshotItem = OfflineOrderItem & {
   canonicalProductId: string | null;
   canonicalNoteOptions: Array<OfflineOrderItem["noteOptions"][number] & {
@@ -1135,6 +1148,11 @@ async function importOfflineOrder(
         "OFFLINE_PRINT_ACTION_NOT_ALLOWED",
       );
     }
+    await assertOfflinePrintEntitlement(
+      context.organizationId,
+      record.printJobs.length > 0,
+      new EntitlementService(transaction),
+    );
     for (const printJob of record.printJobs) {
       let printerId: string | null = null;
       if (printJob.printerId) {
@@ -1362,6 +1380,9 @@ async function importOfflineOrder(
           status: orderStatus,
           hasConflict: conflictTypes.length > 0,
         },
+        status: "CANCELLED",
+        processedAt: serverReceivedAt,
+        lastErrorCode: "DOMAIN_OUTBOX_DORMANT_NO_CONSUMER",
       },
     });
     await transaction.auditLog.create({
@@ -1595,6 +1616,9 @@ async function importOfflineCashEvent(
           eventType: event.eventType,
           hasConflict: conflictTypes.size > 0,
         },
+        status: "CANCELLED",
+        processedAt: serverReceivedAt,
+        lastErrorCode: "DOMAIN_OUTBOX_DORMANT_NO_CONSUMER",
       },
     });
     await transaction.auditLog.create({

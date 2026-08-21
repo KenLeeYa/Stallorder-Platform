@@ -27,10 +27,10 @@ import {
 import {
   CatalogTranslationConfigurationError,
   CatalogTranslationProviderError,
-  isCatalogAiTranslationConfigured,
-  OpenAiCatalogTranslationProvider,
-  resolveCatalogAiTranslationRequestCredential,
-} from "@/server/localization/openai-catalog-translation-provider";
+  createCatalogTranslationProvider,
+  isCatalogTranslationConfigured,
+  resolveCatalogTranslationRequestCredential,
+} from "@/server/localization/catalog-translation-provider";
 
 export const maxDuration = 300;
 
@@ -121,8 +121,8 @@ export async function POST(request: Request, context: RouteContext) {
   const stallIds = authorization.workspace.stalls.map((stall) => stall.id);
   try {
     await entitlementService.assertSubscriptionUsable(organizationId);
-    const aiRequestCredential = await resolveCatalogAiTranslationRequestCredential();
-    if (!isCatalogAiTranslationConfigured(aiRequestCredential)) {
+    const aiRequestCredential = await resolveCatalogTranslationRequestCredential();
+    if (!isCatalogTranslationConfigured(aiRequestCredential)) {
       throw new CatalogTranslationConfigurationError("AI 翻譯設定不完整。");
     }
     const enabledLocales = await getOrganizationEnabledLocales(organizationId, stallIds);
@@ -130,7 +130,7 @@ export async function POST(request: Request, context: RouteContext) {
     const summary = await translateMissingCatalogContent({
       organizationId,
       locales: translationLocales,
-      provider: new OpenAiCatalogTranslationProvider(aiRequestCredential),
+      provider: createCatalogTranslationProvider(aiRequestCredential),
     });
     invalidatePublicMenus(stallIds);
     await recordAuditEvent({

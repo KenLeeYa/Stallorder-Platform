@@ -122,4 +122,19 @@ describe("POST /api/public/orders", () => {
     expect(tampered.status).toBe(400);
     expect(mocks.createOrderThroughCircuitB).not.toHaveBeenCalled();
   });
+
+  it("returns the precise PREORDER time error before invoking the trusted service", async () => {
+    const route = await import("./route");
+    const response = await route.POST(orderRequest({
+      ...validOrder,
+      orderingMode: "PREORDER",
+      scheduledPickupAt: null,
+    }));
+    const payload = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(payload.code).toBe("PREORDER_TIME_REQUIRED");
+    expect(payload.error).toBe("請選擇預約取餐時間。");
+    expect(mocks.createOrderThroughCircuitB).not.toHaveBeenCalled();
+  });
 });

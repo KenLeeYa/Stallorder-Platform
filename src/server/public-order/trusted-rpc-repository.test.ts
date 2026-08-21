@@ -50,10 +50,69 @@ describe("trusted public-order fulfillment-time RPC", () => {
     });
 
     const query = queryRaw.mock.calls[0]?.[0] as { strings: string[]; values: unknown[] };
-    expect(query.strings.join("")).toContain("public.create_public_order_with_fulfillment_time");
+    const sql = query.strings.join("");
+    expect(sql).toContain("public.create_public_order_with_fulfillment_time_targeted");
+    expect(sql).not.toMatch(/public\.create_public_order_with_fulfillment_time\s*\(/);
     expect(query.values).toContain(requestedFulfillmentAt);
     expect(query.values).toContain("0912345678");
     expect(query.values).toContain("台北市測試路 1 號");
+  });
+
+  it("issues sessions through the targeted schedule RPC without using the legacy hot path", async () => {
+    const { issueIdempotentOrderSession } = await import("./trusted-rpc-repository");
+
+    await issueIdempotentOrderSession({
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      sessionTokenHash: "session-hash",
+      ipHash: "ip-hash",
+      deviceHash: "device-hash",
+      qrTokenHash: "qr-hash",
+      behaviorHash: "behavior-hash",
+      requestId: "request-test",
+      orderingMode: "DEFAULT",
+    });
+
+    const query = queryRaw.mock.calls.at(-1)?.[0] as { strings: string[] };
+    const sql = query.strings.join("");
+    expect(sql).toContain("public.issue_idempotent_order_session_with_schedule_targeted");
+    expect(sql).not.toMatch(/public\.issue_idempotent_order_session_with_schedule\s*\(/);
+  });
+
+  it("passes both session and order inputs through the canonical preflight RPC", async () => {
+    const { preflightPublicOrder } = await import("./trusted-rpc-repository");
+    const requestedFulfillmentAt = "2099-08-03T04:00:00.000Z";
+
+    await preflightPublicOrder({
+      scope: "ORDER",
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      orderingMode: "DELIVERY",
+      deviceHash: "device-hash",
+      ipHash: "ip-hash",
+      qrTokenHash: "qr-hash",
+      behaviorHash: "behavior-hash",
+      requestId: "request-test",
+      sessionTokenHash: "session-hash",
+      idempotencyKey: "22222222-2222-4222-8222-222222222222",
+      idempotencyHash: "idempotency-hash",
+      requestedFulfillmentAt,
+      lotteryDrawId: null,
+      items: [{ product_id: "33333333-3333-4333-8333-333333333333", quantity: 1 }],
+      waitAcknowledged: true,
+      intakeCode: "QR_ORDERING_DEGRADED",
+    });
+
+    const query = queryRaw.mock.calls.at(-1)?.[0] as { strings: string[]; values: unknown[] };
+    expect(query.strings.join("")).toContain("public.public_order_preflight");
+    expect(query.values).toEqual(expect.arrayContaining([
+      "ORDER",
+      "DELIVERY",
+      "session-hash",
+      "22222222-2222-4222-8222-222222222222",
+      "idempotency-hash",
+      requestedFulfillmentAt,
+      true,
+      "QR_ORDERING_DEGRADED",
+    ]));
   });
 
   it.each([

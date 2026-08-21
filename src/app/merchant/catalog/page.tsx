@@ -11,10 +11,10 @@ import {
 } from "@/lib/product-note-data";
 import { hasPermission } from "@/lib/rbac";
 import {
-  getCatalogAiTranslationProviderLabel,
-  isCatalogAiTranslationConfigured,
-  resolveCatalogAiTranslationRequestCredential,
-} from "@/server/localization/openai-catalog-translation-provider";
+  getCatalogTranslationProviderLabel,
+  isCatalogTranslationConfigured,
+  resolveCatalogTranslationRequestCredential,
+} from "@/server/localization/catalog-translation-provider";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string; source?: string }> };
@@ -37,7 +37,7 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
     getOrganizationProductNotes(workspace.id),
     getOrganizationReusableProductNotes(workspace.id),
     getOrganizationEnabledLocales(workspace.id, authorizedStallIds),
-    resolveCatalogAiTranslationRequestCredential(),
+    resolveCatalogTranslationRequestCredential(),
   ]);
 
   return (
@@ -69,8 +69,8 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
         initialNoteGroups={noteGroups}
         initialReusableNotes={reusableNotes}
         enabledTranslationLocales={getEnabledTranslationLocales(enabledLocales)}
-        aiTranslationConfigured={isCatalogAiTranslationConfigured(aiRequestCredential)}
-        aiTranslationProviderLabel={getCatalogAiTranslationProviderLabel(aiRequestCredential) ?? "AI 翻譯服務"}
+        aiTranslationConfigured={isCatalogTranslationConfigured(aiRequestCredential)}
+        aiTranslationProviderLabel={getCatalogTranslationProviderLabel(aiRequestCredential) ?? "AI 翻譯服務"}
       />
     </main>
   );

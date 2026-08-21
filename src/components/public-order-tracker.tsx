@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { BadgeCheck, ChevronDown, CircleHelp, CircleX, Clock3, RefreshCw } from "lucide-react";
 import { LineNotificationControls } from "@/components/line-notification-controls";
 import { useAppLocale } from "@/components/locale-provider";
@@ -12,6 +12,7 @@ import {
   requestPublicOrder,
   respondToFulfillmentTime,
 } from "@/lib/public-order-client";
+import { useLiveResource } from "@/lib/use-live-resource";
 import { localizedPublicOrderError } from "@/lib/qr-order-i18n";
 
 type FulfillmentTimeState =
@@ -307,88 +308,6 @@ export function OrderHelpPanel({
   );
 }
 
-type OrderPollingEnvironment = {
-  visibilityState: () => DocumentVisibilityState;
-  online: () => boolean;
-  scheduleInterval: (callback: () => void, intervalMs: number) => number;
-  cancelInterval: (timer: number) => void;
-  onVisibilityChange: (listener: () => void) => () => void;
-  onOnline: (listener: () => void) => () => void;
-  onOffline: (listener: () => void) => () => void;
-};
-
-export function startVisibilityAwareOrderPolling(input: {
-  environment: OrderPollingEnvironment;
-  refresh: () => void | Promise<void>;
-  onConnectivityChange: (online: boolean) => void;
-  intervalMs?: number;
-}) {
-  const intervalMs = input.intervalMs ?? 10_000;
-  let refreshTimer: number | null = null;
-  let refreshInFlight = false;
-  let refreshQueued = false;
-  let stopped = false;
-
-  const stopInterval = () => {
-    if (refreshTimer === null) return;
-    input.environment.cancelInterval(refreshTimer);
-    refreshTimer = null;
-  };
-  const runRefresh = () => {
-    if (refreshInFlight) {
-      refreshQueued = true;
-      return;
-    }
-    refreshInFlight = true;
-    const finish = () => {
-      refreshInFlight = false;
-      if (stopped || !refreshQueued) return;
-      refreshQueued = false;
-      tick();
-    };
-    try {
-      const result = input.refresh();
-      if (result) void result.then(finish, finish);
-      else finish();
-    } catch {
-      finish();
-    }
-  };
-  const tick = () => {
-    if (input.environment.visibilityState() !== "visible" || !input.environment.online()) {
-      stopInterval();
-      return;
-    }
-    runRefresh();
-  };
-  const synchronize = () => {
-    const online = input.environment.online();
-    input.onConnectivityChange(online);
-    if (input.environment.visibilityState() !== "visible" || !online) {
-      stopInterval();
-      return;
-    }
-    runRefresh();
-    if (refreshTimer === null) {
-      refreshTimer = input.environment.scheduleInterval(tick, intervalMs);
-    }
-  };
-
-  const unsubscribeVisibility = input.environment.onVisibilityChange(synchronize);
-  const unsubscribeOnline = input.environment.onOnline(synchronize);
-  const unsubscribeOffline = input.environment.onOffline(synchronize);
-  synchronize();
-
-  return () => {
-    stopped = true;
-    refreshQueued = false;
-    stopInterval();
-    unsubscribeVisibility();
-    unsubscribeOnline();
-    unsubscribeOffline();
-  };
-}
-
 export function formatOrderRefreshTime(updatedAt: Date, locale: AppLocale = "zh-TW") {
   return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
@@ -562,7 +481,6 @@ function FulfillmentTimePanel({
 
 export function PublicOrderTracker({ trackingToken }: { trackingToken: string }) {
   const { locale } = useAppLocale();
-  const loadRequestGenerationRef = useRef(0);
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -571,32 +489,24 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
   const [isResponding, setIsResponding] = useState(false);
   const [fulfillmentFeedback, setFulfillmentFeedback] = useState<FulfillmentFeedback | null>(null);
 
-  const loadOrder = useCallback(async () => {
-    const requestGeneration = loadRequestGenerationRef.current + 1;
-    loadRequestGenerationRef.current = requestGeneration;
-    if (!navigator.onLine) {
-      setIsOnline(false);
-      setMessage(publicOrderMessages.get(locale, "offlineAuto"));
-      setIsLoading(false);
-      return;
+  const loadOrder = useCallback(async ({ signal }: { signal: AbortSignal }) => {
+    signal.throwIfAborted();
+    const response = await requestPublicOrder("get-public-order", {
+      trackingToken,
+      deviceId: getOrCreateDeviceId(),
+    }, { signal });
+    const payload = await parseEdgeResponse(response);
+    signal.throwIfAborted();
+    if (!response.ok) {
+      throw new Error(response.status === 404
+        ? publicOrderMessages.get(locale, "orderNotFound")
+        : typeof payload.code === "string"
+          ? localizedPublicOrderError(locale, payload.code)
+          : publicOrderMessages.get(locale, "updateError"));
     }
-    setIsLoading(true);
-    try {
-      const response = await requestPublicOrder("get-public-order", {
-        trackingToken,
-        deviceId: getOrCreateDeviceId(),
-      });
-      const payload = await parseEdgeResponse(response);
-      if (requestGeneration !== loadRequestGenerationRef.current) return;
-      if (!response.ok) {
-        throw new Error(response.status === 404
-          ? publicOrderMessages.get(locale, "orderNotFound")
-          : typeof payload.code === "string"
-            ? localizedPublicOrderError(locale, payload.code)
-            : publicOrderMessages.get(locale, "updateError"));
-      }
-      const publicOrder = payload.order as unknown as PublicOrder;
-      setOrder({
+    const publicOrder = payload.order as unknown as PublicOrder;
+    return {
+      value: {
         ...publicOrder,
         stallTimezone: publicOrder.stallTimezone ?? null,
         requestedFulfillmentAt: publicOrder.requestedFulfillmentAt ?? null,
@@ -606,60 +516,32 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
         fulfillmentTimeVersion: publicOrder.fulfillmentTimeVersion ?? 0,
         fulfillmentTimeResponseExpiresAt: publicOrder.fulfillmentTimeResponseExpiresAt ?? null,
         fulfillmentTimeChangeReason: publicOrder.fulfillmentTimeChangeReason ?? null,
-      });
-      setLastUpdatedAt(new Date());
-      setMessage("");
-    } catch (error) {
-      if (requestGeneration !== loadRequestGenerationRef.current) return;
-      setMessage(error instanceof Error && error.message === publicOrderMessages.get(locale, "orderNotFound")
-        ? error.message
-        : error instanceof Error && error.message !== publicOrderMessages.get(locale, "updateError")
-          ? error.message
-          : publicOrderMessages.get(locale, "updateError"));
-    } finally {
-      if (requestGeneration === loadRequestGenerationRef.current) setIsLoading(false);
-    }
+      },
+    };
   }, [locale, trackingToken]);
 
-  useEffect(() => {
-    let stopPolling: (() => void) | null = null;
-    const initialTimer = window.setTimeout(() => {
-      stopPolling = startVisibilityAwareOrderPolling({
-        environment: {
-          visibilityState: () => document.visibilityState,
-          online: () => navigator.onLine,
-          scheduleInterval: (callback, intervalMs) => window.setInterval(callback, intervalMs),
-          cancelInterval: (timer) => window.clearInterval(timer),
-          onVisibilityChange: (listener) => {
-            document.addEventListener("visibilitychange", listener);
-            return () => document.removeEventListener("visibilitychange", listener);
-          },
-          onOnline: (listener) => {
-            window.addEventListener("online", listener);
-            return () => window.removeEventListener("online", listener);
-          },
-          onOffline: (listener) => {
-            window.addEventListener("offline", listener);
-            return () => window.removeEventListener("offline", listener);
-          },
-        },
-        refresh: loadOrder,
-        onConnectivityChange: (online) => {
-          setIsOnline(online);
-          if (!online) {
-            loadRequestGenerationRef.current += 1;
-            setMessage(publicOrderMessages.get(locale, "offlineAuto"));
-            setIsLoading(false);
-          }
-        },
-      });
-    }, 0);
-    return () => {
-      loadRequestGenerationRef.current += 1;
-      window.clearTimeout(initialTimer);
-      stopPolling?.();
-    };
-  }, [loadOrder, locale]);
+  const { refresh: refreshOrder } = useLiveResource<PublicOrder>({
+    resourceKey: trackingToken,
+    load: loadOrder,
+    onData: (nextOrder) => {
+      setOrder(nextOrder);
+      setLastUpdatedAt(new Date());
+      setMessage("");
+    },
+    onError: (error) => {
+      setMessage(error instanceof Error
+        ? error.message
+        : publicOrderMessages.get(locale, "updateError"));
+    },
+    onLoadingChange: setIsLoading,
+    onOnlineChange: (online) => {
+      setIsOnline(online);
+      if (!online) {
+        setMessage(publicOrderMessages.get(locale, "offlineAuto"));
+        setIsLoading(false);
+      }
+    },
+  });
 
   const respondToProposal = useCallback(async (responseValue: "ACCEPT" | "DECLINE") => {
     if (!order || order.fulfillmentTimeState !== "CUSTOMER_ACTION_REQUIRED") return;
@@ -686,7 +568,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
           ? publicOrderMessages.get(locale, "timeAccepted")
           : publicOrderMessages.get(locale, "timeDeclined"),
       });
-      await loadOrder();
+      await refreshOrder();
     } catch (error) {
       setFulfillmentFeedback({
         kind: "error",
@@ -695,7 +577,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
     } finally {
       setIsResponding(false);
     }
-  }, [loadOrder, locale, order, trackingToken]);
+  }, [locale, order, refreshOrder, trackingToken]);
 
   return (
     <main className="mx-auto min-h-screen max-w-xl px-4 py-6 sm:px-5 sm:py-10">
@@ -713,7 +595,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
                   : publicOrderMessages.get(locale, "waitingUpdate")}
           </p>
         </div>
-        <button type="button" title={publicOrderMessages.get(locale, "refresh")} aria-label={publicOrderMessages.get(locale, "refreshAria")} disabled={isLoading || !isOnline} onClick={() => void loadOrder()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:cursor-not-allowed disabled:opacity-60">
+        <button type="button" title={publicOrderMessages.get(locale, "refresh")} aria-label={publicOrderMessages.get(locale, "refreshAria")} disabled={isLoading || !isOnline} onClick={() => void refreshOrder()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:cursor-not-allowed disabled:opacity-60">
           <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
         </button>
       </div>
@@ -772,7 +654,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
             fulfillmentType={order.fulfillmentType}
             isOnline={isOnline}
             isRefreshing={isLoading}
-            onRefresh={() => void loadOrder()}
+            onRefresh={() => void refreshOrder()}
             locale={locale}
           />
           <LineNotificationControls trackingToken={trackingToken} />

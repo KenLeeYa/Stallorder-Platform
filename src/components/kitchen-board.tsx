@@ -28,6 +28,7 @@ import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { deliveryProviderLabel } from "@/lib/delivery-platform-labels";
 import { resolveEffectiveFulfillmentAt } from "@/lib/fulfillment-time";
 import type { AppLocale } from "@/lib/app-locale";
+import { formatAppDateTime } from "@/lib/locale-format";
 import {
   getOperationsErrorMessage,
   type OperationsMessageKey,
@@ -289,15 +290,15 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
   return (
     <main className="mx-auto max-w-[1600px] px-3 py-3 md:px-6 md:py-6">
       <div className="flex flex-col gap-2 border-b border-stone-200 pb-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:pb-4">
-        <div className="inline-flex min-h-11 shrink-0 overflow-hidden rounded-md border border-stone-300 bg-white" role="group" aria-label={t("kitchen.mode.label")}>
+        <div data-testid="kitchen-mode-selector" className="grid min-h-11 w-full grid-cols-3 overflow-hidden rounded-md border border-stone-300 bg-white sm:inline-grid sm:w-auto" role="group" aria-label={t("kitchen.mode.label")}>
           <ModeButton active={mode === "ORDER"} icon={Rows3} label={t("kitchen.mode.ordersShort")} onClick={() => setMode("ORDER")} />
           <ModeButton active={mode === "ITEM"} icon={ListChecks} label={t("kitchen.mode.itemsShort")} onClick={() => setMode("ITEM")} />
           <ModeButton active={mode === "STATION"} icon={ChefHat} label={t("kitchen.mode.stationsShort")} onClick={() => setMode("STATION")} />
         </div>
-        <div className="flex w-full min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto contain-paint pb-1 [&>*]:shrink-0 sm:w-auto sm:justify-end sm:overflow-visible sm:contain-none sm:pb-0">
-          <span title={connection === "CONNECTED" ? t("kitchen.connection.connectedTitle") : t("kitchen.connection.fallbackTitle")} className={`inline-flex min-h-10 items-center gap-2 text-sm font-medium ${connection === "CONNECTED" ? "text-emerald-700" : "text-amber-700"}`}>
+        <div data-testid="kitchen-utility-toolbar" className="flex w-full min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto contain-paint pb-1 [&>*]:shrink-0 [&_button]:h-11 [&_button]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:px-0 sm:w-auto sm:justify-end sm:overflow-visible sm:contain-none sm:pb-0">
+          <span role="status" aria-label={connection === "CONNECTED" ? t("kitchen.connection.connected") : connection === "CONNECTING" ? t("kitchen.connection.connecting") : t("kitchen.connection.polling")} title={connection === "CONNECTED" ? t("kitchen.connection.connectedTitle") : t("kitchen.connection.fallbackTitle")} className={`grid h-11 w-11 place-items-center rounded-md border text-sm font-medium ${connection === "CONNECTED" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-50 text-amber-700"}`}>
             {connection === "CONNECTED" ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-            <span>{connection === "CONNECTED" ? t("kitchen.connection.connected") : connection === "CONNECTING" ? t("kitchen.connection.connecting") : t("kitchen.connection.polling")}</span>
+            <span className="sr-only">{connection === "CONNECTED" ? t("kitchen.connection.connected") : connection === "CONNECTING" ? t("kitchen.connection.connecting") : t("kitchen.connection.polling")}</span>
           </span>
           <button type="button" role="switch" aria-checked={alertsEnabled} onClick={toggleAlerts} title={alertsEnabled ? t("kitchen.alert.disable") : t("kitchen.alert.enable")} className={`grid h-11 w-11 place-items-center rounded-md border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
             {alertsEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
@@ -539,7 +540,7 @@ function TaskRow({ task, busy, locked, onTask }: { task: KitchenBoardTask; busy:
 }
 
 function ModeButton({ active, icon: Icon, label, onClick }: { active: boolean; icon: typeof ChefHat; label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className={`inline-flex min-h-11 items-center gap-2 border-r border-stone-300 px-4 text-sm font-semibold last:border-r-0 ${active ? "bg-teal-50 text-teal-800" : "bg-white text-stone-600"}`}><Icon className="h-4 w-4" />{label}</button>;
+  return <button type="button" title={label} aria-label={label} onClick={onClick} className={`grid min-h-11 min-w-0 place-items-center border-r border-stone-300 px-2 text-sm font-semibold last:border-r-0 sm:inline-flex sm:gap-2 sm:px-4 ${active ? "bg-teal-50 text-teal-800" : "bg-white text-stone-600"}`}><Icon className="h-5 w-5 sm:h-4 sm:w-4" /><span className="sr-only sm:not-sr-only">{label}</span></button>;
 }
 
 function groupTasksByOrder(tasks: KitchenBoardTask[]) {
@@ -553,22 +554,22 @@ function groupTasksByOrder(tasks: KitchenBoardTask[]) {
 }
 
 function formatKitchenTime(locale: AppLocale, value: string, timeZone: string) {
-  return new Intl.DateTimeFormat(locale, {
+  return formatAppDateTime(locale, value, {
     hour: "2-digit",
     minute: "2-digit",
     timeZone,
-  }).format(new Date(value));
+  });
 }
 
 function formatKitchenDateTime(locale: AppLocale, value: Date | string, timeZone: string) {
-  return new Intl.DateTimeFormat(locale, {
+  return formatAppDateTime(locale, value, {
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
     timeZone,
-  }).format(new Date(value));
+  });
 }
 
 function taskStatusLabel(

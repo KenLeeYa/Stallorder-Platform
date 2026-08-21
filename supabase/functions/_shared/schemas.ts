@@ -101,6 +101,17 @@ export const createPublicOrderSchema = z.object({
   }
 });
 
+export function createPublicOrderValidationCode(error: z.ZodError) {
+  const [issue] = error.issues;
+  return error.issues.length === 1
+    && issue?.code === "custom"
+    && issue.path.length === 1
+    && issue.path[0] === "scheduledPickupAt"
+    && issue.message === "preorder time required"
+    ? "PREORDER_TIME_REQUIRED"
+    : "INVALID_REQUEST";
+}
+
 export const getPublicOrderSchema = z.object({
   trackingToken: z.string().min(40).max(200),
   deviceId: uuid,

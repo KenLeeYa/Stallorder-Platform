@@ -12,6 +12,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/cron/outbox-dispatch",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/storage-replication",
       "schedule": "*/5 * * * *"
     }
