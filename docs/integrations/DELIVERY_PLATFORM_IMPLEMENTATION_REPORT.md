@@ -17,11 +17,12 @@
 
 ## 最終本機驗證
 
-- Focused security regression：7 files / 33 tests PASS。
-- Full Vitest：314 files PASS、2 skipped；1930 tests PASS、9 skipped。
+- Security remediation regression：2 files / 7 tests PASS；修正前 3 tests 可重現失敗，修正後全綠。
+- Full Vitest：318 files PASS、2 skipped；1953 tests PASS、9 skipped。
 - `npm run typecheck`、`npm run lint`、`npm run prisma:validate`、`npm run build`：PASS。
 - OAuth 307 與 provider mutation 307 two-origin PoC：皆回 `PROVIDER_CONTRACT_ERROR`，第二 origin 命中數為 0。
-- Locked security diff scan `56bd9b18-ecd4-41d4-a899-d47d08e8ffb4`：coverage complete、324/324 rows closed、0 candidates、0 findings。
+- 歷史 locked scan `56bd9b18-ecd4-41d4-a899-d47d08e8ffb4`：coverage complete、324/324 rows closed、0 findings。
+- Staging-rebased baseline scan `25edc121-42f3-488d-a4f1-d421f3e01585`：50/50 review receipts、9 candidates；確認 1 medium 與 1 low finding，兩項修正與 regression tests 已納入目前分支。最終 HEAD re-scan 與 CI 證據由 Draft PR 保存。
 - `npm run production:check`：PASS；`.env.example`、delivery migration 與 credential guardrails 均通過。
 
 ## 尚未完成或需外部依賴

@@ -106,7 +106,7 @@ export function normalizeFoodpandaOrder(
     placedAt: new Date(order.sys.created_at),
     scheduledPickupAt: parseNullableDate(order.accepted_for ?? order.promised_for),
     customerDisplayName: customerName(order),
-    customerPhoneMasked: nullableTrimmed(order.customer?.phone_number),
+    customerPhoneMasked: maskProviderPhone(order.customer?.phone_number),
     customerNote: nullableTrimmed(order.comment),
     items: order.items.map((item) => ({
       externalItemId: item._id,
@@ -207,6 +207,11 @@ function parseNullableDate(value: string | null | undefined) {
 function nullableTrimmed(value: string | null | undefined) {
   const normalized = value?.trim();
   return normalized || null;
+}
+
+function maskProviderPhone(phone: string | null | undefined) {
+  const digits = phone?.replace(/\D/g, "") ?? "";
+  return digits.length >= 2 ? `***${digits.slice(-2)}` : null;
 }
 
 function money(value: string | number, currency: string) {

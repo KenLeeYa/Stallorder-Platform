@@ -20,13 +20,16 @@
 
 ## 2026-08-21 security revalidation scope
 
-首次 locked diff scan 發現 6 項：2 個 webhook body late-limit、2 個 outbound response late-limit、2 個 redirect SSRF/forwarding。修正已加入共用 bounded reader、stream cancellation 與 redirect fail-closed，並以 unit tests 與本機 two-origin PoC 重現驗證。重驗 scan `56bd9b18-ecd4-41d4-a899-d47d08e8ffb4` 已封存：coverage complete、324/324 rows closed、0 candidates、0 findings。
+首次 locked diff scan 發現 6 項：2 個 webhook body late-limit、2 個 outbound response late-limit、2 個 redirect SSRF/forwarding。修正已加入共用 bounded reader、stream cancellation 與 redirect fail-closed，並以 unit tests 與本機 two-origin PoC 重現驗證。歷史重驗 scan `56bd9b18-ecd4-41d4-a899-d47d08e8ffb4` 已封存：coverage complete、324/324 rows closed、0 findings。
+
+Staging-rebased baseline scan `25edc121-42f3-488d-a4f1-d421f3e01585` 另確認兩項：Foodpanda provider schema 與 durable job schema 的 array limit 不一致，以及未在本地再次遮罩 customer phone。現在由 `serializeNormalizedExternalOrder()` 在寫入前執行 durable schema，Foodpanda phone 也統一只保留末兩碼；修正前 3 個 regression failures 與修正後 7/7 PASS 均已重現。最終 branch HEAD re-scan 與 CI evidence 由 Draft PR 保存，不在程式碼內自我引用。
 
 ## 未驗證風險
 
 - Production ingress 的 preventive byte cap 與 runtime egress segmentation 尚無部署證據。
 - Provider Sandbox 的 redirect contract、HMAC/Authorization 實際 header 與 rate-limit 行為尚未 live 驗證。
 - 自動 mutation 在 ambiguous timeout/401 後的 provider idempotency contract 仍需 partner confirmation。
+- Foodpanda/Uber 的 item、promotion、tax、fee、cash 與 merchant receivable accounting identity 仍需正式 contract 與 Sandbox fixtures。
 
 Provider 細節：
 

@@ -59,7 +59,7 @@ describe("foodpanda order normalizer", () => {
       externalStoreId: "vendor-1",
       currency: "TWD",
       customerDisplayName: "王** *",
-      customerPhoneMasked: "09******12",
+      customerPhoneMasked: "***12",
       pricing: {
         subtotal: 240,
         platformDiscount: 15,
@@ -93,5 +93,17 @@ describe("foodpanda order normalizer", () => {
   it("allows new optional provider fields without weakening required-field validation", () => {
     expect(normalizeFoodpandaOrder({ ...officialShape, future_optional_field: { value: true } }))
       .toMatchObject({ externalOrderId: officialShape.order_id });
+  });
+
+  it("masks provider phone numbers before returning the durable field", () => {
+    expect(normalizeFoodpandaOrder({
+      ...officialShape,
+      customer: { ...officialShape.customer, phone_number: "+886 912-345-678" },
+    }).customerPhoneMasked).toBe("***78");
+
+    expect(normalizeFoodpandaOrder({
+      ...officialShape,
+      customer: { ...officialShape.customer, phone_number: "private" },
+    }).customerPhoneMasked).toBeNull();
   });
 });

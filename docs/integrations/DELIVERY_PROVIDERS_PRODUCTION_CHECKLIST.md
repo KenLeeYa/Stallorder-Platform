@@ -10,7 +10,8 @@
 - [x] Bounded webhook、OAuth 與 API response streams
 - [x] Fixed-origin request construction 與 redirect fail-closed
 - [x] Unit regression、typecheck、lint、Prisma validate、production build
-- [x] 新 locked security diff scan 無未處理 finding（`56bd9b18-ecd4-41d4-a899-d47d08e8ffb4`，0 findings）
+- [x] Staging-rebased baseline security scan 完成，2 項 finding 已有本分支修正與 regression tests（`25edc121-42f3-488d-a4f1-d421f3e01585`）
+- [ ] 最終 branch HEAD locked re-scan 與 Draft PR CI 證據全綠
 - [ ] Remote migration plan 在 Staging 套用並保留證據
 - [ ] Staging smoke/E2E、queue/DLQ、observability 與 rollback drill
 - [ ] 新 immutable Production Plan ID 與 plan-bound approval
