@@ -127,6 +127,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     expect(organization.stalls[0].orderingSettings).toMatchObject({
       dineInEnabled: false,
       deliveryModuleEnabled: false,
+      kdsModuleEnabled: false,
       printModuleEnabled: false,
       paymentModuleEnabled: true,
       discountModuleEnabled: false,
@@ -176,7 +177,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     );
     await expect(paymentStep.getByRole("link", { name: "前往設定" })).toHaveAttribute(
       "href",
-      new RegExp(`/merchant/stalls/.+/settings/modules\\?source=setup#payment-options$`),
+      new RegExp(`/merchant/stalls/.+/settings/payments\\?source=setup#payment-options$`),
     );
 
     for (const label of ["商家資料", "攤位資料", "商品目錄", "付款方式", "團隊成員", "QR 預覽"]) {
@@ -213,10 +214,8 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     await orderCard.getByRole("button", { name: "查看明細", exact: true }).click();
     await expect(orderCard.getByText("開店測試訂單")).toBeVisible();
     await orderCard.getByRole("button", { name: "確認接單", exact: true }).click();
-    await orderCard.getByRole("button", { name: /全部開始製作/ }).click();
-    await orderCard.getByRole("button", { name: /全部餐點完成/ }).click();
-    await expect.poll(async () => (await prisma.order.findUnique({ where: { id: createdTestOrder.id } }))?.status).toBe("READY");
-    await orderCard.getByRole("button", { name: "完成訂單" }).click();
+    await expect(orderCard.getByRole("button", { name: /全部開始製作|全部餐點完成/ })).toHaveCount(0);
+    await orderCard.getByRole("button", { name: "完成訂單", exact: true }).click();
     await expect.poll(async () => (await prisma.order.findUnique({ where: { id: createdTestOrder.id } }))?.status).toBe("COMPLETED");
     expect(await prisma.usageEvent.count({
       where: { organizationId, referenceId: createdTestOrder.id, eventType: "BILLABLE_ORDER_COMPLETED" },

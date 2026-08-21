@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { Fragment, type RefObject } from "react";
 import { Flame, Minus, Plus, X } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
 import type { QrProductDraft } from "@/components/qr-order-product-controller";
@@ -109,8 +109,10 @@ export function QrOrderMenu({
           <section key={category} id={`qr-category-${categoryIndex}`} className="scroll-mt-16">
             <h2 className="mb-2 text-sm font-semibold text-stone-500 sm:mb-3">{localizedCategory(category)}</h2>
             <div className="grid gap-2 sm:gap-3">
-              {visibleProducts.filter((product) => product.category === category).map((product) => {
+              {visibleProducts.filter((product) => product.category === category).map((product, productIndex, categoryProducts) => {
                 const configurable = product.noteGroups.length > 0 || product.bundleChoiceGroups.length > 0;
+                const showGroupHeading = Boolean(product.group)
+                  && product.group !== categoryProducts[productIndex - 1]?.group;
                 const draft = productDrafts[product.id] ?? {
                   quantity: 0,
                   noteOptionIds: [],
@@ -121,8 +123,9 @@ export function QrOrderMenu({
                 const configurationComplete = noteSelectionIsValid(product.noteGroups, draft.noteOptionIds)
                   && bundleSelectionIsValid(product.bundleChoiceGroups, draft.bundleChoiceIds);
                 return (
+                  <Fragment key={product.id}>
+                  {showGroupHeading ? <p data-testid="qr-product-group-heading" className="col-span-full mt-2 text-xs font-bold uppercase tracking-wide text-teal-800 first:mt-0">{product.group}</p> : null}
                   <article
-                    key={product.id}
                     id={`qr-product-${product.id}`}
                     data-best-seller-rank={product.rank ?? undefined}
                     tabIndex={-1}
@@ -272,6 +275,7 @@ export function QrOrderMenu({
                       </>
                     ) : null}
                   </article>
+                  </Fragment>
                 );
               })}
             </div>

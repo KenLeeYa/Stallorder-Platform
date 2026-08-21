@@ -822,6 +822,7 @@ const errorMessageKeys: Record<string, ErrorMessageKey> = {
   QR_ORDERING_DEGRADED: "orderingUnavailable",
   QR_ORDERING_UNAVAILABLE: "orderingUnavailable",
   STALL_CLOSED: "orderingUnavailable",
+  STALL_SPECIAL_CLOSURE: "orderingUnavailable",
   ORDERING_PAUSED: "orderingUnavailable",
   STALL_SOLD_OUT: "orderingUnavailable",
   TENANT_INACTIVE: "orderingUnavailable",

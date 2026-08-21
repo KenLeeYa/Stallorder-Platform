@@ -11,7 +11,11 @@ export async function requireKitchenPage(
 ) {
   const { principal, workspaces } = await requireWorkspacePage();
   const candidates = workspaces.flatMap((workspace) => workspace.stalls
-    .filter((stall) => stall.isActive && stall.roles.some((role) => hasPermission(role, permission)))
+    .filter((stall) => (
+      stall.isActive
+      && stall.kdsEnabled
+      && stall.roles.some((role) => hasPermission(role, permission))
+    ))
     .map((stall) => ({ workspace, stall })));
   const availableStalls = candidates.map(({ stall }) => ({
     id: stall.id,
@@ -46,7 +50,7 @@ export async function requireKitchenManagementPage(stallId: string) {
     candidate.stalls.some((stall) => stall.id === stallId)
   ));
   const stall = workspace?.stalls.find((candidate) => candidate.id === stallId);
-  if (!workspace || !stall) notFound();
+  if (!workspace || !stall || !stall.kdsEnabled) notFound();
 
   const roles = [...new Set([...workspace.roles, ...stall.roles])];
   if (!roles.some((role) => hasPermission(role, "MANAGE_KDS"))) notFound();

@@ -5,7 +5,12 @@ const routes = [
   "/merchant/dashboard",
   "/merchant/stalls?organizationId=11111111-1111-4111-8111-111111111111",
   "/merchant/stalls/22222222-2222-4222-8222-222222222222",
-  "/merchant/stalls/22222222-2222-4222-8222-222222222222/settings/modules",
+  "/merchant/stalls/22222222-2222-4222-8222-222222222222/settings/special-hours",
+  "/merchant/stalls/22222222-2222-4222-8222-222222222222/settings/dining-tables",
+  "/merchant/stalls/22222222-2222-4222-8222-222222222222/settings/printing",
+  "/merchant/stalls/22222222-2222-4222-8222-222222222222/settings/kds",
+  "/merchant/stalls/22222222-2222-4222-8222-222222222222/settings/payments",
+  "/merchant/stalls/22222222-2222-4222-8222-222222222222/settings/languages",
   "/merchant/stalls/22222222-2222-4222-8222-222222222222/products",
   "/merchant/catalog?organizationId=11111111-1111-4111-8111-111111111111",
   "/merchant/operations",
@@ -59,12 +64,31 @@ test("核心營運頁面在手機、平板與桌面不產生全頁水平溢位",
       await gotoLocalPath(page, route, canonicalRoutePaths[route] ?? route);
       await expect(page.locator("body")).toBeVisible();
       await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
+      const horizontalLayout = await page.evaluate(() => {
+        const clientWidth = document.documentElement.clientWidth;
+        return {
+          clientWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+          offenders: Array.from(document.querySelectorAll<HTMLElement>("body *"))
+            .map((element) => {
+              const box = element.getBoundingClientRect();
+              return {
+                tag: element.tagName.toLowerCase(),
+                testId: element.dataset.testid ?? "",
+                className: typeof element.className === "string" ? element.className.slice(0, 160) : "",
+                left: Math.round(box.left),
+                right: Math.round(box.right),
+                width: Math.round(box.width),
+              };
+            })
+            .filter((element) => element.right > clientWidth + 1 || element.left < -1)
+            .slice(0, 12),
+        };
+      });
       expect(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= window.innerWidth + 1,
-        ),
-        `Unexpected page-level horizontal overflow at ${route} (${viewport.name})`,
-      ).toBe(true);
+        horizontalLayout.scrollWidth,
+        `Unexpected page-level horizontal overflow at ${route} (${viewport.name}): ${JSON.stringify(horizontalLayout)}`,
+      ).toBeLessThanOrEqual(horizontalLayout.clientWidth + 1);
     }
   }
 });

@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
+import { completeStreamlinedOrderAfterPrint } from "@/server/printing/streamlined-order-completion";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
 class PrintQueueNotFoundError extends Error {}
@@ -125,6 +126,7 @@ export async function POST(request: Request, context: RouteContext) {
           data: { status: "SUCCEEDED", printedAt: new Date(), lastError: null, nextRetryAt: null },
         });
         if (changed.count !== 1) throw new PrintQueueConflictError();
+        await completeStreamlinedOrderAfterPrint(transaction, job.id);
       } else if (command.operation === "FAIL") {
         const changed = await transaction.printJob.updateMany({
           where: { id: job.id, status: "PRINTING" },

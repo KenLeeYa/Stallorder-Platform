@@ -32,6 +32,7 @@ function workspace(
       code: stallId,
       businessStatus: "OPEN",
       orderingEnabled: true,
+      kdsEnabled: false,
       isActive: true,
       roles: ["ORGANIZATION_OWNER"],
     }],

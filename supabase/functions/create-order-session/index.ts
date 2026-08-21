@@ -34,6 +34,19 @@ import {
   filterPublicMenuProductsForTimeWindow,
 } from "../_shared/public-menu-availability.ts";
 
+function localDateInTimeZone(value: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const read = (type: Intl.DateTimeFormatPartTypes) => (
+    parts.find((part) => part.type === type)?.value ?? ""
+  );
+  return `${read("year")}-${read("month")}-${read("day")}`;
+}
+
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
   const operationId = getPublicOrderOperationId(request);
@@ -272,24 +285,51 @@ Deno.serve(async (request) => {
       }))
       : { data: [], error: null };
     if (preorderSlotsQuery.error) throw preorderSlotsQuery.error;
-    const preorderSlots = Array.isArray(preorderSlotsQuery.data)
+    const rawPreorderSlots = Array.isArray(preorderSlotsQuery.data)
       ? preorderSlotsQuery.data.filter((slot): slot is string => typeof slot === "string")
       : [];
+    const preorderSlotsWithDates = rawPreorderSlots.flatMap((slot) => {
+      const instant = new Date(slot);
+      return Number.isNaN(instant.getTime())
+        ? []
+        : [{ slot, localDate: localDateInTimeZone(instant, stallQuery.data.timezone) }];
+    });
+    const preorderDates = preorderSlotsWithDates.map(({ localDate }) => localDate).sort();
+    const specialClosuresQuery = preorderDates.length === 0
+      ? { data: [], error: null }
+      : await timing.measureDb(() => admin.from("stall_special_closures")
+        .select("starts_on, ends_on")
+        .eq("stall_id", result.stall_id)
+        .lte("starts_on", preorderDates.at(-1)!)
+        .gte("ends_on", preorderDates[0])
+        .limit(100));
+    if (specialClosuresQuery.error) throw specialClosuresQuery.error;
+    const preorderSlots = preorderSlotsWithDates
+      .filter(({ localDate }) => !specialClosuresQuery.data.some((closure) => (
+        localDate >= closure.starts_on && localDate <= closure.ends_on
+      )))
+      .map(({ slot }) => slot);
 
     const enabledLocales = settings.enabled_locales;
 
     const now = Date.now();
     const productIds = stallProductsQuery.data.map((assignment) => assignment.product_id);
-    const [productsQuery, categoriesQuery, translationsQuery, noteAssignmentsQuery, bestSellerRanksQuery] = await timing.measureDb(() => Promise.all([
+    const [productsQuery, categoriesQuery, groupsQuery, translationsQuery, noteAssignmentsQuery, bestSellerRanksQuery] = await timing.measureDb(() => Promise.all([
       productIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : admin.from("products")
-          .select("id, organization_id, name, description, default_price, kind, image_url, category_id, sort_order")
+          .select("id, organization_id, name, description, default_price, kind, image_url, category_id, group_id, sort_order")
           .eq("organization_id", stallQuery.data.organization_id)
           .eq("is_active", true)
           .in("id", productIds)
           .limit(100),
       admin.from("product_categories")
+        .select("id, name, sort_order")
+        .eq("organization_id", stallQuery.data.organization_id)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .limit(100),
+      admin.from("product_groups")
         .select("id, name, sort_order")
         .eq("organization_id", stallQuery.data.organization_id)
         .eq("is_active", true)
@@ -313,17 +353,19 @@ Deno.serve(async (request) => {
           .order("sort_order", { ascending: true })
           .limit(500),
       admin.rpc("get_stall_best_sellers", { p_stall_id: result.stall_id }),
-    ]), productIds.length === 0 ? 2 : 5);
+    ]), productIds.length === 0 ? 3 : 6);
 
     if (
       productsQuery.error
       || categoriesQuery.error
+      || groupsQuery.error
       || translationsQuery.error
       || noteAssignmentsQuery.error
       || bestSellerRanksQuery.error
     ) {
       throw productsQuery.error
         ?? categoriesQuery.error
+        ?? groupsQuery.error
         ?? translationsQuery.error
         ?? noteAssignmentsQuery.error
         ?? bestSellerRanksQuery.error;
@@ -401,6 +443,7 @@ Deno.serve(async (request) => {
     if (noteOptionTranslationsQuery.error) throw noteOptionTranslationsQuery.error;
 
     const categoriesById = new Map(categoriesQuery.data.map((category) => [category.id, category]));
+    const groupsById = new Map(groupsQuery.data.map((group) => [group.id, group]));
     const assignmentsByProductId = new Map(
       stallProductsQuery.data.map((assignment) => [assignment.product_id, assignment]),
     );
@@ -453,6 +496,7 @@ Deno.serve(async (request) => {
     const productsWithSortOrder = productsQuery.data
       .flatMap((product) => {
         const category = categoriesById.get(product.category_id);
+        const group = product.group_id ? groupsById.get(product.group_id) : null;
         const assignment = assignmentsByProductId.get(product.id);
         const bundleChoiceGroups = product.kind === "BUNDLE"
           ? (bundleGroupsByProductId.get(product.id) ?? []).map((group) => ({
@@ -490,7 +534,7 @@ Deno.serve(async (request) => {
             && group.options.length >= Math.max(1, group.minSelections)
           ))
         );
-        return category && assignment && bundleIsComplete ? [{
+        return category && assignment && bundleIsComplete && (!product.group_id || group) ? [{
           id: product.id,
           name: product.name,
           description: product.description,
@@ -519,7 +563,7 @@ Deno.serve(async (request) => {
                 isRequired: noteGroup.is_required,
                 minSelections: noteGroup.min_selections,
                 maxSelections: noteGroup.max_selections,
-                sortOrder: assignment.sort_order || noteGroup.sort_order,
+                sortOrder: assignment.sort_order,
                 translations: (noteGroupTranslationsByGroupId.get(noteGroup.id) ?? [])
                   .map((translation) => ({ locale: translation.locale, name: translation.name })),
                 options: (noteOptionsByGroupId.get(noteGroup.id) ?? [])
@@ -537,10 +581,13 @@ Deno.serve(async (request) => {
           price: assignment.price_override ?? product.default_price,
           category: category.name,
           categorySortOrder: category.sort_order,
-          productSortOrder: assignment.sort_order || product.sort_order,
+          group: group?.name ?? null,
+          groupSortOrder: group?.sort_order ?? 10_001,
+          productSortOrder: assignment.sort_order,
         }] : [];
       })
       .sort((left, right) => left.categorySortOrder - right.categorySortOrder
+        || left.groupSortOrder - right.groupSortOrder
         || left.productSortOrder - right.productSortOrder);
     const rankedProducts = applyBestSellerRanking(productsWithSortOrder.map((product) => ({
       id: product.id,
@@ -555,6 +602,7 @@ Deno.serve(async (request) => {
       noteGroups: product.noteGroups,
       price: product.price,
       category: product.category,
+      group: product.group,
     })), (bestSellerRanksQuery.data ?? []) as BestSellerRankRow[]);
     const products = orderingMode === "PREORDER"
       ? filterPublicMenuProductsForTimeWindow(rankedProducts, preorderSlots)

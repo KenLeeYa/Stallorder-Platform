@@ -62,6 +62,7 @@ export function offlineOrderToStaffOrder(order: OfflineOrder): StaffOrderDto {
     fulfillmentTimeResponseExpiresAt: null,
     fulfillmentTimeChangeReason: null,
     createdAt: order.createdAtDevice,
+    primaryPrintStatus: null,
     items: order.itemsSnapshot.map((item) => ({
       id: item.localItemId,
       name: item.name,

@@ -25,6 +25,10 @@ import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu
 
 type RouteContext = { params: Promise<{ stallId: string }> };
 
+function updatesModuleView(view: string, target: string) {
+  return view === "all" || view === target;
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const { stallId } = await context.params;
   const authorization = await authorizeStallManagementApiRequest(request, stallId, "MANAGE_ORDERING");
@@ -61,11 +65,22 @@ export async function PATCH(request: Request, context: RouteContext) {
   const organizationId = authorization.workspace.id;
   const command = parsed.data;
   try {
+    const existingSettings = command.operation === "UPDATE_MODULES"
+      && (updatesModuleView(command.view, "printing") || updatesModuleView(command.view, "kds"))
+      ? await prisma.stallOrderingSettings.findUnique({
+          where: { stallId },
+          select: { printModuleEnabled: true, kdsModuleEnabled: true },
+        })
+      : null;
     if (command.operation === "CREATE_TABLE") {
       await entitlementService.assertLimitAvailable(organizationId, "QR_CODES", 1);
     } else if (command.operation === "ROTATE_TABLE_QR") {
       await entitlementService.assertLimitAvailable(organizationId, "QR_CODES", 0);
-    } else if (command.operation === "UPDATE_MODULES" && command.deliveryModuleEnabled) {
+    } else if (
+      command.operation === "UPDATE_MODULES"
+      && updatesModuleView(command.view, "delivery")
+      && command.deliveryModuleEnabled
+    ) {
       const existingDeliveryQr = await prisma.qrCode.findFirst({
         where: {
           stallId,
@@ -81,13 +96,23 @@ export async function PATCH(request: Request, context: RouteContext) {
         existingDeliveryQr ? 0 : 1,
       );
     }
-    if (command.operation === "UPDATE_MODULES" && command.printModuleEnabled) {
-      const existingSettings = await prisma.stallOrderingSettings.findUnique({
-        where: { stallId },
-        select: { printModuleEnabled: true },
-      });
-      if (!existingSettings?.printModuleEnabled) {
+    if (command.operation === "UPDATE_MODULES" && (
+      (updatesModuleView(command.view, "printing") && command.printModuleEnabled)
+      || (updatesModuleView(command.view, "kds") && command.kdsModuleEnabled)
+    )) {
+      if (
+        updatesModuleView(command.view, "printing")
+        && command.printModuleEnabled
+        && !existingSettings?.printModuleEnabled
+      ) {
         await entitlementService.assertFeatureEnabled(organizationId, "PRINTER_INTEGRATION");
+      }
+      if (
+        updatesModuleView(command.view, "kds")
+        && command.kdsModuleEnabled
+        && !existingSettings?.kdsModuleEnabled
+      ) {
+        await entitlementService.assertFeatureEnabled(organizationId, "KDS");
       }
     }
     const qrTokensBefore = await prisma.qrCode.findMany({
@@ -96,7 +121,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
     const entityId = await prisma.$transaction(async (transaction) => {
       if (command.operation === "UPDATE_MODULES") {
-        const lotteryDiscountChances = command.lotteryEnabled
+        const updatesLottery = updatesModuleView(command.view, "lottery");
+        const lotteryDiscountChances = updatesLottery && command.lotteryEnabled
           ? command.lotteryDiscountChances ?? (
               command.lotteryDiscountOptionId && command.lotteryDiscountWinRateBps > 0
                 ? [{
@@ -124,58 +150,155 @@ export async function PATCH(request: Request, context: RouteContext) {
         await transaction.stallOrderingSettings.update({
           where: { stallId, organizationId },
           data: {
-            dineInEnabled: command.dineInEnabled,
-            deliveryModuleEnabled: command.deliveryModuleEnabled,
-            staffDeliveryEnabled: command.staffDeliveryEnabled,
-            printModuleEnabled: command.printModuleEnabled,
-            paymentModuleEnabled: command.paymentModuleEnabled,
-            discountModuleEnabled: command.discountModuleEnabled,
-            discountApprovalThresholdBps: command.discountApprovalThresholdBps,
-            takeoutPreorderEnabled: command.takeoutPreorderEnabled,
-            preorderMinLeadMinutes: command.preorderMinLeadMinutes,
-            preorderMaxDays: command.preorderMaxDays,
-            preorderSlotMinutes: command.preorderSlotMinutes,
-            lotteryEnabled: command.lotteryEnabled,
-            lotteryDiscountOptionId: legacyLotteryDiscount?.discountOptionId ?? null,
-            lotteryDiscountWinRateBps: legacyLotteryDiscount?.winRateBps ?? 0,
+            ...(updatesModuleView(command.view, "dine-in")
+              ? { dineInEnabled: command.dineInEnabled }
+              : {}),
+            ...(updatesModuleView(command.view, "delivery")
+              ? { deliveryModuleEnabled: command.deliveryModuleEnabled }
+              : {}),
+            ...(updatesModuleView(command.view, "staff-delivery")
+              ? { staffDeliveryEnabled: command.staffDeliveryEnabled }
+              : {}),
+            ...(updatesModuleView(command.view, "printing")
+              ? { printModuleEnabled: command.printModuleEnabled }
+              : {}),
+            ...(updatesModuleView(command.view, "kds")
+              ? { kdsModuleEnabled: command.kdsModuleEnabled }
+              : {}),
+            ...(updatesModuleView(command.view, "payments")
+              ? { paymentModuleEnabled: command.paymentModuleEnabled }
+              : {}),
+            ...(updatesModuleView(command.view, "discounts") ? {
+              discountModuleEnabled: command.discountModuleEnabled,
+              discountApprovalThresholdBps: command.discountApprovalThresholdBps,
+            } : {}),
+            ...(updatesModuleView(command.view, "preorder") ? {
+              takeoutPreorderEnabled: command.takeoutPreorderEnabled,
+              preorderMinLeadMinutes: command.preorderMinLeadMinutes,
+              preorderMaxDays: command.preorderMaxDays,
+              preorderSlotMinutes: command.preorderSlotMinutes,
+            } : {}),
+            ...(updatesLottery ? {
+              lotteryEnabled: command.lotteryEnabled,
+              lotteryDiscountOptionId: legacyLotteryDiscount?.discountOptionId ?? null,
+              lotteryDiscountWinRateBps: legacyLotteryDiscount?.winRateBps ?? 0,
+            } : {}),
           },
         });
-        await transaction.$executeRaw(Prisma.sql`
-          delete from public.stall_lottery_discount_chances
-          where stall_id = ${stallId}::uuid
-        `);
-        if (lotteryDiscountChances.length > 0) {
-          await transaction.$executeRaw(Prisma.sql`
-            insert into public.stall_lottery_discount_chances (
-              stall_id,
-              discount_option_id,
-              win_rate_bps
-            )
-            select
-              ${stallId}::uuid,
-              chance.discount_option_id,
-              chance.win_rate_bps
-            from jsonb_to_recordset(
-              ${JSON.stringify(lotteryDiscountChances.map((chance) => ({
-                discount_option_id: chance.discountOptionId,
-                win_rate_bps: chance.winRateBps,
-              })))}::jsonb
-            ) as chance(discount_option_id uuid, win_rate_bps smallint)
-          `);
+        const nextKdsModuleEnabled = updatesModuleView(command.view, "kds")
+          ? command.kdsModuleEnabled
+          : existingSettings?.kdsModuleEnabled ?? false;
+        const nextPrintModuleEnabled = updatesModuleView(command.view, "printing")
+          ? command.printModuleEnabled
+          : existingSettings?.printModuleEnabled ?? false;
+        const moduleChangedAt = new Date();
+        if (updatesModuleView(command.view, "kds") && !command.kdsModuleEnabled) {
+          await transaction.orderProductionTask.updateMany({
+            where: {
+              organizationId,
+              stallId,
+              status: { in: ["PENDING", "PREPARING"] },
+            },
+            data: { status: "CANCELLED", completedAt: moduleChangedAt },
+          });
         }
-        if (!command.deliveryModuleEnabled) {
+        if (updatesModuleView(command.view, "printing") && !command.printModuleEnabled) {
+          await transaction.printJob.updateMany({
+            where: {
+              organizationId,
+              stallId,
+              status: { in: ["PENDING", "PRINTING"] },
+            },
+            data: {
+              status: "CANCELLED",
+              lastError: "列印模組已停用。",
+              nextRetryAt: null,
+            },
+          });
+        }
+        if (
+          (updatesModuleView(command.view, "kds") || updatesModuleView(command.view, "printing"))
+          && !nextKdsModuleEnabled
+          && !nextPrintModuleEnabled
+        ) {
+          const completableOrders = await transaction.order.findMany({
+            where: {
+              organizationId,
+              stallId,
+              status: "READY",
+              paymentStatus: "PAID",
+              externalProvider: null,
+              OR: [
+                { source: { not: "QR_MENU" } },
+                { fulfillmentType: { not: "TAKEOUT" } },
+                { pickupVerifiedAt: { not: null } },
+              ],
+            },
+            select: { id: true },
+          });
+          for (const order of completableOrders) {
+            const completed = await transaction.order.updateMany({
+              where: {
+                id: order.id,
+                organizationId,
+                stallId,
+                status: "READY",
+                paymentStatus: "PAID",
+              },
+              data: { status: "COMPLETED", completedAt: moduleChangedAt },
+            });
+            if (completed.count !== 1) continue;
+            await transaction.orderEvent.create({
+              data: {
+                organizationId,
+                stallId,
+                orderId: order.id,
+                eventType: "ORDER_AUTO_COMPLETED_AFTER_MODULE_CHANGE",
+                previousStatus: "READY",
+                newStatus: "COMPLETED",
+                createdBy: authorization.principal.user.id,
+              },
+            });
+          }
+        }
+        if (updatesLottery) {
+          await transaction.$executeRaw(Prisma.sql`
+            delete from public.stall_lottery_discount_chances
+            where stall_id = ${stallId}::uuid
+          `);
+          if (lotteryDiscountChances.length > 0) {
+            await transaction.$executeRaw(Prisma.sql`
+              insert into public.stall_lottery_discount_chances (
+                stall_id,
+                discount_option_id,
+                win_rate_bps
+              )
+              select
+                ${stallId}::uuid,
+                chance.discount_option_id,
+                chance.win_rate_bps
+              from jsonb_to_recordset(
+                ${JSON.stringify(lotteryDiscountChances.map((chance) => ({
+                  discount_option_id: chance.discountOptionId,
+                  win_rate_bps: chance.winRateBps,
+                })))}::jsonb
+              ) as chance(discount_option_id uuid, win_rate_bps smallint)
+            `);
+          }
+        }
+        if (updatesModuleView(command.view, "delivery") && !command.deliveryModuleEnabled) {
           await transaction.orderSession.updateMany({
             where: { stallId, organizationId, orderingMode: "DELIVERY", status: "ACTIVE" },
             data: { status: "REVOKED", revokedAt: new Date() },
           });
         }
-        if (!command.takeoutPreorderEnabled) {
+        if (updatesModuleView(command.view, "preorder") && !command.takeoutPreorderEnabled) {
           await transaction.orderSession.updateMany({
             where: { stallId, organizationId, orderingMode: "PREORDER", status: "ACTIVE" },
             data: { status: "REVOKED", revokedAt: new Date() },
           });
         }
-        if (command.deliveryModuleEnabled) {
+        if (updatesModuleView(command.view, "delivery") && command.deliveryModuleEnabled) {
           const deliveryQr = await transaction.qrCode.findFirst({
             where: {
               stallId,

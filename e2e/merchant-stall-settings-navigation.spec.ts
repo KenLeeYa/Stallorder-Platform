@@ -12,11 +12,35 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     ["基本資料", "basic"],
     ["營運狀態", "operations"],
     ["營業時間", "business-hours"],
-    ["營運模組與內用桌位", "modules"],
+    ["特殊營業日與公休公告", "special-hours"],
+    ["內用點餐", "dine-in"],
+    ["內用桌位與專屬 QR", "dining-tables"],
+    ["線上外送", "delivery"],
+    ["店員外送點餐", "staff-delivery"],
+    ["訂單列印", "printing"],
+    ["廚房 KDS", "kds"],
+    ["付款方式", "payments"],
+    ["結帳折扣", "discounts"],
+    ["外帶預約", "preorder"],
+    ["抽抽樂推薦", "lottery"],
+    ["QR 點餐語系", "languages"],
     ["安全與訂單限制", "order-limits"],
     ["多攤位範本", "templates"],
     ["攤位成員", "members"],
   ] as const;
+  const moduleSections = new Set([
+    "dine-in",
+    "dining-tables",
+    "delivery",
+    "staff-delivery",
+    "printing",
+    "kds",
+    "payments",
+    "discounts",
+    "preorder",
+    "lottery",
+    "languages",
+  ]);
   const staticSectionScopes: Record<string, string> = {
     basic: "stall-basic",
     operations: "stall-operations",
@@ -102,14 +126,14 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     await expect(link).toHaveAttribute("href", `/merchant/stalls/${stallId}/settings/${section}`);
     await link.click();
     await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/settings/${section}$`));
-    await expect(page.getByRole("heading", { name: label, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: label, exact: true }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "返回攤位設定", exact: true })).toBeVisible();
     const staticScope = staticSectionScopes[section];
     if (staticScope) {
       await expect(page.locator(`section[data-settings-scope="${staticScope}"]`)).toHaveCount(1);
     }
-    await expect(page.locator("details[data-settings-scope]")).toHaveCount(section === "modules" ? 1 : 0);
-    await expect(page.getByTestId("stall-modules-toggle-all")).toHaveCount(section === "modules" ? 1 : 0);
+    await expect(page.locator("details[data-settings-scope]")).toHaveCount(moduleSections.has(section) ? 1 : 0);
+    await expect(page.getByTestId("stall-modules-toggle-all")).toHaveCount(0);
     const hasSectionOverflow = await page.evaluate(() => (
       document.documentElement.scrollWidth > document.documentElement.clientWidth
     ));
@@ -152,7 +176,7 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
   await expect(page.getByRole("link", { name: "返回翻譯完整度", exact: true }))
     .toHaveAttribute("href", `/merchant/localization?organizationId=${organizationId}&stallId=${stallId}`);
 
-  await page.goto(`/merchant/stalls/${stallId}/settings/modules?source=staff#discount-options`);
+  await page.goto(`/merchant/stalls/${stallId}/settings/discounts?source=staff#discount-options`);
   await expect(page.getByRole("link", { name: "返回店員訂單", exact: true }))
     .toHaveAttribute("href", "/staff/aming-chicken");
 

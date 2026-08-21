@@ -45,6 +45,7 @@ export type PublicMenuProduct = {
   price: number;
   kind: "SINGLE" | "BUNDLE";
   category: string;
+  group?: string | null;
   rank: number | null;
   isBestSeller: boolean;
   isOrderDiscountEligible: boolean;
@@ -60,6 +61,14 @@ export type PublicMenu = {
   orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
   preorderSlots: string[];
   lotteryEnabled: boolean;
+  specialClosure?: {
+    id: string;
+    startsOn: string;
+    endsOn: string;
+    title: string;
+    message: string;
+    isActive: boolean;
+  } | null;
   stall: {
     name: string;
     slug: string;

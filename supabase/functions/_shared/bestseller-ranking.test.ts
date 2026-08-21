@@ -37,4 +37,21 @@ describe("best-seller menu ranking", () => {
 
     expect(product).toMatchObject({ rank: null, isBestSeller: false });
   });
+
+  it("keeps catalog groups together while promoting best sellers inside each group", () => {
+    const ranked = applyBestSellerRanking([
+      { id: "hot-regular", category: "主餐", group: "熱食" },
+      { id: "hot-best", category: "主餐", group: "熱食" },
+      { id: "cold-best", category: "主餐", group: "冷食" },
+    ], [
+      { product_id: "cold-best", rank: 1 },
+      { product_id: "hot-best", rank: 2 },
+    ]);
+
+    expect(ranked.map((product) => product.id)).toEqual([
+      "hot-best",
+      "hot-regular",
+      "cold-best",
+    ]);
+  });
 });

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const qrCodeFindUnique = vi.fn();
 const stallProductFindMany = vi.fn();
 const settingsFindUnique = vi.fn();
+const specialClosureFindMany = vi.fn();
 const queryRaw = vi.fn();
 const calculateCapacitySnapshot = vi.fn();
 
@@ -18,6 +19,7 @@ vi.mock("@/lib/prisma", () => ({
     stall: { findUnique: vi.fn() },
     stallProduct: { findMany: stallProductFindMany },
     stallOrderingSettings: { findUnique: settingsFindUnique },
+    stallSpecialClosure: { findMany: specialClosureFindMany },
     $queryRaw: queryRaw,
   },
 }));
@@ -39,6 +41,7 @@ describe("Next public preorder menu", () => {
         slug: "preorder-stall",
         location: "台北",
         currency: "TWD",
+        timezone: "Asia/Taipei",
         isActive: true,
         orderingEnabled: true,
         businessStatus: "CLOSED",
@@ -81,6 +84,7 @@ describe("Next public preorder menu", () => {
       enabledLocales: ["zh-TW"],
       estimatedWaitMinutes: 10,
     });
+    specialClosureFindMany.mockResolvedValue([]);
     queryRaw.mockImplementation((template: TemplateStringsArray) => (
       String(template).includes("get_takeout_preorder_slots")
         ? [{ slots: ["2099-08-03T05:00:00.000Z"] }]
@@ -106,6 +110,31 @@ describe("Next public preorder menu", () => {
     const query = stallProductFindMany.mock.calls[0]?.[0];
     expect(query.where.OR).toBeUndefined();
     expect(query.where.AND).toBeUndefined();
+  });
+
+  it("removes closed local dates from preorder slots without hiding the closure notice", async () => {
+    specialClosureFindMany.mockResolvedValue([{
+      id: "closure-a",
+      startsOn: new Date("2099-08-03T00:00:00.000Z"),
+      endsOn: new Date("2099-08-03T00:00:00.000Z"),
+      title: "員工旅遊",
+      message: "8/4 恢復營業",
+    }]);
+    const { getCachedPublicMenuForQrToken } = await import("./public-menu");
+
+    const menu = await getCachedPublicMenuForQrToken("closed-preorder-qr", "PREORDER");
+
+    expect(menu).not.toBeNull();
+    expect(menu).toMatchObject({
+      preorderSlots: [],
+      products: [],
+      specialClosure: {
+        id: "closure-a",
+        startsOn: "2099-08-03",
+        endsOn: "2099-08-03",
+        isActive: false,
+      },
+    });
   });
 
   it("does not turn a closed physical QR DEFAULT request into a preorder", async () => {

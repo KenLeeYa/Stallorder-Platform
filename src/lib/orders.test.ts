@@ -37,6 +37,7 @@ describe("serializeStaffOrder legacy fulfillment compatibility", () => {
       fulfillmentTimeResponseExpiresAt: null,
       fulfillmentTimeChangeReason: null,
       createdAt: new Date("2026-08-06T04:00:00.000Z"),
+      printJobs: [],
       items: [],
     } as unknown as Parameters<typeof serializeStaffOrder>[0];
 
@@ -46,6 +47,7 @@ describe("serializeStaffOrder legacy fulfillment compatibility", () => {
       committedFulfillmentAt: scheduledPickupAt.toISOString(),
       fulfillmentTimeState: "CONFIRMED",
       fulfillmentTimeVersion: 0,
+      primaryPrintStatus: null,
     });
   });
 });

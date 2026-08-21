@@ -63,6 +63,39 @@ describe("StaffOrderBoard production transitions", () => {
     ], result)).toEqual([authoritative, staffOrder("order-b")]);
   });
 
+  it("keeps an order visible while streamlined checkout waits for physical printing", async () => {
+    const ready = staffOrder("order-a", "STAFF_POS", "READY");
+    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({
+      order: ready,
+      completionPendingPrint: true,
+    }));
+
+    const result = await transitionStaffOrderStatus({
+      stallSlug: "stall-slug",
+      currentOrder: staffOrder("order-a", "STAFF_POS"),
+      orderId: "order-a",
+      status: "COMPLETED",
+      options: {
+        checkout: {
+          paymentOptionId: "cash",
+          discountOptionId: null,
+          cashReceived: null,
+          discountApprovalReason: null,
+          managerEmail: null,
+          managerPassword: null,
+        },
+      },
+      fetchImpl,
+      getCsrfHeaders: () => ({}),
+    });
+
+    expect(result).toEqual({
+      kind: "replace",
+      order: ready,
+      message: "已結帳，單據列印成功後會自動完成訂單。",
+    });
+  });
+
   it("preserves server and fallback errors for order status failures", async () => {
     await expect(transitionStaffOrderStatus({
       stallSlug: "stall-slug",

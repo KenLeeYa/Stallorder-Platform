@@ -37,6 +37,7 @@ export default async function KitchenPage({ searchParams }: PageProps) {
       name: access.stall.name,
       slug: access.stall.slug,
       isActive: access.stall.isActive,
+      kdsEnabled: true,
       roles: access.roles,
     }],
   }]);

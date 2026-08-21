@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Download, Eye, EyeOff, MessageSquareText, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Download, Eye, EyeOff, MessageSquareText, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
 import {
   getTranslationLocaleOptions,
@@ -501,6 +501,24 @@ export function ProductNoteGroupsManager({
     );
   }
 
+  async function moveReusableNote(index: number, direction: -1 | 1) {
+    const reusableNoteIds = moveOrderedId(sortedReusableNotes.map((note) => note.id), index, direction);
+    if (!reusableNoteIds) return;
+    await runCommand({ operation: "REORDER_REUSABLE_NOTES", reusableNoteIds }, label("共用註記排序已更新。"));
+  }
+
+  async function moveNoteGroup(index: number, direction: -1 | 1) {
+    const noteGroupIds = moveOrderedId(sortedGroups.map((group) => group.id), index, direction);
+    if (!noteGroupIds) return;
+    await runCommand({ operation: "REORDER_NOTE_GROUPS", noteGroupIds }, label("註記群組排序已更新。"));
+  }
+
+  async function moveNoteOption(noteGroupId: string, options: NoteOption[], index: number, direction: -1 | 1) {
+    const noteOptionIds = moveOrderedId(options.map((option) => option.id), index, direction);
+    if (!noteOptionIds) return;
+    await runCommand({ operation: "REORDER_NOTE_OPTIONS", noteGroupId, noteOptionIds }, label("註記選項排序已更新。"));
+  }
+
   return (
     <section aria-labelledby="product-notes-heading" className="mt-10 border-t border-stone-200 pt-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -579,13 +597,15 @@ export function ProductNoteGroupsManager({
       ) : null}
       {activeTab === "NOTES" ? (
         <div role="tabpanel" className="mt-5 divide-y divide-stone-200 border-y border-stone-200">
-          {sortedReusableNotes.map((note) => (
+          {sortedReusableNotes.map((note, noteIndex) => (
             <div key={note.id} className="grid min-h-16 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <div>
                 <div className="flex flex-wrap items-center gap-2"><strong>{note.name}</strong>{!note.isActive ? <span className="text-xs text-red-700">{label("已停用")}</span> : null}</div>
                 <p className="mt-1 text-xs text-stone-500">{m("{price} · 排序 {sortOrder} · 已加入 {count} 個群組", { price: note.priceDelta === 0 ? label("不加價") : `${note.priceDelta > 0 ? "+" : ""}${formatMoney(note.priceDelta, currency, locale)}`, sortOrder: note.sortOrder, count: note.linkedOptionCount })}</p>
               </div>
-              <div className="flex items-center">
+              <div className="flex flex-wrap items-center justify-end">
+                <IconButton disabled={busy || noteIndex === 0} label={m("將 {value0} 上移", { value0: note.name })} onClick={() => void moveReusableNote(noteIndex, -1)}><ArrowUp className="h-4 w-4" /></IconButton>
+                <IconButton disabled={busy || noteIndex === sortedReusableNotes.length - 1} label={m("將 {value0} 下移", { value0: note.name })} onClick={() => void moveReusableNote(noteIndex, 1)}><ArrowDown className="h-4 w-4" /></IconButton>
                 <IconButton label={m("編輯 {name}", { name: note.name })} onClick={() => setReusableNoteDraft({ id: note.id, name: note.name, priceDelta: note.priceDelta, sortOrder: note.sortOrder, isActive: note.isActive, translations: note.translations })}><Pencil className="h-4 w-4" /></IconButton>
                 <IconButton label={m("{action} {name}", { action: note.isActive ? label("停用") : label("啟用"), name: note.name })} onClick={() => void toggleReusableNote(note)}>{note.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
                 <IconButton label={m("刪除 {name}", { name: note.name })} danger onClick={() => void deleteReusableNote(note)}><Trash2 className="h-4 w-4" /></IconButton>
@@ -596,13 +616,16 @@ export function ProductNoteGroupsManager({
         </div>
       ) : (
         <div id="product-note-groups-list" role="tabpanel" className="mt-3 divide-y divide-stone-200 border-y border-stone-200">
-          {sortedGroups.map((group) => {
+          {sortedGroups.map((group, groupIndex) => {
             const assignedNames = group.assignments
               .map((assignment) => products.find((product) => product.id === assignment.productId)?.name)
               .filter((name): name is string => Boolean(name));
             const availableReusableNoteCount = sortedReusableNotes.filter(
               (note) => !group.options.some((option) => option.reusableNoteId === note.id),
             ).length;
+            const sortedOptions = [...group.options].sort((left, right) => (
+              left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "zh-TW")
+            ));
             return (
               <details
                 key={group.id}
@@ -613,13 +636,15 @@ export function ProductNoteGroupsManager({
                 }}
                 className="group py-1"
               >
-                <summary className="flex min-h-16 cursor-pointer list-none items-center gap-1 py-3 sm:gap-3 [&::-webkit-details-marker]:hidden">
+                <summary className="flex min-h-16 cursor-pointer list-none flex-wrap items-center gap-1 py-3 sm:gap-3 [&::-webkit-details-marker]:hidden">
                   <MessageSquareText className="h-4 w-4 shrink-0 text-teal-700" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2"><strong>{group.name}</strong>{!group.isActive ? <span className="text-xs text-red-700">{label("已停用")}</span> : null}</div>
                     <p className="mt-1 truncate text-xs text-stone-500">{m("{selectionMode} · {required} · 最少 {min} 項 · 最多 {max} 項 · {count} 項商品", { selectionMode: group.selectionMode === "SINGLE" ? label("單選") : label("複選"), required: group.isRequired ? label("必選") : label("選填"), min: group.minSelections, max: group.maxSelections ?? label("不限"), count: assignedNames.length })}</p>
                   </div>
-                  <div className="ml-auto flex items-center">
+                  <div className="ml-auto flex w-full flex-wrap items-center justify-end pl-5 sm:w-auto sm:flex-nowrap sm:pl-0">
+                    <IconButton disabled={busy || groupIndex === 0} label={m("將 {value0} 上移", { value0: group.name })} onClick={(event) => { event.preventDefault(); void moveNoteGroup(groupIndex, -1); }}><ArrowUp className="h-4 w-4" /></IconButton>
+                    <IconButton disabled={busy || groupIndex === sortedGroups.length - 1} label={m("將 {value0} 下移", { value0: group.name })} onClick={(event) => { event.preventDefault(); void moveNoteGroup(groupIndex, 1); }}><ArrowDown className="h-4 w-4" /></IconButton>
                     <IconButton label={m("編輯 {name}", { name: group.name })} onClick={(event) => { event.preventDefault(); editGroup(group); }}><Pencil className="h-4 w-4" /></IconButton>
                     <IconButton label={m("{action} {name}", { action: group.isActive ? label("停用") : label("啟用"), name: group.name })} onClick={(event) => { event.preventDefault(); void toggleGroup(group); }}>{group.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
                     <IconButton label={m("刪除 {name}", { name: group.name })} danger onClick={(event) => { event.preventDefault(); void deleteGroup(group); }}><Trash2 className="h-4 w-4" /></IconButton>
@@ -642,10 +667,12 @@ export function ProductNoteGroupsManager({
                     <button type="button" onClick={() => setOptionDraft({ noteGroupId: group.id, reusableNoteId: null, name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(group.options), isActive: true, translations: [] })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold sm:ml-auto sm:w-auto"><Plus className="h-4 w-4" />{label("新增群組專用註記")}</button>
                   </div>
                   <div className="divide-y divide-stone-100">
-                    {group.options.map((option) => (
+                    {sortedOptions.map((option, optionIndex) => (
                       <div key={option.id} className="grid min-h-12 gap-2 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                         <div><span className="text-sm font-medium">{option.name}</span><span className="ml-2 text-xs text-stone-500">{option.priceDelta === 0 ? label("不加價") : `${option.priceDelta > 0 ? "+" : ""}${formatMoney(option.priceDelta, currency, locale)}`}</span><span className="ml-2 text-xs text-teal-700">{option.reusableNoteId ? label("共用單一註記") : label("群組專用")}</span>{!option.isActive ? <span className="ml-2 text-xs text-red-700">{label("已停用")}</span> : null}</div>
-                        <div className="flex items-center">
+                        <div className="flex flex-wrap items-center justify-end">
+                          <IconButton disabled={busy || optionIndex === 0} label={m("將 {value0} 上移", { value0: option.name })} onClick={() => void moveNoteOption(group.id, sortedOptions, optionIndex, -1)}><ArrowUp className="h-4 w-4" /></IconButton>
+                          <IconButton disabled={busy || optionIndex === sortedOptions.length - 1} label={m("將 {value0} 下移", { value0: option.name })} onClick={() => void moveNoteOption(group.id, sortedOptions, optionIndex, 1)}><ArrowDown className="h-4 w-4" /></IconButton>
                           <IconButton label={m("{action} {name}", { action: option.reusableNoteId ? label("調整排序") : label("編輯"), name: option.name })} onClick={() => setOptionDraft({ ...option, noteGroupId: group.id })}><Pencil className="h-4 w-4" /></IconButton>
                           {!option.reusableNoteId ? <IconButton label={m("{action} {name}", { action: option.isActive ? label("停用") : label("啟用"), name: option.name })} onClick={() => void toggleOption(option)}>{option.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton> : null}
                           <IconButton label={m("{action} {name}", { action: option.reusableNoteId ? label("從群組移除") : label("刪除"), name: option.name })} danger onClick={() => void deleteOption(option)}><Trash2 className="h-4 w-4" /></IconButton>
@@ -993,8 +1020,17 @@ function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constra
 }
 
 function IconButton({ label, danger = false, disabled = false, onClick, children }: { label: string; danger?: boolean; disabled?: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; children: React.ReactNode }) {
-  return <button type="button" title={label} aria-label={label} disabled={disabled} onClick={onClick} className={`grid h-11 w-11 shrink-0 place-items-center rounded-md hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "text-red-700" : "text-stone-600"}`}>{children}</button>;
+  return <button type="button" title={label} aria-label={label} disabled={disabled} onClick={onClick} className={`grid h-11 w-11 shrink-0 place-items-center rounded-md border bg-white hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "border-red-200 text-red-700" : "border-stone-200 text-stone-600"}`}>{children}</button>;
 }
+
+function moveOrderedId(ids: string[], index: number, direction: -1 | 1) {
+  const target = index + direction;
+  if (index < 0 || target < 0 || index >= ids.length || target >= ids.length) return null;
+  const next = [...ids];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
 function TextField({ label, fieldKey, error, value, onChange, wide = false }: { label: string; fieldKey?: string; error?: string; value: string; onChange: (value: string) => void; wide?: boolean }) {
   const errorId = fieldKey ? `product-note-${fieldKey}-error` : undefined;
   return <label className={`text-sm font-medium text-stone-700 ${wide ? "sm:col-span-2" : ""}`}>{label}<input aria-label={label} type="text" required maxLength={80} value={value} data-field-key={fieldKey} aria-invalid={Boolean(error)} aria-describedby={error && errorId ? errorId : undefined} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" />{error && errorId ? <span id={errorId} className="mt-1 block text-xs text-red-700">{error}</span> : null}</label>;

@@ -24,6 +24,7 @@ import {
   persistExternalOrderTransition,
 } from "@/server/delivery-platforms/external-order-status-service";
 import { DeliveryPlatformError } from "@/server/delivery-platforms/delivery-platform-errors";
+import { getStreamlinedCheckoutPlan } from "@/server/printing/streamlined-order-completion";
 
 type RouteContext = { params: Promise<{ stallSlug: string; orderId: string }> };
 class TransitionConflict extends Error {}
@@ -87,7 +88,13 @@ async function handlePatch(
       stall: {
         select: {
           timezone: true,
-          orderingSettings: { select: { businessDayCutoffHour: true } },
+          orderingSettings: {
+            select: {
+              businessDayCutoffHour: true,
+              kdsModuleEnabled: true,
+              printModuleEnabled: true,
+            },
+          },
         },
       },
       items: {
@@ -108,6 +115,26 @@ async function handlePatch(
 
   const nextStatus = parsed.data.status;
   const cancellation = parsed.data.status === "CANCELLED" ? parsed.data : null;
+  const orderingSettings = order.stall.orderingSettings;
+  const primaryPrintJob = nextStatus === "COMPLETED"
+    && !orderingSettings?.kdsModuleEnabled
+    && orderingSettings?.printModuleEnabled
+    && order.externalProvider === null
+    ? await timing.measureDb(() => prisma.printJob.findFirst({
+        where: { orderId: order.id, reprintOfId: null },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: { status: true },
+      }))
+    : null;
+  const streamlinedCheckout = getStreamlinedCheckoutPlan({
+    requestedStatus: nextStatus,
+    currentStatus: order.status,
+    fulfillmentType: order.fulfillmentType,
+    kdsModuleEnabled: orderingSettings?.kdsModuleEnabled ?? true,
+    printModuleEnabled: orderingSettings?.printModuleEnabled ?? false,
+    externalProvider: order.externalProvider,
+    primaryPrintStatus: primaryPrintJob?.status ?? null,
+  });
   try {
     const subscription = await entitlementService.getSubscriptionContext(order.organizationId);
     if (!subscription || subscription.status === "CANCELLED") {
@@ -118,6 +145,9 @@ async function handlePatch(
       && !canContinueOrderDuringSuspension(order.status, nextStatus)
     ) {
       throw new EntitlementError("SUBSCRIPTION_SUSPENDED");
+    }
+    if (streamlinedCheckout?.queuePrint) {
+      await entitlementService.assertFeatureEnabled(order.organizationId, "PRINTER_INTEGRATION");
     }
   } catch (error) {
     const response = entitlementErrorResponse(error, authorization.requestId);
@@ -144,9 +174,22 @@ async function handlePatch(
     );
   }
 
-  if (!canTransitionOrder(order.status, nextStatus, authorization.role)) {
+  if (!streamlinedCheckout && !canTransitionOrder(order.status, nextStatus, authorization.role)) {
     return NextResponse.json(
       { error: "目前狀態不允許此操作。" },
+      { status: 409, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+  if (
+    nextStatus === "COMPLETED"
+    && streamlinedCheckout
+    && classifyStallOrderForProduction(order).productionBlocked
+  ) {
+    return NextResponse.json(
+      {
+        error: "此預約訂單的履約營業日尚未到，或履約時間尚未確認，暫時不能結帳完成。",
+        code: "PRODUCTION_NOT_DUE",
+      },
       { status: 409, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -181,7 +224,7 @@ async function handlePatch(
 
   let checkout: Awaited<ReturnType<typeof resolveStaffCheckout>> | null = null;
 
-  if (nextStatus === "COMPLETED") {
+  if (nextStatus === "COMPLETED" && !streamlinedCheckout) {
     const incompleteItemCount = await timing.measureDb(() => prisma.orderItem.count({
       where: {
         orderId: order.id,
@@ -197,6 +240,28 @@ async function handlePatch(
         { status: 409, headers: { "x-request-id": authorization.requestId } },
       );
     }
+  }
+
+  const streamlinedPrinter = streamlinedCheckout?.queuePrint
+    ? await timing.measureDb(() => prisma.printer.findFirst({
+        where: {
+          organizationId: order.organizationId,
+          stallId: order.stallId,
+          isEnabled: true,
+          lastSeenAt: { gte: new Date(Date.now() - 90_000) },
+        },
+        orderBy: [{ lastSeenAt: "desc" }, { createdAt: "asc" }],
+        select: { id: true },
+      }))
+    : null;
+  if (streamlinedCheckout?.queuePrint && !streamlinedPrinter) {
+    return NextResponse.json(
+      {
+        error: "請先啟用並連接至少一台印表機；本次尚未扣款，也未完成訂單。",
+        code: "PRINTER_REQUIRED",
+      },
+      { status: 409, headers: { "x-request-id": authorization.requestId } },
+    );
   }
 
   if (parsed.data.status === "COMPLETED" && order.paymentStatus === "UNPAID") {
@@ -260,6 +325,7 @@ async function handlePatch(
   }
 
   const now = new Date();
+  const persistedStatus = streamlinedCheckout?.targetStatus ?? nextStatus;
   try {
     const updatedOrder = await timing.measureDb(() => prisma.$transaction(async (transaction) => {
       const cashShiftId = checkout?.method === "CASH"
@@ -275,9 +341,9 @@ async function handlePatch(
             : {}),
         },
         data: {
-          status: nextStatus,
-          confirmedAt: nextStatus === "CONFIRMED" ? now : order.confirmedAt,
-          completedAt: nextStatus === "COMPLETED" ? now : order.completedAt,
+          status: persistedStatus,
+          confirmedAt: persistedStatus === "CONFIRMED" ? now : order.confirmedAt,
+          completedAt: persistedStatus === "COMPLETED" ? now : order.completedAt,
           paymentStatus: nextStatus === "COMPLETED" ? "PAID" : order.paymentStatus,
           paidAt: nextStatus === "COMPLETED" && order.paymentStatus === "UNPAID" ? now : order.paidAt,
           ...(checkout?.discountOptionId ? {
@@ -298,6 +364,28 @@ async function handlePatch(
         },
       });
       if (changed.count !== 1) throw new TransitionConflict();
+
+      if (streamlinedCheckout) {
+        await transaction.orderItem.updateMany({
+          where: { orderId: order.id, stallId: order.stallId },
+          data: {
+            status: streamlinedCheckout.itemStatus,
+            readyAt: now,
+            ...(streamlinedCheckout.itemStatus === "SERVED" ? { servedAt: now } : {}),
+          },
+        });
+        if (streamlinedCheckout.queuePrint) {
+          await transaction.printJob.create({
+            data: {
+              organizationId: order.organizationId,
+              stallId: order.stallId,
+              orderId: order.id,
+              printerId: streamlinedPrinter!.id,
+              requestedById: authorization.principal.user.id,
+            },
+          });
+        }
+      }
 
       if (nextStatus === "COMPLETED" && order.paymentStatus === "UNPAID") {
         if (!checkout) throw new Error("CHECKOUT_NOT_RESOLVED");
@@ -326,17 +414,19 @@ async function handlePatch(
           stallId: order.stallId,
           orderId: order.id,
           eventType: nextStatus === "COMPLETED"
-            ? order.paymentStatus === "PAID" ? "ORDER_COMPLETED_AFTER_PREPAYMENT" : "CHECKOUT_COMPLETED"
+            ? streamlinedCheckout?.completionPendingPrint
+              ? "CHECKOUT_PENDING_PRINT"
+              : order.paymentStatus === "PAID" ? "ORDER_COMPLETED_AFTER_PREPAYMENT" : "CHECKOUT_COMPLETED"
             : "STAFF_STATUS_CHANGED",
           previousStatus: order.status,
-          newStatus: nextStatus,
+          newStatus: persistedStatus,
           createdBy: authorization.principal.user.id,
         },
       });
       await persistExternalOrderTransition(
         transaction,
         externalTransition,
-        nextStatus,
+        persistedStatus,
       );
       return transaction.order.findUniqueOrThrow({
         where: { id: order.id },
@@ -357,7 +447,7 @@ async function handlePatch(
       ipHash: hashClientIp(request),
       metadata: {
         previousStatus: order.status,
-        newStatus: nextStatus,
+        newStatus: persistedStatus,
         paymentMethod: checkout?.methodLabel ?? null,
         discount: checkout?.discountLabel ?? null,
         discountApprovedBy: checkout?.discountApprovedById ?? null,
@@ -366,7 +456,10 @@ async function handlePatch(
       },
     }));
     return NextResponse.json(
-      { order: updatedOrder },
+      {
+        order: updatedOrder,
+        completionPendingPrint: streamlinedCheckout?.completionPendingPrint ?? false,
+      },
       { headers: { "x-request-id": authorization.requestId } },
     );
   } catch (error) {

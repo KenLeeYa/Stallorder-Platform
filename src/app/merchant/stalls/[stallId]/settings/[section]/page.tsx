@@ -4,8 +4,9 @@ import { MerchantSetupBackLink } from "@/components/merchant-setup-back-link";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { StallBusinessHoursManager } from "@/components/stall-business-hours-manager";
 import { StallEditor } from "@/components/stall-editor";
-import { StallModulesManager } from "@/components/stall-modules-manager";
+import { StallModulesManager, type StallModuleView } from "@/components/stall-modules-manager";
 import { StallOrderLimitsForm, type StallOrderLimits } from "@/components/stall-order-limits-form";
+import { StallSpecialClosuresManager } from "@/components/stall-special-closures-manager";
 import { StallSettingsShell } from "@/components/stall-settings-shell";
 import { StallTeamManager } from "@/components/stall-team-manager";
 import { StallTemplateCopyManager } from "@/components/stall-template-copy-manager";
@@ -13,19 +14,46 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 import { getStallModuleState } from "@/lib/stall-modules";
 import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
+import { serializeSpecialClosure } from "@/lib/special-closures";
 import { requireWorkspacePage } from "@/lib/workspace";
 
 const sectionLabels = {
   basic: "基本資料",
   operations: "營運狀態",
   "business-hours": "營業時間",
+  "special-hours": "特殊營業日與公休公告",
   modules: "營運模組與內用桌位",
+  "dine-in": "內用點餐",
+  "dining-tables": "內用桌位與專屬 QR",
+  delivery: "線上外送",
+  "staff-delivery": "店員外送點餐",
+  printing: "訂單列印",
+  kds: "廚房 KDS",
+  payments: "付款方式",
+  discounts: "結帳折扣",
+  preorder: "外帶預約",
+  lottery: "抽抽樂推薦",
+  languages: "QR 點餐語系",
   "order-limits": "安全與訂單限制",
   templates: "多攤位範本",
   members: "攤位成員",
 } as const;
 
 type SettingsSection = keyof typeof sectionLabels;
+const moduleViews: Partial<Record<SettingsSection, StallModuleView>> = {
+  modules: "all",
+  "dine-in": "dine-in",
+  "dining-tables": "dining-tables",
+  delivery: "delivery",
+  "staff-delivery": "staff-delivery",
+  printing: "printing",
+  kds: "kds",
+  payments: "payments",
+  discounts: "discounts",
+  preorder: "preorder",
+  lottery: "lottery",
+  languages: "languages",
+};
 type PageProps = {
   params: Promise<{ stallId: string; section: string }>;
   searchParams: Promise<{ source?: string }>;
@@ -99,7 +127,19 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
       select: { dayOfWeek: true, opensAt: true, closesAt: true, isClosed: true },
     });
     content = <StallBusinessHoursManager stallId={stall.id} initialHours={businessHours} />;
-  } else if (rawSection === "modules") {
+  } else if (rawSection === "special-hours") {
+    const closures = await prisma.stallSpecialClosure.findMany({
+      where: { stallId, organizationId: workspace.id },
+      orderBy: [{ startsOn: "asc" }, { createdAt: "asc" }],
+      select: { id: true, startsOn: true, endsOn: true, title: true, message: true },
+    });
+    content = (
+      <StallSpecialClosuresManager
+        stallId={stall.id}
+        initialClosures={closures.map(serializeSpecialClosure)}
+      />
+    );
+  } else if (moduleViews[rawSection]) {
     const moduleState = await getStallModuleState(stall.id, workspace.id);
     content = (
       <StallModulesManager
@@ -107,6 +147,7 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
         stallCode={stall.code}
         appUrl={process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}
         initialState={moduleState}
+        view={moduleViews[rawSection]}
       />
     );
   } else if (rawSection === "order-limits") {

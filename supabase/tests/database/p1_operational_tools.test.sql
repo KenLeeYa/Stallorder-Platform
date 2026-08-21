@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(14);
+select plan(16);
 
 select ok(
   (select count(*) = 10 from information_schema.columns
@@ -113,6 +113,10 @@ update public.printers
 set last_seen_at = now() - interval '1 hour'
 where stall_id = '22222222-2222-4222-8222-222222222222';
 
+update public.stall_ordering_settings
+set kds_module_enabled = true
+where stall_id = '22222222-2222-4222-8222-222222222222';
+
 insert into public.printers (
   id, organization_id, stall_id, name, is_enabled, last_seen_at
 ) values (
@@ -145,6 +149,50 @@ select is(
   (select printer_id from public.print_jobs where order_id = '76100000-0000-4000-8000-000000000003'),
   '76100000-0000-4000-8000-000000000002'::uuid,
   '列印工作優先指派最近在線的印表機'
+);
+
+update public.stall_ordering_settings
+set kds_module_enabled = false
+where stall_id = '22222222-2222-4222-8222-222222222222';
+insert into public.orders (
+  id, tenant_id, organization_id, stall_id, order_no, tracking_token_hash,
+  idempotency_key, source, customer_name, fulfillment_type, status, payment_status,
+  subtotal, total, device_hash, confirmation_expires_at, created_at, updated_at
+) values (
+  '76100000-0000-4000-8000-000000000005',
+  '11111111-1111-4111-8111-111111111111',
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  'P1-NO-KDS-001', repeat('3', 64),
+  '76100000-0000-4000-8000-000000000006', 'STAFF_POS', '單店員列印顧客',
+  'TAKEOUT', 'WAITING_CONFIRMATION', 'UNPAID', 100, 100, repeat('4', 64),
+  now() + interval '10 minutes', now(), now()
+);
+update public.orders set status = 'CONFIRMED' where id = '76100000-0000-4000-8000-000000000005';
+select ok(
+  not exists (
+    select 1 from public.print_jobs
+    where order_id = '76100000-0000-4000-8000-000000000005'
+  ),
+  'KDS 關閉時確認訂單不由資料庫 trigger 提前排印'
+);
+insert into public.order_items (
+  id, tenant_id, organization_id, stall_id, order_id, product_id,
+  name, base_unit_price, unit_price, quantity, status
+) values (
+  '76100000-0000-4000-8000-000000000007',
+  '11111111-1111-4111-8111-111111111111',
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  '76100000-0000-4000-8000-000000000005',
+  '44444444-4444-4444-8444-444444444441',
+  '單店員餐點', 100, 100, 1, 'PENDING'
+);
+select is(
+  (select count(*)::integer from public.order_production_tasks
+   where order_id = '76100000-0000-4000-8000-000000000005'),
+  0,
+  'KDS 關閉時不建立隱藏的 production task'
 );
 
 select throws_ok(

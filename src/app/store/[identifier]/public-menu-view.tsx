@@ -1,4 +1,4 @@
-import { Flame, MapPin, Package, Store } from "lucide-react";
+import { CalendarOff, Flame, MapPin, Package, Store } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
 import type { AppLocale } from "@/lib/app-locale";
 import { publicMessages } from "@/lib/messages/public";
@@ -36,6 +36,20 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
       </header>
 
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-9 lg:px-8">
+        {menu.specialClosure ? (
+          <section
+            role={menu.specialClosure.isActive ? "alert" : "status"}
+            data-testid="public-menu-special-closure"
+            className={`mb-7 flex items-start gap-3 rounded-2xl border p-4 shadow-sm ${menu.specialClosure.isActive ? "border-red-300 bg-red-50 text-red-950" : "border-amber-300 bg-amber-50 text-amber-950"}`}
+          >
+            <CalendarOff className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+            <div>
+              <h2 className="font-bold">{menu.specialClosure.title}</h2>
+              <p className="mt-1 text-sm font-semibold">{formatClosureRange(menu.specialClosure, locale)}</p>
+              {menu.specialClosure.message ? <p className="mt-1 text-sm leading-6">{menu.specialClosure.message}</p> : null}
+            </div>
+          </section>
+        ) : null}
         {sections.length > 1 ? (
           <nav data-testid="public-menu-category-navigation" aria-label={publicMessages.get(locale, "menuCategoryNavigation")} className="sticky top-0 z-20 -mx-4 mb-7 flex gap-2 overflow-x-auto border-y border-stone-200 bg-[#f5f1e8]/95 px-4 py-3 shadow-sm backdrop-blur print:hidden sm:mx-0 sm:px-3">
             {sections.map((section, index) => (
@@ -66,9 +80,16 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
                     {publicMessages.get(locale, "menuItemCount", { count: section.products.length })}
                   </span>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2 print:grid-cols-2">
-                  {section.products.map((product) => (
-                    <MenuProductCard key={product.id} product={product} currency={menu.stall.currency} locale={locale} />
+                <div className="space-y-6">
+                  {section.groups.map((group, groupIndex) => (
+                    <div key={`${section.category}-${group.name ?? "ungrouped"}-${groupIndex}`}>
+                      {group.name ? <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-teal-800">{group.name}</h3> : null}
+                      <div className="grid gap-3 md:grid-cols-2 print:grid-cols-2">
+                        {group.products.map((product) => (
+                          <MenuProductCard key={product.id} product={product} currency={menu.stall.currency} locale={locale} />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </section>
@@ -82,6 +103,17 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
       </div>
     </main>
   );
+}
+
+function formatClosureRange(
+  closure: NonNullable<PublicMenu["specialClosure"]>,
+  locale: AppLocale,
+) {
+  const formatter = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" });
+  const start = formatter.format(new Date(`${closure.startsOn}T00:00:00.000Z`));
+  if (closure.startsOn === closure.endsOn) return start;
+  const end = formatter.format(new Date(`${closure.endsOn}T00:00:00.000Z`));
+  return `${start} – ${end}`;
 }
 
 function MenuProductCard({
@@ -163,8 +195,21 @@ function groupProductsByCategory(products: PublicMenuProduct[]) {
     if (categoryProducts) categoryProducts.push(product);
     else productsByCategory.set(product.category, [product]);
   }
-  return [...productsByCategory].map(([category, categoryProducts]) => ({
-    category,
-    products: categoryProducts,
-  }));
+  return [...productsByCategory].map(([category, categoryProducts]) => {
+    const productsByGroup = new Map<string | null, PublicMenuProduct[]>();
+    for (const product of categoryProducts) {
+      const group = product.group?.trim() || null;
+      const groupedProducts = productsByGroup.get(group);
+      if (groupedProducts) groupedProducts.push(product);
+      else productsByGroup.set(group, [product]);
+    }
+    return {
+      category,
+      products: categoryProducts,
+      groups: [...productsByGroup].map(([name, groupedProducts]) => ({
+        name,
+        products: groupedProducts,
+      })),
+    };
+  });
 }

@@ -62,6 +62,7 @@ export default async function MerchantStallsPage({ searchParams }: PageProps) {
           canManageDelivery={singleStallRoles.some(
             (role) => hasPermission(role, "MANAGE_DELIVERY_INTEGRATIONS"),
           ) && Boolean(deliveryFeatureState?.foundation && deliveryFeatureState.ui)}
+          kdsEnabled={singleStall.kdsEnabled}
           showMerchantSetup={workspace.roles.includes("ORGANIZATION_OWNER")
             && Boolean(workspace.merchantSetupState)
             && workspace.merchantSetupStallId === singleStall.id}

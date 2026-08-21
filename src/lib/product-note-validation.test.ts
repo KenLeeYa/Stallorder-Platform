@@ -148,4 +148,16 @@ describe("共用商品註記輸入驗證", () => {
         .toBe("「指派商品」輸入不正確，請依欄位限制重新輸入。");
     }
   });
+
+  it("接受註記排序命令並拒絕重複項目", () => {
+    expect(productNoteCommandSchema.safeParse({
+      operation: "REORDER_NOTE_GROUPS",
+      noteGroupIds: [noteGroupId, crypto.randomUUID()],
+    }).success).toBe(true);
+    expect(productNoteCommandSchema.safeParse({
+      operation: "REORDER_NOTE_OPTIONS",
+      noteGroupId,
+      noteOptionIds: [reusableNoteId, reusableNoteId],
+    }).success).toBe(false);
+  });
 });

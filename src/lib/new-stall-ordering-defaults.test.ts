@@ -9,6 +9,7 @@ describe("new stall ordering defaults", () => {
       deliveryModuleEnabled: false,
       staffDeliveryEnabled: false,
       printModuleEnabled: false,
+      kdsModuleEnabled: false,
       paymentModuleEnabled: true,
       discountModuleEnabled: false,
       takeoutPreorderEnabled: false,
