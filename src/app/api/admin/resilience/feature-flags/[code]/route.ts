@@ -17,6 +17,7 @@ const errorMessages: Record<string, string> = {
   RESILIENCE_FLAG_ORGANIZATION_NOT_FOUND: "找不到指定組織。",
   RESILIENCE_FLAG_STALL_SCOPE_MISMATCH: "攤位不屬於指定組織。",
   RESILIENCE_FUTURE_FLAG_LOCKED: "現場 Gateway 仍屬未來功能，目前不得啟用。",
+  RESILIENCE_PHASE_THREE_FLAG_LOCKED: "Phase 3 功能仍在基礎建設階段，目前不得啟用。",
   RESILIENCE_FLAG_EXPIRY_NOT_FUTURE: "到期時間必須晚於目前時間。",
   RESILIENCE_EMERGENCY_EXPIRY_REQUIRED: "緊急旗標必須設定自動到期時間。",
   RESILIENCE_EMERGENCY_EXPIRY_TOO_LONG: "緊急旗標最長只能啟用 24 小時。",

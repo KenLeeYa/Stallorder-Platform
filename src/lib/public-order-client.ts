@@ -31,6 +31,7 @@ export type PublicOrderRequestOptions = {
   timeoutMs?: number;
   now?: () => number;
   operationId?: string;
+  signal?: AbortSignal;
 };
 
 export type PublicAvailabilityStatus =
@@ -201,6 +202,7 @@ export async function requestPublicOrder(
     ? createPublicOrderOperationId()
     : normalizePublicOrderOperationId(options.operationId);
   if (!operationId) throw new Error("INVALID_PUBLIC_ORDER_OPERATION_ID");
+  options.signal?.throwIfAborted();
   const deviceId = typeof input.deviceId === "string" ? input.deviceId : "";
   const serializedBody = JSON.stringify(input);
   const availability = resolveDualOrderIntake(fetchImpl, deviceId);
@@ -208,6 +210,7 @@ export async function requestPublicOrder(
   const primaryAllowed = breaker.allowRequest();
 
   if (!primaryAllowed && await availability) {
+    options.signal?.throwIfAborted();
     logCircuitFallback(operation, operationId, "CIRCUIT_OPEN", null, 0);
     return requestCircuitB(
       operation,
@@ -217,8 +220,11 @@ export async function requestPublicOrder(
       fetchImpl,
       timeoutMs,
       now,
+      options.signal,
     );
   }
+
+  options.signal?.throwIfAborted();
 
   const primaryStartedAt = now();
   try {
@@ -228,15 +234,19 @@ export async function requestPublicOrder(
       serializedBody,
       fetchImpl,
       timeoutMs,
+      options.signal,
     );
     const fallback = await infrastructureResponse(primaryResponse);
+    options.signal?.throwIfAborted();
     if (!fallback) {
       breaker.recordSuccess();
       return primaryResponse;
     }
 
     breaker.recordInfrastructureFailure();
-    if (!await availability) return primaryResponse;
+    const dualIntake = await availability;
+    options.signal?.throwIfAborted();
+    if (!dualIntake) return primaryResponse;
     logCircuitFallback(
       operation,
       operationId,
@@ -252,10 +262,14 @@ export async function requestPublicOrder(
       fetchImpl,
       timeoutMs,
       now,
+      options.signal,
     );
   } catch {
+    options.signal?.throwIfAborted();
     breaker.recordInfrastructureFailure();
-    if (!await availability) throw new Error("PUBLIC_ORDER_PRIMARY_UNAVAILABLE");
+    const dualIntake = await availability;
+    options.signal?.throwIfAborted();
+    if (!dualIntake) throw new Error("PUBLIC_ORDER_PRIMARY_UNAVAILABLE");
     logCircuitFallback(
       operation,
       operationId,
@@ -271,6 +285,7 @@ export async function requestPublicOrder(
       fetchImpl,
       timeoutMs,
       now,
+      options.signal,
     );
   }
 }
@@ -289,6 +304,7 @@ function requestCircuitA(
   serializedBody: string,
   fetchImpl: typeof fetch,
   timeoutMs: number,
+  signal?: AbortSignal,
 ) {
   return fetchImpl(publicEdgeUrl(operation), {
     method: "POST",
@@ -300,7 +316,7 @@ function requestCircuitA(
     },
     body: serializedBody,
     cache: "no-store",
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: withRequestTimeout(signal, timeoutMs),
   });
 }
 
@@ -312,6 +328,7 @@ async function requestCircuitB(
   fetchImpl: typeof fetch,
   timeoutMs: number,
   now: () => number,
+  signal?: AbortSignal,
 ) {
   const startedAt = now();
   const commonHeaders = {
@@ -328,7 +345,7 @@ async function requestCircuitB(
           "x-stallorder-device-id": String(input.deviceId ?? ""),
         },
         cache: "no-store",
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: withRequestTimeout(signal, timeoutMs),
       },
     )
     : await fetchImpl(
@@ -343,7 +360,7 @@ async function requestCircuitB(
         },
         body: serializedBody,
         cache: "no-store",
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: withRequestTimeout(signal, timeoutMs),
       },
     );
   logCircuitEvent("PUBLIC_ORDER_CIRCUIT_B_COMPLETED", {
@@ -353,6 +370,11 @@ async function requestCircuitB(
     latencyMs: Math.max(0, Math.round((now() - startedAt) * 10) / 10),
   });
   return response;
+}
+
+function withRequestTimeout(signal: AbortSignal | undefined, timeoutMs: number) {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 }
 
 async function infrastructureResponse(response: Response) {

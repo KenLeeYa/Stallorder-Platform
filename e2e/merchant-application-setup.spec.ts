@@ -141,7 +141,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     await expect(page.getByLabel("選擇商家")).toBeVisible();
     await page.getByLabel("選擇商家").selectOption(demoOrganizationId);
     await expect(page).toHaveURL(
-      new RegExp(`/merchant/stalls\\?organizationId=${demoOrganizationId}$`),
+      new RegExp(`/merchant/dashboard\\?organizationId=${demoOrganizationId}$`),
     );
     await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organizationId}`);
     await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);
@@ -212,7 +212,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     const orderCard = page.getByRole("article").filter({ hasText: createdTestOrder.orderNo });
     await orderCard.getByRole("button", { name: "查看明細", exact: true }).click();
     await expect(orderCard.getByText("開店測試訂單")).toBeVisible();
-    await orderCard.getByRole("button", { name: "待製作", exact: true }).click();
+    await orderCard.getByRole("button", { name: "確認接單", exact: true }).click();
     await orderCard.getByRole("button", { name: /全部開始製作/ }).click();
     await orderCard.getByRole("button", { name: /全部餐點完成/ }).click();
     await expect.poll(async () => (await prisma.order.findUnique({ where: { id: createdTestOrder.id } }))?.status).toBe("READY");

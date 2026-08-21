@@ -26,10 +26,17 @@ describe("locale format helpers", () => {
     } as const;
 
     expect(formatAppDate("zh-TW", value, dateOptions)).toBe(
-      new Intl.DateTimeFormat("zh-TW", dateOptions).format(value),
+      normalizeIntlWhitespace(new Intl.DateTimeFormat("zh-TW", dateOptions).format(value)),
     );
     expect(formatAppDateTime("th", value, dateTimeOptions)).toBe(
-      new Intl.DateTimeFormat("th", dateTimeOptions).format(value),
+      normalizeIntlWhitespace(new Intl.DateTimeFormat("th", dateTimeOptions).format(value)),
+    );
+    expect(formatAppDateTime("zh-TW", value, dateTimeOptions)).not.toMatch(
+      /[\u00a0\u2007\u2009\u202f]/u,
     );
   });
 });
+
+function normalizeIntlWhitespace(value: string) {
+  return value.replace(/[\u00a0\u2007\u2009\u202f]/gu, " ");
+}

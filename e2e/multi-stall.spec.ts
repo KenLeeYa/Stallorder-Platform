@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 import { gotoLocalPath } from "./local-navigation";
 
 loadLocalEnv();
@@ -16,13 +16,18 @@ const financeEmail = "finance.e2e@stallorder.test";
 const password = "StallOrderDemo!2026";
 const googleAuthUserId = "11111111-1111-4111-8111-111111111111";
 const secondStallSlug = "e2e-night-market-two";
+const authorizedOrganizationSlug = "e2e-authorized-organization-two";
+const authorizedOrganizationEmail = "authorized-two.e2e@stallorder.test";
+const authorizedStallSlug = "e2e-authorized-stall-two";
 const otherOrganizationSlug = "e2e-isolated-organization";
 const sharedProductName = "香酥雞排";
 
 let organization: { id: string; businessName: string };
 let firstStall: { id: string; name: string; slug: string };
 let secondStall: { id: string; name: string; slug: string };
-let otherStall: { id: string; slug: string };
+let authorizedOrganization: { id: string; businessName: string };
+let authorizedStall: { id: string; name: string; slug: string };
+let otherStall: { id: string; name: string; slug: string };
 let businessDate: Date;
 
 test.describe("多攤位商戶關鍵流程", () => {
@@ -46,9 +51,11 @@ test.describe("多攤位商戶關鍵流程", () => {
     await prisma.orderSession.deleteMany({ where: { organizationId: organization.id } });
     await prisma.publicRateLimitBucket.deleteMany({ where: { organizationId: organization.id } });
     await prisma.stall.deleteMany({ where: { slug: secondStallSlug } });
-    await prisma.organization.deleteMany({
+    await deleteTestOrganizations({
       where: {
         OR: [
+          { slug: authorizedOrganizationSlug },
+          { email: authorizedOrganizationEmail },
           { slug: otherOrganizationSlug },
           { email: "isolated.e2e@stallorder.test" },
         ],
@@ -137,7 +144,7 @@ test.describe("多攤位商戶關鍵流程", () => {
         address: "隔離測試地址",
         location: "隔離測試地址",
       },
-      select: { id: true, slug: true },
+      select: { id: true, name: true, slug: true },
     });
   });
 
@@ -158,7 +165,16 @@ test.describe("多攤位商戶關鍵流程", () => {
         }
         await prisma.stall.deleteMany({ where: { organizationId: currentOrganization.id, slug: secondStallSlug } });
       }
-      await prisma.organization.deleteMany({ where: { slug: otherOrganizationSlug } });
+      await deleteTestOrganizations({
+        where: {
+          OR: [
+            { slug: authorizedOrganizationSlug },
+            { email: authorizedOrganizationEmail },
+            { slug: otherOrganizationSlug },
+            { email: "isolated.e2e@stallorder.test" },
+          ],
+        },
+      });
       await prisma.profile.deleteMany({ where: { email: financeEmail } });
       await prisma.authSession.deleteMany({
         where: { profile: { email: { in: [ownerEmail, staffEmail, kitchenEmail] } } },
@@ -193,14 +209,14 @@ test.describe("多攤位商戶關鍵流程", () => {
       );
     }
     await gotoLocalPath(page, `/merchant/stalls/new?organizationId=${organization.id}`);
+    const createStallButton = page.getByRole("button", { name: "建立攤位" });
+    await waitForReactHandler(createStallButton, "onSubmit", "form");
     await page.getByLabel("攤位名稱").fill("E2E 夜市二號攤");
     await page.getByLabel("攤位代碼").fill("E2E-02");
     await page.getByLabel("公開識別名稱").fill(secondStallSlug);
     await page.getByLabel("說明").fill("多攤位自動驗收測試");
     await page.getByLabel("地址").fill("台北市測試夜市二區");
     await page.getByLabel("電話").fill("0900-000-002");
-    const createStallButton = page.getByRole("button", { name: "建立攤位" });
-    await waitForReactHandler(createStallButton, "onSubmit", "form");
     const createStallResponse = page.waitForResponse((response) => (
       new URL(response.url()).pathname === createStallApiPath
       && response.request().method() === "POST"
@@ -505,7 +521,7 @@ test.describe("多攤位商戶關鍵流程", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginWithPassword(page, ownerEmail);
     await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organization.id}`);
-    await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeHidden();
+    await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeVisible();
     await expect(page.getByLabel("應用程式狀態")).toBeVisible();
     const brand = page.getByRole("link", { name: "攤點通", exact: true });
     const appStatus = page.getByLabel("應用程式狀態");
@@ -549,7 +565,198 @@ test.describe("多攤位商戶關鍵流程", () => {
     expect(narrowDimensions.document).toBeLessThanOrEqual(narrowDimensions.viewport + 1);
     expect(narrowDimensions.body).toBeLessThanOrEqual(narrowDimensions.viewport + 1);
   });
+
+  test("手機 Header 以 server route scope 覆蓋 stale 組織 query 並拒絕跨 tenant 攤位", async ({ page }) => {
+    test.setTimeout(180_000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await createAuthorizedSecondaryWorkspace();
+    await loginWithPassword(page, ownerEmail);
+
+    const unauthorizedOrganizationId = await otherOrganizationId();
+    await page.evaluate(({ organizationId }) => {
+      window.localStorage.setItem("stallorder.organization.preference", organizationId);
+    }, { organizationId: authorizedOrganization.id });
+
+    await gotoLocalPath(
+      page,
+      `/merchant/stalls/${firstStall.id}/settings/basic?organizationId=${authorizedOrganization.id}`,
+    );
+    await expect(page).toHaveURL(new RegExp(
+      `/merchant/stalls/${firstStall.id}/settings/basic\\?organizationId=${authorizedOrganization.id}$`,
+    ));
+    await expect(page.getByRole("heading", { name: "基本資料", exact: true })).toBeVisible();
+    await expect(page.getByLabel("攤位名稱")).toHaveValue(firstStall.name);
+    await expandMerchantHeader(page);
+    await expectRenderedMerchantScope(page, {
+      organizationId: organization.id,
+      businessName: organization.businessName,
+      stall: firstStall,
+      unauthorizedOrganizationId,
+    });
+
+    await page.evaluate(({ organizationId }) => {
+      window.localStorage.setItem("stallorder.organization.preference", organizationId);
+    }, { organizationId: organization.id });
+    await gotoLocalPath(
+      page,
+      `/merchant/stalls/${authorizedStall.id}/settings/basic?organizationId=${organization.id}`,
+    );
+    await expect(page).toHaveURL(new RegExp(
+      `/merchant/stalls/${authorizedStall.id}/settings/basic\\?organizationId=${organization.id}$`,
+    ));
+    await expect(page.getByRole("heading", { name: "基本資料", exact: true })).toBeVisible();
+    await expect(page.getByLabel("攤位名稱")).toHaveValue(authorizedStall.name);
+    await expandMerchantHeader(page);
+    await expectRenderedMerchantScope(page, {
+      organizationId: authorizedOrganization.id,
+      businessName: authorizedOrganization.businessName,
+      stall: authorizedStall,
+      unauthorizedOrganizationId,
+    });
+
+    const unauthorizedResponse = await page.goto(
+      `/merchant/stalls/${otherStall.id}/settings/basic?organizationId=${authorizedOrganization.id}`,
+    );
+    expect(unauthorizedResponse?.status()).toBe(404);
+    await expect(page.getByText(otherStall.name, { exact: true })).toHaveCount(0);
+    await expect(page.locator(`option[value="${unauthorizedOrganizationId}"]`)).toHaveCount(0);
+
+    const dimensions = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }));
+    expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport + 1);
+    expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport + 1);
+  });
 });
+
+async function createAuthorizedSecondaryWorkspace() {
+  await deleteTestOrganizations({
+    where: {
+      OR: [
+        { slug: authorizedOrganizationSlug },
+        { email: authorizedOrganizationEmail },
+      ],
+    },
+  });
+  const owner = await prisma.profile.findUniqueOrThrow({
+    where: { email: ownerEmail },
+    select: { id: true },
+  });
+  authorizedOrganization = await prisma.organization.create({
+    data: {
+      name: "E2E 授權第二組織",
+      businessName: "E2E 授權第二組織",
+      slug: authorizedOrganizationSlug,
+      status: "ACTIVE",
+      email: authorizedOrganizationEmail,
+      phone: "0900-000-088",
+    },
+    select: { id: true, businessName: true },
+  });
+  const planVersion = await prisma.planVersion.findFirstOrThrow({
+    where: { plan: { code: "TRIAL" }, effectiveUntil: null },
+    select: { id: true, planId: true },
+  });
+  const billingPeriodStart = new Date();
+  billingPeriodStart.setUTCHours(0, 0, 0, 0);
+  const billingPeriodEnd = new Date(billingPeriodStart);
+  billingPeriodEnd.setUTCDate(billingPeriodEnd.getUTCDate() + 30);
+  await prisma.subscription.create({
+    data: {
+      organizationId: authorizedOrganization.id,
+      planId: planVersion.planId,
+      planVersionId: planVersion.id,
+      status: "ACTIVE",
+      billingInterval: "MONTHLY",
+      billingPeriodStart,
+      billingPeriodEnd,
+    },
+  });
+  await prisma.organizationMembership.create({
+    data: {
+      organizationId: authorizedOrganization.id,
+      profileId: owner.id,
+      role: "ORGANIZATION_OWNER",
+      allStalls: true,
+      isPrimaryOwner: true,
+    },
+  });
+  authorizedStall = await prisma.stall.create({
+    data: {
+      organizationId: authorizedOrganization.id,
+      name: "授權第二組織攤位",
+      slug: authorizedStallSlug,
+      code: "E2E-AUTH-02",
+      address: "授權第二組織測試地址",
+      location: "授權第二組織測試地址",
+    },
+    select: { id: true, name: true, slug: true },
+  });
+}
+
+async function deleteTestOrganizations(args: { where: Prisma.OrganizationWhereInput }) {
+  const organizations = await prisma.organization.findMany({
+    ...args,
+    select: { id: true },
+  });
+  const organizationIds = organizations.map(({ id }) => id);
+  if (organizationIds.length === 0) return;
+  await prisma.organizationMembership.deleteMany({
+    where: { organizationId: { in: organizationIds } },
+  });
+  await prisma.usageEvent.deleteMany({
+    where: { organizationId: { in: organizationIds } },
+  });
+  await prisma.organization.deleteMany({
+    where: { id: { in: organizationIds } },
+  });
+}
+
+async function expandMerchantHeader(page: Page) {
+  const expandButton = page.getByRole("button", { name: "展開商戶選項" });
+  await expect(expandButton).toHaveAttribute("aria-expanded", "false");
+  await expandButton.click();
+  await expect(page.getByRole("button", { name: "收合商戶選項" }))
+    .toHaveAttribute("aria-expanded", "true");
+}
+
+async function expectRenderedMerchantScope(
+  page: Page,
+  expected: {
+    organizationId: string;
+    businessName: string;
+    stall: { id: string; name: string; slug: string };
+    unauthorizedOrganizationId: string;
+  },
+) {
+  const organizationSelector = page.getByLabel("選擇商家");
+  await expect(organizationSelector).toBeVisible();
+  await expect(organizationSelector).toHaveValue(expected.organizationId);
+  await expect(organizationSelector.locator(`option[value="${expected.organizationId}"]`))
+    .toHaveText(expected.businessName);
+  await expect(organizationSelector.locator(`option[value="${expected.unauthorizedOrganizationId}"]`))
+    .toHaveCount(0);
+  await expect(page.getByRole("link", { name: "攤點通", exact: true })).toHaveAttribute(
+    "href",
+    `/merchant/dashboard?organizationId=${expected.organizationId}`,
+  );
+  await expect(page.getByLabel("切換工作模式")).toHaveValue(
+    `merchant:${expected.organizationId}`,
+  );
+
+  const stallSelector = page.getByLabel("選擇攤位");
+  if (await stallSelector.count()) {
+    await expect(stallSelector).toBeVisible();
+    await expect(stallSelector).toHaveValue(expected.stall.id);
+  } else {
+    await expect(page.getByRole("link", {
+      name: `前往攤位 ${expected.stall.name}`,
+      exact: true,
+    })).toHaveAttribute("href", `/merchant/${expected.stall.slug}`);
+  }
+}
 
 async function loginWithPassword(page: Page, email: string) {
   await gotoLocalPath(page, "/login");

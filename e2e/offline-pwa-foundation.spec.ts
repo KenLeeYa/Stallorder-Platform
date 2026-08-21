@@ -455,6 +455,19 @@ test.describe("P4 離線 PWA 基礎", () => {
         origin: "OFFLINE_POS",
         status: "READY",
       });
+      await expect.poll(async () => prisma.domainOutboxEvent.findFirst({
+        where: {
+          organizationId,
+          stallId,
+          aggregateId: importedOrders[0].id,
+          eventType: "OFFLINE_ORDER_IMPORTED",
+        },
+        select: { status: true, processedAt: true, lastErrorCode: true },
+      })).toMatchObject({
+        status: "CANCELLED",
+        processedAt: expect.any(Date),
+        lastErrorCode: "DOMAIN_OUTBOX_DORMANT_NO_CONSUMER",
+      });
 
       const duplicateResult = await staffPage.evaluate(async ({ body, slug }) => {
         const csrf = document.cookie

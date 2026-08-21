@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkspaceOrganization } from "@/lib/workspace";
-import { resolveMerchantRouteContext } from "./merchant-workspace-header";
+import { resolveWorkspaceRouteContext } from "@/lib/workspace-route-context";
 
 function workspace(
   organizationId: string,
@@ -37,48 +37,47 @@ const workspaces = [
   workspace("organization-b", "stall-b", "beta"),
 ];
 
-describe("resolveMerchantRouteContext", () => {
+describe("resolveWorkspaceRouteContext", () => {
   it.each([
     "/merchant/stalls/stall-b",
     "/merchant/stalls/stall-b/menu",
     "/merchant/stalls/stall-b/settings/ordering",
   ])("uses the stall id from an id-based merchant route: %s", (pathname) => {
-    const context = resolveMerchantRouteContext(workspaces, pathname, null);
+    const context = resolveWorkspaceRouteContext(workspaces, pathname, null);
 
-    expect(context.pathStall?.id).toBe("stall-b");
-    expect(context.routeOrganizationId).toBe("organization-b");
+    expect(context.stallId).toBe("stall-b");
+    expect(context.organizationId).toBe("organization-b");
   });
 
   it("keeps the path-derived organization ahead of a stale organization query", () => {
-    const context = resolveMerchantRouteContext(
+    const context = resolveWorkspaceRouteContext(
       workspaces,
       "/merchant/stalls/stall-b/settings",
       "organization-a",
     );
 
-    expect(context.pathStall?.id).toBe("stall-b");
-    expect(context.routeOrganizationId).toBe("organization-b");
+    expect(context.stallId).toBe("stall-b");
+    expect(context.organizationId).toBe("organization-b");
   });
 
   it("uses the organization query on an aggregate merchant route", () => {
-    const context = resolveMerchantRouteContext(
+    const context = resolveWorkspaceRouteContext(
       workspaces,
       "/merchant/stalls",
       "organization-a",
     );
 
-    expect(context.pathStall).toBeUndefined();
-    expect(context.routeOrganizationId).toBe("organization-a");
+    expect(context.stallId).toBeNull();
+    expect(context.organizationId).toBe("organization-a");
   });
 
   it.each([
     ["/merchant/beta", "stall-b"],
-    ["/staff/beta", "stall-b"],
-    ["/staff/beta/orders", "stall-b"],
+    ["/merchant/beta/reports", "stall-b"],
   ])("keeps existing slug route matching: %s", (pathname, stallId) => {
-    const context = resolveMerchantRouteContext(workspaces, pathname, null);
+    const context = resolveWorkspaceRouteContext(workspaces, pathname, null);
 
-    expect(context.pathStall?.id).toBe(stallId);
-    expect(context.routeOrganizationId).toBe("organization-b");
+    expect(context.stallId).toBe(stallId);
+    expect(context.organizationId).toBe("organization-b");
   });
 });

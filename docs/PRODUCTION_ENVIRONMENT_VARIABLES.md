@@ -14,6 +14,7 @@ Production Primary、Production DR 或舊 Staging 連線填入通用 Git Preview
 | `DIRECT_URL` | PR 專屬 Branch direct/session URL | `<PRODUCTION_DIRECT_URL>` | 是 | Prisma validate／migration-compatible connection |
 | `NEXT_PUBLIC_APP_URL` | 配對 Vercel Preview URL | `https://app.qidaigo.com` | 否 | OAuth、CSRF origin、QR links |
 | `NEXT_PUBLIC_SUPABASE_URL` | PR 專屬 Branch URL | Production Project URL | 否 | Supabase Auth/browser |
+| `NEXT_PUBLIC_SUPABASE_REALTIME_URL` | PR 專屬 Branch URL；與 Auth 相同時可省略 | Production Project URL；與 Auth 相同時可省略 | 否 | Browser Realtime；未設定時沿用 `NEXT_PUBLIC_SUPABASE_URL` |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | PR 專屬 Branch publishable key | Production active publishable key | 否 | Browser Supabase client |
 | `SUPABASE_SECRET_KEY` | 僅在配對流程需要時注入 Branch secret | Production secret key | 是 | 受信任 server 的 Storage 管理；不得進 client bundle |
 | `NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL` | `https://<PR_PREVIEW_PROJECT_REF>.supabase.co/functions/v1` | `https://<PRODUCTION_SUPABASE_PROJECT_REF>.supabase.co/functions/v1` | 否 | Public order Edge API |

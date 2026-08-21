@@ -161,7 +161,7 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   await expect(itemAggregate).toBeVisible();
   await expect(itemAggregate.getByText(/^× \d+$/)).toBeVisible();
   await page.getByRole("button", { name: "工作站", exact: true }).click();
-  await expect(page.getByLabel("工作站")).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "工作站", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "訂單", exact: true }).click();
 
   const taskResponse = page.waitForResponse((response) => (
