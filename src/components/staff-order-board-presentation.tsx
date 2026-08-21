@@ -380,8 +380,8 @@ function StaffOrderBoardToolbar({
       <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 overflow-x-hidden border-b border-stone-200 bg-white/95 px-4 pb-2 shadow-sm backdrop-blur print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
         <div className="flex h-11 min-w-0 max-w-full items-center justify-between gap-3 print:hidden sm:gap-4">
           <div className="min-w-0">
-            <p className="truncate text-xs font-medium text-teal-800">{t("staff.mobileBoard")}</p>
-            <h1 className="truncate text-sm font-semibold sm:text-base">{stall.name} · {account.displayName} · {roleLabel(role, t)}</h1>
+            <h1 className="truncate text-sm font-semibold sm:text-base">{stall.name}</h1>
+            <p className="truncate text-xs font-medium text-teal-800">{account.displayName} · {roleLabel(role, t)}</p>
           </div>
           <WorkModeSwitcher
             destinations={workModeDestinations}
@@ -566,7 +566,7 @@ function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now
         <div className="flex flex-wrap gap-2">
           {editableOrderIds.has(order.id) ? <button type="button" onClick={() => actions.onOpenOrderEditor(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Pencil className="h-4 w-4" />{t("staff.order.edit")}</button> : null}
           {waitingForPrintCompletion ? <Link href={`/staff/${stall.slug}/print`} className={`inline-flex min-h-9 items-center gap-1 rounded-md border px-3 text-xs font-semibold ${printNeedsAttention ? "border-red-300 bg-red-50 text-red-800" : "border-teal-300 bg-teal-50 text-teal-900"}`}><Printer className="h-4 w-4" />{t(printNeedsAttention ? "staff.order.printNeedsAttention" : "staff.order.waitingForPrint")}</Link> : null}
-          {streamlinedCheckoutEligible && !waitingForPrintCompletion && hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : printEnabled ? t("staff.order.printAndComplete") : t("staff.table.complete")}</button> : null}
+          {streamlinedCheckoutEligible && !waitingForPrintCompletion && hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : printEnabled ? t("staff.order.printAndComplete") : t("staff.checkout.completeOrder")}</button> : null}
           {kdsEnabled && order.status === "READY" && order.paymentStatus === "UNPAID" && hasPermission(role, "CHECKOUT_ORDERS") && (order.fulfillmentType !== "DINE_IN" || order.items.every((item) => item.status === "SERVED")) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{t("staff.order.checkoutForCustomer")}</button> : null}
         </div>
       </div>

@@ -158,6 +158,13 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).not.toContain("代結帳");
   });
 
+  it("labels a paid non-KDS takeout action as completing the order", () => {
+    const html = render([order({ paymentStatus: "PAID" })], { print: false, kds: false });
+
+    expect(html).toContain("完成訂單");
+    expect(html).not.toContain("完成此桌");
+  });
+
   it("labels the pending-order transition as an acceptance action", () => {
     const html = render([order({ status: "WAITING_CONFIRMATION" })]);
 
