@@ -265,6 +265,40 @@ describe("Production workflow approval contract", () => {
     expect(ephemeralPreview).toContain("run: npm run production:smoke");
   });
 
+  it("attaches matching Preview to the PR branch before loading Azure secrets", () => {
+    const deployPreview = ephemeralPreview.slice(
+      ephemeralPreview.indexOf("name: Deploy matching Vercel Preview"),
+      ephemeralPreview.indexOf("name: Run matching Preview read-only smoke"),
+    );
+
+    expect(ephemeralPreview).toContain(
+      "PREVIEW_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}",
+    );
+    expect(deployPreview).toContain(
+      'git switch -C "$PREVIEW_GIT_BRANCH" "$preview_head"',
+    );
+    expect(deployPreview).toContain(
+      "Vercel did not attach the matching Preview to the requested Git branch.",
+    );
+    for (const name of [
+      "AI_TRANSLATION_PROVIDER",
+      "AZURE_TRANSLATOR_KEY",
+      "AZURE_TRANSLATOR_REGION",
+      "CATALOG_TRANSLATION_ENABLED",
+    ]) {
+      expect(deployPreview).toContain(name);
+    }
+    expect(deployPreview).not.toContain(
+      '--env "AI_TRANSLATION_PROVIDER=$AI_TRANSLATION_PROVIDER"',
+    );
+    expect(deployPreview).not.toContain(
+      '--build-env "AI_TRANSLATION_PROVIDER=$AI_TRANSLATION_PROVIDER"',
+    );
+    expect(ephemeralPreview).not.toContain(
+      "AI_TRANSLATION_PROVIDER: vercel-ai-gateway",
+    );
+  });
+
   it("deletes every metadata-matched Preview URL and verifies cleanup", () => {
     const cleanupStart = ephemeralPreview.indexOf(
       "name: Remove closed Pull Request Vercel Previews",
