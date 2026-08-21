@@ -2336,6 +2336,7 @@ model PrintJob {
   printedAt      DateTime?      @map("printed_at")
   offlinePrintJobId String?     @unique @map("offline_print_job_id") @db.Uuid
   templateVersion String?       @map("template_version")
+  payload        Json?
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
