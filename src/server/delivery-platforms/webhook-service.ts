@@ -6,6 +6,7 @@ import { logEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { entitlementService } from "@/server/billing/entitlement-service";
 import { serializeNormalizedExternalOrder } from "./delivery-order-contract";
+import { readBoundedText } from "./bounded-text-reader";
 import { assertDeliveryProviderEnabled } from "./delivery-feature-flags";
 import { getDeliveryPlatformAdapter } from "./delivery-platform-registry";
 import {
@@ -36,13 +37,9 @@ export async function processDeliveryWebhook(input: {
   circuit: DeliveryCircuitSource;
 }): Promise<DeliveryWebhookResult> {
   const contentType = input.request.headers.get("content-type")?.split(";", 1)[0].toLowerCase();
-  const contentLength = Number(input.request.headers.get("content-length") ?? 0);
   if (
     input.request.method !== "POST"
     || contentType !== "application/json"
-    || !Number.isFinite(contentLength)
-    || contentLength < 0
-    || contentLength > MAX_WEBHOOK_BYTES
   ) {
     throw new DeliveryPlatformError("INVALID_WEBHOOK", { retryable: false });
   }
@@ -71,8 +68,13 @@ export async function processDeliveryWebhook(input: {
     "DELIVERY_ORDER_IMPORT",
   );
 
-  const rawBody = await input.request.text();
-  if (rawBody.length === 0 || Buffer.byteLength(rawBody, "utf8") > MAX_WEBHOOK_BYTES) {
+  let rawBody: string;
+  try {
+    rawBody = await readBoundedText(input.request, MAX_WEBHOOK_BYTES);
+  } catch {
+    throw new DeliveryPlatformError("INVALID_WEBHOOK", { retryable: false });
+  }
+  if (rawBody.length === 0) {
     throw new DeliveryPlatformError("INVALID_WEBHOOK", { retryable: false });
   }
   const payloadHash = sha256(rawBody);
@@ -89,6 +91,7 @@ export async function processDeliveryWebhook(input: {
       organizationId: connection.organizationId,
       stallId: connection.stallId,
       provider: input.provider,
+      externalChainId: connection.externalChainId,
       externalStoreId: connection.externalStoreId,
       credentialReference: connection.credentialReference,
     });
@@ -147,25 +150,58 @@ export async function processDeliveryWebhook(input: {
           replayKey: verified.replayKey,
           payloadHash: verified.payloadHash,
           receivedViaCircuit: input.circuit,
-          processingStatus: verified.order ? "VERIFIED" : "PROCESSED",
-          processedAt: verified.order ? null : new Date(),
+          processingStatus: verified.order || verified.orderReference ? "VERIFIED" : "PROCESSED",
+          processedAt: verified.order || verified.orderReference ? null : new Date(),
         },
       });
-      if (!verified.order) {
+      if (!verified.order && !verified.orderReference) {
         return { eventId: event.id, jobId: null };
       }
+      const referencedStoreId = verified.order?.externalStoreId
+        ?? verified.orderReference?.externalStoreId;
       if (
-        verified.order.externalStoreId !== connection.externalStoreId
-        || verified.order.provider !== input.provider
+        referencedStoreId !== connection.externalStoreId
+        || (verified.order && verified.order.provider !== input.provider)
       ) {
         throw new DeliveryPlatformError("STORE_NOT_FOUND", { retryable: false });
       }
 
+      if (verified.orderReference) {
+        const job = await enqueueDeliverySyncJob({
+          organizationId: connection.organizationId,
+          stallId: connection.stallId,
+          connectionId: connection.id,
+          provider: input.provider,
+          jobType: "ORDER_FETCH",
+          deduplicationKey: `order-fetch:${connection.id}:${verified.orderReference.externalOrderId}`,
+          requestedViaCircuit: input.circuit,
+          inputJson: {
+            externalOrderId: verified.orderReference.externalOrderId,
+            webhookEventId: event.id,
+            payloadHash: verified.payloadHash,
+          },
+          priority: 0,
+        }, transaction);
+        await createWebhookAcceptedAudit(transaction, {
+          eventId: event.id,
+          organizationId: connection.organizationId,
+          stallId: connection.stallId,
+          provider: input.provider,
+          circuit: input.circuit,
+          processingStatus: event.processingStatus,
+        });
+        return { eventId: event.id, jobId: job.id };
+      }
+
+      const order = verified.order;
+      if (!order) throw new DeliveryPlatformError("INVALID_WEBHOOK", { retryable: false });
+
       const existingOrder = await transaction.externalOrder.findUnique({
         where: {
-          provider_externalOrderId: {
+          connectionId_provider_externalOrderId: {
+            connectionId: connection.id,
             provider: input.provider,
-            externalOrderId: verified.order.externalOrderId,
+            externalOrderId: order.externalOrderId,
           },
         },
       });
@@ -185,23 +221,23 @@ export async function processDeliveryWebhook(input: {
           stallId: connection.stallId,
           connectionId: connection.id,
           provider: input.provider,
-          externalOrderId: verified.order.externalOrderId,
-          externalOrderNumber: verified.order.externalOrderNumber,
-          externalStoreId: verified.order.externalStoreId,
+          externalOrderId: order.externalOrderId,
+          externalOrderNumber: order.externalOrderNumber,
+          externalStoreId: order.externalStoreId,
           externalStatus: verified.eventType,
           processingStatus: "READY_FOR_IMPORT",
-          currency: verified.order.currency,
-          externalSubtotalAmount: verified.order.pricing.subtotal,
+          currency: order.currency,
+          externalSubtotalAmount: order.pricing.subtotal,
           externalDiscountAmount:
-            verified.order.pricing.platformDiscount + verified.order.pricing.merchantDiscount,
-          merchantDiscountAmount: verified.order.pricing.merchantDiscount,
-          platformDiscountAmount: verified.order.pricing.platformDiscount,
-          externalDeliveryFeeAmount: verified.order.pricing.deliveryFee,
-          externalServiceFeeAmount: verified.order.pricing.serviceFee,
-          externalTaxAmount: verified.order.pricing.tax,
-          externalTotalAmount: verified.order.pricing.total,
-          merchantReceivableAmount: verified.order.pricing.merchantReceivable,
-          scheduledPickupAt: verified.order.scheduledPickupAt,
+            order.pricing.platformDiscount + order.pricing.merchantDiscount,
+          merchantDiscountAmount: order.pricing.merchantDiscount,
+          platformDiscountAmount: order.pricing.platformDiscount,
+          externalDeliveryFeeAmount: order.pricing.deliveryFee,
+          externalServiceFeeAmount: order.pricing.serviceFee,
+          externalTaxAmount: order.pricing.tax,
+          externalTotalAmount: order.pricing.total,
+          merchantReceivableAmount: order.pricing.merchantReceivable,
+          scheduledPickupAt: order.scheduledPickupAt,
           payloadHash: verified.payloadHash,
           receivedViaCircuit: input.circuit,
         },
@@ -219,30 +255,22 @@ export async function processDeliveryWebhook(input: {
         connectionId: connection.id,
         provider: input.provider,
         jobType: "ORDER_IMPORT",
-        deduplicationKey: `order-import:${input.provider}:${verified.order.externalOrderId}`,
+        deduplicationKey: `order-import:${connection.id}:${order.externalOrderId}`,
         requestedViaCircuit: input.circuit,
         inputJson: {
           externalOrderLedgerId: externalOrder.id,
           webhookEventId: event.id,
-          order: serializeNormalizedExternalOrder(verified.order),
+          order: serializeNormalizedExternalOrder(order),
         },
         priority: 10,
       }, transaction);
-      await transaction.auditLog.create({
-        data: {
-          organizationId: connection.organizationId,
-          stallId: connection.stallId,
-          action: "DELIVERY_WEBHOOK_ACCEPTED",
-          entityType: "DELIVERY_WEBHOOK_EVENT",
-          entityId: event.id,
-          outcome: "SUCCESS",
-          requestId: `delivery-webhook:${event.id}`,
-          afterJson: {
-            provider: input.provider,
-            circuit: input.circuit,
-            processingStatus: event.processingStatus,
-          },
-        },
+      await createWebhookAcceptedAudit(transaction, {
+        eventId: event.id,
+        organizationId: connection.organizationId,
+        stallId: connection.stallId,
+        provider: input.provider,
+        circuit: input.circuit,
+        processingStatus: event.processingStatus,
       });
       return { eventId: event.id, jobId: job.id };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -265,7 +293,8 @@ export async function processDeliveryWebhook(input: {
     ) {
       const duplicate = await prisma.deliveryWebhookEvent.findUnique({
         where: {
-          provider_replayKey: {
+          connectionId_provider_replayKey: {
+            connectionId: connection.id,
             provider: input.provider,
             replayKey: verified.replayKey,
           },
@@ -303,6 +332,35 @@ export async function processDeliveryWebhook(input: {
     });
     throw error;
   }
+}
+
+async function createWebhookAcceptedAudit(
+  transaction: Prisma.TransactionClient,
+  input: {
+    eventId: string;
+    organizationId: string;
+    stallId: string;
+    provider: DeliveryProvider;
+    circuit: DeliveryCircuitSource;
+    processingStatus: string;
+  },
+) {
+  await transaction.auditLog.create({
+    data: {
+      organizationId: input.organizationId,
+      stallId: input.stallId,
+      action: "DELIVERY_WEBHOOK_ACCEPTED",
+      entityType: "DELIVERY_WEBHOOK_EVENT",
+      entityId: input.eventId,
+      outcome: "SUCCESS",
+      requestId: `delivery-webhook:${input.eventId}`,
+      afterJson: {
+        provider: input.provider,
+        circuit: input.circuit,
+        processingStatus: input.processingStatus,
+      },
+    },
+  });
 }
 
 async function recordRejectedWebhook(input: {

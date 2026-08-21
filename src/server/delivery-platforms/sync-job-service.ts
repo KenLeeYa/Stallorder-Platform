@@ -15,7 +15,10 @@ import type {
   DeliveryCircuitSource,
   DeliveryProvider,
 } from "./delivery-platform-types";
-import { parseDeliveryOrderJobInput } from "./delivery-order-contract";
+import {
+  parseDeliveryOrderJobInput,
+  serializeNormalizedExternalOrder,
+} from "./delivery-order-contract";
 import { assertDeliveryWriter } from "./writer-guard";
 
 export const deliveryJobTypes = [
@@ -25,6 +28,7 @@ export const deliveryJobTypes = [
   "MENU_FULL_SYNC",
   "MENU_INCREMENTAL_SYNC",
   "AVAILABILITY_SYNC",
+  "ORDER_FETCH",
   "ORDER_IMPORT",
   "ORDER_ACCEPT",
   "ORDER_REJECT",
@@ -71,7 +75,8 @@ export async function enqueueDeliverySyncJob(input: {
     }
     const existing = await database.deliverySyncJob.findUnique({
       where: {
-        provider_deduplicationKey: {
+        connectionId_provider_deduplicationKey: {
+          connectionId: input.connectionId,
           provider: input.provider,
           deduplicationKey: input.deduplicationKey,
         },
@@ -243,6 +248,8 @@ async function processClaimedDeliverySyncJob(job: DeliverySyncJob, now: Date) {
           jobId: job.id,
           circuit: job.requestedViaCircuit as DeliveryCircuitSource,
         })
+      : job.jobType === "ORDER_FETCH"
+        ? await fetchAndStageExternalOrder(job, provider, connection)
       : await executeProviderJob(job, provider, connection);
 
     await prisma.$transaction(async (transaction) => {
@@ -283,8 +290,8 @@ async function assertJobFeatureAccess(
   job: DeliverySyncJob,
   state: Awaited<ReturnType<typeof assertDeliveryProviderEnabled>>,
 ) {
-  if (job.jobType === "ORDER_IMPORT") {
-    if (!state.importOrders || !state.webhook) {
+  if (job.jobType === "ORDER_FETCH" || job.jobType === "ORDER_IMPORT") {
+    if (!state.importOrders || !state.webhook || !state.orders) {
       throw new DeliveryPlatformError("PROVIDER_DISABLED", { retryable: false });
     }
     await entitlementService.assertFeatureEnabled(job.organizationId, "DELIVERY_ORDER_IMPORT");
@@ -305,6 +312,168 @@ async function assertJobFeatureAccess(
   }
 }
 
+async function fetchAndStageExternalOrder(
+  job: DeliverySyncJob,
+  provider: DeliveryProvider,
+  connection: {
+    id: string;
+    organizationId: string;
+    stallId: string;
+    externalChainId: string | null;
+    externalStoreId: string | null;
+    credentialReference: string | null;
+  },
+) {
+  const input = parseOrderFetchInput(job.inputJson);
+  const adapter = getDeliveryPlatformAdapter(provider);
+  const order = await adapter.fetchOrderDetails({
+    connection: { ...connection, provider },
+    externalOrderId: input.externalOrderId,
+  });
+  if (
+    order.provider !== provider
+    || order.externalOrderId !== input.externalOrderId
+    || !connection.externalStoreId
+    || order.externalStoreId !== connection.externalStoreId
+  ) {
+    throw new DeliveryPlatformError("STORE_NOT_FOUND", { retryable: false });
+  }
+  return prisma.$transaction(async (transaction) => {
+    await assertDeliveryWriter(transaction);
+    const event = await transaction.deliveryWebhookEvent.findFirst({
+      where: {
+        id: input.webhookEventId,
+        connectionId: connection.id,
+        organizationId: connection.organizationId,
+        stallId: connection.stallId,
+        provider,
+        signatureValid: true,
+      },
+    });
+    if (!event || event.payloadHash !== input.payloadHash) {
+      throw new DeliveryPlatformError("INVALID_WEBHOOK", { retryable: false });
+    }
+    const existing = await transaction.externalOrder.findUnique({
+      where: {
+        connectionId_provider_externalOrderId: {
+          connectionId: connection.id,
+          provider,
+          externalOrderId: order.externalOrderId,
+        },
+      },
+    });
+    const ledgerData = externalOrderLedgerData(order, event.eventType, input.payloadHash, job);
+    const externalOrder = existing
+      ? await transaction.externalOrder.update({
+          where: { id: existing.id },
+          data: existing.internalOrderId ? {} : ledgerData,
+        })
+      : await transaction.externalOrder.create({
+          data: {
+            organizationId: connection.organizationId,
+            stallId: connection.stallId,
+            connectionId: connection.id,
+            provider,
+            externalOrderId: order.externalOrderId,
+            ...ledgerData,
+          },
+        });
+    if (externalOrder.internalOrderId) {
+      await transaction.deliveryWebhookEvent.update({
+        where: { id: event.id },
+        data: { processingStatus: "PROCESSED", processedAt: new Date() },
+      });
+      return {
+        externalOrderLedgerId: externalOrder.id,
+        importJobId: null,
+        idempotent: true,
+      };
+    }
+    const importJob = await enqueueDeliverySyncJob({
+      organizationId: connection.organizationId,
+      stallId: connection.stallId,
+      connectionId: connection.id,
+      provider,
+      jobType: "ORDER_IMPORT",
+      deduplicationKey: `order-import:${connection.id}:${order.externalOrderId}`,
+      requestedViaCircuit: job.requestedViaCircuit as DeliveryCircuitSource,
+      inputJson: {
+        externalOrderLedgerId: externalOrder.id,
+        webhookEventId: event.id,
+        order: serializeNormalizedExternalOrder(order),
+      },
+      priority: 1,
+    }, transaction);
+    await transaction.deliveryWebhookEvent.update({
+      where: { id: event.id },
+      data: { processingStatus: "PROCESSING" },
+    });
+    return {
+      externalOrderLedgerId: externalOrder.id,
+      importJobId: importJob.id,
+      idempotent: Boolean(existing),
+    };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+function externalOrderLedgerData(
+  order: Awaited<ReturnType<ReturnType<typeof getDeliveryPlatformAdapter>["fetchOrderDetails"]>>,
+  eventType: string,
+  payloadHash: string,
+  job: DeliverySyncJob,
+) {
+  return {
+    externalOrderNumber: order.externalOrderNumber,
+    externalStoreId: order.externalStoreId,
+    externalStatus: providerStatus(order, eventType),
+    processingStatus: "READY_FOR_IMPORT",
+    currency: order.currency,
+    externalSubtotalAmount: order.pricing.subtotal,
+    externalDiscountAmount: order.pricing.platformDiscount + order.pricing.merchantDiscount,
+    merchantDiscountAmount: order.pricing.merchantDiscount,
+    platformDiscountAmount: order.pricing.platformDiscount,
+    externalDeliveryFeeAmount: order.pricing.deliveryFee,
+    externalServiceFeeAmount: order.pricing.serviceFee,
+    externalTaxAmount: order.pricing.tax,
+    externalTotalAmount: order.pricing.total,
+    merchantReceivableAmount: order.pricing.merchantReceivable,
+    scheduledPickupAt: order.scheduledPickupAt,
+    payloadHash,
+    receivedViaCircuit: job.requestedViaCircuit,
+  };
+}
+
+function providerStatus(
+  order: Awaited<ReturnType<ReturnType<typeof getDeliveryPlatformAdapter>["fetchOrderDetails"]>>,
+  fallback: string,
+) {
+  const value = order.providerMetadata.currentState ?? order.providerMetadata.status;
+  return typeof value === "string" && value.length > 0 && value.length <= 120
+    ? value
+    : fallback;
+}
+
+function parseOrderFetchInput(value: Prisma.JsonValue) {
+  if (!value || Array.isArray(value) || typeof value !== "object") {
+    throw new DeliveryPlatformError("UNSUPPORTED_MAPPING", { retryable: false });
+  }
+  const externalOrderId = value.externalOrderId;
+  const webhookEventId = value.webhookEventId;
+  const payloadHash = value.payloadHash;
+  if (
+    typeof externalOrderId !== "string"
+    || externalOrderId.length < 1
+    || externalOrderId.length > 200
+    || typeof webhookEventId !== "string"
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(webhookEventId)
+    || typeof payloadHash !== "string"
+    || !/^[a-f0-9]{64}$/.test(payloadHash)
+  ) {
+    throw new DeliveryPlatformError("UNSUPPORTED_MAPPING", { retryable: false });
+  }
+  return { externalOrderId, webhookEventId, payloadHash };
+}
+
 async function executeProviderJob(
   job: DeliverySyncJob,
   provider: DeliveryProvider,
@@ -312,6 +481,7 @@ async function executeProviderJob(
     id: string;
     organizationId: string;
     stallId: string;
+    externalChainId: string | null;
     externalStoreId: string | null;
     credentialReference: string | null;
   },

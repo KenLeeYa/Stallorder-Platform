@@ -3155,7 +3155,7 @@ model ExternalOrder {
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
 
-  @@unique([provider, externalOrderId])
+  @@unique([connectionId, provider, externalOrderId])
   @@index([stallId, processingStatus, receivedAt(sort: Desc)])
   @@index([connectionId, receivedAt(sort: Desc)])
   @@map("external_orders")
@@ -3184,7 +3184,7 @@ model DeliveryWebhookEvent {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  @@unique([provider, replayKey])
+  @@unique([connectionId, provider, replayKey])
   @@index([processingStatus, nextAttemptAt, receivedAt])
   @@index([connectionId, receivedAt(sort: Desc)])
   @@map("delivery_webhook_events")
@@ -3215,7 +3215,7 @@ model DeliverySyncJob {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  @@unique([provider, deduplicationKey])
+  @@unique([connectionId, provider, deduplicationKey])
   @@index([status, scheduledAt, priority, createdAt])
   @@index([connectionId, createdAt(sort: Desc)])
   @@map("delivery_sync_jobs")

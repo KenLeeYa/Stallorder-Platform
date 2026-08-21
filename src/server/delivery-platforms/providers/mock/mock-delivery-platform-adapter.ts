@@ -199,6 +199,7 @@ export class MockDeliveryPlatformAdapter implements DeliveryPlatformAdapter {
       payloadHash,
       signatureValid: true as const,
       order: normalizeFixtureOrder(parsed.data.order),
+      orderReference: null,
     };
   }
 

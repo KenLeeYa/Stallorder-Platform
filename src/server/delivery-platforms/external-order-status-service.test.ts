@@ -21,6 +21,7 @@ vi.mock("./delivery-platform-registry", () => ({
   getDeliveryPlatformAdapter: () => ({
     acceptOrder,
     rejectOrder: vi.fn(),
+    getConnectionCapabilities: () => ["ORDER_READY"],
   }),
 }));
 vi.mock("./sync-job-service", () => ({ enqueueDeliverySyncJob }));
@@ -37,6 +38,7 @@ const connection = {
   id: externalOrder.connectionId,
   organizationId: externalOrder.organizationId,
   stallId: externalOrder.stallId,
+  externalChainId: null,
   externalStoreId: "mock-store-001",
   credentialReference: null,
 };
@@ -85,7 +87,9 @@ describe("external order transition acknowledgement", () => {
     );
     expect(acceptOrder).toHaveBeenCalledWith(expect.objectContaining({
       externalOrderId: externalOrder.externalOrderId,
-      idempotencyKey: "stallorder:MOCK:external-order-001:CONFIRMED",
+      idempotencyKey: expect.stringMatching(
+        /^stallorder:MOCK:44444444-4444-4444-8444-444444444444:[a-f0-9]{64}:CONFIRMED$/,
+      ),
     }));
   });
 
@@ -112,7 +116,9 @@ describe("external order transition acknowledgement", () => {
     }));
     expect(enqueueDeliverySyncJob).toHaveBeenCalledWith(expect.objectContaining({
       jobType: "ORDER_READY",
-      deduplicationKey: "order-action:MOCK:external-order-001:READY",
+      deduplicationKey: expect.stringMatching(
+        /^order-action:MOCK:44444444-4444-4444-8444-444444444444:[a-f0-9]{64}:READY$/,
+      ),
     }), transaction);
   });
 });
