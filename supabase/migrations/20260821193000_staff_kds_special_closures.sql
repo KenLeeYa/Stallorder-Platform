@@ -1,14 +1,11 @@
 alter table public.stall_ordering_settings
-  add column if not exists kds_module_enabled boolean;
+  add column if not exists kds_module_enabled boolean not null default true;
 
--- Existing stores keep their current production workflow. New stores opt in to KDS.
-update public.stall_ordering_settings
-set kds_module_enabled = true
-where kds_module_enabled is null;
-
+-- Existing rows retain KDS through the add-column default. Application-created
+-- settings always provide false explicitly, and this default covers legacy
+-- insert paths without rewriting standby data.
 alter table public.stall_ordering_settings
-  alter column kds_module_enabled set default false,
-  alter column kds_module_enabled set not null;
+  alter column kds_module_enabled set default false;
 
 -- A disabled KDS must not create hidden production work. Existing tasks still
 -- follow the cancellation path below, so turning the module off never leaves
@@ -83,7 +80,7 @@ begin
 end;
 $$;
 
-create table if not exists public.stall_special_closures (
+create table public.stall_special_closures (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   stall_id uuid not null references public.stalls(id) on delete cascade,
@@ -106,12 +103,20 @@ create index if not exists stall_special_closures_stall_end_idx
 alter table public.stall_special_closures enable row level security;
 alter table public.stall_special_closures force row level security;
 revoke all on table public.stall_special_closures from public, anon, authenticated;
-grant select on table public.stall_special_closures to authenticated;
+create policy stall_special_closures_authorized_select on public.stall_special_closures
+for select to authenticated using (app_private.has_stall_role(
+  stall_id,
+  array['STALL_MANAGER'::public.user_role]
+));
+grant select (
+  id, organization_id, stall_id, starts_on, ends_on, title, message,
+  created_at, updated_at
+) on table public.stall_special_closures to authenticated;
 grant select, insert, update, delete on table public.stall_special_closures to service_role;
 
-drop policy if exists stall_special_closures_authorized_select on public.stall_special_closures;
-create policy stall_special_closures_authorized_select on public.stall_special_closures
-for select to authenticated using (app_private.can_manage_stall(stall_id));
+create trigger backend_writable_guard
+before insert or update or delete on public.stall_special_closures
+for each statement execute function app_private.enforce_backend_writable();
 
 -- KDS orders still print on confirmation. Streamlined staff orders print at checkout.
 create or replace function public.queue_confirmed_order_print_job()
@@ -158,14 +163,9 @@ $$;
 revoke all on function public.queue_confirmed_order_print_job() from public, anon, authenticated;
 grant execute on function public.queue_confirmed_order_print_job() to service_role;
 
--- Keep the canonical preflight as the single trusted gate, then add the local-date
--- closure rule around it for both session issuance and final order submission.
-alter function public.public_order_preflight(
-  text, text, text, text, text, text, text, text, text, uuid, text,
-  timestamptz, uuid, jsonb, boolean, text
-) rename to public_order_preflight_without_special_closure;
-
-create function public.public_order_preflight(
+-- Keep the canonical preflight unchanged and expose a versioned wrapper for
+-- session issuance and final order submission with the local-date closure rule.
+create function public.public_order_preflight_with_special_closure(
   p_scope text,
   p_qr_token text,
   p_ordering_mode text,
@@ -194,7 +194,7 @@ declare
   v_timezone text;
   v_target_date date;
 begin
-  v_result := public.public_order_preflight_without_special_closure(
+  v_result := public.public_order_preflight(
     p_scope,
     p_qr_token,
     p_ordering_mode,
@@ -265,16 +265,16 @@ begin
 end;
 $$;
 
-revoke all on function public.public_order_preflight(
+revoke all on function public.public_order_preflight_with_special_closure(
   text, text, text, text, text, text, text, text, text, uuid, text,
   timestamptz, uuid, jsonb, boolean, text
 ) from public, anon, authenticated;
-grant execute on function public.public_order_preflight(
+grant execute on function public.public_order_preflight_with_special_closure(
   text, text, text, text, text, text, text, text, text, uuid, text,
   timestamptz, uuid, jsonb, boolean, text
 ) to service_role;
 
-comment on function public.public_order_preflight(
+comment on function public.public_order_preflight_with_special_closure(
   text, text, text, text, text, text, text, text, text, uuid, text,
   timestamptz, uuid, jsonb, boolean, text
 ) is
