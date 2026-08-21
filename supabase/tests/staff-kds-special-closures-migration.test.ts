@@ -16,6 +16,13 @@ const reconciliationSource = readFileSync(
   )),
   "utf8",
 );
+const writeGuardReconciliationSource = readFileSync(
+  fileURLToPath(new URL(
+    "../migrations/20260821201000_reconcile_special_closure_write_guard.sql",
+    import.meta.url,
+  )),
+  "utf8",
+);
 
 describe("staff KDS and special-closure migration", () => {
   it("keeps existing stores on KDS without re-enabling an intentional opt-out", () => {
@@ -52,6 +59,19 @@ describe("staff KDS and special-closure migration", () => {
     expect(reconciliationSource).toContain("v_result := public.public_order_preflight(");
     expect(reconciliationSource).not.toContain("alter function public.public_order_preflight(");
     expect(reconciliationSource).not.toContain("drop function");
+  });
+
+  it("adds the missing backend guard in a later migration version", () => {
+    expect(writeGuardReconciliationSource).toContain(
+      "from pg_catalog.pg_trigger existing_trigger",
+    );
+    expect(writeGuardReconciliationSource).toContain(
+      "existing_trigger.tgrelid = 'public.stall_special_closures'::regclass",
+    );
+    expect(writeGuardReconciliationSource).toContain("create trigger backend_writable_guard");
+    expect(writeGuardReconciliationSource).toContain(
+      "execute function app_private.enforce_backend_writable()",
+    );
   });
 
   it("queues confirmation-time printing only for KDS-enabled stores", () => {
