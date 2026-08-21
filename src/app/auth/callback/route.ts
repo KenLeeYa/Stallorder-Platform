@@ -9,6 +9,7 @@ import {
   createRequestId,
   hashClientIp,
   hashClientUserAgent,
+  resolveAppOrigin,
   resolveSessionDeviceId,
   sanitizeRedirectPath,
 } from "@/lib/security";
@@ -45,9 +46,7 @@ export async function GET(request: Request) {
   const timing = createPerformanceTiming({ route: "/auth/callback", requestId });
   const finalize = <T extends Response>(response: T) => finalizePerformanceResponse(response, timing);
   const requestUrl = new URL(request.url);
-  const appOrigin = process.env.NEXT_PUBLIC_APP_URL
-    ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin
-    : requestUrl.origin;
+  const appOrigin = resolveAppOrigin(requestUrl);
   const code = requestUrl.searchParams.get("code");
   const requestedNext = sanitizeRedirectPath(requestUrl.searchParams.get("next"), "");
   if (!code) return finalize(NextResponse.redirect(`${appOrigin}/login?oauthError=callback-failed`));

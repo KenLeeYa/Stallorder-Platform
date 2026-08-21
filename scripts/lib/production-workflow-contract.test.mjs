@@ -250,19 +250,63 @@ describe("Production workflow approval contract", () => {
     const readOnlySmoke = ephemeralPreview.indexOf(
       "name: Run matching Preview read-only smoke",
     );
+    const catalogTranslationSmoke = ephemeralPreview.indexOf(
+      "name: Run isolated catalog translation glossary smoke",
+    );
     const syntheticSmoke = ephemeralPreview.indexOf(
       "name: Run synthetic OAuth and delivery smoke tests",
     );
 
     expect(deployPreview).toBeGreaterThan(-1);
     expect(deployPreview).toBeLessThan(readOnlySmoke);
-    expect(readOnlySmoke).toBeLessThan(syntheticSmoke);
+    expect(readOnlySmoke).toBeLessThan(catalogTranslationSmoke);
+    expect(catalogTranslationSmoke).toBeLessThan(syntheticSmoke);
     expect(ephemeralPreview).toContain(
       "PRODUCTION_BASE_URL: ${{ steps.vercel-preview.outputs.url }}",
     );
     expect(ephemeralPreview).toContain('SMOKE_SKIP_DOMAIN_REDIRECTS: "true"');
     expect(ephemeralPreview).toContain('PRODUCTION_TEST_QR_REQUIRED: "false"');
     expect(ephemeralPreview).toContain("run: npm run production:smoke");
+    expect(ephemeralPreview).toContain(
+      "CATALOG_TRANSLATION_SYNTHETIC_CONFIRMATION: EPHEMERAL_PREVIEW_ONLY",
+    );
+    expect(ephemeralPreview).toContain(
+      "run: npm run preview:catalog-translation-smoke",
+    );
+  });
+
+  it("attaches matching Preview to the PR branch before loading Azure secrets", () => {
+    const deployPreview = ephemeralPreview.slice(
+      ephemeralPreview.indexOf("name: Deploy matching Vercel Preview"),
+      ephemeralPreview.indexOf("name: Run matching Preview read-only smoke"),
+    );
+
+    expect(ephemeralPreview).toContain(
+      "PREVIEW_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}",
+    );
+    expect(deployPreview).toContain(
+      'git switch -C "$PREVIEW_GIT_BRANCH" "$preview_head"',
+    );
+    expect(deployPreview).toContain(
+      "Vercel did not attach the matching Preview to the requested Git branch.",
+    );
+    for (const name of [
+      "AI_TRANSLATION_PROVIDER",
+      "AZURE_TRANSLATOR_KEY",
+      "AZURE_TRANSLATOR_REGION",
+      "CATALOG_TRANSLATION_ENABLED",
+    ]) {
+      expect(deployPreview).toContain(name);
+    }
+    expect(deployPreview).not.toContain(
+      '--env "AI_TRANSLATION_PROVIDER=$AI_TRANSLATION_PROVIDER"',
+    );
+    expect(deployPreview).not.toContain(
+      '--build-env "AI_TRANSLATION_PROVIDER=$AI_TRANSLATION_PROVIDER"',
+    );
+    expect(ephemeralPreview).not.toContain(
+      "AI_TRANSLATION_PROVIDER: vercel-ai-gateway",
+    );
   });
 
   it("deletes every metadata-matched Preview URL and verifies cleanup", () => {

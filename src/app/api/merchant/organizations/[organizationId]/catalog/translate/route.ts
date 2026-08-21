@@ -27,9 +27,10 @@ import {
 import {
   CatalogTranslationConfigurationError,
   CatalogTranslationProviderError,
-  isCatalogAiTranslationConfigured,
-  OpenAiCatalogTranslationProvider,
-} from "@/server/localization/openai-catalog-translation-provider";
+  createCatalogTranslationProvider,
+  isCatalogTranslationConfigured,
+  resolveCatalogTranslationRequestCredential,
+} from "@/server/localization/catalog-translation-provider";
 
 export const maxDuration = 300;
 
@@ -120,7 +121,8 @@ export async function POST(request: Request, context: RouteContext) {
   const stallIds = authorization.workspace.stalls.map((stall) => stall.id);
   try {
     await entitlementService.assertSubscriptionUsable(organizationId);
-    if (!isCatalogAiTranslationConfigured()) {
+    const aiRequestCredential = await resolveCatalogTranslationRequestCredential();
+    if (!isCatalogTranslationConfigured(aiRequestCredential)) {
       throw new CatalogTranslationConfigurationError("AI 翻譯設定不完整。");
     }
     const enabledLocales = await getOrganizationEnabledLocales(organizationId, stallIds);
@@ -128,7 +130,7 @@ export async function POST(request: Request, context: RouteContext) {
     const summary = await translateMissingCatalogContent({
       organizationId,
       locales: translationLocales,
-      provider: new OpenAiCatalogTranslationProvider(),
+      provider: createCatalogTranslationProvider(aiRequestCredential),
     });
     invalidatePublicMenus(stallIds);
     await recordAuditEvent({
@@ -164,11 +166,15 @@ export async function POST(request: Request, context: RouteContext) {
     if (entitlementResponse) return entitlementResponse;
 
     const known = translationErrorResponse(error);
+    const upstreamFailure = error instanceof CatalogTranslationProviderError
+      ? error.upstreamFailure
+      : undefined;
     logEvent(known.status >= 500 ? "error" : "warn", "CATALOG_AI_TRANSLATION_FAILED", {
       requestId,
       organizationId,
       actorProfileId,
       errorCode: known.code,
+      ...(upstreamFailure ? { upstreamFailure } : {}),
     });
     await recordAuditEvent({
       organizationId,
@@ -178,7 +184,10 @@ export async function POST(request: Request, context: RouteContext) {
       outcome: "FAILURE",
       requestId,
       ipHash,
-      metadata: { errorCode: known.code },
+      metadata: {
+        errorCode: known.code,
+        ...(upstreamFailure ? { upstreamFailure } : {}),
+      },
     });
     return NextResponse.json(
       { error: known.message },

@@ -63,3 +63,4 @@ next-env.d.ts
 
 # local infrastructure plans
 /artifacts/github-ruleset-plan.json
+/artifacts/catalog-translation-benchmark-*.json

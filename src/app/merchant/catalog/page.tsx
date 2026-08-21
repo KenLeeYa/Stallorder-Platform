@@ -10,7 +10,11 @@ import {
   getOrganizationReusableProductNotes,
 } from "@/lib/product-note-data";
 import { hasPermission } from "@/lib/rbac";
-import { isCatalogAiTranslationConfigured } from "@/server/localization/openai-catalog-translation-provider";
+import {
+  getCatalogTranslationProviderLabel,
+  isCatalogTranslationConfigured,
+  resolveCatalogTranslationRequestCredential,
+} from "@/server/localization/catalog-translation-provider";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string; source?: string }> };
@@ -25,7 +29,7 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
   const authorizedStallIds = workspace.stalls.map((stall) => stall.id);
   const returnStall = workspace.stalls.find((stall) => stall.id === stallId);
   const returnStallId = returnStall?.id;
-  const [catalog, noteGroups, reusableNotes, enabledLocales] = await Promise.all([
+  const [catalog, noteGroups, reusableNotes, enabledLocales, aiRequestCredential] = await Promise.all([
     getOrganizationCatalog(
       workspace.id,
       authorizedStallIds,
@@ -33,6 +37,7 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
     getOrganizationProductNotes(workspace.id),
     getOrganizationReusableProductNotes(workspace.id),
     getOrganizationEnabledLocales(workspace.id, authorizedStallIds),
+    resolveCatalogTranslationRequestCredential(),
   ]);
 
   return (
@@ -64,7 +69,8 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
         initialNoteGroups={noteGroups}
         initialReusableNotes={reusableNotes}
         enabledTranslationLocales={getEnabledTranslationLocales(enabledLocales)}
-        aiTranslationConfigured={isCatalogAiTranslationConfigured()}
+        aiTranslationConfigured={isCatalogTranslationConfigured(aiRequestCredential)}
+        aiTranslationProviderLabel={getCatalogTranslationProviderLabel(aiRequestCredential) ?? "AI 翻譯服務"}
       />
     </main>
   );
