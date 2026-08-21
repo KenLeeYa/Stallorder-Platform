@@ -494,6 +494,14 @@ jobs:
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run production:smoke
 
+      - name: Run isolated catalog translation glossary smoke
+        if: steps.vercel-auth.outputs.enabled == 'true'
+        env:
+          CATALOG_TRANSLATION_SYNTHETIC_BASE_URL: ${{ steps.vercel-preview.outputs.url }}
+          CATALOG_TRANSLATION_SYNTHETIC_CONFIRMATION: EPHEMERAL_PREVIEW_ONLY
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: npm run preview:catalog-translation-smoke
+
       - name: Run synthetic OAuth and delivery smoke tests
         if: steps.vercel-auth.outputs.enabled == 'true'
         env:
