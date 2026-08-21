@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChefHat, ListTree, Settings2 } from "lucide-react";
+import { ChefHat, ListTree, RefreshCw, Settings2 } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
 import type { WorkModeDestination } from "@/lib/work-mode";
@@ -39,48 +39,47 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage, w
     ] : []),
   ];
   return (
-    <header className="border-b border-stone-200 bg-white">
-      <div className="mx-auto max-w-[1600px] px-4 py-3 sm:py-4 md:px-6">
-        <div className="flex items-start justify-between gap-2 sm:items-center sm:gap-3">
+    <header className="sticky top-0 z-50 h-28 border-b border-stone-200 bg-white/95 shadow-sm backdrop-blur print:static print:h-auto">
+      <div className="mx-auto max-w-[1600px] px-3 py-2 md:px-6">
+        <div className="flex h-11 items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
-            <ChefHat className="h-7 w-7 shrink-0 text-teal-700" />
+            <ChefHat className="h-6 w-6 shrink-0 text-teal-700" />
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-semibold sm:text-xl">{t("kitchen.systemTitle")}</h1>
-              <p className="truncate text-sm text-stone-600">{stall.name}</p>
+              <h1 className="truncate text-sm font-semibold sm:text-base">{t("kitchen.systemTitle")}</h1>
+              <p className="truncate text-xs text-stone-600">{stall.name}</p>
             </div>
           </div>
-          <div className="flex max-w-[58%] shrink-0 flex-col items-end gap-2 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="flex min-w-0 max-w-[72%] shrink-0 items-center justify-end gap-2 sm:max-w-none">
             <WorkModeSwitcher
               destinations={workModeDestinations}
               currentMode="KITCHEN"
               organizationId={stall.organizationId}
               stallId={stall.id}
               compactOnMobile
-              className="w-[min(46vw,220px)] shrink-0"
+              hideVisualLabel
+              className="w-[min(44vw,220px)] shrink-0"
             />
             {availableStalls.length > 1 ? (
-              <form method="get" className="flex items-end gap-2">
-                <label className="block min-w-0 text-xs font-medium text-stone-500" htmlFor="kitchen-stall">
-                  {t("kitchen.stall")}
-                  <select id="kitchen-stall" name="stall" defaultValue={stall.slug} className="mt-1 block h-10 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-900">
+              <form method="get" className="flex min-w-0 items-center gap-1">
+                <label className="sr-only" htmlFor="kitchen-stall">{t("kitchen.stall")}</label>
+                  <select id="kitchen-stall" name="stall" defaultValue={stall.slug} className="h-11 min-w-0 max-w-32 rounded-md border border-stone-300 bg-white px-2 text-xs font-semibold text-stone-900">
                     {availableStalls.map((candidate) => <option key={candidate.slug} value={candidate.slug}>{candidate.name}</option>)}
                   </select>
-                </label>
-                <button type="submit" className="h-10 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white">{t("kitchen.switch")}</button>
+                <button type="submit" title={t("kitchen.switch")} aria-label={t("kitchen.switch")} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 bg-white text-stone-700"><RefreshCw className="h-5 w-5" /></button>
               </form>
             ) : null}
           </div>
         </div>
-        <nav data-testid="kitchen-primary-navigation" className="mt-3 grid w-full grid-flow-col auto-cols-fr gap-1 sm:mt-4 sm:flex sm:w-auto sm:overflow-x-auto" aria-label={t("kitchen.navigation")}>
+        <nav data-testid="kitchen-primary-navigation" className="mt-2 flex h-11 w-full items-center gap-2 overflow-x-auto [&>*]:shrink-0" aria-label={t("kitchen.navigation")}>
           {links.map(({ key, href, label, icon: Icon }) => (
             <Link
               key={key}
               href={href}
               title={label}
-              className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-2 border-b-2 px-2 text-sm font-semibold sm:shrink-0 sm:justify-start sm:px-3 ${active === key ? "border-teal-700 text-teal-800" : "border-transparent text-stone-600 hover:text-stone-950"}`}
+              className={`grid h-11 w-11 place-items-center rounded-md border text-sm font-semibold ${active === key ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600 hover:text-stone-950"}`}
             >
-              <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
-              <span className="sr-only sm:not-sr-only">{label}</span>
+              <Icon className="h-5 w-5" />
+              <span className="sr-only">{label}</span>
             </Link>
           ))}
         </nav>

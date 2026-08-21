@@ -58,13 +58,28 @@ const lotteryDiscountChancesSchema = z.array(z.object({
     }
   });
 
+const moduleUpdateViewSchema = z.enum([
+  "all",
+  "dine-in",
+  "delivery",
+  "staff-delivery",
+  "printing",
+  "kds",
+  "payments",
+  "discounts",
+  "preorder",
+  "lottery",
+]);
+
 export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
   z.object({
     operation: z.literal("UPDATE_MODULES"),
+    view: moduleUpdateViewSchema.default("all"),
     dineInEnabled: z.boolean(),
     deliveryModuleEnabled: z.boolean(),
     staffDeliveryEnabled: z.boolean(),
     printModuleEnabled: z.boolean(),
+    kdsModuleEnabled: z.boolean().default(false),
     paymentModuleEnabled: z.boolean(),
     discountModuleEnabled: z.boolean(),
     discountApprovalThresholdBps: z.number().int("經理核准門檻必須是整數百分比。")

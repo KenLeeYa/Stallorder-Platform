@@ -6,6 +6,7 @@ export type StaffOrderPosModules = {
   dineIn: boolean;
   delivery: boolean;
   print: boolean;
+  kds: boolean;
   payment: boolean;
   discount: boolean;
   discountApprovalThresholdBps: number;

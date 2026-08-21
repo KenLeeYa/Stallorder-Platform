@@ -6,6 +6,12 @@ import { prisma } from "@/lib/prisma";
 import { publicQrCacheTag, stallMenuCacheTag } from "@/lib/cache-tags";
 import type { PublicMenu } from "@/lib/public-menu-types";
 import {
+  dateInTimeZone,
+  filterPreorderSlotsForSpecialClosures,
+  serializeSpecialClosure,
+  type SpecialClosureView,
+} from "@/lib/special-closures";
+import {
   publicMenuProductsForPickup,
   publicMenuProductsForPickupWindow,
 } from "@/lib/public-menu-availability";
@@ -63,7 +69,7 @@ export async function getCachedPublicMenuForQrToken(
       ? settings.deliveryModuleEnabled
       : settings.takeoutPreorderEnabled);
 
-  const [menu, capacity, preorderSlots] = await Promise.all([
+  const [menu, capacity, rawPreorderSlots, specialClosures] = await Promise.all([
     getCachedStallMenu(context.stallId),
     resolvedOrderingMode === "PREORDER"
       ? Promise.resolve(null)
@@ -72,8 +78,18 @@ export async function getCachedPublicMenuForQrToken(
       && (resolvedOrderingMode === "PREORDER" || options.includeOptionalPreorderSlots !== false)
       ? getTakeoutPreorderSlots(context.stallId)
       : Promise.resolve([]),
+    getPublicSpecialClosures(context.stallId, context.stall.timezone),
   ]);
-  if (!menu || (resolvedOrderingMode === "PREORDER" && preorderSlots.length === 0)) return null;
+  if (!menu || (resolvedOrderingMode === "PREORDER" && rawPreorderSlots.length === 0)) return null;
+  const preorderSlots = filterPreorderSlotsForSpecialClosures(
+    rawPreorderSlots,
+    specialClosures,
+    context.stall.timezone,
+  );
+  const specialClosure = publicSpecialClosureAnnouncement(
+    specialClosures,
+    context.stall.timezone,
+  );
   const products = resolvedOrderingMode === "PREORDER"
     ? publicMenuProductsForPickupWindow(menu.products, preorderSlots)
     : publicMenuProductsForPickup(menu.products, new Date().toISOString());
@@ -84,6 +100,7 @@ export async function getCachedPublicMenuForQrToken(
     orderingMode: resolvedOrderingMode,
     preorderSlots,
     lotteryEnabled: resolvedOrderingMode === "DEFAULT" && settings.lotteryEnabled,
+    specialClosure,
     estimatedWaitMinutes: capacity?.quoteMaxMinutes ?? 0,
     estimatedWaitMinMinutes: capacity?.quoteMinMinutes ?? 0,
     estimatedWaitMaxMinutes: capacity?.quoteMaxMinutes ?? 0,
@@ -112,9 +129,10 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
   const stall = await findPublicStallBySlug(stallSlug);
   if (!stall || !publicStallIsAvailable(stall)) return null;
 
-  const [menu, capacity] = await Promise.all([
+  const [menu, capacity, specialClosure] = await Promise.all([
     getCachedStallMenu(stall.id),
     calculateCapacitySnapshot(stall.id),
+    getPublicSpecialClosure(stall.id, stall.timezone),
   ]);
   if (!menu) return null;
   return {
@@ -123,6 +141,7 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
     orderingMode: "DELIVERY",
     preorderSlots: [],
     lotteryEnabled: false,
+    specialClosure,
     estimatedWaitMinutes: capacity.quoteMaxMinutes,
     estimatedWaitMinMinutes: capacity.quoteMinMinutes,
     estimatedWaitMaxMinutes: capacity.quoteMaxMinutes,
@@ -146,13 +165,17 @@ export async function getCachedPublicDisplayMenuForStallSlug(
   const stall = await findPublicStallBySlug(stallSlug);
   if (!stall || !publicStallCanDisplayMenu(stall)) return null;
 
-  const menu = await getCachedStallMenu(stall.id);
+  const [menu, specialClosure] = await Promise.all([
+    getCachedStallMenu(stall.id),
+    getPublicSpecialClosure(stall.id, stall.timezone),
+  ]);
   if (!menu) return null;
   return {
     ...menu,
     orderingMode: "DEFAULT",
     preorderSlots: [],
     lotteryEnabled: false,
+    specialClosure,
     stall: {
       name: stall.name,
       slug: stall.slug,
@@ -330,6 +353,39 @@ async function getTakeoutPreorderSlots(stallId: string) {
     : [];
 }
 
+async function getPublicSpecialClosure(stallId: string, timeZone: string) {
+  return publicSpecialClosureAnnouncement(
+    await getPublicSpecialClosures(stallId, timeZone),
+    timeZone,
+  );
+}
+
+async function getPublicSpecialClosures(stallId: string, timeZone: string) {
+  const localDate = dateInTimeZone(new Date(), timeZone);
+  const closures = await prisma.stallSpecialClosure.findMany({
+    where: {
+      stallId,
+      endsOn: { gte: new Date(`${localDate}T00:00:00.000Z`) },
+    },
+    orderBy: [{ startsOn: "asc" }, { createdAt: "asc" }],
+    select: { id: true, startsOn: true, endsOn: true, title: true, message: true },
+  });
+  return closures.map(serializeSpecialClosure);
+}
+
+function publicSpecialClosureAnnouncement(
+  closures: readonly SpecialClosureView[],
+  timeZone: string,
+) {
+  const serialized = closures[0];
+  if (!serialized) return null;
+  const localDate = dateInTimeZone(new Date(), timeZone);
+  return {
+    ...serialized,
+    isActive: serialized.startsOn <= localDate && serialized.endsOn >= localDate,
+  };
+}
+
 function publicStallIsAvailable(stall: {
   isActive: boolean;
   orderingEnabled: boolean;
@@ -367,7 +423,11 @@ async function loadStallMenu(
         stallId,
         isEnabled: true,
         isSoldOut: false,
-        product: { isActive: true, category: { isActive: true } },
+        product: {
+          isActive: true,
+          category: { isActive: true },
+          OR: [{ groupId: null }, { group: { isActive: true } }],
+        },
       },
       orderBy: [{ sortOrder: "asc" }, { product: { sortOrder: "asc" } }],
       select: {
@@ -387,6 +447,7 @@ async function loadStallMenu(
             isOrderDiscountEligible: true,
             sortOrder: true,
             category: { select: { name: true, sortOrder: true } },
+            group: { select: { name: true, sortOrder: true } },
             translations: { select: { locale: true, name: true, description: true } },
             bundleChoiceGroups: {
               orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -552,16 +613,19 @@ async function loadStallMenu(
         isRequired: assignmentItem.noteGroup.isRequired,
         minSelections: assignmentItem.noteGroup.minSelections,
         maxSelections: assignmentItem.noteGroup.maxSelections,
-        sortOrder: assignmentItem.sortOrder || assignmentItem.noteGroup.sortOrder,
+        sortOrder: assignmentItem.sortOrder,
         translations: assignmentItem.noteGroup.translations,
         options: assignmentItem.noteGroup.options,
       })),
       price: assignment.priceOverride ?? assignment.product.defaultPrice,
       category: assignment.product.category.name,
       categorySortOrder: assignment.product.category.sortOrder,
-      productSortOrder: assignment.sortOrder || assignment.product.sortOrder,
+      group: assignment.product.group?.name ?? null,
+      groupSortOrder: assignment.product.group?.sortOrder ?? 10_001,
+      productSortOrder: assignment.sortOrder,
     })).sort((left, right) => (
       left.categorySortOrder - right.categorySortOrder
+      || left.groupSortOrder - right.groupSortOrder
       || left.productSortOrder - right.productSortOrder
     )).map((product) => ({
       id: product.id,
@@ -577,6 +641,7 @@ async function loadStallMenu(
       noteGroups: product.noteGroups,
       price: product.price,
       category: product.category,
+      group: product.group,
     })), bestSellerRanks),
     supportedLocales: settings.enabledLocales,
     estimatedWaitMinutes: settings.estimatedWaitMinutes,

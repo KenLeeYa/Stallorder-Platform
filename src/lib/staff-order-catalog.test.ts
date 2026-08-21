@@ -92,6 +92,7 @@ describe("店員點餐套餐目錄", () => {
       dineInEnabled: false,
       staffDeliveryEnabled: false,
       printModuleEnabled: false,
+      kdsModuleEnabled: false,
       paymentModuleEnabled: true,
       discountModuleEnabled: false,
       discountApprovalThresholdBps: 8000,

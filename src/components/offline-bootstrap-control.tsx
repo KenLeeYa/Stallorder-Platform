@@ -362,7 +362,7 @@ export function OfflineBootstrapControl({
               type="button"
               title={t("offline.bootstrap.close")}
               onClick={() => setOpen(false)}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-stone-300"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"
             >
               <X className="h-4 w-4" />
             </button>

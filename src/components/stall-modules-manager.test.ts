@@ -16,6 +16,7 @@ function moduleState(): ModuleState {
       deliveryModuleEnabled: false,
       staffDeliveryEnabled: false,
       printModuleEnabled: false,
+      kdsModuleEnabled: false,
       paymentModuleEnabled: true,
       discountModuleEnabled: true,
       discountApprovalThresholdBps: 8_000,

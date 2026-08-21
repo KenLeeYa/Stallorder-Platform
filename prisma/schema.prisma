@@ -419,6 +419,7 @@ model Organization {
   orderCounters                 StallOrderCounter[]
   orderItemBatchActions         OrderItemBatchAction[]
   businessHours                 StallBusinessHour[]
+  specialClosures               StallSpecialClosure[]
   printers                      Printer[]
   printJobs                     PrintJob[]
   cashShifts                    CashShift[]
@@ -496,6 +497,7 @@ model Stall {
   invitations            OrganizationInvitation[]
   orderItemBatchActions  OrderItemBatchAction[]
   businessHours          StallBusinessHour[]
+  specialClosures        StallSpecialClosure[]
   printers               Printer[]
   printJobs              PrintJob[]
   cashShifts             CashShift[]
@@ -1746,6 +1748,7 @@ model StallOrderingSettings {
   deliveryModuleEnabled          Boolean      @default(false) @map("delivery_module_enabled")
   staffDeliveryEnabled           Boolean      @default(false) @map("staff_delivery_enabled")
   printModuleEnabled             Boolean      @default(false) @map("print_module_enabled")
+  kdsModuleEnabled               Boolean      @default(false) @map("kds_module_enabled")
   paymentModuleEnabled           Boolean      @default(true) @map("payment_module_enabled")
   discountModuleEnabled          Boolean      @default(false) @map("discount_module_enabled")
   discountApprovalThresholdBps   Int          @default(8000) @map("discount_approval_threshold_bps")
@@ -1883,6 +1886,24 @@ model StallBusinessHour {
   @@unique([stallId, dayOfWeek])
   @@index([organizationId, stallId])
   @@map("stall_business_hours")
+}
+
+model StallSpecialClosure {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  stallId        String       @map("stall_id") @db.Uuid
+  startsOn       DateTime     @map("starts_on") @db.Date
+  endsOn         DateTime     @map("ends_on") @db.Date
+  title          String       @default("公休日")
+  message        String       @default("")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, stallId, startsOn, endsOn])
+  @@index([stallId, endsOn])
+  @@map("stall_special_closures")
 }
 
 model StallLocation {

@@ -152,4 +152,18 @@ describe("商品與分類輸入驗證", () => {
     expect(sharedCatalogCommandSchema.safeParse({ ...command, quantity: 0 }).success).toBe(false);
     expect(sharedCatalogCommandSchema.safeParse({ ...command, organizationId: crypto.randomUUID() }).success).toBe(false);
   });
+
+  it("接受同範圍完整排序，拒絕重複 ID", () => {
+    const categoryIds = [crypto.randomUUID(), crypto.randomUUID()];
+    expect(sharedCatalogCommandSchema.safeParse({
+      operation: "REORDER_CATEGORIES",
+      categoryIds,
+    }).success).toBe(true);
+    expect(sharedCatalogCommandSchema.safeParse({
+      operation: "REORDER_PRODUCTS",
+      categoryId: crypto.randomUUID(),
+      groupId: null,
+      productIds: [categoryIds[0], categoryIds[0]],
+    }).success).toBe(false);
+  });
 });

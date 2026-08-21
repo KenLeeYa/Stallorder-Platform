@@ -82,8 +82,20 @@ export async function transitionStaffOrderStatus(input: ProductionTransport & {
       }),
     },
   );
-  const payload = await response.json() as { order?: StaffOrderDto; error?: string };
+  const payload = await response.json() as {
+    order?: StaffOrderDto;
+    error?: string;
+    completionPendingPrint?: boolean;
+  };
   if (!response.ok) throw new Error(payload.error ?? "目前無法更新訂單。");
+  if (input.status === "COMPLETED" && payload.completionPendingPrint) {
+    if (!payload.order) throw new Error("目前無法更新訂單。");
+    return {
+      kind: "replace",
+      order: payload.order,
+      message: "已結帳，單據列印成功後會自動完成訂單。",
+    };
+  }
   if (input.status === "COMPLETED" || input.status === "CANCELLED") {
     return { kind: "remove", orderId: input.orderId };
   }

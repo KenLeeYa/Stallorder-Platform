@@ -20,6 +20,10 @@ const reusableNoteIds = z.array(uuid).min(1).max(100).refine(
   (ids) => new Set(ids).size === ids.length,
   { message: "共用單一註記不可重複選擇。" },
 );
+const orderedIds = z.array(uuid).min(1).max(500).refine(
+  (ids) => new Set(ids).size === ids.length,
+  { message: "排序清單不可包含重複項目。" },
+);
 
 const groupFields = {
   name,
@@ -89,6 +93,19 @@ export const productNoteCommandSchema = z.discriminatedUnion("operation", [
     noteGroupId: uuid,
     reusableNoteIds,
   }).strict(),
+  z.object({
+    operation: z.literal("REORDER_NOTE_GROUPS"),
+    noteGroupIds: orderedIds,
+  }).strict(),
+  z.object({
+    operation: z.literal("REORDER_REUSABLE_NOTES"),
+    reusableNoteIds: orderedIds,
+  }).strict(),
+  z.object({
+    operation: z.literal("REORDER_NOTE_OPTIONS"),
+    noteGroupId: uuid,
+    noteOptionIds: orderedIds,
+  }).strict(),
 ]).superRefine((command, context) => {
   if (command.operation !== "CREATE_NOTE_GROUP" && command.operation !== "UPDATE_NOTE_GROUP") return;
   if (command.selectionMode === "SINGLE" && command.maxSelections !== 1) {
@@ -120,6 +137,8 @@ const productNoteFieldLabels: Record<string, string> = {
   noteGroupId: "註記群組",
   reusableNoteId: "共用單一註記",
   reusableNoteIds: "共用單一註記",
+  noteGroupIds: "註記群組排序",
+  noteOptionIds: "註記選項排序",
 };
 
 export function getProductNoteFieldErrors(error: z.ZodError): Record<string, string> {

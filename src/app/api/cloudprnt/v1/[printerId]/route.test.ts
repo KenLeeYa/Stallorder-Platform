@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   printJobFindUnique: vi.fn(),
   printJobUpdate: vi.fn(),
   printJobUpdateMany: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -30,6 +31,7 @@ vi.mock("@/lib/prisma", () => ({
       update: mocks.printJobUpdate,
       updateMany: mocks.printJobUpdateMany,
     },
+    $transaction: mocks.transaction,
   },
 }));
 
@@ -43,6 +45,14 @@ beforeEach(() => {
   mocks.printerUpdateMany.mockResolvedValue({ count: 1 });
   mocks.printJobUpdateMany.mockResolvedValue({ count: 1 });
   mocks.printJobUpdate.mockResolvedValue({ id: jobId });
+  mocks.transaction.mockImplementation(async (operation) => operation({
+    printJob: {
+      findFirst: mocks.printJobFindFirst,
+      updateMany: mocks.printJobUpdateMany,
+    },
+    order: { updateMany: vi.fn() },
+    orderEvent: { create: vi.fn() },
+  }));
 });
 
 afterAll(() => {

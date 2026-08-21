@@ -5,6 +5,8 @@ import type { MessageValues } from "@/lib/message-catalog";
 import type { MerchantMessageKey } from "@/lib/messages/merchant";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   Boxes,
   Check,
   ChevronDown,
@@ -573,7 +575,10 @@ export function SharedCatalogManager({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? label("圖片上傳失敗。"));
       setProductDraft((current) => current ? { ...current, imageUrl: payload.imageUrl } : current);
-      setMessage(label("商品圖片已上傳，儲存商品後生效。"));
+      setMessage(m("商品圖片已自動壓縮為 WebP（{value0} → {value1}），儲存商品後生效。", {
+        value0: formatFileSize(payload.originalSize ?? file.size),
+        value1: formatFileSize(payload.optimizedSize),
+      }));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : label("圖片上傳失敗。"));
     } finally {
@@ -759,7 +764,27 @@ export function SharedCatalogManager({
   }
 
   function productsFor(categoryId: string, groupId: string | null) {
-    return catalog.products.filter((product) => product.categoryId === categoryId && product.groupId === groupId);
+    return catalog.products
+      .filter((product) => product.categoryId === categoryId && product.groupId === groupId)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-TW"));
+  }
+
+  async function moveCategory(index: number, direction: -1 | 1) {
+    const categoryIds = moveOrderedId(sortedCategories.map((category) => category.id), index, direction);
+    if (!categoryIds) return;
+    await runCommand({ operation: "REORDER_CATEGORIES", categoryIds }, label("分類排序已更新。"));
+  }
+
+  async function moveGroup(groups: Group[], categoryId: string, index: number, direction: -1 | 1) {
+    const groupIds = moveOrderedId(groups.map((group) => group.id), index, direction);
+    if (!groupIds) return;
+    await runCommand({ operation: "REORDER_GROUPS", categoryId, groupIds }, label("群組排序已更新。"));
+  }
+
+  async function moveProduct(products: Product[], categoryId: string, groupId: string | null, index: number, direction: -1 | 1) {
+    const productIds = moveOrderedId(products.map((product) => product.id), index, direction);
+    if (!productIds) return;
+    await runCommand({ operation: "REORDER_PRODUCTS", categoryId, groupId, productIds }, label("商品排序已更新。"));
   }
 
   return (
@@ -802,8 +827,10 @@ export function SharedCatalogManager({
           <ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" />
         </summary>
         <div className="divide-y divide-stone-200 border-b border-stone-200">
-          {sortedCategories.map((category) => {
-            const groups = catalog.groups.filter((group) => group.categoryId === category.id);
+          {sortedCategories.map((category, categoryIndex) => {
+            const groups = catalog.groups
+              .filter((group) => group.categoryId === category.id)
+              .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-TW"));
             const ungrouped = productsFor(category.id, null);
             return (
               <details key={category.id} open={!collapsedCategoryIds.has(category.id)} onToggle={(event) => {
@@ -815,31 +842,43 @@ export function SharedCatalogManager({
                   return next;
                 });
               }} className="group py-1">
-                <summary className="flex min-h-14 cursor-pointer list-none items-center gap-2 py-3 [&::-webkit-details-marker]:hidden">
-                  <Boxes className="h-4 w-4 text-teal-700" />
-                  <span className="font-semibold">{category.name}</span>
-                  {!category.isActive ? <span className="rounded-md bg-stone-100 px-2 py-0.5 text-xs text-stone-600">{label("已停用")}</span> : null}
-                  <span className="ml-auto text-xs text-stone-500">{catalog.products.filter((product) => product.categoryId === category.id).length} {label("項")}</span>
-                  <IconButton label={m("編輯 {value0}", { value0: category.name })} onClick={(event) => { event.preventDefault(); editCategory(category); }}><Pencil className="h-4 w-4" /></IconButton>
-                  <IconButton label={`${category.isActive ? label("停用") : label("恢復")} ${category.name}`} onClick={(event) => { event.preventDefault(); void toggleActive("CATEGORY", category); }}>{category.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
+                <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center gap-2 py-3 [&::-webkit-details-marker]:hidden">
+                  <span className="flex min-w-0 flex-1 items-center gap-2">
+                    <Boxes className="h-4 w-4 shrink-0 text-teal-700" />
+                    <span className="min-w-0 truncate font-semibold">{category.name}</span>
+                    {!category.isActive ? <span className="shrink-0 rounded-md bg-stone-100 px-2 py-0.5 text-xs text-stone-600">{label("已停用")}</span> : null}
+                    <span className="ml-auto shrink-0 text-xs text-stone-500">{catalog.products.filter((product) => product.categoryId === category.id).length} {label("項")}</span>
+                  </span>
+                  <span className="ml-auto flex w-full justify-end sm:w-auto">
+                    <IconButton disabled={busy || categoryIndex === 0} label={m("將 {value0} 上移", { value0: category.name })} onClick={(event) => { event.preventDefault(); void moveCategory(categoryIndex, -1); }}><ArrowUp className="h-4 w-4" /></IconButton>
+                    <IconButton disabled={busy || categoryIndex === sortedCategories.length - 1} label={m("將 {value0} 下移", { value0: category.name })} onClick={(event) => { event.preventDefault(); void moveCategory(categoryIndex, 1); }}><ArrowDown className="h-4 w-4" /></IconButton>
+                    <IconButton label={m("編輯 {value0}", { value0: category.name })} onClick={(event) => { event.preventDefault(); editCategory(category); }}><Pencil className="h-4 w-4" /></IconButton>
+                    <IconButton label={`${category.isActive ? label("停用") : label("恢復")} ${category.name}`} onClick={(event) => { event.preventDefault(); void toggleActive("CATEGORY", category); }}>{category.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
+                  </span>
                 </summary>
                 <div className="pb-4 pl-3 sm:pl-6">
-                  {groups.map((group) => (
+                  {groups.map((group, groupIndex) => (
                     <div key={group.id} className="border-l-2 border-stone-200 py-3 pl-4">
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-sm font-semibold">{group.name}</h2>
-                        {!group.isActive ? <span className="text-xs text-stone-500">{label("已停用")}</span> : null}
-                        <span className="ml-auto text-xs text-stone-500">{productsFor(category.id, group.id).length} {label("項")}</span>
-                        <IconButton label={m("編輯 {value0}", { value0: group.name })} onClick={() => editGroup(group)}><Pencil className="h-4 w-4" /></IconButton>
-                        <IconButton label={`${group.isActive ? label("停用") : label("恢復")} ${group.name}`} onClick={() => void toggleActive("GROUP", group)}>{group.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <h2 className="min-w-0 truncate text-sm font-semibold">{group.name}</h2>
+                          {!group.isActive ? <span className="shrink-0 text-xs text-stone-500">{label("已停用")}</span> : null}
+                          <span className="ml-auto shrink-0 text-xs text-stone-500">{productsFor(category.id, group.id).length} {label("項")}</span>
+                        </div>
+                        <div className="flex flex-wrap justify-end">
+                          <IconButton disabled={busy || groupIndex === 0} label={m("將 {value0} 上移", { value0: group.name })} onClick={() => void moveGroup(groups, category.id, groupIndex, -1)}><ArrowUp className="h-4 w-4" /></IconButton>
+                          <IconButton disabled={busy || groupIndex === groups.length - 1} label={m("將 {value0} 下移", { value0: group.name })} onClick={() => void moveGroup(groups, category.id, groupIndex, 1)}><ArrowDown className="h-4 w-4" /></IconButton>
+                          <IconButton label={m("編輯 {value0}", { value0: group.name })} onClick={() => editGroup(group)}><Pencil className="h-4 w-4" /></IconButton>
+                          <IconButton label={`${group.isActive ? label("停用") : label("恢復")} ${group.name}`} onClick={() => void toggleActive("GROUP", group)}>{group.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
+                        </div>
                       </div>
-                      <ProductRows products={productsFor(category.id, group.id)} currency={currency} onEdit={editProduct} onBundle={openBundle} onAssignments={openAssignments} onClone={(product) => void cloneProduct(product)} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
+                      <ProductRows busy={busy} products={productsFor(category.id, group.id)} currency={currency} onMove={(products, index, direction) => void moveProduct(products, category.id, group.id, index, direction)} onEdit={editProduct} onBundle={openBundle} onAssignments={openAssignments} onClone={(product) => void cloneProduct(product)} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
                     </div>
                   ))}
                   {ungrouped.length > 0 ? (
                     <div className="border-l-2 border-stone-200 py-3 pl-4">
                       <h2 className="text-sm font-semibold">{label("未分組商品")}</h2>
-                      <ProductRows products={ungrouped} currency={currency} onEdit={editProduct} onBundle={openBundle} onAssignments={openAssignments} onClone={(product) => void cloneProduct(product)} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
+                      <ProductRows busy={busy} products={ungrouped} currency={currency} onMove={(products, index, direction) => void moveProduct(products, category.id, null, index, direction)} onEdit={editProduct} onBundle={openBundle} onAssignments={openAssignments} onClone={(product) => void cloneProduct(product)} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
                     </div>
                   ) : null}
                 </div>
@@ -1127,14 +1166,14 @@ export function SharedCatalogManager({
   );
 }
 
-function ProductRows({ products, currency, onEdit, onBundle, onAssignments, onClone, onToggle, onDelete }: { products: Product[]; currency: string; onEdit: (product: Product) => void; onBundle: (product: Product) => void; onAssignments: (product: Product) => void; onClone: (product: Product) => void; onToggle: (product: Product) => void; onDelete: (product: Product) => void }) {
+function ProductRows({ busy, products, currency, onMove, onEdit, onBundle, onAssignments, onClone, onToggle, onDelete }: { busy: boolean; products: Product[]; currency: string; onMove: (products: Product[], index: number, direction: -1 | 1) => void; onEdit: (product: Product) => void; onBundle: (product: Product) => void; onAssignments: (product: Product) => void; onClone: (product: Product) => void; onToggle: (product: Product) => void; onDelete: (product: Product) => void }) {
   const { locale, m, label } = useMerchantMessages();
   const localizedMoney = (amount: number, selectedCurrency = currency) => formatRawMoney(amount, selectedCurrency, locale);
-  return <div className="mt-2 divide-y divide-stone-100">{products.map((product) => (
+  return <div className="mt-2 divide-y divide-stone-100">{products.map((product, index) => (
     <div key={product.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="truncate font-medium">{product.name}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="min-w-0 max-w-full truncate font-medium">{product.name}</span>
           {product.kind === "BUNDLE" ? <span className="rounded bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">{label("套餐")}</span> : null}
           {!product.isOrderDiscountEligible ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{label("不適用訂單折扣")}</span> : null}
           {product.kind === "SINGLE" && !product.isLotteryEligible ? <span className="rounded bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-800">{label("不參與抽抽樂")}</span> : null}
@@ -1144,7 +1183,9 @@ function ProductRows({ products, currency, onEdit, onBundle, onAssignments, onCl
       </div>
       <div data-testid="shared-product-actions" className="flex min-w-0 flex-wrap items-center gap-1 sm:flex-nowrap sm:justify-end">
         {product.kind === "BUNDLE" ? <button type="button" aria-label={m("設定 {value0} 套餐內容", { value0: product.name })} onClick={() => onBundle(product)} className="mr-auto inline-flex min-h-11 shrink-0 items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-2 text-xs font-semibold text-teal-900 hover:border-teal-500 sm:mr-0"><PackageOpen className="h-4 w-4" />{label("設定套餐內容")}</button> : null}
-        <div className="ml-auto flex items-center">
+        <div className="ml-auto flex w-full flex-wrap items-center justify-end sm:w-auto sm:flex-nowrap">
+          <IconButton disabled={busy || index === 0} label={m("將 {value0} 上移", { value0: product.name })} onClick={() => onMove(products, index, -1)}><ArrowUp className="h-4 w-4" /></IconButton>
+          <IconButton disabled={busy || index === products.length - 1} label={m("將 {value0} 下移", { value0: product.name })} onClick={() => onMove(products, index, 1)}><ArrowDown className="h-4 w-4" /></IconButton>
           <IconButton label={m("分派 {value0}", { value0: product.name })} onClick={() => onAssignments(product)}><Store className="h-4 w-4" /></IconButton>
           <IconButton label={m("複製 {value0}", { value0: product.name })} onClick={() => onClone(product)}><Copy className="h-4 w-4" /></IconButton>
           <IconButton label={m("編輯 {value0}", { value0: product.name })} onClick={() => onEdit(product)}><Pencil className="h-4 w-4" /></IconButton>
@@ -1250,8 +1291,22 @@ function Editor({ title, onClose, dialogRef, errorMessage, wide = false, childre
   );
 }
 
-function IconButton({ label, danger = false, onClick, children }: { label: string; danger?: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; children: React.ReactNode }) {
-  return <button type="button" title={label} aria-label={label} onClick={onClick} className={`grid h-11 w-11 shrink-0 place-items-center rounded-md hover:bg-stone-100 ${danger ? "text-red-700" : "text-stone-600"}`}>{children}</button>;
+function IconButton({ label, danger = false, disabled = false, onClick, children }: { label: string; danger?: boolean; disabled?: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; children: React.ReactNode }) {
+  return <button type="button" title={label} aria-label={label} disabled={disabled} onClick={onClick} className={`grid h-11 w-11 shrink-0 place-items-center rounded-md border bg-white hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-30 ${danger ? "border-red-200 text-red-700" : "border-stone-200 text-stone-600"}`}>{children}</button>;
+}
+
+function moveOrderedId(ids: string[], index: number, direction: -1 | 1) {
+  const target = index + direction;
+  if (index < 0 || target < 0 || index >= ids.length || target >= ids.length) return null;
+  const next = [...ids];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+function formatFileSize(value: unknown) {
+  const bytes = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 function TextField({ label, fieldKey, error, value, onChange, wide = false, required = true, type = "text", maxLength = 80 }: { label: string; fieldKey?: string; error?: string; value: string; onChange: (value: string) => void; wide?: boolean; required?: boolean; type?: "text" | "url"; maxLength?: number }) {
