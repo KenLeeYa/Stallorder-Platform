@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const migrationSource = normalizeLineEndings(readFileSync(fileURLToPath(new URL(
-  "../migrations/20260813010000_target_stall_schedule_catch_up.sql",
+  "../migrations/20260821012139_target_stall_schedule_catch_up.sql",
   import.meta.url,
 )), "utf8"));
 
