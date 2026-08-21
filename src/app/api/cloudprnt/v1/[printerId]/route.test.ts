@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const printerId = "44444444-4444-4444-8444-444444444444";
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   printJobFindUnique: vi.fn(),
   printJobUpdate: vi.fn(),
   printJobUpdateMany: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -30,6 +32,7 @@ vi.mock("@/lib/prisma", () => ({
       update: mocks.printJobUpdate,
       updateMany: mocks.printJobUpdateMany,
     },
+    $transaction: mocks.transaction,
   },
 }));
 
@@ -43,6 +46,13 @@ beforeEach(() => {
   mocks.printerUpdateMany.mockResolvedValue({ count: 1 });
   mocks.printJobUpdateMany.mockResolvedValue({ count: 1 });
   mocks.printJobUpdate.mockResolvedValue({ id: jobId });
+  mocks.transaction.mockImplementation(async (operation) => operation({
+    printer: { findFirst: mocks.printerFindFirst },
+    printJob: {
+      findFirst: mocks.printJobFindFirst,
+      updateMany: mocks.printJobUpdateMany,
+    },
+  }));
 });
 
 afterAll(() => {
@@ -105,6 +115,32 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
     expect(mocks.printerFindFirst).not.toHaveBeenCalled();
   });
 
+  it("rejects every CloudPRNT method after the logical printer switches transport", async () => {
+    mocks.printerFindFirst.mockResolvedValue(null);
+    const route = await import("./route");
+
+    const postResponse = await route.POST(
+      printerRequest(endpoint(), { method: "POST", body: JSON.stringify({ statusCode: "200%20OK" }) }),
+      context(),
+    );
+    const getResponse = await route.GET(
+      printerRequest(`${endpoint()}?type=${encodeURIComponent(mediaType)}&token=${jobId}`),
+      context(),
+    );
+    const deleteResponse = await route.DELETE(
+      printerRequest(`${endpoint()}?token=${jobId}&code=200%20OK`, { method: "DELETE" }),
+      context(),
+    );
+
+    expect([postResponse.status, getResponse.status, deleteResponse.status]).toEqual([404, 404, 404]);
+    expect(mocks.printerFindFirst).toHaveBeenCalledTimes(3);
+    expect(mocks.printerFindFirst).toHaveBeenCalledWith({
+      where: { id: printerId, isEnabled: true, connectionType: "CLOUDPRNT" },
+      select: { id: true },
+    });
+    expect(mocks.printJobFindFirst).not.toHaveBeenCalled();
+  });
+
   it("announces the oldest assigned pending job with a stable job token", async () => {
     mocks.printJobFindFirst.mockResolvedValue({ id: jobId, attemptCount: 0, maxAttempts: 3 });
     const route = await import("./route");
@@ -124,6 +160,20 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
       jobToken: jobId,
       deleteMethod: "DELETE",
     });
+    expect(mocks.printJobFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        printerId,
+        status: "PENDING",
+        AND: expect.arrayContaining([
+          {
+            OR: [
+              { printRuleId: null },
+              { printRule: { is: { autoPrint: true, isEnabled: true, deletedAt: null } } },
+            ],
+          },
+        ]),
+      }),
+    }));
     expect(mocks.printJobUpdateMany).not.toHaveBeenCalled();
   });
 
@@ -147,11 +197,38 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
     expect(first.headers.get("content-type")).toBe(mediaType);
     expect(firstBody.includes(Buffer.from("越好吃一中店｜廚房製作單", "utf8"))).toBe(true);
     expect(firstBody.includes(Buffer.from("外帶自取 #A023 ★預約", "utf8"))).toBe(true);
-    expect(firstBody.subarray(-3)).toEqual(Buffer.from([0x1b, 0x64, 0x03]));
+    expect(firstBody.subarray(-3)).toEqual(Buffer.from([0x1b, 0x64, 0x02]));
+    expect(mocks.printJobFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: jobId,
+        printerId,
+        OR: expect.arrayContaining([
+          {
+            status: "PENDING",
+            OR: [
+              { printRuleId: null },
+              { printRule: { is: { autoPrint: true, isEnabled: true, deletedAt: null } } },
+            ],
+          },
+        ]),
+      }),
+    }));
     expect(mocks.printJobUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ id: jobId, status: "PENDING" }),
+      where: expect.objectContaining({
+        id: jobId,
+        status: "PENDING",
+        printer: { is: { id: printerId, isEnabled: true, connectionType: "CLOUDPRNT" } },
+        OR: [
+          { printRuleId: null },
+          { printRule: { is: { autoPrint: true, isEnabled: true, deletedAt: null } } },
+        ],
+      }),
       data: expect.objectContaining({ status: "PRINTING", attemptCount: { increment: 1 } }),
     }));
+    expect(mocks.transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     mocks.printJobFindFirst.mockResolvedValue(buildJob(persistedPayload, "PRINTING"));
     mocks.printJobUpdateMany.mockClear();
@@ -198,6 +275,22 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
     expect(Buffer.from(await left.arrayBuffer())).toEqual(Buffer.from(await right.arrayBuffer()));
     expect(payloadWon).toBe(true);
     expect(claimWon).toBe(true);
+  });
+
+  it("returns a retryable conflict when PostgreSQL serializes a Cloud claim", async () => {
+    mocks.printJobFindFirst.mockResolvedValue(buildJob(null, "PENDING"));
+    mocks.transaction.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
+      "transaction conflict",
+      { code: "P2034", clientVersion: "test" },
+    ));
+    const route = await import("./route");
+
+    const response = await route.GET(
+      printerRequest(`${endpoint()}?type=${encodeURIComponent(mediaType)}&token=${jobId}`),
+      context(),
+    );
+
+    expect(response.status).toBe(409);
   });
 
   it("marks a job successful only after the printer DELETE confirmation", async () => {

@@ -11,6 +11,10 @@ const reportDeliverySchedulerMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260820071255_restore_report_delivery_scheduler_contract.sql",
 ), "utf8");
+const integratedPrintCenterMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260821170000_integrated_print_center.sql",
+), "utf8");
 const drStandbyCompatibleMigrationFiles = [
   "20260821012140_reservation_preorder_foundation.sql",
   "20260821012142_digital_waitlist_foundation.sql",
@@ -177,6 +181,16 @@ describe("additive DR migration plan", () => {
           null::public.user_role[]
         ));
     `)).toBe(true);
+  });
+
+  it("allows only the exact reviewed integrated print routing trigger", () => {
+    expect(assertAdditiveMigrationSql(integratedPrintCenterMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      integratedPrintCenterMigration.replace(
+        "orders_zz_route_integrated_print_jobs",
+        "orders_unreviewed_print_trigger",
+      ),
+    )).toThrow("SECURITY_MUTATION_EXISTING_OBJECT_FORBIDDEN");
   });
 
   it("allows only the complete Phase 3 dormant hard-lock migration", () => {

@@ -1,5 +1,7 @@
 # MCP31LB CloudPRNT 58mm PoC
 
+> This document describes the original single-printer Ethernet PoC. For the integrated Bluetooth, CloudPRNT and system-print design, see [INTEGRATED_PRINT_CENTER.md](./INTEGRATED_PRINT_CENTER.md).
+
 ## Scope
 
 This PoC connects a Star MCP31LB to StallOrder without an iPad helper app. The iPad continues to use Safari. The Lightning cable can supply power and SteadyLAN connectivity, while the printer pulls jobs from StallOrder over Ethernet and HTTPS.
@@ -88,10 +90,11 @@ The discussion labels `[A1]` through `[D4]` are never emitted. Empty optional se
 - [ ] All lines fit the 57.5 ± 0.5mm roll without clipping.
 - [ ] No drafting labels or decorative blank rows appear.
 - [ ] Partial cut completes with only the mechanism-required bottom feed.
-- [ ] A repeated GET prints the same stored payload hash.
+- [ ] Repeated GET requests for one token return byte-identical payloads with the same stored hash.
 - [ ] A paper-out interruption resumes the same token after paper is restored.
 - [ ] A cover-open interruption does not mark the job successful.
 - [ ] Two concurrent GET requests increment the attempt count only once.
+- [ ] Concurrent or repeated retrieval of one token produces exactly one physical ticket; this remains a hardware acceptance item until verified on MCP31LB.
 - [ ] A repeated DELETE is idempotent and does not create another job.
 - [ ] Thirty sequential orders produce exactly thirty tickets with no missing or duplicate output.
 
