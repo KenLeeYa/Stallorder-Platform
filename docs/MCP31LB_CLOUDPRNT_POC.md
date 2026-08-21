@@ -17,12 +17,16 @@ The PoC implements CloudPRNT Version HTTP only. It does not authorize a Producti
 
 ## StallOrder configuration
 
-Set two server-only environment variables in the target environment. Use different credentials in every environment and a password generated from at least 32 random bytes.
+Set four server-only environment variables in Staging. The endpoint stays unavailable unless it is explicitly enabled and the route matches the one allowed printer UUID. Use different credentials in every environment and a password generated from at least 32 random bytes.
 
 ```text
+CLOUDPRNT_POC_ENABLED=true
+CLOUDPRNT_POC_PRINTER_ID=<registered-printer-uuid>
 CLOUDPRNT_POC_BASIC_USERNAME=<environment-specific-username>
 CLOUDPRNT_POC_BASIC_PASSWORD=<environment-specific-password>
 ```
+
+Keep `CLOUDPRNT_POC_ENABLED=false` outside the approved PoC environment. This PoC intentionally authorizes one physical printer only; a later multi-printer Production design must use individually revocable per-printer credentials stored as hashes.
 
 Register the logical printer from the StallOrder print settings first. Retrieve its `Printer.id` from the authenticated print queue response, then build the server URL:
 

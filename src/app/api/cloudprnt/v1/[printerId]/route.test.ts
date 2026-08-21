@@ -1,9 +1,12 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const printerId = "44444444-4444-4444-8444-444444444444";
+const otherPrinterId = "66666666-6666-4666-8666-666666666666";
 const jobId = "55555555-5555-4555-8555-555555555555";
 const originalUsername = process.env.CLOUDPRNT_POC_BASIC_USERNAME;
 const originalPassword = process.env.CLOUDPRNT_POC_BASIC_PASSWORD;
+const originalEnabled = process.env.CLOUDPRNT_POC_ENABLED;
+const originalPrinterId = process.env.CLOUDPRNT_POC_PRINTER_ID;
 
 const mocks = vi.hoisted(() => ({
   printerFindFirst: vi.fn(),
@@ -31,6 +34,8 @@ vi.mock("@/lib/prisma", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.CLOUDPRNT_POC_ENABLED = "true";
+  process.env.CLOUDPRNT_POC_PRINTER_ID = printerId;
   process.env.CLOUDPRNT_POC_BASIC_USERNAME = "mcp31lb";
   process.env.CLOUDPRNT_POC_BASIC_PASSWORD = "a-strong-test-password";
   mocks.printerFindFirst.mockResolvedValue({ id: printerId });
@@ -40,6 +45,10 @@ beforeEach(() => {
 });
 
 afterAll(() => {
+  if (originalEnabled === undefined) delete process.env.CLOUDPRNT_POC_ENABLED;
+  else process.env.CLOUDPRNT_POC_ENABLED = originalEnabled;
+  if (originalPrinterId === undefined) delete process.env.CLOUDPRNT_POC_PRINTER_ID;
+  else process.env.CLOUDPRNT_POC_PRINTER_ID = originalPrinterId;
   if (originalUsername === undefined) delete process.env.CLOUDPRNT_POC_BASIC_USERNAME;
   else process.env.CLOUDPRNT_POC_BASIC_USERNAME = originalUsername;
   if (originalPassword === undefined) delete process.env.CLOUDPRNT_POC_BASIC_PASSWORD;
@@ -56,6 +65,42 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
 
     expect(response.status).toBe(401);
     expect(response.headers.get("www-authenticate")).toContain("Basic");
+    expect(mocks.printerFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("rejects the valid PoC credential for every operation outside the configured printer allowlist", async () => {
+    const route = await import("./route");
+    const postResponse = await route.POST(
+      printerRequest(endpoint(otherPrinterId), {
+        method: "POST",
+        body: JSON.stringify({ statusCode: "200%20OK" }),
+      }),
+      context(otherPrinterId),
+    );
+    const getResponse = await route.GET(
+      printerRequest(`${endpoint(otherPrinterId)}?type=text%2Fplain&token=${jobId}`),
+      context(otherPrinterId),
+    );
+    const deleteResponse = await route.DELETE(
+      printerRequest(`${endpoint(otherPrinterId)}?token=${jobId}&code=200%20OK`, { method: "DELETE" }),
+      context(otherPrinterId),
+    );
+
+    expect([postResponse.status, getResponse.status, deleteResponse.status]).toEqual([401, 401, 401]);
+    expect(mocks.printerFindFirst).not.toHaveBeenCalled();
+    expect(mocks.printJobFindFirst).not.toHaveBeenCalled();
+    expect(mocks.printJobUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("keeps the endpoint unavailable until the PoC is explicitly enabled", async () => {
+    process.env.CLOUDPRNT_POC_ENABLED = "false";
+    const route = await import("./route");
+    const response = await route.POST(
+      printerRequest(endpoint(), { method: "POST", body: JSON.stringify({ statusCode: "200%20OK" }) }),
+      context(),
+    );
+
+    expect(response.status).toBe(503);
     expect(mocks.printerFindFirst).not.toHaveBeenCalled();
   });
 
@@ -237,12 +282,12 @@ function buildJob(payload: unknown, status: "PENDING" | "PRINTING") {
   };
 }
 
-function endpoint() {
-  return `https://staging.example.test/api/cloudprnt/v1/${printerId}`;
+function endpoint(id = printerId) {
+  return `https://staging.example.test/api/cloudprnt/v1/${id}`;
 }
 
-function context() {
-  return { params: Promise.resolve({ printerId }) };
+function context(id = printerId) {
+  return { params: Promise.resolve({ printerId: id }) };
 }
 
 function printerRequest(url: string, init: RequestInit = {}) {

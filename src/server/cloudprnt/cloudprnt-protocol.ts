@@ -12,10 +12,22 @@ export const cloudPrntPollSchema = z.object({
 
 export type CloudPrntPoll = z.infer<typeof cloudPrntPollSchema>;
 
-export function cloudPrntAuthState(request: Request) {
+export function cloudPrntAuthState(request: Request, printerId: string) {
+  const enabled = process.env.CLOUDPRNT_POC_ENABLED?.trim() === "true";
+  const configuredPrinterId = process.env.CLOUDPRNT_POC_PRINTER_ID?.trim();
   const username = process.env.CLOUDPRNT_POC_BASIC_USERNAME?.trim();
   const password = process.env.CLOUDPRNT_POC_BASIC_PASSWORD?.trim();
-  if (!username || !password || password.length < 16) return "NOT_CONFIGURED" as const;
+  if (
+    !enabled
+    || !configuredPrinterId
+    || !z.string().uuid().safeParse(configuredPrinterId).success
+    || !username
+    || !password
+    || password.length < 16
+  ) return "NOT_CONFIGURED" as const;
+  if (!safeEqual(printerId.toLowerCase(), configuredPrinterId.toLowerCase())) {
+    return "UNAUTHORIZED" as const;
+  }
 
   const authorization = request.headers.get("authorization");
   if (!authorization?.startsWith("Basic ")) return "UNAUTHORIZED" as const;

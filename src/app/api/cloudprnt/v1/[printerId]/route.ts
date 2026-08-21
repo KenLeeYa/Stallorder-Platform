@@ -25,9 +25,9 @@ const responseHeaders = {
 };
 
 export async function POST(request: Request, context: RouteContext) {
-  const authenticated = authenticate(request);
-  if (authenticated) return authenticated;
-  const printer = await loadPrinter(context);
+  const authentication = await authenticate(request, context);
+  if (authentication instanceof Response) return authentication;
+  const printer = await loadPrinter(authentication.printerId);
   if (printer instanceof Response) return printer;
 
   const body = await readPoll(request);
@@ -71,9 +71,9 @@ export async function POST(request: Request, context: RouteContext) {
 }
 
 export async function GET(request: Request, context: RouteContext) {
-  const authenticated = authenticate(request);
-  if (authenticated) return authenticated;
-  const printer = await loadPrinter(context);
+  const authentication = await authenticate(request, context);
+  if (authentication instanceof Response) return authentication;
+  const printer = await loadPrinter(authentication.printerId);
   if (printer instanceof Response) return printer;
   if (cloudPrntRequestedMediaType(request) !== "text/plain") {
     return new Response(null, { status: 415, headers: responseHeaders });
@@ -149,9 +149,9 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
-  const authenticated = authenticate(request);
-  if (authenticated) return authenticated;
-  const printer = await loadPrinter(context);
+  const authentication = await authenticate(request, context);
+  if (authentication instanceof Response) return authentication;
+  const printer = await loadPrinter(authentication.printerId);
   if (printer instanceof Response) return printer;
   const token = cloudPrntJobToken(request);
   const code = new URL(request.url).searchParams.get("code");
@@ -244,8 +244,7 @@ async function resolvePayload(job: {
   return payload;
 }
 
-async function loadPrinter(context: RouteContext) {
-  const { printerId } = await context.params;
+async function loadPrinter(printerId: string) {
   if (!uuid.safeParse(printerId).success) return new Response(null, { status: 404, headers: responseHeaders });
   const printer = await prisma.printer.findFirst({
     where: { id: printerId, isEnabled: true },
@@ -254,9 +253,10 @@ async function loadPrinter(context: RouteContext) {
   return printer ?? new Response(null, { status: 404, headers: responseHeaders });
 }
 
-function authenticate(request: Request) {
-  const state = cloudPrntAuthState(request);
-  if (state === "AUTHORIZED") return null;
+async function authenticate(request: Request, context: RouteContext) {
+  const { printerId } = await context.params;
+  const state = cloudPrntAuthState(request, printerId);
+  if (state === "AUTHORIZED") return { printerId };
   if (state === "NOT_CONFIGURED") {
     return new Response(null, { status: 503, headers: responseHeaders });
   }

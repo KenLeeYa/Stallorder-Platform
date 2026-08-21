@@ -10,13 +10,22 @@ import {
 
 const originalUsername = process.env.CLOUDPRNT_POC_BASIC_USERNAME;
 const originalPassword = process.env.CLOUDPRNT_POC_BASIC_PASSWORD;
+const originalEnabled = process.env.CLOUDPRNT_POC_ENABLED;
+const originalPrinterId = process.env.CLOUDPRNT_POC_PRINTER_ID;
+const printerId = "44444444-4444-4444-8444-444444444444";
 
 beforeEach(() => {
+  process.env.CLOUDPRNT_POC_ENABLED = "true";
+  process.env.CLOUDPRNT_POC_PRINTER_ID = printerId;
   process.env.CLOUDPRNT_POC_BASIC_USERNAME = "mcp31lb";
   process.env.CLOUDPRNT_POC_BASIC_PASSWORD = "a-strong-test-password";
 });
 
 afterEach(() => {
+  if (originalEnabled === undefined) delete process.env.CLOUDPRNT_POC_ENABLED;
+  else process.env.CLOUDPRNT_POC_ENABLED = originalEnabled;
+  if (originalPrinterId === undefined) delete process.env.CLOUDPRNT_POC_PRINTER_ID;
+  else process.env.CLOUDPRNT_POC_PRINTER_ID = originalPrinterId;
   if (originalUsername === undefined) delete process.env.CLOUDPRNT_POC_BASIC_USERNAME;
   else process.env.CLOUDPRNT_POC_BASIC_USERNAME = originalUsername;
   if (originalPassword === undefined) delete process.env.CLOUDPRNT_POC_BASIC_PASSWORD;
@@ -28,10 +37,21 @@ describe("CloudPRNT protocol helpers", () => {
     const authorized = request({ authorization: basic("mcp31lb", "a-strong-test-password") });
     const rejected = request({ authorization: basic("mcp31lb", "wrong-password-value") });
 
-    expect(cloudPrntAuthState(authorized)).toBe("AUTHORIZED");
-    expect(cloudPrntAuthState(rejected)).toBe("UNAUTHORIZED");
+    expect(cloudPrntAuthState(authorized, printerId)).toBe("AUTHORIZED");
+    expect(cloudPrntAuthState(rejected, printerId)).toBe("UNAUTHORIZED");
+    expect(cloudPrntAuthState(authorized, "66666666-6666-4666-8666-666666666666")).toBe("UNAUTHORIZED");
     delete process.env.CLOUDPRNT_POC_BASIC_PASSWORD;
-    expect(cloudPrntAuthState(authorized)).toBe("NOT_CONFIGURED");
+    expect(cloudPrntAuthState(authorized, printerId)).toBe("NOT_CONFIGURED");
+  });
+
+  it("stays disabled until the PoC and allowed printer are explicitly configured", () => {
+    const authorized = request({ authorization: basic("mcp31lb", "a-strong-test-password") });
+
+    process.env.CLOUDPRNT_POC_ENABLED = "false";
+    expect(cloudPrntAuthState(authorized, printerId)).toBe("NOT_CONFIGURED");
+    process.env.CLOUDPRNT_POC_ENABLED = "true";
+    delete process.env.CLOUDPRNT_POC_PRINTER_ID;
+    expect(cloudPrntAuthState(authorized, printerId)).toBe("NOT_CONFIGURED");
   });
 
   it("normalizes percent-encoded status and recognizes only successful completion codes", () => {
