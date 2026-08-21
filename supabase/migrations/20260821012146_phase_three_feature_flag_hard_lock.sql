@@ -92,34 +92,50 @@ for each row execute function app_private.enforce_phase_three_feature_flag_lock(
 -- Install both write guards before cleanup. CREATE TRIGGER holds the table lock
 -- through commit, so a concurrent writer either finishes before cleanup or
 -- resumes after the guards are visible.
-update public.resilience_feature_flag_overrides flag_override
-set enabled = false,
-    reason = case
-      when position('[PHASE3_HARD_LOCK]' in flag_override.reason) > 0
-        then flag_override.reason
-      else left(flag_override.reason || ' [PHASE3_HARD_LOCK]', 500)
-    end
-from public.resilience_feature_flags flag
-where flag_override.flag_id = flag.id
-  and flag_override.enabled
-  and flag.code in (
-    'DIGITAL_WAITLIST_FOUNDATION_ENABLED',
-    'ONLINE_ORDER_PAYMENT_ENABLED',
-    'RESERVATION_PREORDER_ENABLED',
-    'DYNAMIC_ORDERING_QR_FOUNDATION_ENABLED',
-    'CRM_LOYALTY_CONSENT_FOUNDATION_ENABLED'
-  );
+do $$
+begin
+  if not exists (
+    select 1
+    from public.backend_runtime_state
+    where is_current
+      and backend_code = 'DR'
+      and backend_role = 'READ_ONLY_STANDBY'
+      and not writes_enabled
+      and enforcement_enabled
+  ) then
+    perform app_private.assert_backend_writable();
 
-update public.resilience_feature_flags
-set default_enabled = false
-where default_enabled
-  and code in (
-    'DIGITAL_WAITLIST_FOUNDATION_ENABLED',
-    'ONLINE_ORDER_PAYMENT_ENABLED',
-    'RESERVATION_PREORDER_ENABLED',
-    'DYNAMIC_ORDERING_QR_FOUNDATION_ENABLED',
-    'CRM_LOYALTY_CONSENT_FOUNDATION_ENABLED'
-  );
+    update public.resilience_feature_flag_overrides flag_override
+    set enabled = false,
+        reason = case
+          when position('[PHASE3_HARD_LOCK]' in flag_override.reason) > 0
+            then flag_override.reason
+          else left(flag_override.reason || ' [PHASE3_HARD_LOCK]', 500)
+        end
+    from public.resilience_feature_flags flag
+    where flag_override.flag_id = flag.id
+      and flag_override.enabled
+      and flag.code in (
+        'DIGITAL_WAITLIST_FOUNDATION_ENABLED',
+        'ONLINE_ORDER_PAYMENT_ENABLED',
+        'RESERVATION_PREORDER_ENABLED',
+        'DYNAMIC_ORDERING_QR_FOUNDATION_ENABLED',
+        'CRM_LOYALTY_CONSENT_FOUNDATION_ENABLED'
+      );
+
+    update public.resilience_feature_flags
+    set default_enabled = false
+    where default_enabled
+      and code in (
+        'DIGITAL_WAITLIST_FOUNDATION_ENABLED',
+        'ONLINE_ORDER_PAYMENT_ENABLED',
+        'RESERVATION_PREORDER_ENABLED',
+        'DYNAMIC_ORDERING_QR_FOUNDATION_ENABLED',
+        'CRM_LOYALTY_CONSENT_FOUNDATION_ENABLED'
+      );
+  end if;
+end;
+$$;
 
 alter table public.resilience_feature_flags
   add constraint resilience_feature_flags_phase_three_default_off_check

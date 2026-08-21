@@ -1,18 +1,34 @@
 create extension if not exists btree_gist with schema extensions;
 
-insert into public.resilience_feature_flags (
-  code,
-  description,
-  default_enabled,
-  is_emergency
-)
-values (
-  'RESERVATION_PREORDER_ENABLED',
-  'Local-only reservation-linked preorder foundation. Keep disabled until policy and rollout approval.',
-  false,
-  false
-)
-on conflict (code) do nothing;
+do $$
+begin
+  if not exists (
+    select 1
+    from public.backend_runtime_state
+    where is_current
+      and backend_code = 'DR'
+      and backend_role = 'READ_ONLY_STANDBY'
+      and not writes_enabled
+      and enforcement_enabled
+  ) then
+    perform app_private.assert_backend_writable();
+
+    insert into public.resilience_feature_flags (
+      code,
+      description,
+      default_enabled,
+      is_emergency
+    )
+    values (
+      'RESERVATION_PREORDER_ENABLED',
+      'Local-only reservation-linked preorder foundation. Keep disabled until policy and rollout approval.',
+      false,
+      false
+    )
+    on conflict (code) do nothing;
+  end if;
+end;
+$$;
 
 create unique index if not exists dining_tables_id_stall_organization_key
   on public.dining_tables (id, stall_id, organization_id);
@@ -183,6 +199,10 @@ create trigger reservations_prepare_row
 before insert or update on public.reservations
 for each row execute function app_private.prepare_reservation_row();
 
+create trigger backend_writable_guard
+before insert or update or delete on public.reservations
+for each statement execute function app_private.enforce_backend_writable();
+
 create function app_private.touch_reservation_preorder_session()
 returns trigger
 language plpgsql
@@ -211,6 +231,10 @@ $$;
 create trigger reservation_preorder_sessions_touch
 before update on public.reservation_preorder_sessions
 for each row execute function app_private.touch_reservation_preorder_session();
+
+create trigger backend_writable_guard
+before insert or update or delete on public.reservation_preorder_sessions
+for each statement execute function app_private.enforce_backend_writable();
 
 create function app_private.lock_reservation_table_capacity(
   p_dining_table_id uuid

@@ -55,6 +55,14 @@ describe("dynamic ordering QR foundation migration", () => {
     expect(migrationSource).toContain("DYNAMIC_QR_SCOPE_MISMATCH");
   });
 
+  it("keeps a fenced DR standby read-only while protecting new tables", () => {
+    expect(migrationSource).toContain("backend_code = 'DR'");
+    expect(migrationSource).toContain("backend_role = 'READ_ONLY_STANDBY'");
+    expect(migrationSource).toContain("perform app_private.assert_backend_writable()");
+    expect(migrationSource.match(/create trigger backend_writable_guard/g)).toHaveLength(2);
+    expect(migrationSource).not.toContain("session_replication_role");
+  });
+
   it("enforces bounded lifetime, usage, rotation, pause, and checkout states", () => {
     expect(migrationSource).toContain("credential_ttl_seconds between 60 and 900");
     expect(migrationSource).toContain("max_redemptions between 1 and 3");

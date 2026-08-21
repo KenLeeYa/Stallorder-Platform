@@ -78,6 +78,14 @@ describe("CRM and loyalty consent foundation migration", () => {
     expect(migrationSource.match(/to service_role;/g)?.length ?? 0).toBeGreaterThanOrEqual(8);
   });
 
+  it("keeps a fenced DR standby read-only while protecting new tables", () => {
+    expect(migrationSource).toContain("backend_code = 'DR'");
+    expect(migrationSource).toContain("backend_role = 'READ_ONLY_STANDBY'");
+    expect(migrationSource).toContain("perform app_private.assert_backend_writable()");
+    expect(migrationSource.match(/create trigger backend_writable_guard/g)).toHaveLength(5);
+    expect(migrationSource).not.toContain("session_replication_role");
+  });
+
   it("provides withdraw, unsubscribe, export, and erasure contracts", () => {
     for (const signature of [
       "public.withdraw_crm_consent(",
