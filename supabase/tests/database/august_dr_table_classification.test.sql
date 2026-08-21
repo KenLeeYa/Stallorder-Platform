@@ -1,6 +1,6 @@
 begin;
 
-select plan(2);
+select plan(3);
 
 select is(
   (
@@ -28,10 +28,11 @@ select is(
         'public.crm_consent_records'::regclass,
         'public.loyalty_accounts'::regclass,
         'public.loyalty_points_ledger'::regclass,
-        'public.crm_erasure_tombstones'::regclass
+        'public.crm_erasure_tombstones'::regclass,
+        'public.stall_special_closures'::regclass
       ])
   ),
-  20,
+  21,
   'August and Phase 3 business tables receive the backend write fence'
 );
 
@@ -46,6 +47,13 @@ select throws_ok(
   '55000',
   'BACKEND_NOT_WRITABLE',
   'a newly introduced Phase 3 business table rejects writes on a sealed backend'
+);
+
+select throws_ok(
+  $$ insert into public.stall_special_closures default values $$,
+  '55000',
+  'BACKEND_NOT_WRITABLE',
+  'special closure writes are rejected on a sealed backend'
 );
 
 select * from finish();

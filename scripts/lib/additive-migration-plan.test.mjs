@@ -250,7 +250,7 @@ describe("additive DR migration plan", () => {
         "and v_target_date between closure.starts_on and closure.ends_on",
         "or v_target_date between closure.starts_on and closure.ends_on",
       ),
-    )).toThrow("FUNCTION_REPLACEMENT_EXISTING_OBJECT_FORBIDDEN");
+    )).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
   });
 
   it("rejects public exposure even when the table is created in this migration", () => {

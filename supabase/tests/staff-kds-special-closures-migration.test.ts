@@ -46,6 +46,14 @@ describe("staff KDS and special-closure migration", () => {
   });
 
   it("reconciles databases that already applied the previous migration body", () => {
+    expect(reconciliationSource).toContain("from pg_catalog.pg_trigger existing_trigger");
+    expect(reconciliationSource).toContain(
+      "existing_trigger.tgrelid = 'public.stall_special_closures'::regclass",
+    );
+    expect(reconciliationSource).toContain("create trigger backend_writable_guard");
+    expect(reconciliationSource).toContain(
+      "execute function app_private.enforce_backend_writable()",
+    );
     expect(reconciliationSource).toContain(
       "create or replace function public.public_order_preflight_with_special_closure(",
     );
