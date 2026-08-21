@@ -103,6 +103,92 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     const result = await prisma.$transaction(async (transaction) => {
+      if (command.operation === "REORDER_NOTE_GROUPS") {
+        const groups = await transaction.productNoteGroup.findMany({
+          where: { organizationId },
+          select: { id: true },
+        });
+        if (!sameIdSet(groups.map((group) => group.id), command.noteGroupIds)) {
+          throw new ProductNoteConflictError("註記群組排序清單已過期，請重新整理後再試。");
+        }
+        const reordered = command.noteGroupIds.map((id, sortOrder) => ({ id, sort_order: sortOrder }));
+        const updatedCount = await transaction.$executeRaw(Prisma.sql`
+          update public.product_note_groups as note_group
+          set sort_order = reordered.sort_order, updated_at = now()
+          from jsonb_to_recordset(${JSON.stringify(reordered)}::jsonb) as reordered(
+            id uuid,
+            sort_order integer
+          )
+          where note_group.id = reordered.id
+            and note_group.organization_id = ${organizationId}::uuid
+        `);
+        if (updatedCount !== command.noteGroupIds.length) {
+          throw new ProductNoteConflictError("註記群組排序期間資料已變更，請重新整理後再試。");
+        }
+        await transaction.$executeRaw(Prisma.sql`
+          update public.product_note_group_assignments as assignment
+          set sort_order = reordered.sort_order, updated_at = now()
+          from jsonb_to_recordset(${JSON.stringify(reordered)}::jsonb) as reordered(
+            id uuid,
+            sort_order integer
+          )
+          where assignment.note_group_id = reordered.id
+            and assignment.organization_id = ${organizationId}::uuid
+        `);
+        return { id: organizationId, entityType: "PRODUCT_NOTE_GROUP" } as const;
+      }
+
+      if (command.operation === "REORDER_REUSABLE_NOTES") {
+        const notes = await transaction.reusableProductNote.findMany({
+          where: { organizationId },
+          select: { id: true },
+        });
+        if (!sameIdSet(notes.map((note) => note.id), command.reusableNoteIds)) {
+          throw new ProductNoteConflictError("共用註記排序清單已過期，請重新整理後再試。");
+        }
+        const reordered = command.reusableNoteIds.map((id, sortOrder) => ({ id, sort_order: sortOrder }));
+        const updatedCount = await transaction.$executeRaw(Prisma.sql`
+          update public.reusable_product_notes as reusable_note
+          set sort_order = reordered.sort_order, updated_at = now()
+          from jsonb_to_recordset(${JSON.stringify(reordered)}::jsonb) as reordered(
+            id uuid,
+            sort_order integer
+          )
+          where reusable_note.id = reordered.id
+            and reusable_note.organization_id = ${organizationId}::uuid
+        `);
+        if (updatedCount !== command.reusableNoteIds.length) {
+          throw new ProductNoteConflictError("共用註記排序期間資料已變更，請重新整理後再試。");
+        }
+        return { id: organizationId, entityType: "REUSABLE_PRODUCT_NOTE" } as const;
+      }
+
+      if (command.operation === "REORDER_NOTE_OPTIONS") {
+        const options = await transaction.productNoteOption.findMany({
+          where: { organizationId, noteGroupId: command.noteGroupId },
+          select: { id: true },
+        });
+        if (!sameIdSet(options.map((option) => option.id), command.noteOptionIds)) {
+          throw new ProductNoteConflictError("註記選項排序清單已過期，請重新整理後再試。");
+        }
+        const reordered = command.noteOptionIds.map((id, sortOrder) => ({ id, sort_order: sortOrder }));
+        const updatedCount = await transaction.$executeRaw(Prisma.sql`
+          update public.product_note_options as note_option
+          set sort_order = reordered.sort_order, updated_at = now()
+          from jsonb_to_recordset(${JSON.stringify(reordered)}::jsonb) as reordered(
+            id uuid,
+            sort_order integer
+          )
+          where note_option.id = reordered.id
+            and note_option.organization_id = ${organizationId}::uuid
+            and note_option.note_group_id = ${command.noteGroupId}::uuid
+        `);
+        if (updatedCount !== command.noteOptionIds.length) {
+          throw new ProductNoteConflictError("註記選項排序期間資料已變更，請重新整理後再試。");
+        }
+        return { id: command.noteGroupId, entityType: "PRODUCT_NOTE_OPTION" } as const;
+      }
+
       if (command.operation === "CREATE_NOTE_GROUP" || command.operation === "UPDATE_NOTE_GROUP") {
         const productCount = command.productIds.length === 0
           ? 0
@@ -129,11 +215,11 @@ export async function POST(request: Request, context: RouteContext) {
         });
         if (command.productIds.length > 0) {
           await transaction.productNoteGroupAssignment.createMany({
-            data: command.productIds.map((productId, index) => ({
+            data: command.productIds.map((productId) => ({
               organizationId,
               productId,
               noteGroupId: group.id,
-              sortOrder: index,
+              sortOrder: command.sortOrder,
             })),
           });
         }
@@ -384,9 +470,12 @@ export async function POST(request: Request, context: RouteContext) {
     const linked = error instanceof ReusableProductNoteLinkedError
       || (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003");
     const notFound = error instanceof ProductNoteNotFoundError;
+    const conflict = error instanceof ProductNoteConflictError;
     return NextResponse.json(
       {
-        error: linked
+        error: conflict
+          ? error.message
+          : linked
           ? "此共用註記仍在註記群組中使用，請先從所有群組移除。"
           : duplicate
             ? Object.values(duplicateFieldErrors)[0] ?? "同一範圍內已有相同名稱或共用註記。"
@@ -397,7 +486,7 @@ export async function POST(request: Request, context: RouteContext) {
           ? { fieldErrors: duplicateFieldErrors }
           : {}),
       },
-      { status: duplicate || linked ? 409 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
+      { status: duplicate || linked || conflict ? 409 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }
 }
@@ -441,9 +530,19 @@ function auditAction(operation: string) {
     DELETE_REUSABLE_NOTE: "REUSABLE_PRODUCT_NOTE_DELETED",
     ATTACH_REUSABLE_NOTE: "REUSABLE_PRODUCT_NOTE_ATTACHED",
     ATTACH_REUSABLE_NOTES: "REUSABLE_PRODUCT_NOTES_ATTACHED",
+    REORDER_NOTE_GROUPS: "PRODUCT_NOTE_GROUPS_REORDERED",
+    REORDER_REUSABLE_NOTES: "REUSABLE_PRODUCT_NOTES_REORDERED",
+    REORDER_NOTE_OPTIONS: "PRODUCT_NOTE_OPTIONS_REORDERED",
   };
   return actions[operation] ?? "PRODUCT_NOTES_UPDATED";
 }
 
 class ProductNoteNotFoundError extends Error {}
 class ReusableProductNoteLinkedError extends Error {}
+class ProductNoteConflictError extends Error {}
+
+function sameIdSet(currentIds: readonly string[], requestedIds: readonly string[]) {
+  if (currentIds.length !== requestedIds.length) return false;
+  const requested = new Set(requestedIds);
+  return currentIds.every((id) => requested.has(id));
+}

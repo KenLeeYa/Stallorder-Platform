@@ -83,6 +83,7 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
       name: stall.name,
       slug: stall.slug,
       isActive: stall.isActive,
+      kdsEnabled: configuration.modules.kds,
       roles,
     }],
   }]);

@@ -27,7 +27,7 @@ export async function POST(request: Request, context: RouteContext) {
   const form = await request.formData().catch(() => null);
   const file = form?.get("image");
   if (!(file instanceof File) || file.size === 0 || file.size > maxFileSize || !allowedTypes.has(file.type)) {
-    return NextResponse.json({ error: "請上傳 5MB 以下的 JPG、PNG 或 WebP 圖片。" }, { status: 400 });
+    return NextResponse.json({ error: "請上傳 5MB 以下的 JPG、PNG 或 WebP 圖片；系統會自動轉為適合 Menu 顯示的 WebP。" }, { status: 400 });
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -99,5 +99,9 @@ export async function POST(request: Request, context: RouteContext) {
     ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin
     : new URL(request.url).origin;
   const imageUrl = new URL(`/api/assets/product-images/${objectPath}`, applicationOrigin).toString();
-  return NextResponse.json({ imageUrl }, { status: 201, headers: { "x-request-id": authorization.requestId } });
+  return NextResponse.json({
+    imageUrl,
+    originalSize: file.size,
+    optimizedSize: optimizedBytes.byteLength,
+  }, { status: 201, headers: { "x-request-id": authorization.requestId } });
 }

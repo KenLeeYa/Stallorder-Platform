@@ -11,7 +11,7 @@ vi.mock("@/components/pwa-controls", () => ({ PwaControls: () => null }));
 vi.mock("@/components/logout-button", () => ({ LogoutButton: () => null }));
 
 describe("kitchen mobile layout", () => {
-  it("renders the primary navigation as equal icon-only mobile segments", () => {
+  it("renders the primary navigation as a sticky row of equal icon buttons", () => {
     const html = renderToStaticMarkup(
       <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
         <KitchenNavigation
@@ -30,11 +30,13 @@ describe("kitchen mobile layout", () => {
     );
 
     expect(html).toContain('data-testid="kitchen-primary-navigation"');
-    expect(html).toContain("grid-flow-col auto-cols-fr");
-    expect(html).toContain("sr-only sm:not-sr-only");
+    expect(html).toContain("sticky top-0");
+    expect(html).toContain("overflow-x-auto");
+    expect(html).toContain("grid h-11 w-11");
+    expect(html).toContain("<span class=\"sr-only\">生產看板</span>");
   });
 
-  it("renders equal three-mode controls and an icon utility toolbar", () => {
+  it("renders three equal compact mode icons and a sticky utility toolbar", () => {
     const html = renderToStaticMarkup(
       <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
         <KitchenBoard
@@ -58,9 +60,11 @@ describe("kitchen mobile layout", () => {
     );
 
     expect(html).toContain('data-testid="kitchen-mode-selector"');
-    expect(html).toContain("w-full grid-cols-3");
+    expect(html).toContain("inline-grid h-11 grid-cols-3");
+    expect(html).toContain("grid h-11 w-11");
     expect(html).toContain('data-testid="kitchen-utility-toolbar"');
+    expect(html).toContain("sticky top-28");
     expect(html).toContain('role="status"');
-    expect(html).toContain("sr-only sm:not-sr-only");
+    expect(html).toContain("<span class=\"sr-only\">訂單</span>");
   });
 });

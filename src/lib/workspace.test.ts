@@ -25,6 +25,7 @@ function workspace(
       code: "AMING",
       businessStatus: "OPEN",
       orderingEnabled: true,
+      kdsEnabled: false,
       isActive: true,
       roles: ["ORGANIZATION_OWNER"],
     }],

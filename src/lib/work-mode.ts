@@ -12,6 +12,7 @@ export type WorkModeWorkspace = {
     name: string;
     slug: string;
     isActive: boolean;
+    kdsEnabled?: boolean;
     roles: readonly UserRole[];
   }[];
 };
@@ -65,7 +66,7 @@ export function buildWorkModeDestinations(
           href: `/staff/${encodeURIComponent(stall.slug)}`,
         });
       }
-      if (stall.roles.some((role) => hasPermission(role, "VIEW_KDS"))) {
+      if (stall.kdsEnabled !== false && stall.roles.some((role) => hasPermission(role, "VIEW_KDS"))) {
         destinations.push({
           value: `kitchen:${stall.id}`,
           mode: "KITCHEN",

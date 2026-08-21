@@ -9,6 +9,7 @@ export function newStallOrderingSettings(organizationId: string) {
     deliveryModuleEnabled: false,
     staffDeliveryEnabled: false,
     printModuleEnabled: false,
+    kdsModuleEnabled: false,
     paymentModuleEnabled: true,
     discountModuleEnabled: false,
     takeoutPreorderEnabled: false,

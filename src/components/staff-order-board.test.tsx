@@ -48,6 +48,7 @@ function order(override: Partial<StaffOrderDto> = {}): StaffOrderDto {
     fulfillmentTimeResponseExpiresAt: null,
     fulfillmentTimeChangeReason: null,
     createdAt: "2026-08-13T04:00:00.000Z",
+    primaryPrintStatus: null,
     items: [{
       id: itemId,
       name: "測試餐點",
@@ -65,7 +66,7 @@ function order(override: Partial<StaffOrderDto> = {}): StaffOrderDto {
   };
 }
 
-function render(orders: StaffOrderDto[]) {
+function render(orders: StaffOrderDto[], moduleOverride: Partial<{ dineIn: boolean; delivery: boolean; print: boolean; kds: boolean; payment: boolean; discount: boolean; discountApprovalThresholdBps: number }> = {}) {
   return renderToStaticMarkup(<LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
     <StaffOrderBoard
     stall={{
@@ -80,7 +81,7 @@ function render(orders: StaffOrderDto[]) {
     initialOrders={orders}
     initialNow={new Date("2026-08-13T04:10:00.000Z").getTime()}
     account={{ displayName: "店員", role: "STAFF" }}
-    modules={{ dineIn: true, delivery: true, print: false, payment: false, discount: false, discountApprovalThresholdBps: 8000 }}
+    modules={{ dineIn: true, delivery: true, print: false, kds: true, payment: false, discount: false, discountApprovalThresholdBps: 8000, ...moduleOverride }}
     paymentOptions={[]}
     discountOptions={[]}
     orderCatalog={{
@@ -115,8 +116,12 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toContain('data-testid="staff-function-device-group"');
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain("sm:overflow-x-visible");
-    expect(html).toContain("relative mt-3 flex");
+    expect(html).toContain("sticky top-0");
+    expect(html).toContain("overflow-x-hidden");
+    expect(html).toContain("[&amp;_button]:box-border");
+    expect(html).toContain("h-11 w-11");
     expect(html).toContain('<span class="sr-only">店員點餐</span>');
+    expect(html).toMatch(/<header[^>]*data-testid="staff-sticky-header"[^>]*sticky top-0[\s\S]*data-testid="staff-function-grid"[\s\S]*<\/header>/);
   });
 
   it("keeps the item summary and primary actions visible while detailed controls stay compact", () => {
@@ -138,6 +143,26 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toContain("待結帳");
     expect(html).toContain("代結帳");
     expect(html).toContain("1 × 測試餐點");
+  });
+
+  it("replaces the extra completion button with automatic-print status", () => {
+    const html = render([order({
+      status: "READY",
+      paymentStatus: "PAID",
+      primaryPrintStatus: "PENDING",
+      items: [{ ...order().items[0], status: "READY", readyAt: "2026-08-13T04:09:00.000Z" }],
+    })], { print: true, kds: false });
+
+    expect(html).toContain("已收款，列印完成後自動結單");
+    expect(html).not.toContain("列印並完成");
+    expect(html).not.toContain("代結帳");
+  });
+
+  it("labels a paid non-KDS takeout action as completing the order", () => {
+    const html = render([order({ paymentStatus: "PAID" })], { print: false, kds: false });
+
+    expect(html).toContain("完成訂單");
+    expect(html).not.toContain("完成此桌");
   });
 
   it("labels the pending-order transition as an acceptance action", () => {

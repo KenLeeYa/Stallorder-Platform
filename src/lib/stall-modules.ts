@@ -14,6 +14,7 @@ export async function getStallModuleState(stallId: string, organizationId: strin
         deliveryModuleEnabled: true,
         staffDeliveryEnabled: true,
         printModuleEnabled: true,
+        kdsModuleEnabled: true,
         paymentModuleEnabled: true,
         discountModuleEnabled: true,
         discountApprovalThresholdBps: true,

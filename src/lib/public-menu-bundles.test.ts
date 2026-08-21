@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const stallFindUnique = vi.fn();
 const stallProductFindMany = vi.fn();
 const settingsFindUnique = vi.fn();
+const specialClosureFindMany = vi.fn();
 const queryRaw = vi.fn();
 
 vi.mock("server-only", () => ({}));
@@ -23,6 +24,7 @@ vi.mock("@/lib/prisma", () => ({
     stall: { findUnique: stallFindUnique },
     stallProduct: { findMany: stallProductFindMany },
     stallOrderingSettings: { findUnique: settingsFindUnique },
+    stallSpecialClosure: { findMany: specialClosureFindMany },
     $queryRaw: queryRaw,
   },
 }));
@@ -65,6 +67,7 @@ describe("public bundle menu", () => {
       estimatedWaitMinutes: 10,
     });
     queryRaw.mockResolvedValue([]);
+    specialClosureFindMany.mockResolvedValue([]);
   });
 
   it("publishes complete bundles and hides bundles without enough saleable choices", async () => {

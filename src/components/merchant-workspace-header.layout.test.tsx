@@ -36,6 +36,7 @@ const workspace: WorkspaceOrganization = {
     code: "TEST-STALL",
     businessStatus: "OPEN",
     orderingEnabled: true,
+    kdsEnabled: false,
     isActive: true,
     roles: ["ORGANIZATION_OWNER"],
   }],

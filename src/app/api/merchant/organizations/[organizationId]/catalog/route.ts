@@ -147,6 +147,95 @@ export async function POST(request: Request, context: RouteContext) {
       await entitlementService.assertSubscriptionUsable(organizationId);
     }
     const result = await prisma.$transaction(async (transaction) => {
+      if (command.operation === "REORDER_CATEGORIES") {
+        const categories = await transaction.productCategory.findMany({
+          where: { organizationId },
+          select: { id: true },
+        });
+        if (!sameIdSet(categories.map((category) => category.id), command.categoryIds)) {
+          throw new CatalogConflictError("分類排序清單與目前商品目錄不一致，請重新整理後再試。");
+        }
+        const reordered = command.categoryIds.map((id, sortOrder) => ({ id, sort_order: sortOrder }));
+        const updatedCount = await transaction.$executeRaw(Prisma.sql`
+          update public.product_categories as category
+          set sort_order = reordered.sort_order, updated_at = now()
+          from jsonb_to_recordset(${JSON.stringify(reordered)}::jsonb) as reordered(
+            id uuid,
+            sort_order integer
+          )
+          where category.id = reordered.id
+            and category.organization_id = ${organizationId}::uuid
+        `);
+        if (updatedCount !== command.categoryIds.length) {
+          throw new CatalogConflictError("分類排序期間目錄已變更，請重新整理後再試。");
+        }
+        return { id: organizationId };
+      }
+      if (command.operation === "REORDER_GROUPS") {
+        const groups = await transaction.productGroup.findMany({
+          where: { organizationId, categoryId: command.categoryId },
+          select: { id: true },
+        });
+        if (!sameIdSet(groups.map((group) => group.id), command.groupIds)) {
+          throw new CatalogConflictError("群組排序清單與目前商品目錄不一致，請重新整理後再試。");
+        }
+        const reordered = command.groupIds.map((id, sortOrder) => ({ id, sort_order: sortOrder }));
+        const updatedCount = await transaction.$executeRaw(Prisma.sql`
+          update public.product_groups as product_group
+          set sort_order = reordered.sort_order, updated_at = now()
+          from jsonb_to_recordset(${JSON.stringify(reordered)}::jsonb) as reordered(
+            id uuid,
+            sort_order integer
+          )
+          where product_group.id = reordered.id
+            and product_group.organization_id = ${organizationId}::uuid
+            and product_group.category_id = ${command.categoryId}::uuid
+        `);
+        if (updatedCount !== command.groupIds.length) {
+          throw new CatalogConflictError("群組排序期間目錄已變更，請重新整理後再試。");
+        }
+        return { id: command.categoryId };
+      }
+      if (command.operation === "REORDER_PRODUCTS") {
+        const products = await transaction.product.findMany({
+          where: {
+            organizationId,
+            categoryId: command.categoryId,
+            groupId: command.groupId,
+          },
+          select: { id: true },
+        });
+        if (!sameIdSet(products.map((product) => product.id), command.productIds)) {
+          throw new CatalogConflictError("商品排序清單與目前商品目錄不一致，請重新整理後再試。");
+        }
+        const reordered = command.productIds.map((id, sortOrder) => ({ id, sort_order: sortOrder }));
+        const updatedCount = await transaction.$executeRaw(Prisma.sql`
+          update public.products as product
+          set sort_order = reordered.sort_order, updated_at = now()
+          from jsonb_to_recordset(${JSON.stringify(reordered)}::jsonb) as reordered(
+            id uuid,
+            sort_order integer
+          )
+          where product.id = reordered.id
+            and product.organization_id = ${organizationId}::uuid
+            and product.category_id = ${command.categoryId}::uuid
+            and product.group_id is not distinct from ${command.groupId}::uuid
+        `);
+        if (updatedCount !== command.productIds.length) {
+          throw new CatalogConflictError("商品排序期間目錄已變更，請重新整理後再試。");
+        }
+        await transaction.$executeRaw(Prisma.sql`
+          update public.stall_products as assignment
+          set sort_order = reordered.sort_order, updated_at = now()
+          from jsonb_to_recordset(${JSON.stringify(reordered)}::jsonb) as reordered(
+            id uuid,
+            sort_order integer
+          )
+          where assignment.product_id = reordered.id
+            and assignment.organization_id = ${organizationId}::uuid
+        `);
+        return { id: command.groupId ?? command.categoryId };
+      }
       if (command.operation === "CREATE_CATEGORY") {
         return transaction.productCategory.create({
           data: { organizationId, name: command.name, sortOrder: command.sortOrder },
@@ -571,6 +660,9 @@ export async function POST(request: Request, context: RouteContext) {
     if ("quantity" in command) after.quantity = command.quantity;
     if ("priceDelta" in command) after.priceDelta = command.priceDelta;
     if ("isEnabled" in command) after.isEnabled = command.isEnabled;
+    if ("categoryIds" in command) after.categoryIds = command.categoryIds;
+    if ("groupIds" in command) after.groupIds = command.groupIds;
+    if ("productIds" in command) after.productIds = command.productIds;
     await recordAuditEvent({
       organizationId,
       actorProfileId: authorization.principal.user.id,
@@ -676,6 +768,9 @@ function catalogAuditAction(operation: string) {
     DELETE_PRODUCT: "PRODUCT_DELETED",
     CLONE_PRODUCT: "PRODUCT_CLONED",
     SET_ASSIGNMENTS: "PRODUCT_STALL_ASSIGNMENTS_CHANGED",
+    REORDER_CATEGORIES: "PRODUCT_CATEGORIES_REORDERED",
+    REORDER_GROUPS: "PRODUCT_GROUPS_REORDERED",
+    REORDER_PRODUCTS: "PRODUCTS_REORDERED",
     CREATE_BUNDLE_CHOICE_GROUP: "PRODUCT_BUNDLE_CHOICE_GROUP_CREATED",
     UPDATE_BUNDLE_CHOICE_GROUP: "PRODUCT_BUNDLE_CHOICE_GROUP_UPDATED",
     DELETE_BUNDLE_CHOICE_GROUP: "PRODUCT_BUNDLE_CHOICE_GROUP_DELETED",
@@ -690,8 +785,14 @@ function catalogEntityType(operation: string) {
   if (operation.includes("BUNDLE_CHOICE_GROUP")) return "PRODUCT_BUNDLE_CHOICE_GROUP";
   if (operation.includes("BUNDLE_CHOICE")) return "PRODUCT_BUNDLE_CHOICE";
   if (operation.includes("CATEGORY")) return "PRODUCT_CATEGORY";
-  if (operation === "CREATE_GROUP" || operation === "UPDATE_GROUP") return "PRODUCT_GROUP";
+  if (operation === "CREATE_GROUP" || operation === "UPDATE_GROUP" || operation === "REORDER_GROUPS") return "PRODUCT_GROUP";
   return "PRODUCT";
+}
+
+function sameIdSet(currentIds: readonly string[], requestedIds: readonly string[]) {
+  if (currentIds.length !== requestedIds.length) return false;
+  const requested = new Set(requestedIds);
+  return currentIds.every((id) => requested.has(id));
 }
 
 async function validateBundleChoiceReferences(

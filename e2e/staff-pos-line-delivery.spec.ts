@@ -678,14 +678,9 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
   try {
     const settingsPage = await settingsContext.newPage();
     await login(settingsPage);
-    await settingsPage.goto(`/merchant/stalls/${stallId}/settings/modules`);
-    const saveSettingsResponse = settingsPage.waitForResponse((response) => (
-      new URL(response.url()).pathname === `/api/merchant/stalls/${stallId}/modules`
-      && response.request().method() === "PATCH"
-      && response.request().postDataJSON()?.operation === "UPDATE_MODULES"
-    ));
-    await settingsPage.getByRole("button", { name: "儲存模組開關", exact: true }).click();
-    expect((await saveSettingsResponse).status()).toBe(200);
+    await settingsPage.goto(`/merchant/stalls/${stallId}/settings/delivery`);
+    await expect(settingsPage.getByRole("heading", { name: "線上外送", exact: true })).toBeVisible();
+    await expect(settingsPage.getByRole("switch", { name: /線上外送/u })).toHaveAttribute("aria-checked", "true");
   } finally {
     await settingsContext.close();
   }

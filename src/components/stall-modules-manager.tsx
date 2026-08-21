@@ -37,6 +37,7 @@ export type ModuleState = {
     deliveryModuleEnabled: boolean;
     staffDeliveryEnabled: boolean;
     printModuleEnabled: boolean;
+    kdsModuleEnabled: boolean;
     paymentModuleEnabled: boolean;
     discountModuleEnabled: boolean;
     discountApprovalThresholdBps: number;
@@ -88,6 +89,20 @@ export type ModuleState = {
   }>;
 };
 
+export type StallModuleView =
+  | "all"
+  | "dine-in"
+  | "dining-tables"
+  | "delivery"
+  | "staff-delivery"
+  | "printing"
+  | "kds"
+  | "payments"
+  | "discounts"
+  | "preorder"
+  | "lottery"
+  | "languages";
+
 type TableDraft = Omit<ModuleState["tables"][number], "id" | "qrCode" | "layoutX" | "layoutY">;
 type FloorDraft = Omit<ModuleState["floors"][number], "id">;
 type PaymentDraft = Omit<ModuleState["paymentOptions"][number], "id">;
@@ -124,11 +139,13 @@ export function StallModulesManager({
   stallCode,
   appUrl,
   initialState,
+  view = "all",
 }: {
   stallId: string;
   stallCode: string;
   appUrl: string;
   initialState: ModuleState;
+  view?: StallModuleView;
 }) {
   const { locale, m, label } = useMerchantMessages();
   const [state, setState] = useState(initialState);
@@ -156,6 +173,22 @@ export function StallModulesManager({
   const [openSections, setOpenSections] = useState<Set<ModuleSectionKey>>(
     () => new Set(moduleSectionKeys),
   );
+  const isView = (...views: StallModuleView[]) => view === "all" || views.includes(view);
+  const viewTitle = label({
+    all: "營運模組與內用桌位",
+    "dine-in": "內用點餐",
+    "dining-tables": "內用桌位與專屬 QR",
+    delivery: "線上外送",
+    "staff-delivery": "店員外送點餐",
+    printing: "訂單列印",
+    kds: "廚房 KDS",
+    payments: "付款方式",
+    discounts: "結帳折扣",
+    preorder: "外帶預約",
+    lottery: "抽抽樂推薦",
+    languages: "QR 點餐語系",
+  }[view]);
+  const showsModuleControls = !["dining-tables", "languages"].includes(view);
   const allSectionsExpanded = moduleSectionKeys.every((section) => openSections.has(section));
   const { storefrontUrl, lineReply } = buildPublicStorefrontShare(appUrl, stallCode, locale);
   const floorTabs = useMemo(() => getDiningFloorTabs(state.floors, state.tables), [state.floors, state.tables]);
@@ -326,10 +359,12 @@ export function StallModulesManager({
     const firstLotteryDiscount = settings.lotteryDiscountChances?.[0] ?? null;
     await run({
       operation: "UPDATE_MODULES",
+      view,
       dineInEnabled: settings.dineInEnabled,
       deliveryModuleEnabled: settings.deliveryModuleEnabled,
       staffDeliveryEnabled: settings.staffDeliveryEnabled,
       printModuleEnabled: settings.printModuleEnabled,
+      kdsModuleEnabled: settings.kdsModuleEnabled,
       paymentModuleEnabled: settings.paymentModuleEnabled,
       discountModuleEnabled: settings.discountModuleEnabled,
       discountApprovalThresholdBps: settings.discountApprovalThresholdBps,
@@ -385,8 +420,8 @@ export function StallModulesManager({
   }
 
   return (
-    <section ref={managerRef} className="mt-8" aria-label={label("營運模組與內用桌位")}>
-      <div className="mb-3 flex justify-end">
+    <section ref={managerRef} className="mt-8" aria-label={viewTitle}>
+      {view === "all" ? <div className="mb-3 flex justify-end">
         <button
           type="button"
           data-testid="stall-modules-toggle-all"
@@ -398,7 +433,7 @@ export function StallModulesManager({
           <ChevronsUpDown className="h-4 w-4" />
           {allSectionsExpanded ? label("全部摺疊") : label("全部展開")}
         </button>
-      </div>
+      </div> : null}
       <details
         id="stall-module-section-overview"
         open={openSections.has("overview")}
@@ -411,28 +446,29 @@ export function StallModulesManager({
       >
         <CollapsibleSectionSummary
           icon={SlidersHorizontal}
-          title={label("營運模組與內用桌位")}
+          title={viewTitle}
           description={moduleDirty ? label("有尚未儲存的變更") : label("模組關閉後保留既有資料與歷史對帳，不會刪除紀錄。")}
         />
         <div className="pb-7">
 
-      <div data-module-switch-grid className="mt-5 grid gap-3 sm:grid-cols-2">
-        <ModuleSwitch label={label("內用桌位")} icon={<Utensils className="h-4 w-4" />} checked={state.settings.dineInEnabled} onChange={(dineInEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, dineInEnabled } }))} />
-        <ModuleSwitch label={label("線上外送")} icon={<Truck className="h-4 w-4" />} checked={state.settings.deliveryModuleEnabled} onChange={(deliveryModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, deliveryModuleEnabled } }))} />
-        <ModuleSwitch label={label("店員外送點餐")} icon={<Truck className="h-4 w-4" />} checked={state.settings.staffDeliveryEnabled} onChange={(staffDeliveryEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, staffDeliveryEnabled } }))} />
-        <ModuleSwitch label={label("訂單列印")} icon={<Printer className="h-4 w-4" />} checked={state.settings.printModuleEnabled} onChange={(printModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, printModuleEnabled } }))} />
-        <ModuleSwitch label={label("多元付款")} icon={<WalletCards className="h-4 w-4" />} checked={state.settings.paymentModuleEnabled} onChange={(paymentModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, paymentModuleEnabled } }))} />
-        <ModuleSwitch label={label("結帳折扣")} icon={<Percent className="h-4 w-4" />} checked={state.settings.discountModuleEnabled} onChange={(discountModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, discountModuleEnabled } }))} />
-        <ModuleSwitch label={label("外帶自取")} icon={<CalendarClock className="h-4 w-4" />} checked={state.settings.takeoutPreorderEnabled} onChange={(takeoutPreorderEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, takeoutPreorderEnabled }) }))} />
-        <ModuleSwitch label={label("抽抽樂推薦")} icon={<Dices className="h-4 w-4" />} checked={state.settings.lotteryEnabled} onChange={(lotteryEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, lotteryEnabled }) }))} />
-      </div>
-      {state.settings.takeoutPreorderEnabled ? <div className="mt-4 grid gap-3 rounded-lg border border-stone-200 p-4 sm:grid-cols-3">
+      {showsModuleControls ? <div data-module-switch-grid className="mt-5 grid gap-3 sm:grid-cols-2">
+        {isView("dine-in") ? <ModuleSwitch label={label("內用點餐")} icon={<Utensils className="h-4 w-4" />} checked={state.settings.dineInEnabled} onChange={(dineInEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, dineInEnabled } }))} /> : null}
+        {isView("delivery") ? <ModuleSwitch label={label("線上外送")} icon={<Truck className="h-4 w-4" />} checked={state.settings.deliveryModuleEnabled} onChange={(deliveryModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, deliveryModuleEnabled } }))} /> : null}
+        {isView("staff-delivery") ? <ModuleSwitch label={label("店員外送點餐")} icon={<Truck className="h-4 w-4" />} checked={state.settings.staffDeliveryEnabled} onChange={(staffDeliveryEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, staffDeliveryEnabled } }))} /> : null}
+        {isView("printing") ? <ModuleSwitch label={label("訂單列印")} icon={<Printer className="h-4 w-4" />} checked={state.settings.printModuleEnabled} onChange={(printModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, printModuleEnabled } }))} /> : null}
+        {isView("kds") ? <ModuleSwitch label={label("廚房 KDS")} icon={<SlidersHorizontal className="h-4 w-4" />} checked={state.settings.kdsModuleEnabled} onChange={(kdsModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, kdsModuleEnabled } }))} /> : null}
+        {isView("payments") ? <ModuleSwitch label={label("多元付款")} icon={<WalletCards className="h-4 w-4" />} checked={state.settings.paymentModuleEnabled} onChange={(paymentModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, paymentModuleEnabled } }))} /> : null}
+        {isView("discounts") ? <ModuleSwitch label={label("結帳折扣")} icon={<Percent className="h-4 w-4" />} checked={state.settings.discountModuleEnabled} onChange={(discountModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, discountModuleEnabled } }))} /> : null}
+        {isView("preorder") ? <ModuleSwitch label={label("外帶預約")} icon={<CalendarClock className="h-4 w-4" />} checked={state.settings.takeoutPreorderEnabled} onChange={(takeoutPreorderEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, takeoutPreorderEnabled }) }))} /> : null}
+        {isView("lottery") ? <ModuleSwitch label={label("抽抽樂推薦")} icon={<Dices className="h-4 w-4" />} checked={state.settings.lotteryEnabled} onChange={(lotteryEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, lotteryEnabled }) }))} /> : null}
+      </div> : null}
+      {isView("preorder") && state.settings.takeoutPreorderEnabled ? <div className="mt-4 grid gap-3 rounded-lg border border-stone-200 p-4 sm:grid-cols-3">
         <NumberInput label={label("最少提前（分鐘）")} value={state.settings.preorderMinLeadMinutes} fieldKey={fieldKey("modules", "preorderMinLeadMinutes")} error={errorFor("modules", "preorderMinLeadMinutes")} min={15} max={1440} onChange={(preorderMinLeadMinutes) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMinLeadMinutes } }))} />
         <NumberInput label={label("最多預約天數")} value={state.settings.preorderMaxDays} fieldKey={fieldKey("modules", "preorderMaxDays")} error={errorFor("modules", "preorderMaxDays")} min={1} max={30} onChange={(preorderMaxDays) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMaxDays } }))} />
         <label className="text-xs font-medium text-stone-600">{label("時段間隔")}<select {...validationAttributes(fieldKey("modules", "preorderSlotMinutes"), errorFor("modules", "preorderSlotMinutes"))} value={state.settings.preorderSlotMinutes} onChange={(event) => setState((current) => ({ ...current, settings: { ...current.settings, preorderSlotMinutes: Number(event.target.value) as 5 | 15 | 30 | 60 | 120 } }))} className={`${inputClass(errorFor("modules", "preorderSlotMinutes"))} bg-white`}><option value={5}>{label("5 分鐘")}</option><option value={15}>{label("15 分鐘")}</option><option value={30}>{label("30 分鐘")}</option><option value={60}>{label("60 分鐘")}</option><option value={120}>{label("120 分鐘")}</option></select><FieldError fieldKey={fieldKey("modules", "preorderSlotMinutes")} error={errorFor("modules", "preorderSlotMinutes")} /></label>
         <p className="text-xs text-stone-500 sm:col-span-3">{label("關店期間只接受營業時間內的合法外帶時段；暫停接單與售罄仍會阻擋預約。")}</p>
       </div> : null}
-      {state.settings.lotteryEnabled ? <fieldset className="mt-4 rounded-lg border border-stone-200 p-4">
+      {isView("lottery") && state.settings.lotteryEnabled ? <fieldset className="mt-4 rounded-lg border border-stone-200 p-4">
         <legend className="px-1 text-sm font-semibold text-stone-800">{label("抽抽樂折扣獎項")}</legend>
         <p className="text-xs leading-5 text-stone-500">{label("商品推薦依近 30 天已完成訂單的熱銷排行加權，並保留探索其他可抽商品的機會；折扣獎項會依下方設定的機率獨立抽取。")}</p>
         <div
@@ -484,20 +520,29 @@ export function StallModulesManager({
         </div>
         <p className="mt-3 text-xs text-stone-500">{label("每台裝置每天一次；商品與折扣由伺服器抽取，下單時一次性兌換且不可與其他折扣疊加。")}</p>
       </fieldset> : null}
-      {state.settings.discountModuleEnabled ? <label className="mt-4 block max-w-xs text-xs font-semibold text-stone-600">{label("超過此折扣需經理核准（%）")}<input {...validationAttributes(fieldKey("modules", "discountApprovalThresholdBps"), errorFor("modules", "discountApprovalThresholdBps"))} type="number" min={0} max={100} step={1} value={(10_000 - state.settings.discountApprovalThresholdBps) / 100} onChange={(event) => { const percent = Math.max(0, Math.min(100, Number(event.target.value) || 0)); setState((current) => ({ ...current, settings: { ...current.settings, discountApprovalThresholdBps: 10_000 - percent * 100 } })); }} className={inputClass(errorFor("modules", "discountApprovalThresholdBps"))} /><FieldError fieldKey={fieldKey("modules", "discountApprovalThresholdBps")} error={errorFor("modules", "discountApprovalThresholdBps")} /><span className="mt-1 block font-normal text-stone-500">{label("例如設定 20%，折扣超過 20%（低於 8 折）時需要經理驗證。")}</span></label> : null}
-      <button type="button" disabled={busy} onClick={() => void saveModules()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{label("儲存模組開關")}</button>
+      {isView("discounts") && state.settings.discountModuleEnabled ? <label className="mt-4 block max-w-xs text-xs font-semibold text-stone-600">{label("超過此折扣需經理核准（%）")}<input {...validationAttributes(fieldKey("modules", "discountApprovalThresholdBps"), errorFor("modules", "discountApprovalThresholdBps"))} type="number" min={0} max={100} step={1} value={(10_000 - state.settings.discountApprovalThresholdBps) / 100} onChange={(event) => { const percent = Math.max(0, Math.min(100, Number(event.target.value) || 0)); setState((current) => ({ ...current, settings: { ...current.settings, discountApprovalThresholdBps: 10_000 - percent * 100 } })); }} className={inputClass(errorFor("modules", "discountApprovalThresholdBps"))} /><FieldError fieldKey={fieldKey("modules", "discountApprovalThresholdBps")} error={errorFor("modules", "discountApprovalThresholdBps")} /><span className="mt-1 block font-normal text-stone-500">{label("例如設定 20%，折扣超過 20%（低於 8 折）時需要經理驗證。")}</span></label> : null}
+      {showsModuleControls ? <button type="button" disabled={busy} onClick={() => void saveModules()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{label("儲存設定")}</button> : null}
 
       <details
         id="stall-module-section-delivery"
         open={openSections.has("delivery")}
         onToggle={(event) => handleSectionToggle("delivery", event)}
         data-module-section="delivery"
-        className="mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
+        className={`${isView("delivery", "preorder") ? "" : "hidden "}mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
       >
-        <CollapsibleSectionSummary icon={Truck} title={label("外帶、外送與 LINE 連結")} description={label("分享連結才會讓顧客選擇取餐或送達時間；現場 QR 維持即時點餐。")} level={3} />
+        <CollapsibleSectionSummary
+          icon={Truck}
+          title={view === "delivery"
+            ? `${label("線上外送")} · LINE`
+            : view === "preorder"
+              ? `${label("外帶預約")} · LINE`
+              : label("外帶、外送與 LINE 連結")}
+          description={label("分享連結才會讓顧客選擇取餐或送達時間；現場 QR 維持即時點餐。")}
+          level={3}
+        />
         <div className="pb-6">
-          {!state.settings.takeoutPreorderEnabled ? <p className="mb-3 text-sm text-amber-800">{label("請先開啟並儲存「外帶自取」模組，顧客才能選擇外帶自取。")}</p> : null}
-          {!state.settings.deliveryModuleEnabled ? <p className="mb-3 text-sm text-amber-800">{label("請先開啟並儲存「線上外送」模組，顧客才能選擇外送。")}</p> : null}
+          {view !== "delivery" && !state.settings.takeoutPreorderEnabled ? <p className="mb-3 text-sm text-amber-800">{label("請先開啟並儲存「外帶自取」模組，顧客才能選擇外帶自取。")}</p> : null}
+          {view !== "preorder" && !state.settings.deliveryModuleEnabled ? <p className="mb-3 text-sm text-amber-800">{label("請先開啟並儲存「線上外送」模組，顧客才能選擇外送。")}</p> : null}
           <label className="block text-xs font-semibold text-stone-600">{label("顧客公開點餐網址")}<div className="mt-1 flex gap-2"><input type="text" readOnly value={storefrontUrl} className="h-11 min-w-0 flex-1 rounded-md border border-stone-300 bg-stone-50 px-3 text-sm" /><button type="button" title={label("複製公開點餐網址")} onClick={() => void copyShareText(storefrontUrl, label("公開點餐網址"))} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><Copy className="h-4 w-4" /></button></div></label>
           <label className="mt-4 block text-xs font-semibold text-stone-600">{label("LINE 自動回覆內容")}<textarea readOnly value={lineReply} className="mt-1 min-h-24 w-full rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm" /></label>
           <button type="button" onClick={() => void copyShareText(lineReply, label("LINE 回覆內容"))} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MessageCircle className="h-4 w-4" />{label("複製 LINE 回覆內容")}</button>
@@ -510,7 +555,7 @@ export function StallModulesManager({
         onToggle={(event) => handleSectionToggle("locales", event)}
         data-module-section="locales"
         aria-label={label("QR 點餐語系")}
-        className="mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
+        className={`${isView("languages") ? "" : "hidden "}mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
       >
         <CollapsibleSectionSummary icon={Languages} title={label("QR 點餐語系")} level={3} />
         <div className="pb-6">
@@ -536,7 +581,7 @@ export function StallModulesManager({
         open={openSections.has("tables")}
         onToggle={(event) => handleSectionToggle("tables", event)}
         data-module-section="tables"
-        className="border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
+        className={`${isView("dining-tables") ? "" : "hidden "}border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
       >
         <CollapsibleSectionSummary icon={QrCode} title={label("內用桌位與專屬 QR")} level={3} />
         <div className="pb-6">
@@ -650,7 +695,7 @@ export function StallModulesManager({
         open={openSections.has("payments")}
         onToggle={(event) => handleSectionToggle("payments", event)}
         data-module-section="payments"
-        className="border-b border-stone-200 scroll-mt-24 [&[open]>summary_.section-chevron]:rotate-180"
+        className={`${isView("payments") ? "" : "hidden "}border-b border-stone-200 scroll-mt-24 [&[open]>summary_.section-chevron]:rotate-180`}
       >
         <CollapsibleSectionSummary icon={WalletCards} title={label("付款方式")} level={3} />
         <div className="pb-6">
@@ -675,7 +720,7 @@ export function StallModulesManager({
         open={openSections.has("discounts")}
         onToggle={(event) => handleSectionToggle("discounts", event)}
         data-module-section="discounts"
-        className="scroll-mt-24 border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
+        className={`${isView("discounts") ? "" : "hidden "}scroll-mt-24 border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
       >
         <CollapsibleSectionSummary icon={Percent} title={label("結帳折扣")} level={3} />
         <div className="pb-6">

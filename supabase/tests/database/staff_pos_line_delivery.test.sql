@@ -48,7 +48,7 @@ select ok(
 );
 
 update public.stall_ordering_settings
-set delivery_module_enabled = true, print_module_enabled = true
+set delivery_module_enabled = true, print_module_enabled = true, kds_module_enabled = true
 where stall_id = '22222222-2222-4222-8222-222222222222';
 
 insert into public.order_sessions (

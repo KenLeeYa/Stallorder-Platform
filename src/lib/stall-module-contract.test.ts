@@ -33,6 +33,7 @@ describe("stall module field validation", () => {
       deliveryModuleEnabled: true,
       staffDeliveryEnabled: true,
       printModuleEnabled: true,
+      kdsModuleEnabled: true,
       paymentModuleEnabled: true,
       discountModuleEnabled: true,
       discountApprovalThresholdBps: 10_001,

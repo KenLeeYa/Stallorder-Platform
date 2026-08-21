@@ -268,7 +268,9 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       await login(staffPage, "staff@stallorder.test");
       await staffPage.goto(`/staff/${stallSlug}`);
       await expect(staffPage).toHaveURL(new RegExp(`/staff/${stallSlug}$`, "u"));
-      await expect(staffPage.getByRole("heading", { name: stallName, exact: true })).toBeVisible();
+      await expect(
+        staffPage.getByTestId("staff-sticky-header").getByRole("heading"),
+      ).toContainText(stallName);
       await staffPage.getByRole("searchbox", { name: "搜尋桌號或訂單編號" }).fill(customerName);
       const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
       await expect(staffOrder).toBeVisible();

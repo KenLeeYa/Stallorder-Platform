@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   ArrowUp,
+  CalendarOff,
   ChevronDown,
   Clock3,
   Dices,
@@ -248,6 +249,20 @@ export function QrOrderFlowPresentation({
         </div>
         <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? copy.dineIn(session.stall.table?.label ?? "") : session.stall.fulfillmentType === "DELIVERY" ? deliveryCopy.delivery : copy.takeout}</p>
         {activeOrderingMode === "PREORDER" ? <p className="mt-2 rounded-md bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900">{copy.preorderOnlyNotice}</p> : null}
+        {session.specialClosure ? (
+          <section
+            role={session.specialClosure.isActive ? "alert" : "status"}
+            data-testid="qr-special-closure"
+            className={`mt-4 flex items-start gap-3 rounded-lg border p-4 ${session.specialClosure.isActive ? "border-red-300 bg-red-50 text-red-950" : "border-amber-300 bg-amber-50 text-amber-950"}`}
+          >
+            <CalendarOff className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+            <div>
+              <h2 className="font-semibold">{session.specialClosure.title}</h2>
+              <p className="mt-1 text-sm font-semibold">{formatSpecialClosureRange(session.specialClosure, locale)}</p>
+              {session.specialClosure.message ? <p className="mt-1 text-sm leading-6">{session.specialClosure.message}</p> : null}
+            </div>
+          </section>
+        ) : null}
         {degradedMode ? (
           <div role="alert" className="mt-4 border-y border-amber-300 bg-amber-50 px-3 py-4 text-amber-950">
             <div className="flex items-start gap-3">
@@ -273,14 +288,14 @@ export function QrOrderFlowPresentation({
             </div>
           </div>
         ) : null}
-        <QrSessionCountdown
+        {!session.specialClosure?.isActive ? <QrSessionCountdown
           active={sessionReady}
           expiresAt={session.expiresAt}
           availabilityStatus={orderingAvailability}
           activeLabel={copy.timeRemaining}
           inactiveLabel={degradedMode ? copy.degradedTitle : copy.sessionLoading}
           onPhaseChange={setSessionTimePhase}
-        />
+        /> : null}
         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 border-y border-stone-200 py-3 text-sm text-stone-700">
           <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4 text-teal-700" />{activeOrderingMode === "PREORDER" ? copy.preorderTimeGuidance : copy.estimatedWaitRange(session.estimatedWaitMinMinutes, session.estimatedWaitMaxMinutes)}</span>
           {session.lastTableOrderAt ? <span className="inline-flex items-center gap-2"><History className="h-4 w-4 text-stone-500" />{copy.lastTableOrder(new Date(session.lastTableOrderAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }))}</span> : null}
@@ -417,4 +432,15 @@ export function QrOrderFlowPresentation({
       ) : null}
     </main>
   );
+}
+
+function formatSpecialClosureRange(
+  closure: { startsOn: string; endsOn: string },
+  locale: string,
+) {
+  const formatter = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" });
+  const start = formatter.format(new Date(`${closure.startsOn}T00:00:00.000Z`));
+  if (closure.startsOn === closure.endsOn) return start;
+  const end = formatter.format(new Date(`${closure.endsOn}T00:00:00.000Z`));
+  return `${start} – ${end}`;
 }

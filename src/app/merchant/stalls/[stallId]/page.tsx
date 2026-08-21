@@ -56,6 +56,7 @@ export default async function EditStallPage({ params }: PageProps) {
         canManageReportSchedules={canManageReportSchedules}
         canManageOrganization={workspace.roles.some((role) => hasPermission(role, "MANAGE_ORGANIZATION"))}
         canManageDelivery={canManageDelivery}
+        kdsEnabled={stall.kdsEnabled}
         showMerchantSetup={workspace.roles.includes("ORGANIZATION_OWNER")
           && Boolean(workspace.merchantSetupState)
           && workspace.merchantSetupStallId === stall.id}
