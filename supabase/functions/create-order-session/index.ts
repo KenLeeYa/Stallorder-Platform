@@ -120,7 +120,7 @@ Deno.serve(async (request) => {
     }
 
     const { data: preflightResult, error: preflightError } = await timing.measureDb(() => admin.rpc(
-      "public_order_preflight",
+      "public_order_preflight_with_special_closure",
       {
         p_scope: "SESSION",
         p_qr_token: parsed.data.qrToken,

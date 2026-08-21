@@ -9,20 +9,36 @@ const migrationSource = readFileSync(
   )),
   "utf8",
 );
+const reconciliationSource = readFileSync(
+  fileURLToPath(new URL(
+    "../migrations/20260821200000_reconcile_staff_kds_special_closure_preflight.sql",
+    import.meta.url,
+  )),
+  "utf8",
+);
+const writeGuardReconciliationSource = readFileSync(
+  fileURLToPath(new URL(
+    "../migrations/20260821201000_reconcile_special_closure_write_guard.sql",
+    import.meta.url,
+  )),
+  "utf8",
+);
 
 describe("staff KDS and special-closure migration", () => {
   it("keeps existing stores on KDS without re-enabling an intentional opt-out", () => {
-    expect(migrationSource).toContain("add column if not exists kds_module_enabled boolean;");
-    expect(migrationSource).toContain("where kds_module_enabled is null;");
+    expect(migrationSource).toContain(
+      "add column if not exists kds_module_enabled boolean not null default true;",
+    );
     expect(migrationSource).toContain("alter column kds_module_enabled set default false");
-    expect(migrationSource).not.toContain("where kds_module_enabled = false");
+    expect(migrationSource).not.toContain("update public.stall_ordering_settings");
   });
 
   it("creates a tenant-scoped and date-constrained closure table", () => {
-    expect(migrationSource).toContain("create table if not exists public.stall_special_closures");
+    expect(migrationSource).toContain("create table public.stall_special_closures");
     expect(migrationSource).toContain("check (ends_on >= starts_on)");
     expect(migrationSource).toContain("force row level security");
-    expect(migrationSource).toContain("app_private.can_manage_stall(stall_id)");
+    expect(migrationSource).toContain("app_private.has_stall_role(");
+    expect(migrationSource).toContain("'STALL_MANAGER'::public.user_role");
     expect(migrationSource).not.toContain("public.can_manage_stall(stall_id)");
   });
 
@@ -30,8 +46,32 @@ describe("staff KDS and special-closure migration", () => {
     expect(migrationSource).toContain("'STALL_SPECIAL_CLOSURE'");
     expect(migrationSource).toContain("v_result->'resumable_order' is not null");
     expect(migrationSource).toContain("v_result->'idempotent_order' is not null");
-    expect(migrationSource).toContain("public.public_order_preflight_without_special_closure(");
+    expect(migrationSource).toContain("public.public_order_preflight_with_special_closure(");
+    expect(migrationSource).toContain("v_result := public.public_order_preflight(");
+    expect(migrationSource).not.toContain("alter function public.public_order_preflight(");
     expect(migrationSource).toContain("to service_role");
+  });
+
+  it("reconciles databases that already applied the previous migration body", () => {
+    expect(reconciliationSource).toContain(
+      "create or replace function public.public_order_preflight_with_special_closure(",
+    );
+    expect(reconciliationSource).toContain("v_result := public.public_order_preflight(");
+    expect(reconciliationSource).not.toContain("alter function public.public_order_preflight(");
+    expect(reconciliationSource).not.toContain("drop function");
+  });
+
+  it("adds the missing backend guard in a later migration version", () => {
+    expect(writeGuardReconciliationSource).toContain(
+      "from pg_catalog.pg_trigger existing_trigger",
+    );
+    expect(writeGuardReconciliationSource).toContain(
+      "existing_trigger.tgrelid = 'public.stall_special_closures'::regclass",
+    );
+    expect(writeGuardReconciliationSource).toContain("create trigger backend_writable_guard");
+    expect(writeGuardReconciliationSource).toContain(
+      "execute function app_private.enforce_backend_writable()",
+    );
   });
 
   it("queues confirmation-time printing only for KDS-enabled stores", () => {

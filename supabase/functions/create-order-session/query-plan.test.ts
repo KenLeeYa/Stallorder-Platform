@@ -36,7 +36,9 @@ describe("create-order-session lightweight query plan", () => {
   });
 
   it("runs canonical preflight before the unchanged session transaction", () => {
-    const canonicalPreflight = source.indexOf('"public_order_preflight"');
+    const canonicalPreflight = source.indexOf(
+      '"public_order_preflight_with_special_closure"',
+    );
     const scheduleValidation = source.indexOf('admin.rpc("issue_idempotent_order_session_with_schedule_targeted"');
     const lightweightReturn = source.indexOf("if (!parsed.data.includeMenu)");
     const fullMenuBinding = source.indexOf("const [stallQuery, stallProductsQuery]", lightweightReturn);

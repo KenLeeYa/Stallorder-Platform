@@ -102,7 +102,8 @@ describe("trusted public-order fulfillment-time RPC", () => {
     });
 
     const query = queryRaw.mock.calls.at(-1)?.[0] as { strings: string[]; values: unknown[] };
-    expect(query.strings.join("")).toContain("public.public_order_preflight");
+    expect(query.strings.join(""))
+      .toContain("public.public_order_preflight_with_special_closure");
     expect(query.values).toEqual(expect.arrayContaining([
       "ORDER",
       "DELIVERY",
