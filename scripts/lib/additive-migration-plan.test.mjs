@@ -19,6 +19,10 @@ const staffKdsSpecialClosuresReconciliationMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260821200000_reconcile_staff_kds_special_closure_preflight.sql",
 ), "utf8");
+const specialClosureWriteGuardReconciliationMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260821201000_reconcile_special_closure_write_guard.sql",
+), "utf8");
 const drStandbyCompatibleMigrationFiles = [
   "20260821012140_reservation_preorder_foundation.sql",
   "20260821012142_digital_waitlist_foundation.sql",
@@ -249,6 +253,18 @@ describe("additive DR migration plan", () => {
       staffKdsSpecialClosuresReconciliationMigration.replace(
         "and v_target_date between closure.starts_on and closure.ends_on",
         "or v_target_date between closure.starts_on and closure.ends_on",
+      ),
+    )).toThrow("FUNCTION_REPLACEMENT_EXISTING_OBJECT_FORBIDDEN");
+  });
+
+  it("allows only the exact reviewed special-closure write guard reconciliation", () => {
+    expect(assertAdditiveMigrationSql(
+      specialClosureWriteGuardReconciliationMigration,
+    )).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      specialClosureWriteGuardReconciliationMigration.replace(
+        "app_private.enforce_backend_writable()",
+        "public.touch_order()",
       ),
     )).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
   });
