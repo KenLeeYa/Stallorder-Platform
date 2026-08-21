@@ -216,6 +216,7 @@ export function SharedCatalogManager({
   initialReusableNotes,
   enabledTranslationLocales,
   aiTranslationConfigured,
+  aiTranslationProviderLabel,
 }: {
   organizationId: string;
   currency: string;
@@ -225,6 +226,7 @@ export function SharedCatalogManager({
   initialReusableNotes: ReusableProductNoteView[];
   enabledTranslationLocales: TranslationLocale[];
   aiTranslationConfigured: boolean;
+  aiTranslationProviderLabel: string;
 }) {
   const { locale, m, label } = useMerchantMessages();
   const formatMoney = (amount: number, selectedCurrency = currency) => formatRawMoney(amount, selectedCurrency, locale);
@@ -353,7 +355,10 @@ export function SharedCatalogManager({
 
   async function translateMissingContent() {
     const confirmed = window.confirm(
-      label("將把已啟用商品與註記的繁體中文名稱、說明傳送至 OpenAI，補齊目前啟用語系的缺漏翻譯。既有人工翻譯不會被覆蓋。確定執行？"),
+      m(
+        "將把已啟用商品與註記的繁體中文名稱、說明傳送至 {provider}，補齊目前啟用語系的缺漏翻譯。既有人工翻譯不會被覆蓋。確定執行？",
+        { provider: aiTranslationProviderLabel },
+      ),
     );
     if (!confirmed) return;
     setAiTranslating(true);

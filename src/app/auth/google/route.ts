@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
-import { createRequestId, hashClientIp, sanitizeRedirectPath } from "@/lib/security";
+import { createRequestId, hashClientIp, resolveAppOrigin, sanitizeRedirectPath } from "@/lib/security";
 import { createSupabaseAuthClient, isSupabaseAuthConfigured } from "@/lib/supabase-auth";
 
 export async function GET(request: Request) {
@@ -10,9 +10,7 @@ export async function GET(request: Request) {
   const finalize = <T extends Response>(response: T) => finalizePerformanceResponse(response, timing);
   const requestUrl = new URL(request.url);
   const next = sanitizeRedirectPath(requestUrl.searchParams.get("next"), "");
-  const appOrigin = process.env.NEXT_PUBLIC_APP_URL
-    ? new URL(process.env.NEXT_PUBLIC_APP_URL).origin
-    : requestUrl.origin;
+  const appOrigin = resolveAppOrigin(requestUrl);
 
   if (!isSupabaseAuthConfigured()) {
     return finalize(NextResponse.redirect(`${appOrigin}/login?oauthError=not-configured`));

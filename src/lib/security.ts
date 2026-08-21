@@ -95,6 +95,24 @@ export function createRequestId() {
   return randomUUID();
 }
 
+export function resolveAppOrigin(
+  requestUrl: URL,
+  environment: {
+    [key: string]: string | undefined;
+    NEXT_PUBLIC_APP_URL?: string;
+    VERCEL_ENV?: string;
+    VERCEL_URL?: string;
+  } = process.env,
+) {
+  if (environment.VERCEL_ENV === "preview" && environment.VERCEL_URL) {
+    return new URL(`https://${environment.VERCEL_URL}`).origin;
+  }
+
+  return environment.NEXT_PUBLIC_APP_URL
+    ? new URL(environment.NEXT_PUBLIC_APP_URL).origin
+    : requestUrl.origin;
+}
+
 export function isLocalQaLoginRateLimitDisabled(
   environment: {
     NODE_ENV?: string;

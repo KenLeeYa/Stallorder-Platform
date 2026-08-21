@@ -34,6 +34,7 @@ jobs:
       SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
       PREVIEW_BRANCH_NAME: ${{ github.event_name == 'pull_request' && format('pr-{0}-oauth-delivery', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
       PREVIEW_RESOURCE_KEY: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
+      PREVIEW_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
       ALLOW_DEMO_SEED: "false"
     steps:
@@ -100,7 +101,6 @@ jobs:
         id: preview
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          PR_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
           branches="$(supabase branches list \
             --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
@@ -116,7 +116,7 @@ jobs:
               --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
               --region ap-northeast-1 \
               --size micro \
-              --git-branch "$PR_GIT_BRANCH" \
+              --git-branch "$PREVIEW_GIT_BRANCH" \
               --log-level error >/dev/null
           fi
 
@@ -372,11 +372,19 @@ jobs:
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
         run: |
+          set -euo pipefail
           mkdir -p .vercel
           jq -n \
             --arg orgId "$VERCEL_ORG_ID" \
             --arg projectId "$VERCEL_PROJECT_ID" \
             '{orgId: $orgId, projectId: $projectId}' > .vercel/project.json
+
+          preview_head="$(git rev-parse HEAD)"
+          git switch -C "$PREVIEW_GIT_BRANCH" "$preview_head"
+          [ "$(git branch --show-current)" = "$PREVIEW_GIT_BRANCH" ] || {
+            echo "::error::Matching Preview is not attached to the requested Git branch."
+            exit 1
+          }
 
           deployment="$(
             npx --yes vercel@58.3.0 deploy . \
@@ -387,6 +395,7 @@ jobs:
               --project "$VERCEL_PROJECT_ID" \
               --meta "stallorderPreviewRun=$GITHUB_RUN_ID" \
               --meta "stallorderPreviewResource=$PREVIEW_RESOURCE_KEY" \
+              --meta "stallorderPreviewGitBranch=$PREVIEW_GIT_BRANCH" \
               --build-env "DATABASE_URL=$DATABASE_URL" \
               --build-env "DIRECT_URL=$DIRECT_URL" \
               --build-env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
@@ -437,6 +446,42 @@ jobs:
             exit 1
           }
           [[ "$deployment_url" == http* ]] || deployment_url="https://$deployment_url"
+
+          deployment_details="$(
+            npx --yes vercel@58.3.0 api "/v13/deployments/$deployment_id" \
+              --raw \
+              --token "$VERCEL_TOKEN"
+          )"
+          actual_git_branch="$(
+            jq -r '.meta.githubCommitRef // empty' <<<"$deployment_details"
+          )"
+          [ "$actual_git_branch" = "$PREVIEW_GIT_BRANCH" ] || {
+            echo "::error::Vercel did not attach the matching Preview to the requested Git branch."
+            exit 1
+          }
+
+          runtime_env_names="$(
+            jq -r '.env[] | split("=")[0]' <<<"$deployment_details"
+          )"
+          build_env_names="$(
+            jq -r '.build.env[] | split("=")[0]' <<<"$deployment_details"
+          )"
+          for name in \
+            AI_TRANSLATION_PROVIDER \
+            AZURE_TRANSLATOR_KEY \
+            AZURE_TRANSLATOR_REGION \
+            CATALOG_TRANSLATION_ENABLED
+          do
+            grep -Fxq "$name" <<<"$runtime_env_names" || {
+              echo "::error::Matching Preview runtime is missing $name."
+              exit 1
+            }
+            grep -Fxq "$name" <<<"$build_env_names" || {
+              echo "::error::Matching Preview build is missing $name."
+              exit 1
+            }
+          done
+
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
 
@@ -448,6 +493,14 @@ jobs:
           PRODUCTION_TEST_QR_REQUIRED: "false"
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run production:smoke
+
+      - name: Run isolated catalog translation glossary smoke
+        if: steps.vercel-auth.outputs.enabled == 'true'
+        env:
+          CATALOG_TRANSLATION_SYNTHETIC_BASE_URL: ${{ steps.vercel-preview.outputs.url }}
+          CATALOG_TRANSLATION_SYNTHETIC_CONFIRMATION: EPHEMERAL_PREVIEW_ONLY
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: npm run preview:catalog-translation-smoke
 
       - name: Run synthetic OAuth and delivery smoke tests
         if: steps.vercel-auth.outputs.enabled == 'true'

@@ -5,6 +5,7 @@ import {
   catalogTranslationOutputSchema,
   CatalogTranslationOutputError,
   chunkCatalogTranslationRequest,
+  getProtectedTranslationTokens,
   validateCatalogTranslationOutput,
   type CatalogTranslationSource,
 } from "./catalog-translation-contract";
@@ -113,6 +114,122 @@ describe("catalog translation contract", () => {
         description: "Translated description",
       }],
     })).toThrow(CatalogTranslationOutputError);
+  });
+
+  it("保留混合中文中的拉丁商家字詞、原數字順序與重數", () => {
+    expect(getProtectedTranslationTokens("Gateway Preview 翻譯商品 A5 20260813"))
+      .toEqual(["Gateway Preview", "A5 20260813"]);
+    expect(getProtectedTranslationTokens("Gateway＋Pro 商品 A／B A＿B"))
+      .toEqual(["Gateway+Pro", "A/B A_B"]);
+    expect(getProtectedTranslationTokens("Fresh Fried Chicken")).toEqual([]);
+    const [request] = buildCatalogTranslationRequests({
+      products: [{
+        id: "guard-product",
+        name: "Gateway Preview 翻譯商品 A5 20260813",
+        description: "容量 ５００ 毫升，比例 1:2。",
+        categoryName: "測試",
+        groupName: null,
+        translations: [],
+      }],
+      noteGroups: [],
+    }, ["en"]);
+
+    expect(validateCatalogTranslationOutput(request, {
+      items: [{
+        key: request.items[0].key,
+        name: "Gateway Preview Translation Product A5 20260813",
+        description: "Capacity 500 ml, ratio 1:2.",
+      }],
+    })).toHaveLength(1);
+    expect(validateCatalogTranslationOutput(request, {
+      items: [{
+        key: request.items[0].key,
+        name: "Gateway Preview—翻譯商品 A5 20260813",
+        description: "Capacity 500 ml, ratio 1:2.",
+      }],
+    })).toHaveLength(1);
+    expect(() => validateCatalogTranslationOutput(request, {
+      items: [{
+        key: request.items[0].key,
+        name: "Preview Gateway Translation Product A5 20260813",
+        description: "Capacity 500 ml, ratio 1:2.",
+      }],
+    })).toThrow("翻譯名稱未保留商家指定字詞或代碼。");
+    expect(() => validateCatalogTranslationOutput(request, {
+      items: [{
+        key: request.items[0].key,
+        name: "A5 20260813 Gateway Preview Translation Product",
+        description: "Capacity 500 ml, ratio 1:2.",
+      }],
+    })).toThrow("翻譯名稱未保留商家指定字詞或代碼。");
+    for (const alteredName of [
+      "Fake-Gateway Preview Translation Product A5 20260813",
+      "Gateway Preview-Pro Translation Product A5 20260813",
+      "Gateway Preview.official Translation Product A5 20260813",
+      "Gateway Preview＋official Translation Product A5 20260813",
+    ]) {
+      expect(() => validateCatalogTranslationOutput(request, {
+        items: [{
+          key: request.items[0].key,
+          name: alteredName,
+          description: "Capacity 500 ml, ratio 1:2.",
+        }],
+      })).toThrow("翻譯名稱未保留商家指定字詞或代碼。");
+    }
+    expect(() => validateCatalogTranslationOutput(request, {
+      items: [{
+        key: request.items[0].key,
+        name: "Gateway Preview Translation Product A5 20260813",
+        description: "Capacity 500 ml, ratio 2:1.",
+      }],
+    })).toThrow("翻譯說明新增、遺漏或調換了來源數字。");
+
+    const compatibilityJoinerRequest = {
+      ...request,
+      items: [{
+        ...request.items[0],
+        sourceName: "Gateway＋Pro 商品 A／B A＿B 5",
+      }],
+    };
+    expect(validateCatalogTranslationOutput(compatibilityJoinerRequest, {
+      items: [{
+        key: request.items[0].key,
+        name: "Gateway+Pro Product A/B A_B 5",
+        description: "Capacity 500 ml, ratio 1:2.",
+      }],
+    })).toHaveLength(1);
+    for (const [sourceName, alteredName] of [
+      ["Gateway 商品 5", "Gateway＋Pro Product 5"],
+      ["Gateway＋Pro 商品 5", "Gateway Pro Product 5"],
+      ["A／B 商品 5", "A B Product 5"],
+      ["A＿B 商品 5", "A B Product 5"],
+    ]) {
+      expect(() => validateCatalogTranslationOutput({
+        ...request,
+        items: [{ ...request.items[0], sourceName }],
+      }, {
+        items: [{
+          key: request.items[0].key,
+          name: alteredName,
+          description: "Capacity 500 ml, ratio 1:2.",
+        }],
+      })).toThrow("翻譯名稱未保留商家指定字詞或代碼。");
+    }
+
+    const repeatedNumberRequest = {
+      ...request,
+      items: [{
+        ...request.items[0],
+        sourceDescription: "每份 2 個，買 2 份。",
+      }],
+    };
+    expect(() => validateCatalogTranslationOutput(repeatedNumberRequest, {
+      items: [{
+        key: request.items[0].key,
+        name: "Gateway Preview Translation Product A5 20260813",
+        description: "Two pieces per serving.",
+      }],
+    })).toThrow("翻譯說明新增、遺漏或調換了來源數字。");
   });
 
   it("批次切割後保留實體對應並重建短鍵值", () => {

@@ -92,6 +92,30 @@ export class CatalogTranslationOutputError extends Error {
   readonly code = "INVALID_TRANSLATION_OUTPUT";
 }
 
+const LATIN_OR_NUMBER = String.raw`\p{Script=Latin}\p{N}`;
+const TOKEN_JOINER = String.raw`&＆'’+._/\-\u2010-\u2015－`;
+
+export function getProtectedTranslationTokens(value: string | null) {
+  if (!value) return [];
+  const normalized = value.normalize("NFKC");
+  const token = `[${LATIN_OR_NUMBER}]+(?:[${TOKEN_JOINER}][${LATIN_OR_NUMBER}]+)*`;
+  const candidates = normalized.match(new RegExp(`${token}(?:[ \t]+${token})*`, "gu")) ?? [];
+  if (/\p{Script=Han}/u.test(normalized)) {
+    return candidates.filter((candidate) => /\p{Script=Latin}/u.test(candidate));
+  }
+  return candidates.filter((candidate) => {
+    if (/[ \t]/u.test(candidate)) return false;
+    const compact = candidate.replace(/[ \t]+/gu, "");
+    const letters = compact.match(/\p{Script=Latin}/gu) ?? [];
+    return (
+      /\p{Script=Latin}/u.test(compact) && /\p{N}/u.test(compact)
+      || /^\p{Lu}{2,12}$/u.test(compact)
+      || /[&＆'’+._/\-\u2010-\u2015－]/u.test(compact)
+      || letters.slice(1).some((letter) => /\p{Lu}/u.test(letter))
+    );
+  });
+}
+
 export function buildCatalogTranslationRequests(
   source: CatalogTranslationSource,
   locales: readonly TranslationLocale[],
@@ -181,6 +205,30 @@ export function validateCatalogTranslationOutput(
     if (sourceItem.needsDescription && !translated.description) {
       throw new CatalogTranslationOutputError("翻譯結果缺少說明。");
     }
+    if (
+      sourceItem.needsName
+      && translated.name
+      && !hasProtectedTerms(sourceItem.sourceName, translated.name)
+    ) {
+      throw new CatalogTranslationOutputError("翻譯名稱未保留商家指定字詞或代碼。");
+    }
+    if (
+      sourceItem.needsDescription
+      && translated.description
+      && !hasProtectedTerms(sourceItem.sourceDescription, translated.description)
+    ) {
+      throw new CatalogTranslationOutputError("翻譯說明未保留商家指定字詞或代碼。");
+    }
+    if (sourceItem.needsName && translated.name && !hasSameNumbers(sourceItem.sourceName, translated.name)) {
+      throw new CatalogTranslationOutputError("翻譯名稱新增、遺漏或調換了來源數字。");
+    }
+    if (
+      sourceItem.needsDescription
+      && translated.description
+      && !hasSameNumbers(sourceItem.sourceDescription, translated.description)
+    ) {
+      throw new CatalogTranslationOutputError("翻譯說明新增、遺漏或調換了來源數字。");
+    }
     return {
       locale: request.locale,
       entityType: sourceItem.entityType,
@@ -191,6 +239,32 @@ export function validateCatalogTranslationOutput(
       description: sourceItem.needsDescription ? translated.description : null,
     };
   });
+}
+
+function hasProtectedTerms(source: string | null, translated: string) {
+  const normalized = translated.normalize("NFKC");
+  let searchFrom = 0;
+  return getProtectedTranslationTokens(source).every((token) => {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const matcher = new RegExp(
+      `(?<![${LATIN_OR_NUMBER}])(?<![${LATIN_OR_NUMBER}][${TOKEN_JOINER}])`
+      + `${escaped}`
+      + `(?![${LATIN_OR_NUMBER}])(?![${TOKEN_JOINER}][${LATIN_OR_NUMBER}])`,
+      "gu",
+    );
+    matcher.lastIndex = searchFrom;
+    const match = matcher.exec(normalized);
+    if (!match) return false;
+    searchFrom = match.index + match[0].length;
+    return true;
+  });
+}
+
+function hasSameNumbers(source: string | null, translated: string) {
+  const numbers = (value: string | null) => (
+    value?.normalize("NFKC").match(/[+\-−±]?\p{N}+(?:[.,]\p{N}+)*/gu) ?? []
+  );
+  return JSON.stringify(numbers(source)) === JSON.stringify(numbers(translated));
 }
 
 export function chunkCatalogTranslationRequest(
