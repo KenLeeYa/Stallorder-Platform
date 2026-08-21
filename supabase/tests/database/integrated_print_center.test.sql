@@ -295,7 +295,7 @@ insert into public.print_rules (
 insert into public.orders (
   id, tenant_id, organization_id, stall_id, order_no, tracking_token_hash,
   idempotency_key, source, origin, customer_name, fulfillment_type, status,
-  payment_status, subtotal, total, device_hash, confirmation_expires_at,
+  payment_status, subtotal, total, device_hash, table_label, confirmation_expires_at,
   created_at, updated_at
 ) values (
   '79100000-0000-4000-8000-000000000022',
@@ -304,7 +304,7 @@ insert into public.orders (
   '22222222-2222-4222-8222-222222222222',
   'PRINT-RULE-002', repeat('c', 64), '79100000-0000-4000-8000-000000000032',
   'STAFF_POS', 'ONLINE_STAFF', '付款列印顧客', 'DINE_IN',
-  'WAITING_CONFIRMATION', 'UNPAID', 200, 200, repeat('d', 64),
+  'WAITING_CONFIRMATION', 'UNPAID', 200, 200, repeat('d', 64), '測試桌',
   now() + interval '10 minutes', now(), now()
 );
 
