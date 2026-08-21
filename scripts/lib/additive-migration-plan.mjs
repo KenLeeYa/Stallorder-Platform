@@ -29,6 +29,8 @@ const REPORT_DELIVERY_SCHEDULER_MIGRATION_DIGEST =
   "f9a24ac81577694f9bfd74175aacf470d6b176371cf4ffe3066b98f54ebdd9fa";
 const STAFF_KDS_SPECIAL_CLOSURES_MIGRATION_DIGEST =
   "4fc4d1baff60a0e3adf1da897f4ba1d8a3d99a754969b8c962743ffe824cd26e";
+const STAFF_KDS_SPECIAL_CLOSURES_RECONCILIATION_MIGRATION_DIGEST =
+  "4a812bc323348fad6f330a561ac2238fa9538c97ad0de0898f89c16e37406bd0";
 
 export class AdditiveMigrationPlanError extends Error {
   constructor(code, details = {}) {
@@ -883,7 +885,8 @@ function isApprovedCompatibleFunctionBodyMigration(sql) {
   return digest === COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST
     || digest === GLOBAL_STALL_CODE_ROLLOUT_MIGRATION_DIGEST
     || digest === REPORT_DELIVERY_SCHEDULER_MIGRATION_DIGEST
-    || digest === STAFF_KDS_SPECIAL_CLOSURES_MIGRATION_DIGEST;
+    || digest === STAFF_KDS_SPECIAL_CLOSURES_MIGRATION_DIGEST
+    || digest === STAFF_KDS_SPECIAL_CLOSURES_RECONCILIATION_MIGRATION_DIGEST;
 }
 
 function isApprovedStaffKdsSpecialClosuresMigration(sql) {

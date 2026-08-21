@@ -15,6 +15,10 @@ const staffKdsSpecialClosuresMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260821193000_staff_kds_special_closures.sql",
 ), "utf8");
+const staffKdsSpecialClosuresReconciliationMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260821200000_reconcile_staff_kds_special_closure_preflight.sql",
+), "utf8");
 const drStandbyCompatibleMigrationFiles = [
   "20260821012140_reservation_preorder_foundation.sql",
   "20260821012142_digital_waitlist_foundation.sql",
@@ -235,6 +239,18 @@ describe("additive DR migration plan", () => {
       "alter table public.stall_ordering_settings "
         + "alter column kds_module_enabled set default false;",
     )).toThrow("ALTER_TABLE_ACTION_FORBIDDEN");
+  });
+
+  it("allows only the exact reviewed preflight reconciliation", () => {
+    expect(assertAdditiveMigrationSql(
+      staffKdsSpecialClosuresReconciliationMigration,
+    )).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      staffKdsSpecialClosuresReconciliationMigration.replace(
+        "and v_target_date between closure.starts_on and closure.ends_on",
+        "or v_target_date between closure.starts_on and closure.ends_on",
+      ),
+    )).toThrow("FUNCTION_REPLACEMENT_EXISTING_OBJECT_FORBIDDEN");
   });
 
   it("rejects public exposure even when the table is created in this migration", () => {

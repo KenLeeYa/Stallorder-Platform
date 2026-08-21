@@ -9,6 +9,13 @@ const migrationSource = readFileSync(
   )),
   "utf8",
 );
+const reconciliationSource = readFileSync(
+  fileURLToPath(new URL(
+    "../migrations/20260821200000_reconcile_staff_kds_special_closure_preflight.sql",
+    import.meta.url,
+  )),
+  "utf8",
+);
 
 describe("staff KDS and special-closure migration", () => {
   it("keeps existing stores on KDS without re-enabling an intentional opt-out", () => {
@@ -36,6 +43,15 @@ describe("staff KDS and special-closure migration", () => {
     expect(migrationSource).toContain("v_result := public.public_order_preflight(");
     expect(migrationSource).not.toContain("alter function public.public_order_preflight(");
     expect(migrationSource).toContain("to service_role");
+  });
+
+  it("reconciles databases that already applied the previous migration body", () => {
+    expect(reconciliationSource).toContain(
+      "create or replace function public.public_order_preflight_with_special_closure(",
+    );
+    expect(reconciliationSource).toContain("v_result := public.public_order_preflight(");
+    expect(reconciliationSource).not.toContain("alter function public.public_order_preflight(");
+    expect(reconciliationSource).not.toContain("drop function");
   });
 
   it("queues confirmation-time printing only for KDS-enabled stores", () => {
