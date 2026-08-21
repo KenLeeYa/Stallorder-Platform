@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const migrationPath = fileURLToPath(new URL(
-  "../migrations/20260813040000_online_order_payment_reconciliation.sql",
+  "../migrations/20260821012143_online_order_payment_reconciliation.sql",
   import.meta.url,
 ));
 const adrPath = fileURLToPath(new URL(

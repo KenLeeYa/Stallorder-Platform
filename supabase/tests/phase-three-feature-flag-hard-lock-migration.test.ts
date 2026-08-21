@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const migrationPath = fileURLToPath(new URL(
-  "../migrations/20260813070000_phase_three_feature_flag_hard_lock.sql",
+  "../migrations/20260821012146_phase_three_feature_flag_hard_lock.sql",
   import.meta.url,
 ));
 const migrationSource = existsSync(migrationPath)

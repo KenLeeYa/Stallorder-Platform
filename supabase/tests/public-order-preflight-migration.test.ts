@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const migrationSource = readFileSync(
   fileURLToPath(new URL(
-    "../migrations/20260813020000_canonical_public_order_preflight.sql",
+    "../migrations/20260821012141_canonical_public_order_preflight.sql",
     import.meta.url,
   )),
   "utf8",

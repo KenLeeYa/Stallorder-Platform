@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const migrationSource = readFileSync(fileURLToPath(new URL(
-  "../migrations/20260813060000_crm_loyalty_consent_foundation.sql",
+  "../migrations/20260821012145_crm_loyalty_consent_foundation.sql",
   import.meta.url,
 )), "utf8").replace(/\r\n/g, "\n");
 

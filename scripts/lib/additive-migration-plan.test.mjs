@@ -175,7 +175,7 @@ describe("additive DR migration plan", () => {
   it("allows only the complete Phase 3 dormant hard-lock migration", () => {
     const migration = readFileSync(
       new URL(
-        "../../supabase/migrations/20260813070000_phase_three_feature_flag_hard_lock.sql",
+        "../../supabase/migrations/20260821012146_phase_three_feature_flag_hard_lock.sql",
         import.meta.url,
       ),
       "utf8",

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const migrationSource = normalizeLineEndings(readFileSync(fileURLToPath(new URL(
-  "../migrations/20260813050000_dynamic_ordering_qr_foundation.sql",
+  "../migrations/20260821012144_dynamic_ordering_qr_foundation.sql",
   import.meta.url,
 )), "utf8"));
 

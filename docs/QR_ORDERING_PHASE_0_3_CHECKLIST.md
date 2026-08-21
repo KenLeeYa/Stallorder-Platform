@@ -178,7 +178,7 @@
 ### QR-P1-04 全域 schedule processor 改為 targeted catch-up
 
 - 狀態：**LOCAL RUNTIME PASS**
-- migration：**20260813010000_target_stall_schedule_catch_up.sql**
+- migration：**20260821012139_target_stall_schedule_catch_up.sql**
 - 測試：targeted migration／pgTAP、**e2e/targeted-stall-schedule-concurrency.spec.ts**
 
 - [x] 新增 stall-scoped trusted schedule catch-up RPC。
@@ -203,7 +203,7 @@
 
 - 狀態：**LOCAL RUNTIME PASS**
 - ADR：**docs/OUTBOX_DISPATCH_ADR.md**
-- 程式：**20260813001731_p1_outbox_dispatch.sql**、**src/server/outbox/outbox-dispatcher.ts**、cron route
+- 程式：**20260821012138_p1_outbox_dispatch.sql**、**src/server/outbox/outbox-dispatcher.ts**、cron route
 - 測試：outbox pgTAP、dispatcher unit、failure injection、cron route unit
 
 - [x] notification outbox 使用 claim／lease、bounded retry、dead-letter outcome 與可重入 consumer。
@@ -279,7 +279,7 @@ composition-only public boundary 的 Phase 2 acceptance 已滿足；controller �
 ### QR-P2-05 A/B DB preflight 收斂到相同 trusted RPC
 
 - 狀態：**LOCAL RUNTIME PASS（canonical contract＋independent failure domains）**
-- migration：**20260813020000_canonical_public_order_preflight.sql**
+- migration：**20260821012141_canonical_public_order_preflight.sql**
 - 程式：兩個 Edge function、Circuit B service、trusted RPC repository
 - ADR：**docs/adr/ADR-004-public-order-terminal-parity-observability.md**
 - 測試：preflight migration／pgTAP、dual contract、Circuit A/B terminal matrix 與 DB replay
@@ -306,7 +306,7 @@ composition-only public boundary 的 Phase 2 acceptance 已滿足；controller �
 - [ ] 未經產品、provider、營運、安全與治理 Gate，不得把旗標打開。
 - [x] Server-side activation lock 會拒絕五個 Phase 3 flag 的 enabled override，且 evaluator 即使讀到舊的 enabled override 也固定回傳 OFF；disabled override 仍可建立。
 - [x] PostgreSQL trigger／constraint 會在資料庫邊界拒絕五個旗標的 enabled INSERT／UPDATE；guard 先安裝再清理舊值，避免 migration 期間出現反向 lock window。
-- [x] `20260813070000_phase_three_feature_flag_hard_lock.sql` 已納入 additive validator；正規化 digest 為 `2592e2e05074e2d4170e69160c0c05f9ab351c3743d617f10536efc76d901f28`。
+- [x] `20260821012146_phase_three_feature_flag_hard_lock.sql` 已納入 additive validator；正規化 digest 為 `2592e2e05074e2d4170e69160c0c05f9ab351c3743d617f10536efc76d901f28`。
 - [x] executable snapshot 已執行 98-migration fresh reset、Phase 3 pgTAP 與 RLS／RPC runtime；五個旗標在 TypeScript 與 PostgreSQL 邊界均保持 hard OFF。
 - [ ] 真實 migration-window 雙連線 race 尚無獨立自動化證據；這不影響 dormant foundation 的 Local DB runtime 結果，但在 activation 或發布前仍維持 fail closed。
 
@@ -315,7 +315,7 @@ composition-only public boundary 的 Phase 2 acceptance 已滿足；controller �
 ### QR-P3-01 Digital waitlist
 
 - 狀態：**DORMANT FOUNDATION / BLOCKED FOR ACTIVATION**
-- migration：**20260813030000_digital_waitlist_foundation.sql**
+- migration：**20260821012142_digital_waitlist_foundation.sql**
 - 程式：waitlist service／repository／public status、join、seating-session 與 staff transition APIs
 - 測試：waitlist pgTAP、static migration、service／route unit
 
@@ -327,7 +327,7 @@ composition-only public boundary 的 Phase 2 acceptance 已滿足；controller �
 ### QR-P3-02 線上付款與 reconciliation
 
 - 狀態：**DORMANT FOUNDATION / BLOCKED FOR ACTIVATION**
-- migration：**20260813040000_online_order_payment_reconciliation.sql**
+- migration：**20260821012143_online_order_payment_reconciliation.sql**
 - 程式：online payment service／repository；僅 **LOCAL_MOCK**
 - 測試：payment pgTAP、static migration、webhook／reconciliation unit
 
@@ -340,7 +340,7 @@ composition-only public boundary 的 Phase 2 acceptance 已滿足；controller �
 ### QR-P3-03 訂位加預點
 
 - 狀態：**DORMANT FOUNDATION / BLOCKED FOR ACTIVATION**
-- migration：**20260813011804_reservation_preorder_foundation.sql**
+- migration：**20260821012140_reservation_preorder_foundation.sql**
 - 程式：reservation service／repository
 - 測試：reservation pgTAP、static migration、service unit
 
@@ -352,7 +352,7 @@ composition-only public boundary 的 Phase 2 acceptance 已滿足；controller �
 ### QR-P3-04 Dynamic ordering QR
 
 - 狀態：**DORMANT FOUNDATION / BLOCKED FOR ACTIVATION**
-- migration：**20260813050000_dynamic_ordering_qr_foundation.sql**
+- migration：**20260821012144_dynamic_ordering_qr_foundation.sql**
 - 程式：dynamic QR credential service／repository
 - 測試：dynamic QR pgTAP、static migration、credential service unit
 
@@ -364,7 +364,7 @@ composition-only public boundary 的 Phase 2 acceptance 已滿足；controller �
 ### QR-P3-05 Consent-governed CRM／loyalty
 
 - 狀態：**DORMANT FOUNDATION / BLOCKED FOR ACTIVATION**
-- migration：**20260813060000_crm_loyalty_consent_foundation.sql**
+- migration：**20260821012145_crm_loyalty_consent_foundation.sql**
 - 程式：CRM／loyalty contract、repository
 - 測試：CRM pgTAP、static migration、contract unit
 
