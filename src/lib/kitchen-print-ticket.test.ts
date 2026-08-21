@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createKitchenTicketPayload,
   displayWidth,
+  kitchenTicketCommandBytes,
   KITCHEN_TICKET_COLUMNS,
 } from "@/lib/kitchen-print-ticket";
 
@@ -40,10 +41,10 @@ describe("58mm kitchen ticket", () => {
   it("renders the approved compact layout without drafting labels or blank rows", () => {
     const payload = createKitchenTicketPayload(baseInput);
 
-    expect(payload).toEqual({
-      kind: "KITCHEN_58MM_TEXT",
-      version: "kitchen-58mm-v1",
-      mediaType: "text/plain",
+    expect(payload).toMatchObject({
+      kind: "KITCHEN_58MM_STARPRNT",
+      version: "kitchen-58mm-starprnt-v1",
+      mediaType: "application/vnd.star.starprnt",
       content: [
         "越好吃一中店｜廚房製作單",
         "外帶自取 #A023 ★預約",
@@ -61,6 +62,21 @@ describe("58mm kitchen ticket", () => {
     });
     expect(payload.content).not.toMatch(/\[[A-D]\d\]/);
     expect(payload.content).not.toContain("\n\n");
+  });
+
+  it("wraps UTF-8 Traditional Chinese in deterministic StarPRNT commands and one partial cut", () => {
+    const payload = createKitchenTicketPayload(baseInput);
+    const bytes = Buffer.from(kitchenTicketCommandBytes(payload));
+
+    expect(bytes.subarray(0, 29)).toEqual(Buffer.from([
+      0x1b, 0x40,
+      0x1b, 0x1d, 0x29, 0x55, 0x02, 0x00, 0x30, 0x01,
+      0x1b, 0x1d, 0x29, 0x55, 0x02, 0x00, 0x40, 0x01,
+      0x1b, 0x1d, 0x29, 0x55, 0x05, 0x00, 0x41, 0x03, 0x02, 0x01, 0x04,
+    ]));
+    expect(bytes.includes(Buffer.from("越好吃一中店", "utf8"))).toBe(true);
+    expect(bytes.subarray(-3)).toEqual(Buffer.from([0x1b, 0x64, 0x03]));
+    expect(Buffer.from(kitchenTicketCommandBytes(payload))).toEqual(bytes);
   });
 
   it("omits empty optional sections and marks a reprint", () => {

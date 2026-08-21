@@ -64,19 +64,19 @@ describe("CloudPRNT protocol helpers", () => {
   it("returns an immutable job token and supported media type in a ready poll", () => {
     expect(cloudPrntPollResponse("55555555-5555-4555-8555-555555555555")).toEqual({
       jobReady: true,
-      mediaTypes: ["text/plain"],
+      mediaTypes: ["application/vnd.star.starprnt"],
       jobToken: "55555555-5555-4555-8555-555555555555",
       deleteMethod: "DELETE",
     });
     expect(cloudPrntPollResponse(null)).toEqual({ jobReady: false });
   });
 
-  it("accepts Star token headers and text media query parameters", () => {
-    const tokenRequest = new Request("https://example.test/cloudprnt?type=text%2Fplain%3Bencoding%3Dutf-8", {
+  it("accepts Star token headers and native StarPRNT media query parameters", () => {
+    const tokenRequest = new Request("https://example.test/cloudprnt?type=application%2Fvnd.star.starprnt", {
       headers: { "x-star-token": "job-1" },
     });
     expect(cloudPrntJobToken(tokenRequest)).toBe("job-1");
-    expect(cloudPrntRequestedMediaType(tokenRequest)).toBe("text/plain");
+    expect(cloudPrntRequestedMediaType(tokenRequest)).toBe("application/vnd.star.starprnt");
   });
 });
 

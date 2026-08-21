@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 const printerId = "44444444-4444-4444-8444-444444444444";
 const otherPrinterId = "66666666-6666-4666-8666-666666666666";
 const jobId = "55555555-5555-4555-8555-555555555555";
+const mediaType = "application/vnd.star.starprnt";
 const originalUsername = process.env.CLOUDPRNT_POC_BASIC_USERNAME;
 const originalPassword = process.env.CLOUDPRNT_POC_BASIC_PASSWORD;
 const originalEnabled = process.env.CLOUDPRNT_POC_ENABLED;
@@ -78,7 +79,7 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
       context(otherPrinterId),
     );
     const getResponse = await route.GET(
-      printerRequest(`${endpoint(otherPrinterId)}?type=text%2Fplain&token=${jobId}`),
+      printerRequest(`${endpoint(otherPrinterId)}?type=${encodeURIComponent(mediaType)}&token=${jobId}`),
       context(otherPrinterId),
     );
     const deleteResponse = await route.DELETE(
@@ -119,7 +120,7 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       jobReady: true,
-      mediaTypes: ["text/plain"],
+      mediaTypes: [mediaType],
       jobToken: jobId,
       deleteMethod: "DELETE",
     });
@@ -135,16 +136,18 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
       return { count: 1 };
     });
     const route = await import("./route");
-    const first = await route.GET(printerRequest(`${endpoint()}?type=text%2Fplain&token=${jobId}`), context());
-    const firstBody = await first.text();
+    const first = await route.GET(
+      printerRequest(`${endpoint()}?type=${encodeURIComponent(mediaType)}&token=${jobId}`),
+      context(),
+    );
+    const firstBody = Buffer.from(await first.arrayBuffer());
 
     expect(first.status).toBe(200);
-    expect(first.headers.get("x-star-cut")).toBe("partial; feed=true");
-    expect(first.headers.get("content-type")).toContain("text/plain");
-    expect(firstBody).toContain("越好吃一中店｜廚房製作單");
-    expect(firstBody).toContain("外帶自取 #A023 ★預約");
-    expect(firstBody).not.toMatch(/\[[A-D]\d\]/);
-    expect(firstBody).not.toContain("\n\n");
+    expect(first.headers.get("x-star-cut")).toBeNull();
+    expect(first.headers.get("content-type")).toBe(mediaType);
+    expect(firstBody.includes(Buffer.from("越好吃一中店｜廚房製作單", "utf8"))).toBe(true);
+    expect(firstBody.includes(Buffer.from("外帶自取 #A023 ★預約", "utf8"))).toBe(true);
+    expect(firstBody.subarray(-3)).toEqual(Buffer.from([0x1b, 0x64, 0x03]));
     expect(mocks.printJobUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ id: jobId, status: "PENDING" }),
       data: expect.objectContaining({ status: "PRINTING", attemptCount: { increment: 1 } }),
@@ -152,9 +155,12 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
 
     mocks.printJobFindFirst.mockResolvedValue(buildJob(persistedPayload, "PRINTING"));
     mocks.printJobUpdateMany.mockClear();
-    const repeated = await route.GET(printerRequest(`${endpoint()}?type=text%2Fplain&token=${jobId}`), context());
+    const repeated = await route.GET(
+      printerRequest(`${endpoint()}?type=${encodeURIComponent(mediaType)}&token=${jobId}`),
+      context(),
+    );
 
-    expect(await repeated.text()).toBe(firstBody);
+    expect(Buffer.from(await repeated.arrayBuffer())).toEqual(firstBody);
     expect(mocks.printJobUpdateMany).not.toHaveBeenCalled();
   });
 
@@ -183,13 +189,13 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
     const route = await import("./route");
 
     const [left, right] = await Promise.all([
-      route.GET(printerRequest(`${endpoint()}?type=text%2Fplain&token=${jobId}`), context()),
-      route.GET(printerRequest(`${endpoint()}?type=text%2Fplain&token=${jobId}`), context()),
+      route.GET(printerRequest(`${endpoint()}?type=${encodeURIComponent(mediaType)}&token=${jobId}`), context()),
+      route.GET(printerRequest(`${endpoint()}?type=${encodeURIComponent(mediaType)}&token=${jobId}`), context()),
     ]);
 
     expect(left.status).toBe(200);
     expect(right.status).toBe(200);
-    expect(await left.text()).toBe(await right.text());
+    expect(Buffer.from(await left.arrayBuffer())).toEqual(Buffer.from(await right.arrayBuffer()));
     expect(payloadWon).toBe(true);
     expect(claimWon).toBe(true);
   });
@@ -283,7 +289,7 @@ function buildJob(payload: unknown, status: "PENDING" | "PRINTING") {
 }
 
 function endpoint(id = printerId) {
-  return `https://staging.example.test/api/cloudprnt/v1/${id}`;
+  return `https://physical-preview.example.test/api/cloudprnt/v1/${id}`;
 }
 
 function context(id = printerId) {

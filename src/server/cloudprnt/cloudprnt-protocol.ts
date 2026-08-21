@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
+import { KITCHEN_TICKET_MEDIA_TYPE } from "@/lib/kitchen-print-ticket";
 
 export const cloudPrntPollSchema = z.object({
   status: z.string().nullable().optional(),
@@ -70,7 +71,7 @@ export function cloudPrntPollResponse(jobId: string | null) {
   return jobId
     ? {
       jobReady: true,
-      mediaTypes: ["text/plain"],
+      mediaTypes: [KITCHEN_TICKET_MEDIA_TYPE],
       jobToken: jobId,
       deleteMethod: "DELETE" as const,
     }
@@ -79,7 +80,7 @@ export function cloudPrntPollResponse(jobId: string | null) {
 
 export function cloudPrntRequestedMediaType(request: Request) {
   const requested = new URL(request.url).searchParams.get("type");
-  if (!requested) return "text/plain";
+  if (!requested) return KITCHEN_TICKET_MEDIA_TYPE;
   return requested.split(";", 1)[0]?.trim().toLowerCase() ?? "";
 }
 

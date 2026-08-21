@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const KITCHEN_TICKET_COLUMNS = 32;
-export const KITCHEN_TICKET_TEMPLATE_VERSION = "kitchen-58mm-v1";
-export const KITCHEN_TICKET_MEDIA_TYPE = "text/plain";
+export const KITCHEN_TICKET_TEMPLATE_VERSION = "kitchen-58mm-starprnt-v1";
+export const KITCHEN_TICKET_MEDIA_TYPE = "application/vnd.star.starprnt";
 
 export type KitchenTicketInput = {
   stallName: string;
@@ -28,21 +28,28 @@ export type KitchenTicketInput = {
 };
 
 export const kitchenTicketPayloadSchema = z.object({
-  kind: z.literal("KITCHEN_58MM_TEXT"),
+  kind: z.literal("KITCHEN_58MM_STARPRNT"),
   version: z.literal(KITCHEN_TICKET_TEMPLATE_VERSION),
   mediaType: z.literal(KITCHEN_TICKET_MEDIA_TYPE),
   content: z.string().min(1),
+  dataBase64: z.string().min(1),
 }).strict();
 
 export type KitchenTicketPayload = z.infer<typeof kitchenTicketPayloadSchema>;
 
 export function createKitchenTicketPayload(input: KitchenTicketInput): KitchenTicketPayload {
+  const content = formatKitchenTicket(input);
   return {
-    kind: "KITCHEN_58MM_TEXT",
+    kind: "KITCHEN_58MM_STARPRNT",
     version: KITCHEN_TICKET_TEMPLATE_VERSION,
     mediaType: KITCHEN_TICKET_MEDIA_TYPE,
-    content: formatKitchenTicket(input),
+    content,
+    dataBase64: encodeStarPrnt(content).toString("base64"),
   };
+}
+
+export function kitchenTicketCommandBytes(payload: KitchenTicketPayload) {
+  return Uint8Array.from(Buffer.from(payload.dataBase64, "base64"));
 }
 
 export function formatKitchenTicket(input: KitchenTicketInput) {
@@ -162,6 +169,24 @@ function sanitizeText(value: string) {
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function encodeStarPrnt(content: string) {
+  const initialize = Buffer.from([0x1b, 0x40]);
+  const enableUtf8 = Buffer.from([0x1b, 0x1d, 0x29, 0x55, 0x02, 0x00, 0x30, 0x01]);
+  const useWideAmbiguousCharacters = Buffer.from([0x1b, 0x1d, 0x29, 0x55, 0x02, 0x00, 0x40, 0x01]);
+  const preferTraditionalChinese = Buffer.from([
+    0x1b, 0x1d, 0x29, 0x55, 0x05, 0x00, 0x41, 0x03, 0x02, 0x01, 0x04,
+  ]);
+  const feedAndPartialCut = Buffer.from([0x1b, 0x64, 0x03]);
+  return Buffer.concat([
+    initialize,
+    enableUtf8,
+    useWideAmbiguousCharacters,
+    preferTraditionalChinese,
+    Buffer.from(content, "utf8"),
+    feedAndPartialCut,
+  ]);
 }
 
 function formatMonthDayTime(value: Date | string, timeZone: string) {

@@ -2,7 +2,9 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import {
   createKitchenTicketPayload,
+  kitchenTicketCommandBytes,
   kitchenTicketPayloadSchema,
+  KITCHEN_TICKET_MEDIA_TYPE,
   KITCHEN_TICKET_TEMPLATE_VERSION,
 } from "@/lib/kitchen-print-ticket";
 import { prisma } from "@/lib/prisma";
@@ -75,7 +77,7 @@ export async function GET(request: Request, context: RouteContext) {
   if (authentication instanceof Response) return authentication;
   const printer = await loadPrinter(authentication.printerId);
   if (printer instanceof Response) return printer;
-  if (cloudPrntRequestedMediaType(request) !== "text/plain") {
+  if (cloudPrntRequestedMediaType(request) !== KITCHEN_TICKET_MEDIA_TYPE) {
     return new Response(null, { status: 415, headers: responseHeaders });
   }
 
@@ -138,12 +140,11 @@ export async function GET(request: Request, context: RouteContext) {
     }
   }
   await touchPrinter(printer.id);
-  return new Response(payload.content, {
+  return new Response(kitchenTicketCommandBytes(payload), {
     status: 200,
     headers: {
       ...responseHeaders,
-      "content-type": "text/plain; charset=utf-8",
-      "x-star-cut": "partial; feed=true",
+      "content-type": KITCHEN_TICKET_MEDIA_TYPE,
     },
   });
 }
