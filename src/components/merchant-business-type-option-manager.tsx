@@ -101,7 +101,27 @@ export function MerchantBusinessTypeOptionManager({ initialOptions }: { initialO
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <section className="overflow-x-auto border-y border-stone-200">
+      <section data-testid="merchant-business-types-mobile-list" className="grid gap-3 md:hidden">
+        {sortedOptions.map((option) => (
+          <article key={option.id ?? option.code} className="min-w-0 rounded-md border border-stone-200 bg-white p-4">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <h3 className="min-w-0 break-words text-lg font-semibold">{option.name}</h3>
+              <span className="shrink-0 rounded-md bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">{option.archivedAt ? m("已停用") : option.isActive ? m("啟用") : m("關閉")}</span>
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              <OptionDetail label={m("代碼")} value={option.code} mono />
+              <OptionDetail label={m("排序")} value={formatAppNumber(locale, option.sortOrder)} />
+              <div className="col-span-2 min-w-0"><dt className="text-xs font-semibold text-stone-500">{m("申請欄位")}</dt><dd className="mt-1 break-words">{label(merchantBusinessTypeLabels[option.legacyType] ?? option.legacyType)}</dd></div>
+            </dl>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => edit(option)} className="min-h-11 rounded-md border border-teal-700 px-3 text-sm font-semibold text-teal-800">{m("修改")}</button>
+              {option.id ? <button type="button" onClick={() => void archive(option)} className="min-h-11 rounded-md border border-amber-500 px-3 text-sm font-semibold text-amber-800">{m("停用")}</button> : null}
+            </div>
+          </article>
+        ))}
+      </section>
+
+      <section data-testid="merchant-business-types-desktop-table" className="hidden overflow-x-auto border-y border-stone-200 md:block">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="bg-stone-50 text-stone-600">
             <tr>
@@ -122,8 +142,8 @@ export function MerchantBusinessTypeOptionManager({ initialOptions }: { initialO
                 <td className="px-3 py-4 text-right">{formatAppNumber(locale, option.sortOrder)}</td>
                 <td className="px-3 py-4">{option.archivedAt ? m("已停用") : option.isActive ? m("啟用") : m("關閉")}</td>
                 <td className="px-3 py-4 text-right">
-                  <button type="button" onClick={() => edit(option)} className="font-semibold text-teal-800">{m("修改")}</button>
-                  {option.id ? <button type="button" onClick={() => void archive(option)} className="ml-4 font-semibold text-amber-800">{m("停用")}</button> : null}
+                  <button type="button" onClick={() => edit(option)} className="inline-flex min-h-11 items-center font-semibold text-teal-800">{m("修改")}</button>
+                  {option.id ? <button type="button" onClick={() => void archive(option)} className="ml-4 inline-flex min-h-11 items-center font-semibold text-amber-800">{m("停用")}</button> : null}
                 </td>
               </tr>
             ))}
@@ -171,6 +191,10 @@ export function MerchantBusinessTypeOptionManager({ initialOptions }: { initialO
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="block text-sm font-medium text-stone-800"><span className="mb-1.5 block">{label}</span>{children}</label>;
+}
+
+function OptionDetail({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return <div className="min-w-0"><dt className="text-xs font-semibold text-stone-500">{label}</dt><dd className={`mt-1 break-all ${mono ? "font-mono text-xs" : ""}`}>{value}</dd></div>;
 }
 
 function upsertOption(options: Option[], option: Option) {

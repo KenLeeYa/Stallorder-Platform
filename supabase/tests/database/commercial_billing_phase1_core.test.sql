@@ -4,8 +4,8 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(32);
 
-select is((select count(*)::integer from public.plans), 5, '方案目錄包含 TRIAL 與四種付費方案');
-select is((select count(*)::integer from public.plan_versions where version = 1), 5, '每個方案建立第一版合約');
+select is((select count(*)::integer from public.plans), 6, '方案目錄保留 TRIAL 與四種舊方案，並新增 PAYG');
+select is((select count(*)::integer from public.plan_versions where version = 1), 6, '每個方案建立第一版合約');
 select is((select count(*)::integer from public.subscriptions where plan_version_id is null), 0, '既有訂閱全部綁定方案版本');
 select is((select version.trial_days from public.plan_versions version join public.plans plan on plan.id = version.plan_id where plan.code = 'TRIAL' and version.version = 1), 14, '試用版本為十四天');
 select is((select version.included_orders from public.plan_versions version join public.plans plan on plan.id = version.plan_id where plan.code = 'TRIAL' and version.version = 1), 100, '試用版本包含一百筆計費訂單');
@@ -36,7 +36,7 @@ select ok(exists(
 select is((select count(*)::integer from public.add_on_catalog), 11, '建立十一個 Add-on 目錄項目');
 select is((select availability_status from public.add_on_catalog where code = 'ORDER_PACKAGE_STANDARD_500'), 'ENABLED', '人工訂單包在 Phase 1 可用');
 select is((select availability_status from public.add_on_catalog where code = 'PRINTER_INTEGRATION'), 'COMING_SOON', '列印訂閱自動化保持未啟用');
-select is((select count(*)::integer from public.billing_feature_flags where is_enabled), 1, '只有 Phase 1 人工計費旗標啟用');
+select is((select count(*)::integer from public.billing_feature_flags where is_enabled), 2, '只啟用人工計費與開放測試免費模式');
 select ok((select is_enabled from public.billing_feature_flags where code = 'MANUAL_BILLING_ENABLED'), '人工計費旗標已啟用');
 select ok(not (select is_enabled from public.billing_feature_flags where code = 'ECPAY_BILLING_ENABLED'), 'ECPay 旗標預設關閉');
 select ok(not (select is_enabled from public.billing_feature_flags where code = 'E_INVOICE_ENABLED'), '電子發票旗標預設關閉');

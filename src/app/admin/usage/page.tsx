@@ -16,7 +16,32 @@ export default async function AdminUsagePage() {
           {m("Usage summaries can be rebuilt from append-only usage events on the subscription details page. Historical events are never deleted.")}
         </p>
       </header>
-      <div className="mt-6 overflow-x-auto border-y border-stone-200">
+      <div data-testid="admin-usage-mobile-list" className="mt-6 grid gap-3 md:hidden">
+        {summaries.map((summary) => {
+          const subscription = summary.organization.subscription;
+          return (
+            <article key={summary.id} className="min-w-0 rounded-md border border-stone-200 bg-white p-4">
+              <p className="text-xs font-semibold text-stone-500">{formatAppDate(locale, summary.billingPeriod, { year: "numeric", month: "long", timeZone: "Asia/Taipei" })}</p>
+              <Link href={subscription ? `/admin/subscriptions/${subscription.id}` : "/admin/subscriptions"} className="mt-1 inline-flex min-h-11 w-full min-w-0 items-center break-all text-lg font-semibold text-teal-800">
+                {summary.organization.businessName}
+              </Link>
+              <p className="break-words text-sm text-stone-600">{subscription?.planVersion.displayName ?? m("No subscription")}</p>
+              <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <MobileDetail label={m("Billable orders")} value={formatAppNumber(locale, summary.billableOrderCount)} />
+                <MobileDetail label={m("Allowance")} value={subscription?.planVersion.includedOrders == null ? m("Per contract") : formatAppNumber(locale, subscription.planVersion.includedOrders)} />
+                <MobileDetail label={m("Stalls")} value={formatAppNumber(locale, summary.activeStallCount)} />
+                <MobileDetail label={m("Staff")} value={formatAppNumber(locale, summary.activeStaffCount)} />
+                <MobileDetail label="QR" value={formatAppNumber(locale, summary.qrCodeCount)} />
+                <div className="col-span-2 min-w-0">
+                  <dt className="text-xs font-semibold text-stone-500">{m("Calculated at")}</dt>
+                  <dd className="mt-1 break-words">{formatAppDateTime(locale, summary.calculatedAt, { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Taipei" })}</dd>
+                </div>
+              </dl>
+            </article>
+          );
+        })}
+      </div>
+      <div data-testid="admin-usage-desktop-table" className="mt-6 hidden overflow-x-auto border-y border-stone-200 md:block">
         <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="bg-stone-50">
             <tr>
@@ -38,7 +63,7 @@ export default async function AdminUsagePage() {
                 <tr key={summary.id}>
                   <td className="px-3 py-4">{formatAppDate(locale, summary.billingPeriod, { year: "numeric", month: "long", timeZone: "Asia/Taipei" })}</td>
                   <td className="px-3 py-4 font-semibold">
-                    <Link href={subscription ? `/admin/subscriptions/${subscription.id}` : "/admin/subscriptions"} className="text-teal-800">
+                    <Link href={subscription ? `/admin/subscriptions/${subscription.id}` : "/admin/subscriptions"} className="inline-flex min-h-11 items-center text-teal-800">
                       {summary.organization.businessName}
                     </Link>
                   </td>
@@ -54,8 +79,12 @@ export default async function AdminUsagePage() {
             })}
           </tbody>
         </table>
-        {summaries.length === 0 ? <p className="px-3 py-8 text-sm text-stone-500">{m("There are no usage summaries.")}</p> : null}
       </div>
+      {summaries.length === 0 ? <p className="mt-6 border-y border-stone-200 px-3 py-8 text-sm text-stone-500">{m("There are no usage summaries.")}</p> : null}
     </main>
   );
+}
+
+function MobileDetail({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0"><dt className="text-xs font-semibold text-stone-500">{label}</dt><dd className="mt-1 break-words">{value}</dd></div>;
 }

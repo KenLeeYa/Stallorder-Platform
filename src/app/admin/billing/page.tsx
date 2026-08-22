@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { Banknote, CircleAlert, CirclePause, Clock3, CreditCard, FileCheck2, ReceiptText, ShieldCheck, TrendingUp, WalletCards } from "lucide-react";
 import { AdditionalStallApprovalAction, AdminInvoiceCreateForm, AdminPaymentReviewActions, BillingRequestRejectAction } from "@/components/admin-billing-actions";
+import { AdminBillingFeatureFlagControls } from "@/components/admin-billing-feature-flag-controls";
 import { getAdminBillingOverview, getAdminPlanCatalog } from "@/lib/admin-billing-data";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { formatAppCurrency, formatAppDate, formatAppNumber } from "@/lib/locale-format";
@@ -8,23 +10,24 @@ import { createAdminTranslator, getAdminCodeLabel } from "@/lib/messages/admin";
 export default async function AdminBillingPage() {
   const [{ locale }, overview, catalog] = await Promise.all([getRequestAppLocale(), getAdminBillingOverview(), getAdminPlanCatalog()]);
   const m = createAdminTranslator(locale);
-  const planOptions = catalog.versions.filter((version) => version.isPublic && !version.requiresQuote && version.billingInterval !== "TRIAL");
+  const planOptions = catalog.versions.filter((version) => !version.requiresQuote && version.billingInterval !== "TRIAL" && version.pricingMode === "FIXED");
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-7 md:px-8">
       <header><p className="text-sm font-semibold text-teal-800">{m("Phase 1 manual billing")}</p><h1 className="mt-1 text-3xl font-semibold">{m("Platform billing overview")}</h1><p className="mt-2 text-sm text-stone-600">{m("Plans, invoices, payment confirmation, and subscription status are determined by the StallOrder database.")}</p></header>
-      <section className="mt-6 grid border-y border-stone-200 sm:grid-cols-3 lg:grid-cols-5">
-        <Metric label={m("Active subscriptions")} value={formatAppNumber(locale, overview.metrics.activeSubscriptions)} />
-        <Metric label={m("Trialing")} value={formatAppNumber(locale, overview.metrics.trialingSubscriptions)} />
-        <Metric label={m("Past due")} value={formatAppNumber(locale, overview.metrics.pastDueSubscriptions)} />
-        <Metric label={m("Suspended")} value={formatAppNumber(locale, overview.metrics.suspendedSubscriptions)} />
-        <Metric label={m("Open invoices")} value={formatAppNumber(locale, overview.metrics.openInvoices + overview.metrics.overdueInvoices)} />
-        <Metric label={m("Paid invoices")} value={formatAppNumber(locale, overview.metrics.paidInvoices)} />
-        <Metric label={m("Invoiced this month")} value={formatAppCurrency(locale, overview.metrics.monthlyInvoiced)} />
-        <Metric label={m("Collected this month")} value={formatAppCurrency(locale, overview.metrics.monthlyCollected)} />
-        <Metric label={m("Trial conversions")} value={formatAppNumber(locale, overview.metrics.trialConversions)} />
-        <Metric label={m("Payments pending review")} value={formatAppNumber(locale, overview.pendingPayments.length)} />
-      </section>
+      <dl data-testid="admin-billing-dashboard" className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-stone-200 bg-stone-200 sm:grid-cols-3 lg:grid-cols-5">
+        <Metric icon={ShieldCheck} label={m("Active subscriptions")} value={formatAppNumber(locale, overview.metrics.activeSubscriptions)} />
+        <Metric icon={Clock3} label={m("Trialing")} value={formatAppNumber(locale, overview.metrics.trialingSubscriptions)} />
+        <Metric icon={CircleAlert} label={m("Past due")} value={formatAppNumber(locale, overview.metrics.pastDueSubscriptions)} />
+        <Metric icon={CirclePause} label={m("Suspended")} value={formatAppNumber(locale, overview.metrics.suspendedSubscriptions)} />
+        <Metric icon={ReceiptText} label={m("Open invoices")} value={formatAppNumber(locale, overview.metrics.openInvoices + overview.metrics.overdueInvoices)} />
+        <Metric icon={FileCheck2} label={m("Paid invoices")} value={formatAppNumber(locale, overview.metrics.paidInvoices)} />
+        <Metric icon={CreditCard} label={m("Invoiced this month")} value={formatAppCurrency(locale, overview.metrics.monthlyInvoiced)} />
+        <Metric icon={Banknote} label={m("Collected this month")} value={formatAppCurrency(locale, overview.metrics.monthlyCollected)} />
+        <Metric icon={TrendingUp} label={m("Trial conversions")} value={formatAppNumber(locale, overview.metrics.trialConversions)} />
+        <Metric icon={WalletCards} label={m("Payments pending review")} value={formatAppNumber(locale, overview.pendingPayments.length)} />
+      </dl>
+      <AdminBillingFeatureFlagControls flags={catalog.featureFlags} />
       <section className="py-7">
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-semibold">{m("Plan and stall requests")}</h2><Link href="/admin/subscriptions" className="text-sm font-semibold text-teal-800">{m("View all subscriptions")}</Link></div>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -32,7 +35,13 @@ export default async function AdminBillingPage() {
             <article key={request.id} className="rounded-md border border-stone-200 p-5">
               <div className="flex flex-wrap justify-between gap-3"><div><p className="text-xs font-semibold text-teal-800">{m(request.requestType === "PLAN_CHANGE" ? "Plan change" : "Additional stalls")}</p><h3 className="mt-1 text-lg font-semibold">{request.organization.businessName}</h3></div><time className="text-xs text-stone-500">{formatAppDate(locale, request.createdAt)}</time></div>
               <p className="mt-3 text-sm text-stone-600">{m("Applicant: {applicant}; reason: {reason}", { applicant: request.requestedBy.displayName, reason: request.reason })}</p>
-              {request.requestType === "PLAN_CHANGE" && request.requestedPlanVersionId && request.requestedBillingInterval ? <div className="mt-4"><AdminInvoiceCreateForm organizationId={request.organizationId} plans={planOptions.filter((version) => version.id === request.requestedPlanVersionId).map(toPlanOption)} request={{ id: request.id, planVersionId: request.requestedPlanVersionId, billingInterval: request.requestedBillingInterval as "MONTHLY" | "ANNUAL" }} /></div> : <AdditionalStallApprovalAction organizationId={request.organizationId} requestId={request.id} quantity={request.requestedQuantity ?? 1} unitPrice={request.subscription.planVersion.additionalStallPrice} />}
+              {request.requestType === "PLAN_CHANGE" ? (
+                request.requestedPlanVersion?.plan.code === "PAYG" ? (
+                  <Link href={`/admin/subscriptions/${request.subscriptionId}#payg-migration`} className="mt-4 inline-flex min-h-11 items-center rounded-md bg-amber-900 px-4 text-sm font-semibold text-white">{m("Review PAYG migration")}</Link>
+                ) : request.requestedPlanVersionId && request.requestedBillingInterval ? (
+                  <div className="mt-4"><AdminInvoiceCreateForm organizationId={request.organizationId} plans={planOptions.filter((version) => version.id === request.requestedPlanVersionId).map(toPlanOption)} request={{ id: request.id, planVersionId: request.requestedPlanVersionId, billingInterval: request.requestedBillingInterval as "MONTHLY" | "ANNUAL" }} /></div>
+                ) : <p className="mt-4 text-sm text-amber-800">{m("This request requires manual review.")}</p>
+              ) : <AdditionalStallApprovalAction organizationId={request.organizationId} requestId={request.id} quantity={request.requestedQuantity ?? 1} unitPrice={request.subscription.planVersion.additionalStallPrice} />}
               <BillingRequestRejectAction requestId={request.id} />
             </article>
           ))}
@@ -55,6 +64,6 @@ function toPlanOption(version: { id: string; displayName: string; version: numbe
   return { id: version.id, label: `${version.displayName} v${version.version}`, monthlyPrice: version.basePrice, annualPrice: version.annualPrice, currency: version.currency };
 }
 
-function Metric({ label, value }: { label: string; value: string | number }) {
-  return <div className="border-b border-stone-200 px-3 py-5"><div className="text-xs text-stone-500">{label}</div><div className="mt-1 break-words text-xl font-semibold">{value}</div></div>;
+function Metric({ icon: Icon, label, value }: { icon: typeof ShieldCheck; label: string; value: string | number }) {
+  return <div className="min-w-0 bg-white p-3 sm:px-4 sm:py-5"><dt className="flex min-w-0 items-center gap-2 text-xs text-stone-500"><Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-teal-700" /><span className="min-w-0 break-words">{label}</span></dt><dd className="mt-2 break-words text-xl font-semibold tabular-nums">{value}</dd></div>;
 }

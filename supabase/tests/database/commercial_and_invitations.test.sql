@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(39);
 
-select is((select count(*)::integer from public.plans), 5, '建立試用與四種付費資料庫方案');
+select is((select count(*)::integer from public.plans), 6, '保留試用與四種舊方案，並新增 PAYG 方案');
 select is(
   (select included_stalls::text || ':' || coalesce(additional_stall_price::text, 'DISABLED') || ':' || max_stalls::text from public.plans where code = 'LITE'),
   '1:DISABLED:1',
@@ -22,8 +22,8 @@ select is(
 );
 select is(
   (select plan.code from public.subscriptions subscription join public.plans plan on plan.id = subscription.plan_id where subscription.organization_id = '11111111-1111-4111-8111-111111111111'),
-  'PRO',
-  '示範組織使用 Pro 訂閱'
+  'PAYG',
+  '主要示範組織使用現行 PAYG 訂閱'
 );
 
 insert into public.orders (

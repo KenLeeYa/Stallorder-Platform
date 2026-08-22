@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const isProduction = process.env.NODE_ENV === "production";
+const allowedDevOrigins = [
+  "127.0.0.1",
+  ...(process.env.LOCAL_DEV_ALLOWED_ORIGINS?.split(",") ?? []),
+].map((value) => value.trim()).filter(Boolean);
 const publicEdgeOrigin = (() => {
   try {
     return process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL
@@ -48,7 +52,7 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["127.0.0.1"],
+  allowedDevOrigins,
   logging: {
     incomingRequests: {
       ignore: [

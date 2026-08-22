@@ -32,24 +32,69 @@ async function main() {
     },
   });
 
-  const stall = await prisma.stall.upsert({
-    where: { slug: "aming-chicken" },
+  const { billingPeriodStart, billingPeriodEnd, pricingEffectiveAt } = currentTaipeiBillingPeriod();
+  const paygPlan = await prisma.plan.findUniqueOrThrow({ where: { code: "PAYG" } });
+  const paygPlanVersion = await prisma.planVersion.findFirstOrThrow({
+    where: {
+      planId: paygPlan.id,
+      effectiveFrom: { lte: new Date() },
+      OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: new Date() } }],
+    },
+    orderBy: { version: "desc" },
+  });
+  await prisma.subscription.upsert({
+    where: { organizationId: organization.id },
     update: {
-      organizationId: organization.id,
-      name: "阿明鹽酥雞",
-      address: "台北市饒河街觀光夜市",
-      location: "台北市饒河街觀光夜市",
+      planId: paygPlan.id,
+      planVersionId: paygPlanVersion.id,
+      billingInterval: "MONTHLY",
+      status: "ACTIVE",
+      billingPeriodStart,
+      billingPeriodEnd,
+      pricingEffectiveAt,
+      trialStartedAt: null,
+      trialEndsAt: null,
+      paymentDueAt: null,
+      pastDueAt: null,
+      gracePeriodEndsAt: null,
+      suspendedAt: null,
+      cancelAtPeriodEnd: false,
+      cancelledAt: null,
     },
     create: {
       organizationId: organization.id,
-      name: "阿明鹽酥雞",
-      slug: "aming-chicken",
-      code: "AMING-01",
-      address: "台北市饒河街觀光夜市",
-      location: "台北市饒河街觀光夜市",
-      currency: "TWD",
+      planId: paygPlan.id,
+      planVersionId: paygPlanVersion.id,
+      billingInterval: "MONTHLY",
+      status: "ACTIVE",
+      billingPeriodStart,
+      billingPeriodEnd,
+      pricingEffectiveAt,
     },
   });
+
+  const existingStall = await prisma.stall.findUnique({ where: { slug: "aming-chicken" } });
+  const stall = existingStall
+    ? await prisma.stall.update({
+      where: { id: existingStall.id },
+      data: {
+        organizationId: organization.id,
+        name: "阿明鹽酥雞",
+        address: "台北市饒河街觀光夜市",
+        location: "台北市饒河街觀光夜市",
+      },
+    })
+    : await prisma.stall.create({
+      data: {
+        organizationId: organization.id,
+        name: "阿明鹽酥雞",
+        slug: "aming-chicken",
+        code: "AMING-01",
+        address: "台北市饒河街觀光夜市",
+        location: "台北市饒河街觀光夜市",
+        currency: "TWD",
+      },
+    });
 
   await prisma.stallOrderingSettings.upsert({
     where: { stallId: stall.id },
@@ -831,16 +876,34 @@ async function main() {
     },
   });
 
+  const legacyOrganization = await prisma.organization.upsert({
+    where: { email: "legacy.billing@stallorder.test" },
+    update: {
+      name: "StallOrder Legacy 計費測試商戶",
+      businessName: "StallOrder Legacy 計費測試商戶",
+      status: "ACTIVE",
+    },
+    create: {
+      id: "11111111-1111-4111-8111-111111111112",
+      name: "StallOrder Legacy 計費測試商戶",
+      businessName: "StallOrder Legacy 計費測試商戶",
+      slug: "stallorder-legacy-billing-fixture",
+      status: "ACTIVE",
+      email: "legacy.billing@stallorder.test",
+      phone: "0900-000-099",
+    },
+  });
   const proPlan = await prisma.plan.findUniqueOrThrow({ where: { code: "PRO" } });
   const proPlanVersion = await prisma.planVersion.findFirstOrThrow({
-    where: { planId: proPlan.id, effectiveFrom: { lte: new Date() }, OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: new Date() } }] },
+    where: {
+      planId: proPlan.id,
+      effectiveFrom: { lte: new Date() },
+      OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: new Date() } }],
+    },
     orderBy: { version: "desc" },
   });
-  const billingPeriodStart = new Date(new Date().toISOString().slice(0, 7) + "-01T00:00:00.000Z");
-  const billingPeriodEnd = new Date(billingPeriodStart);
-  billingPeriodEnd.setUTCMonth(billingPeriodEnd.getUTCMonth() + 1);
   await prisma.subscription.upsert({
-    where: { organizationId: organization.id },
+    where: { organizationId: legacyOrganization.id },
     update: {
       planId: proPlan.id,
       planVersionId: proPlanVersion.id,
@@ -849,9 +912,10 @@ async function main() {
       billingPeriodStart,
       billingPeriodEnd,
       paymentDueAt: billingPeriodEnd,
+      pricingEffectiveAt: null,
     },
     create: {
-      organizationId: organization.id,
+      organizationId: legacyOrganization.id,
       planId: proPlan.id,
       planVersionId: proPlanVersion.id,
       billingInterval: "MONTHLY",
@@ -861,6 +925,22 @@ async function main() {
       paymentDueAt: billingPeriodEnd,
     },
   });
+}
+
+function currentTaipeiBillingPeriod(now = new Date()) {
+  const parts = new Map(new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now).map((part) => [part.type, part.value]));
+  const year = Number(parts.get("year"));
+  const month = Number(parts.get("month"));
+  const billingPeriodStart = new Date(Date.UTC(year, month - 1, 1));
+  return {
+    billingPeriodStart,
+    billingPeriodEnd: new Date(Date.UTC(year, month, 1)),
+    pricingEffectiveAt: new Date(billingPeriodStart.getTime() - 8 * 60 * 60 * 1_000),
+  };
 }
 
 const demoProductTranslations = {

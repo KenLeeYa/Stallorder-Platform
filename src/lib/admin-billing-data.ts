@@ -91,7 +91,30 @@ export function getAdminSubscription(subscriptionId: string) {
   return prisma.subscription.findUnique({
     where: { id: subscriptionId },
     include: {
-      organization: { include: { billingUsageSummaries: { orderBy: { billingPeriod: "desc" }, take: 12 } } },
+      organization: {
+        include: {
+          billingUsageSummaries: { orderBy: { billingPeriod: "desc" }, take: 12 },
+          billingStallUsageSummaries: {
+            include: { stall: { select: { name: true } } },
+            orderBy: [{ billingPeriod: "desc" }, { stallId: "asc" }],
+            take: 100,
+          },
+          auditLogs: {
+            where: {
+              action: {
+                in: [
+                  "SUBSCRIPTION_MIGRATED_TO_PAYG",
+                  "PAYG_INVOICE_CLOSED",
+                  "PAYG_USAGE_REBUILT",
+                ],
+              },
+            },
+            include: { actor: { select: { displayName: true } } },
+            orderBy: { createdAt: "desc" },
+            take: 50,
+          },
+        },
+      },
       plan: true,
       planVersion: { include: { entitlements: { orderBy: { featureCode: "asc" } } } },
       items: { orderBy: { createdAt: "desc" } },
