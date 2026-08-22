@@ -30,7 +30,7 @@ describe("configure DR replication dry-run", () => {
     expect(plan).toMatchObject({
       mode: "dry-run",
       strategy: "CREATE_OR_UPGRADE",
-      replicatedTableCount: 118,
+      replicatedTableCount: 119,
       dryRunGuarantees: {
         connectsToDatabases: false,
         changesRemoteState: false,

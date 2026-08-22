@@ -19,6 +19,10 @@ const integratedPrintRoutingFixMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260822013000_fix_integrated_print_center_routing.sql",
 ), "utf8");
+const paygOpenBetaBillingMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260822100000_payg_open_beta_billing.sql",
+), "utf8");
 const staffKdsSpecialClosuresMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260821193000_staff_kds_special_closures.sql",
@@ -231,6 +235,58 @@ describe("additive DR migration plan", () => {
     expect(plan.migrations.map(({ version }) => version)).toEqual([
       "20260822010000",
       "20260822013000",
+    ]);
+  });
+
+  it("allows only the exact reviewed PAYG DR-compatible migration", () => {
+    expect(assertAdditiveMigrationSql(paygOpenBetaBillingMigration)).toBe(true);
+
+    for (const migration of [
+      paygOpenBetaBillingMigration.replace(
+        "backend_code = 'DR'",
+        "backend_code = 'PRIMARY'",
+      ),
+      paygOpenBetaBillingMigration.replace(
+        "usage_events_event_type_check",
+        "usage_events_unreviewed_event_type_check",
+      ),
+      paygOpenBetaBillingMigration.replace(
+        "orders_billable_full_refund_after_update",
+        "orders_unreviewed_full_refund_after_update",
+      ),
+    ]) {
+      expect(() => assertAdditiveMigrationSql(migration)).toThrow();
+    }
+  });
+
+  it("plans the exact pending DR migration set as additive", () => {
+    const plan = createAdditiveMigrationPlan({
+      migrationList: `
+        LOCAL          | REMOTE | TIME (UTC)
+        20260822010000 |        | 2026-08-22
+        20260822013000 |        | 2026-08-22
+        20260822100000 |        | 2026-08-22
+      `,
+      migrationFiles: [
+        {
+          file: "20260822010000_integrated_print_center.sql",
+          content: integratedPrintCenterMigration,
+        },
+        {
+          file: "20260822013000_fix_integrated_print_center_routing.sql",
+          content: integratedPrintRoutingFixMigration,
+        },
+        {
+          file: "20260822100000_payg_open_beta_billing.sql",
+          content: paygOpenBetaBillingMigration,
+        },
+      ],
+    });
+
+    expect(plan.migrations.map(({ version }) => version)).toEqual([
+      "20260822010000",
+      "20260822013000",
+      "20260822100000",
     ]);
   });
 
