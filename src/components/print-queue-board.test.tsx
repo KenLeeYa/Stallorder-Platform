@@ -8,8 +8,11 @@ describe("PrintQueueBoard cancelled-job recovery", () => {
     const state: PrintQueueState = {
       printModuleEnabled: true,
       printers: [],
+      rules: [],
+      catalog: [],
       jobs: [{
         id: "job-1",
+        documentType: "KITCHEN_TICKET",
         status: "CANCELLED",
         attemptCount: 0,
         maxAttempts: 3,
@@ -17,7 +20,9 @@ describe("PrintQueueBoard cancelled-job recovery", () => {
         queuedAt: "2026-08-21T10:00:00.000Z",
         printedAt: null,
         reprintOfId: null,
+        isRoutingCopy: false,
         printer: null,
+        printRule: null,
         order: {
           id: "order-1",
           orderNo: "A-001",

@@ -1,0 +1,12 @@
+StarWebPrintTrader.js version 1.2.0
+Copyright 2012 STAR MICRONICS CO., LTD. All Rights Reserved.
+
+Upstream: https://github.com/star-micronics/starwebprnt-sdk
+Pinned commit: bb6ffbf653735b0f0c31e59d6618e8ea5dfff813
+Upstream Git blob: 2a3a59045e4a16062d1d88a584f954befc665bf1
+Source path: Sample/js/StarWebPrintTrader.js
+License agreement: SoftwareLicenseAgreement.pdf at the pinned commit
+
+The library is included without modification for communication between
+StallOrder and a compatible Star Micronics printer through the official
+Star webPRNT Browser. Keep this notice and the copyright header with every copy.

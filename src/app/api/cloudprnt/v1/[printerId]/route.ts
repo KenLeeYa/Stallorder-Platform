@@ -1,11 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import {
-  createKitchenTicketPayload,
   kitchenTicketCommandBytes,
-  kitchenTicketPayloadSchema,
   KITCHEN_TICKET_MEDIA_TYPE,
-  KITCHEN_TICKET_TEMPLATE_VERSION,
 } from "@/lib/kitchen-print-ticket";
 import { prisma } from "@/lib/prisma";
 import {
@@ -17,6 +14,10 @@ import {
   cloudPrntStatusSucceeded,
   decodeCloudPrntStatus,
 } from "@/server/cloudprnt/cloudprnt-protocol";
+import {
+  printJobTicketSelect,
+  resolvePrintJobTicketPayload,
+} from "@/server/printing/print-job-ticket";
 import { completeStreamlinedOrderAfterPrint } from "@/server/printing/streamlined-order-completion";
 
 type RouteContext = { params: Promise<{ printerId: string }> };
@@ -54,7 +55,17 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (token && uuid.safeParse(token).success) {
     const active = await prisma.printJob.findFirst({
-      where: { id: token, printerId: printer.id, status: { in: ["PENDING", "PRINTING"] } },
+      where: {
+        id: token,
+        printerId: printer.id,
+        OR: [
+          { status: "PRINTING" },
+          {
+            status: "PENDING",
+            ...automaticRuleEligibility(),
+          },
+        ],
+      },
       select: { id: true },
     });
     return Response.json(cloudPrntPollResponse(active?.id ?? null), { headers: responseHeaders });
@@ -64,7 +75,10 @@ export async function POST(request: Request, context: RouteContext) {
     where: {
       printerId: printer.id,
       status: "PENDING",
-      OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: new Date() } }],
+      AND: [
+        { OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: new Date() } }] },
+        automaticRuleEligibility(),
+      ],
     },
     orderBy: [{ queuedAt: "asc" }, { id: "asc" }],
     select: { id: true, attemptCount: true, maxAttempts: true },
@@ -87,58 +101,32 @@ export async function GET(request: Request, context: RouteContext) {
     return new Response(null, { status: 400, headers: responseHeaders });
   }
   const job = await prisma.printJob.findFirst({
-    where: { id: token, printerId: printer.id, status: { in: ["PENDING", "PRINTING"] } },
+    where: {
+      id: token,
+      printerId: printer.id,
+      OR: [
+        { status: "PRINTING" },
+        {
+          status: "PENDING",
+          ...automaticRuleEligibility(),
+        },
+      ],
+    },
     select: {
-      id: true,
       status: true,
       attemptCount: true,
       maxAttempts: true,
-      reprintOfId: true,
-      payload: true,
-      stall: { select: { name: true, timezone: true } },
-      order: {
-        select: {
-          orderNo: true,
-          fulfillmentType: true,
-          tableLabel: true,
-          note: true,
-          createdAt: true,
-          scheduledPickupAt: true,
-          requestedFulfillmentAt: true,
-          committedFulfillmentAt: true,
-          items: {
-            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-            select: {
-              name: true,
-              quantity: true,
-              note: true,
-              noteOptions: { select: { optionName: true } },
-            },
-          },
-        },
-      },
+      ...printJobTicketSelect,
     },
   });
   if (!job || (job.status === "PENDING" && job.attemptCount >= job.maxAttempts)) {
     return new Response(null, { status: 404, headers: responseHeaders });
   }
 
-  const payload = await resolvePayload(job);
+  const payload = await resolvePrintJobTicketPayload(job);
   if (job.status === "PENDING") {
-    const claimed = await prisma.printJob.updateMany({
-      where: { id: job.id, printerId: printer.id, status: "PENDING", attemptCount: { lt: job.maxAttempts } },
-      data: {
-        status: "PRINTING",
-        attemptCount: { increment: 1 },
-        printingAt: new Date(),
-        lastError: null,
-        nextRetryAt: null,
-      },
-    });
-    if (claimed.count !== 1) {
-      const concurrent = await prisma.printJob.findUnique({ where: { id: job.id }, select: { status: true } });
-      if (concurrent?.status !== "PRINTING") return new Response(null, { status: 409, headers: responseHeaders });
-    }
+    const claimed = await claimPendingCloudJob(job.id, printer.id);
+    if (!claimed) return new Response(null, { status: 409, headers: responseHeaders });
   }
   await touchPrinter(printer.id);
   return new Response(kitchenTicketCommandBytes(payload), {
@@ -197,65 +185,10 @@ export async function DELETE(request: Request, context: RouteContext) {
   return new Response(null, { status: 200, headers: responseHeaders });
 }
 
-async function resolvePayload(job: {
-  id: string;
-  payload: Prisma.JsonValue | null;
-  reprintOfId: string | null;
-  stall: { name: string; timezone: string };
-  order: {
-    orderNo: string;
-    fulfillmentType: "TAKEOUT" | "DINE_IN" | "DELIVERY";
-    tableLabel: string | null;
-    note: string | null;
-    createdAt: Date;
-    scheduledPickupAt: Date | null;
-    requestedFulfillmentAt: Date | null;
-    committedFulfillmentAt: Date | null;
-    items: Array<{
-      name: string;
-      quantity: number;
-      note: string | null;
-      noteOptions: Array<{ optionName: string }>;
-    }>;
-  };
-}) {
-  const stored = kitchenTicketPayloadSchema.safeParse(job.payload);
-  if (stored.success) return stored.data;
-  const payload = createKitchenTicketPayload({
-    stallName: job.stall.name,
-    timeZone: job.stall.timezone,
-    order: job.order,
-    printedAt: new Date(),
-    isReprint: Boolean(job.reprintOfId),
-  });
-  if (job.payload === null) {
-    const persisted = await prisma.printJob.updateMany({
-      where: { id: job.id, payload: { equals: Prisma.DbNull } },
-      data: {
-        payload: payload as Prisma.InputJsonValue,
-        templateVersion: KITCHEN_TICKET_TEMPLATE_VERSION,
-      },
-    });
-    if (persisted.count === 1) return payload;
-    const concurrent = await prisma.printJob.findUnique({
-      where: { id: job.id },
-      select: { payload: true },
-    });
-    const concurrentPayload = kitchenTicketPayloadSchema.safeParse(concurrent?.payload);
-    if (concurrentPayload.success) return concurrentPayload.data;
-    throw new Error("CloudPRNT payload persistence conflict");
-  }
-  await prisma.printJob.update({
-    where: { id: job.id },
-    data: { payload: payload as Prisma.InputJsonValue, templateVersion: KITCHEN_TICKET_TEMPLATE_VERSION },
-  });
-  return payload;
-}
-
 async function loadPrinter(printerId: string) {
   if (!uuid.safeParse(printerId).success) return new Response(null, { status: 404, headers: responseHeaders });
   const printer = await prisma.printer.findFirst({
-    where: { id: printerId, isEnabled: true },
+    where: { id: printerId, isEnabled: true, connectionType: "CLOUDPRNT" },
     select: { id: true },
   });
   return printer ?? new Response(null, { status: 404, headers: responseHeaders });
@@ -272,6 +205,79 @@ async function authenticate(request: Request, context: RouteContext) {
     status: 401,
     headers: { ...responseHeaders, "www-authenticate": 'Basic realm="StallOrder CloudPRNT"' },
   });
+}
+
+async function claimPendingCloudJob(jobId: string, printerId: string) {
+  try {
+    return await prisma.$transaction(async (transaction) => {
+      const printer = await transaction.printer.findFirst({
+        where: { id: printerId, isEnabled: true, connectionType: "CLOUDPRNT" },
+        select: { id: true },
+      });
+      if (!printer) return false;
+
+      const job = await transaction.printJob.findFirst({
+        where: {
+          id: jobId,
+          printerId,
+          OR: [
+            { status: "PRINTING" },
+            { status: "PENDING", ...automaticRuleEligibility() },
+          ],
+        },
+        select: { status: true, attemptCount: true, maxAttempts: true },
+      });
+      if (!job) return false;
+      if (job.status === "PRINTING") return true;
+      if (job.attemptCount >= job.maxAttempts) return false;
+
+      const claimed = await transaction.printJob.updateMany({
+        where: {
+          id: jobId,
+          printerId,
+          status: "PENDING",
+          attemptCount: { lt: job.maxAttempts },
+          printer: { is: { id: printerId, isEnabled: true, connectionType: "CLOUDPRNT" } },
+          ...automaticRuleEligibility(),
+        },
+        data: {
+          status: "PRINTING",
+          attemptCount: { increment: 1 },
+          printingAt: new Date(),
+          lastError: null,
+          nextRetryAt: null,
+        },
+      });
+      if (claimed.count === 1) return true;
+
+      const concurrent = await transaction.printJob.findFirst({
+        where: {
+          id: jobId,
+          printerId,
+          status: "PRINTING",
+          printer: { is: { id: printerId, isEnabled: true, connectionType: "CLOUDPRNT" } },
+        },
+        select: { id: true },
+      });
+      return Boolean(concurrent);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return false;
+    throw error;
+  }
+}
+
+function automaticRuleEligibility(): Prisma.PrintJobWhereInput {
+  return {
+    OR: [
+      { printRuleId: null },
+      {
+        printRule: {
+          is: { autoPrint: true, isEnabled: true, deletedAt: null },
+        },
+      },
+    ],
+  };
 }
 
 async function readPoll(request: Request) {
