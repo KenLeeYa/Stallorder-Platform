@@ -160,7 +160,7 @@ export async function importExternalOrderFromJob(
         orderNo,
         trackingTokenHash: hashToken(createOpaqueToken()),
         idempotencyKey: deterministicExternalOrderUuid(
-          `${input.order.provider}:${input.order.externalOrderId}`,
+          `${externalOrder.connectionId}:${input.order.provider}:${input.order.externalOrderId}`,
         ),
         source: input.order.provider,
         origin: "IMPORTED",
