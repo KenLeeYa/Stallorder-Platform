@@ -396,6 +396,8 @@ jobs:
               --meta "stallorderPreviewRun=$GITHUB_RUN_ID" \
               --meta "stallorderPreviewResource=$PREVIEW_RESOURCE_KEY" \
               --meta "stallorderPreviewGitBranch=$PREVIEW_GIT_BRANCH" \
+              --meta "githubDeployment=1" \
+              --meta "githubCommitRef=$PREVIEW_GIT_BRANCH" \
               --build-env "DATABASE_URL=$DATABASE_URL" \
               --build-env "DIRECT_URL=$DIRECT_URL" \
               --build-env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
@@ -466,21 +468,39 @@ jobs:
           build_env_names="$(
             jq -r '.build.env[] | split("=")[0]' <<<"$deployment_details"
           )"
+          configured_translation_envs=0
           for name in \
             AI_TRANSLATION_PROVIDER \
             AZURE_TRANSLATOR_KEY \
             AZURE_TRANSLATOR_REGION \
             CATALOG_TRANSLATION_ENABLED
           do
-            grep -Fxq "$name" <<<"$runtime_env_names" || {
-              echo "::error::Matching Preview runtime is missing $name."
+            runtime_configured=false
+            build_configured=false
+            grep -Fxq "$name" <<<"$runtime_env_names" && runtime_configured=true
+            grep -Fxq "$name" <<<"$build_env_names" && build_configured=true
+            [ "$runtime_configured" = "$build_configured" ] || {
+              echo "::error::Matching Preview has inconsistent runtime and build configuration for $name."
               exit 1
             }
-            grep -Fxq "$name" <<<"$build_env_names" || {
-              echo "::error::Matching Preview build is missing $name."
-              exit 1
-            }
+            if [ "$runtime_configured" = "true" ]; then
+              configured_translation_envs="$((configured_translation_envs + 1))"
+            fi
           done
+
+          case "$configured_translation_envs" in
+            0)
+              echo "translation_enabled=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Catalog translation smoke skipped because this branch has no Azure Preview configuration."
+              ;;
+            4)
+              echo "translation_enabled=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Matching Preview has incomplete catalog translation configuration ($configured_translation_envs/4)."
+              exit 1
+              ;;
+          esac
 
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
@@ -495,7 +515,7 @@ jobs:
         run: npm run production:smoke
 
       - name: Run isolated catalog translation glossary smoke
-        if: steps.vercel-auth.outputs.enabled == 'true'
+        if: steps.vercel-auth.outputs.enabled == 'true' && steps.vercel-preview.outputs.translation_enabled == 'true'
         env:
           CATALOG_TRANSLATION_SYNTHETIC_BASE_URL: ${{ steps.vercel-preview.outputs.url }}
           CATALOG_TRANSLATION_SYNTHETIC_CONFIRMATION: EPHEMERAL_PREVIEW_ONLY

@@ -301,6 +301,37 @@ enum PrintJobStatus {
   @@map("print_job_status")
 }
 
+enum PrinterConnectionType {
+  WEBPRNT_BLUETOOTH
+  CLOUDPRNT
+  SYSTEM_PRINT
+
+  @@map("printer_connection_type")
+}
+
+enum PrintDocumentType {
+  KITCHEN_TICKET
+  CUSTOMER_RECEIPT
+
+  @@map("print_document_type")
+}
+
+enum PrintTrigger {
+  ORDER_CONFIRMED
+  PAYMENT_COMPLETED
+
+  @@map("print_trigger")
+}
+
+enum PrintSplitMode {
+  NONE
+  CATEGORY
+  PRODUCT
+  ITEM
+
+  @@map("print_split_mode")
+}
+
 enum CashShiftStatus {
   OPEN
   CLOSING
@@ -422,6 +453,7 @@ model Organization {
   businessHours                 StallBusinessHour[]
   specialClosures               StallSpecialClosure[]
   printers                      Printer[]
+  printRules                    PrintRule[]
   printJobs                     PrintJob[]
   cashShifts                    CashShift[]
   cashMovements                 CashMovement[]
@@ -501,6 +533,7 @@ model Stall {
   businessHours          StallBusinessHour[]
   specialClosures        StallSpecialClosure[]
   printers               Printer[]
+  printRules                    PrintRule[]
   printJobs              PrintJob[]
   cashShifts             CashShift[]
   cashMovements          CashMovement[]
@@ -2370,12 +2403,16 @@ model Printer {
   organizationId String       @map("organization_id") @db.Uuid
   stallId        String       @map("stall_id") @db.Uuid
   name           String
+  connectionType PrinterConnectionType @default(SYSTEM_PRINT) @map("connection_type")
+  model          String                @default("MCP31LB")
+  paperWidthMm   Int                   @default(58) @map("paper_width_mm")
   isEnabled      Boolean      @default(true) @map("is_enabled")
   lastSeenAt     DateTime?    @map("last_seen_at")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  rules          PrintRule[]
   jobs           PrintJob[]
 
   @@unique([stallId, name])
@@ -2384,14 +2421,50 @@ model Printer {
   @@map("printers")
 }
 
+model PrintRule {
+  id                 String            @id @default(uuid()) @db.Uuid
+  organizationId     String            @map("organization_id") @db.Uuid
+  stallId            String            @map("stall_id") @db.Uuid
+  printerId          String            @map("printer_id") @db.Uuid
+  name               String
+  isEnabled          Boolean           @default(true) @map("is_enabled")
+  documentType       PrintDocumentType @default(KITCHEN_TICKET) @map("document_type")
+  trigger            PrintTrigger      @default(ORDER_CONFIRMED)
+  orderSources       String[]          @default([]) @map("order_sources")
+  orderOrigins       OrderOrigin[]     @default([]) @map("order_origins")
+  fulfillmentTypes   FulfillmentType[] @default([]) @map("fulfillment_types")
+  productCategoryIds String[]          @default([]) @map("product_category_ids") @db.Uuid
+  productGroupIds    String[]          @default([]) @map("product_group_ids") @db.Uuid
+  copies             Int               @default(1)
+  fontScale          Int               @default(1) @map("font_scale")
+  splitMode          PrintSplitMode    @default(NONE) @map("split_mode")
+  aggregateItems     Boolean           @default(false) @map("aggregate_items")
+  autoPrint          Boolean           @default(true) @map("auto_print")
+  sortOrder          Int               @default(0) @map("sort_order")
+  deletedAt          DateTime?         @map("deleted_at")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall              Stall             @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  printer            Printer           @relation(fields: [printerId], references: [id], onDelete: Cascade)
+  jobs               PrintJob[]
+
+  @@index([organizationId, stallId, deletedAt, isEnabled, sortOrder])
+  @@index([printerId, deletedAt, isEnabled])
+  @@map("print_rules")
+}
+
 model PrintJob {
   id             String         @id @default(uuid()) @db.Uuid
   organizationId String         @map("organization_id") @db.Uuid
   stallId        String         @map("stall_id") @db.Uuid
   orderId        String         @map("order_id") @db.Uuid
   printerId      String?        @map("printer_id") @db.Uuid
+  printRuleId     String?        @map("print_rule_id") @db.Uuid
   requestedById  String?        @map("requested_by") @db.Uuid
   reprintOfId    String?        @map("reprint_of_id") @db.Uuid
+  isRoutingCopy   Boolean        @default(false) @map("is_routing_copy")
+  documentType    PrintDocumentType @default(KITCHEN_TICKET) @map("document_type")
   status         PrintJobStatus @default(PENDING)
   copies         Int            @default(1)
   attemptCount   Int            @default(0) @map("attempt_count")
@@ -2410,12 +2483,14 @@ model PrintJob {
   stall          Stall          @relation(fields: [stallId], references: [id], onDelete: Cascade)
   order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
   printer        Printer?       @relation(fields: [printerId], references: [id], onDelete: SetNull)
+  printRule      PrintRule?      @relation(fields: [printRuleId], references: [id], onDelete: SetNull)
   requestedBy    Profile?       @relation("PrintJobRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
   reprintOf      PrintJob?      @relation("PrintJobReprints", fields: [reprintOfId], references: [id], onDelete: SetNull)
   reprints       PrintJob[]     @relation("PrintJobReprints")
 
   @@index([organizationId, stallId, status, queuedAt])
   @@index([printerId, status, nextRetryAt])
+  @@index([printRuleId, status, queuedAt])
   @@index([orderId, createdAt(sort: Desc)])
   @@map("print_jobs")
 }

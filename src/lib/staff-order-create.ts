@@ -162,7 +162,7 @@ export async function createStaffOrder(input: {
       const orderNo = `${businessDateRow.business_date.toISOString().slice(2, 10).replaceAll("-", "")}-${String(counter.nextValue - 1).padStart(3, "0")}`;
       const total = checkout?.total ?? prepared.subtotal;
       const isSetupTest = creationMode === "SETUP_TEST";
-      const initialStatus = isSetupTest ? "WAITING_CONFIRMATION" : "CONFIRMED";
+      const initialStatus = "WAITING_CONFIRMATION";
       const cashShiftId = checkout?.method === "CASH"
         ? await requireOpenCashShift(transaction, input.organizationId, input.stallId)
         : null;
@@ -187,7 +187,7 @@ export async function createStaffOrder(input: {
           fulfillmentType: input.request.fulfillmentType,
           note: input.request.customerNote || null,
           status: initialStatus,
-          paymentStatus: isSetupTest || checkout ? "PAID" : "UNPAID",
+          paymentStatus: isSetupTest ? "PAID" : "UNPAID",
           subtotal: prepared.subtotal,
           discountAmount: checkout?.discountAmount ?? 0,
           discountSource: checkout?.discountOptionId ? "STAFF" : "NONE",
@@ -212,8 +212,8 @@ export async function createStaffOrder(input: {
           confirmationExpiresAt: isSetupTest
             ? new Date(createdAt.getTime() + prepared.unconfirmedOrderTimeoutSeconds * 1000)
             : createdAt,
-          confirmedAt: isSetupTest ? null : createdAt,
-          paidAt: isSetupTest || checkout ? createdAt : null,
+          confirmedAt: null,
+          paidAt: isSetupTest ? createdAt : null,
           items: {
             create: prepared.items.map((item) => ({
               organizationId: input.organizationId,
@@ -245,7 +245,7 @@ export async function createStaffOrder(input: {
               stallId: input.stallId,
               eventType: isSetupTest ? "MERCHANT_SETUP_TEST_ORDER_CREATED" : checkout ? "STAFF_ORDER_CREATED_PAID" : "STAFF_ORDER_CREATED",
               previousStatus: null,
-              newStatus: initialStatus,
+              newStatus: isSetupTest ? initialStatus : "CONFIRMED",
               createdBy: input.actorProfileId,
               metadataJson: prepared.requestedFulfillmentAt
                 ? { requestedFulfillmentAt: prepared.requestedFulfillmentAt.toISOString() }
@@ -271,6 +271,16 @@ export async function createStaffOrder(input: {
         },
         select: staffOrderSelect,
       });
+      const finalizedOrder = isSetupTest ? order : await transaction.order.update({
+        where: { id: order.id },
+        data: {
+          status: "CONFIRMED",
+          paymentStatus: checkout ? "PAID" : "UNPAID",
+          confirmedAt: createdAt,
+          paidAt: checkout ? createdAt : null,
+        },
+        select: staffOrderSelect,
+      });
       await transaction.$queryRaw`
         select public.refresh_stall_capacity(
           ${input.stallId}::uuid,
@@ -278,7 +288,7 @@ export async function createStaffOrder(input: {
           'STAFF_ORDER_CREATED'
         )
       `;
-      return order;
+      return finalizedOrder;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     return { order, idempotent: false };

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  createCustomerReceiptPayload,
+  createKitchenTicketBatchPayload,
   createKitchenTicketPayload,
+  createPrinterTestPayload,
   displayWidth,
   kitchenTicketCommandBytes,
   KITCHEN_TICKET_COLUMNS,
@@ -128,4 +131,98 @@ describe("58mm kitchen ticket", () => {
     expect(payload.content).not.toContain("\u001b");
     expect(payload.content).not.toContain("\n不要香菜");
   });
+
+  it("creates compact category-split copies with one physical cut per section and copy", () => {
+    const payload = createKitchenTicketBatchPayload({
+      ...baseInput,
+      paperWidthMm: 58,
+      fontScale: 1,
+      order: {
+        orderNo: baseInput.order.orderNo,
+        fulfillmentType: baseInput.order.fulfillmentType,
+        tableLabel: baseInput.order.tableLabel,
+        note: baseInput.order.note,
+        createdAt: baseInput.order.createdAt,
+        scheduledPickupAt: baseInput.order.scheduledPickupAt,
+        requestedFulfillmentAt: baseInput.order.requestedFulfillmentAt,
+        committedFulfillmentAt: baseInput.order.committedFulfillmentAt,
+      },
+      sections: [
+        { label: "主餐", items: [baseInput.order.items[0]] },
+        { label: "涼菜", items: [baseInput.order.items[1]] },
+      ],
+    }, 2);
+    const bytes = Buffer.from(kitchenTicketCommandBytes(payload));
+
+    expect(payload.version).toBe("kitchen-starprnt-v2");
+    expect(payload.content.match(/分單：/g)).toHaveLength(4);
+    expect(countSequence(bytes, Buffer.from([0x1b, 0x64, 0x02]))).toBe(4);
+  });
+
+  it("renders a customer receipt with prices, discount and payment state", () => {
+    const payload = createCustomerReceiptPayload({
+      stallName: baseInput.stallName,
+      timeZone: baseInput.timeZone,
+      currency: "TWD",
+      printedAt: baseInput.printedAt,
+      isReprint: false,
+      paperWidthMm: 58,
+      fontScale: 1,
+      copies: 2,
+      order: {
+        orderNo: baseInput.order.orderNo,
+        fulfillmentType: "TAKEOUT",
+        tableLabel: null,
+        customerName: "王小姐",
+        customerPhone: "0912345678",
+        deliveryAddress: null,
+        note: null,
+        createdAt: baseInput.order.createdAt,
+        subtotal: 320,
+        discountAmount: 20,
+        total: 300,
+        paymentStatus: "PAID",
+        items: [{
+          name: "牛肉湯河粉",
+          quantity: 2,
+          unitPrice: 160,
+          note: null,
+          noteOptions: [],
+        }],
+      },
+    });
+
+    expect(payload.kind).toBe("CUSTOMER_RECEIPT_STARPRNT");
+    expect(payload.content).toContain("2× 牛肉湯河粉");
+    expect(payload.content).toContain("折扣");
+    expect(payload.content).toContain("$300");
+    expect(payload.content).toContain("付款：已付款");
+    expect(payload.content.match(/2× 牛肉湯河粉/g)).toHaveLength(2);
+  });
+
+  it("creates a self-contained printer test for a 57–58 mm roll", () => {
+    const payload = createPrinterTestPayload({
+      stallName: "越好吃一中店",
+      printerName: "櫃台",
+      model: "MCP31LB",
+      connectionLabel: "iPad 藍牙",
+      paperWidthMm: 58,
+      printedAt: baseInput.printedAt,
+      timeZone: "Asia/Taipei",
+    });
+
+    expect(payload.kind).toBe("PRINTER_TEST_STARPRNT");
+    expect(payload.content).toContain("57–58 mm");
+    expect(payload.content).not.toMatch(/\[[A-D]\d\]/);
+  });
 });
+
+function countSequence(haystack: Buffer, needle: Buffer) {
+  let count = 0;
+  let offset = 0;
+  while ((offset = haystack.indexOf(needle, offset)) >= 0) {
+    count += 1;
+    offset += needle.length;
+  }
+  return count;
+}

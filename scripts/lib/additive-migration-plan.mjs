@@ -24,6 +24,8 @@ const COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST =
   "f5800627472b5df8278ff6a11f6d9a514201706e06021852b5bf5f37a67b8891";
 const EXISTING_TABLE_TRIGGER_MIGRATION_DIGEST =
   "f05d1e7dc42860f348b7607fd792ddd0d961d2cb48035dfac5ed8fa3d2532999";
+const INTEGRATED_PRINT_CENTER_MIGRATION_DIGEST =
+  "06f65177462f6fba3e7ee683e10bc93ef675f4872273c464734ed908f670f80f";
 const GLOBAL_STALL_CODE_ROLLOUT_MIGRATION_DIGEST =
   "529efb3b8385153595e85cb7c49b0c4a53d7fffccc35c3c9a31e8504e2b3dba4";
 const REPORT_DELIVERY_SCHEDULER_MIGRATION_DIGEST =
@@ -162,6 +164,8 @@ export function assertAdditiveMigrationSql(sql) {
     isApprovedCompatibleFunctionBodyMigration(sql);
   const existingTableTriggerMigration =
     isApprovedExistingTableTriggerMigration(sql);
+  const integratedPrintCenterMigration =
+    isApprovedIntegratedPrintCenterMigration(sql);
   const staffKdsSpecialClosuresMigration =
     isApprovedStaffKdsSpecialClosuresMigration(sql);
   const drStandbyCompatibleMigration =
@@ -239,6 +243,7 @@ export function assertAdditiveMigrationSql(sql) {
     phaseThreeHardLock,
     compatibleFunctionBodyMigration,
     existingTableTriggerMigration,
+    integratedPrintCenterMigration,
   );
   assertReplacementObjectProvenance(statements, replacements);
   return true;
@@ -263,6 +268,7 @@ function assertSecurityObjectProvenance(
   phaseThreeHardLock,
   compatibleFunctionBodyMigration,
   existingTableTriggerMigration,
+  integratedPrintCenterMigration,
 ) {
   const createdTables = new Map();
   const createdFunctions = new Map();
@@ -401,7 +407,13 @@ function assertSecurityObjectProvenance(
         )
         && !(
           existingTableTriggerMigration
-          && isGlobalStallCodeGuardTrigger(statement, tableIdentity)
+          && (
+            isGlobalStallCodeGuardTrigger(statement, tableIdentity)
+            || (
+              integratedPrintCenterMigration
+              && isIntegratedPrintCenterTrigger(statement, tableIdentity)
+            )
+          )
         )
       ) {
         throw new AdditiveMigrationPlanError(
@@ -898,12 +910,27 @@ function isApprovedStaffKdsSpecialClosuresMigration(sql) {
 function isApprovedExistingTableTriggerMigration(sql) {
   const digest = sha256(sql.replace(/\r\n/gu, "\n").trim());
   return digest === EXISTING_TABLE_TRIGGER_MIGRATION_DIGEST
-    || digest === GLOBAL_STALL_CODE_ROLLOUT_MIGRATION_DIGEST;
+    || digest === GLOBAL_STALL_CODE_ROLLOUT_MIGRATION_DIGEST
+    || digest === INTEGRATED_PRINT_CENTER_MIGRATION_DIGEST;
+}
+
+function isApprovedIntegratedPrintCenterMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === INTEGRATED_PRINT_CENTER_MIGRATION_DIGEST;
 }
 
 function isGlobalStallCodeGuardTrigger(statement, tableIdentity) {
   return tableIdentity === "public.stalls"
     && /^(?:create|drop)\s+trigger\s+(?:if\s+exists\s+)?stalls_validate_global_code_before_write\b/iu
+      .test(statement);
+}
+
+function isIntegratedPrintCenterTrigger(statement, tableIdentity) {
+  return tableIdentity === "public.orders"
+    && /^create\s+trigger\s+orders_zz_route_integrated_print_jobs\b/iu.test(statement)
+    && /\bafter\s+insert\s+or\s+update\s+of\s+status\s*,\s*payment_status\s+on\s+public\.orders\b/iu
+      .test(statement)
+    && /\bexecute\s+function\s+public\.route_integrated_order_print_jobs\s*\(\s*\)$/iu
       .test(statement);
 }
 
