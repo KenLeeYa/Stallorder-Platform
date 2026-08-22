@@ -115,7 +115,7 @@ alter table public.print_jobs
   add column if not exists is_routing_copy boolean not null default false,
   add column if not exists document_type public.print_document_type not null default 'KITCHEN_TICKET';
 
-create unique index public.print_jobs_order_rule_unique
+create unique index print_jobs_order_rule_unique
   on public.print_jobs (order_id, print_rule_id)
   where print_rule_id is not null
     and (reprint_of_id is null or is_routing_copy);
