@@ -117,7 +117,8 @@ alter table public.print_jobs
 
 create unique index print_jobs_order_rule_unique
   on public.print_jobs (order_id, print_rule_id)
-  where print_rule_id is not null;
+  where print_rule_id is not null
+    and (reprint_of_id is null or is_routing_copy);
 create index print_jobs_rule_idx
   on public.print_jobs (print_rule_id, status, queued_at);
 
@@ -333,6 +334,7 @@ begin
   limit 49
   on conflict (order_id, print_rule_id)
     where print_rule_id is not null
+      and (reprint_of_id is null or is_routing_copy)
     do nothing;
 
   return null;
