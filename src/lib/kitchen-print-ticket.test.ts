@@ -168,7 +168,7 @@ describe("58mm kitchen ticket", () => {
       isReprint: false,
       paperWidthMm: 58,
       fontScale: 1,
-      copies: 1,
+      copies: 2,
       order: {
         orderNo: baseInput.order.orderNo,
         fulfillmentType: "TAKEOUT",
@@ -197,6 +197,7 @@ describe("58mm kitchen ticket", () => {
     expect(payload.content).toContain("折扣");
     expect(payload.content).toContain("$300");
     expect(payload.content).toContain("付款：已付款");
+    expect(payload.content.match(/2× 牛肉湯河粉/g)).toHaveLength(2);
   });
 
   it("creates a self-contained printer test for a 57–58 mm roll", () => {

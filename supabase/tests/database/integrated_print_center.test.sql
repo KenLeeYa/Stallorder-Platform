@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(19);
+select plan(22);
 
 select is(
   (
@@ -431,6 +431,115 @@ select ok(
     'EXECUTE'
   ),
   '只有受信任服務角色可直接執行列印路由函式'
+);
+
+insert into public.print_rules (
+  id, organization_id, stall_id, printer_id, name, document_type, trigger,
+  order_sources, fulfillment_types, product_category_ids, copies, sort_order
+) values (
+  '79100000-0000-4000-8000-000000000016',
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  '79100000-0000-4000-8000-000000000001',
+  '炸物確認後列印', 'KITCHEN_TICKET', 'ORDER_CONFIRMED',
+  array['STAFF_POS'], array['TAKEOUT']::public.fulfillment_type[],
+  array['77777777-7777-4777-8777-777777777771']::uuid[], 1, 10
+);
+
+update public.print_jobs
+set print_rule_id = '79100000-0000-4000-8000-000000000016'
+where order_id = '79100000-0000-4000-8000-000000000022'
+  and reprint_of_id is null;
+
+insert into public.print_jobs (
+  organization_id, stall_id, order_id, printer_id, print_rule_id,
+  requested_by, reprint_of_id, is_routing_copy, document_type,
+  status, copies, queued_at, created_at, updated_at
+)
+select
+  organization_id, stall_id, order_id, printer_id, print_rule_id,
+  requested_by, id, false, document_type,
+  'PENDING'::public.print_job_status, copies, now(), now(), now()
+from public.print_jobs
+where order_id = '79100000-0000-4000-8000-000000000022'
+  and reprint_of_id is null;
+
+select is(
+  (
+    select count(*)::integer
+    from public.print_jobs
+    where order_id = '79100000-0000-4000-8000-000000000022'
+      and reprint_of_id is not null
+      and not is_routing_copy
+  ),
+  1,
+  '人工補印可保留原列印規則而不與路由去重索引衝突'
+);
+
+insert into public.print_jobs (
+  organization_id, stall_id, order_id, printer_id, requested_by
+) values (
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  '79100000-0000-4000-8000-000000000022',
+  '79100000-0000-4000-8000-000000000001',
+  '55555555-5555-4555-8555-555555555552'
+)
+on conflict do nothing;
+
+select is(
+  (
+    select count(*)::integer
+    from public.print_jobs
+    where order_id = '79100000-0000-4000-8000-000000000022'
+      and reprint_of_id is null
+  ),
+  1,
+  '結帳路徑重複排入相容根工作時保持單一工作且不回滾'
+);
+
+insert into public.orders (
+  id, tenant_id, organization_id, stall_id, order_no, tracking_token_hash,
+  idempotency_key, source, origin, customer_name, fulfillment_type, status,
+  payment_status, subtotal, total, device_hash, confirmation_expires_at,
+  created_at, updated_at
+) values (
+  '79100000-0000-4000-8000-000000000026',
+  '11111111-1111-4111-8111-111111111111',
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  'PRINT-RULE-006', repeat('5', 64), '79100000-0000-4000-8000-000000000036',
+  'STAFF_POS', 'ONLINE_STAFF', '商品範圍列印顧客', 'TAKEOUT',
+  'WAITING_CONFIRMATION', 'UNPAID', 95, 95, repeat('6', 64),
+  now() + interval '10 minutes', now(), now()
+);
+
+insert into public.order_items (
+  id, tenant_id, organization_id, stall_id, order_id, product_id,
+  name, base_unit_price, unit_price, quantity, status, created_at
+) values (
+  '79100000-0000-4000-8000-000000000046',
+  '11111111-1111-4111-8111-111111111111',
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+  '79100000-0000-4000-8000-000000000026',
+  '44444444-4444-4444-8444-444444444441',
+  '香酥雞排', 95, 95, 1, 'PENDING', now()
+);
+
+update public.orders
+set status = 'CONFIRMED', confirmed_at = now()
+where id = '79100000-0000-4000-8000-000000000026';
+
+select is(
+  (
+    select count(*)::integer
+    from public.print_jobs
+    where order_id = '79100000-0000-4000-8000-000000000026'
+      and print_rule_id = '79100000-0000-4000-8000-000000000016'
+  ),
+  1,
+  '店員訂單在商品明細寫入後確認即可命中商品範圍列印規則'
 );
 
 select * from finish();

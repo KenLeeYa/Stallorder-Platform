@@ -375,14 +375,15 @@ async function handlePatch(
           },
         });
         if (streamlinedCheckout.queuePrint) {
-          await transaction.printJob.create({
-            data: {
+          await transaction.printJob.createMany({
+            data: [{
               organizationId: order.organizationId,
               stallId: order.stallId,
               orderId: order.id,
               printerId: streamlinedPrinter!.id,
               requestedById: authorization.principal.user.id,
-            },
+            }],
+            skipDuplicates: true,
           });
         }
       }
