@@ -14,6 +14,9 @@ type Plan = {
   monthlyPrice: number;
   annualPrice: number | null;
   currency: string;
+  pricingMode: string;
+  usageUnitPrice: number;
+  monthlyCapAmount: number | null;
   includedOrders: number | null;
   includedStalls: number;
   maxStaff: number | null;
@@ -56,9 +59,15 @@ export function PlanRequestForm({ organizationId, plans }: { organizationId: str
       {plans.map((plan) => (
         <article key={plan.id} className="rounded-md border border-stone-200 bg-white p-5">
           <h2 className="text-xl font-semibold">{plan.name}</h2>
-          <p className="mt-2 text-2xl font-semibold">{formatAppCurrency(locale, plan.monthlyPrice, plan.currency)}<span className="text-sm font-normal text-stone-500"> / {m("月繳")}</span></p>
+          {plan.pricingMode === "USAGE_PER_STALL_CAPPED" ? (
+            <div className="mt-2">
+              <p className="text-2xl font-semibold">{formatAppCurrency(locale, plan.usageUnitPrice, plan.currency)}<span className="text-sm font-normal text-stone-500"> / {m("淨計費訂單")}</span></p>
+              <p className="mt-2 text-sm font-semibold text-teal-800">{m("無月費，完成訂單才計費。")} {m("每筆淨完成訂單 TWD 1；每個攤位每月最高 TWD 1,499。")}</p>
+            </div>
+          ) : <p className="mt-2 text-2xl font-semibold">{formatAppCurrency(locale, plan.monthlyPrice, plan.currency)}<span className="text-sm font-normal text-stone-500"> / {m("月繳")}</span></p>}
           <dl className="mt-4 space-y-2 text-sm text-stone-700">
             <div className="flex justify-between gap-3"><dt>{m("包含訂單")}</dt><dd>{plan.includedOrders === null ? m("依合約") : formatAppNumber(locale, plan.includedOrders)}</dd></div>
+            {plan.pricingMode === "USAGE_PER_STALL_CAPPED" && plan.monthlyCapAmount !== null ? <div className="flex justify-between gap-3"><dt>{m("每攤月上限")}</dt><dd>{formatAppCurrency(locale, plan.monthlyCapAmount, plan.currency)}</dd></div> : null}
             <div className="flex justify-between gap-3"><dt>{m("包含攤位")}</dt><dd>{formatAppNumber(locale, plan.includedStalls)}</dd></div>
             <div className="flex justify-between gap-3"><dt>{m("員工上限")}</dt><dd>{plan.maxStaff === null ? m("依合約") : formatAppNumber(locale, plan.maxStaff)}</dd></div>
             <div className="flex justify-between gap-3"><dt>{m("商品上限")}</dt><dd>{plan.maxProducts === null ? m("依合約") : formatAppNumber(locale, plan.maxProducts)}</dd></div>
@@ -68,7 +77,7 @@ export function PlanRequestForm({ organizationId, plans }: { organizationId: str
             <ul className="mt-2 space-y-1 text-stone-600">{plan.features.map((feature) => <li key={feature}>{feature}</li>)}</ul>
           </details>
           <form action={(formData) => requestPlan(plan, formData)} className="mt-4 space-y-3">
-            <label className="block text-sm font-medium">{m("付款週期")}<select name="billingInterval" className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3"><option value="MONTHLY">{m("月繳")}</option>{plan.annualPrice !== null ? <option value="ANNUAL">{m("年繳")} {formatAppCurrency(locale, plan.annualPrice, plan.currency)}</option> : null}</select></label>
+            {plan.pricingMode === "USAGE_PER_STALL_CAPPED" ? <input type="hidden" name="billingInterval" value="MONTHLY" /> : <label className="block text-sm font-medium">{m("付款週期")}<select name="billingInterval" className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3"><option value="MONTHLY">{m("月繳")}</option>{plan.annualPrice !== null ? <option value="ANNUAL">{m("年繳")} {formatAppCurrency(locale, plan.annualPrice, plan.currency)}</option> : null}</select></label>}
             <label className="block text-sm font-medium">{m("申請原因")}<input type="text" name="reason" required minLength={2} maxLength={500} defaultValue={m("申請升級營運方案")} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3" /></label>
             <button type="submit" disabled={saving !== null} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Send className="h-4 w-4" />{saving === plan.id ? m("送出中...") : m("申請此方案")}</button>
           </form>

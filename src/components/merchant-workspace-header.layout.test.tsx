@@ -50,6 +50,7 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
           workspaces={[workspace]}
           displayName="店主"
           routeContext={{ organizationId: workspace.id, stallId: null }}
+          showBilling={false}
         />
       </LocaleProvider>,
     );
@@ -61,5 +62,21 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain('data-compact="true"');
     expect(html).toContain('href="/merchant/dashboard?organizationId=organization-1"');
+    expect(html).not.toContain("/merchant/billing?");
+  });
+
+  it("shows billing navigation only after the platform switch is enabled", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+        <MerchantWorkspaceHeader
+          workspaces={[workspace]}
+          displayName="店主"
+          routeContext={{ organizationId: workspace.id, stallId: null }}
+          showBilling
+        />
+      </LocaleProvider>,
+    );
+
+    expect(html).toContain("/merchant/billing?");
   });
 });

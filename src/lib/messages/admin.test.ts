@@ -23,6 +23,8 @@ describe("admin messages", () => {
 
   it("maps stable codes for supported locales", () => {
     expect(getAdminCodeLabel("vi", "ACTIVE")).toBe("Đang hoạt động");
+    expect(getAdminCodeLabel("zh-TW", "PER_STALL_MONTHLY")).toBe("每攤位月繳");
+    expect(getAdminCodeLabel("zh-TW", "CUSTOM")).toBe("客製計費");
     expect(getAdminCodeLabel("th", "UNKNOWN_CODE")).toBe("UNKNOWN_CODE");
   });
 

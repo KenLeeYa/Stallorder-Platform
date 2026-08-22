@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { ArrowLeft, LockKeyhole } from "lucide-react";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
+import { getBillingExperienceState } from "@/server/billing/billing-feature-flags";
 
-export function FeatureUpgradeNotice({
+export async function FeatureUpgradeNotice({
   title = "此功能尚未開放",
   message = "請由組織擁有者至訂閱與帳務頁面確認可用方案。",
   billingHref,
@@ -19,6 +20,7 @@ export function FeatureUpgradeNotice({
   billingLabel?: string;
   returnStallId?: string;
 }) {
+  const { merchantBillingVisible } = await getBillingExperienceState();
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
       {returnStallId ? (
@@ -41,7 +43,7 @@ export function FeatureUpgradeNotice({
                   <ArrowLeft className="h-4 w-4" />{returnLabel}
                 </Link>
               ) : null}
-              {billingHref ? (
+              {billingHref && merchantBillingVisible ? (
                 <Link
                   href={billingHref}
                   className="inline-flex min-h-10 items-center rounded-md bg-stone-900 px-4 text-sm font-semibold text-white"

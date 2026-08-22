@@ -20,15 +20,24 @@ export default async function MerchantBillingPage({ searchParams }: PageProps) {
   const { subscription, usage, warnings, effectiveEntitlements, notifications } = data;
   const includedOrders = subscription.planVersion.includedOrders;
   const orderLimit = includedOrders === null ? null : includedOrders + usage.orderPackageQuantity;
+  const isPayg = subscription.planVersion.pricingMode === "USAGE_PER_STALL_CAPPED";
+  const paygEstimatedTotal = data.paygStallUsage.reduce((total, item) => total + item.finalCharge, 0);
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-6xl px-4 py-7 md:px-8">
       <BillingPageHeader organizationName={workspace.businessName} organizationId={workspace.id} active="billing" title={m("訂閱與帳務")} description={m("檢視目前方案、付款狀態、待辦申請與帳務通知。")} />
       <BillingStatusBanner status={subscription.status} trialEndsAt={subscription.trialEndsAt} paymentDueAt={subscription.paymentDueAt} />
+      {isPayg ? (
+        <section className="border-b border-teal-200 bg-teal-50 px-4 py-5">
+          <p className="text-sm font-semibold text-teal-800">{m("無月費，完成訂單才計費。")}</p>
+          <h2 className="mt-1 text-xl font-semibold">{m("每筆淨完成訂單 TWD 1；每個攤位每月最高 TWD 1,499。")}</h2>
+          <p className="mt-2 text-sm text-stone-600">{m("顧客付款金流手續費與外部加購服務另計，不包含在平台每筆 TWD 1 費用內。")}</p>
+        </section>
+      ) : null}
       <section className="grid border-b border-stone-200 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label={m("目前方案")} value={`${subscription.planVersion.displayName} v${formatAppNumber(locale, subscription.planVersion.version)}`} />
         <Metric label={m("訂閱狀態")} value={label(subscriptionStatusLabels[subscription.status] ?? subscription.status)} />
-        <Metric label={m("本期訂單")} value={`${formatAppNumber(locale, usage.billableOrders)} / ${orderLimit === null ? m("依合約") : formatAppNumber(locale, orderLimit)}`} />
+        <Metric label={m("本期訂單")} value={isPayg ? formatAppNumber(locale, usage.billableOrders) : `${formatAppNumber(locale, usage.billableOrders)} / ${orderLimit === null ? m("依合約") : formatAppNumber(locale, orderLimit)}`} />
         <Metric label={m("有效攤位")} value={`${formatAppNumber(locale, usage.activeStalls)} / ${subscription.planVersion.maxStalls === null ? m("依合約") : formatAppNumber(locale, subscription.planVersion.maxStalls)}`} />
         <Metric label={m("計費期間")} value={m("{start} 至 {end}", { start: formatAppDate(locale, subscription.billingPeriodStart), end: formatAppDate(locale, subscription.billingPeriodEnd) })} />
         <Metric label={m("試用到期")} value={subscription.trialEndsAt ? formatAppDate(locale, subscription.trialEndsAt) : m("不適用")} />
@@ -37,6 +46,21 @@ export default async function MerchantBillingPage({ searchParams }: PageProps) {
       </section>
 
       {warnings.length > 0 ? <section className="border-b border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950"><h2 className="font-semibold">{m("用量提醒")}</h2><p className="mt-1">{m("目前已使用 {percentage}% 訂單額度；付費方案預設採軟性上限，不會在營業中突然停止接單。", { percentage: warnings.at(-1)?.percentage ?? 0 })}</p></section> : null}
+
+      {isPayg ? (
+        <section className="border-b border-stone-200 py-6">
+          <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-xl font-semibold">{canViewFinancials ? m("本期 PAYG 預估") : m("方案用量")}</h2><p className="mt-1 text-sm text-stone-600">{m("用量會由可信訂單事件重新彙總；完整退款以負向事件折抵，不刪除原始完成事件。")}</p></div>{canViewFinancials ? <div className="text-right"><div className="text-sm text-stone-500">{m("組織預估合計")}</div><strong className="text-2xl">{formatAppCurrency(locale, paygEstimatedTotal, "TWD")}</strong></div> : null}</div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {data.paygStallUsage.map((item) => (
+              <article key={item.id} className="rounded-md border border-stone-200 p-4">
+                <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{item.stall.name}</h3><p className="mt-1 text-sm text-stone-600">{m("淨計費訂單")}：{formatAppNumber(locale, item.netBillableOrderCount)} · {m("完整退款折抵")}：{formatAppNumber(locale, item.fullRefundCreditCount)}</p></div>{canViewFinancials ? <strong>{formatAppCurrency(locale, item.finalCharge, "TWD")}</strong> : null}</div>
+                {canViewFinancials ? <><progress value={item.finalCharge} max={item.capAmount} className="mt-3 h-2 w-full accent-teal-700" /><div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-stone-500"><span>{m("未封頂金額")}：{formatAppCurrency(locale, item.uncappedAmount, "TWD")}</span><span>{m("每攤月上限")}：{formatAppCurrency(locale, item.capAmount, "TWD")}</span></div>{item.finalCharge >= item.capAmount ? <p className="mt-2 text-sm font-semibold text-teal-800">{m("已達每月上限")} · {m("因封頂節省 {amount}", { amount: formatAppCurrency(locale, item.capSavings, "TWD") })}</p> : null}</> : null}
+              </article>
+            ))}
+            {data.paygStallUsage.length === 0 ? <p className="text-sm text-stone-500">{m("尚無本期 PAYG 用量。")}</p> : null}
+          </div>
+        </section>
+      ) : null}
 
       {canViewFinancials ? <section className="py-6"><div className="flex items-center justify-between gap-3"><h2 className="text-xl font-semibold">{m("最近帳單")}</h2><Link href={`/merchant/billing/invoices?organizationId=${workspace.id}`} className="text-sm font-semibold text-teal-800">{m("查看全部")}</Link></div><div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{subscription.invoices.slice(0, 5).map((invoice) => <Link key={invoice.id} href={`/merchant/billing/invoices/${invoice.id}?organizationId=${workspace.id}`} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-4 py-3 text-sm"><span><strong>{invoice.invoiceNumber}</strong><span className="ml-3 text-stone-500">{label(invoiceStatusLabels[invoice.status] ?? invoice.status)}</span></span><strong>{m("{amount} 未付", { amount: formatAppCurrency(locale, invoice.amountDue, invoice.currency) })}</strong></Link>)}{subscription.invoices.length === 0 ? <p className="py-6 text-sm text-stone-500">{m("目前沒有帳單。")}</p> : null}</div></section> : null}
 
@@ -47,10 +71,10 @@ export default async function MerchantBillingPage({ searchParams }: PageProps) {
 
       <section className="border-t border-stone-200 py-6"><h2 className="text-xl font-semibold">{m("人工付款說明")}</h2><p className="mt-2 text-sm leading-6 text-stone-600">{m("請先等待平台建立正式帳單，再依雙方確認的銀行轉帳、現金或 LINE Pay 方式付款。送出參考資料不代表付款成功，必須由平台管理員核對後才會啟用或續訂。")}</p></section>
 
-      <section className="border-t border-stone-200 py-6"><h2 className="text-xl font-semibold">{m("可用訂單包")}</h2><div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{data.orderPackages.map((item) => <div key={item.id} className="flex flex-wrap justify-between gap-3 py-3 text-sm"><span><strong>{item.displayName}</strong><span className="ml-2 text-stone-500">{m("需平台人工指派")}</span></span><strong>{formatAppCurrency(locale, item.unitPrice, item.currency)}</strong></div>)}</div></section>
+      {!isPayg ? <section className="border-t border-stone-200 py-6"><h2 className="text-xl font-semibold">{m("可用訂單包")}</h2><div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{data.orderPackages.map((item) => <div key={item.id} className="flex flex-wrap justify-between gap-3 py-3 text-sm"><span><strong>{item.displayName}</strong><span className="ml-2 text-stone-500">{m("需平台人工指派")}</span></span><strong>{formatAppCurrency(locale, item.unitPrice, item.currency)}</strong></div>)}</div></section> : null}
 
       <section className="border-t border-stone-200 py-6"><h2 className="text-xl font-semibold">{m("帳務通知")}</h2><div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{notifications.slice(0, 8).map((notification) => <article key={notification.id} className="py-3"><div className="flex justify-between gap-3"><strong className="text-sm">{notification.title}</strong><time className="text-xs text-stone-500">{formatAppDate(locale, notification.createdAt)}</time></div><p className="mt-1 text-sm text-stone-600">{notification.message}</p></article>)}{notifications.length === 0 ? <p className="py-6 text-sm text-stone-500">{m("目前沒有帳務通知。")}</p> : null}</div></section>
-      {canManage ? <AdditionalStallRequestForm organizationId={workspace.id} /> : null}
+      {canManage && !isPayg ? <AdditionalStallRequestForm organizationId={workspace.id} /> : null}
     </main>
   );
 }

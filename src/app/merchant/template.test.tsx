@@ -8,6 +8,7 @@ import {
 } from "@/lib/workspace-route-context";
 
 const mocks = vi.hoisted(() => ({
+  getBillingExperienceState: vi.fn(),
   headers: vi.fn(),
   merchantWorkspaceHeader: vi.fn(),
   requireWorkspacePage: vi.fn(),
@@ -19,6 +20,9 @@ vi.mock("@/components/merchant-workspace-header", () => ({
 }));
 vi.mock("@/lib/workspace", () => ({
   requireWorkspacePage: mocks.requireWorkspacePage,
+}));
+vi.mock("@/server/billing/billing-feature-flags", () => ({
+  getBillingExperienceState: mocks.getBillingExperienceState,
 }));
 
 import MerchantTemplate from "./template";
@@ -84,6 +88,9 @@ async function renderTemplate() {
 describe("MerchantTemplate route context boundary", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mocks.getBillingExperienceState.mockResolvedValue({
+      merchantBillingVisible: false,
+    });
     mocks.headers.mockResolvedValue(requestHeaders("/merchant"));
     mocks.merchantWorkspaceHeader.mockImplementation(() => null);
     mocks.requireWorkspacePage.mockResolvedValue({

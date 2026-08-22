@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getBillingExperienceState } from "@/server/billing/billing-feature-flags";
 
 export const billingWorkflowErrorCodes = [
   "SUBSCRIPTION_NOT_FOUND",
@@ -95,7 +96,7 @@ export class BillingWorkflowService {
     try {
       return await billingTransaction(async (transaction) => {
         const [subscription, planVersion] = await Promise.all([
-          transaction.subscription.findUnique({ where: { organizationId } }),
+          transaction.subscription.findUnique({ where: { organizationId }, include: { plan: true } }),
           transaction.planVersion.findFirst({
             where: {
               id: input.planVersionId,
@@ -114,6 +115,7 @@ export class BillingWorkflowService {
         if (input.billingInterval === "ANNUAL" && planVersion.annualPrice === null) {
           throw new BillingWorkflowError("PLAN_VERSION_NOT_AVAILABLE");
         }
+        await assertPlanChangeRequestAvailable(transaction, subscription.plan.code, planVersion);
 
         const request = await transaction.billingChangeRequest.create({
           data: {
@@ -147,8 +149,14 @@ export class BillingWorkflowService {
   ) {
     try {
       return await billingTransaction(async (transaction) => {
-        const subscription = await transaction.subscription.findUnique({ where: { organizationId } });
+        const subscription = await transaction.subscription.findUnique({
+          where: { organizationId },
+          include: { planVersion: true },
+        });
         if (!subscription) throw new BillingWorkflowError("SUBSCRIPTION_NOT_FOUND");
+        if (subscription.planVersion.pricingMode !== "FIXED") {
+          throw new BillingWorkflowError("ADD_ON_NOT_AVAILABLE");
+        }
         const request = await transaction.billingChangeRequest.create({
           data: {
             organizationId,
@@ -228,7 +236,11 @@ export class BillingWorkflowService {
         }),
       ]);
       if (!subscription) throw new BillingWorkflowError("SUBSCRIPTION_NOT_FOUND");
-      if (!version || version.billingInterval === "TRIAL") {
+      if (
+        !version
+        || version.billingInterval === "TRIAL"
+        || version.pricingMode !== "FIXED"
+      ) {
         throw new BillingWorkflowError("PLAN_VERSION_NOT_AVAILABLE");
       }
       const unitPrice = input.billingInterval === "ANNUAL" ? version.annualPrice : version.basePrice;
@@ -260,6 +272,9 @@ export class BillingWorkflowService {
           billingPeriodStart: period.start,
           billingPeriodEnd: period.end,
           dueAt: input.dueAt,
+          planVersionId: version.id,
+          pricingMode: version.pricingMode,
+          pricingSnapshotJson: planVersionPricingSnapshot(version),
         },
       });
       if (invoice.currency !== version.currency) {
@@ -285,7 +300,14 @@ export class BillingWorkflowService {
       });
       invoice = await transaction.invoice.update({
         where: { id: invoice.id },
-        data: { status: "OPEN", issuedAt: invoice.issuedAt ?? new Date(), dueAt: input.dueAt },
+        data: {
+          status: "OPEN",
+          issuedAt: invoice.issuedAt ?? new Date(),
+          dueAt: input.dueAt,
+          planVersionId: version.id,
+          pricingMode: version.pricingMode,
+          pricingSnapshotJson: planVersionPricingSnapshot(version),
+        },
       });
 
       if (input.changeRequestId) {
@@ -714,12 +736,18 @@ export class BillingWorkflowService {
     return billingTransaction(async (transaction) => {
       await transaction.$queryRaw`select id from public.subscriptions where id = ${subscriptionId}::uuid for update`;
       const [subscription, catalog] = await Promise.all([
-        transaction.subscription.findUnique({ where: { id: subscriptionId }, include: { plan: true } }),
+        transaction.subscription.findUnique({
+          where: { id: subscriptionId },
+          include: { plan: true, planVersion: true },
+        }),
         transaction.addOnCatalog.findFirst({
           where: { code: input.code, isActive: true, availabilityStatus: "ENABLED" },
         }),
       ]);
       if (!subscription) throw new BillingWorkflowError("SUBSCRIPTION_NOT_FOUND");
+      if (subscription.planVersion.pricingMode !== "FIXED") {
+        throw new BillingWorkflowError("ORDER_PACKAGE_NOT_AVAILABLE");
+      }
       if (!catalog || !input.code.startsWith(`ORDER_PACKAGE_${subscription.plan.code}_`)) {
         throw new BillingWorkflowError("ORDER_PACKAGE_NOT_AVAILABLE");
       }
@@ -785,6 +813,14 @@ export class BillingWorkflowService {
           ${subscription.organizationId}::uuid,
           ${billingPeriod}::date
         )::integer as warnings_created
+      `;
+      await transaction.$queryRaw<Array<{ rebuilt_stalls: number }>>`
+        select public.rebuild_payg_stall_usage_summaries(
+          ${subscription.organizationId}::uuid,
+          ${billingPeriod}::date,
+          ${context.actorProfileId}::uuid,
+          ${context.requestId}
+        )::integer as rebuilt_stalls
       `;
       return result[0]?.billable_order_count ?? 0;
     });
@@ -1043,8 +1079,62 @@ async function lockPayment(transaction: Prisma.TransactionClient, paymentId: str
   await transaction.$queryRaw`select id from public.manual_payment_records where id = ${paymentId}::uuid for update`;
 }
 
+async function assertPlanChangeRequestAvailable(
+  transaction: Prisma.TransactionClient,
+  currentPlanCode: string,
+  requestedVersion: { pricingMode: string; plan: { code: string } },
+) {
+  if (currentPlanCode === "PAYG") {
+    throw new BillingWorkflowError("PLAN_VERSION_NOT_AVAILABLE");
+  }
+  if (requestedVersion.pricingMode === "FIXED" && requestedVersion.plan.code !== "PAYG") return;
+  if (
+    requestedVersion.pricingMode !== "USAGE_PER_STALL_CAPPED"
+    || requestedVersion.plan.code !== "PAYG"
+  ) {
+    throw new BillingWorkflowError("PLAN_VERSION_NOT_AVAILABLE");
+  }
+
+  const state = await getBillingExperienceState(transaction);
+  const sourceEnabled = currentPlanCode === "TRIAL"
+    ? state.paygNewMerchantsEnabled
+    : ["LITE", "STANDARD", "PRO"].includes(currentPlanCode)
+      && state.paygLegacyMigrationEnabled;
+  if (!state.paygBillingEnabled || !sourceEnabled) {
+    throw new BillingWorkflowError("PLAN_VERSION_NOT_AVAILABLE");
+  }
+}
+
 function dayStart(value: Date) {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+}
+
+function planVersionPricingSnapshot(version: {
+  id: string;
+  version: number;
+  currency: string;
+  basePrice: number;
+  pricingMode: string;
+  usageUnitPrice: number;
+  usageMetric: string | null;
+  usageScope: string | null;
+  monthlyCapAmount: number | null;
+  minimumCharge: number;
+  plan: { code: string };
+}) {
+  return {
+    planVersionId: version.id,
+    planCode: version.plan.code,
+    planVersion: version.version,
+    pricingMode: version.pricingMode,
+    currency: version.currency,
+    baseFee: version.basePrice,
+    usageUnitPrice: version.usageUnitPrice,
+    usageMetric: version.usageMetric,
+    usageScope: version.usageScope,
+    monthlyCapAmount: version.monthlyCapAmount,
+    minimumCharge: version.minimumCharge,
+  } satisfies Prisma.InputJsonObject;
 }
 
 function addCalendarMonths(value: Date, months: number) {

@@ -1,5 +1,7 @@
 # 方案與權益規格
 
+> 歷史參考：本文件保留舊有 LITE／STANDARD／PRO 固定月費架構，供既有 Subscription、Invoice 與回歸測試使用。新商家目錄與現行計費契約已由 [PAYG 計費模型](PAYG_BILLING_MODEL.md) 取代；實際權益仍以版本化資料庫快照為準。
+
 ## Source of truth
 
 - `plans`：方案設定。
@@ -10,7 +12,7 @@
 
 UI 只能顯示上述資料，不能用方案名稱自行推斷權限。
 
-## 方案表
+## Legacy 方案表
 
 | Code | Included stalls | Additional | Max | 備註 |
 | --- | ---: | ---: | ---: | --- |

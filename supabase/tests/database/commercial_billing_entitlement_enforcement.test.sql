@@ -4,6 +4,10 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(34);
 
+update public.billing_feature_flags
+set is_enabled = false
+where code = 'OPEN_BETA_FREE_ACCESS_ENABLED';
+
 create temporary table billing_test_baseline on commit drop as
 select coalesce((
   select billable_order_count
@@ -374,7 +378,7 @@ select lives_ok(
     ) select organization_id, id, 'ORDER_PACKAGE', 'ORDER_PACKAGE_PRO_1000',
       'Pro order package', 1, 300, 'TWD', 'ACTIVE'
       from public.subscriptions
-      where organization_id = '11111111-1111-4111-8111-111111111111'$$,
+      where organization_id = '11111111-1111-4111-8111-111111111112'$$,
   'matching paid order package can be assigned'
 );
 select throws_ok(
@@ -384,7 +388,7 @@ select throws_ok(
     ) select organization_id, id, 'ORDER_PACKAGE', 'ORDER_PACKAGE_PRO_1000',
       'Wrong price', 1, 1, 'TWD', 'ACTIVE'
       from public.subscriptions
-      where organization_id = '11111111-1111-4111-8111-111111111111'$$,
+      where organization_id = '11111111-1111-4111-8111-111111111112'$$,
   'P0001', 'SERVER_PRICE_MISMATCH',
   'order package price is server-controlled'
 );
@@ -395,7 +399,7 @@ select throws_ok(
     ) select organization_id, id, 'ORDER_PACKAGE', 'ORDER_PACKAGE_STANDARD_500',
       'Wrong plan', 1, 250, 'TWD', 'ACTIVE'
       from public.subscriptions
-      where organization_id = '11111111-1111-4111-8111-111111111111'$$,
+      where organization_id = '11111111-1111-4111-8111-111111111112'$$,
   'P0001', 'UPGRADE_REQUIRED',
   'order package must match the paid plan'
 );

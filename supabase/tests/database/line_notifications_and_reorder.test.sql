@@ -70,6 +70,24 @@ select ok(
   'Pro includes repeat ordering'
 );
 
+-- The primary demo subscription is PAYG and intentionally excludes LINE. Run
+-- this legacy compatibility flow against an explicit PRO snapshot in the
+-- transaction so the test cannot accidentally broaden PAYG entitlements.
+update public.subscriptions subscription
+set plan_id = target.plan_id,
+    plan_version_id = target.plan_version_id
+from (
+  select plan.id as plan_id, version.id as plan_version_id
+  from public.plans plan
+  join public.plan_versions version on version.plan_id = plan.id
+  where plan.code = 'PRO'
+    and version.effective_from <= now()
+    and (version.effective_until is null or version.effective_until > now())
+  order by version.version desc
+  limit 1
+) target
+where subscription.organization_id = '11111111-1111-4111-8111-111111111111';
+
 select throws_ok(
   $$insert into public.notification_integrations (
       organization_id, stall_id, provider, settings_json

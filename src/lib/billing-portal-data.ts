@@ -5,6 +5,13 @@ import {
   entitlementService,
   resolvePlanEntitlements,
 } from "@/server/billing/entitlement-service";
+import { getBillingExperienceState } from "@/server/billing/billing-feature-flags";
+
+const taipeiBillingDateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Taipei",
+  year: "numeric",
+  month: "2-digit",
+});
 
 export async function getMerchantBillingPortalData(organizationId: string) {
   const subscription = await prisma.subscription.findUnique({
@@ -29,7 +36,8 @@ export async function getMerchantBillingPortalData(organizationId: string) {
     },
   });
   if (!subscription) return null;
-  const [usage, warnings, effectiveEntitlements, notifications, availablePlans, orderPackages] = await Promise.all([
+  const isPayg = subscription.planVersion.pricingMode === "USAGE_PER_STALL_CAPPED";
+  const [usage, warnings, effectiveEntitlements, notifications, availablePlans, orderPackages, paygStallUsage, billingExperience] = await Promise.all([
     entitlementService.getBillingPeriodUsage(organizationId, subscription.billingPeriodStart),
     entitlementService.getUsageWarnings(organizationId),
     entitlementService.getEffectiveEntitlements(organizationId),
@@ -49,23 +57,64 @@ export async function getMerchantBillingPortalData(organizationId: string) {
       include: { plan: true, entitlements: { orderBy: { featureCode: "asc" } } },
       orderBy: [{ basePrice: "asc" }, { version: "desc" }],
     }),
-    prisma.addOnCatalog.findMany({
-      where: { isActive: true, isPublic: true, code: { startsWith: "ORDER_PACKAGE_" } },
-      orderBy: { unitPrice: "asc" },
-    }),
+    isPayg
+      ? Promise.resolve([])
+      : prisma.addOnCatalog.findMany({
+        where: {
+          isActive: true,
+          availabilityStatus: "ENABLED",
+          code: { startsWith: `ORDER_PACKAGE_${subscription.plan.code}_` },
+        },
+        orderBy: { unitPrice: "asc" },
+      }),
+    isPayg
+      ? prisma.billingStallUsageSummary.findMany({
+        where: {
+          organizationId,
+          billingPeriod: billingPeriodMonthStartInTaipei(subscription.billingPeriodStart),
+        },
+        include: { stall: { select: { name: true } } },
+        orderBy: { stallId: "asc" },
+      })
+      : Promise.resolve([]),
+    getBillingExperienceState(),
   ]);
+  const paygRequestsEnabled = billingExperience.paygBillingEnabled && (
+    subscription.plan.code === "TRIAL"
+      ? billingExperience.paygNewMerchantsEnabled
+      : ["LITE", "STANDARD", "PRO"].includes(subscription.plan.code)
+        && billingExperience.paygLegacyMigrationEnabled
+  );
   return {
     subscription,
     usage,
     warnings,
     effectiveEntitlements,
     notifications,
-    availablePlans: availablePlans.map((version) => ({
-      ...version,
-      entitlements: resolvePlanEntitlements(version).filter((entitlement) => entitlement.isEnabled),
-    })),
+    availablePlans: availablePlans
+      .filter((version) => (
+        subscription.plan.code !== "PAYG"
+        && version.pricingMode === "FIXED"
+        && version.plan.code !== "PAYG"
+      ) || (
+        paygRequestsEnabled
+        && version.pricingMode === "USAGE_PER_STALL_CAPPED"
+        && version.plan.code === "PAYG"
+      ))
+      .map((version) => ({
+        ...version,
+        entitlements: resolvePlanEntitlements(version).filter((entitlement) => entitlement.isEnabled),
+      })),
     orderPackages,
+    paygStallUsage,
   };
+}
+
+export function billingPeriodMonthStartInTaipei(value: Date) {
+  const parts = new Map(
+    taipeiBillingDateFormatter.formatToParts(value).map((part) => [part.type, part.value]),
+  );
+  return new Date(Date.UTC(Number(parts.get("year")), Number(parts.get("month")) - 1, 1));
 }
 
 export async function getInvoiceForMerchant(organizationId: string, invoiceId: string) {

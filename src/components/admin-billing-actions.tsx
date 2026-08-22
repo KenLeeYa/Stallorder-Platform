@@ -106,10 +106,24 @@ export function AdminPaymentReviewActions({ paymentId }: { paymentId: string }) 
   );
 }
 
-export function AdminSubscriptionActions({ subscriptionId, status, orderPackages }: {
+export function AdminSubscriptionActions({
+  subscriptionId,
+  status,
+  orderPackages,
+  planCode,
+  paygMigrationEnabled,
+  paygCloseEnabled,
+  nextPaygEffectiveDate,
+  paygRequestId,
+}: {
   subscriptionId: string;
   status: string;
   orderPackages: Array<{ code: string; name: string }>;
+  planCode: string;
+  paygMigrationEnabled: boolean;
+  paygCloseEnabled: boolean;
+  nextPaygEffectiveDate: string;
+  paygRequestId?: string;
 }) {
   const { locale, m } = useAdminLocale();
   const router = useRouter();
@@ -148,6 +162,28 @@ export function AdminSubscriptionActions({ subscriptionId, status, orderPackages
         <button type="submit" disabled={saving || orderPackages.length === 0} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50 sm:col-span-2"><PackagePlus className="h-4 w-4" />{m("Assign and add to invoice")}</button>
       </form>
       <form action={(formData) => operation({ operation: "REBUILD_USAGE", billingPeriod: `${formData.get("billingPeriod")}-01`, reason: formData.get("reason") })} className="grid gap-3 border-t border-stone-200 pt-4 sm:grid-cols-[180px_1fr_auto] sm:items-end"><label className="text-sm font-medium">{m("Billing month")}<input name="billingPeriod" type="month" defaultValue={currentMonth()} required className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3" /></label><label className="text-sm font-medium">{m("Reason")}<input type="text" name="reason" minLength={2} maxLength={500} defaultValue={m("Manual usage reconciliation")} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3" /></label><button type="submit" disabled={saving} className="min-h-10 rounded-md border border-stone-300 px-4 text-sm font-semibold">{m("Rebuild usage")}</button></form>
+      {paygMigrationEnabled && ["TRIAL", "LITE", "STANDARD", "PRO"].includes(planCode) ? (
+        <form
+          action={(formData) => operation({
+             operation: "MIGRATE_TO_PAYG",
+             effectiveDate: formData.get("effectiveDate"),
+             reason: formData.get("reason"),
+             changeRequestId: paygRequestId,
+             confirmation: formData.get("confirmation") === "on" ? "MIGRATE_TO_PAYG" : "",
+          })}
+          id="payg-migration"
+          className="grid scroll-mt-28 gap-3 border-t border-amber-300 bg-amber-50 p-4 sm:grid-cols-[180px_1fr_auto] sm:items-end"
+        >
+          <div className="sm:col-span-3"><h3 className="font-semibold">{m("Migrate legacy subscription to PAYG")}</h3><p className="mt-1 text-sm text-amber-900">{m("Migration never reprices a past period. Run it only on the effective month boundary after the current period has ended.")}</p></div>
+          <label className="text-sm font-medium">{m("Effective date")}<input name="effectiveDate" type="date" defaultValue={nextPaygEffectiveDate} required className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3" /></label>
+          <label className="text-sm font-medium">{m("Reason")}<input name="reason" type="text" minLength={2} maxLength={500} defaultValue={m("Merchant confirmed PAYG migration") } required className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3" /></label>
+          <button type="submit" disabled={saving} className="min-h-10 rounded-md bg-amber-900 px-4 text-sm font-semibold text-white disabled:opacity-50">{m("Migrate to PAYG")}</button>
+          <label className="flex items-start gap-2 text-sm sm:col-span-3"><input name="confirmation" type="checkbox" required className="mt-1 h-4 w-4" /><span>{m("I confirm the effective date and understand that existing invoices will not be changed.")}</span></label>
+        </form>
+      ) : null}
+      {paygCloseEnabled && planCode === "PAYG" ? (
+        <form action={(formData) => operation({ operation: "CLOSE_PAYG_PERIOD", billingPeriod: `${formData.get("billingPeriod")}-01`, reason: formData.get("reason") })} className="grid gap-3 border-t border-stone-200 pt-4 sm:grid-cols-[180px_1fr_auto] sm:items-end"><div className="sm:col-span-3"><h3 className="font-semibold">{m("Close PAYG billing period")}</h3><p className="mt-1 text-sm text-stone-600">{m("The server rebuilds per-stall usage and creates one capped line per stall. Closing the same period is idempotent.")}</p></div><label className="text-sm font-medium">{m("Billing month")}<input name="billingPeriod" type="month" defaultValue={previousMonth()} required className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3" /></label><label className="text-sm font-medium">{m("Reason")}<input type="text" name="reason" minLength={2} maxLength={500} defaultValue={m("Manual PAYG period close")} required className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3" /></label><button type="submit" disabled={saving} className="min-h-10 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50">{m("Close period and create invoice")}</button></form>
+      ) : null}
       {message ? <p role="status" className="border-y border-stone-200 py-3 text-sm font-medium">{message}</p> : null}
     </div>
   );
@@ -267,5 +303,11 @@ function futureLocalDateTime(days: number) {
 
 function currentMonth() {
   const value = new Date();
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function previousMonth() {
+  const value = new Date();
+  value.setMonth(value.getMonth() - 1);
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
 }

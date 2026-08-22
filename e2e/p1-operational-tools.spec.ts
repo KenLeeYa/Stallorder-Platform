@@ -24,6 +24,13 @@ test.describe("P1 營運功能", () => {
   test.beforeAll(async () => {
     await prisma.rateLimitBucket.deleteMany();
     await prisma.publicRateLimitBucket.deleteMany({ where: { stallId: primaryStallId } });
+    const staleTemplateStalls = await prisma.stall.findMany({
+      where: { slug: { in: [sourceSlug, targetSlug] } },
+      select: { id: true },
+    });
+    await prisma.billingStallUsageSummary.deleteMany({
+      where: { stallId: { in: staleTemplateStalls.map((stall) => stall.id) } },
+    });
     await prisma.stall.deleteMany({ where: { slug: { in: [sourceSlug, targetSlug] } } });
     await prisma.discountOption.deleteMany({ where: { stallId: primaryStallId, name: "7 折 P1" } });
     await prisma.orderSession.deleteMany({ where: { order: { customerName: { startsWith: "P1 E2E" } } } });
@@ -100,6 +107,9 @@ test.describe("P1 營運功能", () => {
     await prisma.order.deleteMany({ where: { stallId: primaryStallId, customerName: { startsWith: "P1 E2E" } } });
     await prisma.cashShift.deleteMany({ where: { stallId: primaryStallId, note: { startsWith: "P1 E2E" } } });
     if (highDiscountId) await prisma.discountOption.deleteMany({ where: { id: highDiscountId } });
+    await prisma.billingStallUsageSummary.deleteMany({
+      where: { stallId: { in: [sourceStallId, targetStallId].filter(Boolean) } },
+    });
     await prisma.stall.deleteMany({ where: { id: { in: [sourceStallId, targetStallId].filter(Boolean) } } });
     if (additionalStallApprovalId) {
       await prisma.additionalStallApproval.deleteMany({ where: { id: additionalStallApprovalId } });

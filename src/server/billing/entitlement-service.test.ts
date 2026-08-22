@@ -321,4 +321,178 @@ describe("EntitlementService policy helpers", () => {
     await expect(service.assertFeatureEnabled("organization-id", "PRINTER_INTEGRATION"))
       .rejects.toMatchObject({ code: "SUBSCRIPTION_SUSPENDED" });
   });
+
+  it("allows uncapped per-stall PAYG to add stalls without an additional-stall approval", async () => {
+    const database = limitDatabase({
+      pricingMode: "USAGE_PER_STALL_CAPPED",
+      usageScope: "STALL",
+      maxStalls: null,
+      activeStalls: 4,
+    });
+    const service = new EntitlementService(database as never);
+
+    await expect(service.assertLimitAvailable("organization-id", "STALLS", 1))
+      .resolves.toMatchObject({ usage: { activeStalls: 4 } });
+  });
+
+  it.each([
+    { pricingMode: "FIXED", usageScope: null, maxStalls: null },
+    { pricingMode: "USAGE_PER_STALL_CAPPED", usageScope: "STALL", maxStalls: 10 },
+  ])(
+    "keeps additional-stall approvals for non-uncapped legacy contracts %#",
+    async ({ pricingMode, usageScope, maxStalls }) => {
+      const service = new EntitlementService(limitDatabase({
+        pricingMode,
+        usageScope,
+        maxStalls,
+        activeStalls: 1,
+      }) as never);
+
+      await expect(service.assertLimitAvailable("organization-id", "STALLS", 1))
+        .rejects.toMatchObject({ code: "ADDITIONAL_STALL_APPROVAL_REQUIRED" });
+    },
+  );
+
+  it("does not let open beta bypass a missing subscription", async () => {
+    const service = new EntitlementService({
+      billingFeatureFlag: {
+        findMany: vi.fn().mockResolvedValue([{
+          code: "OPEN_BETA_FREE_ACCESS_ENABLED",
+          isEnabled: true,
+        }]),
+      },
+      subscription: { findUnique: vi.fn().mockResolvedValue(null) },
+    } as never);
+
+    await expect(service.assertFeatureEnabled("organization-id", "KDS"))
+      .rejects.toMatchObject({ code: "SUBSCRIPTION_NOT_ACTIVE" });
+    await expect(service.assertSubscriptionUsable("organization-id"))
+      .rejects.toMatchObject({ code: "SUBSCRIPTION_NOT_ACTIVE" });
+  });
+
+  it("preserves plan feature configuration while open beta removes feature limits", async () => {
+    const service = new EntitlementService({
+      billingFeatureFlag: {
+        findMany: vi.fn().mockResolvedValue([{
+          code: "OPEN_BETA_FREE_ACCESS_ENABLED",
+          isEnabled: true,
+        }]),
+      },
+      subscription: {
+        findUnique: vi.fn().mockResolvedValue({
+          status: "ACTIVE",
+          trialEndsAt: null,
+          planVersion: {
+            version: 1,
+            plan: { code: "PAYG" },
+            entitlements: [{
+              featureCode: "STALL_SCHEDULE",
+              isEnabled: true,
+              limitValue: 365,
+              configurationJson: { eventSchedule: true, recurringCopy: true },
+            }],
+          },
+          items: [],
+        }),
+      },
+    } as never);
+
+    await expect(service.assertFeatureEnabled("organization-id", "STALL_SCHEDULE"))
+      .resolves.toEqual({
+        featureCode: "STALL_SCHEDULE",
+        isEnabled: true,
+        limitValue: null,
+        configuration: { eventSchedule: true, recurringCopy: true },
+        source: "OPEN_BETA",
+      });
+  });
+
+  it("does not enforce plan limits during open beta for an eligible merchant", async () => {
+    const subscriptionContext = {
+      status: "ACTIVE",
+      trialEndsAt: null,
+      planVersion: { version: 1, plan: { code: "LITE" }, entitlements: [] },
+      items: [],
+      additionalApprovals: [],
+    };
+    const service = new EntitlementService({
+      billingFeatureFlag: {
+        findMany: vi.fn().mockResolvedValue([{
+          code: "OPEN_BETA_FREE_ACCESS_ENABLED",
+          isEnabled: true,
+        }]),
+      },
+      subscription: { findUnique: vi.fn().mockResolvedValue(subscriptionContext) },
+    } as never);
+
+    await expect(service.assertLimitAvailable("organization-id", "ORDERS", 1))
+      .resolves.toMatchObject({ context: subscriptionContext, usage: null, openBeta: true });
+  });
+
+  it.each(["SUSPENDED", "CANCELLED"])(
+    "keeps %s subscriptions blocked during open beta",
+    async (status) => {
+      const service = new EntitlementService({
+        billingFeatureFlag: {
+          findMany: vi.fn().mockResolvedValue([{
+            code: "OPEN_BETA_FREE_ACCESS_ENABLED",
+            isEnabled: true,
+          }]),
+        },
+        subscription: {
+          findUnique: vi.fn().mockResolvedValue({
+            status,
+            trialEndsAt: null,
+            planVersion: { version: 1, plan: { code: "LITE" }, entitlements: [] },
+            items: [],
+            additionalApprovals: [],
+          }),
+        },
+      } as never);
+
+      await expect(service.assertSubscriptionUsable("organization-id"))
+        .rejects.toMatchObject({
+          code: status === "SUSPENDED" ? "SUBSCRIPTION_SUSPENDED" : "SUBSCRIPTION_NOT_ACTIVE",
+        });
+    },
+  );
 });
+
+function limitDatabase(input: {
+  pricingMode: string;
+  usageScope: string | null;
+  maxStalls: number | null;
+  activeStalls: number;
+}) {
+  const subscriptionContext = {
+    status: "ACTIVE",
+    trialEndsAt: null,
+    billingPeriodStart: new Date("2026-08-01T00:00:00.000Z"),
+    planVersion: {
+      version: 1,
+      plan: { code: "PAYG" },
+      entitlements: [],
+      includedStalls: 1,
+      maxStalls: input.maxStalls,
+      maxStaff: null,
+      maxProducts: null,
+      maxQrCodes: null,
+      includedOrders: null,
+      emergencyHardCapEnabled: false,
+      emergencyHardCapOrders: null,
+      pricingMode: input.pricingMode,
+      usageScope: input.usageScope,
+    },
+    items: [],
+    additionalApprovals: [],
+  };
+
+  return {
+    subscription: { findUnique: vi.fn().mockResolvedValue(subscriptionContext) },
+    usageEvent: { aggregate: vi.fn().mockResolvedValue({ _sum: { quantity: 0 } }) },
+    stall: { count: vi.fn().mockResolvedValue(input.activeStalls) },
+    product: { count: vi.fn().mockResolvedValue(0) },
+    qrCode: { count: vi.fn().mockResolvedValue(0) },
+    $queryRaw: vi.fn().mockResolvedValue([{ count: 0 }]),
+  };
+}

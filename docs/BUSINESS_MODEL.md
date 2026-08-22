@@ -16,7 +16,17 @@
 - Owner 能看跨攤銷售、訂單、付款與營運警示。
 - 邀請、RBAC、RLS、audit 與防濫用可支援正式商務營運。
 
-## 收入模型
+## 現行 PAYG 收入模型
+
+```text
+每個攤位的淨完成訂單 × TWD 1
+（每個攤位每月最高 TWD 1,499）
++ 另行核准的外部加購服務
+```
+
+平台無基本月費；取消、拒絕、逾時訂單不計費，完整退款以負向可信事件折抵。顧客付款金流手續費不包含在每筆 TWD 1 的平台費內。開放測試期間仍保存可信用量，但預設不建立收費 Invoice；完整契約與 rollout flags 見 [PAYG 計費模型](PAYG_BILLING_MODEL.md)。
+
+## Legacy Phase 1 收入模型（歷史參考）
 
 ```text
 月方案底價
@@ -25,7 +35,7 @@
 + 未來 feature add-ons
 ```
 
-Lite 限一攤；Standard 與 Pro 支援額外攤位；Enterprise 可依合約設定。初期額外攤位與 invoice 由 platform admin 人工核准，保留 audit 與 line item，等交易量證明需求後再接 payment provider。
+以下 Lite／Standard／Pro 與額外攤位流程只支援既有固定價格 Subscription，不再是新商家方案目錄。Enterprise 仍可依合約設定；既有人工核准、audit 與 line item 保留供歷史帳務使用。
 
 ## 成本與風險
 
@@ -52,6 +62,6 @@ Lite 限一攤；Standard 與 Pro 支援額外攤位；Enterprise 可依合約�
 
 指標必須以 organization/stall scope 聚合，不跨租戶暴露；用量統計不得把同一人跨 membership 重複計數。
 
-## Phase 1 收費模式
+## Legacy Phase 1 收費模式
 
-方案以不可回溯修改的 Plan Version 保存，支援 Trial、Lite、Standard、Pro 與需報價的 Enterprise。Phase 1 由人工 Invoice、銀行轉帳／現金／人工 LINE Pay 對帳；付費用量超額採不中斷營業的軟限制。自動扣款、電子發票、MRR／ARR／churn 仍為後續階段，不能列為目前營收自動化能力。
+方案以不可回溯修改的 Plan Version 保存；Trial、Lite、Standard、Pro 與其固定月費 Invoice 流程保留支援既有合約。新商家使用 PAYG；PAYG 必須經專用遷移／關帳工作流，不可送入 FIXED Invoice 流程。自動扣款、電子發票、MRR／ARR／churn 仍為後續階段，不能列為目前營收自動化能力。

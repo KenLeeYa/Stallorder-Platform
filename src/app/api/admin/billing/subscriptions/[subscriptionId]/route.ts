@@ -6,6 +6,7 @@ import { hashClientIp } from "@/lib/security";
 import { billingWorkflowErrorResponse } from "@/server/billing/billing-workflow-http";
 import { billingWorkflowService } from "@/server/billing/billing-workflow-service";
 import { subscriptionActionSchema } from "@/server/billing/billing-validation";
+import { PaygBillingError, paygBillingService } from "@/server/billing/payg-billing-service";
 
 type RouteContext = { params: Promise<{ subscriptionId: string }> };
 
@@ -32,6 +33,30 @@ export async function PATCH(request: Request, context: RouteContext) {
       const count = await billingWorkflowService.rebuildUsageSummary(subscriptionId, new Date(`${parsed.data.billingPeriod}T00:00:00.000Z`), contextData);
       return NextResponse.json({ count }, { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } });
     }
+    if (parsed.data.operation === "MIGRATE_TO_PAYG") {
+      const subscription = await paygBillingService.migrateSubscription(
+        subscriptionId,
+        {
+          effectiveDate: new Date(`${parsed.data.effectiveDate}T00:00:00.000Z`),
+          reason: parsed.data.reason,
+          confirmation: parsed.data.confirmation,
+          changeRequestId: parsed.data.changeRequestId,
+        },
+        contextData,
+      );
+      return NextResponse.json({ subscription }, { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } });
+    }
+    if (parsed.data.operation === "CLOSE_PAYG_PERIOD") {
+      const result = await paygBillingService.closeBillingPeriod(
+        subscriptionId,
+        {
+          billingPeriod: new Date(`${parsed.data.billingPeriod}T00:00:00.000Z`),
+          reason: parsed.data.reason,
+        },
+        contextData,
+      );
+      return NextResponse.json({ result }, { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } });
+    }
     const subscription = await billingWorkflowService.transitionSubscription(
       subscriptionId,
       parsed.data.operation,
@@ -40,6 +65,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
     return NextResponse.json({ subscription }, { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } });
   } catch (error) {
+    if (error instanceof PaygBillingError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: 409, headers: { "x-request-id": authorization.requestId } },
+      );
+    }
     const response = billingWorkflowErrorResponse(error, authorization.requestId);
     if (response) return response;
     throw error;

@@ -44,6 +44,20 @@ describe("billing workflow validation", () => {
     expect(subscriptionActionSchema.safeParse({ operation: "REBUILD_USAGE", billingPeriod: "2026-07-19", reason: "人工對帳" }).success).toBe(false);
   });
 
+  it("accepts only a valid pending-request identifier for PAYG migration approval", () => {
+    const base = {
+      operation: "MIGRATE_TO_PAYG",
+      effectiveDate: "2026-08-01",
+      confirmation: "MIGRATE_TO_PAYG",
+      reason: "商家確認轉為 PAYG",
+    } as const;
+    expect(subscriptionActionSchema.safeParse({
+      ...base,
+      changeRequestId: "11111111-1111-4111-8111-111111111111",
+    }).success).toBe(true);
+    expect(subscriptionActionSchema.safeParse({ ...base, changeRequestId: "not-a-uuid" }).success).toBe(false);
+  });
+
   it("requires an explicit reason when a platform admin rejects a request", () => {
     expect(billingRequestDecisionSchema.safeParse({ operation: "REJECT", note: "資料需補充" }).success).toBe(true);
     expect(billingRequestDecisionSchema.safeParse({ operation: "REJECT", note: "" }).success).toBe(false);
