@@ -29,10 +29,12 @@ export function MerchantWorkspaceHeader({
   workspaces,
   displayName,
   routeContext,
+  showBilling,
 }: {
   workspaces: WorkspaceOrganization[];
   displayName: string;
   routeContext: WorkspaceRouteContext;
+  showBilling: boolean;
 }) {
   const { m } = useMerchantMessages();
   const router = useRouter();
@@ -106,7 +108,7 @@ export function MerchantWorkspaceHeader({
             <ScrollText className="h-5 w-5" /><span className="sr-only">{m("稽核與營運警示")}</span>
           </Link>
         ) : null}
-        {workspace?.roles.some((role) => hasPermission(role, "VIEW_BILLING")) ? (
+        {showBilling && workspace?.roles.some((role) => hasPermission(role, "VIEW_BILLING")) ? (
           <Link title={m("訂閱與帳務")} href={`/merchant/billing?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <CreditCard className="h-5 w-5" /><span className="sr-only">{m("訂閱與帳務")}</span>
           </Link>

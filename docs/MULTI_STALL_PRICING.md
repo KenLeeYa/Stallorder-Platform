@@ -1,10 +1,12 @@
 # 多攤位方案與計價
 
+> 歷史參考：以下固定底價、訂單包與額外攤位計價只適用既有 legacy Subscription。新商家方案目錄已由 [PAYG 計費模型](PAYG_BILLING_MODEL.md) 取代；本文件不刪除，以保留舊帳單、核准紀錄與回歸測試的解讀依據。
+
 ## 資料來源
 
 方案與權益只讀取資料庫 `plans/subscriptions`，前端不得硬編碼授權判斷。UI 顯示值、建立攤位 entitlement 與 invoice 計算都使用同一 plan record。
 
-## 目前種子
+## Legacy 種子
 
 | 方案 | Included stalls | 額外攤位/月 | Max stalls | Base fee | Included orders / Excess |
 | --- | ---: | ---: | ---: | ---: | --- |

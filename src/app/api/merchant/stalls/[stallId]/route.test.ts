@@ -8,8 +8,10 @@ const mocks = vi.hoisted(() => ({
   validateCsrf: vi.fn(),
   readJson: vi.fn(),
   transaction: vi.fn(),
+  queryRaw: vi.fn(),
   stallFindFirst: vi.fn(),
   stallUpdate: vi.fn(),
+  assertLimitAvailable: vi.fn(),
   qrFindMany: vi.fn(),
   recordAuditEvent: vi.fn(),
   invalidatePublicMenu: vi.fn(),
@@ -26,6 +28,15 @@ vi.mock("@/lib/public-menu", () => ({
   invalidatePublicMenu: mocks.invalidatePublicMenu,
   invalidatePublicQrToken: mocks.invalidatePublicQrToken,
 }));
+vi.mock("@/server/billing/entitlement-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/billing/entitlement-service")>();
+  return {
+    ...actual,
+    EntitlementService: class {
+      assertLimitAvailable = mocks.assertLimitAvailable;
+    },
+  };
+});
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: mocks.transaction,
@@ -45,8 +56,11 @@ beforeEach(() => {
   mocks.stallFindFirst.mockResolvedValue(stallRecord({ code: "FIXED-CODE" }));
   mocks.stallUpdate.mockResolvedValue(stallRecord({ code: "FIXED-CODE" }));
   mocks.qrFindMany.mockResolvedValue([]);
+  mocks.queryRaw.mockResolvedValue([]);
+  mocks.assertLimitAvailable.mockResolvedValue({});
   mocks.recordAuditEvent.mockResolvedValue(undefined);
   mocks.transaction.mockImplementation(async (operation) => operation({
+    $queryRaw: mocks.queryRaw,
     stall: {
       findFirst: mocks.stallFindFirst,
       update: mocks.stallUpdate,
@@ -98,6 +112,37 @@ describe("merchant stall code immutability", () => {
   });
 });
 
+describe("merchant stall activation entitlement", () => {
+  it("uses the transactional entitlement service before reactivating a stall", async () => {
+    mocks.stallFindFirst.mockResolvedValue(stallRecord({ isActive: false }));
+    mocks.stallUpdate.mockResolvedValue(stallRecord({ isActive: true }));
+    mocks.readJson.mockResolvedValue({ data: operationsCommand({ isActive: true }) });
+
+    const response = await patchStall();
+
+    expect(response.status).toBe(200);
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+    expect(mocks.assertLimitAvailable).toHaveBeenCalledWith(organizationId, "STALLS", 1);
+    expect(mocks.stallUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the shared legacy approval error without reactivating the stall", async () => {
+    mocks.stallFindFirst.mockResolvedValue(stallRecord({ isActive: false }));
+    mocks.readJson.mockResolvedValue({ data: operationsCommand({ isActive: true }) });
+    mocks.assertLimitAvailable.mockRejectedValue(
+      new Error("database error P0001: ADDITIONAL_STALL_APPROVAL_REQUIRED"),
+    );
+
+    const response = await patchStall();
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "ADDITIONAL_STALL_APPROVAL_REQUIRED",
+    });
+    expect(mocks.stallUpdate).not.toHaveBeenCalled();
+  });
+});
+
 function basicCommand(overrides: Record<string, unknown> = {}) {
   return {
     operation: "UPDATE_BASIC",
@@ -108,6 +153,16 @@ function basicCommand(overrides: Record<string, unknown> = {}) {
     phone: "",
     timezone: "Asia/Taipei",
     currency: "TWD",
+    ...overrides,
+  };
+}
+
+function operationsCommand(overrides: Record<string, unknown> = {}) {
+  return {
+    operation: "UPDATE_OPERATIONS",
+    businessStatus: "OPEN",
+    orderingEnabled: true,
+    isActive: true,
     ...overrides,
   };
 }

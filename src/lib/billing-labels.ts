@@ -59,6 +59,8 @@ export const billingFeatureLabels: Record<string, string> = {
   SCHEDULED_REPORTS: "排程報表",
   CUSTOM_BRANDING: "自訂品牌",
   CUSTOM_DOMAIN: "自訂網域",
+  WHITE_LABEL: "白標品牌服務",
+  SSO: "單一登入（SSO）",
   AUDIT_VIEWER: "稽核檢視",
   OPERATIONAL_ALERTS: "營運警示",
   BULK_PRODUCT_ASSIGNMENT: "批次商品指派",
@@ -69,8 +71,45 @@ export const billingFeatureLabels: Record<string, string> = {
   PRIORITY_SUPPORT: "優先支援",
   PRODUCT_SALES_REPORT: "商品銷售報表",
   PAYMENT_REPORT: "付款報表",
+  DELIVERY_PLATFORM_INTEGRATIONS: "外送平台整合",
+  UBER_EATS_INTEGRATION: "Uber Eats 整合",
+  FOODPANDA_INTEGRATION: "foodpanda 整合",
+  DELIVERY_MENU_SYNC: "外送平台菜單同步",
+  DELIVERY_ORDER_IMPORT: "外送平台訂單匯入",
+  DELIVERY_ORDER_RECONCILIATION: "外送平台訂單核對",
+};
+
+export const billingPlanLabels: Record<string, string> = {
+  TRIAL: "免費試用方案",
+  PAYG: "PAYG 按量計費方案",
+  LITE: "入門方案",
+  STANDARD: "標準方案",
+  PRO: "專業方案",
+  ENTERPRISE: "企業方案",
+};
+
+export const billingAddOnLabels: Record<string, string> = {
+  ADDITIONAL_STALL_STANDARD: "標準方案額外攤位",
+  ADDITIONAL_STALL_PRO: "專業方案額外攤位",
+  CUSTOM_DOMAIN: "自訂網域",
+  PRINTER_INTEGRATION: "列印整合",
+  SCHEDULED_REPORTS: "排程報表",
+  WHITE_LABEL: "白標品牌服務",
+  API_ACCESS: "API 存取",
+  CUSTOM_SERVICE: "客製服務",
+  ORDER_PACKAGE_LITE_100: "入門方案 100 筆訂單包",
+  ORDER_PACKAGE_STANDARD_500: "標準方案 500 筆訂單包",
+  ORDER_PACKAGE_PRO_1000: "專業方案 1,000 筆訂單包",
 };
 
 export function featureLabel(code: string) {
-  return billingFeatureLabels[code] ?? `功能：${code.replaceAll("_", " ")}`;
+  return billingFeatureLabels[code] ?? `未命名功能（${code}）`;
+}
+
+export function planLabel(code: string, fallback?: string) {
+  return billingPlanLabels[code] ?? fallback ?? `未命名方案（${code}）`;
+}
+
+export function addOnLabel(code: string, fallback?: string) {
+  return billingAddOnLabels[code] ?? fallback ?? `未命名加購項目（${code}）`;
 }

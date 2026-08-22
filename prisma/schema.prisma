@@ -407,6 +407,7 @@ model Organization {
   subscriptionItems             SubscriptionItem[]
   manualPaymentRecords          ManualPaymentRecord[]
   billingUsageSummaries         BillingUsageSummary[]
+  billingStallUsageSummaries    BillingStallUsageSummary[]
   billingNotifications          BillingNotification[]
   notificationOutbox            NotificationOutbox[]
   billingChangeRequests         BillingChangeRequest[]
@@ -494,6 +495,7 @@ model Stall {
   operationalEvents      OperationalEvent[]
   operationalAlerts      OperationalAlert[]
   usageEvents            UsageEvent[]
+  billingUsageSummaries  BillingStallUsageSummary[]
   invitations            OrganizationInvitation[]
   orderItemBatchActions  OrderItemBatchAction[]
   businessHours          StallBusinessHour[]
@@ -919,6 +921,12 @@ model Plan {
   maxStalls            Int?           @map("max_stalls")
   includedOrders       Int?           @map("included_orders")
   excessOrderPrice     Int            @default(0) @map("excess_order_price")
+  pricingMode          String         @default("FIXED") @map("pricing_mode")
+  usageUnitPrice       Int            @default(0) @map("usage_unit_price")
+  usageMetric          String?        @map("usage_metric")
+  usageScope           String?        @map("usage_scope")
+  monthlyCapAmount     Int?           @map("monthly_cap_amount")
+  minimumCharge        Int            @default(0) @map("minimum_charge")
   isActive             Boolean        @default(true) @map("is_active")
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")
@@ -947,6 +955,12 @@ model PlanVersion {
   includedOrders           Int?              @map("included_orders")
   reportRetentionDays      Int?              @map("report_retention_days")
   overagePolicy            String            @map("overage_policy")
+  pricingMode             String            @default("FIXED") @map("pricing_mode")
+  usageUnitPrice          Int               @default(0) @map("usage_unit_price")
+  usageMetric             String?           @map("usage_metric")
+  usageScope              String?           @map("usage_scope")
+  monthlyCapAmount        Int?              @map("monthly_cap_amount")
+  minimumCharge           Int               @default(0) @map("minimum_charge")
   emergencyHardCapEnabled  Boolean           @default(false) @map("emergency_hard_cap_enabled")
   emergencyHardCapOrders   Int?              @map("emergency_hard_cap_orders")
   isPublic                 Boolean           @default(true) @map("is_public")
@@ -959,6 +973,7 @@ model PlanVersion {
   createdBy                Profile?          @relation("PlanVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   entitlements             PlanEntitlement[]
   subscriptions            Subscription[]
+  invoices                 Invoice[]
   billingChangeRequests    BillingChangeRequest[]
 
   @@unique([planId, version])
@@ -1000,6 +1015,7 @@ model Subscription {
   cancelAtPeriodEnd   Boolean                   @default(false) @map("cancel_at_period_end")
   cancelledAt         DateTime?                 @map("cancelled_at")
   reactivatedAt       DateTime?                 @map("reactivated_at")
+  pricingEffectiveAt  DateTime?                 @map("pricing_effective_at")
   createdAt           DateTime                  @default(now()) @map("created_at")
   updatedAt           DateTime                  @updatedAt @map("updated_at")
   organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1083,6 +1099,7 @@ model Invoice {
   id                 String            @id @default(uuid()) @db.Uuid
   organizationId     String            @map("organization_id") @db.Uuid
   subscriptionId     String            @map("subscription_id") @db.Uuid
+  planVersionId      String?           @map("plan_version_id") @db.Uuid
   invoiceNumber      String            @unique @default(dbgenerated("next_invoice_number()")) @map("invoice_number")
   status             String            @default("DRAFT")
   currency           String            @default("TWD")
@@ -1094,6 +1111,8 @@ model Invoice {
   totalAmount        Int               @default(0) @map("total_amount")
   amountPaid         Int               @default(0) @map("amount_paid")
   amountDue          Int               @default(0) @map("amount_due")
+  pricingMode        String?           @map("pricing_mode")
+  pricingSnapshotJson Json?            @map("pricing_snapshot_json")
   issuedAt           DateTime?         @map("issued_at")
   dueAt              DateTime          @map("due_at")
   paidAt             DateTime?         @map("paid_at")
@@ -1103,6 +1122,7 @@ model Invoice {
   updatedAt          DateTime          @updatedAt @map("updated_at")
   organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   subscription       Subscription      @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  planVersion        PlanVersion?      @relation(fields: [planVersionId], references: [id], onDelete: Restrict)
   lineItems          InvoiceLineItem[]
   manualPayments     ManualPaymentRecord[]
   billingChangeRequests BillingChangeRequest[]
@@ -1112,6 +1132,7 @@ model Invoice {
   @@unique([id, organizationId], map: "invoices_id_organization_future_provider_idx")
   @@unique([organizationId, billingPeriodStart, billingPeriodEnd])
   @@index([organizationId, status, createdAt(sort: Desc)])
+  @@index([planVersionId, billingPeriodStart])
   @@index([status, dueAt])
   @@map("invoices")
 }
@@ -1234,6 +1255,31 @@ model BillingUsageSummary {
   @@unique([organizationId, billingPeriod])
   @@index([billingPeriod, billableOrderCount(sort: Desc)])
   @@map("billing_usage_summaries")
+}
+
+model BillingStallUsageSummary {
+  id                       String       @id @default(uuid()) @db.Uuid
+  organizationId           String       @map("organization_id") @db.Uuid
+  stallId                  String       @map("stall_id") @db.Uuid
+  billingPeriod            DateTime     @map("billing_period") @db.Date
+  grossCompletedOrderCount Int          @default(0) @map("gross_completed_order_count")
+  fullRefundCreditCount    Int          @default(0) @map("full_refund_credit_count")
+  netBillableOrderCount    Int          @default(0) @map("net_billable_order_count")
+  unitPrice                Int          @default(1) @map("unit_price")
+  uncappedAmount           Int          @default(0) @map("uncapped_amount")
+  capAmount                Int          @default(1499) @map("cap_amount")
+  finalCharge              Int          @default(0) @map("final_charge")
+  capSavings               Int          @default(0) @map("cap_savings")
+  calculatedAt             DateTime     @default(now()) @map("calculated_at")
+  createdAt                DateTime     @default(now()) @map("created_at")
+  updatedAt                DateTime     @updatedAt @map("updated_at")
+  organization             Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                    Stall        @relation(fields: [stallId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, stallId, billingPeriod])
+  @@index([organizationId, billingPeriod, finalCharge(sort: Desc)])
+  @@index([stallId, billingPeriod])
+  @@map("billing_stall_usage_summaries")
 }
 
 model BillingFeatureFlag {

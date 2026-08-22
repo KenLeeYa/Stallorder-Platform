@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   BadgeDollarSign,
   ChartNoAxesCombined,
@@ -30,27 +31,33 @@ const items = [
 
 export function AdminBillingHeader({ displayName }: { displayName: string }) {
   const { m } = useAdminLocale();
+  const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-30 border-b border-stone-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-3 md:px-8">
+    <header className="sticky top-0 z-30 overflow-x-hidden border-b border-stone-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex min-w-0 max-w-7xl flex-wrap items-center gap-3 px-4 py-3 md:px-8">
         <Link href="/admin/billing" className="mr-auto font-semibold text-stone-950">
           {m("Platform administration")}
         </Link>
         <nav
           aria-label={m("Platform administration navigation")}
-          className="order-3 flex w-full gap-1 overflow-x-auto lg:order-none lg:w-auto"
+          className="order-3 flex min-w-0 max-w-full basis-full gap-1 overflow-x-auto pb-0.5 lg:order-none lg:w-auto lg:basis-auto lg:pb-0"
         >
           {items.map((item) => {
             const Icon = item.icon;
+            const label = m(item.label);
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-semibold text-stone-700 hover:bg-stone-100"
+                title={label}
+                aria-label={label}
+                aria-current={isActive ? "page" : undefined}
+                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-md text-sm font-semibold transition-colors sm:w-auto sm:px-3 ${isActive ? "bg-teal-50 text-teal-900" : "text-stone-700 hover:bg-stone-100"}`}
               >
-                <Icon className="h-4 w-4 text-teal-700" />
-                {m(item.label)}
+                <Icon aria-hidden="true" className="h-5 w-5 text-teal-700 sm:h-4 sm:w-4" />
+                <span className="sr-only sm:not-sr-only sm:inline">{label}</span>
               </Link>
             );
           })}

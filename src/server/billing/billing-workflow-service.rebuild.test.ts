@@ -25,7 +25,8 @@ describe("BillingWorkflowService.rebuildUsageSummary", () => {
     transactionMock.subscription.findUnique.mockResolvedValue({ organizationId: "77777777-7777-4777-8777-777777777703" });
     transactionMock.$queryRaw
       .mockResolvedValueOnce([{ billable_order_count: 2_200 }])
-      .mockResolvedValueOnce([{ warnings_created: 4 }]);
+      .mockResolvedValueOnce([{ warnings_created: 4 }])
+      .mockResolvedValueOnce([{ rebuilt_stalls: 2 }]);
   });
 
   it("returns a scalar usage count and reconciles warnings in the same transaction", async () => {
@@ -39,7 +40,9 @@ describe("BillingWorkflowService.rebuildUsageSummary", () => {
     );
 
     expect(result).toBe(2_200);
-    expect(transactionMock.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(transactionMock.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(transactionMock.$queryRaw.mock.calls[2]?.[0].join(" "))
+      .toContain("rebuild_payg_stall_usage_summaries");
     expect(prismaMock.$transaction).toHaveBeenCalledWith(expect.any(Function), billingTransactionOptions);
   });
 });

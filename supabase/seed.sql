@@ -14,21 +14,73 @@ insert into public.organizations (
   'TWD',
   now(),
   now()
+), (
+  '11111111-1111-4111-8111-111111111112',
+  'StallOrder Legacy 計費測試商戶',
+  'stallorder-legacy-billing-fixture',
+  'StallOrder Legacy 計費測試商戶',
+  'ACTIVE',
+  'legacy.billing@stallorder.test',
+  '0900-000-099',
+  'Asia/Taipei',
+  'TWD',
+  now(),
+  now()
 );
 
 -- Commercial limits are enforced at insert time, so the local demo
 -- subscription must exist before stalls, products, QR codes, or memberships.
 insert into public.subscriptions (
-  organization_id, plan_id, status, billing_period_start, billing_period_end
+  organization_id, plan_id, plan_version_id, status, billing_interval,
+  billing_period_start, billing_period_end, pricing_effective_at
 )
 select
   '11111111-1111-4111-8111-111111111111',
-  id,
+  plan.id,
+  version.id,
   'ACTIVE',
+  'MONTHLY',
   date_trunc('month', now() at time zone 'Asia/Taipei')::date,
-  (date_trunc('month', now() at time zone 'Asia/Taipei') + interval '1 month')::date
-from public.plans
-where code = 'PRO';
+  (date_trunc('month', now() at time zone 'Asia/Taipei') + interval '1 month')::date,
+  date_trunc('month', now() at time zone 'Asia/Taipei') at time zone 'Asia/Taipei'
+from public.plans plan
+join lateral (
+  select candidate.id
+  from public.plan_versions candidate
+  where candidate.plan_id = plan.id
+    and candidate.effective_from <= now()
+    and (candidate.effective_until is null or candidate.effective_until > now())
+  order by candidate.version desc
+  limit 1
+) version on true
+where plan.code = 'PAYG';
+
+-- Keep one explicit fixed-price fixture for legacy renewal, order-package, and
+-- additional-stall regression coverage without changing the primary PAYG demo.
+insert into public.subscriptions (
+  organization_id, plan_id, plan_version_id, status, billing_interval,
+  billing_period_start, billing_period_end, payment_due_at
+)
+select
+  '11111111-1111-4111-8111-111111111112',
+  plan.id,
+  version.id,
+  'ACTIVE',
+  'MONTHLY',
+  date_trunc('month', now() at time zone 'Asia/Taipei')::date,
+  (date_trunc('month', now() at time zone 'Asia/Taipei') + interval '1 month')::date,
+  (date_trunc('month', now() at time zone 'Asia/Taipei') + interval '1 month') at time zone 'Asia/Taipei'
+from public.plans plan
+join lateral (
+  select candidate.id
+  from public.plan_versions candidate
+  where candidate.plan_id = plan.id
+    and candidate.effective_from <= now()
+    and (candidate.effective_until is null or candidate.effective_until > now())
+  order by candidate.version desc
+  limit 1
+) version on true
+where plan.code = 'PRO';
 
 insert into public.stalls (
   id, organization_id, name, slug, code, address, currency, timezone,

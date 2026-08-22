@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isBillingFeatureEnabled } from "@/server/billing/billing-feature-flags";
 
 export const entitlementErrorCodes = [
   "FEATURE_NOT_INCLUDED",
@@ -59,7 +60,7 @@ export type EffectiveEntitlement = {
   isEnabled: boolean;
   limitValue: number | null;
   configuration: Prisma.JsonValue | null;
-  source: "PLAN" | "ADD_ON";
+  source: "PLAN" | "ADD_ON" | "OPEN_BETA";
 };
 
 export type BillingPeriodUsage = {
@@ -129,8 +130,10 @@ export class EntitlementService {
   }
 
   async getUsableEntitlements(organizationId: string) {
+    const openBeta = await this.isOpenBetaFreeAccessEnabled();
     const context = await this.requireContext(organizationId);
-    this.ensureSubscriptionUsable(context);
+    if (openBeta) this.ensureOpenBetaSubscriptionUsable(context);
+    else this.ensureSubscriptionUsable(context);
     return this.getEffectiveEntitlementsForContext(context);
   }
 
@@ -169,6 +172,11 @@ export class EntitlementService {
   }
 
   async assertSubscriptionUsable(organizationId: string) {
+    if (await this.isOpenBetaFreeAccessEnabled()) {
+      const context = await this.requireContext(organizationId);
+      this.ensureOpenBetaSubscriptionUsable(context);
+      return context;
+    }
     const context = await this.requireContext(organizationId);
     this.ensureSubscriptionUsable(context);
     return context;
@@ -190,7 +198,12 @@ export class EntitlementService {
     if (!Number.isSafeInteger(requestedDelta) || requestedDelta < 0) {
       throw new TypeError("requestedDelta must be a non-negative safe integer");
     }
+    if (await this.isOpenBetaFreeAccessEnabled()) {
+      const context = await this.assertSubscriptionUsable(organizationId);
+      return { context, usage: null, openBeta: true as const };
+    }
     const context = await this.assertSubscriptionUsable(organizationId);
+    if (!context) throw new EntitlementError("SUBSCRIPTION_NOT_ACTIVE");
     const usage = await this.getBillingPeriodUsage(organizationId, context.billingPeriodStart);
     const version = context.planVersion;
 
@@ -202,7 +215,10 @@ export class EntitlementService {
       const nextValue = usage.activeStalls + requestedDelta;
       const code = evaluateCountLimit(nextValue, version.maxStalls);
       if (code) throw new EntitlementError(code);
-      if (nextValue > version.includedStalls + approvedAdditional) {
+      const isUncappedPerStallUsage = version.pricingMode === "USAGE_PER_STALL_CAPPED"
+        && version.usageScope === "STALL"
+        && version.maxStalls === null;
+      if (!isUncappedPerStallUsage && nextValue > version.includedStalls + approvedAdditional) {
         throw new EntitlementError("ADDITIONAL_STALL_APPROVAL_REQUIRED");
       }
     } else if (metricCode === "STAFF") {
@@ -316,6 +332,19 @@ export class EntitlementService {
     featureCode: string,
     requireUsableSubscription: boolean,
   ) {
+    if (await this.isOpenBetaFreeAccessEnabled()) {
+      const context = await this.getFeatureSubscriptionContext(organizationId, featureCode);
+      if (!context) throw new EntitlementError("SUBSCRIPTION_NOT_ACTIVE");
+      this.ensureOpenBetaSubscriptionUsable(context);
+      const planEntitlement = context.planVersion.entitlements[0];
+      return {
+        featureCode,
+        isEnabled: true,
+        limitValue: null,
+        configuration: planEntitlement?.configurationJson ?? null,
+        source: "OPEN_BETA",
+      } satisfies EffectiveEntitlement;
+    }
     const context = await this.getFeatureSubscriptionContext(organizationId, featureCode);
     if (!context) throw new EntitlementError("SUBSCRIPTION_NOT_ACTIVE");
     if (requireUsableSubscription) this.ensureSubscriptionUsable(context);
@@ -355,6 +384,19 @@ export class EntitlementService {
     }
 
     throw new EntitlementError("FEATURE_NOT_INCLUDED");
+  }
+
+  private async isOpenBetaFreeAccessEnabled() {
+    const candidate = this.database as unknown as {
+      billingFeatureFlag?: {
+        findMany?: (...args: never[]) => Promise<unknown>;
+      };
+    };
+    if (typeof candidate.billingFeatureFlag?.findMany !== "function") return false;
+    return isBillingFeatureEnabled(
+      "OPEN_BETA_FREE_ACCESS_ENABLED",
+      this.database,
+    );
   }
 
   private async getFeatureSubscriptionContext(
@@ -402,6 +444,15 @@ export class EntitlementService {
       trialEndsAt: context.trialEndsAt,
     });
     if (code) throw new EntitlementError(code);
+  }
+
+  private ensureOpenBetaSubscriptionUsable(context: { status: string }) {
+    if (context.status === "SUSPENDED") {
+      throw new EntitlementError("SUBSCRIPTION_SUSPENDED");
+    }
+    if (!["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"].includes(context.status)) {
+      throw new EntitlementError("SUBSCRIPTION_NOT_ACTIVE");
+    }
   }
 }
 

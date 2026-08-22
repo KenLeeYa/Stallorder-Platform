@@ -6,10 +6,13 @@
 - `ORDER_CREATED`, `WAITING_CONFIRMATION`, rejected, expired, cancelled 與惡意嘗試不計費。
 - `(event_type, reference_id)` 唯一約束防止同一訂單重複計量。
 - `usage_events` 為 append-only 計量來源；summary 可重建，原始事件不可刪除。
+- 完整退款第一次成立時建立唯一 `BILLABLE_ORDER_FULL_REFUND=-1`；重複退款不再次折抵，部分退款不自動視為零平台費。
 
 ## 帳期摘要
 
 `billing_usage_summaries` 保存指定 organization 與 billing period 的完成訂單、啟用攤位、啟用員工、QR 數量及 CSV export 次數。`rebuild_billing_usage_summary` 從可信事件及目前範圍重算，人工觸發須寫入 `USAGE_REBUILT` audit event。
+
+PAYG 另以 `billing_stall_usage_summaries` 保存每個攤位的 gross、完整退款、net、未封頂金額、TWD 1,499 cap、final charge 與 cap savings。`rebuild_payg_stall_usage_summaries` 依 ledger 重建並寫入 `PAYG_USAGE_REBUILT`；Organization 金額是各攤位 final charge 的總和。
 
 ## Trial
 
@@ -33,6 +36,7 @@
 3. 比對 `usage_events` 唯一完成訂單數與 summary。
 4. 檢查 80／90／100／110% warnings 是否去重。
 5. 記錄 request ID、操作者與差異原因。
+6. PAYG 逐攤驗證 `net=max(gross-refund,0)` 與 `final=min(net,1499)`，再比對 Invoice line metadata。
 
 重建不應改變訂單、付款、Invoice 或歷史事件。
 

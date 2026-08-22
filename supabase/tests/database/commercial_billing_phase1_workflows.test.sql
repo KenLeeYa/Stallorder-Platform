@@ -67,7 +67,7 @@ select lives_ok(
     select subscription.organization_id, subscription.id, 'PLAN_CHANGE', version.id,
       'MONTHLY', 'Owner 方案升級', '55555555-5555-4555-8555-555555555551'
     from public.subscriptions subscription
-    join public.plan_versions version on version.plan_id = (select id from public.plans where code = 'STANDARD')
+    join public.plan_versions version on version.plan_id = (select id from public.plans where code = 'PAYG')
       and version.version = 1
     where subscription.organization_id = '11111111-1111-4111-8111-111111111111'$$,
   'Organization Owner 可建立自身待審核方案申請'
@@ -81,7 +81,7 @@ select throws_ok(
     select subscription.organization_id, subscription.id, 'PLAN_CHANGE', version.id,
       'MONTHLY', '重複申請', '55555555-5555-4555-8555-555555555551'
     from public.subscriptions subscription
-    join public.plan_versions version on version.plan_id = (select id from public.plans where code = 'LITE')
+    join public.plan_versions version on version.plan_id = (select id from public.plans where code = 'PAYG')
       and version.version = 1
     where subscription.organization_id = '11111111-1111-4111-8111-111111111111'$$,
   '23505', null,

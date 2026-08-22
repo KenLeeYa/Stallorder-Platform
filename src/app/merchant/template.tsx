@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { MerchantWorkspaceHeader } from "@/components/merchant-workspace-header";
 import { requireWorkspacePage } from "@/lib/workspace";
+import { getBillingExperienceState } from "@/server/billing/billing-feature-flags";
 import {
   MERCHANT_ROUTE_ORGANIZATION_HEADER,
   MERCHANT_ROUTE_PATHNAME_HEADER,
@@ -9,9 +10,10 @@ import {
 } from "@/lib/workspace-route-context";
 
 export default async function MerchantTemplate({ children }: { children: React.ReactNode }) {
-  const [{ principal, workspaces }, requestHeaders] = await Promise.all([
+  const [{ principal, workspaces }, requestHeaders, billingExperience] = await Promise.all([
     requireWorkspacePage(),
     headers(),
+    getBillingExperienceState(),
   ]);
   const routeContext = resolveWorkspaceRouteContext(
     workspaces,
@@ -26,6 +28,7 @@ export default async function MerchantTemplate({ children }: { children: React.R
         workspaces={workspaces}
         displayName={principal.user.displayName}
         routeContext={routeContext}
+        showBilling={billingExperience.merchantBillingVisible}
       />
       {children}
     </>

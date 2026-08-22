@@ -18,6 +18,9 @@ const qrToken = "billing-phase1-e2e-qr-token";
 let organizationId = "";
 let subscriptionId = "";
 let invoiceId = "";
+let originalBillingFlags: Array<{ code: string; isEnabled: boolean }> = [];
+let standardPlanVersionId = "";
+let standardPlanWasPublic = false;
 
 async function waitForReactHandler(control: Locator, handler: "onClick" | "onChange") {
   await expect.poll(() => control.evaluate((element, eventName) => {
@@ -35,14 +38,23 @@ test.describe("Phase 1 商業帳務完整流程", () => {
 
   test.beforeAll(async () => {
     await cleanup();
+    originalBillingFlags = await prisma.billingFeatureFlag.findMany({
+      where: { code: { in: ["OPEN_BETA_FREE_ACCESS_ENABLED", "MERCHANT_BILLING_VISIBLE"] } },
+      select: { code: true, isEnabled: true },
+    });
     const passwordHash = await hash(password, 4);
-    const [owner, admin, trialPlan] = await Promise.all([
+    const [owner, admin, trialPlan, standardPlan] = await Promise.all([
       prisma.profile.create({ data: { email: ownerEmail, displayName: "帳務測試商家", passwordHash } }),
       prisma.profile.create({ data: { email: adminEmail, displayName: "帳務測試平台管理員", passwordHash, platformRole: "PLATFORM_ADMIN" } }),
       prisma.plan.findUniqueOrThrow({ where: { code: "TRIAL" }, include: { versions: { where: { version: 1 }, take: 1 } } }),
+      prisma.plan.findUniqueOrThrow({ where: { code: "STANDARD" }, include: { versions: { where: { version: 1 }, take: 1 } } }),
     ]);
     const trialVersion = trialPlan.versions[0];
+    const standardVersion = standardPlan.versions[0];
     if (!trialVersion) throw new Error("缺少 TRIAL 方案版本");
+    if (!standardVersion) throw new Error("缺少 STANDARD 方案版本");
+    standardPlanVersionId = standardVersion.id;
+    standardPlanWasPublic = standardVersion.isPublic;
     const trialStartedAt = new Date();
     const trialEndsAt = new Date(trialStartedAt.getTime() + 14 * 86_400_000);
     const periodStart = monthStart(trialStartedAt);
@@ -93,8 +105,38 @@ test.describe("Phase 1 商業帳務完整流程", () => {
   });
 
   test.afterAll(async () => {
-    await cleanup();
-    await prisma.$disconnect();
+    try {
+      await cleanup();
+      await setBillingFlags(Object.fromEntries(originalBillingFlags.map((flag) => [flag.code, flag.isEnabled])));
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+
+  test("開放測試免費模式會隱藏商家帳務，但平台管理員仍可查看發布開關", async ({ page }) => {
+    await setBillingFlags({
+      OPEN_BETA_FREE_ACCESS_ENABLED: true,
+      MERCHANT_BILLING_VISIBLE: false,
+    });
+    try {
+      await page.goto("/");
+      await expect(page.getByText("開放測試期間免費使用", { exact: true })).toBeVisible();
+
+      await login(page, ownerEmail);
+      const hiddenBilling = await page.goto(`/merchant/billing?organizationId=${organizationId}`);
+      expect(hiddenBilling?.status()).toBe(404);
+
+      await page.context().clearCookies();
+      await login(page, adminEmail);
+      await page.goto("/admin/billing");
+      await expect(page.getByRole("switch", { name: "開放測試免費模式" })).toBeChecked();
+      await expect(page.getByRole("switch", { name: "向商家顯示訂閱與付款" })).not.toBeChecked();
+    } finally {
+      await setBillingFlags({
+        OPEN_BETA_FREE_ACCESS_ENABLED: false,
+        MERCHANT_BILLING_VISIBLE: true,
+      });
+    }
   });
 
   test("試用訂單硬上限會阻擋新 QR session，但帳務頁仍可查看", async ({ page }) => {
@@ -121,40 +163,47 @@ test.describe("Phase 1 商業帳務完整流程", () => {
   });
 
   test("方案申請、人工帳單、付款送審、確認與啟用為完整交易流程", async ({ page }) => {
-    await page.context().clearCookies();
-    await login(page, ownerEmail);
-    await page.goto(`/merchant/plans?organizationId=${organizationId}`);
-    const standardPlan = page.getByRole("article").filter({ hasText: "Standard" });
-    await standardPlan.getByRole("button", { name: "申請此方案" }).click();
-    await expect.poll(() => prisma.billingChangeRequest.count({ where: { organizationId, status: "PENDING", requestType: "PLAN_CHANGE" } })).toBe(1);
+    // Legacy fixed plans stay hidden in product; expose one only inside this
+    // isolated test so the historical manual-billing workflow remains covered.
+    await prisma.planVersion.update({ where: { id: standardPlanVersionId }, data: { isPublic: true } });
+    try {
+      await page.context().clearCookies();
+      await login(page, ownerEmail);
+      await page.goto(`/merchant/plans?organizationId=${organizationId}`);
+      const standardPlan = page.getByRole("article").filter({ hasText: "Standard" });
+      await standardPlan.getByRole("button", { name: "申請此方案" }).click();
+      await expect.poll(() => prisma.billingChangeRequest.count({ where: { organizationId, status: "PENDING", requestType: "PLAN_CHANGE" } })).toBe(1);
 
-    await page.context().clearCookies();
-    await login(page, adminEmail);
-    await expect(page).toHaveURL(/\/admin\/billing/);
-    const requestCard = page.getByRole("article").filter({ hasText: "Phase 1 帳務驗收商家" }).filter({ hasText: "方案變更" });
-    await requestCard.getByRole("button", { name: "建立人工帳單" }).click();
-    await expect.poll(async () => prisma.invoice.findFirst({ where: { organizationId, status: "OPEN" }, orderBy: { createdAt: "desc" } })).not.toBeNull();
-    const createdInvoice = await prisma.invoice.findFirstOrThrow({ where: { organizationId, status: "OPEN" }, orderBy: { createdAt: "desc" } });
-    invoiceId = createdInvoice.id;
-    expect(createdInvoice.totalAmount).toBe(699);
+      await page.context().clearCookies();
+      await login(page, adminEmail);
+      await expect(page).toHaveURL(/\/admin\/billing/);
+      const requestCard = page.getByRole("article").filter({ hasText: "Phase 1 帳務驗收商家" }).filter({ hasText: "方案變更" });
+      await requestCard.getByRole("button", { name: "建立人工帳單" }).click();
+      await expect.poll(async () => prisma.invoice.findFirst({ where: { organizationId, status: "OPEN" }, orderBy: { createdAt: "desc" } })).not.toBeNull();
+      const createdInvoice = await prisma.invoice.findFirstOrThrow({ where: { organizationId, status: "OPEN" }, orderBy: { createdAt: "desc" } });
+      invoiceId = createdInvoice.id;
+      expect(createdInvoice.totalAmount).toBe(699);
 
-    await page.context().clearCookies();
-    await login(page, ownerEmail);
-    await page.goto(`/merchant/billing/invoices/${invoiceId}?organizationId=${organizationId}`);
-    await page.getByLabel("付款方式").selectOption("CASH");
-    await page.getByRole("button", { name: "送出付款資料" }).click();
-    await expect.poll(() => prisma.manualPaymentRecord.count({ where: { invoiceId, verificationStatus: "PENDING_VERIFICATION" } })).toBe(1);
+      await page.context().clearCookies();
+      await login(page, ownerEmail);
+      await page.goto(`/merchant/billing/invoices/${invoiceId}?organizationId=${organizationId}`);
+      await page.getByLabel("付款方式").selectOption("CASH");
+      await page.getByRole("button", { name: "送出付款資料" }).click();
+      await expect.poll(() => prisma.manualPaymentRecord.count({ where: { invoiceId, verificationStatus: "PENDING_VERIFICATION" } })).toBe(1);
 
-    await page.context().clearCookies();
-    await login(page, adminEmail);
-    await page.goto("/admin/payments");
-    const paymentCard = page.getByRole("article").filter({ hasText: createdInvoice.invoiceNumber });
-    await paymentCard.getByRole("button", { name: "確認付款" }).click();
-    await expect.poll(async () => (await prisma.invoice.findUnique({ where: { id: invoiceId } }))?.status).toBe("PAID");
-    await expect.poll(async () => (await prisma.subscription.findUnique({ where: { id: subscriptionId } }))?.status).toBe("ACTIVE");
-    const activated = await prisma.subscription.findUniqueOrThrow({ where: { id: subscriptionId }, include: { plan: true } });
-    expect(activated.plan.code).toBe("STANDARD");
-    expect(await prisma.auditLog.count({ where: { organizationId, action: { in: ["MANUAL_PAYMENT_VERIFIED", "SUBSCRIPTION_ACTIVATED"] } } })).toBeGreaterThanOrEqual(2);
+      await page.context().clearCookies();
+      await login(page, adminEmail);
+      await page.goto("/admin/payments");
+      const paymentCard = page.getByRole("article").filter({ hasText: createdInvoice.invoiceNumber });
+      await paymentCard.getByRole("button", { name: "確認付款" }).click();
+      await expect.poll(async () => (await prisma.invoice.findUnique({ where: { id: invoiceId } }))?.status).toBe("PAID");
+      await expect.poll(async () => (await prisma.subscription.findUnique({ where: { id: subscriptionId } }))?.status).toBe("ACTIVE");
+      const activated = await prisma.subscription.findUniqueOrThrow({ where: { id: subscriptionId }, include: { plan: true } });
+      expect(activated.plan.code).toBe("STANDARD");
+      expect(await prisma.auditLog.count({ where: { organizationId, action: { in: ["MANUAL_PAYMENT_VERIFIED", "SUBSCRIPTION_ACTIVATED"] } } })).toBeGreaterThanOrEqual(2);
+    } finally {
+      await prisma.planVersion.update({ where: { id: standardPlanVersionId }, data: { isPublic: standardPlanWasPublic } });
+    }
   });
 
   test("停權會阻擋新訂單，歷史帳務可讀，且可受控恢復", async ({ page }) => {
@@ -256,6 +305,11 @@ async function cleanup() {
 }
 
 function monthStart(value: Date) { return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1)); }
+async function setBillingFlags(flags: Record<string, boolean>) {
+  for (const [code, isEnabled] of Object.entries(flags)) {
+    await prisma.billingFeatureFlag.update({ where: { code }, data: { isEnabled } });
+  }
+}
 function assertLocalDatabase() { const value = process.env.DATABASE_URL; if (!value) throw new Error("E2E 必須設定 DATABASE_URL"); const hostname = new URL(value).hostname; if (!["127.0.0.1", "localhost"].includes(hostname)) throw new Error(`拒絕在非本機資料庫執行 E2E：${hostname}`); }
 function loadLocalEnv() {
   let content: string;

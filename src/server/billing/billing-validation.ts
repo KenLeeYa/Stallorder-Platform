@@ -73,6 +73,11 @@ export const billingRequestDecisionSchema = z.object({
   note: reason,
 }).strict();
 
+export const billingFeatureFlagUpdateSchema = z.object({
+  isEnabled: z.boolean(),
+  reason,
+}).strict();
+
 export const subscriptionActionSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("SUSPEND"), reason }).strict(),
   z.object({ operation: z.literal("REACTIVATE"), reason }).strict(),
@@ -94,6 +99,18 @@ export const subscriptionActionSchema = z.discriminatedUnion("operation", [
   }).strict(),
   z.object({
     operation: z.literal("REBUILD_USAGE"),
+    billingPeriod: z.string().regex(/^\d{4}-\d{2}-01$/),
+    reason,
+  }).strict(),
+  z.object({
+    operation: z.literal("MIGRATE_TO_PAYG"),
+    effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    confirmation: z.literal("MIGRATE_TO_PAYG"),
+    changeRequestId: uuid.optional(),
+    reason,
+  }).strict(),
+  z.object({
+    operation: z.literal("CLOSE_PAYG_PERIOD"),
     billingPeriod: z.string().regex(/^\d{4}-\d{2}-01$/),
     reason,
   }).strict(),
