@@ -52,6 +52,8 @@ beforeEach(() => {
       findFirst: mocks.printJobFindFirst,
       updateMany: mocks.printJobUpdateMany,
     },
+    order: { updateMany: vi.fn() },
+    orderEvent: { create: vi.fn() },
   }));
 });
 

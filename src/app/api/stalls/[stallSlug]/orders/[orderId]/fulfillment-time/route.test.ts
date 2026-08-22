@@ -58,6 +58,7 @@ function legacyOrder() {
     fulfillmentTimeResponseExpiresAt: null,
     fulfillmentTimeChangeReason: null,
     createdAt: new Date("2026-08-06T04:00:00.000Z"),
+    printJobs: [],
     items: [],
   };
 }

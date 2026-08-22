@@ -18,6 +18,7 @@ import {
   printJobTicketSelect,
   resolvePrintJobTicketPayload,
 } from "@/server/printing/print-job-ticket";
+import { completeStreamlinedOrderAfterPrint } from "@/server/printing/streamlined-order-completion";
 
 type RouteContext = { params: Promise<{ printerId: string }> };
 
@@ -155,13 +156,19 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (!job) return new Response(null, { status: 404, headers: responseHeaders });
 
   if (cloudPrntStatusSucceeded(code)) {
-    if (job.status !== "SUCCEEDED") {
-      const completed = await prisma.printJob.updateMany({
-        where: { id: job.id, printerId: printer.id, status: "PRINTING" },
-        data: { status: "SUCCEEDED", printedAt: new Date(), lastError: null, nextRetryAt: null },
-      });
-      if (completed.count !== 1) return new Response(null, { status: 409, headers: responseHeaders });
-    }
+    const now = new Date();
+    const completed = await prisma.$transaction(async (transaction) => {
+      if (job.status !== "SUCCEEDED") {
+        const changed = await transaction.printJob.updateMany({
+          where: { id: job.id, printerId: printer.id, status: "PRINTING" },
+          data: { status: "SUCCEEDED", printedAt: now, lastError: null, nextRetryAt: null },
+        });
+        if (changed.count !== 1) return false;
+      }
+      await completeStreamlinedOrderAfterPrint(transaction, job.id, now);
+      return true;
+    });
+    if (!completed) return new Response(null, { status: 409, headers: responseHeaders });
   } else if (job.status !== "FAILED") {
     const status = decodeCloudPrntStatus(code);
     const failed = await prisma.printJob.updateMany({

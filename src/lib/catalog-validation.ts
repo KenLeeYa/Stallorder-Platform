@@ -39,6 +39,10 @@ const stallIds = z.array(uuid).max(100).refine(
   (ids) => new Set(ids).size === ids.length,
   { message: "攤位清單不可重複。" },
 );
+const orderedIds = z.array(uuid).min(1).max(500).refine(
+  (ids) => new Set(ids).size === ids.length,
+  { message: "排序清單不可包含重複項目。" },
+);
 export const supportedProductLocales = ["en", "ja", "ko", "vi", "th"] as const;
 const productTranslations = z.array(z.object({
   locale: z.enum(supportedProductLocales),
@@ -119,6 +123,21 @@ export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
     operation: z.literal("SET_ASSIGNMENTS"),
     productId: uuid,
     stallIds,
+  }).strict(),
+  z.object({
+    operation: z.literal("REORDER_CATEGORIES"),
+    categoryIds: orderedIds,
+  }).strict(),
+  z.object({
+    operation: z.literal("REORDER_GROUPS"),
+    categoryId: uuid,
+    groupIds: orderedIds,
+  }).strict(),
+  z.object({
+    operation: z.literal("REORDER_PRODUCTS"),
+    categoryId: uuid,
+    groupId: uuid.nullable(),
+    productIds: orderedIds,
   }).strict(),
   z.object({
     operation: z.literal("CREATE_BUNDLE_CHOICE_GROUP"),

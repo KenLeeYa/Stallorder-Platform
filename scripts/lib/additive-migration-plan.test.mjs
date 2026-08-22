@@ -13,7 +13,19 @@ const reportDeliverySchedulerMigration = readFileSync(resolve(
 ), "utf8");
 const integratedPrintCenterMigration = readFileSync(resolve(
   import.meta.dirname,
-  "../../supabase/migrations/20260821170000_integrated_print_center.sql",
+  "../../supabase/migrations/20260822010000_integrated_print_center.sql",
+), "utf8");
+const staffKdsSpecialClosuresMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260821193000_staff_kds_special_closures.sql",
+), "utf8");
+const staffKdsSpecialClosuresReconciliationMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260821200000_reconcile_staff_kds_special_closure_preflight.sql",
+), "utf8");
+const specialClosureWriteGuardReconciliationMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260821201000_reconcile_special_closure_write_guard.sql",
 ), "utf8");
 const drStandbyCompatibleMigrationFiles = [
   "20260821012140_reservation_preorder_foundation.sql",
@@ -232,6 +244,44 @@ describe("additive DR migration plan", () => {
       )).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
     },
   );
+
+  it("allows only the exact reviewed staff KDS and closure transition", () => {
+    expect(assertAdditiveMigrationSql(staffKdsSpecialClosuresMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      staffKdsSpecialClosuresMigration.replace(
+        "and settings.kds_module_enabled",
+        "or settings.kds_module_enabled",
+      ),
+    )).toThrow("ALTER_TABLE_ACTION_FORBIDDEN");
+    expect(() => assertAdditiveMigrationSql(
+      "alter table public.stall_ordering_settings "
+        + "alter column kds_module_enabled set default false;",
+    )).toThrow("ALTER_TABLE_ACTION_FORBIDDEN");
+  });
+
+  it("allows only the exact reviewed preflight reconciliation", () => {
+    expect(assertAdditiveMigrationSql(
+      staffKdsSpecialClosuresReconciliationMigration,
+    )).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      staffKdsSpecialClosuresReconciliationMigration.replace(
+        "and v_target_date between closure.starts_on and closure.ends_on",
+        "or v_target_date between closure.starts_on and closure.ends_on",
+      ),
+    )).toThrow("FUNCTION_REPLACEMENT_EXISTING_OBJECT_FORBIDDEN");
+  });
+
+  it("allows only the exact reviewed special-closure write guard reconciliation", () => {
+    expect(assertAdditiveMigrationSql(
+      specialClosureWriteGuardReconciliationMigration,
+    )).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      specialClosureWriteGuardReconciliationMigration.replace(
+        "app_private.enforce_backend_writable()",
+        "public.touch_order()",
+      ),
+    )).toThrow("DESTRUCTIVE_DO_BLOCK_FORBIDDEN");
+  });
 
   it("rejects public exposure even when the table is created in this migration", () => {
     expect(() => assertAdditiveMigrationSql(`

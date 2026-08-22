@@ -136,7 +136,8 @@ export function useQrOrderFlowController({
   const sessionExpiryDialogOpen = sessionReady
     && (sessionTimePhase === "EXPIRING" || sessionTimePhase === "EXPIRED");
   const cartDialogOpen = cartOpen && !sessionExpiryDialogOpen;
-  const orderingEnabled = orderingAvailability === "AVAILABLE" && sessionReady;
+  const specialClosureActive = session?.specialClosure?.isActive === true;
+  const orderingEnabled = orderingAvailability === "AVAILABLE" && sessionReady && !specialClosureActive;
   const degradedMode = orderingAvailability !== "AVAILABLE"
     && orderingAvailability !== "CHECKING";
   const visibleProducts = useMemo(() => {
@@ -228,6 +229,11 @@ export function useQrOrderFlowController({
     currentDeviceId: string,
     browserLocale: QrLocale,
   ) => {
+    if (usableInitialMenu?.specialClosure?.isActive) {
+      setIsLoading(false);
+      setSessionStartError("");
+      return;
+    }
     setIsLoading(!usableInitialMenu);
     setSessionStartError("");
     const result = await sessionController.start({

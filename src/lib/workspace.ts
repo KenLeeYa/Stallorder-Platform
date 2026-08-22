@@ -26,6 +26,7 @@ export type WorkspaceStall = {
   businessStatus: "OPEN" | "PAUSED" | "CLOSED" | "SOLD_OUT";
   orderingEnabled: boolean;
   isActive: boolean;
+  kdsEnabled: boolean;
   roles: UserRole[];
 };
 
@@ -92,6 +93,7 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
           businessStatus: true,
           orderingEnabled: true,
           isActive: true,
+          orderingSettings: { select: { kdsModuleEnabled: true } },
         },
       },
     },
@@ -140,6 +142,7 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
         businessStatus: stall.businessStatus,
         orderingEnabled: stall.orderingEnabled,
         isActive: stall.isActive,
+        kdsEnabled: stall.orderingSettings?.kdsModuleEnabled ?? false,
         roles: [...new Set([
           ...organizationRoles,
           ...(stallRolesByStall.get(stall.id) ?? []),

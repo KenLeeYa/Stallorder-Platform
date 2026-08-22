@@ -231,7 +231,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         actions={actions}
         t={t}
       />
-      <StaffOrderBatchBars
+      {props.modules.kds ? <StaffOrderBatchBars
         selectedItems={selectedItems}
         canUpdateSelection={props.canUpdateSelection}
         nextSelectedStatus={props.nextSelectedStatus}
@@ -239,8 +239,8 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         undoBatch={props.undoBatch}
         actions={actions}
         t={t}
-      />
-      {account.role === "KITCHEN" && viewMode === "SUMMARY" ? (
+      /> : null}
+      {props.modules.kds && account.role === "KITCHEN" && viewMode === "SUMMARY" ? (
         <StaffKdsSummary
           groups={kitchenGroups}
           role={account.role}
@@ -248,7 +248,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
           onUpdateSelectedItems={actions.onUpdateSelectedItems}
           t={t}
         />
-      ) : viewMode === "TABLES" ? (
+      ) : props.modules.kds && viewMode === "TABLES" ? (
         <StaffTableGroups
           groups={diningTableGroups}
           currency={stall.currency}
@@ -265,6 +265,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
           currency={stall.currency}
           role={account.role}
           printEnabled={props.modules.print}
+          kdsEnabled={props.modules.kds}
           now={props.now}
           selectedItemIds={props.selectedItemIds}
           pickupCodes={props.pickupCodes}
@@ -376,23 +377,24 @@ function StaffOrderBoardToolbar({
   const role = account.role;
   return (
     <>
-      <div className="flex min-w-0 max-w-full items-start justify-between gap-3 print:hidden sm:gap-4">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-teal-800">{t("staff.mobileBoard")}</p>
-          <h1 className="text-2xl font-semibold sm:text-3xl">{stall.name}</h1>
-          <p className="mt-1 text-xs text-stone-500">{account.displayName} · {roleLabel(role, t)}</p>
+      <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 overflow-x-hidden border-b border-stone-200 bg-white/95 px-4 pb-2 shadow-sm backdrop-blur print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
+        <div className="flex h-11 min-w-0 max-w-full items-center justify-between gap-3 print:hidden sm:gap-4">
+          <div className="min-w-0">
+            <h1 className="truncate text-sm font-semibold sm:text-base">{stall.name}</h1>
+            <p className="truncate text-xs font-medium text-teal-800">{account.displayName} · {roleLabel(role, t)}</p>
+          </div>
+          <WorkModeSwitcher
+            destinations={workModeDestinations}
+            currentMode="STAFF"
+            organizationId={stall.organizationId}
+            stallId={stall.id}
+            offlineGuardStallId={stall.id}
+            compactOnMobile
+            hideVisualLabel
+            className="w-[min(52vw,220px)] shrink-0"
+          />
         </div>
-        <WorkModeSwitcher
-          destinations={workModeDestinations}
-          currentMode="STAFF"
-          organizationId={stall.organizationId}
-          stallId={stall.id}
-          offlineGuardStallId={stall.id}
-          compactOnMobile
-          className="w-[min(52vw,220px)] shrink-0"
-        />
-      </div>
-      <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="relative mt-3 flex w-full min-w-0 items-center gap-2 overflow-x-auto border-y border-stone-200 py-2 print:hidden sm:overflow-x-visible [&>*]:shrink-0">
+        <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="flex min-h-11 w-full min-w-0 items-center gap-2 overflow-x-auto print:hidden sm:overflow-x-visible [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border">
         <div data-testid="staff-function-status-group" className="flex items-center gap-1 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:px-0">
           <LiveConnectionBadge state={liveConnection} t={t} />
           <div className="shrink-0">
@@ -412,14 +414,15 @@ function StaffOrderBoardToolbar({
           <button type="button" onClick={actions.onRefresh} title={t("common.refresh")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} /><span className="sr-only">{t("common.refresh")}</span></button>
           <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border-0`}><LogoutButton offlineStallId={stall.id} /><span className="sr-only">{t("staff.action.logout")}</span></div>
         </div>
-      </nav>
+        </nav>
+      </header>
       <OfflineQueueStatus stallId={stall.id} stallSlug={stall.slug} onSynchronized={actions.onSynchronized} />
       {message ? <p role="status" className="mt-4 text-sm text-stone-700 print:hidden">{message}</p> : null}
       <div className="mt-4 flex flex-col gap-2 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 print:hidden">
         <label className="relative block w-full sm:max-w-sm"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-stone-400" /><span className="sr-only">{t("staff.search.label")}</span><input type="search" value={query} maxLength={120} onChange={(event) => actions.onQueryChange(event.target.value)} placeholder={t("staff.search.shortPlaceholder")} className="h-11 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" /></label>
-        {role === "KITCHEN" ? (
+        {modules.kds && role === "KITCHEN" ? (
           <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("staff.view.kitchenMode")}><button type="button" aria-pressed={viewMode === "TICKETS"} onClick={() => actions.onViewModeChange("TICKETS")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TICKETS" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.ticket")}</button><button type="button" aria-pressed={viewMode === "SUMMARY"} onClick={() => actions.onViewModeChange("SUMMARY")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "SUMMARY" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.itemSummary")}</button></div>
-        ) : modules.dineIn ? (
+        ) : modules.kds && modules.dineIn ? (
           <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("staff.view.orderMode")}><button type="button" aria-pressed={viewMode === "TICKETS"} onClick={() => actions.onViewModeChange("TICKETS")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TICKETS" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.individual")}</button><button type="button" aria-pressed={viewMode === "TABLES"} onClick={() => actions.onViewModeChange("TABLES")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TABLES" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.combineTable")}</button></div>
         ) : null}
       </div>
@@ -499,6 +502,7 @@ type StaffTicketListProps = Pick<
   currency: string;
   role: UserRole;
   printEnabled: boolean;
+  kdsEnabled: boolean;
   stall: Stall;
   locale: AppLocale;
   t: OperationsTranslator;
@@ -522,9 +526,25 @@ function StaffTicketList(props: StaffTicketListProps) {
   return <div className="mt-6 grid gap-4 md:grid-cols-2 print:block"><div className="md:col-span-2 print:hidden"><h2 className="text-lg font-semibold">{props.t("staff.today.title")}</h2><p className="mt-1 text-sm text-stone-600">{props.t("staff.today.description")}</p></div>{props.orders.map((order) => <StaffOrderTicket key={order.id} {...props} order={order} pickupCode={props.pickupCodes[order.id] ?? ""} />)}</div>;
 }
 
-function StaffOrderTicket({ order, currency, role, printEnabled, now, selectedItemIds, pickupCode, updatingOrderId, updatingItemId, updatingItemsOrderId, verifyingPickupOrderId, cancellation, manualPickup, timeProposal, actions, stall, locale, t, orderProductionTimings, expandedOrderIds, editableOrderIds }: Omit<StaffTicketListProps, "orders" | "pickupCodes"> & { order: StaffOrderDto; pickupCode: string }) {
+function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now, selectedItemIds, pickupCode, updatingOrderId, updatingItemId, updatingItemsOrderId, verifyingPickupOrderId, cancellation, manualPickup, timeProposal, actions, stall, locale, t, orderProductionTimings, expandedOrderIds, editableOrderIds }: Omit<StaffTicketListProps, "orders" | "pickupCodes"> & { order: StaffOrderDto; pickupCode: string }) {
   const timing = orderProductionTimings.get(order.id);
   const expanded = expandedOrderIds.has(order.id);
+  const waitingForPrintCompletion = !kdsEnabled
+    && printEnabled
+    && order.paymentStatus === "PAID"
+    && order.primaryPrintStatus !== null
+    && order.primaryPrintStatus !== "SUCCEEDED";
+  const printNeedsAttention = order.primaryPrintStatus === "FAILED"
+    || order.primaryPrintStatus === "CANCELLED";
+  const streamlinedCheckoutEligible = !kdsEnabled
+    && ["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.status)
+    && !timing?.productionBlocked
+    && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)
+    && (
+      order.fulfillmentType !== "TAKEOUT"
+      || order.source !== "QR_MENU"
+      || Boolean(order.pickupVerifiedAt)
+    );
   return (
     <article className={`rounded-lg border p-4 ${orderAgeClasses(order, timing, now)}`}>
       <div className="flex items-start justify-between gap-4">
@@ -545,7 +565,9 @@ function StaffOrderTicket({ order, currency, role, printEnabled, now, selectedIt
         <p className="text-sm text-stone-600">{t("common.portions", { count: order.items.reduce((sum, item) => sum + item.quantity, 0) })} · <strong className="text-stone-950">{formatMoney(order.total, currency, locale)}</strong> · {paymentStatusLabel(order.paymentStatus, t)}</p>
         <div className="flex flex-wrap gap-2">
           {editableOrderIds.has(order.id) ? <button type="button" onClick={() => actions.onOpenOrderEditor(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Pencil className="h-4 w-4" />{t("staff.order.edit")}</button> : null}
-          {order.status === "READY" && order.paymentStatus === "UNPAID" && hasPermission(role, "CHECKOUT_ORDERS") && (order.fulfillmentType !== "DINE_IN" || order.items.every((item) => item.status === "SERVED")) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{t("staff.order.checkoutForCustomer")}</button> : null}
+          {waitingForPrintCompletion ? <Link href={`/staff/${stall.slug}/print`} className={`inline-flex min-h-9 items-center gap-1 rounded-md border px-3 text-xs font-semibold ${printNeedsAttention ? "border-red-300 bg-red-50 text-red-800" : "border-teal-300 bg-teal-50 text-teal-900"}`}><Printer className="h-4 w-4" />{t(printNeedsAttention ? "staff.order.printNeedsAttention" : "staff.order.waitingForPrint")}</Link> : null}
+          {streamlinedCheckoutEligible && !waitingForPrintCompletion && hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : printEnabled ? t("staff.order.printAndComplete") : t("staff.checkout.completeOrder")}</button> : null}
+          {kdsEnabled && order.status === "READY" && order.paymentStatus === "UNPAID" && hasPermission(role, "CHECKOUT_ORDERS") && (order.fulfillmentType !== "DINE_IN" || order.items.every((item) => item.status === "SERVED")) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{t("staff.order.checkoutForCustomer")}</button> : null}
         </div>
       </div>
       {!expanded ? <ul className="mt-3 space-y-2 rounded-md bg-stone-50 px-3 py-2.5 text-sm">
@@ -553,14 +575,14 @@ function StaffOrderTicket({ order, currency, role, printEnabled, now, selectedIt
       </ul> : null}
       {order.fulfillmentType !== "DINE_IN" && order.fulfillmentTimeState !== "NOT_REQUESTED" ? <div className={`mt-3 rounded-md border px-3 py-3 text-sm ${order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? "border-amber-300 bg-amber-50 text-amber-950" : order.fulfillmentTimeState === "DECLINED" || order.fulfillmentTimeState === "EXPIRED" ? "border-red-200 bg-red-50 text-red-900" : "border-teal-200 bg-teal-50 text-teal-950"}`}><div className="flex items-start gap-2"><Clock3 className="mt-0.5 h-4 w-4 shrink-0" /><div className="min-w-0 flex-1"><p className="font-semibold">{fulfillmentTimeTitle(order, locale, t)}</p>{order.fulfillmentTimeChangeReason ? <p className="mt-1 text-xs">{t("staff.order.reason", { reason: order.fulfillmentTimeChangeReason })}</p> : null}{order.fulfillmentTimeResponseExpiresAt && order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? <p className="mt-1 text-xs">{t("staff.order.replyBy", { time: formatStaffFulfillmentTime(order.fulfillmentTimeResponseExpiresAt, locale) })}</p> : null}</div></div>{order.source !== "OFFLINE_POS" && ["WAITING_CONFIRMATION", "CONFIRMED"].includes(order.status) ? <div className="mt-3 flex flex-wrap gap-2 print:hidden">{order.fulfillmentTimeState === "REQUESTED" ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onUpdateFulfillmentTime(order, { operation: "CONFIRM_REQUESTED", version: order.fulfillmentTimeVersion })} className="min-h-9 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50">{t("staff.order.acceptOriginalTime")}</button> : null}<button type="button" disabled={updatingOrderId === order.id || !timeProposal.canOpen} onClick={() => timeProposal.open(order)} className="min-h-9 rounded-md border border-current px-3 text-xs font-semibold disabled:opacity-40">{order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? t("staff.order.editProposal") : t("staff.order.proposeTime")}</button></div> : null}</div> : null}
       {order.status === "WAITING_CONFIRMATION" ? <p className="mt-3 text-xs font-medium text-amber-800">{t("staff.order.confirmBeforeProduction", { time: formatAppDateTime(locale, order.confirmationExpiresAt, { timeStyle: "short", timeZone: stall.timezone }) })}</p> : null}
-      <div className="mt-4 grid grid-cols-2 gap-2 print:hidden">{staffStatusOptions.filter((option) => canTransitionOrder(order.status, option.value, role)).filter((option) => option.value !== "PREPARING" && option.value !== "READY").filter((option) => order.source !== "OFFLINE_POS" || option.value === "COMPLETED" || option.value === "CANCELLED").filter((option) => option.value !== "COMPLETED" || order.fulfillmentType === "DINE_IN" || order.source !== "QR_MENU" || Boolean(order.pickupVerifiedAt)).map((option) => <button key={option.value} type="button" disabled={updatingOrderId === order.id} aria-haspopup={option.value === "CANCELLED" ? "dialog" : undefined} onClick={() => { if (option.value === "CANCELLED") { cancellation.open({ id: order.id, orderNo: order.orderNo, customerName: order.customerName }); return; } if (option.value === "COMPLETED") { if (order.paymentStatus === "PAID") void actions.onUpdateOrder(order.id, "COMPLETED"); else void actions.onOpenCheckout(order); return; } void actions.onUpdateOrder(order.id, option.value); }} className={`rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${option.value === "CANCELLED" ? "border-red-300 text-red-700 hover:bg-red-50" : "border-stone-300 hover:bg-stone-100"}`}>{option.value === "COMPLETED" && order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : staffStatusActionLabel(option.value, t)}</button>)}</div>
+      <div className="mt-4 grid grid-cols-2 gap-2 print:hidden">{staffStatusOptions.filter((option) => canTransitionOrder(order.status, option.value, role)).filter((option) => option.value !== "PREPARING" && option.value !== "READY").filter((option) => kdsEnabled || option.value !== "COMPLETED").filter((option) => order.source !== "OFFLINE_POS" || option.value === "COMPLETED" || option.value === "CANCELLED").filter((option) => option.value !== "COMPLETED" || order.fulfillmentType === "DINE_IN" || order.source !== "QR_MENU" || Boolean(order.pickupVerifiedAt)).map((option) => <button key={option.value} type="button" disabled={updatingOrderId === order.id} aria-haspopup={option.value === "CANCELLED" ? "dialog" : undefined} onClick={() => { if (option.value === "CANCELLED") { cancellation.open({ id: order.id, orderNo: order.orderNo, customerName: order.customerName }); return; } if (option.value === "COMPLETED") { if (order.paymentStatus === "PAID") void actions.onUpdateOrder(order.id, "COMPLETED"); else void actions.onOpenCheckout(order); return; } void actions.onUpdateOrder(order.id, option.value); }} className={`rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${option.value === "CANCELLED" ? "border-red-300 text-red-700 hover:bg-red-50" : "border-stone-300 hover:bg-stone-100"}`}>{option.value === "COMPLETED" && order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : staffStatusActionLabel(option.value, t)}</button>)}</div>
       {expanded ? <div id={`order-details-${order.id}`}>
         {order.fulfillmentType === "DELIVERY" ? <div className="mt-3 flex items-start gap-2 border-y border-stone-200 bg-stone-50 px-3 py-3 text-sm"><Truck className="mt-0.5 h-4 w-4 shrink-0 text-teal-800" /><div className="min-w-0"><p className="font-medium break-words">{order.deliveryAddress || t("staff.delivery.noAddress")}</p>{order.customerPhone ? <p className="mt-1 text-stone-600">{order.customerPhone}</p> : <p className="mt-1 text-stone-500">{t("staff.delivery.noPhone")}</p>}</div></div> : null}
-        {order.status !== "WAITING_CONFIRMATION" ? <div className="mt-4 flex flex-wrap gap-2 print:hidden">{order.items.some((item) => item.status === "PENDING") && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState) && canTransitionOrderItem("PENDING", "PREPARING", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "PREPARING")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-amber-700 px-3 text-xs font-semibold text-white disabled:opacity-50"><Play className="h-4 w-4" />{t("staff.order.allStart", { count: order.items.filter((item) => item.status === "PENDING").length })}</button> : null}{order.items.some((item) => item.status === "PREPARING") && canTransitionOrderItem("PREPARING", "READY", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "READY")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><CheckCheck className="h-4 w-4" />{t("staff.order.allReady", { count: order.items.filter((item) => item.status === "PREPARING").length })}</button> : null}{order.items.some((item) => item.status === "READY") && canTransitionOrderItem("READY", "SERVED", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "SERVED")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-emerald-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><PackageCheck className="h-4 w-4" />{t(order.fulfillmentType === "DINE_IN" ? "staff.order.allServed" : order.fulfillmentType === "DELIVERY" ? "staff.order.allDelivered" : "staff.order.allPickedUp", { count: order.items.filter((item) => item.status === "READY").length })}</button> : null}</div> : null}
-        <ul className="mt-4 divide-y divide-stone-100 border-y border-stone-200 text-sm">{order.items.map((item) => { const selectable = order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, role) && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)); return <li key={item.id} className="relative grid gap-2 py-3 sm:grid-cols-[1fr_auto] sm:items-center">{selectable ? <input type="checkbox" aria-label={t("staff.order.selectItem", { order: order.orderNo, item: item.name })} checked={selectedItemIds.has(item.id)} onChange={(event) => actions.onToggleSelectedItem(item.id, event.target.checked)} className="absolute left-0 top-4 h-4 w-4 print:hidden" /> : null}<div className={`min-w-0 ${selectable ? "pl-7" : ""}`}><div className="flex justify-between gap-3"><span className="font-medium">{item.quantity} × {item.name}</span><span>{formatMoney(item.unitPrice * item.quantity, currency, locale)}</span></div>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{formatStaffNoteOptions(locale, item.noteOptions, currency, true)}</p> : null}{item.note ? <p className="mt-1 text-xs text-stone-600">{t("staff.order.note", { note: item.note })}</p> : null}<span className={`mt-1 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${item.status === "SERVED" ? "bg-emerald-50 text-emerald-800" : item.status === "READY" ? "bg-blue-50 text-blue-800" : item.status === "PREPARING" ? "bg-amber-50 text-amber-800" : "bg-stone-100 text-stone-600"}`}>{orderItemStatusLabel(item.status, t)}</span></div>{order.source !== "OFFLINE_POS" && item.status !== "SERVED" && order.status !== "WAITING_CONFIRMATION" && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)) ? <ItemStatusButton itemStatus={item.status} role={role} busy={updatingItemId === item.id || updatingItemsOrderId === order.id} t={t} onUpdate={(status) => void actions.onUpdateItemStatus(order.id, item.id, status)} /> : null}</li>; })}</ul>
+        {kdsEnabled && order.status !== "WAITING_CONFIRMATION" ? <div className="mt-4 flex flex-wrap gap-2 print:hidden">{order.items.some((item) => item.status === "PENDING") && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState) && canTransitionOrderItem("PENDING", "PREPARING", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "PREPARING")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-amber-700 px-3 text-xs font-semibold text-white disabled:opacity-50"><Play className="h-4 w-4" />{t("staff.order.allStart", { count: order.items.filter((item) => item.status === "PENDING").length })}</button> : null}{order.items.some((item) => item.status === "PREPARING") && canTransitionOrderItem("PREPARING", "READY", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "READY")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><CheckCheck className="h-4 w-4" />{t("staff.order.allReady", { count: order.items.filter((item) => item.status === "PREPARING").length })}</button> : null}{order.items.some((item) => item.status === "READY") && canTransitionOrderItem("READY", "SERVED", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "SERVED")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-emerald-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><PackageCheck className="h-4 w-4" />{t(order.fulfillmentType === "DINE_IN" ? "staff.order.allServed" : order.fulfillmentType === "DELIVERY" ? "staff.order.allDelivered" : "staff.order.allPickedUp", { count: order.items.filter((item) => item.status === "READY").length })}</button> : null}</div> : null}
+        <ul className="mt-4 divide-y divide-stone-100 border-y border-stone-200 text-sm">{order.items.map((item) => { const selectable = kdsEnabled && order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, role) && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)); return <li key={item.id} className="relative grid gap-2 py-3 sm:grid-cols-[1fr_auto] sm:items-center">{selectable ? <input type="checkbox" aria-label={t("staff.order.selectItem", { order: order.orderNo, item: item.name })} checked={selectedItemIds.has(item.id)} onChange={(event) => actions.onToggleSelectedItem(item.id, event.target.checked)} className="absolute left-0 top-4 h-4 w-4 print:hidden" /> : null}<div className={`min-w-0 ${selectable ? "pl-7" : ""}`}><div className="flex justify-between gap-3"><span className="font-medium">{item.quantity} × {item.name}</span><span>{formatMoney(item.unitPrice * item.quantity, currency, locale)}</span></div>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{formatStaffNoteOptions(locale, item.noteOptions, currency, true)}</p> : null}{item.note ? <p className="mt-1 text-xs text-stone-600">{t("staff.order.note", { note: item.note })}</p> : null}{kdsEnabled ? <span className={`mt-1 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${item.status === "SERVED" ? "bg-emerald-50 text-emerald-800" : item.status === "READY" ? "bg-blue-50 text-blue-800" : item.status === "PREPARING" ? "bg-amber-50 text-amber-800" : "bg-stone-100 text-stone-600"}`}>{orderItemStatusLabel(item.status, t)}</span> : null}</div>{kdsEnabled && order.source !== "OFFLINE_POS" && item.status !== "SERVED" && order.status !== "WAITING_CONFIRMATION" && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)) ? <ItemStatusButton itemStatus={item.status} role={role} busy={updatingItemId === item.id || updatingItemsOrderId === order.id} t={t} onUpdate={(status) => void actions.onUpdateItemStatus(order.id, item.id, status)} /> : null}</li>; })}</ul>
         {order.note ? <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900">{order.note}</p> : null}
         <div className="mt-4 flex items-center justify-between border-t border-stone-200 pt-4"><div>{order.discountAmount > 0 ? <div className="text-xs text-stone-500">{t("staff.order.originalPrice", { amount: formatMoney(order.subtotal, currency, locale) })} · {order.discountLabel}</div> : null}<strong>{formatMoney(order.total, currency, locale)}</strong></div><span className="text-sm text-stone-600">{paymentStatusLabel(order.paymentStatus, t)}</span></div>
-        {printEnabled && !order.isTest ? <button type="button" onClick={() => void actions.onPrintOrder(order.id)} className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-medium hover:bg-stone-100 print:hidden"><Printer className="h-4 w-4" />{t("staff.order.queuePrint")}</button> : null}
+        {printEnabled && kdsEnabled && !order.isTest ? <button type="button" onClick={() => void actions.onPrintOrder(order.id)} className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-medium hover:bg-stone-100 print:hidden"><Printer className="h-4 w-4" />{t("staff.order.queuePrint")}</button> : null}
         {order.status === "READY" && order.fulfillmentType === "TAKEOUT" && order.source === "QR_MENU" && hasPermission(role, "CHECKOUT_ORDERS") ? order.pickupVerifiedAt ? <div className="mt-4 flex items-center gap-2 text-sm font-medium text-teal-800"><CheckCircle2 className="h-4 w-4" />{order.pickupVerificationMethod === "MANUAL" ? t("staff.pickup.manualVerified") : t("staff.pickup.codeVerified")}</div> : <div className="mt-4"><div className="relative"><input type="text" inputMode="numeric" autoComplete="one-time-code" aria-label={t("staff.pickup.codeLabel", { digits: order.pickupCodeLength })} aria-busy={verifyingPickupOrderId === order.id} disabled={verifyingPickupOrderId === order.id} maxLength={order.pickupCodeLength === 6 ? 6 : 3} pattern={order.pickupCodeLength === 6 ? "[0-9]{6}" : "[0-9]{3}"} value={pickupCode} onChange={(event) => actions.onPickupCodeChange(order.id, event.target.value)} className="h-11 w-full rounded-md border border-stone-300 px-3 pr-11 font-mono text-lg disabled:bg-stone-50" placeholder={t("staff.pickup.codePlaceholder", { digits: order.pickupCodeLength })} />{verifyingPickupOrderId === order.id ? <span className="absolute inset-y-0 right-3 grid place-items-center text-teal-700" role="status"><LoaderCircle className="h-5 w-5 animate-spin" /><span className="sr-only">{t("staff.pickup.verifying")}</span></span> : null}</div><button type="button" disabled={verifyingPickupOrderId === order.id} onClick={() => manualPickup.open(order.id)} className="mt-2 inline-flex min-h-9 items-center gap-2 text-sm font-semibold text-stone-700 hover:text-stone-950 disabled:opacity-50"><KeyRound className="h-4 w-4" />{t("staff.pickup.unavailable")}</button></div> : null}
       </div> : null}
     </article>
@@ -630,7 +652,7 @@ function StaffFutureOrders({
 function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, discountOptions, orderCatalog, orders, composerOpen, updatingOrderId, verifyingPickupOrderId, message, cancellation, checkout, manualPickup, timeProposal, orderEditor, locale, t, actions }: Pick<StaffOrderBoardPresentationProps, "stall" | "account" | "modules" | "paymentOptions" | "discountOptions" | "orderCatalog" | "orders" | "composerOpen" | "updatingOrderId" | "verifyingPickupOrderId" | "message" | "cancellation" | "checkout" | "manualPickup" | "timeProposal" | "orderEditor"> & { locale: AppLocale; t: OperationsTranslator; actions: Pick<Actions, "onAddOrderEditProduct" | "onChangeOrderEditProduct" | "onChangeOrderEditQuantity" | "onCloseComposer" | "onCloseOrderEditor" | "onCreated" | "onRemoveOrderEditLine" | "onSaveOrderEdit"> }) {
   return (
     <>
-      {composerOpen && orderCatalog ? <StaffOrderComposer stall={stall} catalog={orderCatalog} account={account} modules={modules} paymentOptions={paymentOptions} discountOptions={discountOptions} discountSettingsHref={hasPermission(account.role, "MANAGE_STALL") ? `/merchant/stalls/${stall.id}/settings/modules?source=staff#discount-options` : undefined} onCreated={actions.onCreated} onClose={actions.onCloseComposer} /> : null}
+      {composerOpen && orderCatalog ? <StaffOrderComposer stall={stall} catalog={orderCatalog} account={account} modules={modules} paymentOptions={paymentOptions} discountOptions={discountOptions} discountSettingsHref={hasPermission(account.role, "MANAGE_STALL") ? `/merchant/stalls/${stall.id}/settings/discounts?source=staff#discount-options` : undefined} onCreated={actions.onCreated} onClose={actions.onCloseComposer} /> : null}
       {orderEditor.editingOrder && orderCatalog ? (
         <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4 print:hidden">
           <section role="dialog" aria-modal="true" aria-labelledby="order-edit-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-lg bg-white p-5 shadow-xl">
@@ -639,7 +661,7 @@ function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, d
                 <h2 id="order-edit-title" className="text-lg font-semibold">{t("staff.edit.title")}</h2>
                 <p className="mt-1 text-sm text-stone-600">{t("staff.edit.description", { number: orderEditor.editingOrder.orderNo })}</p>
               </div>
-              <button type="button" title={t("staff.edit.close")} disabled={orderEditor.busy} onClick={actions.onCloseOrderEditor} className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-stone-300 disabled:opacity-50"><X className="h-4 w-4" /></button>
+              <button type="button" title={t("staff.edit.close")} disabled={orderEditor.busy} onClick={actions.onCloseOrderEditor} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 disabled:opacity-50"><X className="h-4 w-4" /></button>
             </div>
             <div className="mt-5 divide-y divide-stone-100 border-y border-stone-200">
               {orderEditor.lines.map((line) => (
@@ -681,7 +703,7 @@ function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, d
           </section>
         </div>
       ) : null}
-      <StaffOrderCheckoutDialog controller={checkout} updatingOrderId={updatingOrderId} currency={stall.currency} discountSettingsHref={hasPermission(account.role, "MANAGE_STALL") ? `/merchant/stalls/${stall.id}/settings/modules?source=staff#discount-options` : undefined} cashShiftHref={`/staff/${stall.slug}/cash`} message={message} />
+      <StaffOrderCheckoutDialog controller={checkout} updatingOrderId={updatingOrderId} currency={stall.currency} discountSettingsHref={hasPermission(account.role, "MANAGE_STALL") ? `/merchant/stalls/${stall.id}/settings/discounts?source=staff#discount-options` : undefined} cashShiftHref={`/staff/${stall.slug}/cash`} message={message} />
       <StaffOrderTimeProposalDialog controller={timeProposal} orders={orders} updatingOrderId={updatingOrderId} />
       <StaffOrderManualPickupDialog controller={manualPickup} orders={orders} verifyingPickupOrderId={verifyingPickupOrderId} />
       <StaffOrderCancellationDialog controller={cancellation} updatingOrderId={updatingOrderId} />

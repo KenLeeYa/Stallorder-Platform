@@ -1,4 +1,4 @@
--- Integrated print center: connection profiles, routing rules, 57/58 mm and
+-- Integrated print center rollout after the KDS reconciliation: connection profiles, routing rules, 57/58 mm and
 -- 80 mm layouts, direct device tests, and confirmation/payment event routing.
 
 do $$

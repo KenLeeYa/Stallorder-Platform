@@ -271,22 +271,48 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
     await login(page);
 
     try {
-      await page.goto(`/merchant/stalls/${stallId}/settings/modules`);
+      await page.goto(`/merchant/stalls/${stallId}/settings/preorder`);
       await expect(page.getByLabel("顧客公開點餐網址")).toHaveValue(/\/store\/aming-01$/);
       await expect(page.getByLabel("LINE 自動回覆內容")).toContainText("選擇線上 Menu、外帶自取或外送");
       await expect(page.getByLabel("LINE 自動回覆內容")).toContainText(/\/store\/aming-01$/);
       await expect(page.getByRole("button", { name: "複製公開點餐網址", exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "複製 LINE 回覆內容", exact: true })).toBeVisible();
-      const preorderSwitch = page.getByRole("switch", { name: /外帶自取/ });
-      const lotterySwitch = page.getByRole("switch", { name: /抽抽樂推薦/ });
+      const preorderSwitch = page.getByRole("switch", { name: /外帶預約/ });
       await expect(preorderSwitch).toHaveAttribute("aria-checked", "false");
-      await expect(lotterySwitch).toHaveAttribute("aria-checked", "false");
       await preorderSwitch.click();
-      await lotterySwitch.click();
 
       await page.getByLabel("最少提前（分鐘）").fill("45");
       await page.getByLabel("最多預約天數").fill("5");
       await page.getByLabel("時段間隔").selectOption("60");
+      const preorderSaveResponsePromise = page.waitForResponse((response) => (
+        new URL(response.url()).pathname === `/api/merchant/stalls/${stallId}/modules`
+        && response.request().method() === "PATCH"
+        && response.request().postDataJSON()?.operation === "UPDATE_MODULES"
+      ));
+      await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+      const preorderSaveResponse = await preorderSaveResponsePromise;
+      expect(preorderSaveResponse.status()).toBe(200);
+      const preorderSaveBody = preorderSaveResponse.request().postDataJSON();
+      expect(preorderSaveBody).not.toHaveProperty("enabledLocales");
+      expect(preorderSaveBody).toMatchObject({
+        view: "preorder",
+        takeoutPreorderEnabled: true,
+        preorderMinLeadMinutes: 45,
+        preorderMaxDays: 5,
+        preorderSlotMinutes: 60,
+      });
+      await expect(page.getByRole("status")).toHaveText("模組開關已儲存。");
+
+      await page.reload();
+      await expect(page.getByRole("switch", { name: /外帶預約/ })).toHaveAttribute("aria-checked", "true");
+      await expect(page.getByLabel("最少提前（分鐘）")).toHaveValue("45");
+      await expect(page.getByLabel("最多預約天數")).toHaveValue("5");
+      await expect(page.getByLabel("時段間隔")).toHaveValue("60");
+
+      await page.goto(`/merchant/stalls/${stallId}/settings/lottery`);
+      const lotterySwitch = page.getByRole("switch", { name: /抽抽樂推薦/ });
+      await expect(lotterySwitch).toHaveAttribute("aria-checked", "false");
+      await lotterySwitch.click();
       await page.getByTestId(`lottery-discount-row-${temporaryDiscountId}`).getByRole("checkbox").check();
       await page.getByTestId(`lottery-discount-row-${secondTemporaryDiscountId}`).getByRole("checkbox").check();
       await page.getByTestId(`lottery-discount-rate-${temporaryDiscountId}`).fill("40");
@@ -294,21 +320,17 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       await expect(page.getByText("折扣中獎率合計 100%", { exact: true })).toBeVisible();
       await expect(page.getByText("未中獎／只推薦 0%", { exact: true })).toBeVisible();
 
-      const saveResponsePromise = page.waitForResponse((response) => (
+      const lotterySaveResponsePromise = page.waitForResponse((response) => (
         new URL(response.url()).pathname === `/api/merchant/stalls/${stallId}/modules`
         && response.request().method() === "PATCH"
         && response.request().postDataJSON()?.operation === "UPDATE_MODULES"
       ));
-      await page.getByRole("button", { name: "儲存模組開關", exact: true }).click();
-      const saveResponse = await saveResponsePromise;
-      expect(saveResponse.status()).toBe(200);
-      const saveBody = saveResponse.request().postDataJSON();
-      expect(saveBody).not.toHaveProperty("enabledLocales");
-      expect(saveBody).toMatchObject({
-        takeoutPreorderEnabled: true,
-        preorderMinLeadMinutes: 45,
-        preorderMaxDays: 5,
-        preorderSlotMinutes: 60,
+      await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+      const lotterySaveResponse = await lotterySaveResponsePromise;
+      expect(lotterySaveResponse.status()).toBe(200);
+      const lotterySaveBody = lotterySaveResponse.request().postDataJSON();
+      expect(lotterySaveBody).toMatchObject({
+        view: "lottery",
         lotteryEnabled: true,
         lotteryDiscountOptionId: temporaryDiscountId,
         lotteryDiscountWinRateBps: 4_000,
@@ -320,11 +342,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       await expect(page.getByRole("status")).toHaveText("模組開關已儲存。");
 
       await page.reload();
-      await expect(page.getByRole("switch", { name: /外帶自取/ })).toHaveAttribute("aria-checked", "true");
       await expect(page.getByRole("switch", { name: /抽抽樂推薦/ })).toHaveAttribute("aria-checked", "true");
-      await expect(page.getByLabel("最少提前（分鐘）")).toHaveValue("45");
-      await expect(page.getByLabel("最多預約天數")).toHaveValue("5");
-      await expect(page.getByLabel("時段間隔")).toHaveValue("60");
       await expect(page.getByTestId(`lottery-discount-row-${temporaryDiscountId}`).getByRole("checkbox")).toBeChecked();
       await expect(page.getByTestId(`lottery-discount-row-${secondTemporaryDiscountId}`).getByRole("checkbox")).toBeChecked();
       await expect(page.getByTestId(`lottery-discount-rate-${temporaryDiscountId}`)).toHaveValue("40");
@@ -363,6 +381,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
 
       await verifyLiveLottery(browser);
 
+      await page.goto(`/merchant/stalls/${stallId}/settings/discounts`);
       const discountSaveButton = page.getByRole("button", { name: `儲存 ${temporaryDiscountName}` });
       const configuredDiscountRow = discountSaveButton.locator("xpath=../..");
       await configuredDiscountRow.getByRole("switch").click();
@@ -373,6 +392,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       ));
       await discountSaveButton.click();
       expect((await disableDiscountResponsePromise).status()).toBe(200);
+      await page.goto(`/merchant/stalls/${stallId}/settings/lottery`);
       await expect(page.getByTestId(`lottery-discount-row-${temporaryDiscountId}`)).toHaveCount(0);
       await expect.poll(async () => prisma.$queryRaw<Array<{ count: number }>>`
         select count(*)::integer as count
@@ -531,14 +551,23 @@ async function verifyClosedPreorder(browser: Browser) {
 async function restoreThroughUi(page: Page) {
   if (!originalSettings || !originalStall) return;
 
-  await page.goto(`/merchant/stalls/${stallId}/settings/modules`);
-  await setSwitch(page, /外帶自取/, originalSettings.takeoutPreorderEnabled);
-  await setSwitch(page, /抽抽樂推薦/, originalSettings.lotteryEnabled);
+  await page.goto(`/merchant/stalls/${stallId}/settings/preorder`);
+  await setSwitch(page, /外帶預約/, originalSettings.takeoutPreorderEnabled);
   if (originalSettings.takeoutPreorderEnabled) {
     await page.getByLabel("最少提前（分鐘）").fill(String(originalSettings.preorderMinLeadMinutes));
     await page.getByLabel("最多預約天數").fill(String(originalSettings.preorderMaxDays));
     await page.getByLabel("時段間隔").selectOption(String(originalSettings.preorderSlotMinutes));
   }
+  const preorderResponsePromise = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === `/api/merchant/stalls/${stallId}/modules`
+    && response.request().method() === "PATCH"
+    && response.request().postDataJSON()?.operation === "UPDATE_MODULES"
+  ));
+  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+  expect((await preorderResponsePromise).status()).toBe(200);
+
+  await page.goto(`/merchant/stalls/${stallId}/settings/lottery`);
+  await setSwitch(page, /抽抽樂推薦/, originalSettings.lotteryEnabled);
   if (originalSettings.lotteryEnabled) {
     const selectedDiscounts = page.locator('input[id^="lottery-discount-"]:checked');
     while (await selectedDiscounts.count()) await selectedDiscounts.first().uncheck();
@@ -551,13 +580,13 @@ async function restoreThroughUi(page: Page) {
       );
     }
   }
-  const modulesResponsePromise = page.waitForResponse((response) => (
+  const lotteryResponsePromise = page.waitForResponse((response) => (
     new URL(response.url()).pathname === `/api/merchant/stalls/${stallId}/modules`
     && response.request().method() === "PATCH"
     && response.request().postDataJSON()?.operation === "UPDATE_MODULES"
   ));
-  await page.getByRole("button", { name: "儲存模組開關", exact: true }).click();
-  expect((await modulesResponsePromise).status()).toBe(200);
+  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+  expect((await lotteryResponsePromise).status()).toBe(200);
 
   await page.goto(`/merchant/stalls/${stallId}/settings/operations`);
   await page.getByLabel("營業狀態").selectOption(originalStall.businessStatus);

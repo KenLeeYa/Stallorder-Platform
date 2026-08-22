@@ -8,7 +8,12 @@ export type BestSellerRankRow = {
 type RankableProduct = {
   id: string;
   category: string;
+  group?: string | null;
 };
+
+function rankingSection(product: RankableProduct) {
+  return `${product.category}\u0000${product.group ?? "__UNGROUPED__"}`;
+}
 
 export function applyBestSellerRanking<T extends RankableProduct>(
   products: readonly T[],
@@ -21,7 +26,8 @@ export function applyBestSellerRanking<T extends RankableProduct>(
   );
   const categoryOrder = new Map<string, number>();
   for (const product of products) {
-    if (!categoryOrder.has(product.category)) categoryOrder.set(product.category, categoryOrder.size);
+    const section = rankingSection(product);
+    if (!categoryOrder.has(section)) categoryOrder.set(section, categoryOrder.size);
   }
 
   return products
@@ -30,7 +36,8 @@ export function applyBestSellerRanking<T extends RankableProduct>(
       return { product, rank, originalIndex };
     })
     .sort((left, right) => (
-      (categoryOrder.get(left.product.category) ?? 0) - (categoryOrder.get(right.product.category) ?? 0)
+      (categoryOrder.get(rankingSection(left.product)) ?? 0)
+        - (categoryOrder.get(rankingSection(right.product)) ?? 0)
       || (left.rank ?? Number.MAX_SAFE_INTEGER) - (right.rank ?? Number.MAX_SAFE_INTEGER)
       || left.originalIndex - right.originalIndex
     ))

@@ -139,9 +139,15 @@ describe("dual public order contract", () => {
   });
 
   it("uses one canonical DB preflight while retaining the same transaction RPCs", () => {
-    expect(createOrderSessionSource).toMatch(/admin\.rpc\(\s*"public_order_preflight"/);
-    expect(createPublicOrderSource).toMatch(/admin\.rpc\(\s*"public_order_preflight"/);
-    expect(trustedRpcRepositorySource).toContain("select public.public_order_preflight(");
+    expect(createOrderSessionSource).toMatch(
+      /admin\.rpc\(\s*"public_order_preflight_with_special_closure"/,
+    );
+    expect(createPublicOrderSource).toMatch(
+      /admin\.rpc\(\s*"public_order_preflight_with_special_closure"/,
+    );
+    expect(trustedRpcRepositorySource).toContain(
+      "select public.public_order_preflight_with_special_closure(",
+    );
     expect(circuitBServiceSource.match(/preflightPublicOrder\(/g)).toHaveLength(2);
 
     expect(createOrderSessionSource).toContain(

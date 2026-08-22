@@ -162,7 +162,7 @@ Deno.serve(async (request) => {
 
     const preflightItems = publicOrderItemsToRpc(input.items);
     const { data: preflightResult, error: preflightError } = await timing.measureDb(() => admin.rpc(
-      "public_order_preflight",
+      "public_order_preflight_with_special_closure",
       {
         p_scope: "ORDER",
         p_qr_token: input.qrToken,

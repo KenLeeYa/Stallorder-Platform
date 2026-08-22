@@ -1,4 +1,4 @@
-import type { FulfillmentType, OrderItemStatus, OrderStatus, PaymentStatus, Prisma } from "@prisma/client";
+import type { FulfillmentType, OrderItemStatus, OrderStatus, PaymentStatus, PrintJobStatus, Prisma } from "@prisma/client";
 import {
   resolveFulfillmentTimeReadModel,
   type FulfillmentTimeState,
@@ -39,6 +39,12 @@ export const staffOrderSelect = {
   fulfillmentTimeResponseExpiresAt: true,
   fulfillmentTimeChangeReason: true,
   createdAt: true,
+  printJobs: {
+    where: { reprintOfId: null },
+    orderBy: { createdAt: "asc" },
+    take: 1,
+    select: { status: true },
+  },
   items: {
     select: {
       id: true,
@@ -92,6 +98,7 @@ export type StaffOrderDto = {
   fulfillmentTimeResponseExpiresAt: string | null;
   fulfillmentTimeChangeReason: string | null;
   createdAt: string;
+  primaryPrintStatus: PrintJobStatus | null;
   items: Array<{
     id: string;
     name: string;
@@ -108,6 +115,7 @@ export type StaffOrderDto = {
 };
 
 export function serializeStaffOrder(order: Prisma.OrderGetPayload<{ select: typeof staffOrderSelect }>): StaffOrderDto {
+  const { printJobs, ...orderWithoutPrintJobs } = order;
   const scheduledPickupAt = order.scheduledPickupAt?.toISOString() ?? null;
   const requestedFulfillmentAt = order.requestedFulfillmentAt?.toISOString() ?? null;
   const committedFulfillmentAt = order.committedFulfillmentAt?.toISOString() ?? null;
@@ -124,7 +132,8 @@ export function serializeStaffOrder(order: Prisma.OrderGetPayload<{ select: type
   });
 
   return {
-    ...order,
+    ...orderWithoutPrintJobs,
+    primaryPrintStatus: printJobs[0]?.status ?? null,
     pickupVerifiedAt: order.pickupVerifiedAt?.toISOString() ?? null,
     pickupVerificationMethod: order.pickupVerificationMethod === "CODE"
       ? "CODE"

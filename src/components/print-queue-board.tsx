@@ -44,6 +44,7 @@ export function PrintQueueBoard({ stall, initialState }: {
   const activePrinter = state.printers.find((printer) => printer.id === activePrinterId) ?? null;
   const activeConnectionType = activePrinter?.connectionType ?? null;
   const visibleJobs = useMemo(() => state.jobs.filter((job) => job.status !== "CANCELLED"), [state.jobs]);
+  const cancelledJobs = useMemo(() => state.jobs.filter((job) => job.status === "CANCELLED"), [state.jobs]);
 
   const refresh = useCallback(async () => {
     try {
@@ -286,6 +287,26 @@ export function PrintQueueBoard({ stall, initialState }: {
     </section>
 
     {systemPrintContent ? <pre className="hidden whitespace-pre-wrap font-mono text-[11pt] leading-tight print:block">{systemPrintContent}</pre> : null}
+
+    {cancelledJobs.length > 0 ? <section className="border-t border-stone-200 py-5 print:hidden">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-stone-700">{t("print.status.cancelled")}</h2>
+        <span className="text-xs text-stone-500">{t("common.count", { count: cancelledJobs.length })}</span>
+      </div>
+      <div className="mt-2 divide-y divide-stone-100">
+        {cancelledJobs.map((job) => <article key={job.id} className="flex min-h-12 items-center justify-between gap-3 py-2">
+          <span className="min-w-0 truncate text-sm font-medium">{t("print.order", { orderNo: job.order.orderNo })}</span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void run({ operation: "REPRINT", jobId: job.id }, t("print.reprintCreated"))}
+            className="h-9 shrink-0 rounded-md border border-stone-300 px-3 text-xs font-semibold disabled:opacity-50"
+          >
+            {t("print.reprint")}
+          </button>
+        </article>)}
+      </div>
+    </section> : null}
   </main>;
 }
 

@@ -18,17 +18,22 @@ const DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS = new Set([
   "5d9adcac5bd34598422fe135b724cbd3e7195a3ee2fb09e15e6c5f5d4962b6b1",
   "3b4178d16bc60a0544cee71db7a0a67d7d0b7f9a2b0ac236d6db7fb171c1d3ab",
   "56f4909ea45809273d08da77353eaeb590fb46a2459a4d4a0c928627102cb155",
+  "25151e6f8defb09d2d7f4559829dc127b35ca0ac56e58b823b10781371c395c6",
 ]);
 const COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST =
   "f5800627472b5df8278ff6a11f6d9a514201706e06021852b5bf5f37a67b8891";
 const EXISTING_TABLE_TRIGGER_MIGRATION_DIGEST =
   "f05d1e7dc42860f348b7607fd792ddd0d961d2cb48035dfac5ed8fa3d2532999";
 const INTEGRATED_PRINT_CENTER_MIGRATION_DIGEST =
-  "9fc357f652e8c9b11a5ab9adf271fe372cb5843c3245a8f38f724536627a7d48";
+  "2d4c37b30733061438344f47515c26fa33179d115f6e40b853e0a572a9f30750";
 const GLOBAL_STALL_CODE_ROLLOUT_MIGRATION_DIGEST =
   "529efb3b8385153595e85cb7c49b0c4a53d7fffccc35c3c9a31e8504e2b3dba4";
 const REPORT_DELIVERY_SCHEDULER_MIGRATION_DIGEST =
   "f9a24ac81577694f9bfd74175aacf470d6b176371cf4ffe3066b98f54ebdd9fa";
+const STAFF_KDS_SPECIAL_CLOSURES_MIGRATION_DIGEST =
+  "4fc4d1baff60a0e3adf1da897f4ba1d8a3d99a754969b8c962743ffe824cd26e";
+const STAFF_KDS_SPECIAL_CLOSURES_RECONCILIATION_MIGRATION_DIGEST =
+  "4a812bc323348fad6f330a561ac2238fa9538c97ad0de0898f89c16e37406bd0";
 
 export class AdditiveMigrationPlanError extends Error {
   constructor(code, details = {}) {
@@ -161,6 +166,8 @@ export function assertAdditiveMigrationSql(sql) {
     isApprovedExistingTableTriggerMigration(sql);
   const integratedPrintCenterMigration =
     isApprovedIntegratedPrintCenterMigration(sql);
+  const staffKdsSpecialClosuresMigration =
+    isApprovedStaffKdsSpecialClosuresMigration(sql);
   const drStandbyCompatibleMigration =
     phaseThreeHardLock || isApprovedDrStandbyCompatibleMigration(sql);
   const scan = scanSql(sql);
@@ -224,7 +231,11 @@ export function assertAdditiveMigrationSql(sql) {
         throw new AdditiveMigrationPlanError("DESTRUCTIVE_DDL_FORBIDDEN");
       }
     }
-    assertAllowedStatement(statement, phaseThreeHardLock);
+    assertAllowedStatement(
+      statement,
+      phaseThreeHardLock,
+      staffKdsSpecialClosuresMigration,
+    );
   }
   assertReplacementPairs(replacements);
   assertSecurityObjectProvenance(
@@ -886,7 +897,14 @@ function isApprovedCompatibleFunctionBodyMigration(sql) {
   const digest = sha256(sql.replace(/\r\n/gu, "\n").trim());
   return digest === COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST
     || digest === GLOBAL_STALL_CODE_ROLLOUT_MIGRATION_DIGEST
-    || digest === REPORT_DELIVERY_SCHEDULER_MIGRATION_DIGEST;
+    || digest === REPORT_DELIVERY_SCHEDULER_MIGRATION_DIGEST
+    || digest === STAFF_KDS_SPECIAL_CLOSURES_MIGRATION_DIGEST
+    || digest === STAFF_KDS_SPECIAL_CLOSURES_RECONCILIATION_MIGRATION_DIGEST;
+}
+
+function isApprovedStaffKdsSpecialClosuresMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === STAFF_KDS_SPECIAL_CLOSURES_MIGRATION_DIGEST;
 }
 
 function isApprovedExistingTableTriggerMigration(sql) {
@@ -1186,9 +1204,15 @@ function isAllowedAlterTableStatement(statement) {
   ));
 }
 
-function assertAllowedStatement(statement, phaseThreeHardLock) {
+function assertAllowedStatement(
+  statement,
+  phaseThreeHardLock,
+  staffKdsSpecialClosuresMigration,
+) {
   const allowed = [
     phaseThreeHardLock && isPhaseThreeHardLockCleanup(statement),
+    staffKdsSpecialClosuresMigration
+      && /^alter\s+table\s+public\.stall_ordering_settings\s+alter\s+column\s+kds_module_enabled\s+set\s+default\s+false$/iu.test(statement),
     isAllowedAlterTableStatement(statement),
     /^alter\s+type\b[\s\S]*\badd\s+value\b/iu,
     /^create\s+(?:or\s+replace\s+)?function\b/iu,

@@ -7,6 +7,7 @@ import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { hashClientIp, hashToken } from "@/lib/security";
+import { completeStreamlinedOrderAfterPickup } from "@/server/printing/streamlined-order-completion";
 
 const pickupSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("CODE"), code: z.string().regex(/^\d{3}$|^\d{6}$/) }).strict(),
@@ -103,6 +104,7 @@ export async function POST(request: Request, context: RouteContext) {
         createdBy: authorization.principal.user.id,
       },
     });
+    await completeStreamlinedOrderAfterPickup(transaction, orderId, verifiedAt);
     return true;
   });
   if (!verified) {

@@ -114,6 +114,7 @@ export async function getStaffOrderPageConfiguration(
         dineInEnabled: true,
         staffDeliveryEnabled: true,
         printModuleEnabled: true,
+        kdsModuleEnabled: true,
         paymentModuleEnabled: true,
         discountModuleEnabled: true,
         discountApprovalThresholdBps: true,
@@ -129,6 +130,7 @@ export async function getStaffOrderPageConfiguration(
         dineInEnabled: true,
         staffDeliveryEnabled: true,
         printModuleEnabled: true,
+        kdsModuleEnabled: true,
         paymentModuleEnabled: true,
         discountModuleEnabled: true,
         discountApprovalThresholdBps: true,
@@ -209,6 +211,7 @@ export async function getStaffOrderPageConfiguration(
     modules: {
       ...fulfillmentModules,
       print: settings?.printModuleEnabled ?? false,
+      kds: settings?.kdsModuleEnabled ?? false,
       payment: settings?.paymentModuleEnabled ?? false,
       discount: settings?.discountModuleEnabled ?? false,
       discountApprovalThresholdBps: settings?.discountApprovalThresholdBps ?? 8000,

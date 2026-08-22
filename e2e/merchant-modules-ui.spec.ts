@@ -16,7 +16,7 @@ async function waitForReactHandler(control: Locator, handler: "onClick" | "onCha
   }, handler), { message: `等待 React 掛載 ${handler}` }).toBe(true);
 }
 
-test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", async ({ browser, page }, testInfo) => {
+test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async ({ browser, page }, testInfo) => {
   test.setTimeout(180_000);
   await gotoLocalPath(page, "/login");
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
@@ -60,7 +60,18 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
     "基本資料",
     "營運狀態",
     "營業時間",
-    "營運模組與內用桌位",
+    "特殊營業日與公休公告",
+    "內用點餐",
+    "內用桌位與專屬 QR",
+    "線上外送",
+    "店員外送點餐",
+    "訂單列印",
+    "廚房 KDS",
+    "付款方式",
+    "結帳折扣",
+    "外帶預約",
+    "抽抽樂推薦",
+    "QR 點餐語系",
     "安全與訂單限制",
     "多攤位範本",
     "攤位成員",
@@ -156,32 +167,19 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
   await expect(memberEmail).toBeFocused();
   await memberEmail.fill("");
 
-  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/modules`);
-  await expect(page.getByRole("heading", { name: "營運模組與內用桌位", exact: true })).toBeVisible();
-  const moduleSections = page.locator("details[data-module-section]");
-  await expect(moduleSections).toHaveCount(7);
-  await expect.poll(async () => moduleSections.evaluateAll((sections) => (
-    sections.every((section) => (section as HTMLDetailsElement).open)
-  ))).toBe(true);
-  const moduleSectionsToggle = page.getByTestId("stall-modules-toggle-all");
-  await expect(moduleSectionsToggle).toHaveText("全部摺疊");
-  await expect(moduleSectionsToggle).toHaveAttribute("aria-expanded", "true");
-  await moduleSectionsToggle.click();
-  await expect.poll(async () => moduleSections.evaluateAll((sections) => (
-    sections.every((section) => !(section as HTMLDetailsElement).open)
-  ))).toBe(true);
-  await expect(moduleSectionsToggle).toHaveText("全部展開");
-  await expect(moduleSectionsToggle).toHaveAttribute("aria-expanded", "false");
-  await moduleSectionsToggle.click();
-  await expect.poll(async () => moduleSections.evaluateAll((sections) => (
-    sections.every((section) => (section as HTMLDetailsElement).open)
-  ))).toBe(true);
-  await expect(page.getByRole("switch", { name: /內用桌位/ })).toHaveAttribute("aria-checked", "true");
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/dine-in`);
+  await expect(page.getByRole("heading", { name: "內用點餐", exact: true })).toBeVisible();
+  await expect(page.getByTestId("stall-modules-toggle-all")).toHaveCount(0);
+  await expect(page.getByRole("switch", { name: /內用點餐/ })).toHaveAttribute("aria-checked", "true");
+
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/printing`);
+  await expect(page.getByRole("heading", { name: "訂單列印", exact: true })).toBeVisible();
   await expect(page.getByRole("switch", { name: /訂單列印/ })).toHaveAttribute("aria-checked", "true");
-  for (const moduleName of ["內用桌位", "線上外送", "訂單列印", "多元付款", "結帳折扣"]) {
-    await expect(page.getByRole("switch", { name: new RegExp(moduleName) }).locator("svg")).toHaveCount(1);
-  }
+  await expect(page.getByRole("switch", { name: /訂單列印/ }).locator("svg")).toHaveCount(1);
   await page.locator("[data-module-switch-grid]").screenshot({ path: testInfo.outputPath("module-switch-icons.png") });
+
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/languages`);
+  await expect(page.getByRole("heading", { name: "QR 點餐語系", exact: true }).first()).toBeVisible();
   const localeSection = page.locator('details[aria-label="QR 點餐語系"]');
   if (!(await localeSection.evaluate((element) => (element as HTMLDetailsElement).open))) {
     await localeSection.locator("summary").click();
@@ -278,6 +276,8 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
     }
   }
 
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/dining-tables`);
+  await expect(page.getByRole("heading", { name: "內用桌位與專屬 QR", exact: true }).first()).toBeVisible();
   const floorEditor = page.getByRole("region", { name: "桌位平面配置" });
   await expect(floorEditor).toBeVisible();
   const floorTable = floorEditor.getByRole("button", { name: "移動 A1 桌" });
@@ -307,10 +307,17 @@ test("商戶可管理營運模組與 QR 語系，並檢視其他營運設定", a
     top: (element as HTMLElement).style.top,
   }))).toEqual(originalPosition);
   await expect(page.locator('input[value="A1 桌"]')).toBeVisible();
+
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/payments`);
+  await expect(page.getByRole("heading", { name: "付款方式", exact: true }).first()).toBeVisible();
   await expect(page.locator('input[value="LINE Pay"]')).toBeVisible();
   await expect(page.locator('input[value="街口支付"]')).toBeVisible();
+
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/discounts`);
+  await expect(page.getByRole("heading", { name: "結帳折扣", exact: true }).first()).toBeVisible();
   await expect(page.locator('input[value="9 折"]')).toBeVisible();
 
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/payments`);
   const paymentSection = page.locator("#payment-options");
   const newPaymentCode = paymentSection.locator('[data-field-key="new-payment:code"]');
   const newPaymentName = paymentSection.locator('[data-field-key="new-payment:name"]');

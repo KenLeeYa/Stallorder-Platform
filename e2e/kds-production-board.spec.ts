@@ -94,7 +94,7 @@ test("KDS 即時事件流使用獨立權限邊界", async ({ page }) => {
   expect(generalStreamStatus).toBe(403);
 });
 
-test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ page }) => {
+test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     const sentinel = new EventTarget() as EventTarget & { release: () => Promise<void> };
@@ -113,8 +113,24 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   await login(page, "kitchen@stallorder.test");
   await expect(page).toHaveURL(/\/kitchen\?stall=aming-chicken/);
   await expect(page.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
+  const navigation = page.locator('[data-testid="kitchen-primary-navigation"]:visible').last();
+  const header = page.locator("header:visible").filter({ has: navigation }).last();
+  await expect(navigation).toBeVisible();
+  expect(await header.evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
+  const navigationTargets = await navigation.locator("a").evaluateAll((elements) => elements.map((element) => {
+    const bounds = element.getBoundingClientRect();
+    return { width: bounds.width, height: bounds.height };
+  }));
+  expect(navigationTargets.every(({ width, height }) => width >= 40 && height >= 40)).toBe(true);
   await expect(page.getByText("輪詢同步", { exact: true })).toBeVisible();
   const board = page.locator("main").last();
+  const utilityToolbar = page.locator('[data-testid="kitchen-utility-toolbar"]:visible').last();
+  const utilityTargets = await utilityToolbar.locator('button, [role="status"]').evaluateAll((elements) => elements.map((element) => {
+    const bounds = element.getBoundingClientRect();
+    return { width: bounds.width, height: bounds.height };
+  }));
+  expect(utilityTargets.every(({ width, height }) => width >= 40 && height >= 40)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("kitchen-toolbar-mobile.png"), fullPage: false });
   const soundButton = board.getByTitle("開啟新單提示音");
   await expect(soundButton).toBeVisible();
   await soundButton.click();

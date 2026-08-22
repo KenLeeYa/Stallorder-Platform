@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   updateChoiceGroup: vi.fn(),
   findProduct: vi.fn(),
   createChoice: vi.fn(),
+  findProducts: vi.fn(),
+  executeRaw: vi.fn(),
 }));
 
 vi.mock("@/lib/authorization", () => ({
@@ -64,6 +66,8 @@ beforeEach(() => {
   mocks.updateChoiceGroup.mockResolvedValue({ id: choiceGroupId });
   mocks.findProduct.mockResolvedValue({ id: componentProductId, kind: "SINGLE" });
   mocks.createChoice.mockResolvedValue({ id: "ab200000-0000-4000-8000-000000000001" });
+  mocks.findProducts.mockResolvedValue([]);
+  mocks.executeRaw.mockResolvedValue(0);
   mocks.runTransaction.mockImplementation(async (operation) => operation({
     productBundleChoiceGroup: {
       findFirst: mocks.findChoiceGroup,
@@ -71,8 +75,9 @@ beforeEach(() => {
       create: mocks.createChoiceGroup,
       update: mocks.updateChoiceGroup,
     },
-    product: { findFirst: mocks.findProduct },
+    product: { findFirst: mocks.findProduct, findMany: mocks.findProducts },
     productBundleChoice: { create: mocks.createChoice },
+    $executeRaw: mocks.executeRaw,
   }));
 });
 
@@ -216,4 +221,34 @@ describe("共享商品套餐 API", () => {
     });
     expect(mocks.updateChoiceGroup).not.toHaveBeenCalled();
   });
+
+  it("以兩次 bulk SQL 同步商品與各攤位公開排序", async () => {
+    const firstProductId = "ab300000-0000-4000-8000-000000000001";
+    const secondProductId = "ab300000-0000-4000-8000-000000000002";
+    const categoryId = "ab400000-0000-4000-8000-000000000001";
+    mocks.findProducts.mockResolvedValue([{ id: firstProductId }, { id: secondProductId }]);
+    mocks.executeRaw.mockResolvedValueOnce(2).mockResolvedValueOnce(4);
+    const route = await import("./route");
+
+    const response = await route.POST(new Request(`https://example.test/api/merchant/organizations/${organizationId}/catalog`, {
+      method: "POST",
+      body: JSON.stringify({
+        operation: "REORDER_PRODUCTS",
+        categoryId,
+        groupId: null,
+        productIds: [secondProductId, firstProductId],
+      }),
+    }), { params: Promise.resolve({ organizationId }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
+    expect(sqlText(mocks.executeRaw.mock.calls[0]?.[0])).toContain("update public.products");
+    expect(sqlText(mocks.executeRaw.mock.calls[1]?.[0])).toContain("update public.stall_products");
+    expect(mocks.invalidatePublicMenus).toHaveBeenCalledWith(["22222222-2222-4222-8222-222222222222"]);
+  });
 });
+
+function sqlText(query: unknown) {
+  if (!query || typeof query !== "object" || !("strings" in query)) return "";
+  return Array.from((query as { strings: readonly string[] }).strings).join("?");
+}

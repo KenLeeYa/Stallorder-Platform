@@ -23,6 +23,7 @@ import {
   printJobTicketSelect,
   resolvePrintJobTicketPayload,
 } from "@/server/printing/print-job-ticket";
+import { completeStreamlinedOrderAfterPrint } from "@/server/printing/streamlined-order-completion";
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
 type Transaction = Prisma.TransactionClient;
@@ -308,6 +309,7 @@ export async function POST(request: Request, context: RouteContext) {
           data: { status: "SUCCEEDED", printedAt: new Date(), lastError: null, nextRetryAt: null },
         });
         if (changed.count !== 1) throw new PrintQueueConflictError();
+        await completeStreamlinedOrderAfterPrint(transaction, job.id);
       } else if (command.operation === "FAIL") {
         const changed = await transaction.printJob.updateMany({
           where: { id: job.id, status: "PRINTING" },

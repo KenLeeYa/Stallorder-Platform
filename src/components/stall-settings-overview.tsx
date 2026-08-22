@@ -6,15 +6,19 @@ import {
   Building2,
   CalendarClock,
   CalendarDays,
+  CalendarOff,
   CalendarRange,
   Clock3,
   Copy,
   Gauge,
+  Dices,
   Languages,
   ListTree,
   MapPinned,
   MessageCircle,
   MonitorUp,
+  Percent,
+  Printer,
   Rocket,
   Settings2,
   ShieldCheck,
@@ -22,8 +26,10 @@ import {
   Store,
   TabletSmartphone,
   Truck,
+  Utensils,
   UserRoundCog,
   Users,
+  WalletCards,
   type LucideIcon,
 } from "lucide-react";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
@@ -58,6 +64,7 @@ export function StallSettingsOverview({
   canManageReportSchedules,
   canManageOrganization,
   canManageDelivery,
+  kdsEnabled,
   showMerchantSetup,
 }: {
   workspaceId: string;
@@ -69,6 +76,7 @@ export function StallSettingsOverview({
   canManageReportSchedules: boolean;
   canManageOrganization: boolean;
   canManageDelivery: boolean;
+  kdsEnabled: boolean;
   showMerchantSetup: boolean;
 }) {
   const { m } = useMerchantMessages();
@@ -81,7 +89,18 @@ export function StallSettingsOverview({
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/basic`} icon={Store} label={m("基本資料")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/operations`} icon={Activity} label={m("營運狀態")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/business-hours`} icon={Clock3} label={m("營業時間")} />
-          <SettingsLink href={`/merchant/stalls/${stallId}/settings/modules`} icon={SlidersHorizontal} label={m("營運模組與內用桌位")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/special-hours`} icon={CalendarOff} label={m("特殊營業日與公休公告")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/dine-in`} icon={Utensils} label={m("內用點餐")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/dining-tables`} icon={MapPinned} label={m("內用桌位與專屬 QR")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/delivery`} icon={Truck} label={m("線上外送")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/staff-delivery`} icon={Truck} label={m("店員外送點餐")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/printing`} icon={Printer} label={m("訂單列印")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/kds`} icon={SlidersHorizontal} label={m("廚房 KDS")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/payments`} icon={WalletCards} label={m("付款方式")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/discounts`} icon={Percent} label={m("結帳折扣")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/preorder`} icon={CalendarClock} label={m("外帶預約")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/lottery`} icon={Dices} label={m("抽抽樂推薦")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/languages`} icon={Languages} label={m("QR 點餐語系")} />
           {canManageOrdering ? (
             <SettingsLink href={`/merchant/stalls/${stallId}/settings/order-limits`} icon={ShieldCheck} label={m("安全與訂單限制")} />
           ) : null}
@@ -96,8 +115,8 @@ export function StallSettingsOverview({
       <section aria-labelledby="operational-tools-title" className="border-b border-stone-200 py-6">
         <h2 id="operational-tools-title" className="text-lg font-semibold">{m("營運工具")}</h2>
         <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <SettingsLink href={`/merchant/stalls/${stallId}/kitchen/stations`} icon={ListTree} label={m("KDS 工作站")} />
-          <SettingsLink href={`/merchant/stalls/${stallId}/kitchen/settings`} icon={Settings2} label={m("KDS 設定")} />
+          {kdsEnabled ? <SettingsLink href={`/merchant/stalls/${stallId}/kitchen/stations`} icon={ListTree} label={m("KDS 工作站")} /> : null}
+          {kdsEnabled ? <SettingsLink href={`/merchant/stalls/${stallId}/kitchen/settings`} icon={Settings2} label={m("KDS 設定")} /> : null}
           <SettingsLink href={`/merchant/stalls/${stallId}/display`} icon={MonitorUp} label={m("CDS 取餐顯示")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/capacity`} icon={Gauge} label={m("產能與等候時間")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/locations`} icon={MapPinned} label={m("常用地點")} />

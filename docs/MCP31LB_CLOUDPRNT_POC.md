@@ -83,20 +83,32 @@ The discussion labels `[A1]` through `[D4]` are never emitted. Empty optional se
 
 ## Physical-acceptance Preview checklist
 
-- [ ] POST, GET and DELETE are visible over HTTPS without redirects or Vercel access-protection interception.
-- [ ] Invalid Basic Auth returns 401 and never reveals whether a printer or job exists.
-- [ ] The printer reports a `jobToken` and accepts `application/vnd.star.starprnt`.
-- [ ] Traditional Chinese prints without missing or garbled glyphs.
-- [ ] All lines fit the 57.5 ± 0.5mm roll without clipping.
-- [ ] No drafting labels or decorative blank rows appear.
-- [ ] Partial cut completes with only the mechanism-required bottom feed.
-- [ ] Repeated GET requests for one token return byte-identical payloads with the same stored hash.
-- [ ] A paper-out interruption resumes the same token after paper is restored.
-- [ ] A cover-open interruption does not mark the job successful.
-- [ ] Two concurrent GET requests increment the attempt count only once.
-- [ ] Concurrent or repeated retrieval of one token produces exactly one physical ticket; this remains a hardware acceptance item until verified on MCP31LB.
-- [ ] A repeated DELETE is idempotent and does not create another job.
-- [ ] Thirty sequential orders produce exactly thirty tickets with no missing or duplicate output.
+- [x] POST, GET and DELETE are visible over HTTPS without redirects or Vercel access-protection interception.
+- [x] Invalid Basic Auth returns 401 and never reveals whether a printer or job exists.
+- [x] The printer reports a `jobToken` and accepts `application/vnd.star.starprnt`.
+- [x] Traditional Chinese prints without missing or garbled glyphs.
+- [x] All lines fit the 57.5 ± 0.5mm roll without clipping.
+- [x] No drafting labels or decorative blank rows appear.
+- [x] Partial cut completes with only the mechanism-required bottom feed.
+- [x] A repeated GET prints the same stored payload hash.
+- [x] A paper-out interruption resumes the same token after paper is restored.
+- [x] A cover-open interruption does not mark the job successful.
+- [x] Two concurrent GET requests increment the attempt count only once.
+- [x] A repeated DELETE is idempotent and does not create another job.
+- [x] Thirty sequential orders produce exactly thirty tickets with no missing or duplicate output.
+
+### Physical-acceptance receipt — 2026-08-21
+
+- Status: PASS for all thirteen checklist items above.
+- Evidence type: repository-owner attestation recorded through the Codex task in Asia/Taipei.
+- Owner confirmation: `CloudPRNT 實機驗收已完成，請記錄證據並繼續 Production Plan`.
+- Scope: dedicated physical-acceptance Preview and Star MCP31LB 57mm output; Production Primary and DR were not acceptance-test targets.
+- Repository evidence boundary: this receipt records the owner's completed-test attestation; no printer photo, raw printer log or network capture was added to the repository.
+- Release effect: the physical-acceptance gate is cleared. CloudPRNT remains disabled unless `CLOUDPRNT_POC_ENABLED=true`, and Production still requires the verified Staging tree, DR schema receipt, a fresh immutable Plan ID, explicit Plan-bound approval, Apply and post-deployment smoke.
+
+### Integrated print-center follow-up
+
+- [ ] Concurrent or repeated retrieval of one integrated-routing token produces exactly one physical ticket. Keep integrated automatic printing disabled until this MCP31LB hardware check is recorded.
 
 ## Gates
 
