@@ -18,6 +18,7 @@ export const replicatedPublicTables = Object.freeze([
   "billing_change_requests",
   "billing_feature_flags",
   "billing_notifications",
+  "billing_stall_usage_summaries",
   "billing_usage_summaries",
   "billing_webhook_events",
   "capacity_events",

@@ -55,57 +55,69 @@ alter table public.invoices
   add column pricing_mode text,
   add column pricing_snapshot_json jsonb;
 
-with historical_invoice_contracts as (
-  select distinct on (line_item.invoice_id)
-    line_item.invoice_id,
-    version.id as plan_version_id,
-    version.pricing_mode,
-    jsonb_build_object(
-      'planVersionId', version.id,
-      'planCode', plan.code,
-      'planVersion', version.version,
-      'pricingMode', version.pricing_mode,
-      'currency', version.currency,
-      'baseFee', version.base_price,
-      'usageUnitPrice', version.usage_unit_price,
-      'usageMetric', version.usage_metric,
-      'usageScope', version.usage_scope,
-      'monthlyCapAmount', version.monthly_cap_amount,
-      'minimumCharge', version.minimum_charge
-    ) as pricing_snapshot_json
-  from public.invoice_line_items line_item
-  join public.plan_versions version on version.id::text = line_item.reference_id
-  join public.plans plan on plan.id = version.plan_id
-  where line_item.item_type = 'BASE_PLAN'
-  order by line_item.invoice_id, line_item.created_at desc, line_item.id desc
-)
-update public.invoices invoice
-set plan_version_id = contract.plan_version_id,
-    pricing_mode = contract.pricing_mode,
-    pricing_snapshot_json = contract.pricing_snapshot_json
-from historical_invoice_contracts contract
-where invoice.id = contract.invoice_id
-  and invoice.plan_version_id is null;
-
 do $$
 begin
-  if exists (
+  if not exists (
     select 1
-    from public.invoices invoice
-    join (
+    from public.backend_runtime_state
+    where is_current
+      and backend_code = 'DR'
+      and backend_role = 'READ_ONLY_STANDBY'
+      and not writes_enabled
+      and enforcement_enabled
+  ) then
+    perform app_private.assert_backend_writable();
+
+    with historical_invoice_contracts as (
       select distinct on (line_item.invoice_id)
         line_item.invoice_id,
-        version.id as plan_version_id
+        version.id as plan_version_id,
+        version.pricing_mode,
+        jsonb_build_object(
+          'planVersionId', version.id,
+          'planCode', plan.code,
+          'planVersion', version.version,
+          'pricingMode', version.pricing_mode,
+          'currency', version.currency,
+          'baseFee', version.base_price,
+          'usageUnitPrice', version.usage_unit_price,
+          'usageMetric', version.usage_metric,
+          'usageScope', version.usage_scope,
+          'monthlyCapAmount', version.monthly_cap_amount,
+          'minimumCharge', version.minimum_charge
+        ) as pricing_snapshot_json
       from public.invoice_line_items line_item
       join public.plan_versions version on version.id::text = line_item.reference_id
+      join public.plans plan on plan.id = version.plan_id
       where line_item.item_type = 'BASE_PLAN'
       order by line_item.invoice_id, line_item.created_at desc, line_item.id desc
-    ) contract on contract.invoice_id = invoice.id
-    where invoice.plan_version_id is distinct from contract.plan_version_id
-  ) then
-    raise exception using
-      errcode = 'P0001',
-      message = 'PAYG_INVOICE_PRICING_BACKFILL_MISMATCH';
+    )
+    update public.invoices invoice
+    set plan_version_id = contract.plan_version_id,
+        pricing_mode = contract.pricing_mode,
+        pricing_snapshot_json = contract.pricing_snapshot_json
+    from historical_invoice_contracts contract
+    where invoice.id = contract.invoice_id
+      and invoice.plan_version_id is null;
+
+    if exists (
+      select 1
+      from public.invoices invoice
+      join (
+        select distinct on (line_item.invoice_id)
+          line_item.invoice_id,
+          version.id as plan_version_id
+        from public.invoice_line_items line_item
+        join public.plan_versions version on version.id::text = line_item.reference_id
+        where line_item.item_type = 'BASE_PLAN'
+        order by line_item.invoice_id, line_item.created_at desc, line_item.id desc
+      ) contract on contract.invoice_id = invoice.id
+      where invoice.plan_version_id is distinct from contract.plan_version_id
+    ) then
+      raise exception using
+        errcode = 'P0001',
+        message = 'PAYG_INVOICE_PRICING_BACKFILL_MISMATCH';
+    end if;
   end if;
 end;
 $$;
@@ -118,6 +130,19 @@ alter table public.invoices
 
 create index invoices_plan_version_period_idx
   on public.invoices (plan_version_id, billing_period_start, billing_period_end);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from public.backend_runtime_state
+    where is_current
+      and backend_code = 'DR'
+      and backend_role = 'READ_ONLY_STANDBY'
+      and not writes_enabled
+      and enforcement_enabled
+  ) then
+    perform app_private.assert_backend_writable();
 
 insert into public.billing_feature_flags (code, is_enabled, phase, description) values
   ('OPEN_BETA_FREE_ACCESS_ENABLED', true, 1, '開放測試期間允許免費使用；保留可信用量，不自動關帳。'),
@@ -159,8 +184,6 @@ from public.plans plan
 where plan.code = 'PAYG'
 on conflict (plan_id, version) do nothing;
 
-do $$
-begin
   if not exists (
     select 1
     from public.plans plan
@@ -184,8 +207,6 @@ begin
   ) then
     raise exception using errcode = 'P0001', message = 'PAYG_PRICING_CONTRACT_MISMATCH';
   end if;
-end;
-$$;
 
 insert into public.plan_entitlements (
   plan_version_id, feature_code, is_enabled, limit_value, configuration_json
@@ -246,6 +267,10 @@ where code in (
   'ORDER_PACKAGE_PRO_1000'
 )
   and is_public;
+
+  end if;
+end;
+$$;
 
 alter table public.usage_events
   drop constraint if exists usage_events_event_type_check;
@@ -327,8 +352,6 @@ alter table public.billing_stall_usage_summaries force row level security;
 
 revoke all on table public.billing_stall_usage_summaries
   from public, anon, authenticated;
-grant select on table public.billing_stall_usage_summaries to authenticated;
-grant select, insert, update, delete on table public.billing_stall_usage_summaries to service_role;
 
 create policy billing_stall_usage_summaries_financial_select
 on public.billing_stall_usage_summaries
@@ -342,6 +365,15 @@ for select to authenticated using (
     ]
   )
 );
+
+grant select (
+  id, organization_id, stall_id, billing_period,
+  gross_completed_order_count, full_refund_credit_count,
+  net_billable_order_count, unit_price, uncapped_amount,
+  cap_amount, final_charge, cap_savings,
+  calculated_at, created_at, updated_at
+) on table public.billing_stall_usage_summaries to authenticated;
+grant select, insert, update, delete on table public.billing_stall_usage_summaries to service_role;
 
 create or replace function public.billing_open_beta_free_access_enabled()
 returns boolean
@@ -755,6 +787,21 @@ create trigger orders_billable_full_refund_after_update
 after update of payment_status on public.orders
 for each row execute function public.record_billable_order_full_refund();
 
+do $$
+declare
+  row record;
+begin
+  if not exists (
+    select 1
+    from public.backend_runtime_state
+    where is_current
+      and backend_code = 'DR'
+      and backend_role = 'READ_ONLY_STANDBY'
+      and not writes_enabled
+      and enforcement_enabled
+  ) then
+    perform app_private.assert_backend_writable();
+
 insert into public.usage_events (
   organization_id, stall_id, event_type, quantity, billing_period,
   reference_type, reference_id, occurred_at
@@ -769,10 +816,6 @@ where completion.event_type = 'BILLABLE_ORDER_COMPLETED'
   and orders.payment_status = 'REFUNDED'::public.payment_status
 on conflict do nothing;
 
-do $$
-declare
-  row record;
-begin
   for row in
     select distinct organization_id, billing_period
     from public.usage_events
@@ -780,6 +823,7 @@ begin
   loop
     perform public.rebuild_payg_stall_usage_summaries(row.organization_id, row.billing_period);
   end loop;
+  end if;
 end;
 $$;
 

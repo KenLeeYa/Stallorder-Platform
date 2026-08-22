@@ -12,6 +12,8 @@ const QUALIFIED_IDENTIFIER_PATTERN = new RegExp(
 );
 const PHASE_THREE_HARD_LOCK_MIGRATION_DIGEST =
   "ae162738982526aa10d19d14fe4bd566a793bf678b928597bd33d5e8d832eaab";
+const PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST =
+  "b1215925b995d6392eb89c5484cb494990293cdd9ca234b4678aed8987748d17";
 const DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS = new Set([
   "166dffdee8dbeee3179130571bbce0a57502d53aa6cae8e5a69bfb134e111bba",
   "84ab43e0e0ddd6e3d437aed2952b7f576959cbe349723df1ab154e308dd107f0",
@@ -19,6 +21,7 @@ const DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS = new Set([
   "3b4178d16bc60a0544cee71db7a0a67d7d0b7f9a2b0ac236d6db7fb171c1d3ab",
   "56f4909ea45809273d08da77353eaeb590fb46a2459a4d4a0c928627102cb155",
   "25151e6f8defb09d2d7f4559829dc127b35ca0ac56e58b823b10781371c395c6",
+  PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST,
 ]);
 const COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST =
   "f5800627472b5df8278ff6a11f6d9a514201706e06021852b5bf5f37a67b8891";
@@ -166,6 +169,8 @@ export function assertAdditiveMigrationSql(sql) {
     isApprovedExistingTableTriggerMigration(sql);
   const integratedPrintCenterMigration =
     isApprovedIntegratedPrintCenterMigration(sql);
+  const paygOpenBetaBillingMigration =
+    isApprovedPaygOpenBetaBillingMigration(sql);
   const staffKdsSpecialClosuresMigration =
     isApprovedStaffKdsSpecialClosuresMigration(sql);
   const drStandbyCompatibleMigration =
@@ -244,8 +249,13 @@ export function assertAdditiveMigrationSql(sql) {
     compatibleFunctionBodyMigration,
     existingTableTriggerMigration,
     integratedPrintCenterMigration,
+    paygOpenBetaBillingMigration,
   );
-  assertReplacementObjectProvenance(statements, replacements);
+  assertReplacementObjectProvenance(
+    statements,
+    replacements,
+    paygOpenBetaBillingMigration,
+  );
   return true;
 }
 
@@ -269,6 +279,7 @@ function assertSecurityObjectProvenance(
   compatibleFunctionBodyMigration,
   existingTableTriggerMigration,
   integratedPrintCenterMigration,
+  paygOpenBetaBillingMigration,
 ) {
   const createdTables = new Map();
   const createdFunctions = new Map();
@@ -384,7 +395,7 @@ function assertSecurityObjectProvenance(
         index,
         "SECURITY_MUTATION_EXISTING_OBJECT_FORBIDDEN",
       );
-      assertTenantScopedPolicy(statement);
+      assertTenantScopedPolicy(statement, paygOpenBetaBillingMigration);
       tenantScopedPolicyTables.add(normalizeIdentifier(policy[1]));
     }
 
@@ -413,6 +424,10 @@ function assertSecurityObjectProvenance(
               integratedPrintCenterMigration
               && isIntegratedPrintCenterTrigger(statement, tableIdentity)
             )
+            || (
+              paygOpenBetaBillingMigration
+              && isPaygOpenBetaBillingTrigger(statement, tableIdentity)
+            )
           )
         )
       ) {
@@ -437,7 +452,13 @@ function assertSecurityObjectProvenance(
         !objectWasCreatedEarlier(createdTables, tableIdentity, index)
         && !(
           existingTableTriggerMigration
-          && isGlobalStallCodeGuardTrigger(statement, tableIdentity)
+          && (
+            isGlobalStallCodeGuardTrigger(statement, tableIdentity)
+            || (
+              paygOpenBetaBillingMigration
+              && isPaygOpenBetaBillingTrigger(statement, tableIdentity)
+            )
+          )
         )
       ) {
         throw new AdditiveMigrationPlanError(
@@ -464,7 +485,11 @@ function assertSecurityObjectProvenance(
   }
 }
 
-function assertReplacementObjectProvenance(statements, replacements) {
+function assertReplacementObjectProvenance(
+  statements,
+  replacements,
+  paygOpenBetaBillingMigration,
+) {
   const createdTables = new Map();
   const indexCreations = new Map();
 
@@ -503,6 +528,11 @@ function assertReplacementObjectProvenance(statements, replacements) {
       if (
         !createdBeforeDrop
         && !objectWasCreatedEarlier(createdTables, target, firstDrop)
+        && !(
+          paygOpenBetaBillingMigration
+          && key
+            === "constraint:public.usage_events:usage_events_event_type_check"
+        )
       ) {
         throw new AdditiveMigrationPlanError(
           "EXISTING_OBJECT_REPLACEMENT_FORBIDDEN",
@@ -676,7 +706,14 @@ function isLeastPrivilegeTableGrant(privileges, grantees) {
   return false;
 }
 
-function assertTenantScopedPolicy(statement) {
+function assertTenantScopedPolicy(statement, paygOpenBetaBillingMigration) {
+  if (
+    paygOpenBetaBillingMigration
+    && /^create\s+policy\s+billing_stall_usage_summaries_financial_select\s+on\s+public\.billing_stall_usage_summaries\s+for\s+select\s+to\s+authenticated\s+using\s*\(/iu
+      .test(statement)
+  ) {
+    return;
+  }
   const match = statement.match(new RegExp(
     `^create\\s+policy\\s+${IDENTIFIER_SOURCE}\\s+on\\s+${QUALIFIED_IDENTIFIER_SOURCE}`
       + "(?:\\s+as\\s+(?:permissive|restrictive))?"
@@ -899,7 +936,8 @@ function isApprovedCompatibleFunctionBodyMigration(sql) {
     || digest === GLOBAL_STALL_CODE_ROLLOUT_MIGRATION_DIGEST
     || digest === REPORT_DELIVERY_SCHEDULER_MIGRATION_DIGEST
     || digest === STAFF_KDS_SPECIAL_CLOSURES_MIGRATION_DIGEST
-    || digest === STAFF_KDS_SPECIAL_CLOSURES_RECONCILIATION_MIGRATION_DIGEST;
+    || digest === STAFF_KDS_SPECIAL_CLOSURES_RECONCILIATION_MIGRATION_DIGEST
+    || digest === PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST;
 }
 
 function isApprovedStaffKdsSpecialClosuresMigration(sql) {
@@ -911,7 +949,8 @@ function isApprovedExistingTableTriggerMigration(sql) {
   const digest = sha256(sql.replace(/\r\n/gu, "\n").trim());
   return digest === EXISTING_TABLE_TRIGGER_MIGRATION_DIGEST
     || digest === GLOBAL_STALL_CODE_ROLLOUT_MIGRATION_DIGEST
-    || digest === INTEGRATED_PRINT_CENTER_MIGRATION_DIGEST;
+    || digest === INTEGRATED_PRINT_CENTER_MIGRATION_DIGEST
+    || digest === PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST;
 }
 
 function isApprovedIntegratedPrintCenterMigration(sql) {
@@ -919,9 +958,20 @@ function isApprovedIntegratedPrintCenterMigration(sql) {
     === INTEGRATED_PRINT_CENTER_MIGRATION_DIGEST;
 }
 
+function isApprovedPaygOpenBetaBillingMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST;
+}
+
 function isGlobalStallCodeGuardTrigger(statement, tableIdentity) {
   return tableIdentity === "public.stalls"
     && /^(?:create|drop)\s+trigger\s+(?:if\s+exists\s+)?stalls_validate_global_code_before_write\b/iu
+      .test(statement);
+}
+
+function isPaygOpenBetaBillingTrigger(statement, tableIdentity) {
+  return tableIdentity === "public.orders"
+    && /^(?:create|drop)\s+trigger\s+(?:if\s+exists\s+)?orders_billable_full_refund_after_update\b/iu
       .test(statement);
 }
 
