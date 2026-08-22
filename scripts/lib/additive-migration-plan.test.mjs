@@ -15,6 +15,10 @@ const integratedPrintCenterMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260822010000_integrated_print_center.sql",
 ), "utf8");
+const integratedPrintRoutingFixMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260822013000_fix_integrated_print_center_routing.sql",
+), "utf8");
 const staffKdsSpecialClosuresMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260821193000_staff_kds_special_closures.sql",
@@ -203,6 +207,31 @@ describe("additive DR migration plan", () => {
         "orders_unreviewed_print_trigger",
       ),
     )).toThrow("SECURITY_MUTATION_EXISTING_OBJECT_FORBIDDEN");
+  });
+
+  it("plans both pending integrated print migrations as additive", () => {
+    const plan = createAdditiveMigrationPlan({
+      migrationList: `
+        LOCAL          | REMOTE | TIME (UTC)
+        20260822010000 |        | 2026-08-22
+        20260822013000 |        | 2026-08-22
+      `,
+      migrationFiles: [
+        {
+          file: "20260822010000_integrated_print_center.sql",
+          content: integratedPrintCenterMigration,
+        },
+        {
+          file: "20260822013000_fix_integrated_print_center_routing.sql",
+          content: integratedPrintRoutingFixMigration,
+        },
+      ],
+    });
+
+    expect(plan.migrations.map(({ version }) => version)).toEqual([
+      "20260822010000",
+      "20260822013000",
+    ]);
   });
 
   it("allows only the complete Phase 3 dormant hard-lock migration", () => {
