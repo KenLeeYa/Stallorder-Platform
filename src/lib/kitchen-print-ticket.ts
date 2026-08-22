@@ -153,12 +153,13 @@ export type CustomerReceiptInput = {
 
 export function createCustomerReceiptPayload(input: CustomerReceiptInput): PrintTicketPayload {
   const content = formatCustomerReceipt(input);
-  const commands = Array.from({ length: input.copies }, () => encodeStarPrnt(content, input.fontScale, 2));
+  const contents = Array.from({ length: input.copies }, () => content);
+  const commands = contents.map((copy) => encodeStarPrnt(copy, input.fontScale, 2));
   return {
     kind: "CUSTOMER_RECEIPT_STARPRNT",
     version: CUSTOMER_RECEIPT_TEMPLATE_VERSION,
     mediaType: KITCHEN_TICKET_MEDIA_TYPE,
-    content,
+    content: contents.join("\n"),
     dataBase64: Buffer.concat(commands).toString("base64"),
   };
 }
