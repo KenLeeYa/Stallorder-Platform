@@ -275,7 +275,7 @@ describe("Production workflow approval contract", () => {
     );
   });
 
-  it("attaches matching Preview to the PR branch before loading Azure secrets", () => {
+  it("attaches matching Preview to the PR branch and gates optional Azure smoke", () => {
     const deployPreview = ephemeralPreview.slice(
       ephemeralPreview.indexOf("name: Deploy matching Vercel Preview"),
       ephemeralPreview.indexOf("name: Run matching Preview read-only smoke"),
@@ -289,6 +289,10 @@ describe("Production workflow approval contract", () => {
     );
     expect(deployPreview).toContain(
       "Vercel did not attach the matching Preview to the requested Git branch.",
+    );
+    expect(deployPreview).toContain('--meta "githubDeployment=1"');
+    expect(deployPreview).toContain(
+      '--meta "githubCommitRef=$PREVIEW_GIT_BRANCH"',
     );
     for (const name of [
       "AI_TRANSLATION_PROVIDER",
@@ -306,6 +310,13 @@ describe("Production workflow approval contract", () => {
     );
     expect(ephemeralPreview).not.toContain(
       "AI_TRANSLATION_PROVIDER: vercel-ai-gateway",
+    );
+    expect(deployPreview).toContain("configured_translation_envs=0");
+    expect(deployPreview).toContain(
+      "Matching Preview has incomplete catalog translation configuration",
+    );
+    expect(ephemeralPreview).toContain(
+      "if: steps.vercel-auth.outputs.enabled == 'true' && steps.vercel-preview.outputs.translation_enabled == 'true'",
     );
   });
 

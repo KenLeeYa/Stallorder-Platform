@@ -1,5 +1,7 @@
 # MCP31LB CloudPRNT 58mm PoC
 
+> This document describes the original single-printer Ethernet PoC. For the integrated Bluetooth, CloudPRNT and system-print design, see [INTEGRATED_PRINT_CENTER.md](./INTEGRATED_PRINT_CENTER.md).
+
 ## Scope
 
 This PoC connects a Star MCP31LB to StallOrder without an iPad helper app. The iPad continues to use Safari. The Lightning cable can supply power and SteadyLAN connectivity, while the printer pulls jobs from StallOrder over Ethernet and HTTPS.
@@ -103,6 +105,10 @@ The discussion labels `[A1]` through `[D4]` are never emitted. Empty optional se
 - Scope: dedicated physical-acceptance Preview and Star MCP31LB 57mm output; Production Primary and DR were not acceptance-test targets.
 - Repository evidence boundary: this receipt records the owner's completed-test attestation; no printer photo, raw printer log or network capture was added to the repository.
 - Release effect: the physical-acceptance gate is cleared. CloudPRNT remains disabled unless `CLOUDPRNT_POC_ENABLED=true`, and Production still requires the verified Staging tree, DR schema receipt, a fresh immutable Plan ID, explicit Plan-bound approval, Apply and post-deployment smoke.
+
+### Integrated print-center follow-up
+
+- [ ] Concurrent or repeated retrieval of one integrated-routing token produces exactly one physical ticket. Keep integrated automatic printing disabled until this MCP31LB hardware check is recorded.
 
 ## Gates
 
