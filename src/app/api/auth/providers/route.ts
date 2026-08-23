@@ -9,6 +9,7 @@ const labels = {
   GOOGLE: "Google",
   LINE: "LINE",
   APPLE: "Apple",
+  MICROSOFT: "Microsoft",
 } as const;
 
 export async function GET() {

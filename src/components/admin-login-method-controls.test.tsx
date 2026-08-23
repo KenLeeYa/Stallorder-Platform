@@ -15,8 +15,8 @@ describe("platform login method controls", () => {
         <AdminLoginMethodControls
           initialPasswordEnabled
           initialFoundationEnabled
-          initialProviders={{ GOOGLE: true, LINE: false, APPLE: true }}
-          configuredProviders={{ GOOGLE: true, LINE: false, APPLE: false }}
+          initialProviders={{ GOOGLE: true, LINE: false, APPLE: true, MICROSOFT: false }}
+          configuredProviders={{ GOOGLE: true, LINE: false, APPLE: false, MICROSOFT: false }}
           readyForOAuthOnly={false}
         />
       </LocaleProvider>,
@@ -25,8 +25,9 @@ describe("platform login method controls", () => {
     expect(html).toContain("登入方式控制");
     expect(html).toContain("電子郵件與密碼");
     expect(html).toContain("Google 登入");
+    expect(html).toContain("Microsoft 登入");
     expect(html).toContain("Provider 憑證尚未設定");
     expect(html.match(/aria-checked="true"/g)).toHaveLength(2);
-    expect(html.match(/disabled=""/g)).toHaveLength(2);
+    expect(html.match(/disabled=""/g)).toHaveLength(3);
   });
 });

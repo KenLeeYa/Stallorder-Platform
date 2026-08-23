@@ -20,7 +20,7 @@ type RouteContext = { params: Promise<{ userId: string }> };
 
 const invitationSchema = z.object({
   organizationId: z.string().uuid().optional(),
-  allowedProviders: z.array(z.enum(["GOOGLE", "LINE", "APPLE"]))
+  allowedProviders: z.array(z.enum(["GOOGLE", "LINE", "APPLE", "MICROSOFT"]))
     .min(1)
     .max(3)
     .refine((providers) => new Set(providers).size === providers.length),

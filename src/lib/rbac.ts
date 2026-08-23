@@ -34,6 +34,8 @@ export type Permission =
   | "MANAGE_MARKET_EVENTS"
   | "MANAGE_LINE_INTEGRATION"
   | "MANAGE_DELIVERY_INTEGRATIONS"
+  | "MANAGE_PAYMENT_INTEGRATIONS"
+  | "REFUND_PROVIDER_PAYMENTS"
   | "PLATFORM_ADMIN";
 
 const rolePermissions: Record<UserRole, readonly Permission[]> = {
@@ -71,6 +73,8 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_MARKET_EVENTS",
     "MANAGE_LINE_INTEGRATION",
     "MANAGE_DELIVERY_INTEGRATIONS",
+    "MANAGE_PAYMENT_INTEGRATIONS",
+    "REFUND_PROVIDER_PAYMENTS",
     "PLATFORM_ADMIN",
   ],
   MERCHANT_OWNER: [],
@@ -109,6 +113,8 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_MARKET_EVENTS",
     "MANAGE_LINE_INTEGRATION",
     "MANAGE_DELIVERY_INTEGRATIONS",
+    "MANAGE_PAYMENT_INTEGRATIONS",
+    "REFUND_PROVIDER_PAYMENTS",
   ],
   ORGANIZATION_ADMIN: [
     "VIEW_ORDERS",
@@ -142,6 +148,8 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "MANAGE_MARKET_EVENTS",
     "MANAGE_LINE_INTEGRATION",
     "MANAGE_DELIVERY_INTEGRATIONS",
+    "MANAGE_PAYMENT_INTEGRATIONS",
+    "REFUND_PROVIDER_PAYMENTS",
   ],
   FINANCE_VIEWER: ["VIEW_REPORTS", "VIEW_BILLING", "VIEW_CASH_SHIFT"],
   STALL_MANAGER: [

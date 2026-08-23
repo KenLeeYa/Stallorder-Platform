@@ -22,7 +22,7 @@ export default async function AdminLoginMethodsPage() {
   const configured = Object.fromEntries(uiConfig.providers.map((provider) => [
     provider.provider,
     provider.configured || (provider.provider === "GOOGLE" && isSupabaseAuthConfigured()),
-  ])) as Record<"GOOGLE" | "LINE" | "APPLE", boolean>;
+  ])) as Record<"GOOGLE" | "LINE" | "APPLE" | "MICROSOFT", boolean>;
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">

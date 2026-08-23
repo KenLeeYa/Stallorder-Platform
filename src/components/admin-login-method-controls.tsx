@@ -2,22 +2,23 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Apple, KeyRound, MessageCircle, Search } from "lucide-react";
+import { Apple, KeyRound, Laptop, MessageCircle, Search } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { getAdminApiError } from "@/lib/messages/admin";
 import { useAdminLocale } from "@/lib/messages/admin-client";
 
-type OAuthProvider = "GOOGLE" | "LINE" | "APPLE";
-type ProviderFlagCode = "OAUTH_GOOGLE_ENABLED" | "OAUTH_LINE_ENABLED" | "OAUTH_APPLE_ENABLED";
+type OAuthProvider = "GOOGLE" | "LINE" | "APPLE" | "MICROSOFT";
+type ProviderFlagCode = "OAUTH_GOOGLE_ENABLED" | "OAUTH_LINE_ENABLED" | "OAUTH_APPLE_ENABLED" | "OAUTH_MICROSOFT_ENABLED";
 
 const providerControls = [
   { provider: "GOOGLE", code: "OAUTH_GOOGLE_ENABLED", label: "Google sign-in", icon: Search },
   { provider: "LINE", code: "OAUTH_LINE_ENABLED", label: "LINE sign-in", icon: MessageCircle },
   { provider: "APPLE", code: "OAUTH_APPLE_ENABLED", label: "Apple sign-in", icon: Apple },
+  { provider: "MICROSOFT", code: "OAUTH_MICROSOFT_ENABLED", label: "Microsoft sign-in", icon: Laptop },
 ] as const satisfies ReadonlyArray<{
   provider: OAuthProvider;
   code: ProviderFlagCode;
-  label: "Google sign-in" | "LINE sign-in" | "Apple sign-in";
+  label: "Google sign-in" | "LINE sign-in" | "Apple sign-in" | "Microsoft sign-in";
   icon: typeof Search;
 }>;
 

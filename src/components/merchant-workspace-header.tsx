@@ -12,6 +12,8 @@ import {
   FileChartColumn,
   Package,
   ScrollText,
+  ShieldCheck,
+  WalletCards,
   Store,
 } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
@@ -111,6 +113,14 @@ export function MerchantWorkspaceHeader({
         {showBilling && workspace?.roles.some((role) => hasPermission(role, "VIEW_BILLING")) ? (
           <Link title={m("訂閱與帳務")} href={`/merchant/billing?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <CreditCard className="h-5 w-5" /><span className="sr-only">{m("訂閱與帳務")}</span>
+          </Link>
+        ) : null}
+        <Link title={m("帳號與安全性")} href="/merchant/account/security" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <ShieldCheck className="h-5 w-5" /><span className="sr-only">{m("帳號與安全性")}</span>
+        </Link>
+        {workspace?.roles.some((role) => hasPermission(role, "MANAGE_PAYMENT_INTEGRATIONS")) ? (
+          <Link title={m("付款與金流")} href={`/merchant/payments?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+            <WalletCards className="h-5 w-5" /><span className="sr-only">{m("付款與金流")}</span>
           </Link>
         ) : null}
       </nav>

@@ -435,6 +435,17 @@ export function getTrackedOrderContext(orderId: string) {
       stall: {
         select: {
           code: true,
+          paymentProviderConnections: {
+            where: {
+              status: "ACTIVE",
+              enabledChannels: { has: "PUBLIC_MENU" },
+            },
+            select: {
+              provider: true,
+              environment: true,
+              capabilities: true,
+            },
+          },
           orderingSettings: {
             select: {
               estimatedWaitMinutes: true,

@@ -11,6 +11,7 @@ const providerLabels = {
   GOOGLE: "Google",
   LINE: "LINE",
   APPLE: "Apple",
+  MICROSOFT: "Microsoft",
 } as const;
 
 export default async function LoginPage() {

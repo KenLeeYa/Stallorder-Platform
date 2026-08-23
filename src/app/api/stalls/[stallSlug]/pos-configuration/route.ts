@@ -13,7 +13,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   const includeCatalog = new URL(request.url).searchParams.get("includeCatalog") === "true"
     && authorization.roles.some((role) => hasPermission(role, "CREATE_ORDERS"));
-  const [configuration, paymentOptions, discountOptions] = await Promise.all([
+  const [configuration, paymentOptions, discountOptions, providerPaymentMethods] = await Promise.all([
     getStaffOrderPageConfiguration(
       authorization.stall.id,
       authorization.stall.organizationId,
@@ -37,6 +37,21 @@ export async function GET(request: Request, context: RouteContext) {
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       select: { id: true, name: true, rateBps: true },
     }),
+    prisma.paymentProviderConnection.findMany({
+      where: {
+        organizationId: authorization.stall.organizationId,
+        OR: [{ stallId: authorization.stall.id }, { stallId: null }],
+        status: "ACTIVE",
+        enabledChannels: { has: "STAFF_POS" },
+      },
+      orderBy: { provider: "asc" },
+      select: {
+        id: true,
+        provider: true,
+        environment: true,
+        capabilities: true,
+      },
+    }),
   ]);
 
   return NextResponse.json(
@@ -44,6 +59,7 @@ export async function GET(request: Request, context: RouteContext) {
       modules: configuration.modules,
       catalog: configuration.catalog,
       paymentOptions,
+      providerPaymentMethods,
       discountOptions,
     },
     { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },

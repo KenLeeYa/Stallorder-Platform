@@ -13,6 +13,7 @@ import {
   PackageCheck,
   Store,
   Truck,
+  WalletCards,
 } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import type { AdminMessageKey } from "@/lib/messages/admin";
@@ -29,6 +30,7 @@ const items = [
   { href: "/admin/usage", label: "Usage", icon: ChartNoAxesCombined },
   { href: "/admin/delivery-integrations", label: "Delivery integrations", icon: Truck },
   { href: "/admin/login-methods", label: "Login methods", icon: KeyRound },
+  { href: "/admin/payment-integrations", label: "Payment integrations", icon: WalletCards },
 ] as const satisfies ReadonlyArray<{ href: string; label: AdminMessageKey; icon: typeof Store }>;
 
 export function AdminBillingHeader({ displayName }: { displayName: string }) {

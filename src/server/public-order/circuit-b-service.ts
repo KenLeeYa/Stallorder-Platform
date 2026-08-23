@@ -584,6 +584,11 @@ export async function getOrderThroughCircuitB(
         quotedWaitMinutes: orderContext.quotedWaitMinutes,
         quotedReadyAt: orderContext.quotedReadyAt?.toISOString() ?? null,
         lastTableOrderAt: lastTableOrder?.createdAt.toISOString() ?? null,
+        paymentProviders: (orderContext.stall.paymentProviderConnections ?? []).map((connection) => ({
+          provider: connection.provider,
+          environment: connection.environment,
+          capabilities: connection.capabilities,
+        })),
       },
     },
   };

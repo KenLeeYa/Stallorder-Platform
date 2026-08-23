@@ -26,7 +26,7 @@ const paygOpenBetaBillingMigration = readFileSync(resolve(
 const privateAlertSoundBucketMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260823020000_customer_experience_improvements.sql",
-), "utf8");
+), "utf8").replace(/\r\n?/gu, "\n");
 const staffKdsSpecialClosuresMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260821193000_staff_kds_special_closures.sql",
