@@ -433,7 +433,9 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await expect(editor.getByLabel("日文名稱")).toHaveValue("鶏肉の揚げ物");
   await editor.getByRole("button", { name: "關閉" }).click();
 
-  await page.getByRole("button", { name: "商品", exact: true }).click();
+  await page.getByTestId("shared-catalog-create-actions")
+    .getByRole("button", { name: "新增商品", exact: true })
+    .click();
   const createEditor = page.getByRole("dialog", { name: "新增商品" });
   const defaultPrice = createEditor.getByLabel("預設售價");
   await expect(defaultPrice).toHaveValue("");

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page, type Response } from "@playwright/test";
@@ -278,6 +278,13 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       viewport: { width: 390, height: 844 },
     });
     try {
+      await customerContext.addInitScript((deviceId) => {
+        document.cookie = `stallorder_device=${encodeURIComponent(deviceId)}; Path=/; SameSite=Lax`;
+        window.localStorage.setItem("stallorder_device:v1", JSON.stringify({
+          id: deviceId,
+          expiresAt: Date.now() + (365 * 24 * 60 * 60 * 1_000),
+        }));
+      }, order.deviceId);
       const customerPage = await customerContext.newPage();
       await customerPage.goto(`/order/${order.trackingToken}`);
       await expect(customerPage.getByText("攤位已確認", { exact: true }).first()).toBeVisible();
@@ -513,6 +520,7 @@ async function createConfirmedOrder(customerName: string) {
 
 async function createConfirmedPublicOrder(customerName: string) {
   const unique = randomUUID();
+  const deviceId = randomUUID();
   const trackingToken = `tracking-${unique}`;
   const pickupCode = "738";
   const order = await prisma.order.create({
@@ -531,7 +539,9 @@ async function createConfirmedPublicOrder(customerName: string) {
       paymentStatus: "UNPAID",
       subtotal: 95,
       total: 95,
-      deviceHash: createHash("sha256").update(`device-${unique}`).digest("hex"),
+      deviceHash: createHmac("sha256", requiredAbuseHashSecret())
+        .update(`device:${deviceId}`)
+        .digest("hex"),
       pickupCodeHash: createHash("sha256").update(pickupCode).digest("hex"),
       pickupCodeDisplay: pickupCode,
       confirmationExpiresAt: new Date(Date.now() + 10 * 60_000),
@@ -552,7 +562,13 @@ async function createConfirmedPublicOrder(customerName: string) {
     select: { id: true, customerName: true },
   });
   createdOrderIds.push(order.id);
-  return { ...order, trackingToken, pickupCode };
+  return { ...order, trackingToken, pickupCode, deviceId };
+}
+
+function requiredAbuseHashSecret() {
+  const secret = process.env.ABUSE_HASH_SECRET;
+  if (!secret) throw new Error("E2E 測試需要設定 ABUSE_HASH_SECRET。");
+  return secret;
 }
 
 async function setModule(
