@@ -23,6 +23,10 @@ const paygOpenBetaBillingMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260822100000_payg_open_beta_billing.sql",
 ), "utf8");
+const privateAlertSoundBucketMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260823020000_customer_experience_improvements.sql",
+), "utf8");
 const staffKdsSpecialClosuresMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260821193000_staff_kds_special_closures.sql",
@@ -582,6 +586,22 @@ describe("additive DR migration plan", () => {
     ]) {
       expect(() => assertAdditiveMigrationSql(sql)).toThrow();
     }
+  });
+
+  it("allows only the reviewed private alert sound bucket seed", () => {
+    expect(assertAdditiveMigrationSql(privateAlertSoundBucketMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      privateAlertSoundBucketMigration.replace(
+        "'alert-sounds',\n  false,",
+        "'alert-sounds',\n  true,",
+      ),
+    )).toThrow("FEATURE_FLAG_SEED_UNSAFE");
+    expect(() => assertAdditiveMigrationSql(
+      privateAlertSoundBucketMigration.replace(
+        "on conflict (id) do nothing",
+        "on conflict (id) do update set public = true",
+      ),
+    )).toThrow("FEATURE_FLAG_SEED_UNSAFE");
   });
 
   it("allows only the approved additive btree_gist extension install", () => {
