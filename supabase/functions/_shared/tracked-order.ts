@@ -41,7 +41,7 @@ export async function resolveTrackedOrder(input: {
   if (!tracked?.orderId) throw new HttpInputError("ORDER_NOT_FOUND", 404);
 
   const { data: order, error: orderError } = await admin.from("orders")
-    .select("id, organization_id, stall_id, status, fulfillment_type, dining_table_id")
+    .select("id, organization_id, stall_id, source, status, payment_status, discount_amount, discount_option_id, customer_name, customer_phone, delivery_address, note, requested_fulfillment_at, scheduled_pickup_at, fulfillment_type, dining_table_id")
     .eq("id", tracked.orderId)
     .single();
   if (orderError || !order) throw orderError ?? new HttpInputError("ORDER_NOT_FOUND", 404);

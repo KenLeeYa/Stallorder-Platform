@@ -7,7 +7,10 @@ import { createRequestId } from "@/lib/security";
 
 type PageProps = {
   params: Promise<{ qrToken: string }>;
-  searchParams?: Promise<{ locale?: string | string[] }>;
+  searchParams?: Promise<{
+    locale?: string | string[];
+    editOrder?: string | string[];
+  }>;
 };
 
 export default async function QrOrderPage({ params, searchParams }: PageProps) {
@@ -18,11 +21,21 @@ export default async function QrOrderPage({ params, searchParams }: PageProps) {
   const renderStartedAt = timing.start();
   const [{ qrToken }, query, requestLocale] = await Promise.all([
     params,
-    searchParams ?? Promise.resolve<{ locale?: string | string[] }>({}),
+    searchParams ?? Promise.resolve<{
+      locale?: string | string[];
+      editOrder?: string | string[];
+    }>({}),
     getRequestAppLocale(),
   ]);
   const queryLocale = Array.isArray(query.locale) ? query.locale[0] : query.locale;
   const requestedLocale = isAppLocale(queryLocale) ? queryLocale : null;
+  const rawEditTrackingToken = Array.isArray(query.editOrder)
+    ? query.editOrder[0]
+    : query.editOrder;
+  const editTrackingToken = rawEditTrackingToken
+    && /^[A-Za-z0-9_-]{40,200}$/.test(rawEditTrackingToken)
+    ? rawEditTrackingToken
+    : null;
   const initialMenu = await timing.measureDb(
     () => getCachedPublicMenuForQrToken(
       qrToken,
@@ -41,6 +54,7 @@ export default async function QrOrderPage({ params, searchParams }: PageProps) {
       entryChannel="QR"
       initialUiLocale={requestLocale.locale}
       requestedLocale={requestedLocale}
+      editTrackingToken={editTrackingToken}
     />
   );
 }

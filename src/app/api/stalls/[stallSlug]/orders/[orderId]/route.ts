@@ -362,6 +362,10 @@ async function handlePatch(
 
   const now = new Date();
   const persistedStatus = streamlinedCheckout?.targetStatus ?? nextStatus;
+  const manualPublicReady = persistedStatus === "READY"
+    && !orderingSettings?.kdsModuleEnabled
+    && order.source === "QR_MENU"
+    && order.fulfillmentType !== "DINE_IN";
   try {
     const updatedOrder = await timing.measureDb(() => prisma.$transaction(async (transaction) => {
       const cashShiftId = checkout?.method === "CASH"
@@ -422,6 +426,17 @@ async function handlePatch(
             skipDuplicates: true,
           });
         }
+      }
+
+      if (manualPublicReady) {
+        await transaction.orderItem.updateMany({
+          where: {
+            orderId: order.id,
+            stallId: order.stallId,
+            status: { not: "SERVED" },
+          },
+          data: { status: "READY", readyAt: now },
+        });
       }
 
       if (nextStatus === "COMPLETED" && order.paymentStatus === "UNPAID") {

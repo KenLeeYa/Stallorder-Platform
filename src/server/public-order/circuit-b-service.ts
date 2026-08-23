@@ -4,6 +4,16 @@ import { randomUUID } from "node:crypto";
 import type { createPerformanceTiming } from "@/lib/performance-timing";
 import { getCachedPublicMenuForQrToken } from "@/lib/public-menu";
 import {
+  cancelTrackedPublicOrder,
+  editTrackedPublicOrder,
+  PublicOrderEditError,
+} from "@/lib/public-order-edit";
+import type {
+  CancelTrackedPublicOrderInput,
+  UpdateTrackedPublicOrderInput,
+} from "@/lib/public-order-edit-contract";
+import { StaffOrderCreateError } from "@/lib/staff-order-create";
+import {
   resolveFulfillmentTimeReadModel,
   type FulfillmentTimeState,
 } from "@/lib/fulfillment-time";
@@ -15,6 +25,8 @@ import {
 } from "../../../supabase/functions/_shared/crypto";
 import {
   canonicalPublicOrderBehavior,
+  publicOrderCustomerDetailsCode,
+  resolvePublicOrderFulfillmentType,
   type GetPublicOrderInput,
   type IssueOrderSessionInput,
   type PublicOrderInput,
@@ -371,6 +383,16 @@ export async function createOrderThroughCircuitB(
       ),
     };
   }
+  const customerDetailsCode = publicOrderCustomerDetailsCode(
+    input,
+    resolvePublicOrderFulfillmentType(input.orderingMode, preflight.qr_context),
+  );
+  if (customerDetailsCode) {
+    throw new PublicOrderCircuitError(
+      customerDetailsCode,
+      statusForCode(customerDetailsCode),
+    );
+  }
   const submissionGate = await context.timing.measureDb(() => checkPublicOrderSubmissionGate({
     sessionTokenHash: sessionHash,
     ipHash: hashes.ipHash,
@@ -559,4 +581,103 @@ export async function getOrderThroughCircuitB(
       },
     },
   };
+}
+
+type TrackedMutationContext = {
+  clientIp: string;
+  requestId: string;
+  timing: Timing;
+};
+
+async function resolveTrackedMutationOrder(
+  input: { trackingToken: string; deviceId: string },
+  context: TrackedMutationContext,
+  behavior: string,
+) {
+  const trackingHash = await sha256Hex(input.trackingToken);
+  const hashes = await publicHashes({
+    scope: "TRACKING",
+    clientIp: context.clientIp,
+    deviceId: input.deviceId,
+    behavior: `${behavior}:${trackingHash}`,
+  });
+  const globalGate = await context.timing.measureDb(() => checkGlobalPublicRequestGate({
+    scope: "TRACKING",
+    ipHash: hashes.ipHash,
+    deviceHash: hashes.deviceHash,
+    behaviorHash: hashes.behaviorHash,
+    requestId: context.requestId,
+  }));
+  gateError(globalGate);
+
+  const stored = await context.timing.measureDb(
+    () => getTrackedPublicOrder(trackingHash, hashes.deviceHash),
+  );
+  if (!stored?.orderId) throw new PublicOrderCircuitError("ORDER_NOT_FOUND", 404);
+  return stored.orderId;
+}
+
+export async function editOrderThroughCircuitB(
+  input: UpdateTrackedPublicOrderInput & { trackingToken: string },
+  context: TrackedMutationContext,
+) {
+  const orderId = await resolveTrackedMutationOrder(input, context, "tracking-edit");
+  const turnstile = await context.timing.measure("turnstileMs", () => verifyTurnstile({
+    token: input.turnstileToken,
+    remoteIp: context.clientIp,
+    idempotencyKey: input.idempotencyKey,
+    secret: requireSecret("TURNSTILE_SECRET_KEY"),
+    expectedHostname: process.env.TURNSTILE_EXPECTED_HOSTNAME?.trim() || undefined,
+    expectedAction: "public_order",
+    allowTestKeys: process.env.TURNSTILE_ALLOW_TEST_KEYS === "true",
+    environment: process.env.APP_ENV?.trim() || process.env.NODE_ENV || "development",
+  }));
+  if (!turnstile.ok) {
+    throw new PublicOrderCircuitError(turnstile.code, statusForCode(turnstile.code));
+  }
+
+  try {
+    const result = await context.timing.measureDb(() => editTrackedPublicOrder({
+      orderId,
+      request: input,
+    }));
+    return {
+      status: 200,
+      body: { trackingToken: input.trackingToken, ...result },
+    };
+  } catch (error) {
+    throw publicOrderMutationError(error);
+  }
+}
+
+export async function cancelOrderThroughCircuitB(
+  input: CancelTrackedPublicOrderInput & { trackingToken: string },
+  context: TrackedMutationContext,
+) {
+  const orderId = await resolveTrackedMutationOrder(input, context, "tracking-cancel");
+  try {
+    const result = await context.timing.measureDb(() => cancelTrackedPublicOrder(orderId));
+    return { status: 200, body: result };
+  } catch (error) {
+    throw publicOrderMutationError(error);
+  }
+}
+
+function publicOrderMutationError(error: unknown) {
+  if (error instanceof PublicOrderCircuitError) return error;
+  if (error instanceof PublicOrderEditError) {
+    const status = error.code === "NOT_EDITABLE_SOURCE"
+      ? 403
+      : error.code === "ORDER_NOT_FOUND"
+        ? 404
+        : error.code === "INVALID_CUSTOMER_DETAILS" || error.code === "INVALID_DELIVERY_DETAILS"
+          ? statusForCode(error.code)
+          : 409;
+    return new PublicOrderCircuitError(error.code, status);
+  }
+  if (error instanceof StaffOrderCreateError) {
+    const code = error.code === "ORDER_LIMIT_EXCEEDED" ? "EXCESSIVE_TOTAL_QUANTITY" : error.code;
+    return new PublicOrderCircuitError(code, statusForCode(code));
+  }
+  return error;
 }

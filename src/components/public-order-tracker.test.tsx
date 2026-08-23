@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   getOrderHelpGuidance,
   getPublicOrderProgress,
+  getPublicOrderCustomerActions,
   getPublicOrderStatusLabel,
   formatOrderRefreshTime,
   OrderHelpPanel,
@@ -32,6 +33,25 @@ function findElementByAriaLabel(
 }
 
 describe("public order progress", () => {
+  it("exposes self-service modification and cancellation only at safe order stages", () => {
+    expect(getPublicOrderCustomerActions("WAITING_CONFIRMATION", "TAKEOUT", "UNPAID")).toEqual({
+      canModify: true,
+      canCancel: true,
+    });
+    expect(getPublicOrderCustomerActions("CONFIRMED", "DELIVERY", "UNPAID")).toEqual({
+      canModify: true,
+      canCancel: false,
+    });
+    expect(getPublicOrderCustomerActions("PREPARING", "TAKEOUT", "UNPAID")).toEqual({
+      canModify: false,
+      canCancel: false,
+    });
+    expect(getPublicOrderCustomerActions("WAITING_CONFIRMATION", "DINE_IN", "UNPAID")).toEqual({
+      canModify: false,
+      canCancel: false,
+    });
+  });
+
   it.each([
     ["WAITING_CONFIRMATION", 0],
     ["CONFIRMED", 1],

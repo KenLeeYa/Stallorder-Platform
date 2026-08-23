@@ -8,6 +8,7 @@ import {
   createPublicOrderValidationCode,
   createPublicOrderSchema,
   issueOrderSessionSchema,
+  publicOrderCustomerDetailsCode,
 } from "./schemas";
 import {
   normalizePublicOrderOperationId,
@@ -334,6 +335,71 @@ describe("dual public order contract", () => {
       deliveryAddress: "Taipei",
       scheduledPickupAt: requestedTime,
     }).success).toBe(true);
+  });
+
+  it.each([
+    {
+      fulfillmentType: "TAKEOUT" as const,
+      customerName: "",
+      customerPhone: "0912345678",
+      deliveryAddress: "",
+      expected: "INVALID_CUSTOMER_DETAILS",
+    },
+    {
+      fulfillmentType: "TAKEOUT" as const,
+      customerName: "Lin",
+      customerPhone: "bad",
+      deliveryAddress: "",
+      expected: "INVALID_CUSTOMER_DETAILS",
+    },
+    {
+      fulfillmentType: "DELIVERY" as const,
+      customerName: "Lin",
+      customerPhone: "0912345678",
+      deliveryAddress: "",
+      expected: "INVALID_DELIVERY_DETAILS",
+    },
+    {
+      fulfillmentType: "DINE_IN" as const,
+      customerName: "",
+      customerPhone: "",
+      deliveryAddress: "",
+      expected: null,
+    },
+  ])("validates public customer details for $fulfillmentType", ({
+    fulfillmentType,
+    customerName,
+    customerPhone,
+    deliveryAddress,
+    expected,
+  }) => {
+    expect(publicOrderCustomerDetailsCode({
+      customerName,
+      customerPhone,
+      deliveryAddress,
+    }, fulfillmentType)).toBe(expected);
+  });
+
+  it("keeps both order circuits on the shared post-preflight customer-details gate", () => {
+    const circuitBSource = readFileSync(
+      fileURLToPath(new URL("../../../src/server/public-order/circuit-b-service.ts", import.meta.url)),
+      "utf8",
+    );
+
+    expect(createPublicOrderSource).toContain("publicOrderCustomerDetailsCode(");
+    expect(circuitBSource).toContain("publicOrderCustomerDetailsCode(");
+    expect(createPublicOrderSource.indexOf("publicOrderCustomerDetailsCode(")).toBeGreaterThan(
+      createPublicOrderSource.indexOf("if (!preflight.ok)"),
+    );
+    expect(circuitBSource.indexOf("publicOrderCustomerDetailsCode(")).toBeGreaterThan(
+      circuitBSource.indexOf("if (!preflight?.ok)"),
+    );
+    expect(createPublicOrderSource.indexOf("publicOrderCustomerDetailsCode(")).toBeGreaterThan(
+      createPublicOrderSource.indexOf("const existing = preflight.idempotent_order"),
+    );
+    expect(circuitBSource.indexOf("publicOrderCustomerDetailsCode(")).toBeGreaterThan(
+      circuitBSource.indexOf("const existing = preflight.idempotent_order"),
+    );
   });
 
   it("canonicalizes behavior independent of line and option order", () => {

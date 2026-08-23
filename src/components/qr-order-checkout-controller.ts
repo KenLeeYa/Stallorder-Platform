@@ -1,5 +1,6 @@
 import {
   parseEdgeResponse,
+  publicOrderCircuitHeaders,
   requestPublicOrder,
   type PublicAvailabilityStatus,
 } from "@/lib/public-order-client";
@@ -52,6 +53,7 @@ export type QrCheckoutBlockerInput = {
   hasUnappliedFulfillmentTime: boolean;
   sessionReady: boolean;
   sessionExpired: boolean;
+  customerDetailsMissing: boolean;
   deliveryDetailsMissing: boolean;
   requiredOptionMessage: string | null;
   waitAcknowledgmentRequired: boolean;
@@ -65,6 +67,7 @@ type QrOrderCheckoutBlockerMessages = {
   unappliedFulfillmentTime: string;
   sessionLoading: string;
   sessionExpired: string;
+  customerDetailsMissing: string;
   deliveryDetailsMissing: string;
   waitAcknowledgmentRequired: string;
   securityRequired: string;
@@ -178,6 +181,7 @@ export function resolveQrCheckoutBlocker(input: QrCheckoutBlockerInput) {
     return input.messages.sessionLoading;
   }
   if (input.sessionExpired) return input.messages.sessionExpired;
+  if (input.customerDetailsMissing) return input.messages.customerDetailsMissing;
   if (input.deliveryDetailsMissing) return input.messages.deliveryDetailsMissing;
   if (input.requiredOptionMessage) return input.requiredOptionMessage;
   if (input.waitAcknowledgmentRequired) return input.messages.waitAcknowledgmentRequired;
@@ -200,8 +204,15 @@ export function createQrOrderCheckoutModel(input: QrOrderCheckoutFlowInput) {
     bundleChoiceIds,
   }));
   const totalQuantity = input.cartLines.reduce((sum, line) => sum + line.quantity, 0);
+  const requiresCustomerDetails = input.session?.stall.fulfillmentType === "TAKEOUT"
+    || input.session?.stall.fulfillmentType === "DELIVERY";
+  const customerDetailsMissing = requiresCustomerDetails
+    && (
+      input.customerName.trim().length === 0
+      || !PHONE_NUMBER.test(input.customerPhone.trim())
+    );
   const deliveryDetailsMissing = input.session?.stall.fulfillmentType === "DELIVERY"
-    && (!PHONE_NUMBER.test(input.customerPhone.trim()) || input.deliveryAddress.trim().length === 0);
+    && input.deliveryAddress.trim().length === 0;
   const invalidCartLine = input.cartLines.find((line) => {
     const product = input.session?.products.find((candidate) => candidate.id === line.productId);
     return product && !validSelections(product, line);
@@ -218,6 +229,7 @@ export function createQrOrderCheckoutModel(input: QrOrderCheckoutFlowInput) {
       hasUnappliedFulfillmentTime: input.hasUnappliedFulfillmentTime,
       sessionReady: input.sessionReady,
       sessionExpired: input.sessionExpired,
+      customerDetailsMissing,
       deliveryDetailsMissing,
       requiredOptionMessage: invalidCartProduct
         ? input.messages.requiredNotes(input.localizedProductName(invalidCartProduct))
@@ -322,6 +334,91 @@ export async function submitQrOrderFlowCheckout({
   return "SUBMITTED" as const;
 }
 
+export async function submitQrOrderEditFlowCheckout({
+  input,
+  trackingToken,
+  sessionController,
+  networkError,
+  localizeError,
+  requestOrder,
+  effects,
+}: {
+  input: QrOrderCheckoutFlowInput;
+  trackingToken: string;
+  sessionController: Pick<
+    QrOrderSessionController,
+    "checkoutIdentity" | "clearCheckoutIdentity"
+  >;
+  networkError: string;
+  localizeError: (code: string) => string;
+  requestOrder?: QrOrderCheckoutTransport;
+  effects: QrOrderCheckoutFlowEffects;
+}) {
+  const model = createQrOrderCheckoutModel(input);
+  const validationMessage = resolveQrOrderSubmitValidation(input, model.selectedItems);
+  if (validationMessage) {
+    effects.onMessage(validationMessage);
+    return "BLOCKED" as const;
+  }
+
+  const fingerprint = createQrCheckoutFingerprint({
+    orderingMode: input.orderingMode,
+    customerName: input.customerName,
+    customerPhone: input.customerPhone,
+    deliveryAddress: input.deliveryAddress,
+    customerNote: input.customerNote,
+    scheduledPickupAt: input.scheduledPickupAt,
+    lotteryDrawId: null,
+    selectedItems: model.selectedItems,
+    waitAcknowledged: input.waitAcknowledged,
+  });
+  const identity = sessionController.checkoutIdentity(fingerprint);
+  const updateOrder = requestOrder ?? (async (body, operationId) => {
+    const response = await fetch(`/api/public/orders/${encodeURIComponent(trackingToken)}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        ...publicOrderCircuitHeaders(operationId),
+      },
+      body: JSON.stringify(body),
+      cache: "no-store",
+      signal: AbortSignal.timeout(4_000),
+    });
+    return {
+      ok: response.ok,
+      status: response.status,
+      payload: await parseEdgeResponse(response),
+    };
+  });
+
+  await submitQrOrderCheckout({
+    body: {
+      deviceId: input.deviceId,
+      idempotencyKey: identity.key,
+      turnstileToken: input.turnstileToken as string,
+      customerName: input.customerName,
+      customerPhone: input.customerPhone,
+      deliveryAddress: input.deliveryAddress,
+      customerNote: input.customerNote,
+      items: model.selectedItems,
+    },
+    operationId: identity.operationId,
+    networkError,
+    localizeError,
+    requestOrder: updateOrder,
+    onMessage: effects.onMessage,
+    onSubmittingChange: effects.onSubmittingChange,
+    onWaitAcknowledgmentRequired: () => effects.onWaitAcknowledgmentReset(),
+    onInvalidTurnstile: () => {
+      sessionController.clearCheckoutIdentity();
+      effects.onTurnstileInvalid();
+    },
+    clearPersistedCart: effects.clearPersistedCart,
+    navigateToOrder: effects.navigateToOrder,
+  });
+  return "SUBMITTED" as const;
+}
+
 function resolveQrOrderSubmitValidation(
   input: QrOrderCheckoutFlowInput,
   selectedItems: QrSelectedItem[],
@@ -348,8 +445,18 @@ function resolveQrOrderSubmitValidation(
     return input.messages.waitAcknowledgmentRequired;
   }
   if (
-    input.orderingMode === "DELIVERY"
-    && (!PHONE_NUMBER.test(input.customerPhone.trim()) || !input.deliveryAddress.trim())
+    (input.session.stall.fulfillmentType === "TAKEOUT"
+      || input.session.stall.fulfillmentType === "DELIVERY")
+    && (
+      input.customerName.trim().length === 0
+      || !PHONE_NUMBER.test(input.customerPhone.trim())
+    )
+  ) {
+    return input.messages.customerDetailsMissing;
+  }
+  if (
+    input.session.stall.fulfillmentType === "DELIVERY"
+    && !input.deliveryAddress.trim()
   ) {
     return input.messages.deliveryDetailsMissing;
   }

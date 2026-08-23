@@ -211,8 +211,8 @@ export function CapacitySettingsForm({
         </div>
       </section>
 
-      <details className="border-b border-stone-200 pb-6" open>
-        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-xl font-semibold"><TimerReset className="h-5 w-5 text-teal-700" />{label("等候時間與容量門檻")}</summary>
+      <section className="border-b border-stone-200 pb-6">
+        <h2 className="flex min-h-11 items-center gap-2 text-xl font-semibold"><TimerReset className="h-5 w-5 text-teal-700" />{label("等候時間與容量門檻")}</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <NumberField label={label("計算視窗（分鐘）")} fieldKey="windowMinutes" error={fieldErrors.windowMinutes} min={5} max={120} value={settings.windowMinutes} onChange={(value) => updateNumber("windowMinutes", value)} />
           <NumberField label={label("每視窗訂單上限")} fieldKey="maxOrdersPerWindow" error={fieldErrors.maxOrdersPerWindow} min={1} max={1000} value={settings.maxOrdersPerWindow} onChange={(value) => updateNumber("maxOrdersPerWindow", value)} />
@@ -235,10 +235,10 @@ export function CapacitySettingsForm({
         </div>
         {!data.capabilities.automaticControl ? <p className="mt-3 text-sm text-stone-500">{label("目前方案提供手動等候時間，但未包含自動容量控制。")}</p> : null}
         <button type="button" disabled={busy || !dirty} onClick={() => void saveSettings()} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{label("儲存門檻")}</button>
-      </details>
+      </section>
 
-      <details className="border-b border-stone-200 pb-6" open>
-        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-xl font-semibold"><AlertTriangle className="h-5 w-5 text-teal-700" />{label("現場覆寫")}</summary>
+      <section className="border-b border-stone-200 pb-6">
+        <h2 className="flex min-h-11 items-center gap-2 text-xl font-semibold"><AlertTriangle className="h-5 w-5 text-teal-700" />{label("現場覆寫")}</h2>
         <label className="mt-4 block text-sm font-medium">{label("操作原因")}<input type="text" value={reason} maxLength={200} data-field-key="reason" aria-invalid={Boolean(fieldErrors.reason)} aria-describedby={fieldErrors.reason ? "capacity-reason-error" : undefined} onChange={(event) => { clearFieldError("reason"); setReason(event.target.value); }} placeholder={label("例如：人力不足、恢復正常")} className="form-input mt-1" />{fieldErrors.reason ? <span id="capacity-reason-error" className="mt-1 block text-xs text-red-700">{fieldErrors.reason}</span> : null}</label>
         <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,240px)_1fr] sm:items-end">
           <label className="text-sm font-medium">{label("手動等候時間（分鐘）")}<input type="number" min={0} max={480} value={manualWait} data-field-key="minutes" aria-invalid={Boolean(fieldErrors.minutes)} aria-describedby={fieldErrors.minutes ? "capacity-minutes-error" : undefined} onChange={(event) => { clearFieldError("minutes"); setManualWait(event.target.value); }} placeholder={label("留空使用自動計算")} className="form-input mt-1" />{fieldErrors.minutes ? <span id="capacity-minutes-error" className="mt-1 block text-xs text-red-700">{fieldErrors.minutes}</span> : null}</label>
@@ -247,10 +247,10 @@ export function CapacitySettingsForm({
             {paused ? <button type="button" disabled={busy} onClick={() => void run({ operation: "RESUME_ORDERING", reason }, label("已恢復公開接單。")) } className="inline-flex min-h-10 items-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white"><Play className="h-4 w-4" />{label("恢復接單")}</button> : <button type="button" disabled={busy} onClick={() => void run({ operation: "PAUSE_ORDERING", reason }, label("已暫停公開接單。")) } className="inline-flex min-h-10 items-center gap-2 rounded-md bg-red-700 px-3 text-sm font-semibold text-white"><Pause className="h-4 w-4" />{label("暫停接單")}</button>}
           </div>
         </div>
-      </details>
+      </section>
 
-      <details className="border-b border-stone-200 pb-6" open={data.capabilities.productRules}>
-        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-xl font-semibold"><PackageOpen className="h-5 w-5 text-teal-700" />{label("商品容量規則")}</summary>
+      <section className="border-b border-stone-200 pb-6">
+        <h2 className="flex min-h-11 items-center gap-2 text-xl font-semibold"><PackageOpen className="h-5 w-5 text-teal-700" />{label("商品容量規則")}</h2>
         {!data.capabilities.productRules ? <p className="mt-3 text-sm text-stone-500">{label("目前方案未包含各商品權重與時段數量上限。")}</p> : (
           <>
             <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -271,14 +271,14 @@ export function CapacitySettingsForm({
             </div>
           </>
         )}
-      </details>
+      </section>
 
-      <details className="border-b border-stone-200 pb-6">
-        <summary className="min-h-11 cursor-pointer list-none text-xl font-semibold">{label("最近容量事件")}</summary>
+      <section className="border-b border-stone-200 pb-6">
+        <h2 className="min-h-11 text-xl font-semibold">{label("最近容量事件")}</h2>
         <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">
           {data.events.length === 0 ? <p className="py-4 text-sm text-stone-500">{label("尚無容量事件。")}</p> : data.events.map((event) => <div key={event.id} className="grid gap-1 py-3 text-sm sm:grid-cols-[160px_1fr_auto]"><span className="font-semibold">{label(eventLabel(event.eventType))}</span><span className="text-stone-600">{event.reason}</span><time dateTime={event.createdAt} className="text-xs text-stone-500">{formatAppDateTime(locale, event.createdAt, { timeZone: "Asia/Taipei", dateStyle: "medium", timeStyle: "short" })}</time></div>)}
         </div>
-      </details>
+      </section>
 
     </div>
   );

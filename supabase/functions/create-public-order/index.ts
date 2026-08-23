@@ -15,6 +15,8 @@ import {
   canonicalPublicOrderBehavior,
   createPublicOrderSchema,
   createPublicOrderValidationCode,
+  publicOrderCustomerDetailsCode,
+  resolvePublicOrderFulfillmentType,
 } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
 import { verifyTurnstile } from "../_shared/turnstile.ts";
@@ -191,6 +193,10 @@ Deno.serve(async (request) => {
         quote_max_minutes?: number;
         requires_acknowledgment?: boolean;
       };
+      qr_context?: {
+        dining_table_id?: string | null;
+        fulfillment_type_context?: string | null;
+      } | null;
       idempotent_order?: (StoredOrder & {
         lottery_draw_id?: string | null;
         pickup_code_length?: number | null;
@@ -214,6 +220,17 @@ Deno.serve(async (request) => {
         tokens.pickupCode,
         canonicalPublicOrderTimestamp(existing.created_at),
       ), 200);
+    }
+
+    const customerDetailsCode = publicOrderCustomerDetailsCode(
+      input,
+      resolvePublicOrderFulfillmentType(input.orderingMode, preflight.qr_context),
+    );
+    if (customerDetailsCode) {
+      return respond(
+        { error: errorMessage(customerDetailsCode), code: customerDetailsCode },
+        statusForCode(customerDetailsCode),
+      );
     }
 
     const { data: gateResult, error: gateError } = await timing.measureDb(() => admin.rpc("check_public_order_submission_gate", {

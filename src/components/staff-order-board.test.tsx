@@ -117,7 +117,8 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain("sm:overflow-x-visible");
     expect(html).toContain("sticky top-0");
-    expect(html).toContain("overflow-x-hidden");
+    expect(html).not.toContain("overflow-x-hidden");
+    expect(html).not.toContain("backdrop-blur");
     expect(html).toContain("[&amp;_button]:box-border");
     expect(html).toContain("h-11 w-11");
     expect(html).toContain('<span class="sr-only">店員點餐</span>');
@@ -163,6 +164,25 @@ describe("StaffOrderBoard ticket presentation", () => {
 
     expect(html).toContain("完成訂單");
     expect(html).not.toContain("完成此桌");
+  });
+
+  it("gives a confirmed public pickup order an explicit ready action when KDS is off", () => {
+    const html = render([order({ source: "QR_MENU" })], { print: true, kds: false });
+
+    expect(html).toContain("餐點完成・通知可取餐");
+    expect(html).not.toContain("代結帳");
+    expect(html).not.toContain("列印並完成");
+  });
+
+  it("shows checkout only after a non-KDS public pickup order is ready", () => {
+    const html = render([order({
+      source: "QR_MENU",
+      status: "READY",
+      items: [{ ...order().items[0], status: "READY", readyAt: "2026-08-13T04:09:00.000Z" }],
+    })], { print: true, kds: false });
+
+    expect(html).toContain("代結帳");
+    expect(html).not.toContain("餐點完成・通知可取餐");
   });
 
   it("labels the pending-order transition as an acceptance action", () => {

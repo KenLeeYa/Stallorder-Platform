@@ -30,21 +30,54 @@ Deno.serve(async (request) => {
       deviceId: parsed.data.deviceId,
       behavior: "prepare-reorder",
     });
-    const { data: access, error: accessError } = await context.admin.rpc(
-      "notification_feature_access_code",
-      { p_organization_id: context.order.organization_id, p_feature_code: "LINE_REPEAT_ORDER" },
-    );
-    if (accessError) throw accessError;
-    if (access !== "OK") throw new HttpInputError("REORDER_UNAVAILABLE", 403);
+    if (context.order.source !== "QR_MENU" && context.order.source !== "LINE_DELIVERY") {
+      throw new HttpInputError("NOT_EDITABLE_SOURCE", 403);
+    }
+    if (context.order.payment_status !== "UNPAID") {
+      throw new HttpInputError("PAYMENT_ALREADY_RECORDED", 409);
+    }
+    if (Number(context.order.discount_amount) !== 0 || context.order.discount_option_id) {
+      throw new HttpInputError("DISCOUNT_ALREADY_APPLIED", 409);
+    }
+    if (context.order.status !== "WAITING_CONFIRMATION" && context.order.status !== "CONFIRMED") {
+      throw new HttpInputError("ORDER_ALREADY_STARTED", 409);
+    }
+
+    const [paymentQuery, productionQuery, printQuery] = await Promise.all([
+      context.admin.from("payments")
+        .select("id")
+        .eq("order_id", context.order.id)
+        .limit(1),
+      context.admin.from("order_production_tasks")
+        .select("status")
+        .eq("order_id", context.order.id)
+        .limit(100),
+      context.admin.from("print_jobs")
+        .select("status")
+        .eq("order_id", context.order.id)
+        .limit(100),
+    ]);
+    if (paymentQuery.error || productionQuery.error || printQuery.error) {
+      throw paymentQuery.error ?? productionQuery.error ?? printQuery.error;
+    }
+    if (paymentQuery.data.length > 0) {
+      throw new HttpInputError("PAYMENT_ALREADY_RECORDED", 409);
+    }
+    if (productionQuery.data.some((task) => task.status !== "PENDING")) {
+      throw new HttpInputError("ORDER_ALREADY_STARTED", 409);
+    }
+    if (printQuery.data.some((job) => job.status !== "PENDING")) {
+      throw new HttpInputError("PRINT_ALREADY_STARTED", 409);
+    }
 
     const [itemsQuery, stallQuery, qrQuery] = await Promise.all([
       context.admin.from("order_items")
-        .select("id, product_id, name, unit_price, quantity")
+        .select("id, product_id, name, unit_price, quantity, note, status")
         .eq("order_id", context.order.id)
         .order("created_at", { ascending: true })
         .limit(100),
       context.admin.from("stalls")
-        .select("slug")
+        .select("code")
         .eq("id", context.order.stall_id)
         .single(),
       context.admin.from("qr_codes")
@@ -58,6 +91,9 @@ Deno.serve(async (request) => {
     ]);
     if (itemsQuery.error || stallQuery.error || qrQuery.error) {
       throw itemsQuery.error ?? stallQuery.error ?? qrQuery.error;
+    }
+    if (itemsQuery.data.some((item) => item.status !== "PENDING")) {
+      throw new HttpInputError("ORDER_ALREADY_STARTED", 409);
     }
     const qrCode = selectQrCode(qrQuery.data, context.order.fulfillment_type, context.order.dining_table_id);
     if (!qrCode) throw new HttpInputError("QR_NOT_ACTIVE", 409);
@@ -81,7 +117,7 @@ Deno.serve(async (request) => {
       productIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : context.admin.from("products")
-          .select("id, name, default_price, is_active")
+          .select("id, name, default_price, kind, is_active")
           .eq("organization_id", context.order.organization_id)
           .in("id", productIds)
           .limit(100),
@@ -128,14 +164,20 @@ Deno.serve(async (request) => {
       options: optionsQuery.data,
       now: Date.now(),
     });
-    const orderingMode = context.order.fulfillment_type === "DELIVERY" ? "DELIVERY" : "DEFAULT";
-    const orderPath = orderingMode === "DELIVERY"
-      ? `/delivery/${encodeURIComponent(stallQuery.data.slug)}`
-      : `/q/${encodeURIComponent(qrCode.token)}`;
+    const orderingMode = context.order.fulfillment_type === "DELIVERY" ? "DELIVERY" : "PREORDER";
+    const view = orderingMode === "DELIVERY" ? "delivery" : "pickup";
+    const orderPath = `/store/${encodeURIComponent(stallQuery.data.code)}?view=${view}`;
     return respond({
       qrToken: qrCode.token,
       orderingMode,
       orderPath,
+      customerName: context.order.customer_name ?? "",
+      customerPhone: context.order.customer_phone ?? "",
+      deliveryAddress: context.order.delivery_address ?? "",
+      customerNote: context.order.note ?? "",
+      scheduledPickupAt: context.order.requested_fulfillment_at
+        ?? context.order.scheduled_pickup_at
+        ?? "",
       availableItems: result.available,
       unavailableItems: result.unavailable,
     }, 200);
@@ -170,10 +212,10 @@ function selectQrCode(qrCodes: QrCode[], fulfillmentType: string, diningTableId:
 }
 
 function rebuildItems(input: {
-  items: Array<{ id: string; product_id: string | null; name: string; unit_price: number; quantity: number }>;
+  items: Array<{ id: string; product_id: string | null; name: string; unit_price: number; quantity: number; note: string | null; status: string }>;
   historicalNotes: Array<{ order_item_id: string; note_option_id: string | null }>;
   stallProducts: Array<{ product_id: string; price_override: number | null; is_enabled: boolean; is_sold_out: boolean; available_from: string | null; available_until: string | null }>;
-  products: Array<{ id: string; name: string; default_price: number; is_active: boolean }>;
+  products: Array<{ id: string; name: string; default_price: number; kind: string; is_active: boolean }>;
   noteAssignments: Array<{ product_id: string; note_group_id: string }>;
   groups: Array<{ id: string; is_required: boolean; min_selections: number }>;
   options: Array<{ id: string; note_group_id: string; price_delta: number }>;
@@ -234,11 +276,15 @@ function rebuildItems(input: {
       productId: product.id,
       name: product.name,
       quantity: item.quantity,
+      note: item.note ?? "",
       noteOptionIds: validOptions.map((option) => option.id),
+      bundleChoiceIds: [],
       previousUnitPrice: item.unit_price,
       currentUnitPrice,
       priceChanged: currentUnitPrice !== item.unit_price,
-      needsReview: validOptions.length !== historicalOptionIds.length || requiredSelectionMissing,
+      needsReview: product.kind === "BUNDLE"
+        || validOptions.length !== historicalOptionIds.length
+        || requiredSelectionMissing,
     });
   }
   return { available, unavailable };
