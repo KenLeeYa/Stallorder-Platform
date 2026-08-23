@@ -185,8 +185,8 @@ try {
       provider: "MOCK",
       deduplicationKey: {
         in: [
-          `${deliveryActionDeduplicationPrefix(externalOrderId)}PREPARING`,
-          `${deliveryActionDeduplicationPrefix(externalOrderId)}READY`,
+          `order-action:MOCK:${externalOrderId}:PREPARING`,
+          `order-action:MOCK:${externalOrderId}:READY`,
         ],
       },
     },
@@ -296,7 +296,7 @@ async function cleanupSyntheticState() {
             {
               deduplicationKey: {
                 startsWith:
-                  deliveryActionDeduplicationPrefix(syntheticExternalOrderId),
+                  `order-action:MOCK:${syntheticExternalOrderId}:`,
               },
             },
           ],
@@ -543,10 +543,6 @@ function required(name) {
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
-}
-
-function deliveryActionDeduplicationPrefix(externalOrderId) {
-  return `order-action:MOCK:${CONNECTION_ID}:${sha256(externalOrderId)}:`;
 }
 
 function delay(milliseconds) {
