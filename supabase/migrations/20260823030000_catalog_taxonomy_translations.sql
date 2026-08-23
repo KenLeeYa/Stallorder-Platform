@@ -1,4 +1,4 @@
-create table if not exists public.product_category_translations (
+create table public.product_category_translations (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   category_id uuid not null references public.product_categories(id) on delete cascade,
@@ -11,10 +11,10 @@ create table if not exists public.product_category_translations (
   constraint product_category_translations_name_check check (char_length(name) between 1 and 120)
 );
 
-create index if not exists product_category_translations_organization_locale_idx
+create index product_category_translations_organization_locale_idx
   on public.product_category_translations (organization_id, locale);
 
-create table if not exists public.product_group_translations (
+create table public.product_group_translations (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   group_id uuid not null references public.product_groups(id) on delete cascade,
@@ -27,10 +27,10 @@ create table if not exists public.product_group_translations (
   constraint product_group_translations_name_check check (char_length(name) between 1 and 120)
 );
 
-create index if not exists product_group_translations_organization_locale_idx
+create index product_group_translations_organization_locale_idx
   on public.product_group_translations (organization_id, locale);
 
-create or replace function public.enforce_product_taxonomy_translation_scope()
+create function public.enforce_product_taxonomy_translation_scope()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -52,12 +52,10 @@ begin
 end;
 $$;
 
-drop trigger if exists product_category_translations_scope_before_write on public.product_category_translations;
 create trigger product_category_translations_scope_before_write
 before insert or update on public.product_category_translations
 for each row execute function public.enforce_product_taxonomy_translation_scope();
 
-drop trigger if exists product_group_translations_scope_before_write on public.product_group_translations;
 create trigger product_group_translations_scope_before_write
 before insert or update on public.product_group_translations
 for each row execute function public.enforce_product_taxonomy_translation_scope();
@@ -67,38 +65,10 @@ alter table public.product_category_translations force row level security;
 alter table public.product_group_translations enable row level security;
 alter table public.product_group_translations force row level security;
 
-revoke all on public.product_category_translations, public.product_group_translations
+revoke all on table public.product_category_translations, public.product_group_translations
 from public, anon, authenticated;
-grant select on public.product_category_translations, public.product_group_translations
-to authenticated;
-grant select, insert, update, delete on public.product_category_translations, public.product_group_translations
+grant select, insert, update, delete on table public.product_category_translations, public.product_group_translations
 to service_role;
-
-drop policy if exists product_category_translations_authorized_select on public.product_category_translations;
-create policy product_category_translations_authorized_select
-on public.product_category_translations for select to authenticated using (
-  app_private.has_organization_wide_staff_access(organization_id)
-  or exists (
-    select 1
-      from public.products product
-      join public.stall_products stall_product on stall_product.product_id = product.id
-     where product.category_id = product_category_translations.category_id
-       and app_private.can_access_stall(stall_product.stall_id)
-  )
-);
-
-drop policy if exists product_group_translations_authorized_select on public.product_group_translations;
-create policy product_group_translations_authorized_select
-on public.product_group_translations for select to authenticated using (
-  app_private.has_organization_wide_staff_access(organization_id)
-  or exists (
-    select 1
-      from public.products product
-      join public.stall_products stall_product on stall_product.product_id = product.id
-     where product.group_id = product_group_translations.group_id
-       and app_private.can_access_stall(stall_product.stall_id)
-  )
-);
 
 revoke all on function public.enforce_product_taxonomy_translation_scope()
 from public, anon, authenticated;
