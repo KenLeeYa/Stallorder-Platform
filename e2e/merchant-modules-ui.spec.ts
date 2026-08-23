@@ -180,10 +180,9 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
 
   await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/languages`);
   await expect(page.getByRole("heading", { name: "QR 點餐語系", exact: true }).first()).toBeVisible();
-  const localeSection = page.locator('details[aria-label="QR 點餐語系"]');
-  if (!(await localeSection.evaluate((element) => (element as HTMLDetailsElement).open))) {
-    await localeSection.locator("summary").click();
-  }
+  const localeSection = page.locator("#stall-module-section-locales");
+  await expect(localeSection).toBeVisible();
+  await expect(localeSection.locator("details, summary")).toHaveCount(0);
   const traditionalChineseSwitch = localeSection.getByRole("switch", { name: /繁體中文/ });
   const japaneseSwitch = localeSection.getByRole("switch", { name: /日文/ });
   for (const [locale, flagPath] of Object.entries({ "zh-TW": "/flags/tw.svg", en: "/flags/us.svg", ja: "/flags/jp.svg", ko: "/flags/kr.svg", vi: "/flags/vn.svg", th: "/flags/th.svg" })) {

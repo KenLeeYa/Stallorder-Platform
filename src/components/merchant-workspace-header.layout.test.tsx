@@ -59,6 +59,7 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     expect(html).toContain('data-testid="merchant-function-navigation-mobile"');
     expect(html).toContain('data-testid="merchant-function-navigation-desktop"');
     expect(html).toContain("sticky top-0");
+    expect(html).toContain("overflow-x-hidden");
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain('data-compact="true"');
     expect(html).toContain('href="/merchant/dashboard?organizationId=organization-1"');

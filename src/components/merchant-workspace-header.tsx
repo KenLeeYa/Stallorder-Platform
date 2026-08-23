@@ -216,8 +216,8 @@ export function MerchantWorkspaceHeader({
           </div>
         </div>
       </header>
-      <div className="sticky top-0 z-30 border-b border-stone-200 bg-white/95 px-4 py-1 backdrop-blur md:hidden">
-        <div className="mx-auto max-w-7xl">
+      <div className="sticky top-0 z-30 min-w-0 overflow-x-hidden border-b border-stone-200 bg-white/95 px-4 py-1 backdrop-blur md:hidden">
+        <div className="mx-auto min-w-0 max-w-full">
           {renderFunctionNavigation("flex w-full", "merchant-function-navigation-mobile")}
         </div>
       </div>
