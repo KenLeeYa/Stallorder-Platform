@@ -117,7 +117,9 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain("sm:overflow-x-visible");
     expect(html).toContain("sticky top-0");
-    expect(html).toMatch(/<header[^>]*data-testid="staff-sticky-header"[^>]*overflow-x-hidden/);
+    expect(html).toMatch(/<header[^>]*data-testid="staff-sticky-header"[^>]*overflow-x-clip[^>]*overflow-y-visible/);
+    expect(html).toContain("overscroll-x-contain");
+    expect(html).toContain("min-[360px]:flex-nowrap");
     expect(html).not.toContain("backdrop-blur");
     expect(html).toContain("[&amp;_button]:box-border");
     expect(html).toContain("h-11 w-11");

@@ -73,6 +73,7 @@ export async function getOAuthLoginUiConfig(
       : isLiveOAuthProviderConfigured(provider, environment);
     return {
       provider,
+      requested: state.foundation && state.providers[provider],
       enabled: state.foundation
         && state.providers[provider]
         && configured

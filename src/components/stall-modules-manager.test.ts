@@ -160,6 +160,7 @@ describe("buildPublicStorefrontShare", () => {
       initialState: moduleState(),
     })));
 
+    expect(html).not.toContain("<details");
     expect(html).not.toContain("<summary");
     expect(html).not.toContain('data-testid="stall-modules-toggle-all"');
     expect(html).toContain("營運模組與內用桌位");

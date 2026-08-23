@@ -12,7 +12,9 @@ const mocks = vi.hoisted(() => ({
   verifyManagerAuthorization: vi.fn(),
   recordAuditEvent: vi.fn(),
   orderFindFirst: vi.fn(),
+  orderFindMany: vi.fn(),
   paymentOptionFindFirst: vi.fn(),
+  paymentOptionFindMany: vi.fn(),
   paymentUpdateMany: vi.fn(),
   orderUpdateMany: vi.fn(),
   orderEventCreate: vi.fn(),
@@ -29,8 +31,8 @@ vi.mock("@/lib/manager-authorization", async (importOriginal) => ({
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    order: { findFirst: mocks.orderFindFirst },
-    paymentOption: { findFirst: mocks.paymentOptionFindFirst },
+    order: { findFirst: mocks.orderFindFirst, findMany: mocks.orderFindMany },
+    paymentOption: { findFirst: mocks.paymentOptionFindFirst, findMany: mocks.paymentOptionFindMany },
     $transaction: mocks.transaction,
   },
 }));
@@ -41,7 +43,7 @@ describe("completed order protected corrections", () => {
     mocks.authorize.mockResolvedValue({
       ok: true,
       requestId: "request-1",
-      stall: { id: stallId, organizationId },
+      stall: { id: stallId, organizationId, timezone: "Asia/Taipei" },
       principal: { user: { id: "66666666-6666-4666-8666-666666666666" } },
       roles: ["STAFF"],
     });
@@ -63,6 +65,8 @@ describe("completed order protected corrections", () => {
         status: "PAID",
       },
     });
+    mocks.orderFindMany.mockResolvedValue([]);
+    mocks.paymentOptionFindMany.mockResolvedValue([]);
     mocks.paymentOptionFindFirst.mockResolvedValue({ id: paymentOptionId, name: "LINE Pay", kind: "OTHER" });
     mocks.paymentUpdateMany.mockResolvedValue({ count: 1 });
     mocks.orderUpdateMany.mockResolvedValue({ count: 1 });
@@ -88,6 +92,30 @@ describe("completed order protected corrections", () => {
     expect(response.status).toBe(400);
     expect(mocks.orderFindFirst).not.toHaveBeenCalled();
     expect(mocks.paymentUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("defaults history to the stall-local current day using terminal timestamps", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-23T12:00:00Z"));
+    try {
+      const route = await import("./route");
+      const response = await route.GET(
+        new Request("https://example.test/api/stalls/demo/completed-orders?status=ALL"),
+        { params: Promise.resolve({ stallSlug: "demo" }) },
+      );
+
+      expect(response.status).toBe(200);
+      expect(mocks.orderFindMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { status: "COMPLETED", completedAt: { gte: new Date("2026-08-22T16:00:00Z"), lt: new Date("2026-08-23T16:00:00Z") } },
+            { status: "CANCELLED", cancelledAt: { gte: new Date("2026-08-22T16:00:00Z"), lt: new Date("2026-08-23T16:00:00Z") } },
+          ],
+        }),
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("changes only the paid payment method and preserves order items and totals", async () => {

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { CancellationReason, PaymentOptionKind } from "@prisma/client";
-import { ChevronDown, ChevronUp, History, Search, ShieldCheck } from "lucide-react";
+import { ChevronDown, ChevronUp, History, Printer, Search, ShieldCheck } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { csrfHeaders } from "@/lib/csrf-client";
@@ -66,10 +66,12 @@ export function CompletedOrdersPanel({
   stallSlug,
   currency,
   requiresAuthorizationCode,
+  canPrintReceipt,
 }: {
   stallSlug: string;
   currency: string;
   requiresAuthorizationCode: boolean;
+  canPrintReceipt: boolean;
 }) {
   const { locale, t } = useOperationsLocale();
   const [open, setOpen] = useState(false);
@@ -154,6 +156,25 @@ export function CompletedOrdersPanel({
     }
   }
 
+  async function printReceipt(orderId: string) {
+    setLoading(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/stalls/${encodeURIComponent(stallSlug)}/print-jobs`, {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify({ operation: "QUEUE_RECEIPT", orderId }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? t("completedOrders.receiptFailed"));
+      setMessage(t("completedOrders.receiptQueued"));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("completedOrders.receiptFailed"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <section className="mt-6 rounded-lg border border-stone-300 bg-white shadow-sm" aria-labelledby="completed-orders-heading">
       <button
@@ -171,6 +192,7 @@ export function CompletedOrdersPanel({
       {open ? (
         <div className="border-t border-stone-200 p-4">
           <p className="text-sm text-stone-600">{t("completedOrders.description")}</p>
+          <p className="mt-1 text-xs font-semibold text-teal-800">{t("completedOrders.todayOnly")}</p>
           <form
             className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_auto]"
             onSubmit={(event) => { event.preventDefault(); void load(); }}
@@ -258,6 +280,7 @@ export function CompletedOrdersPanel({
                           <button type="button" onClick={() => openAction(order, "CANCEL")} className="min-h-10 rounded-md border border-red-300 bg-white px-3 text-sm font-semibold text-red-700">
                             {t("completedOrders.cancelOrder")}
                           </button>
+                          {canPrintReceipt ? <button type="button" disabled={loading} onClick={() => void printReceipt(order.id)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold disabled:opacity-50"><Printer className="h-4 w-4" />{t("completedOrders.printReceipt")}</button> : null}
                         </div>
                       ) : (
                         <p className="mt-4 text-xs font-medium text-stone-600">{t("completedOrders.cancelledPaymentWarning")}</p>

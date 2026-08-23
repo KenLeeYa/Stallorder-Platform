@@ -21,7 +21,9 @@ export default async function LoginPage() {
       provider: provider.provider,
       label: providerLabels[provider.provider],
     }));
+  const googleProvider = oauth.providers.find((provider) => provider.provider === "GOOGLE");
   const legacyGoogleEnabled = !oauth.oauthOnly
+    && Boolean(googleProvider?.requested)
     && isSupabaseAuthConfigured()
     && !providers.some((provider) => provider.provider === "GOOGLE");
   const applicationProvider = providers.find((provider) => provider.provider === "GOOGLE")

@@ -214,6 +214,18 @@ export async function requestPublicOrder(
   options.signal?.throwIfAborted();
   const deviceId = typeof input.deviceId === "string" ? input.deviceId : "";
   const serializedBody = JSON.stringify(input);
+  if (shouldUseDevelopmentCircuitB()) {
+    return requestCircuitB(
+      operation,
+      input,
+      serializedBody,
+      operationId,
+      fetchImpl,
+      timeoutMs,
+      now,
+      options.signal,
+    );
+  }
   const availability = resolveDualOrderIntake(fetchImpl, deviceId);
   const breaker = getOperationBreaker(operation);
   const primaryAllowed = breaker.allowRequest();
@@ -297,6 +309,12 @@ export async function requestPublicOrder(
       options.signal,
     );
   }
+}
+
+function shouldUseDevelopmentCircuitB() {
+  return typeof window !== "undefined"
+    && process.env.NODE_ENV === "development"
+    && !process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.trim();
 }
 
 function getOperationBreaker(operation: PublicOrderOperation) {

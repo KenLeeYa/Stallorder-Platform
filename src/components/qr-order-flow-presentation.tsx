@@ -25,6 +25,7 @@ import { SessionExpiryDialog } from "@/components/qr-session-expiry-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { QrOrderMenu } from "@/components/qr-order-menu";
 import { formatMoney } from "@/lib/money";
+import { localizeSpecialClosureTitle } from "@/lib/special-closures";
 
 type QrOrderFlowPresentationProps = {
   controller: QrOrderFlowController;
@@ -257,7 +258,7 @@ export function QrOrderFlowPresentation({
           >
             <CalendarOff className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
             <div>
-              <h2 className="font-semibold">{session.specialClosure.title}</h2>
+              <h2 className="font-semibold">{localizeSpecialClosureTitle(session.specialClosure.title, locale)}</h2>
               <p className="mt-1 text-sm font-semibold">{formatSpecialClosureRange(session.specialClosure, locale)}</p>
               {session.specialClosure.message ? <p className="mt-1 text-sm leading-6">{session.specialClosure.message}</p> : null}
             </div>

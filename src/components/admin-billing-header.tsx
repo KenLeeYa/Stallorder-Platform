@@ -8,6 +8,7 @@ import {
   ClipboardList,
   CreditCard,
   FileText,
+  KeyRound,
   Layers3,
   PackageCheck,
   Store,
@@ -27,6 +28,7 @@ const items = [
   { href: "/admin/plans", label: "Plan catalog", icon: Layers3 },
   { href: "/admin/usage", label: "Usage", icon: ChartNoAxesCombined },
   { href: "/admin/delivery-integrations", label: "Delivery integrations", icon: Truck },
+  { href: "/admin/login-methods", label: "Login methods", icon: KeyRound },
 ] as const satisfies ReadonlyArray<{ href: string; label: AdminMessageKey; icon: typeof Store }>;
 
 export function AdminBillingHeader({ displayName }: { displayName: string }) {

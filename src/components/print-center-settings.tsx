@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bluetooth, Cable, Cloud, Pencil, Plus, Power, Printer, ReceiptText, Save, TestTube2, Trash2 } from "lucide-react";
+import { Bluetooth, Cable, Cloud, Pencil, Plus, Power, Printer, ReceiptText, Save, TestTube2, Trash2, TriangleAlert } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { MAX_PRINT_RULES_PER_STALL } from "@/lib/print-center-types";
 import type {
@@ -173,6 +173,11 @@ export function PrintCenterSettings({
           <h2 className="flex items-center gap-2 text-lg font-semibold"><Printer className="h-5 w-5 text-teal-700" />{t("print.device.title")}</h2>
           <p className="mt-1 text-xs text-stone-500">{t("print.device.hint")}</p>
         </div>
+      </div>
+
+      <div data-print-hardware-diagnostics className="mt-4 grid gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-950 sm:grid-cols-2">
+        <p className="flex items-start gap-2"><Cable aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />{t("print.device.iosSafariTransport")}</p>
+        <p className="flex items-start gap-2"><TriangleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />{t("print.device.drawerCableWarning")}</p>
       </div>
 
       <details className="mt-4 rounded-md border border-stone-200 p-3" open={state.printers.length === 0}>
