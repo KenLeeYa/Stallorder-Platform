@@ -96,6 +96,8 @@ describe("QrOrderMenu presentation", () => {
     const html = renderMenu();
 
     expect(html).toContain(`<nav aria-label="${baseProps.copy.categoryNavigation}"`);
+    expect(html).toContain("sticky top-0");
+    expect(html).not.toContain("md:static");
     expect(html).toContain('href="#qr-category-0"');
     expect(html).toContain('id="qr-category-0" class="scroll-mt-16"');
     expect(html).toContain('id="qr-product-meal"');

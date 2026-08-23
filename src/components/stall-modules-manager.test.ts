@@ -148,4 +148,22 @@ describe("buildPublicStorefrontShare", () => {
     expect(html).not.toContain("顧客外帶預約網址");
     expect(html).not.toContain("顧客外送網址");
   });
+
+  it("keeps every stall setting section visible without accordion controls", () => {
+    const html = renderToStaticMarkup(createElement(LocaleProvider, {
+      initialLocale: "zh-TW",
+      hasLocaleCookie: true,
+    } as Parameters<typeof LocaleProvider>[0], createElement(StallModulesManager, {
+      stallId: "stall-1",
+      stallCode: "VIET-FOOD-YC",
+      appUrl: "https://app.qidaigo.com",
+      initialState: moduleState(),
+    })));
+
+    expect(html).not.toContain("<summary");
+    expect(html).not.toContain('data-testid="stall-modules-toggle-all"');
+    expect(html).toContain("營運模組與內用桌位");
+    expect(html).toContain("外帶、外送與 LINE 連結");
+    expect(html).toContain("桌位平面配置");
+  });
 });

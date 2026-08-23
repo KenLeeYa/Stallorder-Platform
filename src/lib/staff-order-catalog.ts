@@ -36,13 +36,14 @@ export async function getStaffOrderPageConfiguration(
             organizationId: true,
             name: true,
             description: true,
+            translations: { select: { locale: true, name: true, description: true } },
             defaultPrice: true,
             kind: true,
             imageUrl: true,
             isOrderDiscountEligible: true,
             sortOrder: true,
-            category: { select: { name: true, sortOrder: true } },
-            group: { select: { name: true, sortOrder: true } },
+            category: { select: { name: true, sortOrder: true, translations: { select: { locale: true, name: true } } } },
+            group: { select: { name: true, sortOrder: true, translations: { select: { locale: true, name: true } } } },
             bundleChoiceGroups: {
               orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
               select: {
@@ -65,6 +66,7 @@ export async function getStaffOrderPageConfiguration(
                       select: {
                         organizationId: true,
                         name: true,
+                        translations: { select: { locale: true, name: true, description: true } },
                         kind: true,
                         isActive: true,
                         category: { select: { isActive: true } },
@@ -93,6 +95,7 @@ export async function getStaffOrderPageConfiguration(
                   select: {
                     id: true,
                     name: true,
+                    translations: { select: { locale: true, name: true } },
                     selectionMode: true,
                     isRequired: true,
                     minSelections: true,
@@ -100,7 +103,12 @@ export async function getStaffOrderPageConfiguration(
                     options: {
                       where: { isActive: true },
                       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-                      select: { id: true, name: true, priceDelta: true },
+                      select: {
+                        id: true,
+                        name: true,
+                        priceDelta: true,
+                        translations: { select: { locale: true, name: true } },
+                      },
                     },
                   },
                 },
@@ -210,6 +218,7 @@ export async function getStaffOrderPageConfiguration(
         return isAvailable ? [{
           id: choice.id,
           name: choice.componentProduct.name,
+          translations: choice.componentProduct.translations,
           quantity: choice.quantity,
           priceDelta: choice.priceDelta,
         }] : [];
@@ -230,8 +239,11 @@ export async function getStaffOrderPageConfiguration(
       id: assignment.product.id,
       name: assignment.product.name,
       description: assignment.product.description,
+      translations: assignment.product.translations,
       category: assignment.product.category.name,
+      categoryTranslations: assignment.product.category.translations,
       group: assignment.product.group?.name ?? null,
+      groupTranslations: assignment.product.group?.translations ?? [],
       price: assignment.priceOverride ?? assignment.product.defaultPrice,
       isOrderDiscountEligible: assignment.product.isOrderDiscountEligible,
       kind: assignment.product.kind,

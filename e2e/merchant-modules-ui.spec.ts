@@ -407,7 +407,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await expect(page.getByRole("button", { name: "複製 香酥雞排" }).first()).toBeVisible();
   const validCsvRow = ["", "測試分類", "", "匯入預覽商品", "", "88", "", "1", "true", "AMING-01", "Preview item", "", "", "", "", "", "", "", "", "", "true", "true"];
   const invalidCsvRow = ["", "測試分類", "", "錯誤價格商品", "", "=100", "", "2", "true", "AMING-01", "", "", "", "", "", "", "", "", "", "", "true", "true"];
-  const csvInput = page.getByText("匯入 CSV", { exact: true }).locator("input[type=file]");
+  const csvInput = page.getByLabel("匯入 CSV", { exact: true });
   await waitForReactHandler(csvInput, "onChange");
   const importPreviewResponse = page.waitForResponse((response) => (
     new URL(response.url()).pathname
@@ -433,7 +433,9 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await expect(editor.getByLabel("日文名稱")).toHaveValue("鶏肉の揚げ物");
   await editor.getByRole("button", { name: "關閉" }).click();
 
-  await page.getByRole("button", { name: "商品", exact: true }).click();
+  await page.getByTestId("shared-catalog-create-actions")
+    .getByRole("button", { name: "新增商品", exact: true })
+    .click();
   const createEditor = page.getByRole("dialog", { name: "新增商品" });
   const defaultPrice = createEditor.getByLabel("預設售價");
   await expect(defaultPrice).toHaveValue("");

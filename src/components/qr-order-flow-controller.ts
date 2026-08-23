@@ -6,6 +6,7 @@ import { startQrOrderAvailabilityLifecycle } from "@/components/qr-order-availab
 import { startQrOrderCapacityLifecycle } from "@/components/qr-order-capacity-controller";
 import {
   createQrOrderCheckoutModel,
+  submitQrOrderEditFlowCheckout,
   submitQrOrderFlowCheckout,
   type QrOrderCheckoutFlowInput,
 } from "@/components/qr-order-checkout-controller";
@@ -24,6 +25,7 @@ import { useQrOrderProductController } from "@/components/qr-order-product-contr
 import { resolveQrOrderSessionTransition } from "@/components/qr-order-session-application";
 import {
   buildQrCartDraft,
+  restoreQrOrderSessionCart,
   usableQrInitialMenu,
   type QrOrderEntryChannel,
   type QrOrderSession,
@@ -76,6 +78,7 @@ export type QrOrderFlowControllerInput = {
   entryChannel?: QrOrderEntryChannel;
   initialUiLocale?: QrLocale;
   requestedLocale?: QrLocale | null;
+  editTrackingToken?: string | null;
 };
 
 export function useQrOrderFlowController({
@@ -85,8 +88,10 @@ export function useQrOrderFlowController({
   entryChannel = "QR",
   initialUiLocale = "zh-TW",
   requestedLocale = null,
+  editTrackingToken = null,
 }: QrOrderFlowControllerInput) {
   const usableInitialMenu = usableQrInitialMenu(entryChannel, initialMenu);
+  const editMode = Boolean(editTrackingToken && usableInitialMenu);
   const initialResolvedLocale = usableInitialMenu
     ? preserveSupportedQrLocale(initialUiLocale, usableInitialMenu.supportedLocales)
     : initialUiLocale;
@@ -106,7 +111,12 @@ export function useQrOrderFlowController({
   const [deviceId, setDeviceId] = useState("");
   const [activeOrderingMode, setActiveOrderingMode] = useState(orderingMode);
   const [session, setSession] = useState<QrOrderSession | null>(usableInitialMenu
-    ? { ...usableInitialMenu, orderSessionToken: "", expiresAt: "" }
+    ? {
+        ...usableInitialMenu,
+        ...(editMode ? { lotteryEnabled: false, requiresWaitAcknowledgment: false } : {}),
+        orderSessionToken: "",
+        expiresAt: "",
+      }
     : null);
   const [cartLines, setCartLines] = useState<QrCartLine[]>([]);
   const [customerName, setCustomerName] = useState("");
@@ -137,8 +147,10 @@ export function useQrOrderFlowController({
   const [availabilityRefreshing, setAvailabilityRefreshing] = useState(false);
   const copy = qrOrderMessages[locale];
   const deliveryCopy = deliveryOrderMessages[locale];
-  const sessionReady = Boolean(session?.orderSessionToken && session.expiresAt);
-  const sessionExpiryDialogOpen = sessionReady
+  const sessionReady = editMode
+    ? Boolean(session)
+    : Boolean(session?.orderSessionToken && session.expiresAt);
+  const sessionExpiryDialogOpen = !editMode && sessionReady
     && (sessionTimePhase === "EXPIRING" || sessionTimePhase === "EXPIRED");
   const cartDialogOpen = cartOpen && !sessionExpiryDialogOpen;
   const specialClosureActive = session?.specialClosure?.isActive === true;
@@ -353,44 +365,89 @@ export function useQrOrderFlowController({
   }, [cancelProductConfiguration, configuringProductId, sessionExpiryDialogOpen]);
 
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    const currentDeviceId = getOrCreateDeviceId();
-    let storedPreference: string | null = null;
-    let legacyLocale: string | null = null;
-    try {
-      storedPreference = window.localStorage.getItem(QR_UI_LOCALE_STORAGE_KEY);
-      legacyLocale = window.localStorage.getItem(QR_LOCALE_STORAGE_KEY);
-    } catch {
-      storedPreference = null;
-      legacyLocale = null;
-    }
-    const resolvedLocale = resolveQrUiLocale({
-      queryLocale: requestedLocale,
-      storedPreference,
-      legacyLocale,
-      appLocale: initialUiLocale,
-    });
-    const browserLocale = resolvedLocale.locale;
-    if (resolvedLocale.source === "query" || resolvedLocale.shouldMigrateLegacy) {
+    let active = true;
+    async function initialize() {
+      await Promise.resolve();
+      if (!active || startedRef.current) return;
+      startedRef.current = true;
+      const currentDeviceId = getOrCreateDeviceId();
+      let storedPreference: string | null = null;
+      let legacyLocale: string | null = null;
       try {
-        window.localStorage.setItem(
-          QR_UI_LOCALE_STORAGE_KEY,
-          serializeQrLocalePreference(
-            browserLocale,
-            resolvedLocale.source === "query" ? "query" : "manual",
-          ),
-        );
-        window.localStorage.removeItem(QR_LOCALE_STORAGE_KEY);
+        storedPreference = window.localStorage.getItem(QR_UI_LOCALE_STORAGE_KEY);
+        legacyLocale = window.localStorage.getItem(QR_LOCALE_STORAGE_KEY);
       } catch {
-        // Browsers can block storage in private or restricted contexts.
+        storedPreference = null;
+        legacyLocale = null;
       }
+      const resolvedLocale = resolveQrUiLocale({
+        queryLocale: requestedLocale,
+        storedPreference,
+        legacyLocale,
+        appLocale: initialUiLocale,
+      });
+      const browserLocale = resolvedLocale.locale;
+      if (resolvedLocale.source === "query" || resolvedLocale.shouldMigrateLegacy) {
+        try {
+          window.localStorage.setItem(
+            QR_UI_LOCALE_STORAGE_KEY,
+            serializeQrLocalePreference(
+              browserLocale,
+              resolvedLocale.source === "query" ? "query" : "manual",
+            ),
+          );
+          window.localStorage.removeItem(QR_LOCALE_STORAGE_KEY);
+        } catch {
+          // Browsers can block storage in private or restricted contexts.
+        }
+      }
+      localeRef.current = browserLocale;
+      setLocale(browserLocale);
+      setDeviceId(currentDeviceId);
+      if (editMode && usableInitialMenu) {
+        const editSession: QrOrderSession = {
+          ...usableInitialMenu,
+          lotteryEnabled: false,
+          requiresWaitAcknowledgment: false,
+          orderSessionToken: "",
+          expiresAt: "",
+        };
+        let storedDraft: string | null = null;
+        try {
+          storedDraft = window.localStorage.getItem(
+            qrCartStorageKey(qrToken, editSession.orderingMode),
+          );
+        } catch {
+          storedDraft = null;
+        }
+        const cartRecovery = restoreQrOrderSessionCart({
+          raw: storedDraft,
+          session: editSession,
+          currentScheduledPickupAt: "",
+        });
+        sessionReadyRef.current = true;
+        setActiveOrderingMode(editSession.orderingMode);
+        setCustomerName(cartRecovery.customerName);
+        setCustomerNote(cartRecovery.customerNote);
+        setCustomerPhone(cartRecovery.customerPhone);
+        setDeliveryAddress(cartRecovery.deliveryAddress);
+        setCartLines(cartRecovery.lines);
+        setCartRestored(cartRecovery.restored);
+        setTurnstileRequested(cartRecovery.lines.length > 0);
+        scheduledPickupAtRef.current = cartRecovery.scheduledPickupAt;
+        setScheduledPickupAt(cartRecovery.scheduledPickupAt);
+        setDraftScheduledPickupAt(cartRecovery.draftScheduledPickupAt);
+        setCartReady(true);
+        setIsLoading(false);
+        return;
+      }
+      void startOrderSession(currentDeviceId, browserLocale);
     }
-    localeRef.current = browserLocale;
-    setLocale(browserLocale);
-    setDeviceId(currentDeviceId);
-    void startOrderSession(currentDeviceId, browserLocale);
-  }, [initialUiLocale, requestedLocale, startOrderSession]);
+    void initialize();
+    return () => {
+      active = false;
+    };
+  }, [editMode, initialUiLocale, qrToken, requestedLocale, startOrderSession, usableInitialMenu]);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -401,6 +458,12 @@ export function useQrOrderFlowController({
       onRefreshingChange: setAvailabilityRefreshing,
       onMissingAvailability: () => updateOrderingAvailability("UNAVAILABLE"),
       onOrderingDisabled: (status) => {
+        if (editMode) {
+          setTurnstileToken(null);
+          setTurnstileRequested(false);
+          updateOrderingAvailability(status);
+          return;
+        }
         sessionReadyRef.current = false;
         setSessionStartError("");
         setSession((current) => current ? {
@@ -415,6 +478,7 @@ export function useQrOrderFlowController({
       },
       onOrderingAvailable: async ({ targetChanged, shouldStartSession }) => {
         updateOrderingAvailability("AVAILABLE");
+        if (editMode) return;
         if (!shouldStartSession) return;
         if (targetChanged) sessionController.rotateSessionIdentity();
         await startOrderSession(deviceId, localeRef.current);
@@ -427,14 +491,14 @@ export function useQrOrderFlowController({
       lifecycle.stop();
       refreshAvailabilityRef.current = () => undefined;
     };
-  }, [deviceId, sessionController, startOrderSession, updateOrderingAvailability]);
+  }, [deviceId, editMode, sessionController, startOrderSession, updateOrderingAvailability]);
 
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
 
   useEffect(() => {
-    if (!deviceId || !sessionReady || !session?.orderSessionToken) return;
+    if (editMode || !deviceId || !sessionReady || !session?.orderSessionToken) return;
     const lifecycle = startQrOrderCapacityLifecycle({
       qrToken,
       deviceId,
@@ -477,6 +541,7 @@ export function useQrOrderFlowController({
   }, [
     activeOrderingMode,
     deviceId,
+    editMode,
     qrToken,
     sessionController,
     session?.estimatedWaitMaxMinutes,
@@ -638,6 +703,7 @@ export function useQrOrderFlowController({
         unappliedFulfillmentTime: copy.applyPickupTimeRequired,
         sessionLoading: copy.sessionLoading,
         sessionExpired: copy.sessionExpired,
+        customerDetailsMissing: copy.customerDetailsRequired,
         deliveryDetailsMissing: deliveryCopy.detailsRequired,
         waitAcknowledgmentRequired: copy.waitAcknowledgmentRequired,
         securityRequired: copy.securityRequired,
@@ -649,30 +715,37 @@ export function useQrOrderFlowController({
   }
 
   async function submitOrder() {
-    await submitQrOrderFlowCheckout({
-      input: checkoutFlowInput(),
+    const input = checkoutFlowInput();
+    const effects = {
+      onMessage: setMessage,
+      onSubmittingChange: setIsSubmitting,
+      onSessionUpdate: setSession,
+      onWaitAcknowledgmentReset: () => setWaitAcknowledged(false),
+      onTurnstileInvalid: () => {
+        setTurnstileToken(null);
+        setTurnstileResetKey((value) => value + 1);
+      },
+      clearPersistedCart: () => {
+        window.localStorage.removeItem(qrCartStorageKey(qrToken, activeOrderingMode));
+      },
+      navigateToOrder: (nextTrackingToken: string) => {
+        window.location.assign(`/order/${encodeURIComponent(nextTrackingToken)}`);
+      },
+    };
+    const shared = {
+      input,
       sessionController,
       networkError: copy.networkError,
-      localizeError: (code) => (
+      localizeError: (code: string) => (
         localizedDeliveryOrderError(locale, code) ?? localizedPublicOrderError(locale, code)
       ),
-      effects: {
-        onMessage: setMessage,
-        onSubmittingChange: setIsSubmitting,
-        onSessionUpdate: setSession,
-        onWaitAcknowledgmentReset: () => setWaitAcknowledged(false),
-        onTurnstileInvalid: () => {
-          setTurnstileToken(null);
-          setTurnstileResetKey((value) => value + 1);
-        },
-        clearPersistedCart: () => {
-          window.localStorage.removeItem(qrCartStorageKey(qrToken, activeOrderingMode));
-        },
-        navigateToOrder: (trackingToken) => {
-          window.location.assign(`/order/${encodeURIComponent(trackingToken)}`);
-        },
-      },
-    });
+      effects,
+    };
+    if (editTrackingToken) {
+      await submitQrOrderEditFlowCheckout({ ...shared, trackingToken: editTrackingToken });
+      return;
+    }
+    await submitQrOrderFlowCheckout(shared);
   }
 
   const availableLocales = session
@@ -709,7 +782,11 @@ export function useQrOrderFlowController({
     closeCart,
     closeLotteryLimitDialog,
     configuringProductId,
-    copy,
+    copy: editMode ? {
+      ...copy,
+      submitOrder: copy.saveOrderChanges,
+      confirmationNotice: copy.editConfirmationNotice,
+    } : copy,
     customerName,
     customerNote,
     customerPhone,

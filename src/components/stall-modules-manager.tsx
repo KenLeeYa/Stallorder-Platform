@@ -3,8 +3,8 @@
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import type { AppLocale } from "@/lib/app-locale";
 import { getMerchantMessage } from "@/lib/messages/merchant";
-import { type SyntheticEvent, useMemo, useRef, useState } from "react";
-import { CalendarClock, ChevronsUpDown, Copy, Dices, Languages, MapPinned, MessageCircle, Percent, Plus, Printer, QrCode, RotateCw, Save, SlidersHorizontal, Trash2, Truck, Utensils, WalletCards } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { CalendarClock, Copy, Dices, Languages, MapPinned, MessageCircle, Percent, Plus, Printer, QrCode, RotateCw, Save, SlidersHorizontal, Trash2, Truck, Utensils, WalletCards } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
 import { DiningFloorEditor } from "@/components/dining-floor-editor";
@@ -107,23 +107,6 @@ type TableDraft = Omit<ModuleState["tables"][number], "id" | "qrCode" | "layoutX
 type FloorDraft = Omit<ModuleState["floors"][number], "id">;
 type PaymentDraft = Omit<ModuleState["paymentOptions"][number], "id">;
 type DiscountDraft = Omit<ModuleState["discounts"][number], "id">;
-const moduleSectionKeys = [
-  "overview",
-  "delivery",
-  "locales",
-  "tables",
-  "floor",
-  "payments",
-  "discounts",
-] as const;
-type ModuleSectionKey = (typeof moduleSectionKeys)[number];
-const moduleSectionControlIds = moduleSectionKeys.map((section) => (
-  section === "payments"
-    ? "payment-options"
-    : section === "discounts"
-      ? "discount-options"
-      : `stall-module-section-${section}`
-)).join(" ");
 type MessageKind = "success" | "error";
 
 export function buildPublicStorefrontShare(appUrl: string, stallCode: string, locale: AppLocale = "zh-TW") {
@@ -170,9 +153,6 @@ export function StallModulesManager({
   const [messageKind, setMessageKind] = useState<MessageKind>("success");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const managerRef = useRef<HTMLElement>(null);
-  const [openSections, setOpenSections] = useState<Set<ModuleSectionKey>>(
-    () => new Set(moduleSectionKeys),
-  );
   const isView = (...views: StallModuleView[]) => view === "all" || views.includes(view);
   const viewTitle = label({
     all: "營運模組與內用桌位",
@@ -189,7 +169,6 @@ export function StallModulesManager({
     languages: "QR 點餐語系",
   }[view]);
   const showsModuleControls = !["dining-tables", "languages"].includes(view);
-  const allSectionsExpanded = moduleSectionKeys.every((section) => openSections.has(section));
   const { storefrontUrl, lineReply } = buildPublicStorefrontShare(appUrl, stallCode, locale);
   const floorTabs = useMemo(() => getDiningFloorTabs(state.floors, state.tables), [state.floors, state.tables]);
   const activeFloor = floorTabs.find((floor) => floor.key === activeFloorKey) ?? floorTabs[0] ?? null;
@@ -211,24 +190,6 @@ export function StallModulesManager({
   const moduleDirty = JSON.stringify(state) !== JSON.stringify(savedState)
     || Boolean(newTable.code || newTable.label || newPayment.code || newPayment.name || newDiscount.name);
   useUnsavedSettings("stall-modules", moduleDirty);
-
-  function handleSectionToggle(
-    section: ModuleSectionKey,
-    event: SyntheticEvent<HTMLDetailsElement>,
-  ) {
-    const isOpen = event.currentTarget.open;
-    setOpenSections((current) => {
-      if (current.has(section) === isOpen) return current;
-      const next = new Set(current);
-      if (isOpen) next.add(section);
-      else next.delete(section);
-      return next;
-    });
-  }
-
-  function setAllSections(isOpen: boolean) {
-    setOpenSections(isOpen ? new Set(moduleSectionKeys) : new Set());
-  }
 
   async function copyShareText(value: string, label: string) {
     try {
@@ -421,23 +382,9 @@ export function StallModulesManager({
 
   return (
     <section ref={managerRef} className="mt-8" aria-label={viewTitle}>
-      {view === "all" ? <div className="mb-3 flex justify-end">
-        <button
-          type="button"
-          data-testid="stall-modules-toggle-all"
-          aria-expanded={allSectionsExpanded}
-          aria-controls={moduleSectionControlIds}
-          onClick={() => setAllSections(!allSectionsExpanded)}
-          className="inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"
-        >
-          <ChevronsUpDown className="h-4 w-4" />
-          {allSectionsExpanded ? label("全部摺疊") : label("全部展開")}
-        </button>
-      </div> : null}
       <details
         id="stall-module-section-overview"
-        open={openSections.has("overview")}
-        onToggle={(event) => handleSectionToggle("overview", event)}
+        open
         data-module-section="overview"
         data-settings-section
         data-settings-scope="stall-modules"
@@ -525,8 +472,7 @@ export function StallModulesManager({
 
       <details
         id="stall-module-section-delivery"
-        open={openSections.has("delivery")}
-        onToggle={(event) => handleSectionToggle("delivery", event)}
+        open
         data-module-section="delivery"
         className={`${isView("delivery", "preorder") ? "" : "hidden "}mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
       >
@@ -551,8 +497,7 @@ export function StallModulesManager({
 
       <details
         id="stall-module-section-locales"
-        open={openSections.has("locales")}
-        onToggle={(event) => handleSectionToggle("locales", event)}
+        open
         data-module-section="locales"
         aria-label={label("QR 點餐語系")}
         className={`${isView("languages") ? "" : "hidden "}mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
@@ -578,8 +523,7 @@ export function StallModulesManager({
 
       <details
         id="stall-module-section-tables"
-        open={openSections.has("tables")}
-        onToggle={(event) => handleSectionToggle("tables", event)}
+        open
         data-module-section="tables"
         className={`${isView("dining-tables") ? "" : "hidden "}border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
       >
@@ -632,8 +576,7 @@ export function StallModulesManager({
           </div>
           <details
             id="stall-module-section-floor"
-            open={openSections.has("floor")}
-            onToggle={(event) => handleSectionToggle("floor", event)}
+            open
             data-module-section="floor"
             className="mb-6 border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
           >
@@ -692,8 +635,7 @@ export function StallModulesManager({
 
       <details
         id="payment-options"
-        open={openSections.has("payments")}
-        onToggle={(event) => handleSectionToggle("payments", event)}
+        open
         data-module-section="payments"
         className={`${isView("payments") ? "" : "hidden "}border-b border-stone-200 scroll-mt-24 [&[open]>summary_.section-chevron]:rotate-180`}
       >
@@ -717,8 +659,7 @@ export function StallModulesManager({
 
       <details
         id="discount-options"
-        open={openSections.has("discounts")}
-        onToggle={(event) => handleSectionToggle("discounts", event)}
+        open
         data-module-section="discounts"
         className={`${isView("discounts") ? "" : "hidden "}scroll-mt-24 border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
       >

@@ -142,6 +142,7 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
     await chickenCutlet.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet" }).click();
     await chickenCutlet.getByRole("button", { name: "Add to cart", exact: true }).click();
     await page.getByLabel("Customer name").fill(testMarker);
+    await page.getByLabel("Contact phone").fill("0912345678");
     const waitAcknowledgment = page.getByRole("checkbox", { name: /I understand the estimated wait/ });
     if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
     await expect(page.getByRole("button", { name: "Place order", exact: true })).toBeEnabled({ timeout: 20_000 });
