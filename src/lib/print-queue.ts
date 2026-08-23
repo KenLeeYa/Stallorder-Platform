@@ -93,6 +93,7 @@ export const printQueueCommandSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("UPDATE_RULE"), ruleId: uuid, rule: printRuleConfiguration }).strict(),
   z.object({ operation: z.literal("DELETE_RULE"), ruleId: uuid }).strict(),
   z.object({ operation: z.literal("QUEUE"), orderId: uuid }).strict(),
+  z.object({ operation: z.literal("QUEUE_RECEIPT"), orderId: uuid }).strict(),
   z.object({ operation: z.literal("CLAIM"), jobId: uuid, printerId: uuid }).strict(),
   z.object({ operation: z.literal("SUCCESS"), jobId: uuid }).strict(),
   z.object({ operation: z.literal("FAIL"), jobId: uuid, error: z.string().trim().min(1).max(500) }).strict(),

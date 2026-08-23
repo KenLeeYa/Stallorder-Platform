@@ -14,9 +14,12 @@ import {
   Download,
   Eye,
   EyeOff,
+  FolderPlus,
   ImageUp,
   Languages,
+  Layers3,
   PackageOpen,
+  PackagePlus,
   Pencil,
   Plus,
   Save,
@@ -29,6 +32,7 @@ import {
 import { ProductImage } from "@/components/product-image";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
 import { buildCatalogCsvErrorReport, type CatalogCsvRowError } from "@/lib/catalog-csv-client";
+import { localizedCatalogName } from "@/lib/catalog-localization";
 import {
   getTranslationLocaleOptions,
   type TranslationLocale,
@@ -833,9 +837,9 @@ export function SharedCatalogManager({
             <label title={label("匯入 CSV")} className="inline-grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-md border border-stone-300 text-sm font-semibold sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><Upload className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("匯入 CSV")}</span><input type="file" aria-label={label("匯入 CSV")} accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewCatalogImport(file); event.currentTarget.value = ""; }} /></label>
           </div>
           <div data-testid="shared-catalog-create-actions" className="flex flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0 lg:justify-end">
-            <button type="button" title={label("新增分類")} aria-label={label("新增分類")} onClick={createCategory} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><Plus className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("分類")}</span></button>
-            <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={createGroup} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><Plus className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("群組")}</span></button>
-            <button type="button" title={label("新增商品")} aria-label={label("新增商品")} onClick={() => createProduct("SINGLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><Plus className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("商品")}</span></button>
+            <button type="button" title={label("新增分類")} aria-label={label("新增分類")} onClick={createCategory} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><FolderPlus className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("分類")}</span></button>
+            <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={createGroup} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><Layers3 className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("群組")}</span></button>
+            <button type="button" title={label("新增商品")} aria-label={label("新增商品")} onClick={() => createProduct("SINGLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><PackagePlus className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("商品")}</span></button>
             <button type="button" title={label("新增套餐")} aria-label={label("新增套餐")} onClick={() => createProduct("BUNDLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-sm font-semibold text-teal-900 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><PackageOpen className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("新增套餐")}</span></button>
           </div>
         </div>
@@ -844,11 +848,12 @@ export function SharedCatalogManager({
       {message ? <p role="status" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
       <details id="shared-product-catalog" open={catalogOpen} onToggle={(event) => setCatalogOpen(event.currentTarget.open)} data-shared-product-catalog className="group mt-5">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 border-y border-stone-200 py-3 font-semibold hover:text-teal-800 [&::-webkit-details-marker]:hidden">
-          <span>{label("商品目錄（")}{catalog.products.length}）</span>
+          <span>{m("商品目錄（{value0}）", { value0: catalog.products.length })}</span>
           <ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" />
         </summary>
         <div className="divide-y divide-stone-200 border-b border-stone-200">
           {sortedCategories.map((category, categoryIndex) => {
+            const categoryDisplayName = localizedCatalogName(category, locale);
             const groups = catalog.groups
               .filter((group) => group.categoryId === category.id)
               .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-TW"));
@@ -866,7 +871,7 @@ export function SharedCatalogManager({
                 <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center gap-2 py-3 [&::-webkit-details-marker]:hidden">
                   <span className="flex min-w-0 flex-1 items-center gap-2">
                     <Boxes className="h-4 w-4 shrink-0 text-teal-700" />
-                    <span className="min-w-0 truncate font-semibold">{category.name}</span>
+                    <span className="min-w-0 truncate font-semibold">{categoryDisplayName}</span>
                     {!category.isActive ? <span className="shrink-0 rounded-md bg-stone-100 px-2 py-0.5 text-xs text-stone-600">{label("已停用")}</span> : null}
                     <span className="ml-auto shrink-0 text-xs text-stone-500">{catalog.products.filter((product) => product.categoryId === category.id).length} {label("項")}</span>
                   </span>
@@ -878,11 +883,13 @@ export function SharedCatalogManager({
                   </span>
                 </summary>
                 <div className="pb-4 pl-3 sm:pl-6">
-                  {groups.map((group, groupIndex) => (
+                  {groups.map((group, groupIndex) => {
+                    const groupDisplayName = localizedCatalogName(group, locale);
+                    return (
                     <div key={group.id} className="border-l-2 border-stone-200 py-3 pl-4">
                       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                         <div className="flex min-w-0 items-center gap-2">
-                          <h2 className="min-w-0 truncate text-sm font-semibold">{group.name}</h2>
+                          <h2 className="min-w-0 truncate text-sm font-semibold">{groupDisplayName}</h2>
                           {!group.isActive ? <span className="shrink-0 text-xs text-stone-500">{label("已停用")}</span> : null}
                           <span className="ml-auto shrink-0 text-xs text-stone-500">{productsFor(category.id, group.id).length} {label("項")}</span>
                         </div>
@@ -895,7 +902,8 @@ export function SharedCatalogManager({
                       </div>
                       <ProductRows busy={busy} products={productsFor(category.id, group.id)} currency={currency} onMove={(products, index, direction) => void moveProduct(products, category.id, group.id, index, direction)} onEdit={editProduct} onBundle={openBundle} onAssignments={openAssignments} onClone={(product) => void cloneProduct(product)} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
                     </div>
-                  ))}
+                    );
+                  })}
                   {ungrouped.length > 0 ? (
                     <div className="border-l-2 border-stone-200 py-3 pl-4">
                       <h2 className="text-sm font-semibold">{label("未分組商品")}</h2>
@@ -1173,8 +1181,11 @@ export function SharedCatalogManager({
         currency={currency}
         products={catalog.products.map((product) => ({
           id: product.id,
-          name: product.name,
-          categoryName: catalog.categories.find((category) => category.id === product.categoryId)?.name ?? label("未分類"),
+          name: localizedCatalogName(product, locale),
+          categoryName: (() => {
+            const category = catalog.categories.find((item) => item.id === product.categoryId);
+            return category ? localizedCatalogName(category, locale) : label("未分類");
+          })(),
           isActive: product.isActive,
         }))}
         initialNoteGroups={noteGroups}
@@ -1192,11 +1203,13 @@ export function SharedCatalogManager({
 function ProductRows({ busy, products, currency, onMove, onEdit, onBundle, onAssignments, onClone, onToggle, onDelete }: { busy: boolean; products: Product[]; currency: string; onMove: (products: Product[], index: number, direction: -1 | 1) => void; onEdit: (product: Product) => void; onBundle: (product: Product) => void; onAssignments: (product: Product) => void; onClone: (product: Product) => void; onToggle: (product: Product) => void; onDelete: (product: Product) => void }) {
   const { locale, m, label } = useMerchantMessages();
   const localizedMoney = (amount: number, selectedCurrency = currency) => formatRawMoney(amount, selectedCurrency, locale);
-  return <div className="mt-2 divide-y divide-stone-100">{products.map((product, index) => (
+  return <div className="mt-2 divide-y divide-stone-100">{products.map((product, index) => {
+    const productDisplayName = localizedCatalogName(product, locale);
+    return (
     <div key={product.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="min-w-0 max-w-full truncate font-medium">{product.name}</span>
+          <span className="min-w-0 max-w-full truncate font-medium">{productDisplayName}</span>
           {product.kind === "BUNDLE" ? <span className="rounded bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">{label("套餐")}</span> : null}
           {!product.isOrderDiscountEligible ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{label("不適用訂單折扣")}</span> : null}
           {product.kind === "SINGLE" && !product.isLotteryEligible ? <span className="rounded bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-800">{label("不參與抽抽樂")}</span> : null}
@@ -1217,7 +1230,8 @@ function ProductRows({ busy, products, currency, onMove, onEdit, onBundle, onAss
         </div>
       </div>
     </div>
-  ))}</div>;
+    );
+  })}</div>;
 }
 
 function StallChecks({ stalls, selected, error, onChange }: { stalls: Stall[]; selected: string[]; error?: string; onChange: (ids: string[]) => void }) {

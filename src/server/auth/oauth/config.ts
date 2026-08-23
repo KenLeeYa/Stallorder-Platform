@@ -124,6 +124,39 @@ export function getLiveOAuthProviderConfig(
     };
   }
 
+  if (provider === "MICROSOFT") {
+    const tenantId = required(
+      environment.MICROSOFT_TENANT_ID,
+      "OAUTH_MICROSOFT_CONFIG_MISSING",
+    );
+    if (!/^(common|organizations|consumers|[0-9a-f-]{36})$/i.test(tenantId)) {
+      throw new Error("OAUTH_MICROSOFT_TENANT_INVALID");
+    }
+    const issuer = validAbsoluteUrl(
+      required(environment.MICROSOFT_ISSUER, "OAUTH_MICROSOFT_CONFIG_MISSING"),
+      "OAUTH_MICROSOFT_ISSUER_INVALID",
+    ).replace(/\/$/, "");
+    const authority = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0`;
+    return {
+      provider,
+      clientId: required(environment.MICROSOFT_CLIENT_ID, "OAUTH_MICROSOFT_CONFIG_MISSING"),
+      clientSecret: required(
+        environment.MICROSOFT_CLIENT_SECRET,
+        "OAUTH_MICROSOFT_CONFIG_MISSING",
+      ),
+      redirectUri: redirectUri(
+        provider,
+        environment.MICROSOFT_REDIRECT_URI,
+        environment,
+      ),
+      authorizationEndpoint: `${authority}/authorize`,
+      tokenEndpoint: `${authority}/token`,
+      issuer,
+      jwksUri: `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`,
+      scopes: ["openid", "profile", "email"],
+    };
+  }
+
   const clientId = required(
     environment.APPLE_SERVICE_ID || environment.APPLE_CLIENT_ID,
     "OAUTH_APPLE_CONFIG_MISSING",

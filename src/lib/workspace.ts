@@ -6,6 +6,7 @@ import { cache } from "react";
 import { getPagePrincipal } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { defaultPathForRole } from "@/lib/auth";
+import { isMerchantSetupEffectivelyComplete } from "@/lib/merchant-setup-state";
 import { hasPermission, resolvePrimaryRole } from "@/lib/rbac";
 
 const accessibleOrganizationStatuses = [
@@ -81,7 +82,23 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
       status: true,
       defaultCurrency: true,
       merchantSetupProgress: {
-        select: { stallId: true, goLiveCompleted: true },
+        select: {
+          stallId: true,
+          goLiveCompleted: true,
+          goLiveCompletedAt: true,
+          completedAt: true,
+          activatedByProfileId: true,
+          currentStep: true,
+          testOrderCompleted: true,
+          qrCode: { select: { state: true } },
+          stall: {
+            select: {
+              orderingEnabled: true,
+              orderingState: true,
+              _count: { select: { orders: { where: { isTest: false } } } },
+            },
+          },
+        },
       },
       stalls: {
         orderBy: [{ name: "asc" }, { createdAt: "asc" }],
@@ -157,7 +174,13 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
       status: organization.status,
       defaultCurrency: organization.defaultCurrency,
       merchantSetupState: organization.merchantSetupProgress
-        ? organization.merchantSetupProgress.goLiveCompleted
+        ? isMerchantSetupEffectivelyComplete({
+          ...organization.merchantSetupProgress,
+          stall: {
+            ...organization.merchantSetupProgress.stall,
+            nonTestOrderCount: organization.merchantSetupProgress.stall._count.orders,
+          },
+        })
           ? "COMPLETED"
           : "IN_PROGRESS"
         : null,

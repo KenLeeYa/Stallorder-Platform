@@ -49,6 +49,7 @@ const capabilityGatedOperations = new Set<PrintQueueCommand["operation"]>([
   "UPDATE_RULE",
   "DELETE_RULE",
   "QUEUE",
+  "QUEUE_RECEIPT",
   "CLAIM",
   "REPRINT",
 ]);
@@ -328,6 +329,68 @@ export async function POST(request: Request, context: RouteContext) {
         });
         return job.id;
       }
+      if (command.operation === "QUEUE_RECEIPT") {
+        const order = await transaction.order.findFirst({
+          where: { id: command.orderId, organizationId, stallId },
+          select: { id: true },
+        });
+        if (!order) throw new PrintQueueNotFoundError();
+        const existing = await transaction.printJob.findFirst({
+          where: { orderId: order.id, organizationId, stallId, documentType: "CUSTOMER_RECEIPT" },
+          orderBy: { createdAt: "desc" },
+        });
+        if (existing) {
+          const assignedPrinter = existing.printerId
+            ? await transaction.printer.findFirst({ where: { id: existing.printerId, organizationId, stallId, isEnabled: true } })
+            : null;
+          const fallbackPrinter = assignedPrinter ?? await transaction.printer.findFirst({
+            where: { organizationId, stallId, isEnabled: true },
+            orderBy: [{ lastSeenAt: "desc" }, { createdAt: "asc" }],
+          });
+          const reprint = await transaction.printJob.create({
+            data: {
+              organizationId,
+              stallId,
+              orderId: order.id,
+              printerId: fallbackPrinter?.id,
+              printRuleId: existing.printRuleId,
+              requestedById: authorization.principal.user.id,
+              reprintOfId: existing.id,
+              documentType: "CUSTOMER_RECEIPT",
+              copies: existing.copies,
+              payload: existing.payload === null ? undefined : existing.payload,
+              templateVersion: existing.templateVersion,
+            },
+          });
+          return reprint.id;
+        }
+        const receiptRule = await transaction.printRule.findFirst({
+          where: {
+            organizationId,
+            stallId,
+            documentType: "CUSTOMER_RECEIPT",
+            isEnabled: true,
+            deletedAt: null,
+            printer: { isEnabled: true },
+          },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          select: { id: true, printerId: true, copies: true },
+        });
+        if (!receiptRule) throw new PrintQueueConflictError("CUSTOMER_RECEIPT_RULE_REQUIRED");
+        const job = await transaction.printJob.create({
+          data: {
+            organizationId,
+            stallId,
+            orderId: order.id,
+            printerId: receiptRule.printerId,
+            printRuleId: receiptRule.id,
+            requestedById: authorization.principal.user.id,
+            documentType: "CUSTOMER_RECEIPT",
+            copies: receiptRule.copies,
+          },
+        });
+        return job.id;
+      }
 
       const job = await transaction.printJob.findFirst({
         where: { id: command.jobId, organizationId, stallId },
@@ -498,6 +561,8 @@ export async function POST(request: Request, context: RouteContext) {
                 ? "CloudPRNT 工作必須由印表機接單，不可由瀏覽器重複領取。"
                 : error.code === "PRINT_RULE_INACTIVE"
                   ? "列印規則已停用或刪除，請重新整理列印佇列。"
+                  : error.code === "CUSTOMER_RECEIPT_RULE_REQUIRED"
+                    ? "請先在列印設定建立並啟用顧客收據規則。"
           : "列印設定或工作已被其他裝置變更，請重新整理。"
       : serializationConflict
         ? "列印設定同時被其他裝置更新，請重新整理後再試。"

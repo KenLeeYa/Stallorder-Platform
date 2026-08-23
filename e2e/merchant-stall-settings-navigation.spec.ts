@@ -132,7 +132,10 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     if (staticScope) {
       await expect(page.locator(`section[data-settings-scope="${staticScope}"]`)).toHaveCount(1);
     }
-    await expect(page.locator("details[data-settings-scope]")).toHaveCount(moduleSections.has(section) ? 1 : 0);
+    if (moduleSections.has(section)) {
+      await expect(page.locator('[data-settings-scope="stall-modules"]')).toHaveCount(1);
+    }
+    await expect(page.locator("details[data-settings-scope]")).toHaveCount(0);
     await expect(page.getByTestId("stall-modules-toggle-all")).toHaveCount(0);
     const hasSectionOverflow = await page.evaluate(() => (
       document.documentElement.scrollWidth > document.documentElement.clientWidth

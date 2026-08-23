@@ -47,6 +47,36 @@ describe("Mock OIDC provider", () => {
     });
   });
 
+  it("supports the optional Microsoft provider through the same contract", async () => {
+    const microsoftRedirectUri = `${appBaseUrl}/api/auth/microsoft/callback`;
+    const codeVerifier = "m".repeat(64);
+    const authorizationCode = createMockAuthorizationCode({
+      provider: "MICROSOFT",
+      subject: "synthetic-microsoft-subject",
+      email: "microsoft@example.invalid",
+      displayName: "Microsoft Preview 使用者",
+      nonce: "n".repeat(48),
+      codeChallenge: createPkceChallenge(codeVerifier),
+      redirectUri: microsoftRedirectUri,
+      expiresAt: Date.now() + 60_000,
+    }, secret);
+
+    await expect(new MockOidcProviderAdapter(
+      "MICROSOFT",
+      appBaseUrl,
+      secret,
+    ).exchangeAndVerify({
+      code: authorizationCode,
+      codeVerifier,
+      expectedNonce: "n".repeat(48),
+      redirectUri: microsoftRedirectUri,
+    })).resolves.toMatchObject({
+      provider: "MICROSOFT",
+      subject: "synthetic-microsoft-subject",
+      emailVerified: true,
+    });
+  });
+
   it("rejects wrong PKCE verifier, nonce and expired codes", async () => {
     const adapter = new MockOidcProviderAdapter("LINE", appBaseUrl, secret);
     const fixture = code();

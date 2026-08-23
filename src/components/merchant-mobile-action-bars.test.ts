@@ -13,6 +13,9 @@ describe("merchant mobile action bars", () => {
     expect(catalog).toContain('data-testid="shared-catalog-create-actions"');
     expect(catalog).toContain('className="sr-only sm:not-sr-only"');
     expect(catalog).toContain("flex-nowrap gap-2 overflow-x-auto");
+    expect(catalog).toContain("<FolderPlus");
+    expect(catalog).toContain("<Layers3");
+    expect(catalog).toContain("<PackagePlus");
   });
 
   it("keeps product-note action controls icon-only on mobile", () => {

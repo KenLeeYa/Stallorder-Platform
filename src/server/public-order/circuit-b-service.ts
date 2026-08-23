@@ -97,6 +97,12 @@ function intakeError(gate: { ok: boolean; code?: string } | null) {
 }
 
 async function assertCircuitBEnabled(deviceId: string, timing: Timing) {
+  if (
+    process.env.NODE_ENV === "development"
+    && !process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.trim()
+  ) {
+    return;
+  }
   const flags = await timing.measureDb(() => resolveResilienceFeatureFlags(
     ["DUAL_ORDER_INTAKE_ENABLED"],
     { deviceId, rolloutKey: deviceId },
@@ -578,6 +584,11 @@ export async function getOrderThroughCircuitB(
         quotedWaitMinutes: orderContext.quotedWaitMinutes,
         quotedReadyAt: orderContext.quotedReadyAt?.toISOString() ?? null,
         lastTableOrderAt: lastTableOrder?.createdAt.toISOString() ?? null,
+        paymentProviders: (orderContext.stall.paymentProviderConnections ?? []).map((connection) => ({
+          provider: connection.provider,
+          environment: connection.environment,
+          capabilities: connection.capabilities,
+        })),
       },
     },
   };

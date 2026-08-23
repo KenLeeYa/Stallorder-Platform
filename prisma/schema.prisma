@@ -445,6 +445,11 @@ model Organization {
   notificationOutbox            NotificationOutbox[]
   billingChangeRequests         BillingChangeRequest[]
   paymentProviderCustomers      PaymentProviderCustomer[]
+  paymentProviderConnections    PaymentProviderConnection[]
+  paymentProviderTransactions   PaymentProviderTransaction[]
+  paymentProviderWebhookEvents  PaymentProviderWebhookEvent[]
+  paymentProviderRefunds        PaymentProviderRefund[]
+  paymentReconciliationCases    PaymentReconciliationCase[]
   paymentAttempts               PaymentAttempt[]
   taxDocuments                  TaxDocument[]
   invitations                   OrganizationInvitation[]
@@ -559,6 +564,11 @@ model Stall {
   notificationJobs       NotificationJob[]
   lineLinkSessions       LineLinkSession[]
   lineWebhookEvents      LineWebhookEvent[]
+  paymentProviderConnections   PaymentProviderConnection[]
+  paymentProviderTransactions  PaymentProviderTransaction[]
+  paymentProviderWebhookEvents PaymentProviderWebhookEvent[]
+  paymentProviderRefunds       PaymentProviderRefund[]
+  paymentReconciliationCases   PaymentReconciliationCase[]
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -615,9 +625,13 @@ model Profile {
   assignedProductionTasks  OrderProductionTask[]
   authProjectIdentities    ProfileAuthIdentity[]
   authIdentities           AuthIdentity[]
+  passkeyCredentials       PasskeyCredential[]
+  passkeyChallenges        PasskeyChallenge[]
   oauthTransactions        OAuthTransaction[]
   identityLinkInvitations  AuthIdentityLinkInvitation[] @relation("IdentityLinkTarget")
   createdIdentityLinkInvitations AuthIdentityLinkInvitation[] @relation("IdentityLinkCreator")
+  requestedPaymentRefunds        PaymentProviderRefund[]     @relation("PaymentRefundRequestedBy")
+  reviewedPaymentReconciliations PaymentReconciliationCase[] @relation("PaymentReconciliationReviewedBy")
 
   @@map("profiles")
 }
@@ -2178,6 +2192,7 @@ model PaymentOption {
   stall          Stall             @relation(fields: [stallId], references: [id], onDelete: Cascade)
   payments       Payment[]
   checkoutGroups CheckoutGroup[]
+  providerTransactions PaymentProviderTransaction[]
 
   @@unique([stallId, code])
   @@index([organizationId, stallId, isEnabled])
@@ -2357,6 +2372,7 @@ model Order {
   customerContactLinks     CustomerContactLink[]
   notificationJobs         NotificationJob[]
   lineLinkSessions         LineLinkSession[]
+  providerTransactions     PaymentProviderTransaction[]
 
   @@unique([stallId, orderNo])
   @@unique([stallId, idempotencyKey])
@@ -2412,6 +2428,162 @@ model Payment {
   @@index([cashShiftId, status, paidAt])
   @@index([organizationId, stallId, reconciliationStatus, createdAt])
   @@map("payments")
+}
+
+model PaymentProviderConnection {
+  id                String                        @id @default(uuid()) @db.Uuid
+  organizationId    String                        @map("organization_id") @db.Uuid
+  stallId           String?                       @map("stall_id") @db.Uuid
+  provider          String
+  connectionMode    String                        @map("connection_mode")
+  environment       String
+  status            String                        @default("DISABLED")
+  secretReference   String?                       @map("secret_reference")
+  merchantReference String?                       @map("merchant_reference")
+  storeReference    String?                       @map("store_reference")
+  acquirerReference String?                       @map("acquirer_reference")
+  capabilities      Json                          @default("{}")
+  enabledChannels   String[]                      @default([]) @map("enabled_channels")
+  lastVerifiedAt    DateTime?                     @map("last_verified_at")
+  lastErrorCode     String?                       @map("last_error_code")
+  createdAt         DateTime                      @default(now()) @map("created_at")
+  updatedAt         DateTime                      @updatedAt @map("updated_at")
+  organization      Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall             Stall?                        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  transactions      PaymentProviderTransaction[]
+  webhookEvents     PaymentProviderWebhookEvent[]
+
+  @@index([organizationId, provider, environment, status])
+  @@index([stallId, provider, status])
+  @@map("payment_provider_connections")
+}
+
+model PaymentProviderTransaction {
+  id                    String                        @id @default(uuid()) @db.Uuid
+  organizationId        String                        @map("organization_id") @db.Uuid
+  stallId               String                        @map("stall_id") @db.Uuid
+  orderId               String                        @map("order_id") @db.Uuid
+  providerConnectionId  String                        @map("provider_connection_id") @db.Uuid
+  paymentOptionId       String?                       @map("payment_option_id") @db.Uuid
+  provider              String
+  fundingMethod         String?                       @map("funding_method")
+  providerTransactionId String?                       @map("provider_transaction_id")
+  merchantOrderId       String                        @map("merchant_order_id")
+  amount                Int
+  currency              String                        @default("TWD")
+  status                String                        @default("CREATED")
+  providerStatus        String?                       @map("provider_status")
+  requestedAt           DateTime                      @default(now()) @map("requested_at")
+  authorizedAt          DateTime?                     @map("authorized_at")
+  paidAt                DateTime?                     @map("paid_at")
+  failedAt              DateTime?                     @map("failed_at")
+  cancelledAt           DateTime?                     @map("cancelled_at")
+  refundedAt            DateTime?                     @map("refunded_at")
+  expiresAt             DateTime?                     @map("expires_at")
+  browserReturnedAt     DateTime?                     @map("browser_returned_at")
+  lastVerifiedAt        DateTime?                     @map("last_verified_at")
+  idempotencyKeyHash    String                        @map("idempotency_key_hash")
+  metadata              Json?
+  createdAt             DateTime                      @default(now()) @map("created_at")
+  updatedAt             DateTime                      @updatedAt @map("updated_at")
+  organization          Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                 Stall                         @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  order                 Order                         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  providerConnection    PaymentProviderConnection     @relation(fields: [providerConnectionId], references: [id], onDelete: Restrict)
+  paymentOption         PaymentOption?                @relation(fields: [paymentOptionId], references: [id], onDelete: SetNull)
+  webhookEvents         PaymentProviderWebhookEvent[]
+  refunds               PaymentProviderRefund[]
+  reconciliationCases   PaymentReconciliationCase[]
+
+  @@unique([organizationId, stallId, provider, idempotencyKeyHash])
+  @@unique([provider, providerTransactionId])
+  @@index([orderId, createdAt(sort: Desc)])
+  @@index([organizationId, stallId, status, createdAt(sort: Desc)])
+  @@index([providerConnectionId, status, updatedAt])
+  @@map("payment_provider_transactions")
+}
+
+model PaymentProviderWebhookEvent {
+  id                   String                      @id @default(uuid()) @db.Uuid
+  organizationId       String                      @map("organization_id") @db.Uuid
+  stallId              String                      @map("stall_id") @db.Uuid
+  providerConnectionId String?                     @map("provider_connection_id") @db.Uuid
+  transactionId        String?                     @map("transaction_id") @db.Uuid
+  provider             String
+  externalEventId      String                      @map("external_event_id")
+  bodyHash             String                      @map("body_hash")
+  signatureValid       Boolean                     @map("signature_valid")
+  receivedAt           DateTime                    @default(now()) @map("received_at")
+  processedAt          DateTime?                   @map("processed_at")
+  processingStatus     String                      @default("RECEIVED") @map("processing_status")
+  attemptCount         Int                         @default(0) @map("attempt_count")
+  sanitizedErrorCode   String?                     @map("sanitized_error_code")
+  organization         Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                Stall                       @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  providerConnection   PaymentProviderConnection?  @relation(fields: [providerConnectionId], references: [id], onDelete: SetNull)
+  transaction          PaymentProviderTransaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, externalEventId])
+  @@index([organizationId, stallId, processingStatus, receivedAt])
+  @@index([transactionId, receivedAt])
+  @@map("payment_provider_webhook_events")
+}
+
+model PaymentProviderRefund {
+  id                   String                     @id @default(uuid()) @db.Uuid
+  organizationId       String                     @map("organization_id") @db.Uuid
+  stallId              String                     @map("stall_id") @db.Uuid
+  transactionId        String                     @map("transaction_id") @db.Uuid
+  requestedByProfileId String                     @map("requested_by_profile_id") @db.Uuid
+  requestedAmount      Int                        @map("requested_amount")
+  currency             String                     @default("TWD")
+  reason               String
+  providerRefundId     String?                    @unique @map("provider_refund_id")
+  status               String                     @default("REQUESTED")
+  idempotencyKeyHash   String                     @map("idempotency_key_hash")
+  requestedAt          DateTime                   @default(now()) @map("requested_at")
+  processedAt          DateTime?                  @map("processed_at")
+  failedAt             DateTime?                  @map("failed_at")
+  sanitizedErrorCode   String?                    @map("sanitized_error_code")
+  createdAt            DateTime                   @default(now()) @map("created_at")
+  updatedAt            DateTime                   @updatedAt @map("updated_at")
+  organization         Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                Stall                      @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  transaction          PaymentProviderTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  requestedBy          Profile                    @relation("PaymentRefundRequestedBy", fields: [requestedByProfileId], references: [id], onDelete: Restrict)
+
+  @@unique([transactionId, idempotencyKeyHash])
+  @@index([organizationId, stallId, status, requestedAt])
+  @@map("payment_provider_refunds")
+}
+
+model PaymentReconciliationCase {
+  id                  String                      @id @default(uuid()) @db.Uuid
+  organizationId      String                      @map("organization_id") @db.Uuid
+  stallId             String                      @map("stall_id") @db.Uuid
+  transactionId       String?                     @map("transaction_id") @db.Uuid
+  provider            String
+  caseType            String                      @map("case_type")
+  expectedAmount      Int?                        @map("expected_amount")
+  actualAmount        Int?                        @map("actual_amount")
+  currency            String                      @default("TWD")
+  providerReference   String?                     @map("provider_reference")
+  settlementDate      DateTime?                   @map("settlement_date") @db.Date
+  reviewStatus        String                      @default("OPEN") @map("review_status")
+  reviewedByProfileId String?                     @map("reviewed_by_profile_id") @db.Uuid
+  reviewedAt          DateTime?                   @map("reviewed_at")
+  resolutionCode      String?                     @map("resolution_code")
+  safeNotes           String?                     @map("safe_notes")
+  createdAt           DateTime                    @default(now()) @map("created_at")
+  updatedAt           DateTime                    @updatedAt @map("updated_at")
+  organization        Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall               Stall                       @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  transaction         PaymentProviderTransaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  reviewedBy          Profile?                    @relation("PaymentReconciliationReviewedBy", fields: [reviewedByProfileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, stallId, reviewStatus, createdAt])
+  @@index([provider, settlementDate, reviewStatus])
+  @@map("payment_reconciliation_cases")
 }
 
 model CheckoutGroup {
@@ -3140,6 +3312,39 @@ model AuthIdentity {
   @@index([providerSubject])
   @@index([lastLoginAt(sort: Desc)])
   @@map("auth_identities")
+}
+
+model PasskeyCredential {
+  id               String    @id @default(uuid()) @db.Uuid
+  profileId        String    @map("profile_id") @db.Uuid
+  credentialIdHash String    @unique @map("credential_id_hash")
+  publicKey        String    @map("public_key")
+  signCount        BigInt    @default(0) @map("sign_count")
+  transports       String[]  @default([])
+  deviceLabel      String    @map("device_label")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  lastUsedAt       DateTime? @map("last_used_at")
+  revokedAt        DateTime? @map("revoked_at")
+  profile          Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, revokedAt])
+  @@map("passkey_credentials")
+}
+
+model PasskeyChallenge {
+  id            String    @id @default(uuid()) @db.Uuid
+  profileId     String    @map("profile_id") @db.Uuid
+  challengeHash String    @unique @map("challenge_hash")
+  purpose       String
+  rpId          String    @map("rp_id")
+  origin        String
+  expiresAt     DateTime  @map("expires_at")
+  consumedAt    DateTime? @map("consumed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  profile       Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, purpose, expiresAt])
+  @@map("passkey_challenges")
 }
 
 model AuthIdentityLinkInvitation {

@@ -4,6 +4,7 @@ import { Prisma, type PaymentMethod, type PrismaClient } from "@prisma/client";
 import { withDatabaseRead } from "@/server/database/read-router";
 
 type ProductRow = { stall_id: string; stall_name: string; product_name: string; quantity: bigint; revenue: bigint };
+type ProductGroupRow = { stall_id: string; stall_name: string; category_name: string; group_name: string; quantity: bigint; revenue: bigint };
 type HourRow = { stall_id: string; stall_name: string; sale_hour: number; order_count: bigint; sales: bigint };
 type PaymentRow = {
   stall_id: string;
@@ -50,10 +51,12 @@ export async function getProductAndHourlyReport(
   stallIds: string[],
   dateFrom: string,
   dateTo: string,
+  locale = "zh-TW",
+  ungroupedLabel = "未分組",
 ) {
-  if (stallIds.length === 0) return { products: [], hours: [] };
+  if (stallIds.length === 0) return { products: [], groups: [], hours: [] };
   const scopedIds = Prisma.join(stallIds.map((id) => Prisma.sql`${id}::uuid`));
-  const [productRows, hours] = await withDatabaseRead(
+  const [productRows, groupRows, hours] = await withDatabaseRead(
     {
       policy: "DR_PREFERRED_EVENTUAL",
       operation: "product_and_hourly_report",
@@ -79,6 +82,33 @@ export async function getProductAndHourlyReport(
         order by revenue desc, item.name asc
         limit 500
       `),
+      database.$queryRaw<ProductGroupRow[]>(Prisma.sql`
+        select
+          item.stall_id,
+          stall.name as stall_name,
+          coalesce(category_translation.name, category.name, ${ungroupedLabel}) as category_name,
+          coalesce(group_translation.name, product_group.name, ${ungroupedLabel}) as group_name,
+          sum(item.quantity)::bigint as quantity,
+          sum(item.quantity * item.unit_price)::bigint as revenue
+        from public.order_items item
+        join public.orders order_record on order_record.id = item.order_id
+        join public.stalls stall on stall.id = item.stall_id
+        left join public.products product on product.id = item.product_id
+        left join public.product_categories category on category.id = product.category_id
+        left join public.product_groups product_group on product_group.id = product.group_id
+        left join public.product_category_translations category_translation
+          on category_translation.category_id = category.id and category_translation.locale = ${locale}
+        left join public.product_group_translations group_translation
+          on group_translation.group_id = product_group.id and group_translation.locale = ${locale}
+        where item.organization_id = ${organizationId}::uuid
+          and item.stall_id in (${scopedIds})
+          and not order_record.is_test
+          and order_record.status = 'COMPLETED'::public.order_status
+          and public.stall_business_date(stall.id, order_record.completed_at) between ${dateFrom}::date and ${dateTo}::date
+        group by item.stall_id, stall.name, category_name, group_name
+        order by revenue desc, group_name asc
+        limit 500
+      `),
       queryHourlySalesReport(database, organizationId, scopedIds, dateFrom, dateTo),
     ]),
   );
@@ -90,8 +120,77 @@ export async function getProductAndHourlyReport(
       quantity: Number(row.quantity),
       revenue: Number(row.revenue),
     })),
+    groups: groupRows.map((row) => ({
+      stallId: row.stall_id,
+      stallName: row.stall_name,
+      categoryName: row.category_name,
+      groupName: row.group_name,
+      quantity: Number(row.quantity),
+      revenue: Number(row.revenue),
+    })),
     hours: mapHourlyRows(hours),
   };
+}
+
+export async function getOrderHistoryReport(
+  organizationId: string,
+  stallIds: string[],
+  dateFrom: string,
+  dateTo: string,
+) {
+  if (stallIds.length === 0) return [];
+  const scopedIds = Prisma.join(stallIds.map((id) => Prisma.sql`${id}::uuid`));
+  return withDatabaseRead(
+    {
+      policy: "DR_PREFERRED_EVENTUAL",
+      operation: "order_history_report",
+      maxLagSeconds: 30,
+    },
+    async (database) => {
+      const rows = await database.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        select order_record.id
+        from public.orders order_record
+        join public.stalls stall on stall.id = order_record.stall_id
+        where order_record.organization_id = ${organizationId}::uuid
+          and order_record.stall_id in (${scopedIds})
+          and not order_record.is_test
+          and public.stall_business_date(stall.id, order_record.created_at) between ${dateFrom}::date and ${dateTo}::date
+        order by order_record.created_at desc, order_record.id desc
+        limit 1000
+      `);
+      if (rows.length === 0) return [];
+      return database.order.findMany({
+        where: { organizationId, id: { in: rows.map((row) => row.id) } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: {
+          id: true,
+          orderNo: true,
+          source: true,
+          origin: true,
+          customerName: true,
+          customerPhone: true,
+          fulfillmentType: true,
+          tableLabel: true,
+          status: true,
+          paymentStatus: true,
+          subtotal: true,
+          discountAmount: true,
+          total: true,
+          note: true,
+          createdAt: true,
+          confirmedAt: true,
+          completedAt: true,
+          cancelledAt: true,
+          stall: { select: { id: true, name: true } },
+          payment: { select: { methodLabel: true, status: true, paidAt: true } },
+          items: {
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            select: { id: true, name: true, quantity: true, unitPrice: true, note: true },
+          },
+        },
+      });
+    },
+  );
 }
 
 export async function getHourlySalesReport(

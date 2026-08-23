@@ -63,6 +63,15 @@ describe("RBAC", () => {
     expect(hasPermission("STALL_MANAGER", "MANAGE_SUBSCRIPTION")).toBe(false);
   });
 
+  it("付款整合與 provider 退款只允許平台或組織管理角色", () => {
+    expect(hasPermission("PLATFORM_ADMIN", "MANAGE_PAYMENT_INTEGRATIONS")).toBe(true);
+    expect(hasPermission("ORGANIZATION_OWNER", "MANAGE_PAYMENT_INTEGRATIONS")).toBe(true);
+    expect(hasPermission("ORGANIZATION_ADMIN", "MANAGE_PAYMENT_INTEGRATIONS")).toBe(true);
+    expect(hasPermission("STALL_MANAGER", "MANAGE_PAYMENT_INTEGRATIONS")).toBe(false);
+    expect(hasPermission("STAFF", "REFUND_PROVIDER_PAYMENTS")).toBe(false);
+    expect(hasPermission("FINANCE_VIEWER", "REFUND_PROVIDER_PAYMENTS")).toBe(false);
+  });
+
   it("複合角色優先使用可執行攤位操作的角色", () => {
     expect(resolvePrimaryRole(["FINANCE_VIEWER", "STALL_MANAGER"])).toBe("STALL_MANAGER");
     expect(resolvePrimaryRole(["KITCHEN", "ORGANIZATION_ADMIN"])).toBe("ORGANIZATION_ADMIN");

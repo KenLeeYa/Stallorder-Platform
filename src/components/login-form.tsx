@@ -14,7 +14,7 @@ const oauthErrorMessageKeys: Record<string, AppMessageKey> = {
 };
 
 type LoginProvider = {
-  provider: "GOOGLE" | "LINE" | "APPLE";
+  provider: "GOOGLE" | "LINE" | "APPLE" | "MICROSOFT";
   label: string;
 };
 

@@ -1,7 +1,19 @@
 import { z } from "zod";
+import type { AppLocale } from "@/lib/app-locale";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_CLOSURE_DAYS = 366;
+
+const systemClosureTitles: Record<string, Record<AppLocale, string>> = {
+  "公休日": { "zh-TW": "公休日", en: "Closed day", ja: "休業日", ko: "휴무일", vi: "Ngày nghỉ", th: "วันหยุด" },
+  "臨時店休": { "zh-TW": "臨時店休", en: "Temporary closure", ja: "臨時休業", ko: "임시 휴무", vi: "Tạm nghỉ", th: "ปิดชั่วคราว" },
+  "臨時停業": { "zh-TW": "臨時停業", en: "Temporary closure", ja: "臨時休業", ko: "임시 휴무", vi: "Tạm ngừng hoạt động", th: "ปิดชั่วคราว" },
+  "店休": { "zh-TW": "店休", en: "Closed", ja: "休業", ko: "휴무", vi: "Nghỉ bán", th: "ร้านปิด" },
+};
+
+export function localizeSpecialClosureTitle(title: string, locale: AppLocale) {
+  return systemClosureTitles[title.trim()]?.[locale] ?? title;
+}
 
 export type SpecialClosureView = {
   id: string;

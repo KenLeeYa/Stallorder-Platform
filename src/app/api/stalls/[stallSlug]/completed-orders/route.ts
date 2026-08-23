@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
+import { zonedCalendarDayUtcRange } from "@/lib/date-time";
 import { readJson } from "@/lib/http";
 import {
   ManagerAuthorizationError,
@@ -66,19 +68,29 @@ export async function GET(request: Request, context: RouteContext) {
     );
   }
 
+  const defaultRange = !parsed.data.from && !parsed.data.to
+    ? zonedCalendarDayUtcRange(new Date(), authorization.stall.timezone)
+    : null;
+  const terminalDateFilter = {
+    ...(parsed.data.from ? { gte: new Date(parsed.data.from) } : defaultRange ? { gte: defaultRange.from } : {}),
+    ...(parsed.data.to ? { lt: new Date(parsed.data.to) } : defaultRange ? { lt: defaultRange.to } : {}),
+  };
+  const terminalFilter: Prisma.OrderWhereInput = parsed.data.status === "ALL"
+    ? {
+      OR: [
+        { status: "COMPLETED", completedAt: terminalDateFilter },
+        { status: "CANCELLED", cancelledAt: terminalDateFilter },
+      ],
+    }
+    : parsed.data.status === "COMPLETED"
+      ? { status: "COMPLETED", completedAt: terminalDateFilter }
+      : { status: "CANCELLED", cancelledAt: terminalDateFilter };
+
   const orders = await prisma.order.findMany({
     where: {
       organizationId: authorization.stall.organizationId,
       stallId: authorization.stall.id,
-      status: parsed.data.status === "ALL"
-        ? { in: ["COMPLETED", "CANCELLED"] }
-        : parsed.data.status,
-      ...(parsed.data.from || parsed.data.to ? {
-        updatedAt: {
-          ...(parsed.data.from ? { gte: new Date(parsed.data.from) } : {}),
-          ...(parsed.data.to ? { lt: new Date(parsed.data.to) } : {}),
-        },
-      } : {}),
+      ...terminalFilter,
       ...(parsed.data.query ? {
         OR: [
           { orderNo: { contains: parsed.data.query, mode: "insensitive" } },

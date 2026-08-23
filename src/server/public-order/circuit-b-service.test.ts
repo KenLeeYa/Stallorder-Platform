@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPerformanceTiming } from "@/lib/performance-timing";
 import { createPublicOrderSchema } from "../../../supabase/functions/_shared/schemas";
 
@@ -124,6 +124,10 @@ describe("Circuit B public order service", () => {
     mocks.recordPublicOrderAttempt.mockResolvedValue([]);
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("rejects a public takeaway without required customer details before Turnstile", async () => {
     const { createOrderThroughCircuitB } = await import("./circuit-b-service");
 
@@ -167,6 +171,37 @@ describe("Circuit B public order service", () => {
       status: 503,
     });
     expect(mocks.checkGlobalPublicRequestGate).not.toHaveBeenCalled();
+  });
+
+  it("allows Circuit B locally when Edge Functions are intentionally omitted", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL", "");
+    mocks.resolveResilienceFeatureFlags.mockResolvedValue({
+      DUAL_ORDER_INTAKE_ENABLED: { enabled: false },
+    });
+    mocks.issueIdempotentOrderSession.mockResolvedValue({
+      ok: true,
+      stall_id: "88888888-8888-4888-8888-888888888888",
+      order_session_id: "66666666-6666-4666-8666-666666666666",
+      expires_at: "2026-08-23T16:00:00.000Z",
+      capacity: null,
+    });
+    const { issueOrderSessionThroughCircuitB } = await import("./circuit-b-service");
+
+    const result = await issueOrderSessionThroughCircuitB({
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      sessionRequestId: "22222222-2222-4222-8222-222222222222",
+      orderingMode: "DEFAULT",
+      includeMenu: false,
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    });
+
+    expect(result.status).toBe(201);
+    expect(mocks.resolveResilienceFeatureFlags).not.toHaveBeenCalled();
   });
 
   it("blocks a new session during emergency degraded mode after checking for a resumable order", async () => {

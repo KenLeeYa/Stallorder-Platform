@@ -3,6 +3,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { createRequestId, hashClientIp, resolveAppOrigin, sanitizeRedirectPath } from "@/lib/security";
 import { createSupabaseAuthClient, isSupabaseAuthConfigured } from "@/lib/supabase-auth";
+import { resolveOAuthLoginFeatureState } from "@/server/auth/oauth/feature-flags";
 
 export async function GET(request: Request) {
   const requestId = createRequestId();
@@ -12,7 +13,8 @@ export async function GET(request: Request) {
   const next = sanitizeRedirectPath(requestUrl.searchParams.get("next"), "");
   const appOrigin = resolveAppOrigin(requestUrl);
 
-  if (!isSupabaseAuthConfigured()) {
+  const oauthState = await timing.measureDb(() => resolveOAuthLoginFeatureState());
+  if (!oauthState.foundation || !oauthState.providers.GOOGLE || !isSupabaseAuthConfigured()) {
     return finalize(NextResponse.redirect(`${appOrigin}/login?oauthError=not-configured`));
   }
 

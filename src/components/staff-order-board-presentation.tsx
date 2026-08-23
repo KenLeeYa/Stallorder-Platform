@@ -315,6 +315,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
           stallSlug={stall.slug}
           currency={stall.currency}
           requiresAuthorizationCode={!hasPermission(account.role, "APPROVE_DISCOUNT")}
+          canPrintReceipt={props.modules.print && hasPermission(account.role, "MANAGE_PRINT_QUEUE")}
         />
       ) : null}
       <StaffPosComposerAndDialogs
@@ -394,9 +395,9 @@ function StaffOrderBoardToolbar({
   const role = account.role;
   return (
     <>
-      <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 min-w-0 max-w-full overflow-x-hidden border-b border-stone-200 bg-white px-4 pb-1 shadow-sm print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
-        <div className="flex h-11 min-w-0 max-w-full items-center justify-between gap-3 print:hidden sm:gap-4">
-          <div className="min-w-0">
+      <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 min-w-0 overflow-x-clip overflow-y-visible border-b border-stone-200 bg-white px-4 pb-1 shadow-sm print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
+        <div className="flex min-h-11 min-w-0 flex-wrap items-center justify-between gap-2 py-1 print:hidden min-[360px]:flex-nowrap sm:gap-4">
+          <div className="min-w-0 flex-1 basis-32">
             <h1 className="truncate text-sm font-semibold sm:text-base">{stall.name}</h1>
             <p className="truncate text-xs font-medium text-teal-800">{account.displayName} · {roleLabel(role, t)}</p>
           </div>
@@ -408,10 +409,10 @@ function StaffOrderBoardToolbar({
             offlineGuardStallId={stall.id}
             compactOnMobile
             hideVisualLabel
-            className="w-[min(52vw,220px)] shrink-0"
+            className="min-w-0 flex-1 basis-36 min-[360px]:max-w-[220px]"
           />
         </div>
-        <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 items-center gap-2 overflow-x-auto py-2 print:hidden sm:overflow-x-visible [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
+        <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-2 pr-4 print:hidden sm:overflow-x-visible sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
         <div data-testid="staff-function-status-group" className="flex items-center gap-2 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0">
           <LiveConnectionBadge state={liveConnection} t={t} />
           <div className="shrink-0">

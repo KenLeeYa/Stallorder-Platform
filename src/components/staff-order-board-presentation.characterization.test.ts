@@ -56,7 +56,7 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain("sm:overflow-x-visible");
     expect(presentationSource).toContain('data-testid="staff-function-status-group"');
     expect(presentationSource).toContain('data-testid="staff-function-order-group"');
-    expect(presentationSource).toContain("max-w-full overflow-x-hidden");
+    expect(presentationSource).toContain("min-w-0 overflow-x-clip overflow-y-visible");
     expect(presentationSource).toContain('data-testid="staff-function-device-group"');
     expect(presentationSource).toContain("sm:flex-row sm:items-center sm:justify-between");
     expect(presentationSource).toContain('aria-label={t("staff.view.kitchenMode")}');
