@@ -110,8 +110,10 @@ export function CashShiftBoard({
   const [movementType, setMovementType] = useState<"CASH_IN" | "CASH_OUT">("CASH_IN");
   const [movementAmount, setMovementAmount] = useState("");
   const [movementReason, setMovementReason] = useState("");
+  const [movementAuthorizationCode, setMovementAuthorizationCode] = useState("");
   const [refundPaymentId, setRefundPaymentId] = useState("");
   const [refundReason, setRefundReason] = useState("");
+  const [refundAuthorizationCode, setRefundAuthorizationCode] = useState("");
   const [countedAmount, setCountedAmount] = useState("");
   const [closeNote, setCloseNote] = useState("");
   const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
@@ -231,9 +233,13 @@ export function CashShiftBoard({
       type: movementType,
       amount,
       reason: movementReason.trim(),
+      ...(movementType === "CASH_OUT" && movementAuthorizationCode
+        ? { managerAuthorizationCode: movementAuthorizationCode }
+        : {}),
     }, t("cash.success.movement"))) {
       setMovementAmount("");
       setMovementReason("");
+      setMovementAuthorizationCode("");
       closeAction();
     }
   }
@@ -245,9 +251,11 @@ export function CashShiftBoard({
       shiftId: state.openShift.id,
       paymentId: refundPaymentId,
       reason: refundReason.trim(),
+      ...(refundAuthorizationCode ? { managerAuthorizationCode: refundAuthorizationCode } : {}),
     }, t("cash.success.refund"))) {
       setRefundPaymentId("");
       setRefundReason("");
+      setRefundAuthorizationCode("");
       closeAction();
     }
   }
@@ -436,6 +444,7 @@ export function CashShiftBoard({
         <label className="text-xs font-semibold text-stone-600">{t("cash.type")}<select data-dialog-initial-focus value={movementType} onChange={(event) => setMovementType(event.target.value as "CASH_IN" | "CASH_OUT")} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="CASH_IN">{t("cash.metric.in")}</option><option value="CASH_OUT">{t("cash.metric.out")}</option></select></label>
         <MoneyInput label={t("cash.amount")} value={movementAmount} onChange={setMovementAmount} />
         <TextInput label={t("cash.reason")} value={movementReason} onChange={setMovementReason} maxLength={200} />
+        {movementType === "CASH_OUT" ? <AuthorizationCodeInput label={t("cash.managerAuthorizationCode")} value={movementAuthorizationCode} onChange={setMovementAuthorizationCode} /> : null}
         <button type="submit" disabled={busy || localProvisionalClose || !movementAmount || !movementReason.trim()} className="min-h-11 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50">{t("cash.addRecord")}</button>
       </form>
     </CashShiftDialog> : null}
@@ -444,6 +453,7 @@ export function CashShiftBoard({
       <form onSubmit={(event) => { event.preventDefault(); void refundPayment(); }} className="grid gap-4">
         <label className="text-xs font-semibold text-stone-600">{t("cash.originalPayment")}<select data-dialog-initial-focus value={refundPaymentId} onChange={(event) => setRefundPaymentId(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="">{t("cash.choosePayment")}</option>{state.refundablePayments.map((payment) => <option key={payment.id} value={payment.id}>{payment.order.orderNo} · {formatMoney(payment.amount, stall.currency, locale)}</option>)}</select></label>
         <TextInput label={t("cash.refundReason")} value={refundReason} onChange={setRefundReason} maxLength={200} />
+        <AuthorizationCodeInput label={t("cash.managerAuthorizationCode")} value={refundAuthorizationCode} onChange={setRefundAuthorizationCode} />
         <button type="submit" disabled={busy || !refundPaymentId || !refundReason.trim()} className="min-h-11 rounded-md bg-red-700 px-4 text-sm font-semibold text-white disabled:opacity-50">{t("cash.confirmRefund")}</button>
       </form>
     </CashShiftDialog> : null}
@@ -569,6 +579,10 @@ function SignedMoneyInput({ label, value, onChange }: { label: string; value: st
 
 function TextInput({ label, value, onChange, maxLength }: { label: string; value: string; onChange: (value: string) => void; maxLength: number }) {
   return <label className="text-xs font-semibold text-stone-600">{label}<input type="text" value={value} maxLength={maxLength} onChange={(event) => onChange(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>;
+}
+
+function AuthorizationCodeInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return <label className="text-xs font-semibold text-stone-600">{label}<input type="password" inputMode="numeric" autoComplete="off" value={value} maxLength={8} onChange={(event) => onChange(event.target.value.replace(/\D/g, ""))} className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label>;
 }
 
 function formatSignedMoney(amount: number, currency: string, locale: OperationsLocale) {

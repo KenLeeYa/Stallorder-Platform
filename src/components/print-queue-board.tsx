@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Script from "next/script";
 import { ArrowLeft, Bluetooth, Check, CircleOff, Cloud, ExternalLink, Printer, RefreshCw, RotateCcw, X } from "lucide-react";
@@ -17,7 +17,9 @@ import type {
 } from "@/lib/print-center-types";
 import {
   detectStarWebPrntEnvironment,
+  openStarCashDrawer,
   printWithStarWebPrnt,
+  probeStarWebPrnt,
   StarWebPrntError,
   starWebPrntLaunchUrl,
   type StarWebPrntEnvironment,
@@ -41,10 +43,16 @@ export function PrintQueueBoard({ stall, initialState }: {
   const [printEnvironment, setPrintEnvironment] = useState<DetectedPrintEnvironment>("CHECKING");
   const [webPrntScriptReady, setWebPrntScriptReady] = useState(false);
   const [webPrntLaunchHref, setWebPrntLaunchHref] = useState("");
+  const probingRef = useRef(false);
+  const autoDetectPrintersRef = useRef<PrinterView[]>([]);
   const activePrinter = state.printers.find((printer) => printer.id === activePrinterId) ?? null;
   const activeConnectionType = activePrinter?.connectionType ?? null;
   const visibleJobs = useMemo(() => state.jobs.filter((job) => job.status !== "CANCELLED"), [state.jobs]);
   const cancelledJobs = useMemo(() => state.jobs.filter((job) => job.status === "CANCELLED"), [state.jobs]);
+  const autoDetectSignature = state.printers
+    .filter((printer) => printer.isEnabled && printer.autoDetectEnabled && printer.connectionType === "WEBPRNT_BLUETOOTH")
+    .map((printer) => `${printer.id}:${printer.name}`)
+    .join("|");
 
   const refresh = useCallback(async () => {
     try {
@@ -98,6 +106,14 @@ export function PrintQueueBoard({ stall, initialState }: {
   }, [stall.slug]);
 
   useEffect(() => {
+    autoDetectPrintersRef.current = state.printers.filter((printer) => (
+      printer.isEnabled
+      && printer.autoDetectEnabled
+      && printer.connectionType === "WEBPRNT_BLUETOOTH"
+    ));
+  }, [state.printers]);
+
+  useEffect(() => {
     const detectEnvironment = window.setTimeout(() => {
       const environment = detectStarWebPrntEnvironment(window.navigator.userAgent);
       setPrintEnvironment(environment);
@@ -107,9 +123,10 @@ export function PrintQueueBoard({ stall, initialState }: {
   }, []);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(`stallorder_printer_${stall.slug}`);
     const restorePrinter = window.setTimeout(() => {
-      if (saved) setActivePrinterId(saved);
+      const saved = window.localStorage.getItem(`stallorder_printer_${stall.slug}`);
+      const printer = initialState.printers.find((candidate) => candidate.id === saved && candidate.isEnabled);
+      if (printer?.connectionType === "SYSTEM_PRINT") setActivePrinterId(printer.id);
     }, 0);
     const initialRefresh = window.setTimeout(() => void refresh(), 0);
     const poll = window.setInterval(() => void refresh(), 5_000);
@@ -118,7 +135,34 @@ export function PrintQueueBoard({ stall, initialState }: {
       window.clearTimeout(initialRefresh);
       window.clearInterval(poll);
     };
-  }, [refresh, stall.slug]);
+  }, [initialState.printers, refresh, stall.slug]);
+
+  useEffect(() => {
+    if (printEnvironment !== "STAR_WEBPRNT" || !webPrntScriptReady) return;
+    const candidates = autoDetectPrintersRef.current;
+    if (candidates.length === 0) return;
+    const detect = async () => {
+      if (probingRef.current) return;
+      probingRef.current = true;
+      try {
+        await probeStarWebPrnt();
+        const saved = window.localStorage.getItem(`stallorder_printer_${stall.slug}`);
+        const detected = candidates.find((printer) => printer.id === saved) ?? candidates[0];
+        setActivePrinterId(detected.id);
+        window.localStorage.setItem(`stallorder_printer_${stall.slug}`, detected.id);
+        await sendHeartbeat(detected.id);
+        setMessage(t("print.device.detected", { printer: detected.name }));
+      } catch (error) {
+        setActivePrinterId((current) => candidates.some((printer) => printer.id === current) ? null : current);
+        setMessage(starWebPrntErrorMessage(t, error));
+      } finally {
+        probingRef.current = false;
+      }
+    };
+    void detect();
+    const timer = window.setInterval(() => void detect(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [autoDetectSignature, printEnvironment, sendHeartbeat, stall.slug, t, webPrntScriptReady]);
 
   useEffect(() => {
     if (!activePrinterId || activeConnectionType === "CLOUDPRNT" || printEnvironment === "CHECKING") return;
@@ -130,15 +174,45 @@ export function PrintQueueBoard({ stall, initialState }: {
     return () => window.clearInterval(timer);
   }, [activeConnectionType, activePrinterId, printEnvironment, sendHeartbeat, webPrntScriptReady]);
 
-  const takeOverPrinter = useCallback((printer: PrinterView) => {
+  const takeOverPrinter = useCallback(async (printer: PrinterView) => {
     if (printer.connectionType === "WEBPRNT_BLUETOOTH" && printEnvironment !== "STAR_WEBPRNT") {
       setMessage(printEnvironment === "IOS_SAFARI" ? t("print.bluetooth.safariBlocked") : t("print.bluetooth.starBrowserRequired"));
       return;
+    }
+    if (printer.connectionType === "WEBPRNT_BLUETOOTH") {
+      try {
+        await probeStarWebPrnt();
+      } catch (error) {
+        setMessage(starWebPrntErrorMessage(t, error));
+        return;
+      }
     }
     setActivePrinterId(printer.id);
     window.localStorage.setItem(`stallorder_printer_${stall.slug}`, printer.id);
     setMessage(t("print.takeoverStarted"));
   }, [printEnvironment, stall.slug, t]);
+
+  const openCashDrawer = useCallback(async (printer: PrinterView) => {
+    if (printer.connectionType !== "WEBPRNT_BLUETOOTH" || activePrinterId !== printer.id) {
+      setMessage(t("print.drawer.selectPrinter"));
+      return;
+    }
+    const authorizationInput = window.prompt(t("print.drawer.codePrompt"));
+    if (authorizationInput === null) return;
+    const managerAuthorizationCode = authorizationInput.trim();
+    const authorized = await run({
+      operation: "AUTHORIZE_CASH_DRAWER",
+      printerId: printer.id,
+      ...(managerAuthorizationCode ? { managerAuthorizationCode } : {}),
+    });
+    if (!authorized) return;
+    try {
+      await openStarCashDrawer();
+      setMessage(t("print.drawer.opened"));
+    } catch (error) {
+      setMessage(starWebPrntErrorMessage(t, error));
+    }
+  }, [activePrinterId, run, t]);
 
   const startPrint = useCallback(async (job: PrintJobView, selectedPrinter?: PrinterView | null) => {
     const printer = selectedPrinter ?? activePrinter;
@@ -262,7 +336,7 @@ export function PrintQueueBoard({ stall, initialState }: {
     {printEnvironment === "IOS_SAFARI" ? <div className="mt-4 border-y border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950 print:hidden"><p>{t("print.bluetooth.safariHint")}</p>{webPrntLaunchHref ? <a href={webPrntLaunchHref} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-3 font-semibold text-white"><Bluetooth className="h-4 w-4" />{t("print.bluetooth.openBrowser")}<ExternalLink className="h-4 w-4" /></a> : null}</div> : null}
     {message ? <p role="status" className="mt-4 border-y border-stone-200 bg-stone-50 px-3 py-3 text-sm font-medium text-stone-700 print:hidden">{message}</p> : null}
 
-    <PrintCenterSettings state={state} busy={busy} activePrinterId={activePrinterId} onRun={run} onTakeOver={takeOverPrinter} onTest={testPrinter} />
+    <PrintCenterSettings state={state} busy={busy} activePrinterId={activePrinterId} onRun={run} onTakeOver={takeOverPrinter} onTest={testPrinter} onOpenCashDrawer={openCashDrawer} />
 
     <section className="py-6 print:hidden">
       <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-semibold">{t("print.jobs")}</h2><span className="text-sm text-stone-500">{t("common.count", { count: visibleJobs.length })}</span></div>

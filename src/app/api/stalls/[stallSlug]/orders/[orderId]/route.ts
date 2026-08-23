@@ -6,6 +6,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { DiscountApprovalError } from "@/lib/discount-approval";
 import { readJson } from "@/lib/http";
 import { classifyStallOrderForProduction } from "@/lib/fulfillment-time";
+import { ManagerAuthorizationError, verifyManagerAuthorization } from "@/lib/manager-authorization";
 import { cancellationMatchesOrder, orderStatusUpdateSchema } from "@/lib/order-status-update";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
@@ -172,6 +173,41 @@ async function handlePatch(
       { error: "取消確認資料與目前訂單不符，訂單未取消。" },
       { status: 400, headers: { "x-request-id": authorization.requestId } },
     );
+  }
+
+  if (nextStatus === "CANCELLED") {
+    try {
+      await timing.measureDb(() => verifyManagerAuthorization({
+        stallId: order.stallId,
+        actorProfileId: authorization.principal.user.id,
+        actorRoles: authorization.roles,
+        authorizationCode: cancellation?.managerAuthorizationCode,
+        operation: "CANCEL_ORDER",
+      }));
+    } catch (error) {
+      if (!(error instanceof ManagerAuthorizationError)) throw error;
+      await timing.measureDb(() => recordAuditEvent({
+        action: "ORDER_CANCELLATION_AUTHORIZATION_FAILED",
+        entityType: "ORDER",
+        entityId: order.id,
+        outcome: "DENIED",
+        requestId: authorization.requestId,
+        stallId: order.stallId,
+        actorProfileId: authorization.principal.user.id,
+        ipHash: hashClientIp(request),
+        metadata: { reason: error.code },
+      }));
+      const messages: Record<ManagerAuthorizationError["code"], string> = {
+        CODE_REQUIRED: "請由經理或老闆輸入管理授權碼。",
+        CODE_NOT_CONFIGURED: "尚未設定管理授權碼，請先至安全與訂單限制設定。",
+        INVALID_CODE: "管理授權碼不正確。",
+        RATE_LIMITED: "管理授權碼嘗試過多，請稍後再試。",
+      };
+      return NextResponse.json(
+        { error: messages[error.code], code: error.code },
+        { status: error.code === "RATE_LIMITED" ? 429 : 403, headers: { "x-request-id": authorization.requestId } },
+      );
+    }
   }
 
   if (!streamlinedCheckout && !canTransitionOrder(order.status, nextStatus, authorization.role)) {

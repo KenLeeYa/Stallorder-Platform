@@ -10,6 +10,7 @@ export const KITCHEN_TICKET_MEDIA_TYPE = "application/vnd.star.starprnt";
 
 export type PrintPaperWidth = 58 | 80;
 export type PrintFontScale = 1 | 2 | 3;
+export type PrintFeedLines = 1 | 2 | 3;
 
 export type KitchenTicketInput = {
   stallName: string;
@@ -34,6 +35,9 @@ export type KitchenTicketInput = {
   isReprint: boolean;
   paperWidthMm?: PrintPaperWidth;
   fontScale?: PrintFontScale;
+  feedLines?: PrintFeedLines;
+  showOrderNote?: boolean;
+  showItemNotes?: boolean;
   sectionLabel?: string | null;
 };
 
@@ -107,7 +111,7 @@ export function createKitchenTicketBatchPayload(
         fontScale,
       });
       contents.push(content);
-      commands.push(encodeStarPrnt(content, fontScale, 2));
+      commands.push(encodeStarPrnt(content, fontScale, input.feedLines ?? 2));
     }
   }
   return {
@@ -127,6 +131,14 @@ export type CustomerReceiptInput = {
   isReprint: boolean;
   paperWidthMm: PrintPaperWidth;
   fontScale: PrintFontScale;
+  feedLines?: PrintFeedLines;
+  showCustomerName?: boolean;
+  showCustomerPhone?: boolean;
+  showDeliveryAddress?: boolean;
+  showOrderNote?: boolean;
+  showItemNotes?: boolean;
+  showPrices?: boolean;
+  showPaymentMethod?: boolean;
   copies: number;
   order: {
     orderNo: string;
@@ -141,6 +153,7 @@ export type CustomerReceiptInput = {
     discountAmount: number;
     total: number;
     paymentStatus: "UNPAID" | "PAID" | "REFUNDED" | "PENDING_RECONCILIATION";
+    paymentMethodLabel?: string | null;
     items: Array<{
       name: string;
       quantity: number;
@@ -154,7 +167,7 @@ export type CustomerReceiptInput = {
 export function createCustomerReceiptPayload(input: CustomerReceiptInput): PrintTicketPayload {
   const content = formatCustomerReceipt(input);
   const contents = Array.from({ length: input.copies }, () => content);
-  const commands = contents.map((copy) => encodeStarPrnt(copy, input.fontScale, 2));
+  const commands = contents.map((copy) => encodeStarPrnt(copy, input.fontScale, input.feedLines ?? 2));
   return {
     kind: "CUSTOMER_RECEIPT_STARPRNT",
     version: CUSTOMER_RECEIPT_TEMPLATE_VERSION,
@@ -209,32 +222,45 @@ function formatCustomerReceipt(input: CustomerReceiptInput) {
   if (input.isReprint) lines.push(fitLine("*** 補印 ***", columns));
   lines.push(fitLine(`${type}${table} #${sanitizeText(order.orderNo).replace(/^#/, "")}`, columns));
   lines.push(fitLine(formatMonthDayTime(order.createdAt, input.timeZone), columns));
+  if (input.showCustomerName !== false && order.customerName) {
+    appendWrapped(lines, `顧客：${sanitizeText(order.customerName)}`, "", columns);
+  }
   lines.push(divider(columns));
   for (const item of order.items) {
-    appendAmountLine(
-      lines,
-      `${item.quantity}× ${sanitizeText(item.name)}`,
-      moneyLabel(item.unitPrice * item.quantity, input.currency),
-      columns,
-    );
-    const details = [
-      ...item.noteOptions.map((option) => sanitizeText(option.optionName)),
-      ...(item.note ? [`★${sanitizeText(item.note)}`] : []),
-    ].filter(Boolean);
-    if (details.length > 0) appendWrapped(lines, details.join("／"), "   ", columns);
+    if (input.showPrices === false) {
+      appendWrapped(lines, `${item.quantity}× ${sanitizeText(item.name)}`, "", columns);
+    } else {
+      appendAmountLine(
+        lines,
+        `${item.quantity}× ${sanitizeText(item.name)}`,
+        moneyLabel(item.unitPrice * item.quantity, input.currency),
+        columns,
+      );
+    }
+    if (input.showItemNotes !== false) {
+      const details = [
+        ...item.noteOptions.map((option) => sanitizeText(option.optionName)),
+        ...(item.note ? [`★${sanitizeText(item.note)}`] : []),
+      ].filter(Boolean);
+      if (details.length > 0) appendWrapped(lines, details.join("／"), "   ", columns);
+    }
   }
-  lines.push(divider(columns));
-  appendAmountLine(lines, "小計", moneyLabel(order.subtotal, input.currency), columns);
-  if (order.discountAmount > 0) {
-    appendAmountLine(lines, "折扣", `-${moneyLabel(order.discountAmount, input.currency)}`, columns);
+  if (input.showPrices !== false) {
+    lines.push(divider(columns));
+    appendAmountLine(lines, "小計", moneyLabel(order.subtotal, input.currency), columns);
+    if (order.discountAmount > 0) {
+      appendAmountLine(lines, "折扣", `-${moneyLabel(order.discountAmount, input.currency)}`, columns);
+    }
+    appendAmountLine(lines, "合計", moneyLabel(order.total, input.currency), columns);
   }
-  appendAmountLine(lines, "合計", moneyLabel(order.total, input.currency), columns);
-  lines.push(fitLine(`付款：${paymentLabel(order.paymentStatus)}`, columns));
-  if (order.fulfillmentType === "DELIVERY" && order.deliveryAddress) {
+  if (input.showPaymentMethod !== false) {
+    lines.push(fitLine(`付款：${sanitizeText(order.paymentMethodLabel ?? paymentLabel(order.paymentStatus))}`, columns));
+  }
+  if (input.showDeliveryAddress !== false && order.fulfillmentType === "DELIVERY" && order.deliveryAddress) {
     appendWrapped(lines, `地址：${sanitizeText(order.deliveryAddress)}`, "", columns);
   }
-  if (order.customerPhone) appendWrapped(lines, `電話：${sanitizeText(order.customerPhone)}`, "", columns);
-  if (order.note) appendWrapped(lines, `備註：${sanitizeText(order.note)}`, "", columns);
+  if (input.showCustomerPhone !== false && order.customerPhone) appendWrapped(lines, `電話：${sanitizeText(order.customerPhone)}`, "", columns);
+  if (input.showOrderNote !== false && order.note) appendWrapped(lines, `備註：${sanitizeText(order.note)}`, "", columns);
   lines.push(fitLine(`列印 ${formatTime(input.printedAt, input.timeZone)}`, columns));
   return `${lines.join("\n")}\n`;
 }
@@ -268,15 +294,17 @@ export function formatKitchenTicket(input: KitchenTicketInput) {
 
   for (const item of order.items) {
     appendWrapped(lines, `${item.quantity}× ${sanitizeText(item.name)}`, "", columns);
-    const details = [
-      ...item.noteOptions.map((option) => sanitizeText(option.optionName)),
-      ...(item.note ? [`★${sanitizeText(item.note)}`] : []),
-    ].filter(Boolean);
-    if (details.length > 0) appendWrapped(lines, details.join("／"), "   ", columns);
+    if (input.showItemNotes !== false) {
+      const details = [
+        ...item.noteOptions.map((option) => sanitizeText(option.optionName)),
+        ...(item.note ? [`★${sanitizeText(item.note)}`] : []),
+      ].filter(Boolean);
+      if (details.length > 0) appendWrapped(lines, details.join("／"), "   ", columns);
+    }
   }
 
   lines.push(divider(columns));
-  if (order.note) appendWrapped(lines, `備註：${sanitizeText(order.note)}`, "", columns);
+  if (input.showOrderNote !== false && order.note) appendWrapped(lines, `備註：${sanitizeText(order.note)}`, "", columns);
   const totalQuantity = order.items.reduce((total, item) => total + item.quantity, 0);
   lines.push(fitLine(`共${order.items.length}品項／${totalQuantity}份｜列印${formatTime(input.printedAt, input.timeZone)}`, columns));
   return `${lines.join("\n")}\n`;
@@ -390,7 +418,7 @@ function sanitizeText(value: string) {
     .trim();
 }
 
-function encodeStarPrnt(content: string, fontScale: PrintFontScale, feedLines: 2 | 3) {
+function encodeStarPrnt(content: string, fontScale: PrintFontScale, feedLines: PrintFeedLines) {
   const initialize = Buffer.from([0x1b, 0x40]);
   const enableUtf8 = Buffer.from([0x1b, 0x1d, 0x29, 0x55, 0x02, 0x00, 0x30, 0x01]);
   const useWideAmbiguousCharacters = Buffer.from([0x1b, 0x1d, 0x29, 0x55, 0x02, 0x00, 0x40, 0x01]);

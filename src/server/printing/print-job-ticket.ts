@@ -26,6 +26,14 @@ export const printJobTicketSelect = {
       fontScale: true,
       splitMode: true,
       aggregateItems: true,
+      showCustomerName: true,
+      showCustomerPhone: true,
+      showDeliveryAddress: true,
+      showOrderNote: true,
+      showItemNotes: true,
+      showPrices: true,
+      showPaymentMethod: true,
+      feedLines: true,
     },
   },
   stall: { select: { name: true, timezone: true, currency: true } },
@@ -46,6 +54,7 @@ export const printJobTicketSelect = {
       discountAmount: true,
       total: true,
       paymentStatus: true,
+      payment: { select: { methodLabel: true } },
       items: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: {
@@ -98,8 +107,17 @@ export async function resolvePrintJobTicketPayload(job: PrintJobTicket) {
         paperWidthMm,
         fontScale,
         copies,
+        feedLines: normalizeFeedLines(job.printRule?.feedLines),
+        showCustomerName: job.printRule?.showCustomerName,
+        showCustomerPhone: job.printRule?.showCustomerPhone,
+        showDeliveryAddress: job.printRule?.showDeliveryAddress,
+        showOrderNote: job.printRule?.showOrderNote,
+        showItemNotes: job.printRule?.showItemNotes,
+        showPrices: job.printRule?.showPrices,
+        showPaymentMethod: job.printRule?.showPaymentMethod,
         order: {
           ...job.order,
+          paymentMethodLabel: job.order.payment?.methodLabel,
           items: items.map((item) => ({
             name: item.name,
             quantity: item.quantity,
@@ -116,6 +134,9 @@ export async function resolvePrintJobTicketPayload(job: PrintJobTicket) {
         isReprint: Boolean(job.reprintOfId && !job.isRoutingCopy),
         paperWidthMm,
         fontScale,
+        feedLines: normalizeFeedLines(job.printRule?.feedLines),
+        showOrderNote: job.printRule?.showOrderNote,
+        showItemNotes: job.printRule?.showItemNotes,
         order: {
           orderNo: job.order.orderNo,
           fulfillmentType: job.order.fulfillmentType,
@@ -206,6 +227,10 @@ function normalizeFontScale(value: number | undefined): PrintFontScale {
 
 function normalizeCopies(value: number | undefined) {
   return typeof value === "number" && value >= 1 && value <= 5 ? value : 1;
+}
+
+function normalizeFeedLines(value: number | undefined): 1 | 2 | 3 {
+  return value === 1 || value === 3 ? value : 2;
 }
 
 async function persistPayload(

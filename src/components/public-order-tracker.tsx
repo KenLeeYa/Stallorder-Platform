@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { BadgeCheck, ChevronDown, CircleHelp, CircleX, Clock3, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { BadgeCheck, ChevronDown, CircleHelp, CircleX, Clock3, RefreshCw, Store, X } from "lucide-react";
 import { LineNotificationControls } from "@/components/line-notification-controls";
 import { useAppLocale } from "@/components/locale-provider";
 import type { AppLocale } from "@/lib/app-locale";
+import { playAlertSound, primeAlertSound } from "@/lib/browser-alert-sound";
 import { publicOrderMessages } from "@/lib/messages/public-order";
 import {
   getOrCreateDeviceId,
@@ -35,6 +36,7 @@ type PublicOrder = {
   confirmedAt: string | null;
   completedAt: string | null;
   stallName: string;
+  publicMenuIdentifier: string | null;
   pickupVerificationCode: string | null;
   fulfillmentType: PublicFulfillmentType;
   tableLabel: string | null;
@@ -488,6 +490,18 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [isResponding, setIsResponding] = useState(false);
   const [fulfillmentFeedback, setFulfillmentFeedback] = useState<FulfillmentFeedback | null>(null);
+  const [showPickupReadyDialog, setShowPickupReadyDialog] = useState(false);
+  const announcedReadyOrderRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const prime = () => void primeAlertSound();
+    window.addEventListener("pointerdown", prime, { once: true });
+    window.addEventListener("keydown", prime, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", prime);
+      window.removeEventListener("keydown", prime);
+    };
+  }, []);
 
   const loadOrder = useCallback(async ({ signal }: { signal: AbortSignal }) => {
     signal.throwIfAborted();
@@ -508,6 +522,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
     return {
       value: {
         ...publicOrder,
+        publicMenuIdentifier: publicOrder.publicMenuIdentifier ?? null,
         stallTimezone: publicOrder.stallTimezone ?? null,
         requestedFulfillmentAt: publicOrder.requestedFulfillmentAt ?? null,
         committedFulfillmentAt: publicOrder.committedFulfillmentAt ?? null,
@@ -522,11 +537,21 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
 
   const { refresh: refreshOrder } = useLiveResource<PublicOrder>({
     resourceKey: trackingToken,
+    intervalMs: 3_000,
     load: loadOrder,
     onData: (nextOrder) => {
       setOrder(nextOrder);
       setLastUpdatedAt(new Date());
       setMessage("");
+      if (
+        nextOrder.fulfillmentType === "TAKEOUT"
+        && nextOrder.orderStatus === "READY"
+        && announcedReadyOrderRef.current !== nextOrder.orderNo
+      ) {
+        announcedReadyOrderRef.current = nextOrder.orderNo;
+        setShowPickupReadyDialog(true);
+        void playAlertSound({ preset: "URGENT", volume: 100, repeatCount: 3 });
+      }
     },
     onError: (error) => {
       setMessage(error instanceof Error
@@ -595,9 +620,25 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
                   : publicOrderMessages.get(locale, "waitingUpdate")}
           </p>
         </div>
-        <button type="button" title={publicOrderMessages.get(locale, "refresh")} aria-label={publicOrderMessages.get(locale, "refreshAria")} disabled={isLoading || !isOnline} onClick={() => void refreshOrder()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:cursor-not-allowed disabled:opacity-60">
-          <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {order?.orderStatus === "COMPLETED"
+            && order.fulfillmentType !== "DINE_IN"
+            && order.publicMenuIdentifier
+            ? (
+              <button
+                type="button"
+                onClick={() => window.location.assign(`/store/${encodeURIComponent(order.publicMenuIdentifier!)}?fresh=${Date.now()}`)}
+                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-teal-700 bg-white px-3 text-sm font-semibold text-teal-800"
+              >
+                <Store aria-hidden="true" className="h-4 w-4" />
+                {publicOrderMessages.get(locale, "returnMenu")}
+              </button>
+            )
+            : null}
+          <button type="button" title={publicOrderMessages.get(locale, "refresh")} aria-label={publicOrderMessages.get(locale, "refreshAria")} disabled={isLoading || !isOnline} onClick={() => void refreshOrder()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:cursor-not-allowed disabled:opacity-60">
+            <RefreshCw aria-hidden="true" className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
 
       {message ? <p role="alert" className="mt-6 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{message}</p> : null}
@@ -660,6 +701,50 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
           <LineNotificationControls trackingToken={trackingToken} />
         </section>
       ) : null}
+      {showPickupReadyDialog && order?.fulfillmentType === "TAKEOUT" && order.pickupVerificationCode
+        ? (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-stone-950/65 p-4" role="presentation">
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pickup-ready-dialog-title"
+              className="relative w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl"
+            >
+              <button
+                type="button"
+                aria-label={publicOrderMessages.get(locale, "pickupReadyDismiss")}
+                onClick={() => setShowPickupReadyDialog(false)}
+                className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full text-stone-500 hover:bg-stone-100"
+              >
+                <X aria-hidden="true" className="h-5 w-5" />
+              </button>
+              <BadgeCheck aria-hidden="true" className="mx-auto h-12 w-12 text-teal-700" />
+              <h2 id="pickup-ready-dialog-title" className="mt-3 text-2xl font-bold text-stone-950">
+                {publicOrderMessages.get(locale, "pickupReadyTitle")}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-stone-600">
+                {publicOrderMessages.get(locale, "pickupReadyBody")}
+              </p>
+              <div className="mt-5 rounded-xl bg-teal-50 px-4 py-5">
+                <p className="text-xs font-semibold text-teal-800">{publicOrderMessages.get(locale, "pickupCodeLabel")}</p>
+                <p data-testid="pickup-ready-dialog-code" className="mt-1 font-mono text-5xl font-black tracking-widest text-teal-950">
+                  {order.pickupVerificationCode}
+                </p>
+              </div>
+              <p className="mt-3 text-sm font-medium text-stone-700">
+                {publicOrderMessages.get(locale, "pickupReadyCodeHint")}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPickupReadyDialog(false)}
+                className="mt-5 min-h-12 w-full rounded-md bg-teal-700 px-4 font-semibold text-white"
+              >
+                {publicOrderMessages.get(locale, "pickupReadyDismiss")}
+              </button>
+            </section>
+          </div>
+        )
+        : null}
     </main>
   );
 }

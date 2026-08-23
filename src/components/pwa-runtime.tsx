@@ -13,6 +13,9 @@ import {
 import { CircleAlert, RefreshCw, WifiOff } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
 
+const SERVICE_WORKER_ENABLED = process.env.NODE_ENV === "production"
+  || process.env.NEXT_PUBLIC_ENABLE_PWA_IN_DEVELOPMENT === "true";
+
 type NetworkQuality = "GOOD" | "POOR" | "OFFLINE";
 
 type BeforeInstallPromptEvent = Event & {
@@ -173,10 +176,29 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
       if (applyingUpdateRef.current) window.location.reload();
     };
 
-    if ("serviceWorker" in navigator) {
+    if ("serviceWorker" in navigator && !SERVICE_WORKER_ENABLED) {
+      void (async () => {
+        const hadController = Boolean(navigator.serviceWorker.controller);
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        const unregistered = await Promise.all(
+          registrations.map((registration) => registration.unregister()),
+        );
+        if ("caches" in window) {
+          const keys = await window.caches.keys();
+          await Promise.all(
+            keys
+              .filter((key) => key.startsWith("stallorder-shell-"))
+              .map((key) => window.caches.delete(key)),
+          );
+        }
+        if (!disposed && hadController && unregistered.some(Boolean)) window.location.reload();
+      })().catch(() => undefined);
+    }
+
+    if ("serviceWorker" in navigator && SERVICE_WORKER_ENABLED) {
       navigator.serviceWorker.addEventListener("message", onServiceWorkerMessage);
       navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-      void navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((registration) => {
+      void navigator.serviceWorker.register("/sw.js?pwa-enabled=1", { scope: "/" }).then((registration) => {
         if (disposed) return;
         const markWaiting = (worker: ServiceWorker) => {
           waitingWorkerRef.current = worker;

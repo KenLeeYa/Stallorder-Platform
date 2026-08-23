@@ -6,6 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { discountRequiresApproval } from "@/lib/operational-calculations";
+import {
+  ManagerAuthorizationError,
+  verifyManagerAuthorization,
+} from "@/lib/manager-authorization";
 
 export class DiscountApprovalError extends Error {
   constructor(public readonly code: "REASON_REQUIRED" | "CREDENTIALS_REQUIRED" | "INVALID_MANAGER" | "RATE_LIMITED") {
@@ -23,6 +27,7 @@ export async function resolveDiscountApproval(input: {
   reason?: string | null;
   managerEmail?: string | null;
   managerPassword?: string | null;
+  managerAuthorizationCode?: string | null;
 }) {
   if (!discountRequiresApproval(input.discountRateBps, input.thresholdBps)) {
     return { approvedById: null, reason: null };
@@ -33,6 +38,25 @@ export async function resolveDiscountApproval(input: {
 
   if (input.actorRoles.some((role) => hasPermission(role, "APPROVE_DISCOUNT"))) {
     return { approvedById: input.actorProfileId, reason };
+  }
+
+  if (input.managerAuthorizationCode) {
+    try {
+      const approval = await verifyManagerAuthorization({
+        stallId: input.stallId,
+        actorProfileId: input.actorProfileId,
+        actorRoles: input.actorRoles,
+        operation: "HIGH_DISCOUNT",
+        authorizationCode: input.managerAuthorizationCode,
+      });
+      return { approvedById: approval.approvedById, reason };
+    } catch (error) {
+      if (error instanceof ManagerAuthorizationError) {
+        if (error.code === "RATE_LIMITED") throw new DiscountApprovalError("RATE_LIMITED");
+        throw new DiscountApprovalError("INVALID_MANAGER");
+      }
+      throw error;
+    }
   }
 
   const email = input.managerEmail?.trim().toLowerCase() ?? "";

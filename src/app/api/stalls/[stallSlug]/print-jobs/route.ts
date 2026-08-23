@@ -5,6 +5,10 @@ import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import {
+  ManagerAuthorizationError,
+  verifyManagerAuthorization,
+} from "@/lib/manager-authorization";
+import {
   createPrinterTestPayload,
   type PrintTicketPayload,
   type PrintPaperWidth,
@@ -40,6 +44,7 @@ const capabilityGatedOperations = new Set<PrintQueueCommand["operation"]>([
   "REGISTER_PRINTER",
   "UPDATE_PRINTER",
   "TEST_PRINTER",
+  "AUTHORIZE_CASH_DRAWER",
   "CREATE_RULE",
   "UPDATE_RULE",
   "DELETE_RULE",
@@ -112,6 +117,59 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    if (command.operation === "AUTHORIZE_CASH_DRAWER") {
+      const printer = await prisma.printer.findFirst({
+        where: {
+          id: command.printerId,
+          organizationId,
+          stallId,
+          isEnabled: true,
+          connectionType: "WEBPRNT_BLUETOOTH",
+        },
+        select: { id: true },
+      });
+      if (!printer) throw new PrintQueueNotFoundError();
+      try {
+        await verifyManagerAuthorization({
+          stallId,
+          actorProfileId: authorization.principal.user.id,
+          actorRoles: authorization.roles,
+          operation: "OPEN_CASH_DRAWER",
+          authorizationCode: command.managerAuthorizationCode,
+        });
+      } catch (error) {
+        if (!(error instanceof ManagerAuthorizationError)) throw error;
+        await recordAuditEvent({
+          organizationId,
+          stallId,
+          actorProfileId: authorization.principal.user.id,
+          action: "PRINT_QUEUE_AUTHORIZE_CASH_DRAWER",
+          entityType: "PRINTER",
+          entityId: printer.id,
+          outcome: "DENIED",
+          requestId: authorization.requestId,
+          ipHash: hashClientIp(request),
+          metadata: { reason: error.code },
+        });
+        return managerAuthorizationErrorResponse(error, authorization.requestId);
+      }
+      await recordAuditEvent({
+        organizationId,
+        stallId,
+        actorProfileId: authorization.principal.user.id,
+        action: "PRINT_QUEUE_AUTHORIZE_CASH_DRAWER",
+        entityType: "PRINTER",
+        entityId: printer.id,
+        outcome: "SUCCESS",
+        requestId: authorization.requestId,
+        ipHash: hashClientIp(request),
+      });
+      return NextResponse.json(
+        { state: await getPrintQueueState(stallId, organizationId), entityId: printer.id },
+        { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
+      );
+    }
+
     let printPayload: PrintTicketPayload | undefined;
     const transactionOptions = serializableOperations.has(command.operation)
       ? { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
@@ -126,6 +184,8 @@ export async function POST(request: Request, context: RouteContext) {
             connectionType: command.connectionType,
             model: command.model,
             paperWidthMm: command.paperWidthMm,
+            autoDetectEnabled: command.autoDetectEnabled,
+            openCashDrawerOnCashPayment: command.openCashDrawerOnCashPayment,
           },
         });
         return printer.id;
@@ -161,6 +221,10 @@ export async function POST(request: Request, context: RouteContext) {
             ...(command.connectionType ? { connectionType: command.connectionType } : {}),
             ...(command.model ? { model: command.model } : {}),
             ...(command.paperWidthMm ? { paperWidthMm: command.paperWidthMm } : {}),
+            ...(command.autoDetectEnabled !== undefined ? { autoDetectEnabled: command.autoDetectEnabled } : {}),
+            ...(command.openCashDrawerOnCashPayment !== undefined
+              ? { openCashDrawerOnCashPayment: command.openCashDrawerOnCashPayment }
+              : {}),
           },
         });
         return printer.id;
@@ -492,14 +556,28 @@ function normalizePaperWidth(value: number): PrintPaperWidth {
 }
 
 function connectionLabel(type: "WEBPRNT_BLUETOOTH" | "CLOUDPRNT" | "SYSTEM_PRINT") {
-  if (type === "WEBPRNT_BLUETOOTH") return "iPad 藍牙（Star WebPRNT）";
+  if (type === "WEBPRNT_BLUETOOTH") return "iPad USB／藍牙（Star WebPRNT）";
   if (type === "CLOUDPRNT") return "Ethernet CloudPRNT";
   return "系統列印對話框";
 }
 
 function auditEntityType(operation: PrintQueueCommand["operation"]) {
   if (operation === "TEST_PRINTER") return "PRINTER";
+  if (operation === "AUTHORIZE_CASH_DRAWER") return "PRINTER";
   if (operation.includes("RULE")) return "PRINT_RULE";
   if (operation.includes("PRINTER")) return "PRINTER";
   return "PRINT_JOB";
+}
+
+function managerAuthorizationErrorResponse(error: ManagerAuthorizationError, requestId: string) {
+  const messages: Record<ManagerAuthorizationError["code"], string> = {
+    CODE_REQUIRED: "請由經理或老闆輸入管理授權碼。",
+    CODE_NOT_CONFIGURED: "尚未設定管理授權碼，請先至安全與訂單限制設定。",
+    INVALID_CODE: "管理授權碼不正確。",
+    RATE_LIMITED: "管理授權碼嘗試過多，請稍後再試。",
+  };
+  return NextResponse.json(
+    { error: messages[error.code], code: error.code },
+    { status: error.code === "RATE_LIMITED" ? 429 : 403, headers: { "x-request-id": requestId } },
+  );
 }

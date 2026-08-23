@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   validateCsrf: vi.fn(),
   recordAuditEvent: vi.fn(),
+  verifyManagerAuthorization: vi.fn(),
   getState: vi.fn(),
   reconcileStale: vi.fn(),
   assertFeatureEnabled: vi.fn(),
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   orderFindFirst: vi.fn(),
   printerFindFirst: vi.fn(),
+  topLevelPrinterFindFirst: vi.fn(),
   printerCreate: vi.fn(),
   printerUpdate: vi.fn(),
   printRuleCount: vi.fn(),
@@ -39,6 +41,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/authorization", () => ({ authorizeApiRequest: mocks.authorize }));
 vi.mock("@/lib/csrf", () => ({ validateCsrf: mocks.validateCsrf }));
 vi.mock("@/lib/audit", () => ({ recordAuditEvent: mocks.recordAuditEvent }));
+vi.mock("@/lib/manager-authorization", () => ({
+  ManagerAuthorizationError: class ManagerAuthorizationError extends Error {},
+  verifyManagerAuthorization: mocks.verifyManagerAuthorization,
+}));
 vi.mock("@/lib/security", () => ({ hashClientIp: () => "ip-hash" }));
 vi.mock("@/lib/http", () => ({
   readJson: vi.fn(async (request: Request) => ({ data: await request.json() })),
@@ -64,6 +70,7 @@ vi.mock("@/server/printing/print-job-ticket", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     stallOrderingSettings: { findFirst: mocks.settingsFindFirst },
+    printer: { findFirst: mocks.topLevelPrinterFindFirst },
     printJob: {
       findFirst: mocks.claimedPrintJobFindFirst,
       updateMany: mocks.claimedPrintJobUpdateMany,
@@ -78,6 +85,7 @@ beforeEach(() => {
     ok: true,
     requestId: "request-1",
     principal: { user: { id: "66666666-6666-4666-8666-666666666666" } },
+    roles: ["STAFF"],
     stall: { id: stallId, organizationId, name: "越好吃一中店", timezone: "Asia/Taipei" },
   });
   mocks.validateCsrf.mockReturnValue(true);
@@ -95,6 +103,8 @@ beforeEach(() => {
     model: "MCP31LB",
     paperWidthMm: 58,
   });
+  mocks.topLevelPrinterFindFirst.mockResolvedValue({ id: printerId });
+  mocks.verifyManagerAuthorization.mockResolvedValue({ method: "SHARED_CODE" });
   mocks.printRuleCount.mockResolvedValue(0);
   mocks.printRuleFindFirst.mockResolvedValue({ id: "77777777-7777-4777-8777-777777777777" });
   mocks.printRuleCreate.mockResolvedValue({ id: "77777777-7777-4777-8777-777777777777" });
@@ -280,6 +290,31 @@ describe("print queue capability enforcement", () => {
     await expect(response.json()).resolves.toEqual(expect.objectContaining({
       entityId: printerId,
       printPayload: expect.objectContaining({ version: "printer-test-starprnt-v1" }),
+    }));
+  });
+
+  it("authorizes manual cash-drawer opening without creating a print job", async () => {
+    const response = await postCommand({
+      operation: "AUTHORIZE_CASH_DRAWER",
+      printerId,
+      managerAuthorizationCode: "2468",
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.verifyManagerAuthorization).toHaveBeenCalledWith({
+      stallId,
+      actorProfileId: "66666666-6666-4666-8666-666666666666",
+      actorRoles: ["STAFF"],
+      operation: "OPEN_CASH_DRAWER",
+      authorizationCode: "2468",
+    });
+    expect(mocks.topLevelPrinterFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: printerId, connectionType: "WEBPRNT_BLUETOOTH" }),
+    }));
+    expect(mocks.printJobCreate).not.toHaveBeenCalled();
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: "PRINT_QUEUE_AUTHORIZE_CASH_DRAWER",
+      outcome: "SUCCESS",
     }));
   });
 
@@ -522,6 +557,14 @@ function buildRule() {
     splitMode: "NONE",
     aggregateItems: false,
     autoPrint: true,
+    showCustomerName: true,
+    showCustomerPhone: true,
+    showDeliveryAddress: true,
+    showOrderNote: true,
+    showItemNotes: true,
+    showPrices: true,
+    showPaymentMethod: true,
+    feedLines: 2,
     sortOrder: 0,
   };
 }

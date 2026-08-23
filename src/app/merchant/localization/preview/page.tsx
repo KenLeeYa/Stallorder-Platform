@@ -9,7 +9,7 @@ import { getLocalizedStallPreview } from "@/lib/localization-data";
 import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
 import { formatMoney } from "@/lib/money";
 import { hasPermission } from "@/lib/rbac";
-import { isQrLocale, localizedQrCategory, qrOrderMessages } from "@/lib/qr-order-i18n";
+import { isQrLocale, qrOrderMessages } from "@/lib/qr-order-i18n";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string; locale?: string; source?: string; returnStallId?: string }> };
@@ -37,7 +37,11 @@ export default async function LocalizationPreviewPage({ searchParams }: PageProp
       ...item,
       localizedName: translation?.name || item.product.name,
       localizedDescription: translation?.description || item.product.description,
-      category: localizedQrCategory(locale, item.product.category.name),
+      category: item.product.category.translations.find((candidate) => candidate.locale === locale)?.name
+        || item.product.category.name,
+      group: item.product.group?.translations.find((candidate) => candidate.locale === locale)?.name
+        || item.product.group?.name
+        || null,
     };
   });
   const categories = [...new Set(products.map((item) => item.category))];
@@ -53,7 +57,9 @@ export default async function LocalizationPreviewPage({ searchParams }: PageProp
         <section key={category} className="border-b border-stone-200 py-6">
           <h2 className="text-xl font-semibold">{category}</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {products.filter((item) => item.category === category).map((item) => (
+            {products.filter((item) => item.category === category).map((item, index, categoryProducts) => (
+              <div key={item.product.id}>
+                {item.group && item.group !== categoryProducts[index - 1]?.group ? <h3 className="mb-2 text-sm font-semibold text-teal-800">{item.group}</h3> : null}
               <article key={item.product.id} className="rounded-md border border-stone-200 bg-white p-4">
                 <div className="relative aspect-[16/10] overflow-hidden rounded bg-stone-100">
                   {item.product.imageUrl ? <ProductImage src={item.product.imageUrl} alt={copy.productImage(item.localizedName)} width={800} height={500} sizes="(max-width: 640px) 100vw, 50vw" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-stone-400"><ImageOff className="h-8 w-8" /></div>}
@@ -62,6 +68,7 @@ export default async function LocalizationPreviewPage({ searchParams }: PageProp
                 <div className="mt-3 flex items-start justify-between gap-3"><div><h3 className="font-semibold">{item.localizedName}</h3>{item.localizedDescription ? <p className="mt-1 text-sm leading-5 text-stone-600">{item.localizedDescription}</p> : null}</div><span className="shrink-0 font-semibold text-teal-800">{formatMoney(item.priceOverride ?? item.product.defaultPrice, stall.currency)}</span></div>
                 {item.product.noteGroupAssignments.length ? <div className="mt-3 border-t border-stone-100 pt-3">{item.product.noteGroupAssignments.map(({ noteGroup }) => { const groupName = noteGroup.translations.find((translation) => translation.locale === locale)?.name || noteGroup.name; return <div key={noteGroup.id} className="mt-2 first:mt-0"><p className="text-xs font-semibold text-stone-700">{groupName}{noteGroup.isRequired ? " *" : ""}</p><div className="mt-1 flex flex-wrap gap-1.5">{noteGroup.options.map((option) => <span key={option.id} className="rounded border border-stone-200 px-2 py-1 text-xs text-stone-600">{option.translations.find((translation) => translation.locale === locale)?.name || option.name}{option.priceDelta ? ` +${formatMoney(option.priceDelta, stall.currency)}` : ""}</span>)}</div></div>; })}</div> : null}
               </article>
+              </div>
             ))}
           </div>
         </section>

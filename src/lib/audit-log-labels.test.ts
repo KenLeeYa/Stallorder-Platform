@@ -128,6 +128,7 @@ const actualAuditActions = [
   "ORDERING_RESUME",
   "ORDERING_REVOKE_QR",
   "ORDERING_ROTATE_QR",
+  "ORDERING_UPDATE_ALERT_SETTINGS",
   "ORDERING_UPDATE_LIMITS",
   "ORDER_CANCELLATION_CONFIRMATION_FAILED",
   "ORDER_COMPLETED_AFTER_PREPAYMENT",
@@ -238,6 +239,8 @@ const actualAuditActions = [
   "STALL_MODULE_UPDATE_LOCALES",
   "STALL_MODULE_UPDATE_MODULES",
   "STALL_MODULE_UPDATE_PAYMENT_OPTION",
+  "STALL_ORDER_ALERT_SOUND_REMOVED",
+  "STALL_ORDER_ALERT_SOUND_UPLOADED",
   "STALL_MODULE_UPDATE_TABLE",
   "STALL_MODULE_UPDATE_TABLE_LAYOUT",
   "STALL_PRODUCTS_BULK_SOLD_OUT_CHANGED",
@@ -356,6 +359,9 @@ describe("audit log labels", () => {
     expect(auditActionLabel("MERCHANT_SETUP_STEP_COMPLETED")).toBe("開店設定步驟已完成");
     expect(auditActionLabel("MERCHANT_APPLICATION_SUBMITTED")).toBe("商家申請已送出");
     expect(auditActionLabel("ORDER_PACKAGE_ASSIGNED")).toBe("訂單方案已指派");
+    expect(auditActionLabel("COMPLETED_PAYMENT_METHOD_CHANGED")).toBe("已完成訂單付款方式已更正");
+    expect(auditActionLabel("PRINT_QUEUE_AUTHORIZE_CASH_DRAWER")).toBe("錢櫃開啟已授權");
+    expect(auditActionLabel("STALL_MENU_COVER_IMAGE_UPDATED")).toBe("線上 Menu 文宣圖片已更新");
   });
 
   it("translates known targets and safely groups unknown engineering codes", () => {
@@ -370,8 +376,8 @@ describe("audit log labels", () => {
   });
 
   it("keeps the actual AuditLog writer inventory complete and unique", () => {
-    expect(actualAuditActions).toHaveLength(260);
-    expect(new Set(actualAuditActions)).toHaveProperty("size", 260);
+    expect(actualAuditActions).toHaveLength(263);
+    expect(new Set(actualAuditActions)).toHaveProperty("size", 263);
     expect(actualAuditEntityTypes).toHaveLength(77);
     expect(new Set(actualAuditEntityTypes)).toHaveProperty("size", 77);
   });

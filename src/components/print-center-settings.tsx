@@ -21,6 +21,8 @@ type PrinterDraft = {
   connectionType: PrinterConnectionType;
   model: string;
   paperWidthMm: 58 | 80;
+  autoDetectEnabled: boolean;
+  openCashDrawerOnCashPayment: boolean;
 };
 
 const emptyPrinter: PrinterDraft = {
@@ -28,6 +30,8 @@ const emptyPrinter: PrinterDraft = {
   connectionType: "WEBPRNT_BLUETOOTH",
   model: "MCP31LB",
   paperWidthMm: 58,
+  autoDetectEnabled: true,
+  openCashDrawerOnCashPayment: false,
 };
 
 const sourceOptions: PrintOrderSource[] = ["QR_MENU", "STAFF_POS", "LINE_DELIVERY"];
@@ -41,6 +45,7 @@ export function PrintCenterSettings({
   onRun,
   onTakeOver,
   onTest,
+  onOpenCashDrawer,
 }: {
   state: PrintQueueState;
   busy: boolean;
@@ -48,6 +53,7 @@ export function PrintCenterSettings({
   onRun: RunPrintQueueCommand;
   onTakeOver: (printer: PrinterView) => void;
   onTest: (printer: PrinterView) => Promise<void>;
+  onOpenCashDrawer: (printer: PrinterView) => Promise<void>;
 }) {
   const { t } = useOperationsLocale();
   const [printerDraft, setPrinterDraft] = useState<PrinterDraft>(emptyPrinter);
@@ -72,6 +78,8 @@ export function PrintCenterSettings({
       connectionType: printer.connectionType,
       model: printer.model,
       paperWidthMm: printer.paperWidthMm === 80 ? 80 : 58,
+      autoDetectEnabled: printer.autoDetectEnabled,
+      openCashDrawerOnCashPayment: printer.openCashDrawerOnCashPayment,
       isEnabled: printer.isEnabled,
     });
   }
@@ -96,6 +104,8 @@ export function PrintCenterSettings({
       connectionType: printer.connectionType,
       model: printer.model,
       paperWidthMm: printer.paperWidthMm === 80 ? 80 : 58,
+      autoDetectEnabled: printer.autoDetectEnabled,
+      openCashDrawerOnCashPayment: printer.openCashDrawerOnCashPayment,
       isEnabled: !printer.isEnabled,
     }, printer.isEnabled ? t("print.device.disabled") : t("print.device.enabled"));
   }
@@ -119,6 +129,14 @@ export function PrintCenterSettings({
         splitMode: "NONE",
         aggregateItems: false,
         autoPrint: true,
+        showCustomerName: true,
+        showCustomerPhone: true,
+        showDeliveryAddress: true,
+        showOrderNote: true,
+        showItemNotes: true,
+        showPrices: true,
+        showPaymentMethod: true,
+        feedLines: 2,
         sortOrder: state.rules.length * 10,
       },
     });
@@ -164,6 +182,10 @@ export function PrintCenterSettings({
           <ConnectionSelect value={printerDraft.connectionType} onChange={(connectionType) => setPrinterDraft((current) => ({ ...current, connectionType }))} />
           <TextField label={t("print.device.model")} value={printerDraft.model} onChange={(model) => setPrinterDraft((current) => ({ ...current, model }))} />
           <PaperSelect value={printerDraft.paperWidthMm} onChange={(paperWidthMm) => setPrinterDraft((current) => ({ ...current, paperWidthMm }))} />
+          <div className="flex flex-wrap gap-4 sm:col-span-2 lg:col-span-4">
+            <ToggleCheckbox label={t("print.device.autoDetect")} checked={printerDraft.autoDetectEnabled} onChange={() => setPrinterDraft((current) => ({ ...current, autoDetectEnabled: !current.autoDetectEnabled }))} />
+            <ToggleCheckbox label={t("print.device.cashDrawerAutomatic")} checked={printerDraft.openCashDrawerOnCashPayment} onChange={() => setPrinterDraft((current) => ({ ...current, openCashDrawerOnCashPayment: !current.openCashDrawerOnCashPayment }))} />
+          </div>
         </div>
         <button type="button" disabled={busy || !printerDraft.name.trim()} onClick={() => void registerPrinter()} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-40"><Plus className="h-4 w-4" />{t("common.add")}</button>
       </details>
@@ -176,6 +198,7 @@ export function PrintCenterSettings({
               <div className="flex items-center gap-2"><ConnectionIcon type={printer.connectionType} /><strong className="truncate text-sm">{printer.name}</strong></div>
               <p className="mt-1 text-xs text-stone-500">{connectionLabel(t, printer.connectionType)} · {printer.model} · {printer.paperWidthMm === 80 ? "80 mm" : "57–58 mm"}</p>
               <p className={`mt-1 text-xs font-semibold ${printer.isOnline ? "text-emerald-700" : "text-stone-500"}`}>{printer.isOnline ? t("print.online") : t("print.offline")}{activePrinterId === printer.id ? ` · ${t("print.localActive")}` : ""}</p>
+              <p className="mt-1 text-xs text-stone-500">{printer.autoDetectEnabled ? t("print.device.autoDetectOn") : t("print.device.autoDetectOff")}{printer.openCashDrawerOnCashPayment ? ` · ${t("print.device.cashDrawerOn")}` : ""}</p>
             </div>
             <button type="button" title={t("common.edit")} onClick={() => beginPrinterEdit(printer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-stone-300"><Pencil className="h-4 w-4" /></button>
           </div>
@@ -184,11 +207,16 @@ export function PrintCenterSettings({
             <ConnectionSelect value={editing.connectionType} onChange={(connectionType) => setEditingPrinter((current) => current ? { ...current, connectionType } : current)} />
             <TextField label={t("print.device.model")} value={editing.model} onChange={(model) => setEditingPrinter((current) => current ? { ...current, model } : current)} />
             <PaperSelect value={editing.paperWidthMm} onChange={(paperWidthMm) => setEditingPrinter((current) => current ? { ...current, paperWidthMm } : current)} />
+            <div className="flex flex-wrap gap-4 sm:col-span-2">
+              <ToggleCheckbox label={t("print.device.autoDetect")} checked={editing.autoDetectEnabled} onChange={() => setEditingPrinter((current) => current ? { ...current, autoDetectEnabled: !current.autoDetectEnabled } : current)} />
+              <ToggleCheckbox label={t("print.device.cashDrawerAutomatic")} checked={editing.openCashDrawerOnCashPayment} onChange={() => setEditingPrinter((current) => current ? { ...current, openCashDrawerOnCashPayment: !current.openCashDrawerOnCashPayment } : current)} />
+            </div>
             <div className="flex gap-2 sm:col-span-2"><button type="button" disabled={busy || !editing.name.trim()} onClick={() => void savePrinter()} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-stone-900 px-3 text-xs font-semibold text-white"><Save className="h-4 w-4" />{t("common.save")}</button><button type="button" onClick={() => { setEditingPrinterId(null); setEditingPrinter(null); }} className="min-h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold">{t("common.cancel")}</button></div>
           </div> : null}
           <div className="mt-3 flex flex-wrap gap-2 border-t border-stone-100 pt-3">
             {printer.connectionType !== "CLOUDPRNT" ? <button type="button" disabled={busy || !printer.isEnabled || activePrinterId === printer.id} onClick={() => onTakeOver(printer)} className="min-h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold disabled:opacity-40">{t("print.takeOver")}</button> : <span className="self-center text-xs text-stone-500">{t("print.device.cloudAutonomous")}</span>}
             <button type="button" disabled={busy || !printer.isEnabled} onClick={() => void onTest(printer)} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-semibold disabled:opacity-40"><TestTube2 className="h-4 w-4" />{t("print.device.test")}</button>
+            {printer.connectionType === "WEBPRNT_BLUETOOTH" ? <button type="button" disabled={busy || !printer.isEnabled || activePrinterId !== printer.id} onClick={() => void onOpenCashDrawer(printer)} className="min-h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold disabled:opacity-40">{t("print.drawer.open")}</button> : null}
             <button type="button" disabled={busy} onClick={() => void togglePrinter(printer)} className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Power className="h-4 w-4" />{printer.isEnabled ? t("print.device.disable") : t("print.device.enable")}</button>
           </div>
         </article>;
@@ -244,6 +272,7 @@ function RuleEditor({ state, draft, setDraft, busy, onSave, onCancel }: {
       <SelectField label={t("print.rule.trigger")} value={draft.trigger} onChange={(trigger) => patch({ trigger: trigger as PrintRuleDraft["trigger"] })} options={[{ value: "ORDER_CONFIRMED", label: t("print.rule.trigger.confirmed") }, { value: "PAYMENT_COMPLETED", label: t("print.rule.trigger.paid") }]} />
       <SelectField label={t("print.rule.copies")} value={String(draft.copies)} onChange={(copies) => patch({ copies: Number(copies) })} options={[1, 2, 3, 4, 5].map((value) => ({ value: String(value), label: String(value) }))} />
       <SelectField label={t("print.rule.font")} value={String(draft.fontScale)} onChange={(fontScale) => patch({ fontScale: Number(fontScale) })} options={[{ value: "1", label: t("print.rule.font.compact") }, { value: "2", label: t("print.rule.font.medium") }, { value: "3", label: t("print.rule.font.large") }]} />
+      <SelectField label={t("print.rule.feedLines")} value={String(draft.feedLines)} onChange={(feedLines) => patch({ feedLines: Number(feedLines) })} options={[1, 2, 3].map((value) => ({ value: String(value), label: t("print.rule.feedLinesValue", { count: value }) }))} />
       <SelectField label={t("print.rule.split")} value={draft.splitMode} disabled={receipt} onChange={(splitMode) => patch({ splitMode: splitMode as PrintRuleDraft["splitMode"] })} options={[{ value: "NONE", label: t("print.rule.split.none") }, { value: "CATEGORY", label: t("print.rule.split.category") }, { value: "PRODUCT", label: t("print.rule.split.product") }, { value: "ITEM", label: t("print.rule.split.item") }]} />
       <label className="text-xs font-semibold text-stone-600">{t("print.rule.order")}<input type="number" min={0} max={1000} value={draft.sortOrder} onChange={(event) => patch({ sortOrder: Number(event.target.value) })} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm" /></label>
     </div>
@@ -258,6 +287,22 @@ function RuleEditor({ state, draft, setDraft, busy, onSave, onCancel }: {
       <div className="mt-3 grid gap-4 md:grid-cols-2">
         <CheckboxGroup title={t("print.rule.origins")} hint={t("print.rule.emptyMeansAll")} values={draft.orderOrigins} options={originOptions.map((value) => ({ value, label: originLabel(t, value) }))} onChange={(orderOrigins) => patch({ orderOrigins: orderOrigins as PrintOrderOrigin[] })} />
         <div><p className="text-xs font-semibold text-stone-600">{t("print.rule.products")}</p><p className="mt-1 text-xs text-stone-500">{receipt ? t("print.rule.receiptAllProducts") : t("print.rule.emptyMeansAllProducts")}</p><div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded border border-stone-200 p-2">{state.catalog.map((category) => <div key={category.id}><ToggleCheckbox label={category.name} checked={draft.productCategoryIds.includes(category.id)} disabled={receipt} onChange={() => patch({ productCategoryIds: toggleValue(draft.productCategoryIds, category.id) })} /><div className="ml-5 mt-1 space-y-1">{category.groups.map((group) => <ToggleCheckbox key={group.id} label={group.name} checked={draft.productGroupIds.includes(group.id)} disabled={receipt} onChange={() => patch({ productGroupIds: toggleValue(draft.productGroupIds, group.id) })} />)}</div></div>)}</div></div>
+      </div>
+    </details>
+
+    <details className="mt-4 rounded-md border border-stone-200 bg-white p-3">
+      <summary className="cursor-pointer text-sm font-semibold">{t("print.rule.content")}</summary>
+      <p className="mt-1 text-xs text-stone-500">{t("print.rule.contentHint")}</p>
+      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-3">
+        {receipt ? <>
+          <ToggleCheckbox label={t("print.rule.showCustomerName")} checked={draft.showCustomerName} onChange={() => patch({ showCustomerName: !draft.showCustomerName })} />
+          <ToggleCheckbox label={t("print.rule.showCustomerPhone")} checked={draft.showCustomerPhone} onChange={() => patch({ showCustomerPhone: !draft.showCustomerPhone })} />
+          <ToggleCheckbox label={t("print.rule.showDeliveryAddress")} checked={draft.showDeliveryAddress} onChange={() => patch({ showDeliveryAddress: !draft.showDeliveryAddress })} />
+          <ToggleCheckbox label={t("print.rule.showPrices")} checked={draft.showPrices} onChange={() => patch({ showPrices: !draft.showPrices })} />
+          <ToggleCheckbox label={t("print.rule.showPaymentMethod")} checked={draft.showPaymentMethod} onChange={() => patch({ showPaymentMethod: !draft.showPaymentMethod })} />
+        </> : null}
+        <ToggleCheckbox label={t("print.rule.showOrderNote")} checked={draft.showOrderNote} onChange={() => patch({ showOrderNote: !draft.showOrderNote })} />
+        <ToggleCheckbox label={t("print.rule.showItemNotes")} checked={draft.showItemNotes} onChange={() => patch({ showItemNotes: !draft.showItemNotes })} />
       </div>
     </details>
 

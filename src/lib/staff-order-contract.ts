@@ -12,6 +12,7 @@ const checkoutSchema = z.object({
   discountApprovalReason: z.string().trim().min(1).max(200).nullable().optional(),
   managerEmail: z.string().trim().email().max(254).nullable().optional(),
   managerPassword: z.string().min(1).max(128).nullable().optional(),
+  managerAuthorizationCode: z.string().trim().regex(/^\d{4,8}$/).nullable().optional(),
 }).strict();
 
 const itemSchema = z.object({
@@ -86,6 +87,7 @@ export type StaffOrderCatalog = {
     name: string;
     description: string;
     category: string;
+    group?: string | null;
     price: number;
     imageUrl: string | null;
     isOrderDiscountEligible: boolean;

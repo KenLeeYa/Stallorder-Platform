@@ -10,6 +10,18 @@ export function isRenderableProductImageUrl(value: string) {
   }
 }
 
+export function normalizeProductImageUrl(value: string) {
+  if (value.startsWith("/api/assets/product-images/")) return value;
+  try {
+    const url = new URL(value);
+    return url.pathname.startsWith("/api/assets/product-images/")
+      ? `${url.pathname}${url.search}`
+      : value;
+  } catch {
+    return value;
+  }
+}
+
 export function isOptimizableProductImageUrl(
   value: string,
   supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL,

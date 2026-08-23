@@ -56,7 +56,9 @@ import type {
 } from "@/lib/public-menu-types";
 import {
   isQrLocale,
+  localizedQrCategory,
   localizedPublicOrderError,
+  preserveSupportedQrLocale,
   QR_LOCALES,
   QR_LOCALE_STORAGE_KEY,
   QR_UI_LOCALE_STORAGE_KEY,
@@ -85,10 +87,13 @@ export function useQrOrderFlowController({
   requestedLocale = null,
 }: QrOrderFlowControllerInput) {
   const usableInitialMenu = usableQrInitialMenu(entryChannel, initialMenu);
+  const initialResolvedLocale = usableInitialMenu
+    ? preserveSupportedQrLocale(initialUiLocale, usableInitialMenu.supportedLocales)
+    : initialUiLocale;
   const startedRef = useRef(false);
   const sessionReadyRef = useRef(false);
   const [sessionController] = useState(() => createQrOrderSessionController());
-  const localeRef = useRef<QrLocale>(initialUiLocale);
+  const localeRef = useRef<QrLocale>(initialResolvedLocale);
   const productConfigurationRef = useRef<HTMLElement>(null);
   const cartPanelRef = useRef<HTMLElement>(null);
   const cartCloseButtonRef = useRef<HTMLButtonElement>(null);
@@ -121,7 +126,7 @@ export function useQrOrderFlowController({
   const [isLoading, setIsLoading] = useState(!usableInitialMenu);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sessionTimePhase, setSessionTimePhase] = useState<SessionCountdownPhase>("INACTIVE");
-  const [locale, setLocale] = useState<QrLocale>(initialUiLocale);
+  const [locale, setLocale] = useState<QrLocale>(initialResolvedLocale);
   const [cartReady, setCartReady] = useState(false);
   const [cartRestored, setCartRestored] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -151,6 +156,16 @@ export function useQrOrderFlowController({
     const translation = product.translations.find((item) => item.locale === catalogLocale);
     return translation ? { name: translation.name, description: translation.description } : product;
   }, [catalogLocale]);
+  const localizedCategory = useCallback((category: string) => {
+    const product = session?.products.find((item) => item.category === category);
+    return product?.categoryTranslations?.find((item) => item.locale === catalogLocale)?.name
+      ?? localizedQrCategory(catalogLocale, category);
+  }, [catalogLocale, session]);
+  const localizedProductGroup = useCallback((product: Product) => (
+    product.groupTranslations?.find((item) => item.locale === catalogLocale)?.name
+      ?? product.group
+      ?? ""
+  ), [catalogLocale]);
   const focusConfiguredProduct = useCallback((productId: string) => {
     window.setTimeout(() => document.getElementById(`qr-product-${productId}`)?.focus(), 0);
   }, []);
@@ -660,7 +675,11 @@ export function useQrOrderFlowController({
     });
   }
 
-  const availableLocales = [...QR_LOCALES];
+  const availableLocales = session
+    ? QR_LOCALES.filter((candidate) => (
+      candidate === "zh-TW" || session.supportedLocales.includes(candidate)
+    ))
+    : [...QR_LOCALES];
   const checkoutBlocker = createQrOrderCheckoutModel(checkoutFlowInput()).blocker;
 
   return {
@@ -708,9 +727,11 @@ export function useQrOrderFlowController({
     isLoading,
     isSubmitting,
     locale,
+    localizedCategory,
     localizedGroupName,
     localizedOptionName,
     localizedProduct,
+    localizedProductGroup,
     lotteryButtonRef,
     lotteryCarouselProductNames,
     lotteryDialogVisible,

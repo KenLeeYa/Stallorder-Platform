@@ -26,8 +26,9 @@ export type StaffOrderCheckoutRequest = {
   discountOptionId: string | null;
   cashReceived: number | null;
   discountApprovalReason: string | null;
-  managerEmail: string | null;
-  managerPassword: string | null;
+  managerAuthorizationCode?: string | null;
+  managerEmail?: string | null;
+  managerPassword?: string | null;
 };
 
 export type StaffOrderCheckoutState = {
@@ -36,8 +37,7 @@ export type StaffOrderCheckoutState = {
   selectedDiscountOptionId: string | null;
   cashReceived: string;
   discountApprovalReason: string;
-  managerEmail: string;
-  managerPassword: string;
+  managerAuthorizationCode: string;
 };
 
 type StaffOrderCheckoutAction =
@@ -53,9 +53,8 @@ type StaffOrderCheckoutAction =
   | { type: "SELECT_DISCOUNT"; discountOptionId: string | null }
   | { type: "SET_CASH_RECEIVED"; value: string }
   | { type: "SET_DISCOUNT_APPROVAL_REASON"; value: string }
-  | { type: "SET_MANAGER_EMAIL"; value: string }
-  | { type: "SET_MANAGER_PASSWORD"; value: string }
-  | { type: "RESET_MANAGER_PASSWORD" };
+  | { type: "SET_MANAGER_AUTHORIZATION_CODE"; value: string }
+  | { type: "RESET_MANAGER_AUTHORIZATION_CODE" };
 
 export function createStaffOrderCheckoutState(): StaffOrderCheckoutState {
   return {
@@ -64,8 +63,7 @@ export function createStaffOrderCheckoutState(): StaffOrderCheckoutState {
     selectedDiscountOptionId: null,
     cashReceived: "",
     discountApprovalReason: "",
-    managerEmail: "",
-    managerPassword: "",
+    managerAuthorizationCode: "",
   };
 }
 
@@ -105,12 +103,10 @@ export function staffOrderCheckoutReducer(
       return { ...state, cashReceived: action.value };
     case "SET_DISCOUNT_APPROVAL_REASON":
       return { ...state, discountApprovalReason: action.value };
-    case "SET_MANAGER_EMAIL":
-      return { ...state, managerEmail: action.value };
-    case "SET_MANAGER_PASSWORD":
-      return { ...state, managerPassword: action.value };
-    case "RESET_MANAGER_PASSWORD":
-      return { ...state, managerPassword: "" };
+    case "SET_MANAGER_AUTHORIZATION_CODE":
+      return { ...state, managerAuthorizationCode: action.value };
+    case "RESET_MANAGER_AUTHORIZATION_CODE":
+      return { ...state, managerAuthorizationCode: "" };
   }
 }
 
@@ -151,6 +147,7 @@ export function getStaffOrderCheckoutModel(input: {
     discount && discount.rateBps < modules.discountApprovalThresholdBps,
   );
   const operatorCanApproveDiscount = hasPermission(role, "APPROVE_DISCOUNT");
+  const managerAuthorizationCode = state.managerAuthorizationCode.trim();
   const ready = Boolean(
     order
     && (!modules.payment || payment)
@@ -162,7 +159,7 @@ export function getStaffOrderCheckoutModel(input: {
       state.discountApprovalReason.trim()
       && (
         operatorCanApproveDiscount
-        || (state.managerEmail.trim() && state.managerPassword)
+        || /^\d{4,8}$/.test(managerAuthorizationCode)
       )
     ))
   );
@@ -173,8 +170,7 @@ export function getStaffOrderCheckoutModel(input: {
       : null,
     cashReceived: usesCash && state.cashReceived !== "" ? Number(state.cashReceived) : null,
     discountApprovalReason: state.discountApprovalReason.trim() || null,
-    managerEmail: state.managerEmail.trim() || null,
-    managerPassword: state.managerPassword || null,
+    managerAuthorizationCode: managerAuthorizationCode || null,
   };
 
   return {

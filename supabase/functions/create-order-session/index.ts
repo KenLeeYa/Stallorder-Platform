@@ -33,6 +33,7 @@ import {
   filterPublicMenuProductsForTime,
   filterPublicMenuProductsForTimeWindow,
 } from "../_shared/public-menu-availability.ts";
+import { completeCatalogLocales } from "../_shared/catalog-locale-completeness.ts";
 
 function localDateInTimeZone(value: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -314,7 +315,16 @@ Deno.serve(async (request) => {
 
     const now = Date.now();
     const productIds = stallProductsQuery.data.map((assignment) => assignment.product_id);
-    const [productsQuery, categoriesQuery, groupsQuery, translationsQuery, noteAssignmentsQuery, bestSellerRanksQuery] = await timing.measureDb(() => Promise.all([
+    const [
+      productsQuery,
+      categoriesQuery,
+      groupsQuery,
+      translationsQuery,
+      categoryTranslationsQuery,
+      groupTranslationsQuery,
+      noteAssignmentsQuery,
+      bestSellerRanksQuery,
+    ] = await timing.measureDb(() => Promise.all([
       productIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : admin.from("products")
@@ -343,6 +353,16 @@ Deno.serve(async (request) => {
           .in("product_id", productIds)
           .in("locale", enabledLocales)
           .limit(500),
+      admin.from("product_category_translations")
+        .select("category_id, locale, name")
+        .eq("organization_id", stallQuery.data.organization_id)
+        .in("locale", enabledLocales)
+        .limit(500),
+      admin.from("product_group_translations")
+        .select("group_id, locale, name")
+        .eq("organization_id", stallQuery.data.organization_id)
+        .in("locale", enabledLocales)
+        .limit(500),
       productIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : admin.from("product_note_group_assignments")
@@ -353,13 +373,15 @@ Deno.serve(async (request) => {
           .order("sort_order", { ascending: true })
           .limit(500),
       admin.rpc("get_stall_best_sellers", { p_stall_id: result.stall_id }),
-    ]), productIds.length === 0 ? 3 : 6);
+    ]), productIds.length === 0 ? 5 : 8);
 
     if (
       productsQuery.error
       || categoriesQuery.error
       || groupsQuery.error
       || translationsQuery.error
+      || categoryTranslationsQuery.error
+      || groupTranslationsQuery.error
       || noteAssignmentsQuery.error
       || bestSellerRanksQuery.error
     ) {
@@ -367,6 +389,8 @@ Deno.serve(async (request) => {
         ?? categoriesQuery.error
         ?? groupsQuery.error
         ?? translationsQuery.error
+        ?? categoryTranslationsQuery.error
+        ?? groupTranslationsQuery.error
         ?? noteAssignmentsQuery.error
         ?? bestSellerRanksQuery.error;
     }
@@ -467,6 +491,18 @@ Deno.serve(async (request) => {
       const translations = productTranslationsByProductId.get(translation.product_id);
       if (translations) translations.push(translation);
       else productTranslationsByProductId.set(translation.product_id, [translation]);
+    }
+    const categoryTranslationsByCategoryId = new Map<string, typeof categoryTranslationsQuery.data>();
+    for (const translation of categoryTranslationsQuery.data) {
+      const translations = categoryTranslationsByCategoryId.get(translation.category_id);
+      if (translations) translations.push(translation);
+      else categoryTranslationsByCategoryId.set(translation.category_id, [translation]);
+    }
+    const groupTranslationsByGroupId = new Map<string, typeof groupTranslationsQuery.data>();
+    for (const translation of groupTranslationsQuery.data) {
+      const translations = groupTranslationsByGroupId.get(translation.group_id);
+      if (translations) translations.push(translation);
+      else groupTranslationsByGroupId.set(translation.group_id, [translation]);
     }
     const noteAssignmentsByProductId = new Map<string, typeof noteAssignmentsQuery.data>();
     for (const assignment of noteAssignmentsQuery.data) {
@@ -580,8 +616,14 @@ Deno.serve(async (request) => {
             .sort((left, right) => left.sortOrder - right.sortOrder),
           price: assignment.price_override ?? product.default_price,
           category: category.name,
+          categoryTranslations: (categoryTranslationsByCategoryId.get(category.id) ?? [])
+            .map((translation) => ({ locale: translation.locale, name: translation.name })),
           categorySortOrder: category.sort_order,
           group: group?.name ?? null,
+          groupTranslations: group
+            ? (groupTranslationsByGroupId.get(group.id) ?? [])
+              .map((translation) => ({ locale: translation.locale, name: translation.name }))
+            : [],
           groupSortOrder: group?.sort_order ?? 10_001,
           productSortOrder: assignment.sort_order,
         }] : [];
@@ -602,7 +644,9 @@ Deno.serve(async (request) => {
       noteGroups: product.noteGroups,
       price: product.price,
       category: product.category,
+      categoryTranslations: product.categoryTranslations,
       group: product.group,
+      groupTranslations: product.groupTranslations,
     })), (bestSellerRanksQuery.data ?? []) as BestSellerRankRow[]);
     const products = orderingMode === "PREORDER"
       ? filterPublicMenuProductsForTimeWindow(rankedProducts, preorderSlots)
@@ -630,7 +674,7 @@ Deno.serve(async (request) => {
       products,
       preorderSlots,
       lotteryEnabled: orderingMode === "DEFAULT" && settings.lottery_enabled === true,
-      supportedLocales: enabledLocales,
+      supportedLocales: completeCatalogLocales(products, enabledLocales),
       lastTableOrderAt: lastTableOrderQuery.data?.created_at ?? null,
       limits: {
         maxItemQuantity: settings.max_item_quantity,

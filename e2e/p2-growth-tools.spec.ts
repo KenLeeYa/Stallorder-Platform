@@ -40,6 +40,9 @@ test.describe("P2 後續成長功能", () => {
     expect(serviceWorker).toContain('if (request.method !== "GET") return');
     expect(serviceWorker).toContain('const CACHE_NAME = "stallorder-shell-v5"');
     expect(serviceWorker).toContain('const OFFLINE_DB_NAME = "stallorder-offline-pos"');
+    expect(serviceWorker).toContain("const IS_LOCAL_DEVELOPMENT =");
+    expect(serviceWorker).toContain('searchParams.has("pwa-enabled")');
+    expect(serviceWorker).toContain("await self.registration.unregister()");
     expect(serviceWorker).toContain('const isLegacyStorefrontNavigation = /^\\/(?:menu|s|delivery)\\/[^/]+$/.test(url.pathname)');
     expect(serviceWorker).toContain('if (isLegacyStorefrontNavigation) return');
     expect(serviceWorker).toContain('|| /^\\/store\\/[^/]+$/.test(url.pathname)');

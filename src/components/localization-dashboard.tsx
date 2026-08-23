@@ -13,6 +13,8 @@ import { qrOrderMessages, type QrLocale } from "@/lib/qr-order-i18n";
 import type { TranslationCoverage, TranslationEntityType } from "@/lib/translation-completeness";
 
 const entityLabelKeys: Record<TranslationEntityType, MerchantMessageKey> = {
+  CATEGORY: "商品分類",
+  PRODUCT_GROUP: "商品群組",
   PRODUCT: "商品名稱",
   PRODUCT_DESCRIPTION: "商品說明",
   NOTE_GROUP: "註記群組",
@@ -59,7 +61,7 @@ export function LocalizationDashboard({
       <div className="border-b border-stone-200 pb-5">
         <div className="flex items-center gap-2 text-teal-800"><Languages className="h-5 w-5" /><span className="text-sm font-semibold">{m("多語系品質")}</span></div>
         <h1 className="mt-2 text-3xl font-semibold">{m("翻譯完整度")}</h1>
-        <p className="mt-2 text-sm text-stone-600">{m("依啟用中的商品、註記群組及選項檢查；繁體中文為來源語系。")}</p>
+        <p className="mt-2 text-sm text-stone-600">{m("依啟用中的商品分類、商品群組、商品、註記群組及選項檢查；繁體中文為來源語系。")}</p>
       </div>
 
       <section className="border-b border-stone-200 py-6" aria-labelledby="coverage-title">

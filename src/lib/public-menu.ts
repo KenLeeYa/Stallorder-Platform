@@ -3,6 +3,10 @@ import "server-only";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { calculateCapacitySnapshot } from "@/lib/capacity";
 import { prisma } from "@/lib/prisma";
+import {
+  compareConfiguredProductOrder,
+  UNGROUPED_PRODUCT_SORT_ORDER,
+} from "@/lib/configured-product-order";
 import { publicQrCacheTag, stallMenuCacheTag } from "@/lib/cache-tags";
 import type { PublicMenu } from "@/lib/public-menu-types";
 import {
@@ -19,10 +23,13 @@ import {
   applyBestSellerRanking,
   type BestSellerRankRow,
 } from "../../supabase/functions/_shared/bestseller-ranking";
+import { completeCatalogLocales } from "../../supabase/functions/_shared/catalog-locale-completeness";
 
 const QR_CONTEXT_TTL_SECONDS = 15;
 const PUBLIC_MENU_TTL_SECONDS = 45;
 const ACTIVE_ORGANIZATION_STATUSES = ["TRIALING", "ACTIVE", "PAST_DUE", "GRACE_PERIOD"] as const;
+
+export const completePublicMenuLocales = completeCatalogLocales;
 
 type OrderingMode = "DEFAULT" | "DELIVERY" | "PREORDER";
 type PublicQrMenuOptions = { includeOptionalPreorderSlots?: boolean };
@@ -116,6 +123,10 @@ export async function getCachedPublicMenuForQrToken(
       location: context.location?.name ?? context.stall.location,
       currency: context.stall.currency,
       timezone: context.stall.timezone,
+      coverImageUrl: context.stall.coverImageUrl,
+      coverImagePositionX: context.stall.coverImagePositionX,
+      coverImagePositionY: context.stall.coverImagePositionY,
+      coverImageZoom: context.stall.coverImageZoom,
       fulfillmentType: context.fulfillmentTypeContext
         ?? (resolvedOrderingMode === "DELIVERY" ? "DELIVERY" : context.diningTable ? "DINE_IN" : "TAKEOUT"),
       table: context.diningTable
@@ -153,6 +164,10 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
       location: stall.location,
       currency: stall.currency,
       timezone: stall.timezone,
+      coverImageUrl: stall.coverImageUrl,
+      coverImagePositionX: stall.coverImagePositionX,
+      coverImagePositionY: stall.coverImagePositionY,
+      coverImageZoom: stall.coverImageZoom,
       fulfillmentType: "TAKEOUT",
       table: null,
     },
@@ -162,11 +177,26 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
 export async function getCachedPublicDisplayMenuForStallSlug(
   stallSlug: string,
 ): Promise<PublicMenu | null> {
+  return getPublicDisplayMenuForStallSlug(stallSlug, getCachedStallMenu);
+}
+
+export async function getLivePublicDisplayMenuForStallSlug(
+  stallSlug: string,
+): Promise<PublicMenu | null> {
+  return getPublicDisplayMenuForStallSlug(stallSlug, loadStallMenu);
+}
+
+async function getPublicDisplayMenuForStallSlug(
+  stallSlug: string,
+  menuLoader: (
+    stallId: string,
+  ) => Promise<Omit<PublicMenu, "stall" | "orderingMode" | "preorderSlots" | "lotteryEnabled"> | null>,
+): Promise<PublicMenu | null> {
   const stall = await findPublicStallBySlug(stallSlug);
   if (!stall || !publicStallCanDisplayMenu(stall)) return null;
 
   const [menu, specialClosure] = await Promise.all([
-    getCachedStallMenu(stall.id),
+    menuLoader(stall.id),
     getPublicSpecialClosure(stall.id, stall.timezone),
   ]);
   if (!menu) return null;
@@ -182,6 +212,10 @@ export async function getCachedPublicDisplayMenuForStallSlug(
       location: stall.location,
       currency: stall.currency,
       timezone: stall.timezone,
+      coverImageUrl: stall.coverImageUrl,
+      coverImagePositionX: stall.coverImagePositionX,
+      coverImagePositionY: stall.coverImagePositionY,
+      coverImageZoom: stall.coverImageZoom,
       fulfillmentType: "TAKEOUT",
       table: null,
     },
@@ -228,6 +262,10 @@ async function findPublicStallBySlug(stallSlug: string) {
       location: true,
       currency: true,
       timezone: true,
+      coverImageUrl: true,
+      coverImagePositionX: true,
+      coverImagePositionY: true,
+      coverImageZoom: true,
       isActive: true,
       orderingEnabled: true,
       businessStatus: true,
@@ -265,6 +303,10 @@ async function loadQrContext(qrToken: string) {
           location: true,
           currency: true,
           timezone: true,
+          coverImageUrl: true,
+          coverImagePositionX: true,
+          coverImagePositionY: true,
+          coverImageZoom: true,
           isActive: true,
           orderingEnabled: true,
           businessStatus: true,
@@ -446,8 +488,20 @@ async function loadStallMenu(
             imageUrl: true,
             isOrderDiscountEligible: true,
             sortOrder: true,
-            category: { select: { name: true, sortOrder: true } },
-            group: { select: { name: true, sortOrder: true } },
+            category: {
+              select: {
+                name: true,
+                sortOrder: true,
+                translations: { select: { locale: true, name: true } },
+              },
+            },
+            group: {
+              select: {
+                name: true,
+                sortOrder: true,
+                translations: { select: { locale: true, name: true } },
+              },
+            },
             translations: { select: { locale: true, name: true, description: true } },
             bundleChoiceGroups: {
               orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -594,8 +648,7 @@ async function loadStallMenu(
     }];
   });
 
-  return {
-    products: applyBestSellerRanking(publicProducts.map(({ assignment, bundleChoiceGroups }) => ({
+  const menuProducts = applyBestSellerRanking(publicProducts.map(({ assignment, bundleChoiceGroups }) => ({
       id: assignment.product.id,
       name: assignment.product.name,
       description: assignment.product.description,
@@ -619,15 +672,14 @@ async function loadStallMenu(
       })),
       price: assignment.priceOverride ?? assignment.product.defaultPrice,
       category: assignment.product.category.name,
+      categoryTranslations: assignment.product.category.translations,
       categorySortOrder: assignment.product.category.sortOrder,
       group: assignment.product.group?.name ?? null,
-      groupSortOrder: assignment.product.group?.sortOrder ?? 10_001,
-      productSortOrder: assignment.sortOrder,
-    })).sort((left, right) => (
-      left.categorySortOrder - right.categorySortOrder
-      || left.groupSortOrder - right.groupSortOrder
-      || left.productSortOrder - right.productSortOrder
-    )).map((product) => ({
+      groupTranslations: assignment.product.group?.translations ?? [],
+      groupSortOrder: assignment.product.group?.sortOrder ?? UNGROUPED_PRODUCT_SORT_ORDER,
+      productSortOrder: assignment.product.sortOrder,
+      stallProductSortOrder: assignment.sortOrder,
+    })).sort(compareConfiguredProductOrder).map((product) => ({
       id: product.id,
       name: product.name,
       description: product.description,
@@ -641,9 +693,14 @@ async function loadStallMenu(
       noteGroups: product.noteGroups,
       price: product.price,
       category: product.category,
+      categoryTranslations: product.categoryTranslations,
       group: product.group,
-    })), bestSellerRanks),
-    supportedLocales: settings.enabledLocales,
+      groupTranslations: product.groupTranslations,
+    })), bestSellerRanks);
+
+  return {
+    products: menuProducts,
+    supportedLocales: completePublicMenuLocales(menuProducts, settings.enabledLocales),
     estimatedWaitMinutes: settings.estimatedWaitMinutes,
     estimatedWaitMinMinutes: settings.estimatedWaitMinutes,
     estimatedWaitMaxMinutes: settings.estimatedWaitMinutes,

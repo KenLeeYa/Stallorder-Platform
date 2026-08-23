@@ -12,6 +12,7 @@ export type StaffCheckoutInput = {
   discountApprovalReason?: string | null;
   managerEmail?: string | null;
   managerPassword?: string | null;
+  managerAuthorizationCode?: string | null;
 };
 
 export class StaffCheckoutError extends Error {
@@ -143,6 +144,7 @@ export async function resolveStaffCheckout(input: {
         reason: input.request.discountApprovalReason,
         managerEmail: input.request.managerEmail,
         managerPassword: input.request.managerPassword,
+        managerAuthorizationCode: input.request.managerAuthorizationCode,
       })
     : { approvedById: null, reason: null };
 

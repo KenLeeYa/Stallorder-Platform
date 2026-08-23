@@ -25,7 +25,6 @@ import { SessionExpiryDialog } from "@/components/qr-session-expiry-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { QrOrderMenu } from "@/components/qr-order-menu";
 import { formatMoney } from "@/lib/money";
-import { localizedQrCategory } from "@/lib/qr-order-i18n";
 
 type QrOrderFlowPresentationProps = {
   controller: QrOrderFlowController;
@@ -52,7 +51,6 @@ export function QrOrderFlowPresentation({
     cartPanelRef,
     cartRestored,
     cartTriggerRef,
-    catalogLocale,
     categories,
     changeCartLineQuantity,
     changeLocale,
@@ -79,9 +77,11 @@ export function QrOrderFlowPresentation({
     isLoading,
     isSubmitting,
     locale,
+    localizedCategory,
     localizedGroupName,
     localizedOptionName,
     localizedProduct,
+    localizedProductGroup,
     lotteryButtonRef,
     lotteryCarouselProductNames,
     lotteryDialogVisible,
@@ -341,8 +341,9 @@ export function QrOrderFlowPresentation({
           configuringProductId={configuringProductId}
           sessionExpiryDialogOpen={sessionExpiryDialogOpen}
           configurationRef={productConfigurationRef}
-          localizedCategory={(category) => localizedQrCategory(catalogLocale, category)}
+          localizedCategory={localizedCategory}
           localizedProduct={localizedProduct}
+          localizedProductGroup={localizedProductGroup}
           localizedGroupName={localizedGroupName}
           localizedOptionName={localizedOptionName}
           bundleChoiceLabel={bundleChoiceLabel}

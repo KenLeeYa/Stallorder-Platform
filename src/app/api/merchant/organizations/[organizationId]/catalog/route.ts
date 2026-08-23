@@ -73,13 +73,13 @@ export async function POST(request: Request, context: RouteContext) {
   if (command.operation === "UPDATE_CATEGORY") {
     const category = await prisma.productCategory.findFirst({
       where: { id: command.categoryId, organizationId },
-      select: { name: true, sortOrder: true, isActive: true },
+      select: { name: true, sortOrder: true, isActive: true, translations: { select: { locale: true, name: true } } },
     });
     before = category ?? undefined;
   } else if (command.operation === "UPDATE_GROUP") {
     const group = await prisma.productGroup.findFirst({
       where: { id: command.groupId, organizationId },
-      select: { categoryId: true, name: true, sortOrder: true, isActive: true },
+      select: { categoryId: true, name: true, sortOrder: true, isActive: true, translations: { select: { locale: true, name: true } } },
     });
     before = group ?? undefined;
   } else if (command.operation === "UPDATE_PRODUCT" || command.operation === "DELETE_PRODUCT" || command.operation === "CLONE_PRODUCT") {
@@ -238,7 +238,14 @@ export async function POST(request: Request, context: RouteContext) {
       }
       if (command.operation === "CREATE_CATEGORY") {
         return transaction.productCategory.create({
-          data: { organizationId, name: command.name, sortOrder: command.sortOrder },
+          data: {
+            organizationId,
+            name: command.name,
+            sortOrder: command.sortOrder,
+            translations: {
+              create: command.translations.map((translation) => ({ organizationId, ...translation })),
+            },
+          },
           select: { id: true },
         });
       }
@@ -248,11 +255,22 @@ export async function POST(request: Request, context: RouteContext) {
           select: { id: true },
         });
         if (!existing) throw new CatalogNotFoundError();
-        return transaction.productCategory.update({
+        const updated = await transaction.productCategory.update({
           where: { id: existing.id },
           data: { name: command.name, sortOrder: command.sortOrder, isActive: command.isActive },
           select: { id: true },
         });
+        if (command.translations) {
+          await transaction.productCategoryTranslation.deleteMany({
+            where: { categoryId: existing.id, organizationId, locale: { notIn: command.translations.map((translation) => translation.locale) } },
+          });
+          await Promise.all(command.translations.map((translation) => transaction.productCategoryTranslation.upsert({
+            where: { categoryId_locale: { categoryId: existing.id, locale: translation.locale } },
+            create: { organizationId, categoryId: existing.id, ...translation },
+            update: { name: translation.name },
+          })));
+        }
+        return updated;
       }
       if (command.operation === "CREATE_GROUP" || command.operation === "UPDATE_GROUP") {
         const category = await transaction.productCategory.findFirst({
@@ -267,6 +285,9 @@ export async function POST(request: Request, context: RouteContext) {
               categoryId: category.id,
               name: command.name,
               sortOrder: command.sortOrder,
+              translations: {
+                create: command.translations.map((translation) => ({ organizationId, ...translation })),
+              },
             },
             select: { id: true },
           });
@@ -291,6 +312,16 @@ export async function POST(request: Request, context: RouteContext) {
             where: { organizationId, groupId: existing.id },
             data: { categoryId: category.id },
           });
+        }
+        if (command.translations) {
+          await transaction.productGroupTranslation.deleteMany({
+            where: { groupId: existing.id, organizationId, locale: { notIn: command.translations.map((translation) => translation.locale) } },
+          });
+          await Promise.all(command.translations.map((translation) => transaction.productGroupTranslation.upsert({
+            where: { groupId_locale: { groupId: existing.id, locale: translation.locale } },
+            create: { organizationId, groupId: existing.id, ...translation },
+            update: { name: translation.name },
+          })));
         }
         return updated;
       }
@@ -649,7 +680,7 @@ export async function POST(request: Request, context: RouteContext) {
     if ("isLotteryEligible" in command && command.isLotteryEligible !== undefined) {
       after.isLotteryEligible = command.isLotteryEligible;
     }
-    if ("translations" in command) after.translations = command.translations;
+    if ("translations" in command && command.translations) after.translations = command.translations;
     if ("isActive" in command) after.isActive = command.isActive;
     if ("stallIds" in command) after.stallIds = [...command.stallIds].sort();
     if ("bundleProductId" in command) after.bundleProductId = command.bundleProductId;

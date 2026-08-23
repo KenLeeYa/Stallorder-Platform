@@ -6,12 +6,28 @@ import { formatMoney } from "@/lib/money";
 import type { PublicMenu, PublicMenuProduct } from "@/lib/public-menu-types";
 
 export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: AppLocale }) {
-  const sections = groupProductsByCategory(menu.products);
+  const sections = groupProductsByCategory(menu.products, locale);
 
   return (
     <main data-testid="storefront-menu-view" className="min-h-screen bg-[#f5f1e8] text-stone-950 print:bg-white">
       <header className="border-b border-stone-900/10 bg-[#0f766e] text-white print:border-stone-300 print:bg-white print:text-stone-950">
-        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-11 lg:px-8">
+        <div className="relative isolate mx-auto max-w-6xl overflow-hidden px-4 py-8 sm:px-6 sm:py-11 lg:px-8">
+          {menu.stall.coverImageUrl ? <div data-testid="public-menu-cover-image" className="absolute inset-0 -z-10 overflow-hidden bg-teal-950 print:hidden">
+            <ProductImage
+              src={menu.stall.coverImageUrl}
+              alt={menu.stall.name}
+              width={1600}
+              height={500}
+              sizes="(min-width: 1152px) 1152px, 100vw"
+              className="h-full w-full object-cover"
+              style={{
+                objectPosition: `${menu.stall.coverImagePositionX ?? 50}% ${menu.stall.coverImagePositionY ?? 50}%`,
+                transform: `scale(${(menu.stall.coverImageZoom ?? 100) / 100})`,
+                transformOrigin: `${menu.stall.coverImagePositionX ?? 50}% ${menu.stall.coverImagePositionY ?? 50}%`,
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-teal-950/90 via-teal-900/75 to-teal-950/45" />
+          </div> : null}
           <div className="flex items-start gap-4">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/15 print:border print:border-stone-300">
               <Store className="h-7 w-7" aria-hidden="true" />
@@ -58,7 +74,7 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
                 href={`#menu-category-${index + 1}`}
                 className="inline-flex min-h-10 shrink-0 items-center rounded-full border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 shadow-sm hover:border-teal-600 hover:text-teal-800"
               >
-                {section.category}
+                {section.localizedCategory}
               </a>
             ))}
           </nav>
@@ -75,7 +91,7 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
             {sections.map((section, index) => (
               <section key={section.category} id={`menu-category-${index + 1}`} className="scroll-mt-20" aria-labelledby={`menu-category-title-${index + 1}`}>
                 <div className="mb-4 flex items-end justify-between gap-3 border-b-2 border-stone-900 pb-2">
-                  <h2 id={`menu-category-title-${index + 1}`} className="text-2xl font-bold tracking-tight">{section.category}</h2>
+                  <h2 id={`menu-category-title-${index + 1}`} className="text-2xl font-bold tracking-tight">{section.localizedCategory}</h2>
                   <span className="shrink-0 text-xs font-medium text-stone-500">
                     {publicMessages.get(locale, "menuItemCount", { count: section.products.length })}
                   </span>
@@ -83,7 +99,7 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
                 <div className="space-y-6">
                   {section.groups.map((group, groupIndex) => (
                     <div key={`${section.category}-${group.name ?? "ungrouped"}-${groupIndex}`}>
-                      {group.name ? <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-teal-800">{group.name}</h3> : null}
+                      {group.name ? <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-teal-800">{group.localizedName}</h3> : null}
                       <div className="grid gap-3 md:grid-cols-2 print:grid-cols-2">
                         {group.products.map((product) => (
                           <MenuProductCard key={product.id} product={product} currency={menu.stall.currency} locale={locale} />
@@ -125,6 +141,9 @@ function MenuProductCard({
   currency: string;
   locale: AppLocale;
 }) {
+  const productTranslation = product.translations.find((translation) => translation.locale === locale);
+  const productName = productTranslation?.name || product.name;
+  const productDescription = productTranslation?.description || product.description;
   const formatPriceDelta = (priceDelta: number) => (
     priceDelta === 0 ? "" : ` (${priceDelta > 0 ? "+" : ""}${formatMoney(priceDelta, currency, locale)})`
   );
@@ -137,10 +156,11 @@ function MenuProductCard({
     }).join("; ")
     : "";
   const notePriceSummary = product.noteGroups.flatMap((group) => {
+    const groupName = group.translations.find((translation) => translation.locale === locale)?.name || group.name;
     const pricedOptions = group.options
       .filter((option) => option.priceDelta !== 0)
-      .map((option) => `${option.name}${formatPriceDelta(option.priceDelta)}`);
-    return pricedOptions.length > 0 ? [`${group.name}: ${pricedOptions.join(", ")}`] : [];
+      .map((option) => `${option.translations.find((translation) => translation.locale === locale)?.name || option.name}${formatPriceDelta(option.priceDelta)}`);
+    return pricedOptions.length > 0 ? [`${groupName}: ${pricedOptions.join(", ")}`] : [];
   }).join("; ");
   const hasPriceAdjustments = notePriceSummary.length > 0 || product.bundleChoiceGroups.some(
     (group) => group.options.some((option) => option.priceDelta !== 0),
@@ -153,7 +173,7 @@ function MenuProductCard({
           {product.imageUrl ? (
             <ProductImage
               src={product.imageUrl}
-              alt={publicMessages.get(locale, "menuProductImage", { name: product.name })}
+              alt={publicMessages.get(locale, "menuProductImage", { name: productName })}
               width={432}
               height={432}
               sizes="(max-width: 639px) 112px, 144px"
@@ -174,8 +194,8 @@ function MenuProductCard({
               </span>
             ) : null}
           </div>
-          <h3 className="mt-2 text-lg font-bold leading-6">{product.name}</h3>
-          {product.description ? <p className="mt-1 line-clamp-3 text-sm leading-5 text-stone-600 print:line-clamp-none">{product.description}</p> : null}
+          <h3 className="mt-2 text-lg font-bold leading-6">{productName}</h3>
+          {productDescription ? <p className="mt-1 line-clamp-3 text-sm leading-5 text-stone-600 print:line-clamp-none">{productDescription}</p> : null}
           {bundleSummary ? <p className="mt-2 text-xs leading-5 text-stone-500">{bundleSummary}</p> : null}
           {notePriceSummary ? <p className="mt-2 text-xs leading-5 text-stone-500">{publicMessages.get(locale, "menuCustomOptions", { options: notePriceSummary })}</p> : null}
           <p className="mt-auto pt-3 text-right text-lg font-black text-teal-800 print:text-stone-950">
@@ -188,7 +208,7 @@ function MenuProductCard({
   );
 }
 
-function groupProductsByCategory(products: PublicMenuProduct[]) {
+function groupProductsByCategory(products: PublicMenuProduct[], locale: AppLocale) {
   const productsByCategory = new Map<string, PublicMenuProduct[]>();
   for (const product of products) {
     const categoryProducts = productsByCategory.get(product.category);
@@ -205,9 +225,13 @@ function groupProductsByCategory(products: PublicMenuProduct[]) {
     }
     return {
       category,
+      localizedCategory: categoryProducts[0]?.categoryTranslations?.find((translation) => translation.locale === locale)?.name
+        || category,
       products: categoryProducts,
       groups: [...productsByGroup].map(([name, groupedProducts]) => ({
         name,
+        localizedName: groupedProducts[0]?.groupTranslations?.find((translation) => translation.locale === locale)?.name
+          || name,
         products: groupedProducts,
       })),
     };
