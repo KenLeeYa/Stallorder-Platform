@@ -43,7 +43,7 @@ if (!reuseExistingServer) {
   }
   if (
     localPrimarySupabase.protocol !== "http:"
-    || !["localhost", "127.0.0.1"].includes(localPrimarySupabase.hostname)
+    || !["localhost", "127.0.0.1", "[::1]"].includes(localPrimarySupabase.hostname)
   ) {
     throw new Error("PLAYWRIGHT_LOCAL_PRIMARY_SUPABASE_URL_INVALID");
   }

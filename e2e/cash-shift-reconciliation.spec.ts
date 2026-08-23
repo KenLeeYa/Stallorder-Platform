@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { hash } from "bcryptjs";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -11,6 +12,7 @@ const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 const stallSlug = "aming-chicken";
 const password = "StallOrderDemo!2026";
+const managerAuthorizationCode = "2468";
 const financeEmail = "cash.finance.e2e@stallorder.test";
 const customerName = "Cash shift E2E customer";
 let financeProfileId = "";
@@ -41,6 +43,10 @@ test.describe.serial("現金交班與短溢收", () => {
         allStalls: true,
       },
     });
+    await prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: { managerAuthorizationCodeHash: await hash(managerAuthorizationCode, 10) },
+    });
   });
 
   test.afterAll(async () => {
@@ -51,6 +57,10 @@ test.describe.serial("現金交班與短溢收", () => {
       }
       await prisma.profile.deleteMany({ where: { email: financeEmail } });
       await prisma.rateLimitBucket.deleteMany();
+      await prisma.stallOrderingSettings.update({
+        where: { stallId },
+        data: { managerAuthorizationCodeHash: null },
+      });
     } finally {
       await prisma.$disconnect();
     }
@@ -132,6 +142,7 @@ test.describe.serial("現金交班與短溢收", () => {
     await page.getByLabel("類型").selectOption("CASH_OUT");
     await page.getByLabel("金額", { exact: true }).fill("50");
     await page.getByLabel("原因", { exact: true }).fill("臨時採買");
+    await page.getByLabel("管理授權碼").fill(managerAuthorizationCode);
     const cashOutResponse = page.waitForResponse((response) => (
       response.url().endsWith(`/api/stalls/${stallSlug}/cash-shifts`)
       && response.request().method() === "POST"
@@ -143,6 +154,7 @@ test.describe.serial("現金交班與短溢收", () => {
     await page.getByRole("button", { name: "現金退款" }).click();
     await page.getByLabel("原付款").selectOption(paidOrder.payment!.id);
     await page.getByLabel("退款原因").fill("顧客取消餐點");
+    await page.getByLabel("管理授權碼").fill(managerAuthorizationCode);
     await page.getByRole("button", { name: "確認退款" }).click();
     await expect(page.getByRole("status")).toContainText("現金退款已記錄");
     await page.getByRole("button", { name: "盤點交班" }).click();

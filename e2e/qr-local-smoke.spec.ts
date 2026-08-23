@@ -66,7 +66,10 @@ test("本機 QA 可透過示範 QR 建立點餐 session", async ({ page }) => {
 });
 
 test("輕量 session 更新不載入菜單查詢", async ({ request }) => {
-  const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.replace(/\/$/, "");
+  const functionsUrl = (
+    process.env.SUPABASE_FUNCTIONS_URL
+    ?? process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL
+  )?.replace(/\/$/, "");
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   expect(functionsUrl).toBeTruthy();
   expect(publishableKey).toBeTruthy();

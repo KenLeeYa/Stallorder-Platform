@@ -1,11 +1,40 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
+import { hash } from "bcryptjs";
 import type { ProductNoteTransfer } from "../src/lib/product-note-transfer";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "22222222-2222-4222-8222-222222222222";
 const password = "StallOrderDemo!2026";
+const managerAuthorizationCode = "2468";
 const takeoutQrToken = "demo-aming-chicken-qr-2026-rotate-me";
 type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
 const authCookies = new Map<string, AuthCookies>();
+const prisma = new PrismaClient();
+let originalManagerAuthorizationCodeHash: string | null = null;
+
+test.beforeAll(async () => {
+  const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({
+    where: { stallId },
+    select: { managerAuthorizationCodeHash: true },
+  });
+  originalManagerAuthorizationCodeHash = settings.managerAuthorizationCodeHash;
+  await prisma.stallOrderingSettings.update({
+    where: { stallId },
+    data: { managerAuthorizationCodeHash: await hash(managerAuthorizationCode, 10) },
+  });
+});
+
+test.afterAll(async () => {
+  try {
+    await prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: { managerAuthorizationCodeHash: originalManagerAuthorizationCodeHash },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+});
 
 async function login(page: Page, email: string) {
   const cachedCookies = authCookies.get(email);
@@ -773,6 +802,7 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await staffOrder.getByRole("button", { name: "取消訂單" }).click();
   const cancellation = staffPage.getByRole("alertdialog", { name: "確認取消訂單？" });
   await expect(cancellation).toContainText(customerName);
+  await cancellation.getByLabel("管理授權碼").fill(managerAuthorizationCode);
   const cancellationResponse = staffPage.waitForResponse((response) => (
     new URL(response.url()).pathname.includes("/api/stalls/aming-chicken/orders/")
     && response.request().method() === "PATCH"

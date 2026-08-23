@@ -75,8 +75,10 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
     await staffOrder.getByRole("button", { name: "確認接單", exact: true }).click();
     await staffOrder.getByRole("button", { name: "全部開始製作（1）", exact: true }).click();
     await staffOrder.getByRole("button", { name: "全部餐點完成（1）", exact: true }).click();
-    await expect(staffOrder.getByLabel("3 位數取餐碼")).toBeVisible();
-    await staffOrder.getByRole("button", { name: "無法取得取餐碼" }).click();
+    await staffOrder.getByRole("button", { name: "代結帳", exact: true }).click();
+    const pickupCheckout = staffPage.getByRole("dialog", { name: "先驗證取餐碼，再進行結帳" });
+    await expect(pickupCheckout.getByLabel("3 位數取餐碼")).toBeVisible();
+    await pickupCheckout.getByRole("button", { name: "無法取得取餐碼" }).click();
 
     const manualDialog = staffPage.getByRole("alertdialog", { name: "人工核對取餐" });
     await expect(manualDialog).toContainText(`訂單 ${orderNo}`);
@@ -96,6 +98,7 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
       confirmedCustomerDetails: true,
     });
     await expect(staffOrder).toContainText("已完成人工取餐核對");
+    await expect(staffPage.getByRole("dialog", { name: "完成訂單" })).toBeVisible();
   } finally {
     await staffContext.close();
   }

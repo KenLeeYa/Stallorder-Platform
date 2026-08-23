@@ -22,6 +22,7 @@ describe("StaffOrderBoard production transitions", () => {
         confirmationOrderNo: "A-101",
         cancellationReason: "CUSTOMER_CANCELLED",
         cancellationDetail: "顧客改變心意",
+        managerAuthorizationCode: "2468",
       },
       fetchImpl,
       getCsrfHeaders: () => ({ "x-csrf-token": "csrf-token" }),
@@ -37,6 +38,7 @@ describe("StaffOrderBoard production transitions", () => {
           confirmationOrderNo: "A-101",
           cancellationReason: "CUSTOMER_CANCELLED",
           cancellationDetail: "顧客改變心意",
+          managerAuthorizationCode: "2468",
         }),
       },
     );

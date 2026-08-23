@@ -214,10 +214,10 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
     try {
       const japanesePage = await japaneseContext.newPage();
       await gotoLocalPath(japanesePage, "/q/demo-aming-chicken-qr-2026-rotate-me");
-      const languageMenu = japanesePage.getByRole("button", { name: "メニュー言語" });
-      await expect(languageMenu).toHaveAttribute("data-current-locale", "ja");
+      const languageMenu = japanesePage.getByRole("button", { name: "點餐語言" });
+      await expect(languageMenu).toHaveAttribute("data-current-locale", "zh-TW");
       await languageMenu.click();
-      await expect(japanesePage.getByRole("option", { name: "日本語", exact: true })).toBeVisible();
+      await expect(japanesePage.getByRole("option", { name: "日本語", exact: true })).toHaveCount(0);
     } finally {
       await japaneseContext.close();
     }

@@ -10,6 +10,7 @@ export type StaffOrderStatusTransitionOptions = {
   confirmationOrderNo?: string;
   cancellationReason?: CancellationReason;
   cancellationDetail?: string | null;
+  managerAuthorizationCode?: string | null;
   checkout?: StaffOrderCheckoutRequest;
 };
 
@@ -77,6 +78,7 @@ export async function transitionStaffOrderStatus(input: ProductionTransport & {
           confirmationOrderNo: options.confirmationOrderNo,
           cancellationReason: options.cancellationReason,
           cancellationDetail: options.cancellationDetail,
+          managerAuthorizationCode: options.managerAuthorizationCode,
         } : {}),
         ...(input.status === "COMPLETED" ? options.checkout : {}),
       }),

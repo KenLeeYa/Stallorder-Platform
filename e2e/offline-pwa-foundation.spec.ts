@@ -622,7 +622,7 @@ async function removeLocalSnapshotObjects(objectPaths: string[]) {
     ?? process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) throw new Error("本機 Storage 清理設定不完整");
   const hostname = new URL(url).hostname;
-  if (hostname !== "127.0.0.1" && hostname !== "localhost") {
+  if (hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "[::1]") {
     throw new Error(`拒絕清理非本機 Storage：${hostname}`);
   }
   const client = createClient(url, key, {
