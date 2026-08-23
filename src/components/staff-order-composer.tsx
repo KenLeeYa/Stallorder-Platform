@@ -919,7 +919,7 @@ export function StaffOrderComposer({
             </div>
 
             {catalogExpanded ? <div id="staff-product-list" data-testid="staff-product-list">
-            <nav data-testid="staff-category-navigation" aria-label={t("composer.categories")} className="sticky top-0 z-10 -mx-4 mt-2 flex gap-2 overflow-x-auto border-y border-stone-200 bg-white/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
+            <nav data-testid="staff-group-navigation" aria-label={t("composer.groups")} className="sticky top-0 z-10 -mx-4 mt-2 flex gap-2 overflow-x-auto border-y border-stone-200 bg-white/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
               {catalogNavigationItems.map((item) => <a key={item.id} href={`#${item.id}`} aria-current={activeCatalogAnchor === item.id ? "true" : undefined} onClick={(event) => { event.preventDefault(); scrollToCatalogTarget(item); }} className={`inline-flex min-h-11 shrink-0 items-center rounded-md border px-3 text-sm font-semibold ${activeCatalogAnchor === item.id ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-700"}`}>{item.label}</a>)}
             </nav>
 

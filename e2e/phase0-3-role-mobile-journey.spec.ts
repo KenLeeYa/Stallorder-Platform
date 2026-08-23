@@ -173,6 +173,7 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
     await expect(cart).toContainText(productName);
     await page.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
     await page.getByLabel("顧客稱呼").fill(customerName);
+    await page.getByLabel("聯絡電話").fill("0912345678");
     const waitAcknowledgment = page.getByRole("checkbox", { name: /我已了解目前預估等候時間/u });
     if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
 

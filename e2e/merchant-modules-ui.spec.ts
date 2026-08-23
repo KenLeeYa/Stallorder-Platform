@@ -407,7 +407,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await expect(page.getByRole("button", { name: "複製 香酥雞排" }).first()).toBeVisible();
   const validCsvRow = ["", "測試分類", "", "匯入預覽商品", "", "88", "", "1", "true", "AMING-01", "Preview item", "", "", "", "", "", "", "", "", "", "true", "true"];
   const invalidCsvRow = ["", "測試分類", "", "錯誤價格商品", "", "=100", "", "2", "true", "AMING-01", "", "", "", "", "", "", "", "", "", "", "true", "true"];
-  const csvInput = page.getByText("匯入 CSV", { exact: true }).locator("input[type=file]");
+  const csvInput = page.getByLabel("匯入 CSV", { exact: true });
   await waitForReactHandler(csvInput, "onChange");
   const importPreviewResponse = page.waitForResponse((response) => (
     new URL(response.url()).pathname

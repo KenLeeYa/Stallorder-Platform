@@ -261,6 +261,55 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     }
   });
 
+  test("KDS 關閉時，Menu 外帶單由店員完成並自動通知顧客可取餐", async ({ browser }) => {
+    test.setTimeout(120_000);
+    const order = await createConfirmedPublicOrder(`${runMarker} 顧客取餐通知`);
+    expect(await prisma.printJob.count({ where: { orderId: order.id } })).toBe(0);
+    expect(await prisma.orderProductionTask.count({ where: { orderId: order.id } })).toBe(0);
+
+    const customerContext = await browser.newContext({
+      locale: "zh-TW",
+      timezoneId: "Asia/Taipei",
+      viewport: { width: 390, height: 844 },
+    });
+    const staffContext = await browser.newContext({
+      locale: "zh-TW",
+      timezoneId: "Asia/Taipei",
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const customerPage = await customerContext.newPage();
+      await customerPage.goto(`/order/${order.trackingToken}`);
+      await expect(customerPage.getByText("攤位已確認", { exact: true }).first()).toBeVisible();
+
+      const staffPage = await staffContext.newPage();
+      await login(staffPage, "staff@stallorder.test", new RegExp(`/staff/${stallSlug}`));
+      await staffPage.goto(`/staff/${stallSlug}`);
+      const ticket = staffPage.getByRole("article").filter({ hasText: order.customerName });
+      const finishAndNotify = ticket.getByRole("button", {
+        name: "餐點完成・通知可取餐",
+        exact: true,
+      });
+      await expect(finishAndNotify).toBeVisible();
+      const readyResponsePromise = waitForOrderPatch(staffPage, order.id);
+      await finishAndNotify.click();
+      const readyResponse = await readyResponsePromise;
+      expect(readyResponse.status()).toBe(200);
+      expect(readyResponse.request().postDataJSON()).toMatchObject({ status: "READY" });
+
+      await expect.poll(async () => prisma.order.findUniqueOrThrow({
+        where: { id: order.id },
+        select: { status: true, items: { select: { status: true } } },
+      })).toEqual({ status: "READY", items: [{ status: "READY" }] });
+
+      const readyDialog = customerPage.getByRole("dialog", { name: "餐點已可取餐" });
+      await expect(readyDialog).toBeVisible({ timeout: 20_000 });
+      await expect(readyDialog.getByTestId("pickup-ready-dialog-code")).toHaveText(order.pickupCode);
+    } finally {
+      await Promise.all([customerContext.close(), staffContext.close()]);
+    }
+  });
+
   test("KDS 關閉但列印開啟時，收款後等待列印並於成功後自動結單", async ({ browser }, testInfo) => {
     test.setTimeout(240_000);
     const ownerContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
@@ -460,6 +509,50 @@ async function createConfirmedOrder(customerName: string) {
   });
   createdOrderIds.push(order.id);
   return order;
+}
+
+async function createConfirmedPublicOrder(customerName: string) {
+  const unique = randomUUID();
+  const trackingToken = `tracking-${unique}`;
+  const pickupCode = "738";
+  const order = await prisma.order.create({
+    data: {
+      organizationId,
+      stallId,
+      orderNo: `QR-${Date.now().toString().slice(-7)}-${unique.slice(0, 4)}`,
+      trackingTokenHash: createHash("sha256").update(trackingToken).digest("hex"),
+      idempotencyKey: randomUUID(),
+      source: "QR_MENU",
+      isTest: true,
+      customerName,
+      customerPhone: "0912345678",
+      fulfillmentType: "TAKEOUT",
+      status: "CONFIRMED",
+      paymentStatus: "UNPAID",
+      subtotal: 95,
+      total: 95,
+      deviceHash: createHash("sha256").update(`device-${unique}`).digest("hex"),
+      pickupCodeHash: createHash("sha256").update(pickupCode).digest("hex"),
+      pickupCodeDisplay: pickupCode,
+      confirmationExpiresAt: new Date(Date.now() + 10 * 60_000),
+      confirmedAt: new Date(),
+      items: {
+        create: {
+          organizationId,
+          stallId,
+          productId: product.id,
+          name: product.name,
+          baseUnitPrice: 95,
+          unitPrice: 95,
+          quantity: 1,
+          status: "PENDING",
+        },
+      },
+    },
+    select: { id: true, customerName: true },
+  });
+  createdOrderIds.push(order.id);
+  return { ...order, trackingToken, pickupCode };
 }
 
 async function setModule(

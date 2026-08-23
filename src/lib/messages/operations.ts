@@ -746,6 +746,7 @@ const definitions = {
   "composer.collapseAll": { "zh-TW": "收合全部商品", en: "Collapse all items", ja: "すべての商品を折りたたむ", ko: "모든 상품 접기", vi: "Thu gọn tất cả món", th: "ย่อสินค้าทั้งหมด" },
   "composer.expandAll": { "zh-TW": "展開全部商品", en: "Expand all items", ja: "すべての商品を展開", ko: "모든 상품 펼치기", vi: "Mở tất cả món", th: "ขยายสินค้าทั้งหมด" },
   "composer.categories": { "zh-TW": "商品分類", en: "Menu categories", ja: "商品カテゴリ", ko: "상품 카테고리", vi: "Danh mục món", th: "หมวดสินค้า" },
+  "composer.groups": { "zh-TW": "商品群組", en: "Menu groups", ja: "商品グループ", ko: "상품 그룹", vi: "Nhóm món", th: "กลุ่มสินค้า" },
   "composer.groupToggle": { "zh-TW": "{action}商品群組 {group}", en: "{action} item group {group}", ja: "商品グループ {group} を{action}", ko: "상품 그룹 {group} {action}", vi: "{action} nhóm món {group}", th: "{action} กลุ่มสินค้า {group}" },
   "composer.bundle": { "zh-TW": "套餐", en: "Bundle", ja: "セット", ko: "세트", vi: "Combo", th: "ชุด" },
   "composer.inCart": { "zh-TW": "購物車已有 {count} 份", en: "{count} already in cart", ja: "カートに {count} 点", ko: "장바구니에 {count}개", vi: "Đã có {count} trong giỏ", th: "มีในตะกร้าแล้ว {count} รายการ" },

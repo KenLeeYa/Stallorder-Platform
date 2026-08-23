@@ -106,7 +106,8 @@ test("商家可新增、修改、指派與刪除商品註記群組", async ({ pa
   await toggleAllGroups.click();
   await expect(toggleAllGroups).toHaveAttribute("aria-expanded", "true");
 
-  await page.getByRole("button", { name: "新增群組", exact: true }).click();
+  await page.getByTestId("product-note-tools")
+    .getByRole("button", { name: "新增群組", exact: true }).click();
   const groupEditor = page.getByRole("dialog", { name: "新增註記群組" });
   const groupNameInput = groupEditor.getByLabel("群組名稱");
   const invalidGroupResponse = page.waitForResponse((response) => (
@@ -205,7 +206,8 @@ test("群組內共用與專用註記排序可儲存並於重載後保留", async
   await expect(page.getByRole("status")).toHaveText("共用單一註記已新增。");
 
   await page.getByRole("tab", { name: "註記群組" }).click();
-  await page.getByRole("button", { name: "新增群組", exact: true }).click();
+  await page.getByTestId("product-note-tools")
+    .getByRole("button", { name: "新增群組", exact: true }).click();
   const groupEditor = page.getByRole("dialog", { name: "新增註記群組" });
   await groupEditor.getByLabel("群組名稱").fill(groupName);
   await groupEditor.getByRole("button", { name: "儲存" }).click();
@@ -311,7 +313,8 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
   await page.reload();
 
   await page.getByRole("tab", { name: "註記群組" }).click();
-  await page.getByRole("button", { name: "新增群組", exact: true }).click();
+  await page.getByTestId("product-note-tools")
+    .getByRole("button", { name: "新增群組", exact: true }).click();
   const groupEditor = page.getByRole("dialog", { name: "新增註記群組" });
   await groupEditor.getByLabel("群組名稱").fill(groupName);
   await groupEditor.getByRole("button", { name: "儲存" }).click();
@@ -759,6 +762,7 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await page.getByRole("article").filter({ hasText: "台式鹽酥雞" })
     .getByRole("button", { name: "加入購物車" }).click();
   await page.getByLabel("顧客稱呼").fill(customerName);
+  await page.getByLabel("聯絡電話").fill("0912345678");
   await page.getByLabel("訂單備註").fill("胡椒少一點");
   await expect(page.getByTestId("qr-cart-panel").getByText("$90", { exact: true }).last()).toBeVisible();
   const waitAcknowledgment = page.getByRole("checkbox", { name: /我已了解目前預估等候時間/u });

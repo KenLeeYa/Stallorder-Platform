@@ -262,6 +262,8 @@ test("QR 同商品可加入兩個不同註記列，報價低頻更新且返回�
   await mobileSummary.click();
   await page.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
   await expect(page.getByRole("heading", { name: "訂購資料與確認", exact: true })).toBeFocused();
+  await page.getByLabel("顧客稱呼").fill("獨立品項 QA");
+  await page.getByLabel("聯絡電話").fill("0912345678");
   const waitAcknowledgement = page.getByRole("checkbox", {
     name: /我已了解目前預估等候時間為 12～18 分鐘/,
   });

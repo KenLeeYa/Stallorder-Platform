@@ -56,7 +56,8 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await firstCategoryDisclosure.locator(":scope > summary").click();
   await expect(firstCategoryDisclosure).toHaveAttribute("open", "");
 
-  await page.getByRole("button", { name: "商品", exact: true }).click();
+  await page.getByTestId("shared-catalog-create-actions")
+    .getByRole("button", { name: "新增商品", exact: true }).click();
   const componentEditor = page.getByRole("dialog", { name: "新增商品" });
   await componentEditor.getByLabel("商品名稱").fill(unavailableComponentName);
   await componentEditor.getByLabel("預設售價").fill("30");
@@ -183,7 +184,8 @@ test("手機版套餐操作列與商品編輯器不超出畫面", async ({ page 
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 
-  const productTrigger = page.getByRole("button", { name: "商品", exact: true });
+  const productTrigger = page.getByTestId("shared-catalog-create-actions")
+    .getByRole("button", { name: "新增商品", exact: true });
   const overflowBefore = await page.evaluate(() => ({
     body: document.body.style.overflow,
     document: document.documentElement.style.overflow,

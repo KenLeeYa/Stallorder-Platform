@@ -209,6 +209,8 @@ test("分享外帶連結依取餐時段更新商品與套餐選項並清除失�
   const cart = page.getByTestId("qr-cart-panel");
   await expect(cart).toContainText("共 2 份");
   await expect(cart).toContainText("$270");
+  await page.getByLabel("顧客稱呼").fill("時段測試顧客");
+  await page.getByLabel("聯絡電話").fill("0912345678");
 
   await selectFulfillmentSlot(page, "qr-preorder-fulfillment-time-fields", {
     date: "預約取餐日期",
@@ -300,6 +302,8 @@ test("分享外帶連結依取餐時段更新商品與套餐選項並清除失�
   await expect(page.locator("article#qr-product-later-item")).toBeVisible();
   await expect(cart).toContainText("共 1 份");
   await expect(cart).toContainText("$120");
+  await page.getByLabel("顧客稱呼").fill("時段測試顧客");
+  await page.getByLabel("聯絡電話").fill("0912345678");
 
   const orderRequest = page.waitForRequest((request) => (
     new URL(request.url()).pathname.endsWith("/create-public-order")
@@ -392,6 +396,8 @@ test("營業中的實體 QR 不顯示取餐時間且送單固定為即時外帶"
     document.documentElement.scrollWidth <= document.documentElement.clientWidth
   ))).toBe(true);
   await page.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
+  await page.getByLabel("顧客稱呼").fill("即時外帶顧客");
+  await page.getByLabel("聯絡電話").fill("0912345678");
 
   const orderRequest = page.waitForRequest((request) => (
     new URL(request.url()).pathname.endsWith("/create-public-order")

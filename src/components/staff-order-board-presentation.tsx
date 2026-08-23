@@ -394,7 +394,7 @@ function StaffOrderBoardToolbar({
   const role = account.role;
   return (
     <>
-      <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 border-b border-stone-200 bg-white px-4 pb-1 shadow-sm print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
+      <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 min-w-0 max-w-full overflow-x-hidden border-b border-stone-200 bg-white px-4 pb-1 shadow-sm print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
         <div className="flex h-11 min-w-0 max-w-full items-center justify-between gap-3 print:hidden sm:gap-4">
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold sm:text-base">{stall.name}</h1>

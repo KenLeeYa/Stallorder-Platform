@@ -108,6 +108,8 @@ describe("StaffOrderComposer mobile toolbar", () => {
     );
 
     expect(html.match(/href="#staff-catalog-section-/g)).toHaveLength(1);
+    expect(html).toContain('data-testid="staff-group-navigation"');
+    expect(html).not.toContain('data-testid="staff-category-navigation"');
     expect(html).toContain("Phở cổ điển");
     expect(html).toContain("Phở bò");
     expect(html).not.toContain(">湯河粉<");
