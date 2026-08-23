@@ -4,11 +4,6 @@ alter table public.stalls
   add column if not exists cover_image_zoom smallint not null default 100;
 
 alter table public.stalls
-  drop constraint if exists stalls_cover_image_position_x_check,
-  drop constraint if exists stalls_cover_image_position_y_check,
-  drop constraint if exists stalls_cover_image_zoom_check;
-
-alter table public.stalls
   add constraint stalls_cover_image_position_x_check check (cover_image_position_x between 0 and 100),
   add constraint stalls_cover_image_position_y_check check (cover_image_position_y between 0 and 100),
   add constraint stalls_cover_image_zoom_check check (cover_image_zoom between 100 and 200);
@@ -18,11 +13,6 @@ alter table public.stall_ordering_settings
   add column if not exists order_alert_sound_object_path text,
   add column if not exists order_alert_volume smallint not null default 100,
   add column if not exists order_alert_repeat_count smallint not null default 2;
-
-alter table public.stall_ordering_settings
-  drop constraint if exists stall_ordering_settings_order_alert_sound_preset_check,
-  drop constraint if exists stall_ordering_settings_order_alert_volume_check,
-  drop constraint if exists stall_ordering_settings_order_alert_repeat_count_check;
 
 alter table public.stall_ordering_settings
   add constraint stall_ordering_settings_order_alert_sound_preset_check
@@ -40,7 +30,4 @@ values (
   1048576,
   array['audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/x-m4a']
 )
-on conflict (id) do update set
-  public = excluded.public,
-  file_size_limit = excluded.file_size_limit,
-  allowed_mime_types = excluded.allowed_mime_types;
+on conflict (id) do nothing;

@@ -14,6 +14,8 @@ const PHASE_THREE_HARD_LOCK_MIGRATION_DIGEST =
   "ae162738982526aa10d19d14fe4bd566a793bf678b928597bd33d5e8d832eaab";
 const PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST =
   "b1215925b995d6392eb89c5484cb494990293cdd9ca234b4678aed8987748d17";
+const PRIVATE_ALERT_SOUND_BUCKET_MIGRATION_DIGEST =
+  "5fc3974afb19b1a7484dbf16a0ca54f3ad56915cadc69b8cd6e1587208829368";
 const DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS = new Set([
   "166dffdee8dbeee3179130571bbce0a57502d53aa6cae8e5a69bfb134e111bba",
   "84ab43e0e0ddd6e3d437aed2952b7f576959cbe349723df1ab154e308dd107f0",
@@ -171,6 +173,8 @@ export function assertAdditiveMigrationSql(sql) {
     isApprovedIntegratedPrintCenterMigration(sql);
   const paygOpenBetaBillingMigration =
     isApprovedPaygOpenBetaBillingMigration(sql);
+  const privateAlertSoundBucketMigration =
+    isApprovedPrivateAlertSoundBucketMigration(sql);
   const staffKdsSpecialClosuresMigration =
     isApprovedStaffKdsSpecialClosuresMigration(sql);
   const drStandbyCompatibleMigration =
@@ -200,7 +204,12 @@ export function assertAdditiveMigrationSql(sql) {
       throw new AdditiveMigrationPlanError("MIGRATION_STATEMENT_FORBIDDEN");
     }
     if (/^insert\s+into\b/iu.test(statement)) {
-      assertSafeFeatureFlagSeed(statement);
+      if (
+        !privateAlertSoundBucketMigration
+        || !isSafePrivateAlertSoundBucketSeed(statement)
+      ) {
+        assertSafeFeatureFlagSeed(statement);
+      }
     }
     if (/^create\s+extension\b/iu.test(statement)) {
       assertSafeExtensionInstall(statement);
@@ -240,6 +249,7 @@ export function assertAdditiveMigrationSql(sql) {
       statement,
       phaseThreeHardLock,
       staffKdsSpecialClosuresMigration,
+      privateAlertSoundBucketMigration,
     );
   }
   assertReplacementPairs(replacements);
@@ -919,9 +929,26 @@ function assertSafeFeatureFlagSeed(statement) {
   }
 }
 
+function isSafePrivateAlertSoundBucketSeed(statement) {
+  return new RegExp(
+    "^insert\\s+into\\s+storage\\.buckets\\s*\\("
+      + "\\s*id\\s*,\\s*name\\s*,\\s*public\\s*,\\s*file_size_limit\\s*,"
+      + "\\s*allowed_mime_types\\s*\\)"
+      + "\\s*values\\s*\\(\\s*''\\s*,\\s*''\\s*,\\s*false\\s*,"
+      + "\\s*1048576\\s*,\\s*array\\s*\\[\\s*''(?:\\s*,\\s*''){4}\\s*\\]\\s*\\)"
+      + "\\s*on\\s+conflict\\s*\\(\\s*id\\s*\\)\\s+do\\s+nothing$",
+    "iu",
+  ).test(statement);
+}
+
 function isApprovedPhaseThreeHardLockMigration(sql) {
   return sha256(sql.replace(/\r\n/gu, "\n").trim())
     === PHASE_THREE_HARD_LOCK_MIGRATION_DIGEST;
+}
+
+function isApprovedPrivateAlertSoundBucketMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === PRIVATE_ALERT_SOUND_BUCKET_MIGRATION_DIGEST;
 }
 
 function isApprovedDrStandbyCompatibleMigration(sql) {
@@ -1258,11 +1285,14 @@ function assertAllowedStatement(
   statement,
   phaseThreeHardLock,
   staffKdsSpecialClosuresMigration,
+  privateAlertSoundBucketMigration,
 ) {
   const allowed = [
     phaseThreeHardLock && isPhaseThreeHardLockCleanup(statement),
     staffKdsSpecialClosuresMigration
       && /^alter\s+table\s+public\.stall_ordering_settings\s+alter\s+column\s+kds_module_enabled\s+set\s+default\s+false$/iu.test(statement),
+    privateAlertSoundBucketMigration
+      && isSafePrivateAlertSoundBucketSeed(statement),
     isAllowedAlterTableStatement(statement),
     /^alter\s+type\b[\s\S]*\badd\s+value\b/iu,
     /^create\s+(?:or\s+replace\s+)?function\b/iu,
