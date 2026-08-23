@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { hash } from "bcryptjs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { recordAuditEvent } from "@/lib/audit";
@@ -7,6 +8,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
+import { managerAuthorizationCodeSchema } from "@/lib/manager-authorization";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
@@ -23,14 +25,23 @@ const settingsSchema = z.object({
   orderWindowSeconds: z.number().int().min(60).max(3600),
   estimatedWaitMinutes: z.number().int().min(0).max(240),
   businessDayCutoffHour: z.number().int().min(0).max(23),
+  preorderReminderMinutes: z.number().int().min(0).max(1440),
 }).refine((value) => value.maxTotalQuantity >= value.maxItemQuantity, {
   message: "總數量上限不得低於單品上限。",
   path: ["maxTotalQuantity"],
 });
 
+const alertSettingsSchema = z.object({
+  preset: z.enum(["URGENT", "BELL", "CHIME", "CUSTOM"]),
+  volume: z.number().int().min(10).max(100),
+  repeatCount: z.number().int().min(1).max(3),
+});
+
 const controlSchema = z.discriminatedUnion("action", [
   z.object({ action: z.enum(["PAUSE", "RESUME", "REVOKE_QR", "ROTATE_QR", "MARK_SOLD_OUT", "MARK_AVAILABLE", "CLOSE", "OPEN"]) }),
   z.object({ action: z.literal("UPDATE_LIMITS"), settings: settingsSchema }),
+  z.object({ action: z.literal("UPDATE_ALERT_SETTINGS"), settings: alertSettingsSchema }),
+  z.object({ action: z.literal("UPDATE_MANAGER_AUTHORIZATION_CODE"), authorizationCode: managerAuthorizationCodeSchema }),
 ]);
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
@@ -66,6 +77,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
+  const managerAuthorizationCodeHash = parsed.data.action === "UPDATE_MANAGER_AUTHORIZATION_CODE"
+    ? await hash(parsed.data.authorizationCode, 12)
+    : null;
+
   const token = randomBytes(32).toString("base64url");
   const now = new Date();
   const previousState = await prisma.stall.findFirstOrThrow({
@@ -78,8 +93,27 @@ export async function PATCH(request: Request, context: RouteContext) {
         take: 1,
         select: { state: true, tokenVersion: true },
       },
+      orderingSettings: {
+        select: {
+          managerAuthorizationCodeHash: true,
+          orderAlertSoundPreset: true,
+          orderAlertSoundObjectPath: true,
+          orderAlertVolume: true,
+          orderAlertRepeatCount: true,
+        },
+      },
     },
   });
+  if (
+    parsed.data.action === "UPDATE_ALERT_SETTINGS"
+    && parsed.data.settings.preset === "CUSTOM"
+    && !previousState.orderingSettings?.orderAlertSoundObjectPath
+  ) {
+    return NextResponse.json(
+      { error: "請先上傳自訂提示音。" },
+      { status: 400, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
   const qrTokensBefore = await prisma.qrCode.findMany({
     where: {
       stallId: authorization.stall.id,
@@ -176,6 +210,38 @@ export async function PATCH(request: Request, context: RouteContext) {
           update: parsed.data.settings,
         });
         break;
+      case "UPDATE_ALERT_SETTINGS":
+        await transaction.stallOrderingSettings.upsert({
+          where: { stallId: stall.id },
+          create: {
+            stallId: stall.id,
+            organizationId: stall.organizationId,
+            orderAlertSoundPreset: parsed.data.settings.preset,
+            orderAlertVolume: parsed.data.settings.volume,
+            orderAlertRepeatCount: parsed.data.settings.repeatCount,
+          },
+          update: {
+            orderAlertSoundPreset: parsed.data.settings.preset,
+            orderAlertVolume: parsed.data.settings.volume,
+            orderAlertRepeatCount: parsed.data.settings.repeatCount,
+          },
+        });
+        break;
+      case "UPDATE_MANAGER_AUTHORIZATION_CODE":
+        await transaction.stallOrderingSettings.upsert({
+          where: { stallId: stall.id },
+          create: {
+            stallId: stall.id,
+            organizationId: stall.organizationId,
+            managerAuthorizationCodeHash,
+            managerAuthorizationCodeUpdatedAt: now,
+          },
+          update: {
+            managerAuthorizationCodeHash,
+            managerAuthorizationCodeUpdatedAt: now,
+          },
+        });
+        break;
     }
 
     return transaction.stall.findUniqueOrThrow({
@@ -203,6 +269,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       orderingState: previousState.orderingState,
       isSoldOut: previousState.isSoldOut,
       qrCode: previousState.qrCodes[0] ?? null,
+      managerAuthorizationCodeConfigured: Boolean(previousState.orderingSettings?.managerAuthorizationCodeHash),
+      orderAlertSoundPreset: previousState.orderingSettings?.orderAlertSoundPreset ?? "URGENT",
+      orderAlertSoundConfigured: Boolean(previousState.orderingSettings?.orderAlertSoundObjectPath),
+      orderAlertVolume: previousState.orderingSettings?.orderAlertVolume ?? 100,
+      orderAlertRepeatCount: previousState.orderingSettings?.orderAlertRepeatCount ?? 2,
     },
     after: {
       orderingState: state.orderingState,
@@ -210,14 +281,43 @@ export async function PATCH(request: Request, context: RouteContext) {
       qrCode: state.qrCodes[0]
         ? { state: state.qrCodes[0].state, tokenVersion: state.qrCodes[0].tokenVersion }
         : null,
+      managerAuthorizationCodeConfigured: Boolean(state.orderingSettings?.managerAuthorizationCodeHash),
+      orderAlertSoundPreset: state.orderingSettings?.orderAlertSoundPreset ?? "URGENT",
+      orderAlertSoundConfigured: Boolean(state.orderingSettings?.orderAlertSoundObjectPath),
+      orderAlertVolume: state.orderingSettings?.orderAlertVolume ?? 100,
+      orderAlertRepeatCount: state.orderingSettings?.orderAlertRepeatCount ?? 2,
     },
   });
   invalidatePublicMenu(authorization.stall.id);
   for (const qrCode of qrTokensBefore) invalidatePublicQrToken(qrCode.token);
   if (state.qrCodes[0]) invalidatePublicQrToken(state.qrCodes[0].token);
 
+  const publicOrderingSettings = state.orderingSettings
+    ? (() => {
+        const {
+          managerAuthorizationCodeHash,
+          managerAuthorizationCodeUpdatedAt: _managerAuthorizationCodeUpdatedAt,
+          orderAlertSoundObjectPath,
+          ...settings
+        } = state.orderingSettings;
+        void _managerAuthorizationCodeUpdatedAt;
+        return {
+          ...settings,
+          managerAuthorizationCodeConfigured: Boolean(managerAuthorizationCodeHash),
+          orderAlertSoundConfigured: Boolean(orderAlertSoundObjectPath),
+        };
+      })()
+    : null;
+
   return NextResponse.json(
-    { state: { ...state, qrCode: state.qrCodes[0] ?? null, qrCodes: undefined } },
+    {
+      state: {
+        ...state,
+        orderingSettings: publicOrderingSettings,
+        qrCode: state.qrCodes[0] ?? null,
+        qrCodes: undefined,
+      },
+    },
     { headers: { "x-request-id": authorization.requestId } },
   );
 }

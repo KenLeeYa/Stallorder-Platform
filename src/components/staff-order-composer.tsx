@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { PaymentOptionKind, UserRole } from "@prisma/client";
 import { ArchiveRestore, ChevronDown, List, Minus, Package, Plus, Save, Send, ShoppingCart, Trash2, Truck, Utensils, X } from "lucide-react";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
@@ -99,8 +99,7 @@ export function StaffOrderComposer({
   const [discountOptionId, setDiscountOptionId] = useState<string | null>(null);
   const [cashReceived, setCashReceived] = useState("");
   const [discountApprovalReason, setDiscountApprovalReason] = useState("");
-  const [managerEmail, setManagerEmail] = useState("");
-  const [managerPassword, setManagerPassword] = useState("");
+  const [managerAuthorizationCode, setManagerAuthorizationCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [activePane, setActivePane] = useState<"MENU" | "CART">("MENU");
@@ -179,6 +178,21 @@ export function StaffOrderComposer({
   );
   const operatorCanApprove = hasPermission(account.role, "APPROVE_DISCOUNT");
   const categories = [...new Set(catalog.products.map((product) => product.category))];
+  const catalogNavigationItems = categories.flatMap((category, categoryIndex) => {
+    const groups = [...new Set(catalog.products
+      .filter((product) => product.category === category)
+      .map((product) => product.group)
+      .filter((group): group is string => Boolean(group)))];
+    return [
+      { id: `staff-category-${categoryIndex}`, label: category, category, kind: "CATEGORY" as const },
+      ...groups.map((group, groupIndex) => ({
+        id: `staff-group-${categoryIndex}-${groupIndex}`,
+        label: group,
+        category,
+        kind: "GROUP" as const,
+      })),
+    ];
+  });
   const tableGroups = useMemo(() => {
     const groups = new Map<string, StaffOrderCatalog["tables"]>();
     for (const table of catalog.tables) {
@@ -190,7 +204,7 @@ export function StaffOrderComposer({
     () => buildFulfillmentTimeSlots(catalog.fulfillmentSlots, stall.timezone ?? "Asia/Taipei"),
     [catalog.fulfillmentSlots, stall.timezone],
   );
-  const [activeCategory, setActiveCategory] = useState(categories[0] ?? "");
+  const [activeCatalogAnchor, setActiveCatalogAnchor] = useState(catalogNavigationItems[0]?.id ?? "");
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -210,11 +224,11 @@ export function StaffOrderComposer({
     (pane === "MENU" ? menuScrollRef.current : cartScrollRef.current)?.scrollTo({ top: 0 });
   }
 
-  function scrollToCategory(category: string, categoryIndex: number) {
-    setActiveCategory(category);
-    expandCategory(category);
+  function scrollToCatalogTarget(target: (typeof catalogNavigationItems)[number]) {
+    setActiveCatalogAnchor(target.id);
+    expandCategory(target.category);
     window.requestAnimationFrame(() => {
-      document.getElementById(`staff-category-${categoryIndex}`)?.scrollIntoView({
+      document.getElementById(target.id)?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
@@ -278,13 +292,12 @@ export function StaffOrderComposer({
     setDiscountOptionId(null);
     setCashReceived("");
     setDiscountApprovalReason("");
-    setManagerEmail("");
-    setManagerPassword("");
+    setManagerAuthorizationCode("");
     setMessage("");
     setActivePane("MENU");
     setCatalogExpanded(true);
     setCollapsedCategories(new Set());
-    setActiveCategory(categories[0] ?? "");
+    setActiveCatalogAnchor(catalogNavigationItems[0]?.id ?? "");
     setActiveDraftId(null);
     menuScrollRef.current?.scrollTo({ top: 0 });
   }
@@ -401,12 +414,11 @@ export function StaffOrderComposer({
     setDiscountOptionId(nextDiscountOptionId);
     setCashReceived("");
     setDiscountApprovalReason("");
-    setManagerEmail("");
-    setManagerPassword("");
+    setManagerAuthorizationCode("");
     setMessage("");
     setCatalogExpanded(true);
     setCollapsedCategories(new Set());
-    setActiveCategory(categories[0] ?? "");
+    setActiveCatalogAnchor(catalogNavigationItems[0]?.id ?? "");
     setActivePane("MENU");
     setActiveDraftId(draft.id);
     setDraftManagerOpen(false);
@@ -578,7 +590,10 @@ export function StaffOrderComposer({
     setEditingLineIds((current) => ({ ...current, [line.productId]: line.id }));
     setCatalogExpanded(true);
     expandCategory(product.category);
-    setActiveCategory(product.category);
+    setActiveCatalogAnchor(catalogNavigationItems.find((item) => (
+      item.category === product.category
+      && (product.group ? item.kind === "GROUP" && item.label === product.group : item.kind === "CATEGORY")
+    ))?.id ?? catalogNavigationItems[0]?.id ?? "");
     switchPane("MENU");
     window.setTimeout(() => document.getElementById(`staff-product-${line.productId}`)?.scrollIntoView({
       behavior: "smooth",
@@ -655,7 +670,7 @@ export function StaffOrderComposer({
         return;
       }
       if (needsApproval && (!discountApprovalReason.trim()
-        || (!operatorCanApprove && (!managerEmail.trim() || !managerPassword)))) {
+        || (!operatorCanApprove && !/^\d{4,8}$/.test(managerAuthorizationCode)))) {
         setMessage(t("composer.approvalIncomplete"));
         return;
       }
@@ -680,8 +695,7 @@ export function StaffOrderComposer({
         discountOptionId: modules.discount ? applicableDiscountOptionId : null,
         cashReceived: usesCash ? received : null,
         discountApprovalReason: needsApproval ? discountApprovalReason : null,
-        managerEmail: needsApproval && !operatorCanApprove ? managerEmail : null,
-        managerPassword: needsApproval && !operatorCanApprove ? managerPassword : null,
+        managerAuthorizationCode: needsApproval && !operatorCanApprove ? managerAuthorizationCode : null,
       } : undefined,
       items: selectedItems.map(({ product, quantity, noteOptionIds, bundleChoiceIds }) => ({
         productId: product.id,
@@ -727,6 +741,9 @@ export function StaffOrderComposer({
       idempotencyKeyRef.current = createWebUuid();
       consumeActiveDraft();
       onCreated(payload.order);
+      if (paymentTiming === "PAY_NOW" && usesCash) {
+        window.dispatchEvent(new Event("stallorder:cash-payment-completed"));
+      }
     } catch (error) {
       setMessage(error instanceof Error
         ? getOperationsErrorMessage(locale, error.message, "composer.createFailed")
@@ -776,6 +793,9 @@ export function StaffOrderComposer({
       idempotencyKeyRef.current = createWebUuid();
       consumeActiveDraft();
       onCreated(offlineOrderToStaffOrder(created.order));
+      if (paymentTiming === "PAY_NOW" && usesCash) {
+        window.dispatchEvent(new Event("stallorder:cash-payment-completed"));
+      }
     }
   }
 
@@ -910,13 +930,17 @@ export function StaffOrderComposer({
 
             {catalogExpanded ? <div id="staff-product-list" data-testid="staff-product-list">
             <nav data-testid="staff-category-navigation" aria-label={t("composer.categories")} className="sticky top-0 z-10 -mx-4 mt-2 flex gap-2 overflow-x-auto border-y border-stone-200 bg-white/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
-              {categories.map((category, categoryIndex) => <a key={category} href={`#staff-category-${categoryIndex}`} aria-current={activeCategory === category ? "true" : undefined} onClick={(event) => { event.preventDefault(); scrollToCategory(category, categoryIndex); }} className={`inline-flex min-h-11 shrink-0 items-center rounded-md border px-3 text-sm font-semibold ${activeCategory === category ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-700"}`}>{category}</a>)}
+              {catalogNavigationItems.map((item) => <a key={item.id} href={`#${item.id}`} aria-current={activeCatalogAnchor === item.id ? "true" : undefined} onClick={(event) => { event.preventDefault(); scrollToCatalogTarget(item); }} className={`inline-flex min-h-11 shrink-0 items-center rounded-md border px-3 text-sm font-semibold ${activeCatalogAnchor === item.id ? "border-teal-700 bg-teal-50 text-teal-900" : item.kind === "GROUP" ? "border-stone-200 bg-stone-50 text-stone-600" : "border-stone-300 bg-white text-stone-700"}`}>{item.label}</a>)}
             </nav>
 
             <div className="mt-7 space-y-7">
               {categories.map((category, categoryIndex) => {
                 const categoryCollapsed = collapsedCategories.has(category);
                 const categoryPanelId = `staff-product-group-${categoryIndex}`;
+                const categoryProducts = catalog.products.filter((product) => product.category === category);
+                const categoryGroups = [...new Set(categoryProducts
+                  .map((product) => product.group)
+                  .filter((group): group is string => Boolean(group)))];
                 return (
                 <section key={category} id={`staff-category-${categoryIndex}`} data-testid="staff-product-group" data-category={category} className="scroll-mt-16">
                   <h3 className="border-b border-stone-200">
@@ -936,18 +960,23 @@ export function StaffOrderComposer({
                     </button>
                   </h3>
                   {!categoryCollapsed ? <div id={categoryPanelId} className="divide-y divide-stone-100">
-                    {catalog.products.filter((product) => product.category === category).map((product) => {
+                    {categoryProducts.map((product, productIndex) => {
                       const quantity = quantities[product.id] ?? 0;
                       const cartQuantity = cartQuantitiesByProduct.get(product.id) ?? 0;
                       const noteSelected = noteSelections[product.id] ?? [];
                       const bundleSelected = bundleSelections[product.id] ?? [];
+                      const showGroupHeading = Boolean(product.group)
+                        && product.group !== categoryProducts[productIndex - 1]?.group;
+                      const groupIndex = product.group ? categoryGroups.indexOf(product.group) : -1;
                       const unitPrice = Math.max(
                         0,
                         product.price
                           + bundlePriceAdjustment(product, bundleSelected)
                           + notePriceAdjustment(product.noteGroups, noteSelected),
                       );
-                      return <article key={product.id} id={`staff-product-${product.id}`} data-testid="staff-product-card" className="py-4">
+                      return <Fragment key={product.id}>
+                        {showGroupHeading ? <p id={`staff-group-${categoryIndex}-${groupIndex}`} data-testid="staff-product-group-heading" className="scroll-mt-16 pt-4 text-xs font-bold uppercase tracking-wide text-teal-800">{product.group}</p> : null}
+                        <article id={`staff-product-${product.id}`} data-testid="staff-product-card" className="py-4">
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                           <div className="min-w-0">
                             <h4 className="font-semibold">{product.name}{product.kind === "BUNDLE" ? <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{t("composer.bundle")}</span> : null}</h4>
@@ -980,7 +1009,8 @@ export function StaffOrderComposer({
                         </div> : null}
                         {quantity > 0 && product.noteGroups.length > 0 ? <div className="mt-4 space-y-3 border-l-2 border-teal-700 pl-3">{product.noteGroups.map((group) => { const optionIds = new Set(group.options.map((option) => option.id)); const selectedCount = noteSelected.filter((id) => optionIds.has(id)).length; return <fieldset key={group.id}><legend className="text-sm font-semibold">{group.name}{group.isRequired ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.selectionMode === "SINGLE" ? t("composer.singleChoice") : group.maxSelections ? t("composer.maxChoices", { count: group.maxSelections }) : t("composer.multipleChoice")}</span></legend><div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">{group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-note-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectNoteOption(product.id, group, null)} />{t("composer.noSelection")}</label> : null}{group.options.map((option) => { const checked = noteSelected.includes(option.id); const maxed = group.maxSelections !== null && selectedCount >= group.maxSelections; return <label key={option.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`staff-note-${product.id}-${group.id}`} checked={checked} disabled={group.selectionMode === "MULTIPLE" && maxed && !checked} onChange={() => selectNoteOption(product.id, group, option.id)} />{option.name}{option.priceDelta !== 0 ? <span className="text-teal-800">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, stall.currency, locale)}</span> : null}</label>; })}</div></fieldset>; })}</div> : null}
                         {quantity > 0 ? <button type="button" onClick={() => addProductToCart(product)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white"><ShoppingCart className="h-4 w-4" />{editingLineIds[product.id] ? t("composer.updateDone") : t("composer.addToCart")}</button> : null}
-                      </article>;
+                        </article>
+                      </Fragment>;
                     })}
                   </div> : null}
                 </section>
@@ -1045,7 +1075,7 @@ export function StaffOrderComposer({
                 isApplicable={discountEligibleSubtotal > 0}
               />
               {discountEligibleSubtotal < subtotal ? <p className="mt-2 text-xs text-amber-800">{t("composer.discountEligible", { amount: formatMoney(discountEligibleSubtotal, stall.currency, locale) })}</p> : null}
-              {needsApproval ? <div className="mt-4 border-y border-amber-300 bg-amber-50 py-3"><p className="text-xs font-semibold text-amber-900">{t("composer.approvalRequired")}</p><TextField label={t("composer.approvalReason")} value={discountApprovalReason} maxLength={200} onChange={setDiscountApprovalReason} />{!operatorCanApprove ? <><TextField label={t("composer.managerEmail")} value={managerEmail} maxLength={254} onChange={setManagerEmail} type="email" autoComplete="username" /><TextField label={t("composer.managerPassword")} value={managerPassword} maxLength={128} onChange={setManagerPassword} type="password" autoComplete="current-password" /></> : null}</div> : null}
+              {needsApproval ? <div className="mt-4 border-y border-amber-300 bg-amber-50 py-3"><p className="text-xs font-semibold text-amber-900">{t("composer.approvalRequired")}</p><TextField label={t("composer.approvalReason")} value={discountApprovalReason} maxLength={200} onChange={setDiscountApprovalReason} />{!operatorCanApprove ? <TextField label={t("composer.managerAuthorizationCode")} value={managerAuthorizationCode} maxLength={8} onChange={(value) => setManagerAuthorizationCode(value.replace(/\D/g, "").slice(0, 8))} type="password" inputMode="numeric" autoComplete="one-time-code" /> : null}</div> : null}
               {usesCash ? <div className="mt-4"><TextField label={t("composer.cashReceived")} value={cashReceived} maxLength={9} inputMode="numeric" onChange={(value) => setCashReceived(value.replace(/\D/g, ""))} /><div className="mt-2 grid grid-cols-4 gap-2">{[total, 200, 500, 1000].filter((value, index, values) => values.indexOf(value) === index).map((value, index) => <button key={value} type="button" disabled={value < total} onClick={() => setCashReceived(String(value))} className="h-11 rounded-md border border-stone-300 bg-white text-xs font-semibold disabled:opacity-40">{index === 0 ? t("composer.exact") : value}</button>)}</div><div className="mt-3 flex justify-between bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900"><span>{t("composer.change")}</span><span>{formatMoney(change, stall.currency, locale)}</span></div></div> : null}
             </> : null}
 

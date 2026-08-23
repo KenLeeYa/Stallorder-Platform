@@ -62,6 +62,7 @@ import {
 import type { LiveResourceController } from "@/lib/use-live-resource";
 import type { AppLocale } from "@/lib/app-locale";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { playAlertSound } from "@/lib/browser-alert-sound";
 import {
   classifyFulfillmentForProduction,
   type FulfillmentProductionTiming,
@@ -122,10 +123,12 @@ export function useStaffOrderBoardController({
 }: StaffOrderBoardControllerInput): StaffOrderBoardPresentationProps {
   const { locale, t } = useOperationsLocale();
   const knownOrderIdsRef = useRef(new Set(initialOrders.map((order) => order.id)));
+  const remindedPreorderIdsRef = useRef(new Set<string>());
   const alertsEnabledRef = useRef(false);
   const [orders, setOrders] = useState(initialOrders);
   const [pickupCodes, setPickupCodes] = useState<Record<string, string>>({});
   const [verifyingPickupOrderId, setVerifyingPickupOrderId] = useState<string | null>(null);
+  const [pickupCheckoutOrderId, setPickupCheckoutOrderId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [liveConnection, setLiveConnection] = useState<StaffOrderLiveConnectionState>("connecting");
   const [message, setMessage] = useState("");
@@ -173,6 +176,7 @@ export function useStaffOrderBoardController({
   } = production;
   const cancellation = useStaffOrderCancellation({
     updatingOrderId,
+    requiresAuthorizationCode: !hasPermission(account.role, "APPROVE_DISCOUNT"),
     onConfirm: (orderId, options) => updateOrder(orderId, "CANCELLED", options),
   });
   const reconcileCancellation = cancellation.reconcile;
@@ -207,6 +211,22 @@ export function useStaffOrderBoardController({
     onInvalidTable: () => setMessage(t("staff.message.mergeOnlyTable")),
   });
   const reconcileCheckout = checkout.reconcile;
+  const playConfiguredAlert = useCallback(() => {
+    void playAlertSound({
+      preset: modules.orderAlertSoundPreset ?? "URGENT",
+      volume: modules.orderAlertVolume ?? 100,
+      repeatCount: modules.orderAlertRepeatCount ?? 2,
+      customUrl: modules.orderAlertSoundConfigured
+        ? `/api/stalls/${encodeURIComponent(stall.slug)}/alert-sound`
+        : null,
+    });
+  }, [
+    modules.orderAlertRepeatCount,
+    modules.orderAlertSoundConfigured,
+    modules.orderAlertSoundPreset,
+    modules.orderAlertVolume,
+    stall.slug,
+  ]);
 
   async function refreshPosConfiguration(
     includeCatalog = false,
@@ -228,9 +248,9 @@ export function useStaffOrderBoardController({
   const notifyNewOrders = useCallback((count: number) => {
     if (!alertsEnabledRef.current) return;
     if ("vibrate" in navigator) navigator.vibrate([180, 80, 180]);
-    playNotificationTone();
+    playConfiguredAlert();
     setMessage(t("staff.newOrders", { count }));
-  }, [t]);
+  }, [playConfiguredAlert, t]);
 
   const loadOrderSnapshot = useCallback((signal?: AbortSignal) => loadStaffOrderSnapshot({
     stallId: stall.id,
@@ -285,7 +305,7 @@ export function useStaffOrderBoardController({
     alertsEnabledRef.current = next;
     setAlertsEnabled(next);
     window.localStorage.setItem("stallorder_staff_order_alerts", next ? "enabled" : "disabled");
-    if (next) playNotificationTone();
+    if (next) playConfiguredAlert();
   }
 
   async function updateFulfillmentTime(
@@ -451,11 +471,26 @@ export function useStaffOrderBoardController({
   }
 
   async function openCheckout(orderOrOrders: OrderWithItems | OrderWithItems[]) {
+    const ordersToCheckout = Array.isArray(orderOrOrders) ? orderOrOrders : [orderOrOrders];
+    const requiresPickupVerification = ordersToCheckout.find((order) => (
+      order.fulfillmentType === "TAKEOUT"
+      && order.source === "QR_MENU"
+      && order.status === "READY"
+      && !order.pickupVerifiedAt
+    ));
+    if (requiresPickupVerification) {
+      setMessage("");
+      setPickupCheckoutOrderId(requiresPickupVerification.id);
+      return;
+    }
+    await openCheckoutDialog(ordersToCheckout);
+  }
+
+  async function openCheckoutDialog(ordersToCheckout: OrderWithItems[]) {
     setMessage("");
     const latest = await refreshPosConfiguration();
     const activeSnapshot = selectStaffOrderPosSnapshot(posSnapshot, latest);
     setPosSnapshot(activeSnapshot);
-    const ordersToCheckout = Array.isArray(orderOrOrders) ? orderOrOrders : [orderOrOrders];
     checkout.open({
       orders: ordersToCheckout,
       modules: activeSnapshot.modules,
@@ -463,11 +498,13 @@ export function useStaffOrderBoardController({
     });
   }
 
-  function completeSingleCheckout(
+  async function completeSingleCheckout(
     order: OrderWithItems,
     checkoutRequest: StaffOrderCheckoutRequest,
   ) {
-    return updateOrder(order.id, "COMPLETED", { checkout: checkoutRequest });
+    const completed = await updateOrder(order.id, "COMPLETED", { checkout: checkoutRequest });
+    if (completed && checkoutUsesCash(checkoutRequest)) notifyCashPaymentCompleted();
+    return completed;
   }
 
   async function completeTableCheckout({
@@ -490,6 +527,7 @@ export function useStaffOrderBoardController({
       }));
       setOrders((current) => current.filter((order) => !completedIds.has(order.id)));
       setMessage(t("staff.message.mergeDone", { count: completedIds.size }));
+      if (completedIds.size > 0 && checkoutUsesCash(checkoutRequest)) notifyCashPaymentCompleted();
       return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("staff.error.network"));
@@ -497,6 +535,17 @@ export function useStaffOrderBoardController({
     } finally {
       setUpdatingOrderId(null);
     }
+  }
+
+  function checkoutUsesCash(checkoutRequest: StaffOrderCheckoutRequest) {
+    if (!modules.payment) return true;
+    return paymentOptions.some((option) => (
+      option.id === checkoutRequest.paymentOptionId && option.kind === "CASH"
+    ));
+  }
+
+  function notifyCashPaymentCompleted() {
+    window.dispatchEvent(new Event("stallorder:cash-payment-completed"));
   }
 
   async function completePaidOrders(paidOrders: OrderWithItems[]) {
@@ -533,6 +582,7 @@ export function useStaffOrderBoardController({
         orderId,
         command: { mode: "CODE", code },
       });
+      const verifiedOrder = order ? { ...order, ...pickup } : null;
       setOrders((current) => current.map((order) => (
         order.id === orderId ? {
           ...order,
@@ -540,6 +590,10 @@ export function useStaffOrderBoardController({
         } : order
       )));
       setPickupCodes((current) => ({ ...current, [orderId]: "" }));
+      if (pickupCheckoutOrderId === orderId && verifiedOrder) {
+        setPickupCheckoutOrderId(null);
+        await openCheckoutDialog([verifiedOrder]);
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("staff.error.network"));
       setPickupCodes((current) => ({ ...current, [orderId]: "" }));
@@ -581,6 +635,10 @@ export function useStaffOrderBoardController({
           ...pickup,
         } : candidate
       )));
+      if (pickupCheckoutOrderId === order.id) {
+        setPickupCheckoutOrderId(null);
+        await openCheckoutDialog([{ ...order, ...pickup }]);
+      }
       return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("staff.error.network"));
@@ -630,20 +688,41 @@ export function useStaffOrderBoardController({
     () => filterStaffOrders(orders, query, locale),
     [locale, orders, query],
   );
-  const orderProductionTimings = useMemo(() => new Map(filteredOrders.map((order) => [
+  const orderProductionTimings = useMemo(() => new Map(orders.map((order) => [
     order.id,
     classifyFulfillmentForProduction(order, {
       timeZone: stall.timezone,
       businessDayCutoffHour: stall.businessDayCutoffHour,
       now: new Date(now),
     }),
-  ])), [filteredOrders, now, stall.businessDayCutoffHour, stall.timezone]);
+  ])), [now, orders, stall.businessDayCutoffHour, stall.timezone]);
   const futureOrders = useMemo(() => filteredOrders.filter((order) => (
     isFutureProductionOrder(order, orderProductionTimings.get(order.id))
   )), [filteredOrders, orderProductionTimings]);
   const operationalOrders = useMemo(() => filteredOrders.filter((order) => (
     !isFutureProductionOrder(order, orderProductionTimings.get(order.id))
   )), [filteredOrders, orderProductionTimings]);
+  const reminderOrderIds = useMemo(() => new Set(orders.flatMap((order) => {
+    const timing = orderProductionTimings.get(order.id);
+    const fulfillmentAt = timing?.effectiveFulfillmentAt?.getTime();
+    if (!fulfillmentAt
+      || order.status === "WAITING_CONFIRMATION"
+      || fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)
+      || order.items.every((item) => item.status === "SERVED")) return [];
+    const leadMilliseconds = (modules.preorderReminderMinutes ?? 30) * 60_000;
+    return now >= fulfillmentAt - leadMilliseconds ? [order.id] : [];
+  })), [modules.preorderReminderMinutes, now, orderProductionTimings, orders]);
+  useEffect(() => {
+    for (const orderId of remindedPreorderIdsRef.current) {
+      if (!reminderOrderIds.has(orderId)) remindedPreorderIdsRef.current.delete(orderId);
+    }
+    const newlyDue = [...reminderOrderIds].filter((orderId) => !remindedPreorderIdsRef.current.has(orderId));
+    newlyDue.forEach((orderId) => remindedPreorderIdsRef.current.add(orderId));
+    if (newlyDue.length === 0 || !alertsEnabledRef.current) return;
+    if ("vibrate" in navigator) navigator.vibrate([240, 100, 240, 100, 400]);
+    playConfiguredAlert();
+    setMessage(t("staff.preorder.reminder", { count: newlyDue.length }));
+  }, [playConfiguredAlert, reminderOrderIds, t]);
   const futureUnpaidTotal = futureOrders.reduce((sum, order) => (
     sum + (order.paymentStatus === "UNPAID" ? order.total : 0)
   ), 0);
@@ -696,6 +775,7 @@ export function useStaffOrderBoardController({
     futureOrdersExpanded,
     futureUnpaidTotal,
     orderProductionTimings,
+    reminderOrderIds,
     expandedOrderIds,
     orders,
     selectedItems,
@@ -705,6 +785,7 @@ export function useStaffOrderBoardController({
     diningTableGroups,
     selectedItemIds,
     pickupCodes,
+    pickupCheckoutOrderId,
     query,
     now,
     viewMode,
@@ -738,6 +819,15 @@ export function useStaffOrderBoardController({
     actions: {
       onClearSelectedItems: clearSelectedItems,
       onCloseComposer: () => setComposerOpen(false),
+      onClosePickupCheckout: () => {
+        setPickupCheckoutOrderId(null);
+        setPickupCodes((current) => {
+          if (!pickupCheckoutOrderId) return current;
+          const next = { ...current };
+          delete next[pickupCheckoutOrderId];
+          return next;
+        });
+      },
       onCompletePaidOrders: completePaidOrders,
       onCreated: handleStaffOrderCreated,
       onAddOrderEditProduct: addOrderEditProduct,
@@ -797,25 +887,4 @@ function formatStaffNoteOptions(
       : "";
     return `${option.groupName}${pairSeparator}${option.optionName}${price}`;
   }).join(optionSeparator);
-}
-function playNotificationTone() {
-  try {
-    const AudioContextClass = window.AudioContext
-      ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const context = new AudioContextClass();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.setValueAtTime(880, context.currentTime);
-    gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.24);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.25);
-    oscillator.addEventListener("ended", () => void context.close(), { once: true });
-  } catch {
-    // Some mobile browsers block audio until a user gesture; vibration still applies.
-  }
 }

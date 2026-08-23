@@ -102,12 +102,8 @@ describe("staff order checkout model", () => {
     expect(blocked.ready).toBe(false);
 
     state = staffOrderCheckoutReducer(state, {
-      type: "SET_MANAGER_EMAIL",
-      value: " manager@example.com ",
-    });
-    state = staffOrderCheckoutReducer(state, {
-      type: "SET_MANAGER_PASSWORD",
-      value: "secret",
+      type: "SET_MANAGER_AUTHORIZATION_CODE",
+      value: " 2468 ",
     });
     const ready = getStaffOrderCheckoutModel({
       state,
@@ -123,8 +119,7 @@ describe("staff order checkout model", () => {
       discountOptionId: "discount-20",
       cashReceived: 200,
       discountApprovalReason: "現場補償",
-      managerEmail: "manager@example.com",
-      managerPassword: "secret",
+      managerAuthorizationCode: "2468",
     });
   });
 

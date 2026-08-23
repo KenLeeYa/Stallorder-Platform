@@ -1,6 +1,6 @@
 import type { QrLocale } from "@/lib/qr-order-i18n";
 
-export type TranslationEntityType = "PRODUCT" | "PRODUCT_DESCRIPTION" | "NOTE_GROUP" | "NOTE_OPTION";
+export type TranslationEntityType = "CATEGORY" | "PRODUCT_GROUP" | "PRODUCT" | "PRODUCT_DESCRIPTION" | "NOTE_GROUP" | "NOTE_OPTION";
 
 export type TranslationMissingItem = {
   entityType: TranslationEntityType;
@@ -24,6 +24,12 @@ type ProductInput = {
   isActive: boolean;
   translations: Translation[];
 };
+type TaxonomyInput = {
+  id: string;
+  name: string;
+  isActive: boolean;
+  translations: Translation[];
+};
 type NoteOptionInput = {
   id: string;
   name: string;
@@ -42,12 +48,28 @@ export function calculateTranslationCoverage(
   locales: readonly QrLocale[],
   products: readonly ProductInput[],
   noteGroups: readonly NoteGroupInput[],
+  categories: readonly TaxonomyInput[] = [],
+  productGroups: readonly TaxonomyInput[] = [],
 ) {
   return locales.map((locale): TranslationCoverage => {
     const missing: TranslationMissingItem[] = [];
     let completed = 0;
     let total = 0;
     const sourceLocale = locale === "zh-TW";
+
+    for (const category of categories.filter((item) => item.isActive)) {
+      const translation = category.translations.find((item) => item.locale === locale);
+      total += 1;
+      if (sourceLocale || translation?.name.trim()) completed += 1;
+      else missing.push({ entityType: "CATEGORY", entityId: category.id, sourceName: category.name });
+    }
+
+    for (const group of productGroups.filter((item) => item.isActive)) {
+      const translation = group.translations.find((item) => item.locale === locale);
+      total += 1;
+      if (sourceLocale || translation?.name.trim()) completed += 1;
+      else missing.push({ entityType: "PRODUCT_GROUP", entityId: group.id, sourceName: group.name });
+    }
 
     for (const product of products.filter((item) => item.isActive)) {
       const translation = product.translations.find((item) => item.locale === locale);

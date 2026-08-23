@@ -59,6 +59,8 @@ export async function translateMissingCatalogContent({
     targetLocales: locales,
     requestedTargets: targetCount,
     translatedFields: persisted.translatedFields,
+    translatedCategories: persisted.translatedCategories,
+    translatedProductGroups: persisted.translatedProductGroups,
     translatedProducts: persisted.translatedProducts,
     translatedNoteGroups: persisted.translatedNoteGroups,
     translatedNoteOptions: persisted.translatedNoteOptions,
@@ -67,7 +69,26 @@ export async function translateMissingCatalogContent({
 }
 
 async function loadTranslationSource(organizationId: string): Promise<CatalogTranslationSource> {
-  const [products, noteGroups, reusableNotes] = await Promise.all([
+  const [categories, productGroups, products, noteGroups, reusableNotes] = await Promise.all([
+    prisma.productCategory.findMany({
+      where: { organizationId, isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        translations: { select: { locale: true, name: true } },
+      },
+    }),
+    prisma.productGroup.findMany({
+      where: { organizationId, isActive: true, category: { isActive: true } },
+      orderBy: [{ category: { sortOrder: "asc" } }, { sortOrder: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        category: { select: { name: true } },
+        translations: { select: { locale: true, name: true } },
+      },
+    }),
     prisma.product.findMany({
       where: { organizationId, isActive: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -112,6 +133,13 @@ async function loadTranslationSource(organizationId: string): Promise<CatalogTra
   ]);
 
   return {
+    categories,
+    productGroups: productGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      categoryName: group.category.name,
+      translations: group.translations,
+    })),
     products: products.map((product) => ({
       id: product.id,
       name: product.name,
@@ -132,11 +160,40 @@ async function persistTranslations(
   try {
     return await prisma.$transaction(async (transaction) => {
       const locales = [...new Set(translations.map((translation) => translation.locale))];
+      const categoryIds = uniqueEntityIds(translations, "CATEGORY");
+      const productGroupIds = uniqueEntityIds(translations, "PRODUCT_GROUP");
       const productIds = uniqueEntityIds(translations, "PRODUCT");
       const noteGroupIds = uniqueEntityIds(translations, "NOTE_GROUP");
       const noteOptionIds = uniqueEntityIds(translations, "NOTE_OPTION");
       const reusableNoteIds = uniqueEntityIds(translations, "REUSABLE_NOTE");
-      const [products, noteGroups, noteOptions, reusableNotes] = await Promise.all([
+      const [categories, productGroups, products, noteGroups, noteOptions, reusableNotes] = await Promise.all([
+        transaction.productCategory.findMany({
+          where: { organizationId, id: { in: categoryIds }, isActive: true },
+          select: {
+            id: true,
+            name: true,
+            translations: {
+              where: { locale: { in: locales } },
+              select: { locale: true, name: true },
+            },
+          },
+        }),
+        transaction.productGroup.findMany({
+          where: {
+            organizationId,
+            id: { in: productGroupIds },
+            isActive: true,
+            category: { isActive: true },
+          },
+          select: {
+            id: true,
+            name: true,
+            translations: {
+              where: { locale: { in: locales } },
+              select: { locale: true, name: true },
+            },
+          },
+        }),
         transaction.product.findMany({
           where: { organizationId, id: { in: productIds }, isActive: true },
           select: {
@@ -190,7 +247,9 @@ async function persistTranslations(
       ]);
 
       if (
-        products.length !== productIds.length
+        categories.length !== categoryIds.length
+        || productGroups.length !== productGroupIds.length
+        || products.length !== productIds.length
         || noteGroups.length !== noteGroupIds.length
         || noteOptions.length !== noteOptionIds.length
         || reusableNotes.length !== reusableNoteIds.length
@@ -198,12 +257,22 @@ async function persistTranslations(
         throw new CatalogTranslationSourceChangedError("翻譯期間商品資料已變更。");
       }
 
+      const categoriesById = new Map(categories.map((category) => [category.id, category]));
+      const productGroupsById = new Map(productGroups.map((group) => [group.id, group]));
       const productsById = new Map(products.map((product) => [product.id, product]));
       const noteGroupsById = new Map(noteGroups.map((group) => [group.id, group]));
       const noteOptionsById = new Map(noteOptions.map((option) => [option.id, option]));
       const reusableNotesById = new Map(reusableNotes.map((note) => [note.id, note]));
       for (const translation of translations) {
-        if (translation.entityType === "PRODUCT") {
+        if (translation.entityType === "CATEGORY") {
+          if (categoriesById.get(translation.entityId)?.name !== translation.sourceName) {
+            throw new CatalogTranslationSourceChangedError("翻譯期間商品分類原文已變更。");
+          }
+        } else if (translation.entityType === "PRODUCT_GROUP") {
+          if (productGroupsById.get(translation.entityId)?.name !== translation.sourceName) {
+            throw new CatalogTranslationSourceChangedError("翻譯期間商品群組原文已變更。");
+          }
+        } else if (translation.entityType === "PRODUCT") {
           const product = productsById.get(translation.entityId);
           if (
             product?.name !== translation.sourceName
@@ -224,6 +293,8 @@ async function persistTranslations(
         }
       }
 
+      const currentCategories = translationMap(categories);
+      const currentProductGroups = translationMap(productGroups);
       const currentProducts = translationMap(products);
       const currentNoteGroups = translationMap(noteGroups);
       const currentNoteOptions = translationMap(noteOptions);
@@ -237,6 +308,49 @@ async function persistTranslations(
       for (let index = 0; index < translations.length; index += DATABASE_WRITE_BATCH_SIZE) {
         const batch = translations.slice(index, index + DATABASE_WRITE_BATCH_SIZE);
         results.push(...await Promise.all(batch.map(async (translation) => {
+          if (translation.entityType === "CATEGORY" || translation.entityType === "PRODUCT_GROUP") {
+            const currentMap = translation.entityType === "CATEGORY"
+              ? currentCategories
+              : currentProductGroups;
+            const existing = currentMap.get(mapKey(translation.entityId, translation.locale));
+            const name = existing?.name.trim() || translation.name;
+            if (!name) throw new CatalogTranslationSourceChangedError("商品分類或群組翻譯名稱已失效。");
+            const translatedFields = Number(!existing?.name.trim() && Boolean(translation.name));
+            if (translation.entityType === "CATEGORY") {
+              await transaction.productCategoryTranslation.upsert({
+                where: {
+                  categoryId_locale: {
+                    categoryId: translation.entityId,
+                    locale: translation.locale,
+                  },
+                },
+                create: {
+                  organizationId,
+                  categoryId: translation.entityId,
+                  locale: translation.locale,
+                  name,
+                },
+                update: { name },
+              });
+            } else {
+              await transaction.productGroupTranslation.upsert({
+                where: {
+                  groupId_locale: {
+                    groupId: translation.entityId,
+                    locale: translation.locale,
+                  },
+                },
+                create: {
+                  organizationId,
+                  groupId: translation.entityId,
+                  locale: translation.locale,
+                  name,
+                },
+                update: { name },
+              });
+            }
+            return { entityType: translation.entityType, entityId: translation.entityId, translatedFields };
+          }
           if (translation.entityType === "PRODUCT") {
             const existing = currentProducts.get(mapKey(translation.entityId, translation.locale));
             const name = existing?.name.trim() || translation.name;
@@ -377,6 +491,12 @@ function summarizeWrites(
   const changed = writes.filter((write) => write.translatedFields > 0);
   return {
     translatedFields: changed.reduce((total, write) => total + write.translatedFields, 0),
+    translatedCategories: new Set(
+      changed.filter((write) => write.entityType === "CATEGORY").map((write) => write.entityId),
+    ).size,
+    translatedProductGroups: new Set(
+      changed.filter((write) => write.entityType === "PRODUCT_GROUP").map((write) => write.entityId),
+    ).size,
     translatedProducts: new Set(
       changed.filter((write) => write.entityType === "PRODUCT").map((write) => write.entityId),
     ).size,
@@ -397,6 +517,8 @@ function emptySummary(locales: readonly TranslationLocale[]) {
     targetLocales: locales,
     requestedTargets: 0,
     translatedFields: 0,
+    translatedCategories: 0,
+    translatedProductGroups: 0,
     translatedProducts: 0,
     translatedNoteGroups: 0,
     translatedNoteOptions: 0,

@@ -7,12 +7,31 @@ export async function getOrganizationCatalog(organizationId: string, authorizedS
     prisma.productCategory.findMany({
       where: { organizationId },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, sortOrder: true, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        sortOrder: true,
+        isActive: true,
+        translations: {
+          orderBy: { locale: "asc" },
+          select: { locale: true, name: true },
+        },
+      },
     }),
     prisma.productGroup.findMany({
       where: { organizationId },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, categoryId: true, name: true, sortOrder: true, isActive: true },
+      select: {
+        id: true,
+        categoryId: true,
+        name: true,
+        sortOrder: true,
+        isActive: true,
+        translations: {
+          orderBy: { locale: "asc" },
+          select: { locale: true, name: true },
+        },
+      },
     }),
     prisma.product.findMany({
       where: { organizationId },

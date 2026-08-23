@@ -50,8 +50,9 @@ import type {
   ProductKindValue,
 } from "@/lib/product-bundle-types";
 
-type Category = { id: string; name: string; sortOrder: number; isActive: boolean };
-type Group = { id: string; categoryId: string; name: string; sortOrder: number; isActive: boolean };
+type TaxonomyTranslation = { locale: string; name: string };
+type Category = { id: string; name: string; sortOrder: number; isActive: boolean; translations: TaxonomyTranslation[] };
+type Group = { id: string; categoryId: string; name: string; sortOrder: number; isActive: boolean; translations: TaxonomyTranslation[] };
 type Assignment = {
   id: string;
   stallId: string;
@@ -395,7 +396,7 @@ export function SharedCatalogManager({
 
   function createCategory() {
     clearEditorFeedback();
-    setCategoryDraft({ name: "", sortOrder: catalog.categories.length + 1, isActive: true });
+    setCategoryDraft({ name: "", sortOrder: catalog.categories.length + 1, isActive: true, translations: [] });
   }
 
   function createGroup() {
@@ -405,6 +406,7 @@ export function SharedCatalogManager({
       name: "",
       sortOrder: catalog.groups.length + 1,
       isActive: true,
+      translations: [],
     });
   }
 
@@ -428,7 +430,7 @@ export function SharedCatalogManager({
     const category = sortedCategories.find((item) => item.isActive);
     if (!category) {
       setMessage(label("請先建立可用的商品分類。"));
-      setCategoryDraft({ name: "", sortOrder: catalog.categories.length + 1, isActive: true });
+      setCategoryDraft({ name: "", sortOrder: catalog.categories.length + 1, isActive: true, translations: [] });
       return;
     }
     const group = catalog.groups.find((item) => item.categoryId === category.id && item.isActive);
@@ -455,8 +457,8 @@ export function SharedCatalogManager({
     if (!categoryDraft) return;
     const ok = await runCommand(
       categoryDraft.id
-        ? { operation: "UPDATE_CATEGORY", categoryId: categoryDraft.id, name: categoryDraft.name, sortOrder: categoryDraft.sortOrder, isActive: categoryDraft.isActive }
-        : { operation: "CREATE_CATEGORY", name: categoryDraft.name, sortOrder: categoryDraft.sortOrder },
+        ? { operation: "UPDATE_CATEGORY", categoryId: categoryDraft.id, name: categoryDraft.name, sortOrder: categoryDraft.sortOrder, isActive: categoryDraft.isActive, translations: categoryDraft.translations.filter((translation) => translation.name.trim()) }
+        : { operation: "CREATE_CATEGORY", name: categoryDraft.name, sortOrder: categoryDraft.sortOrder, translations: categoryDraft.translations.filter((translation) => translation.name.trim()) },
       categoryDraft.id ? label("分類已更新。") : label("分類已新增。"),
       "editor",
     );
@@ -468,12 +470,13 @@ export function SharedCatalogManager({
     if (!groupDraft) return;
     const ok = await runCommand(
       groupDraft.id
-        ? { operation: "UPDATE_GROUP", groupId: groupDraft.id, categoryId: groupDraft.categoryId, name: groupDraft.name, sortOrder: groupDraft.sortOrder, isActive: groupDraft.isActive }
+        ? { operation: "UPDATE_GROUP", groupId: groupDraft.id, categoryId: groupDraft.categoryId, name: groupDraft.name, sortOrder: groupDraft.sortOrder, isActive: groupDraft.isActive, translations: groupDraft.translations.filter((translation) => translation.name.trim()) }
         : {
           operation: "CREATE_GROUP",
           categoryId: groupDraft.categoryId,
           name: groupDraft.name,
           sortOrder: groupDraft.sortOrder,
+          translations: groupDraft.translations.filter((translation) => translation.name.trim()),
         },
       groupDraft.id ? label("群組已更新。") : label("群組已新增。"),
       "editor",
@@ -604,14 +607,26 @@ export function SharedCatalogManager({
     });
   }
 
+  function updateTaxonomyTranslation(kind: "CATEGORY" | "GROUP", locale: string, name: string) {
+    const update = (translations: TaxonomyTranslation[]) => [
+      ...translations.filter((translation) => translation.locale !== locale),
+      { locale, name },
+    ];
+    if (kind === "CATEGORY") {
+      setCategoryDraft((current) => current ? { ...current, translations: update(current.translations) } : current);
+    } else {
+      setGroupDraft((current) => current ? { ...current, translations: update(current.translations) } : current);
+    }
+  }
+
   async function toggleActive(kind: "CATEGORY" | "GROUP" | "PRODUCT", item: Category | Group | Product) {
     const nextActive = !item.isActive;
     if (!nextActive && !window.confirm(m("確定停用「{value0}」？商品與歷史訂單資料仍會保留。", { value0: item.name }))) return;
     if (kind === "CATEGORY") {
-      await runCommand({ operation: "UPDATE_CATEGORY", categoryId: item.id, name: item.name, sortOrder: item.sortOrder, isActive: nextActive }, nextActive ? label("分類已恢復。") : label("分類已停用。"));
+      await runCommand({ operation: "UPDATE_CATEGORY", categoryId: item.id, name: item.name, sortOrder: item.sortOrder, isActive: nextActive, translations: (item as Category).translations }, nextActive ? label("分類已恢復。") : label("分類已停用。"));
     } else if (kind === "GROUP") {
       const group = item as Group;
-      await runCommand({ operation: "UPDATE_GROUP", groupId: group.id, categoryId: group.categoryId, name: group.name, sortOrder: group.sortOrder, isActive: nextActive }, nextActive ? label("群組已恢復。") : label("群組已停用。"));
+      await runCommand({ operation: "UPDATE_GROUP", groupId: group.id, categoryId: group.categoryId, name: group.name, sortOrder: group.sortOrder, isActive: nextActive, translations: group.translations }, nextActive ? label("群組已恢復。") : label("群組已停用。"));
     } else {
       const product = item as Product;
       await runCommand({ operation: "UPDATE_PRODUCT", productId: product.id, categoryId: product.categoryId, groupId: product.groupId, name: product.name, description: product.description, defaultPrice: product.defaultPrice, kind: product.kind, imageUrl: product.imageUrl, sortOrder: product.sortOrder, isActive: nextActive, translations: product.translations }, nextActive ? label("商品已恢復。") : label("商品已停用並停止各攤供應。"));
@@ -903,6 +918,7 @@ export function SharedCatalogManager({
         >
           <form noValidate onSubmit={saveCategory} className="grid gap-4">
             <TextField label={label("分類名稱")} fieldKey="name" error={editorFieldErrors.name} value={categoryDraft.name} onChange={(name) => { clearEditorField("name"); setCategoryDraft({ ...categoryDraft, name }); }} />
+            {translationOptions.map((option) => <TextField key={option.locale} label={m("{value0}名稱", { value0: option.label })} value={categoryDraft.translations.find((translation) => translation.locale === option.locale)?.name ?? ""} required={false} onChange={(name) => updateTaxonomyTranslation("CATEGORY", option.locale, name)} />)}
             <NumberField label={label("排序")} fieldKey="sortOrder" error={editorFieldErrors.sortOrder} value={categoryDraft.sortOrder} onChange={(sortOrder) => { clearEditorField("sortOrder"); setCategoryDraft({ ...categoryDraft, sortOrder }); }} />
             {categoryDraft.id ? <CheckField label={label("啟用分類")} checked={categoryDraft.isActive} onChange={(isActive) => setCategoryDraft({ ...categoryDraft, isActive })} /> : null}
             <SubmitButton busy={busy} />
@@ -920,6 +936,7 @@ export function SharedCatalogManager({
           <form noValidate onSubmit={saveGroup} className="grid gap-4">
             <SelectField label={label("所屬分類")} fieldKey="categoryId" error={editorFieldErrors.categoryId} value={groupDraft.categoryId} options={sortedCategories.map((category) => ({ value: category.id, label: category.name }))} onChange={(categoryId) => { clearEditorField("categoryId"); setGroupDraft({ ...groupDraft, categoryId }); }} />
             <TextField label={label("群組名稱")} fieldKey="name" error={editorFieldErrors.name} value={groupDraft.name} onChange={(name) => { clearEditorField("name"); setGroupDraft({ ...groupDraft, name }); }} />
+            {translationOptions.map((option) => <TextField key={option.locale} label={m("{value0}名稱", { value0: option.label })} value={groupDraft.translations.find((translation) => translation.locale === option.locale)?.name ?? ""} required={false} onChange={(name) => updateTaxonomyTranslation("GROUP", option.locale, name)} />)}
             <NumberField label={label("排序")} fieldKey="sortOrder" error={editorFieldErrors.sortOrder} value={groupDraft.sortOrder} onChange={(sortOrder) => { clearEditorField("sortOrder"); setGroupDraft({ ...groupDraft, sortOrder }); }} />
             {groupDraft.id ? <CheckField label={label("啟用群組")} checked={groupDraft.isActive} onChange={(isActive) => setGroupDraft({ ...groupDraft, isActive })} /> : null}
             <SubmitButton busy={busy} />

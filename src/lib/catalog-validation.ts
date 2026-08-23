@@ -52,12 +52,20 @@ const productTranslations = z.array(z.object({
   (translations) => new Set(translations.map((translation) => translation.locale)).size === translations.length,
   { message: "商品翻譯語系不可重複。" },
 ).default([]);
+const taxonomyTranslations = z.array(z.object({
+  locale: z.enum(supportedProductLocales),
+  name: singleLineText({ minimum: 1, maximum: 120 }),
+}).strict()).max(supportedProductLocales.length).refine(
+  (translations) => new Set(translations.map((translation) => translation.locale)).size === translations.length,
+  { message: "分類或群組翻譯語系不可重複。" },
+);
 
 export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
   z.object({
     operation: z.literal("CREATE_CATEGORY"),
     name: catalogName,
     sortOrder,
+    translations: taxonomyTranslations.default([]),
   }).strict(),
   z.object({
     operation: z.literal("UPDATE_CATEGORY"),
@@ -65,12 +73,14 @@ export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
     name: catalogName,
     sortOrder,
     isActive: z.boolean(),
+    translations: taxonomyTranslations.optional(),
   }).strict(),
   z.object({
     operation: z.literal("CREATE_GROUP"),
     categoryId: uuid,
     name: catalogName,
     sortOrder,
+    translations: taxonomyTranslations.default([]),
   }).strict(),
   z.object({
     operation: z.literal("UPDATE_GROUP"),
@@ -79,6 +89,7 @@ export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
     name: catalogName,
     sortOrder,
     isActive: z.boolean(),
+    translations: taxonomyTranslations.optional(),
   }).strict(),
   z.object({
     operation: z.literal("CREATE_PRODUCT"),

@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { isOptimizableProductImageUrl, isRenderableProductImageUrl } from "./product-image-url";
+import {
+  isOptimizableProductImageUrl,
+  isRenderableProductImageUrl,
+  normalizeProductImageUrl,
+} from "./product-image-url";
 
 describe("product image URL allowlist", () => {
   const supabaseUrl = "https://project-ref.supabase.co";
+
+  it("normalizes locally stored absolute asset URLs for LAN clients", () => {
+    expect(normalizeProductImageUrl(
+      "http://127.0.0.1:3010/api/assets/product-images/org/stall-banners/stall/banner.webp",
+    )).toBe("/api/assets/product-images/org/stall-banners/stall/banner.webp");
+  });
 
   it("accepts only the public product image bucket for optimization", () => {
     expect(isOptimizableProductImageUrl(

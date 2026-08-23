@@ -1,6 +1,10 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import {
+  compareConfiguredProductOrder,
+  UNGROUPED_PRODUCT_SORT_ORDER,
+} from "@/lib/configured-product-order";
 import { DEFAULT_DINING_FLOOR_NAME } from "@/lib/dining-floor";
 import type { StaffOrderCatalog } from "@/lib/staff-order-contract";
 import { getStaffFulfillmentModules } from "@/lib/staff-fulfillment";
@@ -25,6 +29,7 @@ export async function getStaffOrderPageConfiguration(
       orderBy: [{ sortOrder: "asc" }, { product: { sortOrder: "asc" } }],
       select: {
         priceOverride: true,
+        sortOrder: true,
         product: {
           select: {
             id: true,
@@ -35,7 +40,9 @@ export async function getStaffOrderPageConfiguration(
             kind: true,
             imageUrl: true,
             isOrderDiscountEligible: true,
-            category: { select: { name: true } },
+            sortOrder: true,
+            category: { select: { name: true, sortOrder: true } },
+            group: { select: { name: true, sortOrder: true } },
             bundleChoiceGroups: {
               orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
               select: {
@@ -118,6 +125,11 @@ export async function getStaffOrderPageConfiguration(
         paymentModuleEnabled: true,
         discountModuleEnabled: true,
         discountApprovalThresholdBps: true,
+        preorderReminderMinutes: true,
+        orderAlertSoundPreset: true,
+        orderAlertSoundObjectPath: true,
+        orderAlertVolume: true,
+        orderAlertRepeatCount: true,
         businessDayCutoffHour: true,
         maxItemQuantity: true,
         maxUniqueProducts: true,
@@ -134,6 +146,11 @@ export async function getStaffOrderPageConfiguration(
         paymentModuleEnabled: true,
         discountModuleEnabled: true,
         discountApprovalThresholdBps: true,
+        preorderReminderMinutes: true,
+        orderAlertSoundPreset: true,
+        orderAlertSoundObjectPath: true,
+        orderAlertVolume: true,
+        orderAlertRepeatCount: true,
         businessDayCutoffHour: true,
         maxItemQuantity: true,
         maxUniqueProducts: true,
@@ -150,7 +167,24 @@ export async function getStaffOrderPageConfiguration(
   const fulfillmentSlots = Array.isArray(fulfillmentSlotRows[0]?.slots)
     ? fulfillmentSlotRows[0].slots.filter((slot): slot is string => typeof slot === "string")
     : [];
-  const catalogProducts = assignments.flatMap((assignment) => {
+  const catalogProducts = [...assignments].sort((left, right) => compareConfiguredProductOrder(
+    {
+      categorySortOrder: left.product.category.sortOrder,
+      groupSortOrder: left.product.group?.sortOrder ?? UNGROUPED_PRODUCT_SORT_ORDER,
+      productSortOrder: left.product.sortOrder,
+      stallProductSortOrder: left.sortOrder,
+      name: left.product.name,
+      id: left.product.id,
+    },
+    {
+      categorySortOrder: right.product.category.sortOrder,
+      groupSortOrder: right.product.group?.sortOrder ?? UNGROUPED_PRODUCT_SORT_ORDER,
+      productSortOrder: right.product.sortOrder,
+      stallProductSortOrder: right.sortOrder,
+      name: right.product.name,
+      id: right.product.id,
+    },
+  )).flatMap((assignment) => {
     const bundleChoiceGroups = assignment.product.bundleChoiceGroups.map((group) => ({
       id: group.id,
       name: group.name,
@@ -197,6 +231,7 @@ export async function getStaffOrderPageConfiguration(
       name: assignment.product.name,
       description: assignment.product.description,
       category: assignment.product.category.name,
+      group: assignment.product.group?.name ?? null,
       price: assignment.priceOverride ?? assignment.product.defaultPrice,
       isOrderDiscountEligible: assignment.product.isOrderDiscountEligible,
       kind: assignment.product.kind,
@@ -215,6 +250,11 @@ export async function getStaffOrderPageConfiguration(
       payment: settings?.paymentModuleEnabled ?? false,
       discount: settings?.discountModuleEnabled ?? false,
       discountApprovalThresholdBps: settings?.discountApprovalThresholdBps ?? 8000,
+      preorderReminderMinutes: settings?.preorderReminderMinutes ?? 30,
+      orderAlertSoundPreset: normalizeOrderAlertSoundPreset(settings?.orderAlertSoundPreset),
+      orderAlertSoundConfigured: Boolean(settings?.orderAlertSoundObjectPath),
+      orderAlertVolume: settings?.orderAlertVolume ?? 100,
+      orderAlertRepeatCount: settings?.orderAlertRepeatCount ?? 2,
     },
     catalog: includeCatalog && settings ? {
       products: catalogProducts,
@@ -231,4 +271,8 @@ export async function getStaffOrderPageConfiguration(
       },
     } satisfies StaffOrderCatalog : null,
   };
+}
+
+function normalizeOrderAlertSoundPreset(value: string | null | undefined): "URGENT" | "BELL" | "CHIME" | "CUSTOM" {
+  return value === "BELL" || value === "CHIME" || value === "CUSTOM" ? value : "URGENT" as const;
 }

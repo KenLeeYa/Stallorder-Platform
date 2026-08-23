@@ -54,8 +54,7 @@ export type StaffOrderCheckoutController = {
   selectDiscount: (discountOptionId: string | null) => void;
   setCashReceived: (value: string) => void;
   setDiscountApprovalReason: (value: string) => void;
-  setManagerEmail: (value: string) => void;
-  setManagerPassword: (value: string) => void;
+  setManagerAuthorizationCode: (value: string) => void;
   complete: () => Promise<void>;
 };
 
@@ -108,11 +107,8 @@ export function useStaffOrderCheckout({
   const setDiscountApprovalReason = useCallback((value: string) => {
     dispatch({ type: "SET_DISCOUNT_APPROVAL_REASON", value });
   }, []);
-  const setManagerEmail = useCallback((value: string) => {
-    dispatch({ type: "SET_MANAGER_EMAIL", value });
-  }, []);
-  const setManagerPassword = useCallback((value: string) => {
-    dispatch({ type: "SET_MANAGER_PASSWORD", value });
+  const setManagerAuthorizationCode = useCallback((value: string) => {
+    dispatch({ type: "SET_MANAGER_AUTHORIZATION_CODE", value });
   }, []);
 
   const complete = useCallback(async () => {
@@ -134,7 +130,7 @@ export function useStaffOrderCheckout({
       checkout: model.request,
     });
     if (completed) dismiss();
-    else dispatch({ type: "RESET_MANAGER_PASSWORD" });
+    else dispatch({ type: "RESET_MANAGER_AUTHORIZATION_CODE" });
   }, [dismiss, model.request, onCompleteSingle, onCompleteTable, onInvalidTable, state.orders]);
 
   useEffect(() => {
@@ -159,8 +155,7 @@ export function useStaffOrderCheckout({
     selectDiscount,
     setCashReceived,
     setDiscountApprovalReason,
-    setManagerEmail,
-    setManagerPassword,
+    setManagerAuthorizationCode,
     complete,
   };
 }
@@ -274,7 +269,7 @@ export function StaffOrderCheckoutDialog({
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" />
               <div>
                 <h3 className="text-sm font-semibold text-amber-950">此折扣超過店員免核准門檻</h3>
-                <p className="mt-1 text-xs text-amber-900">請填寫原因；店員另須由經理輸入帳號密碼驗證。</p>
+                <p className="mt-1 text-xs text-amber-900">請填寫原因；店員另須由經理或老闆輸入管理授權碼。</p>
               </div>
             </div>
             <label className="mt-3 block text-xs font-semibold text-stone-700">
@@ -288,26 +283,17 @@ export function StaffOrderCheckoutDialog({
               />
             </label>
             {!model.operatorCanApproveDiscount ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="mt-3">
                 <label className="text-xs font-semibold text-stone-700">
-                  經理帳號
-                  <input
-                    type="email"
-                    autoComplete="username"
-                    value={state.managerEmail}
-                    maxLength={254}
-                    onChange={(event) => controller.setManagerEmail(event.target.value)}
-                    className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"
-                  />
-                </label>
-                <label className="text-xs font-semibold text-stone-700">
-                  經理密碼
+                  管理授權碼
                   <input
                     type="password"
-                    autoComplete="current-password"
-                    value={state.managerPassword}
-                    maxLength={128}
-                    onChange={(event) => controller.setManagerPassword(event.target.value)}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="one-time-code"
+                    value={state.managerAuthorizationCode}
+                    maxLength={8}
+                    onChange={(event) => controller.setManagerAuthorizationCode(event.target.value.replace(/\D/g, "").slice(0, 8))}
                     className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"
                   />
                 </label>

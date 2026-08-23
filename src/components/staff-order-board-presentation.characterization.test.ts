@@ -62,6 +62,6 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain('aria-label={t("staff.view.orderMode")}');
     expect(presentationSource).toContain("aria-expanded={expanded}");
     expect(presentationSource).toContain('aria-haspopup={option.value === "CANCELLED" ? "dialog" : undefined}');
-    expect(presentationSource).toContain('aria-busy={verifyingPickupOrderId === order.id}');
+    expect(presentationSource).toContain('aria-busy={verifyingPickupOrderId === pickupCheckoutOrder.id}');
   });
 });

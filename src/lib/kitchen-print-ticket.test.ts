@@ -200,6 +200,59 @@ describe("58mm kitchen ticket", () => {
     expect(payload.content.match(/2× 牛肉湯河粉/g)).toHaveLength(2);
   });
 
+  it("honors compact receipt content and feed settings", () => {
+    const payload = createCustomerReceiptPayload({
+      stallName: baseInput.stallName,
+      timeZone: baseInput.timeZone,
+      currency: "TWD",
+      printedAt: baseInput.printedAt,
+      isReprint: false,
+      paperWidthMm: 58,
+      fontScale: 1,
+      feedLines: 1,
+      showCustomerName: false,
+      showCustomerPhone: false,
+      showDeliveryAddress: false,
+      showOrderNote: false,
+      showItemNotes: false,
+      showPrices: false,
+      showPaymentMethod: false,
+      copies: 1,
+      order: {
+        orderNo: baseInput.order.orderNo,
+        fulfillmentType: "DELIVERY",
+        tableLabel: null,
+        customerName: "王小姐",
+        customerPhone: "0912345678",
+        deliveryAddress: "台中市測試路 1 號",
+        note: "整單備註",
+        createdAt: baseInput.order.createdAt,
+        subtotal: 150,
+        discountAmount: 0,
+        total: 150,
+        paymentStatus: "PAID",
+        paymentMethodLabel: "LINE Pay",
+        items: [{
+          name: "牛肉湯河粉",
+          quantity: 1,
+          unitPrice: 150,
+          note: "不要香菜",
+          noteOptions: [{ optionName: "加麵" }],
+        }],
+      },
+    });
+    const bytes = Buffer.from(kitchenTicketCommandBytes(payload));
+
+    expect(payload.content).toContain("1× 牛肉湯河粉");
+    expect(payload.content).not.toContain("王小姐");
+    expect(payload.content).not.toContain("0912345678");
+    expect(payload.content).not.toContain("台中市測試路");
+    expect(payload.content).not.toContain("不要香菜");
+    expect(payload.content).not.toContain("$150");
+    expect(payload.content).not.toContain("LINE Pay");
+    expect(bytes.subarray(-3)).toEqual(Buffer.from([0x1b, 0x64, 0x01]));
+  });
+
   it("creates a self-contained printer test for a 57–58 mm roll", () => {
     const payload = createPrinterTestPayload({
       stallName: "越好吃一中店",

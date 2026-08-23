@@ -628,7 +628,7 @@ describe("Circuit B public order service", () => {
       diningTableId: null,
       quotedWaitMinutes: 10,
       quotedReadyAt: new Date("2026-08-06T04:10:00.000Z"),
-      stall: { orderingSettings: { estimatedWaitMinutes: 15 } },
+      stall: { code: "LEGACY", orderingSettings: { estimatedWaitMinutes: 15 } },
     });
     const { getOrderThroughCircuitB } = await import("./circuit-b-service");
 

@@ -10,6 +10,11 @@ export type StaffOrderPosModules = {
   payment: boolean;
   discount: boolean;
   discountApprovalThresholdBps: number;
+  preorderReminderMinutes?: number;
+  orderAlertSoundPreset?: "URGENT" | "BELL" | "CHIME" | "CUSTOM";
+  orderAlertSoundConfigured?: boolean;
+  orderAlertVolume?: number;
+  orderAlertRepeatCount?: number;
 };
 
 export type StaffOrderPosPaymentOption = {

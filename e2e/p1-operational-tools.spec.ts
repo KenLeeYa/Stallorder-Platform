@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { hash } from "bcryptjs";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -11,12 +12,14 @@ const password = "StallOrderDemo!2026";
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const primaryStallId = "22222222-2222-4222-8222-222222222222";
 const tableQrToken = "demo-aming-chicken-table-a1-qr-2026";
+const managerAuthorizationCode = "2468";
 const sourceSlug = "p1-template-source";
 const targetSlug = "p1-template-target";
 let sourceStallId = "";
 let targetStallId = "";
 let highDiscountId = "";
 let additionalStallApprovalId = "";
+let originalManagerAuthorizationCodeHash: string | null = null;
 
 test.describe("P1 營運功能", () => {
   test.describe.configure({ mode: "serial" });
@@ -36,6 +39,15 @@ test.describe("P1 營運功能", () => {
     await prisma.orderSession.deleteMany({ where: { order: { customerName: { startsWith: "P1 E2E" } } } });
     await prisma.order.deleteMany({ where: { stallId: primaryStallId, customerName: { startsWith: "P1 E2E" } } });
     await prisma.cashShift.deleteMany({ where: { stallId: primaryStallId, note: { startsWith: "P1 E2E" } } });
+    const orderingSettings = await prisma.stallOrderingSettings.findUniqueOrThrow({
+      where: { stallId: primaryStallId },
+      select: { managerAuthorizationCodeHash: true },
+    });
+    originalManagerAuthorizationCodeHash = orderingSettings.managerAuthorizationCodeHash;
+    await prisma.stallOrderingSettings.update({
+      where: { stallId: primaryStallId },
+      data: { managerAuthorizationCodeHash: await hash(managerAuthorizationCode, 10) },
+    });
 
     const subscription = await prisma.subscription.findUniqueOrThrow({
       where: { organizationId },
@@ -114,6 +126,10 @@ test.describe("P1 營運功能", () => {
     if (additionalStallApprovalId) {
       await prisma.additionalStallApproval.deleteMany({ where: { id: additionalStallApprovalId } });
     }
+    await prisma.stallOrderingSettings.update({
+      where: { stallId: primaryStallId },
+      data: { managerAuthorizationCodeHash: originalManagerAuthorizationCodeHash },
+    });
     await prisma.$disconnect();
   });
 
@@ -170,8 +186,7 @@ test.describe("P1 營運功能", () => {
     await checkout.getByRole("button", { name: "7 折 P1" }).click();
     await expect(checkout.getByText("此折扣超過店員免核准門檻")).toBeVisible();
     await checkout.getByLabel("折扣原因").fill("P1 E2E 等候補償");
-    await checkout.getByLabel("經理帳號").fill("owner@stallorder.test");
-    await checkout.getByLabel("經理密碼").fill(password);
+    await checkout.getByLabel("管理授權碼").fill(managerAuthorizationCode);
     await checkout.getByRole("button", { name: "$500" }).click();
     await expect(checkout).toContainText("$106");
     await checkout.getByRole("button", { name: "完成訂單", exact: true }).click();
@@ -183,7 +198,7 @@ test.describe("P1 營運功能", () => {
     });
     expect(checkedOutOrders).toHaveLength(2);
     expect(checkedOutOrders.every((order) => order.status === "COMPLETED" && order.discountApprovalReason === "P1 E2E 等候補償")).toBe(true);
-    expect(checkedOutOrders.every((order) => order.discountApprovedBy?.email === "owner@stallorder.test")).toBe(true);
+    expect(checkedOutOrders.every((order) => order.discountApprovedBy?.email === "staff@stallorder.test")).toBe(true);
     expect(new Set(checkedOutOrders.map((order) => order.payment?.checkoutGroupId)).size).toBe(1);
 
     await page.goto("/staff/aming-chicken/print");
@@ -235,6 +250,7 @@ test.describe("P1 營運功能", () => {
     const cancellation = page.getByRole("alertdialog", { name: "確認取消訂單？" });
     await cancellation.getByLabel("取消原因").selectOption("SOLD_OUT");
     await cancellation.getByLabel(/補充說明/).fill("P1 E2E 商品售罄");
+    await cancellation.getByLabel("管理授權碼").fill(managerAuthorizationCode);
     const cancellationResponse = page.waitForResponse((response) => (
       new URL(response.url()).pathname.includes("/api/stalls/aming-chicken/orders/")
       && response.request().method() === "PATCH"

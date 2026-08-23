@@ -114,13 +114,25 @@ export function starWebPrntLaunchUrl(target: string) {
 }
 
 export async function printWithStarWebPrnt(dataBase64: string, timeout = 30_000) {
+  return sendStarWebPrntRequest(buildStarWebPrntRequest(dataBase64), timeout);
+}
+
+export async function probeStarWebPrnt(timeout = 5_000) {
+  return sendStarWebPrntRequest('<text encoding="utf-8"></text>', timeout);
+}
+
+export async function openStarCashDrawer(timeout = 10_000) {
+  return sendStarWebPrntRequest('<peripheral channel="1" on="200" off="200"></peripheral>', timeout);
+}
+
+async function sendStarWebPrntRequest(request: string, timeout: number) {
   if (typeof window === "undefined"
     || detectStarWebPrntEnvironment(window.navigator.userAgent) !== "STAR_WEBPRNT") {
     throw new StarWebPrntError("NOT_STAR_BROWSER");
   }
   const Trader = window.StarWebPrintTrader;
   if (!Trader) throw new StarWebPrntError("SDK_NOT_READY");
-  const request = buildStarWebPrntRequest(dataBase64);
+  if (!request) throw new StarWebPrntError("INVALID_PAYLOAD");
 
   return new Promise<StarWebPrntResponse>((resolve, reject) => {
     let settled = false;

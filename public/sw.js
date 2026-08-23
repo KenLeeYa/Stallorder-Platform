@@ -1,6 +1,8 @@
 const CACHE_NAME = "stallorder-shell-v5";
 const OFFLINE_URL = "/offline";
 const OFFLINE_DB_NAME = "stallorder-offline-pos";
+const IS_LOCAL_DEVELOPMENT = ["localhost", "127.0.0.1", "[::1]"].includes(self.location.hostname)
+  && !new URL(self.location.href).searchParams.has("pwa-enabled");
 const SHELL_ASSETS = [
   "/icons/stallorder-192.png",
   "/icons/stallorder-512.png",
@@ -81,6 +83,10 @@ async function cacheOfflineShell() {
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
+    if (IS_LOCAL_DEVELOPMENT) {
+      await self.skipWaiting();
+      return;
+    }
     await cacheOfflineShell();
     if (self.registration.active) {
       await notifyClients({ type: "SW_UPDATE_AVAILABLE" });
@@ -90,6 +96,17 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
+    if (IS_LOCAL_DEVELOPMENT) {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys.filter((key) => key.startsWith("stallorder-shell-")).map((key) => caches.delete(key)),
+      );
+      await self.clients.claim();
+      const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      await self.registration.unregister();
+      await Promise.all(clients.map((client) => client.navigate(client.url)));
+      return;
+    }
     const pendingRecords = await countUnsynchronizedRecords();
     if (pendingRecords === 0) {
       const keys = await caches.keys();

@@ -51,6 +51,8 @@ describe("integrated print center commands", () => {
       connectionType: "WEBPRNT_BLUETOOTH",
       model: "MCP31LB",
       paperWidthMm: 58,
+      autoDetectEnabled: true,
+      openCashDrawerOnCashPayment: false,
     });
   });
 

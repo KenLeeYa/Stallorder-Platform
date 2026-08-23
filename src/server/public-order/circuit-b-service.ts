@@ -549,6 +549,7 @@ export async function getOrderThroughCircuitB(
       order: {
         ...publicOrder,
         pickupVerificationCode: pickupCode,
+        publicMenuIdentifier: orderContext.stall.code.toLowerCase(),
         estimatedWaitMinutes:
           orderContext.quotedWaitMinutes
           ?? orderContext.stall.orderingSettings.estimatedWaitMinutes,

@@ -33,6 +33,7 @@ describe("stall editor code immutability", () => {
     expect(codeInput(html)).toContain('readOnly=""');
     expect(codeInput(html)).toContain('maxLength="50"');
     expect(html).toContain("為確保公開商店網址穩定，攤位建立後代碼即鎖定");
+    expect(html).toContain("上傳文宣圖片");
   });
 
   it("keeps the code editable while creating a stall", () => {
@@ -46,6 +47,7 @@ describe("stall editor code immutability", () => {
 
     expect(codeInput(html)).not.toContain('readOnly=""');
     expect(html).not.toContain("攤位建立後代碼即鎖定");
+    expect(html).not.toContain("上傳文宣圖片");
   });
 });
 

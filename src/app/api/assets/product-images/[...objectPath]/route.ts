@@ -1,5 +1,7 @@
 const uuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
-const objectPathPattern = new RegExp(`^${uuidPattern}/${uuidPattern}\\.webp$`);
+const objectPathPattern = new RegExp(
+  `^${uuidPattern}/(?:${uuidPattern}|stall-banners/${uuidPattern}/${uuidPattern})\\.webp$`,
+);
 
 type RouteContext = { params: Promise<{ objectPath: string[] }> };
 

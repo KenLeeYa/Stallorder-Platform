@@ -25,12 +25,13 @@ describe("StaffOrderBoard checkout lifecycle characterization", () => {
   });
 
   it("selects single or same-table completion and closes only after success", () => {
-    expect(source).toContain('return updateOrder(order.id, "COMPLETED", { checkout: checkoutRequest });');
+    expect(source).toContain('const completed = await updateOrder(order.id, "COMPLETED", { checkout: checkoutRequest });');
+    expect(source).toContain("if (completed && checkoutUsesCash(checkoutRequest)) notifyCashPaymentCompleted();");
     expect(source).toContain("const completedIds = new Set(await checkoutStaffDiningTable({");
     expect(checkoutSource).toContain("if (state.orders.length === 1)");
     expect(checkoutSource).toContain("state.orders.some((order) => order.diningTableId !== diningTableId)");
     expect(checkoutSource).toContain("if (completed) dismiss();");
-    expect(checkoutSource).toContain('else dispatch({ type: "RESET_MANAGER_PASSWORD" });');
+    expect(checkoutSource).toContain('else dispatch({ type: "RESET_MANAGER_AUTHORIZATION_CODE" });');
   });
 
   it("preserves checkout dialog controls, validation, and recovery link", () => {
@@ -38,7 +39,7 @@ describe("StaffOrderBoard checkout lifecycle characterization", () => {
     expect(checkoutSource).toContain('aria-labelledby="checkout-title"');
     expect(checkoutSource).toContain("<StaffDiscountSelector");
     expect(checkoutSource).toContain("controller.setCashReceived");
-    expect(checkoutSource).toContain("controller.setManagerPassword");
+    expect(checkoutSource).toContain("controller.setManagerAuthorizationCode");
     expect(checkoutSource).toContain("disabled={!model.ready || busy}");
     expect(checkoutSource).toContain("前往現金交班");
   });

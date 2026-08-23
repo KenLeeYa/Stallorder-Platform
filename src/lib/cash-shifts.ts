@@ -20,6 +20,7 @@ export const cashShiftCommandSchema = z.discriminatedUnion("operation", [
     type: z.enum(["CASH_IN", "CASH_OUT"]),
     amount: z.number().int().min(1).max(100_000_000),
     reason: z.string().trim().min(1).max(200),
+    managerAuthorizationCode: z.string().trim().regex(/^\d{4,8}$/).optional(),
   }).strict(),
   z.object({
     operation: z.literal("CLOSE"),
@@ -32,6 +33,7 @@ export const cashShiftCommandSchema = z.discriminatedUnion("operation", [
     shiftId: uuid,
     paymentId: uuid,
     reason: z.string().trim().min(1).max(200),
+    managerAuthorizationCode: z.string().trim().regex(/^\d{4,8}$/).optional(),
   }).strict(),
   z.object({
     operation: z.literal("REVIEW"),

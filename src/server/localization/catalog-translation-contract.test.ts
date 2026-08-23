@@ -11,6 +11,17 @@ import {
 } from "./catalog-translation-contract";
 
 const source: CatalogTranslationSource = {
+  categories: [{
+    id: "category-1",
+    name: "主餐",
+    translations: [{ locale: "en", name: "Mains" }],
+  }],
+  productGroups: [{
+    id: "product-group-1",
+    name: "湯河粉",
+    categoryName: "主餐",
+    translations: [],
+  }],
   products: [{
     id: "product-1",
     name: "香酥雞排",
@@ -45,6 +56,12 @@ describe("catalog translation contract", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0].items).toEqual([
       expect.objectContaining({
+        entityType: "PRODUCT_GROUP",
+        entityId: "product-group-1",
+        needsName: true,
+        needsDescription: false,
+      }),
+      expect.objectContaining({
         entityType: "PRODUCT",
         entityId: "product-1",
         existingName: "Crispy Chicken Cutlet",
@@ -66,17 +83,31 @@ describe("catalog translation contract", () => {
       items: [
         {
           key: request.items[0].key,
+          name: "Rice Noodle Soup",
+          description: null,
+        },
+        {
+          key: request.items[1].key,
           name: "Do not overwrite",
           description: "Fried to order with a crisp exterior and tender center.",
         },
         {
-          key: request.items[1].key,
+          key: request.items[2].key,
           name: "Add Egg",
           description: null,
         },
       ],
     });
     expect(result).toEqual([
+      {
+        locale: "en",
+        entityType: "PRODUCT_GROUP",
+        entityId: "product-group-1",
+        sourceName: "湯河粉",
+        sourceDescription: null,
+        name: "Rice Noodle Soup",
+        description: null,
+      },
       {
         locale: "en",
         entityType: "PRODUCT",
@@ -235,9 +266,13 @@ describe("catalog translation contract", () => {
   it("批次切割後保留實體對應並重建短鍵值", () => {
     const [request] = buildCatalogTranslationRequests(source, ["en"]);
     const chunks = chunkCatalogTranslationRequest(request, 1);
-    expect(chunks).toHaveLength(2);
-    expect(chunks.map((chunk) => chunk.items[0].key)).toEqual(["item-0", "item-0"]);
-    expect(chunks.map((chunk) => chunk.items[0].entityId)).toEqual(["product-1", "option-1"]);
+    expect(chunks).toHaveLength(3);
+    expect(chunks.map((chunk) => chunk.items[0].key)).toEqual(["item-0", "item-0", "item-0"]);
+    expect(chunks.map((chunk) => chunk.items[0].entityId)).toEqual([
+      "product-group-1",
+      "product-1",
+      "option-1",
+    ]);
   });
 
   it("共用單一註記只建立一份翻譯目標", () => {

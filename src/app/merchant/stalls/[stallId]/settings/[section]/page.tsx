@@ -91,6 +91,10 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
       phone: true,
       timezone: true,
       currency: true,
+      coverImageUrl: true,
+      coverImagePositionX: true,
+      coverImagePositionY: true,
+      coverImageZoom: true,
       businessStatus: true,
       orderingEnabled: true,
       isActive: true,
@@ -114,6 +118,10 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
           phone: stall.phone,
           timezone: stall.timezone,
           currency: stall.currency,
+          coverImageUrl: stall.coverImageUrl,
+          coverImagePositionX: stall.coverImagePositionX,
+          coverImagePositionY: stall.coverImagePositionY,
+          coverImageZoom: stall.coverImageZoom,
           businessStatus: stall.businessStatus,
           orderingEnabled: stall.orderingEnabled,
           isActive: stall.isActive,
@@ -165,9 +173,29 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
         orderWindowSeconds: true,
         estimatedWaitMinutes: true,
         businessDayCutoffHour: true,
+        preorderReminderMinutes: true,
+        managerAuthorizationCodeHash: true,
+        orderAlertSoundPreset: true,
+        orderAlertSoundObjectPath: true,
+        orderAlertVolume: true,
+        orderAlertRepeatCount: true,
       },
     });
-    const initialSettings: StallOrderLimits = orderingSettings ?? {
+    const initialSettings: StallOrderLimits = orderingSettings ? {
+      orderSessionTtlSeconds: orderingSettings.orderSessionTtlSeconds,
+      unconfirmedOrderTimeoutSeconds: orderingSettings.unconfirmedOrderTimeoutSeconds,
+      maxItemQuantity: orderingSettings.maxItemQuantity,
+      maxUniqueProducts: orderingSettings.maxUniqueProducts,
+      maxTotalQuantity: orderingSettings.maxTotalQuantity,
+      maxNoteLength: orderingSettings.maxNoteLength,
+      maxPendingOrdersPerDevice: orderingSettings.maxPendingOrdersPerDevice,
+      maxOrdersPerWindow: orderingSettings.maxOrdersPerWindow,
+      orderWindowSeconds: orderingSettings.orderWindowSeconds,
+      estimatedWaitMinutes: orderingSettings.estimatedWaitMinutes,
+      businessDayCutoffHour: orderingSettings.businessDayCutoffHour,
+      preorderReminderMinutes: orderingSettings.preorderReminderMinutes,
+      managerAuthorizationCodeConfigured: Boolean(orderingSettings.managerAuthorizationCodeHash),
+    } : {
       orderSessionTtlSeconds: 600,
       unconfirmedOrderTimeoutSeconds: 600,
       maxItemQuantity: 20,
@@ -179,8 +207,21 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
       orderWindowSeconds: 300,
       estimatedWaitMinutes: 15,
       businessDayCutoffHour: 0,
+      preorderReminderMinutes: 30,
+      managerAuthorizationCodeConfigured: false,
     };
-    content = <StallOrderLimitsForm stallSlug={stall.slug} initialSettings={initialSettings} />;
+    const initialAlertSettings = orderingSettings ? {
+      preset: normalizeAlertSoundPreset(orderingSettings.orderAlertSoundPreset),
+      volume: orderingSettings.orderAlertVolume,
+      repeatCount: orderingSettings.orderAlertRepeatCount,
+      customSoundConfigured: Boolean(orderingSettings.orderAlertSoundObjectPath),
+    } : {
+      preset: "URGENT" as const,
+      volume: 100,
+      repeatCount: 2,
+      customSoundConfigured: false,
+    };
+    content = <StallOrderLimitsForm stallId={stall.id} stallSlug={stall.slug} initialSettings={initialSettings} initialAlertSettings={initialAlertSettings} />;
   } else if (rawSection === "templates") {
     content = (
       <StallTemplateCopyManager
@@ -227,4 +268,8 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
       </div>
     </main>
   );
+}
+
+function normalizeAlertSoundPreset(value: string): "URGENT" | "BELL" | "CHIME" | "CUSTOM" {
+  return value === "BELL" || value === "CHIME" || value === "CUSTOM" ? value : "URGENT" as const;
 }

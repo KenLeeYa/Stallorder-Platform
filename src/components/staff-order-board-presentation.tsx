@@ -36,6 +36,8 @@ import { LogoutButton } from "@/components/logout-button";
 import { OfflineBootstrapControl } from "@/components/offline-bootstrap-control";
 import { OfflineQueueStatus } from "@/components/offline-queue-status";
 import { PwaControls } from "@/components/pwa-controls";
+import { CompletedOrdersPanel } from "@/components/completed-orders-panel";
+import { StaffAutoPrintAgent } from "@/components/staff-auto-print-agent";
 import { StaffCapacityControl } from "@/components/staff-capacity-control";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
 import type { StaffOrderUndoBatch } from "@/components/staff-order-board-batch";
@@ -101,6 +103,7 @@ type Stall = {
 type Actions = {
   onClearSelectedItems: () => void;
   onCloseComposer: () => void;
+  onClosePickupCheckout: () => void;
   onCompletePaidOrders: (orders: StaffOrderDto[]) => Promise<void>;
   onOpenCheckout: (orders: StaffOrderDto | StaffOrderDto[]) => Promise<void>;
   onOpenComposer: () => Promise<void>;
@@ -158,6 +161,7 @@ export type StaffOrderBoardPresentationProps = {
   futureOrdersExpanded: boolean;
   futureUnpaidTotal: number;
   orderProductionTimings: Map<string, FulfillmentProductionTiming>;
+  reminderOrderIds: ReadonlySet<string>;
   expandedOrderIds: ReadonlySet<string>;
   orders: StaffOrderDto[];
   selectedItems: SelectedItem[];
@@ -167,6 +171,7 @@ export type StaffOrderBoardPresentationProps = {
   diningTableGroups: StaffOrderDiningTableGroup[];
   selectedItemIds: ReadonlySet<string>;
   pickupCodes: Record<string, string>;
+  pickupCheckoutOrderId: string | null;
   query: string;
   now: number;
   viewMode: StaffOrderBoardViewMode;
@@ -231,6 +236,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         actions={actions}
         t={t}
       />
+      {props.modules.print && account.role !== "KITCHEN" ? <StaffAutoPrintAgent stallSlug={stall.slug} /> : null}
       {props.modules.kds ? <StaffOrderBatchBars
         selectedItems={selectedItems}
         canUpdateSelection={props.canUpdateSelection}
@@ -281,6 +287,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
           locale={locale}
           t={t}
           orderProductionTimings={props.orderProductionTimings}
+          reminderOrderIds={props.reminderOrderIds}
           expandedOrderIds={props.expandedOrderIds}
           editableOrderIds={props.orderEditor.editableOrderIds}
         />
@@ -296,10 +303,18 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
           expanded={props.futureOrdersExpanded}
           unpaidTotal={props.futureUnpaidTotal}
           timings={props.orderProductionTimings}
+          reminderOrderIds={props.reminderOrderIds}
           stall={stall}
           locale={locale}
           t={t}
           onToggle={actions.onToggleFutureOrders}
+        />
+      ) : null}
+      {viewMode === "TICKETS" ? (
+        <CompletedOrdersPanel
+          stallSlug={stall.slug}
+          currency={stall.currency}
+          requiresAuthorizationCode={!hasPermission(account.role, "APPROVE_DISCOUNT")}
         />
       ) : null}
       <StaffPosComposerAndDialogs
@@ -311,8 +326,10 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         orderCatalog={props.orderCatalog}
         orders={props.orders}
         composerOpen={props.composerOpen}
+        pickupCodes={props.pickupCodes}
         updatingOrderId={props.updatingOrderId}
         verifyingPickupOrderId={props.verifyingPickupOrderId}
+        pickupCheckoutOrderId={props.pickupCheckoutOrderId}
         message={props.message}
         cancellation={props.cancellation}
         checkout={props.checkout}
@@ -377,7 +394,7 @@ function StaffOrderBoardToolbar({
   const role = account.role;
   return (
     <>
-      <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 overflow-x-hidden border-b border-stone-200 bg-white/95 px-4 pb-2 shadow-sm backdrop-blur print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
+      <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 overflow-x-hidden border-b border-stone-200 bg-white/95 px-4 pb-1 shadow-sm backdrop-blur print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
         <div className="flex h-11 min-w-0 max-w-full items-center justify-between gap-3 print:hidden sm:gap-4">
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold sm:text-base">{stall.name}</h1>
@@ -394,8 +411,8 @@ function StaffOrderBoardToolbar({
             className="w-[min(52vw,220px)] shrink-0"
           />
         </div>
-        <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="flex min-h-11 w-full min-w-0 items-center gap-2 overflow-x-auto print:hidden sm:overflow-x-visible [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border">
-        <div data-testid="staff-function-status-group" className="flex items-center gap-1 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:px-0">
+        <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 items-center gap-2 overflow-x-auto py-2 print:hidden sm:overflow-x-visible [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
+        <div data-testid="staff-function-status-group" className="flex items-center gap-2 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0">
           <LiveConnectionBadge state={liveConnection} t={t} />
           <div className="shrink-0">
             <PwaControls showWakeLock />
@@ -410,9 +427,9 @@ function StaffOrderBoardToolbar({
         </div>
         <div data-testid="staff-function-device-group" className="flex items-center gap-2">
           <button type="button" role="switch" aria-checked={alertsEnabled} aria-label={alertsEnabled ? t("staff.action.notificationsOn") : t("staff.action.notificationsOff")} onClick={actions.onToggleAlerts} title={alertsEnabled ? t("staff.action.notificationsDisable") : t("staff.action.notificationsEnable")} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>{alertsEnabled ? <Volume2 className={staffFunctionIconClass} /> : <VolumeX className={staffFunctionIconClass} />}<span aria-hidden="true" className="sr-only">{t("staff.action.notifications")}</span></button>
-          <div data-testid="staff-function-offline" className={`${staffFunctionTileClass} relative border border-stone-300 bg-white text-stone-700 [&>div>button:first-child]:h-11 [&>div>button:first-child]:w-11 [&>div>button:first-child]:border-0`}><OfflineBootstrapControl stallId={stall.id} stallSlug={stall.slug} appVersion={appVersion} /><span className="sr-only">{t("staff.action.offlineDevice")}</span></div>
+          <div data-testid="staff-function-offline" className={`${staffFunctionTileClass} relative overflow-visible text-stone-700 [&>div]:h-11 [&>div]:w-11 [&>div>button:first-child]:h-11 [&>div>button:first-child]:w-11 [&>div>button:first-child]:border [&>div>button:first-child]:border-stone-300 [&>div>button:first-child>svg]:h-5 [&>div>button:first-child>svg]:w-5`}><OfflineBootstrapControl stallId={stall.id} stallSlug={stall.slug} appVersion={appVersion} /><span className="sr-only">{t("staff.action.offlineDevice")}</span></div>
           <button type="button" onClick={actions.onRefresh} title={t("common.refresh")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} /><span className="sr-only">{t("common.refresh")}</span></button>
-          <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border-0`}><LogoutButton offlineStallId={stall.id} /><span className="sr-only">{t("staff.action.logout")}</span></div>
+          <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} overflow-visible text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border [&>button]:border-stone-300 [&>button>svg]:h-5 [&>button>svg]:w-5`}><LogoutButton offlineStallId={stall.id} /><span className="sr-only">{t("staff.action.logout")}</span></div>
         </div>
         </nav>
       </header>
@@ -496,6 +513,7 @@ type StaffTicketListProps = Pick<
   | "manualPickup"
   | "timeProposal"
   | "orderProductionTimings"
+  | "reminderOrderIds"
   | "expandedOrderIds"
 > & {
   orders: StaffOrderDto[];
@@ -523,10 +541,10 @@ type StaffTicketListProps = Pick<
 };
 
 function StaffTicketList(props: StaffTicketListProps) {
-  return <div className="mt-6 grid gap-4 md:grid-cols-2 print:block"><div className="md:col-span-2 print:hidden"><h2 className="text-lg font-semibold">{props.t("staff.today.title")}</h2><p className="mt-1 text-sm text-stone-600">{props.t("staff.today.description")}</p></div>{props.orders.map((order) => <StaffOrderTicket key={order.id} {...props} order={order} pickupCode={props.pickupCodes[order.id] ?? ""} />)}</div>;
+  return <div className="mt-6 grid gap-4 md:grid-cols-2 print:block"><div className="md:col-span-2 print:hidden"><h2 className="text-lg font-semibold">{props.t("staff.today.title")}</h2><p className="mt-1 text-sm text-stone-600">{props.t("staff.today.description")}</p></div>{props.orders.map((order) => <StaffOrderTicket key={order.id} {...props} order={order} />)}</div>;
 }
 
-function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now, selectedItemIds, pickupCode, updatingOrderId, updatingItemId, updatingItemsOrderId, verifyingPickupOrderId, cancellation, manualPickup, timeProposal, actions, stall, locale, t, orderProductionTimings, expandedOrderIds, editableOrderIds }: Omit<StaffTicketListProps, "orders" | "pickupCodes"> & { order: StaffOrderDto; pickupCode: string }) {
+function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now, selectedItemIds, updatingOrderId, updatingItemId, updatingItemsOrderId, cancellation, timeProposal, actions, stall, locale, t, orderProductionTimings, reminderOrderIds, expandedOrderIds, editableOrderIds }: StaffTicketListProps & { order: StaffOrderDto }) {
   const timing = orderProductionTimings.get(order.id);
   const expanded = expandedOrderIds.has(order.id);
   const waitingForPrintCompletion = !kdsEnabled
@@ -540,13 +558,10 @@ function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now
     && ["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.status)
     && !timing?.productionBlocked
     && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)
-    && (
-      order.fulfillmentType !== "TAKEOUT"
-      || order.source !== "QR_MENU"
-      || Boolean(order.pickupVerifiedAt)
-    );
+    ;
   return (
-    <article className={`rounded-lg border p-4 ${orderAgeClasses(order, timing, now)}`}>
+    <article className={`rounded-lg border p-4 ${reminderOrderIds.has(order.id) ? "animate-pulse border-amber-500 ring-2 ring-amber-300" : orderAgeClasses(order, timing, now)}`}>
+      {reminderOrderIds.has(order.id) ? <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-xs font-bold text-amber-950">{t("staff.preorder.reminderBadge")}</p> : null}
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-500"><span>{t("staff.order.number", { number: order.orderNo })}</span>{order.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">{t("staff.order.test")}</span> : null}{order.source === "OFFLINE_POS" ? <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-900">{t("staff.order.localPending")}</span> : null}</div>
@@ -567,7 +582,7 @@ function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now
           {editableOrderIds.has(order.id) ? <button type="button" onClick={() => actions.onOpenOrderEditor(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Pencil className="h-4 w-4" />{t("staff.order.edit")}</button> : null}
           {waitingForPrintCompletion ? <Link href={`/staff/${stall.slug}/print`} className={`inline-flex min-h-9 items-center gap-1 rounded-md border px-3 text-xs font-semibold ${printNeedsAttention ? "border-red-300 bg-red-50 text-red-800" : "border-teal-300 bg-teal-50 text-teal-900"}`}><Printer className="h-4 w-4" />{t(printNeedsAttention ? "staff.order.printNeedsAttention" : "staff.order.waitingForPrint")}</Link> : null}
           {streamlinedCheckoutEligible && !waitingForPrintCompletion && hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : printEnabled ? t("staff.order.printAndComplete") : t("staff.checkout.completeOrder")}</button> : null}
-          {kdsEnabled && order.status === "READY" && order.paymentStatus === "UNPAID" && hasPermission(role, "CHECKOUT_ORDERS") && (order.fulfillmentType !== "DINE_IN" || order.items.every((item) => item.status === "SERVED")) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{t("staff.order.checkoutForCustomer")}</button> : null}
+          {kdsEnabled && order.status === "READY" && hasPermission(role, "CHECKOUT_ORDERS") && (order.fulfillmentType !== "DINE_IN" || order.items.every((item) => item.status === "SERVED")) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : t("staff.checkout.completeOrder")}</button> : null}
         </div>
       </div>
       {!expanded ? <ul className="mt-3 space-y-2 rounded-md bg-stone-50 px-3 py-2.5 text-sm">
@@ -575,7 +590,7 @@ function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now
       </ul> : null}
       {order.fulfillmentType !== "DINE_IN" && order.fulfillmentTimeState !== "NOT_REQUESTED" ? <div className={`mt-3 rounded-md border px-3 py-3 text-sm ${order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? "border-amber-300 bg-amber-50 text-amber-950" : order.fulfillmentTimeState === "DECLINED" || order.fulfillmentTimeState === "EXPIRED" ? "border-red-200 bg-red-50 text-red-900" : "border-teal-200 bg-teal-50 text-teal-950"}`}><div className="flex items-start gap-2"><Clock3 className="mt-0.5 h-4 w-4 shrink-0" /><div className="min-w-0 flex-1"><p className="font-semibold">{fulfillmentTimeTitle(order, locale, t)}</p>{order.fulfillmentTimeChangeReason ? <p className="mt-1 text-xs">{t("staff.order.reason", { reason: order.fulfillmentTimeChangeReason })}</p> : null}{order.fulfillmentTimeResponseExpiresAt && order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? <p className="mt-1 text-xs">{t("staff.order.replyBy", { time: formatStaffFulfillmentTime(order.fulfillmentTimeResponseExpiresAt, locale) })}</p> : null}</div></div>{order.source !== "OFFLINE_POS" && ["WAITING_CONFIRMATION", "CONFIRMED"].includes(order.status) ? <div className="mt-3 flex flex-wrap gap-2 print:hidden">{order.fulfillmentTimeState === "REQUESTED" ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onUpdateFulfillmentTime(order, { operation: "CONFIRM_REQUESTED", version: order.fulfillmentTimeVersion })} className="min-h-9 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50">{t("staff.order.acceptOriginalTime")}</button> : null}<button type="button" disabled={updatingOrderId === order.id || !timeProposal.canOpen} onClick={() => timeProposal.open(order)} className="min-h-9 rounded-md border border-current px-3 text-xs font-semibold disabled:opacity-40">{order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? t("staff.order.editProposal") : t("staff.order.proposeTime")}</button></div> : null}</div> : null}
       {order.status === "WAITING_CONFIRMATION" ? <p className="mt-3 text-xs font-medium text-amber-800">{t("staff.order.confirmBeforeProduction", { time: formatAppDateTime(locale, order.confirmationExpiresAt, { timeStyle: "short", timeZone: stall.timezone }) })}</p> : null}
-      <div className="mt-4 grid grid-cols-2 gap-2 print:hidden">{staffStatusOptions.filter((option) => canTransitionOrder(order.status, option.value, role)).filter((option) => option.value !== "PREPARING" && option.value !== "READY").filter((option) => kdsEnabled || option.value !== "COMPLETED").filter((option) => order.source !== "OFFLINE_POS" || option.value === "COMPLETED" || option.value === "CANCELLED").filter((option) => option.value !== "COMPLETED" || order.fulfillmentType === "DINE_IN" || order.source !== "QR_MENU" || Boolean(order.pickupVerifiedAt)).map((option) => <button key={option.value} type="button" disabled={updatingOrderId === order.id} aria-haspopup={option.value === "CANCELLED" ? "dialog" : undefined} onClick={() => { if (option.value === "CANCELLED") { cancellation.open({ id: order.id, orderNo: order.orderNo, customerName: order.customerName }); return; } if (option.value === "COMPLETED") { if (order.paymentStatus === "PAID") void actions.onUpdateOrder(order.id, "COMPLETED"); else void actions.onOpenCheckout(order); return; } void actions.onUpdateOrder(order.id, option.value); }} className={`rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${option.value === "CANCELLED" ? "border-red-300 text-red-700 hover:bg-red-50" : "border-stone-300 hover:bg-stone-100"}`}>{option.value === "COMPLETED" && order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : staffStatusActionLabel(option.value, t)}</button>)}</div>
+      <div className="mt-4 grid grid-cols-2 gap-2 print:hidden">{staffStatusOptions.filter((option) => canTransitionOrder(order.status, option.value, role)).filter((option) => !["PREPARING", "PACKING", "READY", "COMPLETED"].includes(option.value)).filter((option) => order.source !== "OFFLINE_POS" || option.value === "CANCELLED").map((option) => <button key={option.value} type="button" disabled={updatingOrderId === order.id} aria-haspopup={option.value === "CANCELLED" ? "dialog" : undefined} onClick={() => { if (option.value === "CANCELLED") { cancellation.open({ id: order.id, orderNo: order.orderNo, customerName: order.customerName }); return; } void actions.onUpdateOrder(order.id, option.value); }} className={`rounded-md border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${option.value === "CANCELLED" ? "border-red-300 text-red-700 hover:bg-red-50" : "border-stone-300 hover:bg-stone-100"}`}>{staffStatusActionLabel(option.value, t)}</button>)}</div>
       {expanded ? <div id={`order-details-${order.id}`}>
         {order.fulfillmentType === "DELIVERY" ? <div className="mt-3 flex items-start gap-2 border-y border-stone-200 bg-stone-50 px-3 py-3 text-sm"><Truck className="mt-0.5 h-4 w-4 shrink-0 text-teal-800" /><div className="min-w-0"><p className="font-medium break-words">{order.deliveryAddress || t("staff.delivery.noAddress")}</p>{order.customerPhone ? <p className="mt-1 text-stone-600">{order.customerPhone}</p> : <p className="mt-1 text-stone-500">{t("staff.delivery.noPhone")}</p>}</div></div> : null}
         {kdsEnabled && order.status !== "WAITING_CONFIRMATION" ? <div className="mt-4 flex flex-wrap gap-2 print:hidden">{order.items.some((item) => item.status === "PENDING") && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState) && canTransitionOrderItem("PENDING", "PREPARING", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "PREPARING")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-amber-700 px-3 text-xs font-semibold text-white disabled:opacity-50"><Play className="h-4 w-4" />{t("staff.order.allStart", { count: order.items.filter((item) => item.status === "PENDING").length })}</button> : null}{order.items.some((item) => item.status === "PREPARING") && canTransitionOrderItem("PREPARING", "READY", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "READY")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><CheckCheck className="h-4 w-4" />{t("staff.order.allReady", { count: order.items.filter((item) => item.status === "PREPARING").length })}</button> : null}{order.items.some((item) => item.status === "READY") && canTransitionOrderItem("READY", "SERVED", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "SERVED")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-emerald-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><PackageCheck className="h-4 w-4" />{t(order.fulfillmentType === "DINE_IN" ? "staff.order.allServed" : order.fulfillmentType === "DELIVERY" ? "staff.order.allDelivered" : "staff.order.allPickedUp", { count: order.items.filter((item) => item.status === "READY").length })}</button> : null}</div> : null}
@@ -583,7 +598,7 @@ function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now
         {order.note ? <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900">{order.note}</p> : null}
         <div className="mt-4 flex items-center justify-between border-t border-stone-200 pt-4"><div>{order.discountAmount > 0 ? <div className="text-xs text-stone-500">{t("staff.order.originalPrice", { amount: formatMoney(order.subtotal, currency, locale) })} · {order.discountLabel}</div> : null}<strong>{formatMoney(order.total, currency, locale)}</strong></div><span className="text-sm text-stone-600">{paymentStatusLabel(order.paymentStatus, t)}</span></div>
         {printEnabled && kdsEnabled && !order.isTest ? <button type="button" onClick={() => void actions.onPrintOrder(order.id)} className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-medium hover:bg-stone-100 print:hidden"><Printer className="h-4 w-4" />{t("staff.order.queuePrint")}</button> : null}
-        {order.status === "READY" && order.fulfillmentType === "TAKEOUT" && order.source === "QR_MENU" && hasPermission(role, "CHECKOUT_ORDERS") ? order.pickupVerifiedAt ? <div className="mt-4 flex items-center gap-2 text-sm font-medium text-teal-800"><CheckCircle2 className="h-4 w-4" />{order.pickupVerificationMethod === "MANUAL" ? t("staff.pickup.manualVerified") : t("staff.pickup.codeVerified")}</div> : <div className="mt-4"><div className="relative"><input type="text" inputMode="numeric" autoComplete="one-time-code" aria-label={t("staff.pickup.codeLabel", { digits: order.pickupCodeLength })} aria-busy={verifyingPickupOrderId === order.id} disabled={verifyingPickupOrderId === order.id} maxLength={order.pickupCodeLength === 6 ? 6 : 3} pattern={order.pickupCodeLength === 6 ? "[0-9]{6}" : "[0-9]{3}"} value={pickupCode} onChange={(event) => actions.onPickupCodeChange(order.id, event.target.value)} className="h-11 w-full rounded-md border border-stone-300 px-3 pr-11 font-mono text-lg disabled:bg-stone-50" placeholder={t("staff.pickup.codePlaceholder", { digits: order.pickupCodeLength })} />{verifyingPickupOrderId === order.id ? <span className="absolute inset-y-0 right-3 grid place-items-center text-teal-700" role="status"><LoaderCircle className="h-5 w-5 animate-spin" /><span className="sr-only">{t("staff.pickup.verifying")}</span></span> : null}</div><button type="button" disabled={verifyingPickupOrderId === order.id} onClick={() => manualPickup.open(order.id)} className="mt-2 inline-flex min-h-9 items-center gap-2 text-sm font-semibold text-stone-700 hover:text-stone-950 disabled:opacity-50"><KeyRound className="h-4 w-4" />{t("staff.pickup.unavailable")}</button></div> : null}
+        {order.status === "READY" && order.fulfillmentType === "TAKEOUT" && order.source === "QR_MENU" && order.pickupVerifiedAt && hasPermission(role, "CHECKOUT_ORDERS") ? <div className="mt-4 flex items-center gap-2 text-sm font-medium text-teal-800"><CheckCircle2 className="h-4 w-4" />{order.pickupVerificationMethod === "MANUAL" ? t("staff.pickup.manualVerified") : t("staff.pickup.codeVerified")}</div> : null}
       </div> : null}
     </article>
   );
@@ -594,6 +609,7 @@ function StaffFutureOrders({
   expanded,
   unpaidTotal,
   timings,
+  reminderOrderIds,
   stall,
   locale,
   t,
@@ -603,6 +619,7 @@ function StaffFutureOrders({
   expanded: boolean;
   unpaidTotal: number;
   timings: Map<string, FulfillmentProductionTiming>;
+  reminderOrderIds: ReadonlySet<string>;
   stall: Stall;
   locale: AppLocale;
   t: OperationsTranslator;
@@ -624,7 +641,8 @@ function StaffFutureOrders({
           {orders.map((order) => {
             const timing = timings.get(order.id);
             return (
-              <article key={order.id} className="rounded-md border border-sky-200 bg-white p-4">
+              <article key={order.id} className={`rounded-md border bg-white p-4 ${reminderOrderIds.has(order.id) ? "animate-pulse border-amber-500 ring-2 ring-amber-300" : "border-sky-200"}`}>
+                {reminderOrderIds.has(order.id) ? <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-xs font-bold text-amber-950">{t("staff.preorder.reminderBadge")}</p> : null}
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold text-stone-500">{t("staff.order.number", { number: order.orderNo })}</p>
@@ -649,7 +667,10 @@ function StaffFutureOrders({
   );
 }
 
-function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, discountOptions, orderCatalog, orders, composerOpen, updatingOrderId, verifyingPickupOrderId, message, cancellation, checkout, manualPickup, timeProposal, orderEditor, locale, t, actions }: Pick<StaffOrderBoardPresentationProps, "stall" | "account" | "modules" | "paymentOptions" | "discountOptions" | "orderCatalog" | "orders" | "composerOpen" | "updatingOrderId" | "verifyingPickupOrderId" | "message" | "cancellation" | "checkout" | "manualPickup" | "timeProposal" | "orderEditor"> & { locale: AppLocale; t: OperationsTranslator; actions: Pick<Actions, "onAddOrderEditProduct" | "onChangeOrderEditProduct" | "onChangeOrderEditQuantity" | "onCloseComposer" | "onCloseOrderEditor" | "onCreated" | "onRemoveOrderEditLine" | "onSaveOrderEdit"> }) {
+function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, discountOptions, orderCatalog, orders, composerOpen, pickupCheckoutOrderId, pickupCodes, updatingOrderId, verifyingPickupOrderId, message, cancellation, checkout, manualPickup, timeProposal, orderEditor, locale, t, actions }: Pick<StaffOrderBoardPresentationProps, "stall" | "account" | "modules" | "paymentOptions" | "discountOptions" | "orderCatalog" | "orders" | "composerOpen" | "pickupCheckoutOrderId" | "pickupCodes" | "updatingOrderId" | "verifyingPickupOrderId" | "message" | "cancellation" | "checkout" | "manualPickup" | "timeProposal" | "orderEditor"> & { locale: AppLocale; t: OperationsTranslator; actions: Pick<Actions, "onAddOrderEditProduct" | "onChangeOrderEditProduct" | "onChangeOrderEditQuantity" | "onCloseComposer" | "onCloseOrderEditor" | "onClosePickupCheckout" | "onCreated" | "onPickupCodeChange" | "onRemoveOrderEditLine" | "onSaveOrderEdit"> }) {
+  const pickupCheckoutOrder = pickupCheckoutOrderId
+    ? orders.find((order) => order.id === pickupCheckoutOrderId) ?? null
+    : null;
   return (
     <>
       {composerOpen && orderCatalog ? <StaffOrderComposer stall={stall} catalog={orderCatalog} account={account} modules={modules} paymentOptions={paymentOptions} discountOptions={discountOptions} discountSettingsHref={hasPermission(account.role, "MANAGE_STALL") ? `/merchant/stalls/${stall.id}/settings/discounts?source=staff#discount-options` : undefined} onCreated={actions.onCreated} onClose={actions.onCloseComposer} /> : null}
@@ -700,6 +721,38 @@ function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, d
                 <button type="button" disabled={orderEditor.busy || orderEditor.lines.length === 0} onClick={() => void actions.onSaveOrderEdit()} className="min-h-10 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-40">{orderEditor.busy ? t("staff.edit.repricing") : t("staff.edit.save")}</button>
               </div>
             </div>
+          </section>
+        </div>
+      ) : null}
+      {pickupCheckoutOrder ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4 print:hidden">
+          <section role="dialog" aria-modal="true" aria-labelledby="pickup-checkout-title" className="w-full max-w-sm rounded-xl bg-white p-5 text-center shadow-2xl">
+            <div className="flex items-start justify-between gap-4 text-left">
+              <div>
+                <h2 id="pickup-checkout-title" className="text-xl font-bold">{t("staff.pickup.checkoutTitle")}</h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">{t("staff.pickup.checkoutDescription", { number: pickupCheckoutOrder.orderNo })}</p>
+              </div>
+              <button type="button" aria-label={t("common.close")} disabled={verifyingPickupOrderId === pickupCheckoutOrder.id} onClick={actions.onClosePickupCheckout} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 disabled:opacity-50"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="relative mt-5">
+              <input
+                autoFocus
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                aria-label={t("staff.pickup.codeLabel", { digits: pickupCheckoutOrder.pickupCodeLength })}
+                aria-busy={verifyingPickupOrderId === pickupCheckoutOrder.id}
+                disabled={verifyingPickupOrderId === pickupCheckoutOrder.id}
+                maxLength={pickupCheckoutOrder.pickupCodeLength === 6 ? 6 : 3}
+                pattern={pickupCheckoutOrder.pickupCodeLength === 6 ? "[0-9]{6}" : "[0-9]{3}"}
+                value={pickupCodes[pickupCheckoutOrder.id] ?? ""}
+                onChange={(event) => actions.onPickupCodeChange(pickupCheckoutOrder.id, event.target.value)}
+                className="h-16 w-full rounded-lg border-2 border-teal-600 px-4 pr-12 text-center font-mono text-3xl font-bold tracking-widest disabled:bg-stone-50"
+                placeholder={t("staff.pickup.codePlaceholder", { digits: pickupCheckoutOrder.pickupCodeLength })}
+              />
+              {verifyingPickupOrderId === pickupCheckoutOrder.id ? <span className="absolute inset-y-0 right-4 grid place-items-center text-teal-700" role="status"><LoaderCircle className="h-6 w-6 animate-spin" /><span className="sr-only">{t("staff.pickup.verifying")}</span></span> : null}
+            </div>
+            <button type="button" disabled={verifyingPickupOrderId === pickupCheckoutOrder.id} onClick={() => manualPickup.open(pickupCheckoutOrder.id)} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-700 disabled:opacity-50"><KeyRound className="h-4 w-4" />{t("staff.pickup.unavailable")}</button>
           </section>
         </div>
       ) : null}
