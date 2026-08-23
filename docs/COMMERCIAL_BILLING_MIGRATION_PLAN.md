@@ -12,7 +12,7 @@
 
 ### PAYG Open Beta Forward Migration
 
-`20260821150000_payg_open_beta_billing.sql` 僅向前擴充既有模型：加入 versioned pricing snapshot、Invoice pricing snapshot、退款事件、每攤位 summary、PAYG 方案與保守 feature flags。它不刪除 LITE／STANDARD／PRO、不改寫既有 Subscription，也不自動建立正式 PAYG Invoice。
+`20260822100000_payg_open_beta_billing.sql` 僅向前擴充既有模型：加入 versioned pricing snapshot、Invoice pricing snapshot、退款事件、每攤位 summary、PAYG 方案與保守 feature flags。它不刪除 LITE／STANDARD／PRO、不改寫既有 Subscription，也不自動建立正式 PAYG Invoice。
 
 預設先啟用 `OPEN_BETA_FREE_ACCESS_ENABLED` 且停用 `MERCHANT_BILLING_VISIBLE` 與全部 PAYG charging flags。正式 rollout 必須先 schema、ledger、rebuild、RLS、退款 idempotency 與每攤封頂 QA，再依序開啟 server flags；禁止以只改前端的方式啟用收費。
 

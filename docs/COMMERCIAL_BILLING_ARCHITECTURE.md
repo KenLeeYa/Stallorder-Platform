@@ -53,7 +53,7 @@ Merchant / Platform Admin UI
 2. `20260718230704_commercial_billing_entitlement_enforcement.sql`
 3. `20260718233000_commercial_billing_phase1_workflows.sql`
 4. `20260719015432_commercial_billing_future_provider_scaffolding.sql`
-5. `20260821150000_payg_open_beta_billing.sql`
+5. `20260822100000_payg_open_beta_billing.sql`
 
 既有 applied migration 不修改。Staging 先 forward migrate、驗證、再安排 Production 維護窗；資料庫 migration 的回復以 PITR 或事前核准的新 forward migration 執行。
 
