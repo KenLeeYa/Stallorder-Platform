@@ -15,6 +15,7 @@ const routes = [
   "/merchant/catalog?organizationId=11111111-1111-4111-8111-111111111111",
   "/merchant/operations",
   "/merchant/reports/overview?organizationId=11111111-1111-4111-8111-111111111111",
+  "/merchant/reports/orders?organizationId=11111111-1111-4111-8111-111111111111",
   "/merchant/reports/products?organizationId=11111111-1111-4111-8111-111111111111",
   "/merchant/reports/payments?organizationId=11111111-1111-4111-8111-111111111111",
   "/merchant/reports/stalls?organizationId=11111111-1111-4111-8111-111111111111",

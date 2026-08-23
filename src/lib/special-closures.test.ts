@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeSpecialClosure,
   filterPreorderSlotsForSpecialClosures,
+  localizeSpecialClosureTitle,
   specialClosureCommandSchema,
 } from "./special-closures";
 
@@ -50,5 +51,19 @@ describe("special closures", () => {
     ], [closure], "Asia/Taipei")).toEqual([
       "2026-08-22T16:30:00.000Z",
     ]);
+  });
+
+  it.each([
+    ["en", "Temporary closure"],
+    ["ja", "臨時休業"],
+    ["ko", "임시 휴무"],
+    ["vi", "Tạm nghỉ"],
+    ["th", "ปิดชั่วคราว"],
+  ] as const)("localizes the system closure title for %s", (locale, expected) => {
+    expect(localizeSpecialClosureTitle("臨時店休", locale)).toBe(expected);
+  });
+
+  it("preserves merchant-authored closure titles", () => {
+    expect(localizeSpecialClosureTitle("員工旅遊", "en")).toBe("員工旅遊");
   });
 });

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { Prisma, type UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { MerchantSetupCommand } from "@/lib/merchant-setup-contract";
+import { isMerchantSetupEffectivelyComplete } from "@/lib/merchant-setup-state";
 import { createStaffOrder } from "@/lib/staff-order-create";
 
 type SetupContext = {
@@ -87,7 +88,7 @@ export async function getMerchantSetupOverview(organizationId: string) {
 }
 
 export async function getPendingMerchantSetupPath(profileId: string) {
-  const setup = await prisma.merchantSetupProgress.findFirst({
+  const setups = await prisma.merchantSetupProgress.findMany({
     where: {
       goLiveCompleted: false,
       organization: {
@@ -97,8 +98,31 @@ export async function getPendingMerchantSetupPath(profileId: string) {
       },
     },
     orderBy: { createdAt: "asc" },
-    select: { organizationId: true },
+    select: {
+      organizationId: true,
+      goLiveCompleted: true,
+      goLiveCompletedAt: true,
+      completedAt: true,
+      activatedByProfileId: true,
+      currentStep: true,
+      testOrderCompleted: true,
+      qrCode: { select: { state: true } },
+      stall: {
+        select: {
+          orderingEnabled: true,
+          orderingState: true,
+          _count: { select: { orders: { where: { isTest: false } } } },
+        },
+      },
+    },
   });
+  const setup = setups.find((candidate) => !isMerchantSetupEffectivelyComplete({
+    ...candidate,
+    stall: {
+      ...candidate.stall,
+      nonTestOrderCount: candidate.stall._count.orders,
+    },
+  }));
   return setup ? `/merchant/setup?organizationId=${setup.organizationId}` : null;
 }
 

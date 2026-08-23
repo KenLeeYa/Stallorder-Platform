@@ -11,6 +11,7 @@ const providerFlags: Record<OAuthProvider, ResilienceFeatureFlagCode> = {
   GOOGLE: "OAUTH_GOOGLE_ENABLED",
   LINE: "OAUTH_LINE_ENABLED",
   APPLE: "OAUTH_APPLE_ENABLED",
+  MICROSOFT: "OAUTH_MICROSOFT_ENABLED",
 };
 
 export async function resolveOAuthLoginFeatureState() {
@@ -20,6 +21,7 @@ export async function resolveOAuthLoginFeatureState() {
       "OAUTH_GOOGLE_ENABLED",
       "OAUTH_LINE_ENABLED",
       "OAUTH_APPLE_ENABLED",
+      "OAUTH_MICROSOFT_ENABLED",
       "OAUTH_ONLY_LOGIN_UI_ENABLED",
       "OAUTH_MOCK_PROVIDER_ENABLED",
     ]);
@@ -31,6 +33,7 @@ export async function resolveOAuthLoginFeatureState() {
         GOOGLE: flags.OAUTH_GOOGLE_ENABLED.enabled,
         LINE: flags.OAUTH_LINE_ENABLED.enabled,
         APPLE: flags.OAUTH_APPLE_ENABLED.enabled,
+        MICROSOFT: flags.OAUTH_MICROSOFT_ENABLED.enabled,
       } satisfies Record<OAuthProvider, boolean>,
     };
   } catch {
@@ -45,6 +48,7 @@ export async function resolveOAuthLoginFeatureState() {
         GOOGLE: false,
         LINE: false,
         APPLE: false,
+        MICROSOFT: false,
       } satisfies Record<OAuthProvider, boolean>,
     };
   }

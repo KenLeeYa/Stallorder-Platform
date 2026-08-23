@@ -1,4 +1,4 @@
-export const oauthProviders = ["GOOGLE", "LINE", "APPLE"] as const;
+export const oauthProviders = ["GOOGLE", "LINE", "APPLE", "MICROSOFT"] as const;
 
 export type OAuthProvider = (typeof oauthProviders)[number];
 

@@ -12,6 +12,8 @@ import {
   FileChartColumn,
   Package,
   ScrollText,
+  ShieldCheck,
+  WalletCards,
   Store,
 } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
@@ -113,6 +115,14 @@ export function MerchantWorkspaceHeader({
             <CreditCard className="h-5 w-5" /><span className="sr-only">{m("訂閱與帳務")}</span>
           </Link>
         ) : null}
+        <Link title={m("帳號與安全性")} href="/merchant/account/security" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <ShieldCheck className="h-5 w-5" /><span className="sr-only">{m("帳號與安全性")}</span>
+        </Link>
+        {workspace?.roles.some((role) => hasPermission(role, "MANAGE_PAYMENT_INTEGRATIONS")) ? (
+          <Link title={m("付款與金流")} href={`/merchant/payments?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+            <WalletCards className="h-5 w-5" /><span className="sr-only">{m("付款與金流")}</span>
+          </Link>
+        ) : null}
       </nav>
     );
   }
@@ -206,8 +216,8 @@ export function MerchantWorkspaceHeader({
           </div>
         </div>
       </header>
-      <div className="sticky top-0 z-30 border-b border-stone-200 bg-white/95 px-4 py-1 backdrop-blur md:hidden">
-        <div className="mx-auto max-w-7xl">
+      <div className="sticky top-0 z-30 min-w-0 overflow-x-hidden border-b border-stone-200 bg-white/95 px-4 py-1 backdrop-blur md:hidden">
+        <div className="mx-auto min-w-0 max-w-full">
           {renderFunctionNavigation("flex w-full", "merchant-function-navigation-mobile")}
         </div>
       </div>

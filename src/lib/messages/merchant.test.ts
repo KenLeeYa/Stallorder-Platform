@@ -16,4 +16,9 @@ describe("merchant message catalog", () => {
   it("returns the selected locale without translating merchant-supplied values", () => {
     expect(getMerchantMessage("vi", "管理攤位")).toBe("Quản lý quầy");
   });
+
+  it("localizes shared-catalog counts and assignment labels", () => {
+    expect(getMerchantMessage("en", "商品目錄（{value0}）", { value0: 4 })).toBe("Product catalog (4)");
+    expect(getMerchantMessage("en", "已分派")).toBe("Assigned to");
+  });
 });

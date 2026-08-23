@@ -9,11 +9,12 @@ import { createReportTranslator } from "@/lib/messages/reports";
 type Stall = { id: string; name: string };
 type ReportFiltersProps = { organizationId: string; stalls: Stall[]; selectedStallIds: string[]; dateFrom: string; dateTo: string };
 
-export function ReportNavigation({ organizationId, active }: { organizationId: string; active: "overview" | "stalls" | "products" | "payments" | "cash-shifts" }) {
+export function ReportNavigation({ organizationId, active }: { organizationId: string; active: "overview" | "orders" | "stalls" | "products" | "payments" | "cash-shifts" }) {
   const { locale } = useAppLocale();
   const t = createReportTranslator(locale);
   const items = [
     ["overview", t("reports.nav.overview")],
+    ["orders", t("reports.nav.orders")],
     ["stalls", t("reports.nav.stalls")],
     ["products", t("reports.nav.products")],
     ["payments", t("reports.nav.payments")],

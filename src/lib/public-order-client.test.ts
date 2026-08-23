@@ -153,6 +153,33 @@ describe("requestPublicOrder", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-test-key");
   }
 
+  it("uses the same-site Circuit B API in local development when Edge Functions are not configured", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "");
+    vi.stubGlobal("window", { location: { hostname: "127.0.0.1" } });
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("/api/public/order-session");
+      return Response.json({ orderSessionToken: "stos_local_session" }, { status: 201 });
+    });
+    const { requestPublicOrder } = await import("./public-order-client");
+
+    const response = await requestPublicOrder(
+      "create-order-session",
+      {
+        deviceId: "11111111-1111-4111-8111-111111111111",
+        sessionRequestId: "55555555-5555-4555-8555-555555555555",
+      },
+      {
+        fetchImpl,
+        operationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      },
+    );
+
+    expect(response.status).toBe(201);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   it("falls back to Circuit B with identical order identifiers and operation id", async () => {
     configureDirectEdge();
     vi.spyOn(console, "info").mockImplementation(() => undefined);

@@ -156,6 +156,7 @@ describe("print queue capability enforcement", () => {
   it.each([
     ["REGISTER_PRINTER", { operation: "REGISTER_PRINTER", name: "Counter printer" }],
     ["QUEUE", { operation: "QUEUE", orderId }],
+    ["QUEUE_RECEIPT", { operation: "QUEUE_RECEIPT", orderId }],
     ["CLAIM", { operation: "CLAIM", jobId, printerId }],
     ["REPRINT", { operation: "REPRINT", jobId }],
   ])("rejects %s when the stall has not enabled its print module", async (_operation, command) => {
@@ -197,6 +198,36 @@ describe("print queue capability enforcement", () => {
       select: { printModuleEnabled: true },
     });
     expect(mocks.printJobCreate).toHaveBeenCalled();
+  });
+
+  it("queues a customer receipt through the enabled receipt rule", async () => {
+    mocks.printRuleFindFirst.mockResolvedValue({
+      id: "77777777-7777-4777-8777-777777777777",
+      printerId,
+      copies: 1,
+    });
+
+    const response = await postCommand({ operation: "QUEUE_RECEIPT", orderId });
+
+    expect(response.status).toBe(200);
+    expect(mocks.printJobCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        orderId,
+        printerId,
+        documentType: "CUSTOMER_RECEIPT",
+      }),
+    });
+  });
+
+  it("requires an enabled customer receipt rule before first receipt printing", async () => {
+    mocks.printRuleFindFirst.mockResolvedValue(null);
+
+    const response = await postCommand({ operation: "QUEUE_RECEIPT", orderId });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "請先在列印設定建立並啟用顧客收據規則。",
+    });
   });
 
   it("keeps history reads available without an entitlement or module mutation gate", async () => {

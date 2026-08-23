@@ -59,6 +59,30 @@ describe("OAuth provider configuration", () => {
     expect(config.clientId).toBe("com.example.stallorder");
   });
 
+  it("builds a fail-closed Microsoft OIDC configuration with an exact issuer", () => {
+    const config = getLiveOAuthProviderConfig("MICROSOFT", environment({
+      MICROSOFT_TENANT_ID: "organizations",
+      MICROSOFT_CLIENT_ID: "microsoft-client",
+      MICROSOFT_CLIENT_SECRET: "microsoft-secret",
+      MICROSOFT_ISSUER: "https://login.microsoftonline.com/example-tenant/v2.0",
+      MICROSOFT_REDIRECT_URI: "https://preview.example.test/api/auth/microsoft/callback",
+    }));
+
+    expect(config.authorizationEndpoint)
+      .toBe("https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize");
+    expect(config.issuer).toBe("https://login.microsoftonline.com/example-tenant/v2.0");
+    expect(config.scopes).toEqual(["openid", "profile", "email"]);
+  });
+
+  it("rejects Microsoft without an explicitly verified issuer", () => {
+    expect(() => getLiveOAuthProviderConfig("MICROSOFT", environment({
+      MICROSOFT_TENANT_ID: "organizations",
+      MICROSOFT_CLIENT_ID: "microsoft-client",
+      MICROSOFT_CLIENT_SECRET: "microsoft-secret",
+      MICROSOFT_REDIRECT_URI: "https://preview.example.test/api/auth/microsoft/callback",
+    }))).toThrow("OAUTH_MICROSOFT_CONFIG_MISSING");
+  });
+
   it("hard-rejects Mock mode in Production", () => {
     expect(() => getOAuthProviderMode({
       NODE_ENV: "production",

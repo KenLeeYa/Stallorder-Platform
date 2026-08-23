@@ -17,9 +17,10 @@ import type {
   OAuthProviderAdapter,
 } from "./types";
 import { oauthProviderPath } from "./types";
+import { oauthProviders } from "./types";
 
 const mockCodeSchema = z.object({
-  provider: z.enum(["GOOGLE", "LINE", "APPLE"]),
+  provider: z.enum(oauthProviders),
   subject: z.string().min(1).max(255),
   email: z.string().email().max(320).nullable(),
   displayName: z.string().min(1).max(200),

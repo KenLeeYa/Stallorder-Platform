@@ -4,6 +4,7 @@ import type { AppLocale } from "@/lib/app-locale";
 import { publicMessages } from "@/lib/messages/public";
 import { formatMoney } from "@/lib/money";
 import type { PublicMenu, PublicMenuProduct } from "@/lib/public-menu-types";
+import { localizeSpecialClosureTitle } from "@/lib/special-closures";
 
 export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: AppLocale }) {
   const sections = groupProductsByCategory(menu.products, locale);
@@ -60,7 +61,7 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
           >
             <CalendarOff className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
             <div>
-              <h2 className="font-bold">{menu.specialClosure.title}</h2>
+              <h2 className="font-bold">{localizeSpecialClosureTitle(menu.specialClosure.title, locale)}</h2>
               <p className="mt-1 text-sm font-semibold">{formatClosureRange(menu.specialClosure, locale)}</p>
               {menu.specialClosure.message ? <p className="mt-1 text-sm leading-6">{menu.specialClosure.message}</p> : null}
             </div>

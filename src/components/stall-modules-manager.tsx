@@ -382,14 +382,13 @@ export function StallModulesManager({
 
   return (
     <section ref={managerRef} className="mt-8" aria-label={viewTitle}>
-      <details
+      <div
         id="stall-module-section-overview"
-        open
         data-module-section="overview"
         data-settings-section
         data-settings-scope="stall-modules"
         data-settings-search={label("營運模組 內用桌位 外送 LINE 專屬 QR 點餐語系 訂單列印 付款方式 結帳折扣 桌位平面配置")}
-        className="border-y border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500 [&[open]>summary_.section-chevron]:rotate-180"
+        className="border-y border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500"
       >
         <CollapsibleSectionSummary
           icon={SlidersHorizontal}
@@ -470,11 +469,10 @@ export function StallModulesManager({
       {isView("discounts") && state.settings.discountModuleEnabled ? <label className="mt-4 block max-w-xs text-xs font-semibold text-stone-600">{label("超過此折扣需經理核准（%）")}<input {...validationAttributes(fieldKey("modules", "discountApprovalThresholdBps"), errorFor("modules", "discountApprovalThresholdBps"))} type="number" min={0} max={100} step={1} value={(10_000 - state.settings.discountApprovalThresholdBps) / 100} onChange={(event) => { const percent = Math.max(0, Math.min(100, Number(event.target.value) || 0)); setState((current) => ({ ...current, settings: { ...current.settings, discountApprovalThresholdBps: 10_000 - percent * 100 } })); }} className={inputClass(errorFor("modules", "discountApprovalThresholdBps"))} /><FieldError fieldKey={fieldKey("modules", "discountApprovalThresholdBps")} error={errorFor("modules", "discountApprovalThresholdBps")} /><span className="mt-1 block font-normal text-stone-500">{label("例如設定 20%，折扣超過 20%（低於 8 折）時需要經理驗證。")}</span></label> : null}
       {showsModuleControls ? <button type="button" disabled={busy} onClick={() => void saveModules()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{label("儲存設定")}</button> : null}
 
-      <details
+      <section
         id="stall-module-section-delivery"
-        open
         data-module-section="delivery"
-        className={`${isView("delivery", "preorder") ? "" : "hidden "}mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
+        className={`${isView("delivery", "preorder") ? "" : "hidden "}mt-8 border-y border-stone-200`}
       >
         <CollapsibleSectionSummary
           icon={Truck}
@@ -493,14 +491,13 @@ export function StallModulesManager({
           <label className="mt-4 block text-xs font-semibold text-stone-600">{label("LINE 自動回覆內容")}<textarea readOnly value={lineReply} className="mt-1 min-h-24 w-full rounded-md border border-stone-300 bg-stone-50 px-3 py-2 text-sm" /></label>
           <button type="button" onClick={() => void copyShareText(lineReply, label("LINE 回覆內容"))} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><MessageCircle className="h-4 w-4" />{label("複製 LINE 回覆內容")}</button>
         </div>
-      </details>
+      </section>
 
-      <details
+      <section
         id="stall-module-section-locales"
-        open
         data-module-section="locales"
         aria-label={label("QR 點餐語系")}
-        className={`${isView("languages") ? "" : "hidden "}mt-8 border-y border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
+        className={`${isView("languages") ? "" : "hidden "}mt-8 border-y border-stone-200`}
       >
         <CollapsibleSectionSummary icon={Languages} title={label("QR 點餐語系")} level={3} />
         <div className="pb-6">
@@ -519,13 +516,12 @@ export function StallModulesManager({
           </div>
           <button type="button" disabled={busy} onClick={() => void saveLocales()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{label("儲存語系設定")}</button>
         </div>
-      </details>
+      </section>
 
-      <details
+      <section
         id="stall-module-section-tables"
-        open
         data-module-section="tables"
-        className={`${isView("dining-tables") ? "" : "hidden "}border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
+        className={`${isView("dining-tables") ? "" : "hidden "}border-b border-stone-200`}
       >
         <CollapsibleSectionSummary icon={QrCode} title={label("內用桌位與專屬 QR")} level={3} />
         <div className="pb-6">
@@ -574,11 +570,10 @@ export function StallModulesManager({
               </div>
             ) : <p className="mt-3 text-xs text-stone-500">{label("目前顯示相容舊資料的虛擬")} {DEFAULT_DINING_FLOOR_NAME}{label("；首次新增桌位或儲存位置時會自動建立樓層。")}</p>}
           </div>
-          <details
+          <section
             id="stall-module-section-floor"
-            open
             data-module-section="floor"
-            className="mb-6 border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180"
+            className="mb-6 border-b border-stone-200"
           >
             <CollapsibleSectionSummary icon={MapPinned} title={label("桌位平面配置")} description={label("此位置會同步到員工手機的桌位看板。")} level={4} />
             <div className="pb-6">
@@ -590,7 +585,7 @@ export function StallModulesManager({
             <button type="button" disabled={busy || activeFloorTables.length === 0 || Boolean(pendingFloorMoveMessage)} title={pendingFloorMoveMessage || undefined} onClick={() => void saveTableLayout()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{label("儲存桌位位置")}</button>
             <FieldError fieldKey={fieldKey("table-layout", "tables")} error={pendingFloorMoveMessage || errorFor("table-layout", "tables")} />
             </div>
-          </details>
+          </section>
           <div className="grid gap-2 border-b border-stone-200 pb-4 sm:grid-cols-2 lg:grid-cols-[120px_1fr_120px_120px_90px_auto]">
             <TextInput label={label("桌位代碼")} value={newTable.code} fieldKey={fieldKey("new-table", "code")} error={errorFor("new-table", "code")} maxLength={20} pattern="[A-Za-z0-9-]+" onChange={(code) => setNewTable({ ...newTable, code: code.toUpperCase() })} />
             <TextInput label={label("顯示名稱")} value={newTable.label} fieldKey={fieldKey("new-table", "label")} error={errorFor("new-table", "label")} maxLength={40} onChange={(label) => setNewTable({ ...newTable, label })} />
@@ -631,13 +626,12 @@ export function StallModulesManager({
             {activeFloorTables.length === 0 ? <p className="py-6 text-sm text-stone-500">{activeFloor?.name ?? label("此樓層")}{label("尚未建立內用桌位。")}</p> : null}
           </div>
         </div>
-      </details>
+      </section>
 
-      <details
+      <section
         id="payment-options"
-        open
         data-module-section="payments"
-        className={`${isView("payments") ? "" : "hidden "}border-b border-stone-200 scroll-mt-24 [&[open]>summary_.section-chevron]:rotate-180`}
+        className={`${isView("payments") ? "" : "hidden "}border-b border-stone-200 scroll-mt-24`}
       >
         <CollapsibleSectionSummary icon={WalletCards} title={label("付款方式")} level={3} />
         <div className="pb-6">
@@ -655,13 +649,12 @@ export function StallModulesManager({
             return <div key={option.id} className="grid gap-2 py-4 sm:grid-cols-[110px_1fr_150px_80px_auto] sm:items-end"><TextInput label={label("代碼")} value={option.code} fieldKey={fieldKey(scope, "code")} error={errorFor(scope, "code")} maxLength={30} pattern="[A-Za-z0-9_-]+" onChange={(code) => updatePayment(option.id, { code: code.toUpperCase() })} /><TextInput label={label("名稱")} value={option.name} fieldKey={fieldKey(scope, "name")} error={errorFor(scope, "name")} onChange={(name) => updatePayment(option.id, { name })} /><PaymentKind value={option.kind} fieldKey={fieldKey(scope, "kind")} error={errorFor(scope, "kind")} onChange={(kind) => updatePayment(option.id, { kind })} /><NumberInput label={label("排序")} value={option.sortOrder} fieldKey={fieldKey(scope, "sortOrder")} error={errorFor(scope, "sortOrder")} onChange={(sortOrder) => updatePayment(option.id, { sortOrder })} /><div className="flex gap-2"><button type="button" role="switch" aria-checked={option.isEnabled} onClick={() => updatePayment(option.id, { isEnabled: !option.isEnabled })} className="h-10 rounded-md border border-stone-300 px-3 text-xs font-semibold">{option.isEnabled ? label("已啟用") : label("已停用")}</button><button type="button" title={m("儲存 {value0}", { value0: option.name })} onClick={() => void run({ operation: "UPDATE_PAYMENT_OPTION", paymentOptionId: option.id, code: option.code, name: option.name, kind: option.kind, isEnabled: option.isEnabled, sortOrder: option.sortOrder }, label("付款方式已儲存。"))} className="grid h-10 w-10 place-items-center rounded-md bg-stone-900 text-white"><Save className="h-4 w-4" /></button><button type="button" title={m("刪除 {value0}", { value0: option.name })} onClick={() => { if (window.confirm(m("確定刪除 {value0}？歷史付款仍會保留名稱。", { value0: option.name }))) void run({ operation: "DELETE_PAYMENT_OPTION", paymentOptionId: option.id }, label("付款方式已刪除。")); }} className="grid h-10 w-10 place-items-center rounded-md border border-red-300 text-red-700"><Trash2 className="h-4 w-4" /></button></div></div>;
           })}</div>
         </div>
-      </details>
+      </section>
 
-      <details
+      <section
         id="discount-options"
-        open
         data-module-section="discounts"
-        className={`${isView("discounts") ? "" : "hidden "}scroll-mt-24 border-b border-stone-200 [&[open]>summary_.section-chevron]:rotate-180`}
+        className={`${isView("discounts") ? "" : "hidden "}scroll-mt-24 border-b border-stone-200`}
       >
         <CollapsibleSectionSummary icon={Percent} title={label("結帳折扣")} level={3} />
         <div className="pb-6">
@@ -671,10 +664,10 @@ export function StallModulesManager({
             return <div key={discount.id} className="grid gap-2 py-4 sm:grid-cols-[1fr_130px_80px_auto] sm:items-end"><TextInput label={label("折扣名稱")} value={discount.name} fieldKey={fieldKey(scope, "name")} error={errorFor(scope, "name")} onChange={(name) => updateDiscount(discount.id, { name })} /><PercentInput value={discount.rateBps} fieldKey={fieldKey(scope, "rateBps")} error={errorFor(scope, "rateBps")} onChange={(rateBps) => updateDiscount(discount.id, { rateBps })} /><NumberInput label={label("排序")} value={discount.sortOrder} fieldKey={fieldKey(scope, "sortOrder")} error={errorFor(scope, "sortOrder")} onChange={(sortOrder) => updateDiscount(discount.id, { sortOrder })} /><div className="flex gap-2"><button type="button" role="switch" aria-checked={discount.isEnabled} onClick={() => updateDiscount(discount.id, { isEnabled: !discount.isEnabled })} className="h-10 rounded-md border border-stone-300 px-3 text-xs font-semibold">{discount.isEnabled ? label("已啟用") : label("已停用")}</button><button type="button" title={m("儲存 {value0}", { value0: discount.name })} onClick={() => void run({ operation: "UPDATE_DISCOUNT", discountId: discount.id, name: discount.name, rateBps: discount.rateBps, isEnabled: discount.isEnabled, sortOrder: discount.sortOrder }, label("折扣已儲存。"))} className="grid h-10 w-10 place-items-center rounded-md bg-stone-900 text-white"><Save className="h-4 w-4" /></button><button type="button" title={m("刪除 {value0}", { value0: discount.name })} onClick={() => { if (window.confirm(m("確定刪除 {value0}？", { value0: discount.name }))) void run({ operation: "DELETE_DISCOUNT", discountId: discount.id }, label("折扣已刪除。")); }} className="grid h-10 w-10 place-items-center rounded-md border border-red-300 text-red-700"><Trash2 className="h-4 w-4" /></button></div></div>;
           })}</div>
         </div>
-      </details>
+      </section>
       {message ? <p role={messageKind === "error" ? "alert" : "status"} className={`mt-4 text-sm font-medium ${messageKind === "error" ? "text-red-700" : "text-stone-700"}`}>{message}</p> : null}
         </div>
-      </details>
+      </div>
     </section>
   );
 }

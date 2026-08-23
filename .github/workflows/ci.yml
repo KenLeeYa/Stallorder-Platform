@@ -79,6 +79,12 @@ jobs:
         run: npx supabase db lint --local --level warning --fail-on warning
       - name: Production guardrails
         run: npm run production:check
+      - name: Enable local legacy Google OAuth compatibility
+        run: |
+          supabase db query \
+            --db-url "$DATABASE_URL" \
+            --file supabase/fixtures/oauth_legacy_google_e2e.sql \
+            --log-level error
       - name: Build
         env:
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:55431

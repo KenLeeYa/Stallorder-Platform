@@ -4,6 +4,8 @@ import { createMessageCatalog, type MessageValues } from "@/lib/message-catalog"
 type MerchantMessageRow = Record<AppLocale, string>;
 
 const merchantMessageRows = {
+  "帳號與安全性": { "zh-TW": "帳號與安全性", en: "Account and security", ja: "アカウントとセキュリティ", ko: "계정 및 보안", vi: "Tài khoản và bảo mật", th: "บัญชีและความปลอดภัย" },
+  "付款與金流": { "zh-TW": "付款與金流", en: "Payments and providers", ja: "決済とプロバイダー", ko: "결제 및 제공업체", vi: "Thanh toán và nhà cung cấp", th: "การชำระเงินและผู้ให้บริการ" },
   "返回攤位設定": { "zh-TW": "返回攤位設定", en: "Back to stall settings", ja: "店舗設定に戻る", ko: "매장 설정으로 돌아가기", vi: "Quay lại cài đặt quầy", th: "กลับไปยังการตั้งค่าร้าน" },
   "返回攤位管理": { "zh-TW": "返回攤位管理", en: "Back to stall management", ja: "店舗管理に戻る", ko: "매장 관리로 돌아가기", vi: "Quay lại quản lý quầy", th: "กลับไปยังการจัดการร้าน" },
   "返回管理攤位": { "zh-TW": "返回管理攤位", en: "Back to manage stalls", ja: "店舗管理に戻る", ko: "매장 관리로 돌아가기", vi: "Quay lại quản lý quầy", th: "กลับไปจัดการร้าน" },
@@ -870,8 +872,10 @@ const merchantMessageRows = {
   "加入一般商品": { "zh-TW": "加入一般商品", en: "Add general merchandise", ja: "一般商品を追加します", ko: "일반 상품 추가", vi: "Thêm hàng hóa thông thường", th: "เพิ่มสินค้าทั่วไป" },
   "尚未設定套餐選擇群組。": { "zh-TW": "尚未設定套餐選擇群組。", en: "The plan selection group has not been set up.", ja: "プラン選択グループが設定されていません。", ko: "계획 선택 그룹이 설정되지 않았습니다.", vi: "Nhóm lựa chọn phương án chưa được thành lập.", th: "ยังไม่ได้ตั้งค่ากลุ่มการเลือกแผน" },
   "未分類": { "zh-TW": "未分類", en: "Uncategorized", ja: "未分類", ko: "분류되지 않음", vi: "Chưa được phân loại", th: "ไม่มีหมวดหมู่" },
+  "商品目錄（{value0}）": { "zh-TW": "商品目錄（{value0}）", en: "Product catalog ({value0})", ja: "商品カタログ（{value0}）", ko: "상품 카탈로그 ({value0})", vi: "Danh mục sản phẩm ({value0})", th: "แคตตาล็อกสินค้า ({value0})" },
   "不參與抽抽樂": { "zh-TW": "不參與抽抽樂", en: "Not participating in the lottery", ja: "抽選に参加しない", ko: "복권에 참여하지 않음", vi: "Không tham gia xổ số", th: "ไม่ร่วมลอตเตอรี่" },
   "· 已分派": { "zh-TW": "· 已分派", en: "· Assigned", ja: "· 割り当て済み", ko: "· 배정됨", vi: "· Được giao", th: "· ได้รับมอบหมาย" },
+  "已分派": { "zh-TW": "已分派", en: "Assigned to", ja: "割り当て済み", ko: "배정됨", vi: "Đã phân công cho", th: "มอบหมายให้" },
   "攤": { "zh-TW": "攤", en: "stall", ja: "ストール", ko: "마구간", vi: "gian hàng", th: "แผงลอย" },
   "設定 {value0} 套餐內容": { "zh-TW": "設定 {value0} 套餐內容", en: "Set {value0} package content", ja: "{value0} パッケージの内容を設定する", ko: "{value0} 패키지 콘텐츠 설정", vi: "Đặt nội dung gói {value0}", th: "ตั้งค่าเนื้อหาแพ็กเกจ {value0}" },
   "設定套餐內容": { "zh-TW": "設定套餐內容", en: "Set package content", ja: "パッケージ内容を設定する", ko: "패키지 콘텐츠 설정", vi: "Đặt nội dung gói", th: "ตั้งค่าเนื้อหาแพ็คเกจ" },
