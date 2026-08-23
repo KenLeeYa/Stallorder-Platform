@@ -164,17 +164,16 @@ insert into public.orders (
   '11111111-1111-4111-8111-111111111111',
   '22222222-2222-4222-8222-222222222222',
   'P1-NO-KDS-001', repeat('3', 64),
-  '76100000-0000-4000-8000-000000000006', 'STAFF_POS', '單店員列印顧客',
+  '76100000-0000-4000-8000-000000000006', 'QR_MENU', '免 KDS 公開訂單顧客',
   'TAKEOUT', 'WAITING_CONFIRMATION', 'UNPAID', 100, 100, repeat('4', 64),
   now() + interval '10 minutes', now(), now()
 );
 update public.orders set status = 'CONFIRMED' where id = '76100000-0000-4000-8000-000000000005';
-select ok(
-  not exists (
-    select 1 from public.print_jobs
-    where order_id = '76100000-0000-4000-8000-000000000005'
-  ),
-  'KDS 關閉時確認訂單不由資料庫 trigger 提前排印'
+select is(
+  (select status::text from public.print_jobs
+   where order_id = '76100000-0000-4000-8000-000000000005'),
+  'PENDING',
+  'KDS 關閉時確認公開訂單仍建立待列印工作'
 );
 insert into public.order_items (
   id, tenant_id, organization_id, stall_id, order_id, product_id,
