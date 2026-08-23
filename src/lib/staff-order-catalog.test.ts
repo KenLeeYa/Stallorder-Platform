@@ -33,20 +33,30 @@ function assignment(input: {
   componentActive?: boolean;
   componentStallId?: string;
   minSelections?: number;
+  stallSortOrder?: number;
+  productSortOrder?: number;
+  productName?: string;
+  categoryName?: string;
+  categorySortOrder?: number;
+  groupName?: string | null;
+  groupSortOrder?: number;
 }) {
   const kind = input.kind ?? "BUNDLE";
   return {
     priceOverride: null,
+    sortOrder: input.stallSortOrder ?? 0,
     product: {
       id: input.bundleId,
       organizationId,
-      name: kind === "BUNDLE" ? "招牌套餐" : "單點河粉",
+      name: input.productName ?? (kind === "BUNDLE" ? "招牌套餐" : "單點河粉"),
       description: "",
       defaultPrice: 100,
       isOrderDiscountEligible: true,
       kind,
       imageUrl: null,
-      category: { name: "主食" },
+      sortOrder: input.productSortOrder ?? 0,
+      category: { name: input.categoryName ?? "主食", sortOrder: input.categorySortOrder ?? 0 },
+      group: input.groupName ? { name: input.groupName, sortOrder: input.groupSortOrder ?? 0 } : null,
       bundleChoiceGroups: kind === "BUNDLE" ? [{
         id: `${input.bundleId.slice(0, -1)}2`,
         organizationId,
@@ -96,6 +106,8 @@ describe("店員點餐套餐目錄", () => {
       paymentModuleEnabled: true,
       discountModuleEnabled: false,
       discountApprovalThresholdBps: 8000,
+      preorderReminderMinutes: 30,
+      businessDayCutoffHour: 0,
       maxItemQuantity: 20,
       maxUniqueProducts: 20,
       maxTotalQuantity: 40,
@@ -156,6 +168,32 @@ describe("店員點餐套餐目錄", () => {
       kind: "BUNDLE",
       bundleChoiceGroups: [{ minSelections: 0, choices: [] }],
     }]);
+  });
+
+  it("uses the configured category, group, stall product, and shared product ordering", async () => {
+    const firstId = "91000000-0000-4000-8000-000000000001";
+    const stallSecondId = "92000000-0000-4000-8000-000000000001";
+    const productSecondId = "93000000-0000-4000-8000-000000000001";
+    const groupSecondId = "94000000-0000-4000-8000-000000000001";
+    const categorySecondId = "95000000-0000-4000-8000-000000000001";
+    database.stallProductFindMany.mockResolvedValue([
+      assignment({ bundleId: categorySecondId, kind: "SINGLE", categoryName: "飲料", categorySortOrder: 1 }),
+      assignment({ bundleId: groupSecondId, kind: "SINGLE", groupName: "經典", groupSortOrder: 1 }),
+      assignment({ bundleId: productSecondId, kind: "SINGLE", groupName: "熱銷", productSortOrder: 1 }),
+      assignment({ bundleId: stallSecondId, kind: "SINGLE", groupName: "熱銷", stallSortOrder: 1 }),
+      assignment({ bundleId: firstId, kind: "SINGLE", groupName: "熱銷" }),
+    ]);
+
+    const configuration = await getStaffOrderPageConfiguration(stallId, organizationId, true);
+
+    expect(configuration.catalog?.products.map((product) => product.id)).toEqual([
+      firstId,
+      productSecondId,
+      stallSecondId,
+      groupSecondId,
+      categorySecondId,
+    ]);
+    expect(configuration.catalog?.products[0]).toMatchObject({ category: "主食", group: "熱銷" });
   });
 
   it("groups physical and legacy tables with a floor name for staff ordering", async () => {

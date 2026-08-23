@@ -64,7 +64,7 @@ describe("QR 點餐瀏覽器語系", () => {
   });
 });
 
-describe("QR 介面語系與商品語系分離", () => {
+describe("QR 語系偏好與目錄支援", () => {
   it("明確的 ?locale=vi 優先於既有手動偏好與系統語系", () => {
     const resolved = resolveQrUiLocale({
       queryLocale: "vi",
@@ -100,7 +100,7 @@ describe("QR 介面語系與商品語系分離", () => {
     })).toEqual({ locale: "ja", source: "app", shouldMigrateLegacy: false });
   });
 
-  it("介面維持越南文，商家無越南文商品時僅商品內容回退繁中", () => {
+  it("只有目錄完整支援時才採用對應商品語系", () => {
     expect(resolveQrCatalogLocale("vi", ["en", "ja"])).toBe("zh-TW");
     expect(resolveQrCatalogLocale("vi", ["vi", "en"])).toBe("vi");
   });

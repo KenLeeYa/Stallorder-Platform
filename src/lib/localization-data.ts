@@ -5,7 +5,27 @@ import { mergeEnabledLocales, normalizeEnabledLocales } from "@/lib/enabled-loca
 import { calculateTranslationCoverage } from "@/lib/translation-completeness";
 
 export async function getLocalizationOverview(organizationId: string, stallIds: string[]) {
-  const [products, noteGroups, stalls] = await Promise.all([
+  const [categories, productGroups, products, noteGroups, stalls] = await Promise.all([
+    prisma.productCategory.findMany({
+      where: { organizationId },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+        translations: { select: { locale: true, name: true } },
+      },
+    }),
+    prisma.productGroup.findMany({
+      where: { organizationId },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+        translations: { select: { locale: true, name: true } },
+      },
+    }),
     prisma.product.findMany({
       where: { organizationId },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -55,7 +75,7 @@ export async function getLocalizationOverview(organizationId: string, stallIds: 
   const enabledLocales = mergeEnabledLocales(normalizedStalls.map((stall) => stall.enabledLocales));
 
   return {
-    coverage: calculateTranslationCoverage(enabledLocales, products, noteGroups),
+    coverage: calculateTranslationCoverage(enabledLocales, products, noteGroups, categories, productGroups),
     stalls: normalizedStalls,
   };
 }
@@ -92,7 +112,18 @@ export async function getLocalizedStallPreview(organizationId: string, stallId: 
               description: true,
               defaultPrice: true,
               imageUrl: true,
-              category: { select: { name: true } },
+              category: {
+                select: {
+                  name: true,
+                  translations: { select: { locale: true, name: true } },
+                },
+              },
+              group: {
+                select: {
+                  name: true,
+                  translations: { select: { locale: true, name: true } },
+                },
+              },
               translations: { select: { locale: true, name: true, description: true } },
               noteGroupAssignments: {
                 where: { isActive: true, noteGroup: { isActive: true } },

@@ -34,7 +34,7 @@ describe("StaffOrderBoard manual pickup characterization", () => {
   });
 
   it("preserves the modal lifecycle, default reason, and customer-detail acknowledgement", () => {
-    expect(presentationSource).toContain("onClick={() => manualPickup.open(order.id)}");
+    expect(presentationSource).toContain("onClick={() => manualPickup.open(pickupCheckoutOrder.id)}");
     expect(presentationSource).toContain("<StaffOrderManualPickupDialog");
     expect(manualPickupSource).toContain('if (event.key === "Escape" && verifyingPickupOrderId !== pending.orderId) dismiss();');
     expect(manualPickupSource).toContain('role="alertdialog"');

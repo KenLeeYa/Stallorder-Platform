@@ -75,6 +75,7 @@ const baseProps: MenuProps = {
   sessionExpiryDialogOpen: false,
   configurationRef: createRef<HTMLElement>(),
   localizedCategory: (category) => category === "main" ? "主餐" : category,
+  localizedProductGroup: (item) => item.group ?? "",
   localizedProduct: (item) => ({ name: item.name, description: item.description }),
   localizedGroupName: (group) => group.name,
   localizedOptionName: (option) => option.name,

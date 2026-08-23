@@ -52,4 +52,12 @@ describe("create-order-session lightweight query plan", () => {
     expect(source).not.toContain('throw new HttpInputError("TABLE_UNAVAILABLE", 409)');
     expect(source).not.toContain('throw new HttpInputError("DELIVERY_UNAVAILABLE", 409)');
   });
+
+  it("returns only fully translated QR catalog locales", () => {
+    expect(source).toContain('admin.from("product_category_translations")');
+    expect(source).toContain('admin.from("product_group_translations")');
+    expect(source).toContain("categoryTranslations: product.categoryTranslations");
+    expect(source).toContain("groupTranslations: product.groupTranslations");
+    expect(source).toContain("supportedLocales: completeCatalogLocales(products, enabledLocales)");
+  });
 });

@@ -221,9 +221,11 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       const readyResponse = await readyResponsePromise;
       expect(readyResponse.status()).toBe(200);
       expect(readyResponse.request().postDataJSON()).toEqual({ status: "READY" });
-      await expect(staffOrder.getByLabel("3 位數取餐碼")).toBeVisible();
+      await staffOrder.getByRole("button", { name: "代結帳", exact: true }).click();
+      const pickupCheckout = staffPage.getByRole("dialog", { name: "先驗證取餐碼，再進行結帳" });
+      await expect(pickupCheckout.getByLabel("3 位數取餐碼")).toBeVisible();
 
-      await staffOrder.getByRole("button", { name: "無法取得取餐碼", exact: true }).click();
+      await pickupCheckout.getByRole("button", { name: "無法取得取餐碼", exact: true }).click();
       const manualPickupDialog = staffPage.getByRole("alertdialog", { name: "人工核對取餐" });
       await expect(manualPickupDialog).toContainText(`訂單 ${orderNo}`);
       await expect(manualPickupDialog.getByLabel("輸入完整訂單編號以確認")).toHaveCount(0);
@@ -248,8 +250,8 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       });
       await expect(staffOrder).toContainText("已完成人工取餐核對");
 
-      await staffOrder.getByRole("button", { name: "代結帳", exact: true }).first().click();
       const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
+      await expect(checkout).toBeVisible();
       await checkout.getByRole("button", { name: "現金", exact: true }).click();
       await checkout.getByRole("button", { name: "剛好", exact: true }).click();
       await expect(checkout.getByLabel("客戶實收金額")).toHaveValue(String(createdOrder.total));

@@ -401,7 +401,9 @@ model Organization {
   memberships                   OrganizationMembership[]
   stallMemberships              StallMembership[]
   productCategories             ProductCategory[]
+  productCategoryTranslations     ProductCategoryTranslation[]
   productGroups                 ProductGroup[]
+  productGroupTranslations        ProductGroupTranslation[]
   products                      Product[]
   productTranslations           ProductTranslation[]
   productBundleChoiceGroups     ProductBundleChoiceGroup[]
@@ -499,6 +501,9 @@ model Stall {
   orderingEnabled        Boolean                  @default(true) @map("ordering_enabled")
   logoUrl                String?                  @map("logo_url")
   coverImageUrl          String?                  @map("cover_image_url")
+  coverImagePositionX       Int                          @default(50) @map("cover_image_position_x") @db.SmallInt
+  coverImagePositionY       Int                          @default(50) @map("cover_image_position_y") @db.SmallInt
+  coverImageZoom            Int                          @default(100) @map("cover_image_zoom") @db.SmallInt
   location               String
   orderingState          StallOrderingState       @default(OPEN) @map("ordering_state")
   isSoldOut              Boolean                  @default(false) @map("is_sold_out")
@@ -1502,6 +1507,7 @@ model ProductCategory {
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  translations              ProductCategoryTranslation[]
   groups         ProductGroup[]
   products       Product[]
   kitchenStationAssignments KitchenStationAssignment[]
@@ -1521,10 +1527,43 @@ model ProductGroup {
   updatedAt      DateTime        @updatedAt @map("updated_at")
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   category       ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  translations   ProductGroupTranslation[]
   products       Product[]
 
   @@index([organizationId, categoryId, sortOrder])
   @@map("product_groups")
+}
+
+model ProductCategoryTranslation {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  categoryId     String          @map("category_id") @db.Uuid
+  locale         String
+  name           String
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category       ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, locale])
+  @@index([organizationId, locale])
+  @@map("product_category_translations")
+}
+
+model ProductGroupTranslation {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  groupId        String       @map("group_id") @db.Uuid
+  locale         String
+  name           String
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  group          ProductGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, locale])
+  @@index([organizationId, locale])
+  @@map("product_group_translations")
 }
 
 model Product {
@@ -1835,6 +1874,13 @@ model StallOrderingSettings {
   preorderMinLeadMinutes         Int          @default(60) @map("preorder_min_lead_minutes") @db.SmallInt
   preorderMaxDays                Int          @default(7) @map("preorder_max_days") @db.SmallInt
   preorderSlotMinutes            Int          @default(5) @map("preorder_slot_minutes") @db.SmallInt
+  preorderReminderMinutes           Int          @default(30) @map("preorder_reminder_minutes") @db.SmallInt
+  orderAlertSoundPreset             String       @default("URGENT") @map("order_alert_sound_preset")
+  orderAlertSoundObjectPath         String?      @map("order_alert_sound_object_path")
+  orderAlertVolume                  Int          @default(100) @map("order_alert_volume") @db.SmallInt
+  orderAlertRepeatCount             Int          @default(2) @map("order_alert_repeat_count") @db.SmallInt
+  managerAuthorizationCodeHash      String?      @map("manager_authorization_code_hash")
+  managerAuthorizationCodeUpdatedAt DateTime?    @map("manager_authorization_code_updated_at")
   lotteryEnabled                 Boolean      @default(false) @map("lottery_enabled")
   lotteryDiscountOptionId        String?      @map("lottery_discount_option_id") @db.Uuid
   lotteryDiscountWinRateBps      Int          @default(0) @map("lottery_discount_win_rate_bps") @db.SmallInt
@@ -2406,6 +2452,8 @@ model Printer {
   connectionType PrinterConnectionType @default(SYSTEM_PRINT) @map("connection_type")
   model          String                @default("MCP31LB")
   paperWidthMm   Int                   @default(58) @map("paper_width_mm")
+  autoDetectEnabled           Boolean               @default(true) @map("auto_detect_enabled")
+  openCashDrawerOnCashPayment Boolean               @default(false) @map("open_cash_drawer_on_cash_payment")
   isEnabled      Boolean      @default(true) @map("is_enabled")
   lastSeenAt     DateTime?    @map("last_seen_at")
   createdAt      DateTime     @default(now()) @map("created_at")
@@ -2440,6 +2488,14 @@ model PrintRule {
   splitMode          PrintSplitMode    @default(NONE) @map("split_mode")
   aggregateItems     Boolean           @default(false) @map("aggregate_items")
   autoPrint          Boolean           @default(true) @map("auto_print")
+  showCustomerName    Boolean           @default(true) @map("show_customer_name")
+  showCustomerPhone   Boolean           @default(true) @map("show_customer_phone")
+  showDeliveryAddress Boolean           @default(true) @map("show_delivery_address")
+  showOrderNote       Boolean           @default(true) @map("show_order_note")
+  showItemNotes       Boolean           @default(true) @map("show_item_notes")
+  showPrices          Boolean           @default(true) @map("show_prices")
+  showPaymentMethod   Boolean           @default(true) @map("show_payment_method")
+  feedLines           Int               @default(2) @map("feed_lines") @db.SmallInt
   sortOrder          Int               @default(0) @map("sort_order")
   deletedAt          DateTime?         @map("deleted_at")
   createdAt          DateTime          @default(now()) @map("created_at")

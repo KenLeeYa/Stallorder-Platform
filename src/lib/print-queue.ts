@@ -21,6 +21,8 @@ const printerConfiguration = {
   connectionType: printerConnectionType,
   model: z.string().trim().min(1).max(40),
   paperWidthMm,
+  autoDetectEnabled: z.boolean(),
+  openCashDrawerOnCashPayment: z.boolean(),
 };
 
 const printRuleConfiguration = z.object({
@@ -39,6 +41,14 @@ const printRuleConfiguration = z.object({
   splitMode,
   aggregateItems: z.boolean(),
   autoPrint: z.boolean(),
+  showCustomerName: z.boolean().default(true),
+  showCustomerPhone: z.boolean().default(true),
+  showDeliveryAddress: z.boolean().default(true),
+  showOrderNote: z.boolean().default(true),
+  showItemNotes: z.boolean().default(true),
+  showPrices: z.boolean().default(true),
+  showPaymentMethod: z.boolean().default(true),
+  feedLines: z.number().int().min(1).max(3).default(2),
   sortOrder: z.number().int().min(0).max(1000),
 }).strict().superRefine((value, context) => {
   if (value.documentType === "CUSTOMER_RECEIPT" && value.splitMode !== "NONE") {
@@ -58,6 +68,8 @@ export const printQueueCommandSchema = z.discriminatedUnion("operation", [
     connectionType: printerConfiguration.connectionType.default("WEBPRNT_BLUETOOTH"),
     model: printerConfiguration.model.default("MCP31LB"),
     paperWidthMm: printerConfiguration.paperWidthMm.default(58),
+    autoDetectEnabled: printerConfiguration.autoDetectEnabled.default(true),
+    openCashDrawerOnCashPayment: printerConfiguration.openCashDrawerOnCashPayment.default(false),
   }).strict(),
   z.object({
     operation: z.literal("UPDATE_PRINTER"),
@@ -67,9 +79,16 @@ export const printQueueCommandSchema = z.discriminatedUnion("operation", [
     connectionType: printerConfiguration.connectionType.optional(),
     model: printerConfiguration.model.optional(),
     paperWidthMm: printerConfiguration.paperWidthMm.optional(),
+    autoDetectEnabled: printerConfiguration.autoDetectEnabled.optional(),
+    openCashDrawerOnCashPayment: printerConfiguration.openCashDrawerOnCashPayment.optional(),
   }).strict(),
   z.object({ operation: z.literal("HEARTBEAT"), printerId: uuid }).strict(),
   z.object({ operation: z.literal("TEST_PRINTER"), printerId: uuid }).strict(),
+  z.object({
+    operation: z.literal("AUTHORIZE_CASH_DRAWER"),
+    printerId: uuid,
+    managerAuthorizationCode: z.string().trim().regex(/^\d{4,8}$/).optional(),
+  }).strict(),
   z.object({ operation: z.literal("CREATE_RULE"), rule: printRuleConfiguration }).strict(),
   z.object({ operation: z.literal("UPDATE_RULE"), ruleId: uuid, rule: printRuleConfiguration }).strict(),
   z.object({ operation: z.literal("DELETE_RULE"), ruleId: uuid }).strict(),

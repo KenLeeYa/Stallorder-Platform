@@ -10,6 +10,10 @@ import {
 } from "@/lib/cash-shifts";
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
+import {
+  ManagerAuthorizationError,
+  verifyManagerAuthorization,
+} from "@/lib/manager-authorization";
 import { hasPermission } from "@/lib/rbac";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
@@ -98,6 +102,46 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    const sensitiveCommand = command.operation === "REFUND"
+      ? {
+          operation: "CASH_REFUND" as const,
+          authorizationCode: command.managerAuthorizationCode,
+          shiftId: command.shiftId,
+        }
+      : command.operation === "MOVE" && command.type === "CASH_OUT"
+        ? {
+            operation: "CASH_OUT" as const,
+            authorizationCode: command.managerAuthorizationCode,
+            shiftId: command.shiftId,
+          }
+        : null;
+    if (sensitiveCommand) {
+      try {
+        await verifyManagerAuthorization({
+          stallId,
+          actorProfileId: authorization.principal.user.id,
+          actorRoles: authorization.roles,
+          operation: sensitiveCommand.operation,
+          authorizationCode: sensitiveCommand.authorizationCode,
+        });
+      } catch (error) {
+        if (!(error instanceof ManagerAuthorizationError)) throw error;
+        await recordAuditEvent({
+          organizationId,
+          stallId,
+          actorProfileId: authorization.principal.user.id,
+          action: `${sensitiveCommand.operation}_AUTHORIZATION_FAILED`,
+          entityType: "CASH_SHIFT",
+          entityId: sensitiveCommand.shiftId,
+          outcome: "DENIED",
+          requestId: authorization.requestId,
+          ipHash: hashClientIp(request),
+          metadata: { reason: error.code },
+        });
+        return managerAuthorizationErrorResponse(error, authorization.requestId);
+      }
+    }
+
     const result = await executeCashShiftCommand({
       organizationId,
       stallId,
@@ -156,5 +200,18 @@ function cashShiftErrorResponse(error: unknown, requestId: string) {
   return NextResponse.json(
     { error: duplicate ? "此攤位已有進行中的現金班次。" : "目前無法更新現金交班資料。" },
     { status: duplicate ? 409 : 500, headers: { "x-request-id": requestId } },
+  );
+}
+
+function managerAuthorizationErrorResponse(error: ManagerAuthorizationError, requestId: string) {
+  const messages: Record<ManagerAuthorizationError["code"], string> = {
+    CODE_REQUIRED: "請由經理或老闆輸入管理授權碼。",
+    CODE_NOT_CONFIGURED: "尚未設定管理授權碼，請先至安全與訂單限制設定。",
+    INVALID_CODE: "管理授權碼不正確。",
+    RATE_LIMITED: "管理授權碼嘗試過多，請稍後再試。",
+  };
+  return NextResponse.json(
+    { error: messages[error.code], code: error.code },
+    { status: error.code === "RATE_LIMITED" ? 429 : 403, headers: { "x-request-id": requestId } },
   );
 }

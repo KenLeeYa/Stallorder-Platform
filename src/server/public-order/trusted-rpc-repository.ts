@@ -434,6 +434,7 @@ export function getTrackedOrderContext(orderId: string) {
       quotedReadyAt: true,
       stall: {
         select: {
+          code: true,
           orderingSettings: {
             select: {
               estimatedWaitMinutes: true,

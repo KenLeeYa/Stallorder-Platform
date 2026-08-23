@@ -39,6 +39,7 @@ type QrOrderMenuProps = {
   configurationRef: RefObject<HTMLElement | null>;
   localizedCategory: (category: string) => string;
   localizedProduct: (product: PublicMenuProduct) => { name: string; description: string };
+  localizedProductGroup: (product: PublicMenuProduct) => string;
   localizedGroupName: (group: PublicMenuNoteGroup) => string;
   localizedOptionName: (option: PublicMenuNoteOption) => string;
   bundleChoiceLabel: (option: PublicMenuBundleChoiceOption) => string;
@@ -74,6 +75,7 @@ export function QrOrderMenu({
   configurationRef,
   localizedCategory,
   localizedProduct,
+  localizedProductGroup,
   localizedGroupName,
   localizedOptionName,
   bundleChoiceLabel,
@@ -124,7 +126,7 @@ export function QrOrderMenu({
                   && bundleSelectionIsValid(product.bundleChoiceGroups, draft.bundleChoiceIds);
                 return (
                   <Fragment key={product.id}>
-                  {showGroupHeading ? <p data-testid="qr-product-group-heading" className="col-span-full mt-2 text-xs font-bold uppercase tracking-wide text-teal-800 first:mt-0">{product.group}</p> : null}
+                  {showGroupHeading ? <p data-testid="qr-product-group-heading" className="col-span-full mt-2 text-xs font-bold uppercase tracking-wide text-teal-800 first:mt-0">{localizedProductGroup(product)}</p> : null}
                   <article
                     id={`qr-product-${product.id}`}
                     data-best-seller-rank={product.rank ?? undefined}

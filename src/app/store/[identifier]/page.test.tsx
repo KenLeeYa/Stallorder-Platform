@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   resolveStorefront: vi.fn(),
   getDisplayMenu: vi.fn(),
+  getLiveDisplayMenu: vi.fn(),
   getOrderMenu: vi.fn(),
+  getRequestLocale: vi.fn(),
   notFound: vi.fn(() => { throw new Error("NOT_FOUND"); }),
   redirect: vi.fn(),
 }));
@@ -28,10 +30,11 @@ vi.mock("@/components/qr-order-flow", () => ({
   ),
 }));
 vi.mock("@/lib/app-locale-server", () => ({
-  getRequestAppLocale: () => Promise.resolve({ locale: "zh-TW", hasLocaleCookie: false }),
+  getRequestAppLocale: mocks.getRequestLocale,
 }));
 vi.mock("@/lib/public-menu", () => ({
   getCachedPublicDisplayMenuForStallSlug: mocks.getDisplayMenu,
+  getLivePublicDisplayMenuForStallSlug: mocks.getLiveDisplayMenu,
   getCachedPublicMenuForQrToken: mocks.getOrderMenu,
 }));
 vi.mock("@/lib/public-storefront", async (importOriginal) => ({
@@ -43,8 +46,8 @@ vi.mock("next/navigation", () => ({
   redirect: mocks.redirect,
 }));
 vi.mock("./public-menu-view", () => ({
-  PublicMenuView: (props: { menu: { stall: { name: string } } }) => (
-    <main data-testid="mock-public-menu">{props.menu.stall.name}</main>
+  PublicMenuView: (props: { menu: { stall: { name: string } }; locale: string }) => (
+    <main data-testid="mock-public-menu" data-locale={props.locale}>{props.menu.stall.name}</main>
   ),
 }));
 
@@ -79,9 +82,18 @@ function resolution(overrides: Record<string, unknown> = {}) {
 describe("public storefront page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getRequestLocale.mockResolvedValue({ locale: "zh-TW", hasLocaleCookie: false });
     mocks.resolveStorefront.mockResolvedValue(resolution());
-    mocks.getDisplayMenu.mockResolvedValue({ stall: { name: "越好吃一中店" }, products: [] });
-    mocks.getOrderMenu.mockImplementation(async (_token, mode) => ({ orderingMode: mode }));
+    mocks.getDisplayMenu.mockResolvedValue({
+      stall: { name: "越好吃一中店" },
+      products: [],
+      supportedLocales: ["zh-TW", "vi"],
+    });
+    mocks.getLiveDisplayMenu.mockImplementation(mocks.getDisplayMenu);
+    mocks.getOrderMenu.mockImplementation(async (_token, mode) => ({
+      orderingMode: mode,
+      supportedLocales: ["zh-TW", "vi"],
+    }));
   });
 
   it("smoke-renders one interface with all modes and a table QR instruction", async () => {
@@ -113,6 +125,39 @@ describe("public storefront page", () => {
     expect(html).toContain("Giao hàng");
     expect(html).toContain("越好吃一中店");
     expect(html).not.toContain("線上 Menu");
+  });
+
+  it("automatically follows the phone language when no explicit locale is supplied", async () => {
+    mocks.getRequestLocale.mockResolvedValue({ locale: "vi", hasLocaleCookie: false });
+
+    const element = await PublicStorefrontPage({
+      params: Promise.resolve({ identifier: "viet-food-yc" }),
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain("Menu trực tuyến");
+    expect(html).toContain('data-locale="vi"');
+    expect(html).not.toContain("線上 Menu");
+  });
+
+  it("falls back as a whole instead of mixing Chinese taxonomy into another locale", async () => {
+    mocks.getRequestLocale.mockResolvedValue({ locale: "vi", hasLocaleCookie: false });
+    mocks.getDisplayMenu.mockResolvedValue({
+      stall: { name: "越好吃一中店" },
+      products: [],
+      supportedLocales: ["zh-TW"],
+    });
+
+    const element = await PublicStorefrontPage({
+      params: Promise.resolve({ identifier: "viet-food-yc" }),
+      searchParams: Promise.resolve({}),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain("線上 Menu");
+    expect(html).toContain('data-locale="zh-TW"');
+    expect(html).not.toContain("Menu trực tuyến");
   });
 
   it("renders pickup with PREORDER semantics without creating an order", async () => {

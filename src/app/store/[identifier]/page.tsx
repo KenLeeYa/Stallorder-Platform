@@ -7,7 +7,11 @@ import { QrOrderFlow } from "@/components/qr-order-flow";
 import { isAppLocale, type AppLocale } from "@/lib/app-locale";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { publicMessages } from "@/lib/messages/public";
-import { getCachedPublicDisplayMenuForStallSlug, getCachedPublicMenuForQrToken } from "@/lib/public-menu";
+import {
+  getCachedPublicDisplayMenuForStallSlug,
+  getCachedPublicMenuForQrToken,
+  getLivePublicDisplayMenuForStallSlug,
+} from "@/lib/public-menu";
 import {
   buildPublicStorefrontPath,
   resolvePublicStorefront,
@@ -87,7 +91,9 @@ export default async function PublicStorefrontPage({ params, searchParams }: Pag
   const pickupQrToken = selectPublicStorefrontQrToken(stall.qrCodes, "pickup");
   const deliveryQrToken = selectPublicStorefrontQrToken(stall.qrCodes, "delivery");
   const displayMenuPromise = view === "menu"
-    ? getCachedPublicDisplayMenuForStallSlug(stall.slug)
+    ? query.fresh === undefined
+      ? getCachedPublicDisplayMenuForStallSlug(stall.slug)
+      : getLivePublicDisplayMenuForStallSlug(stall.slug)
     : null;
   const selectedOrderMenuPromise = view === "pickup"
     ? stall.orderingSettings?.takeoutPreorderEnabled && pickupQrToken
@@ -104,23 +110,27 @@ export default async function PublicStorefrontPage({ params, searchParams }: Pag
   ]);
   const pickupMenu = view === "pickup" ? selectedOrderMenu : null;
   const deliveryMenu = view === "delivery" ? selectedOrderMenu : null;
+  const activeMenu = view === "menu" ? menu : selectedOrderMenu;
+  const displayLocale = activeMenu && !activeMenu.supportedLocales.includes(locale)
+    ? "zh-TW"
+    : locale;
   const pickupReady = stall.orderingSettings?.takeoutPreorderEnabled === true && Boolean(pickupQrToken);
   const deliveryReady = stall.orderingSettings?.deliveryModuleEnabled === true && Boolean(deliveryQrToken);
   const availability = {
     menu: {
       enabled: view === "menu" ? Boolean(menu) : Boolean(stall.orderingSettings),
-      reason: publicMessages.get(locale, "storefrontMenuUnavailable"),
+      reason: publicMessages.get(displayLocale, "storefrontMenuUnavailable"),
     },
     pickup: {
       enabled: pickupReady && (view !== "pickup" || Boolean(pickupMenu)),
-      reason: unavailableReason(locale, "pickup", stall.name, {
+      reason: unavailableReason(displayLocale, "pickup", stall.name, {
         moduleEnabled: stall.orderingSettings?.takeoutPreorderEnabled === true,
         hasQr: Boolean(pickupQrToken),
       }),
     },
     delivery: {
       enabled: deliveryReady && (view !== "delivery" || Boolean(deliveryMenu)),
-      reason: unavailableReason(locale, "delivery", stall.name, {
+      reason: unavailableReason(displayLocale, "delivery", stall.name, {
         moduleEnabled: stall.orderingSettings?.deliveryModuleEnabled === true,
         hasQr: Boolean(deliveryQrToken),
       }),
@@ -134,16 +144,16 @@ export default async function PublicStorefrontPage({ params, searchParams }: Pag
         currentView={view}
         availability={availability}
         searchParams={query}
-        locale={locale}
+        locale={displayLocale}
       />
-      {view === "menu" && menu ? <PublicMenuView menu={menu} locale={locale} /> : null}
+      {view === "menu" && menu ? <PublicMenuView menu={menu} locale={displayLocale} /> : null}
       {view === "pickup" && pickupMenu && pickupQrToken ? (
         <QrOrderFlow
           qrToken={pickupQrToken}
           orderingMode="PREORDER"
           initialMenu={pickupMenu}
           entryChannel="SHARED_LINK"
-          initialUiLocale={locale}
+          initialUiLocale={displayLocale}
           requestedLocale={requestedLocale}
         />
       ) : null}
@@ -153,14 +163,14 @@ export default async function PublicStorefrontPage({ params, searchParams }: Pag
           orderingMode="DELIVERY"
           initialMenu={deliveryMenu}
           entryChannel="SHARED_LINK"
-          initialUiLocale={locale}
+          initialUiLocale={displayLocale}
           requestedLocale={requestedLocale}
         />
       ) : null}
       {!availability[view].enabled ? (
-        <UnavailableMode locale={locale} stallName={stall.name} view={view} reason={availability[view].reason} />
+        <UnavailableMode locale={displayLocale} stallName={stall.name} view={view} reason={availability[view].reason} />
       ) : null}
-      {view === "pickup" ? <PickupScheduleLink locale={locale} identifier={resolution.canonicalIdentifier} /> : null}
+      {view === "pickup" ? <PickupScheduleLink locale={displayLocale} identifier={resolution.canonicalIdentifier} /> : null}
     </div>
   );
 }

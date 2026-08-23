@@ -130,6 +130,34 @@ describe("QR order session application transition", () => {
       resetPreorderLottery: true,
     });
   });
+
+  it("falls back the whole QR interface when the requested catalog locale is incomplete", () => {
+    const acceptedSession = session("DEFAULT");
+    const result = resolveQrOrderSessionTransition({
+      result: {
+        kind: "SESSION",
+        attempt: 4,
+        session: acceptedSession,
+        cartRecovery: {
+          restored: false,
+          scheduledPickupAt: "",
+          draftScheduledPickupAt: "",
+          lines: [],
+          customerName: "",
+          customerNote: "",
+          customerPhone: "",
+          deliveryAddress: "",
+        },
+      },
+      browserLocale: "vi",
+      currentLocale: "vi",
+      hasUsableInitialMenu: false,
+      currentAvailability: "CHECKING",
+      now,
+    });
+
+    expect(result).toMatchObject({ kind: "SESSION", locale: "zh-TW" });
+  });
 });
 
 function session(orderingMode: QrOrderSession["orderingMode"]): QrOrderSession {

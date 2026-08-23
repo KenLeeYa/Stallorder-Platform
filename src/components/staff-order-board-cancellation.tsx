@@ -11,16 +11,19 @@ type CancellationOrder = Pick<StaffOrderDto, "id" | "orderNo" | "customerName">;
 type PendingCancellation = CancellationOrder & {
   reason: CancellationReason;
   detail: string;
+  managerAuthorizationCode: string;
 };
 
 type CancellationTransitionOptions = {
   confirmationOrderNo: string;
   cancellationReason: CancellationReason;
   cancellationDetail: string | null;
+  managerAuthorizationCode: string | null;
 };
 
 type UseStaffOrderCancellationOptions = {
   updatingOrderId: string | null;
+  requiresAuthorizationCode: boolean;
   onConfirm: (
     orderId: string,
     options: CancellationTransitionOptions,
@@ -33,12 +36,15 @@ export type StaffOrderCancellationController = {
   reconcile: (orders: readonly Pick<StaffOrderDto, "id">[]) => void;
   setReason: (reason: CancellationReason) => void;
   setDetail: (detail: string) => void;
+  setManagerAuthorizationCode: (authorizationCode: string) => void;
+  requiresAuthorizationCode: boolean;
   dismiss: () => void;
   confirm: () => Promise<void>;
 };
 
 export function useStaffOrderCancellation({
   updatingOrderId,
+  requiresAuthorizationCode,
   onConfirm,
 }: UseStaffOrderCancellationOptions): StaffOrderCancellationController {
   const [pending, setPending] = useState<PendingCancellation | null>(null);
@@ -49,6 +55,7 @@ export function useStaffOrderCancellation({
       ...order,
       reason: "CUSTOMER_CANCELLED",
       detail: "",
+      managerAuthorizationCode: "",
     });
   }, []);
   const reconcile = useCallback((orders: readonly Pick<StaffOrderDto, "id">[]) => {
@@ -62,6 +69,9 @@ export function useStaffOrderCancellation({
   const setDetail = useCallback((detail: string) => {
     setPending((current) => current ? { ...current, detail } : null);
   }, []);
+  const setManagerAuthorizationCode = useCallback((managerAuthorizationCode: string) => {
+    setPending((current) => current ? { ...current, managerAuthorizationCode } : null);
+  }, []);
 
   const confirm = useCallback(async () => {
     if (!pending) return;
@@ -69,6 +79,7 @@ export function useStaffOrderCancellation({
       confirmationOrderNo: pending.orderNo,
       cancellationReason: pending.reason,
       cancellationDetail: pending.detail.trim() || null,
+      managerAuthorizationCode: pending.managerAuthorizationCode || null,
     });
     if (cancelled) dismiss();
   }, [dismiss, onConfirm, pending]);
@@ -82,7 +93,17 @@ export function useStaffOrderCancellation({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [dismiss, pending, updatingOrderId]);
 
-  return { pending, open, reconcile, setReason, setDetail, dismiss, confirm };
+  return {
+    pending,
+    open,
+    reconcile,
+    setReason,
+    setDetail,
+    setManagerAuthorizationCode,
+    requiresAuthorizationCode,
+    dismiss,
+    confirm,
+  };
 }
 
 export function StaffOrderCancellationDialog({
@@ -139,6 +160,21 @@ export function StaffOrderCancellationDialog({
             className="mt-1 min-h-20 w-full resize-y rounded-md border border-stone-300 p-3 text-sm"
           />
         </label>
+        {controller.requiresAuthorizationCode ? (
+          <label className="mt-4 block text-xs font-semibold text-stone-700">
+            管理授權碼
+            <input
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="one-time-code"
+              value={pending.managerAuthorizationCode}
+              maxLength={8}
+              onChange={(event) => controller.setManagerAuthorizationCode(event.target.value.replace(/\D/g, "").slice(0, 8))}
+              className="mt-1 h-11 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"
+            />
+          </label>
+        ) : null}
         <div className="mt-5 grid grid-cols-2 gap-3">
           <button
             type="button"
@@ -151,7 +187,7 @@ export function StaffOrderCancellationDialog({
           </button>
           <button
             type="button"
-            disabled={updatingOrderId === pending.id}
+            disabled={updatingOrderId === pending.id || (controller.requiresAuthorizationCode && !/^\d{4,8}$/.test(pending.managerAuthorizationCode))}
             onClick={() => void controller.confirm()}
             className="rounded-md bg-red-700 px-3 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
           >

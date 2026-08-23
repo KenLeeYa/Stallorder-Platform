@@ -16,6 +16,8 @@ export type PrinterView = {
   connectionType: PrinterConnectionType;
   model: string;
   paperWidthMm: number;
+  autoDetectEnabled: boolean;
+  openCashDrawerOnCashPayment: boolean;
   isEnabled: boolean;
   isOnline: boolean;
   lastSeenAt: string | null;
@@ -37,6 +39,14 @@ export type PrintRuleDraft = {
   splitMode: PrintSplitMode;
   aggregateItems: boolean;
   autoPrint: boolean;
+  showCustomerName: boolean;
+  showCustomerPhone: boolean;
+  showDeliveryAddress: boolean;
+  showOrderNote: boolean;
+  showItemNotes: boolean;
+  showPrices: boolean;
+  showPaymentMethod: boolean;
+  feedLines: number;
   sortOrder: number;
 };
 

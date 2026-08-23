@@ -98,10 +98,14 @@ Deno.serve(async (request) => {
       .eq("id", stored.orderId)
       .single());
     if (orderContext.error) throw orderContext.error;
-    const [settingsQuery, lastTableOrderQuery] = await timing.measureDb(() => Promise.all([
+    const [settingsQuery, stallQuery, lastTableOrderQuery] = await timing.measureDb(() => Promise.all([
       admin.from("stall_ordering_settings")
         .select("estimated_wait_minutes")
         .eq("stall_id", orderContext.data.stall_id)
+        .single(),
+      admin.from("stalls")
+        .select("code")
+        .eq("id", orderContext.data.stall_id)
         .single(),
       orderContext.data.dining_table_id
         ? admin.from("orders")
@@ -112,9 +116,9 @@ Deno.serve(async (request) => {
           .limit(1)
           .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
-    ]), orderContext.data.dining_table_id ? 2 : 1);
-    if (settingsQuery.error || lastTableOrderQuery.error) {
-      throw settingsQuery.error ?? lastTableOrderQuery.error;
+    ]), orderContext.data.dining_table_id ? 3 : 2);
+    if (settingsQuery.error || stallQuery.error || lastTableOrderQuery.error) {
+      throw settingsQuery.error ?? stallQuery.error ?? lastTableOrderQuery.error;
     }
     const publicOrder: Record<string, unknown> = { ...stored };
     delete publicOrder.orderId;
@@ -123,6 +127,7 @@ Deno.serve(async (request) => {
       order: {
         ...publicOrder,
         pickupVerificationCode: pickupCode,
+        publicMenuIdentifier: String(stallQuery.data.code).toLowerCase(),
         estimatedWaitMinutes:
           orderContext.data.quoted_wait_minutes ?? settingsQuery.data.estimated_wait_minutes,
         quotedWaitMinutes: orderContext.data.quoted_wait_minutes,

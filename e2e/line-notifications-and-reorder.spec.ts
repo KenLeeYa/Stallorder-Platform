@@ -77,6 +77,10 @@ test.describe("LINE 通知與再次點餐", () => {
     await gotoLocalPath(page, trackerPath);
     await expect(page.getByRole("heading", { name: "測試攤位" })).toBeVisible();
     await expect(page.getByRole("button", { name: "使用 LINE 接收通知" })).toBeVisible();
+    const pickupReadyDialog = page.getByRole("dialog", { name: "餐點已可取餐" });
+    await expect(pickupReadyDialog.getByTestId("pickup-ready-dialog-code")).toHaveText("321");
+    await pickupReadyDialog.getByRole("button", { name: "我知道了" }).last().click();
+    await expect(pickupReadyDialog).toBeHidden();
     const reorderLink = page.getByRole("link", { name: "再次點餐" });
     await waitForReactHandler(reorderLink, "onClick");
     await reorderLink.click();

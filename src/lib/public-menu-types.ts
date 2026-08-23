@@ -45,7 +45,9 @@ export type PublicMenuProduct = {
   price: number;
   kind: "SINGLE" | "BUNDLE";
   category: string;
+  categoryTranslations?: Array<{ locale: string; name: string }>;
   group?: string | null;
+  groupTranslations?: Array<{ locale: string; name: string }>;
   rank: number | null;
   isBestSeller: boolean;
   isOrderDiscountEligible: boolean;
@@ -75,6 +77,10 @@ export type PublicMenu = {
     location: string;
     currency: string;
     timezone: string;
+    coverImageUrl?: string | null;
+    coverImagePositionX?: number;
+    coverImagePositionY?: number;
+    coverImageZoom?: number;
     fulfillmentType: "TAKEOUT" | "DINE_IN" | "DELIVERY";
     table: { id: string; code: string; label: string } | null;
   };

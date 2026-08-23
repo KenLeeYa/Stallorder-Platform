@@ -1,7 +1,14 @@
 import { z } from "zod";
 import type { TranslationLocale } from "@/lib/enabled-locales";
 
-export const catalogTranslationEntityTypes = ["PRODUCT", "NOTE_GROUP", "NOTE_OPTION", "REUSABLE_NOTE"] as const;
+export const catalogTranslationEntityTypes = [
+  "CATEGORY",
+  "PRODUCT_GROUP",
+  "PRODUCT",
+  "NOTE_GROUP",
+  "NOTE_OPTION",
+  "REUSABLE_NOTE",
+] as const;
 export type CatalogTranslationEntityType = (typeof catalogTranslationEntityTypes)[number];
 
 type ExistingTranslation = {
@@ -11,6 +18,17 @@ type ExistingTranslation = {
 };
 
 export type CatalogTranslationSource = {
+  categories?: Array<{
+    id: string;
+    name: string;
+    translations: ExistingTranslation[];
+  }>;
+  productGroups?: Array<{
+    id: string;
+    name: string;
+    categoryName: string;
+    translations: ExistingTranslation[];
+  }>;
   products: Array<{
     id: string;
     name: string;
@@ -148,6 +166,19 @@ export function buildCatalogTranslationRequests(
       });
     };
 
+    for (const category of source.categories ?? []) {
+      addItem("CATEGORY", category.id, category.name, null, "商品分類", category.translations);
+    }
+    for (const group of source.productGroups ?? []) {
+      addItem(
+        "PRODUCT_GROUP",
+        group.id,
+        group.name,
+        null,
+        `商品分類：${group.categoryName}`,
+        group.translations,
+      );
+    }
     for (const product of source.products) {
       addItem(
         "PRODUCT",

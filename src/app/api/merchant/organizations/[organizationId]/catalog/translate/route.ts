@@ -145,6 +145,8 @@ export async function POST(request: Request, context: RouteContext) {
         targetLocaleCount: summary.targetLocales.length,
         requestedTargetCount: summary.requestedTargets,
         translatedFieldCount: summary.translatedFields,
+        translatedCategoryCount: summary.translatedCategories,
+        translatedProductGroupCount: summary.translatedProductGroups,
         translatedProductCount: summary.translatedProducts,
         translatedNoteGroupCount: summary.translatedNoteGroups,
         translatedNoteOptionCount: summary.translatedNoteOptions,
