@@ -318,7 +318,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     }
   });
 
-  test("KDS 關閉但列印開啟時，收款後等待列印並於成功後自動結單", async ({ browser }, testInfo) => {
+  test("KDS 關閉但列印開啟時，確認即排入列印且收款後成功自動結單", async ({ browser }, testInfo) => {
     test.setTimeout(240_000);
     const ownerContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
     try {
@@ -334,7 +334,14 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       data: { isEnabled: true, lastSeenAt: new Date() },
     });
     const order = await createConfirmedOrder(`${runMarker} 列印自動完成`);
-    expect(await prisma.printJob.count({ where: { orderId: order.id } })).toBe(0);
+    const queuedOnConfirmation = await prisma.printJob.findMany({
+      where: { orderId: order.id },
+      select: { status: true, printerId: true },
+    });
+    expect(queuedOnConfirmation).toEqual([{
+      status: "PENDING",
+      printerId: createdPrinterId,
+    }]);
     expect(await prisma.orderProductionTask.count({ where: { orderId: order.id } })).toBe(0);
 
     const staffContext = await browser.newContext({
