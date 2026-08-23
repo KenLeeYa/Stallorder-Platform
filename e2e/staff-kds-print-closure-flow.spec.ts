@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page, type Response } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { derivePublicOrderTokens } from "../supabase/functions/_shared/crypto";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -519,15 +520,18 @@ async function createConfirmedOrder(customerName: string) {
 }
 
 async function createConfirmedPublicOrder(customerName: string) {
-  const unique = randomUUID();
+  const orderId = randomUUID();
   const deviceId = randomUUID();
-  const trackingToken = `tracking-${unique}`;
-  const pickupCode = "738";
+  const { trackingToken, pickupCode } = await derivePublicOrderTokens(
+    orderId,
+    requiredTokenDerivationSecret(),
+  );
   const order = await prisma.order.create({
     data: {
+      id: orderId,
       organizationId,
       stallId,
-      orderNo: `QR-${Date.now().toString().slice(-7)}-${unique.slice(0, 4)}`,
+      orderNo: `QR-${Date.now().toString().slice(-7)}-${orderId.slice(0, 4)}`,
       trackingTokenHash: createHash("sha256").update(trackingToken).digest("hex"),
       idempotencyKey: randomUUID(),
       source: "QR_MENU",
@@ -568,6 +572,12 @@ async function createConfirmedPublicOrder(customerName: string) {
 function requiredAbuseHashSecret() {
   const secret = process.env.ABUSE_HASH_SECRET;
   if (!secret) throw new Error("E2E 測試需要設定 ABUSE_HASH_SECRET。");
+  return secret;
+}
+
+function requiredTokenDerivationSecret() {
+  const secret = process.env.TOKEN_DERIVATION_SECRET;
+  if (!secret) throw new Error("E2E 測試需要設定 TOKEN_DERIVATION_SECRET。");
   return secret;
 }
 
