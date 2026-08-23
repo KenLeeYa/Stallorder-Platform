@@ -73,6 +73,8 @@ function validOrder() {
     idempotencyKey: "22222222-2222-4222-8222-222222222222",
     clientOrderId: "33333333-3333-4333-8333-333333333333",
     turnstileIdempotencyKey: "44444444-4444-4444-8444-444444444444",
+    customerName: "Lin",
+    customerPhone: "0912345678",
     items: [{
       productId: "55555555-5555-4555-8555-555555555555",
       quantity: 1,
@@ -80,6 +82,7 @@ function validOrder() {
     }],
     turnstileToken: "turnstile-test-token",
   });
+
 }
 
 describe("Circuit B public order service", () => {
@@ -119,6 +122,26 @@ describe("Circuit B public order service", () => {
     mocks.lookupPublicOrderIdempotency.mockResolvedValue(null);
     mocks.checkPublicOrderSubmissionGate.mockResolvedValue({ ok: true });
     mocks.recordPublicOrderAttempt.mockResolvedValue([]);
+  });
+
+  it("rejects a public takeaway without required customer details before Turnstile", async () => {
+    const { createOrderThroughCircuitB } = await import("./circuit-b-service");
+
+    await expect(createOrderThroughCircuitB({
+      ...validOrder(),
+      customerName: "",
+      customerPhone: "",
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    })).rejects.toMatchObject({
+      code: "INVALID_CUSTOMER_DETAILS",
+      status: 422,
+    });
+
+    expect(mocks.verifyTurnstile).not.toHaveBeenCalled();
+    expect(mocks.checkPublicOrderSubmissionGate).not.toHaveBeenCalled();
   });
 
   it("rejects Circuit B before public-order work when the audited flag is disabled", async () => {
@@ -518,7 +541,7 @@ describe("Circuit B public order service", () => {
     );
   });
 
-  it("returns the prior order for an idempotent replay without reusing Turnstile", async () => {
+  it("returns a prior legacy order before applying new contact requirements or reusing Turnstile", async () => {
     mocks.checkPublicOrderIntakeAvailability.mockResolvedValue({
       ok: false,
       code: "QR_ORDERING_DEGRADED",
@@ -542,7 +565,11 @@ describe("Circuit B public order service", () => {
     mocks.persistPickupCodeDisplay.mockResolvedValue({ count: 1 });
     const { createOrderThroughCircuitB } = await import("./circuit-b-service");
 
-    const result = await createOrderThroughCircuitB(validOrder(), {
+    const result = await createOrderThroughCircuitB({
+      ...validOrder(),
+      customerName: "",
+      customerPhone: "",
+    }, {
       clientIp: "203.0.113.8",
       requestId: "request-test",
       timing: timing(),

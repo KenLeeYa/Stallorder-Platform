@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createQrOrderCheckoutModel,
+  submitQrOrderEditFlowCheckout,
   submitQrOrderFlowCheckout,
   type QrOrderCheckoutFlowEffects,
 } from "@/components/qr-order-checkout-controller";
@@ -14,6 +15,7 @@ const messages = {
   unappliedFulfillmentTime: "apply fulfillment time",
   sessionLoading: "session loading",
   sessionExpired: "session expired",
+  customerDetailsMissing: "customer details missing",
   deliveryDetailsMissing: "delivery details missing",
   preorderTimeRequired: "preorder time required",
   productUnavailable: "product unavailable",
@@ -23,6 +25,39 @@ const messages = {
 };
 
 describe("QR order checkout flow controller", () => {
+  it.each([
+    {
+      name: "pickup without a customer name",
+      overrides: { customerName: "" },
+      expected: "customer details missing",
+    },
+    {
+      name: "pickup without a valid phone number",
+      overrides: { customerPhone: "bad" },
+      expected: "customer details missing",
+    },
+    {
+      name: "delivery without a customer name",
+      overrides: {
+        orderingMode: "DELIVERY" as const,
+        session: session("DELIVERY"),
+        customerName: "",
+      },
+      expected: "customer details missing",
+    },
+    {
+      name: "delivery without an address",
+      overrides: {
+        orderingMode: "DELIVERY" as const,
+        session: session("DELIVERY"),
+        deliveryAddress: "",
+      },
+      expected: "delivery details missing",
+    },
+  ])("blocks $name", ({ overrides, expected }) => {
+    expect(createQrOrderCheckoutModel(checkoutInput(overrides)).blocker).toBe(expected);
+  });
+
   it("derives blocker and selected items from the same delivery validation contract", () => {
     const checkout = createQrOrderCheckoutModel(checkoutInput({
       orderingMode: "DELIVERY",
@@ -31,7 +66,7 @@ describe("QR order checkout flow controller", () => {
       deliveryAddress: "",
     }));
 
-    expect(checkout.blocker).toBe("delivery details missing");
+    expect(checkout.blocker).toBe("customer details missing");
     expect(checkout.selectedItems).toEqual([{
       productId: "meal",
       quantity: 1,
@@ -110,6 +145,44 @@ describe("QR order checkout flow controller", () => {
     expect(requestOrder.mock.calls[1][1]).toBe("operation-1");
     expect(effects.clearPersistedCart).toHaveBeenCalledOnce();
     expect(effects.navigateToOrder).toHaveBeenCalledWith("tracking-token");
+  });
+
+  it("updates the tracked order instead of creating a second order in edit mode", async () => {
+    const requestOrder = vi.fn<QrOrderCheckoutTransport>().mockResolvedValue({
+      ok: true,
+      status: 200,
+      payload: { trackingToken: "tracked-order-token", orderStatus: "WAITING_CONFIRMATION" },
+    });
+    const effects = checkoutEffects();
+
+    await submitQrOrderEditFlowCheckout({
+      input: checkoutInput(),
+      trackingToken: "tracked-order-token",
+      sessionController: checkoutSessionController(),
+      networkError: "network",
+      localizeError: (code) => `localized:${code}`,
+      requestOrder,
+      effects,
+    });
+
+    expect(requestOrder).toHaveBeenCalledWith({
+      deviceId: "device-id",
+      idempotencyKey: "uuid-1",
+      turnstileToken: "turnstile-token",
+      customerName: "Lin",
+      customerPhone: "0912345678",
+      deliveryAddress: "Taipei",
+      customerNote: "less ice",
+      items: [{
+        productId: "meal",
+        quantity: 1,
+        note: "",
+        noteOptionIds: [],
+        bundleChoiceIds: [],
+      }],
+    }, "operation-1");
+    expect(effects.clearPersistedCart).toHaveBeenCalledOnce();
+    expect(effects.navigateToOrder).toHaveBeenCalledWith("tracked-order-token");
   });
 
   it("applies wait-capacity failure through a session updater and resets acknowledgment", async () => {

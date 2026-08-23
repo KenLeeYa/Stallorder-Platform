@@ -394,7 +394,7 @@ function StaffOrderBoardToolbar({
   const role = account.role;
   return (
     <>
-      <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 overflow-x-hidden border-b border-stone-200 bg-white/95 px-4 pb-1 shadow-sm backdrop-blur print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
+      <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 min-w-0 max-w-full overflow-x-hidden border-b border-stone-200 bg-white px-4 pb-1 shadow-sm print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
         <div className="flex h-11 min-w-0 max-w-full items-center justify-between gap-3 print:hidden sm:gap-4">
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold sm:text-base">{stall.name}</h1>
@@ -554,10 +554,15 @@ function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now
     && order.primaryPrintStatus !== "SUCCEEDED";
   const printNeedsAttention = order.primaryPrintStatus === "FAILED"
     || order.primaryPrintStatus === "CANCELLED";
+  const requiresManualPublicReady = !kdsEnabled
+    && order.source === "QR_MENU"
+    && order.fulfillmentType !== "DINE_IN"
+    && ["CONFIRMED", "PREPARING", "PACKING"].includes(order.status);
   const streamlinedCheckoutEligible = !kdsEnabled
     && ["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.status)
     && !timing?.productionBlocked
     && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)
+    && !requiresManualPublicReady
     ;
   return (
     <article className={`rounded-lg border p-4 ${reminderOrderIds.has(order.id) ? "animate-pulse border-amber-500 ring-2 ring-amber-300" : orderAgeClasses(order, timing, now)}`}>
@@ -581,6 +586,7 @@ function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now
         <div className="flex flex-wrap gap-2">
           {editableOrderIds.has(order.id) ? <button type="button" onClick={() => actions.onOpenOrderEditor(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Pencil className="h-4 w-4" />{t("staff.order.edit")}</button> : null}
           {waitingForPrintCompletion ? <Link href={`/staff/${stall.slug}/print`} className={`inline-flex min-h-9 items-center gap-1 rounded-md border px-3 text-xs font-semibold ${printNeedsAttention ? "border-red-300 bg-red-50 text-red-800" : "border-teal-300 bg-teal-50 text-teal-900"}`}><Printer className="h-4 w-4" />{t(printNeedsAttention ? "staff.order.printNeedsAttention" : "staff.order.waitingForPrint")}</Link> : null}
+          {requiresManualPublicReady && canTransitionOrder(order.status, "READY", role) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onUpdateOrder(order.id, "READY")} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><CheckCheck className="h-4 w-4" />{t(order.fulfillmentType === "DELIVERY" ? "staff.order.finishAndNotifyDelivery" : "staff.order.finishAndNotifyPickup")}</button> : null}
           {streamlinedCheckoutEligible && !waitingForPrintCompletion && hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : printEnabled ? t("staff.order.printAndComplete") : t("staff.checkout.completeOrder")}</button> : null}
           {kdsEnabled && order.status === "READY" && hasPermission(role, "CHECKOUT_ORDERS") && (order.fulfillmentType !== "DINE_IN" || order.items.every((item) => item.status === "SERVED")) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : t("staff.checkout.completeOrder")}</button> : null}
         </div>

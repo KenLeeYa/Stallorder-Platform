@@ -108,7 +108,7 @@ test.describe("效能查詢批次化", () => {
 });
 
 async function importCatalog(page: Page, rows: string[]) {
-  await page.getByText("匯入 CSV", { exact: true }).locator("input[type=file]").setInputFiles({
+  await page.getByLabel("匯入 CSV", { exact: true }).setInputFiles({
     name: "performance-import.csv",
     mimeType: "text/csv",
     buffer: Buffer.from([catalogCsvHeaders.join(","), ...rows].join("\n")),

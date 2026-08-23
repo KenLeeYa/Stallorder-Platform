@@ -51,6 +51,8 @@ test("本機 QA 可透過示範 QR 建立點餐 session", async ({ page }) => {
   await expect(product).toContainText("95");
   await product.getByRole("button", { name: "增加 香酥雞排" }).click();
   await product.getByRole("button", { name: "加入購物車", exact: true }).click();
+  await page.getByLabel("顧客稱呼").fill("本機 QA 顧客");
+  await page.getByLabel("聯絡電話").fill("0912345678");
   const waitAcknowledgment = page.getByRole("checkbox", { name: /我已了解目前預估等候時間/ });
   if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
   await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeEnabled({ timeout: 15_000 });

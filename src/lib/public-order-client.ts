@@ -154,6 +154,15 @@ export function publicEdgeHeaders(): Record<string, string> {
   };
 }
 
+export function publicOrderCircuitHeaders(operationId: string): Record<string, string> {
+  const normalized = normalizePublicOrderOperationId(operationId);
+  if (!normalized) throw new Error("INVALID_PUBLIC_ORDER_OPERATION_ID");
+  return {
+    "x-stallorder-protocol-version": PUBLIC_ORDER_PROTOCOL_VERSION,
+    [PUBLIC_ORDER_OPERATION_ID_HEADER]: normalized,
+  };
+}
+
 function canCallEdgeDirectly() {
   if (typeof window === "undefined") return true;
   return !window.location.hostname.toLowerCase().endsWith(".vercel.app");

@@ -18,13 +18,20 @@ import { createWebUuid } from "@/lib/web-uuid";
 
 type ReorderData = {
   qrToken: string;
-  orderingMode: "DEFAULT" | "DELIVERY";
+  orderingMode: "PREORDER" | "DELIVERY";
   orderPath: string;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  customerNote: string;
+  scheduledPickupAt: string;
   availableItems: Array<{
     productId: string;
     name: string;
     quantity: number;
+    note: string;
     noteOptionIds: string[];
+    bundleChoiceIds: string[];
     previousUnitPrice: number;
     currentUnitPrice: number;
     priceChanged: boolean;
@@ -74,18 +81,18 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
         qrCartStorageKey(data.qrToken, data.orderingMode),
         serializeQrCartDraft({
           orderingMode: data.orderingMode,
-          scheduledPickupAt: "",
-          customerName: "",
-          customerNote: "",
-          customerPhone: "",
-          deliveryAddress: "",
+          scheduledPickupAt: data.scheduledPickupAt,
+          customerName: data.customerName,
+          customerNote: data.customerNote,
+          customerPhone: data.customerPhone,
+          deliveryAddress: data.deliveryAddress,
           lines: data.availableItems.map((item) => ({
             id: createWebUuid(),
             productId: item.productId,
             quantity: item.quantity,
-            note: "",
+            note: item.note,
             noteOptionIds: item.noteOptionIds,
-            bundleChoiceIds: [],
+            bundleChoiceIds: item.bundleChoiceIds,
           })),
         }),
       );
@@ -93,7 +100,10 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
       setMessage(publicMessages.get(locale, "reorderStorageError"));
       return;
     }
-    window.location.assign(data.orderPath);
+    const separator = data.orderPath.includes("?") ? "&" : "?";
+    window.location.assign(
+      `${data.orderPath}${separator}editOrder=${encodeURIComponent(trackingToken)}`,
+    );
   }
 
   return (

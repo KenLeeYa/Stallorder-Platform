@@ -528,31 +528,35 @@ export function ProductNoteGroupsManager({
         </div>
         <button
           type="button"
+          title={settingsExpanded ? label("摺疊商品註記設定") : label("展開商品註記設定")}
           data-testid="product-note-settings-toggle"
           aria-controls="product-note-settings-content"
           aria-expanded={settingsExpanded}
           onClick={() => setSettingsExpanded((current) => !current)}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold sm:w-auto"
+          className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"
         >
-          <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${settingsExpanded ? "rotate-180" : ""}`} />
-          {settingsExpanded ? label("摺疊商品註記設定") : label("展開商品註記設定")}
+          <ChevronDown aria-hidden="true" className={`h-5 w-5 transition-transform ${settingsExpanded ? "rotate-180" : ""}`} />
+          <span className="sr-only sm:not-sr-only">{settingsExpanded ? label("摺疊商品註記設定") : label("展開商品註記設定")}</span>
         </button>
       </div>
 
       <div id="product-note-settings-content" hidden={!settingsExpanded}>
-        <div className="mt-4 flex flex-wrap gap-2 sm:justify-end">
+        <div data-testid="product-note-tools" className="mt-4 flex flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:justify-end sm:overflow-visible sm:pb-0">
           <button
             type="button"
+            title={label("匯出 JSON")}
+            aria-label={label("匯出 JSON")}
             disabled={busy}
             onClick={() => void exportProductNotes()}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-50"
+            className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-50 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"
           >
-            <Download className="h-4 w-4" />{label("匯出 JSON")}
+            <Download className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("匯出 JSON")}</span>
           </button>
-          <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold focus-within:outline-none focus-within:ring-2 focus-within:ring-teal-700 focus-within:ring-offset-2">
-            <Upload className="h-4 w-4" />{label("匯入 JSON")}
+          <label title={label("匯入 JSON")} className="inline-grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-md border border-stone-300 text-sm font-semibold focus-within:outline-none focus-within:ring-2 focus-within:ring-teal-700 focus-within:ring-offset-2 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3">
+            <Upload className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("匯入 JSON")}</span>
             <input
               type="file"
+              aria-label={label("匯入 JSON")}
               accept=".json,application/json"
               className="sr-only"
               disabled={busy}
@@ -565,12 +569,14 @@ export function ProductNoteGroupsManager({
           </label>
           <button
             type="button"
+            title={activeTab === "NOTES" ? label("新增單一註記") : label("新增群組")}
+            aria-label={activeTab === "NOTES" ? label("新增單一註記") : label("新增群組")}
             onClick={() => activeTab === "NOTES"
               ? setReusableNoteDraft({ name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(reusableNotes), isActive: true, translations: [] })
               : setGroupDraft({ name: "", selectionMode: "MULTIPLE", isRequired: false, minSelections: 0, maxSelections: null, sortOrder: nextProductNoteSortOrder(groups), isActive: true, translations: [], productIds: [] })}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white"
+            className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"
           >
-            <Plus className="h-4 w-4" />{activeTab === "NOTES" ? label("新增單一註記") : label("新增群組")}
+            <Plus className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{activeTab === "NOTES" ? label("新增單一註記") : label("新增群組")}</span>
           </button>
         </div>
 
@@ -583,15 +589,16 @@ export function ProductNoteGroupsManager({
         <div className="mt-4 flex justify-end">
           <button
             type="button"
+            title={allGroupsExpanded ? label("收合全部註記群組") : label("展開全部註記群組")}
             data-testid="product-note-groups-toggle-all"
             aria-controls="product-note-groups-list"
             aria-expanded={allGroupsExpanded}
             disabled={sortedGroups.length === 0}
             onClick={toggleAllGroups}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-50 sm:w-auto"
+            className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-50 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"
           >
-            <ChevronDown aria-hidden="true" className={`h-4 w-4 transition-transform ${allGroupsExpanded ? "rotate-180" : ""}`} />
-            {allGroupsExpanded ? label("收合全部註記群組") : label("展開全部註記群組")}
+            <ChevronDown aria-hidden="true" className={`h-5 w-5 transition-transform ${allGroupsExpanded ? "rotate-180" : ""}`} />
+            <span className="sr-only sm:not-sr-only">{allGroupsExpanded ? label("收合全部註記群組") : label("展開全部註記群組")}</span>
           </button>
         </div>
       ) : null}

@@ -26,6 +26,7 @@ type ErrorMessageKey =
   | "rateLimited"
   | "securityFailed"
   | "securityUnavailable"
+  | "customerDetails"
   | "selectionInvalid"
   | "orderLimits"
   | "productUnavailable"
@@ -107,6 +108,8 @@ export type QrOrderMessages = {
   categoryNavigation: string;
   customerName: string;
   customerNamePlaceholder: string;
+  customerNameRequiredPlaceholder: string;
+  customerDetailsRequired: string;
   orderNote: string;
   orderNotePlaceholder: (count: number) => string;
   itemCount: (count: number) => string;
@@ -120,7 +123,9 @@ export type QrOrderMessages = {
   networkError: string;
   submitting: string;
   submitOrder: string;
+  saveOrderChanges: string;
   confirmationNotice: string;
+  editConfirmationNotice: string;
   preorderPickupTime: string;
   optionalDeliveryTime: string;
   optionalPickupTime: string;
@@ -222,6 +227,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     categoryNavigation: "商品分類",
     customerName: "顧客稱呼",
     customerNamePlaceholder: "稱呼（選填）",
+    customerNameRequiredPlaceholder: "請輸入顧客姓名",
+    customerDetailsRequired: "請填寫顧客姓名與有效的聯絡電話。",
     orderNote: "訂單備註",
     orderNotePlaceholder: (count) => `備註（最多 ${count} 字）`,
     itemCount: (count) => `共 ${count} 份`,
@@ -235,7 +242,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     networkError: "網路連線中斷，請稍後再試。",
     submitting: "送出中...",
     submitOrder: "送出訂單",
+    saveOrderChanges: "儲存訂單修改",
     confirmationNotice: "送出後須由店員確認，確認前不會開始製作。",
+    editConfirmationNotice: "修改後須由店員重新確認；若餐點或列印已開始，系統會拒絕修改。",
     preorderPickupTime: "預約取餐時間", optionalDeliveryTime: "指定送達時間（選填）", optionalPickupTime: "預計取餐時間（選填）", applyPickupTimeRequired: "取餐時間尚未套用，請先按下「套用這個時間」。", selectPreorderTimeRequired: "請先選擇預約取餐時間。", scheduledDeliveryTime: "指定送達時間", scheduledPickupTime: "指定取餐時間", preorderPickupDate: "預約取餐日期", deliveryDate: "送達日期", pickupDate: "取餐日期", deliveryTime: "送達時間", pickupTime: "取餐時間", unavailableDate: "所選日期目前沒有可接受的時段。", applyTime: "套用這個時間", timeApplied: "時間已套用", unappliedTimeNotice: "尚未套用新的取餐時間；套用後才會更新可點商品與購物車。", preorderOnlyNotice: "目前為非營業時間，僅接受外帶自取預約。", preorderTimeGuidance: "請依選擇的預約時段取餐", applyPreorderTimeGuidance: "請先確認並套用預約取餐時間，完成後才會顯示可點商品。", noProductsForSlot: "此時段暫無可預約商品，請選擇其他取餐時間。", discountIneligible: "不適用訂單折扣", bundleGroup: "套餐群組", selectionRange: (minimum, maximum) => `選 ${minimum}～${maximum} 項`,
     errors: {
       invalidRequest: "訂單資料不正確，請重新確認。",
@@ -246,6 +255,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       rateLimited: "操作過於頻繁，請稍後再試。",
       securityFailed: "安全驗證失敗，請重新完成驗證。",
       securityUnavailable: "安全驗證暫時無法使用，請稍後再試。",
+      customerDetails: "請填寫顧客姓名與有效的聯絡電話。",
       selectionInvalid: "商品選項不完整或已變更，請重新確認。",
       orderLimits: "訂單內容超過攤位限制，請調整後再試。",
       productUnavailable: "部分商品已售完或無法供應。",
@@ -330,6 +340,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     categoryNavigation: "Menu categories",
     customerName: "Customer name",
     customerNamePlaceholder: "Name (optional)",
+    customerNameRequiredPlaceholder: "Enter the customer name",
+    customerDetailsRequired: "Enter the customer name and a valid contact phone number.",
     orderNote: "Order notes",
     orderNotePlaceholder: (count) => `Notes (up to ${count} characters)`,
     itemCount: (count) => `${count} item${count === 1 ? "" : "s"}`,
@@ -343,7 +355,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     networkError: "The network connection was interrupted. Try again shortly.",
     submitting: "Submitting...",
     submitOrder: "Place order",
+    saveOrderChanges: "Save order changes",
     confirmationNotice: "Staff must confirm your order before preparation begins.",
+    editConfirmationNotice: "Staff must reconfirm changes. Changes are blocked once preparation or printing starts.",
     preorderPickupTime: "Scheduled pickup time", optionalDeliveryTime: "Delivery time (optional)", optionalPickupTime: "Pickup time (optional)", applyPickupTimeRequired: "Apply the pickup time before continuing.", selectPreorderTimeRequired: "Choose a pickup time first.", scheduledDeliveryTime: "Delivery time", scheduledPickupTime: "Pickup time", preorderPickupDate: "Pickup date", deliveryDate: "Delivery date", pickupDate: "Pickup date", deliveryTime: "Delivery time", pickupTime: "Pickup time", unavailableDate: "No available time slots on the selected date.", applyTime: "Apply this time", timeApplied: "Time applied", unappliedTimeNotice: "The new pickup time has not been applied. Applying it updates available items and the cart.", preorderOnlyNotice: "Outside business hours, only scheduled pickup orders are accepted.", preorderTimeGuidance: "Pick up during your selected time slot", applyPreorderTimeGuidance: "Choose and apply a pickup time to see available items.", noProductsForSlot: "No items are available for this time slot. Choose another pickup time.", discountIneligible: "Not eligible for order discount", bundleGroup: "Set group", selectionRange: (minimum, maximum) => `Choose ${minimum}–${maximum}`,
     errors: {
       invalidRequest: "The order details are invalid. Review them and try again.",
@@ -354,6 +368,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       rateLimited: "Too many attempts. Please wait and try again.",
       securityFailed: "Security verification failed. Complete the check again.",
       securityUnavailable: "Security verification is temporarily unavailable. Try again shortly.",
+      customerDetails: "Enter the customer name and a valid contact phone number.",
       selectionInvalid: "Some product options are incomplete or have changed. Review your selections.",
       orderLimits: "The order exceeds this stall's limits. Adjust it and try again.",
       productUnavailable: "Some products are sold out or unavailable.",
@@ -438,6 +453,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     categoryNavigation: "メニューカテゴリー",
     customerName: "お名前",
     customerNamePlaceholder: "お名前（任意）",
+    customerNameRequiredPlaceholder: "お名前を入力してください",
+    customerDetailsRequired: "お名前と有効な連絡先電話番号を入力してください。",
     orderNote: "注文メモ",
     orderNotePlaceholder: (count) => `メモ（最大${count}文字）`,
     itemCount: (count) => `合計${count}点`,
@@ -451,7 +468,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     networkError: "ネットワーク接続が中断されました。しばらくしてから再度お試しください。",
     submitting: "送信中...",
     submitOrder: "注文を送信",
+    saveOrderChanges: "注文変更を保存",
     confirmationNotice: "送信後、スタッフの確認が完了するまで調理は開始されません。",
+    editConfirmationNotice: "変更後はスタッフの再確認が必要です。調理または印刷開始後は変更できません。",
     preorderPickupTime: "予約受取時間", optionalDeliveryTime: "配達時間（任意）", optionalPickupTime: "受取時間（任意）", applyPickupTimeRequired: "受取時間を適用してください。", selectPreorderTimeRequired: "先に受取時間を選択してください。", scheduledDeliveryTime: "配達時間", scheduledPickupTime: "受取時間", preorderPickupDate: "受取日", deliveryDate: "配達日", pickupDate: "受取日", deliveryTime: "配達時間", pickupTime: "受取時間", unavailableDate: "選択した日に利用可能な時間帯がありません。", applyTime: "この時間を適用", timeApplied: "適用済み", unappliedTimeNotice: "新しい受取時間は未適用です。適用すると商品とカートが更新されます。", preorderOnlyNotice: "営業時間外は予約受取のみ受け付けています。", preorderTimeGuidance: "選択した時間帯にお受け取りください", applyPreorderTimeGuidance: "受取時間を選択して適用すると、注文可能な商品が表示されます。", noProductsForSlot: "この時間帯に予約できる商品はありません。別の時間を選択してください。", discountIneligible: "注文割引対象外", bundleGroup: "セットグループ", selectionRange: (minimum, maximum) => `${minimum}～${maximum}品を選択`,
     errors: {
       invalidRequest: "注文内容が正しくありません。確認して再度お試しください。",
@@ -462,6 +481,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       rateLimited: "操作回数が多すぎます。しばらくしてから再度お試しください。",
       securityFailed: "セキュリティ認証に失敗しました。もう一度認証してください。",
       securityUnavailable: "セキュリティ認証を一時的に利用できません。しばらくしてからお試しください。",
+      customerDetails: "お名前と有効な連絡先電話番号を入力してください。",
       selectionInvalid: "商品のオプションが未選択、または変更されています。選択内容をご確認ください。",
       orderLimits: "注文内容が店舗の上限を超えています。数量を調整してください。",
       productUnavailable: "一部の商品は売り切れ、または提供できません。",
@@ -546,6 +566,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     categoryNavigation: "메뉴 카테고리",
     customerName: "고객명",
     customerNamePlaceholder: "이름 (선택)",
+    customerNameRequiredPlaceholder: "고객명을 입력해 주세요",
+    customerDetailsRequired: "고객명과 올바른 연락처를 입력해 주세요.",
     orderNote: "요청 사항",
     orderNotePlaceholder: (count) => `요청 사항 (최대 ${count}자)`,
     itemCount: (count) => `총 ${count}개`,
@@ -559,7 +581,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     networkError: "네트워크 연결이 끊겼습니다. 잠시 후 다시 시도해 주세요.",
     submitting: "전송 중...",
     submitOrder: "주문하기",
+    saveOrderChanges: "주문 변경 저장",
     confirmationNotice: "주문 후 직원이 확인해야 조리가 시작됩니다.",
+    editConfirmationNotice: "변경 후 직원의 재확인이 필요하며 조리 또는 인쇄 시작 후에는 변경할 수 없습니다.",
     preorderPickupTime: "예약 수령 시간", optionalDeliveryTime: "배송 시간(선택)", optionalPickupTime: "수령 시간(선택)", applyPickupTimeRequired: "수령 시간을 적용해 주세요.", selectPreorderTimeRequired: "먼저 예약 수령 시간을 선택해 주세요.", scheduledDeliveryTime: "배송 시간", scheduledPickupTime: "수령 시간", preorderPickupDate: "수령 날짜", deliveryDate: "배송 날짜", pickupDate: "수령 날짜", deliveryTime: "배송 시간", pickupTime: "수령 시간", unavailableDate: "선택한 날짜에 이용 가능한 시간이 없습니다.", applyTime: "이 시간 적용", timeApplied: "시간 적용됨", unappliedTimeNotice: "새 수령 시간이 아직 적용되지 않았습니다. 적용하면 상품과 장바구니가 업데이트됩니다.", preorderOnlyNotice: "영업시간 외에는 예약 수령 주문만 받습니다.", preorderTimeGuidance: "선택한 예약 시간에 수령해 주세요", applyPreorderTimeGuidance: "수령 시간을 선택하고 적용하면 주문 가능한 상품이 표시됩니다.", noProductsForSlot: "이 시간에는 예약 가능한 상품이 없습니다. 다른 시간을 선택해 주세요.", discountIneligible: "주문 할인 제외", bundleGroup: "세트 그룹", selectionRange: (minimum, maximum) => `${minimum}–${maximum}개 선택`,
     errors: {
       invalidRequest: "주문 정보가 올바르지 않습니다. 다시 확인해 주세요.",
@@ -570,6 +594,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       rateLimited: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
       securityFailed: "보안 인증에 실패했습니다. 다시 인증해 주세요.",
       securityUnavailable: "보안 인증을 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      customerDetails: "고객명과 올바른 연락처를 입력해 주세요.",
       selectionInvalid: "상품 옵션이 누락되었거나 변경되었습니다. 선택 내용을 확인해 주세요.",
       orderLimits: "주문 내용이 매장 한도를 초과했습니다. 수량을 조정해 주세요.",
       productUnavailable: "일부 상품이 품절되었거나 주문할 수 없습니다.",
@@ -654,6 +679,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     categoryNavigation: "Danh mục món",
     customerName: "Tên khách hàng",
     customerNamePlaceholder: "Tên (không bắt buộc)",
+    customerNameRequiredPlaceholder: "Nhập tên khách hàng",
+    customerDetailsRequired: "Vui lòng nhập tên khách hàng và số điện thoại liên hệ hợp lệ.",
     orderNote: "Ghi chú đơn hàng",
     orderNotePlaceholder: (count) => `Ghi chú (tối đa ${count} ký tự)`,
     itemCount: (count) => `Tổng ${count} món`,
@@ -667,7 +694,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     networkError: "Kết nối mạng bị gián đoạn. Vui lòng thử lại sau.",
     submitting: "Đang gửi...",
     submitOrder: "Gửi đơn hàng",
+    saveOrderChanges: "Lưu thay đổi đơn hàng",
     confirmationNotice: "Nhân viên phải xác nhận đơn trước khi bắt đầu chế biến.",
+    editConfirmationNotice: "Nhân viên phải xác nhận lại thay đổi. Không thể sửa sau khi chế biến hoặc in phiếu đã bắt đầu.",
     preorderPickupTime: "Giờ nhận món đã hẹn", optionalDeliveryTime: "Giờ giao (không bắt buộc)", optionalPickupTime: "Giờ nhận (không bắt buộc)", applyPickupTimeRequired: "Vui lòng áp dụng giờ nhận món trước.", selectPreorderTimeRequired: "Vui lòng chọn giờ nhận món trước.", scheduledDeliveryTime: "Giờ giao", scheduledPickupTime: "Giờ nhận", preorderPickupDate: "Ngày nhận", deliveryDate: "Ngày giao", pickupDate: "Ngày nhận", deliveryTime: "Giờ giao", pickupTime: "Giờ nhận", unavailableDate: "Ngày đã chọn không có khung giờ khả dụng.", applyTime: "Áp dụng giờ này", timeApplied: "Đã áp dụng", unappliedTimeNotice: "Giờ nhận mới chưa được áp dụng. Sau khi áp dụng, món và giỏ hàng sẽ được cập nhật.", preorderOnlyNotice: "Ngoài giờ mở cửa, chỉ nhận đơn tự đến lấy theo lịch hẹn.", preorderTimeGuidance: "Vui lòng nhận món theo khung giờ đã chọn", applyPreorderTimeGuidance: "Chọn và áp dụng giờ nhận để xem món có thể đặt.", noProductsForSlot: "Khung giờ này không có món để đặt trước. Vui lòng chọn giờ khác.", discountIneligible: "Không áp dụng giảm giá đơn", bundleGroup: "Nhóm combo", selectionRange: (minimum, maximum) => `Chọn ${minimum}–${maximum} món`,
     errors: {
       invalidRequest: "Thông tin đơn hàng không hợp lệ. Vui lòng kiểm tra lại.",
@@ -678,6 +707,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       rateLimited: "Bạn thao tác quá thường xuyên. Vui lòng thử lại sau.",
       securityFailed: "Xác minh bảo mật thất bại. Vui lòng xác minh lại.",
       securityUnavailable: "Tính năng xác minh bảo mật tạm thời không khả dụng. Vui lòng thử lại sau.",
+      customerDetails: "Vui lòng nhập tên khách hàng và số điện thoại liên hệ hợp lệ.",
       selectionInvalid: "Một số tùy chọn món ăn còn thiếu hoặc đã thay đổi. Vui lòng kiểm tra lại.",
       orderLimits: "Đơn hàng vượt quá giới hạn của quầy. Vui lòng điều chỉnh số lượng.",
       productUnavailable: "Một số món đã hết hoặc hiện không phục vụ.",
@@ -762,6 +792,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     categoryNavigation: "หมวดหมู่เมนู",
     customerName: "ชื่อลูกค้า",
     customerNamePlaceholder: "ชื่อ (ไม่บังคับ)",
+    customerNameRequiredPlaceholder: "กรอกชื่อลูกค้า",
+    customerDetailsRequired: "กรุณากรอกชื่อลูกค้าและหมายเลขโทรศัพท์ติดต่อที่ถูกต้อง",
     orderNote: "หมายเหตุคำสั่งซื้อ",
     orderNotePlaceholder: (count) => `หมายเหตุ (สูงสุด ${count} ตัวอักษร)`,
     itemCount: (count) => `รวม ${count} รายการ`,
@@ -775,7 +807,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     networkError: "การเชื่อมต่อเครือข่ายขัดข้อง โปรดลองอีกครั้งในภายหลัง",
     submitting: "กำลังส่ง...",
     submitOrder: "ส่งคำสั่งซื้อ",
+    saveOrderChanges: "บันทึกการแก้ไขคำสั่งซื้อ",
     confirmationNotice: "พนักงานต้องยืนยันคำสั่งซื้อก่อนจึงจะเริ่มเตรียมอาหาร",
+    editConfirmationNotice: "พนักงานต้องยืนยันการแก้ไขอีกครั้ง และจะไม่สามารถแก้ไขได้เมื่อเริ่มเตรียมหรือพิมพ์แล้ว",
     preorderPickupTime: "เวลารับอาหารที่จอง", optionalDeliveryTime: "เวลาจัดส่ง (ไม่บังคับ)", optionalPickupTime: "เวลารับ (ไม่บังคับ)", applyPickupTimeRequired: "โปรดใช้เวลารับอาหารก่อน", selectPreorderTimeRequired: "โปรดเลือกเวลารับอาหารก่อน", scheduledDeliveryTime: "เวลาจัดส่ง", scheduledPickupTime: "เวลารับ", preorderPickupDate: "วันที่รับ", deliveryDate: "วันที่จัดส่ง", pickupDate: "วันที่รับ", deliveryTime: "เวลาจัดส่ง", pickupTime: "เวลารับ", unavailableDate: "วันที่เลือกไม่มีช่วงเวลาที่รับได้", applyTime: "ใช้เวลานี้", timeApplied: "ใช้เวลาแล้ว", unappliedTimeNotice: "ยังไม่ได้ใช้เวลารับใหม่ เมื่อใช้แล้วสินค้าและตะกร้าจะอัปเดต", preorderOnlyNotice: "นอกเวลาทำการ รับเฉพาะคำสั่งซื้อแบบนัดรับ", preorderTimeGuidance: "โปรดรับอาหารตามช่วงเวลาที่เลือก", applyPreorderTimeGuidance: "เลือกและใช้เวลารับเพื่อดูสินค้าที่สั่งได้", noProductsForSlot: "ช่วงเวลานี้ไม่มีสินค้าที่จองได้ โปรดเลือกเวลาอื่น", discountIneligible: "ไม่ร่วมส่วนลดคำสั่งซื้อ", bundleGroup: "กลุ่มชุด", selectionRange: (minimum, maximum) => `เลือก ${minimum}–${maximum} รายการ`,
     errors: {
       invalidRequest: "ข้อมูลคำสั่งซื้อไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง",
@@ -786,6 +820,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       rateLimited: "มีการทำรายการบ่อยเกินไป โปรดลองอีกครั้งในภายหลัง",
       securityFailed: "การยืนยันความปลอดภัยล้มเหลว โปรดยืนยันอีกครั้ง",
       securityUnavailable: "ระบบยืนยันความปลอดภัยไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้งในภายหลัง",
+      customerDetails: "กรุณากรอกชื่อลูกค้าและหมายเลขโทรศัพท์ติดต่อที่ถูกต้อง",
       selectionInvalid: "ตัวเลือกสินค้าบางรายการไม่ครบหรือมีการเปลี่ยนแปลง โปรดตรวจสอบอีกครั้ง",
       orderLimits: "คำสั่งซื้อเกินขีดจำกัดของร้าน โปรดปรับจำนวนแล้วลองอีกครั้ง",
       productUnavailable: "สินค้าบางรายการหมดหรือไม่พร้อมจำหน่าย",
@@ -834,6 +869,7 @@ const errorMessageKeys: Record<string, ErrorMessageKey> = {
   RATE_LIMITED: "rateLimited",
   INVALID_TURNSTILE: "securityFailed",
   TURNSTILE_UNAVAILABLE: "securityUnavailable",
+  INVALID_CUSTOMER_DETAILS: "customerDetails",
   INVALID_ITEMS: "selectionInvalid",
   TOO_MANY_OR_DUPLICATE_PRODUCTS: "orderLimits",
   EXCESSIVE_TOTAL_QUANTITY: "orderLimits",

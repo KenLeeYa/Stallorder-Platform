@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { BellRing, LoaderCircle, MessageCircle, RotateCcw } from "lucide-react";
+import { BellRing, LoaderCircle, MessageCircle } from "lucide-react";
 import { useAppLocale } from "@/components/locale-provider";
 import { publicMessages } from "@/lib/messages/public";
 import {
@@ -81,7 +80,7 @@ export function LineNotificationControls({ trackingToken }: { trackingToken: str
     }
   }
 
-  if (!status?.available && !status?.repeatOrderAvailable) return null;
+  if (!status?.available) return null;
   return (
     <section className="mt-7 border-y border-stone-200 py-5">
       <div className="flex items-center gap-3">
@@ -102,11 +101,6 @@ export function LineNotificationControls({ trackingToken }: { trackingToken: str
           <button type="button" onClick={() => void revoke()} disabled={busy} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">
             {publicMessages.get(locale, "lineStop")}
           </button>
-        ) : null}
-        {status.repeatOrderAvailable ? (
-          <Link href={`/order/${encodeURIComponent(trackingToken)}/reorder`} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-teal-700 px-4 text-sm font-semibold text-teal-800">
-            <RotateCcw className="h-4 w-4" />{publicMessages.get(locale, "lineReorder")}
-          </Link>
         ) : null}
       </div>
       {status.officialAccountUrl ? <a href={status.officialAccountUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm font-semibold text-emerald-800 underline">{publicMessages.get(locale, "lineOpenOfficial")}</a> : null}

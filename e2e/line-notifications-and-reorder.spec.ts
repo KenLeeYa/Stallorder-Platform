@@ -1,24 +1,10 @@
-import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 import { gotoLocalPath } from "./local-navigation";
 
 const stallId = "22222222-2222-4222-8222-222222222222";
 const password = "StallOrderDemo!2026";
 const trackingToken = `sto_${"t".repeat(48)}`;
-const qrToken = "reorder-e2e-qr-token-that-is-long-enough";
-const productId = "77777777-7777-4777-8777-777777777771";
-
-async function waitForReactHandler(control: Locator, handler: "onClick" | "onChange") {
-  await expect.poll(() => control.evaluate((element, eventName) => {
-    const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps$"));
-    if (!propsKey) return false;
-    const props = (element as unknown as Record<string, unknown>)[propsKey];
-    return typeof props === "object"
-      && props !== null
-      && typeof (props as Record<string, unknown>)[eventName] === "function";
-  }, handler), { message: `等待 React 掛載 ${handler}` }).toBe(true);
-}
-
-test.describe("LINE 通知與再次點餐", () => {
+test.describe("LINE 通知與 Menu 返回", () => {
   test("商家可開啟 LINE 設定，KITCHEN 無管理權限", async ({ page, browser }) => {
     await login(page, "owner@stallorder.test", /\/merchant\/dashboard\?organizationId=/);
     await page.setViewportSize({ width: 390, height: 844 });
@@ -64,16 +50,10 @@ test.describe("LINE 通知與再次點餐", () => {
     await kitchenPage.context().close();
   });
 
-  test("訂單追蹤可顯示 LINE 控制，並以目前價格重建新的 QR 購物車", async ({ page }) => {
+  test("訂單追蹤可顯示 LINE 控制，並以無快取網址返回目前 Menu", async ({ page }) => {
     await mockPublicFunctions(page);
     await page.setViewportSize({ width: 390, height: 844 });
     const trackerPath = `/order/${trackingToken}`;
-    const reorderPath = `${trackerPath}/reorder`;
-    if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
-      const warmupResponse = await page.context().request.get(reorderPath);
-      expect(warmupResponse.status()).toBe(200);
-      await warmupResponse.dispose();
-    }
     await gotoLocalPath(page, trackerPath);
     await expect(page.getByRole("heading", { name: "測試攤位" })).toBeVisible();
     await expect(page.getByRole("button", { name: "使用 LINE 接收通知" })).toBeVisible();
@@ -81,23 +61,9 @@ test.describe("LINE 通知與再次點餐", () => {
     await expect(pickupReadyDialog.getByTestId("pickup-ready-dialog-code")).toHaveText("321");
     await pickupReadyDialog.getByRole("button", { name: "我知道了" }).last().click();
     await expect(pickupReadyDialog).toBeHidden();
-    const reorderLink = page.getByRole("link", { name: "再次點餐" });
-    await waitForReactHandler(reorderLink, "onClick");
-    await reorderLink.click();
-
-    await expect(page).toHaveURL(new RegExp(`${reorderPath}$`));
-    await expect(page.getByRole("heading", { name: "再次點餐" })).toBeVisible();
-    await expect(page.getByText("2 × 現在雞排")).toBeVisible();
-    await expect(page.getByText("原 $100", { exact: true })).toBeVisible();
-    await expect(page.getByText("$115", { exact: true })).toBeVisible();
-    await expect(page.getByText("舊版飲料")).toBeVisible();
-    await expect(page.getByText("目前售罄")).toBeVisible();
-
-    await page.getByRole("button", { name: "前往目前菜單確認" }).click();
-    await expect(page).toHaveURL(new RegExp(`/q/${qrToken}$`));
-    await expect(page.getByText("已恢復上次尚未送出的點餐內容。")).toBeVisible();
-    const product = page.getByRole("article").filter({ hasText: "現在雞排" });
-    await expect(product.getByText("2", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "返回 Menu", exact: true }).click();
+    await expect(page).toHaveURL(/\/store\/aming-01\?fresh=\d+$/u);
+    await expect(page.getByRole("main")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 });
@@ -117,6 +83,7 @@ async function mockPublicFunctions(page: Page) {
           confirmedAt: new Date().toISOString(),
           completedAt: null,
           stallName: "測試攤位",
+          publicMenuIdentifier: "aming-01",
           pickupVerificationCode: "321",
           fulfillmentType: "TAKEOUT",
           tableLabel: null,
@@ -141,48 +108,6 @@ async function mockPublicFunctions(page: Page) {
         displayName: "LINE 取餐通知",
         officialAccountUrl: "",
         repeatOrderAvailable: true,
-      }),
-    });
-  });
-  await page.route(/\/functions\/v1\/prepare-reorder$|\/api\/public-order\/prepare-reorder$/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        qrToken,
-        orderingMode: "DEFAULT",
-        orderPath: `/q/${qrToken}`,
-        availableItems: [{
-          productId,
-          name: "現在雞排",
-          quantity: 2,
-          noteOptionIds: [],
-          previousUnitPrice: 100,
-          currentUnitPrice: 115,
-          priceChanged: true,
-          needsReview: false,
-        }],
-        unavailableItems: [{ name: "舊版飲料", reason: "目前售罄" }],
-      }),
-    });
-  });
-  await page.route(/\/functions\/v1\/create-order-session$|\/api\/public-order\/create-order-session$/, async (route) => {
-    await route.fulfill({
-      status: 201,
-      contentType: "application/json",
-      body: JSON.stringify({
-        orderSessionToken: `session_${"s".repeat(48)}`,
-        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
-        stall: { name: "測試攤位", slug: "test-stall", location: "台北", currency: "TWD", fulfillmentType: "TAKEOUT", table: null },
-        products: [{ id: productId, name: "現在雞排", description: "重新核價商品", price: 115, category: "主餐", imageUrl: null, translations: [], noteGroups: [] }],
-        supportedLocales: ["zh-TW"],
-        estimatedWaitMinutes: 10,
-        estimatedWaitMinMinutes: 10,
-        estimatedWaitMaxMinutes: 10,
-        waitAcknowledgmentThresholdMinutes: null,
-        requiresWaitAcknowledgment: false,
-        lastTableOrderAt: null,
-        limits: { maxItemQuantity: 20, maxUniqueProducts: 20, maxTotalQuantity: 40, maxNoteLength: 200 },
       }),
     });
   });

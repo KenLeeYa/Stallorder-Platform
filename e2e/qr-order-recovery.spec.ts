@@ -25,6 +25,7 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
   await chickenCutlet.getByRole("button", { name: "Increase Deep-Fried Chicken Cutlet" }).click();
   await chickenCutlet.getByRole("button", { name: "Add to cart", exact: true }).click();
   await page.getByLabel("Customer name").fill(customerName);
+  await page.getByLabel("Contact phone").fill("0912345678");
   const waitAcknowledgment = page.getByRole("checkbox", { name: /I understand the estimated wait/ });
   if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
   const submitOrder = page.getByRole("button", { name: "Place order", exact: true });

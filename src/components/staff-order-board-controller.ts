@@ -59,6 +59,7 @@ import {
   selectStaffOrderDiningTableGroups,
   selectStaffOrderKitchenGroups,
 } from "@/components/staff-order-board-selectors";
+import { reconcileStaffOrderAlerts } from "@/components/staff-order-alert-reconciliation";
 import type { LiveResourceController } from "@/lib/use-live-resource";
 import type { AppLocale } from "@/lib/app-locale";
 import { csrfHeaders } from "@/lib/csrf-client";
@@ -123,6 +124,9 @@ export function useStaffOrderBoardController({
 }: StaffOrderBoardControllerInput): StaffOrderBoardPresentationProps {
   const { locale, t } = useOperationsLocale();
   const knownOrderIdsRef = useRef(new Set(initialOrders.map((order) => order.id)));
+  const knownOrderStatusesRef = useRef(new Map(
+    initialOrders.map((order) => [order.id, order.status]),
+  ));
   const remindedPreorderIdsRef = useRef(new Set<string>());
   const alertsEnabledRef = useRef(false);
   const [orders, setOrders] = useState(initialOrders);
@@ -245,11 +249,25 @@ export function useStaffOrderBoardController({
     }
   }
 
-  const notifyNewOrders = useCallback((count: number) => {
+  const notifyWaitingOrders = useCallback(({
+    newOrderCount,
+    modifiedOrderCount,
+  }: {
+    newOrderCount: number;
+    modifiedOrderCount: number;
+  }) => {
     if (!alertsEnabledRef.current) return;
+    if (newOrderCount + modifiedOrderCount === 0) return;
     if ("vibrate" in navigator) navigator.vibrate([180, 80, 180]);
     playConfiguredAlert();
-    setMessage(t("staff.newOrders", { count }));
+    setMessage(newOrderCount > 0 && modifiedOrderCount > 0
+      ? t("staff.newAndModifiedOrders", {
+          newCount: newOrderCount,
+          modifiedCount: modifiedOrderCount,
+        })
+      : modifiedOrderCount > 0
+        ? t("staff.modifiedOrders", { count: modifiedOrderCount })
+        : t("staff.newOrders", { count: newOrderCount }));
   }, [playConfiguredAlert, t]);
 
   const loadOrderSnapshot = useCallback((signal?: AbortSignal) => loadStaffOrderSnapshot({
@@ -260,18 +278,19 @@ export function useStaffOrderBoardController({
   }), [stall.id, stall.slug]);
 
   const applyOrderSnapshot = useCallback((snapshot: StaffOrderSnapshot) => {
-    const newWaitingOrders = snapshot.mergedOrders.filter((order) => (
-      order.status === "WAITING_CONFIRMATION" && !knownOrderIdsRef.current.has(order.id)
-    ));
+    const alerts = reconcileStaffOrderAlerts(
+      knownOrderStatusesRef.current,
+      snapshot.mergedOrders,
+    );
     snapshot.mergedOrders.forEach((order) => knownOrderIdsRef.current.add(order.id));
-    if (newWaitingOrders.length > 0) notifyNewOrders(newWaitingOrders.length);
+    notifyWaitingOrders(alerts);
     setOrders(snapshot.mergedOrders);
     reconcileProduction(snapshot.mergedOrders);
     reconcileCancellation(snapshot.onlineOrders);
     reconcileManualPickup(snapshot.onlineOrders);
     reconcileTimeProposal(snapshot.onlineOrders);
     reconcileCheckout(snapshot.onlineOrders);
-  }, [notifyNewOrders, reconcileCancellation, reconcileCheckout, reconcileManualPickup, reconcileProduction, reconcileTimeProposal]);
+  }, [notifyWaitingOrders, reconcileCancellation, reconcileCheckout, reconcileManualPickup, reconcileProduction, reconcileTimeProposal]);
 
   const liveControllerRef = useRef<LiveResourceController | null>(null);
   const manualRefreshActiveRef = useRef(false);
@@ -347,6 +366,7 @@ export function useStaffOrderBoardController({
 
   function handleStaffOrderCreated(order: OrderWithItems) {
     knownOrderIdsRef.current.add(order.id);
+    knownOrderStatusesRef.current.set(order.id, order.status);
     setOrders((current) => [...current.filter((candidate) => candidate.id !== order.id), order]
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt)));
     setComposerOpen(false);

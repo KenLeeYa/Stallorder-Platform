@@ -1,0 +1,23 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+
+const source = readFileSync(fileURLToPath(new URL("./index.ts", import.meta.url)), "utf8");
+
+describe("prepare public order edit contract", () => {
+  it("uses order-edit safety gates without the LINE repeat-order entitlement", () => {
+    expect(source).not.toContain("LINE_REPEAT_ORDER");
+    expect(source).toContain('context.order.status !== "WAITING_CONFIRMATION"');
+    expect(source).toContain('context.order.status !== "CONFIRMED"');
+    expect(source).toContain('job.status !== "PENDING"');
+    expect(source).toContain('task.status !== "PENDING"');
+  });
+
+  it("returns the original customer draft and canonical code-based storefront path", () => {
+    expect(source).toContain('.select("code")');
+    expect(source).toContain("/store/${encodeURIComponent(stallQuery.data.code)}?view=${view}");
+    expect(source).toContain("customerName: context.order.customer_name");
+    expect(source).toContain("customerPhone: context.order.customer_phone");
+    expect(source).toContain("scheduledPickupAt: context.order.requested_fulfillment_at");
+  });
+});

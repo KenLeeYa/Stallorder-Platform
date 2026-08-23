@@ -105,6 +105,9 @@ export function QrOrderCartPanel({
   onTurnstileToken,
   onSubmit,
 }: QrOrderCartPanelProps) {
+  const requiresCustomerDetails = session.stall.fulfillmentType === "TAKEOUT"
+    || session.stall.fulfillmentType === "DELIVERY";
+
   return (
     <>
       <div className="flex items-center justify-between gap-3">
@@ -181,34 +184,38 @@ export function QrOrderCartPanel({
         </div>
         <div className="mt-4 space-y-3">
           <input
+            required={requiresCustomerDetails}
             type="text"
             autoComplete="name"
             enterKeyHint="next"
             aria-label={copy.customerName}
             className="form-input"
-            placeholder={copy.customerNamePlaceholder}
+            placeholder={requiresCustomerDetails
+              ? copy.customerNameRequiredPlaceholder
+              : copy.customerNamePlaceholder}
             maxLength={50}
             value={customerName}
             disabled={!orderingEnabled}
             onChange={(event) => onCustomerNameChange(event.target.value)}
           />
+          {requiresCustomerDetails ? (
+            <input
+              required
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              enterKeyHint="next"
+              aria-label={deliveryCopy.phone}
+              className="form-input"
+              placeholder={deliveryCopy.phonePlaceholder}
+              maxLength={30}
+              pattern={PHONE_INPUT_PATTERN}
+              value={customerPhone}
+              disabled={!orderingEnabled}
+              onChange={(event) => onCustomerPhoneChange(event.target.value)}
+            />
+          ) : null}
           {session.stall.fulfillmentType === "DELIVERY" ? (
-            <>
-              <input
-                required
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                enterKeyHint="next"
-                aria-label={deliveryCopy.phone}
-                className="form-input"
-                placeholder={deliveryCopy.phonePlaceholder}
-                maxLength={30}
-                pattern={PHONE_INPUT_PATTERN}
-                value={customerPhone}
-                disabled={!orderingEnabled}
-                onChange={(event) => onCustomerPhoneChange(event.target.value)}
-              />
               <textarea
                 required
                 autoComplete="street-address"
@@ -220,7 +227,6 @@ export function QrOrderCartPanel({
                 disabled={!orderingEnabled}
                 onChange={(event) => onDeliveryAddressChange(event.target.value)}
               />
-            </>
           ) : null}
           {activeOrderingMode !== "PREORDER" ? fulfillmentTimePicker : null}
           <textarea

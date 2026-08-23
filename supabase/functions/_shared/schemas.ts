@@ -26,6 +26,50 @@ type PublicOrderLineIdentity = {
   bundleChoiceIds: readonly string[];
 };
 
+export type PublicOrderFulfillmentType = "DINE_IN" | "TAKEOUT" | "DELIVERY";
+
+export function resolvePublicOrderFulfillmentType(
+  orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER",
+  qrContext?: {
+    dining_table_id?: string | null;
+    fulfillment_type_context?: string | null;
+  } | null,
+): PublicOrderFulfillmentType {
+  if (qrContext?.dining_table_id) return "DINE_IN";
+  if (
+    qrContext?.fulfillment_type_context === "DINE_IN"
+    || qrContext?.fulfillment_type_context === "TAKEOUT"
+    || qrContext?.fulfillment_type_context === "DELIVERY"
+  ) {
+    return qrContext.fulfillment_type_context;
+  }
+  return orderingMode === "DELIVERY" ? "DELIVERY" : "TAKEOUT";
+}
+
+export function publicOrderCustomerDetailsCode(
+  input: {
+    customerName: string;
+    customerPhone: string;
+    deliveryAddress: string;
+  },
+  fulfillmentType: PublicOrderFulfillmentType,
+) {
+  if (fulfillmentType === "DINE_IN") return null;
+  const phone = input.customerPhone.trim();
+  if (
+    input.customerName.trim().length === 0
+    || phone.length < 6
+    || phone.length > 30
+    || !PHONE_NUMBER.test(phone)
+  ) {
+    return "INVALID_CUSTOMER_DETAILS" as const;
+  }
+  if (fulfillmentType === "DELIVERY" && input.deliveryAddress.trim().length === 0) {
+    return "INVALID_DELIVERY_DETAILS" as const;
+  }
+  return null;
+}
+
 export function canonicalPublicOrderLine(item: Omit<PublicOrderLineIdentity, "quantity">) {
   return JSON.stringify([
     canonicalUuid(item.productId),

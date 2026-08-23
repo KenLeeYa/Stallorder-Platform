@@ -79,6 +79,7 @@ export default async function PublicStorefrontPage({ params, searchParams }: Pag
   if (!resolution) notFound();
 
   const view = resolvePublicStorefrontView(query.view);
+  const editTrackingToken = resolveEditTrackingToken(query.editOrder);
   if (identifier !== resolution.canonicalIdentifier) {
     redirect(buildPublicStorefrontPath(
       resolution.canonicalIdentifier,
@@ -155,6 +156,7 @@ export default async function PublicStorefrontPage({ params, searchParams }: Pag
           entryChannel="SHARED_LINK"
           initialUiLocale={displayLocale}
           requestedLocale={requestedLocale}
+          editTrackingToken={editTrackingToken}
         />
       ) : null}
       {view === "delivery" && deliveryMenu && deliveryQrToken ? (
@@ -165,6 +167,7 @@ export default async function PublicStorefrontPage({ params, searchParams }: Pag
           entryChannel="SHARED_LINK"
           initialUiLocale={displayLocale}
           requestedLocale={requestedLocale}
+          editTrackingToken={editTrackingToken}
         />
       ) : null}
       {!availability[view].enabled ? (
@@ -252,4 +255,9 @@ function storefrontViewLabel(locale: AppLocale, view: PublicStorefrontView) {
         ? "storefrontDelivery"
         : "storefrontMenu",
   );
+}
+
+function resolveEditTrackingToken(value: string | string[] | undefined) {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  return candidate && /^[A-Za-z0-9_-]{40,200}$/.test(candidate) ? candidate : null;
 }

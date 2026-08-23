@@ -246,6 +246,8 @@ test.describe.serial("產能與等候時間", () => {
     await product.getByRole("button", { name: "加入購物車", exact: true }).click();
     await page.getByTestId("qr-mobile-cart-summary").click();
     await page.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
+    await page.getByLabel("顧客稱呼").fill("等候時間 QA");
+    await page.getByLabel("聯絡電話").fill("0912345678");
 
     const submit = page.getByRole("button", { name: "送出訂單", exact: true });
     const acknowledgement = page.getByRole("checkbox", { name: /我已了解目前預估等候時間為 35 分鐘/ });

@@ -39,6 +39,10 @@ const specialClosureWriteGuardReconciliationMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260821201000_reconcile_special_closure_write_guard.sql",
 ), "utf8");
+const nonKdsConfirmationPrintingMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260823170000_non_kds_confirmation_printing.sql",
+), "utf8");
 const drStandbyCompatibleMigrationFiles = [
   "20260821012140_reservation_preorder_foundation.sql",
   "20260821012142_digital_waitlist_foundation.sql",
@@ -348,6 +352,16 @@ describe("additive DR migration plan", () => {
     )).toThrow("ALTER_TABLE_ACTION_FORBIDDEN");
   });
 
+  it("allows only the exact reviewed non-KDS confirmation printing function", () => {
+    expect(assertAdditiveMigrationSql(nonKdsConfirmationPrintingMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      nonKdsConfirmationPrintingMigration.replace(
+        "and settings.print_module_enabled",
+        "or settings.print_module_enabled",
+      ),
+    )).toThrow("FUNCTION_REPLACEMENT_EXISTING_OBJECT_FORBIDDEN");
+  });
+
   it("allows only the exact reviewed preflight reconciliation", () => {
     expect(assertAdditiveMigrationSql(
       staffKdsSpecialClosuresReconciliationMigration,
@@ -592,8 +606,8 @@ describe("additive DR migration plan", () => {
     expect(assertAdditiveMigrationSql(privateAlertSoundBucketMigration)).toBe(true);
     expect(() => assertAdditiveMigrationSql(
       privateAlertSoundBucketMigration.replace(
-        "'alert-sounds',\n  false,",
-        "'alert-sounds',\n  true,",
+        /('alert-sounds',\r?\n\s*'alert-sounds',\r?\n\s*)false,/u,
+        "$1true,",
       ),
     )).toThrow("FEATURE_FLAG_SEED_UNSAFE");
     expect(() => assertAdditiveMigrationSql(

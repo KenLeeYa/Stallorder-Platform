@@ -26,7 +26,8 @@ describe("QrOrderFlow composition boundary", () => {
     expect(controllerSource).toContain("startQrOrderAvailabilityLifecycle({");
     expect(controllerSource).toContain("startQrOrderCapacityLifecycle({");
     expect(controllerSource).toContain("persistQrOrderCartDraft({");
-    expect(controllerSource).toContain("submitQrOrderFlowCheckout({");
+    expect(controllerSource).toContain("submitQrOrderFlowCheckout(shared)");
+    expect(controllerSource).toContain("submitQrOrderEditFlowCheckout({ ...shared, trackingToken: editTrackingToken })");
     expect(controllerSource).toContain("sessionController.rotateSessionIdentity()");
   });
 

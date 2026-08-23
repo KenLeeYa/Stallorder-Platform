@@ -114,12 +114,22 @@ function submitOpeningTag(html: string) {
   return html.slice(buttonOffset, html.indexOf(">", buttonOffset) + 1);
 }
 
+function fieldOpeningTag(html: string, ariaLabel: string) {
+  const labelOffset = html.indexOf(`aria-label="${ariaLabel}"`);
+  const inputOffset = Math.max(
+    html.lastIndexOf("<input", labelOffset),
+    html.lastIndexOf("<textarea", labelOffset),
+  );
+  return html.slice(inputOffset, html.indexOf(">", labelOffset) + 1);
+}
+
 const blockerMessages = {
   orderingUnavailable: qrOrderMessages["zh-TW"].degradedMessage,
   emptyCart: qrOrderMessages["zh-TW"].selectAtLeastOne,
   unappliedFulfillmentTime: "取餐時間尚未套用，請先按下「套用這個時間」。",
   sessionLoading: qrOrderMessages["zh-TW"].sessionLoading,
   sessionExpired: qrOrderMessages["zh-TW"].sessionExpired,
+  customerDetailsMissing: qrOrderMessages["zh-TW"].customerDetailsRequired,
   deliveryDetailsMissing: deliveryOrderMessages["zh-TW"].detailsRequired,
   waitAcknowledgmentRequired: qrOrderMessages["zh-TW"].waitAcknowledgmentRequired,
   securityRequired: qrOrderMessages["zh-TW"].securityRequired,
@@ -131,6 +141,7 @@ const readyCheckout = {
   hasUnappliedFulfillmentTime: false,
   sessionReady: true,
   sessionExpired: false,
+  customerDetailsMissing: false,
   deliveryDetailsMissing: false,
   requiredOptionMessage: null,
   waitAcknowledgmentRequired: false,
@@ -158,6 +169,7 @@ describe("resolveQrCheckoutBlocker priority matrix", () => {
         hasUnappliedFulfillmentTime: true,
         sessionReady: false,
         sessionExpired: true,
+        customerDetailsMissing: true,
         deliveryDetailsMissing: true,
         requiredOptionMessage: "請完成必選註記。",
         waitAcknowledgmentRequired: true,
@@ -172,6 +184,7 @@ describe("resolveQrCheckoutBlocker priority matrix", () => {
         hasUnappliedFulfillmentTime: true,
         sessionReady: false,
         sessionExpired: true,
+        customerDetailsMissing: true,
         deliveryDetailsMissing: true,
         requiredOptionMessage: "請完成必選註記。",
         waitAcknowledgmentRequired: true,
@@ -185,6 +198,7 @@ describe("resolveQrCheckoutBlocker priority matrix", () => {
         hasUnappliedFulfillmentTime: true,
         sessionReady: false,
         sessionExpired: true,
+        customerDetailsMissing: true,
         deliveryDetailsMissing: true,
         requiredOptionMessage: "請完成必選註記。",
         waitAcknowledgmentRequired: true,
@@ -197,6 +211,7 @@ describe("resolveQrCheckoutBlocker priority matrix", () => {
       overrides: {
         sessionReady: false,
         sessionExpired: true,
+        customerDetailsMissing: true,
         deliveryDetailsMissing: true,
         requiredOptionMessage: "請完成必選註記。",
         waitAcknowledgmentRequired: true,
@@ -208,12 +223,24 @@ describe("resolveQrCheckoutBlocker priority matrix", () => {
       name: "session expiry before delivery, option, wait, and Turnstile",
       overrides: {
         sessionExpired: true,
+        customerDetailsMissing: true,
         deliveryDetailsMissing: true,
         requiredOptionMessage: "請完成必選註記。",
         waitAcknowledgmentRequired: true,
         hasTurnstileToken: false,
       },
       expected: blockerMessages.sessionExpired,
+    },
+    {
+      name: "customer name/phone before delivery address, option, wait, and Turnstile",
+      overrides: {
+        customerDetailsMissing: true,
+        deliveryDetailsMissing: true,
+        requiredOptionMessage: "請完成必選註記。",
+        waitAcknowledgmentRequired: true,
+        hasTurnstileToken: false,
+      },
+      expected: blockerMessages.customerDetailsMissing,
     },
     {
       name: "DELIVERY phone/address before option, wait, and Turnstile",
@@ -271,6 +298,7 @@ describe("QrOrderCartPanel checkout blocker presentation", () => {
     "正在建立安全點餐工作階段...",
     "取餐時間尚未套用，請先按下「套用這個時間」。",
     "點餐工作階段已逾時，請重新掃描 QR Code。",
+    "請填寫顧客姓名與有效的聯絡電話。",
     "請填寫有效的聯絡電話與外送地址。",
     "請完成「測試餐點」的必選註記。",
     "請先確認目前預估等候時間。",
@@ -283,6 +311,15 @@ describe("QrOrderCartPanel checkout blocker presentation", () => {
     expect(html).toContain(checkoutBlocker);
     expect(html.indexOf(checkoutBlocker)).toBeLessThan(html.indexOf("送出訂單"));
     expect(submitOpeningTag(html)).toMatch(/\sdisabled=""/);
+  });
+
+  it("requires name and phone for pickup without showing a delivery address", () => {
+    const html = renderPanel();
+
+    expect(fieldOpeningTag(html, "顧客稱呼")).toMatch(/\srequired=""/);
+    expect(fieldOpeningTag(html, "聯絡電話")).toMatch(/\srequired=""/);
+    expect(html).toContain("請輸入顧客姓名");
+    expect(html).not.toContain('aria-label="外送地址"');
   });
 
   it("renders required delivery fields beside the delivery blocker", () => {

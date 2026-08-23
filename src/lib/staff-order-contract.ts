@@ -86,8 +86,11 @@ export type StaffOrderCatalog = {
     id: string;
     name: string;
     description: string;
+    translations?: Array<{ locale: string; name: string; description: string }>;
     category: string;
+    categoryTranslations?: Array<{ locale: string; name: string }>;
     group?: string | null;
+    groupTranslations?: Array<{ locale: string; name: string }>;
     price: number;
     imageUrl: string | null;
     isOrderDiscountEligible: boolean;
@@ -100,6 +103,7 @@ export type StaffOrderCatalog = {
       choices: Array<{
         id: string;
         name: string;
+        translations?: Array<{ locale: string; name: string; description: string }>;
         quantity: number;
         priceDelta: number;
       }>;
@@ -107,6 +111,7 @@ export type StaffOrderCatalog = {
     noteGroups: Array<{
       id: string;
       name: string;
+      translations?: Array<{ locale: string; name: string }>;
       selectionMode: "SINGLE" | "MULTIPLE";
       isRequired: boolean;
       minSelections: number;
@@ -114,6 +119,7 @@ export type StaffOrderCatalog = {
       options: Array<{
         id: string;
         name: string;
+        translations?: Array<{ locale: string; name: string }>;
         priceDelta: number;
       }>;
     }>;

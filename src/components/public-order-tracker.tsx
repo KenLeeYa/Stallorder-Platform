@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BadgeCheck, ChevronDown, CircleHelp, CircleX, Clock3, RefreshCw, Store, X } from "lucide-react";
+import { BadgeCheck, ChevronDown, CircleHelp, CircleX, Clock3, FilePenLine, LoaderCircle, RefreshCw, Store, Trash2, X } from "lucide-react";
 import { LineNotificationControls } from "@/components/line-notification-controls";
 import { useAppLocale } from "@/components/locale-provider";
 import type { AppLocale } from "@/lib/app-locale";
@@ -10,6 +11,8 @@ import { publicOrderMessages } from "@/lib/messages/public-order";
 import {
   getOrCreateDeviceId,
   parseEdgeResponse,
+  createPublicOrderOperationId,
+  publicOrderCircuitHeaders,
   requestPublicOrder,
   respondToFulfillmentTime,
 } from "@/lib/public-order-client";
@@ -26,6 +29,19 @@ type FulfillmentTimeState =
 
 type PublicOrderStatus = "WAITING_CONFIRMATION" | "CONFIRMED" | "PREPARING" | "PACKING" | "READY" | "COMPLETED" | "CANCELLED" | "EXPIRED";
 type PublicFulfillmentType = "TAKEOUT" | "DINE_IN" | "DELIVERY";
+
+export function getPublicOrderCustomerActions(
+  orderStatus: PublicOrderStatus,
+  fulfillmentType: PublicFulfillmentType,
+  paymentStatus: PublicOrder["paymentStatus"],
+) {
+  const publicFulfillment = fulfillmentType === "TAKEOUT" || fulfillmentType === "DELIVERY";
+  const unpaid = paymentStatus === "UNPAID";
+  return {
+    canModify: publicFulfillment && unpaid && (orderStatus === "WAITING_CONFIRMATION" || orderStatus === "CONFIRMED"),
+    canCancel: publicFulfillment && unpaid && orderStatus === "WAITING_CONFIRMATION",
+  };
+}
 
 type PublicOrder = {
   orderNo: string;
@@ -489,6 +505,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
   const [isOnline, setIsOnline] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [isResponding, setIsResponding] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [fulfillmentFeedback, setFulfillmentFeedback] = useState<FulfillmentFeedback | null>(null);
   const [showPickupReadyDialog, setShowPickupReadyDialog] = useState(false);
   const announcedReadyOrderRef = useRef<string | null>(null);
@@ -604,6 +621,36 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
     }
   }, [locale, order, refreshOrder, trackingToken]);
 
+  const cancelOrder = useCallback(async () => {
+    if (!window.confirm(publicOrderMessages.get(locale, "cancelConfirm"))) return;
+    setIsCancelling(true);
+    setMessage("");
+    try {
+      const operationId = createPublicOrderOperationId();
+      const response = await fetch(`/api/public/orders/${encodeURIComponent(trackingToken)}`, {
+        method: "DELETE",
+        headers: {
+          "content-type": "application/json",
+          ...publicOrderCircuitHeaders(operationId),
+        },
+        body: JSON.stringify({ deviceId: getOrCreateDeviceId() }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(4_000),
+      });
+      const payload = await parseEdgeResponse(response);
+      if (!response.ok) {
+        throw new Error(typeof payload.code === "string"
+          ? localizedPublicOrderError(locale, payload.code)
+          : publicOrderMessages.get(locale, "cancelFailed"));
+      }
+      await refreshOrder();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : publicOrderMessages.get(locale, "cancelFailed"));
+    } finally {
+      setIsCancelling(false);
+    }
+  }, [locale, refreshOrder, trackingToken]);
+
   return (
     <main className="mx-auto min-h-screen max-w-xl px-4 py-6 sm:px-5 sm:py-10">
       <div className="flex items-start justify-between gap-4">
@@ -621,7 +668,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {order?.orderStatus === "COMPLETED"
+          {order
             && order.fulfillmentType !== "DINE_IN"
             && order.publicMenuIdentifier
             ? (
@@ -690,6 +737,30 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
             locale={locale}
           />
           <div className="mt-6 divide-y divide-stone-100 border-y border-stone-200">{order.items.map((item) => <div key={item.id} className="grid gap-2 py-3 text-sm sm:grid-cols-[1fr_auto]"><div><span>{item.quantity} × {item.name}</span>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{formatNoteOptions(locale, item.noteOptions)}</p> : null}{item.note ? <p className="mt-1 text-xs text-stone-500">{publicOrderMessages.get(locale, "itemNote", { note: item.note })}</p> : null}</div><span className="font-medium text-stone-600">{publicOrderMessages.get(locale, itemStatusMessageKeys[item.status])}</span></div>)}</div>
+          {(() => {
+            const actions = getPublicOrderCustomerActions(order.orderStatus, order.fulfillmentType, order.paymentStatus);
+            if (!actions.canModify && !actions.canCancel) return null;
+            return (
+              <section aria-label={publicOrderMessages.get(locale, "orderActions")} className="mt-5 rounded-md border border-stone-200 bg-stone-50 p-4">
+                <div className="flex flex-wrap gap-2">
+                  {actions.canModify ? (
+                    <Link href={`/order/${encodeURIComponent(trackingToken)}/reorder`} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white">
+                      <FilePenLine aria-hidden="true" className="h-4 w-4" />{publicOrderMessages.get(locale, "modifyOrder")}
+                    </Link>
+                  ) : null}
+                  {actions.canCancel ? (
+                    <button type="button" disabled={isCancelling} onClick={() => void cancelOrder()} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 disabled:opacity-50">
+                      {isCancelling ? <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Trash2 aria-hidden="true" className="h-4 w-4" />}
+                      {publicOrderMessages.get(locale, isCancelling ? "cancellingOrder" : "cancelOrder")}
+                    </button>
+                  ) : null}
+                </div>
+                <p className="mt-3 text-xs leading-5 text-stone-600">
+                  {publicOrderMessages.get(locale, order.orderStatus === "CONFIRMED" ? "modifyConfirmedNotice" : "modifyWaitingNotice")}
+                </p>
+              </section>
+            );
+          })()}
           {order.fulfillmentType === "TAKEOUT" ? <p className="mt-5 text-sm leading-6 text-stone-600">{publicOrderMessages.get(locale, "takeoutNotice")}</p> : null}
           <OrderHelpPanel
             fulfillmentType={order.fulfillmentType}
