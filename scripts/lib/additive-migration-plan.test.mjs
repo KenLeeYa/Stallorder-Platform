@@ -49,6 +49,7 @@ const drStandbyCompatibleMigrationFiles = [
   "20260821012143_online_order_payment_reconciliation.sql",
   "20260821012144_dynamic_ordering_qr_foundation.sql",
   "20260821012145_crm_loyalty_consent_foundation.sql",
+  "20260823180000_auth_payment_provider_foundation.sql",
 ];
 
 describe("additive DR migration plan", () => {
