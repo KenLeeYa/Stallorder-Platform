@@ -121,6 +121,7 @@ export async function createSession(
   profileId: string,
   options: {
     deviceId: string;
+    deviceLabel?: string;
     ipHash?: string;
     userAgentHash?: string;
     rotationFamilyId?: string;
@@ -157,6 +158,7 @@ export async function createSession(
       expiresAt,
       profileSessionVersion: profile.sessionVersion,
       deviceId: options.deviceId,
+      deviceLabel: options.deviceLabel,
       ipHash: options.ipHash,
       userAgentHash: options.userAgentHash,
       rotationFamilyId: options.rotationFamilyId,
@@ -188,6 +190,7 @@ export async function rotateRequestSession(
   request: Request,
   evidence: {
     deviceId: string;
+    deviceLabel?: string;
     ipHash?: string;
     userAgentHash?: string;
   },
@@ -267,6 +270,7 @@ export async function rotateRequestSession(
       current.profileId,
       {
         deviceId: evidence.deviceId,
+        deviceLabel: evidence.deviceLabel ?? current.deviceLabel ?? undefined,
         ipHash: evidence.ipHash ?? current.ipHash ?? undefined,
         userAgentHash: evidence.userAgentHash ?? current.userAgentHash ?? undefined,
         rotationFamilyId: current.rotationFamilyId,

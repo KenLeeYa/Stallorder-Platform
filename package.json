@@ -24,6 +24,7 @@
     "production:check": "node scripts/production-readiness.mjs",
     "production:smoke": "node scripts/production-smoke-test.mjs",
     "auth:migration-report": "node scripts/report-oauth-migration-readiness.mjs",
+    "billing:payg:production-audit": "tsx scripts/audit-payg-production.ts",
     "preview:catalog-translation-smoke": "node scripts/run-catalog-translation-preview-smoke.mjs",
     "preview:delivery-smoke": "node scripts/run-delivery-synthetic-smoke.mjs",
     "performance:measure": "node scripts/measure-response-time.mjs",

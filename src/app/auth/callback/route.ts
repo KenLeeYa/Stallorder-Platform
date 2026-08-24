@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSession, setSessionCookies } from "@/lib/auth";
 import { logEvent, recordAuditEvent } from "@/lib/audit";
+import { getRequestDeviceLabel } from "@/lib/device-label";
 import { resolveProjectOAuthLinkProfile } from "@/lib/oauth-linking";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { isStagingPlatformAdminBootstrapEmail } from "@/lib/platform-admin-bootstrap";
@@ -214,6 +215,7 @@ export async function GET(request: Request) {
         "sessionMs",
         () => timing.measureDb(() => createSession(profile.id, {
           deviceId,
+          deviceLabel: getRequestDeviceLabel(request),
           ipHash,
           userAgentHash: hashClientUserAgent(request),
         }), 2),

@@ -3,12 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { csrfHeaders } from "@/lib/csrf-client";
-import { getAdminApiError } from "@/lib/messages/admin";
+import { getAdminApiError, type AdminMessageKey } from "@/lib/messages/admin";
 import { useAdminLocale } from "@/lib/messages/admin-client";
 
 type ManagedFlagCode =
   | "OPEN_BETA_FREE_ACCESS_ENABLED"
-  | "MERCHANT_BILLING_VISIBLE";
+  | "MERCHANT_BILLING_VISIBLE"
+  | "PAYG_BILLING_ENABLED"
+  | "PAYG_NEW_MERCHANTS_ENABLED"
+  | "PAYG_LEGACY_MIGRATION_ENABLED"
+  | "PAYG_REFUND_CREDITS_ENABLED"
+  | "PAYG_AUTOMATIC_INVOICE_CLOSE_ENABLED";
 
 type Flag = {
   code: string;
@@ -17,10 +22,8 @@ type Flag = {
 
 const controls: Array<{
   code: ManagedFlagCode;
-  label: "Open beta free access" | "Show subscriptions and payments to merchants";
-  description:
-    | "When enabled, merchants can use the system without subscription expiry or feature restrictions. Usage remains recorded, but no bill can be closed automatically."
-    | "When disabled, merchant navigation, subscription pages, payment pages, and their direct URLs are hidden. Platform administrators can still prepare billing settings.";
+  label: AdminMessageKey;
+  description: AdminMessageKey;
 }> = [
   {
     code: "OPEN_BETA_FREE_ACCESS_ENABLED",
@@ -31,6 +34,31 @@ const controls: Array<{
     code: "MERCHANT_BILLING_VISIBLE",
     label: "Show subscriptions and payments to merchants",
     description: "When disabled, merchant navigation, subscription pages, payment pages, and their direct URLs are hidden. Platform administrators can still prepare billing settings.",
+  },
+  {
+    code: "PAYG_BILLING_ENABLED",
+    label: "PAYG billing core",
+    description: "Allows approved PAYG migration and manual close only when every other contract and rollout guard also passes.",
+  },
+  {
+    code: "PAYG_NEW_MERCHANTS_ENABLED",
+    label: "PAYG for new merchants",
+    description: "Allows eligible Trial subscriptions to enter the controlled PAYG migration workflow.",
+  },
+  {
+    code: "PAYG_LEGACY_MIGRATION_ENABLED",
+    label: "PAYG legacy migration",
+    description: "Allows eligible legacy fixed subscriptions to enter the controlled PAYG migration workflow.",
+  },
+  {
+    code: "PAYG_REFUND_CREDITS_ENABLED",
+    label: "PAYG full-refund credits",
+    description: "Allows period close only after full-refund ledger and late-credit acceptance has passed.",
+  },
+  {
+    code: "PAYG_AUTOMATIC_INVOICE_CLOSE_ENABLED",
+    label: "PAYG automatic close",
+    description: "Runs automatic close only with cron credentials, a sealed tax contract, and all prerequisite flags.",
   },
 ];
 

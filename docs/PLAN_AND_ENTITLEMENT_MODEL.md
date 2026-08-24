@@ -93,6 +93,8 @@ Phase 1 只顯示且不自動化：Custom Domain、Scheduled Reports、White Lab
 
 `OPEN_BETA_FREE_ACCESS_ENABLED` 只暫時免除 Trial 到期、方案功能及數量限制，不會繞過 Subscription 存在性、`SUSPENDED` 或 `CANCELLED`。開放測試仍記錄可信用量，但 PAYG flags 關閉時不得建立正式 PAYG 帳單。
 
+PAYG 正式計費版本必須先封存：契約欄位與排序後 entitlement snapshot 一起計算 SHA-256。封存後或已被 Subscription／Invoice 使用後，資料庫拒絕價格、cap、時區、稅務及 entitlement 變更；變更只能建立下一版。
+
 ## 安全錯誤碼
 
 UI 可安全顯示：`FEATURE_NOT_INCLUDED`、`PLAN_LIMIT_REACHED`、`SUBSCRIPTION_NOT_ACTIVE`、`SUBSCRIPTION_SUSPENDED`、`TRIAL_EXPIRED`、`TRIAL_ORDER_LIMIT_REACHED`、`ADDITIONAL_STALL_APPROVAL_REQUIRED`、`ORDER_PACKAGE_REQUIRED`、`UPGRADE_REQUIRED`。

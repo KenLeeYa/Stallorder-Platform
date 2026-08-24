@@ -680,6 +680,7 @@ model AuthSession {
   tokenHash               String    @unique @map("token_hash")
   csrfTokenHash           String    @map("csrf_token_hash")
   deviceId                String?   @map("device_id") @db.Uuid
+  deviceLabel             String?   @map("device_label") @db.VarChar(120)
   ipHash                  String?   @map("ip_hash")
   userAgentHash           String?   @map("user_agent_hash")
   issuedAt                DateTime  @default(now()) @map("issued_at")
@@ -1013,6 +1014,20 @@ model PlanVersion {
   usageScope              String?           @map("usage_scope")
   monthlyCapAmount        Int?              @map("monthly_cap_amount")
   minimumCharge           Int               @default(0) @map("minimum_charge")
+  billingTimezone         String            @default("Asia/Taipei") @map("billing_timezone")
+  billingCycleAnchorDay   Int               @default(1) @map("billing_cycle_anchor_day")
+  billingPeriodType       String            @default("CALENDAR_MONTH") @map("billing_period_type")
+  invoiceCloseDelayHours  Int?              @map("invoice_close_delay_hours")
+  taxTreatment            String            @default("UNCONFIGURED") @map("tax_treatment")
+  taxRateBps              Int?              @map("tax_rate_bps")
+  taxJurisdiction         String?           @map("tax_jurisdiction")
+  taxRoundingMode         String            @default("HALF_UP") @map("tax_rounding_mode")
+  taxRoundingScope        String            @default("INVOICE") @map("tax_rounding_scope")
+  capTaxBasis             String?           @map("cap_tax_basis")
+  taxDocumentRequired     Boolean           @default(false) @map("tax_document_required")
+  sealedAt                DateTime?          @map("sealed_at")
+  sealedByProfileId       String?            @map("sealed_by_profile_id") @db.Uuid
+  contractHash            String?            @map("contract_hash") @db.VarChar(64)
   emergencyHardCapEnabled  Boolean           @default(false) @map("emergency_hard_cap_enabled")
   emergencyHardCapOrders   Int?              @map("emergency_hard_cap_orders")
   isPublic                 Boolean           @default(true) @map("is_public")
@@ -1068,6 +1083,10 @@ model Subscription {
   cancelledAt         DateTime?                 @map("cancelled_at")
   reactivatedAt       DateTime?                 @map("reactivated_at")
   pricingEffectiveAt  DateTime?                 @map("pricing_effective_at")
+  billingTimezone     String                    @default("Asia/Taipei") @map("billing_timezone")
+  billingCycleAnchorDay Int                     @default(1) @map("billing_cycle_anchor_day")
+  billingPeriodType   String                    @default("CALENDAR_MONTH") @map("billing_period_type")
+  invoiceCloseDelayHours Int?                   @map("invoice_close_delay_hours")
   createdAt           DateTime                  @default(now()) @map("created_at")
   updatedAt           DateTime                  @updatedAt @map("updated_at")
   organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1332,6 +1351,51 @@ model BillingStallUsageSummary {
   @@index([organizationId, billingPeriod, finalCharge(sort: Desc)])
   @@index([stallId, billingPeriod])
   @@map("billing_stall_usage_summaries")
+}
+
+model BillingCreditAdjustment {
+  id                   String    @id @default(uuid()) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  subscriptionId       String    @map("subscription_id") @db.Uuid
+  stallId              String    @map("stall_id") @db.Uuid
+  originalOrderId      String    @map("original_order_id") @db.Uuid
+  originalUsageEventId String    @map("original_usage_event_id") @db.Uuid
+  refundUsageEventId   String    @unique @map("refund_usage_event_id") @db.Uuid
+  originalInvoiceId    String    @map("original_invoice_id") @db.Uuid
+  targetInvoiceId      String?   @map("target_invoice_id") @db.Uuid
+  creditAmount         Int       @map("credit_amount")
+  taxCreditAmount      Int       @default(0) @map("tax_credit_amount")
+  currency             String    @default("TWD")
+  status               String    @default("UNAPPLIED")
+  reasonCode           String    @default("LATE_FULL_REFUND") @map("reason_code")
+  idempotencyKey       String    @unique @map("idempotency_key")
+  createdByProfileId   String?   @map("created_by_profile_id") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at")
+  appliedAt            DateTime? @map("applied_at")
+
+  @@index([organizationId, status, createdAt])
+  @@index([subscriptionId, status, createdAt])
+  @@index([originalInvoiceId, createdAt])
+  @@map("billing_credit_adjustments")
+}
+
+model PaygCloseJob {
+  id               String    @id @default(uuid()) @db.Uuid
+  subscriptionId   String    @map("subscription_id") @db.Uuid
+  billingPeriod     DateTime  @map("billing_period") @db.Date
+  idempotencyKey    String    @unique @map("idempotency_key")
+  status            String    @default("PENDING")
+  attemptCount      Int       @default(0) @map("attempt_count")
+  lastErrorCode     String?   @map("last_error_code")
+  lastRequestId     String?   @map("last_request_id")
+  startedAt         DateTime? @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([subscriptionId, billingPeriod])
+  @@index([status, billingPeriod, updatedAt])
+  @@map("payg_close_jobs")
 }
 
 model BillingFeatureFlag {
@@ -3558,7 +3622,7 @@ model ExternalOrder {
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
 
-  @@unique([provider, externalOrderId])
+  @@unique([connectionId, provider, externalOrderId])
   @@index([stallId, processingStatus, receivedAt(sort: Desc)])
   @@index([connectionId, receivedAt(sort: Desc)])
   @@map("external_orders")
@@ -3587,7 +3651,7 @@ model DeliveryWebhookEvent {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  @@unique([provider, replayKey])
+  @@unique([connectionId, provider, replayKey])
   @@index([processingStatus, nextAttemptAt, receivedAt])
   @@index([connectionId, receivedAt(sort: Desc)])
   @@map("delivery_webhook_events")
@@ -3618,7 +3682,7 @@ model DeliverySyncJob {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  @@unique([provider, deduplicationKey])
+  @@unique([connectionId, provider, deduplicationKey])
   @@index([status, scheduledAt, priority, createdAt])
   @@index([connectionId, createdAt(sort: Desc)])
   @@map("delivery_sync_jobs")

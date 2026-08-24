@@ -18,6 +18,10 @@
     {
       "path": "/api/cron/storage-replication",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/payg-close",
+      "schedule": "15 * * * *"
     }
   ]
 }

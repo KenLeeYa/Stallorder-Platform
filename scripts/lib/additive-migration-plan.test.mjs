@@ -43,6 +43,18 @@ const nonKdsConfirmationPrintingMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260823170000_non_kds_confirmation_printing.sql",
 ), "utf8");
+const deliveryProviderContractsMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260821100000_delivery_provider_contracts.sql",
+), "utf8");
+const adminModuleVisibilityMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260824100000_admin_module_visibility_and_session_device_labels.sql",
+), "utf8");
+const paygContractRuntimeGapsMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260824110000_payg_contract_and_runtime_gaps.sql",
+), "utf8");
 const drStandbyCompatibleMigrationFiles = [
   "20260821012140_reservation_preorder_foundation.sql",
   "20260821012142_digital_waitlist_foundation.sql",
@@ -266,6 +278,48 @@ describe("additive DR migration plan", () => {
     ]) {
       expect(() => assertAdditiveMigrationSql(migration)).toThrow();
     }
+  });
+
+  it("allows only the exact reviewed delivery provider contract transition", () => {
+    expect(assertAdditiveMigrationSql(deliveryProviderContractsMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      deliveryProviderContractsMigration.replace(
+        "backend_code = 'DR'",
+        "backend_code = 'PRIMARY'",
+      ),
+    )).toThrow();
+    expect(() => assertAdditiveMigrationSql(
+      deliveryProviderContractsMigration.replace(
+        "unique (connection_id, provider, external_order_id)",
+        "unique (provider, external_order_id)",
+      ),
+    )).toThrow();
+  });
+
+  it("allows only the exact reviewed admin visibility and device-label migration", () => {
+    expect(assertAdditiveMigrationSql(adminModuleVisibilityMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      adminModuleVisibilityMigration.replace(
+        "backend_code = 'DR'",
+        "backend_code = 'PRIMARY'",
+      ),
+    )).toThrow();
+  });
+
+  it("allows only the exact reviewed PAYG contract runtime transition", () => {
+    expect(assertAdditiveMigrationSql(paygContractRuntimeGapsMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      paygContractRuntimeGapsMigration.replace(
+        "new.status = 'COMPLETED'::public.order_status",
+        "new.status <> 'COMPLETED'::public.order_status",
+      ),
+    )).toThrow();
+    expect(() => assertAdditiveMigrationSql(
+      paygContractRuntimeGapsMigration.replace(
+        "plan_versions_contract_immutability_before_update",
+        "plan_versions_unreviewed_before_update",
+      ),
+    )).toThrow();
   });
 
   it("plans the exact pending DR migration set as additive", () => {

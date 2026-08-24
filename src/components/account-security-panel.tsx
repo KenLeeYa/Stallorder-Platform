@@ -178,18 +178,20 @@ export function AccountSecurityPanel({
         <div className="mt-5 divide-y divide-stone-200">
           {sessions.map((session) => (
             <div key={session.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-              <div><h3 className="font-semibold">{session.current ? copy.currentDevice : session.label || copy.otherDevice}</h3><p className="mt-1 text-sm text-stone-600">{copy.lastActive} {session.lastSeenAt} · {copy.expires} {session.expiresAt}</p></div>
+              <div><h3 className="font-semibold">{session.current ? `${copy.currentDevice} · ${session.label}` : session.label || copy.otherDevice}</h3><p className="mt-1 text-sm text-stone-600">{copy.lastActive} {session.lastSeenAt} · {copy.expires} {session.expiresAt}</p></div>
               <button type="button" disabled={pending !== null} onClick={() => revokeSession(session.id)} className="min-h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">{copy.logoutDevice}</button>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="rounded-xl border border-stone-200 bg-white p-5">
-        <h2 className="text-xl font-semibold">{copy.passkeys}</h2>
-        <p className="mt-2 text-sm text-stone-600">{passkeysEnabled ? copy.passkeyReady : copy.passkeyBlocked}</p>
-        <p className="mt-2 text-sm font-semibold">{passkeyCount}</p>
-      </section>
+      {passkeysEnabled ? (
+        <section className="rounded-xl border border-stone-200 bg-white p-5">
+          <h2 className="text-xl font-semibold">{copy.passkeys}</h2>
+          <p className="mt-2 text-sm text-stone-600">{copy.passkeyReady}</p>
+          <p className="mt-2 text-sm font-semibold">{passkeyCount}</p>
+        </section>
+      ) : null}
     </div>
   );
 }

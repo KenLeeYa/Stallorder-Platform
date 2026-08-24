@@ -6,6 +6,7 @@ import {
   getBillingExperienceState,
   type BillingFeatureFlagCode,
 } from "@/server/billing/billing-feature-flags";
+import { assertPaygContractIntegrity } from "@/server/billing/payg-contract";
 
 export const adminMutableBillingFeatureFlagCodes = [
   "OPEN_BETA_FREE_ACCESS_ENABLED",
@@ -38,6 +39,29 @@ export async function setBillingFeatureFlag(
 
     const currentState = await getBillingExperienceState(transaction);
     assertBillingFeatureFlagTransition(code, input.isEnabled, currentState);
+    if (code === "PAYG_AUTOMATIC_INVOICE_CLOSE_ENABLED" && input.isEnabled) {
+      if (!process.env.CRON_SECRET?.trim()) throw new Error("PAYG_SCHEDULER_NOT_CONFIGURED");
+      const versions = await transaction.planVersion.findMany({
+        where: {
+          pricingMode: "USAGE_PER_STALL_CAPPED",
+          sealedAt: { not: null },
+          contractHash: { not: null },
+          invoiceCloseDelayHours: { not: null },
+          taxTreatment: { not: "UNCONFIGURED" },
+          plan: { code: "PAYG", isActive: true },
+        },
+        include: { entitlements: true },
+      });
+      const ready = versions.some((version) => {
+        try {
+          assertPaygContractIntegrity(version);
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      if (!ready) throw new Error("PAYG_CHARGEABLE_CONTRACT_NOT_READY");
+    }
 
     const updated = await transaction.billingFeatureFlag.update({
       where: { code },

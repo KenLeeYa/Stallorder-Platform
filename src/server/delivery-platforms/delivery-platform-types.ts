@@ -32,6 +32,7 @@ export type DeliveryPlatformConnectionContext = {
   organizationId: string;
   stallId: string;
   provider: DeliveryProvider;
+  externalChainId: string | null;
   externalStoreId: string | null;
   credentialReference: string | null;
 };
@@ -189,6 +190,10 @@ export type VerifiedDeliveryWebhook = {
   payloadHash: string;
   signatureValid: true;
   order: NormalizedExternalOrder | null;
+  orderReference: {
+    externalOrderId: string;
+    externalStoreId: string;
+  } | null;
 };
 
 export function parseDeliveryProvider(value: string): DeliveryProvider | null {

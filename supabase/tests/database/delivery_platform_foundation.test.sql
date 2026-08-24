@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(20);
+select plan(21);
 
 select is(
   (
@@ -308,17 +308,44 @@ insert into public.delivery_webhook_events (
   repeat('b', 64)
 );
 
+select lives_ok(
+  $$
+    insert into public.delivery_webhook_events (
+      provider, connection_id, organization_id, stall_id, event_type,
+      signature_valid, replay_key, payload_hash
+    ) values (
+      'MOCK',
+      'd1000000-0000-4000-8000-000000000002',
+      'd9000000-0000-4000-8000-000000000001',
+      'd9000000-0000-4000-8000-000000000003',
+      'ORDER_CREATED',
+      true,
+      repeat('a', 64),
+      repeat('c', 64)
+    )
+  $$,
+  'the same provider replay key can be recorded for a different connection'
+);
+
 select throws_ok(
   $$
     insert into public.delivery_webhook_events (
-      provider, event_type, signature_valid, replay_key, payload_hash
+      provider, connection_id, organization_id, stall_id, event_type,
+      signature_valid, replay_key, payload_hash
     ) values (
-      'MOCK', 'ORDER_CREATED', true, repeat('a', 64), repeat('c', 64)
+      'MOCK',
+      'd1000000-0000-4000-8000-000000000001',
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+      'ORDER_CREATED',
+      true,
+      repeat('a', 64),
+      repeat('d', 64)
     )
   $$,
   '23505',
   null,
-  'a provider webhook replay key can be recorded only once'
+  'a provider webhook replay key can be recorded only once per connection'
 );
 
 insert into public.delivery_sync_jobs (
@@ -350,7 +377,7 @@ select throws_ok(
   $$,
   '23505',
   null,
-  'delivery jobs are idempotent by provider and deduplication key'
+  'delivery jobs are idempotent by connection, provider and deduplication key'
 );
 
 set local role authenticated;

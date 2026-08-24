@@ -9,8 +9,9 @@ const mocks = vi.hoisted(() => ({
     planVersion: { findFirst: vi.fn() },
     billingChangeRequest: { findUnique: vi.fn(), update: vi.fn() },
     billingStallUsageSummary: { findMany: vi.fn() },
-    invoice: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+    invoice: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     invoiceLineItem: { deleteMany: vi.fn(), createMany: vi.fn() },
+    billingCreditAdjustment: { findMany: vi.fn(), updateMany: vi.fn() },
     manualPaymentRecord: { count: vi.fn() },
     organization: { update: vi.fn() },
     auditLog: { create: vi.fn() },
@@ -20,24 +21,58 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({ prisma: { $transaction: mocks.transactionRunner } }));
 
 import { PaygBillingService } from "./payg-billing-service";
+import { calculatePaygContractHash, type PaygContractVersion } from "./payg-contract";
 
 const context = {
   actorProfileId: "55555555-5555-4555-8555-555555555551",
   requestId: "payg-migration-approval",
 };
 
-const paygVersion = {
+const paygContract: PaygContractVersion = {
   id: "payg-version-id",
   planId: "payg-plan-id",
   version: 1,
+  displayName: "PAYG",
+  billingInterval: "MONTHLY",
   currency: "TWD",
   basePrice: 0,
+  annualPrice: null,
+  trialDays: null,
+  includedStalls: 1,
+  maxStalls: null,
+  additionalStallPrice: null,
+  maxStaff: null,
+  maxProducts: null,
+  maxQrCodes: null,
+  includedOrders: null,
+  reportRetentionDays: null,
+  overagePolicy: "HARD_BLOCK",
   pricingMode: "USAGE_PER_STALL_CAPPED",
   usageUnitPrice: 1,
   usageMetric: "NET_BILLABLE_COMPLETED_ORDER",
   usageScope: "STALL",
   monthlyCapAmount: 1499,
   minimumCharge: 0,
+  billingTimezone: "Asia/Taipei",
+  billingCycleAnchorDay: 1,
+  billingPeriodType: "CALENDAR_MONTH",
+  invoiceCloseDelayHours: 24,
+  taxTreatment: "EXEMPT",
+  taxRateBps: null,
+  taxJurisdiction: "TW",
+  taxRoundingMode: "HALF_UP",
+  taxRoundingScope: "INVOICE",
+  capTaxBasis: null,
+  taxDocumentRequired: false,
+  sealedAt: new Date("2026-07-01T00:00:00.000Z"),
+  sealedByProfileId: context.actorProfileId,
+  contractHash: null,
+  entitlements: [],
+};
+
+const paygVersion = {
+  ...paygContract,
+  contractHash: calculatePaygContractHash(paygContract),
   plan: { code: "PAYG" },
 };
 
@@ -46,6 +81,10 @@ const subscription = {
   organizationId: "organization-id",
   planId: "pro-plan-id",
   planVersionId: "pro-version-id",
+  billingTimezone: "Asia/Taipei",
+  billingCycleAnchorDay: 1,
+  billingPeriodType: "CALENDAR_MONTH",
+  invoiceCloseDelayHours: 24,
   billingPeriodStart: new Date("2026-07-01T00:00:00.000Z"),
   billingPeriodEnd: new Date("2026-08-01T00:00:00.000Z"),
   plan: { code: "PRO" },
@@ -167,9 +206,12 @@ describe("PaygBillingService period close", () => {
     planVersionId: paygVersion.id,
     pricingMode: "USAGE_PER_STALL_CAPPED",
     status: "OPEN",
+    amountPaid: 0,
     totalAmount: 0,
+    pricingSnapshotJson: null,
     issuedAt: new Date("2026-08-01T00:00:00.000Z"),
     lineItems: [],
+    taxDocuments: [],
   };
 
   beforeEach(() => {
@@ -186,6 +228,9 @@ describe("PaygBillingService period close", () => {
     ]);
     mocks.transaction.subscription.findUnique.mockResolvedValue(paygSubscription);
     mocks.transaction.billingStallUsageSummary.findMany.mockResolvedValue([]);
+    mocks.transaction.billingCreditAdjustment.findMany.mockResolvedValue([]);
+    mocks.transaction.billingCreditAdjustment.updateMany.mockResolvedValue({ count: 0 });
+    mocks.transaction.invoice.findMany.mockResolvedValue([]);
     mocks.transaction.invoice.findUnique.mockResolvedValue(invoice);
     mocks.transaction.invoice.update.mockResolvedValue(invoice);
     mocks.transaction.invoiceLineItem.deleteMany.mockResolvedValue({ count: 0 });

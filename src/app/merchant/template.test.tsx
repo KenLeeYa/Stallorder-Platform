@@ -9,6 +9,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   getBillingExperienceState: vi.fn(),
+  getAdminModuleVisibility: vi.fn(),
   headers: vi.fn(),
   merchantWorkspaceHeader: vi.fn(),
   requireWorkspacePage: vi.fn(),
@@ -23,6 +24,9 @@ vi.mock("@/lib/workspace", () => ({
 }));
 vi.mock("@/server/billing/billing-feature-flags", () => ({
   getBillingExperienceState: mocks.getBillingExperienceState,
+}));
+vi.mock("@/server/admin/admin-module-visibility", () => ({
+  getAdminModuleVisibility: mocks.getAdminModuleVisibility,
 }));
 
 import MerchantTemplate from "./template";
@@ -91,6 +95,7 @@ describe("MerchantTemplate route context boundary", () => {
     mocks.getBillingExperienceState.mockResolvedValue({
       merchantBillingVisible: false,
     });
+    mocks.getAdminModuleVisibility.mockResolvedValue({ delivery: false, payments: false });
     mocks.headers.mockResolvedValue(requestHeaders("/merchant"));
     mocks.merchantWorkspaceHeader.mockImplementation(() => null);
     mocks.requireWorkspacePage.mockResolvedValue({
@@ -115,6 +120,7 @@ describe("MerchantTemplate route context boundary", () => {
         organizationId: "organization-b",
         stallId: "stall-b",
       },
+      showPayments: false,
     });
   });
 

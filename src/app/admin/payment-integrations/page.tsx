@@ -5,6 +5,7 @@ import { formatAppDateTime, formatAppNumber } from "@/lib/locale-format";
 import { createAdminTranslator } from "@/lib/messages/admin";
 import { prisma } from "@/lib/prisma";
 import { resolveResilienceFeatureFlags } from "@/server/resilience/feature-flag-service";
+import { requireAdminModuleVisible } from "@/server/admin/admin-module-visibility";
 
 const paymentFlags = [
   "ONLINE_ORDER_PAYMENT_ENABLED",
@@ -37,6 +38,7 @@ function countStalledWebhooks() {
 
 export default async function AdminPaymentIntegrationsPage() {
   await requirePlatformAdminPage("/admin/payment-integrations");
+  await requireAdminModuleVisible("payments");
   const [{ locale }, connections, totalTransactions, failedTransactions, stalledWebhooks, reconciliationRequired, flags] = await Promise.all([
     getRequestAppLocale(),
     prisma.paymentProviderConnection.findMany({

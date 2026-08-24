@@ -14,6 +14,12 @@ const PHASE_THREE_HARD_LOCK_MIGRATION_DIGEST =
   "ae162738982526aa10d19d14fe4bd566a793bf678b928597bd33d5e8d832eaab";
 const PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST =
   "b1215925b995d6392eb89c5484cb494990293cdd9ca234b4678aed8987748d17";
+const DELIVERY_PROVIDER_CONTRACTS_MIGRATION_DIGEST =
+  "2c2dc5459a380b8a331287c4877662c5c2496e2b30bc3eb52012afd22be21237";
+const ADMIN_MODULE_VISIBILITY_MIGRATION_DIGEST =
+  "705d2e36f96f90084dd7ee5eb1bf3f0ee447a0a7d362f44761b7c12ca76345c6";
+const PAYG_CONTRACT_RUNTIME_GAPS_MIGRATION_DIGEST =
+  "2fc2d972d20d68f5d475e3441a36362c9c3ae961b3beb4972a81b5802b96b63c";
 const PRIVATE_ALERT_SOUND_BUCKET_MIGRATION_DIGEST =
   "5fc3974afb19b1a7484dbf16a0ca54f3ad56915cadc69b8cd6e1587208829368";
 const DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS = new Set([
@@ -25,6 +31,8 @@ const DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS = new Set([
   "25151e6f8defb09d2d7f4559829dc127b35ca0ac56e58b823b10781371c395c6",
   "e8cb8dddba4caf8b10fda6e7bed44840e4e9d5c202b71c3058cb8f0a7e525f9a",
   PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST,
+  DELIVERY_PROVIDER_CONTRACTS_MIGRATION_DIGEST,
+  ADMIN_MODULE_VISIBILITY_MIGRATION_DIGEST,
 ]);
 const COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST =
   "f5800627472b5df8278ff6a11f6d9a514201706e06021852b5bf5f37a67b8891";
@@ -176,6 +184,10 @@ export function assertAdditiveMigrationSql(sql) {
     isApprovedIntegratedPrintCenterMigration(sql);
   const paygOpenBetaBillingMigration =
     isApprovedPaygOpenBetaBillingMigration(sql);
+  const deliveryProviderContractsMigration =
+    isApprovedDeliveryProviderContractsMigration(sql);
+  const paygContractRuntimeGapsMigration =
+    isApprovedPaygContractRuntimeGapsMigration(sql);
   const privateAlertSoundBucketMigration =
     isApprovedPrivateAlertSoundBucketMigration(sql);
   const staffKdsSpecialClosuresMigration =
@@ -263,11 +275,14 @@ export function assertAdditiveMigrationSql(sql) {
     existingTableTriggerMigration,
     integratedPrintCenterMigration,
     paygOpenBetaBillingMigration,
+    paygContractRuntimeGapsMigration,
   );
   assertReplacementObjectProvenance(
     statements,
     replacements,
     paygOpenBetaBillingMigration,
+    deliveryProviderContractsMigration,
+    paygContractRuntimeGapsMigration,
   );
   return true;
 }
@@ -293,6 +308,7 @@ function assertSecurityObjectProvenance(
   existingTableTriggerMigration,
   integratedPrintCenterMigration,
   paygOpenBetaBillingMigration,
+  paygContractRuntimeGapsMigration,
 ) {
   const createdTables = new Map();
   const createdFunctions = new Map();
@@ -350,6 +366,7 @@ function assertSecurityObjectProvenance(
         rlsForcedTables,
         tenantScopedPolicyTables,
         functionsRevokedFromPublic,
+        paygContractRuntimeGapsMigration,
       );
     }
 
@@ -408,7 +425,11 @@ function assertSecurityObjectProvenance(
         index,
         "SECURITY_MUTATION_EXISTING_OBJECT_FORBIDDEN",
       );
-      assertTenantScopedPolicy(statement, paygOpenBetaBillingMigration);
+      assertTenantScopedPolicy(
+        statement,
+        paygOpenBetaBillingMigration,
+        paygContractRuntimeGapsMigration,
+      );
       tenantScopedPolicyTables.add(normalizeIdentifier(policy[1]));
     }
 
@@ -440,6 +461,10 @@ function assertSecurityObjectProvenance(
             || (
               paygOpenBetaBillingMigration
               && isPaygOpenBetaBillingTrigger(statement, tableIdentity)
+            )
+            || (
+              paygContractRuntimeGapsMigration
+              && isPaygContractRuntimeTrigger(statement, tableIdentity)
             )
           )
         )
@@ -502,6 +527,8 @@ function assertReplacementObjectProvenance(
   statements,
   replacements,
   paygOpenBetaBillingMigration,
+  deliveryProviderContractsMigration,
+  paygContractRuntimeGapsMigration,
 ) {
   const createdTables = new Map();
   const indexCreations = new Map();
@@ -546,6 +573,20 @@ function assertReplacementObjectProvenance(
           && key
             === "constraint:public.usage_events:usage_events_event_type_check"
         )
+        && !(
+          deliveryProviderContractsMigration
+          && new Set([
+            "constraint:public.external_orders:external_orders_provider_order_key",
+            "constraint:public.delivery_webhook_events:delivery_webhook_events_provider_replay_key",
+            "constraint:public.delivery_sync_jobs:delivery_sync_jobs_provider_deduplication_key",
+            "constraint:public.delivery_sync_jobs:delivery_sync_jobs_job_type_check",
+          ]).has(key)
+        )
+        && !(
+          paygContractRuntimeGapsMigration
+          && key
+            === "constraint:public.invoice_line_items:invoice_line_items_type_check"
+        )
       ) {
         throw new AdditiveMigrationPlanError(
           "EXISTING_OBJECT_REPLACEMENT_FORBIDDEN",
@@ -582,6 +623,7 @@ function assertGrantTargetsCreatedObjects(
   rlsForcedTables,
   tenantScopedPolicyTables,
   functionsRevokedFromPublic,
+  paygContractRuntimeGapsMigration,
 ) {
   const tableGrant = statement.match(new RegExp(
     "^grant\\s+([\\s\\S]+?)\\s+on\\s+table\\s+"
@@ -607,8 +649,18 @@ function assertGrantTargetsCreatedObjects(
     ) {
       throw new AdditiveMigrationPlanError("GRANT_EXISTING_OBJECT_FORBIDDEN");
     }
+    const approvedPaygPlatformRead = paygContractRuntimeGapsMigration
+      && grantees.length === 1
+      && grantees[0] === "authenticated"
+      && /^select$/iu.test(privileges)
+      && targets.length === 1
+      && [
+        "public.billing_credit_adjustments",
+        "public.payg_close_jobs",
+      ].includes(normalizeIdentifier(targets[0]));
     if (
-      !isLeastPrivilegeTableGrant(privileges, grantees)
+      (!isLeastPrivilegeTableGrant(privileges, grantees)
+        && !approvedPaygPlatformRead)
       || (
         grantees[0] === "authenticated"
         && targets.some((target) => {
@@ -719,10 +771,21 @@ function isLeastPrivilegeTableGrant(privileges, grantees) {
   return false;
 }
 
-function assertTenantScopedPolicy(statement, paygOpenBetaBillingMigration) {
+function assertTenantScopedPolicy(
+  statement,
+  paygOpenBetaBillingMigration,
+  paygContractRuntimeGapsMigration,
+) {
   if (
     paygOpenBetaBillingMigration
     && /^create\s+policy\s+billing_stall_usage_summaries_financial_select\s+on\s+public\.billing_stall_usage_summaries\s+for\s+select\s+to\s+authenticated\s+using\s*\(/iu
+      .test(statement)
+  ) {
+    return;
+  }
+  if (
+    paygContractRuntimeGapsMigration
+    && /^create\s+policy\s+(?:billing_credit_adjustments|payg_close_jobs)_platform_select\s+on\s+public\.(?:billing_credit_adjustments|payg_close_jobs)\s+for\s+select\s+to\s+authenticated\s+using\s*\(\s*app_private\.is_platform_admin\s*\(\s*\)\s*\)$/iu
       .test(statement)
   ) {
     return;
@@ -968,7 +1031,8 @@ function isApprovedCompatibleFunctionBodyMigration(sql) {
     || digest === STAFF_KDS_SPECIAL_CLOSURES_MIGRATION_DIGEST
     || digest === STAFF_KDS_SPECIAL_CLOSURES_RECONCILIATION_MIGRATION_DIGEST
     || digest === NON_KDS_CONFIRMATION_PRINTING_MIGRATION_DIGEST
-    || digest === PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST;
+    || digest === PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST
+    || digest === PAYG_CONTRACT_RUNTIME_GAPS_MIGRATION_DIGEST;
 }
 
 function isApprovedStaffKdsSpecialClosuresMigration(sql) {
@@ -981,7 +1045,18 @@ function isApprovedExistingTableTriggerMigration(sql) {
   return digest === EXISTING_TABLE_TRIGGER_MIGRATION_DIGEST
     || digest === GLOBAL_STALL_CODE_ROLLOUT_MIGRATION_DIGEST
     || digest === INTEGRATED_PRINT_CENTER_MIGRATION_DIGEST
-    || digest === PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST;
+    || digest === PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST
+    || digest === PAYG_CONTRACT_RUNTIME_GAPS_MIGRATION_DIGEST;
+}
+
+function isApprovedDeliveryProviderContractsMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === DELIVERY_PROVIDER_CONTRACTS_MIGRATION_DIGEST;
+}
+
+function isApprovedPaygContractRuntimeGapsMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === PAYG_CONTRACT_RUNTIME_GAPS_MIGRATION_DIGEST;
 }
 
 function isApprovedIntegratedPrintCenterMigration(sql) {
@@ -1004,6 +1079,18 @@ function isPaygOpenBetaBillingTrigger(statement, tableIdentity) {
   return tableIdentity === "public.orders"
     && /^(?:create|drop)\s+trigger\s+(?:if\s+exists\s+)?orders_billable_full_refund_after_update\b/iu
       .test(statement);
+}
+
+function isPaygContractRuntimeTrigger(statement, tableIdentity) {
+  return (
+    tableIdentity === "public.plan_versions"
+    && /^create\s+trigger\s+plan_versions_contract_immutability_before_update\b/iu
+      .test(statement)
+  ) || (
+    tableIdentity === "public.plan_entitlements"
+    && /^create\s+trigger\s+plan_entitlements_snapshot_immutability_before_write\b/iu
+      .test(statement)
+  );
 }
 
 function isIntegratedPrintCenterTrigger(statement, tableIdentity) {

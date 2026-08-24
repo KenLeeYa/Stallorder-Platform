@@ -10,6 +10,7 @@ const connection = {
   organizationId: "22222222-2222-4222-8222-222222222222",
   stallId: "33333333-3333-4333-8333-333333333333",
   provider: "MOCK" as const,
+  externalChainId: "mock-chain-001",
   externalStoreId: "mock-store-taipei-001",
   credentialReference: null,
 };
