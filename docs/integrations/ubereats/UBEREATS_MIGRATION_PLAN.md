@@ -1,6 +1,6 @@
 # Uber Eats Migration Plan
 
-Migration `20260821100000_delivery_provider_contracts.sql`：
+Migration `20260824090000_delivery_provider_contracts.sql`：
 
 - order/event/job unique key 改為 connection + provider + external key；
 - job type 加入 `ORDER_FETCH`；

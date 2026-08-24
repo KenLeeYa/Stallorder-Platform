@@ -45,7 +45,7 @@ const nonKdsConfirmationPrintingMigration = readFileSync(resolve(
 ), "utf8");
 const deliveryProviderContractsMigration = readFileSync(resolve(
   import.meta.dirname,
-  "../../supabase/migrations/20260821100000_delivery_provider_contracts.sql",
+  "../../supabase/migrations/20260824090000_delivery_provider_contracts.sql",
 ), "utf8");
 const adminModuleVisibilityMigration = readFileSync(resolve(
   import.meta.dirname,
