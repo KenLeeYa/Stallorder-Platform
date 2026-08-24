@@ -95,6 +95,8 @@ where relname in (
 - PAYG rollback：先關閉 `MERCHANT_BILLING_VISIBLE` 與所有 `PAYG_*` flags；保留 pricing snapshot、ledger、summary、Invoice 與 audit，修復採核准的新 forward migration。
 - P4 Adapter 回復：保持所有 provider flags false，停用 route；future tables 可保留，不影響 Phase 1。
 
+PAYG migration 新增前置 Gate：目標版本必須封存、contract hash 與 entitlement snapshot 一致、時區／月界線合法且稅務不為 `UNCONFIGURED`。遷移只複製目標版本的 billing snapshot，不修改舊 Invoice；自動關帳必須等第一期人工 pilot 對帳通過後獨立啟用。
+
 ## Staging Gate
 
 P4 之前必須在 Staging 完成：

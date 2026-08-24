@@ -84,3 +84,9 @@ StallOrder 的 TWD 1 是平台用量費，不包含信用卡 MDR、LINE Pay、EC
 5. 記錄 actor、request ID 與差異原因；不修改原始訂單、付款或 usage event。
 
 若上線 Gate 失敗：先關閉商家顯示與全部 PAYG rollout flags；不要修改 applied migration，不要刪除 ledger／summary／invoice。Schema 問題以核准的新 forward migration 修正，資料回復使用既有備份／PITR 流程。
+
+## Production gap hardening（2026-08-24 本機來源）
+
+計費契約現在明確包含時區、月界線、稅務、cap tax basis、捨入、稅務文件、關帳延遲、封存者與 contract hash；Subscription 與 Invoice 保存不可變 snapshot。既有 PAYG v1 不會被自動封存或賦予稅率，仍須由核准的新版本才能進入正式收費。
+
+詳細操作與狀態見 [PAYG_PRODUCTION_GAP_BASELINE.md](PAYG_PRODUCTION_GAP_BASELINE.md)、[PAYG_TAX_POLICY.md](PAYG_TAX_POLICY.md)、[PAYG_AUTOMATIC_CLOSE.md](PAYG_AUTOMATIC_CLOSE.md) 與 [PAYG_PRODUCTION_READINESS.md](PAYG_PRODUCTION_READINESS.md)。

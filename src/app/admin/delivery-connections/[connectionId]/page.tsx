@@ -8,11 +8,13 @@ import { deliveryProviderLabel } from "@/lib/delivery-platform-labels";
 import { createAdminTranslator, getAdminCodeLabel } from "@/lib/messages/admin";
 import { prisma } from "@/lib/prisma";
 import { deliveryPlatformRepository } from "@/server/delivery-platforms/delivery-platform-repository";
+import { requireAdminModuleVisible } from "@/server/admin/admin-module-visibility";
 
 type PageProps = { params: Promise<{ connectionId: string }> };
 
 export default async function AdminDeliveryConnectionPage({ params }: PageProps) {
   await requirePlatformAdminPage("/admin/delivery-integrations");
+  await requireAdminModuleVisible("delivery");
   const [{ connectionId }, { locale }] = await Promise.all([params, getRequestAppLocale()]);
   const raw = await prisma.deliveryPlatformConnection.findUnique({ where: { id: connectionId }, select: { organizationId: true, stallId: true } });
   if (!raw) notFound();

@@ -2,7 +2,10 @@ import "server-only";
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { billingPeriodForInstant, billingPeriodStartInstant, hasBillingPeriodEnded } from "@/server/billing/billing-period";
+import { calculateBillingTax, type BillingCapTaxBasis, type BillingTaxRoundingMode, type BillingTaxRoundingScope, type BillingTaxTreatment } from "@/server/billing/billing-tax-policy";
 import { getBillingExperienceState } from "@/server/billing/billing-feature-flags";
+import { assertPaygContractIntegrity, type PaygContractVersion } from "@/server/billing/payg-contract";
 
 export const paygBillingErrorCodes = [
   "PAYG_NOT_ENABLED",
@@ -16,6 +19,13 @@ export const paygBillingErrorCodes = [
   "PAYG_PERIOD_NOT_CLOSABLE",
   "PAYG_INVOICE_CONFLICT",
   "PAYG_INVOICE_HAS_PENDING_PAYMENT",
+  "PAYG_PLAN_VERSION_NOT_SEALED",
+  "PAYG_CONTRACT_HASH_MISMATCH",
+  "PAYG_BILLING_TIMEZONE_INVALID",
+  "PAYG_BILLING_CYCLE_UNSUPPORTED",
+  "PAYG_SUBSCRIPTION_CONTRACT_MISMATCH",
+  "PAYG_TAX_POLICY_UNCONFIGURED",
+  "PAYG_TAX_POLICY_MISMATCH",
 ] as const;
 
 export type PaygBillingErrorCode = (typeof paygBillingErrorCodes)[number];
@@ -32,6 +42,13 @@ const messages: Record<PaygBillingErrorCode, string> = {
   PAYG_PERIOD_NOT_CLOSABLE: "此 PAYG 帳期尚未結束或早於方案生效日。",
   PAYG_INVOICE_CONFLICT: "此帳期已有不同契約或不可修改的帳單，未進行重算。",
   PAYG_INVOICE_HAS_PENDING_PAYMENT: "此帳單仍有待核對付款，不可重算 PAYG 帳單。",
+  PAYG_PLAN_VERSION_NOT_SEALED: "PAYG 方案版本尚未封存，不可用於正式計費。",
+  PAYG_CONTRACT_HASH_MISMATCH: "PAYG 方案契約雜湊不一致，已停止計費。",
+  PAYG_BILLING_TIMEZONE_INVALID: "PAYG 計費時區無效，已停止計費。",
+  PAYG_BILLING_CYCLE_UNSUPPORTED: "PAYG 計費週期不受支援，已停止計費。",
+  PAYG_SUBSCRIPTION_CONTRACT_MISMATCH: "訂閱的計費契約快照與方案版本不一致。",
+  PAYG_TAX_POLICY_UNCONFIGURED: "PAYG 稅務契約尚未核准設定，不可關帳。",
+  PAYG_TAX_POLICY_MISMATCH: "PAYG 稅務契約不一致，已停止計費。",
 };
 
 export class PaygBillingError extends Error {
@@ -42,7 +59,7 @@ export class PaygBillingError extends Error {
 }
 
 type AuditContext = {
-  actorProfileId: string;
+  actorProfileId: string | null;
   requestId: string;
   ipHash?: string;
 };
@@ -64,12 +81,12 @@ export class PaygBillingService {
       }
       const subscription = await transaction.subscription.findUnique({
         where: { id: subscriptionId },
-        include: { plan: true, planVersion: true },
+        include: { plan: true, planVersion: { include: { entitlements: true } } },
       });
       if (!subscription) throw new PaygBillingError("PAYG_SUBSCRIPTION_NOT_FOUND");
       const changeRequest = input.changeRequestId ? await transaction.billingChangeRequest.findUnique({
         where: { id: input.changeRequestId },
-        include: { requestedPlanVersion: { include: { plan: true } } },
+        include: { requestedPlanVersion: { include: { plan: true, entitlements: true } } },
       }) : null;
       if (input.changeRequestId && (
         !changeRequest
@@ -82,6 +99,7 @@ export class PaygBillingService {
       const paygVersion = changeRequest?.requestedPlanVersion ?? await findPaygPlanVersion(transaction);
       if (!paygVersion) throw new PaygBillingError("PAYG_PLAN_NOT_CONFIGURED");
       assertPaygVersion(paygVersion.plan.code, paygVersion);
+      assertChargeablePaygContract(paygVersion);
       if (!["TRIAL", "LITE", "STANDARD", "PRO"].includes(subscription.plan.code)) {
         throw new PaygBillingError("PAYG_SUBSCRIPTION_NOT_ELIGIBLE");
       }
@@ -97,13 +115,13 @@ export class PaygBillingService {
       if (effectiveDate < utcDate(subscription.billingPeriodEnd)) {
         throw new PaygBillingError("PAYG_EFFECTIVE_DATE_INVALID");
       }
-      if (effectiveDate.getTime() > taipeiCalendarDate(new Date()).getTime()) {
+      if (effectiveDate.getTime() > billingPeriodForInstant(new Date(), paygVersion).getTime()) {
         throw new PaygBillingError("PAYG_EFFECTIVE_DATE_INVALID");
       }
 
       const periodStart = monthStart(effectiveDate);
       const periodEnd = addUtcMonths(periodStart, 1);
-      const pricingEffectiveAt = taipeiStartOfDay(effectiveDate);
+      const pricingEffectiveAt = billingPeriodStartInstant(effectiveDate, paygVersion);
       const updated = await transaction.subscription.update({
         where: { id: subscription.id },
         data: {
@@ -114,6 +132,10 @@ export class PaygBillingService {
           billingPeriodStart: periodStart,
           billingPeriodEnd: periodEnd,
           pricingEffectiveAt,
+          billingTimezone: paygVersion.billingTimezone,
+          billingCycleAnchorDay: paygVersion.billingCycleAnchorDay,
+          billingPeriodType: paygVersion.billingPeriodType,
+          invoiceCloseDelayHours: paygVersion.invoiceCloseDelayHours,
           trialEndsAt: null,
           paymentDueAt: null,
           pastDueAt: null,
@@ -160,6 +182,9 @@ export class PaygBillingService {
             billingChangeRequestId: changeRequest?.id ?? null,
             billingPeriodStart: periodStart.toISOString(),
             billingPeriodEnd: periodEnd.toISOString(),
+            billingTimezone: paygVersion.billingTimezone,
+            contractHash: paygVersion.contractHash,
+            taxTreatment: paygVersion.taxTreatment,
           },
         },
       });
@@ -183,17 +208,24 @@ export class PaygBillingService {
       await transaction.$queryRaw`select id from public.subscriptions where id = ${subscriptionId}::uuid for update`;
       const subscription = await transaction.subscription.findUnique({
         where: { id: subscriptionId },
-        include: { plan: true, planVersion: true },
+        include: { plan: true, planVersion: { include: { entitlements: true } } },
       });
       if (!subscription) throw new PaygBillingError("PAYG_SUBSCRIPTION_NOT_FOUND");
       assertPaygVersion(subscription.plan.code, subscription.planVersion);
+      assertChargeablePaygContract(subscription.planVersion);
+      if (
+        subscription.billingTimezone !== subscription.planVersion.billingTimezone
+        || subscription.billingCycleAnchorDay !== subscription.planVersion.billingCycleAnchorDay
+        || subscription.billingPeriodType !== subscription.planVersion.billingPeriodType
+        || subscription.invoiceCloseDelayHours !== subscription.planVersion.invoiceCloseDelayHours
+      ) throw new PaygBillingError("PAYG_SUBSCRIPTION_CONTRACT_MISMATCH");
 
       const periodStart = monthStart(input.billingPeriod);
       const periodEnd = addUtcMonths(periodStart, 1);
       if (
-        periodEnd > taipeiCalendarDate(new Date())
+        !hasBillingPeriodEnded(periodStart, subscription)
         || !subscription.pricingEffectiveAt
-        || periodStart < monthStart(taipeiCalendarDate(subscription.pricingEffectiveAt))
+        || periodStart < billingPeriodForInstant(subscription.pricingEffectiveAt, subscription)
       ) {
         throw new PaygBillingError("PAYG_PERIOD_NOT_CLOSABLE");
       }
@@ -220,7 +252,7 @@ export class PaygBillingService {
             billingPeriodEnd: periodEnd,
           },
         },
-        include: { lineItems: true },
+        include: { lineItems: true, taxDocuments: { select: { status: true } } },
       });
       if (invoice) {
         await transaction.$queryRaw`select id from public.invoices where id = ${invoice.id}::uuid for update`;
@@ -232,7 +264,7 @@ export class PaygBillingService {
               billingPeriodEnd: periodEnd,
             },
           },
-          include: { lineItems: true },
+          include: { lineItems: true, taxDocuments: { select: { status: true } } },
         });
         if (!invoice) throw new PaygBillingError("PAYG_INVOICE_CONFLICT");
       }
@@ -243,9 +275,13 @@ export class PaygBillingService {
       )) {
         throw new PaygBillingError("PAYG_INVOICE_CONFLICT");
       }
-      if (invoice && !["DRAFT", "OPEN", "OVERDUE"].includes(invoice.status)) {
-        const expected = summaries.reduce((total, summary) => total + summary.finalCharge, 0);
-        if (invoice.totalAmount !== expected) throw new PaygBillingError("PAYG_INVOICE_CONFLICT");
+      if (invoice && (
+        !["DRAFT", "OPEN", "OVERDUE"].includes(invoice.status)
+        || invoice.taxDocuments.some((document) => document.status === "ISSUED")
+      )) {
+        if (invoiceContractHash(invoice.pricingSnapshotJson) !== subscription.planVersion.contractHash) {
+          throw new PaygBillingError("PAYG_INVOICE_CONFLICT");
+        }
         return { invoice, summaries, idempotent: true };
       }
       if (invoice && await transaction.manualPaymentRecord.count({
@@ -254,6 +290,16 @@ export class PaygBillingService {
         throw new PaygBillingError("PAYG_INVOICE_HAS_PENDING_PAYMENT");
       }
 
+      const usageAmounts = summaries.map((summary) => summary.finalCharge);
+      const taxPolicy = taxPolicyFor(subscription.planVersion);
+      const tax = calculateBillingTax({
+        ...taxPolicy,
+        taxableAmount: usageAmounts.reduce((total, amount) => total + amount, 0),
+        lineAmounts: taxPolicy.roundingScope === "STALL_LINE" && usageAmounts.length > 0 ? usageAmounts : undefined,
+      });
+      const inclusiveLineTaxes = subscription.planVersion.taxTreatment === "INCLUSIVE"
+        ? calculateInclusiveLineTaxes(usageAmounts, tax.taxAmount, taxPolicy)
+        : usageAmounts.map(() => 0);
       const pricingSnapshot = pricingSnapshotFor(subscription.planVersion, subscription.plan.code);
       invoice ??= await transaction.invoice.create({
         data: {
@@ -266,25 +312,63 @@ export class PaygBillingService {
           billingPeriodEnd: periodEnd,
           pricingMode: subscription.planVersion.pricingMode,
           pricingSnapshotJson: pricingSnapshot,
-          dueAt: addUtcDays(periodEnd, 7),
+          dueAt: addUtcDays(billingPeriodStartInstant(periodEnd, subscription), 7),
         },
-        include: { lineItems: true },
+        include: { lineItems: true, taxDocuments: { select: { status: true } } },
       });
 
+      await transaction.$queryRaw`
+        select id from public.billing_credit_adjustments
+        where subscription_id = ${subscription.id}::uuid
+          and (status = 'UNAPPLIED' or target_invoice_id = ${invoice.id}::uuid)
+        order by created_at, id
+        for update
+      `;
+      const creditCandidates = await transaction.billingCreditAdjustment.findMany({
+        where: {
+          subscriptionId: subscription.id,
+          OR: [
+            { status: "UNAPPLIED" },
+            { status: "APPLIED", targetInvoiceId: invoice.id },
+          ],
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      });
+      const originalInvoices = creditCandidates.length > 0
+        ? await transaction.invoice.findMany({
+          where: { id: { in: creditCandidates.map((credit) => credit.originalInvoiceId) } },
+          select: { id: true, billingPeriodEnd: true },
+        })
+        : [];
+      const originalPeriodEnd = new Map(originalInvoices.map((candidate) => [candidate.id, candidate.billingPeriodEnd]));
+      const applicableCredits = creditCandidates.filter((credit) => {
+        const end = originalPeriodEnd.get(credit.originalInvoiceId);
+        return end && end <= periodStart;
+      });
+      const selectedCredits = selectCreditsWithinTotal(applicableCredits, tax.totalAmount);
+      const selectedCreditIds = new Set(selectedCredits.map((credit) => credit.id));
+      const creditTotal = selectedCredits.reduce((total, credit) => total + credit.creditAmount + credit.taxCreditAmount, 0);
+
       await transaction.invoiceLineItem.deleteMany({
-        where: { invoiceId: invoice.id, itemType: "PAYG_USAGE" },
+        where: {
+          invoiceId: invoice.id,
+          OR: [
+            { itemType: "PAYG_USAGE" },
+            { itemType: "CREDIT", code: "PAYG_LATE_REFUND_CREDIT" },
+          ],
+        },
       });
       if (summaries.length > 0) {
         await transaction.invoiceLineItem.createMany({
-          data: summaries.map((summary) => ({
+          data: summaries.map((summary, index) => ({
             organizationId: subscription.organizationId,
             invoiceId: invoice!.id,
             itemType: "PAYG_USAGE",
             code: "PAYG_STALL_USAGE",
             description: `${summary.stall.name}｜PAYG 完成訂單用量`,
             quantity: 1,
-            unitPrice: summary.finalCharge,
-            subtotal: summary.finalCharge,
+            unitPrice: summary.finalCharge - inclusiveLineTaxes[index]!,
+            subtotal: summary.finalCharge - inclusiveLineTaxes[index]!,
             referenceId: summary.stallId,
             metadataJson: {
               stallId: summary.stallId,
@@ -297,11 +381,50 @@ export class PaygBillingService {
               uncappedAmount: summary.uncappedAmount,
               monthlyCapAmount: summary.capAmount,
               finalCharge: summary.finalCharge,
+              extractedTax: inclusiveLineTaxes[index],
               capSavings: summary.capSavings,
             },
           })),
         });
       }
+      if (selectedCredits.length > 0) {
+        await transaction.invoiceLineItem.createMany({
+          data: selectedCredits.map((credit) => ({
+            organizationId: subscription.organizationId,
+            invoiceId: invoice!.id,
+            itemType: "CREDIT",
+            code: "PAYG_LATE_REFUND_CREDIT",
+            description: "先前帳期完整退款折抵",
+            quantity: 1,
+            unitPrice: credit.creditAmount + credit.taxCreditAmount,
+            subtotal: credit.creditAmount + credit.taxCreditAmount,
+            referenceId: credit.id,
+            metadataJson: {
+              adjustmentId: credit.id,
+              originalInvoiceId: credit.originalInvoiceId,
+              originalOrderId: credit.originalOrderId,
+              creditAmount: credit.creditAmount,
+              taxCreditAmount: credit.taxCreditAmount,
+              reasonCode: credit.reasonCode,
+            },
+          })),
+        });
+      }
+      const previouslyApplied = creditCandidates.filter((credit) => credit.targetInvoiceId === invoice!.id && !selectedCreditIds.has(credit.id));
+      if (previouslyApplied.length > 0) {
+        await transaction.billingCreditAdjustment.updateMany({
+          where: { id: { in: previouslyApplied.map((credit) => credit.id) }, targetInvoiceId: invoice.id },
+          data: { status: "UNAPPLIED", targetInvoiceId: null, appliedAt: null },
+        });
+      }
+      if (selectedCredits.length > 0) {
+        await transaction.billingCreditAdjustment.updateMany({
+          where: { id: { in: selectedCredits.map((credit) => credit.id) } },
+          data: { status: "APPLIED", targetInvoiceId: invoice.id, appliedAt: new Date() },
+        });
+      }
+      const totalAmount = tax.totalAmount - creditTotal;
+      if (invoice.amountPaid > totalAmount) throw new PaygBillingError("PAYG_INVOICE_CONFLICT");
       const opened = await transaction.invoice.update({
         where: { id: invoice.id },
         data: {
@@ -310,9 +433,23 @@ export class PaygBillingService {
           planVersionId: subscription.planVersionId,
           pricingMode: subscription.planVersion.pricingMode,
           pricingSnapshotJson: pricingSnapshot,
+          subtotal: tax.subtotal,
+          taxAmount: tax.taxAmount,
+          discountAmount: creditTotal,
+          totalAmount,
+          amountDue: totalAmount - invoice.amountPaid,
         },
         include: { lineItems: true },
       });
+      if (monthStart(subscription.billingPeriodStart).getTime() === periodStart.getTime()) {
+        await transaction.subscription.update({
+          where: { id: subscription.id },
+          data: {
+            billingPeriodStart: periodEnd,
+            billingPeriodEnd: addUtcMonths(periodEnd, 1),
+          },
+        });
+      }
       await transaction.auditLog.create({
         data: {
           organizationId: subscription.organizationId,
@@ -327,8 +464,14 @@ export class PaygBillingService {
           afterJson: {
             billingPeriod: periodStart.toISOString(),
             stallCount: summaries.length,
-            totalAmount: summaries.reduce((total, summary) => total + summary.finalCharge, 0),
+            subtotal: tax.subtotal,
+            taxAmount: tax.taxAmount,
+            creditAmount: creditTotal,
+            totalAmount,
             planVersionId: subscription.planVersionId,
+            contractHash: subscription.planVersion.contractHash,
+            billingTimezone: subscription.billingTimezone,
+            closeMode: context.actorProfileId ? "MANUAL_ADMIN_CLOSE" : "AUTOMATIC_SYSTEM_CLOSE",
           },
         },
       });
@@ -344,10 +487,13 @@ async function findPaygPlanVersion(transaction: Prisma.TransactionClient) {
       isPublic: true,
       requiresQuote: false,
       effectiveFrom: { lte: new Date() },
+      sealedAt: { not: null },
+      contractHash: { not: null },
+      taxTreatment: { not: "UNCONFIGURED" },
       OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: new Date() } }],
       plan: { code: "PAYG", isActive: true },
     },
-    include: { plan: true },
+    include: { plan: true, entitlements: true },
     orderBy: { version: "desc" },
   });
 }
@@ -375,18 +521,31 @@ function assertPaygVersion(planCode: string, version: {
   ) throw new PaygBillingError("PAYG_PLAN_NOT_CONFIGURED");
 }
 
-function pricingSnapshotFor(version: {
-  id: string;
-  version: number;
-  currency: string;
-  basePrice: number;
-  pricingMode: string;
-  usageUnitPrice: number;
-  usageMetric: string | null;
-  usageScope: string | null;
-  monthlyCapAmount: number | null;
-  minimumCharge: number;
-}, planCode: string) {
+function assertChargeablePaygContract(version: PaygContractVersion) {
+  try {
+    assertPaygContractIntegrity(version);
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "";
+    if ((paygBillingErrorCodes as readonly string[]).includes(code)) {
+      throw new PaygBillingError(code as PaygBillingErrorCode);
+    }
+    throw new PaygBillingError("PAYG_TAX_POLICY_MISMATCH");
+  }
+}
+
+function taxPolicyFor(version: PaygContractVersion) {
+  return {
+    treatment: version.taxTreatment as BillingTaxTreatment,
+    rateBps: version.taxRateBps,
+    jurisdiction: version.taxJurisdiction,
+    roundingMode: version.taxRoundingMode as BillingTaxRoundingMode,
+    roundingScope: version.taxRoundingScope as BillingTaxRoundingScope,
+    capTaxBasis: version.capTaxBasis as BillingCapTaxBasis,
+    taxDocumentRequired: version.taxDocumentRequired,
+  };
+}
+
+function pricingSnapshotFor(version: PaygContractVersion, planCode: string) {
   return {
     planVersionId: version.id,
     planCode,
@@ -399,20 +558,66 @@ function pricingSnapshotFor(version: {
     usageScope: version.usageScope,
     monthlyCapAmount: version.monthlyCapAmount,
     minimumCharge: version.minimumCharge,
+    billingTimezone: version.billingTimezone,
+    billingCycleAnchorDay: version.billingCycleAnchorDay,
+    billingPeriodType: version.billingPeriodType,
+    invoiceCloseDelayHours: version.invoiceCloseDelayHours,
+    taxTreatment: version.taxTreatment,
+    taxRateBps: version.taxRateBps,
+    taxJurisdiction: version.taxJurisdiction,
+    taxRoundingMode: version.taxRoundingMode,
+    taxRoundingScope: version.taxRoundingScope,
+    capTaxBasis: version.capTaxBasis,
+    taxDocumentRequired: version.taxDocumentRequired,
+    contractHash: version.contractHash,
   } satisfies Prisma.InputJsonObject;
+}
+
+function invoiceContractHash(snapshot: Prisma.JsonValue | null) {
+  if (!snapshot || Array.isArray(snapshot) || typeof snapshot !== "object") return null;
+  const value = snapshot.contractHash;
+  return typeof value === "string" ? value : null;
+}
+
+function calculateInclusiveLineTaxes(
+  amounts: readonly number[],
+  totalTax: number,
+  policy: ReturnType<typeof taxPolicyFor>,
+) {
+  if (policy.roundingScope === "STALL_LINE") {
+    return amounts.map((amount) => calculateBillingTax({
+      ...policy,
+      roundingScope: "INVOICE",
+      taxableAmount: amount,
+    }).taxAmount);
+  }
+  const total = amounts.reduce((sum, amount) => sum + amount, 0);
+  if (total === 0) return amounts.map(() => 0);
+  const allocated = amounts.map((amount) => Math.floor(totalTax * amount / total));
+  let remainder = totalTax - allocated.reduce((sum, amount) => sum + amount, 0);
+  for (let index = 0; remainder > 0 && index < allocated.length; index += 1, remainder -= 1) {
+    allocated[index] = allocated[index]! + 1;
+  }
+  return allocated;
+}
+
+function selectCreditsWithinTotal<T extends { creditAmount: number; taxCreditAmount: number }>(
+  credits: readonly T[],
+  totalAmount: number,
+) {
+  const selected: T[] = [];
+  let applied = 0;
+  for (const credit of credits) {
+    const amount = credit.creditAmount + credit.taxCreditAmount;
+    if (applied + amount > totalAmount) continue;
+    selected.push(credit);
+    applied += amount;
+  }
+  return selected;
 }
 
 function utcDate(value: Date) {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
-}
-
-function taipeiCalendarDate(value: Date) {
-  const shifted = new Date(value.getTime() + 8 * 60 * 60 * 1_000);
-  return new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()));
-}
-
-function taipeiStartOfDay(value: Date) {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()) - 8 * 60 * 60 * 1_000);
 }
 
 function monthStart(value: Date) {

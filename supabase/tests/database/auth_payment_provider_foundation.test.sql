@@ -18,6 +18,7 @@ select ok(
    where code in (
      'OAUTH_MICROSOFT_ENABLED', 'AUTH_PASSKEYS_ENABLED',
      'PAYMENTS_FOUNDATION_ENABLED', 'PAYMENTS_MOCK_PROVIDER_ENABLED',
+     'PAYMENTS_ADMIN_UI_ENABLED',
      'PAYMENTS_LINE_PAY_ENABLED',
      'PAYMENTS_JKO_PAY_ENABLED', 'PAYMENTS_TWQR_ENABLED',
      'PAYMENTS_TAIWAN_PAY_ENABLED', 'PAYMENTS_PX_PAY_PLUS_ENABLED',
@@ -33,7 +34,7 @@ select is(
   (select count(*)::integer
    from public.resilience_feature_flags
    where code like 'PAYMENTS_%_ENABLED' or code in ('OAUTH_MICROSOFT_ENABLED', 'AUTH_PASSKEYS_ENABLED')),
-  18,
+  19,
   'all expected auth and payment flags exist'
 );
 select ok(

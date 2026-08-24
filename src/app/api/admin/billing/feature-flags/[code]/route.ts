@@ -17,6 +17,8 @@ const transitionErrors: Record<string, string> = {
   PAYG_OPEN_BETA_STILL_ENABLED: "仍在開放測試免費模式，不能啟用自動關帳。",
   PAYG_BILLING_NOT_ENABLED: "請先啟用 PAYG 計費核心，再啟用這個階段。",
   PAYG_REFUND_CREDITS_NOT_ENABLED: "請先啟用完整退款折抵，避免帳單多收。",
+  PAYG_SCHEDULER_NOT_CONFIGURED: "自動關帳排程憑證尚未設定。",
+  PAYG_CHARGEABLE_CONTRACT_NOT_READY: "找不到已封存、雜湊正確且稅務契約完整的 PAYG 方案版本。",
 };
 
 export async function PUT(

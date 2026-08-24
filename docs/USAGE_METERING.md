@@ -40,3 +40,5 @@ PAYG 另以 `billing_stall_usage_summaries` 保存每個攤位的 gross、完整
 
 重建不應改變訂單、付款、Invoice 或歷史事件。
 
+PAYG 關帳前還必須驗證封存契約 hash、明確稅務政策與 Subscription billing snapshot。人工與自動關帳使用相同的 service；late credit 套用後仍須符合 `subtotal + tax - discount = total` 與 `total - paid = due`。
+

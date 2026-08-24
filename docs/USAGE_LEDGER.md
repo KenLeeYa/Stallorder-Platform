@@ -9,3 +9,5 @@ PAYG 完整退款以新的唯一 `BILLABLE_ORDER_FULL_REFUND=-1` 事件折抵，
 `billing_usage_summaries` 與 `billing_stall_usage_summaries` 可由 ledger 重建，但不得刪除或改寫原始事件。設定精靈的測試單也從一般營收、付款與 daily summary 排除。
 
 操作與對帳流程見 [USAGE_METERING.md](USAGE_METERING.md)。
+
+計費月份一律使用 Subscription 從封存 PlanVersion 複製的 billing timezone，不再使用可變更的攤位營運時區。已付款或已開立稅務文件後才發生的完整退款，保留原事件並建立 linked late-credit adjustment，不重寫原帳期。

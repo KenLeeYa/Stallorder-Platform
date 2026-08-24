@@ -7,9 +7,11 @@ import { deliveryProviderLabel } from "@/lib/delivery-platform-labels";
 import { formatAppNumber } from "@/lib/locale-format";
 import { createAdminTranslator, getAdminCodeLabel } from "@/lib/messages/admin";
 import { deliveryPlatformRepository } from "@/server/delivery-platforms/delivery-platform-repository";
+import { requireAdminModuleVisible } from "@/server/admin/admin-module-visibility";
 
 export default async function AdminDeliveryIntegrationsPage() {
   await requirePlatformAdminPage("/admin/delivery-integrations");
+  await requireAdminModuleVisible("delivery");
   const [{ locale }, data] = await Promise.all([getRequestAppLocale(), deliveryPlatformRepository.listPlatformAdminData()]);
   const m = createAdminTranslator(locale);
 

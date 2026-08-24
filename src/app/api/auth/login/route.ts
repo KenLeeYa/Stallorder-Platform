@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createSession, defaultPathForRole, setSessionCookies } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { readJson } from "@/lib/http";
+import { getRequestDeviceLabel } from "@/lib/device-label";
 import { prisma } from "@/lib/prisma";
 import { verifyPasswordCredential } from "@/lib/password-auth";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
@@ -190,6 +191,7 @@ export async function POST(request: Request) {
       "sessionMs",
       () => timing.measureDb(() => createSession(profile.id, {
         deviceId,
+        deviceLabel: getRequestDeviceLabel(request),
         ipHash,
         userAgentHash: hashClientUserAgent(request),
       }), 2),

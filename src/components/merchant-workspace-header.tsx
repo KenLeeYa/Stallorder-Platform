@@ -32,11 +32,13 @@ export function MerchantWorkspaceHeader({
   displayName,
   routeContext,
   showBilling,
+  showPayments = false,
 }: {
   workspaces: WorkspaceOrganization[];
   displayName: string;
   routeContext: WorkspaceRouteContext;
   showBilling: boolean;
+  showPayments?: boolean;
 }) {
   const { m } = useMerchantMessages();
   const router = useRouter();
@@ -118,7 +120,7 @@ export function MerchantWorkspaceHeader({
         <Link title={m("帳號與安全性")} href="/merchant/account/security" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
           <ShieldCheck className="h-5 w-5" /><span className="sr-only">{m("帳號與安全性")}</span>
         </Link>
-        {workspace?.roles.some((role) => hasPermission(role, "MANAGE_PAYMENT_INTEGRATIONS")) ? (
+        {showPayments && workspace?.roles.some((role) => hasPermission(role, "MANAGE_PAYMENT_INTEGRATIONS")) ? (
           <Link title={m("付款與金流")} href={`/merchant/payments?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <WalletCards className="h-5 w-5" /><span className="sr-only">{m("付款與金流")}</span>
           </Link>
