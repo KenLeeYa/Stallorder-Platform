@@ -75,4 +75,29 @@ describe("delivery order job contract", () => {
       },
     })).toThrow();
   });
+
+  it("rejects orders wider than the durable item and modifier limits", () => {
+    expect(() => serializeNormalizedExternalOrder({
+      ...order,
+      items: Array.from({ length: 101 }, (_, index) => ({
+        ...order.items[0],
+        externalItemId: `item-${index}`,
+        externalProductId: `product-${index}`,
+      })),
+    })).toThrow();
+
+    expect(() => serializeNormalizedExternalOrder({
+      ...order,
+      items: [{
+        ...order.items[0],
+        modifiers: Array.from({ length: 31 }, (_, index) => ({
+          externalModifierId: `modifier-${index}`,
+          name: `Modifier ${index}`,
+          quantity: 1,
+          unitPrice: 0,
+          totalPrice: 0,
+        })),
+      }],
+    })).toThrow();
+  });
 });

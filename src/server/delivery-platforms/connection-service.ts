@@ -213,6 +213,7 @@ export async function setDeliveryConnectionStatus(input: {
       && (
         !connection.externalStoreId
         || (connection.provider !== "MOCK" && !connection.credentialReference)
+        || (connection.provider === "FOODPANDA" && !connection.externalChainId)
         || (connection.provider === "MOCK" && isProductionDeliveryRuntime())
       )
     ) {
@@ -271,6 +272,7 @@ export async function createSyntheticMockConnection(input: {
       organizationId: input.organizationId,
       stallId: input.stallId,
       provider: "MOCK",
+      externalChainId: null,
       externalStoreId: null,
       credentialReference: null,
     },
