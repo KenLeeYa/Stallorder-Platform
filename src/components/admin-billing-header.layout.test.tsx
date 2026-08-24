@@ -21,9 +21,26 @@ describe("AdminBillingHeader responsive navigation", () => {
     expect(html).toContain("min-w-0");
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain("h-11 w-11");
-    expect(html).toContain("sm:w-auto");
-    expect(html).toContain("sr-only sm:not-sr-only sm:inline");
+    expect(html).toContain("md:w-auto");
+    expect(html).toContain("sr-only md:not-sr-only md:inline");
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('title="帳務總覽"');
+    expect(html).not.toContain('title="付款審核"');
+    expect(html).not.toContain('title="外送整合"');
+  });
+
+  it("shows gated operational modules only when a platform administrator exposes them", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+        <AdminBillingHeader
+          displayName="平台管理員"
+          moduleVisibility={{ delivery: true, payments: true }}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(html).toContain('title="付款審核"');
+    expect(html).toContain('title="外送整合"');
+    expect(html).toContain('title="付款整合"');
   });
 });

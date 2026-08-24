@@ -8,6 +8,7 @@ import type { OAuthIdentityClaims } from "./types";
 
 type SessionEvidence = {
   deviceId: string;
+  deviceLabel: string;
   ipHash: string;
   userAgentHash: string;
 };

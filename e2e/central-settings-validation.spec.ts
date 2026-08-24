@@ -16,10 +16,10 @@ const deliveryFlagCodes = [
   "UBER_EATS_INTEGRATION_ENABLED",
 ] as const;
 const connectionMarker = "central-settings-validation-e2e";
+const deliveryAddOnCode = "E2E_DELIVERY_PLATFORM_INTEGRATIONS";
 
 let connectionId = "";
-let entitlementId = "";
-let entitlementWasEnabled = false;
+let subscriptionId = "";
 let originalFlags: Array<{ id: string; defaultEnabled: boolean }> = [];
 
 test.describe("中央設定欄位錯誤", () => {
@@ -28,20 +28,38 @@ test.describe("中央設定欄位錯誤", () => {
   test.beforeAll(async () => {
     const subscription = await prisma.subscription.findUniqueOrThrow({
       where: { organizationId },
-      select: { planVersionId: true },
+      select: { id: true },
     });
-    const entitlement = await prisma.planEntitlement.findUniqueOrThrow({
-      where: {
-        planVersionId_featureCode: {
-          planVersionId: subscription.planVersionId,
-          featureCode: "DELIVERY_PLATFORM_INTEGRATIONS",
-        },
+    subscriptionId = subscription.id;
+    await prisma.subscriptionItem.deleteMany({
+      where: { subscriptionId, code: deliveryAddOnCode },
+    });
+    await prisma.addOnCatalog.deleteMany({ where: { code: deliveryAddOnCode } });
+    await prisma.addOnCatalog.create({
+      data: {
+        code: deliveryAddOnCode,
+        displayName: "E2E 外送平台整合",
+        description: "中央設定欄位驗證專用。",
+        billingType: "CUSTOM",
+        unitPrice: 0,
+        featureCode: "DELIVERY_PLATFORM_INTEGRATIONS",
+        availabilityStatus: "ENABLED",
+        isPublic: false,
+        requiresManualApproval: false,
       },
-      select: { id: true, isEnabled: true },
     });
-    entitlementId = entitlement.id;
-    entitlementWasEnabled = entitlement.isEnabled;
-    await prisma.planEntitlement.update({ where: { id: entitlement.id }, data: { isEnabled: true } });
+    await prisma.subscriptionItem.create({
+      data: {
+        organizationId,
+        subscriptionId,
+        itemType: "ADD_ON",
+        code: deliveryAddOnCode,
+        description: "E2E 外送平台整合",
+        quantity: 1,
+        unitPrice: 0,
+        status: "ACTIVE",
+      },
+    });
 
     originalFlags = await prisma.resilienceFeatureFlag.findMany({
       where: { code: { in: [...deliveryFlagCodes] } },
@@ -74,20 +92,23 @@ test.describe("中央設定欄位錯誤", () => {
   });
 
   test.afterAll(async () => {
-    await prisma.deliveryPlatformConnection.deleteMany({
-      where: { externalAccountReference: connectionMarker },
-    });
-    if (entitlementId) {
-      await prisma.planEntitlement.update({
-        where: { id: entitlementId },
-        data: { isEnabled: entitlementWasEnabled },
+    try {
+      await prisma.deliveryPlatformConnection.deleteMany({
+        where: { externalAccountReference: connectionMarker },
       });
+      if (subscriptionId) {
+        await prisma.subscriptionItem.deleteMany({
+          where: { subscriptionId, code: deliveryAddOnCode },
+        });
+      }
+      await prisma.addOnCatalog.deleteMany({ where: { code: deliveryAddOnCode } });
+      await Promise.all(originalFlags.map((flag) => prisma.resilienceFeatureFlag.update({
+        where: { id: flag.id },
+        data: { defaultEnabled: flag.defaultEnabled },
+      })));
+    } finally {
+      await prisma.$disconnect();
     }
-    await Promise.all(originalFlags.map((flag) => prisma.resilienceFeatureFlag.update({
-      where: { id: flag.id },
-      data: { defaultEnabled: flag.defaultEnabled },
-    })));
-    await prisma.$disconnect();
   });
 
   test("同一登入 session 依序顯示六組繁中欄位錯誤並聚焦第一欄", async ({ page }) => {

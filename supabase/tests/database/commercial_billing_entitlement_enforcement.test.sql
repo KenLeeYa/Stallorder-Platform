@@ -22,6 +22,18 @@ select is(
   'active paid subscription can accept orders'
 );
 
+-- This suite mutates limits repeatedly to exercise enforcement branches. Keep
+-- it on the legacy mutable ENTERPRISE fixture; PAYG in-use contracts are
+-- intentionally immutable and are covered by payg_contract_runtime_gaps.
+update public.subscriptions
+set (plan_id, plan_version_id) = (
+  select version.plan_id, version.id
+  from public.plan_versions version
+  join public.plans plan on plan.id = version.plan_id
+  where plan.code = 'ENTERPRISE' and version.version = 1
+)
+where organization_id = '11111111-1111-4111-8111-111111111111';
+
 update public.plan_versions version
 set included_stalls = 1, max_stalls = 50
 from public.subscriptions subscription

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 import { requireWorkspacePage } from "@/lib/workspace";
 import { paymentProviderDefinitions } from "@/server/payment-providers/provider-definitions";
+import { requireAdminModuleVisible } from "@/server/admin/admin-module-visibility";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string }> };
 
@@ -114,6 +115,7 @@ const copies = {
 } as const;
 
 export default async function MerchantPaymentsPage({ searchParams }: PageProps) {
+  await requireAdminModuleVisible("payments");
   const [{ workspaces }, query, { locale }] = await Promise.all([requireWorkspacePage(), searchParams, getRequestAppLocale()]);
   const copy = locale === "zh-TW" || locale === "vi" ? copies[locale] : copies.en;
   const candidates = workspaces.filter((workspace) => workspace.roles.some((role) => hasPermission(role, "MANAGE_PAYMENT_INTEGRATIONS")));

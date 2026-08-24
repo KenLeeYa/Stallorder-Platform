@@ -67,11 +67,11 @@ export const deliveryOrderJobInputSchema = z.object({
 export function serializeNormalizedExternalOrder(
   order: NormalizedExternalOrder,
 ): Prisma.InputJsonValue {
-  return {
+  return persistedOrderSchema.parse({
     ...order,
     placedAt: order.placedAt.toISOString(),
     scheduledPickupAt: order.scheduledPickupAt?.toISOString() ?? null,
-  } as Prisma.InputJsonValue;
+  }) as Prisma.InputJsonValue;
 }
 
 export function parseDeliveryOrderJobInput(value: Prisma.JsonValue) {

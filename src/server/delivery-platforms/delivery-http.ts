@@ -72,7 +72,9 @@ export function deliveryApiErrorResponse(error: unknown, requestId?: string) {
   if (!(error instanceof DeliveryPlatformError)) return null;
   const status = error.retryable
     ? 503
-    : error.code === "CONNECTION_NOT_FOUND" || error.code === "STORE_NOT_FOUND"
+    : error.code === "CONNECTION_NOT_FOUND"
+        || error.code === "STORE_NOT_FOUND"
+        || error.code === "PROVIDER_RESOURCE_NOT_FOUND"
       ? 404
       : error.code === "PERMISSION_DENIED"
         ? 403
@@ -89,7 +91,10 @@ export function deliveryApiErrorResponse(error: unknown, requestId?: string) {
     MAPPING_REQUIRED: "請先完成外送門市、商品與註記對應。",
     PERMISSION_DENIED: "沒有權限執行此外送平台操作。",
     PROVIDER_DISABLED: "此外送平台功能目前尚未開放。",
+    PROVIDER_CONTRACT_ERROR: "外送平台回傳資料格式不符合目前支援契約。",
     PROVIDER_NOT_APPROVED: "尚未完成外送平台合作或授權審核。",
+    PROVIDER_RESOURCE_NOT_FOUND: "外送平台找不到指定資料。",
+    PROVIDER_TIMEOUT: "外送平台回應逾時，系統將依規則重試。",
     PROVIDER_UNAVAILABLE: "外送平台暫時無法使用，請稍後再試。",
     RETRYABLE_PROVIDER_ERROR: "外送平台暫時無法完成操作，系統將依規則重試。",
     STORE_NOT_FOUND: "找不到已授權的外送門市。",

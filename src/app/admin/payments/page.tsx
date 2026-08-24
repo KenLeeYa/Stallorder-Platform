@@ -4,8 +4,10 @@ import { getAdminPayments } from "@/lib/admin-billing-data";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { formatAppCurrency, formatAppDateTime } from "@/lib/locale-format";
 import { createAdminTranslator, getAdminCodeLabel } from "@/lib/messages/admin";
+import { requireAdminModuleVisible } from "@/server/admin/admin-module-visibility";
 
 export default async function AdminPaymentsPage() {
+  await requireAdminModuleVisible("payments");
   const [{ locale }, payments] = await Promise.all([getRequestAppLocale(), getAdminPayments()]);
   const m = createAdminTranslator(locale);
 

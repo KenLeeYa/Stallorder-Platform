@@ -19,6 +19,7 @@ let organizationId = "";
 let subscriptionId = "";
 let invoiceId = "";
 let originalBillingFlags: Array<{ code: string; isEnabled: boolean }> = [];
+let paymentsAdminUiFlag: { id: string; defaultEnabled: boolean } | null = null;
 let standardPlanVersionId = "";
 let standardPlanWasPublic = false;
 
@@ -41,6 +42,18 @@ test.describe("Phase 1 商業帳務完整流程", () => {
     originalBillingFlags = await prisma.billingFeatureFlag.findMany({
       where: { code: { in: ["OPEN_BETA_FREE_ACCESS_ENABLED", "MERCHANT_BILLING_VISIBLE"] } },
       select: { code: true, isEnabled: true },
+    });
+    await setBillingFlags({
+      OPEN_BETA_FREE_ACCESS_ENABLED: false,
+      MERCHANT_BILLING_VISIBLE: true,
+    });
+    paymentsAdminUiFlag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({
+      where: { code: "PAYMENTS_ADMIN_UI_ENABLED" },
+      select: { id: true, defaultEnabled: true },
+    });
+    await prisma.resilienceFeatureFlag.update({
+      where: { id: paymentsAdminUiFlag.id },
+      data: { defaultEnabled: true },
     });
     const passwordHash = await hash(password, 4);
     const [owner, admin, trialPlan, standardPlan] = await Promise.all([
@@ -108,6 +121,12 @@ test.describe("Phase 1 商業帳務完整流程", () => {
     try {
       await cleanup();
       await setBillingFlags(Object.fromEntries(originalBillingFlags.map((flag) => [flag.code, flag.isEnabled])));
+      if (paymentsAdminUiFlag) {
+        await prisma.resilienceFeatureFlag.update({
+          where: { id: paymentsAdminUiFlag.id },
+          data: { defaultEnabled: paymentsAdminUiFlag.defaultEnabled },
+        });
+      }
     } finally {
       await prisma.$disconnect();
     }

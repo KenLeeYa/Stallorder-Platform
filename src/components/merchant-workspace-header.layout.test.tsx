@@ -64,6 +64,7 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     expect(html).toContain('data-compact="true"');
     expect(html).toContain('href="/merchant/dashboard?organizationId=organization-1"');
     expect(html).not.toContain("/merchant/billing?");
+    expect(html).not.toContain("/merchant/payments?");
   });
 
   it("shows billing navigation only after the platform switch is enabled", () => {
@@ -79,5 +80,21 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     );
 
     expect(html).toContain("/merchant/billing?");
+  });
+
+  it("shows payment navigation only after the platform module switch is enabled", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+        <MerchantWorkspaceHeader
+          workspaces={[workspace]}
+          displayName="店主"
+          routeContext={{ organizationId: workspace.id, stallId: null }}
+          showBilling={false}
+          showPayments
+        />
+      </LocaleProvider>,
+    );
+
+    expect(html).toContain("/merchant/payments?");
   });
 });

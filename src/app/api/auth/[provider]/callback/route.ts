@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRequestPrincipal, setSessionCookies } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
+import { getRequestDeviceLabel } from "@/lib/device-label";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import {
@@ -176,6 +177,7 @@ async function callback(
       requestId,
       sessionEvidence: {
         deviceId,
+        deviceLabel: getRequestDeviceLabel(request),
         ipHash,
         userAgentHash: hashClientUserAgent(request),
       },

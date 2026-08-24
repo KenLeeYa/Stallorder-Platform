@@ -17,7 +17,14 @@ describe("delivery job safety helpers", () => {
     const second = deterministicExternalOrderUuid("MOCK:external-order-001");
     expect(first).toBe(second);
     expect(first).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
-    expect(deliveryActionIdempotencyKey("MOCK", "external-order-001", "READY"))
-      .toBe("stallorder:MOCK:external-order-001:READY");
+    const providerKey = deliveryActionIdempotencyKey(
+      "MOCK",
+      "44444444-4444-4444-8444-444444444444",
+      "external-order-001",
+      "READY",
+    );
+    expect(providerKey).toMatch(
+      /^stallorder:MOCK:44444444-4444-4444-8444-444444444444:[a-f0-9]{64}:READY$/,
+    );
   });
 });

@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { validateCsrfHash } from "@/lib/csrf";
+import { getRequestDeviceLabel } from "@/lib/device-label";
 import { prisma } from "@/lib/prisma";
 import {
   createRequestId,
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
   const deviceId = resolveSessionDeviceId(request);
   const result = await rotateRequestSession(request, {
     deviceId,
+    deviceLabel: getRequestDeviceLabel(request),
     ipHash,
     userAgentHash: hashClientUserAgent(request),
   });

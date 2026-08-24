@@ -46,19 +46,35 @@ where override.flag_id = flag.id
     'DELIVERY_MOCK_PROVIDER_ENABLED'
   );
 
-update public.plan_entitlements
+update public.subscriptions subscription
 set
-  is_enabled = false,
-  limit_value = null,
-  configuration_json = jsonb_build_object('partnerApprovalRequired', true),
+  plan_version_id = (
+    select candidate.id
+    from public.plan_versions candidate
+    where candidate.plan_id = subscription.plan_id
+      and candidate.id <> 'de100000-0000-4000-8000-000000000001'
+      and candidate.effective_from <= now()
+      and (candidate.effective_until is null or candidate.effective_until > now())
+    order by candidate.version desc
+    limit 1
+  ),
   updated_at = now()
-where feature_code in (
-    'DELIVERY_PLATFORM_INTEGRATIONS',
-    'DELIVERY_MENU_SYNC',
-    'DELIVERY_ORDER_IMPORT',
-    'DELIVERY_ORDER_RECONCILIATION'
-  )
-  and configuration_json ->> 'syntheticPreviewOnly' = 'true';
+where subscription.organization_id = '11111111-1111-4111-8111-111111111111'
+  and subscription.plan_version_id = 'de100000-0000-4000-8000-000000000001'
+  and exists (
+    select 1
+    from public.plan_versions candidate
+    where candidate.plan_id = subscription.plan_id
+      and candidate.id <> 'de100000-0000-4000-8000-000000000001'
+      and candidate.effective_from <= now()
+      and (candidate.effective_until is null or candidate.effective_until > now())
+  );
+
+delete from public.plan_entitlements
+where plan_version_id = 'de100000-0000-4000-8000-000000000001';
+
+delete from public.plan_versions
+where id = 'de100000-0000-4000-8000-000000000001';
 
 end
 $preview_cleanup$;

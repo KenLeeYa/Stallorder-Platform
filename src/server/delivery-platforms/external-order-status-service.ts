@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { entitlementService } from "@/server/billing/entitlement-service";
@@ -79,12 +80,14 @@ export async function acknowledgeExternalOrderBeforeTransition(input: {
       organizationId: connection.organizationId,
       stallId: connection.stallId,
       provider,
+      externalChainId: connection.externalChainId,
       externalStoreId: connection.externalStoreId,
       credentialReference: connection.credentialReference,
     },
     externalOrderId: externalOrder.externalOrderId,
     idempotencyKey: deliveryActionIdempotencyKey(
       provider,
+      connection.id,
       externalOrder.externalOrderId,
       input.nextStatus,
     ),
@@ -127,18 +130,28 @@ export async function persistExternalOrderTransition(
       ? "ORDER_READY"
       : null;
   if (!jobType) return;
+  const capability = jobType === "ORDER_PREPARING" ? "ORDER_PREPARING" : "ORDER_READY";
+  if (!getDeliveryPlatformAdapter(external.provider).getConnectionCapabilities().includes(capability)) {
+    return;
+  }
   await enqueueDeliverySyncJob({
     organizationId: external.organizationId,
     stallId: external.stallId,
     connectionId: external.connectionId,
     provider: external.provider,
     jobType,
-    deduplicationKey: `order-action:${external.provider}:${external.externalOrderId}:${nextStatus}`,
+    deduplicationKey: deliveryActionDeduplicationKey(
+      external.provider,
+      external.connectionId,
+      external.externalOrderId,
+      nextStatus,
+    ),
     requestedViaCircuit: circuit,
     inputJson: {
       externalOrderId: external.externalOrderId,
       idempotencyKey: deliveryActionIdempotencyKey(
         external.provider,
+        external.connectionId,
         external.externalOrderId,
         nextStatus,
       ),
@@ -178,8 +191,22 @@ export async function persistExternalOrderTransitionForOrder(
 
 export function deliveryActionIdempotencyKey(
   provider: string,
+  connectionId: string,
   externalOrderId: string,
   action: string,
 ) {
-  return `stallorder:${provider}:${externalOrderId}:${action}`.slice(0, 240);
+  return `stallorder:${provider}:${connectionId}:${sha256(externalOrderId)}:${action}`;
+}
+
+function deliveryActionDeduplicationKey(
+  provider: string,
+  connectionId: string,
+  externalOrderId: string,
+  action: string,
+) {
+  return `order-action:${provider}:${connectionId}:${sha256(externalOrderId)}:${action}`;
+}
+
+function sha256(value: string) {
+  return createHash("sha256").update(value).digest("hex");
 }
