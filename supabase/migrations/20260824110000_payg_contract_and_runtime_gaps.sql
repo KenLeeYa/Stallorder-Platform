@@ -1,3 +1,8 @@
+begin;
+
+set local lock_timeout = '5s';
+set local statement_timeout = '10min';
+
 alter table public.plan_versions
   add column if not exists billing_timezone text not null default 'Asia/Taipei',
   add column if not exists billing_cycle_anchor_day smallint not null default 1,
@@ -115,7 +120,7 @@ alter table public.invoice_line_items
     'ADD_ON', 'CUSTOM_SERVICE', 'CREDIT', 'DISCOUNT', 'PAYG_USAGE'
   ));
 
-create or replace function app_private.enforce_plan_version_contract_immutability()
+create function app_private.enforce_plan_version_contract_immutability()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -195,7 +200,7 @@ create trigger plan_versions_contract_immutability_before_update
 before update on public.plan_versions
 for each row execute function app_private.enforce_plan_version_contract_immutability();
 
-create or replace function app_private.enforce_plan_entitlement_snapshot_immutability()
+create function app_private.enforce_plan_entitlement_snapshot_immutability()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -387,3 +392,5 @@ comment on table public.billing_credit_adjustments is
   'Append-only late full-refund credits linked to the original paid PAYG invoice and usage ledger events.';
 comment on table public.payg_close_jobs is
   'Durable idempotency and operational state for automatic PAYG month-close execution.';
+
+commit;
