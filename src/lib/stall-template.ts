@@ -43,6 +43,12 @@ export async function loadStallTemplateData(stallId: string, organizationId: str
         lotteryEnabled: true,
         lotteryDiscountOptionId: true,
         lotteryDiscountWinRateBps: true,
+        lotterySpendRewardEnabled: true,
+        lotterySpendThresholdAmount: true,
+        lotteryFestivalRewardEnabled: true,
+        lotteryFestivalStartsOn: true,
+        lotteryFestivalEndsOn: true,
+        lotteryBirthdayRewardEnabled: true,
       },
     }),
     prisma.$queryRaw<Array<{ discountOptionId: string; winRateBps: number }>>`
@@ -139,11 +145,24 @@ function orderingExperienceDiff(
     ["最多預約", `${source.settings.preorderMaxDays} 天`, `${target.settings.preorderMaxDays} 天`],
     ["時段間隔", `${source.settings.preorderSlotMinutes} 分鐘`, `${target.settings.preorderSlotMinutes} 分鐘`],
     ["抽抽樂", enabledLabel(source.settings.lotteryEnabled), enabledLabel(target.settings.lotteryEnabled)],
+    ["滿額免費抽獎", source.settings.lotterySpendRewardEnabled ? `${source.settings.lotterySpendThresholdAmount} 元` : "停用", target.settings.lotterySpendRewardEnabled ? `${target.settings.lotterySpendThresholdAmount} 元` : "停用"],
+    ["節慶免費抽獎", festivalRewardLabel(source.settings), festivalRewardLabel(target.settings)],
     ["折扣獎項", sourceDiscounts, targetDiscounts],
   ];
   return values
     .filter(([, sourceValue, targetValue]) => sourceValue !== targetValue)
     .map(([label, sourceValue, targetValue]) => `${label}：${targetValue} → ${sourceValue}`);
+}
+
+function festivalRewardLabel(settings: {
+  lotteryFestivalRewardEnabled: boolean;
+  lotteryFestivalStartsOn: Date | null;
+  lotteryFestivalEndsOn: Date | null;
+}) {
+  if (!settings.lotteryFestivalRewardEnabled) return "停用";
+  const startsOn = settings.lotteryFestivalStartsOn?.toISOString().slice(0, 10) ?? "未設定";
+  const endsOn = settings.lotteryFestivalEndsOn?.toISOString().slice(0, 10) ?? "未設定";
+  return `${startsOn}～${endsOn}`;
 }
 
 function lotteryPrizeSummary(data: Awaited<ReturnType<typeof loadStallTemplateData>>) {

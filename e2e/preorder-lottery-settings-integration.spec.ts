@@ -271,13 +271,13 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
     await login(page);
 
     try {
-      await page.goto(`/merchant/stalls/${stallId}/settings/preorder`);
+      await page.goto(`/merchant/stalls/${stallId}/settings/online-ordering`);
       await expect(page.getByLabel("顧客公開點餐網址")).toHaveValue(/\/store\/aming-01$/);
       await expect(page.getByLabel("LINE 自動回覆內容")).toContainText("選擇線上 Menu、外帶自取或外送");
       await expect(page.getByLabel("LINE 自動回覆內容")).toContainText(/\/store\/aming-01$/);
       await expect(page.getByRole("button", { name: "複製公開點餐網址", exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "複製 LINE 回覆內容", exact: true })).toBeVisible();
-      const preorderSwitch = page.getByRole("switch", { name: /外帶預約/ });
+      const preorderSwitch = page.getByRole("switch", { name: /外帶自取（需選時段）/ });
       await expect(preorderSwitch).toHaveAttribute("aria-checked", "false");
       await preorderSwitch.click();
 
@@ -295,7 +295,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       const preorderSaveBody = preorderSaveResponse.request().postDataJSON();
       expect(preorderSaveBody).not.toHaveProperty("enabledLocales");
       expect(preorderSaveBody).toMatchObject({
-        view: "preorder",
+        view: "online-ordering",
         takeoutPreorderEnabled: true,
         preorderMinLeadMinutes: 45,
         preorderMaxDays: 5,
@@ -304,7 +304,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       await expect(page.getByRole("status")).toHaveText("模組開關已儲存。");
 
       await page.reload();
-      await expect(page.getByRole("switch", { name: /外帶預約/ })).toHaveAttribute("aria-checked", "true");
+      await expect(page.getByRole("switch", { name: /外帶自取（需選時段）/ })).toHaveAttribute("aria-checked", "true");
       await expect(page.getByLabel("最少提前（分鐘）")).toHaveValue("45");
       await expect(page.getByLabel("最多預約天數")).toHaveValue("5");
       await expect(page.getByLabel("時段間隔")).toHaveValue("60");
@@ -551,8 +551,8 @@ async function verifyClosedPreorder(browser: Browser) {
 async function restoreThroughUi(page: Page) {
   if (!originalSettings || !originalStall) return;
 
-  await page.goto(`/merchant/stalls/${stallId}/settings/preorder`);
-  await setSwitch(page, /外帶預約/, originalSettings.takeoutPreorderEnabled);
+  await page.goto(`/merchant/stalls/${stallId}/settings/online-ordering`);
+  await setSwitch(page, /外帶自取（需選時段）/, originalSettings.takeoutPreorderEnabled);
   if (originalSettings.takeoutPreorderEnabled) {
     await page.getByLabel("最少提前（分鐘）").fill(String(originalSettings.preorderMinLeadMinutes));
     await page.getByLabel("最多預約天數").fill(String(originalSettings.preorderMaxDays));

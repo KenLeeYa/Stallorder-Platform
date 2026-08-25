@@ -37,6 +37,8 @@ export function QrOrderFlowPresentation({
   const {
     activeCartStep,
     activeOrderingMode,
+    automaticLotteryRewardConfigured,
+    automaticLotteryRewardEligible,
     addProductDraft,
     applyFulfillmentTime,
     availabilityRefreshing,
@@ -185,6 +187,9 @@ export function QrOrderFlowPresentation({
       ) : null}
     </div>
   ) : null;
+  const lotterySpendRemaining = session.lotteryReward?.spendEnabled
+    ? Math.max(0, session.lotteryReward.spendThresholdAmount - total)
+    : 0;
   const cartPanel = (
     <QrOrderCartPanel
       session={session}
@@ -241,9 +246,9 @@ export function QrOrderFlowPresentation({
   return (
     <main className="mx-auto grid min-h-screen max-w-5xl gap-6 px-4 py-5 pb-28 md:grid-cols-[minmax(0,1fr)_340px] md:px-8 md:pb-5">
       <section>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
           <div><p className="text-sm font-medium text-teal-800">{session.stall.location}</p><h1 className="mt-1 text-3xl font-semibold">{session.stall.name}</h1></div>
-          <div className="flex items-center gap-2">
+          <div data-testid="qr-display-controls" className="ml-auto flex shrink-0 items-end gap-2">
             <ThemeToggle />
             <QrLanguageSelector locale={locale} locales={availableLocales} label={copy.language} menuLabel={copy.menuLanguage} onChange={changeLocale} />
           </div>
@@ -313,17 +318,19 @@ export function QrOrderFlowPresentation({
         {session.lotteryEnabled && activeOrderingMode === "DEFAULT" ? (
           <section className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-4" aria-label={copy.lotteryRegionLabel}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><h2 className="font-semibold text-violet-950">{copy.lotterySectionTitle}</h2><p className="mt-1 text-sm leading-6 text-violet-800">{copy.lotterySectionDescription}</p></div>
-              <button ref={lotteryButtonRef} type="button" disabled={!orderingEnabled || isDrawingLottery} onClick={() => void drawLottery()} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50"><Dices className="h-4 w-4" />{isDrawingLottery ? copy.lotteryDrawingButton : lotteryDraw ? copy.lotteryAlreadyDrawn : copy.lotteryStart}</button>
+              <div><h2 className="font-semibold text-violet-950">{copy.lotterySectionTitle}</h2><p className="mt-1 text-sm leading-6 text-violet-800">{automaticLotteryRewardConfigured && lotterySpendRemaining > 0 ? copy.lotterySpendProgress(formatMoney(lotterySpendRemaining, session.stall.currency, locale)) : copy.lotterySectionDescription}</p></div>
+              <button ref={lotteryButtonRef} type="button" disabled={!orderingEnabled || isDrawingLottery || (automaticLotteryRewardConfigured && !automaticLotteryRewardEligible && !lotteryDraw)} onClick={() => void drawLottery()} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50"><Dices className="h-4 w-4" />{isDrawingLottery ? copy.lotteryDrawingButton : lotteryDraw ? copy.lotteryAlreadyDrawn : copy.lotteryStart}</button>
             </div>
             {lotteryError ? (
               <p role="alert" className="mt-3 text-sm font-medium text-red-700">
                 {lotteryError === "PRODUCT_UNAVAILABLE"
                   ? copy.lotteryUnavailableProduct
+                  : lotteryError === "NOT_ELIGIBLE"
+                    ? copy.lotteryNotEligible
                   : copy.lotteryUnavailable}
               </p>
             ) : null}
-            {lotteryDraw ? <div className="mt-3 border-t border-violet-200 pt-3"><span data-testid="lottery-recommendation-basis" className="inline-flex rounded-full bg-white px-2 py-1 text-xs font-semibold text-violet-900">{lotteryDraw.recommendationBasis === "BEST_SELLER" ? copy.lotteryBestSellerBasis : copy.lotteryDiscoveryBasis}</span><p role="status" className="mt-2 text-sm font-semibold text-violet-950">{copy.lotteryRecommendation(lotteryResultProduct ? localizedProduct(lotteryResultProduct).name : lotteryDraw.productName)}{lotteryDraw.discountWon && lotteryDraw.discountLabel ? <> {copy.lotteryDiscountResult(lotteryDraw.discountLabel)}</> : null}</p>{lotteryDraw.discountWon ? <p className="mt-1 text-xs text-violet-800">{copy.lotteryDiscountNotice}</p> : null}</div> : null}
+            {lotteryDraw ? <div className="mt-3 border-t border-violet-200 pt-3"><span data-testid="lottery-recommendation-basis" className="inline-flex rounded-full bg-white px-2 py-1 text-xs font-semibold text-violet-900">{lotteryDraw.recommendationBasis === "BEST_SELLER" ? copy.lotteryBestSellerBasis : copy.lotteryDiscoveryBasis}</span><p role="status" className="mt-2 text-sm font-semibold text-violet-950">{lotteryDraw.freeProductReward ? copy.lotteryFreeRewardResult(lotteryResultProduct ? localizedProduct(lotteryResultProduct).name : lotteryDraw.productName) : copy.lotteryRecommendation(lotteryResultProduct ? localizedProduct(lotteryResultProduct).name : lotteryDraw.productName)}{!lotteryDraw.freeProductReward && lotteryDraw.discountWon && lotteryDraw.discountLabel ? <> {copy.lotteryDiscountResult(lotteryDraw.discountLabel)}</> : null}</p>{lotteryDraw.freeProductReward ? <p className="mt-1 text-xs text-violet-800">{copy.lotteryFreeRewardNotice}</p> : lotteryDraw.discountWon ? <p className="mt-1 text-xs text-violet-800">{copy.lotteryDiscountNotice}</p> : null}</div> : null}
           </section>
         ) : null}
 
@@ -403,19 +410,23 @@ export function QrOrderFlowPresentation({
           carouselProductNames={lotteryCarouselProductNames}
           prefersReducedMotion={prefersReducedMotion}
           draw={lotteryDraw}
-          title={isDrawingLottery ? copy.lotteryDrawingTitle : copy.lotteryResultTitle}
+          title={isDrawingLottery ? copy.lotteryDrawingTitle : lotteryDraw?.freeProductReward ? copy.lotteryFreeRewardAccept : copy.lotteryResultTitle}
           drawingDescription={copy.lotteryDrawingDescription}
           recommendationBasis={lotteryDraw?.recommendationBasis === "BEST_SELLER"
             ? copy.lotteryBestSellerBasis
             : copy.lotteryDiscoveryBasis}
           recommendation={lotteryDraw
-            ? copy.lotteryRecommendation(lotteryResultProduct ? localizedProduct(lotteryResultProduct).name : lotteryDraw.productName)
+            ? lotteryDraw.freeProductReward
+              ? copy.lotteryFreeRewardResult(lotteryResultProduct ? localizedProduct(lotteryResultProduct).name : lotteryDraw.productName)
+              : copy.lotteryRecommendation(lotteryResultProduct ? localizedProduct(lotteryResultProduct).name : lotteryDraw.productName)
             : ""}
-          discountResult={lotteryDraw?.discountWon && lotteryDraw.discountLabel
+          discountResult={lotteryDraw?.freeProductReward
+            ? copy.lotteryFreeRewardNotice
+            : lotteryDraw?.discountWon && lotteryDraw.discountLabel
             ? copy.lotteryDiscountResult(lotteryDraw.discountLabel)
             : copy.lotteryNoDiscountResult}
           discountNotice={copy.lotteryDiscountNotice}
-          acceptLabel={copy.lotteryAccept}
+          acceptLabel={lotteryDraw?.freeProductReward ? copy.lotteryFreeRewardAccept : copy.lotteryAccept}
           cancelLabel={copy.lotteryCancel}
           onAccept={acceptLotteryRecommendation}
           onCancel={cancelLotteryRecommendation}

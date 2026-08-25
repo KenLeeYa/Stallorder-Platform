@@ -1962,6 +1962,12 @@ model StallOrderingSettings {
   lotteryEnabled                 Boolean      @default(false) @map("lottery_enabled")
   lotteryDiscountOptionId        String?      @map("lottery_discount_option_id") @db.Uuid
   lotteryDiscountWinRateBps      Int          @default(0) @map("lottery_discount_win_rate_bps") @db.SmallInt
+  lotterySpendRewardEnabled      Boolean      @default(false) @map("lottery_spend_reward_enabled")
+  lotterySpendThresholdAmount    Int          @default(666) @map("lottery_spend_threshold_amount")
+  lotteryFestivalRewardEnabled   Boolean      @default(false) @map("lottery_festival_reward_enabled")
+  lotteryFestivalStartsOn        DateTime?    @map("lottery_festival_starts_on") @db.Date
+  lotteryFestivalEndsOn          DateTime?    @map("lottery_festival_ends_on") @db.Date
+  lotteryBirthdayRewardEnabled   Boolean      @default(false) @map("lottery_birthday_reward_enabled")
   estimatedWaitMinutes           Int          @default(15) @map("estimated_wait_minutes")
   businessDayCutoffHour          Int          @default(0) @map("business_day_cutoff_hour") @db.SmallInt
   enabledLocales                 String[]     @default(["zh-TW"]) @map("enabled_locales")
@@ -2905,6 +2911,8 @@ model OrderItem {
   unitPrice      Int                   @map("unit_price")
   quantity       Int
   isOrderDiscountEligible Boolean      @default(true) @map("is_order_discount_eligible")
+  promotionSource String               @default("NONE") @map("promotion_source")
+  lotteryDrawId   String?              @unique @map("lottery_draw_id") @db.Uuid
   note           String?
   status         OrderItemStatus       @default(PENDING)
   preparingAt    DateTime?             @map("preparing_at")

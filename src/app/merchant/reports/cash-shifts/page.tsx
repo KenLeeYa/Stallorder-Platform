@@ -1,9 +1,11 @@
 import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { ReportFilters, ReportNavigation } from "@/components/report-navigation";
+import { ReportPageNavigation, ReportPageSizeSelect } from "@/components/report-pagination-controls";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { formatAppCurrency, formatAppDateTime, formatAppNumber } from "@/lib/locale-format";
 import { createReportTranslator } from "@/lib/messages/reports";
-import { getCashShiftReport } from "@/lib/report-data";
+import { parseOperationsPage, parseOperationsPageSize } from "@/lib/operations-pagination";
+import { getPaginatedCashShiftReport } from "@/lib/report-data";
 import { requireReportScope } from "@/lib/report-scope";
 import { getFeatureAccess } from "@/server/billing/feature-access";
 
@@ -13,13 +15,16 @@ type PageProps = {
     stallId?: string | string[];
     dateFrom?: string;
     dateTo?: string;
+    page?: string;
+    pageSize?: string;
   }>;
 };
 
 export default async function CashShiftReportPage({ searchParams }: PageProps) {
   const { locale } = await getRequestAppLocale();
   const t = createReportTranslator(locale);
-  const scope = await requireReportScope(await searchParams);
+  const query = await searchParams;
+  const scope = await requireReportScope(query);
   const featureAccess = await getFeatureAccess(scope.workspace.id, "CASH_SHIFT");
   if (!featureAccess.allowed) {
     return <FeatureUpgradeNotice
@@ -28,36 +33,29 @@ export default async function CashShiftReportPage({ searchParams }: PageProps) {
       billingHref={`/merchant/subscription?organizationId=${scope.workspace.id}`}
     />;
   }
-  const rows = await getCashShiftReport(
+  const { rows, pagination, summary } = await getPaginatedCashShiftReport(
     scope.workspace.id,
     scope.stalls.map((stall) => stall.id),
     scope.dateFrom,
     scope.dateTo,
+    { page: parseOperationsPage(query.page), pageSize: parseOperationsPageSize(query.pageSize) },
   );
-  const summary = rows.reduce((total, row) => ({
-    cashSales: total.cashSales + row.cashSales,
-    cashRefunds: total.cashRefunds + row.cashRefunds,
-    expected: total.expected + row.expectedAmount,
-    actual: total.actual + (row.actualAmount ?? 0),
-    difference: total.difference + (row.differenceAmount ?? 0),
-    reviewRequired: total.reviewRequired + (row.status === "CLOSING" || row.status === "REVIEW_REQUIRED" ? 1 : 0),
-  }), { cashSales: 0, cashRefunds: 0, expected: 0, actual: 0, difference: 0, reviewRequired: 0 });
   const currency = scope.workspace.defaultCurrency;
 
   return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-7 md:px-8">
     <header><p className="text-sm font-semibold text-teal-800">{t("reports.eyebrow")}</p><h1 className="mt-1 text-2xl font-semibold sm:text-3xl">{t("reports.cash.title")}</h1><p className="mt-2 text-sm text-stone-600">{t("reports.cash.description")}</p></header>
     <ReportNavigation organizationId={scope.workspace.id} active="cash-shifts" />
-    <ReportFilters organizationId={scope.workspace.id} stalls={scope.availableStalls} selectedStallIds={scope.stalls.map((stall) => stall.id)} dateFrom={scope.dateFrom} dateTo={scope.dateTo} />
+    <ReportFilters organizationId={scope.workspace.id} stalls={scope.availableStalls} selectedStallIds={scope.stalls.map((stall) => stall.id)} dateFrom={scope.dateFrom} dateTo={scope.dateTo} pageSize={pagination.pageSize} />
     <section aria-label={t("reports.cash.summary")} data-testid="cash-shift-report-dashboard" className="grid grid-cols-2 gap-2 border-b border-stone-200 py-5 sm:grid-cols-3 lg:grid-cols-6">
-      <SummaryMetric label={t("reports.cash.shifts")} value={t("reports.count.shifts", { count: formatAppNumber(locale, rows.length) })} />
+      <SummaryMetric label={t("reports.cash.shifts")} value={t("reports.count.shifts", { count: formatAppNumber(locale, pagination.total) })} />
       <SummaryMetric label={t("reports.cash.sales")} value={formatAppCurrency(locale, summary.cashSales, currency, { maximumFractionDigits: 0 })} />
       <SummaryMetric label={t("reports.cash.refunds")} value={formatAppCurrency(locale, summary.cashRefunds, currency, { maximumFractionDigits: 0 })} />
       <SummaryMetric label={t("reports.cash.expected")} value={formatAppCurrency(locale, summary.expected, currency, { maximumFractionDigits: 0 })} />
       <SummaryMetric label={t("reports.cash.variance")} value={formatSignedMoney(summary.difference, currency, locale)} alert={summary.difference !== 0} />
       <SummaryMetric label={t("reports.cash.review")} value={t("reports.count.shifts", { count: formatAppNumber(locale, summary.reviewRequired) })} alert={summary.reviewRequired > 0} />
     </section>
-    <section className="py-7">
-      <h2 className="text-xl font-semibold">{t("reports.cash.details")}</h2>
+    <section id="cash-shifts-list" className="py-7">
+      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-semibold">{t("reports.cash.details")}</h2><ReportPageSizeSelect label={t("reports.cash.details")} pagination={pagination} anchorId="cash-shifts-list" /></div>
       <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">
         {rows.map((row) => <article key={row.id} className="min-w-0 py-5">
           <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><strong className="break-words">{row.stallName}</strong><p className="mt-1 break-words text-xs text-stone-500">{row.openedByName} · {formatAppDateTime(locale, row.openedAt, { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Taipei" })}{row.closedAt ? ` ${t("reports.filter.to")} ${formatAppDateTime(locale, row.closedAt, { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Taipei" })}` : ""}</p></div><span className="rounded bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">{t(statusKey(row.status))}</span></div>
@@ -75,6 +73,7 @@ export default async function CashShiftReportPage({ searchParams }: PageProps) {
         </article>)}
       </div>
       {rows.length === 0 ? <p className="py-10 text-center text-sm text-stone-500">{t("reports.cash.none")}</p> : null}
+      <ReportPageNavigation label={t("reports.cash.details")} pagination={pagination} anchorId="cash-shifts-list" />
     </section>
   </main>;
 }

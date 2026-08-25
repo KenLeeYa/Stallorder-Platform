@@ -1,11 +1,11 @@
 "use client";
 
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { QrCodeState, StallOrderingState, UserRole } from "@prisma/client";
 import { QRCodeSVG } from "qrcode.react";
-import { Ban, BarChart3, CircleStop, Copy, ExternalLink, Package, PackageCheck, PackageX, Pause, Play, RotateCw } from "lucide-react";
+import { Ban, BarChart3, CircleStop, Copy, ExternalLink, Package, PackageCheck, PackageX, Pause, Play, RotateCw, X } from "lucide-react";
 import { StallCatalogSettings, type StallCatalogProduct } from "@/components/stall-catalog-settings";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { roleLabels } from "@/lib/rbac";
@@ -32,8 +32,32 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
   const [message, setMessage] = useState("");
   const [menuLinkMessage, setMenuLinkMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [catalogDialogOpen, setCatalogDialogOpen] = useState(false);
+  const catalogTriggerRef = useRef<HTMLButtonElement>(null);
+  const catalogCloseRef = useRef<HTMLButtonElement>(null);
   const orderUrl = useMemo(() => ordering.qrCode ? `${appBaseUrl.replace(/\/$/, "")}/q/${ordering.qrCode.token}` : "", [appBaseUrl, ordering.qrCode]);
   const publicStorefrontPath = `/store/${encodeURIComponent(stall.code.trim().toLowerCase())}`;
+
+  useEffect(() => {
+    if (!catalogDialogOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => catalogCloseRef.current?.focus(), 0);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCatalogDialogOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [catalogDialogOpen]);
+
+  function closeCatalogDialog() {
+    setCatalogDialogOpen(false);
+    window.requestAnimationFrame(() => catalogTriggerRef.current?.focus());
+  }
 
   async function requestOrderingUpdate(body: Record<string, unknown>) {
     setMessage("");
@@ -69,8 +93,8 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
   }
 
   return (
-    <main className="mx-auto grid min-h-screen max-w-7xl gap-8 px-4 py-5 md:grid-cols-[340px_minmax(0,1fr)] md:px-8">
-      <aside className="h-fit md:sticky md:top-5">
+    <main className="mx-auto grid min-h-[calc(100dvh-76px)] max-w-7xl gap-6 px-4 py-5 md:px-8 xl:h-[calc(100dvh-76px)] xl:min-h-0 xl:grid-cols-[340px_minmax(0,1fr)] xl:overflow-hidden">
+      <aside className="h-fit min-h-0 xl:h-full xl:overflow-y-auto xl:overscroll-contain xl:pr-3">
         <div><p className="text-sm font-medium text-teal-800">{label("攤位管理")}</p><p className="mt-1 text-xs text-stone-500">{account.displayName} · {label(roleLabels[account.role])}</p></div>
         <h1 className="mt-2 text-3xl font-semibold">{stall.name}</h1>
 
@@ -79,6 +103,17 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
           <span className={`rounded-md px-2 py-1 ${ordering.isSoldOut ? "bg-red-50 text-red-800" : "bg-stone-100 text-stone-700"}`}>{ordering.isSoldOut ? label("全攤售完") : label("可供應")}</span>
           {ordering.qrCode ? <span className="rounded-md bg-stone-100 px-2 py-1 text-stone-700">QR {label(qrLabels[ordering.qrCode.state])}</span> : null}
         </div>
+
+        <button
+          ref={catalogTriggerRef}
+          type="button"
+          aria-haspopup="dialog"
+          onClick={() => setCatalogDialogOpen(true)}
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white xl:hidden"
+        >
+          <Package className="h-5 w-5" />
+          {label("攤位商品設定")}
+        </button>
 
         {orderUrl ? (
           <div className="mt-5">
@@ -120,9 +155,24 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
         {sharedCatalogUrl ? <Link href={sharedCatalogUrl} className="mt-3 flex items-center gap-2 text-sm font-semibold text-teal-800"><Package className="h-4 w-4" />{label("管理共用商品主檔")}</Link> : null}
       </aside>
 
-      <div>
-        {message ? <p role="alert" className="mb-4 text-sm text-red-700">{message}</p> : null}
-        <StallCatalogSettings stallId={stall.id} currency={stall.currency} initialProducts={products} sourceStalls={sourceStalls} />
+      <div className={`${catalogDialogOpen ? "fixed inset-0 z-50 flex items-stretch bg-black/50 p-3 sm:p-6" : "hidden"} min-h-0 xl:static xl:z-auto xl:block xl:h-full xl:bg-transparent xl:p-0`}>
+        <section
+          role={catalogDialogOpen ? "dialog" : undefined}
+          aria-modal={catalogDialogOpen ? true : undefined}
+          aria-labelledby={catalogDialogOpen ? "stall-product-dialog-title" : undefined}
+          className="flex max-h-full w-full flex-col overflow-hidden rounded-lg bg-white shadow-xl xl:h-full xl:max-h-none xl:rounded-none xl:bg-transparent xl:shadow-none"
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-stone-200 px-4 py-3 xl:hidden">
+            <h2 id="stall-product-dialog-title" className="text-lg font-semibold">{label("攤位商品設定")}</h2>
+            <button ref={catalogCloseRef} type="button" title={label("關閉")} aria-label={label("關閉")} onClick={closeCatalogDialog} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 xl:h-full xl:p-0 xl:pl-1 xl:pr-3">
+            {message ? <p role="alert" className="mb-4 text-sm text-red-700">{message}</p> : null}
+            <StallCatalogSettings stallId={stall.id} currency={stall.currency} initialProducts={products} sourceStalls={sourceStalls} />
+          </div>
+        </section>
       </div>
     </main>
   );

@@ -16,6 +16,7 @@ export const runtime = "nodejs";
 const drawSchema = z.object({
   orderSessionToken: z.string().min(40).max(200),
   deviceId: z.string().uuid(),
+  cartTotal: z.number().int().min(0).max(100_000_000).default(0),
 }).strict();
 
 type DrawResult = {
@@ -30,6 +31,9 @@ type DrawResult = {
   discountWon?: boolean;
   discountLabel?: string | null;
   discountRateBps?: number | null;
+  freeProductReward?: boolean;
+  qualificationType?: "STANDARD" | "SPEND" | "FESTIVAL";
+  qualificationThresholdAmount?: number | null;
   expiresAt?: string;
   idempotentReplay?: boolean;
 };
@@ -69,7 +73,8 @@ export async function POST(request: Request) {
   const rows = await prisma.$queryRaw<Array<{ result: DrawResult | null }>>(Prisma.sql`
     select public.draw_public_lottery(
       ${sessionHash}::text,
-      ${deviceHash}::text
+      ${deviceHash}::text,
+      ${parsed.data.cartTotal}::integer
     ) as result
   `);
   const result = rows[0]?.result;

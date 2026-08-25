@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, RefreshCw, ScrollText, ShieldAlert, TriangleAlert } from "lucide-react";
+import { CheckCircle2, CircleAlert, RefreshCw, ScrollText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { auditActionLabel, auditEntityTypeLabel } from "@/lib/audit-log-labels";
 import { formatAppDateTime, formatAppNumber } from "@/lib/locale-format";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import type { MerchantMessageKey } from "@/lib/messages/merchant";
 import {
-  OPERATIONS_PAGE_SIZES,
+  MerchantListPageNavigation as PageNavigation,
+  MerchantListPageSizeSelect as PageSizeSelect,
+} from "@/components/merchant-list-pagination";
+import {
   type OperationsPageMeta,
   type OperationsPageSize,
 } from "@/lib/operations-pagination";
@@ -159,22 +162,24 @@ export function OperationsConsole({
         <p className="mt-2 text-sm text-stone-600">{m("依登入者權限、攤位與篩選條件，由伺服器分頁載入資料。")}</p>
       </div>
 
-      <form method="get" className="grid gap-3 border-b border-stone-200 py-5 md:grid-cols-3 lg:grid-cols-6">
+      <form method="get" className="border-b border-stone-200 py-5">
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="alertPageSize" value={alertPagination.pageSize} />
         <input type="hidden" name="auditPageSize" value={auditPagination.pageSize} />
-        <FilterSelect label={m("攤位")} name="stallId" defaultValue={filters.stallId ?? ""}><option value="">{m("全部授權攤位")}</option>{stalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}</FilterSelect>
-        <FilterSelect label={m("警示狀態")} name="alertStatus" defaultValue={filters.alertStatus ?? "ACTIVE"}><option value="ALL">{m("全部")}</option><option value="ACTIVE">{m("待處理")}</option><option value="ACKNOWLEDGED">{m("已確認")}</option><option value="RESOLVED">{m("已解除")}</option></FilterSelect>
-        <FilterSelect label={m("嚴重程度")} name="alertSeverity" defaultValue={filters.alertSeverity ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="CRITICAL">{m("嚴重")}</option><option value="WARNING">{m("警告")}</option><option value="INFO">{m("資訊")}</option></FilterSelect>
-        {canViewAudit ? (
-          <>
-            <FilterSelect label={m("稽核結果")} name="auditOutcome" defaultValue={filters.auditOutcome ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="SUCCESS">{m("成功")}</option><option value="DENIED">{m("拒絕")}</option><option value="FAILURE">{m("失敗")}</option></FilterSelect>
-            <FilterInput label={m("開始日期")} type="date" name="dateFrom" defaultValue={filters.dateFrom} />
-            <FilterInput label={m("結束日期")} type="date" name="dateTo" defaultValue={filters.dateTo} />
-            <label className="text-xs font-semibold text-stone-600 md:col-span-2">{m("搜尋稽核")}<input type="text" name="auditQuery" defaultValue={filters.auditQuery} maxLength={80} placeholder={m("操作、資料類型或 Request ID")} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>
-          </>
-        ) : null}
-        <div className="flex items-end gap-2"><button type="submit" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white">{m("套用篩選")}</button><button type="button" title={m("重新整理")} aria-label={m("重新整理")} onClick={() => router.refresh()} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300"><RefreshCw className="h-4 w-4" /></button></div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <FilterSelect label={m("攤位")} name="stallId" defaultValue={filters.stallId ?? ""}><option value="">{m("全部授權攤位")}</option>{stalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}</FilterSelect>
+          <FilterSelect label={m("警示狀態")} name="alertStatus" defaultValue={filters.alertStatus ?? "ACTIVE"}><option value="ALL">{m("全部")}</option><option value="ACTIVE">{m("待處理")}</option><option value="ACKNOWLEDGED">{m("已確認")}</option><option value="RESOLVED">{m("已解除")}</option></FilterSelect>
+          <FilterSelect label={m("嚴重程度")} name="alertSeverity" defaultValue={filters.alertSeverity ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="CRITICAL">{m("嚴重")}</option><option value="WARNING">{m("警告")}</option><option value="INFO">{m("資訊")}</option></FilterSelect>
+          {canViewAudit ? (
+            <>
+              <FilterSelect label={m("稽核結果")} name="auditOutcome" defaultValue={filters.auditOutcome ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="SUCCESS">{m("成功")}</option><option value="DENIED">{m("拒絕")}</option><option value="FAILURE">{m("失敗")}</option></FilterSelect>
+              <FilterInput label={m("開始日期")} type="date" name="dateFrom" defaultValue={filters.dateFrom} />
+              <FilterInput label={m("結束日期")} type="date" name="dateTo" defaultValue={filters.dateTo} />
+              <label className="text-xs font-semibold text-stone-600 sm:col-span-2">{m("搜尋稽核")}<input type="text" name="auditQuery" defaultValue={filters.auditQuery} maxLength={80} placeholder={m("操作、資料類型或 Request ID")} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>
+            </>
+          ) : null}
+        </div>
+        <div className="mt-3 flex justify-end gap-2"><button type="submit" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white">{m("套用篩選")}</button><button type="button" title={m("重新整理")} aria-label={m("重新整理")} onClick={() => router.refresh()} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300"><RefreshCw className="h-4 w-4" /></button></div>
       </form>
 
       {message ? <p role="status" className={`border-b border-stone-200 py-3 text-sm font-medium ${hasError ? "text-red-700" : "text-emerald-700"}`}>{message}</p> : null}
@@ -221,33 +226,6 @@ export function OperationsConsole({
         </section>
       ) : null}
     </main>
-  );
-}
-
-function PageSizeSelect({ label, value, onChange }: { label: string; value: OperationsPageSize; onChange: (value: OperationsPageSize) => void }) {
-  const { locale, m } = useMerchantMessages();
-  return (
-    <label className="inline-flex items-center gap-2 text-xs font-semibold text-stone-600">
-      {m("每頁")}
-      <select aria-label={m("{label}每頁顯示數量", { label })} value={value} onChange={(event) => onChange(Number(event.target.value) as OperationsPageSize)} className="h-9 rounded-md border border-stone-300 bg-white px-2 text-sm text-stone-900">
-        {OPERATIONS_PAGE_SIZES.map((pageSize) => <option key={pageSize} value={pageSize}>{formatAppNumber(locale, pageSize)}</option>)}
-      </select>
-      {m("筆")}
-    </label>
-  );
-}
-
-function PageNavigation({ label, pagination, onPageChange }: { label: string; pagination: OperationsPageMeta; onPageChange: (page: number) => void }) {
-  const { locale, m } = useMerchantMessages();
-  return (
-    <nav aria-label={m("{label}分頁", { label })} className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-stone-600">
-      <span>{pagination.total === 0 ? m("沒有資料") : m("顯示 {first}–{last}，共 {total} 筆", { first: formatAppNumber(locale, pagination.firstItem), last: formatAppNumber(locale, pagination.lastItem), total: formatAppNumber(locale, pagination.total) })}</span>
-      <div className="flex items-center gap-2">
-        <button type="button" title={m("{label}上一頁", { label })} aria-label={m("{label}上一頁", { label })} disabled={pagination.page <= 1} onClick={() => onPageChange(pagination.page - 1)} className="grid h-9 w-9 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
-        <span className="min-w-20 text-center text-xs font-semibold text-stone-700">{m("第 {page} / {total} 頁", { page: formatAppNumber(locale, pagination.page), total: formatAppNumber(locale, pagination.totalPages) })}</span>
-        <button type="button" title={m("{label}下一頁", { label })} aria-label={m("{label}下一頁", { label })} disabled={pagination.page >= pagination.totalPages} onClick={() => onPageChange(pagination.page + 1)} className="grid h-9 w-9 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
-      </div>
-    </nav>
   );
 }
 

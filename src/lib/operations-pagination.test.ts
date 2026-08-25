@@ -10,8 +10,8 @@ describe("operations pagination", () => {
     expect(parseOperationsPageSize(String(pageSize))).toBe(pageSize);
   });
 
-  it.each([undefined, "", "0", "20", "101", "invalid"])("defaults invalid page size %s to 10", (value) => {
-    expect(parseOperationsPageSize(value)).toBe(10);
+  it.each([undefined, "", "0", "20", "101", "invalid"])("defaults invalid page size %s to 5", (value) => {
+    expect(parseOperationsPageSize(value)).toBe(5);
   });
 
   it("accepts positive pages and rejects malformed values", () => {

@@ -1,6 +1,16 @@
 import type { AppLocale } from "@/lib/app-locale";
 import { createMessageCatalog, type MessageValues } from "@/lib/message-catalog";
 
+type ReportMessageRow = readonly [string, string, string, string, string, string];
+
+const reportDescriptionOverrides = {
+  "reports.payments.description": ["依實際收款時間與方式統計；稍後結帳列在付款當日。", "Based on actual payment time and method. Pay-later orders appear on the payment date.", "実際の入金時刻と方法で集計し、後払いは入金日に計上します。", "실제 결제 시각과 방식으로 집계하며, 후결제는 결제일에 반영됩니다.", "Thống kê theo thời gian và cách thanh toán thực tế; đơn trả sau tính vào ngày thanh toán.", "สรุปตามเวลารับเงินจริงและวิธีชำระ โดยออเดอร์จ่ายภายหลังจะอยู่ในวันที่ชำระ"],
+  "reports.stalls.description": ["比較各攤位的訂單、未付款與取消情況。", "Compare orders, unpaid orders, and cancellations by stall.", "店舗ごとの注文、未払い、キャンセルを比較します。", "매장별 주문, 미결제 및 취소 현황을 비교합니다.", "So sánh đơn, đơn chưa thanh toán và đơn hủy theo quầy.", "เปรียบเทียบออเดอร์ ค้างชำระ และการยกเลิกตามร้าน"],
+  "reports.products.description": ["查看下單時的商品名稱與成交價格。", "View product names and final prices at the time of order.", "注文時の商品名と販売価格を確認します。", "주문 당시 상품명과 판매 가격을 확인합니다.", "Xem tên sản phẩm và giá bán tại thời điểm đặt đơn.", "ดูชื่อสินค้าและราคาขาย ณ เวลาสั่ง"],
+  "reports.orders.description": ["依日期查看每張訂單的狀態與品項。", "View each order's status and items by date.", "日付別に各注文の状態と品目を確認します。", "날짜별로 각 주문의 상태와 품목을 확인합니다.", "Xem trạng thái và món của từng đơn theo ngày.", "ดูสถานะและรายการของแต่ละออเดอร์ตามวันที่"],
+  "reports.cash.description": ["查看每個班次的現金收支與盤點差額。", "View cash movement and counted variance for each shift.", "各シフトの現金収支と実査差額を確認します。", "각 교대의 현금 입출금과 실사 차이를 확인합니다.", "Xem thu chi tiền mặt và chênh lệch kiểm đếm của từng ca.", "ดูเงินสดรับจ่ายและผลต่างการนับของแต่ละกะ"],
+} as const satisfies Record<string, ReportMessageRow>;
+
 const definitions = {
   "reports.eyebrow": ["跨攤位報表", "Cross-stall reports", "店舗横断レポート", "매장 통합 보고서", "Báo cáo nhiều quầy", "รายงานหลายร้าน"],
   "reports.nav": ["報表分類", "Report categories", "レポート分類", "보고서 분류", "Danh mục báo cáo", "หมวดหมู่รายงาน"],
@@ -101,13 +111,18 @@ const definitions = {
   "reports.cash.review.rejected": ["退回", "Rejected", "差し戻し", "반려", "Từ chối", "ส่งกลับ"],
   "reports.cash.review.adjustmentRequired": ["要求更正", "Adjustment required", "修正要求", "수정 요청", "Yêu cầu điều chỉnh", "ต้องปรับแก้"],
   "reports.cash.none": ["所選區間尚無現金班次。", "There are no cash shifts in the selected period.", "選択期間に現金シフトはありません。", "선택 기간에 현금 교대가 없습니다.", "Không có ca tiền mặt trong khoảng đã chọn.", "ไม่มีกะเงินสดในช่วงที่เลือก"],
-} as const satisfies Record<string, readonly [string, string, string, string, string, string]>;
+} as const satisfies Record<string, ReportMessageRow>;
 
 export type ReportMessageKey = keyof typeof definitions;
 
+const effectiveDefinitions: Record<ReportMessageKey, ReportMessageRow> = {
+  ...definitions,
+  ...reportDescriptionOverrides,
+};
+
 function messagesFor(locale: AppLocale): Record<ReportMessageKey, string> {
   const index = { "zh-TW": 0, en: 1, ja: 2, ko: 3, vi: 4, th: 5 }[locale];
-  return Object.fromEntries(Object.entries(definitions).map(([key, row]) => [key, row[index]])) as Record<ReportMessageKey, string>;
+  return Object.fromEntries(Object.entries(effectiveDefinitions).map(([key, row]) => [key, row[index]])) as Record<ReportMessageKey, string>;
 }
 
 const catalog = createMessageCatalog(messagesFor("zh-TW"), {

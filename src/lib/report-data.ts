@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Prisma, type PaymentMethod, type PrismaClient } from "@prisma/client";
+import { buildOperationsPageMeta, type OperationsPageRequest } from "@/lib/operations-pagination";
 import { withDatabaseRead } from "@/server/database/read-router";
 
 type ProductRow = { stall_id: string; stall_name: string; product_name: string; quantity: bigint; revenue: bigint };
@@ -35,6 +36,15 @@ type CashShiftRow = {
   difference_amount: bigint | null;
   latest_review_decision: string | null;
   latest_reviewer_name: string | null;
+};
+type CashShiftSummaryRow = {
+  total: bigint;
+  cash_sales: bigint;
+  cash_refunds: bigint;
+  expected_amount: bigint;
+  actual_amount: bigint;
+  difference_amount: bigint;
+  review_required: bigint;
 };
 
 export function sumPaidAmountByMethod(
@@ -159,38 +169,91 @@ export async function getOrderHistoryReport(
         limit 1000
       `);
       if (rows.length === 0) return [];
-      return database.order.findMany({
-        where: { organizationId, id: { in: rows.map((row) => row.id) } },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: {
-          id: true,
-          orderNo: true,
-          source: true,
-          origin: true,
-          customerName: true,
-          customerPhone: true,
-          fulfillmentType: true,
-          tableLabel: true,
-          status: true,
-          paymentStatus: true,
-          subtotal: true,
-          discountAmount: true,
-          total: true,
-          note: true,
-          createdAt: true,
-          confirmedAt: true,
-          completedAt: true,
-          cancelledAt: true,
-          stall: { select: { id: true, name: true } },
-          payment: { select: { methodLabel: true, status: true, paidAt: true } },
-          items: {
-            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-            select: { id: true, name: true, quantity: true, unitPrice: true, note: true },
-          },
-        },
-      });
+      return queryOrderHistoryRows(database, organizationId, rows.map((row) => row.id));
     },
   );
+}
+
+export async function getPaginatedOrderHistoryReport(
+  organizationId: string,
+  stallIds: string[],
+  dateFrom: string,
+  dateTo: string,
+  request: OperationsPageRequest,
+) {
+  if (stallIds.length === 0) {
+    return { rows: [], pagination: buildOperationsPageMeta(0, request) };
+  }
+  const scopedIds = Prisma.join(stallIds.map((id) => Prisma.sql`${id}::uuid`));
+  return withDatabaseRead(
+    {
+      policy: "DR_PREFERRED_EVENTUAL",
+      operation: "order_history_report_paginated",
+      maxLagSeconds: 30,
+    },
+    async (database) => {
+      const [countRow] = await database.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
+        select count(*)::bigint as total
+        from public.orders order_record
+        join public.stalls stall on stall.id = order_record.stall_id
+        where order_record.organization_id = ${organizationId}::uuid
+          and order_record.stall_id in (${scopedIds})
+          and not order_record.is_test
+          and public.stall_business_date(stall.id, order_record.created_at) between ${dateFrom}::date and ${dateTo}::date
+      `);
+      const pagination = buildOperationsPageMeta(Number(countRow?.total ?? 0), request);
+      const offset = (pagination.page - 1) * pagination.pageSize;
+      const idRows = await database.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        select order_record.id
+        from public.orders order_record
+        join public.stalls stall on stall.id = order_record.stall_id
+        where order_record.organization_id = ${organizationId}::uuid
+          and order_record.stall_id in (${scopedIds})
+          and not order_record.is_test
+          and public.stall_business_date(stall.id, order_record.created_at) between ${dateFrom}::date and ${dateTo}::date
+        order by order_record.created_at desc, order_record.id desc
+        limit ${pagination.pageSize}
+        offset ${offset}
+      `);
+      const rows = idRows.length === 0
+        ? []
+        : await queryOrderHistoryRows(database, organizationId, idRows.map((row) => row.id));
+      return { rows, pagination };
+    },
+  );
+}
+
+function queryOrderHistoryRows(database: PrismaClient, organizationId: string, orderIds: string[]) {
+  return database.order.findMany({
+    where: { organizationId, id: { in: orderIds } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: {
+      id: true,
+      orderNo: true,
+      source: true,
+      origin: true,
+      customerName: true,
+      customerPhone: true,
+      fulfillmentType: true,
+      tableLabel: true,
+      status: true,
+      paymentStatus: true,
+      subtotal: true,
+      discountAmount: true,
+      total: true,
+      note: true,
+      createdAt: true,
+      confirmedAt: true,
+      completedAt: true,
+      cancelledAt: true,
+      stall: { select: { id: true, name: true } },
+      payment: { select: { methodLabel: true, status: true, paidAt: true } },
+      items: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: { id: true, name: true, quantity: true, unitPrice: true, note: true },
+      },
+    },
+  });
 }
 
 export async function getHourlySalesReport(
@@ -346,8 +409,99 @@ export async function getCashShiftReport(
       operation: "cash_shift_report",
       maxLagSeconds: 30,
     },
-    (database) => database.$queryRaw<CashShiftRow[]>(Prisma.sql`
-      select
+    (database) => queryCashShiftRows(database, organizationId, scopedIds, dateFrom, dateTo),
+  );
+  return mapCashShiftRows(rows);
+}
+
+export async function getPaginatedCashShiftReport(
+  organizationId: string,
+  stallIds: string[],
+  dateFrom: string,
+  dateTo: string,
+  request: OperationsPageRequest,
+) {
+  if (stallIds.length === 0) {
+    return {
+      rows: [],
+      pagination: buildOperationsPageMeta(0, request),
+      summary: emptyCashShiftSummary(),
+    };
+  }
+  const scopedIds = Prisma.join(stallIds.map((id) => Prisma.sql`${id}::uuid`));
+  return withDatabaseRead(
+    {
+      policy: "DR_PREFERRED_EVENTUAL",
+      operation: "cash_shift_report_paginated",
+      maxLagSeconds: 30,
+    },
+    async (database) => {
+      const [summaryRow] = await database.$queryRaw<CashShiftSummaryRow[]>(Prisma.sql`
+        select
+          count(*)::bigint as total,
+          coalesce(sum(movement.cash_sales), 0)::bigint as cash_sales,
+          coalesce(sum(movement.cash_refunds), 0)::bigint as cash_refunds,
+          coalesce(sum(coalesce(
+            shift.system_expected_amount,
+            shift.opening_amount
+              + movement.cash_sales
+              + movement.cash_in
+              - movement.cash_out
+              - movement.cash_refunds
+              + movement.corrections
+          )), 0)::bigint as expected_amount,
+          coalesce(sum(shift.counted_amount), 0)::bigint as actual_amount,
+          coalesce(sum(shift.variance_amount), 0)::bigint as difference_amount,
+          count(*) filter (where shift.status::text in ('CLOSING', 'REVIEW_REQUIRED'))::bigint as review_required
+        from public.cash_shifts shift
+        join public.stalls stall on stall.id = shift.stall_id
+        left join lateral (
+          select
+            coalesce(sum(entry.amount) filter (where entry.type = 'CASH_SALE'::public.cash_movement_type), 0)::bigint as cash_sales,
+            coalesce(sum(entry.amount) filter (where entry.type = 'CASH_REFUND'::public.cash_movement_type), 0)::bigint as cash_refunds,
+            coalesce(sum(entry.amount) filter (where entry.type = 'CASH_IN'::public.cash_movement_type), 0)::bigint as cash_in,
+            coalesce(sum(entry.amount) filter (where entry.type = 'CASH_OUT'::public.cash_movement_type), 0)::bigint as cash_out,
+            coalesce(sum(entry.amount) filter (where entry.type = 'CORRECTION'::public.cash_movement_type), 0)::bigint as corrections
+          from public.cash_movements entry
+          where entry.cash_shift_id = shift.id
+        ) movement on true
+        where shift.organization_id = ${organizationId}::uuid
+          and shift.stall_id in (${scopedIds})
+          and public.stall_business_date(stall.id, shift.opened_at) between ${dateFrom}::date and ${dateTo}::date
+      `);
+      const total = Number(summaryRow?.total ?? 0);
+      const pagination = buildOperationsPageMeta(total, request);
+      const offset = (pagination.page - 1) * pagination.pageSize;
+      const rows = await queryCashShiftRows(
+        database,
+        organizationId,
+        scopedIds,
+        dateFrom,
+        dateTo,
+        { limit: pagination.pageSize, offset },
+      );
+      return {
+        rows: mapCashShiftRows(rows),
+        pagination,
+        summary: summaryRow ? mapCashShiftSummary(summaryRow) : emptyCashShiftSummary(),
+      };
+    },
+  );
+}
+
+function queryCashShiftRows(
+  database: PrismaClient,
+  organizationId: string,
+  scopedIds: Prisma.Sql,
+  dateFrom: string,
+  dateTo: string,
+  pagination?: { limit: number; offset: number },
+) {
+  const paginationSql = pagination
+    ? Prisma.sql`limit ${pagination.limit} offset ${pagination.offset}`
+    : Prisma.sql`limit 1000`;
+  return database.$queryRaw<CashShiftRow[]>(Prisma.sql`
+    select
       shift.id,
       shift.stall_id,
       stall.name as stall_name,
@@ -401,9 +555,11 @@ export async function getCashShiftReport(
       and shift.stall_id in (${scopedIds})
       and public.stall_business_date(stall.id, shift.opened_at) between ${dateFrom}::date and ${dateTo}::date
     order by shift.opened_at desc
-      limit 1000
-    `),
-  );
+    ${paginationSql}
+  `);
+}
+
+function mapCashShiftRows(rows: CashShiftRow[]) {
   return rows.map((row) => ({
     id: row.id,
     stallId: row.stall_id,
@@ -425,4 +581,19 @@ export async function getCashShiftReport(
     latestReviewDecision: row.latest_review_decision as "APPROVED" | "REJECTED" | "ADJUSTMENT_REQUIRED" | null,
     latestReviewerName: row.latest_reviewer_name,
   }));
+}
+
+function mapCashShiftSummary(row: CashShiftSummaryRow) {
+  return {
+    cashSales: Number(row.cash_sales),
+    cashRefunds: Number(row.cash_refunds),
+    expected: Number(row.expected_amount),
+    actual: Number(row.actual_amount),
+    difference: Number(row.difference_amount),
+    reviewRequired: Number(row.review_required),
+  };
+}
+
+function emptyCashShiftSummary() {
+  return { cashSales: 0, cashRefunds: 0, expected: 0, actual: 0, difference: 0, reviewRequired: 0 };
 }

@@ -10,7 +10,7 @@ import type { PublicMenuProduct } from "@/lib/public-menu-types";
 
 export const LOTTERY_REQUEST_TIMEOUT_MS = 8_000;
 
-export type QrLotteryError = "UNAVAILABLE" | "PRODUCT_UNAVAILABLE";
+export type QrLotteryError = "UNAVAILABLE" | "PRODUCT_UNAVAILABLE" | "NOT_ELIGIBLE";
 
 export type QrOrderLotteryState = {
   draw: LotteryDraw | null;
@@ -90,7 +90,7 @@ type QrLotteryResponse = {
 
 export type QrLotteryDrawEnvironment = {
   request: (
-    input: { orderSessionToken: string; deviceId: string },
+    input: { orderSessionToken: string; deviceId: string; cartTotal: number },
     signal: AbortSignal,
   ) => Promise<QrLotteryResponse>;
   wait: (delayMs: number) => Promise<void>;
@@ -108,6 +108,7 @@ export async function runQrOrderLotteryDraw(
     deviceId: string;
     visibleProductIds: readonly string[];
     prefersReducedMotion: boolean;
+    cartTotal?: number;
   },
   environment: QrLotteryDrawEnvironment = browserLotteryDrawEnvironment,
 ): Promise<QrLotteryDrawResult> {
@@ -116,10 +117,17 @@ export async function runQrOrderLotteryDraw(
       environment.request({
         orderSessionToken: input.orderSessionToken,
         deviceId: input.deviceId,
+        cartTotal: input.cartTotal ?? 0,
       }, environment.timeoutSignal(LOTTERY_REQUEST_TIMEOUT_MS)),
       environment.wait(environment.animationDelay(input.prefersReducedMotion)),
     ]);
-    if (!response.ok) return { kind: "FAILURE", reason: "UNAVAILABLE" };
+    if (!response.ok) {
+      const payload = await response.json() as Record<string, unknown>;
+      return {
+        kind: "FAILURE",
+        reason: payload.code === "LOTTERY_NOT_ELIGIBLE" ? "NOT_ELIGIBLE" : "UNAVAILABLE",
+      };
+    }
     const payload = await response.json() as Record<string, unknown>;
     const draw: LotteryDraw = {
       drawId: String(payload.drawId),
@@ -130,6 +138,15 @@ export async function runQrOrderLotteryDraw(
         : "DISCOVERY",
       discountWon: payload.discountWon === true,
       discountLabel: typeof payload.discountLabel === "string" ? payload.discountLabel : null,
+      freeProductReward: payload.freeProductReward === true,
+      qualificationType: payload.qualificationType === "SPEND"
+        ? "SPEND"
+        : payload.qualificationType === "FESTIVAL"
+          ? "FESTIVAL"
+          : "STANDARD",
+      qualificationThresholdAmount: typeof payload.qualificationThresholdAmount === "number"
+        ? payload.qualificationThresholdAmount
+        : null,
     };
     if (!input.visibleProductIds.includes(draw.productId)) {
       return { kind: "FAILURE", reason: "PRODUCT_UNAVAILABLE" };
@@ -182,6 +199,7 @@ export function useQrOrderLotteryController(input: {
   sessionExpiryDialogOpen: boolean;
   deviceId: string;
   visibleProducts: PublicMenuProduct[];
+  cartTotal: number;
   unavailableProductMessage: string;
   onSessionPhaseChange: (phase: ReturnType<typeof sessionCountdownPhase>) => void;
   onMessage: (message: string) => void;
@@ -229,6 +247,7 @@ export function useQrOrderLotteryController(input: {
       deviceId: input.deviceId,
       visibleProductIds: input.visibleProducts.map((product) => product.id),
       prefersReducedMotion: state.prefersReducedMotion,
+      cartTotal: input.cartTotal,
     });
     if (result.kind === "SUCCESS") {
       dispatch({
@@ -253,6 +272,11 @@ export function useQrOrderLotteryController(input: {
     if (!product) {
       dispatch({ type: "CLOSE_RESULT" });
       input.onMessage(input.unavailableProductMessage);
+      return;
+    }
+    if (state.draw.freeProductReward) {
+      dispatch({ type: "CLOSE_RESULT" });
+      scheduleQrLotteryTriggerFocus(lotteryButtonRef.current, "TIMER");
       return;
     }
     if (!lotteryProductNeedsConfiguration(product)) {

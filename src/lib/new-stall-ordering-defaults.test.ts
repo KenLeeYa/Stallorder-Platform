@@ -14,6 +14,12 @@ describe("new stall ordering defaults", () => {
       discountModuleEnabled: false,
       takeoutPreorderEnabled: false,
       lotteryEnabled: false,
+      lotterySpendRewardEnabled: false,
+      lotterySpendThresholdAmount: 666,
+      lotteryFestivalRewardEnabled: false,
+      lotteryFestivalStartsOn: null,
+      lotteryFestivalEndsOn: null,
+      lotteryBirthdayRewardEnabled: false,
       enabledLocales: ["zh-TW"],
     });
   });

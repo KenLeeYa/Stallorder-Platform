@@ -86,6 +86,12 @@ const sourceTemplate = {
     lotteryEnabled: true,
     lotteryDiscountOptionId: sourceDiscountId,
     lotteryDiscountWinRateBps: 2500,
+    lotterySpendRewardEnabled: true,
+    lotterySpendThresholdAmount: 666,
+    lotteryFestivalRewardEnabled: true,
+    lotteryFestivalStartsOn: new Date("2026-12-24T00:00:00.000Z"),
+    lotteryFestivalEndsOn: new Date("2026-12-25T00:00:00.000Z"),
+    lotteryBirthdayRewardEnabled: false,
   },
 };
 
@@ -178,6 +184,12 @@ describe("stall template ordering experience linkage", () => {
         lotteryEnabled: true,
         lotteryDiscountOptionId: targetDiscountId,
         lotteryDiscountWinRateBps: 2500,
+        lotterySpendRewardEnabled: true,
+        lotterySpendThresholdAmount: 666,
+        lotteryFestivalRewardEnabled: true,
+        lotteryFestivalStartsOn: new Date("2026-12-24T00:00:00.000Z"),
+        lotteryFestivalEndsOn: new Date("2026-12-25T00:00:00.000Z"),
+        lotteryBirthdayRewardEnabled: false,
       },
     });
     expect(mocks.executeRaw).toHaveBeenCalledTimes(2);

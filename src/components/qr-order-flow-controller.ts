@@ -184,6 +184,29 @@ export function useQrOrderFlowController({
   const requiredSelectionMessage = useCallback((product: Product) => (
     qrOrderMessages[locale].requiredNotes(localizedProduct(product).name)
   ), [locale, localizedProduct]);
+  const total = session ? cartLines.reduce((sum, line) => {
+    const product = session.products.find((candidate) => candidate.id === line.productId);
+    if (!product) return sum;
+    return sum + Math.max(
+      0,
+      product.price
+        + notePriceAdjustment(product.noteGroups, line.noteOptionIds)
+        + bundlePriceAdjustment(product.bundleChoiceGroups, line.bundleChoiceIds),
+    ) * line.quantity;
+  }, 0) : 0;
+  const automaticLotteryRewardEligible = Boolean(
+    session?.lotteryReward
+    && (
+      session.lotteryReward.festivalActive
+      || (
+        session.lotteryReward.spendEnabled
+        && total >= session.lotteryReward.spendThresholdAmount
+      )
+    ),
+  );
+  const automaticLotteryRewardConfigured = Boolean(
+    session?.lotteryReward?.spendEnabled || session?.lotteryReward?.festivalEnabled,
+  );
   const {
     productDrafts,
     editingLineIds,
@@ -232,6 +255,7 @@ export function useQrOrderFlowController({
     sessionExpiryDialogOpen,
     deviceId,
     visibleProducts,
+    cartTotal: total,
     unavailableProductMessage: copy.lotteryUnavailableProduct,
     onSessionPhaseChange: setSessionTimePhase,
     onMessage: setMessage,
@@ -569,16 +593,6 @@ export function useQrOrderFlowController({
 
   const totalQuantity = qrCartTotalQuantity(cartLines);
   const activeCartStep = cartLines.length === 0 ? "CART" : cartStep;
-  const total = session ? cartLines.reduce((sum, line) => {
-    const product = session.products.find((candidate) => candidate.id === line.productId);
-    if (!product) return sum;
-    return sum + Math.max(
-      0,
-      product.price
-        + notePriceAdjustment(product.noteGroups, line.noteOptionIds)
-        + bundlePriceAdjustment(product.bundleChoiceGroups, line.bundleChoiceIds),
-    ) * line.quantity;
-  }, 0) : 0;
   const categories = [...new Set(visibleProducts.map((product) => product.category))];
   const fulfillment = useMemo(() => buildQrOrderFulfillmentViewModel({
     entryChannel,
@@ -716,6 +730,15 @@ export function useQrOrderFlowController({
 
   async function submitOrder() {
     const input = checkoutFlowInput();
+    if (
+      !editTrackingToken
+      && automaticLotteryRewardEligible
+      && !lotteryDraw
+      && lotteryError !== "NOT_ELIGIBLE"
+    ) {
+      await drawLottery();
+      return;
+    }
     const effects = {
       onMessage: setMessage,
       onSubmittingChange: setIsSubmitting,
@@ -813,6 +836,8 @@ export function useQrOrderFlowController({
     lotteryCarouselProductNames,
     lotteryDialogVisible,
     lotteryDraw,
+    automaticLotteryRewardConfigured,
+    automaticLotteryRewardEligible,
     lotteryError,
     lotteryLimitDialogOpen,
     lotteryResultProduct,

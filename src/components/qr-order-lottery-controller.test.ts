@@ -15,6 +15,9 @@ const drawPayload = {
   recommendationBasis: "BEST_SELLER" as const,
   discountWon: true,
   discountLabel: "九折",
+  freeProductReward: false,
+  qualificationType: "STANDARD" as const,
+  qualificationThresholdAmount: null,
 };
 
 describe("QR order lottery controller", () => {
@@ -90,6 +93,7 @@ describe("QR order lottery controller", () => {
     expect(request).toHaveBeenCalledWith({
       orderSessionToken: "session-token",
       deviceId: "device-id",
+      cartTotal: 0,
     }, signal);
     expect(wait).toHaveBeenCalledWith(975);
     resolveRequest?.(response(drawPayload));

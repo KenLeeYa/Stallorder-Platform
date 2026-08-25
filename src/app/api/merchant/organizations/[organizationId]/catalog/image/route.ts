@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
@@ -11,6 +12,11 @@ import { enqueueStorageReplication } from "@/server/resilience/storage-replicati
 
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxFileSize = 5 * 1024 * 1024;
+const cropSchema = z.object({
+  positionX: z.coerce.number().min(0).max(100).default(50),
+  positionY: z.coerce.number().min(0).max(100).default(50),
+  zoom: z.coerce.number().min(100).max(200).default(100),
+});
 
 export const runtime = "nodejs";
 
@@ -29,6 +35,14 @@ export async function POST(request: Request, context: RouteContext) {
   if (!(file instanceof File) || file.size === 0 || file.size > maxFileSize || !allowedTypes.has(file.type)) {
     return NextResponse.json({ error: "請上傳 5MB 以下的 JPG、PNG 或 WebP 圖片；系統會自動轉為適合 Menu 顯示的 WebP。" }, { status: 400 });
   }
+  const crop = cropSchema.safeParse({
+    positionX: form?.get("positionX") ?? undefined,
+    positionY: form?.get("positionY") ?? undefined,
+    zoom: form?.get("zoom") ?? undefined,
+  });
+  if (!crop.success) {
+    return NextResponse.json({ error: "圖片裁切範圍不正確，請重新調整後再試。" }, { status: 400 });
+  }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secretKey = process.env.SUPABASE_SECRET_KEY;
@@ -43,7 +57,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   let optimizedBytes: Buffer;
   try {
-    optimizedBytes = await optimizeProductImage(bytes);
+    optimizedBytes = await optimizeProductImage(bytes, crop.data);
   } catch {
     return NextResponse.json({ error: "圖片無法解析或尺寸過大。" }, { status: 400 });
   }
@@ -93,6 +107,9 @@ export async function POST(request: Request, context: RouteContext) {
       sourceContentType: file.type,
       originalSize: file.size,
       optimizedSize: optimizedBytes.byteLength,
+      cropPositionX: crop.data.positionX,
+      cropPositionY: crop.data.positionY,
+      cropZoom: crop.data.zoom,
     },
   });
   const applicationOrigin = process.env.NEXT_PUBLIC_APP_URL

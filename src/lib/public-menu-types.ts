@@ -63,6 +63,12 @@ export type PublicMenu = {
   orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
   preorderSlots: string[];
   lotteryEnabled: boolean;
+  lotteryReward?: {
+    spendEnabled: boolean;
+    spendThresholdAmount: number;
+    festivalEnabled: boolean;
+    festivalActive: boolean;
+  };
   specialClosure?: {
     id: string;
     startsOn: string;

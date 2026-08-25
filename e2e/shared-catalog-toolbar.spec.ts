@@ -34,16 +34,28 @@ test("商品管理工具列依裝置寬度維持功能分列且不溢位", async
   for (const bounds of desktopCreateButtons) expect(bounds.height).toBeGreaterThanOrEqual(44);
 
   await page.setViewportSize({ width: 375, height: 812 });
-  const toolbarControls = page.getByTestId("shared-catalog-actions").locator(":scope > div > button, :scope > div > a, :scope > div > label");
+  const actions = page.getByTestId("shared-catalog-action-scroller");
+  const toolbarControls = actions.locator(":scope > div > button, :scope > div > a, :scope > div > label");
   const mobileBounds = await toolbarControls.evaluateAll((controls) => controls.map((control) => {
     const bounds = control.getBoundingClientRect();
-    return { left: bounds.left, right: bounds.right, height: bounds.height };
+    return { top: bounds.top, height: bounds.height };
   }));
   expect(mobileBounds).toHaveLength(8);
+  expect(new Set(mobileBounds.map(({ top }) => Math.round(top))).size).toBe(1);
   for (const bounds of mobileBounds) {
-    expect(bounds.left).toBeGreaterThanOrEqual(0);
-    expect(bounds.right).toBeLessThanOrEqual(375);
     expect(bounds.height).toBeGreaterThanOrEqual(44);
   }
+  const scrollLayout = await actions.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    overflowX: getComputedStyle(element).overflowX,
+  }));
+  expect(scrollLayout.clientWidth).toBeLessThanOrEqual(375);
+  expect(scrollLayout.scrollWidth).toBeGreaterThan(scrollLayout.clientWidth);
+  expect(scrollLayout.overflowX).toBe("auto");
+  await actions.evaluate((element) => element.scrollTo({ left: element.scrollWidth }));
+  await expect.poll(() => actions.evaluate((element) => (
+    Math.ceil(element.scrollLeft + element.clientWidth) >= element.scrollWidth
+  ))).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 });
