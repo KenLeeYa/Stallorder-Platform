@@ -63,13 +63,12 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
     "特殊營業日與公休公告",
     "內用點餐",
     "內用桌位與專屬 QR",
-    "線上外送",
+    "線上點餐與預約",
     "店員外送點餐",
     "訂單列印",
     "廚房 KDS",
     "付款方式",
     "結帳折扣",
-    "外帶預約",
     "抽抽樂推薦",
     "QR 點餐語系",
     "安全與訂單限制",
@@ -88,6 +87,8 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   ]) {
     await expect(page.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
+  await expect(page.getByRole("link", { name: "線上外送", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "外帶預約", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "現金交班報表", exact: true })).toHaveCount(0);
 
   await page.getByRole("link", { name: "基本資料", exact: true }).click();
@@ -213,7 +214,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
     try {
       const japanesePage = await japaneseContext.newPage();
       await gotoLocalPath(japanesePage, "/q/demo-aming-chicken-qr-2026-rotate-me");
-      const languageMenu = japanesePage.getByRole("button", { name: "點餐語言" });
+      const languageMenu = japanesePage.locator("button[data-current-locale]");
       await expect(languageMenu).toHaveAttribute("data-current-locale", "zh-TW");
       await languageMenu.click();
       await expect(japanesePage.getByRole("option", { name: "日本語", exact: true })).toHaveCount(0);

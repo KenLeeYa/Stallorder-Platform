@@ -15,13 +15,12 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     ["特殊營業日與公休公告", "special-hours"],
     ["內用點餐", "dine-in"],
     ["內用桌位與專屬 QR", "dining-tables"],
-    ["線上外送", "delivery"],
+    ["線上點餐與預約", "online-ordering"],
     ["店員外送點餐", "staff-delivery"],
     ["訂單列印", "printing"],
     ["廚房 KDS", "kds"],
     ["付款方式", "payments"],
     ["結帳折扣", "discounts"],
-    ["外帶預約", "preorder"],
     ["抽抽樂推薦", "lottery"],
     ["QR 點餐語系", "languages"],
     ["安全與訂單限制", "order-limits"],
@@ -31,13 +30,12 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
   const moduleSections = new Set([
     "dine-in",
     "dining-tables",
-    "delivery",
+    "online-ordering",
     "staff-delivery",
     "printing",
     "kds",
     "payments",
     "discounts",
-    "preorder",
     "lottery",
     "languages",
   ]);
@@ -115,6 +113,8 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
   await expect(page.getByRole("link", { name: "現金交班報表", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "線上外送", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "外帶預約", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "KDS 工作站", exact: true }))
     .toHaveAttribute("href", `/merchant/stalls/${stallId}/kitchen/stations`);
   await expect(page.getByRole("link", { name: "KDS 設定", exact: true }))
@@ -126,7 +126,8 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     await expect(link).toHaveAttribute("href", `/merchant/stalls/${stallId}/settings/${section}`);
     await link.click();
     await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/settings/${section}$`));
-    await expect(page.getByRole("heading", { name: label, exact: true }).first()).toBeVisible();
+    const headingLabel = section === "lottery" ? "抽抽樂與贈品" : label;
+    await expect(page.getByRole("heading", { name: headingLabel, exact: true }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "返回攤位設定", exact: true })).toBeVisible();
     const staticScope = staticSectionScopes[section];
     if (staticScope) {

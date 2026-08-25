@@ -831,15 +831,16 @@ export function SharedCatalogManager({
 
   return (
     <section aria-labelledby="shared-catalog-heading">
-      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex min-w-0 flex-col gap-4 border-b border-stone-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-semibold text-teal-800">{label("組織商品主檔")}</p>
           <h1 id="shared-catalog-heading" className="mt-1 text-3xl font-semibold">{label("共用商品")}</h1>
           <p className="mt-2 text-sm text-stone-600">{label("一次建立分類、群組與商品，再分派到一個或多個攤位。")}</p>
         </div>
-        <div data-testid="shared-catalog-actions" className="flex w-full flex-nowrap gap-2 overflow-x-auto pb-1 xl:w-auto xl:flex-col xl:overflow-visible xl:pb-0">
-          <div data-testid="shared-catalog-tools" className="contents xl:flex xl:flex-wrap xl:justify-end xl:gap-2">
-            <button type="button" title={allProductsExpanded ? label("收合全部品項") : label("展開全部品項")} data-testid="shared-products-toggle-all" aria-expanded={allProductsExpanded} aria-controls="shared-product-catalog" onClick={toggleAllProducts} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><ChevronDown className={`h-5 w-5 transition-transform ${allProductsExpanded ? "rotate-180" : ""}`} /><span className="sr-only xl:not-sr-only">{allProductsExpanded ? label("收合全部品項") : label("展開全部品項")}</span></button>
+        <div data-testid="shared-catalog-actions" className="w-full min-w-0 max-w-[calc(100vw-2rem)] overflow-x-hidden md:max-w-[calc(100vw-4rem)] xl:w-auto xl:max-w-none xl:overflow-visible">
+          <div data-testid="shared-catalog-action-scroller" className="flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 xl:w-auto xl:flex-col xl:overflow-visible xl:pb-0">
+            <div data-testid="shared-catalog-tools" className="flex shrink-0 gap-2 xl:flex-wrap xl:justify-end">
+            <button type="button" title={allProductsExpanded ? label("收合全部品項") : label("展開全部品項")} aria-label={allProductsExpanded ? label("收合全部品項") : label("展開全部品項")} data-testid="shared-products-toggle-all" aria-expanded={allProductsExpanded} aria-controls="shared-product-catalog" onClick={toggleAllProducts} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><ChevronDown className={`h-5 w-5 transition-transform ${allProductsExpanded ? "rotate-180" : ""}`} /><span className="hidden xl:inline">{allProductsExpanded ? label("收合全部品項") : label("展開全部品項")}</span></button>
             <button
               type="button"
               disabled={!aiTranslationConfigured || translationOptions.length === 0 || busy || aiTranslating}
@@ -849,16 +850,17 @@ export function SharedCatalogManager({
               className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold text-teal-800 disabled:cursor-not-allowed disabled:opacity-45 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"
             >
               <Sparkles className="h-5 w-5" />
-              <span className="sr-only xl:not-sr-only">{aiTranslating ? label("翻譯中…") : label("一鍵補齊翻譯")}</span>
+              <span className="hidden xl:inline">{aiTranslating ? label("翻譯中…") : label("一鍵補齊翻譯")}</span>
             </button>
-            <a title={label("匯出 CSV")} aria-label={label("匯出 CSV")} href={`/api/merchant/organizations/${organizationId}/catalog/export`} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Download className="h-5 w-5" /><span className="sr-only xl:not-sr-only">{label("匯出 CSV")}</span></a>
-            <label title={label("匯入 CSV")} className="inline-grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Upload className="h-5 w-5" /><span className="sr-only xl:not-sr-only">{label("匯入 CSV")}</span><input type="file" aria-label={label("匯入 CSV")} accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewCatalogImport(file); event.currentTarget.value = ""; }} /></label>
-          </div>
-          <div data-testid="shared-catalog-create-actions" className="contents xl:flex xl:flex-wrap xl:justify-end xl:gap-2">
-            <button type="button" title={label("新增分類")} aria-label={label("新增分類")} onClick={createCategory} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><FolderPlus className="h-5 w-5" /><span className="sr-only xl:not-sr-only">{label("分類")}</span></button>
-            <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={createGroup} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Layers3 className="h-5 w-5" /><span className="sr-only xl:not-sr-only">{label("群組")}</span></button>
-            <button type="button" title={label("新增商品")} aria-label={label("新增商品")} onClick={() => createProduct("SINGLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackagePlus className="h-5 w-5" /><span className="sr-only xl:not-sr-only">{label("商品")}</span></button>
-            <button type="button" title={label("新增套餐")} aria-label={label("新增套餐")} onClick={() => createProduct("BUNDLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-sm font-semibold text-teal-900 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackageOpen className="h-5 w-5" /><span className="sr-only xl:not-sr-only">{label("新增套餐")}</span></button>
+            <a title={label("匯出 CSV")} aria-label={label("匯出 CSV")} href={`/api/merchant/organizations/${organizationId}/catalog/export`} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Download className="h-5 w-5" /><span className="hidden xl:inline">{label("匯出 CSV")}</span></a>
+            <label title={label("匯入 CSV")} aria-label={label("匯入 CSV")} className="inline-grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Upload className="h-5 w-5" /><span className="hidden xl:inline">{label("匯入 CSV")}</span><input type="file" aria-label={label("匯入 CSV")} accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewCatalogImport(file); event.currentTarget.value = ""; }} /></label>
+            </div>
+            <div data-testid="shared-catalog-create-actions" className="flex shrink-0 gap-2 xl:flex-wrap xl:justify-end">
+              <button type="button" title={label("新增分類")} aria-label={label("新增分類")} onClick={createCategory} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><FolderPlus className="h-5 w-5" /><span className="hidden xl:inline">{label("分類")}</span></button>
+              <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={createGroup} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Layers3 className="h-5 w-5" /><span className="hidden xl:inline">{label("群組")}</span></button>
+              <button type="button" title={label("新增商品")} aria-label={label("新增商品")} onClick={() => createProduct("SINGLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackagePlus className="h-5 w-5" /><span className="hidden xl:inline">{label("商品")}</span></button>
+              <button type="button" title={label("新增套餐")} aria-label={label("新增套餐")} onClick={() => createProduct("BUNDLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-sm font-semibold text-teal-900 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackageOpen className="h-5 w-5" /><span className="hidden xl:inline">{label("新增套餐")}</span></button>
+            </div>
           </div>
         </div>
       </div>

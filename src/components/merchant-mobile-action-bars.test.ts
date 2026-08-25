@@ -10,11 +10,13 @@ describe("merchant mobile action bars", () => {
     const catalog = source("./shared-catalog-manager.tsx");
 
     expect(catalog).toContain('data-testid="shared-catalog-actions"');
+    expect(catalog).toContain('data-testid="shared-catalog-action-scroller"');
     expect(catalog).toContain('data-testid="shared-catalog-tools"');
     expect(catalog).toContain('data-testid="shared-catalog-create-actions"');
-    expect(catalog).toContain('className="sr-only xl:not-sr-only"');
-    expect(catalog).toContain("contents xl:flex");
-    expect(catalog).toContain("flex-nowrap gap-2 overflow-x-auto pb-1");
+    expect(catalog).toContain('className="hidden xl:inline"');
+    expect(catalog).toContain("max-w-[calc(100vw-2rem)] overflow-x-hidden");
+    expect(catalog).toContain("flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1");
+    expect(catalog).toContain("flex shrink-0 gap-2 xl:flex-wrap");
     expect(catalog).toContain("<FolderPlus");
     expect(catalog).toContain("<Layers3");
     expect(catalog).toContain("<PackagePlus");
