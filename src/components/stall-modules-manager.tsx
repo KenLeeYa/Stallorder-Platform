@@ -52,6 +52,12 @@ export type ModuleState = {
       discountOptionId: string;
       winRateBps: number;
     }>;
+    lotterySpendRewardEnabled: boolean;
+    lotterySpendThresholdAmount: number;
+    lotteryFestivalRewardEnabled: boolean;
+    lotteryFestivalStartsOn: string | null;
+    lotteryFestivalEndsOn: string | null;
+    lotteryBirthdayRewardEnabled: boolean;
     enabledLocales: QrLocale[];
   };
   floors: Array<{
@@ -93,6 +99,7 @@ export type StallModuleView =
   | "all"
   | "dine-in"
   | "dining-tables"
+  | "online-ordering"
   | "delivery"
   | "staff-delivery"
   | "printing"
@@ -158,6 +165,7 @@ export function StallModulesManager({
     all: "營運模組與內用桌位",
     "dine-in": "內用點餐",
     "dining-tables": "內用桌位與專屬 QR",
+    "online-ordering": "線上點餐與預約",
     delivery: "線上外送",
     "staff-delivery": "店員外送點餐",
     printing: "訂單列印",
@@ -165,7 +173,7 @@ export function StallModulesManager({
     payments: "付款方式",
     discounts: "結帳折扣",
     preorder: "外帶預約",
-    lottery: "抽抽樂推薦",
+    lottery: "抽抽樂與贈品",
     languages: "QR 點餐語系",
   }[view]);
   const showsModuleControls = !["dining-tables", "languages"].includes(view);
@@ -337,6 +345,12 @@ export function StallModulesManager({
       lotteryDiscountOptionId: firstLotteryDiscount?.discountOptionId ?? null,
       lotteryDiscountWinRateBps: firstLotteryDiscount?.winRateBps ?? 0,
       lotteryDiscountChances: settings.lotteryDiscountChances ?? [],
+      lotterySpendRewardEnabled: settings.lotterySpendRewardEnabled,
+      lotterySpendThresholdAmount: settings.lotterySpendThresholdAmount,
+      lotteryFestivalRewardEnabled: settings.lotteryFestivalRewardEnabled,
+      lotteryFestivalStartsOn: settings.lotteryFestivalStartsOn,
+      lotteryFestivalEndsOn: settings.lotteryFestivalEndsOn,
+      lotteryBirthdayRewardEnabled: false,
     }, label("模組開關已儲存。"));
   }
 
@@ -399,21 +413,44 @@ export function StallModulesManager({
 
       {showsModuleControls ? <div data-module-switch-grid className="mt-5 grid gap-3 sm:grid-cols-2">
         {isView("dine-in") ? <ModuleSwitch label={label("內用點餐")} icon={<Utensils className="h-4 w-4" />} checked={state.settings.dineInEnabled} onChange={(dineInEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, dineInEnabled } }))} /> : null}
-        {isView("delivery") ? <ModuleSwitch label={label("線上外送")} icon={<Truck className="h-4 w-4" />} checked={state.settings.deliveryModuleEnabled} onChange={(deliveryModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, deliveryModuleEnabled } }))} /> : null}
+        {isView("delivery", "online-ordering") ? <ModuleSwitch label={label("線上外送")} icon={<Truck className="h-4 w-4" />} checked={state.settings.deliveryModuleEnabled} onChange={(deliveryModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, deliveryModuleEnabled } }))} /> : null}
         {isView("staff-delivery") ? <ModuleSwitch label={label("店員外送點餐")} icon={<Truck className="h-4 w-4" />} checked={state.settings.staffDeliveryEnabled} onChange={(staffDeliveryEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, staffDeliveryEnabled } }))} /> : null}
         {isView("printing") ? <ModuleSwitch label={label("訂單列印")} icon={<Printer className="h-4 w-4" />} checked={state.settings.printModuleEnabled} onChange={(printModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, printModuleEnabled } }))} /> : null}
         {isView("kds") ? <ModuleSwitch label={label("廚房 KDS")} icon={<SlidersHorizontal className="h-4 w-4" />} checked={state.settings.kdsModuleEnabled} onChange={(kdsModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, kdsModuleEnabled } }))} /> : null}
         {isView("payments") ? <ModuleSwitch label={label("多元付款")} icon={<WalletCards className="h-4 w-4" />} checked={state.settings.paymentModuleEnabled} onChange={(paymentModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, paymentModuleEnabled } }))} /> : null}
         {isView("discounts") ? <ModuleSwitch label={label("結帳折扣")} icon={<Percent className="h-4 w-4" />} checked={state.settings.discountModuleEnabled} onChange={(discountModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, discountModuleEnabled } }))} /> : null}
-        {isView("preorder") ? <ModuleSwitch label={label("外帶預約")} icon={<CalendarClock className="h-4 w-4" />} checked={state.settings.takeoutPreorderEnabled} onChange={(takeoutPreorderEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, takeoutPreorderEnabled }) }))} /> : null}
+        {isView("preorder", "online-ordering") ? <ModuleSwitch label={label("外帶自取（需選時段）")} icon={<CalendarClock className="h-4 w-4" />} checked={state.settings.takeoutPreorderEnabled} onChange={(takeoutPreorderEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, takeoutPreorderEnabled }) }))} /> : null}
         {isView("lottery") ? <ModuleSwitch label={label("抽抽樂推薦")} icon={<Dices className="h-4 w-4" />} checked={state.settings.lotteryEnabled} onChange={(lotteryEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, lotteryEnabled }) }))} /> : null}
       </div> : null}
-      {isView("preorder") && state.settings.takeoutPreorderEnabled ? <div className="mt-4 grid gap-3 rounded-lg border border-stone-200 p-4 sm:grid-cols-3">
+      {isView("preorder", "online-ordering") && state.settings.takeoutPreorderEnabled ? <div className="mt-4 grid gap-3 rounded-lg border border-stone-200 p-4 sm:grid-cols-3">
         <NumberInput label={label("最少提前（分鐘）")} value={state.settings.preorderMinLeadMinutes} fieldKey={fieldKey("modules", "preorderMinLeadMinutes")} error={errorFor("modules", "preorderMinLeadMinutes")} min={15} max={1440} onChange={(preorderMinLeadMinutes) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMinLeadMinutes } }))} />
         <NumberInput label={label("最多預約天數")} value={state.settings.preorderMaxDays} fieldKey={fieldKey("modules", "preorderMaxDays")} error={errorFor("modules", "preorderMaxDays")} min={1} max={30} onChange={(preorderMaxDays) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMaxDays } }))} />
         <label className="text-xs font-medium text-stone-600">{label("時段間隔")}<select {...validationAttributes(fieldKey("modules", "preorderSlotMinutes"), errorFor("modules", "preorderSlotMinutes"))} value={state.settings.preorderSlotMinutes} onChange={(event) => setState((current) => ({ ...current, settings: { ...current.settings, preorderSlotMinutes: Number(event.target.value) as 5 | 15 | 30 | 60 | 120 } }))} className={`${inputClass(errorFor("modules", "preorderSlotMinutes"))} bg-white`}><option value={5}>{label("5 分鐘")}</option><option value={15}>{label("15 分鐘")}</option><option value={30}>{label("30 分鐘")}</option><option value={60}>{label("60 分鐘")}</option><option value={120}>{label("120 分鐘")}</option></select><FieldError fieldKey={fieldKey("modules", "preorderSlotMinutes")} error={errorFor("modules", "preorderSlotMinutes")} /></label>
         <p className="text-xs text-stone-500 sm:col-span-3">{label("關店期間只接受營業時間內的合法外帶時段；暫停接單與售罄仍會阻擋預約。")}</p>
       </div> : null}
+      {isView("lottery") && state.settings.lotteryEnabled ? <fieldset className="mt-4 rounded-lg border border-violet-200 bg-violet-50/60 p-4">
+        <legend className="px-1 text-sm font-semibold text-violet-950">{label("免費餐點抽獎資格")}</legend>
+        <p className="text-xs leading-5 text-violet-800">{label("符合資格後，顧客送出訂單前會看到抽獎視窗；抽中的免費商品由伺服器以 0 元贈品加入同一張訂單。")}</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="rounded-md border border-violet-200 bg-white p-3 text-sm font-semibold text-stone-800">
+            <span className="flex min-h-8 items-center gap-2"><input type="checkbox" checked={state.settings.lotterySpendRewardEnabled} onChange={(event) => setState((current) => ({ ...current, settings: { ...current.settings, lotterySpendRewardEnabled: event.target.checked } }))} />{label("滿額免費抽獎")}</span>
+            <span className="mt-2 block text-xs font-normal text-stone-500">{label("以送出時的伺服器實際商品金額判定。")}</span>
+          </label>
+          <NumberInput label={label("滿額門檻")} value={state.settings.lotterySpendThresholdAmount} fieldKey={fieldKey("modules", "lotterySpendThresholdAmount")} error={errorFor("modules", "lotterySpendThresholdAmount")} min={1} max={10_000_000} onChange={(lotterySpendThresholdAmount) => setState((current) => ({ ...current, settings: { ...current.settings, lotterySpendThresholdAmount } }))} />
+          <label className="rounded-md border border-violet-200 bg-white p-3 text-sm font-semibold text-stone-800 sm:col-span-2">
+            <span className="flex min-h-8 items-center gap-2"><input type="checkbox" checked={state.settings.lotteryFestivalRewardEnabled} onChange={(event) => setState((current) => ({ ...current, settings: { ...current.settings, lotteryFestivalRewardEnabled: event.target.checked } }))} />{label("節慶期間免費抽獎")}</span>
+            <span className="mt-2 block text-xs font-normal text-stone-500">{label("依攤位營業時區判定活動日期；同一裝置每日限一次。")}</span>
+          </label>
+          {state.settings.lotteryFestivalRewardEnabled ? <>
+            <DateInput label={label("活動開始日期")} value={state.settings.lotteryFestivalStartsOn ?? ""} fieldKey={fieldKey("modules", "lotteryFestivalStartsOn")} error={errorFor("modules", "lotteryFestivalStartsOn")} onChange={(lotteryFestivalStartsOn) => setState((current) => ({ ...current, settings: { ...current.settings, lotteryFestivalStartsOn: lotteryFestivalStartsOn || null } }))} />
+            <DateInput label={label("活動結束日期")} value={state.settings.lotteryFestivalEndsOn ?? ""} fieldKey={fieldKey("modules", "lotteryFestivalEndsOn")} error={errorFor("modules", "lotteryFestivalEndsOn")} onChange={(lotteryFestivalEndsOn) => setState((current) => ({ ...current, settings: { ...current.settings, lotteryFestivalEndsOn: lotteryFestivalEndsOn || null } }))} />
+          </> : null}
+          <div className="rounded-md border border-stone-200 bg-white p-3 text-sm text-stone-500 sm:col-span-2">
+            <span className="font-semibold text-stone-700">{label("壽星抽獎")}</span>
+            <p className="mt-1 text-xs leading-5">{label("需先串接會員生日與電話驗證，避免顧客自行填寫生日重複領取；驗證完成前不開放。")}</p>
+          </div>
+        </div>
+      </fieldset> : null}
       {isView("lottery") && state.settings.lotteryEnabled ? <fieldset className="mt-4 rounded-lg border border-stone-200 p-4">
         <legend className="px-1 text-sm font-semibold text-stone-800">{label("抽抽樂折扣獎項")}</legend>
         <p className="text-xs leading-5 text-stone-500">{label("商品推薦依近 30 天已完成訂單的熱銷排行加權，並保留探索其他可抽商品的機會；折扣獎項會依下方設定的機率獨立抽取。")}</p>
@@ -472,7 +509,7 @@ export function StallModulesManager({
       <section
         id="stall-module-section-delivery"
         data-module-section="delivery"
-        className={`${isView("delivery", "preorder") ? "" : "hidden "}mt-8 border-y border-stone-200`}
+        className={`${isView("delivery", "preorder", "online-ordering") ? "" : "hidden "}mt-8 border-y border-stone-200`}
       >
         <CollapsibleSectionSummary
           icon={Truck}
@@ -480,7 +517,9 @@ export function StallModulesManager({
             ? `${label("線上外送")} · LINE`
             : view === "preorder"
               ? `${label("外帶預約")} · LINE`
-              : label("外帶、外送與 LINE 連結")}
+              : view === "online-ordering"
+                ? label("外帶自取、外送與共用連結")
+                : label("外帶、外送與 LINE 連結")}
           description={label("分享連結才會讓顧客選擇取餐或送達時間；現場 QR 維持即時點餐。")}
           level={3}
         />
@@ -699,6 +738,16 @@ function NumberInput({ label, value, fieldKey: controlFieldKey, error, min = 0, 
   onChange: (value: number) => void;
 }) {
   return <label className="text-xs font-medium text-stone-600">{label}<input {...validationAttributes(controlFieldKey, error)} type="number" min={min} max={max} value={value} onChange={(event) => onChange(Number(event.target.value))} className={inputClass(error)} /><FieldError fieldKey={controlFieldKey} error={error} /></label>;
+}
+
+function DateInput({ label, value, fieldKey: controlFieldKey, error, onChange }: {
+  label: string;
+  value: string;
+  fieldKey?: string;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  return <label className="text-xs font-medium text-stone-600">{label}<input {...validationAttributes(controlFieldKey, error)} type="date" value={value} onChange={(event) => onChange(event.target.value)} className={inputClass(error)} /><FieldError fieldKey={controlFieldKey} error={error} /></label>;
 }
 
 function PercentInput({ value, fieldKey: controlFieldKey, error, onChange }: { value: number; fieldKey?: string; error?: string; onChange: (value: number) => void }) {

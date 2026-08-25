@@ -92,13 +92,12 @@ export function StallSettingsOverview({
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/special-hours`} icon={CalendarOff} label={m("特殊營業日與公休公告")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/dine-in`} icon={Utensils} label={m("內用點餐")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/dining-tables`} icon={MapPinned} label={m("內用桌位與專屬 QR")} />
-          <SettingsLink href={`/merchant/stalls/${stallId}/settings/delivery`} icon={Truck} label={m("線上外送")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/online-ordering`} icon={CalendarClock} label={m("線上點餐與預約")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/staff-delivery`} icon={Truck} label={m("店員外送點餐")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/printing`} icon={Printer} label={m("訂單列印")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/kds`} icon={SlidersHorizontal} label={m("廚房 KDS")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/payments`} icon={WalletCards} label={m("付款方式")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/discounts`} icon={Percent} label={m("結帳折扣")} />
-          <SettingsLink href={`/merchant/stalls/${stallId}/settings/preorder`} icon={CalendarClock} label={m("外帶預約")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/lottery`} icon={Dices} label={m("抽抽樂推薦")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/languages`} icon={Languages} label={m("QR 點餐語系")} />
           {canManageOrdering ? (

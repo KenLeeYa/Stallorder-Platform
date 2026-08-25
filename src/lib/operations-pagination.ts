@@ -18,7 +18,7 @@ export function parseOperationsPageSize(value: string | undefined): OperationsPa
   const parsed = Number(value);
   return OPERATIONS_PAGE_SIZES.includes(parsed as OperationsPageSize)
     ? parsed as OperationsPageSize
-    : 10;
+    : 5;
 }
 
 export function parseOperationsPage(value: string | undefined) {

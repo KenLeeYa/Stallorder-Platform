@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "ui:audit": "node scripts/audit-ui-controls.mjs",
     "local:doctor": "node scripts/local-dev-doctor.mjs",
+    "docker:health": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/docker-desktop-health.ps1",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "production:check": "node scripts/production-readiness.mjs",

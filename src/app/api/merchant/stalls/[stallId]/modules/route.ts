@@ -26,7 +26,9 @@ import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu
 type RouteContext = { params: Promise<{ stallId: string }> };
 
 function updatesModuleView(view: string, target: string) {
-  return view === "all" || view === target;
+  return view === "all"
+    || view === target
+    || (view === "online-ordering" && (target === "delivery" || target === "preorder"));
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -122,6 +124,19 @@ export async function PATCH(request: Request, context: RouteContext) {
     const entityId = await prisma.$transaction(async (transaction) => {
       if (command.operation === "UPDATE_MODULES") {
         const updatesLottery = updatesModuleView(command.view, "lottery");
+        if (updatesLottery && command.lotteryFestivalRewardEnabled) {
+          if (!command.lotteryFestivalStartsOn || !command.lotteryFestivalEndsOn) {
+            throw new LotteryCampaignConfigurationError({
+              lotteryFestivalStartsOn: "請選擇活動開始日期。",
+              lotteryFestivalEndsOn: "請選擇活動結束日期。",
+            });
+          }
+          if (command.lotteryFestivalEndsOn < command.lotteryFestivalStartsOn) {
+            throw new LotteryCampaignConfigurationError({
+              lotteryFestivalEndsOn: "活動結束日期不可早於開始日期。",
+            });
+          }
+        }
         const lotteryDiscountChances = updatesLottery && command.lotteryEnabled
           ? command.lotteryDiscountChances ?? (
               command.lotteryDiscountOptionId && command.lotteryDiscountWinRateBps > 0
@@ -182,6 +197,16 @@ export async function PATCH(request: Request, context: RouteContext) {
               lotteryEnabled: command.lotteryEnabled,
               lotteryDiscountOptionId: legacyLotteryDiscount?.discountOptionId ?? null,
               lotteryDiscountWinRateBps: legacyLotteryDiscount?.winRateBps ?? 0,
+              lotterySpendRewardEnabled: command.lotterySpendRewardEnabled,
+              lotterySpendThresholdAmount: command.lotterySpendThresholdAmount,
+              lotteryFestivalRewardEnabled: command.lotteryFestivalRewardEnabled,
+              lotteryFestivalStartsOn: command.lotteryFestivalStartsOn
+                ? new Date(`${command.lotteryFestivalStartsOn}T00:00:00.000Z`)
+                : null,
+              lotteryFestivalEndsOn: command.lotteryFestivalEndsOn
+                ? new Date(`${command.lotteryFestivalEndsOn}T00:00:00.000Z`)
+                : null,
+              lotteryBirthdayRewardEnabled: false,
             } : {}),
           },
         });
@@ -579,6 +604,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     const duplicate = Boolean(duplicateError);
     const notFound = error instanceof ModuleNotFoundError || error instanceof DiningFloorNotFoundError;
     const invalidLotteryDiscount = error instanceof LotteryDiscountNotFoundError;
+    const invalidLotteryCampaign = error instanceof LotteryCampaignConfigurationError
+      ? error
+      : null;
     const activeOrders = error instanceof ActiveTableOrdersError;
     const floorInUse = error instanceof DiningFloorInUseError;
     const duplicateFieldErrors = duplicate
@@ -586,12 +614,14 @@ export async function PATCH(request: Request, context: RouteContext) {
       : undefined;
     return NextResponse.json(
       {
-        error: duplicateFieldErrors?.name ? "樓層名稱已存在。" : duplicateFieldErrors ? "代碼已存在。" : duplicate ? "資料與現有設定衝突，請重新整理後再試。" : invalidLotteryDiscount ? "抽抽樂折扣已停用或不存在，請重新選擇。" : notFound ? "找不到指定設定。" : activeOrders ? "桌位仍有未完成訂單，請先停用而不要刪除。" : floorInUse ? "樓層仍有桌位，請先移動或刪除桌位。" : "目前無法更新模組設定。",
+        error: duplicateFieldErrors?.name ? "樓層名稱已存在。" : duplicateFieldErrors ? "代碼已存在。" : duplicate ? "資料與現有設定衝突，請重新整理後再試。" : invalidLotteryDiscount ? "抽抽樂折扣已停用或不存在，請重新選擇。" : invalidLotteryCampaign ? "請檢查免費抽獎活動日期。" : notFound ? "找不到指定設定。" : activeOrders ? "桌位仍有未完成訂單，請先停用而不要刪除。" : floorInUse ? "樓層仍有桌位，請先移動或刪除桌位。" : "目前無法更新模組設定。",
         ...(duplicateFieldErrors ? { fieldErrors: duplicateFieldErrors } : invalidLotteryDiscount ? {
           fieldErrors: { lotteryDiscountChances: "抽抽樂折扣已停用或不存在，請重新選擇。" },
+        } : invalidLotteryCampaign ? {
+          fieldErrors: invalidLotteryCampaign.fieldErrors,
         } : {}),
       },
-      { status: duplicate || activeOrders || floorInUse ? 409 : invalidLotteryDiscount ? 400 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
+      { status: duplicate || activeOrders || floorInUse ? 409 : invalidLotteryDiscount || invalidLotteryCampaign ? 400 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }
 }
@@ -626,5 +656,10 @@ async function findLegacyLotteryDiscount(transaction: Prisma.TransactionClient, 
 
 class ModuleNotFoundError extends Error {}
 class LotteryDiscountNotFoundError extends Error {}
+class LotteryCampaignConfigurationError extends Error {
+  constructor(readonly fieldErrors: Record<string, string>) {
+    super("LOTTERY_CAMPAIGN_CONFIGURATION_INVALID");
+  }
+}
 class ActiveTableOrdersError extends Error {}
 class DiningFloorInUseError extends Error {}

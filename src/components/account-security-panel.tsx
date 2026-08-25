@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { MerchantListPageNavigation } from "@/components/merchant-list-pagination";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { buildOperationsPageMeta } from "@/lib/operations-pagination";
+
+const SESSION_PAGE_SIZE = 5;
 
 type Provider = {
   provider: "GOOGLE" | "LINE" | "APPLE" | "MICROSOFT";
@@ -62,9 +66,18 @@ export function AccountSecurityPanel({
   const router = useRouter();
   const [providers] = useState(initialProviders);
   const [sessions, setSessions] = useState(initialSessions);
+  const [sessionPage, setSessionPage] = useState(1);
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const activeIdentityCount = providers.filter((provider) => provider.linkedAt).length;
+  const sessionPagination = buildOperationsPageMeta(sessions.length, {
+    page: sessionPage,
+    pageSize: SESSION_PAGE_SIZE,
+  });
+  const visibleSessions = sessions.slice(
+    (sessionPagination.page - 1) * SESSION_PAGE_SIZE,
+    sessionPagination.page * SESSION_PAGE_SIZE,
+  );
 
   async function link(provider: Provider["provider"]) {
     setPending(`link:${provider}`);
@@ -176,13 +189,20 @@ export function AccountSecurityPanel({
           <button type="button" disabled={pending !== null} onClick={logoutAll} className="min-h-11 rounded-md border border-red-300 px-4 text-sm font-semibold text-red-800 disabled:opacity-50">{copy.logoutAll}</button>
         </div>
         <div className="mt-5 divide-y divide-stone-200">
-          {sessions.map((session) => (
+          {visibleSessions.map((session) => (
             <div key={session.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
               <div><h3 className="font-semibold">{session.current ? `${copy.currentDevice} · ${session.label}` : session.label || copy.otherDevice}</h3><p className="mt-1 text-sm text-stone-600">{copy.lastActive} {session.lastSeenAt} · {copy.expires} {session.expiresAt}</p></div>
               <button type="button" disabled={pending !== null} onClick={() => revokeSession(session.id)} className="min-h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">{copy.logoutDevice}</button>
             </div>
           ))}
         </div>
+        {sessions.length > SESSION_PAGE_SIZE ? (
+          <MerchantListPageNavigation
+            label={copy.sessions}
+            pagination={sessionPagination}
+            onPageChange={setSessionPage}
+          />
+        ) : null}
       </section>
 
       {passkeysEnabled ? (

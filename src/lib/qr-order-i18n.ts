@@ -50,6 +50,7 @@ export type QrOrderMessages = {
   lotteryRegionLabel: string;
   lotterySectionTitle: string;
   lotterySectionDescription: string;
+  lotterySpendProgress: (amount: string) => string;
   lotteryStart: string;
   lotteryDrawingButton: string;
   lotteryAlreadyDrawn: string;
@@ -59,16 +60,20 @@ export type QrOrderMessages = {
   lotteryBestSellerBasis: string;
   lotteryDiscoveryBasis: string;
   lotteryRecommendation: (product: string) => string;
+  lotteryFreeRewardResult: (product: string) => string;
+  lotteryFreeRewardNotice: string;
   lotteryDiscountResult: (discount: string) => string;
   lotteryNoDiscountResult: string;
   lotteryDiscountNotice: string;
   lotteryAccept: string;
+  lotteryFreeRewardAccept: string;
   lotteryCancel: string;
   lotteryDailyLimitTitle: string;
   lotteryDailyLimitDescription: string;
   lotteryAcknowledge: string;
   lotteryUnavailable: string;
   lotteryUnavailableProduct: string;
+  lotteryNotEligible: string;
   hotSellerBadge: string;
   qrUnavailableTitle: string;
   degradedTitle: string;
@@ -167,6 +172,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryRegionLabel: "抽抽樂推薦",
     lotterySectionTitle: "不知道點什麼？幫我抽",
     lotterySectionDescription: "依近 30 天完成訂單的熱銷趨勢推薦，也保留探索其他商品的機會；結帳折扣會另外獨立抽取。",
+    lotterySpendProgress: (amount) => `再消費 ${amount} 即可獲得一次免費餐點抽獎。`,
     lotteryStart: "開始抽抽樂",
     lotteryDrawingButton: "抽取中…",
     lotteryAlreadyDrawn: "今日已抽取",
@@ -176,16 +182,20 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryBestSellerBasis: "熱銷推薦",
     lotteryDiscoveryBasis: "探索人氣推薦",
     lotteryRecommendation: (product) => `推薦你點「${product}」`,
+    lotteryFreeRewardResult: (product) => `恭喜抽中「${product}」免費一份！`,
+    lotteryFreeRewardNotice: "贈品會在送出訂單時自動以 0 元加入，不需再加入購物車。",
     lotteryDiscountResult: (discount) => `同時抽中 ${discount}！`,
     lotteryNoDiscountResult: "這次沒有抽中折扣。",
     lotteryDiscountNotice: "折扣僅套用未標示「不適用訂單折扣」的商品。",
     lotteryAccept: "接受推薦",
+    lotteryFreeRewardAccept: "領取免費餐點",
     lotteryCancel: "取消",
     lotteryDailyLimitTitle: "此瀏覽器今日已抽取過",
     lotteryDailyLimitDescription: "同一瀏覽器資料每日只能抽取一次；今天的商品推薦與折扣結果已保留，明天可再次抽取。",
     lotteryAcknowledge: "我知道了",
     lotteryUnavailable: "抽抽樂目前無法使用。",
     lotteryUnavailableProduct: "抽中的商品目前無法供應，請稍後再試。",
+    lotteryNotEligible: "目前尚未符合免費抽獎資格。",
     hotSellerBadge: "熱銷",
     qrUnavailableTitle: "目前無法使用此 QR Code",
     degradedTitle: "線上送單暫時停用",
@@ -280,6 +290,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryRegionLabel: "Lucky draw recommendation",
     lotterySectionTitle: "Not sure what to order? Let us pick",
     lotterySectionDescription: "Recommendations follow completed-order trends from the last 30 days, with room to discover other items. Checkout discounts are drawn separately.",
+    lotterySpendProgress: (amount) => `Add ${amount} more to unlock one free-meal draw.`,
     lotteryStart: "Start lucky draw",
     lotteryDrawingButton: "Drawing…",
     lotteryAlreadyDrawn: "Draw completed today",
@@ -289,16 +300,20 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryBestSellerBasis: "Popular pick",
     lotteryDiscoveryBasis: "Discovery pick",
     lotteryRecommendation: (product) => `We recommend “${product}”`,
+    lotteryFreeRewardResult: (product) => `Congratulations! You won one free “${product}”.`,
+    lotteryFreeRewardNotice: "The reward will be added to this order at $0 when you submit it. Do not add it to the cart again.",
     lotteryDiscountResult: (discount) => `You also won ${discount}!`,
     lotteryNoDiscountResult: "No discount was won this time.",
     lotteryDiscountNotice: "The discount only applies to items not marked as excluded from order discounts.",
     lotteryAccept: "Accept recommendation",
+    lotteryFreeRewardAccept: "Claim free item",
     lotteryCancel: "Cancel",
     lotteryDailyLimitTitle: "This browser has already drawn today",
     lotteryDailyLimitDescription: "Each browser profile can draw once per day. Today’s item and discount result have been saved; you can draw again tomorrow.",
     lotteryAcknowledge: "Got it",
     lotteryUnavailable: "Lucky draw is unavailable right now.",
     lotteryUnavailableProduct: "The selected item is currently unavailable. Try again later.",
+    lotteryNotEligible: "This order is not yet eligible for the free draw.",
     hotSellerBadge: "Popular",
     qrUnavailableTitle: "This QR code is currently unavailable",
     degradedTitle: "Online ordering is temporarily unavailable",
@@ -393,6 +408,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryRegionLabel: "おすすめ抽選",
     lotterySectionTitle: "何を注文するか迷ったら抽選",
     lotterySectionDescription: "過去30日間の完了注文の人気傾向をもとに、ほかの商品も発見できるようおすすめします。会計割引は別に抽選されます。",
+    lotterySpendProgress: (amount) => `あと${amount}で無料メニュー抽選を1回利用できます。`,
     lotteryStart: "抽選を始める",
     lotteryDrawingButton: "抽選中…",
     lotteryAlreadyDrawn: "本日は抽選済み",
@@ -402,16 +418,20 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryBestSellerBasis: "人気商品",
     lotteryDiscoveryBasis: "新しいおすすめ",
     lotteryRecommendation: (product) => `「${product}」がおすすめです`,
+    lotteryFreeRewardResult: (product) => `おめでとうございます。「${product}」1点が無料で当たりました！`,
+    lotteryFreeRewardNotice: "注文送信時に0円の景品として自動追加されます。カートに追加する必要はありません。",
     lotteryDiscountResult: (discount) => `${discount}も当たりました！`,
     lotteryNoDiscountResult: "今回は割引が当たりませんでした。",
     lotteryDiscountNotice: "割引は「注文割引対象外」と表示されていない商品にのみ適用されます。",
     lotteryAccept: "おすすめを選ぶ",
+    lotteryFreeRewardAccept: "無料商品を受け取る",
     lotteryCancel: "キャンセル",
     lotteryDailyLimitTitle: "このブラウザでは本日すでに抽選済みです",
     lotteryDailyLimitDescription: "同じブラウザデータでは1日1回のみ抽選できます。本日の商品と割引結果は保存され、明日また抽選できます。",
     lotteryAcknowledge: "確認しました",
     lotteryUnavailable: "現在、抽選をご利用いただけません。",
     lotteryUnavailableProduct: "抽選された商品は現在ご注文いただけません。しばらくしてからお試しください。",
+    lotteryNotEligible: "この注文はまだ無料抽選の条件を満たしていません。",
     hotSellerBadge: "人気",
     qrUnavailableTitle: "このQRコードは現在ご利用いただけません",
     degradedTitle: "オンライン注文は一時的にご利用いただけません",
@@ -506,6 +526,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryRegionLabel: "추천 추첨",
     lotterySectionTitle: "무엇을 주문할지 고민되나요? 뽑아 드릴게요",
     lotterySectionDescription: "최근 30일 완료 주문의 인기 추세를 바탕으로 추천하며 다른 메뉴를 발견할 기회도 제공합니다. 결제 할인은 별도로 추첨됩니다.",
+    lotterySpendProgress: (amount) => `${amount} 더 주문하면 무료 메뉴 추첨 1회를 받을 수 있습니다.`,
     lotteryStart: "추첨 시작",
     lotteryDrawingButton: "추첨 중…",
     lotteryAlreadyDrawn: "오늘 추첨 완료",
@@ -515,16 +536,20 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryBestSellerBasis: "인기 추천",
     lotteryDiscoveryBasis: "새로운 메뉴 추천",
     lotteryRecommendation: (product) => `“${product}”을(를) 추천합니다`,
+    lotteryFreeRewardResult: (product) => `축하합니다! “${product}” 1개를 무료로 받았습니다.`,
+    lotteryFreeRewardNotice: "주문 전송 시 0원 증정품으로 자동 추가됩니다. 장바구니에 다시 담지 마세요.",
     lotteryDiscountResult: (discount) => `${discount}도 당첨되었습니다!`,
     lotteryNoDiscountResult: "이번에는 할인에 당첨되지 않았습니다.",
     lotteryDiscountNotice: "할인은 ‘주문 할인 제외’로 표시되지 않은 상품에만 적용됩니다.",
     lotteryAccept: "추천 수락",
+    lotteryFreeRewardAccept: "무료 메뉴 받기",
     lotteryCancel: "취소",
     lotteryDailyLimitTitle: "이 브라우저는 오늘 이미 추첨했습니다",
     lotteryDailyLimitDescription: "동일한 브라우저 데이터에서는 하루 한 번만 추첨할 수 있습니다. 오늘의 상품과 할인 결과는 저장되며 내일 다시 추첨할 수 있습니다.",
     lotteryAcknowledge: "확인",
     lotteryUnavailable: "현재 추첨을 이용할 수 없습니다.",
     lotteryUnavailableProduct: "추첨된 상품은 현재 주문할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+    lotteryNotEligible: "이 주문은 아직 무료 추첨 조건을 충족하지 않았습니다.",
     hotSellerBadge: "인기",
     qrUnavailableTitle: "현재 이 QR 코드를 사용할 수 없습니다",
     degradedTitle: "온라인 주문을 일시적으로 이용할 수 없습니다",
@@ -619,6 +644,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryRegionLabel: "Gợi ý vòng quay",
     lotterySectionTitle: "Chưa biết gọi món gì? Để chúng tôi chọn",
     lotterySectionDescription: "Gợi ý dựa trên xu hướng đơn hoàn tất trong 30 ngày qua, đồng thời giúp bạn khám phá món khác. Ưu đãi thanh toán được quay riêng.",
+    lotterySpendProgress: (amount) => `Mua thêm ${amount} để nhận một lượt quay món miễn phí.`,
     lotteryStart: "Bắt đầu quay",
     lotteryDrawingButton: "Đang quay…",
     lotteryAlreadyDrawn: "Đã quay hôm nay",
@@ -628,16 +654,20 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryBestSellerBasis: "Món bán chạy",
     lotteryDiscoveryBasis: "Gợi ý khám phá",
     lotteryRecommendation: (product) => `Chúng tôi gợi ý “${product}”`,
+    lotteryFreeRewardResult: (product) => `Chúc mừng! Bạn nhận miễn phí một phần “${product}”.`,
+    lotteryFreeRewardNotice: "Món tặng sẽ tự động được thêm với giá 0 khi gửi đơn. Không cần thêm lại vào giỏ.",
     lotteryDiscountResult: (discount) => `Bạn còn trúng ${discount}!`,
     lotteryNoDiscountResult: "Lần này bạn chưa trúng ưu đãi.",
     lotteryDiscountNotice: "Ưu đãi chỉ áp dụng cho món không được đánh dấu loại trừ giảm giá đơn hàng.",
     lotteryAccept: "Chọn món gợi ý",
+    lotteryFreeRewardAccept: "Nhận món miễn phí",
     lotteryCancel: "Hủy",
     lotteryDailyLimitTitle: "Trình duyệt này đã quay hôm nay",
     lotteryDailyLimitDescription: "Mỗi dữ liệu trình duyệt chỉ được quay một lần mỗi ngày. Kết quả món và ưu đãi hôm nay đã được lưu; bạn có thể quay lại vào ngày mai.",
     lotteryAcknowledge: "Đã hiểu",
     lotteryUnavailable: "Vòng quay hiện không khả dụng.",
     lotteryUnavailableProduct: "Món được chọn hiện không khả dụng. Vui lòng thử lại sau.",
+    lotteryNotEligible: "Đơn này chưa đủ điều kiện quay miễn phí.",
     hotSellerBadge: "Bán chạy",
     qrUnavailableTitle: "Mã QR này hiện không khả dụng",
     degradedTitle: "Tạm thời không thể gửi đơn trực tuyến",
@@ -732,6 +762,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryRegionLabel: "คำแนะนำจากการสุ่ม",
     lotterySectionTitle: "ยังไม่รู้จะสั่งอะไร? ให้เราสุ่มให้",
     lotterySectionDescription: "คำแนะนำอ้างอิงแนวโน้มคำสั่งซื้อที่เสร็จสมบูรณ์ใน 30 วันที่ผ่านมา และยังเปิดโอกาสให้ค้นพบเมนูอื่น ส่วนลดตอนชำระเงินจะสุ่มแยกต่างหาก",
+    lotterySpendProgress: (amount) => `สั่งเพิ่มอีก ${amount} เพื่อรับสิทธิ์สุ่มอาหารฟรี 1 ครั้ง`,
     lotteryStart: "เริ่มสุ่ม",
     lotteryDrawingButton: "กำลังสุ่ม…",
     lotteryAlreadyDrawn: "สุ่มแล้ววันนี้",
@@ -741,16 +772,20 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryBestSellerBasis: "เมนูยอดนิยม",
     lotteryDiscoveryBasis: "เมนูน่าลอง",
     lotteryRecommendation: (product) => `เราแนะนำ “${product}”`,
+    lotteryFreeRewardResult: (product) => `ยินดีด้วย คุณได้รับ “${product}” ฟรี 1 รายการ!`,
+    lotteryFreeRewardNotice: "ของรางวัลจะถูกเพิ่มในคำสั่งซื้อนี้อัตโนมัติในราคา 0 เมื่อส่งคำสั่งซื้อ ไม่ต้องเพิ่มลงตะกร้าอีก",
     lotteryDiscountResult: (discount) => `คุณยังได้รับ ${discount} ด้วย!`,
     lotteryNoDiscountResult: "ครั้งนี้ไม่ได้รับส่วนลด",
     lotteryDiscountNotice: "ส่วนลดใช้ได้เฉพาะสินค้าที่ไม่ได้ระบุว่าไม่ร่วมส่วนลดคำสั่งซื้อ",
     lotteryAccept: "รับคำแนะนำ",
+    lotteryFreeRewardAccept: "รับอาหารฟรี",
     lotteryCancel: "ยกเลิก",
     lotteryDailyLimitTitle: "เบราว์เซอร์นี้สุ่มไปแล้ววันนี้",
     lotteryDailyLimitDescription: "ข้อมูลเบราว์เซอร์เดียวกันสุ่มได้วันละครั้ง ผลสินค้าและส่วนลดของวันนี้ถูกบันทึกไว้แล้ว และสามารถสุ่มใหม่ได้พรุ่งนี้",
     lotteryAcknowledge: "เข้าใจแล้ว",
     lotteryUnavailable: "ขณะนี้ไม่สามารถใช้การสุ่มได้",
     lotteryUnavailableProduct: "สินค้าที่สุ่มได้ไม่พร้อมจำหน่ายในขณะนี้ โปรดลองอีกครั้งภายหลัง",
+    lotteryNotEligible: "คำสั่งซื้อนี้ยังไม่ผ่านเงื่อนไขการสุ่มฟรี",
     hotSellerBadge: "ขายดี",
     qrUnavailableTitle: "ไม่สามารถใช้ QR Code นี้ได้ในขณะนี้",
     degradedTitle: "ไม่สามารถส่งคำสั่งซื้อออนไลน์ได้ชั่วคราว",

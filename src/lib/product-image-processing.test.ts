@@ -1,6 +1,10 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { optimizeProductImage, PRODUCT_IMAGE_TARGET_BYTES } from "./product-image-processing";
+import {
+  calculateProductImageCrop,
+  optimizeProductImage,
+  PRODUCT_IMAGE_TARGET_BYTES,
+} from "./product-image-processing";
 
 describe("product image processing", () => {
   it("normalizes uploads to a practical WebP thumbnail", async () => {
@@ -67,5 +71,35 @@ describe("product image processing", () => {
 
   it("rejects bytes that are not a decodable image", async () => {
     await expect(optimizeProductImage(new Uint8Array([1, 2, 3, 4]))).rejects.toThrow();
+  });
+
+  it("calculates a clamped square crop from focus and zoom", () => {
+    expect(calculateProductImageCrop(1_600, 1_200, {
+      positionX: 100,
+      positionY: -20,
+      zoom: 200,
+    })).toEqual({ left: 1_000, top: 0, width: 600, height: 600 });
+  });
+
+  it("renders a selected crop as a square WebP", async () => {
+    const input = await sharp({
+      create: {
+        width: 1_600,
+        height: 1_000,
+        channels: 3,
+        background: { r: 18, g: 140, b: 126 },
+      },
+    }).jpeg().toBuffer();
+
+    const output = await optimizeProductImage(input, {
+      positionX: 75,
+      positionY: 25,
+      zoom: 150,
+    });
+    const metadata = await sharp(output).metadata();
+
+    expect(metadata.format).toBe("webp");
+    expect(metadata.width).toBe(metadata.height);
+    expect(output.byteLength).toBeLessThanOrEqual(PRODUCT_IMAGE_TARGET_BYTES);
   });
 });

@@ -441,6 +441,12 @@ function updateModulesCommand() {
       { discountOptionId: firstDiscountId, winRateBps: 2500 },
       { discountOptionId: secondDiscountId, winRateBps: 5000 },
     ],
+    lotterySpendRewardEnabled: false,
+    lotterySpendThresholdAmount: 666,
+    lotteryFestivalRewardEnabled: false,
+    lotteryFestivalStartsOn: null,
+    lotteryFestivalEndsOn: null,
+    lotteryBirthdayRewardEnabled: false,
   };
 }
 

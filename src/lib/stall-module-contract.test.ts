@@ -44,6 +44,12 @@ describe("stall module field validation", () => {
       lotteryEnabled: true,
       lotteryDiscountOptionId: null,
       lotteryDiscountWinRateBps: -1,
+      lotterySpendRewardEnabled: false,
+      lotterySpendThresholdAmount: 666,
+      lotteryFestivalRewardEnabled: false,
+      lotteryFestivalStartsOn: null,
+      lotteryFestivalEndsOn: null,
+      lotteryBirthdayRewardEnabled: false,
     });
 
     expect(result.success).toBe(false);
@@ -88,6 +94,12 @@ describe("stall module field validation", () => {
         discountOptionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
         winRateBps: 5000,
       }],
+      lotterySpendRewardEnabled: true,
+      lotterySpendThresholdAmount: 666,
+      lotteryFestivalRewardEnabled: true,
+      lotteryFestivalStartsOn: "2026-12-24",
+      lotteryFestivalEndsOn: "2026-12-25",
+      lotteryBirthdayRewardEnabled: false,
     })).toEqual({
       takeoutPreorderEnabled: false,
       preorderMinLeadMinutes: 15,
@@ -97,6 +109,12 @@ describe("stall module field validation", () => {
       lotteryDiscountOptionId: null,
       lotteryDiscountWinRateBps: 0,
       lotteryDiscountChances: [],
+      lotterySpendRewardEnabled: false,
+      lotterySpendThresholdAmount: 666,
+      lotteryFestivalRewardEnabled: false,
+      lotteryFestivalStartsOn: null,
+      lotteryFestivalEndsOn: null,
+      lotteryBirthdayRewardEnabled: false,
     });
   });
 
@@ -212,5 +230,11 @@ function validModuleCommand() {
     lotteryEnabled: true,
     lotteryDiscountOptionId: null,
     lotteryDiscountWinRateBps: 0,
+    lotterySpendRewardEnabled: false,
+    lotterySpendThresholdAmount: 666,
+    lotteryFestivalRewardEnabled: false,
+    lotteryFestivalStartsOn: null,
+    lotteryFestivalEndsOn: null,
+    lotteryBirthdayRewardEnabled: false,
   };
 }

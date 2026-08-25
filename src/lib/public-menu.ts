@@ -107,6 +107,12 @@ export async function getCachedPublicMenuForQrToken(
     orderingMode: resolvedOrderingMode,
     preorderSlots,
     lotteryEnabled: resolvedOrderingMode === "DEFAULT" && settings.lotteryEnabled,
+    lotteryReward: {
+      spendEnabled: settings.lotterySpendRewardEnabled,
+      spendThresholdAmount: settings.lotterySpendThresholdAmount,
+      festivalEnabled: settings.lotteryFestivalRewardEnabled,
+      festivalActive: lotteryFestivalIsActive(settings, context.stall.timezone),
+    },
     specialClosure,
     estimatedWaitMinutes: capacity?.quoteMaxMinutes ?? 0,
     estimatedWaitMinMinutes: capacity?.quoteMinMinutes ?? 0,
@@ -319,6 +325,11 @@ async function loadQrContext(qrToken: string) {
               deliveryModuleEnabled: true,
               takeoutPreorderEnabled: true,
               lotteryEnabled: true,
+              lotterySpendRewardEnabled: true,
+              lotterySpendThresholdAmount: true,
+              lotteryFestivalRewardEnabled: true,
+              lotteryFestivalStartsOn: true,
+              lotteryFestivalEndsOn: true,
             },
           },
         },
@@ -426,6 +437,20 @@ function publicSpecialClosureAnnouncement(
     ...serialized,
     isActive: serialized.startsOn <= localDate && serialized.endsOn >= localDate,
   };
+}
+
+function lotteryFestivalIsActive(settings: {
+  lotteryFestivalRewardEnabled: boolean;
+  lotteryFestivalStartsOn: Date | null;
+  lotteryFestivalEndsOn: Date | null;
+}, timeZone: string) {
+  if (!settings.lotteryFestivalRewardEnabled
+      || !settings.lotteryFestivalStartsOn
+      || !settings.lotteryFestivalEndsOn) return false;
+  const businessDate = dateInTimeZone(new Date(), timeZone);
+  const startsOn = settings.lotteryFestivalStartsOn.toISOString().slice(0, 10);
+  const endsOn = settings.lotteryFestivalEndsOn.toISOString().slice(0, 10);
+  return startsOn <= businessDate && businessDate <= endsOn;
 }
 
 function publicStallIsAvailable(stall: {
