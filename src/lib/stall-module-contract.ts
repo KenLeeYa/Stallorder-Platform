@@ -7,6 +7,13 @@ import {
 import { QR_LOCALES } from "@/lib/qr-order-i18n";
 
 const uuid = z.string().uuid("識別資料格式不正確，請重新整理後再試。");
+const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日期格式不正確。").refine(
+  (value) => {
+    const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+    return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === value;
+  },
+  "日期不存在。",
+);
 const tableFields = {
   code: z.string().trim()
     .min(1, "請輸入桌位代碼。")
@@ -61,6 +68,7 @@ const lotteryDiscountChancesSchema = z.array(z.object({
 const moduleUpdateViewSchema = z.enum([
   "all",
   "dine-in",
+  "online-ordering",
   "delivery",
   "staff-delivery",
   "printing",
@@ -101,6 +109,17 @@ export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
       .min(0, "折扣中獎率不可小於 0%。")
       .max(10_000, "折扣中獎率不可超過 100%。"),
     lotteryDiscountChances: lotteryDiscountChancesSchema.optional(),
+    lotterySpendRewardEnabled: z.boolean(),
+    lotterySpendThresholdAmount: z.number().int("滿額門檻必須是整數金額。")
+      .min(1, "滿額門檻至少為 1 元。")
+      .max(10_000_000, "滿額門檻不可超過 10000000 元。"),
+    lotteryFestivalRewardEnabled: z.boolean(),
+    lotteryFestivalStartsOn: date.nullable(),
+    lotteryFestivalEndsOn: date.nullable(),
+    lotteryBirthdayRewardEnabled: z.boolean().refine(
+      (enabled) => !enabled,
+      "壽星抽獎需先串接可驗證的會員生日，避免冒領，目前不能啟用。",
+    ),
   }).strict(),
   z.object({
     operation: z.literal("UPDATE_LOCALES"),
@@ -145,6 +164,10 @@ const fieldLabels: Record<string, string> = {
   lotteryDiscountOptionId: "中獎折扣",
   lotteryDiscountWinRateBps: "折扣中獎率",
   lotteryDiscountChances: "多折扣中獎率",
+  lotterySpendThresholdAmount: "滿額抽獎門檻",
+  lotteryFestivalStartsOn: "節慶開始日期",
+  lotteryFestivalEndsOn: "節慶結束日期",
+  lotteryBirthdayRewardEnabled: "壽星抽獎",
   enabledLocales: "QR 點餐語系",
   rateBps: "付款比例",
   floorId: "樓層",
@@ -196,6 +219,12 @@ type ModuleSettingsForSave = {
   lotteryDiscountOptionId: string | null;
   lotteryDiscountWinRateBps: number;
   lotteryDiscountChances?: Array<{ discountOptionId: string; winRateBps: number }>;
+  lotterySpendRewardEnabled: boolean;
+  lotterySpendThresholdAmount: number;
+  lotteryFestivalRewardEnabled: boolean;
+  lotteryFestivalStartsOn: string | null;
+  lotteryFestivalEndsOn: string | null;
+  lotteryBirthdayRewardEnabled: boolean;
 };
 
 export function normalizeDisabledModuleSettings<T extends ModuleSettingsForSave>(settings: T): T {
@@ -210,7 +239,17 @@ export function normalizeDisabledModuleSettings<T extends ModuleSettingsForSave>
       lotteryDiscountOptionId: null,
       lotteryDiscountWinRateBps: 0,
       ...(settings.lotteryDiscountChances ? { lotteryDiscountChances: [] } : {}),
+      lotterySpendRewardEnabled: false,
+      lotteryFestivalRewardEnabled: false,
+      lotteryFestivalStartsOn: null,
+      lotteryFestivalEndsOn: null,
+      lotteryBirthdayRewardEnabled: false,
     } : {}),
+    ...(!settings.lotteryFestivalRewardEnabled ? {
+      lotteryFestivalStartsOn: null,
+      lotteryFestivalEndsOn: null,
+    } : {}),
+    lotteryBirthdayRewardEnabled: false,
   };
 }
 

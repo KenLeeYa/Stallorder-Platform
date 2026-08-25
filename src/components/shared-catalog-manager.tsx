@@ -105,6 +105,9 @@ type ImportPreview = {
   errors: CatalogCsvRowError[];
 };
 
+type ProductImageCrop = { positionX: number; positionY: number; zoom: number };
+type ImageFeedback = { kind: "success" | "error"; text: string };
+
 type BundleComponentIssue = {
   stallId: string;
   stallName: string;
@@ -246,6 +249,9 @@ export function SharedCatalogManager({
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null);
   const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
   const [productDraft, setProductDraft] = useState<ProductDraft | null>(null);
+  const [productImageFile, setProductImageFile] = useState<File | null>(null);
+  const [imageFeedback, setImageFeedback] = useState<ImageFeedback | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [assignmentProduct, setAssignmentProduct] = useState<Product | null>(null);
   const [assignmentStallIds, setAssignmentStallIds] = useState<string[]>([]);
   const [bundleProductId, setBundleProductId] = useState<string | null>(null);
@@ -299,6 +305,8 @@ export function SharedCatalogManager({
   function clearEditorFeedback() {
     setEditorMessage("");
     setEditorFieldErrors({});
+    setProductImageFile(null);
+    setImageFeedback(null);
   }
 
   function clearEditorField(field: string) {
@@ -572,12 +580,16 @@ export function SharedCatalogManager({
     URL.revokeObjectURL(url);
   }
 
-  async function uploadProductImage(file: File) {
-    if (!productDraft) return;
+  async function uploadProductImage(file: File, crop: ProductImageCrop) {
+    if (!productDraft) return false;
     const form = new FormData();
     form.set("image", file);
+    form.set("positionX", String(crop.positionX));
+    form.set("positionY", String(crop.positionY));
+    form.set("zoom", String(crop.zoom));
     setBusy(true);
-    setMessage("");
+    setUploadingImage(true);
+    setImageFeedback(null);
     try {
       const response = await fetch(`/api/merchant/organizations/${organizationId}/catalog/image`, {
         method: "POST",
@@ -587,14 +599,20 @@ export function SharedCatalogManager({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? label("圖片上傳失敗。"));
       setProductDraft((current) => current ? { ...current, imageUrl: payload.imageUrl } : current);
-      setMessage(m("商品圖片已自動壓縮為 WebP（{value0} → {value1}），儲存商品後生效。", {
-        value0: formatFileSize(payload.originalSize ?? file.size),
-        value1: formatFileSize(payload.optimizedSize),
-      }));
+      setImageFeedback({
+        kind: "success",
+        text: `${label("商品圖片已上傳，儲存商品後生效。")} ${formatFileSize(payload.originalSize ?? file.size)} → ${formatFileSize(payload.optimizedSize)}`,
+      });
+      return true;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : label("圖片上傳失敗。"));
+      setImageFeedback({
+        kind: "error",
+        text: error instanceof Error ? error.message : label("圖片上傳失敗。"),
+      });
+      return false;
     } finally {
       setBusy(false);
+      setUploadingImage(false);
     }
   }
 
@@ -813,34 +831,36 @@ export function SharedCatalogManager({
 
   return (
     <section aria-labelledby="shared-catalog-heading">
-      <div className="flex flex-col gap-4 border-b border-stone-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex min-w-0 flex-col gap-4 border-b border-stone-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-sm font-semibold text-teal-800">{label("組織商品主檔")}</p>
           <h1 id="shared-catalog-heading" className="mt-1 text-3xl font-semibold">{label("共用商品")}</h1>
           <p className="mt-2 text-sm text-stone-600">{label("一次建立分類、群組與商品，再分派到一個或多個攤位。")}</p>
         </div>
-        <div data-testid="shared-catalog-actions" className="flex w-full flex-col gap-2 lg:w-auto">
-          <div data-testid="shared-catalog-tools" className="flex flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0 lg:justify-end">
-            <button type="button" title={allProductsExpanded ? label("收合全部品項") : label("展開全部品項")} data-testid="shared-products-toggle-all" aria-expanded={allProductsExpanded} aria-controls="shared-product-catalog" onClick={toggleAllProducts} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><ChevronDown className={`h-5 w-5 transition-transform ${allProductsExpanded ? "rotate-180" : ""}`} /><span className="sr-only sm:not-sr-only">{allProductsExpanded ? label("收合全部品項") : label("展開全部品項")}</span></button>
+        <div data-testid="shared-catalog-actions" className="w-full min-w-0 max-w-[calc(100vw-2rem)] overflow-x-hidden md:max-w-[calc(100vw-4rem)] xl:w-auto xl:max-w-none xl:overflow-visible">
+          <div data-testid="shared-catalog-action-scroller" className="flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 xl:w-auto xl:flex-col xl:overflow-visible xl:pb-0">
+            <div data-testid="shared-catalog-tools" className="flex shrink-0 gap-2 xl:flex-wrap xl:justify-end">
+            <button type="button" title={allProductsExpanded ? label("收合全部品項") : label("展開全部品項")} aria-label={allProductsExpanded ? label("收合全部品項") : label("展開全部品項")} data-testid="shared-products-toggle-all" aria-expanded={allProductsExpanded} aria-controls="shared-product-catalog" onClick={toggleAllProducts} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><ChevronDown className={`h-5 w-5 transition-transform ${allProductsExpanded ? "rotate-180" : ""}`} /><span className="hidden xl:inline">{allProductsExpanded ? label("收合全部品項") : label("展開全部品項")}</span></button>
             <button
               type="button"
               disabled={!aiTranslationConfigured || translationOptions.length === 0 || busy || aiTranslating}
               aria-label={aiTranslating ? label("翻譯中…") : label("一鍵補齊翻譯")}
               title={aiTranslationConfigured ? label("只補齊已啟用語系的缺漏內容") : label("AI 翻譯尚未完成伺服器設定")}
               onClick={() => void translateMissingContent()}
-              className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold text-teal-800 disabled:cursor-not-allowed disabled:opacity-45 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"
+              className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold text-teal-800 disabled:cursor-not-allowed disabled:opacity-45 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"
             >
               <Sparkles className="h-5 w-5" />
-              <span className="sr-only sm:not-sr-only">{aiTranslating ? label("翻譯中…") : label("一鍵補齊翻譯")}</span>
+              <span className="hidden xl:inline">{aiTranslating ? label("翻譯中…") : label("一鍵補齊翻譯")}</span>
             </button>
-            <a title={label("匯出 CSV")} aria-label={label("匯出 CSV")} href={`/api/merchant/organizations/${organizationId}/catalog/export`} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><Download className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("匯出 CSV")}</span></a>
-            <label title={label("匯入 CSV")} className="inline-grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-md border border-stone-300 text-sm font-semibold sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><Upload className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("匯入 CSV")}</span><input type="file" aria-label={label("匯入 CSV")} accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewCatalogImport(file); event.currentTarget.value = ""; }} /></label>
-          </div>
-          <div data-testid="shared-catalog-create-actions" className="flex flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0 lg:justify-end">
-            <button type="button" title={label("新增分類")} aria-label={label("新增分類")} onClick={createCategory} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><FolderPlus className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("分類")}</span></button>
-            <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={createGroup} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><Layers3 className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("群組")}</span></button>
-            <button type="button" title={label("新增商品")} aria-label={label("新增商品")} onClick={() => createProduct("SINGLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><PackagePlus className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("商品")}</span></button>
-            <button type="button" title={label("新增套餐")} aria-label={label("新增套餐")} onClick={() => createProduct("BUNDLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-sm font-semibold text-teal-900 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><PackageOpen className="h-5 w-5" /><span className="sr-only sm:not-sr-only">{label("新增套餐")}</span></button>
+            <a title={label("匯出 CSV")} aria-label={label("匯出 CSV")} href={`/api/merchant/organizations/${organizationId}/catalog/export`} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Download className="h-5 w-5" /><span className="hidden xl:inline">{label("匯出 CSV")}</span></a>
+            <label title={label("匯入 CSV")} className="inline-grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Upload className="h-5 w-5" /><span className="hidden xl:inline">{label("匯入 CSV")}</span><input type="file" aria-label={label("匯入 CSV")} accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewCatalogImport(file); event.currentTarget.value = ""; }} /></label>
+            </div>
+            <div data-testid="shared-catalog-create-actions" className="flex shrink-0 gap-2 xl:flex-wrap xl:justify-end">
+              <button type="button" title={label("新增分類")} aria-label={label("新增分類")} onClick={createCategory} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><FolderPlus className="h-5 w-5" /><span className="hidden xl:inline">{label("分類")}</span></button>
+              <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={createGroup} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Layers3 className="h-5 w-5" /><span className="hidden xl:inline">{label("群組")}</span></button>
+              <button type="button" title={label("新增商品")} aria-label={label("新增商品")} onClick={() => createProduct("SINGLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackagePlus className="h-5 w-5" /><span className="hidden xl:inline">{label("商品")}</span></button>
+              <button type="button" title={label("新增套餐")} aria-label={label("新增套餐")} onClick={() => createProduct("BUNDLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-sm font-semibold text-teal-900 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackageOpen className="h-5 w-5" /><span className="hidden xl:inline">{label("新增套餐")}</span></button>
+            </div>
           </div>
         </div>
       </div>
@@ -953,7 +973,7 @@ export function SharedCatalogManager({
         </Editor>
       ) : null}
 
-      {productDraft ? (
+      {productDraft && !productImageFile ? (
         <Editor title={productDraft.id ? label("編輯商品") : productDraft.kind === "BUNDLE" ? label("新增套餐") : label("新增商品")} onClose={() => { clearEditorFeedback(); setProductDraft(null); }} dialogRef={editorRef} errorMessage={editorMessage} wide>
           <form noValidate onSubmit={saveProduct} className="grid gap-4 sm:grid-cols-2">
             <TextField label={label("商品名稱")} fieldKey="name" error={editorFieldErrors.name} value={productDraft.name} onChange={(name) => { clearEditorField("name"); setProductDraft({ ...productDraft, name }); }} wide />
@@ -966,9 +986,10 @@ export function SharedCatalogManager({
             <label className="text-sm font-medium text-stone-700 sm:col-span-2">{label("商品描述")}<textarea maxLength={500} rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>
             <div className="grid gap-3 sm:col-span-2 sm:grid-cols-[1fr_auto]">
               <TextField label={label("圖片網址")} fieldKey="imageUrl" error={editorFieldErrors.imageUrl} type="url" maxLength={2000} value={productDraft.imageUrl ?? ""} required={false} onChange={(imageUrl) => { clearEditorField("imageUrl"); setProductDraft({ ...productDraft, imageUrl: imageUrl || null }); }} />
-              <label className="mt-6 inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><ImageUp className="h-4 w-4" />{label("本機上傳")}<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadProductImage(file); event.currentTarget.value = ""; }} /></label>
+              <label className={`inline-flex h-10 w-fit self-start justify-self-start items-center gap-2 whitespace-nowrap rounded-md border border-stone-300 px-3 text-sm font-semibold sm:mt-6 ${busy ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}><ImageUp className="h-4 w-4" />{uploadingImage ? label("上傳中...") : label("本機上傳")}<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) { setImageFeedback(null); setProductImageFile(file); } event.currentTarget.value = ""; }} /></label>
             </div>
-            {productDraft.imageUrl ? <div className="h-36 overflow-hidden rounded-md border border-stone-200 sm:col-span-2"><ProductImage src={productDraft.imageUrl} alt={m("{value0}圖片預覽", { value0: productDraft.name || label("商品") })} width={800} height={450} sizes="(max-width: 640px) 100vw, 50vw" className="h-full w-full object-cover" /></div> : null}
+            {imageFeedback ? <p role={imageFeedback.kind === "error" ? "alert" : "status"} className={`rounded-md px-3 py-2 text-sm font-semibold sm:col-span-2 ${imageFeedback.kind === "error" ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>{imageFeedback.text}</p> : null}
+            {productDraft.imageUrl ? <div className="sm:col-span-2"><div className="h-36 overflow-hidden rounded-md border border-stone-200"><ProductImage src={productDraft.imageUrl} alt={m("{value0}圖片預覽", { value0: productDraft.name || label("商品") })} width={800} height={450} sizes="(max-width: 640px) 100vw, 50vw" className="h-full w-full object-cover" /></div><button type="button" disabled={busy} onClick={() => { if (window.confirm(label("確定移除商品圖片？"))) { setProductDraft({ ...productDraft, imageUrl: null }); setImageFeedback({ kind: "success", text: label("商品圖片已移除，儲存商品後生效。") }); } }} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md border border-red-200 px-3 text-sm font-semibold text-red-700 disabled:opacity-50"><Trash2 className="h-4 w-4" />{label("移除商品圖片")}</button></div> : null}
             <div className="sm:col-span-2">
               <CheckField label={label("不適用訂單折扣")} checked={!productDraft.isOrderDiscountEligible} onChange={(excluded) => setProductDraft({ ...productDraft, isOrderDiscountEligible: !excluded })} />
               <p className="mt-1 text-xs text-stone-500">{label("勾選後，員工結帳折扣與 QR 抽抽樂折扣都不會套用此商品。套餐以套餐商品本身的設定為準。")}</p>
@@ -976,8 +997,8 @@ export function SharedCatalogManager({
             <div className="sm:col-span-2">
               {productDraft.kind === "SINGLE" ? (
                 <>
-                  <CheckField label={label("參與抽抽樂推薦")} checked={productDraft.isLotteryEligible} onChange={(isLotteryEligible) => setProductDraft({ ...productDraft, isLotteryEligible })} />
-                  <p className="mt-1 text-xs text-stone-500">{label("預設啟用；取消勾選後，抽抽樂不會推薦此商品。")}</p>
+                  <CheckField label={label("可作為抽抽樂推薦／免費贈品")} checked={productDraft.isLotteryEligible} onChange={(isLotteryEligible) => setProductDraft({ ...productDraft, isLotteryEligible })} />
+                  <p className="mt-1 text-xs text-stone-500">{label("預設啟用；取消勾選後，此商品不會被抽中。需必選客製內容的商品不會作為免費贈品。")}</p>
                 </>
               ) : (
                 <p className="rounded-md bg-stone-50 px-3 py-2 text-xs text-stone-600">{label("套餐需由客人選擇組合內容，目前不參與抽抽樂推薦。")}</p>
@@ -996,6 +1017,24 @@ export function SharedCatalogManager({
             <SubmitButton busy={busy} wide />
           </form>
         </Editor>
+      ) : null}
+
+      {productDraft && productImageFile ? (
+        <ProductImageCropEditor
+          key={`${productImageFile.name}-${productImageFile.lastModified}`}
+          file={productImageFile}
+          busy={uploadingImage}
+          feedback={imageFeedback}
+          onCancel={() => {
+            if (uploadingImage) return;
+            setProductImageFile(null);
+            setImageFeedback(null);
+          }}
+          onConfirm={async (crop) => {
+            const uploaded = await uploadProductImage(productImageFile, crop);
+            if (uploaded) setProductImageFile(null);
+          }}
+        />
       ) : null}
 
       {importPreview ? (
@@ -1239,6 +1278,102 @@ function StallChecks({ stalls, selected, error, onChange }: { stalls: Stall[]; s
   const allSelected = stalls.length > 0 && stalls.every((stall) => selected.includes(stall.id));
   const errorId = "catalog-stallIds-error";
   return <fieldset tabIndex={-1} data-field-key="stallIds" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className={`sm:col-span-2 rounded-md ${error ? "border border-red-500 bg-red-50 p-2" : ""}`}><legend className="text-sm font-medium text-stone-700">{label("分派攤位")}</legend><label className="mt-2 flex min-h-11 items-center gap-2 border-b border-stone-100"><input type="checkbox" checked={allSelected} onChange={(event) => onChange(event.target.checked ? stalls.map((stall) => stall.id) : [])} />{label("全部授權攤位")}</label>{stalls.map((stall) => <label key={stall.id} className="flex min-h-11 items-center gap-2 border-b border-stone-100"><input type="checkbox" checked={selected.includes(stall.id)} onChange={(event) => onChange(event.target.checked ? [...selected, stall.id] : selected.filter((id) => id !== stall.id))} />{stall.name}{!stall.isActive ? <span className="text-xs text-stone-500">{label("（已停用）")}</span> : null}</label>)}{selected.length === 0 ? <p className="mt-2 text-xs font-medium text-amber-800">{label("未分派的商品不會出現在 QR 或店員點餐；單店模式預設會勾選該店。")}</p> : null}{error ? <span id={errorId} role="alert" className="mt-1 block text-xs text-red-700">{error}</span> : null}</fieldset>;
+}
+
+function ProductImageCropEditor({
+  file,
+  busy,
+  feedback,
+  onCancel,
+  onConfirm,
+}: {
+  file: File;
+  busy: boolean;
+  feedback: ImageFeedback | null;
+  onCancel: () => void;
+  onConfirm: (crop: ProductImageCrop) => void | Promise<void>;
+}) {
+  const { label } = useMerchantMessages();
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [crop, setCrop] = useState<ProductImageCrop>({ positionX: 50, positionY: 50, zoom: 100 });
+  const drag = useRef<{ clientX: number; clientY: number; positionX: number; positionY: number } | null>(null);
+
+  useEffect(() => {
+    const nextObjectUrl = URL.createObjectURL(file);
+    const publishTimer = window.setTimeout(() => setObjectUrl(nextObjectUrl), 0);
+    return () => {
+      window.clearTimeout(publishTimer);
+      URL.revokeObjectURL(nextObjectUrl);
+    };
+  }, [file]);
+
+  function moveCrop(event: React.PointerEvent<HTMLDivElement>) {
+    const start = drag.current;
+    if (!start) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const zoomScale = crop.zoom / 100;
+    setCrop((current) => ({
+      ...current,
+      positionX: clampCrop(start.positionX - ((event.clientX - start.clientX) / bounds.width) * 100 / zoomScale),
+      positionY: clampCrop(start.positionY - ((event.clientY - start.clientY) / bounds.height) * 100 / zoomScale),
+    }));
+  }
+
+  return (
+    <Editor title={label("調整商品圖片")} onClose={onCancel} wide>
+      <p className="text-sm text-stone-600">{label("拖曳選擇圖片顯示重點")}</p>
+      <div
+        role="img"
+        aria-label={label("商品圖片裁切預覽")}
+        onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          drag.current = { clientX: event.clientX, clientY: event.clientY, positionX: crop.positionX, positionY: crop.positionY };
+        }}
+        onPointerMove={moveCrop}
+        onPointerUp={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+          drag.current = null;
+        }}
+        onPointerCancel={() => { drag.current = null; }}
+        className="relative mx-auto mt-4 aspect-square w-full max-w-md touch-none overflow-hidden rounded-lg border border-stone-300 bg-stone-100"
+      >
+        {objectUrl ? (
+          // Native img is intentional: this preview uses a temporary blob URL that never leaves the device.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={objectUrl}
+            alt=""
+            draggable={false}
+            className="h-full w-full select-none object-cover will-change-transform"
+            style={{
+              objectPosition: `${crop.positionX}% ${crop.positionY}%`,
+              transform: `scale(${crop.zoom / 100})`,
+              transformOrigin: `${crop.positionX}% ${crop.positionY}%`,
+            }}
+          />
+        ) : <span aria-hidden="true" className="absolute inset-0 animate-pulse bg-stone-200" />}
+        <span aria-hidden="true" className="pointer-events-none absolute inset-0 border-2 border-white/80 shadow-[inset_0_0_0_999px_rgba(0,0,0,0.08)]" />
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <CropRange label={label("水平位置")} value={crop.positionX} min={0} max={100} onChange={(positionX) => setCrop((current) => ({ ...current, positionX }))} />
+        <CropRange label={label("垂直位置")} value={crop.positionY} min={0} max={100} onChange={(positionY) => setCrop((current) => ({ ...current, positionY }))} />
+        <CropRange label={label("圖片縮放")} value={crop.zoom} min={100} max={200} onChange={(zoom) => setCrop((current) => ({ ...current, zoom }))} />
+      </div>
+      {feedback ? <p role={feedback.kind === "error" ? "alert" : "status"} className={`mt-4 rounded-md px-3 py-2 text-sm font-semibold ${feedback.kind === "error" ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>{feedback.text}</p> : null}
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <button type="button" disabled={busy} onClick={onCancel} className="min-h-11 rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-50">{label("取消")}</button>
+        <button type="button" disabled={busy} onClick={() => void onConfirm(crop)} className="min-h-11 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? label("上傳中...") : label("裁切並上傳")}</button>
+      </div>
+    </Editor>
+  );
+}
+
+function CropRange({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void }) {
+  return <label className="text-xs font-semibold text-stone-600">{label}<input aria-label={label} type="range" min={min} max={max} step={1} value={Math.round(value)} onChange={(event) => onChange(Number(event.target.value))} className="mt-2 block w-full accent-teal-700" /><span className="mt-1 block text-right tabular-nums text-stone-500">{Math.round(value)}%</span></label>;
+}
+
+function clampCrop(value: number) {
+  return Math.min(100, Math.max(0, value));
 }
 
 function Editor({ title, onClose, dialogRef, errorMessage, wide = false, children }: { title: string; onClose: () => void; dialogRef?: React.RefObject<HTMLElement | null>; errorMessage?: string; wide?: boolean; children: React.ReactNode }) {

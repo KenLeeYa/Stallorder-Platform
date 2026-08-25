@@ -146,6 +146,12 @@ export async function POST(request: Request, context: RouteContext) {
           lotteryEnabled: source.settings.lotteryEnabled,
           lotteryDiscountOptionId: legacyLotteryDiscount?.discountOptionId ?? null,
           lotteryDiscountWinRateBps: legacyLotteryDiscount?.winRateBps ?? 0,
+          lotterySpendRewardEnabled: source.settings.lotterySpendRewardEnabled,
+          lotterySpendThresholdAmount: source.settings.lotterySpendThresholdAmount,
+          lotteryFestivalRewardEnabled: source.settings.lotteryFestivalRewardEnabled,
+          lotteryFestivalStartsOn: source.settings.lotteryFestivalStartsOn,
+          lotteryFestivalEndsOn: source.settings.lotteryFestivalEndsOn,
+          lotteryBirthdayRewardEnabled: false,
         },
       });
       await replaceLotteryDiscountChances({ transaction, stallId, chances: lotteryDiscountChances });

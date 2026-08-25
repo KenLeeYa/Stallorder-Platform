@@ -13,7 +13,14 @@ vi.mock("@/server/database/read-router", () => ({
   })),
 }));
 
-import { getOrderHistoryReport, getPaymentMethodReport, getProductAndHourlyReport, sumPaidAmountByMethod } from "@/lib/report-data";
+import {
+  getOrderHistoryReport,
+  getPaginatedCashShiftReport,
+  getPaginatedOrderHistoryReport,
+  getPaymentMethodReport,
+  getProductAndHourlyReport,
+  sumPaidAmountByMethod,
+} from "@/lib/report-data";
 
 describe("payment report accounting date", () => {
   beforeEach(() => {
@@ -108,5 +115,98 @@ describe("payment report accounting date", () => {
     const sql = (mocks.queryRaw.mock.calls[0]?.[0] as { strings: string[] }).strings.join(" ");
     expect(sql).toContain("order_record.created_at");
     expect(sql).not.toContain("order_record.status =");
+  });
+
+  it("loads one order-history page and reports the full filtered count", async () => {
+    mocks.queryRaw
+      .mockResolvedValueOnce([{ total: BigInt(23) }])
+      .mockResolvedValueOnce([{ id: "order-11" }]);
+    mocks.orderFindMany.mockResolvedValueOnce([{ id: "order-11", orderNo: "011" }]);
+
+    await expect(getPaginatedOrderHistoryReport(
+      "organization-1",
+      ["stall-1"],
+      "2026-08-01",
+      "2026-08-23",
+      { page: 2, pageSize: 10 },
+    )).resolves.toEqual({
+      rows: [{ id: "order-11", orderNo: "011" }],
+      pagination: {
+        page: 2,
+        pageSize: 10,
+        total: 23,
+        totalPages: 3,
+        firstItem: 11,
+        lastItem: 20,
+      },
+    });
+
+    const pageQuery = mocks.queryRaw.mock.calls[1]?.[0] as { strings: string[] };
+    expect(pageQuery.strings.join(" ")).toContain("limit");
+    expect(pageQuery.strings.join(" ")).toContain("offset");
+  });
+
+  it("keeps the cash summary scoped to the full range while paging shift details", async () => {
+    const openedAt = new Date("2026-08-23T01:00:00.000Z");
+    mocks.queryRaw
+      .mockResolvedValueOnce([{
+        total: BigInt(12),
+        cash_sales: BigInt(3600),
+        cash_refunds: BigInt(100),
+        expected_amount: BigInt(4100),
+        actual_amount: BigInt(4080),
+        difference_amount: BigInt(-20),
+        review_required: BigInt(2),
+      }])
+      .mockResolvedValueOnce([{
+        id: "shift-11",
+        stall_id: "stall-1",
+        stall_name: "越好吃一中店",
+        status: "CLOSED",
+        opened_by_name: "Kenny",
+        closed_by_name: "Kenny",
+        opened_at: openedAt,
+        closed_at: new Date("2026-08-23T09:00:00.000Z"),
+        opening_amount: BigInt(500),
+        cash_sales: BigInt(300),
+        cash_refunds: BigInt(0),
+        cash_in: BigInt(0),
+        cash_out: BigInt(0),
+        corrections: BigInt(0),
+        expected_amount: BigInt(800),
+        actual_amount: BigInt(800),
+        difference_amount: BigInt(0),
+        latest_review_decision: "APPROVED",
+        latest_reviewer_name: "Manager",
+      }]);
+
+    const report = await getPaginatedCashShiftReport(
+      "organization-1",
+      ["stall-1"],
+      "2026-08-01",
+      "2026-08-23",
+      { page: 2, pageSize: 10 },
+    );
+
+    expect(report.pagination).toEqual({
+      page: 2,
+      pageSize: 10,
+      total: 12,
+      totalPages: 2,
+      firstItem: 11,
+      lastItem: 12,
+    });
+    expect(report.summary).toEqual({
+      cashSales: 3600,
+      cashRefunds: 100,
+      expected: 4100,
+      actual: 4080,
+      difference: -20,
+      reviewRequired: 2,
+    });
+    expect(report.rows[0]).toMatchObject({ id: "shift-11", expectedAmount: 800, actualAmount: 800 });
+    const pageQuery = mocks.queryRaw.mock.calls[1]?.[0] as { strings: string[] };
+    expect(pageQuery.strings.join(" ")).toContain("limit");
+    expect(pageQuery.strings.join(" ")).toContain("offset");
   });
 });

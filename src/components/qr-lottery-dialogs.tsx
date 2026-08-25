@@ -12,6 +12,9 @@ export type LotteryDraw = {
   recommendationBasis: "BEST_SELLER" | "DISCOVERY";
   discountWon: boolean;
   discountLabel: string | null;
+  freeProductReward?: boolean;
+  qualificationType?: "STANDARD" | "SPEND" | "FESTIVAL";
+  qualificationThresholdAmount?: number | null;
 };
 
 export function LotteryResultDialog({

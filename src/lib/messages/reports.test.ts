@@ -12,4 +12,9 @@ describe("report messages", () => {
     expect(getReportMessage("en", "reports.orderEntryAmount")).toBe("Order-entry amount");
     expect(getReportMessage("vi", "reports.cash.sales")).toBe("Tiền mặt thực thu");
   });
+
+  it("uses concise report descriptions for merchant staff", () => {
+    expect(getReportMessage("zh-TW", "reports.orders.description")).toBe("依日期查看每張訂單的狀態與品項。");
+    expect(getReportMessage("zh-TW", "reports.cash.description")).toBe("查看每個班次的現金收支與盤點差額。");
+  });
 });

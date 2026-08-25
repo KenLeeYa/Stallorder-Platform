@@ -93,7 +93,7 @@ async function ReportOverviewContent({
     <ReportFilters organizationId={scope.workspace.id} stalls={scope.availableStalls} selectedStallIds={scope.stalls.map((stall) => stall.id)} dateFrom={scope.dateFrom} dateTo={scope.dateTo} />
     <section className="border-b border-stone-200 py-3 sm:py-5" aria-labelledby="sales-summary-title">
       <h2 id="sales-summary-title" className="sr-only">{t("reports.overview.summary")}</h2>
-      <dl data-testid="sales-summary-dashboard" className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-stone-200 bg-stone-200 sm:grid-cols-4">
+      <dl data-testid="sales-summary-dashboard" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Metric label={t("reports.orderEntryAmount")} value={formatAppCurrency(locale, total.totalSales, scope.workspace.defaultCurrency, { maximumFractionDigits: 0 })} />
         <Metric label={t("reports.orderCount")} value={formatAppNumber(locale, total.orderCount)} />
         <Metric label={t("reports.averageOrder")} value={formatAppCurrency(locale, total.averageOrderValue, scope.workspace.defaultCurrency, { maximumFractionDigits: 0 })} />
@@ -121,6 +121,6 @@ async function ReportOverviewContent({
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="min-w-0 bg-white p-3 sm:px-4 sm:py-5"><dt className="text-xs text-stone-500 sm:text-sm">{label}</dt><dd className="mt-1 break-words text-lg font-semibold leading-tight tabular-nums sm:text-2xl">{value}</dd></div>;
+  return <div className="min-w-0 rounded-lg border border-stone-200 bg-white p-3 shadow-sm"><dt className="text-xs text-stone-500 sm:text-sm">{label}</dt><dd className="mt-1 break-words text-lg font-semibold leading-tight tabular-nums text-stone-950 sm:text-xl">{value}</dd></div>;
 }
 function weekStart(date: Date) { const copy = new Date(date); copy.setUTCDate(copy.getUTCDate() - ((copy.getUTCDay() + 6) % 7)); return copy.toISOString().slice(0, 10); }

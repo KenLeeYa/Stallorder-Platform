@@ -25,6 +25,12 @@ export async function getStallModuleState(stallId: string, organizationId: strin
         lotteryEnabled: true,
         lotteryDiscountOptionId: true,
         lotteryDiscountWinRateBps: true,
+        lotterySpendRewardEnabled: true,
+        lotterySpendThresholdAmount: true,
+        lotteryFestivalRewardEnabled: true,
+        lotteryFestivalStartsOn: true,
+        lotteryFestivalEndsOn: true,
+        lotteryBirthdayRewardEnabled: true,
         enabledLocales: true,
       },
     }),
@@ -85,6 +91,8 @@ export async function getStallModuleState(stallId: string, organizationId: strin
       lotteryDiscountChances: orderedLotteryDiscountChances.length > 0
         ? orderedLotteryDiscountChances
         : legacyLotteryDiscountChances,
+      lotteryFestivalStartsOn: settings.lotteryFestivalStartsOn?.toISOString().slice(0, 10) ?? null,
+      lotteryFestivalEndsOn: settings.lotteryFestivalEndsOn?.toISOString().slice(0, 10) ?? null,
       preorderSlotMinutes: ([5, 15, 30, 60, 120] as const).includes(
         settings.preorderSlotMinutes as 5 | 15 | 30 | 60 | 120,
       )
