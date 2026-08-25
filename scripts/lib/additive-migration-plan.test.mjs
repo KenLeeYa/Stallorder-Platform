@@ -55,6 +55,10 @@ const paygContractRuntimeGapsMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260824110000_payg_contract_and_runtime_gaps.sql",
 ), "utf8");
+const lotteryFreeProductCampaignsMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260825120000_lottery_free_product_campaigns.sql",
+), "utf8");
 const drStandbyCompatibleMigrationFiles = [
   "20260821012140_reservation_preorder_foundation.sql",
   "20260821012142_digital_waitlist_foundation.sql",
@@ -65,6 +69,10 @@ const drStandbyCompatibleMigrationFiles = [
 ];
 
 describe("additive DR migration plan", () => {
+  it("accepts the free-product lottery campaign as an additive migration", () => {
+    expect(assertAdditiveMigrationSql(lotteryFreeProductCampaignsMigration)).toBe(true);
+  });
+
   it("parses exact pending versions from ASCII or Unicode Supabase output", () => {
     expect(parseSupabaseMigrationList(`
       LOCAL          | REMOTE         | TIME (UTC)
