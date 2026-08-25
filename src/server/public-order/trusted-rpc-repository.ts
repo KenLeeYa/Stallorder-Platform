@@ -357,7 +357,7 @@ export function createPublicOrderWithSchedule(input: {
   lotteryDrawId: string | null;
 }) {
   return jsonResult<OrderCreateResult>(Prisma.sql`
-    select public.create_public_order_with_fulfillment_time_targeted(
+    select public.create_public_order_with_free_lottery_reward_targeted(
       ${input.orderId}::uuid,
       ${input.qrToken}::text,
       ${input.sessionTokenHash}::text,

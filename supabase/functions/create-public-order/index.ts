@@ -312,7 +312,7 @@ Deno.serve(async (request) => {
       p_lottery_draw_id: input.lotteryDrawId,
     };
     const { data: createResult, error: createError } = await timing.measureDb(() => admin.rpc(
-      "create_public_order_with_fulfillment_time_targeted",
+      "create_public_order_with_free_lottery_reward_targeted",
       createArguments,
     ));
     if (createError) {
