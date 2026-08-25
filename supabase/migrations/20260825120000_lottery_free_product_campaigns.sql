@@ -11,10 +11,8 @@ alter table public.stall_ordering_settings
   add column if not exists lottery_birthday_reward_enabled boolean not null default false;
 
 alter table public.stall_ordering_settings
-  drop constraint if exists stall_ordering_settings_lottery_spend_threshold_check,
   add constraint stall_ordering_settings_lottery_spend_threshold_check
     check (lottery_spend_threshold_amount between 1 and 100000000),
-  drop constraint if exists stall_ordering_settings_lottery_festival_dates_check,
   add constraint stall_ordering_settings_lottery_festival_dates_check
     check (
       not lottery_festival_reward_enabled
@@ -24,7 +22,6 @@ alter table public.stall_ordering_settings
         and lottery_festival_starts_on <= lottery_festival_ends_on
       )
     ),
-  drop constraint if exists stall_ordering_settings_lottery_birthday_disabled_check,
   add constraint stall_ordering_settings_lottery_birthday_disabled_check
     check (not lottery_birthday_reward_enabled);
 
@@ -37,13 +34,10 @@ alter table public.public_lottery_draws
   add column if not exists qualification_threshold_amount integer;
 
 alter table public.public_lottery_draws
-  drop constraint if exists public_lottery_draws_reward_kind_check,
   add constraint public_lottery_draws_reward_kind_check
     check (reward_kind in ('RECOMMENDATION', 'FREE_PRODUCT')),
-  drop constraint if exists public_lottery_draws_qualification_type_check,
   add constraint public_lottery_draws_qualification_type_check
     check (qualification_type in ('STANDARD', 'SPEND', 'FESTIVAL')),
-  drop constraint if exists public_lottery_draws_reward_snapshot_check,
   add constraint public_lottery_draws_reward_snapshot_check
     check (
       (reward_kind = 'RECOMMENDATION' and qualification_type = 'STANDARD'
@@ -61,14 +55,11 @@ alter table public.order_items
   add column if not exists lottery_draw_id uuid;
 
 alter table public.order_items
-  drop constraint if exists order_items_promotion_source_check,
   add constraint order_items_promotion_source_check
     check (promotion_source in ('NONE', 'LOTTERY_FREE_PRODUCT')),
-  drop constraint if exists order_items_lottery_draw_id_fkey,
   add constraint order_items_lottery_draw_id_fkey
     foreign key (lottery_draw_id)
     references public.public_lottery_draws(id) on delete set null,
-  drop constraint if exists order_items_lottery_reward_snapshot_check,
   add constraint order_items_lottery_reward_snapshot_check
     check (
       (promotion_source = 'NONE' and lottery_draw_id is null)
@@ -87,7 +78,7 @@ comment on column public.order_items.promotion_source is
 -- Preserve the existing two-argument draw for standard recommendations and
 -- expose a three-argument campaign-aware overload. This keeps all current
 -- rate limits and daily idempotency in one trusted implementation.
-create or replace function public.draw_public_lottery(
+create function public.draw_public_lottery(
   p_session_token_hash text,
   p_device_hash text,
   p_cart_total integer
@@ -273,14 +264,10 @@ from public, anon, authenticated;
 grant execute on function public.draw_public_lottery(text, text, integer)
 to service_role;
 
--- Wrap the existing order transaction without duplicating its validation,
--- idempotency, fulfillment, lottery-discount, or schedule behavior.
-alter function app_private.create_public_order_with_experience_targeted(
-  uuid, text, text, text, text, text, text, uuid, text, text, text, jsonb,
-  text, text, text, boolean, timestamptz, uuid
-) rename to create_public_order_with_experience_pre_free_reward;
-
-create function app_private.create_public_order_with_experience_targeted(
+-- Add a new transaction entry point without replacing the existing order
+-- functions. The application switches to this function only after the schema
+-- migration is applied by the protected Production Apply workflow.
+create function public.create_public_order_with_free_lottery_reward_targeted(
   p_order_id uuid,
   p_qr_token text,
   p_session_token_hash text,
@@ -291,13 +278,15 @@ create function app_private.create_public_order_with_experience_targeted(
   p_idempotency_key uuid,
   p_idempotency_hash text,
   p_customer_name text,
+  p_customer_phone text,
+  p_delivery_address text,
   p_customer_note text,
   p_items jsonb,
   p_tracking_token_hash text,
   p_pickup_code_hash text,
   p_request_id text,
   p_wait_acknowledged boolean,
-  p_scheduled_pickup_at timestamptz,
+  p_requested_fulfillment_at timestamptz,
   p_lottery_draw_id uuid
 )
 returns jsonb
@@ -313,12 +302,13 @@ declare
   v_order record;
   v_product record;
 begin
-  v_result := app_private.create_public_order_with_experience_pre_free_reward(
+  v_result := public.create_public_order_with_fulfillment_time_targeted(
     p_order_id, p_qr_token, p_session_token_hash, p_device_hash, p_ip_hash,
     p_qr_token_hash, p_behavior_hash, p_idempotency_key, p_idempotency_hash,
-    p_customer_name, p_customer_note, p_items, p_tracking_token_hash,
+    p_customer_name, p_customer_phone, p_delivery_address, p_customer_note,
+    p_items, p_tracking_token_hash,
     p_pickup_code_hash, p_request_id, p_wait_acknowledged,
-    p_scheduled_pickup_at, p_lottery_draw_id
+    p_requested_fulfillment_at, p_lottery_draw_id
   );
   if not coalesce((v_result->>'ok')::boolean, false) or not (v_result ? 'order') then
     return v_result;
@@ -334,7 +324,9 @@ begin
   from public.public_lottery_draws draw
   where draw.id = p_lottery_draw_id
   for update;
-  if not found or v_draw.reward_kind <> 'FREE_PRODUCT' then
+  if not found
+     or v_draw.reward_kind <> 'FREE_PRODUCT'
+     or v_draw.redeemed_order_id is distinct from v_order_id then
     return v_result;
   end if;
 
@@ -440,12 +432,17 @@ begin
 end;
 $$;
 
-revoke all on function app_private.create_public_order_with_experience_targeted(
-  uuid, text, text, text, text, text, text, uuid, text, text, text, jsonb,
-  text, text, text, boolean, timestamptz, uuid
-) from public, anon, authenticated, service_role;
+revoke all on function public.create_public_order_with_free_lottery_reward_targeted(
+  uuid, text, text, text, text, text, text, uuid, text, text, text, text,
+  text, jsonb, text, text, text, boolean, timestamptz, uuid
+) from public, anon, authenticated;
+grant execute on function public.create_public_order_with_free_lottery_reward_targeted(
+  uuid, text, text, text, text, text, text, uuid, text, text, text, text,
+  text, jsonb, text, text, text, boolean, timestamptz, uuid
+) to service_role;
 
-revoke all on function app_private.create_public_order_with_experience_pre_free_reward(
-  uuid, text, text, text, text, text, text, uuid, text, text, text, jsonb,
-  text, text, text, boolean, timestamptz, uuid
-) from public, anon, authenticated, service_role;
+comment on function public.create_public_order_with_free_lottery_reward_targeted(
+  uuid, text, text, text, text, text, text, uuid, text, text, text, text,
+  text, jsonb, text, text, text, boolean, timestamptz, uuid
+) is
+  'Creates an order through the existing trusted transaction and atomically adds an eligible free-product lottery reward.';

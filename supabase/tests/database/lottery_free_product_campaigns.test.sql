@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(20);
+select plan(23);
 
 select has_column(
   'public', 'stall_ordering_settings', 'lottery_spend_reward_enabled',
@@ -31,6 +31,31 @@ select ok(
     'service_role', 'public.draw_public_lottery(text,text,integer)', 'EXECUTE'
   ),
   'the server role can call the campaign draw'
+);
+select has_function(
+  'public', 'create_public_order_with_free_lottery_reward_targeted',
+  array[
+    'uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'uuid', 'text',
+    'text', 'text', 'text', 'text', 'jsonb', 'text', 'text', 'text', 'boolean',
+    'timestamp with time zone', 'uuid'
+  ],
+  'the additive free-reward order transaction exists'
+);
+select ok(
+  not has_function_privilege(
+    'anon',
+    'public.create_public_order_with_free_lottery_reward_targeted(uuid,text,text,text,text,text,text,uuid,text,text,text,text,text,jsonb,text,text,text,boolean,timestamp with time zone,uuid)',
+    'EXECUTE'
+  ),
+  'anonymous clients cannot call the trusted free-reward transaction'
+);
+select ok(
+  has_function_privilege(
+    'service_role',
+    'public.create_public_order_with_free_lottery_reward_targeted(uuid,text,text,text,text,text,text,uuid,text,text,text,text,text,jsonb,text,text,text,boolean,timestamp with time zone,uuid)',
+    'EXECUTE'
+  ),
+  'the server role can call the trusted free-reward transaction'
 );
 
 select throws_ok(
@@ -178,7 +203,7 @@ select is(
 );
 
 update pg_temp.free_reward_result
-set order_response = public.create_public_order_with_fulfillment_time_targeted(
+set order_response = public.create_public_order_with_free_lottery_reward_targeted(
   'c4000000-0000-4000-8000-000000000001',
   'demo-aming-chicken-qr-2026-rotate-me',
   repeat('6', 64), repeat('7', 64), repeat('8', 64),
