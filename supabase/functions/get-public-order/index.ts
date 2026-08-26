@@ -13,6 +13,7 @@ import {
 import { getPublicOrderSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
 import { createEdgePerformanceTiming, finalizeEdgeResponse } from "../_shared/performance.ts";
+import { resolveStoredPickupCode } from "../_shared/public-order-contract.ts";
 
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
@@ -86,7 +87,7 @@ Deno.serve(async (request) => {
       fulfillmentType?: string;
       pickupCodeLength?: number;
     };
-    const pickupCode = stored.fulfillmentType === "TAKEOUT"
+    const fallbackPickupCode = stored.fulfillmentType === "TAKEOUT"
       ? (await derivePublicOrderTokens(
         stored.orderId,
         requireEnv("TOKEN_DERIVATION_SECRET"),
@@ -94,10 +95,16 @@ Deno.serve(async (request) => {
       )).pickupCode
       : null;
     const orderContext = await timing.measureDb(() => admin.from("orders")
-      .select("stall_id, dining_table_id, quoted_wait_minutes, quoted_ready_at")
+      .select("stall_id, dining_table_id, quoted_wait_minutes, quoted_ready_at, pickup_code_display")
       .eq("id", stored.orderId)
       .single());
     if (orderContext.error) throw orderContext.error;
+    const pickupCode = fallbackPickupCode === null
+      ? null
+      : resolveStoredPickupCode(
+        { pickup_code_display: orderContext.data.pickup_code_display },
+        fallbackPickupCode,
+      );
     const [settingsQuery, stallQuery, lastTableOrderQuery] = await timing.measureDb(() => Promise.all([
       admin.from("stall_ordering_settings")
         .select("estimated_wait_minutes")

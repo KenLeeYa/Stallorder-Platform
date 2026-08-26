@@ -1,16 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, LoaderCircle, RotateCcw } from "lucide-react";
+import { AlertTriangle, LoaderCircle, RotateCcw } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { useAppLocale } from "@/components/locale-provider";
 import { publicMessages } from "@/lib/messages/public";
 import { formatMoney } from "@/lib/money";
 import {
   getOrCreateDeviceId,
   parseEdgeResponse,
-  publicEdgeHeaders,
-  publicEdgeUrl,
+  requestPrepareReorder,
 } from "@/lib/public-order-client";
 import { qrCartStorageKey, serializeQrCartDraft } from "@/lib/qr-cart";
 import { localizedPublicOrderError } from "@/lib/qr-order-i18n";
@@ -49,11 +48,9 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
     setLoading(true);
     setMessage("");
     try {
-      const response = await fetch(publicEdgeUrl("prepare-reorder"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...publicEdgeHeaders() },
-        body: JSON.stringify({ trackingToken, deviceId: getOrCreateDeviceId() }),
-        cache: "no-store",
+      const response = await requestPrepareReorder({
+        trackingToken,
+        deviceId: getOrCreateDeviceId(),
       });
       const payload = await parseEdgeResponse(response);
       if (!response.ok) throw new Error(
@@ -108,9 +105,7 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
 
   return (
     <main className="mx-auto min-h-screen max-w-xl px-5 py-9">
-      <Link href={`/order/${encodeURIComponent(trackingToken)}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800">
-        <ArrowLeft className="h-4 w-4" />{publicMessages.get(locale, "reorderBack")}
-      </Link>
+      <ContextualBackButton fallbackHref={`/order/${encodeURIComponent(trackingToken)}`}>{publicMessages.get(locale, "reorderBack")}</ContextualBackButton>
       <h1 className="mt-4 text-3xl font-semibold">{publicMessages.get(locale, "reorderTitle")}</h1>
 
       {loading ? <div className="mt-10 flex items-center gap-3 text-sm text-stone-600"><LoaderCircle className="h-5 w-5 animate-spin" />{publicMessages.get(locale, "reorderChecking")}</div> : null}

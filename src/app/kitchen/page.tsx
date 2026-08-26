@@ -28,19 +28,7 @@ export default async function KitchenPage({ searchParams }: PageProps) {
   );
   timing.finish({ status: 200 });
   const canManage = access.roles.some((role) => hasPermission(role, "MANAGE_KDS"));
-  const workModeDestinations = buildWorkModeDestinations([{
-    id: access.stall.organizationId,
-    businessName: access.stall.organization.businessName,
-    roles: access.roles,
-    stalls: [{
-      id: access.stall.id,
-      name: access.stall.name,
-      slug: access.stall.slug,
-      isActive: access.stall.isActive,
-      kdsEnabled: true,
-      roles: access.roles,
-    }],
-  }]);
+  const workModeDestinations = buildWorkModeDestinations(access.workspaces);
   return (
     <>
       <KitchenNavigation

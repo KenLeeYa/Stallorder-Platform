@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Link2 } from "lucide-react";
+import { Link2 } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { DeliveryMenuMappingForm } from "@/components/delivery-menu-mapping-form";
 import { prisma } from "@/lib/prisma";
 import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
@@ -69,7 +69,7 @@ export default async function DeliveryMenuMappingPage({ params, searchParams }: 
   ];
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
-      <Link href={`/merchant/integrations/delivery/${connectionId}?stallId=${scope.stall.id}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800"><ArrowLeft className="h-4 w-4" />{m("返回連線設定")}</Link>
+      <ContextualBackButton fallbackHref={`/merchant/integrations/delivery/${connectionId}?stallId=${scope.stall.id}`}>{m("返回連線設定")}</ContextualBackButton>
       <header className="mt-4 border-b border-stone-200 pb-5"><h1 className="flex items-center gap-3 text-3xl font-semibold"><Link2 className="h-7 w-7 text-teal-700" />{m("商品與註記對應")}</h1><p className="mt-2 text-sm text-stone-600">{m("缺少對應時訂單會停止匯入並顯示營運警示，不會建立不完整訂單。")}</p></header>
       <section className="py-7"><h2 className="text-xl font-semibold">{m("新增或修改對應")}</h2><DeliveryMenuMappingForm connectionId={connectionId} stallId={scope.stall.id} entities={entities} /></section>
       <section className="border-t border-stone-200 py-7"><h2 className="text-xl font-semibold">{m("目前對應")}</h2><div className="mt-3 overflow-x-auto"><table className="w-full min-w-[640px] text-left text-sm"><thead><tr className="border-b border-stone-300"><th className="px-2 py-3">{m("類型")}</th><th className="px-2 py-3">StallOrder ID</th><th className="px-2 py-3">{m("外送平台 ID")}</th><th className="px-2 py-3">{m("狀態")}</th></tr></thead><tbody>{mappings.map((mapping) => <tr key={mapping.id} className="border-b border-stone-200"><td className="px-2 py-3">{mapping.internalEntityType}</td><td className="px-2 py-3 font-mono text-xs">{mapping.internalEntityId}</td><td className="px-2 py-3 font-mono text-xs">{mapping.externalEntityId}</td><td className="px-2 py-3">{mapping.mappingStatus}</td></tr>)}</tbody></table>{mappings.length === 0 ? <p className="py-4 text-sm text-stone-600">{m("尚未建立對應。")}</p> : null}</div></section>

@@ -15,6 +15,7 @@ import {
   Eye,
   EyeOff,
   FolderPlus,
+  GitBranch,
   ImageUp,
   Languages,
   Layers3,
@@ -227,6 +228,7 @@ export function SharedCatalogManager({
   enabledTranslationLocales,
   aiTranslationConfigured,
   aiTranslationProviderLabel,
+  versionsHref,
 }: {
   organizationId: string;
   currency: string;
@@ -237,12 +239,13 @@ export function SharedCatalogManager({
   enabledTranslationLocales: TranslationLocale[];
   aiTranslationConfigured: boolean;
   aiTranslationProviderLabel: string;
+  versionsHref?: string;
 }) {
   const { locale, m, label } = useMerchantMessages();
   const formatMoney = (amount: number, selectedCurrency = currency) => formatRawMoney(amount, selectedCurrency, locale);
   const [catalog, setCatalog] = useState(initialCatalog);
-  const [catalogOpen, setCatalogOpen] = useState(true);
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set());
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
   const [noteGroups, setNoteGroups] = useState(initialNoteGroups);
   const [reusableNotes, setReusableNotes] = useState(initialReusableNotes);
   const [noteGroupsRevision, setNoteGroupsRevision] = useState(0);
@@ -286,15 +289,26 @@ export function SharedCatalogManager({
     () => [...catalog.categories].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-TW")),
     [catalog.categories],
   );
-  const allProductsExpanded = catalogOpen
-    && sortedCategories.every((category) => !collapsedCategoryIds.has(category.id));
+  const allProductsExpanded = sortedCategories.every((category) => !collapsedCategoryIds.has(category.id))
+    && catalog.groups.every((group) => !collapsedGroupIds.has(group.id));
 
   function toggleAllProducts() {
     const expand = !allProductsExpanded;
-    setCatalogOpen(expand);
     setCollapsedCategoryIds(expand
       ? new Set()
       : new Set(sortedCategories.map((category) => category.id)));
+    setCollapsedGroupIds(expand
+      ? new Set()
+      : new Set(catalog.groups.map((group) => group.id)));
+  }
+
+  function updateGroupDisclosure(groupId: string, isOpen: boolean) {
+    setCollapsedGroupIds((current) => {
+      const next = new Set(current);
+      if (isOpen) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
   }
 
   function clearBundleFeedback() {
@@ -860,17 +874,14 @@ export function SharedCatalogManager({
               <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={createGroup} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Layers3 className="h-5 w-5" /><span className="hidden xl:inline">{label("群組")}</span></button>
               <button type="button" title={label("新增商品")} aria-label={label("新增商品")} onClick={() => createProduct("SINGLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackagePlus className="h-5 w-5" /><span className="hidden xl:inline">{label("商品")}</span></button>
               <button type="button" title={label("新增套餐")} aria-label={label("新增套餐")} onClick={() => createProduct("BUNDLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-sm font-semibold text-teal-900 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackageOpen className="h-5 w-5" /><span className="hidden xl:inline">{label("新增套餐")}</span></button>
+              {versionsHref ? <a data-testid="catalog-versions-action" href={versionsHref} title={label("菜單版本與發布")} aria-label={label("菜單版本與發布")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-teal-900"><GitBranch className="h-5 w-5" /></a> : null}
             </div>
           </div>
         </div>
       </div>
 
       {message ? <p role="status" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
-      <details id="shared-product-catalog" open={catalogOpen} onToggle={(event) => setCatalogOpen(event.currentTarget.open)} data-shared-product-catalog className="group mt-5">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 border-y border-stone-200 py-3 font-semibold hover:text-teal-800 [&::-webkit-details-marker]:hidden">
-          <span>{m("商品目錄（{value0}）", { value0: catalog.products.length })}</span>
-          <ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" />
-        </summary>
+      <div id="shared-product-catalog" data-shared-product-catalog className="mt-5">
         <div className="divide-y divide-stone-200 border-b border-stone-200">
           {sortedCategories.map((category, categoryIndex) => {
             const categoryDisplayName = localizedCatalogName(category, locale);
@@ -906,22 +917,23 @@ export function SharedCatalogManager({
                   {groups.map((group, groupIndex) => {
                     const groupDisplayName = localizedCatalogName(group, locale);
                     return (
-                    <div key={group.id} className="border-l-2 border-stone-200 py-3 pl-4">
-                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                    <details key={group.id} data-testid="shared-product-group" open={!collapsedGroupIds.has(group.id)} onToggle={(event) => updateGroupDisclosure(group.id, event.currentTarget.open)} className="group/product border-l-2 border-stone-200 py-3 pl-4">
+                      <summary className="grid min-h-12 cursor-pointer list-none gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center [&::-webkit-details-marker]:hidden">
                         <div className="flex min-w-0 items-center gap-2">
+                          <ChevronDown className="h-4 w-4 shrink-0 text-stone-500 transition-transform group-open/product:rotate-180" />
                           <h2 className="min-w-0 truncate text-sm font-semibold">{groupDisplayName}</h2>
                           {!group.isActive ? <span className="shrink-0 text-xs text-stone-500">{label("已停用")}</span> : null}
                           <span className="ml-auto shrink-0 text-xs text-stone-500">{productsFor(category.id, group.id).length} {label("項")}</span>
                         </div>
                         <div className="flex flex-wrap justify-end">
-                          <IconButton disabled={busy || groupIndex === 0} label={m("將 {value0} 上移", { value0: group.name })} onClick={() => void moveGroup(groups, category.id, groupIndex, -1)}><ArrowUp className="h-4 w-4" /></IconButton>
-                          <IconButton disabled={busy || groupIndex === groups.length - 1} label={m("將 {value0} 下移", { value0: group.name })} onClick={() => void moveGroup(groups, category.id, groupIndex, 1)}><ArrowDown className="h-4 w-4" /></IconButton>
-                          <IconButton label={m("編輯 {value0}", { value0: group.name })} onClick={() => editGroup(group)}><Pencil className="h-4 w-4" /></IconButton>
-                          <IconButton label={`${group.isActive ? label("停用") : label("恢復")} ${group.name}`} onClick={() => void toggleActive("GROUP", group)}>{group.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
+                          <IconButton disabled={busy || groupIndex === 0} label={m("將 {value0} 上移", { value0: group.name })} onClick={(event) => { event.preventDefault(); void moveGroup(groups, category.id, groupIndex, -1); }}><ArrowUp className="h-4 w-4" /></IconButton>
+                          <IconButton disabled={busy || groupIndex === groups.length - 1} label={m("將 {value0} 下移", { value0: group.name })} onClick={(event) => { event.preventDefault(); void moveGroup(groups, category.id, groupIndex, 1); }}><ArrowDown className="h-4 w-4" /></IconButton>
+                          <IconButton label={m("編輯 {value0}", { value0: group.name })} onClick={(event) => { event.preventDefault(); editGroup(group); }}><Pencil className="h-4 w-4" /></IconButton>
+                          <IconButton label={`${group.isActive ? label("停用") : label("恢復")} ${group.name}`} onClick={(event) => { event.preventDefault(); void toggleActive("GROUP", group); }}>{group.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
                         </div>
-                      </div>
+                      </summary>
                       <ProductRows busy={busy} products={productsFor(category.id, group.id)} currency={currency} onMove={(products, index, direction) => void moveProduct(products, category.id, group.id, index, direction)} onEdit={editProduct} onBundle={openBundle} onAssignments={openAssignments} onClone={(product) => void cloneProduct(product)} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
-                    </div>
+                    </details>
                     );
                   })}
                   {ungrouped.length > 0 ? (
@@ -936,7 +948,7 @@ export function SharedCatalogManager({
           })}
           {sortedCategories.length === 0 ? <p className="py-10 text-center text-sm text-stone-500">{label("尚未建立商品分類。")}</p> : null}
         </div>
-      </details>
+      </div>
 
       {categoryDraft ? (
         <Editor

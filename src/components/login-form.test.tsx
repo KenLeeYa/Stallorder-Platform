@@ -46,4 +46,32 @@ describe("localized login form", () => {
     expect(getLoginResponseMessageKey(429)).toBe("login.error.rateLimited");
     expect(getLoginResponseMessageKey(500)).toBe("login.error.generic");
   });
+
+  it("renders four explicit local QA role buttons only when supplied by the server", () => {
+    const accounts = [
+      ["商家", "owner@stallorder.test"],
+      ["店員", "staff@stallorder.test"],
+      ["廚房", "kitchen@stallorder.test"],
+      ["平台管理者", "platform.admin@stallorder.test"],
+    ].map(([label, email]) => ({ label, email, password: "local-only" }));
+    const withQuickLogin = renderToStaticMarkup(
+      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+        <LoginForm
+          legacyGoogleEnabled={false}
+          oauthOnly={false}
+          oauthProviders={[]}
+          localQaAccounts={accounts}
+        />
+      </LocaleProvider>,
+    );
+    const withoutQuickLogin = renderToStaticMarkup(
+      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+        <LoginForm legacyGoogleEnabled={false} oauthOnly={false} oauthProviders={[]} />
+      </LocaleProvider>,
+    );
+
+    expect(withQuickLogin).toContain('data-testid="local-qa-login-grid"');
+    accounts.forEach((account) => expect(withQuickLogin).toContain(account.label));
+    expect(withoutQuickLogin).not.toContain('data-testid="local-qa-login-grid"');
+  });
 });

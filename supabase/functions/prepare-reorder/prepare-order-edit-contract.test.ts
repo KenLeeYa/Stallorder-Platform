@@ -9,7 +9,9 @@ describe("prepare public order edit contract", () => {
     expect(source).not.toContain("LINE_REPEAT_ORDER");
     expect(source).toContain('context.order.status !== "WAITING_CONFIRMATION"');
     expect(source).toContain('context.order.status !== "CONFIRMED"');
-    expect(source).toContain('job.status !== "PENDING"');
+    expect(source).toContain('context.admin.rpc("reorder_print_job_started"');
+    expect(source).toContain("printQuery.data === true");
+    expect(source).not.toContain('.from("print_jobs")');
     expect(source).toContain('task.status !== "PENDING"');
   });
 

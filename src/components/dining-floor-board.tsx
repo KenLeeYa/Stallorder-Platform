@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OrderItemStatus, OrderStatus, UserRole } from "@prisma/client";
-import Link from "next/link";
-import { ArrowLeft, CheckCheck, CircleCheck, Clock3, LoaderCircle, RefreshCw, Utensils, Wifi, WifiOff } from "lucide-react";
+import { CheckCheck, CircleCheck, Clock3, LoaderCircle, RefreshCw, Utensils, Wifi, WifiOff } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { LogoutButton } from "@/components/logout-button";
 import { DiningTableShapeGraphic } from "@/components/dining-table-shape";
 import { useOperationsLocale } from "@/components/operations-locale";
@@ -263,9 +263,7 @@ export function DiningFloorBoard({
       </header>
 
       <nav className="mt-4">
-        <Link href={`/staff/${stall.slug}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-stone-700">
-          <ArrowLeft className="h-4 w-4" />{t("dining.back")}
-        </Link>
+        <ContextualBackButton fallbackHref={`/staff/${stall.slug}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-stone-700">{t("dining.back")}</ContextualBackButton>
       </nav>
       {message ? <p role="alert" className="mt-2 text-sm text-red-700">{message}</p> : null}
 

@@ -51,8 +51,8 @@ select ok(
 
 select is(
   (select count(*)::integer from public.resilience_feature_flags),
-  72,
-  'all resilience, OAuth, delivery provider, payment and Phase 3 foundation flags are seeded'
+  80,
+  'all resilience, OAuth, delivery provider, payment, Phase 3 and competitive module flags are seeded'
 );
 select is(
   (

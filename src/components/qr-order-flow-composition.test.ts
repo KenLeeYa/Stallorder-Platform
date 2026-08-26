@@ -34,6 +34,7 @@ describe("QrOrderFlow composition boundary", () => {
   it("keeps responsive menu, cart, dialogs, and status UI in the presentation", () => {
     expect(presentationSource).toContain("<QrOrderMenu");
     expect(presentationSource).toContain("<QrOrderCartPanel");
+    expect(presentationSource).toContain("<QrCustomerMembershipEntry");
     expect(presentationSource).toContain("<QrSessionCountdown");
     expect(presentationSource).toContain("<LotteryResultDialog");
     expect(presentationSource).toContain("<SessionExpiryDialog");

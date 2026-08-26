@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { notFound } from "next/navigation";
 import { AdminMerchantApplicationActions } from "@/components/admin-merchant-application-actions";
 import type { AppLocale } from "@/lib/app-locale";
@@ -18,7 +19,7 @@ export default async function MerchantApplicationReviewPage({ params }: { params
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-6xl px-4 py-7 md:px-8">
-      <Link href="/admin/merchant-applications" className="text-sm font-semibold text-teal-800">{m("Back to applications")}</Link>
+      <ContextualBackButton fallbackHref="/admin/merchant-applications">{m("Back to applications")}</ContextualBackButton>
       <header className="mt-4 border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{application.applicationNumber}</p><div className="mt-1 flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-3xl font-semibold">{application.merchantName ?? m("Unnamed merchant")}</h1><p className="mt-2 text-sm text-stone-600">{getAdminCodeLabel(locale, application.status)} · {m("Risk: {risk}", { risk: getAdminCodeLabel(locale, application.riskLevel) })}</p></div><span className="text-sm font-semibold">{application.assignedReviewer?.displayName ?? m("No reviewer assigned")}</span></div></header>
       <div className="grid gap-8 py-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-7">

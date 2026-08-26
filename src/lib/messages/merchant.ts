@@ -31,6 +31,9 @@ const merchantDescriptionOverrides = {
 const merchantMessageRows = {
   "帳號與安全性": { "zh-TW": "帳號與安全性", en: "Account and security", ja: "アカウントとセキュリティ", ko: "계정 및 보안", vi: "Tài khoản và bảo mật", th: "บัญชีและความปลอดภัย" },
   "付款與金流": { "zh-TW": "付款與金流", en: "Payments and providers", ja: "決済とプロバイダー", ko: "결제 및 제공업체", vi: "Thanh toán và nhà cung cấp", th: "การชำระเงินและผู้ให้บริการ" },
+  "整合設定中心": { "zh-TW": "整合設定中心", en: "Integration setup", ja: "連携設定", ko: "통합 설정", vi: "Thiết lập tích hợp", th: "ตั้งค่าการเชื่อมต่อ" },
+  "庫存與配方": { "zh-TW": "庫存與配方", en: "Inventory and recipes", ja: "在庫とレシピ", ko: "재고 및 레시피", vi: "Kho và công thức", th: "สต็อกและสูตรอาหาร" },
+  "會員與成長": { "zh-TW": "會員與成長", en: "Customers and growth", ja: "顧客と成長", ko: "고객 및 성장", vi: "Khách hàng và tăng trưởng", th: "ลูกค้าและการเติบโต" },
   "返回攤位設定": { "zh-TW": "返回攤位設定", en: "Back to stall settings", ja: "店舗設定に戻る", ko: "매장 설정으로 돌아가기", vi: "Quay lại cài đặt quầy", th: "กลับไปยังการตั้งค่าร้าน" },
   "返回攤位管理": { "zh-TW": "返回攤位管理", en: "Back to stall management", ja: "店舗管理に戻る", ko: "매장 관리로 돌아가기", vi: "Quay lại quản lý quầy", th: "กลับไปยังการจัดการร้าน" },
   "返回管理攤位": { "zh-TW": "返回管理攤位", en: "Back to manage stalls", ja: "店舗管理に戻る", ko: "매장 관리로 돌아가기", vi: "Quay lại quản lý quầy", th: "กลับไปจัดการร้าน" },

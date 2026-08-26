@@ -4,19 +4,12 @@ import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowUpDown,
-  Banknote,
   CircleAlert,
-  CircleCheck,
-  Clock3,
   Pause,
   Play,
   RefreshCw,
   Search,
-  ShoppingBag,
-  Store,
   TriangleAlert,
-  WalletCards,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -89,6 +82,9 @@ export function MultiStallDashboard({
   multiStallEnabled,
   initialSelectedStallIds,
   initialDateRange,
+  initialPreset = "TODAY",
+  initialQuery = "",
+  initialSortKey = "sales",
   initialOverview,
 }: {
   organizationId: string;
@@ -99,13 +95,16 @@ export function MultiStallDashboard({
   multiStallEnabled: boolean;
   initialSelectedStallIds?: string[];
   initialDateRange?: { dateFrom: string; dateTo: string };
+  initialPreset?: DatePreset;
+  initialQuery?: string;
+  initialSortKey?: SortKey;
   initialOverview?: Overview;
 }) {
   const { locale, m, label } = useMerchantMessages();
   const formatMoney = (amount: number, selectedCurrency = currency) => formatRawMoney(amount, selectedCurrency, locale);
   const formatTaipeiDateTime = (value: string) => formatAppDateTime(locale, value, { timeZone: "Asia/Taipei", dateStyle: "medium", timeStyle: "short" });
   const today = useMemo(() => taipeiToday(), []);
-  const [preset, setPreset] = useState<DatePreset>("TODAY");
+  const [preset, setPreset] = useState<DatePreset>(initialPreset);
   const [dateRange, setDateRange] = useState(initialDateRange ?? { dateFrom: today, dateTo: today });
   const [selectedStallIds, setSelectedStallIds] = useState(
     initialSelectedStallIds?.length
@@ -115,8 +114,8 @@ export function MultiStallDashboard({
   const [overview, setOverview] = useState<Overview | null>(initialOverview ?? null);
   const [loading, setLoading] = useState(!initialOverview);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("sales");
+  const [query, setQuery] = useState(initialQuery);
+  const [sortKey, setSortKey] = useState<SortKey>(initialSortKey);
   const [realtimeState, setRealtimeState] = useState<RealtimeState>("CONNECTING");
   const [pendingBatchAction, setPendingBatchAction] = useState<BatchAction | null>(null);
   const [batchRunning, setBatchRunning] = useState(false);
@@ -153,6 +152,22 @@ export function MultiStallDashboard({
       setLoading(false);
     }
   }, [dateRange, label, organizationId, selectedStallIds]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const params = url.searchParams;
+    params.set("organizationId", organizationId);
+    params.set("dateFrom", dateRange.dateFrom);
+    params.set("dateTo", dateRange.dateTo);
+    params.set("dashboardPreset", preset);
+    params.set("dashboardSort", sortKey);
+    if (query) params.set("dashboardQuery", query);
+    else params.delete("dashboardQuery");
+    params.delete("stallId");
+    selectedStallIds.forEach((stallId) => params.append("stallId", stallId));
+    const nextUrl = `${url.pathname}?${params.toString()}${url.hash}`;
+    window.history.replaceState(window.history.state, "", nextUrl);
+  }, [dateRange.dateFrom, dateRange.dateTo, organizationId, preset, query, selectedStallIds, sortKey]);
 
   useEffect(() => {
     const shouldSkipInitialLoad = skipInitialLoadRef.current;
@@ -353,15 +368,15 @@ export function MultiStallDashboard({
       ) : null}
 
       {summary ? <>
-        <section className="grid grid-cols-2 gap-px border-x border-b border-stone-200 bg-stone-200 min-[360px]:grid-cols-3 sm:grid-cols-2 sm:gap-0 sm:border-x-0 sm:bg-transparent lg:grid-cols-4" aria-label={label("營運摘要")}>
-          <Metric icon={<Banknote />} label={label("總銷售額")} value={formatMoney(summary.totalSales, currency)} />
-          <Metric icon={<ShoppingBag />} label={label("訂單總數")} value={String(summary.orderCount)} />
-          <Metric icon={<CircleCheck />} label={label("已完成訂單")} value={String(summary.completedOrderCount)} />
-          <Metric icon={<WalletCards />} label={label("平均客單價")} value={formatMoney(summary.averageOrderValue, currency)} />
-          <Metric icon={<Clock3 />} label={label("待處理訂單")} value={String(summary.pendingOrderCount)} />
-          <Metric icon={<CircleAlert />} label={label("未付款訂單")} value={String(summary.unpaidOrderCount)} />
-          <Metric className="min-[360px]:col-span-2 sm:col-span-1" icon={<Store />} label={label("營業 / 暫停 / 關閉")} value={`${summary.openStallCount} / ${summary.pausedStallCount} / ${summary.closedStallCount}`} />
-          <Metric icon={<ArrowUpDown />} label={label("取消率")} value={percent(summary.cancellationRate)} />
+        <section data-testid="multi-stall-summary-dashboard" className="grid grid-cols-2 gap-2 sm:grid-cols-4 border-b border-stone-200 py-4 sm:py-5" aria-label={label("營運摘要")}>
+          <Metric label={label("總銷售額")} value={formatMoney(summary.totalSales, currency)} />
+          <Metric label={label("訂單總數")} value={String(summary.orderCount)} />
+          <Metric label={label("已完成訂單")} value={String(summary.completedOrderCount)} />
+          <Metric label={label("平均客單價")} value={formatMoney(summary.averageOrderValue, currency)} />
+          <Metric label={label("待處理訂單")} value={String(summary.pendingOrderCount)} />
+          <Metric label={label("未付款訂單")} value={String(summary.unpaidOrderCount)} />
+          <Metric label={label("營業 / 暫停 / 關閉")} value={`${summary.openStallCount} / ${summary.pausedStallCount} / ${summary.closedStallCount}`} />
+          <Metric label={label("取消率")} value={percent(summary.cancellationRate)} />
         </section>
 
         <section className="grid gap-3 border-b border-stone-200 py-4 sm:grid-cols-2 sm:gap-5 sm:py-5">
@@ -396,17 +411,17 @@ export function MultiStallDashboard({
   );
 }
 
-function Metric({ icon, label, value, className = "" }: { icon: React.ReactNode; label: string; value: string; className?: string }) {
-  return <div className={`${className} min-h-20 min-w-0 bg-white p-2 sm:flex sm:min-h-28 sm:items-center sm:gap-3 sm:border-t sm:border-stone-200 sm:px-4 sm:py-5 sm:first:border-t-0 lg:border-t-0 lg:border-r lg:last:border-r-0`}>{<span className="block text-teal-700 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>}<div className="mt-2 min-w-0 sm:mt-0"><div className="text-xs leading-4 text-stone-500 sm:text-sm">{label}</div><div className="mt-1 break-words text-base font-semibold sm:text-xl">{value}</div></div></div>;
+function Metric({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0 rounded-lg border border-stone-200 bg-white p-3 shadow-sm"><div className="text-xs text-stone-500 sm:text-sm">{label}</div><div className="mt-1 break-words text-lg font-semibold leading-tight tabular-nums text-stone-950 sm:text-xl">{value}</div></div>;
 }
 
 function DashboardDataSkeleton() {
   const { label } = useMerchantMessages();
   return (
-    <section aria-busy="true" className="grid grid-cols-2 gap-px border-x border-b border-stone-200 bg-stone-200 min-[360px]:grid-cols-3 sm:grid-cols-2 sm:gap-0 sm:border-x-0 sm:bg-transparent sm:py-5 lg:grid-cols-4">
+    <section aria-busy="true" className="grid grid-cols-2 gap-2 border-b border-stone-200 py-4 sm:grid-cols-4 sm:py-5">
       <span className="sr-only">{label("正在載入營運資料")}</span>
       {Array.from({ length: 8 }, (_, index) => (
-        <div key={index} className="min-h-20 animate-pulse bg-white p-2 sm:min-h-28 sm:border-t sm:border-stone-200 sm:px-4 sm:py-5 lg:border-t-0">
+        <div key={index} className="min-h-20 animate-pulse rounded-lg border border-stone-200 bg-white p-3 shadow-sm">
           <div className="h-3 w-20 rounded bg-stone-200" />
           <div className="mt-3 h-7 w-28 rounded bg-stone-100" />
         </div>

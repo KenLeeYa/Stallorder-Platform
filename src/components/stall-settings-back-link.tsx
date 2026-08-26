@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { resolveMerchantBackNavigation, type MerchantBackSource } from "@/lib/merchant-back-navigation";
 
 type Props = {
@@ -15,12 +14,8 @@ export function StallSettingsBackLink(props: Props) {
   if (!navigation) return null;
 
   return (
-    <Link
-      href={navigation.href}
-      className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800"
-    >
-      <ArrowLeft className="h-4 w-4" />
+    <ContextualBackButton fallbackHref={navigation.href}>
       {navigation.label}
-    </Link>
+    </ContextualBackButton>
   );
 }

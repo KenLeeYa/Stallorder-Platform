@@ -59,10 +59,9 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(
-    new RegExp(`/merchant/dashboard\\?organizationId=${organizationId}$`),
-    { timeout: 30_000 },
-  );
+  await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 })
+    .toBe("/merchant/dashboard");
+  expect(new URL(page.url()).searchParams.get("organizationId")).toBe(organizationId);
 
   if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
     const destinationPaths = [
@@ -80,19 +79,16 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
   await page.goto(overviewPath);
   await expect(page.getByLabel("應用程式狀態")).toBeVisible();
   await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeVisible();
-  const expandMerchantOptions = page.getByRole("button", { name: "展開商戶選項" });
-  await expect(expandMerchantOptions).toHaveAttribute("aria-expanded", "false");
-  await expandMerchantOptions.click();
-  await expect(page.getByRole("button", { name: "收合商戶選項" })).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: /^(?:展開|收合)商戶選項$/u })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "攤點通", exact: true })).toHaveAttribute(
     "href",
     `/merchant/dashboard?organizationId=${organizationId}`,
   );
   await expect(page.getByLabel("選擇商家")).toHaveCount(0);
-  await expect(page.getByLabel("選擇攤位")).toHaveCount(0);
-  const stallShortcut = page.getByRole("link", { name: "前往攤位 阿明鹽酥雞", exact: true });
-  await expect(stallShortcut).toHaveAttribute("href", "/merchant/aming-chicken");
-  const workMode = page.getByLabel("切換工作模式");
+  await expect(page.getByRole("button", { name: /^選擇攤位/u })).toHaveCount(0);
+  const stallShortcut = page.getByRole("link", { name: "選擇攤位：阿明鹽酥雞", exact: true });
+  await expect(stallShortcut).toHaveAttribute("href", `/merchant/stalls/${stallId}`);
+  const workMode = page.getByRole("button", { name: "商家管理", exact: true });
   const [stallShortcutBox, workModeBox] = await Promise.all([
     stallShortcut.boundingBox(),
     workMode.boundingBox(),
@@ -101,13 +97,6 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
   expect(workModeBox).not.toBeNull();
   expect(stallShortcutBox!.x).toBeGreaterThan(workModeBox!.x);
   expect(Math.abs(stallShortcutBox!.y - workModeBox!.y)).toBeLessThanOrEqual(2);
-
-  await page.getByRole("button", { name: "收合商戶選項" }).click();
-  await expect(stallShortcut).toBeHidden();
-  await expect(workMode).toBeHidden();
-  await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeVisible();
-  await expect(page.getByLabel("應用程式狀態")).toBeVisible();
-  await page.getByRole("button", { name: "展開商戶選項" }).click();
 
   for (const heading of ["攤位設定", "營運工具", "組織管理"]) {
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
@@ -128,7 +117,8 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/settings/${section}$`));
     const headingLabel = section === "lottery" ? "抽抽樂與贈品" : label;
     await expect(page.getByRole("heading", { name: headingLabel, exact: true }).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: "返回攤位設定", exact: true })).toBeVisible();
+    const backButton = page.getByRole("button", { name: "返回攤位設定", exact: true });
+    await expect(backButton).toBeVisible();
     const staticScope = staticSectionScopes[section];
     if (staticScope) {
       await expect(page.locator(`section[data-settings-scope="${staticScope}"]`)).toHaveCount(1);
@@ -142,6 +132,8 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
       document.documentElement.scrollWidth > document.documentElement.clientWidth
     ));
     expect(hasSectionOverflow, `${label} 不應產生手機版水平溢位`).toBe(false);
+    await backButton.click();
+    await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}$`));
   }
 
   for (const [label, route] of organizationLinks) {
@@ -151,14 +143,14 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     await expect(link).toHaveAttribute("href", destination);
     await link.click();
     await expect(page).toHaveURL(new RegExp(`/merchant/${route}\\?organizationId=${organizationId}&stallId=${stallId}$`));
-    const backLink = page.getByRole("link", { name: "返回攤位設定", exact: true });
-    await expect(backLink).toHaveAttribute("href", `/merchant/stalls/${stallId}`);
-    await backLink.click();
+    const backButton = page.getByRole("button", { name: "返回攤位設定", exact: true });
+    await expect(backButton).toBeVisible();
+    await backButton.click();
     await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}$`));
   }
 
   await page.goto(`/merchant/localization?organizationId=${organizationId}&stallId=00000000-0000-4000-8000-000000000000`);
-  await expect(page.getByRole("link", { name: "返回攤位設定", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "返回攤位設定", exact: true })).toHaveCount(0);
 
   await page.goto("/merchant/aming-chicken");
   const sharedCatalogLink = page.getByRole("link", { name: "管理共用商品主檔", exact: true });
@@ -167,8 +159,10 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     `/merchant/catalog?organizationId=${organizationId}&stallId=${stallId}&source=stall-products`,
   );
   await sharedCatalogLink.click();
-  await expect(page.getByRole("link", { name: "返回商品供應", exact: true }))
-    .toHaveAttribute("href", "/merchant/aming-chicken");
+  const returnToSupply = page.getByRole("button", { name: "返回商品供應", exact: true });
+  await expect(returnToSupply).toBeVisible();
+  await returnToSupply.click();
+  await expect(page).toHaveURL(/\/merchant\/aming-chicken$/u);
 
   await page.goto(`/merchant/localization?organizationId=${organizationId}&stallId=${stallId}`);
   const catalogTranslationLink = page.getByRole("link", { name: "前往編輯翻譯", exact: true });
@@ -177,16 +171,20 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     `/merchant/catalog?organizationId=${organizationId}&stallId=${stallId}&source=localization`,
   );
   await catalogTranslationLink.click();
-  await expect(page.getByRole("link", { name: "返回翻譯完整度", exact: true }))
-    .toHaveAttribute("href", `/merchant/localization?organizationId=${organizationId}&stallId=${stallId}`);
+  const returnToLocalization = page.getByRole("button", { name: "返回翻譯完整度", exact: true });
+  await expect(returnToLocalization).toBeVisible();
+  await returnToLocalization.click();
+  await expect(page).toHaveURL(new RegExp(`/merchant/localization\\?organizationId=${organizationId}&stallId=${stallId}$`));
 
   await page.goto(`/merchant/stalls/${stallId}/settings/discounts?source=staff#discount-options`);
-  await expect(page.getByRole("link", { name: "返回店員訂單", exact: true }))
-    .toHaveAttribute("href", "/staff/aming-chicken");
+  const returnToStaff = page.getByRole("button", { name: "返回店員訂單", exact: true });
+  await expect(returnToStaff).toBeVisible();
 
   const hasHorizontalOverflow = await page.evaluate(() => (
     document.documentElement.scrollWidth > document.documentElement.clientWidth
   ));
   expect(hasHorizontalOverflow).toBe(false);
   await page.screenshot({ path: testInfo.outputPath("mobile-stall-settings.png"), fullPage: true });
+  await returnToStaff.click();
+  await expect(page).toHaveURL(/\/staff\/aming-chicken$/u);
 });

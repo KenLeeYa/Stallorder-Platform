@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { notFound } from "next/navigation";
 import { AdminInvoiceLineForm, AdminInvoiceVoidAction, AdminPaymentReviewActions } from "@/components/admin-billing-actions";
 import { ManualPaymentForm } from "@/components/manual-payment-form";
@@ -20,7 +20,7 @@ export default async function AdminInvoiceDetailPage({ params }: PageProps) {
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
-      <Link href="/admin/invoices" className="inline-flex min-h-11 items-center text-sm font-semibold text-teal-800">{m("Back to invoices")}</Link>
+      <ContextualBackButton fallbackHref="/admin/invoices" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-teal-800">{m("Back to invoices")}</ContextualBackButton>
       <header className="mt-4 border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{invoice.organization.businessName}</p><div className="mt-1 flex flex-wrap justify-between gap-3"><div><h1 className="text-3xl font-semibold">{invoice.invoiceNumber}</h1><p className="mt-2 text-sm text-stone-600">{invoice.subscription.planVersion.displayName} · {m("Due {date}", { date: formatAppDate(locale, invoice.dueAt) })}</p></div><strong>{getAdminCodeLabel(locale, invoice.status)}</strong></div></header>
       <section className="py-6">
         <h2 className="text-xl font-semibold">{m("Invoice details")}</h2>

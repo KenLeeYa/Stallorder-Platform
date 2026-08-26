@@ -72,6 +72,25 @@ export async function verifyStaffOrderPickup(input: FulfillmentTransport & {
   };
 }
 
+export async function verifyStaffOrderPickupByCode(input: FulfillmentTransport & {
+  stallSlug: string;
+  code: string;
+}): Promise<StaffOrderDto> {
+  const response = await (input.fetchImpl ?? fetch)(
+    `/api/stalls/${input.stallSlug}/orders/pickup-code`,
+    {
+      method: "POST",
+      headers: (input.getCsrfHeaders ?? csrfHeaders)(),
+      body: JSON.stringify({ code: input.code }),
+    },
+  );
+  const payload = await response.json() as { order?: StaffOrderDto; error?: string };
+  if (!response.ok || !payload.order) {
+    throw new Error(payload.error ?? "目前無法依取餐碼載入訂單。");
+  }
+  return payload.order;
+}
+
 export async function checkoutStaffDiningTable(input: FulfillmentTransport & {
   stallSlug: string;
   diningTableId: string;

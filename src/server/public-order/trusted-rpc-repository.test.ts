@@ -51,7 +51,8 @@ describe("trusted public-order fulfillment-time RPC", () => {
 
     const query = queryRaw.mock.calls[0]?.[0] as { strings: string[]; values: unknown[] };
     const sql = query.strings.join("");
-    expect(sql).toContain("public.create_public_order_with_free_lottery_reward_targeted");
+    expect(sql).toContain("public.create_public_order_with_daily_pickup_code_targeted");
+    expect(sql).not.toContain("public.create_public_order_with_free_lottery_reward_targeted");
     expect(sql).not.toMatch(/public\.create_public_order_with_fulfillment_time\s*\(/);
     expect(query.values).toContain(requestedFulfillmentAt);
     expect(query.values).toContain("0912345678");

@@ -299,9 +299,7 @@ test.describe("多攤位商戶關鍵流程", () => {
 
   test("共用商品分派、攤位覆寫價格與顧客菜單一致", async ({ page }) => {
     await loginWithPassword(page, ownerEmail);
-    await expect(page).toHaveURL(
-      new RegExp(`/merchant/dashboard\\?organizationId=${organization.id}$`),
-    );
+    await expectDashboardOrganization(page, organization.id);
     const sharedProduct = await prisma.product.findFirstOrThrow({
       where: { organizationId: organization.id, name: sharedProductName },
       select: { id: true },
@@ -405,14 +403,14 @@ test.describe("多攤位商戶關鍵流程", () => {
     }
     await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organization.id}`);
     await expect(page.getByLabel("選擇商家")).toHaveCount(0);
-    const stallSelector = page.getByLabel("選擇攤位");
-    await expect(stallSelector).toBeVisible();
-    await expect(stallSelector.locator('option[value="ALL_STALLS"]')).toHaveText("全部攤位");
-    await expect(stallSelector.locator(`option[value="${firstStall.id}"]`)).toHaveText(firstStall.name);
-    await expect(stallSelector.locator(`option[value="${secondStall.id}"]`)).toHaveText(secondStall.name);
-    await stallSelector.selectOption(firstStall.id);
+    await openCompactSwitcher(page, "選擇攤位：全部攤位", "選擇攤位");
+    const stallDialog = page.getByRole("dialog", { name: "選擇攤位" });
+    await expect(stallDialog.getByRole("button", { name: "全部攤位", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(stallDialog.getByRole("button", { name: firstStall.name, exact: true })).toBeVisible();
+    await expect(stallDialog.getByRole("button", { name: secondStall.name, exact: true })).toBeVisible();
+    await stallDialog.getByRole("button", { name: firstStall.name, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/merchant/${firstStall.slug}$`));
-    await page.getByLabel("選擇攤位").selectOption("ALL_STALLS");
+    await selectCompactOption(page, `選擇攤位：${firstStall.name}`, "選擇攤位", "全部攤位");
     await expect(page).toHaveURL(
       new RegExp(`/merchant/stalls\\?organizationId=${organization.id}$`),
     );
@@ -422,28 +420,33 @@ test.describe("多攤位商戶關鍵流程", () => {
     await expect(page.getByRole("link", { name: firstStall.name, exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: secondStall.name, exact: true })).toBeVisible();
 
-    const workMode = page.getByLabel("切換工作模式");
-    await expect(workMode).toHaveValue(`merchant:${organization.id}`);
-    await expect(workMode.locator(`option[value="staff:${firstStall.id}"]`)).toHaveText(`店員 · ${firstStall.name}`);
-    await expect(workMode.locator(`option[value="kitchen:${firstStall.id}"]`)).toHaveText(`廚房 · ${firstStall.name}`);
-
-    await waitForReactHandler(workMode, "onChange");
-    await workMode.selectOption(`staff:${firstStall.id}`);
+    await openCompactSwitcher(page, "商家管理", "切換工作模式");
+    const workModeDialog = page.getByRole("dialog", { name: "切換工作模式" });
+    await expect(workModeDialog.getByRole("button", { name: "商家管理", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(workModeDialog.getByRole("button", { name: `店員 · ${firstStall.name}`, exact: true })).toBeVisible();
+    await expect(workModeDialog.getByRole("button", { name: `廚房 · ${firstStall.name}`, exact: true })).toBeVisible();
+    await workModeDialog.getByRole("button", { name: `店員 · ${firstStall.name}`, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/staff/${firstStall.slug}$`));
     await expect(page.getByRole("heading", { name: firstStall.name, exact: true })).toBeVisible();
-    await expect(page.getByLabel("切換工作模式")).toHaveValue(`staff:${firstStall.id}`);
+    await expect(page.getByRole("button", { name: `店員 · ${firstStall.name}`, exact: true })).toBeVisible();
 
-    const staffWorkMode = page.getByLabel("切換工作模式");
-    await waitForReactHandler(staffWorkMode, "onChange");
-    await staffWorkMode.selectOption(`kitchen:${firstStall.id}`);
+    await selectCompactOption(
+      page,
+      `店員 · ${firstStall.name}`,
+      "切換工作模式",
+      `廚房 · ${firstStall.name}`,
+    );
     await expect(page).toHaveURL(new RegExp(`/kitchen\\?stall=${firstStall.slug}$`));
     await expect(page.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
-    await expect(page.getByLabel("切換工作模式")).toHaveValue(`kitchen:${firstStall.id}`);
+    await expect(page.getByRole("button", { name: `廚房 · ${firstStall.name}`, exact: true })).toBeVisible();
 
-    const kitchenWorkMode = page.getByLabel("切換工作模式");
-    await waitForReactHandler(kitchenWorkMode, "onChange");
-    await kitchenWorkMode.selectOption(`merchant:${organization.id}`);
-    await expect(page).toHaveURL(new RegExp(`/merchant/dashboard\\?organizationId=${organization.id}$`));
+    await selectCompactOption(
+      page,
+      `廚房 · ${firstStall.name}`,
+      "切換工作模式",
+      "商家管理",
+    );
+    await expectDashboardOrganization(page, organization.id);
     await expect(page.getByRole("heading", { name: organization.businessName, exact: true })).toBeVisible();
 
     await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organization.id}&stallId=${secondStall.id}`);
@@ -471,15 +474,14 @@ test.describe("多攤位商戶關鍵流程", () => {
     await loginWithPassword(page, staffEmail);
     await expect(page).toHaveURL(new RegExp(`/staff/${firstStall.slug}$`));
     await expect(page.getByRole("heading", { name: firstStall.name, exact: true })).toBeVisible();
-    await expect(page.getByLabel("切換工作模式")).toHaveCount(0);
+    await expect(page.getByTestId("work-mode-icon-staff")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^選擇攤位/u })).toHaveCount(0);
     const unassignedStaffResponse = await page.goto(`/staff/${secondStall.slug}`);
     expect(unassignedStaffResponse?.status()).toBe(404);
 
     await page.context().clearCookies();
     await loginWithPassword(page, financeEmail);
-    await expect(page).toHaveURL(
-      new RegExp(`/merchant/dashboard\\?organizationId=${organization.id}$`),
-    );
+    await expectDashboardOrganization(page, organization.id);
     const financeMutationOrderId = randomUUID();
     const financeOrderApiPath = `/api/stalls/${firstStall.slug}/orders/${financeMutationOrderId}`;
     if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
@@ -510,7 +512,8 @@ test.describe("多攤位商戶關鍵流程", () => {
     await loginWithPassword(page, kitchenEmail);
     await expect(page).toHaveURL(new RegExp(`/kitchen\\?stall=${firstStall.slug}$`));
     await expect(page.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
-    await expect(page.getByLabel("切換工作模式")).toHaveCount(0);
+    await expect(page.getByTestId("work-mode-icon-kitchen")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^選擇攤位/u })).toHaveCount(0);
     const kitchenFinanceResponse = await page.goto(
       `/merchant/reports/payments?organizationId=${organization.id}`,
     );
@@ -530,17 +533,17 @@ test.describe("多攤位商戶關鍵流程", () => {
     expect(appStatusBox).not.toBeNull();
     expect(appStatusBox!.x).toBeGreaterThan(brandBox!.x);
     expect(Math.abs(appStatusBox!.y - brandBox!.y)).toBeLessThanOrEqual(4);
-    await page.getByRole("button", { name: "展開商戶選項" }).click();
+    await expect(page.getByRole("button", { name: /^(?:展開|收合)商戶選項$/u })).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "商戶功能" })).toBeVisible();
-    await expect(page.getByLabel("選擇攤位")).toBeVisible();
+    await expect(page.getByRole("button", { name: "選擇攤位：全部攤位", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "攤位比較" })).toBeVisible();
     await expect(page.getByRole("article").filter({ hasText: secondStall.name })).toBeVisible();
     const summaryColumnCount = await page.getByLabel("營運摘要").evaluate((element) => (
       window.getComputedStyle(element).gridTemplateColumns.split(" ").length
     ));
-    expect(summaryColumnCount).toBe(3);
+    expect(summaryColumnCount).toBe(2);
     await expect(page.getByLabel("營運摘要").locator(":scope > div").nth(6))
-      .toHaveCSS("grid-column-end", "span 2");
+      .toHaveCSS("grid-column-end", "auto");
     const dimensions = await page.evaluate(() => ({
       viewport: window.innerWidth,
       document: document.documentElement.scrollWidth,
@@ -564,6 +567,20 @@ test.describe("多攤位商戶關鍵流程", () => {
     }));
     expect(narrowDimensions.document).toBeLessThanOrEqual(narrowDimensions.viewport + 1);
     expect(narrowDimensions.body).toBeLessThanOrEqual(narrowDimensions.viewport + 1);
+
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await expect(page.getByLabel("營運摘要")).toBeVisible();
+    const tabletSummaryColumnCount = await page.getByLabel("營運摘要").evaluate((element) => (
+      window.getComputedStyle(element).gridTemplateColumns.split(" ").length
+    ));
+    expect(tabletSummaryColumnCount).toBe(4);
+    const tabletDimensions = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+      body: document.body.scrollWidth,
+    }));
+    expect(tabletDimensions.document).toBeLessThanOrEqual(tabletDimensions.viewport + 1);
+    expect(tabletDimensions.body).toBeLessThanOrEqual(tabletDimensions.viewport + 1);
   });
 
   test("手機 Header 以 server route scope 覆蓋 stale 組織 query 並拒絕跨 tenant 攤位", async ({ page }) => {
@@ -572,7 +589,6 @@ test.describe("多攤位商戶關鍵流程", () => {
     await createAuthorizedSecondaryWorkspace();
     await loginWithPassword(page, ownerEmail);
 
-    const unauthorizedOrganizationId = await otherOrganizationId();
     await page.evaluate(({ organizationId }) => {
       window.localStorage.setItem("stallorder.organization.preference", organizationId);
     }, { organizationId: authorizedOrganization.id });
@@ -591,7 +607,7 @@ test.describe("多攤位商戶關鍵流程", () => {
       organizationId: organization.id,
       businessName: organization.businessName,
       stall: firstStall,
-      unauthorizedOrganizationId,
+      unauthorizedBusinessName: "E2E 隔離組織",
     });
 
     await page.evaluate(({ organizationId }) => {
@@ -611,7 +627,7 @@ test.describe("多攤位商戶關鍵流程", () => {
       organizationId: authorizedOrganization.id,
       businessName: authorizedOrganization.businessName,
       stall: authorizedStall,
-      unauthorizedOrganizationId,
+      unauthorizedBusinessName: "E2E 隔離組織",
     });
 
     const unauthorizedResponse = await page.goto(
@@ -619,7 +635,7 @@ test.describe("多攤位商戶關鍵流程", () => {
     );
     expect(unauthorizedResponse?.status()).toBe(404);
     await expect(page.getByText(otherStall.name, { exact: true })).toHaveCount(0);
-    await expect(page.locator(`option[value="${unauthorizedOrganizationId}"]`)).toHaveCount(0);
+    await expect(page.getByText("E2E 隔離組織", { exact: true })).toHaveCount(0);
 
     const dimensions = await page.evaluate(() => ({
       viewport: window.innerWidth,
@@ -715,11 +731,8 @@ async function deleteTestOrganizations(args: { where: Prisma.OrganizationWhereIn
 }
 
 async function expandMerchantHeader(page: Page) {
-  const expandButton = page.getByRole("button", { name: "展開商戶選項" });
-  await expect(expandButton).toHaveAttribute("aria-expanded", "false");
-  await expandButton.click();
-  await expect(page.getByRole("button", { name: "收合商戶選項" }))
-    .toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: /^(?:展開|收合)商戶選項$/u })).toHaveCount(0);
+  await expect(page.getByTestId("merchant-utility-toolbar")).toBeVisible();
 }
 
 async function expectRenderedMerchantScope(
@@ -728,34 +741,70 @@ async function expectRenderedMerchantScope(
     organizationId: string;
     businessName: string;
     stall: { id: string; name: string; slug: string };
-    unauthorizedOrganizationId: string;
+    unauthorizedBusinessName: string;
   },
 ) {
-  const organizationSelector = page.getByLabel("選擇商家");
-  await expect(organizationSelector).toBeVisible();
-  await expect(organizationSelector).toHaveValue(expected.organizationId);
-  await expect(organizationSelector.locator(`option[value="${expected.organizationId}"]`))
-    .toHaveText(expected.businessName);
-  await expect(organizationSelector.locator(`option[value="${expected.unauthorizedOrganizationId}"]`))
+  await openCompactSwitcher(
+    page,
+    `選擇商家：${expected.businessName}`,
+    "選擇商家",
+  );
+  const organizationDialog = page.getByRole("dialog", { name: "選擇商家" });
+  await expect(organizationDialog.getByRole("button", { name: expected.businessName, exact: true }))
+    .toHaveAttribute("aria-current", "page");
+  await expect(organizationDialog.getByText(expected.unauthorizedBusinessName, { exact: true }))
     .toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(organizationDialog).toHaveCount(0);
   await expect(page.getByRole("link", { name: "攤點通", exact: true })).toHaveAttribute(
     "href",
     `/merchant/dashboard?organizationId=${expected.organizationId}`,
   );
-  await expect(page.getByLabel("切換工作模式")).toHaveValue(
-    `merchant:${expected.organizationId}`,
-  );
+  await expect(page.getByRole("button", {
+    name: `商家管理 · ${expected.businessName}`,
+    exact: true,
+  })).toBeVisible();
 
-  const stallSelector = page.getByLabel("選擇攤位");
-  if (await stallSelector.count()) {
-    await expect(stallSelector).toBeVisible();
-    await expect(stallSelector).toHaveValue(expected.stall.id);
+  const stallTrigger = page.getByRole("button", {
+    name: `選擇攤位：${expected.stall.name}`,
+    exact: true,
+  });
+  if (await stallTrigger.count()) {
+    await stallTrigger.click();
+    const stallDialog = page.getByRole("dialog", { name: "選擇攤位" });
+    await expect(stallDialog.getByRole("button", { name: expected.stall.name, exact: true }))
+      .toHaveAttribute("aria-current", "page");
+    await page.keyboard.press("Escape");
+    await expect(stallDialog).toHaveCount(0);
   } else {
     await expect(page.getByRole("link", {
-      name: `前往攤位 ${expected.stall.name}`,
+      name: `選擇攤位：${expected.stall.name}`,
       exact: true,
-    })).toHaveAttribute("href", `/merchant/${expected.stall.slug}`);
+    })).toHaveAttribute("href", `/merchant/stalls/${expected.stall.id}`);
   }
+}
+
+async function openCompactSwitcher(
+  page: Page,
+  triggerName: string,
+  dialogName: "選擇商家" | "選擇攤位" | "切換工作模式",
+) {
+  const trigger = page.getByRole("button", { name: triggerName, exact: true });
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  await expect(page.getByRole("dialog", { name: dialogName })).toBeVisible();
+}
+
+async function selectCompactOption(
+  page: Page,
+  triggerName: string,
+  dialogName: "選擇商家" | "選擇攤位" | "切換工作模式",
+  optionName: string,
+) {
+  await openCompactSwitcher(page, triggerName, dialogName);
+  await page.getByRole("dialog", { name: dialogName })
+    .getByRole("button", { name: optionName, exact: true })
+    .click();
 }
 
 async function loginWithPassword(page: Page, email: string) {
@@ -765,6 +814,19 @@ async function loginWithPassword(page: Page, email: string) {
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
   await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 15_000 });
+}
+
+async function expectDashboardOrganization(page: Page, organizationId: string) {
+  await expect.poll(() => {
+    const url = new URL(page.url());
+    return {
+      pathname: url.pathname,
+      organizationId: url.searchParams.get("organizationId"),
+    };
+  }).toEqual({
+    pathname: "/merchant/dashboard",
+    organizationId,
+  });
 }
 
 async function waitForReactHandler(

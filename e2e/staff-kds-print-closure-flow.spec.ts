@@ -158,9 +158,13 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
 
       await ownerPage.goto(`/staff/${stallSlug}`);
       const visibleHeader = ownerPage.locator('[data-testid="staff-sticky-header"]:visible').last();
-      const workMode = visibleHeader.locator('select[aria-label="切換工作模式"]:visible');
+      const workMode = visibleHeader.getByTestId("work-mode-icon-staff").locator("..");
       await expect(workMode).toBeVisible();
-      await expect(workMode.locator('option[value^="kitchen:"]')).toHaveCount(0);
+      await workMode.click();
+      const workModeDialog = ownerPage.getByRole("dialog", { name: "切換工作模式" });
+      await expect(workModeDialog).toBeVisible();
+      await expect(workModeDialog.getByTestId("compact-switcher-option").filter({ hasText: /^廚房/u })).toHaveCount(0);
+      await workModeDialog.getByRole("button", { name: "關閉", exact: true }).click();
 
       for (const viewport of [
         { width: 320, height: 568, name: "mobile" },

@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, MessageCircle } from "lucide-react";
+import { MessageCircle } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { LineIntegrationManager } from "@/components/line-integration-manager";
 import { hasPermission } from "@/lib/rbac";
 import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
@@ -23,7 +23,7 @@ export default async function LineIntegrationPage({ params }: PageProps) {
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-4xl px-4 py-7 md:px-8">
-      <Link href={`/merchant/stalls/${stallId}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800"><ArrowLeft className="h-4 w-4" />{m("返回攤位設定")}</Link>
+      <ContextualBackButton fallbackHref={`/merchant/stalls/${stallId}`}>{m("返回攤位設定")}</ContextualBackButton>
       <header className="mt-4 border-b border-stone-200 pb-5">
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold"><MessageCircle className="h-7 w-7 text-emerald-700" />{m("LINE 訂單通知")}</h1>

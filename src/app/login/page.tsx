@@ -14,6 +14,13 @@ const providerLabels = {
   MICROSOFT: "Microsoft",
 } as const;
 
+const localQaAccounts = [
+  { label: "商家", email: "owner@stallorder.test", password: "StallOrderDemo!2026" },
+  { label: "店員", email: "staff@stallorder.test", password: "StallOrderDemo!2026" },
+  { label: "廚房", email: "kitchen@stallorder.test", password: "StallOrderDemo!2026" },
+  { label: "平台管理者", email: "platform.admin@stallorder.test", password: "StallOrderDemo!2026" },
+] as const;
+
 export default async function LoginPage() {
   const oauth = await getOAuthLoginUiConfig();
   const providers = oauth.providers
@@ -34,6 +41,8 @@ export default async function LoginPage() {
     : legacyGoogleEnabled
       ? "/auth/google?next=%2Fonboarding"
       : null;
+  const localQaQuickLoginEnabled = process.env.NODE_ENV === "development"
+    && process.env.LOCAL_QA_QUICK_LOGIN_ENABLED === "true";
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-4 py-8">
@@ -45,6 +54,7 @@ export default async function LoginPage() {
         legacyGoogleEnabled={legacyGoogleEnabled}
         oauthOnly={oauth.oauthOnly}
         oauthProviders={providers}
+        localQaAccounts={localQaQuickLoginEnabled ? [...localQaAccounts] : undefined}
       />
       <LoginApplicationPrompt applicationUrl={applicationUrl} />
     </main>

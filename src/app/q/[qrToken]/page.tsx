@@ -55,6 +55,7 @@ export default async function QrOrderPage({ params, searchParams }: PageProps) {
       initialUiLocale={requestLocale.locale}
       requestedLocale={requestedLocale}
       editTrackingToken={editTrackingToken}
+      customerMembershipPreview={process.env.NODE_ENV !== "production"}
     />
   );
 }

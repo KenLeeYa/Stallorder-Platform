@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Store } from "lucide-react";
+import { Store } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { DeliveryStoreSelector } from "@/components/delivery-store-selector";
 import { prisma } from "@/lib/prisma";
 import { deliveryProviderLabel } from "@/lib/delivery-platform-labels";
@@ -53,5 +53,5 @@ export default async function DeliveryStoresPage({ params, searchParams }: PageP
 }
 
 function BackLink({ connectionId, stallId, label }: { connectionId: string; stallId: string; label: string }) {
-  return <Link href={`/merchant/integrations/delivery/${connectionId}?stallId=${stallId}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800"><ArrowLeft className="h-4 w-4" />{label}</Link>;
+  return <ContextualBackButton fallbackHref={`/merchant/integrations/delivery/${connectionId}?stallId=${stallId}`}>{label}</ContextualBackButton>;
 }

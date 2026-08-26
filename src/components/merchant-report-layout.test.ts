@@ -9,8 +9,8 @@ describe("merchant report layout", () => {
   it("arranges audit filters into two responsive rows", () => {
     const operations = source("./operations-console.tsx");
 
-    expect(operations).toContain('className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"');
-    expect(operations).toContain('className="text-xs font-semibold text-stone-600 sm:col-span-2"');
+    expect(operations).toContain('className="grid grid-cols-2 gap-3 md:grid-cols-4"');
+    expect(operations).toContain('className="col-span-2 text-xs font-semibold text-stone-600"');
     expect(operations).toContain('className="mt-3 flex justify-end gap-2"');
   });
 
@@ -23,5 +23,15 @@ describe("merchant report layout", () => {
       expect(report).toContain("rounded-lg border border-stone-200 bg-white p-3 shadow-sm");
     }
     expect(stalls).not.toContain('data-testid="stall-performance-table"');
+  });
+
+  it("uses icon-only report navigation on phones and restores labels from tablet width", () => {
+    const navigation = source("./report-navigation.tsx");
+
+    expect(navigation).toContain('data-testid="report-navigation"');
+    expect(navigation).toContain("flex w-full flex-nowrap");
+    expect(navigation).toContain("overflow-x-auto");
+    expect(navigation).toContain("min-w-11 flex-1");
+    expect(navigation).toContain('className="sr-only md:not-sr-only"');
   });
 });

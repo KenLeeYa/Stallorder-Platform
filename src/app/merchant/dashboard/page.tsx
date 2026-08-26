@@ -1,20 +1,39 @@
 import { notFound, redirect } from "next/navigation";
 import { MultiStallDashboard } from "@/components/multi-stall-dashboard";
 import { getDashboardOverview } from "@/lib/dashboard-data";
+import { dashboardDateRange } from "@/lib/dashboard-validation";
 import { createPerformanceTiming } from "@/lib/performance-timing";
 import { authorizedStallIdsForPermission, hasPermission } from "@/lib/rbac";
 import { createRequestId } from "@/lib/security";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 import { getFeatureAccess } from "@/server/billing/feature-access";
 
-type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string | string[] }> };
+type DashboardPreset = "TODAY" | "YESTERDAY" | "WEEK" | "MONTH" | "CUSTOM";
+type DashboardSort = "sales" | "orders" | "pending" | "name";
+type PageProps = { searchParams: Promise<{
+  organizationId?: string;
+  stallId?: string | string[];
+  dateFrom?: string;
+  dateTo?: string;
+  dashboardPreset?: string;
+  dashboardQuery?: string;
+  dashboardSort?: string;
+}> };
 
 export default async function MerchantDashboardPage({ searchParams }: PageProps) {
   const timing = createPerformanceTiming({
     route: "/merchant/dashboard",
     requestId: createRequestId(),
   });
-  const { organizationId, stallId } = await searchParams;
+  const {
+    organizationId,
+    stallId,
+    dateFrom,
+    dateTo,
+    dashboardPreset,
+    dashboardQuery,
+    dashboardSort,
+  } = await searchParams;
   const { workspaces } = await timing.measure(
     "authMs",
     () => timing.measureDb(requireWorkspacePage, 3),
@@ -45,12 +64,23 @@ export default async function MerchantDashboardPage({ searchParams }: PageProps)
       .some((role) => hasPermission(role, "MANAGE_ORDERING")))
     .map((stall) => stall.id);
   const today = taipeiToday();
+  const requestedDateRange = dashboardDateRange(dateFrom ?? "", dateTo ?? "");
+  const initialDateRange = requestedDateRange.ok
+    ? { dateFrom: dateFrom as string, dateTo: dateTo as string }
+    : { dateFrom: today, dateTo: today };
+  const initialPreset = isDashboardPreset(dashboardPreset)
+    ? dashboardPreset
+    : initialDateRange.dateFrom === today && initialDateRange.dateTo === today
+      ? "TODAY"
+      : "CUSTOM";
+  const initialSortKey = isDashboardSort(dashboardSort) ? dashboardSort : "sales";
+  const initialQuery = (dashboardQuery ?? "").slice(0, 120);
   const initialOverview = await timing.measureDb(() => getDashboardOverview({
     organizationId: workspace.id,
     stalls: selectedStalls,
     alertStallIds,
-    dateFrom: today,
-    dateTo: today,
+    dateFrom: initialDateRange.dateFrom,
+    dateTo: initialDateRange.dateTo,
   }), 3);
   timing.finish({ status: 200 });
 
@@ -70,10 +100,21 @@ export default async function MerchantDashboardPage({ searchParams }: PageProps)
       canManageOrdering={authorizedStallIdsForPermission(reportStalls, "MANAGE_ORDERING").length > 0}
       multiStallEnabled={multiStallAccess.allowed}
       initialSelectedStallIds={initialSelectedStallIds}
-      initialDateRange={{ dateFrom: today, dateTo: today }}
+      initialDateRange={initialDateRange}
+      initialPreset={initialPreset}
+      initialQuery={initialQuery}
+      initialSortKey={initialSortKey}
       initialOverview={initialOverview}
     />
   );
+}
+
+function isDashboardPreset(value: string | undefined): value is DashboardPreset {
+  return value === "TODAY" || value === "YESTERDAY" || value === "WEEK" || value === "MONTH" || value === "CUSTOM";
+}
+
+function isDashboardSort(value: string | undefined): value is DashboardSort {
+  return value === "sales" || value === "orders" || value === "pending" || value === "name";
 }
 
 function taipeiToday() {

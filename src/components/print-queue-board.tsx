@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import Script from "next/script";
-import { ArrowLeft, Bluetooth, Check, CircleOff, Cloud, ExternalLink, Printer, RefreshCw, RotateCcw, X } from "lucide-react";
+import { Bluetooth, Check, CircleOff, Cloud, ExternalLink, Printer, RefreshCw, RotateCcw, X } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { PrintCenterSettings } from "@/components/print-center-settings";
 import { csrfHeaders } from "@/lib/csrf-client";
@@ -328,7 +328,7 @@ export function PrintQueueBoard({ stall, initialState }: {
     /> : null}
 
     <div className="flex flex-wrap items-start justify-between gap-4 print:hidden">
-      <div><Link href={`/staff/${stall.slug}`} className="inline-flex min-h-9 items-center gap-2 text-sm font-semibold text-teal-800"><ArrowLeft className="h-4 w-4" />{t("print.back")}</Link><h1 className="mt-2 text-3xl font-semibold">{t("print.center.title")}</h1><p className="mt-1 text-sm text-stone-500">{stall.name}</p></div>
+      <div><ContextualBackButton fallbackHref={`/staff/${stall.slug}`} className="inline-flex min-h-9 items-center gap-2 text-sm font-semibold text-teal-800">{t("print.back")}</ContextualBackButton><h1 className="mt-2 text-3xl font-semibold">{t("print.center.title")}</h1><p className="mt-1 text-sm text-stone-500">{stall.name}</p></div>
       <button type="button" title={t("common.refresh")} onClick={() => void refresh()} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300"><RefreshCw className="h-4 w-4" /></button>
     </div>
     {!state.printModuleEnabled ? <p className="mt-5 border-y border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900 print:hidden">{t("print.moduleDisabled")}</p> : null}

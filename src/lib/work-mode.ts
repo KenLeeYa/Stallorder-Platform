@@ -90,3 +90,26 @@ export function currentWorkModeValue(
   if (mode === "MERCHANT") return `merchant:${organizationId}`;
   return stallId ? `${mode.toLowerCase()}:${stallId}` : "";
 }
+
+export function getOperationalSwitcherVisibility(
+  destinations: readonly WorkModeDestination[],
+  currentMode: Exclude<WorkMode, "MERCHANT">,
+  organizationId: string,
+) {
+  const organizationDestinations = destinations.filter(
+    (destination) => destination.organizationId === organizationId,
+  );
+  const hasMerchantMode = organizationDestinations.some(
+    (destination) => destination.mode === "MERCHANT",
+  );
+  const currentModeStallCount = new Set(
+    organizationDestinations
+      .filter((destination) => destination.mode === currentMode && destination.stallId)
+      .map((destination) => destination.stallId),
+  ).size;
+
+  return {
+    showWorkMode: hasMerchantMode && organizationDestinations.length > 1,
+    showStall: hasMerchantMode && currentModeStallCount > 1,
+  };
+}

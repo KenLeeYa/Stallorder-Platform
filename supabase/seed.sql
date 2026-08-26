@@ -505,3 +505,218 @@ insert into public.stall_memberships (
 ) values
   ('66666666-6666-4666-8666-666666666662', '11111111-1111-4111-8111-111111111111', '55555555-5555-4555-8555-555555555552', '22222222-2222-4222-8222-222222222222', 'STAFF', true, now(), now()),
   ('66666666-6666-4666-8666-666666666663', '11111111-1111-4111-8111-111111111111', '55555555-5555-4555-8555-555555555553', '22222222-2222-4222-8222-222222222222', 'KITCHEN', true, now(), now());
+
+-- Local demo only: open the HQ menu-version pilot for hands-on verification.
+-- Production and DR keep the module default off until a separately approved rollout.
+insert into public.resilience_feature_flag_overrides (
+  flag_id,
+  scope_type,
+  organization_id,
+  enabled,
+  reason,
+  created_by_profile_id,
+  updated_by_profile_id,
+  created_at,
+  updated_at
+)
+select
+  flag.id,
+  'ORGANIZATION',
+  '11111111-1111-4111-8111-111111111111',
+  true,
+  'Local competitive enhancement verification only',
+  '55555555-5555-4555-8555-555555555551',
+  '55555555-5555-4555-8555-555555555551',
+  now(),
+  now()
+from public.resilience_feature_flags as flag
+where flag.code = 'MODULE_HQ_ENABLED'
+on conflict (flag_id, scope_type, organization_id, stall_id, device_id)
+do update set
+  enabled = excluded.enabled,
+  reason = excluded.reason,
+  updated_by_profile_id = excluded.updated_by_profile_id,
+  updated_at = now();
+
+-- Local demo only: allow campaign design while the separate CRM consent hard
+-- lock continues to prevent customer issuance and marketing delivery.
+insert into public.resilience_feature_flag_overrides (
+  flag_id,
+  scope_type,
+  organization_id,
+  enabled,
+  reason,
+  created_by_profile_id,
+  updated_by_profile_id,
+  created_at,
+  updated_at
+)
+select
+  flag.id,
+  'ORGANIZATION',
+  '11111111-1111-4111-8111-111111111111',
+  true,
+  'Local Growth campaign design verification only',
+  '55555555-5555-4555-8555-555555555551',
+  '55555555-5555-4555-8555-555555555551',
+  now(),
+  now()
+from public.resilience_feature_flags as flag
+where flag.code = 'MODULE_GROWTH_ENABLED'
+on conflict (flag_id, scope_type, organization_id, stall_id, device_id)
+do update set
+  enabled = excluded.enabled,
+  reason = excluded.reason,
+  updated_by_profile_id = excluded.updated_by_profile_id,
+  updated_at = now();
+
+-- Local demo only: open Supply Lite and provide a small, reversible test set.
+insert into public.resilience_feature_flag_overrides (
+  flag_id,
+  scope_type,
+  organization_id,
+  enabled,
+  reason,
+  created_by_profile_id,
+  updated_by_profile_id,
+  created_at,
+  updated_at
+)
+select
+  flag.id,
+  'ORGANIZATION',
+  '11111111-1111-4111-8111-111111111111',
+  true,
+  'Local Supply Lite verification only',
+  '55555555-5555-4555-8555-555555555551',
+  '55555555-5555-4555-8555-555555555551',
+  now(),
+  now()
+from public.resilience_feature_flags as flag
+where flag.code = 'MODULE_SUPPLY_LITE_ENABLED'
+on conflict (flag_id, scope_type, organization_id, stall_id, device_id)
+do update set
+  enabled = excluded.enabled,
+  reason = excluded.reason,
+  updated_by_profile_id = excluded.updated_by_profile_id,
+  updated_at = now();
+
+insert into public.supply_ingredients (
+  id, organization_id, code, name, base_uom,
+  low_stock_threshold_micros, created_by_profile_id
+)
+values
+  ('c6100000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'CHICKEN_THIGH', '去骨雞腿', 'G', 5000000, '55555555-5555-4555-8555-555555555551'),
+  ('c6100000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111', 'FRYING_OIL', '炸油', 'ML', 3000000, '55555555-5555-4555-8555-555555555551'),
+  ('c6100000-0000-4000-8000-000000000003', '11111111-1111-4111-8111-111111111111', 'PAPER_BOWL', '紙碗', 'EA', 20, '55555555-5555-4555-8555-555555555551')
+on conflict (organization_id, code) do update set
+  name = excluded.name,
+  base_uom = excluded.base_uom,
+  low_stock_threshold_micros = excluded.low_stock_threshold_micros,
+  updated_at = now();
+
+insert into public.supply_locations (
+  id, organization_id, stall_id, code, name, location_type, created_by_profile_id
+)
+values
+  ('c6200000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', null, 'CENTRAL_01', '中央備料庫', 'CENTRAL', '55555555-5555-4555-8555-555555555551'),
+  ('c6200000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'AMING_STALL', '阿明香雞排攤位庫存', 'STALL', '55555555-5555-4555-8555-555555555551')
+on conflict (organization_id, code) do update set
+  name = excluded.name,
+  stall_id = excluded.stall_id,
+  location_type = excluded.location_type,
+  updated_at = now();
+
+-- Local demo only: open the developer platform for API and Webhook verification.
+insert into public.resilience_feature_flag_overrides (
+  flag_id,
+  scope_type,
+  organization_id,
+  enabled,
+  reason,
+  created_by_profile_id,
+  updated_by_profile_id,
+  created_at,
+  updated_at
+)
+select
+  flag.id,
+  'ORGANIZATION',
+  '11111111-1111-4111-8111-111111111111',
+  true,
+  'Local developer platform verification only',
+  '55555555-5555-4555-8555-555555555551',
+  '55555555-5555-4555-8555-555555555551',
+  now(),
+  now()
+from public.resilience_feature_flags as flag
+where flag.code = 'MODULE_PUBLIC_API_ENABLED'
+on conflict (flag_id, scope_type, organization_id, stall_id, device_id)
+do update set
+  enabled = excluded.enabled,
+  reason = excluded.reason,
+  updated_by_profile_id = excluded.updated_by_profile_id,
+  updated_at = now();
+
+-- Local demo only: allow event campaign and expense verification. Order
+-- attribution capture remains disabled until both public-order circuits pass.
+insert into public.resilience_feature_flag_overrides (
+  flag_id,
+  scope_type,
+  organization_id,
+  enabled,
+  reason,
+  created_by_profile_id,
+  updated_by_profile_id,
+  created_at,
+  updated_at
+)
+select
+  flag.id,
+  'ORGANIZATION',
+  '11111111-1111-4111-8111-111111111111',
+  true,
+  'Local event growth verification only',
+  '55555555-5555-4555-8555-555555555551',
+  '55555555-5555-4555-8555-555555555551',
+  now(),
+  now()
+from public.resilience_feature_flags as flag
+where flag.code = 'MODULE_EVENT_GROWTH_ENABLED'
+on conflict (flag_id, scope_type, organization_id, stall_id, device_id)
+do update set
+  enabled = excluded.enabled,
+  reason = excluded.reason,
+  updated_by_profile_id = excluded.updated_by_profile_id,
+  updated_at = now();
+
+-- Local demo only: expose governed KPI definitions and cross-module health.
+insert into public.resilience_feature_flag_overrides (
+  flag_id,
+  scope_type,
+  organization_id,
+  enabled,
+  reason,
+  created_by_profile_id,
+  updated_by_profile_id,
+  created_at,
+  updated_at
+)
+select
+  flag.id,
+  'ORGANIZATION',
+  '11111111-1111-4111-8111-111111111111',
+  true,
+  'Local advanced analytics verification only',
+  '55555555-5555-4555-8555-555555555551',
+  '55555555-5555-4555-8555-555555555551',
+  now(),
+  now()
+from public.resilience_feature_flags as flag
+where flag.code = 'MODULE_ADVANCED_ANALYTICS_ENABLED'
+on conflict (flag_id, scope_type, organization_id, stall_id, device_id)
+do update set
+  enabled = excluded.enabled,
+  reason = excluded.reason,
+  updated_by_profile_id = excluded.updated_by_profile_id,
+  updated_at = now();

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { notFound } from "next/navigation";
 import { ManualPaymentForm } from "@/components/manual-payment-form";
 import { getInvoiceForMerchant } from "@/lib/billing-portal-data";
@@ -22,7 +22,7 @@ export default async function MerchantInvoiceDetailPage({ params, searchParams }
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-4xl px-4 py-7 md:px-8">
-      <Link href={`/merchant/billing/invoices?organizationId=${workspace.id}`} className="text-sm font-semibold text-teal-800">{m("返回帳單列表")}</Link>
+      <ContextualBackButton fallbackHref={`/merchant/billing/invoices?organizationId=${workspace.id}`}>{m("返回帳單列表")}</ContextualBackButton>
       <header className="mt-4 border-b border-stone-200 pb-5">
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">

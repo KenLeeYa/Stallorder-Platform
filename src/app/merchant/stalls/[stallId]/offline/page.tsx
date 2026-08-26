@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, TabletSmartphone } from "lucide-react";
+import { TabletSmartphone } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import {
   OfflineDeviceManager,
 } from "@/components/offline-device-manager";
@@ -33,13 +33,9 @@ export default async function OfflineDeviceSettingsPage({ params }: PageProps) {
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
-      <Link
-        href={`/merchant/stalls/${stallId}`}
-        className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800"
-      >
-        <ArrowLeft className="h-4 w-4" />
+      <ContextualBackButton fallbackHref={`/merchant/stalls/${stallId}`}>
         {m("返回攤位設定")}
-      </Link>
+      </ContextualBackButton>
       <header className="mt-4 border-b border-stone-200 pb-5">
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold">
