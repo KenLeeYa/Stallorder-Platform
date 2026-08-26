@@ -30,7 +30,7 @@
 - Production build：最終檔案樹通過；產生 95 個 static page tasks，新增 routes 均列入產物。
 - UI control audit：268 個 TSX files 通過。
 - `npm audit --audit-level=moderate`：0 vulnerabilities。
-- Production guardrails：1,849 tracked files、121 migrations 通過。
+- Production guardrails：1,850 tracked files、121 migrations 通過。
 - Prisma validate/generate：最終檔案樹通過；63 個 pgTAP files／1,502 tests 與 Supabase warning-level lint 全數通過。
 - Production-mode E2E：127 個唯一案例以隔離 IP 分批全數通過；響應式路由矩陣涵蓋 320、390、768、1440 px。
 - 韌性 E2E：8/8 通過，涵蓋離線 Permit、QR 降級、Circuit B、並行工作階段及 SSE／Realtime 雙失效輪詢。
