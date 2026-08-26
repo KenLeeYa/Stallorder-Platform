@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { waitForDefaultMerchantDashboard } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 
@@ -118,10 +119,7 @@ async function login(page: Page) {
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await response).status()).toBe(200);
-  await expect(page).toHaveURL(
-    new RegExp(`/merchant/dashboard\\?organizationId=${organizationId}$`),
-    { timeout: 30_000 },
-  );
+  await waitForDefaultMerchantDashboard(page, organizationId);
 }
 
 async function countGridColumns(locator: Locator) {

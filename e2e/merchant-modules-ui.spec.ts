@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from "@playwright/test";
 import { catalogCsvHeaders } from "../src/lib/catalog-csv";
-import { gotoLocalPath } from "./local-navigation";
+import { gotoLocalPath, waitForDefaultMerchantDashboard } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -27,10 +27,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await loginResponse).status()).toBe(200);
-  await expect(page).toHaveURL(
-    new RegExp(`/merchant/dashboard\\?organizationId=${organizationId}$`),
-    { timeout: 30_000 },
-  );
+  await waitForDefaultMerchantDashboard(page, organizationId);
 
   const settingsBasicPath = `/merchant/stalls/${stallId}/settings/basic`;
   if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
