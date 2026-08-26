@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildWorkModeDestinations, currentWorkModeValue, type WorkModeWorkspace } from "./work-mode";
+import {
+  buildWorkModeDestinations,
+  currentWorkModeValue,
+  getOperationalSwitcherVisibility,
+  type WorkModeWorkspace,
+} from "./work-mode";
 
 function workspace(
   organizationRoles: WorkModeWorkspace["roles"],
@@ -64,5 +69,51 @@ describe("同帳號多工作模式", () => {
     expect(currentWorkModeValue("MERCHANT", "organization-1")).toBe("merchant:organization-1");
     expect(currentWorkModeValue("STAFF", "organization-1", "stall-1")).toBe("staff:stall-1");
     expect(currentWorkModeValue("KITCHEN", "organization-1", "stall-1")).toBe("kitchen:stall-1");
+  });
+
+  it("純店員與純廚房不顯示工作模式或攤位切換", () => {
+    const staffDestinations = buildWorkModeDestinations([workspace([], ["STAFF"])]);
+    const kitchenDestinations = buildWorkModeDestinations([workspace([], ["KITCHEN"])]);
+
+    expect(getOperationalSwitcherVisibility(
+      staffDestinations,
+      "STAFF",
+      "organization-1",
+    )).toEqual({ showWorkMode: false, showStall: false });
+    expect(getOperationalSwitcherVisibility(
+      kitchenDestinations,
+      "KITCHEN",
+      "organization-1",
+    )).toEqual({ showWorkMode: false, showStall: false });
+  });
+
+  it("商家角色可切換工作模式，只有多攤位時顯示攤位切換", () => {
+    const singleStallDestinations = buildWorkModeDestinations([
+      workspace(["ORGANIZATION_OWNER"], ["ORGANIZATION_OWNER"]),
+    ]);
+    const source = workspace(["ORGANIZATION_OWNER"], ["ORGANIZATION_OWNER"]);
+    const multiStallDestinations = buildWorkModeDestinations([{
+      ...source,
+      stalls: [
+        ...source.stalls,
+        {
+          ...source.stalls[0],
+          id: "stall-2",
+          name: "第二攤位",
+          slug: "second-stall",
+        },
+      ],
+    }]);
+
+    expect(getOperationalSwitcherVisibility(
+      singleStallDestinations,
+      "STAFF",
+      "organization-1",
+    )).toEqual({ showWorkMode: true, showStall: false });
+    expect(getOperationalSwitcherVisibility(
+      multiStallDestinations,
+      "STAFF",
+      "organization-1",
+    )).toEqual({ showWorkMode: true, showStall: true });
   });
 });

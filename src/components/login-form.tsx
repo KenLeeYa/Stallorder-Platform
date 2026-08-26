@@ -18,18 +18,26 @@ type LoginProvider = {
   label: string;
 };
 
+type LocalQaAccount = {
+  label: string;
+  email: string;
+  password: string;
+};
+
 export function LoginForm({
   nextPath,
   legacyGoogleEnabled,
   oauthOnly,
   oauthProviders,
   oauthError,
+  localQaAccounts,
 }: {
   nextPath?: string;
   legacyGoogleEnabled: boolean;
   oauthOnly: boolean;
   oauthProviders: LoginProvider[];
   oauthError?: string;
+  localQaAccounts?: LocalQaAccount[];
 }) {
   const { t } = useAppLocale();
   const locationSearch = useSyncExternalStore(subscribeToLocation, readLocationSearch, () => "");
@@ -56,10 +64,7 @@ export function LoginForm({
     if (!isSubmitting) passwordDialogRef.current?.close();
   }
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-
+  async function authenticate(email: FormDataEntryValue | null, password: FormDataEntryValue | null) {
     setSubmissionError("");
     setIsSubmitting(true);
     try {
@@ -67,8 +72,8 @@ export function LoginForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: formData.get("email"),
-          password: formData.get("password"),
+          email,
+          password,
           next: requestedNextPath,
         }),
       });
@@ -85,6 +90,12 @@ export function LoginForm({
     }
   }
 
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    await authenticate(formData.get("email"), formData.get("password"));
+  }
+
   return (
     <section
       aria-labelledby="login-title"
@@ -98,6 +109,19 @@ export function LoginForm({
         <p className="mt-2 text-sm text-stone-600">{t("login.description")}</p>
       </div>
       {urlError ? <p role="alert" className="mb-4 text-sm text-red-700">{urlError}</p> : null}
+      {localQaAccounts?.length ? (
+        <div className="mb-5 rounded-md border border-teal-200 bg-teal-50 p-3">
+          <p className="text-xs font-semibold text-teal-900">本機測試快速登入</p>
+          <div data-testid="local-qa-login-grid" className="mt-2 grid grid-cols-2 gap-2">
+            {localQaAccounts.map((account) => (
+              <button key={account.email} type="button" disabled={isSubmitting} onClick={() => void authenticate(account.email, account.password)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900 hover:bg-teal-100 disabled:opacity-50">
+                <LogIn className="h-4 w-4" />{account.label}
+              </button>
+            ))}
+          </div>
+          {submissionError ? <p role="alert" className="mt-3 text-sm text-red-700">{submissionError}</p> : null}
+        </div>
+      ) : null}
       {hasOAuthProvider ? (
         <>
           <div className="space-y-3">
@@ -202,7 +226,7 @@ export function LoginForm({
                 />
               </label>
             </div>
-            {submissionError ? (
+            {submissionError && !localQaAccounts?.length ? (
               <p role="alert" className="mt-4 text-sm text-red-700">{submissionError}</p>
             ) : null}
             <button

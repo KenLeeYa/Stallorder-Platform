@@ -166,7 +166,7 @@ export function OperationsConsole({
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="alertPageSize" value={alertPagination.pageSize} />
         <input type="hidden" name="auditPageSize" value={auditPagination.pageSize} />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <FilterSelect label={m("攤位")} name="stallId" defaultValue={filters.stallId ?? ""}><option value="">{m("全部授權攤位")}</option>{stalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}</FilterSelect>
           <FilterSelect label={m("警示狀態")} name="alertStatus" defaultValue={filters.alertStatus ?? "ACTIVE"}><option value="ALL">{m("全部")}</option><option value="ACTIVE">{m("待處理")}</option><option value="ACKNOWLEDGED">{m("已確認")}</option><option value="RESOLVED">{m("已解除")}</option></FilterSelect>
           <FilterSelect label={m("嚴重程度")} name="alertSeverity" defaultValue={filters.alertSeverity ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="CRITICAL">{m("嚴重")}</option><option value="WARNING">{m("警告")}</option><option value="INFO">{m("資訊")}</option></FilterSelect>
@@ -175,7 +175,7 @@ export function OperationsConsole({
               <FilterSelect label={m("稽核結果")} name="auditOutcome" defaultValue={filters.auditOutcome ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="SUCCESS">{m("成功")}</option><option value="DENIED">{m("拒絕")}</option><option value="FAILURE">{m("失敗")}</option></FilterSelect>
               <FilterInput label={m("開始日期")} type="date" name="dateFrom" defaultValue={filters.dateFrom} />
               <FilterInput label={m("結束日期")} type="date" name="dateTo" defaultValue={filters.dateTo} />
-              <label className="text-xs font-semibold text-stone-600 sm:col-span-2">{m("搜尋稽核")}<input type="text" name="auditQuery" defaultValue={filters.auditQuery} maxLength={80} placeholder={m("操作、資料類型或 Request ID")} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>
+              <label className="col-span-2 text-xs font-semibold text-stone-600">{m("搜尋稽核")}<input type="text" name="auditQuery" defaultValue={filters.auditQuery} maxLength={80} placeholder={m("操作、資料類型或 Request ID")} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>
             </>
           ) : null}
         </div>

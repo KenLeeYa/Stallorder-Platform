@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Banknote, ChartNoAxesCombined, ClipboardList, PackageSearch, Store, WalletCards } from "lucide-react";
 import { useState } from "react";
 import { ReportExportButton } from "@/components/report-export-button";
 import { useAppLocale } from "@/components/locale-provider";
@@ -14,14 +15,14 @@ export function ReportNavigation({ organizationId, active }: { organizationId: s
   const { locale } = useAppLocale();
   const t = createReportTranslator(locale);
   const items = [
-    ["overview", t("reports.nav.overview")],
-    ["orders", t("reports.nav.orders")],
-    ["stalls", t("reports.nav.stalls")],
-    ["products", t("reports.nav.products")],
-    ["payments", t("reports.nav.payments")],
-    ["cash-shifts", t("reports.nav.cashShifts")],
+    ["overview", t("reports.nav.overview"), ChartNoAxesCombined],
+    ["orders", t("reports.nav.orders"), ClipboardList],
+    ["stalls", t("reports.nav.stalls"), Store],
+    ["products", t("reports.nav.products"), PackageSearch],
+    ["payments", t("reports.nav.payments"), WalletCards],
+    ["cash-shifts", t("reports.nav.cashShifts"), Banknote],
   ] as const;
-  return <nav aria-label={t("reports.nav")} className="flex gap-1 overflow-x-auto border-b border-stone-200">{items.map(([key, label]) => <Link key={key} href={`/merchant/reports/${key}?organizationId=${organizationId}`} className={`shrink-0 border-b-2 px-2.5 py-2 text-sm font-semibold sm:px-3 sm:py-3 ${active === key ? "border-teal-700 text-teal-800" : "border-transparent text-stone-700"}`}>{label}</Link>)}</nav>;
+  return <nav data-testid="report-navigation" aria-label={t("reports.nav")} className="flex w-full flex-nowrap overflow-x-auto overscroll-x-contain border-b border-stone-200 md:gap-1">{items.map(([key, label, Icon]) => <Link key={key} href={`/merchant/reports/${key}?organizationId=${organizationId}`} title={label} aria-current={active === key ? "page" : undefined} className={`flex min-h-11 min-w-11 flex-1 shrink-0 items-center justify-center border-b-2 px-1 py-2 text-sm font-semibold md:flex-none md:gap-2 md:px-3 md:py-3 ${active === key ? "border-teal-700 text-teal-800" : "border-transparent text-stone-700"}`}><Icon className="h-5 w-5 shrink-0" /><span className="sr-only md:not-sr-only">{label}</span></Link>)}</nav>;
 }
 
 export function ReportFilters(props: ReportFiltersProps) {

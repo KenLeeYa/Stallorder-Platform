@@ -15,6 +15,7 @@ export type StoredPublicOrderContract = {
   total_amount: number;
   fulfillment_type?: string;
   pickup_required?: boolean;
+  pickup_code_display?: string | null;
   quoted_wait_minutes?: number | null;
   quoted_ready_at?: string | null;
   scheduled_pickup_at?: string | null;
@@ -65,6 +66,16 @@ export function publicOrderNeedsPickupCode(order: StoredPublicOrderContract) {
   const fulfillmentType = order.fulfillment_type ?? "TAKEOUT";
   return order.pickup_required === true
     || (order.pickup_required === undefined && fulfillmentType === "TAKEOUT");
+}
+
+export function resolveStoredPickupCode(
+  order: Pick<StoredPublicOrderContract, "pickup_code_display">,
+  fallbackPickupCode: string,
+) {
+  const storedPickupCode = order.pickup_code_display;
+  return typeof storedPickupCode === "string" && /^\d{3}(?:\d{3})?$/.test(storedPickupCode)
+    ? storedPickupCode
+    : fallbackPickupCode;
 }
 
 export function buildPublicOrderResponse(

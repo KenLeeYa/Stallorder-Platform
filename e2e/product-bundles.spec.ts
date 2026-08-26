@@ -36,25 +36,25 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await login(page);
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
 
-  const catalogDisclosure = page.locator("details[data-shared-product-catalog]");
-  await expect(catalogDisclosure).toHaveAttribute("open", "");
-  await catalogDisclosure.locator(":scope > summary").click();
-  await expect(catalogDisclosure).not.toHaveAttribute("open", "");
-  await catalogDisclosure.locator(":scope > summary").click();
-  await expect(catalogDisclosure).toHaveAttribute("open", "");
+  const catalog = page.locator("[data-shared-product-catalog]");
+  await expect(catalog).toBeVisible();
+  await expect(catalog).toHaveJSProperty("tagName", "DIV");
+  const firstCategoryDisclosure = catalog.locator(":scope > div > details").first();
+  const firstGroupDisclosure = firstCategoryDisclosure.getByTestId("shared-product-group").first();
+  await expect(firstCategoryDisclosure).toHaveAttribute("open", "");
+  await expect(firstGroupDisclosure).toHaveAttribute("open", "");
   const toggleAllProducts = page.getByTestId("shared-products-toggle-all");
   await expect(toggleAllProducts).toHaveAttribute("aria-expanded", "true");
   await toggleAllProducts.click();
-  await expect(catalogDisclosure).not.toHaveAttribute("open", "");
-  await expect(toggleAllProducts).toHaveText("展開全部品項");
+  await expect(catalog.locator("details[open]")).toHaveCount(0);
+  await expect(toggleAllProducts).toHaveAttribute("aria-label", "展開全部品項");
   await toggleAllProducts.click();
-  await expect(catalogDisclosure).toHaveAttribute("open", "");
-  const firstCategoryDisclosure = catalogDisclosure.locator("details").first();
   await expect(firstCategoryDisclosure).toHaveAttribute("open", "");
-  await firstCategoryDisclosure.locator(":scope > summary").click();
-  await expect(firstCategoryDisclosure).not.toHaveAttribute("open", "");
-  await firstCategoryDisclosure.locator(":scope > summary").click();
-  await expect(firstCategoryDisclosure).toHaveAttribute("open", "");
+  await expect(firstGroupDisclosure).toHaveAttribute("open", "");
+  await firstGroupDisclosure.locator(":scope > summary").click();
+  await expect(firstGroupDisclosure).not.toHaveAttribute("open", "");
+  await firstGroupDisclosure.locator(":scope > summary").click();
+  await expect(firstGroupDisclosure).toHaveAttribute("open", "");
 
   await page.getByTestId("shared-catalog-create-actions")
     .getByRole("button", { name: "新增商品", exact: true }).click();

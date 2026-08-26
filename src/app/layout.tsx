@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { LocaleProvider } from "@/components/locale-provider";
+import { NavigationStateManager } from "@/components/navigation-state-manager";
 import { PwaRuntime } from "@/components/pwa-runtime";
 import { VercelPerformanceMonitoring } from "@/components/vercel-performance-monitoring";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
@@ -68,6 +69,7 @@ export default async function RootLayout({
         <a href="#main-content" className="skip-link">{getAppMessage(locale, "shell.skipToMain")}</a>
         <LocaleProvider initialLocale={locale} hasLocaleCookie={hasLocaleCookie}>
           <PwaRuntime>
+            <NavigationStateManager />
             <div id="main-content" tabIndex={-1}>{children}</div>
           </PwaRuntime>
         </LocaleProvider>

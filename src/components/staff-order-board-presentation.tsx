@@ -67,6 +67,7 @@ import {
   type StaffOrderTimeProposalController,
 } from "@/components/staff-order-board-time-proposal";
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import type { AppLocale } from "@/lib/app-locale";
 import type { FulfillmentProductionTiming } from "@/lib/fulfillment-time";
 import { formatAppDateTime } from "@/lib/locale-format";
@@ -78,6 +79,7 @@ import {
 } from "@/lib/orders";
 import { canTransitionOrder, hasPermission } from "@/lib/rbac";
 import type { WorkModeDestination } from "@/lib/work-mode";
+import { getOperationalSwitcherVisibility } from "@/lib/work-mode";
 
 type OperationsTranslator = ReturnType<typeof useOperationsLocale>["t"];
 const staffFunctionTileClass = "inline-grid h-11 w-11 shrink-0 place-items-center rounded-md";
@@ -104,10 +106,13 @@ type Actions = {
   onClearSelectedItems: () => void;
   onCloseComposer: () => void;
   onClosePickupCheckout: () => void;
+  onClosePickupLookup: () => void;
   onCompletePaidOrders: (orders: StaffOrderDto[]) => Promise<void>;
   onOpenCheckout: (orders: StaffOrderDto | StaffOrderDto[]) => Promise<void>;
   onOpenComposer: () => Promise<void>;
+  onOpenPickupLookup: () => void;
   onPickupCodeChange: (orderId: string, value: string) => void;
+  onPickupLookupCodeChange: (value: string) => void;
   onPrintOrder: (orderId: string) => Promise<void>;
   onQueryChange: (query: string) => void;
   onRefresh: () => void;
@@ -142,6 +147,7 @@ type Actions = {
   onOpenOrderEditor: (order: StaffOrderDto) => void;
   onRemoveOrderEditLine: (key: string) => void;
   onSaveOrderEdit: () => Promise<void>;
+  onSubmitPickupLookup: () => Promise<void>;
   onToggleFutureOrders: () => void;
   onToggleOrderDetails: (orderId: string) => void;
 };
@@ -172,6 +178,12 @@ export type StaffOrderBoardPresentationProps = {
   selectedItemIds: ReadonlySet<string>;
   pickupCodes: Record<string, string>;
   pickupCheckoutOrderId: string | null;
+  pickupLookup: {
+    open: boolean;
+    code: string;
+    busy: boolean;
+    message: string;
+  };
   query: string;
   now: number;
   viewMode: StaffOrderBoardViewMode;
@@ -331,6 +343,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         updatingOrderId={props.updatingOrderId}
         verifyingPickupOrderId={props.verifyingPickupOrderId}
         pickupCheckoutOrderId={props.pickupCheckoutOrderId}
+        pickupLookup={props.pickupLookup}
         message={props.message}
         cancellation={props.cancellation}
         checkout={props.checkout}
@@ -366,6 +379,7 @@ type StaffOrderBoardToolbarProps = Pick<
   actions: Pick<
     Actions,
     | "onOpenComposer"
+    | "onOpenPickupLookup"
     | "onQueryChange"
     | "onRefresh"
     | "onSynchronized"
@@ -393,6 +407,22 @@ function StaffOrderBoardToolbar({
   actions,
 }: StaffOrderBoardToolbarProps) {
   const role = account.role;
+  const switcherVisibility = getOperationalSwitcherVisibility(
+    workModeDestinations,
+    "STAFF",
+    stall.organizationId,
+  );
+  const stallDestinations = workModeDestinations
+    .filter((destination) => (
+      destination.mode === "STAFF"
+      && destination.organizationId === stall.organizationId
+      && destination.stallId
+    ))
+    .map((destination) => ({
+      value: destination.stallId!,
+      label: destination.label.replace(/^店員\s*·\s*/, ""),
+      href: destination.href,
+    }));
   return (
     <>
       <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 min-w-0 overflow-x-clip overflow-y-visible border-b border-stone-200 bg-white px-4 pb-1 shadow-sm print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
@@ -401,26 +431,31 @@ function StaffOrderBoardToolbar({
             <h1 className="truncate text-sm font-semibold sm:text-base">{stall.name}</h1>
             <p className="truncate text-xs font-medium text-teal-800">{account.displayName} · {roleLabel(role, t)}</p>
           </div>
-          <WorkModeSwitcher
+        </div>
+        <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-2 pr-4 print:hidden sm:overflow-x-visible sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
+        <div data-testid="staff-function-status-group" className="flex items-center gap-2 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0">
+          {switcherVisibility.showWorkMode ? <WorkModeSwitcher
             destinations={workModeDestinations}
             currentMode="STAFF"
             organizationId={stall.organizationId}
             stallId={stall.id}
             offlineGuardStallId={stall.id}
-            compactOnMobile
-            hideVisualLabel
-            className="min-w-0 flex-1 basis-36 min-[360px]:max-w-[220px]"
-          />
-        </div>
-        <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-2 pr-4 print:hidden sm:overflow-x-visible sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
-        <div data-testid="staff-function-status-group" className="flex items-center gap-2 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0">
-          <LiveConnectionBadge state={liveConnection} t={t} />
+          /> : null}
+          {switcherVisibility.showStall ? <WorkspaceSwitcher
+            kind="STALL"
+            destinations={stallDestinations}
+            currentValue={stall.id}
+            organizationId={stall.organizationId}
+            label={t("workMode.stallLabel")}
+          /> : null}
           <div className="shrink-0">
             <PwaControls showWakeLock />
           </div>
+          <LiveConnectionBadge state={liveConnection} t={t} />
         </div>
         <div data-testid="staff-function-order-group" className="flex items-center gap-2 border-r border-stone-200 pr-2">
           {orderCatalog && hasPermission(role, "CREATE_ORDERS") ? <button type="button" title={t("staff.action.createOrder")} disabled={posConfigurationLoading} onClick={() => void actions.onOpenComposer()} className={`${staffFunctionTileClass} bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}><ShoppingCart className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.createOrder")}</span></button> : null}
+          {hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" data-testid="staff-pickup-code-lookup" title={t("staff.action.pickupLookup")} onClick={actions.onOpenPickupLookup} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><KeyRound className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.pickupLookup")}</span></button> : null}
           {modules.dineIn ? <Link href={`/staff/${stall.slug}/floor`} title={t("staff.action.floor")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><MapPinned className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.floor")}</span></Link> : null}
           {modules.print && hasPermission(role, "MANAGE_PRINT_QUEUE") ? <Link href={`/staff/${stall.slug}/print`} title={t("staff.action.printQueue")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><Printer className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.printQueue")}</span></Link> : null}
           {hasPermission(role, "MANAGE_CASH_SHIFT") ? <Link href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><WalletCards className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.cashShift")}</span></Link> : null}
@@ -674,7 +709,7 @@ function StaffFutureOrders({
   );
 }
 
-function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, discountOptions, orderCatalog, orders, composerOpen, pickupCheckoutOrderId, pickupCodes, updatingOrderId, verifyingPickupOrderId, message, cancellation, checkout, manualPickup, timeProposal, orderEditor, locale, t, actions }: Pick<StaffOrderBoardPresentationProps, "stall" | "account" | "modules" | "paymentOptions" | "discountOptions" | "orderCatalog" | "orders" | "composerOpen" | "pickupCheckoutOrderId" | "pickupCodes" | "updatingOrderId" | "verifyingPickupOrderId" | "message" | "cancellation" | "checkout" | "manualPickup" | "timeProposal" | "orderEditor"> & { locale: AppLocale; t: OperationsTranslator; actions: Pick<Actions, "onAddOrderEditProduct" | "onChangeOrderEditProduct" | "onChangeOrderEditQuantity" | "onCloseComposer" | "onCloseOrderEditor" | "onClosePickupCheckout" | "onCreated" | "onPickupCodeChange" | "onRemoveOrderEditLine" | "onSaveOrderEdit"> }) {
+function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, discountOptions, orderCatalog, orders, composerOpen, pickupCheckoutOrderId, pickupLookup, pickupCodes, updatingOrderId, verifyingPickupOrderId, message, cancellation, checkout, manualPickup, timeProposal, orderEditor, locale, t, actions }: Pick<StaffOrderBoardPresentationProps, "stall" | "account" | "modules" | "paymentOptions" | "discountOptions" | "orderCatalog" | "orders" | "composerOpen" | "pickupCheckoutOrderId" | "pickupLookup" | "pickupCodes" | "updatingOrderId" | "verifyingPickupOrderId" | "message" | "cancellation" | "checkout" | "manualPickup" | "timeProposal" | "orderEditor"> & { locale: AppLocale; t: OperationsTranslator; actions: Pick<Actions, "onAddOrderEditProduct" | "onChangeOrderEditProduct" | "onChangeOrderEditQuantity" | "onCloseComposer" | "onCloseOrderEditor" | "onClosePickupCheckout" | "onClosePickupLookup" | "onCreated" | "onPickupCodeChange" | "onPickupLookupCodeChange" | "onRemoveOrderEditLine" | "onSaveOrderEdit" | "onSubmitPickupLookup"> }) {
   const pickupCheckoutOrder = pickupCheckoutOrderId
     ? orders.find((order) => order.id === pickupCheckoutOrderId) ?? null
     : null;
@@ -729,6 +764,27 @@ function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, d
               </div>
             </div>
           </section>
+        </div>
+      ) : null}
+      {pickupLookup.open ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4 print:hidden">
+          <form data-testid="staff-pickup-code-dialog" onSubmit={(event) => { event.preventDefault(); void actions.onSubmitPickupLookup(); }} className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="pickup-lookup-title">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="pickup-lookup-title" className="text-xl font-bold">{t("staff.pickup.lookupTitle")}</h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">{t("staff.pickup.lookupDescription")}</p>
+              </div>
+              <button type="button" aria-label={t("common.close")} disabled={pickupLookup.busy} onClick={actions.onClosePickupLookup} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 disabled:opacity-50"><X className="h-4 w-4" /></button>
+            </div>
+            <label className="mt-5 block text-sm font-semibold text-stone-700">{t("staff.pickup.lookupCodeLabel")}
+              <input autoFocus type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{3}|[0-9]{6}" value={pickupLookup.code} onChange={(event) => actions.onPickupLookupCodeChange(event.target.value)} disabled={pickupLookup.busy} className="mt-2 h-16 w-full rounded-lg border-2 border-teal-600 px-4 text-center font-mono text-3xl font-bold tracking-widest disabled:bg-stone-50" placeholder={t("staff.pickup.lookupPlaceholder")} />
+            </label>
+            {pickupLookup.message ? <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">{pickupLookup.message}</p> : null}
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" disabled={pickupLookup.busy} onClick={actions.onClosePickupLookup} className="min-h-11 rounded-md border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">{t("common.cancel")}</button>
+              <button type="submit" disabled={pickupLookup.busy} className="min-h-11 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50">{pickupLookup.busy ? t("staff.pickup.lookupLoading") : t("staff.pickup.lookupSubmit")}</button>
+            </div>
+          </form>
         </div>
       ) : null}
       {pickupCheckoutOrder ? (

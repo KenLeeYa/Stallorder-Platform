@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { CalendarDays } from "lucide-react";
+import Link from "next/link";
+import { CalendarDays, Megaphone } from "lucide-react";
 import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { MarketEventManager } from "@/components/market-event-manager";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
@@ -33,5 +34,5 @@ export default async function MarketEventsPage({ searchParams }: PageProps) {
     }
     throw error;
   }
-  return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">{returnStallId ? <div className="mb-4"><StallSettingsBackLink stallId={returnStallId} /></div> : null}<header className="border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold"><CalendarDays className="h-7 w-7 text-teal-700" />{m("市集活動")}</h1><p className="mt-2 text-sm text-stone-600">{m("集中管理可供多個攤位引用的活動場次。")}</p></header><div className="py-7"><MarketEventManager organizationId={workspace.id} initialData={data} /></div></main>;
+  return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">{returnStallId ? <div className="mb-4"><StallSettingsBackLink stallId={returnStallId} /></div> : null}<header className="border-b border-stone-200 pb-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold"><CalendarDays className="h-7 w-7 text-teal-700" />{m("市集活動")}</h1><p className="mt-2 text-sm text-stone-600">{m("集中管理可供多個攤位引用的活動場次。")}</p></div><Link href={`/merchant/event-growth?organizationId=${workspace.id}`} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-teal-700 px-4 text-sm font-semibold text-teal-800"><Megaphone className="h-4 w-4" />活動推廣與成效</Link></div></header><div className="py-7"><MarketEventManager organizationId={workspace.id} initialData={data} /></div></main>;
 }

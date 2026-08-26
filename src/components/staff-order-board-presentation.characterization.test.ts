@@ -41,6 +41,7 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain('role="switch"');
     expect(presentationSource).toContain('t("staff.selection.count", { count: selectedItems.length })');
     expect(presentationSource).toContain('t("staff.selection.updated", { count: undoBatch.itemCount })');
+    expect(presentationSource.match(/t\("staff\.selection\.updated", \{ count: undoBatch\.itemCount \}\)/g)).toHaveLength(1);
     expect(presentationSource).toContain('account.role === "KITCHEN" && viewMode === "SUMMARY"');
     expect(presentationSource).toContain('viewMode === "TABLES"');
     expect(presentationSource).toContain("orders.map((order) => <StaffOrderTicket");
@@ -50,7 +51,7 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain('data-testid="staff-function-grid"');
     expect(presentationSource).toContain('data-testid="staff-sticky-header"');
     expect(presentationSource).toContain("sticky top-0 z-50");
-    expect(presentationSource).toMatch(/<header[\s\S]*<WorkModeSwitcher[\s\S]*data-testid="staff-function-grid"[\s\S]*<\/header>/);
+    expect(presentationSource).toMatch(/<header[\s\S]*data-testid="staff-function-grid"[\s\S]*<WorkModeSwitcher[\s\S]*<WorkspaceSwitcher[\s\S]*<PwaControls[\s\S]*<\/header>/);
     expect(presentationSource).toContain("overflow-x-auto");
     expect(presentationSource).toContain('const staffFunctionTileClass = "inline-grid h-11 w-11');
     expect(presentationSource).toContain("sm:overflow-x-visible");
@@ -64,5 +65,9 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain("aria-expanded={expanded}");
     expect(presentationSource).toContain('aria-haspopup={option.value === "CANCELLED" ? "dialog" : undefined}');
     expect(presentationSource).toContain('aria-busy={verifyingPickupOrderId === pickupCheckoutOrder.id}');
+    expect(presentationSource).toContain('data-testid="staff-pickup-code-lookup"');
+    expect(presentationSource).toContain('data-testid="staff-pickup-code-dialog"');
+    expect(controllerSource).toContain("verifyStaffOrderPickupByCode({");
+    expect(controllerSource).toContain("await openCheckoutDialog([verifiedOrder])");
   });
 });

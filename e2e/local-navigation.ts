@@ -46,6 +46,17 @@ export async function gotoLocalPath(page: Page, path: string, expectedPath = pat
   }
 }
 
+export async function waitForDefaultMerchantDashboard(page: Page, organizationId: string) {
+  await page.waitForURL((url) => (
+    url.pathname === "/merchant/dashboard"
+    && url.searchParams.get("organizationId") === organizationId
+    && url.searchParams.get("dateFrom") === url.searchParams.get("dateTo")
+    && url.searchParams.get("dashboardPreset") === "TODAY"
+    && url.searchParams.get("dashboardSort") === "sales"
+    && url.searchParams.getAll("stallId").length > 0
+  ), { timeout: 30_000 });
+}
+
 function assertSuccessfulResponse(path: string, response: Response | null) {
   if (response && response.status() >= 400) {
     throw new Error(`E2E_LOCAL_NAVIGATION_HTTP_${response.status()}: ${path}`);

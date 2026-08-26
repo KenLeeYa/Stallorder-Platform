@@ -153,14 +153,69 @@ describe("requestPublicOrder", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-test-key");
   }
 
-  it("uses the same-site Circuit B API in local development when Edge Functions are not configured", async () => {
+  it("routes reorder preparation through the same-site API during local Circuit B QA", async () => {
     vi.stubEnv("NODE_ENV", "development");
-    vi.stubEnv("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_FORCE_PUBLIC_ORDER_CIRCUIT_B", "true");
     vi.stubGlobal("window", { location: { hostname: "127.0.0.1" } });
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("/api/public/orders/sto_local_tracking/reorder");
+      expect(init?.method).toBe("POST");
+      expect(init?.headers).toMatchObject({
+        "content-type": "application/json",
+        "x-stallorder-protocol-version": "1",
+      });
+      return Response.json({ orderingMode: "PREORDER", availableItems: [] });
+    });
+    const { requestPrepareReorder } = await import("./public-order-client");
+
+    const response = await requestPrepareReorder({
+      trackingToken: "sto_local_tracking",
+      deviceId: "11111111-1111-4111-8111-111111111111",
+    }, {
+      fetchImpl,
+      operationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    });
+
+    expect(response.status).toBe(200);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it("uses the same-site Circuit B API when a LAN browser cannot reach loopback Edge Functions", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL", "http://127.0.0.1:54321/functions/v1");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "local-public-key");
+    vi.stubGlobal("window", { location: { hostname: "192.168.1.102" } });
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       expect(String(input)).toBe("/api/public/order-session");
       return Response.json({ orderSessionToken: "stos_local_session" }, { status: 201 });
+    });
+    const { requestPublicOrder } = await import("./public-order-client");
+
+    const response = await requestPublicOrder(
+      "create-order-session",
+      {
+        deviceId: "11111111-1111-4111-8111-111111111111",
+        sessionRequestId: "55555555-5555-4555-8555-555555555555",
+      },
+      {
+        fetchImpl,
+        operationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      },
+    );
+
+    expect(response.status).toBe(201);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it("allows local QA to force the same-site Circuit B API when Edge Runtime is stopped", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("NEXT_PUBLIC_FORCE_PUBLIC_ORDER_CIRCUIT_B", "true");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL", "http://127.0.0.1:54321/functions/v1");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "local-public-key");
+    vi.stubGlobal("window", { location: { hostname: "127.0.0.1" } });
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("/api/public/order-session");
+      return Response.json({ orderSessionToken: "stos_forced_local_session" }, { status: 201 });
     });
     const { requestPublicOrder } = await import("./public-order-client");
 

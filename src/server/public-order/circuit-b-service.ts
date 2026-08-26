@@ -46,6 +46,7 @@ import {
   publicOrderNeedsPickupCode,
   publicOrderSessionAbuseBehavior,
   publicOrderSubmissionAbuseBehavior,
+  resolveStoredPickupCode,
 } from "../../../supabase/functions/_shared/public-order-contract";
 import { resolveResilienceFeatureFlags } from "@/server/resilience/feature-flag-service";
 import {
@@ -56,6 +57,7 @@ import {
   getLastDiningTableOrder,
   getOrderQuote,
   getOrderSessionMode,
+  getReorderPreparationContext,
   getTrackedOrderContext,
   getTrackedPublicOrder,
   issueIdempotentOrderSession,
@@ -97,10 +99,7 @@ function intakeError(gate: { ok: boolean; code?: string } | null) {
 }
 
 async function assertCircuitBEnabled(deviceId: string, timing: Timing) {
-  if (
-    process.env.NODE_ENV === "development"
-    && !process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.trim()
-  ) {
+  if (process.env.NODE_ENV === "development") {
     return;
   }
   const flags = await timing.measureDb(() => resolveResilienceFeatureFlags(
@@ -378,13 +377,16 @@ export async function createOrderThroughCircuitB(
       requireSecret("TOKEN_DERIVATION_SECRET"),
       publicOrderReplayPickupCodeLength(existing.pickup_code_length),
     );
-    await persistPickupCode(existing, tokens.pickupCode, context.timing);
+    const quote = await context.timing.measureDb(() => getOrderQuote(existing.order_id));
+    existing.pickup_code_display = quote?.pickupCodeDisplay ?? null;
+    const pickupCode = resolveStoredPickupCode(existing, tokens.pickupCode);
+    await persistPickupCode(existing, pickupCode, context.timing);
     return {
       status: 200,
       body: buildPublicOrderResponse(
         existing,
         tokens.trackingToken,
-        tokens.pickupCode,
+        pickupCode,
         canonicalPublicOrderTimestamp(existing.created_at),
       ),
     };
@@ -455,7 +457,15 @@ export async function createOrderThroughCircuitB(
     waitAcknowledged: input.waitAcknowledged,
     scheduledPickupAt: input.scheduledPickupAt,
     lotteryDrawId: input.lotteryDrawId,
-  }));
+  })).catch((error: unknown) => {
+    if (error instanceof Error && error.message.includes("PICKUP_CODE_CAPACITY_EXCEEDED")) {
+      throw new PublicOrderCircuitError(
+        "PICKUP_CODE_CAPACITY_EXCEEDED",
+        statusForCode("PICKUP_CODE_CAPACITY_EXCEEDED"),
+      );
+    }
+    throw error;
+  });
   if (!result?.ok || !result.order) {
     const code = result?.code ?? "ORDER_CREATE_ERROR";
     throw new PublicOrderCircuitError(
@@ -479,13 +489,17 @@ export async function createOrderThroughCircuitB(
   result.order.scheduled_pickup_at = quote?.scheduledPickupAt?.toISOString() ?? null;
   result.order.requested_fulfillment_at = quote?.requestedFulfillmentAt?.toISOString() ?? null;
   result.order.discount_amount = quote?.discountAmount ?? 0;
-  await persistPickupCode(result.order, finalTokens.pickupCode, context.timing);
+  result.order.pickup_code_display = quote?.pickupCodeDisplay
+    ?? result.order.pickup_code_display
+    ?? null;
+  const pickupCode = resolveStoredPickupCode(result.order, finalTokens.pickupCode);
+  await persistPickupCode(result.order, pickupCode, context.timing);
   return {
     status: result.idempotent_replay ? 200 : 201,
     body: buildPublicOrderResponse(
       result.order,
       finalTokens.trackingToken,
-      finalTokens.pickupCode,
+      pickupCode,
       canonicalPublicOrderTimestamp(result.order.created_at),
     ),
   };
@@ -531,7 +545,7 @@ export async function getOrderThroughCircuitB(
     throw new PublicOrderCircuitError("ORDER_NOT_FOUND", 404);
   }
 
-  const pickupCode = stored.fulfillmentType === "TAKEOUT"
+  const fallbackPickupCode = stored.fulfillmentType === "TAKEOUT"
     ? (await derivePublicOrderTokens(
       stored.orderId,
       requireSecret("TOKEN_DERIVATION_SECRET"),
@@ -542,6 +556,12 @@ export async function getOrderThroughCircuitB(
   if (!orderContext?.stall.orderingSettings) {
     throw new PublicOrderCircuitError("ORDER_CREATE_ERROR", 500);
   }
+  const pickupCode = fallbackPickupCode === null
+    ? null
+    : resolveStoredPickupCode(
+      { pickup_code_display: orderContext.pickupCodeDisplay },
+      fallbackPickupCode,
+    );
   const lastTableOrder = orderContext.diningTableId
     ? await context.timing.measureDb(
       () => getLastDiningTableOrder(orderContext.stallId, orderContext.diningTableId!),
@@ -626,6 +646,137 @@ async function resolveTrackedMutationOrder(
   );
   if (!stored?.orderId) throw new PublicOrderCircuitError("ORDER_NOT_FOUND", 404);
   return stored.orderId;
+}
+
+export async function prepareReorderThroughCircuitB(
+  input: { trackingToken: string; deviceId: string },
+  context: TrackedMutationContext,
+) {
+  await assertCircuitBEnabled(input.deviceId, context.timing);
+  const orderId = await resolveTrackedMutationOrder(input, context, "prepare-reorder");
+  const order = await context.timing.measureDb(() => getReorderPreparationContext(orderId));
+  if (!order) throw new PublicOrderCircuitError("ORDER_NOT_FOUND", 404);
+  if (order.source !== "QR_MENU" && order.source !== "LINE_DELIVERY") {
+    throw new PublicOrderCircuitError("NOT_EDITABLE_SOURCE", 403);
+  }
+  if (order.paymentStatus !== "UNPAID" || order.payment) {
+    throw new PublicOrderCircuitError("PAYMENT_ALREADY_RECORDED", 409);
+  }
+  if (order.discountAmount !== 0 || order.discountOptionId) {
+    throw new PublicOrderCircuitError("DISCOUNT_ALREADY_APPLIED", 409);
+  }
+  if (order.status !== "WAITING_CONFIRMATION" && order.status !== "CONFIRMED") {
+    throw new PublicOrderCircuitError("ORDER_ALREADY_STARTED", 409);
+  }
+  if (order.productionTasks.some((task) => task.status !== "PENDING")) {
+    throw new PublicOrderCircuitError("ORDER_ALREADY_STARTED", 409);
+  }
+  if (order.printJobs.some((job) => job.status !== "PENDING")) {
+    throw new PublicOrderCircuitError("PRINT_ALREADY_STARTED", 409);
+  }
+  if (order.items.some((item) => item.status !== "PENDING")) {
+    throw new PublicOrderCircuitError("ORDER_ALREADY_STARTED", 409);
+  }
+
+  const matchingQrCodes = order.stall.qrCodes.filter((qrCode) => order.fulfillmentType === "DINE_IN"
+    ? qrCode.diningTableId === order.diningTableId
+    : qrCode.diningTableId === null && (
+      qrCode.fulfillmentTypeContext === null
+      || qrCode.fulfillmentTypeContext === order.fulfillmentType
+    ));
+  const qrCode = matchingQrCodes.find((candidate) => (
+    !candidate.stallScheduleId
+    && !candidate.locationId
+    && !candidate.marketEventId
+  )) ?? matchingQrCodes[0];
+  if (!qrCode) throw new PublicOrderCircuitError("QR_NOT_ACTIVE", 409);
+
+  const products = new Map(order.products.map((product) => [product.id, product]));
+  const stallProducts = new Map(order.stallProducts.map((assignment) => [assignment.productId, assignment]));
+  const now = Date.now();
+  const availableItems: Array<Record<string, unknown>> = [];
+  const unavailableItems: Array<{ name: string; reason: string }> = [];
+
+  for (const item of order.items) {
+    const product = item.productId ? products.get(item.productId) : null;
+    const assignment = item.productId ? stallProducts.get(item.productId) : null;
+    const isWithinWindow = assignment
+      && (!assignment.availableFrom || assignment.availableFrom.getTime() <= now)
+      && (!assignment.availableUntil || assignment.availableUntil.getTime() > now);
+    if (!item.productId || !product?.isActive || !assignment?.isEnabled || assignment.isSoldOut || !isWithinWindow) {
+      unavailableItems.push({
+        name: item.name,
+        reason: assignment?.isSoldOut ? "目前售罄" : "目前無法供應",
+      });
+      continue;
+    }
+
+    const options = new Map(product.noteGroupAssignments.flatMap((group) => (
+      group.noteGroup.options.map((option) => [option.id, {
+        ...option,
+        noteGroupId: group.noteGroupId,
+      }] as const)
+    )));
+    const historicalOptionIds = item.noteOptions.flatMap((note) => note.noteOptionId ? [note.noteOptionId] : []);
+    const validOptions = historicalOptionIds.flatMap((id) => {
+      const option = options.get(id);
+      return option ? [option] : [];
+    });
+    const selectedByGroup = new Map<string, number>();
+    for (const option of validOptions) {
+      selectedByGroup.set(
+        option.noteGroupId,
+        (selectedByGroup.get(option.noteGroupId) ?? 0) + 1,
+      );
+    }
+    const requiredSelectionMissing = product.noteGroupAssignments.some((group) => {
+      const minimum = Math.max(
+        group.noteGroup.minSelections,
+        group.noteGroup.isRequired ? 1 : 0,
+      );
+      return (selectedByGroup.get(group.noteGroupId) ?? 0) < minimum;
+    });
+    const currentUnitPrice = Math.max(
+      0,
+      (assignment.priceOverride ?? product.defaultPrice)
+        + validOptions.reduce((total, option) => total + option.priceDelta, 0),
+    );
+    availableItems.push({
+      productId: product.id,
+      name: product.name,
+      quantity: item.quantity,
+      note: item.note ?? "",
+      noteOptionIds: validOptions.map((option) => option.id),
+      bundleChoiceIds: [],
+      previousUnitPrice: item.unitPrice,
+      currentUnitPrice,
+      priceChanged: currentUnitPrice !== item.unitPrice,
+      needsReview: product.kind === "BUNDLE"
+        || validOptions.length !== historicalOptionIds.length
+        || requiredSelectionMissing,
+    });
+  }
+
+  const orderingMode = order.fulfillmentType === "DELIVERY" ? "DELIVERY" : "PREORDER";
+  const view = orderingMode === "DELIVERY" ? "delivery" : "pickup";
+  return {
+    status: 200,
+    body: {
+      qrToken: qrCode.token,
+      orderingMode,
+      orderPath: `/store/${encodeURIComponent(order.stall.code)}?view=${view}`,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone ?? "",
+      deliveryAddress: order.deliveryAddress ?? "",
+      customerNote: order.note ?? "",
+      scheduledPickupAt: (
+        order.requestedFulfillmentAt
+        ?? order.scheduledPickupAt
+      )?.toISOString() ?? "",
+      availableItems,
+      unavailableItems,
+    },
+  };
 }
 
 export async function editOrderThroughCircuitB(

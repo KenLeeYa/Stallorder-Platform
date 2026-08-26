@@ -236,6 +236,8 @@ const actionLabels: Record<string, string> = {
   PICKUP_MANUAL_REJECTED: "人工取餐核對遭拒",
   PICKUP_CODE_VERIFIED: "取餐碼驗證成功",
   PICKUP_MANUALLY_VERIFIED: "人工取餐核對完成",
+  PICKUP_CODE_QUICK_CHECKOUT_LOADED: "已用取餐碼快速載入結帳",
+  PICKUP_CODE_QUICK_CHECKOUT_REJECTED: "取餐碼快速載入遭拒",
   PRINT_QUEUE_SUCCESS: "列印工作已完成",
   PRINT_QUEUE_REGISTER_PRINTER: "印表機已登錄",
   PRINT_QUEUE_CLAIM: "列印工作已領取",

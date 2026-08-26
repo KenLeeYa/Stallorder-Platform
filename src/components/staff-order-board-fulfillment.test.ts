@@ -3,6 +3,7 @@ import {
   checkoutStaffDiningTable,
   queueStaffOrderPrint,
   verifyStaffOrderPickup,
+  verifyStaffOrderPickupByCode,
 } from "./staff-order-board-fulfillment";
 
 const csrf = { "x-csrf-token": "token" };
@@ -129,6 +130,26 @@ describe("StaffOrderBoard fulfillment commands", () => {
       command: { mode: "CODE", code: "123" },
       fetchImpl: async () => new Response("{}", { status: 500 }),
     })).rejects.toThrow("取餐碼驗證失敗。");
+  });
+
+  it("loads and verifies a ready takeout order through the quick code endpoint", async () => {
+    const order = { id: "order-1", orderNo: "A025" };
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ order }), { status: 200 }));
+
+    await expect(verifyStaffOrderPickupByCode({
+      stallSlug: "night-market",
+      code: "738",
+      fetchImpl,
+      getCsrfHeaders: () => csrf,
+    })).resolves.toEqual(order);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/api/stalls/night-market/orders/pickup-code",
+      {
+        method: "POST",
+        headers: csrf,
+        body: JSON.stringify({ code: "738" }),
+      },
+    );
   });
 
   it("submits the prepared table checkout request without changing its payment fields", async () => {

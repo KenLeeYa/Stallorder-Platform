@@ -16,6 +16,7 @@ import {
   resolveCatalogTranslationRequestCredential,
 } from "@/server/localization/catalog-translation-provider";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
+import { resolveResilienceFeatureFlags } from "@/server/resilience/feature-flag-service";
 
 type PageProps = { searchParams: Promise<{ organizationId?: string; stallId?: string; source?: string }> };
 
@@ -29,7 +30,7 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
   const authorizedStallIds = workspace.stalls.map((stall) => stall.id);
   const returnStall = workspace.stalls.find((stall) => stall.id === stallId);
   const returnStallId = returnStall?.id;
-  const [catalog, noteGroups, reusableNotes, enabledLocales, aiRequestCredential] = await Promise.all([
+  const [catalog, noteGroups, reusableNotes, enabledLocales, aiRequestCredential, moduleFlags] = await Promise.all([
     getOrganizationCatalog(
       workspace.id,
       authorizedStallIds,
@@ -38,6 +39,10 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
     getOrganizationReusableProductNotes(workspace.id),
     getOrganizationEnabledLocales(workspace.id, authorizedStallIds),
     resolveCatalogTranslationRequestCredential(),
+    resolveResilienceFeatureFlags(["MODULE_HQ_ENABLED"], {
+      organizationId: workspace.id,
+      rolloutKey: workspace.id,
+    }),
   ]);
 
   return (
@@ -71,6 +76,9 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
         enabledTranslationLocales={getEnabledTranslationLocales(enabledLocales)}
         aiTranslationConfigured={isCatalogTranslationConfigured(aiRequestCredential)}
         aiTranslationProviderLabel={getCatalogTranslationProviderLabel(aiRequestCredential) ?? "AI 翻譯服務"}
+        versionsHref={moduleFlags.MODULE_HQ_ENABLED.enabled
+          ? `/merchant/catalog/versions?organizationId=${workspace.id}`
+          : undefined}
       />
     </main>
   );

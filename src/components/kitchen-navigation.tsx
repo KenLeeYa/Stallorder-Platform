@@ -1,10 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { ChefHat, ListTree, RefreshCw, Settings2 } from "lucide-react";
+import { ChefHat, ListTree, Settings2 } from "lucide-react";
+import { LocaleSelector } from "@/components/locale-selector";
+import { LogoutButton } from "@/components/logout-button";
 import { useOperationsLocale } from "@/components/operations-locale";
+import { PwaControls } from "@/components/pwa-controls";
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import type { WorkModeDestination } from "@/lib/work-mode";
+import { getOperationalSwitcherVisibility } from "@/lib/work-mode";
 
 type Props = {
   active: "BOARD" | "STATIONS" | "SETTINGS";
@@ -16,6 +21,16 @@ type Props = {
 
 export function KitchenNavigation({ active, stall, availableStalls, canManage, workModeDestinations }: Props) {
   const { t } = useOperationsLocale();
+  const switcherVisibility = getOperationalSwitcherVisibility(
+    workModeDestinations,
+    "KITCHEN",
+    stall.organizationId,
+  );
+  const stallDestinations = availableStalls.map((candidate) => ({
+    value: candidate.slug,
+    label: candidate.name,
+    href: `/kitchen?stall=${encodeURIComponent(candidate.slug)}`,
+  }));
   const links = [
     {
       key: "BOARD" as const,
@@ -39,50 +54,59 @@ export function KitchenNavigation({ active, stall, availableStalls, canManage, w
     ] : []),
   ];
   return (
-    <header className="sticky top-0 z-50 h-28 border-b border-stone-200 bg-white/95 shadow-sm backdrop-blur print:static print:h-auto">
+    <header className="sticky top-0 z-50 h-16 overflow-x-clip border-b border-stone-200 bg-white/95 shadow-sm backdrop-blur print:static print:h-auto">
       <div className="mx-auto max-w-[1600px] px-3 py-2 md:px-6">
-        <div className="flex h-11 items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-3">
-            <ChefHat className="h-6 w-6 shrink-0 text-teal-700" />
-            <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold sm:text-base">{t("kitchen.systemTitle")}</h1>
-              <p className="truncate text-xs text-stone-600">{stall.name}</p>
+        <h1 className="sr-only">{t("kitchen.systemTitle")}</h1>
+        <div data-testid="kitchen-toolbar-row" className="flex h-11 w-full min-w-0 items-center gap-1">
+          <nav data-testid="kitchen-primary-navigation" className="flex h-11 min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain pr-1 [&>*]:shrink-0" aria-label={t("kitchen.navigation")}>
+            {links.filter(({ key }) => key !== "SETTINGS").map(({ key, href, label, icon: Icon }) => (
+              <Link
+                key={key}
+                data-testid={`kitchen-nav-${key.toLowerCase()}`}
+                href={href}
+                title={label}
+                className={`grid h-11 w-11 place-items-center rounded-md border text-sm font-semibold ${active === key ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600 hover:text-stone-950"}`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="sr-only">{label}</span>
+              </Link>
+            ))}
+            <div data-testid="kitchen-language-control" className="[&>label]:!h-11 [&>label]:!min-h-11 [&>label]:!w-11 [&_svg]:!h-5 [&_svg]:!w-5">
+              <LocaleSelector compact />
             </div>
-          </div>
-          <div className="flex min-w-0 max-w-[72%] shrink-0 items-center justify-end gap-2 sm:max-w-none">
-            <WorkModeSwitcher
-              destinations={workModeDestinations}
-              currentMode="KITCHEN"
-              organizationId={stall.organizationId}
-              stallId={stall.id}
-              compactOnMobile
-              hideVisualLabel
-              className="w-[min(44vw,220px)] shrink-0"
-            />
-            {availableStalls.length > 1 ? (
-              <form method="get" className="flex min-w-0 items-center gap-1">
-                <label className="sr-only" htmlFor="kitchen-stall">{t("kitchen.stall")}</label>
-                  <select id="kitchen-stall" name="stall" defaultValue={stall.slug} className="h-11 min-w-0 max-w-32 rounded-md border border-stone-300 bg-white px-2 text-xs font-semibold text-stone-900">
-                    {availableStalls.map((candidate) => <option key={candidate.slug} value={candidate.slug}>{candidate.name}</option>)}
-                  </select>
-                <button type="submit" title={t("kitchen.switch")} aria-label={t("kitchen.switch")} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 bg-white text-stone-700"><RefreshCw className="h-5 w-5" /></button>
-              </form>
-            ) : null}
+            {links.filter(({ key }) => key === "SETTINGS").map(({ key, href, label, icon: Icon }) => (
+              <Link
+                key={key}
+                data-testid={`kitchen-nav-${key.toLowerCase()}`}
+                href={href}
+                title={label}
+                className={`grid h-11 w-11 place-items-center rounded-md border text-sm font-semibold ${active === key ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600 hover:text-stone-950"}`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="sr-only">{label}</span>
+              </Link>
+            ))}
+            <div data-testid="kitchen-utility-toolbar" className="flex shrink-0 flex-nowrap items-center gap-1 [&>*]:shrink-0 [&_button]:!h-11 [&_button]:!w-11 [&_label]:!h-11 [&_label]:!min-h-11 [&_label]:!w-11 [&_span[title]]:!h-11 [&_span[title]]:!w-11 [&_span[title]]:!justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:!px-0 [&_svg]:!h-5 [&_svg]:!w-5">
+              {switcherVisibility.showWorkMode ? <WorkModeSwitcher
+                destinations={workModeDestinations}
+                currentMode="KITCHEN"
+                organizationId={stall.organizationId}
+                stallId={stall.id}
+              /> : null}
+              {switcherVisibility.showStall ? <WorkspaceSwitcher
+                kind="STALL"
+                destinations={stallDestinations}
+                currentValue={stall.slug}
+                organizationId={stall.organizationId}
+                label={t("workMode.stallLabel")}
+              /> : null}
+              <PwaControls showWakeLock showLocale={false} showQualityLabel={false} />
+            </div>
+          </nav>
+          <div data-testid="kitchen-pinned-logout" className="ml-1 flex h-11 w-12 shrink-0 items-center justify-end border-l border-stone-200 pl-1 [&_button]:!h-11 [&_button]:!w-11 [&_svg]:!h-5 [&_svg]:!w-5">
+            <LogoutButton offlineStallId={stall.id} />
           </div>
         </div>
-        <nav data-testid="kitchen-primary-navigation" className="mt-2 flex h-11 w-full items-center gap-2 overflow-x-auto [&>*]:shrink-0" aria-label={t("kitchen.navigation")}>
-          {links.map(({ key, href, label, icon: Icon }) => (
-            <Link
-              key={key}
-              href={href}
-              title={label}
-              className={`grid h-11 w-11 place-items-center rounded-md border text-sm font-semibold ${active === key ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600 hover:text-stone-950"}`}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="sr-only">{label}</span>
-            </Link>
-          ))}
-        </nav>
       </div>
     </header>
   );

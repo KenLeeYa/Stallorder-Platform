@@ -20,9 +20,7 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { LogoutButton } from "@/components/logout-button";
 import { useOperationsLocale } from "@/components/operations-locale";
-import { PwaControls } from "@/components/pwa-controls";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { deliveryProviderLabel } from "@/lib/delivery-platform-labels";
@@ -289,13 +287,13 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
 
   return (
     <main className="mx-auto max-w-[1600px] px-3 py-3 md:px-6 md:py-6">
-      <div className="sticky top-28 z-40 -mx-3 flex min-w-0 items-center gap-2 overflow-x-auto border-b border-stone-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur md:-mx-6 md:px-6 [&>*]:shrink-0">
+      <div className="sticky top-16 z-40 -mx-3 flex min-w-0 items-center gap-2 overflow-x-auto border-b border-stone-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur md:-mx-6 md:px-6 [&>*]:shrink-0">
         <div data-testid="kitchen-mode-selector" className="inline-grid h-11 grid-cols-3 overflow-hidden rounded-md border border-stone-300 bg-white" role="group" aria-label={t("kitchen.mode.label")}>
           <ModeButton active={mode === "ORDER"} icon={Rows3} label={t("kitchen.mode.ordersShort")} onClick={() => setMode("ORDER")} />
           <ModeButton active={mode === "ITEM"} icon={ListChecks} label={t("kitchen.mode.itemsShort")} onClick={() => setMode("ITEM")} />
           <ModeButton active={mode === "STATION"} icon={ChefHat} label={t("kitchen.mode.stationsShort")} onClick={() => setMode("STATION")} />
         </div>
-        <div data-testid="kitchen-utility-toolbar" className="flex min-w-0 flex-nowrap items-center gap-2 [&>*]:shrink-0 [&_button]:box-border [&_button]:h-11 [&_button]:w-11 [&_span[title]]:box-border [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:px-0">
+        <div data-testid="kitchen-board-utility-toolbar" className="flex min-w-0 flex-nowrap items-center gap-2 [&>*]:shrink-0 [&_button]:box-border [&_button]:h-11 [&_button]:w-11 [&_span[title]]:box-border [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:px-0">
           <span role="status" aria-label={connection === "CONNECTED" ? t("kitchen.connection.connected") : connection === "CONNECTING" ? t("kitchen.connection.connecting") : t("kitchen.connection.polling")} title={connection === "CONNECTED" ? t("kitchen.connection.connectedTitle") : t("kitchen.connection.fallbackTitle")} className={`grid h-11 w-11 place-items-center rounded-md border text-sm font-medium ${connection === "CONNECTED" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-amber-300 bg-amber-50 text-amber-700"}`}>
             {connection === "CONNECTED" ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
             <span className="sr-only">{connection === "CONNECTED" ? t("kitchen.connection.connected") : connection === "CONNECTING" ? t("kitchen.connection.connecting") : t("kitchen.connection.polling")}</span>
@@ -304,12 +302,10 @@ export function KitchenBoard({ stall, initialData, role }: Props) {
             {alertsEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
             <span className="sr-only">{alertsEnabled ? t("kitchen.alert.enabledSr") : t("kitchen.alert.disabledSr")}</span>
           </button>
-          <PwaControls showWakeLock />
           <button type="button" title={t("common.refresh")} disabled={busyId !== null} onClick={() => void refresh()} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-50">
             <RefreshCw className={`h-5 w-5 ${busyId === "refresh" ? "animate-spin" : ""}`} />
             <span className="sr-only">{t("common.refresh")}</span>
           </button>
-          <LogoutButton />
         </div>
       </div>
 

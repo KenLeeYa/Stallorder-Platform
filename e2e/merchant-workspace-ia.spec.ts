@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForDefaultMerchantDashboard } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -9,10 +10,7 @@ test("單店入口、商品摺疊與訂單限制設定維持一致", async ({ pa
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(
-    new RegExp(`/merchant/dashboard\\?organizationId=${organizationId}$`),
-    { timeout: 30_000 },
-  );
+  await waitForDefaultMerchantDashboard(page, organizationId);
   await expect(page.getByText("多攤位營運總覽", { exact: true })).toBeVisible();
 
   await page.goto(`/merchant/stalls?organizationId=${organizationId}`);

@@ -1,7 +1,7 @@
 "use client";
 
-import { BriefcaseBusiness } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { BriefcaseBusiness, UserRound, type LucideProps } from "lucide-react";
+import { CompactSwitcherDialog } from "@/components/compact-switcher-dialog";
 import { useOperationsLocale } from "@/components/operations-locale";
 import type { WorkMode, WorkModeDestination } from "@/lib/work-mode";
 import { currentWorkModeValue } from "@/lib/work-mode";
@@ -14,8 +14,6 @@ export function WorkModeSwitcher({
   organizationId,
   stallId,
   offlineGuardStallId,
-  compactOnMobile = false,
-  hideVisualLabel = false,
   className = "",
 }: {
   destinations: readonly WorkModeDestination[];
@@ -27,11 +25,14 @@ export function WorkModeSwitcher({
   hideVisualLabel?: boolean;
   className?: string;
 }) {
-  const router = useRouter();
   const { t } = useOperationsLocale();
-  if (destinations.length < 2) return null;
-
   const selectedValue = currentWorkModeValue(currentMode, organizationId, stallId);
+  const currentDestination = destinations.find((destination) => destination.value === selectedValue);
+  const ModeIcon = currentMode === "MERCHANT"
+    ? BriefcaseBusiness
+    : currentMode === "STAFF"
+      ? UserRound
+      : BeardedChefIcon;
 
   async function switchMode(value: string) {
     const destination = destinations.find((candidate) => candidate.value === value);
@@ -45,26 +46,40 @@ export function WorkModeSwitcher({
       }
     }
     window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, destination.organizationId);
-    router.push(destination.href);
+    window.location.assign(destination.href);
   }
 
   return (
-    <label className={`block min-w-0 text-xs font-medium text-stone-500 ${className}`}>
-      <span className={`${hideVisualLabel ? "sr-only" : compactOnMobile ? "sr-only sm:not-sr-only sm:inline-flex" : "inline-flex"} items-center gap-1.5`}>
-        <BriefcaseBusiness className="h-3.5 w-3.5 text-teal-700" />
-        {t("workMode.label")}
-      </span>
-      <select
-        aria-label={t("workMode.switchLabel")}
-        title={t("workMode.switchLabel")}
-        value={selectedValue}
-        onChange={(event) => void switchMode(event.target.value)}
-        className={`${hideVisualLabel ? "mt-0 h-11" : compactOnMobile ? "mt-0 h-11 sm:mt-1 sm:h-10" : "mt-1 h-10"} block w-full min-w-0 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold text-stone-900 md:max-w-[220px]`}
-      >
-        {destinations.map((destination) => (
-          <option key={destination.value} value={destination.value}>{destination.label}</option>
-        ))}
-      </select>
-    </label>
+    <CompactSwitcherDialog
+      destinations={destinations}
+      currentValue={selectedValue}
+      buttonLabel={currentDestination?.label ?? t("workMode.switchLabel")}
+      dialogTitle={t("workMode.switchLabel")}
+      icon={<ModeIcon data-testid={`work-mode-icon-${currentMode.toLowerCase()}`} className="h-5 w-5" />}
+      onSelect={switchMode}
+      className={className}
+    />
+  );
+}
+
+function BeardedChefIcon({ className, ...props }: LucideProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+      {...props}
+    >
+      <path d="M7.5 8.5h9" />
+      <path d="M8 8.5a3 3 0 0 1 .8-5.9A4.5 4.5 0 0 1 12 1a4.5 4.5 0 0 1 3.2 1.6 3 3 0 0 1 .8 5.9" />
+      <path d="M8 9.5v2.3c0 4.4 1.8 7.7 4 9.2 2.2-1.5 4-4.8 4-9.2V9.5" />
+      <path d="M9.5 13c1.1 0 1.5-.8 2.5-.8s1.4.8 2.5.8" />
+      <path d="M9.5 15.5c.8 1.1 1.6 1.6 2.5 1.6s1.7-.5 2.5-1.6" />
+    </svg>
   );
 }

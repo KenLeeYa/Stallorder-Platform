@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { StallSettingsOverview } from "@/components/stall-settings-overview";
 import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
 import { hasPermission } from "@/lib/rbac";
@@ -35,10 +34,9 @@ export default async function EditStallPage({ params }: PageProps) {
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
-      <Link href={`/merchant/stalls?organizationId=${workspace.id}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800">
-        <ArrowLeft className="h-4 w-4" />
+      <ContextualBackButton fallbackHref={`/merchant/stalls?organizationId=${workspace.id}`}>
         {m("返回攤位管理")}
-      </Link>
+      </ContextualBackButton>
 
       <header className="mt-4 border-b border-stone-200 pb-5">
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>

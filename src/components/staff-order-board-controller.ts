@@ -27,6 +27,7 @@ import {
   checkoutStaffDiningTable,
   queueStaffOrderPrint,
   verifyStaffOrderPickup,
+  verifyStaffOrderPickupByCode,
   type StaffOrderManualPickupReason,
 } from "@/components/staff-order-board-fulfillment";
 import {
@@ -133,6 +134,10 @@ export function useStaffOrderBoardController({
   const [pickupCodes, setPickupCodes] = useState<Record<string, string>>({});
   const [verifyingPickupOrderId, setVerifyingPickupOrderId] = useState<string | null>(null);
   const [pickupCheckoutOrderId, setPickupCheckoutOrderId] = useState<string | null>(null);
+  const [pickupLookupOpen, setPickupLookupOpen] = useState(false);
+  const [pickupLookupCode, setPickupLookupCode] = useState("");
+  const [pickupLookupBusy, setPickupLookupBusy] = useState(false);
+  const [pickupLookupMessage, setPickupLookupMessage] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [liveConnection, setLiveConnection] = useState<StaffOrderLiveConnectionState>("connecting");
   const [message, setMessage] = useState("");
@@ -631,6 +636,36 @@ export function useStaffOrderBoardController({
     if (isCompletePickupCode(code, codeLength)) void verifyPickup(orderId, code);
   }
 
+  async function verifyPickupLookup() {
+    if (!/^\d{3}$|^\d{6}$/.test(pickupLookupCode) || pickupLookupBusy) {
+      setPickupLookupMessage(t("staff.pickup.lookupInvalid"));
+      return;
+    }
+    setPickupLookupBusy(true);
+    setPickupLookupMessage("");
+    try {
+      const verifiedOrder = await verifyStaffOrderPickupByCode({
+        stallSlug: stall.slug,
+        code: pickupLookupCode,
+      });
+      knownOrderIdsRef.current.add(verifiedOrder.id);
+      knownOrderStatusesRef.current.set(verifiedOrder.id, verifiedOrder.status);
+      setOrders((current) => [...current.filter((order) => order.id !== verifiedOrder.id), verifiedOrder]
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt)));
+      setPickupLookupOpen(false);
+      setPickupLookupCode("");
+      if (verifiedOrder.paymentStatus === "PAID" || verifiedOrder.status === "COMPLETED") {
+        setMessage(t("staff.pickup.lookupPaidComplete", { number: verifiedOrder.orderNo }));
+      } else {
+        await openCheckoutDialog([verifiedOrder]);
+      }
+    } catch (error) {
+      setPickupLookupMessage(error instanceof Error ? error.message : t("staff.error.network"));
+    } finally {
+      setPickupLookupBusy(false);
+    }
+  }
+
   async function confirmManualPickup(orderId: string, reason: StaffOrderManualPickupReason) {
     if (verifyingPickupOrderId === orderId) return false;
     const order = orders.find((candidate) => candidate.id === orderId);
@@ -806,6 +841,12 @@ export function useStaffOrderBoardController({
     selectedItemIds,
     pickupCodes,
     pickupCheckoutOrderId,
+    pickupLookup: {
+      open: pickupLookupOpen,
+      code: pickupLookupCode,
+      busy: pickupLookupBusy,
+      message: pickupLookupMessage,
+    },
     query,
     now,
     viewMode,
@@ -848,6 +889,12 @@ export function useStaffOrderBoardController({
           return next;
         });
       },
+      onClosePickupLookup: () => {
+        if (pickupLookupBusy) return;
+        setPickupLookupOpen(false);
+        setPickupLookupCode("");
+        setPickupLookupMessage("");
+      },
       onCompletePaidOrders: completePaidOrders,
       onCreated: handleStaffOrderCreated,
       onAddOrderEditProduct: addOrderEditProduct,
@@ -856,8 +903,18 @@ export function useStaffOrderBoardController({
       onCloseOrderEditor: () => setEditingOrderId(null),
       onOpenCheckout: openCheckout,
       onOpenComposer: openComposer,
+      onOpenPickupLookup: () => {
+        setPickupLookupCode("");
+        setPickupLookupMessage("");
+        setPickupLookupOpen(true);
+      },
       onOpenOrderEditor: openOrderEditor,
       onPickupCodeChange: handlePickupCodeChange,
+      onPickupLookupCodeChange: (value) => {
+        setPickupLookupCode(value.replace(/\D/g, "").slice(0, 6));
+        setPickupLookupMessage("");
+      },
+      onSubmitPickupLookup: verifyPickupLookup,
       onPrintOrder: printOrder,
       onQueryChange: setQuery,
       onRefresh: () => void refreshOrders(),

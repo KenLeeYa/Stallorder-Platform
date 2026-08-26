@@ -12,6 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { OfflineQueueStatus } from "@/components/offline-queue-status";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
@@ -209,12 +210,12 @@ export function OfflinePosRecovery() {
             {online ? t("offline.recovery.online") : t("offline.recovery.offline")}
           </span>
           {online ? (
-            <Link
-              href={`/staff/${workspace.stall.slug}`}
+            <ContextualBackButton
+              fallbackHref={`/staff/${workspace.stall.slug}`}
               className="inline-flex min-h-10 items-center rounded-md bg-stone-900 px-3 text-sm font-semibold text-white"
             >
               {t("offline.recovery.backToStaff")}
-            </Link>
+            </ContextualBackButton>
           ) : null}
         </div>
       </header>

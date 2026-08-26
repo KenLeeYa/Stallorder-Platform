@@ -11,6 +11,7 @@ export type StoredPublicOrder = {
   total_amount: number;
   fulfillment_type?: string;
   pickup_required?: boolean;
+  pickup_code_display?: string | null;
   quoted_wait_minutes?: number | null;
   quoted_ready_at?: string | null;
   scheduled_pickup_at?: string | null;
@@ -357,7 +358,7 @@ export function createPublicOrderWithSchedule(input: {
   lotteryDrawId: string | null;
 }) {
   return jsonResult<OrderCreateResult>(Prisma.sql`
-    select public.create_public_order_with_free_lottery_reward_targeted(
+    select public.create_public_order_with_daily_pickup_code_targeted(
       ${input.orderId}::uuid,
       ${input.qrToken}::text,
       ${input.sessionTokenHash}::text,
@@ -388,6 +389,7 @@ export function getOrderQuote(orderId: string) {
     select: {
       fulfillmentType: true,
       pickupCodeLength: true,
+      pickupCodeDisplay: true,
       quotedWaitMinutes: true,
       quotedReadyAt: true,
       scheduledPickupAt: true,
@@ -423,6 +425,115 @@ export function getTrackedPublicOrder(trackingTokenHash: string, deviceHash: str
   `);
 }
 
+export async function getReorderPreparationContext(orderId: string) {
+  const now = new Date();
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      organizationId: true,
+      stallId: true,
+      source: true,
+      paymentStatus: true,
+      discountAmount: true,
+      discountOptionId: true,
+      status: true,
+      fulfillmentType: true,
+      diningTableId: true,
+      customerName: true,
+      customerPhone: true,
+      deliveryAddress: true,
+      note: true,
+      requestedFulfillmentAt: true,
+      scheduledPickupAt: true,
+      payment: { select: { id: true } },
+      productionTasks: { select: { status: true } },
+      printJobs: { select: { status: true } },
+      stall: {
+        select: {
+          code: true,
+          qrCodes: {
+            where: {
+              state: "ACTIVE",
+              OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+            orderBy: [{ tokenVersion: "desc" }, { updatedAt: "desc" }],
+            take: 20,
+            select: {
+              token: true,
+              diningTableId: true,
+              fulfillmentTypeContext: true,
+              stallScheduleId: true,
+              locationId: true,
+              marketEventId: true,
+            },
+          },
+        },
+      },
+      items: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          productId: true,
+          name: true,
+          unitPrice: true,
+          quantity: true,
+          note: true,
+          status: true,
+          noteOptions: { select: { noteOptionId: true } },
+        },
+      },
+    },
+  });
+  if (!order) return null;
+
+  const productIds = [...new Set(order.items.flatMap((item) => item.productId ? [item.productId] : []))];
+  const [stallProducts, products] = await Promise.all([
+    productIds.length === 0
+      ? Promise.resolve([])
+      : prisma.stallProduct.findMany({
+        where: { stallId: order.stallId, productId: { in: productIds } },
+        select: {
+          productId: true,
+          priceOverride: true,
+          isEnabled: true,
+          isSoldOut: true,
+          availableFrom: true,
+          availableUntil: true,
+        },
+      }),
+    productIds.length === 0
+      ? Promise.resolve([])
+      : prisma.product.findMany({
+        where: { organizationId: order.organizationId, id: { in: productIds } },
+        select: {
+          id: true,
+          name: true,
+          defaultPrice: true,
+          kind: true,
+          isActive: true,
+          noteGroupAssignments: {
+            where: { isActive: true, noteGroup: { isActive: true } },
+            select: {
+              noteGroupId: true,
+              noteGroup: {
+                select: {
+                  isRequired: true,
+                  minSelections: true,
+                  options: {
+                    where: { isActive: true },
+                    select: { id: true, priceDelta: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+  ]);
+
+  return { ...order, stallProducts, products };
+}
+
 export function getTrackedOrderContext(orderId: string) {
   return prisma.order.findUnique({
     where: { id: orderId },
@@ -430,6 +541,7 @@ export function getTrackedOrderContext(orderId: string) {
       source: true,
       stallId: true,
       diningTableId: true,
+      pickupCodeDisplay: true,
       quotedWaitMinutes: true,
       quotedReadyAt: true,
       stall: {

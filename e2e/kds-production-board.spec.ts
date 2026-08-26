@@ -112,7 +112,7 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   ));
   await login(page, "kitchen@stallorder.test");
   await expect(page).toHaveURL(/\/kitchen\?stall=aming-chicken/);
-  await expect(page.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "廚房生產系統" })).toBeAttached();
   const navigation = page.locator('[data-testid="kitchen-primary-navigation"]:visible').last();
   const header = page.locator("header:visible").filter({ has: navigation }).last();
   await expect(navigation).toBeVisible();
@@ -136,17 +136,17 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   await soundButton.click();
   await expect(board.getByTitle("關閉新單提示音")).toBeVisible();
   expect(await page.evaluate(() => window.localStorage.getItem("stallorder_kitchen_order_alerts"))).toBe("enabled");
-  const wakeButton = board.getByTitle("開啟螢幕保持喚醒");
+  const wakeButton = header.getByTitle("開啟螢幕保持喚醒");
   await expect(wakeButton).toBeVisible();
   await wakeButton.click();
-  await expect(board.getByTitle("關閉螢幕保持喚醒")).toBeVisible();
+  await expect(header.getByTitle("關閉螢幕保持喚醒")).toBeVisible();
   const refreshResponse = page.waitForResponse((response) => (
     response.url().endsWith("/api/stalls/aming-chicken/kitchen/board")
     && response.request().method() === "GET"
   ));
   await board.getByTitle("重新整理").click();
   expect((await refreshResponse).status()).toBe(200);
-  await expect(board.getByTitle("登出")).toBeVisible();
+  await expect(header.getByTitle("登出")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   blockKitchenStream = false;
   await expect(page.getByText("即時連線", { exact: true })).toBeVisible({ timeout: 10_000 });
@@ -192,7 +192,7 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   await expect(page.getByRole("heading", { name: "找不到此頁面", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "工作站與品項分流" })).toHaveCount(0);
   await page.goto("/kitchen?stall=aming-chicken");
-  await page.locator("main").last().getByTitle("登出").click();
+  await page.locator("header:visible").filter({ has: page.locator('[data-testid="kitchen-primary-navigation"]:visible') }).last().getByTitle("登出").click();
   await expect(page).toHaveURL(/\/login$/);
 });
 
@@ -264,8 +264,7 @@ test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
 
   await page.goto("/kitchen/stations?stall=aming-chicken");
   await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/kitchen/stations\\?source=kitchen$`));
-  await expect(page.getByRole("link", { name: "返回生產看板", exact: true }))
-    .toHaveAttribute("href", "/kitchen?stall=aming-chicken");
+  await expect(page.getByRole("button", { name: "返回生產看板", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "工作站與品項分流" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "綜合工作站", exact: true }).last()).toBeVisible();
   const createStationButton = page.getByRole("button", { name: "新增工作站", exact: true });
@@ -284,8 +283,7 @@ test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
   await expect(newStationCode).toBeFocused();
   await page.goto("/kitchen/settings?stall=aming-chicken");
   await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}/kitchen/settings\\?source=kitchen$`));
-  await expect(page.getByRole("link", { name: "返回生產看板", exact: true }))
-    .toHaveAttribute("href", "/kitchen?stall=aming-chicken");
+  await expect(page.getByRole("button", { name: "返回生產看板", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "KDS 顯示設定" })).toBeVisible();
   await expect(page.getByRole("spinbutton", { name: "警示時間（分鐘）", exact: true }).last()).toHaveValue("5");
   await expect(page.getByRole("spinbutton", { name: "嚴重逾時（分鐘）", exact: true }).last()).toHaveValue("10");
@@ -308,6 +306,8 @@ test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
   await expect(criticalMinutes).toBeFocused();
 
   await page.goto(`/merchant/stalls/${stallId}/kitchen/settings?source=https://attacker.invalid`);
-  await expect(page.getByRole("link", { name: "返回攤位設定", exact: true }))
-    .toHaveAttribute("href", `/merchant/stalls/${stallId}`);
+  const fallbackButton = page.getByRole("button", { name: "返回攤位設定", exact: true });
+  await expect(fallbackButton).toBeVisible();
+  await fallbackButton.click();
+  await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}$`));
 });
