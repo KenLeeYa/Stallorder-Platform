@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowLeft, LockKeyhole } from "lucide-react";
+import { LockKeyhole } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { getBillingExperienceState } from "@/server/billing/billing-feature-flags";
 
@@ -36,12 +37,12 @@ export async function FeatureUpgradeNotice({
             <p className="mt-2 text-sm text-amber-900">{message}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {returnHref ? (
-                <Link
-                  href={returnHref}
+                <ContextualBackButton
+                  fallbackHref={returnHref}
                   className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900"
                 >
-                  <ArrowLeft className="h-4 w-4" />{returnLabel}
-                </Link>
+                  {returnLabel}
+                </ContextualBackButton>
               ) : null}
               {billingHref && merchantBillingVisible ? (
                 <Link

@@ -127,11 +127,8 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       await expectInitiallyInViewport(merchantPage.getByText("QR 啟用中", { exact: true }));
       await expect(merchantPage.getByText(/顧客點餐 QR Code/u)).toBeVisible();
 
-      const expandMerchantOptions = merchantPage.getByRole("button", { name: "展開商戶選項" });
-      await expectInitiallyInViewport(expandMerchantOptions);
-      await expandMerchantOptions.click();
-      const workMode = merchantPage.getByLabel("切換工作模式");
-      await expect(workMode).toHaveValue(`merchant:${organizationId}`);
+      await expect(merchantPage.getByRole("button", { name: /^(?:展開|收合)商戶選項$/u })).toHaveCount(0);
+      const workMode = merchantPage.getByRole("button", { name: "商家管理", exact: true });
       await expectInitiallyInViewport(workMode);
       await expectNoHorizontalOverflow(merchantPage);
     } finally {

@@ -140,10 +140,11 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
 
     await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organizationId}`);
     await expect(page.getByLabel("選擇商家")).toBeVisible();
-    await page.getByLabel("選擇商家").selectOption(demoOrganizationId);
-    await expect(page).toHaveURL(
-      new RegExp(`/merchant/dashboard\\?organizationId=${demoOrganizationId}$`),
-    );
+    await page.getByLabel("選擇商家").click();
+    await page.getByRole("dialog", { name: "選擇商家" })
+      .getByRole("button", { name: "StallOrder 示範商戶", exact: true })
+      .click();
+    await expectDashboardOrganization(page, demoOrganizationId);
     await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organizationId}`);
     await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);
 
@@ -152,10 +153,10 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     await expect(page).toHaveURL(new RegExp(`/merchant/setup\\?organizationId=${organizationId}`));
     await expect(page.getByRole("heading", { name: "開店設定" })).toBeVisible();
     await expect(page.getByRole("link", { name: "開店設定" })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "返回攤位設定", exact: true })).toHaveAttribute(
-      "href",
-      `/merchant/stalls/${organization.stalls[0].id}`,
-    );
+    const returnToStallSettings = page.getByRole("button", { name: "返回攤位設定", exact: true });
+    await expect(returnToStallSettings).toBeVisible();
+    await returnToStallSettings.click();
+    await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${organization.stalls[0].id}$`));
 
     await gotoLocalPath(page, `/merchant/stalls/${organization.stalls[0].id}`);
     await expect(page.getByRole("link", { name: "開店設定", exact: true })).toHaveAttribute(
@@ -185,9 +186,9 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
       const href = await step.getByRole("link", { name: "前往設定" }).getAttribute("href");
       if (!href) throw new Error(`${label} 缺少設定連結`);
       await gotoLocalPath(page, href);
-      const backLink = page.getByRole("link", { name: "返回開店設定", exact: true });
-      await expect(backLink).toHaveAttribute("href", `/merchant/setup?organizationId=${organizationId}`);
-      await backLink.click();
+      const backButton = page.getByRole("button", { name: "返回開店設定", exact: true });
+      await expect(backButton).toBeVisible();
+      await backButton.click();
       await expect(page).toHaveURL(new RegExp(`/merchant/setup\\?organizationId=${organizationId}$`));
     }
 
@@ -238,10 +239,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
 
     await page.context().clearCookies();
     await login(page, applicantEmail);
-    await expect(page).toHaveURL(
-      new RegExp(`/merchant/dashboard\\?organizationId=${organizationId}$`),
-      { timeout: 30_000 },
-    );
+    await expectDashboardOrganization(page, organizationId, 30_000);
     await expect(page.getByText("多攤位營運總覽", { exact: true })).toBeVisible();
     await gotoLocalPath(page, `/merchant/stalls/${live.stall.id}`);
     await expect(page.getByRole("link", { name: "開店設定", exact: true })).toHaveAttribute(
@@ -264,6 +262,19 @@ async function login(page: Page, email: string) {
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
   await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 15_000 });
+}
+
+async function expectDashboardOrganization(page: Page, organizationId: string, timeout = 10_000) {
+  await expect.poll(() => {
+    const url = new URL(page.url());
+    return {
+      pathname: url.pathname,
+      organizationId: url.searchParams.get("organizationId"),
+    };
+  }, { timeout }).toEqual({
+    pathname: "/merchant/dashboard",
+    organizationId,
+  });
 }
 
 async function cleanup() {

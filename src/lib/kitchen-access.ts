@@ -17,15 +17,18 @@ export async function requireKitchenPage(
       && stall.roles.some((role) => hasPermission(role, permission))
     ))
     .map((stall) => ({ workspace, stall })));
-  const availableStalls = candidates.map(({ stall }) => ({
-    id: stall.id,
-    slug: stall.slug,
-    name: stall.name,
-  }));
   const selected = requestedStallSlug
     ? candidates.find(({ stall }) => stall.slug === requestedStallSlug)
     : candidates[0];
   if (!selected) notFound();
+
+  const availableStalls = candidates
+    .filter(({ workspace }) => workspace.id === selected.workspace.id)
+    .map(({ stall }) => ({
+      id: stall.id,
+      slug: stall.slug,
+      name: stall.name,
+    }));
 
   const roles = selected.stall.roles;
   const role = resolvePrimaryRole(roles);
@@ -36,6 +39,7 @@ export async function requireKitchenPage(
     principal,
     role,
     roles,
+    workspaces,
     stall: {
       ...selected.stall,
       organization: { businessName: selected.workspace.businessName },

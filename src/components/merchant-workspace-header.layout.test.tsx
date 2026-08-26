@@ -43,7 +43,7 @@ const workspace: WorkspaceOrganization = {
 };
 
 describe("MerchantWorkspaceHeader mobile layout", () => {
-  it("collapses only the selectors while keeping a sticky horizontal function row", () => {
+  it("keeps compact mode and stall tools visible without a collapsible selector panel", () => {
     const html = renderToStaticMarkup(
       <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
         <MerchantWorkspaceHeader
@@ -55,16 +55,71 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
       </LocaleProvider>,
     );
 
-    expect(html).toContain('id="merchant-mobile-options"');
+    expect(html).not.toContain('id="merchant-mobile-options"');
+    expect(html).toContain('data-testid="merchant-utility-toolbar"');
     expect(html).toContain('data-testid="merchant-function-navigation-mobile"');
     expect(html).toContain('data-testid="merchant-function-navigation-desktop"');
     expect(html).toContain("sticky top-0");
     expect(html).toContain("overflow-x-hidden");
     expect(html).toContain("overflow-x-auto");
-    expect(html).toContain('data-compact="true"');
+    expect(html).toContain('data-compact="false"');
+    expect(html).toContain('aria-label="選擇攤位：測試攤位"');
+    expect(html).toContain('href="/merchant/stalls/stall-1"');
+    expect(html).not.toContain('aria-haspopup="dialog"');
+    expect(html).not.toContain("<select");
     expect(html).toContain('href="/merchant/dashboard?organizationId=organization-1"');
     expect(html).not.toContain("/merchant/billing?");
     expect(html).not.toContain("/merchant/payments?");
+  });
+
+  it("opens the centered selector only when two or more active stalls are available", () => {
+    const multiStallWorkspace: WorkspaceOrganization = {
+      ...workspace,
+      stalls: [
+        ...workspace.stalls,
+        {
+          ...workspace.stalls[0],
+          id: "stall-2",
+          name: "第二攤位",
+          slug: "second-stall",
+          code: "SECOND-STALL",
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+        <MerchantWorkspaceHeader
+          workspaces={[multiStallWorkspace]}
+          displayName="店主"
+          routeContext={{ organizationId: workspace.id, stallId: null }}
+          showBilling={false}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(html).toContain('aria-label="選擇攤位：全部攤位"');
+    expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).not.toContain('href="/merchant/stalls/stall-1"');
+  });
+
+  it("does not render an invalid stall destination when no active stall exists", () => {
+    const inactiveWorkspace: WorkspaceOrganization = {
+      ...workspace,
+      stalls: workspace.stalls.map((stall) => ({ ...stall, isActive: false })),
+    };
+    const html = renderToStaticMarkup(
+      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+        <MerchantWorkspaceHeader
+          workspaces={[inactiveWorkspace]}
+          displayName="店主"
+          routeContext={{ organizationId: workspace.id, stallId: null }}
+          showBilling={false}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(html).not.toContain('aria-label="選擇攤位');
+    expect(html).not.toContain('href="/merchant/stalls/stall-1"');
   });
 
   it("shows billing navigation only after the platform switch is enabled", () => {

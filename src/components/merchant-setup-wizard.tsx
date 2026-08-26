@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, CheckCircle2, Circle, ClipboardCheck, ExternalLink, Rocket, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Circle, ClipboardCheck, ExternalLink, Rocket, ShieldCheck } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatAppDate, formatAppNumber } from "@/lib/locale-format";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
@@ -57,10 +58,9 @@ export function MerchantSetupWizard({
   }
 
   return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
-    <Link href={`/merchant/stalls/${stall.id}`} className="mb-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-teal-800">
-      <ArrowLeft className="h-4 w-4" />
+    <ContextualBackButton fallbackHref={`/merchant/stalls/${stall.id}`} className="mb-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-teal-800">
       {m("返回攤位設定")}
-    </Link>
+    </ContextualBackButton>
     <header className="border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{applicationNumber}</p><div className="mt-1 flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-3xl font-semibold">{m("開店設定")}</h1><p className="mt-2 text-sm text-stone-600">{stall.name} · {subscription.planName} · {label(subscription.status)}</p></div><div className="text-right text-sm"><p className="font-semibold">QR {label(qrCode.state)}</p><p className="mt-1 text-stone-500">{m("攤位 {state}", { state: label(stall.orderingState) })}</p></div></div></header>
     {message ? <p role="status" className="mt-5 border-l-4 border-teal-600 bg-teal-50 px-4 py-3 text-sm text-teal-950">{message}</p> : null}
     <section className="py-6"><h2 className="text-xl font-semibold">{m("設定清單")}</h2><div className="mt-4 grid gap-3 md:grid-cols-2">{steps.map((step, index) => <article key={step.key} className="rounded-md border border-stone-200 bg-white p-4"><div className="flex items-start gap-3">{step.completed ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" /> : <Circle className="mt-0.5 h-5 w-5 shrink-0 text-stone-400" />}<div className="min-w-0 flex-1"><h3 className="font-semibold">{formatAppNumber(locale, index + 1)}. {step.label}</h3><p className="mt-1 text-sm text-stone-600">{step.description}</p><div className="mt-3 flex flex-wrap gap-2"><Link href={step.href} className="inline-flex min-h-10 items-center gap-1 border border-stone-300 px-3 text-xs font-semibold">{m("前往設定")}<ExternalLink className="h-3.5 w-3.5" /></Link>{!step.completed ? <button type="button" disabled={Boolean(busy)} onClick={() => void run({ action: "COMPLETE_STEP", step: step.key }, m("{label}已確認。", { label: step.label }))} className="min-h-10 bg-stone-900 px-3 text-xs font-semibold text-white disabled:opacity-50">{m("確認完成")}</button> : null}</div></div></div></article>)}</div></section>

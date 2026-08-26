@@ -18,7 +18,7 @@ export default async function AdminBillingPage() {
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-7 md:px-8">
       <header><p className="text-sm font-semibold text-teal-800">{m("Phase 1 manual billing")}</p><h1 className="mt-1 text-3xl font-semibold">{m("Platform billing overview")}</h1><p className="mt-2 text-sm text-stone-600">{m("Plans, invoices, payment confirmation, and subscription status are determined by the StallOrder database.")}</p></header>
-      <dl data-testid="admin-billing-dashboard" className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-stone-200 bg-stone-200 sm:grid-cols-3 lg:grid-cols-5">
+      <dl data-testid="admin-billing-dashboard" className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-5">
         <Metric icon={ShieldCheck} label={m("Active subscriptions")} value={formatAppNumber(locale, overview.metrics.activeSubscriptions)} />
         <Metric icon={Clock3} label={m("Trialing")} value={formatAppNumber(locale, overview.metrics.trialingSubscriptions)} />
         <Metric icon={CircleAlert} label={m("Past due")} value={formatAppNumber(locale, overview.metrics.pastDueSubscriptions)} />
@@ -37,7 +37,7 @@ export default async function AdminBillingPage() {
           <div><h2 className="text-xl font-semibold">{m("PAYG automatic close status")}</h2><p className="mt-1 text-sm text-stone-600">{m("This dashboard is read-only. Charging and automatic close remain controlled by separate audited feature flags.")}</p></div>
           <span className={`rounded-md px-3 py-1 text-sm font-semibold ${paygClose.alert ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>{m(paygClose.alert ? "Attention required" : "Normal")}</span>
         </div>
-        <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-stone-200 bg-stone-200 sm:grid-cols-3 lg:grid-cols-5">
+        <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-5">
           <PaygStatus label={m("Automatic close")} value={m(paygClose.automaticEnabled ? "Enabled" : "Disabled")} />
           <PaygStatus label={m("Last scheduler run")} value={paygClose.latestRunAt ? formatAppDate(locale, paygClose.latestRunAt) : "—"} />
           <PaygStatus label={m("Target period")} value={paygClose.targetPeriod ? formatAppDate(locale, paygClose.targetPeriod) : "—"} />
@@ -87,9 +87,9 @@ function toPlanOption(version: { id: string; displayName: string; version: numbe
 }
 
 function Metric({ icon: Icon, label, value }: { icon: typeof ShieldCheck; label: string; value: string | number }) {
-  return <div className="min-w-0 bg-white p-3 sm:px-4 sm:py-5"><dt className="flex min-w-0 items-center gap-2 text-xs text-stone-500"><Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-teal-700" /><span className="min-w-0 break-words">{label}</span></dt><dd className="mt-2 break-words text-xl font-semibold tabular-nums">{value}</dd></div>;
+  return <div className="min-w-0 rounded-lg border border-stone-200 bg-white p-3 shadow-sm sm:px-4 sm:py-5"><dt className="flex min-w-0 items-center gap-2 text-xs text-stone-500"><Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-teal-700" /><span className="min-w-0 break-words">{label}</span></dt><dd className="mt-2 break-words text-xl font-semibold tabular-nums">{value}</dd></div>;
 }
 
 function PaygStatus({ label, value }: { label: string; value: string }) {
-  return <div className="min-w-0 bg-white p-3"><dt className="text-xs font-semibold text-stone-500">{label}</dt><dd className="mt-1 break-words font-semibold">{value}</dd></div>;
+  return <div className="min-w-0 rounded-lg border border-stone-200 bg-white p-3 shadow-sm"><dt className="text-xs font-semibold text-stone-500">{label}</dt><dd className="mt-1 break-words font-semibold">{value}</dd></div>;
 }

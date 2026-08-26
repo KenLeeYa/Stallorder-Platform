@@ -5,6 +5,7 @@ import { StaffOrderBoard } from "@/components/staff-order-board";
 import type { StaffOrderDto } from "@/lib/orders";
 
 vi.mock("@/components/work-mode-switcher", () => ({ WorkModeSwitcher: () => null }));
+vi.mock("@/components/workspace-switcher", () => ({ WorkspaceSwitcher: () => null }));
 vi.mock("@/components/pwa-controls", () => ({ PwaControls: () => null }));
 vi.mock("@/components/offline-bootstrap-control", () => ({ OfflineBootstrapControl: () => null }));
 vi.mock("@/components/offline-queue-status", () => ({ OfflineQueueStatus: () => null }));

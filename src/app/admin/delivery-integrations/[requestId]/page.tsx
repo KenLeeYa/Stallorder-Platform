@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ClipboardCheck } from "lucide-react";
+import { ClipboardCheck } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { AdminDeliveryRequestActions } from "@/components/admin-delivery-integration-actions";
 import { requirePlatformAdminPage } from "@/lib/authorization";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
@@ -24,7 +24,7 @@ export default async function AdminDeliveryRequestPage({ params }: PageProps) {
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-4xl px-4 py-7 md:px-8">
-      <Link href="/admin/delivery-integrations" className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800"><ArrowLeft className="h-4 w-4" />{m("Back to delivery integration management")}</Link>
+      <ContextualBackButton fallbackHref="/admin/delivery-integrations">{m("Back to delivery integration management")}</ContextualBackButton>
       <header className="mt-4 border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{deliveryProviderLabel(request.provider)}</p><h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold"><ClipboardCheck className="h-7 w-7 text-teal-700" />{m("Connection request review")}</h1><p className="mt-2 text-sm text-stone-600">{getAdminCodeLabel(locale, request.status)}</p></header>
       <dl className="grid gap-x-8 gap-y-5 py-7 sm:grid-cols-2">
         <Field label={m("Contact")} value={request.merchantContactName} fallback={m("Not provided")} />

@@ -28,6 +28,7 @@ import {
   publicOrderItemsToRpc,
   publicOrderNeedsPickupCode,
   publicOrderSubmissionAbuseBehavior,
+  resolveStoredPickupCode,
   type StoredPublicOrderContract,
 } from "../_shared/public-order-contract.ts";
 import { deriveCreatePublicOrderReplayTokens } from "./replay.ts";
@@ -79,6 +80,18 @@ async function persistPickupCodeDisplay(
     .update({ pickup_code_display: pickupCode })
     .eq("id", order.order_id);
   if (error) throw error;
+}
+
+async function loadPickupCodeDisplay(
+  admin: ReturnType<typeof createServiceClient>,
+  orderId: string,
+) {
+  const { data, error } = await admin.from("orders")
+    .select("pickup_code_display")
+    .eq("id", orderId)
+    .single();
+  if (error) throw error;
+  return typeof data.pickup_code_display === "string" ? data.pickup_code_display : null;
 }
 
 Deno.serve(async (request) => {
@@ -213,11 +226,15 @@ Deno.serve(async (request) => {
     const existing = preflight.idempotent_order;
     if (existing) {
       const tokens = await deriveCreatePublicOrderReplayTokens(existing.order_id, tokenSecret, existing);
-      await timing.measureDb(() => persistPickupCodeDisplay(admin, existing, tokens.pickupCode));
+      existing.pickup_code_display = await timing.measureDb(
+        () => loadPickupCodeDisplay(admin, existing.order_id),
+      );
+      const pickupCode = resolveStoredPickupCode(existing, tokens.pickupCode);
+      await timing.measureDb(() => persistPickupCodeDisplay(admin, existing, pickupCode));
       return respond(buildPublicOrderResponse(
         existing,
         tokens.trackingToken,
-        tokens.pickupCode,
+        pickupCode,
         canonicalPublicOrderTimestamp(existing.created_at),
       ), 200);
     }
@@ -312,12 +329,14 @@ Deno.serve(async (request) => {
       p_lottery_draw_id: input.lotteryDrawId,
     };
     const { data: createResult, error: createError } = await timing.measureDb(() => admin.rpc(
-      "create_public_order_with_free_lottery_reward_targeted",
+      "create_public_order_with_daily_pickup_code_targeted",
       createArguments,
     ));
     if (createError) {
-      if (createError.message.includes("TOO_MANY_PENDING_ORDERS")) {
-        const code = "TOO_MANY_PENDING_ORDERS";
+      const knownCode = ["TOO_MANY_PENDING_ORDERS", "PICKUP_CODE_CAPACITY_EXCEEDED"]
+        .find((code) => createError.message.includes(code));
+      if (knownCode) {
+        const code = knownCode;
         await timing.measureDb(() => safeRecordSubmissionFailure(admin, {
           requestId,
           code,
@@ -358,12 +377,13 @@ Deno.serve(async (request) => {
     const finalTokens = result.order.order_id === orderId
       ? provisionalTokens
       : await derivePublicOrderTokens(result.order.order_id, tokenSecret);
-    await timing.measureDb(() => persistPickupCodeDisplay(admin, result.order!, finalTokens.pickupCode));
+    const pickupCode = resolveStoredPickupCode(result.order, finalTokens.pickupCode);
+    await timing.measureDb(() => persistPickupCodeDisplay(admin, result.order!, pickupCode));
     return respond(
       buildPublicOrderResponse(
         result.order,
         finalTokens.trackingToken,
-        finalTokens.pickupCode,
+        pickupCode,
         canonicalPublicOrderTimestamp(result.order.created_at),
       ),
       result.idempotent_replay ? 200 : 201,

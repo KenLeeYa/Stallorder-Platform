@@ -20,6 +20,7 @@ import {
   LotteryResultDialog,
 } from "@/components/qr-lottery-dialogs";
 import { QrLanguageSelector } from "@/components/qr-language-selector";
+import { QrCustomerMembershipEntry } from "@/components/qr-customer-membership-entry";
 import { QrSessionCountdown } from "@/components/qr-session-countdown";
 import { SessionExpiryDialog } from "@/components/qr-session-expiry-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -64,6 +65,7 @@ export function QrOrderFlowPresentation({
     configuringProductId,
     copy,
     customerName,
+    customerMembershipPreview,
     customerNote,
     customerPhone,
     degradedMode,
@@ -249,6 +251,7 @@ export function QrOrderFlowPresentation({
         <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
           <div><p className="text-sm font-medium text-teal-800">{session.stall.location}</p><h1 className="mt-1 text-3xl font-semibold">{session.stall.name}</h1></div>
           <div data-testid="qr-display-controls" className="ml-auto flex shrink-0 items-end gap-2">
+            <QrCustomerMembershipEntry locale={locale} preview={customerMembershipPreview} />
             <ThemeToggle />
             <QrLanguageSelector locale={locale} locales={availableLocales} label={copy.language} menuLabel={copy.menuLanguage} onChange={changeLocale} />
           </div>

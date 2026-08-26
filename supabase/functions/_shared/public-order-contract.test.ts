@@ -8,6 +8,7 @@ import {
   publicOrderNeedsPickupCode,
   publicOrderSessionAbuseBehavior,
   publicOrderSubmissionAbuseBehavior,
+  resolveStoredPickupCode,
 } from "./public-order-contract";
 
 describe("canonical public order pure contract", () => {
@@ -70,6 +71,13 @@ describe("canonical public order pure contract", () => {
       modifier_option_ids: ["33333333-3333-4333-8333-333333333333"],
       bundle_choice_ids: ["44444444-4444-4444-8444-444444444444"],
     }]);
+  });
+
+  it("keeps the atomically allocated pickup code and falls back for legacy orders", () => {
+    expect(resolveStoredPickupCode({ pickup_code_display: "042" }, "817")).toBe("042");
+    expect(resolveStoredPickupCode({ pickup_code_display: null }, "817")).toBe("817");
+    expect(resolveStoredPickupCode({ pickup_code_display: "invalid" }, "817")).toBe("817");
+    expect(resolveStoredPickupCode({ pickup_code_display: "123456" }, "817")).toBe("123456");
   });
 
   it("locks the abuse-behavior keys shared by both physical attempts", () => {

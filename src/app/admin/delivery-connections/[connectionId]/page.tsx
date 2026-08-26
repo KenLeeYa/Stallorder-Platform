@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, PlugZap } from "lucide-react";
+import { PlugZap } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { AdminDeliveryConnectionActions, AdminDeliveryStoreVerify } from "@/components/admin-delivery-integration-actions";
 import { requirePlatformAdminPage } from "@/lib/authorization";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
@@ -28,7 +28,7 @@ export default async function AdminDeliveryConnectionPage({ params }: PageProps)
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
-      <Link href="/admin/delivery-integrations" className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800"><ArrowLeft className="h-4 w-4" />{m("Back to delivery integration management")}</Link>
+      <ContextualBackButton fallbackHref="/admin/delivery-integrations">{m("Back to delivery integration management")}</ContextualBackButton>
       <header className="mt-4 border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{deliveryProviderLabel(connection.provider)}</p><h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold"><PlugZap className="h-7 w-7 text-teal-700" />{m("Delivery connection")}</h1><p className="mt-2 text-sm text-stone-600">{getAdminCodeLabel(locale, connection.status)}{connection.externalStoreName ? ` · ${connection.externalStoreName}` : ""}</p></header>
       <section className="py-6"><AdminDeliveryConnectionActions connectionId={connection.id} status={connection.status} /></section>
       <section className="border-t border-stone-200 py-6"><h2 className="text-xl font-semibold">{m("Store mappings")}</h2><div className="mt-3 divide-y divide-stone-200">{storeMappings.length ? storeMappings.map((mapping) => <div key={mapping.id} className="grid gap-3 py-3 sm:grid-cols-[1fr_auto] sm:items-center"><div><p className="font-semibold">{mapping.externalStoreName}</p><p className="text-sm text-stone-600">{getAdminCodeLabel(locale, mapping.mappingStatus)} · {mapping.externalStoreId}</p></div>{mapping.mappingStatus !== "VERIFIED" ? <AdminDeliveryStoreVerify connectionId={connection.id} mappingId={mapping.id} /> : null}</div>) : <p className="py-4 text-sm text-stone-600">{m("There are no store mappings.")}</p>}</div></section>

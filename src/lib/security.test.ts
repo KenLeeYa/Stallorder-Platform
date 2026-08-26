@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getClientIp,
   hashToken,
@@ -16,6 +16,7 @@ const originalVercelProjectProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION
 const originalVercelUrl = process.env.VERCEL_URL;
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   if (originalTrustedIpHeader === undefined) delete process.env.TRUSTED_CLIENT_IP_HEADER;
   else process.env.TRUSTED_CLIENT_IP_HEADER = originalTrustedIpHeader;
   if (originalAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
@@ -59,6 +60,30 @@ describe("安全工具", () => {
       headers: { origin: "https://evil.example", "sec-fetch-site": "cross-site" },
     });
     expect(isTrustedOrigin(trusted)).toBe(true);
+    expect(isTrustedOrigin(untrusted)).toBe(false);
+  });
+
+  it("開發環境可明確加入同網段測試 Origin", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("LOCAL_DEV_ALLOWED_ORIGINS", "http://192.168.1.102:3000");
+    process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
+
+    const trusted = new Request("http://192.168.1.102:3000/api/test", {
+      headers: { origin: "http://192.168.1.102:3000", "sec-fetch-site": "same-origin" },
+    });
+
+    expect(isTrustedOrigin(trusted)).toBe(true);
+  });
+
+  it("正式環境忽略本機測試 Origin", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("LOCAL_DEV_ALLOWED_ORIGINS", "http://192.168.1.102:3000");
+    process.env.NEXT_PUBLIC_APP_URL = "https://app.qidaigo.com";
+
+    const untrusted = new Request("https://app.qidaigo.com/api/test", {
+      headers: { origin: "http://192.168.1.102:3000", "sec-fetch-site": "same-origin" },
+    });
+
     expect(isTrustedOrigin(untrusted)).toBe(false);
   });
 

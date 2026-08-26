@@ -52,10 +52,9 @@ Deno.serve(async (request) => {
         .select("status")
         .eq("order_id", context.order.id)
         .limit(100),
-      context.admin.from("print_jobs")
-        .select("status")
-        .eq("order_id", context.order.id)
-        .limit(100),
+      context.admin.rpc("reorder_print_job_started", {
+        p_order_id: context.order.id,
+      }),
     ]);
     if (paymentQuery.error || productionQuery.error || printQuery.error) {
       throw paymentQuery.error ?? productionQuery.error ?? printQuery.error;
@@ -66,7 +65,7 @@ Deno.serve(async (request) => {
     if (productionQuery.data.some((task) => task.status !== "PENDING")) {
       throw new HttpInputError("ORDER_ALREADY_STARTED", 409);
     }
-    if (printQuery.data.some((job) => job.status !== "PENDING")) {
+    if (printQuery.data === true) {
       throw new HttpInputError("PRINT_ALREADY_STARTED", 409);
     }
 

@@ -79,6 +79,7 @@ export type QrOrderFlowControllerInput = {
   initialUiLocale?: QrLocale;
   requestedLocale?: QrLocale | null;
   editTrackingToken?: string | null;
+  customerMembershipPreview?: boolean;
 };
 
 export function useQrOrderFlowController({
@@ -89,6 +90,7 @@ export function useQrOrderFlowController({
   initialUiLocale = "zh-TW",
   requestedLocale = null,
   editTrackingToken = null,
+  customerMembershipPreview = false,
 }: QrOrderFlowControllerInput) {
   const usableInitialMenu = usableQrInitialMenu(entryChannel, initialMenu);
   const editMode = Boolean(editTrackingToken && usableInitialMenu);
@@ -811,6 +813,7 @@ export function useQrOrderFlowController({
       confirmationNotice: copy.editConfirmationNotice,
     } : copy,
     customerName,
+    customerMembershipPreview,
     customerNote,
     customerPhone,
     degradedMode,

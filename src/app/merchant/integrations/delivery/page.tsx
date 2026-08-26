@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, Truck } from "lucide-react";
+import { ChevronRight, Truck } from "lucide-react";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { DeliveryConnectionRequestForm } from "@/components/delivery-connection-request-form";
 import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import {
@@ -30,7 +31,7 @@ export default async function MerchantDeliveryIntegrationsPage({ searchParams }:
   );
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
-      <Link href={`/merchant/stalls/${scope.stall.id}`} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-teal-800"><ArrowLeft className="h-4 w-4" />{m("返回攤位設定")}</Link>
+      <ContextualBackButton fallbackHref={`/merchant/stalls/${scope.stall.id}`}>{m("返回攤位設定")}</ContextualBackButton>
       <header className="mt-4 border-b border-stone-200 pb-5">
         <p className="text-sm font-semibold text-teal-800">{scope.workspace.businessName} · {scope.stall.name}</p>
         <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold"><Truck className="h-7 w-7 text-teal-700" />{m("外送平台整合")}</h1>

@@ -24,6 +24,7 @@ test("商品管理工具列依裝置寬度維持功能分列且不溢位", async
   expect(toolBounds).not.toBeNull();
   expect(createBounds).not.toBeNull();
   expect(createBounds!.y).toBeGreaterThanOrEqual(toolBounds!.y + toolBounds!.height);
+  await expect(createRow.locator(":scope > *").last()).toHaveAttribute("data-testid", "catalog-versions-action");
 
   const desktopCreateButtons = await createRow.locator(":scope > button").evaluateAll((buttons) => buttons.map((button) => {
     const bounds = button.getBoundingClientRect();
@@ -40,7 +41,7 @@ test("商品管理工具列依裝置寬度維持功能分列且不溢位", async
     const bounds = control.getBoundingClientRect();
     return { top: bounds.top, height: bounds.height };
   }));
-  expect(mobileBounds).toHaveLength(8);
+  expect(mobileBounds).toHaveLength(9);
   expect(new Set(mobileBounds.map(({ top }) => Math.round(top))).size).toBe(1);
   for (const bounds of mobileBounds) {
     expect(bounds.height).toBeGreaterThanOrEqual(44);

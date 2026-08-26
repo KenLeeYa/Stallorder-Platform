@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getLastDiningTableOrder: vi.fn(),
   getOrderQuote: vi.fn(),
   getOrderSessionMode: vi.fn(),
+  getReorderPreparationContext: vi.fn(),
   getPublicSessionMenuContext: vi.fn(),
   getTrackedOrderContext: vi.fn(),
   getTrackedPublicOrder: vi.fn(),
@@ -45,6 +46,7 @@ vi.mock("@/server/public-order/trusted-rpc-repository", () => ({
   getLastDiningTableOrder: mocks.getLastDiningTableOrder,
   getOrderQuote: mocks.getOrderQuote,
   getOrderSessionMode: mocks.getOrderSessionMode,
+  getReorderPreparationContext: mocks.getReorderPreparationContext,
   getPublicSessionMenuContext: mocks.getPublicSessionMenuContext,
   getTrackedOrderContext: mocks.getTrackedOrderContext,
   getTrackedPublicOrder: mocks.getTrackedPublicOrder,
@@ -173,9 +175,9 @@ describe("Circuit B public order service", () => {
     expect(mocks.checkGlobalPublicRequestGate).not.toHaveBeenCalled();
   });
 
-  it("allows Circuit B locally when Edge Functions are intentionally omitted", async () => {
+  it("allows Circuit B locally when loopback Edge Functions are configured", async () => {
     vi.stubEnv("NODE_ENV", "development");
-    vi.stubEnv("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL", "http://127.0.0.1:54321/functions/v1");
     mocks.resolveResilienceFeatureFlags.mockResolvedValue({
       DUAL_ORDER_INTAKE_ENABLED: { enabled: false },
     });
@@ -598,6 +600,7 @@ describe("Circuit B public order service", () => {
       },
     });
     mocks.persistPickupCodeDisplay.mockResolvedValue({ count: 1 });
+    mocks.getOrderQuote.mockResolvedValue({ pickupCodeDisplay: "042" });
     const { createOrderThroughCircuitB } = await import("./circuit-b-service");
 
     const result = await createOrderThroughCircuitB({
@@ -615,7 +618,7 @@ describe("Circuit B public order service", () => {
       orderNo: "A001",
       orderStatus: "WAITING_CONFIRMATION",
     });
-    expect(result.body.pickupVerificationCode).toHaveLength(6);
+    expect(result.body.pickupVerificationCode).toBe("042");
     expect(mocks.verifyTurnstile).not.toHaveBeenCalled();
     expect(mocks.checkPublicOrderSubmissionGate).not.toHaveBeenCalled();
     expect(mocks.createPublicOrderWithSchedule).not.toHaveBeenCalled();
@@ -711,6 +714,91 @@ describe("Circuit B public order service", () => {
         fulfillmentTimeState: "CONFIRMED",
         fulfillmentTimeVersion: 0,
       },
+    });
+  });
+
+  it("prepares an editable takeout order through Circuit B without the Edge runtime", async () => {
+    mocks.getTrackedPublicOrder.mockResolvedValue({
+      orderId: "33333333-3333-4333-8333-333333333333",
+    });
+    mocks.getReorderPreparationContext.mockResolvedValue({
+      organizationId: "77777777-7777-4777-8777-777777777777",
+      stallId: "88888888-8888-4888-8888-888888888888",
+      source: "QR_MENU",
+      paymentStatus: "UNPAID",
+      discountAmount: 0,
+      discountOptionId: null,
+      status: "WAITING_CONFIRMATION",
+      fulfillmentType: "TAKEOUT",
+      diningTableId: null,
+      customerName: "本機顧客",
+      customerPhone: "0912345678",
+      deliveryAddress: null,
+      note: "",
+      requestedFulfillmentAt: new Date("2026-08-27T09:00:00.000Z"),
+      scheduledPickupAt: null,
+      payment: null,
+      productionTasks: [],
+      printJobs: [],
+      stall: {
+        code: "AMING-01",
+        qrCodes: [{
+          token: "demo-aming-chicken-qr-2026-rotate-me",
+          diningTableId: null,
+          fulfillmentTypeContext: null,
+          stallScheduleId: null,
+          locationId: null,
+          marketEventId: null,
+        }],
+      },
+      items: [{
+        id: "99999999-9999-4999-8999-999999999999",
+        productId: "55555555-5555-4555-8555-555555555555",
+        name: "香酥雞排",
+        unitPrice: 95,
+        quantity: 1,
+        note: "少鹽",
+        status: "PENDING",
+        noteOptions: [],
+      }],
+      stallProducts: [{
+        productId: "55555555-5555-4555-8555-555555555555",
+        priceOverride: 95,
+        isEnabled: true,
+        isSoldOut: false,
+        availableFrom: null,
+        availableUntil: null,
+      }],
+      products: [{
+        id: "55555555-5555-4555-8555-555555555555",
+        name: "香酥雞排",
+        defaultPrice: 100,
+        kind: "SINGLE",
+        isActive: true,
+        noteGroupAssignments: [],
+      }],
+    });
+    const { prepareReorderThroughCircuitB } = await import("./circuit-b-service");
+
+    const result = await prepareReorderThroughCircuitB({
+      trackingToken: "sto_local_tracking",
+      deviceId: "11111111-1111-4111-8111-111111111111",
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({
+      qrToken: "demo-aming-chicken-qr-2026-rotate-me",
+      orderingMode: "PREORDER",
+      orderPath: "/store/AMING-01?view=pickup",
+      availableItems: [{
+        name: "香酥雞排",
+        currentUnitPrice: 95,
+        needsReview: false,
+      }],
     });
   });
 });

@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   CheckCircle2,
   CircleDollarSign,
@@ -370,9 +369,7 @@ export function CashShiftBoard({
   return <main className="mx-auto min-h-screen max-w-5xl px-4 py-6 md:px-8">
     <header className="flex items-start justify-between gap-4">
       <div>
-        <Link href={`/staff/${stall.slug}`} className="inline-flex min-h-9 items-center gap-2 text-sm font-semibold text-teal-800">
-          <ArrowLeft className="h-4 w-4" />{t("cash.back")}
-        </Link>
+        <ContextualBackButton fallbackHref={`/staff/${stall.slug}`} className="inline-flex min-h-9 items-center gap-2 text-sm font-semibold text-teal-800">{t("cash.back")}</ContextualBackButton>
         <h1 className="mt-2 text-3xl font-semibold">{t("cash.title")}</h1>
         <p className="mt-1 text-sm text-stone-500">{stall.name}</p>
       </div>

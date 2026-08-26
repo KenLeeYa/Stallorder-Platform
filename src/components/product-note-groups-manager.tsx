@@ -580,13 +580,10 @@ export function ProductNoteGroupsManager({
           </button>
         </div>
 
-      <div role="tablist" aria-label={label("商品註記設定")} className="mt-5 flex gap-1 border-b border-stone-200">
+      <div role="tablist" aria-label={label("商品註記設定")} className="mt-5 flex items-center gap-1 border-b border-stone-200">
         <button type="button" role="tab" aria-selected={activeTab === "NOTES"} onClick={() => setActiveTab("NOTES")} className={`min-h-11 border-b-2 px-4 text-sm font-semibold ${activeTab === "NOTES" ? "border-teal-700 text-teal-800" : "border-transparent text-stone-500"}`}>{label("所有單一註記")}</button>
         <button type="button" role="tab" aria-selected={activeTab === "GROUPS"} onClick={() => setActiveTab("GROUPS")} className={`min-h-11 border-b-2 px-4 text-sm font-semibold ${activeTab === "GROUPS" ? "border-teal-700 text-teal-800" : "border-transparent text-stone-500"}`}>{label("註記群組")}</button>
-      </div>
-      {message ? <p role="status" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
-      {activeTab === "GROUPS" ? (
-        <div className="mt-4 flex justify-end">
+        {activeTab === "GROUPS" ? (
           <button
             type="button"
             title={allGroupsExpanded ? label("收合全部註記群組") : label("展開全部註記群組")}
@@ -595,13 +592,14 @@ export function ProductNoteGroupsManager({
             aria-expanded={allGroupsExpanded}
             disabled={sortedGroups.length === 0}
             onClick={toggleAllGroups}
-            className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-50 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"
+            className="ml-auto inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-50 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"
           >
             <ChevronDown aria-hidden="true" className={`h-5 w-5 transition-transform ${allGroupsExpanded ? "rotate-180" : ""}`} />
             <span className="sr-only sm:not-sr-only">{allGroupsExpanded ? label("收合全部註記群組") : label("展開全部註記群組")}</span>
           </button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
+      {message ? <p role="status" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
       {activeTab === "NOTES" ? (
         <div role="tabpanel" className="mt-5 divide-y divide-stone-200 border-y border-stone-200">
           {sortedReusableNotes.map((note, noteIndex) => (

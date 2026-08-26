@@ -34,6 +34,11 @@ export type PublicOrderRequestOptions = {
   signal?: AbortSignal;
 };
 
+type PrepareReorderRequestOptions = Pick<
+  PublicOrderRequestOptions,
+  "fetchImpl" | "timeoutMs" | "operationId" | "signal"
+>;
+
 export type PublicAvailabilityStatus =
   | "AVAILABLE"
   | "DEGRADED"
@@ -199,6 +204,34 @@ export function respondToFulfillmentTime(
   );
 }
 
+export function requestPrepareReorder(
+  input: { trackingToken: string; deviceId: string },
+  options: PrepareReorderRequestOptions = {},
+) {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const operationId = options.operationId === undefined
+    ? createPublicOrderOperationId()
+    : normalizePublicOrderOperationId(options.operationId);
+  if (!operationId) throw new Error("INVALID_PUBLIC_ORDER_OPERATION_ID");
+  const useCircuitB = shouldUseDevelopmentCircuitB();
+  return fetchImpl(
+    useCircuitB
+      ? `/api/public/orders/${encodeURIComponent(input.trackingToken)}/reorder`
+      : publicEdgeUrl("prepare-reorder"),
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...publicOrderCircuitHeaders(operationId),
+        ...(useCircuitB ? {} : publicEdgeHeaders()),
+      },
+      body: JSON.stringify(input),
+      cache: "no-store",
+      signal: withRequestTimeout(options.signal, options.timeoutMs ?? CIRCUIT_TIMEOUT_MS),
+    },
+  );
+}
+
 export async function requestPublicOrder(
   operation: PublicOrderOperation,
   input: Record<string, unknown>,
@@ -312,9 +345,22 @@ export async function requestPublicOrder(
 }
 
 function shouldUseDevelopmentCircuitB() {
-  return typeof window !== "undefined"
-    && process.env.NODE_ENV === "development"
-    && !process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.trim();
+  if (typeof window === "undefined" || process.env.NODE_ENV !== "development") return false;
+  if (process.env.NEXT_PUBLIC_FORCE_PUBLIC_ORDER_CIRCUIT_B === "true") return true;
+
+  const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.trim();
+  if (!functionsUrl) return true;
+  try {
+    const browserHostname = window.location.hostname.toLowerCase();
+    const functionsHostname = new URL(functionsUrl).hostname.toLowerCase();
+    return isLoopbackHostname(functionsHostname) && !isLoopbackHostname(browserHostname);
+  } catch {
+    return true;
+  }
+}
+
+function isLoopbackHostname(hostname: string) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
 function getOperationBreaker(operation: PublicOrderOperation) {

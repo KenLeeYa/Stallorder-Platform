@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ContextualBackButton } from "@/components/contextual-back-button";
 import { notFound } from "next/navigation";
 import { CircleCheck, Store } from "lucide-react";
 import { MerchantSetupWizard } from "@/components/merchant-setup-wizard";
@@ -37,9 +38,9 @@ export default async function MerchantSetupPage({ searchParams }: { searchParams
               <Store className="h-4 w-4" />
               {m("管理攤位")}
             </Link>
-            <Link href={`/merchant/dashboard?${query}`} className="inline-flex min-h-11 items-center rounded-md border border-stone-300 px-4 text-sm font-semibold">
+            <ContextualBackButton fallbackHref={`/merchant/dashboard?${query}`} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-4 text-sm font-semibold">
               {m("返回儀表板")}
-            </Link>
+            </ContextualBackButton>
           </div>
         </section>
       </main>

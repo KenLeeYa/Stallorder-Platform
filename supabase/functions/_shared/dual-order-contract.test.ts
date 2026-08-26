@@ -155,7 +155,7 @@ describe("dual public order contract", () => {
       'admin.rpc("issue_idempotent_order_session_with_schedule_targeted"',
     );
     expect(createPublicOrderSource).toContain(
-      '"create_public_order_with_free_lottery_reward_targeted"',
+      '"create_public_order_with_daily_pickup_code_targeted"',
     );
     expect(createOrderSessionSource).not.toContain(
       'admin.rpc("issue_idempotent_order_session_with_schedule",',

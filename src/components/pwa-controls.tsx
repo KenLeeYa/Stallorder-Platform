@@ -6,7 +6,15 @@ import { useAppLocale } from "@/components/locale-provider";
 import { usePwaRuntime } from "@/components/pwa-runtime";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-export function PwaControls({ showWakeLock = false }: { showWakeLock?: boolean }) {
+export function PwaControls({
+  showWakeLock = false,
+  showLocale = true,
+  showQualityLabel = true,
+}: {
+  showWakeLock?: boolean;
+  showLocale?: boolean;
+  showQualityLabel?: boolean;
+}) {
   const { t } = useAppLocale();
   const runtime = usePwaRuntime();
   const qualityLabel = runtime.quality === "OFFLINE"
@@ -17,12 +25,12 @@ export function PwaControls({ showWakeLock = false }: { showWakeLock?: boolean }
   const QualityIcon = runtime.quality === "OFFLINE" ? WifiOff : runtime.quality === "POOR" ? SignalLow : Signal;
 
   return (
-    <div className="flex items-center gap-1" aria-label={t("pwa.status.label")}>
-      <LocaleSelector compact />
+    <div data-testid="pwa-controls" className="flex items-center gap-1" aria-label={t("pwa.status.label")}>
+      {showLocale ? <LocaleSelector compact /> : null}
       <ThemeToggle />
-      <span title={`${qualityLabel}${runtime.effectiveType ? ` · ${runtime.effectiveType}` : ""}`} className={`inline-flex h-10 items-center gap-2 px-2 text-xs font-semibold ${runtime.quality === "GOOD" ? "text-emerald-700" : runtime.quality === "POOR" ? "text-amber-800" : "text-red-700"}`}>
+      <span aria-label={qualityLabel} title={`${qualityLabel}${runtime.effectiveType ? ` · ${runtime.effectiveType}` : ""}`} className={`inline-flex h-10 items-center gap-2 px-2 text-xs font-semibold ${runtime.quality === "GOOD" ? "text-emerald-700" : runtime.quality === "POOR" ? "text-amber-800" : "text-red-700"}`}>
         <QualityIcon className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden xl:inline">{qualityLabel}</span>
+        {showQualityLabel ? <span className="hidden xl:inline">{qualityLabel}</span> : null}
       </span>
       {runtime.installAvailable ? (
         <button type="button" title={t("pwa.install")} onClick={() => void runtime.requestInstall()} className="grid h-10 w-10 place-items-center rounded-md hover:bg-stone-100">

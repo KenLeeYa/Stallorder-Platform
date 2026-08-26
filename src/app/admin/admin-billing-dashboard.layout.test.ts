@@ -11,10 +11,9 @@ describe("platform admin billing presentation", () => {
     const page = source("./billing/page.tsx");
 
     expect(page).toContain('data-testid="admin-billing-dashboard"');
-    expect(page).toContain("grid-cols-2");
-    expect(page).toContain("sm:grid-cols-3");
-    expect(page).toContain("lg:grid-cols-5");
-    expect(page).toContain("min-w-0 bg-white");
+    expect(page).toContain('className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-5"');
+    expect(page).toContain("min-w-0 rounded-lg border border-stone-200 bg-white p-3 shadow-sm");
+    expect(page).not.toContain('data-testid="admin-billing-dashboard" className="mt-6 grid grid-cols-2 gap-px');
   });
 
   it("separates current PAYG offerings from preserved historical contracts", () => {

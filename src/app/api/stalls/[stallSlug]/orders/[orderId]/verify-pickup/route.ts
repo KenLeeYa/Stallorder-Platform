@@ -6,8 +6,8 @@ import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { hashClientIp, hashToken } from "@/lib/security";
-import { completeStreamlinedOrderAfterPickup } from "@/server/printing/streamlined-order-completion";
+import { hashClientIp } from "@/lib/security";
+import { verifyReadyTakeoutOrder } from "@/server/orders/pickup-verification-service";
 
 const pickupSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("CODE"), code: z.string().regex(/^\d{3}$|^\d{6}$/) }).strict(),
@@ -77,35 +77,16 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const verifiedAt = new Date();
   const verificationMethod = parsed.data.mode;
-  const verified = await prisma.$transaction(async (transaction) => {
-    const result = await transaction.order.updateMany({
-      where: {
-        id: orderId,
-        stallId: authorization.stall.id,
-        fulfillmentType: "TAKEOUT",
-        status: "READY",
-        pickupVerifiedAt: null,
-        ...(parsed.data.mode === "CODE"
-          ? { pickupCodeHash: hashToken(parsed.data.code) }
-          : { orderNo: parsed.data.confirmationOrderNo }),
-      },
-      data: { pickupVerifiedAt: verifiedAt, pickupVerificationMethod: verificationMethod },
-    });
-    if (result.count !== 1) return false;
-
-    await transaction.orderEvent.create({
-      data: {
-        organizationId: authorization.stall.organizationId,
-        stallId: authorization.stall.id,
-        orderId,
-        eventType: verificationMethod === "CODE" ? "PICKUP_CODE_VERIFIED" : "PICKUP_MANUALLY_VERIFIED",
-        createdBy: authorization.principal.user.id,
-      },
-    });
-    await completeStreamlinedOrderAfterPickup(transaction, orderId, verifiedAt);
-    return true;
+  const verified = await verifyReadyTakeoutOrder({
+    orderId,
+    stallId: authorization.stall.id,
+    organizationId: authorization.stall.organizationId,
+    actorProfileId: authorization.principal.user.id,
+    verificationMethod,
+    ...(parsed.data.mode === "CODE"
+      ? { code: parsed.data.code }
+      : { confirmationOrderNo: parsed.data.confirmationOrderNo }),
   });
   if (!verified) {
     await recordAuditEvent({
@@ -137,7 +118,10 @@ export async function POST(request: Request, context: RouteContext) {
     metadata: verificationMethod === "MANUAL" ? { reason: parsed.data.reason } : undefined,
   });
   return NextResponse.json(
-    { pickupVerifiedAt: verifiedAt.toISOString(), pickupVerificationMethod: verificationMethod },
+    {
+      pickupVerifiedAt: verified.pickupVerifiedAt.toISOString(),
+      pickupVerificationMethod: verified.pickupVerificationMethod,
+    },
     { headers: { "x-request-id": authorization.requestId } },
   );
 }

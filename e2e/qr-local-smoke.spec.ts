@@ -5,12 +5,25 @@ const demoQrToken = "demo-aming-chicken-qr-2026-rotate-me";
 test("手機 QR 點餐使用固定訂單摘要且不產生水平溢位", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const sessionResponse = page.waitForResponse((response) => (
-    new URL(response.url()).pathname.endsWith("/create-order-session")
+    ["/create-order-session", "/api/public/order-session"].some((path) => (
+      new URL(response.url()).pathname.endsWith(path)
+    ))
     && response.request().method() === "POST"
   ));
 
   await page.goto(`/q/${demoQrToken}`);
   expect((await sessionResponse).status()).toBe(201);
+
+  const memberEntry = page.getByTestId("qr-member-entry");
+  if (process.env.PLAYWRIGHT_PRODUCTION_SERVER === "true") {
+    await expect(memberEntry).toHaveCount(0);
+  } else {
+    await memberEntry.click();
+    const memberDialog = page.getByRole("dialog", { name: "會員快速入口（本機預覽）" });
+    await expect(memberDialog).toContainText("訪客仍可直接點餐");
+    await memberDialog.getByRole("button", { name: "繼續訪客點餐", exact: true }).click();
+    await expect(memberDialog).toHaveCount(0);
+  }
 
   const firstProduct = page.getByRole("article").first();
   await firstProduct.locator('button[title]:not([disabled])').first().click();
@@ -31,7 +44,9 @@ test("手機 QR 點餐使用固定訂單摘要且不產生水平溢位", async (
 
 test("本機 QA 可透過示範 QR 建立點餐 session", async ({ page }) => {
   const sessionResponse = page.waitForResponse((response) => (
-    new URL(response.url()).pathname.endsWith("/create-order-session")
+    ["/create-order-session", "/api/public/order-session"].some((path) => (
+      new URL(response.url()).pathname.endsWith(path)
+    ))
     && response.request().method() === "POST"
   ));
 
@@ -58,7 +73,9 @@ test("本機 QA 可透過示範 QR 建立點餐 session", async ({ page }) => {
   await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeEnabled({ timeout: 15_000 });
 
   const restoredSession = page.waitForResponse((response) => (
-    new URL(response.url()).pathname.endsWith("/create-order-session")
+    ["/create-order-session", "/api/public/order-session"].some((path) => (
+      new URL(response.url()).pathname.endsWith(path)
+    ))
     && response.request().method() === "POST"
   ));
   await page.reload();

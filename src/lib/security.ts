@@ -165,6 +165,9 @@ export function isTrustedOrigin(request: Request) {
     process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : undefined,
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
     ...(process.env.TRUSTED_APP_ORIGINS?.split(",") ?? []),
+    ...(process.env.NODE_ENV !== "production"
+      ? process.env.LOCAL_DEV_ALLOWED_ORIGINS?.split(",") ?? []
+      : []),
     ...(process.env.NODE_ENV === "production" ? TEMPORARY_PRODUCTION_TEST_ORIGINS : []),
   ];
   const trustedOrigins = configuredOrigins.flatMap((value) => {
