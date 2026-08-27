@@ -262,7 +262,9 @@ test("報表導覽在手機僅顯示圖示，平板恢復文字", async ({ page 
 
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoLocalPath(page, `/merchant/reports/stalls?organizationId=${organizationId}`);
-  const navigation = page.getByTestId("report-navigation");
+  const reportMain = page.locator("#main-content");
+  await expect(reportMain).toHaveCount(1);
+  const navigation = reportMain.getByTestId("report-navigation");
   await expect(navigation).toHaveCount(1);
   await expect(navigation).toBeVisible();
   await expect(navigation.getByRole("link")).toHaveCount(6);
