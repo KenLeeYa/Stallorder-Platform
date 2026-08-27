@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { rmSync } from "node:fs";
-import { resolve } from "node:path";
+import { delimiter, resolve } from "node:path";
 
 const shardCount = Number.parseInt(process.env.PLAYWRIGHT_SHARD_COUNT ?? "8", 10);
 if (!Number.isSafeInteger(shardCount) || shardCount < 1 || shardCount > 32) {
@@ -8,6 +8,8 @@ if (!Number.isSafeInteger(shardCount) || shardCount < 1 || shardCount > 32) {
 }
 
 const playwrightCli = resolve("node_modules", "playwright", "cli.js");
+const localBin = resolve("node_modules", ".bin");
+const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === "path") ?? "PATH";
 
 for (let shard = 1; shard <= shardCount; shard += 1) {
   const trustedClientIp = `203.0.113.${20 + shard}`;
@@ -20,6 +22,7 @@ for (let shard = 1; shard <= shardCount; shard += 1) {
     {
       env: {
         ...process.env,
+        [pathKey]: `${localBin}${delimiter}${process.env[pathKey] ?? ""}`,
         PLAYWRIGHT_TRUSTED_CLIENT_IP: trustedClientIp,
       },
       stdio: "inherit",
