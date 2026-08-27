@@ -87,7 +87,7 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
   await expect(page.getByLabel("選擇商家")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^選擇攤位/u })).toHaveCount(0);
   const stallShortcut = page.getByRole("link", { name: "選擇攤位：阿明鹽酥雞", exact: true });
-  await expect(stallShortcut).toHaveAttribute("href", `/merchant/stalls/${stallId}`);
+  await expect(stallShortcut).toHaveAttribute("href", "/merchant/aming-chicken");
   const workMode = page.getByRole("button", { name: "商家管理", exact: true });
   const [stallShortcutBox, workModeBox] = await Promise.all([
     stallShortcut.boundingBox(),

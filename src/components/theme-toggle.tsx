@@ -33,6 +33,7 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
+      data-testid="theme-toggle"
       onClick={toggleTheme}
       aria-label={label}
       aria-pressed={theme === "dark"}

@@ -1,5 +1,4 @@
 import { KitchenBoard } from "@/components/kitchen-board";
-import { KitchenNavigation } from "@/components/kitchen-navigation";
 import { requireKitchenPage } from "@/lib/kitchen-access";
 import { getKitchenBoardData } from "@/lib/kitchen";
 import { createPerformanceTiming } from "@/lib/performance-timing";
@@ -30,15 +29,12 @@ export default async function KitchenPage({ searchParams }: PageProps) {
   const canManage = access.roles.some((role) => hasPermission(role, "MANAGE_KDS"));
   const workModeDestinations = buildWorkModeDestinations(access.workspaces);
   return (
-    <>
-      <KitchenNavigation
-        active="BOARD"
-        stall={access.stall}
-        availableStalls={access.availableStalls}
-        canManage={canManage}
-        workModeDestinations={workModeDestinations}
-      />
-      <KitchenBoard stall={access.stall} initialData={initialData} role={access.role} />
-    </>
+    <KitchenBoard
+      stall={access.stall}
+      canManage={canManage}
+      workModeDestinations={workModeDestinations}
+      initialData={initialData}
+      role={access.role}
+    />
   );
 }

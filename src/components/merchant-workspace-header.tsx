@@ -31,13 +31,17 @@ export function MerchantWorkspaceHeader({
   displayName,
   routeContext,
   showBilling,
+  showGrowth = false,
   showPayments = false,
+  showSupply = false,
 }: {
   workspaces: WorkspaceOrganization[];
   displayName: string;
   routeContext: WorkspaceRouteContext;
   showBilling: boolean;
+  showGrowth?: boolean;
   showPayments?: boolean;
+  showSupply?: boolean;
 }) {
   const { m } = useMerchantMessages();
   const organizationId = routeContext.organizationId ?? workspaces[0]?.id ?? "";
@@ -96,12 +100,12 @@ export function MerchantWorkspaceHeader({
             <Package className="h-5 w-5" /><span className="sr-only">{m("共用商品")}</span>
           </Link>
         ) : null}
-        {workspace?.roles.some((role) => hasPermission(role, "MANAGE_SHARED_PRODUCTS")) ? (
+        {showSupply && workspace?.roles.some((role) => hasPermission(role, "MANAGE_SHARED_PRODUCTS")) ? (
           <Link title={m("庫存與配方")} href={`/merchant/supply?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <Boxes className="h-5 w-5" /><span className="sr-only">{m("庫存與配方")}</span>
           </Link>
         ) : null}
-        {workspace?.roles.some((role) => hasPermission(role, "MANAGE_ORGANIZATION")) ? (
+        {showGrowth && workspace?.roles.some((role) => hasPermission(role, "MANAGE_ORGANIZATION")) ? (
           <Link title={m("會員與成長")} href={`/merchant/growth?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <Sparkles className="h-5 w-5" /><span className="sr-only">{m("會員與成長")}</span>
           </Link>
@@ -175,7 +179,7 @@ export function MerchantWorkspaceHeader({
             {singleActiveStall ? (
               <Link
                 data-testid="merchant-single-stall-link"
-                href={`/merchant/stalls/${encodeURIComponent(singleActiveStall.id)}`}
+                href={`/merchant/${encodeURIComponent(singleActiveStall.slug)}`}
                 aria-label={`${m("選擇攤位")}：${singleActiveStall.name}`}
                 title={`${m("選擇攤位")}：${singleActiveStall.name}`}
                 className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 bg-white text-stone-700 transition-colors hover:border-teal-600 hover:bg-teal-50 hover:text-teal-800"

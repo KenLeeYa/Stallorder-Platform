@@ -780,7 +780,7 @@ async function expectRenderedMerchantScope(
     await expect(page.getByRole("link", {
       name: `選擇攤位：${expected.stall.name}`,
       exact: true,
-    })).toHaveAttribute("href", `/merchant/stalls/${expected.stall.id}`);
+    })).toHaveAttribute("href", `/merchant/${expected.stall.slug}`);
   }
 }
 
