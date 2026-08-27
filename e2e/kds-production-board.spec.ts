@@ -117,24 +117,17 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   const header = page.locator("header:visible").filter({ has: navigation }).last();
   await expect(navigation).toBeVisible();
   expect(await header.evaluate((element) => getComputedStyle(element).position)).toBe("sticky");
-  const navigationTargets = await navigation.locator("a").evaluateAll((elements) => elements.map((element) => {
+  const navigationTargets = await navigation.locator('a, button, [role="status"]').evaluateAll((elements) => elements.map((element) => {
     const bounds = element.getBoundingClientRect();
     return { width: bounds.width, height: bounds.height };
   }));
   expect(navigationTargets.every(({ width, height }) => width >= 40 && height >= 40)).toBe(true);
   await expect(page.getByText("輪詢同步", { exact: true })).toBeVisible();
-  const board = page.locator("main").last();
-  const utilityToolbar = page.locator('[data-testid="kitchen-utility-toolbar"]:visible').last();
-  const utilityTargets = await utilityToolbar.locator('button, [role="status"]').evaluateAll((elements) => elements.map((element) => {
-    const bounds = element.getBoundingClientRect();
-    return { width: bounds.width, height: bounds.height };
-  }));
-  expect(utilityTargets.every(({ width, height }) => width >= 40 && height >= 40)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("kitchen-toolbar-mobile.png"), fullPage: false });
-  const soundButton = board.getByTitle("開啟新單提示音");
+  const soundButton = header.getByTitle("開啟新單提示音");
   await expect(soundButton).toBeVisible();
   await soundButton.click();
-  await expect(board.getByTitle("關閉新單提示音")).toBeVisible();
+  await expect(header.getByTitle("關閉新單提示音")).toBeVisible();
   expect(await page.evaluate(() => window.localStorage.getItem("stallorder_kitchen_order_alerts"))).toBe("enabled");
   const wakeButton = header.getByTitle("開啟螢幕保持喚醒");
   await expect(wakeButton).toBeVisible();
@@ -144,7 +137,7 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
     response.url().endsWith("/api/stalls/aming-chicken/kitchen/board")
     && response.request().method() === "GET"
   ));
-  await board.getByTitle("重新整理").click();
+  await header.getByTitle("重新整理").click();
   expect((await refreshResponse).status()).toBe(200);
   await expect(header.getByTitle("登出")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);

@@ -11,11 +11,13 @@ vi.mock("@/components/workspace-switcher", () => ({
   WorkspaceSwitcher: () => <div data-testid="mock-workspace-switcher" />,
 }));
 vi.mock("@/components/pwa-controls", () => ({
-  PwaControls: ({ showLocale = true, showQualityLabel = true }: { showLocale?: boolean; showQualityLabel?: boolean }) => (
+  PwaControls: ({ showLocale = true, showQualityLabel = true, showWakeLock = false, showInstall = true }: { showLocale?: boolean; showQualityLabel?: boolean; showWakeLock?: boolean; showInstall?: boolean }) => (
     <div
       data-testid="mock-pwa-controls"
       data-show-locale={String(showLocale)}
       data-show-quality-label={String(showQualityLabel)}
+      data-show-wake-lock={String(showWakeLock)}
+      data-show-install={String(showInstall)}
     />
   ),
 }));
@@ -33,30 +35,38 @@ describe("kitchen mobile layout", () => {
             slug: "demo",
             name: "測試攤位",
           }}
-          availableStalls={[
-            { slug: "demo", name: "測試攤位" },
-            { slug: "demo-2", name: "第二攤位" },
-          ]}
           canManage
           workModeDestinations={[
             { value: "merchant:22222222-2222-4222-8222-222222222222", mode: "MERCHANT", organizationId: "22222222-2222-4222-8222-222222222222", stallId: null, label: "商家管理", href: "/merchant/dashboard" },
             { value: "kitchen:11111111-1111-4111-8111-111111111111", mode: "KITCHEN", organizationId: "22222222-2222-4222-8222-222222222222", stallId: "11111111-1111-4111-8111-111111111111", label: "廚房 · 測試攤位", href: "/kitchen?stall=demo" },
             { value: "kitchen:33333333-3333-4333-8333-333333333333", mode: "KITCHEN", organizationId: "22222222-2222-4222-8222-222222222222", stallId: "33333333-3333-4333-8333-333333333333", label: "廚房 · 第二攤位", href: "/kitchen?stall=demo-2" },
           ]}
+          boardControls={{
+            mode: "ORDER",
+            onModeChange: () => undefined,
+            connection: "CONNECTED",
+            alertsEnabled: false,
+            onToggleAlerts: () => undefined,
+            refreshing: false,
+            disabled: false,
+            onRefresh: () => undefined,
+          }}
         />
       </LocaleProvider>,
     );
 
     expect(html).toContain('data-testid="kitchen-toolbar-row"');
     expect(html).toContain('data-testid="kitchen-primary-navigation"');
-    expect(html).toContain('data-testid="kitchen-utility-toolbar"');
     expect(html).toContain('data-testid="kitchen-language-control"');
+    expect(html).toContain('data-testid="kitchen-live-status"');
     expect(html).toContain('data-testid="kitchen-pinned-logout"');
     expect(html).toContain('data-testid="mock-work-mode-switcher"');
-    expect(html).toContain('data-testid="mock-workspace-switcher"');
+    expect(html).not.toContain('data-testid="mock-workspace-switcher"');
     expect(html.match(/data-testid="mock-pwa-controls"/g)).toHaveLength(1);
     expect(html).toContain('data-show-locale="false"');
     expect(html).toContain('data-show-quality-label="false"');
+    expect(html).toContain('data-show-wake-lock="true"');
+    expect(html).toContain('data-show-install="false"');
     expect(html.match(/data-testid="mock-logout-button"/g)).toHaveLength(1);
     expect(html).toContain("sticky top-0");
     expect(html).toContain("h-16");
@@ -64,18 +74,32 @@ describe("kitchen mobile layout", () => {
     expect(html).not.toContain("md:grid-cols-[minmax(0,1fr)_auto]");
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain("grid h-11 w-11");
-    expect(html).toContain("<span class=\"sr-only\">生產看板</span>");
+    expect(html).not.toContain("生產看板");
 
-    const boardIndex = html.indexOf('data-testid="kitchen-nav-board"');
+    const orderIndex = html.indexOf('data-testid="kitchen-mode-order"');
+    const itemIndex = html.indexOf('data-testid="kitchen-mode-item"');
+    const workstationIndex = html.indexOf('data-testid="kitchen-mode-station"');
+    const workModeIndex = html.indexOf('data-testid="kitchen-work-mode-control"');
     const stationsIndex = html.indexOf('data-testid="kitchen-nav-stations"');
     const languageIndex = html.indexOf('data-testid="kitchen-language-control"');
+    const pwaIndex = html.indexOf('data-testid="kitchen-pwa-controls"');
+    const liveIndex = html.indexOf('data-testid="kitchen-live-status"');
     const settingsIndex = html.indexOf('data-testid="kitchen-nav-settings"');
+    const alertIndex = html.indexOf('data-testid="kitchen-alert-control"');
+    const refreshIndex = html.indexOf('data-testid="kitchen-refresh-control"');
     const logoutIndex = html.indexOf('data-testid="kitchen-pinned-logout"');
-    expect(boardIndex).toBeGreaterThan(-1);
-    expect(stationsIndex).toBeGreaterThan(boardIndex);
-    expect(languageIndex).toBeGreaterThan(stationsIndex);
-    expect(settingsIndex).toBeGreaterThan(languageIndex);
-    expect(logoutIndex).toBeGreaterThan(settingsIndex);
+    expect(orderIndex).toBeGreaterThan(-1);
+    expect(itemIndex).toBeGreaterThan(orderIndex);
+    expect(workstationIndex).toBeGreaterThan(itemIndex);
+    expect(workModeIndex).toBeGreaterThan(workstationIndex);
+    expect(languageIndex).toBeGreaterThan(workModeIndex);
+    expect(pwaIndex).toBeGreaterThan(languageIndex);
+    expect(liveIndex).toBeGreaterThan(pwaIndex);
+    expect(stationsIndex).toBeGreaterThan(liveIndex);
+    expect(settingsIndex).toBeGreaterThan(stationsIndex);
+    expect(alertIndex).toBeGreaterThan(settingsIndex);
+    expect(refreshIndex).toBeGreaterThan(alertIndex);
+    expect(logoutIndex).toBeGreaterThan(refreshIndex);
   });
 
   it("hides both switchers for a pure kitchen account", () => {
@@ -89,7 +113,6 @@ describe("kitchen mobile layout", () => {
             slug: "demo",
             name: "測試攤位",
           }}
-          availableStalls={[{ slug: "demo", name: "測試攤位" }]}
           canManage={false}
           workModeDestinations={[
             { value: "kitchen:11111111-1111-4111-8111-111111111111", mode: "KITCHEN", organizationId: "22222222-2222-4222-8222-222222222222", stallId: "11111111-1111-4111-8111-111111111111", label: "廚房 · 測試攤位", href: "/kitchen?stall=demo" },
@@ -113,7 +136,6 @@ describe("kitchen mobile layout", () => {
             slug: "demo",
             name: "測試攤位",
           }}
-          availableStalls={[{ slug: "demo", name: "測試攤位" }]}
           canManage
           workModeDestinations={[
             { value: "merchant:22222222-2222-4222-8222-222222222222", mode: "MERCHANT", organizationId: "22222222-2222-4222-8222-222222222222", stallId: null, label: "商家管理", href: "/merchant/dashboard" },
@@ -131,7 +153,12 @@ describe("kitchen mobile layout", () => {
     const html = renderToStaticMarkup(
       <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
         <KitchenBoard
-          stall={{ slug: "demo", name: "測試攤位" }}
+          stall={{ id: "11111111-1111-4111-8111-111111111111", organizationId: "22222222-2222-4222-8222-222222222222", slug: "demo", name: "測試攤位" }}
+          canManage
+          workModeDestinations={[
+            { value: "merchant:22222222-2222-4222-8222-222222222222", mode: "MERCHANT", organizationId: "22222222-2222-4222-8222-222222222222", stallId: null, label: "商家管理", href: "/merchant/dashboard" },
+            { value: "kitchen:11111111-1111-4111-8111-111111111111", mode: "KITCHEN", organizationId: "22222222-2222-4222-8222-222222222222", stallId: "11111111-1111-4111-8111-111111111111", label: "廚房 · 測試攤位", href: "/kitchen?stall=demo" },
+          ]}
           initialData={{
             settings: {
               warningMinutes: 10,
@@ -153,11 +180,11 @@ describe("kitchen mobile layout", () => {
     expect(html).toContain('data-testid="kitchen-mode-selector"');
     expect(html).toContain("inline-grid h-11 grid-cols-3");
     expect(html).toContain("grid h-11 w-11");
-    expect(html).toContain('data-testid="kitchen-board-utility-toolbar"');
-    expect(html).not.toContain('data-testid="mock-pwa-controls"');
-    expect(html).not.toContain('data-testid="mock-logout-button"');
-    expect(html).toContain("sticky top-16");
-    expect(html).not.toContain("md:top-28");
+    expect(html).not.toContain('data-testid="kitchen-board-utility-toolbar"');
+    expect(html).toContain('data-testid="mock-pwa-controls"');
+    expect(html).toContain('data-testid="mock-logout-button"');
+    expect(html).toContain("sticky top-0");
+    expect(html).not.toContain("sticky top-16");
     expect(html).toContain('role="status"');
     expect(html).toContain("<span class=\"sr-only\">訂單</span>");
   });

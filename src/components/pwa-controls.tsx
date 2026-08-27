@@ -10,10 +10,12 @@ export function PwaControls({
   showWakeLock = false,
   showLocale = true,
   showQualityLabel = true,
+  showInstall = true,
 }: {
   showWakeLock?: boolean;
   showLocale?: boolean;
   showQualityLabel?: boolean;
+  showInstall?: boolean;
 }) {
   const { t } = useAppLocale();
   const runtime = usePwaRuntime();
@@ -28,18 +30,18 @@ export function PwaControls({
     <div data-testid="pwa-controls" className="flex items-center gap-1" aria-label={t("pwa.status.label")}>
       {showLocale ? <LocaleSelector compact /> : null}
       <ThemeToggle />
-      <span aria-label={qualityLabel} title={`${qualityLabel}${runtime.effectiveType ? ` · ${runtime.effectiveType}` : ""}`} className={`inline-flex h-10 items-center gap-2 px-2 text-xs font-semibold ${runtime.quality === "GOOD" ? "text-emerald-700" : runtime.quality === "POOR" ? "text-amber-800" : "text-red-700"}`}>
+      <span data-testid="pwa-network-status" aria-label={qualityLabel} title={`${qualityLabel}${runtime.effectiveType ? ` · ${runtime.effectiveType}` : ""}`} className={`inline-flex h-10 items-center gap-2 px-2 text-xs font-semibold ${runtime.quality === "GOOD" ? "text-emerald-700" : runtime.quality === "POOR" ? "text-amber-800" : "text-red-700"}`}>
         <QualityIcon className="h-4 w-4" aria-hidden="true" />
         {showQualityLabel ? <span className="hidden xl:inline">{qualityLabel}</span> : null}
       </span>
-      {runtime.installAvailable ? (
+      {showInstall && runtime.installAvailable ? (
         <button type="button" title={t("pwa.install")} onClick={() => void runtime.requestInstall()} className="grid h-10 w-10 place-items-center rounded-md hover:bg-stone-100">
           <Download className="h-4 w-4" aria-hidden="true" />
           <span className="sr-only">{t("pwa.install")}</span>
         </button>
       ) : null}
       {showWakeLock && runtime.wakeLockSupported ? (
-        <button type="button" aria-pressed={runtime.wakeLockActive} title={runtime.wakeLockActive ? t("pwa.wakeLock.disable") : t("pwa.wakeLock.enable")} onClick={() => void runtime.toggleWakeLock()} className={`grid h-10 w-10 place-items-center rounded-md border ${runtime.wakeLockActive ? "border-teal-600 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
+        <button data-testid="pwa-wake-control" type="button" aria-pressed={runtime.wakeLockActive} title={runtime.wakeLockActive ? t("pwa.wakeLock.disable") : t("pwa.wakeLock.enable")} onClick={() => void runtime.toggleWakeLock()} className={`grid h-10 w-10 place-items-center rounded-md border ${runtime.wakeLockActive ? "border-teal-600 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
           {runtime.wakeLockActive ? <Lightbulb className="h-4 w-4" /> : <LightbulbOff className="h-4 w-4" />}
           <span className="sr-only">{runtime.wakeLockActive ? t("pwa.wakeLock.active") : t("pwa.wakeLock.inactive")}</span>
         </button>
