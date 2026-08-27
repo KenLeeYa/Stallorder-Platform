@@ -29,13 +29,24 @@ function saveConfig(config) {
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
 }
 
+function usesExamplePreviewUrl(value) {
+  return value.split(",").some((candidate) => {
+    try {
+      const hostname = new URL(candidate.trim()).hostname.toLowerCase().replace(/\.$/, "");
+      return hostname === "preview.example.com";
+    } catch {
+      return false;
+    }
+  });
+}
+
 function collectSecretValues(config) {
   const values = new Map();
   let changed = false;
   for (const item of config.secrets ?? []) {
     if (!item?.name || typeof item.name !== "string") fail("each secret requires a string name");
     if (typeof item.value === "string" && item.value.length > 0) {
-      if (item.value.includes("preview.example.com")) {
+      if (usesExamplePreviewUrl(item.value)) {
         fail(`${item.name} still uses the example Preview URL`);
       }
       values.set(item.name, item.value);
