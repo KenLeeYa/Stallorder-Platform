@@ -37,6 +37,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
 
   const catalog = page.locator("[data-shared-product-catalog]");
+  await expect(catalog).toHaveCount(1);
   await expect(catalog).toBeVisible();
   await expect(catalog).toHaveJSProperty("tagName", "DIV");
   const firstCategoryDisclosure = catalog.locator(":scope > div > details").first();

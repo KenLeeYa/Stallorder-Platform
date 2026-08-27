@@ -171,6 +171,12 @@ describe("本機 QA 登入限制", () => {
     })).toBe(true);
 
     expect(isLocalQaLoginRateLimitDisabled({
+      LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT: "true",
+      NEXT_PUBLIC_APP_URL: "http://192.168.1.102:3011",
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+    })).toBe(true);
+
+    expect(isLocalQaLoginRateLimitDisabled({
       LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT: "false",
       NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3010",
       DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",

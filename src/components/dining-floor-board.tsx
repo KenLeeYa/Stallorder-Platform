@@ -10,7 +10,7 @@ import { useOperationsLocale } from "@/components/operations-locale";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { getDiningFloorTabs, type DiningTableShape } from "@/lib/dining-floor";
 import { formatAppDateTime } from "@/lib/locale-format";
-import { getOperationsErrorMessage } from "@/lib/messages/operations";
+import { getOperationsErrorMessageKey } from "@/lib/messages/operations-errors";
 import { canTransitionOrderItem } from "@/lib/order-item-status";
 import { canTransitionOrder } from "@/lib/rbac";
 
@@ -114,8 +114,8 @@ export function DiningFloorBoard({
         fetch(`/api/stalls/${stall.slug}/tables`, { cache: "no-store" }),
       ]);
       const [ordersPayload, tablesPayload] = await Promise.all([ordersResponse.json(), tablesResponse.json()]);
-      if (!ordersResponse.ok) throw new Error(getOperationsErrorMessage(locale, ordersPayload.code, "dining.error.ordersRefresh"));
-      if (!tablesResponse.ok) throw new Error(getOperationsErrorMessage(locale, tablesPayload.code, "dining.error.tablesRefresh"));
+      if (!ordersResponse.ok) throw new Error(t(getOperationsErrorMessageKey(ordersPayload.code, "dining.error.ordersRefresh")));
+      if (!tablesResponse.ok) throw new Error(t(getOperationsErrorMessageKey(tablesPayload.code, "dining.error.tablesRefresh")));
       setOrders((ordersPayload.orders as DiningFloorOrder[]).filter((order) => (
         order.fulfillmentType === "DINE_IN" && Boolean(order.diningTableId)
       )));
@@ -127,7 +127,7 @@ export function DiningFloorBoard({
     } finally {
       if (showProgress) setIsRefreshing(false);
     }
-  }, [locale, stall.slug, t]);
+  }, [stall.slug, t]);
 
   useEffect(() => {
     const eventSource = new EventSource(`/api/stalls/${stall.slug}/orders/stream`);
@@ -157,7 +157,7 @@ export function DiningFloorBoard({
         body: JSON.stringify({ status }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(getOperationsErrorMessage(locale, payload.code, "dining.error.itemUpdate"));
+      if (!response.ok) throw new Error(t(getOperationsErrorMessageKey(payload.code, "dining.error.itemUpdate")));
       replaceOrder(payload.order as DiningFloorOrder);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("staff.error.network"));
@@ -176,7 +176,7 @@ export function DiningFloorBoard({
         body: JSON.stringify({ status }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(getOperationsErrorMessage(locale, payload.code, "dining.error.bulkUpdate"));
+      if (!response.ok) throw new Error(t(getOperationsErrorMessageKey(payload.code, "dining.error.bulkUpdate")));
       replaceOrder(payload.order as DiningFloorOrder);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("staff.error.network"));
@@ -195,7 +195,7 @@ export function DiningFloorBoard({
         body: JSON.stringify({ status: "CONFIRMED" }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(getOperationsErrorMessage(locale, payload.code, "dining.error.confirm"));
+      if (!response.ok) throw new Error(t(getOperationsErrorMessageKey(payload.code, "dining.error.confirm")));
       replaceOrder(payload.order as DiningFloorOrder);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("staff.error.network"));
@@ -218,7 +218,7 @@ export function DiningFloorBoard({
         body: JSON.stringify({ serviceState }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(getOperationsErrorMessage(locale, payload.code, "dining.error.tablesRefresh"));
+      if (!response.ok) throw new Error(t(getOperationsErrorMessageKey(payload.code, "dining.error.tablesRefresh")));
       setFloorTables((current) => current.map((table) => table.id === tableId ? payload.table : table));
       setMessage(serviceState === "EMPTY" ? t("dining.table.cleaned") : t("dining.table.needsCleaning"));
     } catch (error) {

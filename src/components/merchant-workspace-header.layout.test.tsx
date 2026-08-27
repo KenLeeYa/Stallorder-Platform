@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { LocaleProvider } from "@/components/locale-provider";
+import { MessageTestProvider } from "@/test/message-test-provider";
 import { MerchantWorkspaceHeader } from "@/components/merchant-workspace-header";
 import type { WorkspaceOrganization } from "@/lib/workspace";
 
@@ -45,14 +45,14 @@ const workspace: WorkspaceOrganization = {
 describe("MerchantWorkspaceHeader mobile layout", () => {
   it("keeps compact mode and stall tools visible without a collapsible selector panel", () => {
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <MerchantWorkspaceHeader
           workspaces={[workspace]}
           displayName="店主"
           routeContext={{ organizationId: workspace.id, stallId: null }}
           showBilling={false}
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).not.toContain('id="merchant-mobile-options"');
@@ -89,14 +89,14 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
       ],
     };
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <MerchantWorkspaceHeader
           workspaces={[multiStallWorkspace]}
           displayName="店主"
           routeContext={{ organizationId: workspace.id, stallId: null }}
           showBilling={false}
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).toContain('aria-label="選擇攤位：全部攤位"');
@@ -110,14 +110,14 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
       stalls: workspace.stalls.map((stall) => ({ ...stall, isActive: false })),
     };
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <MerchantWorkspaceHeader
           workspaces={[inactiveWorkspace]}
           displayName="店主"
           routeContext={{ organizationId: workspace.id, stallId: null }}
           showBilling={false}
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).not.toContain('aria-label="選擇攤位');
@@ -126,14 +126,14 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
 
   it("shows billing navigation only after the platform switch is enabled", () => {
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <MerchantWorkspaceHeader
           workspaces={[workspace]}
           displayName="店主"
           routeContext={{ organizationId: workspace.id, stallId: null }}
           showBilling
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).toContain("/merchant/billing?");
@@ -141,7 +141,7 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
 
   it("shows payment navigation only after the platform module switch is enabled", () => {
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <MerchantWorkspaceHeader
           workspaces={[workspace]}
           displayName="店主"
@@ -149,7 +149,7 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
           showBilling={false}
           showPayments
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).toContain("/merchant/payments?");
@@ -157,7 +157,7 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
 
   it("shows only enabled competitive modules in merchant navigation", () => {
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <MerchantWorkspaceHeader
           workspaces={[workspace]}
           displayName="店主"
@@ -166,7 +166,7 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
           showGrowth
           showSupply
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).toContain("/merchant/supply?");

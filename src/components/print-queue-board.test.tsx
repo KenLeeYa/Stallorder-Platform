@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { LocaleProvider } from "@/components/locale-provider";
+import { MessageTestProvider } from "@/test/message-test-provider";
 import { PrintQueueBoard, type PrintQueueState } from "@/components/print-queue-board";
 
 describe("PrintQueueBoard cancelled-job recovery", () => {
@@ -39,12 +39,12 @@ describe("PrintQueueBoard cancelled-job recovery", () => {
     };
 
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <PrintQueueBoard
           stall={{ slug: "demo", name: "測試攤位", currency: "TWD" }}
           initialState={state}
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).toContain("A-001");

@@ -23,6 +23,7 @@ let activeCashShiftId = "";
 let createdCashShiftId = "";
 let createdPrinterId = "";
 let originalSettings: { kdsModuleEnabled: boolean; printModuleEnabled: boolean };
+const temporarilyDisabledPrinterIds: string[] = [];
 const createdOrderIds: string[] = [];
 const createdClosureIds: string[] = [];
 
@@ -103,6 +104,12 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       }
       if (createdPrinterId) {
         await prisma.printer.deleteMany({ where: { id: createdPrinterId } });
+      }
+      if (temporarilyDisabledPrinterIds.length > 0) {
+        await prisma.printer.updateMany({
+          where: { id: { in: temporarilyDisabledPrinterIds } },
+          data: { isEnabled: true },
+        });
       }
       if (createdCashShiftId) {
         await prisma.cashShiftReview.deleteMany({ where: { cashShiftId: createdCashShiftId } });
@@ -333,10 +340,21 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await ownerContext.close();
     }
 
-    await prisma.printer.update({
-      where: { id: createdPrinterId },
-      data: { isEnabled: true, lastSeenAt: new Date() },
+    const competingPrinters = await prisma.printer.findMany({
+      where: { stallId, id: { not: createdPrinterId }, isEnabled: true },
+      select: { id: true },
     });
+    temporarilyDisabledPrinterIds.push(...competingPrinters.map((printer) => printer.id));
+    await prisma.$transaction([
+      prisma.printer.updateMany({
+        where: { id: { in: temporarilyDisabledPrinterIds } },
+        data: { isEnabled: false },
+      }),
+      prisma.printer.update({
+        where: { id: createdPrinterId },
+        data: { isEnabled: true, lastSeenAt: new Date() },
+      }),
+    ]);
     const order = await createConfirmedOrder(`${runMarker} 列印自動完成`);
     const queuedOnConfirmation = await prisma.printJob.findMany({
       where: { orderId: order.id },

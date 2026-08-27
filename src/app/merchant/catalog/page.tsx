@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { MerchantSetupBackLink } from "@/components/merchant-setup-back-link";
-import { SharedCatalogManager } from "@/components/shared-catalog-manager";
+import { LazySharedCatalogManager } from "@/components/lazy-shared-catalog-manager";
 import { StallSettingsBackLink } from "@/components/stall-settings-back-link";
 import { getOrganizationCatalog } from "@/lib/catalog-data";
 import { getEnabledTranslationLocales } from "@/lib/enabled-locales";
@@ -62,7 +62,7 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
           />
         </div>
       ) : null}
-      <SharedCatalogManager
+      <LazySharedCatalogManager
         organizationId={workspace.id}
         currency={workspace.defaultCurrency}
         stalls={workspace.stalls.map((stall) => ({

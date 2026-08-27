@@ -136,7 +136,25 @@ export function isLocalQaLoginRateLimitDisabled(
     }
   }
 
-  return isLoopbackUrl(environment.NEXT_PUBLIC_APP_URL)
+  function isLocalQaAppUrl(value: string | undefined) {
+    if (!value) return false;
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "http:") return false;
+      if (["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname)) return true;
+      const octets = url.hostname.split(".").map(Number);
+      if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+        return false;
+      }
+      return octets[0] === 10
+        || (octets[0] === 172 && octets[1]! >= 16 && octets[1]! <= 31)
+        || (octets[0] === 192 && octets[1] === 168);
+    } catch {
+      return false;
+    }
+  }
+
+  return isLocalQaAppUrl(environment.NEXT_PUBLIC_APP_URL)
     && isLoopbackUrl(environment.DATABASE_URL);
 }
 

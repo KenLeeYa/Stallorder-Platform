@@ -90,6 +90,8 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
     const paymentSummary = page.getByTestId("payment-summary-dashboard");
     const stallPayments = page.getByTestId("stall-payment-dashboard");
     await expect(page.getByRole("heading", { name: "付款分析", exact: true })).toBeVisible();
+    await expect(paymentSummary).toHaveCount(1);
+    await expect(stallPayments).toHaveCount(1);
     await expect(paymentSummary.locator("dt")).not.toHaveCount(0);
     expect(await countComputedGridColumns(paymentSummary)).toBe(viewport.paymentColumns);
     await expect(stallPayments.locator("article").first()).toBeVisible();
@@ -100,6 +102,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
     const stallDashboard = page.getByTestId("stall-performance-dashboard");
     const firstStallCard = page.getByTestId("stall-performance-card").first();
     await expect(page.getByRole("heading", { name: "攤位績效比較", exact: true })).toBeVisible();
+    await expect(stallDashboard).toHaveCount(1);
     await expect(page.getByTestId("stall-performance-table")).toBeHidden();
     await expect(firstStallCard).toBeVisible();
     await expect(firstStallCard.locator("dt")).toHaveCount(7);

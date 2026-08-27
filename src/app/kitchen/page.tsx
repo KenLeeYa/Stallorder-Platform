@@ -1,4 +1,4 @@
-import { KitchenBoard } from "@/components/kitchen-board";
+import { LazyKitchenBoard } from "@/components/lazy-kitchen-board";
 import { requireKitchenPage } from "@/lib/kitchen-access";
 import { getKitchenBoardData } from "@/lib/kitchen";
 import { createPerformanceTiming } from "@/lib/performance-timing";
@@ -29,7 +29,7 @@ export default async function KitchenPage({ searchParams }: PageProps) {
   const canManage = access.roles.some((role) => hasPermission(role, "MANAGE_KDS"));
   const workModeDestinations = buildWorkModeDestinations(access.workspaces);
   return (
-    <KitchenBoard
+    <LazyKitchenBoard
       stall={access.stall}
       canManage={canManage}
       workModeDestinations={workModeDestinations}

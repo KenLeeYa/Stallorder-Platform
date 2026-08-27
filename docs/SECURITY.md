@@ -68,4 +68,4 @@
 
 不得記錄密碼、session／CSRF／QR raw token、Turnstile token、service role key、完整 IP、顧客備註或取餐碼。IP 與裝置識別使用環境專屬 HMAC secret；不同環境不得共用。正式資料庫備份、還原演練、金鑰輪替與刪除政策由部署平台負責。
 
-Next.js 與 Edge 只讀取 `TRUSTED_CLIENT_IP_HEADER` 指定的 `cf-connecting-ip` 或 `x-real-ip`；不解析用戶可控制的 `X-Forwarded-For` 鏈。正式環境未設定可信標頭時採 fail closed，且上游必須移除用戶送入的同名標頭後再覆寫。
+Next.js 只讀取 `TRUSTED_CLIENT_IP_HEADER` 明確指定的 `cf-connecting-ip`、`x-real-ip`，或由 Vercel 邊緣層覆寫的單一 `x-forwarded-for`；Supabase Edge 只接受 `cf-connecting-ip` 或 `x-real-ip`。兩端都拒絕逗號鏈與無效 IP，正式環境未設定可信標頭時採 fail closed，且上游必須先移除用戶送入的同名標頭後再覆寫。
