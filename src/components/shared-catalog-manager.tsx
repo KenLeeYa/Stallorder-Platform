@@ -31,6 +31,7 @@ import {
   X,
 } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
+import { readApiJson } from "@/lib/api-response";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
 import { buildCatalogCsvErrorReport, type CatalogCsvRowError } from "@/lib/catalog-csv-client";
 import { localizedCatalogName } from "@/lib/catalog-localization";
@@ -610,9 +611,18 @@ export function SharedCatalogManager({
         headers: csrfFormHeaders(),
         body: form,
       });
-      const payload = await response.json();
+      const payload = await readApiJson<{
+        imageUrl?: string;
+        originalSize?: number;
+        optimizedSize?: number;
+        error?: string;
+      }>(response, label("圖片上傳失敗。"));
       if (!response.ok) throw new Error(payload.error ?? label("圖片上傳失敗。"));
-      setProductDraft((current) => current ? { ...current, imageUrl: payload.imageUrl } : current);
+      if (!payload.imageUrl || typeof payload.optimizedSize !== "number") {
+        throw new Error(label("圖片上傳失敗。"));
+      }
+      const imageUrl = payload.imageUrl;
+      setProductDraft((current) => current ? { ...current, imageUrl } : current);
       setImageFeedback({
         kind: "success",
         text: `${label("商品圖片已上傳，儲存商品後生效。")} ${formatFileSize(payload.originalSize ?? file.size)} → ${formatFileSize(payload.optimizedSize)}`,

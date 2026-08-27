@@ -4,7 +4,7 @@ import type { AppLocale } from "@/lib/app-locale";
 import { publicMessages } from "@/lib/messages/public";
 import { formatMoney } from "@/lib/money";
 import type { PublicMenu, PublicMenuProduct } from "@/lib/public-menu-types";
-import { localizeSpecialClosureTitle } from "@/lib/special-closures";
+import { localizeSpecialClosureTitle } from "@/lib/special-closures-client";
 
 export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: AppLocale }) {
   const sections = groupProductsByCategory(menu.products, locale);

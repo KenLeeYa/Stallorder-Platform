@@ -68,7 +68,7 @@ import { playAlertSound } from "@/lib/browser-alert-sound";
 import {
   classifyFulfillmentForProduction,
   type FulfillmentProductionTiming,
-} from "@/lib/fulfillment-time";
+} from "@/lib/fulfillment-time-client";
 import { formatMoney } from "@/lib/money";
 import { getOperationsErrorMessage } from "@/lib/messages/operations";
 import { canTransitionOrderItem } from "@/lib/order-item-status";

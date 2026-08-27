@@ -17,7 +17,7 @@ import { useOperationsLocale } from "@/components/operations-locale";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { deliveryProviderLabel } from "@/lib/delivery-platform-labels";
-import { resolveEffectiveFulfillmentAt } from "@/lib/fulfillment-time";
+import { resolveEffectiveFulfillmentAt } from "@/lib/fulfillment-time-client";
 import type { AppLocale } from "@/lib/app-locale";
 import { formatAppDateTime } from "@/lib/locale-format";
 import {

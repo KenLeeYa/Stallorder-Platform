@@ -347,47 +347,62 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const now = new Date();
-  const changed = await prisma.$transaction(async (transaction) => {
-    let cashShiftId: string | null = null;
-    if (paymentOption.kind === "CASH") {
-      const openShift = await transaction.cashShift.findFirst({
-        where: {
+  let changed: "CASH_SHIFT_REQUIRED" | "CONFLICT" | { status: "UPDATED"; cashShiftId: string | null };
+  try {
+    changed = await prisma.$transaction(async (transaction) => {
+      let cashShiftId: string | null = null;
+      if (paymentOption.kind === "CASH") {
+        const openShift = await transaction.cashShift.findFirst({
+          where: {
+            organizationId: authorization.stall.organizationId,
+            stallId: authorization.stall.id,
+            status: "OPEN",
+          },
+          orderBy: { openedAt: "desc" },
+          select: { id: true },
+        });
+        if (!openShift) return "CASH_SHIFT_REQUIRED" as const;
+        cashShiftId = openShift.id;
+      }
+      const result = await transaction.payment.updateMany({
+        where: { id: order.payment!.id, orderId: order.id, status: "PAID" },
+        data: {
+          paymentOptionId: paymentOption.id,
+          method: paymentOption.kind === "CASH" ? "CASH" : "OTHER",
+          methodLabel: paymentOption.name,
+          cashShiftId,
+          cashReceived: paymentOption.kind === "CASH" ? order.payment!.amount : null,
+          changeAmount: paymentOption.kind === "CASH" ? 0 : null,
+        },
+      });
+      if (result.count !== 1) return "CONFLICT" as const;
+      await transaction.orderEvent.create({
+        data: {
           organizationId: authorization.stall.organizationId,
           stallId: authorization.stall.id,
-          status: "OPEN",
+          orderId: order.id,
+          eventType: "COMPLETED_PAYMENT_METHOD_CHANGED",
+          previousStatus: "COMPLETED",
+          newStatus: "COMPLETED",
+          createdBy: authorization.principal.user.id,
         },
-        orderBy: { openedAt: "desc" },
-        select: { id: true },
       });
-      if (!openShift) return "CASH_SHIFT_REQUIRED" as const;
-      cashShiftId = openShift.id;
-    }
-    const result = await transaction.payment.updateMany({
-      where: { id: order.payment!.id, orderId: order.id, status: "PAID" },
-      data: {
-        paymentOptionId: paymentOption.id,
-        method: paymentOption.kind === "CASH" ? "CASH" : "OTHER",
-        methodLabel: paymentOption.name,
-        cashShiftId,
-        cashReceived: paymentOption.kind === "CASH" ? order.payment!.amount : null,
-        changeAmount: paymentOption.kind === "CASH" ? 0 : null,
-        reconciliationStatus: "PAYMENT_METHOD_CORRECTED",
-      },
+      return { status: "UPDATED" as const, cashShiftId };
     });
-    if (result.count !== 1) return "CONFLICT" as const;
-    await transaction.orderEvent.create({
-      data: {
-        organizationId: authorization.stall.organizationId,
-        stallId: authorization.stall.id,
-        orderId: order.id,
-        eventType: "COMPLETED_PAYMENT_METHOD_CHANGED",
-        previousStatus: "COMPLETED",
-        newStatus: "COMPLETED",
-        createdBy: authorization.principal.user.id,
-      },
-    });
-    return { status: "UPDATED" as const, cashShiftId };
-  });
+  } catch (error) {
+    console.error(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: "error",
+      event: "COMPLETED_PAYMENT_METHOD_CHANGE_FAILED",
+      requestId: authorization.requestId,
+      orderId: order.id,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    }));
+    return NextResponse.json(
+      { error: "付款方式更新失敗，請稍後再試。" },
+      { status: 500, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
   if (changed === "CASH_SHIFT_REQUIRED") {
     return NextResponse.json(
       { error: "改為現金前必須先開啟現金班次。" },

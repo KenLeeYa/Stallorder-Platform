@@ -3,8 +3,8 @@ import {
   activeSpecialClosure,
   filterPreorderSlotsForSpecialClosures,
   localizeSpecialClosureTitle,
-  specialClosureCommandSchema,
-} from "./special-closures";
+} from "./special-closures-client";
+import { specialClosureCommandSchema } from "./special-closures";
 
 describe("special closures", () => {
   it("accepts a single date and a bounded date range", () => {

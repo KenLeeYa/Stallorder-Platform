@@ -1,6 +1,7 @@
 "use client";
 
 import type { OrderItemStatus, OrderStatus, UserRole } from "@prisma/client";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   CheckCheck,
@@ -33,8 +34,6 @@ import {
 } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { LogoutButton } from "@/components/logout-button";
-import { OfflineBootstrapControl } from "@/components/offline-bootstrap-control";
-import { OfflineQueueStatus } from "@/components/offline-queue-status";
 import { PwaControls } from "@/components/pwa-controls";
 import { CompletedOrdersPanel } from "@/components/completed-orders-panel";
 import { StaffAutoPrintAgent } from "@/components/staff-auto-print-agent";
@@ -69,7 +68,7 @@ import {
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import type { AppLocale } from "@/lib/app-locale";
-import type { FulfillmentProductionTiming } from "@/lib/fulfillment-time";
+import type { FulfillmentProductionTiming } from "@/lib/fulfillment-time-client";
 import { formatAppDateTime } from "@/lib/locale-format";
 import { formatMoney } from "@/lib/money";
 import { canTransitionOrderItem } from "@/lib/order-item-status";
@@ -84,6 +83,17 @@ import { getOperationalSwitcherVisibility } from "@/lib/work-mode";
 type OperationsTranslator = ReturnType<typeof useOperationsLocale>["t"];
 const staffFunctionTileClass = "inline-grid h-11 w-11 shrink-0 place-items-center rounded-md";
 const staffFunctionIconClass = "h-5 w-5";
+const OfflineBootstrapControl = dynamic(
+  () => import("@/components/offline-bootstrap-control").then((module) => module.OfflineBootstrapControl),
+  {
+    ssr: false,
+    loading: () => <span aria-hidden="true" className="block h-11 w-11 animate-pulse rounded-md border border-stone-200 bg-stone-50" />,
+  },
+);
+const OfflineQueueStatus = dynamic(
+  () => import("@/components/offline-queue-status").then((module) => module.OfflineQueueStatus),
+  { ssr: false, loading: () => null },
+);
 
 export type StaffOrderBoardViewMode = "TICKETS" | "TABLES" | "SUMMARY";
 

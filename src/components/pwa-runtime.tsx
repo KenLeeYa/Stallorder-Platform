@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { CircleAlert, RefreshCw, WifiOff } from "lucide-react";
-import { useOperationsLocale } from "@/components/operations-locale";
+import { useAppLocale } from "@/components/locale-provider";
 
 const SERVICE_WORKER_ENABLED = process.env.NODE_ENV === "production"
   || process.env.NEXT_PUBLIC_ENABLE_PWA_IN_DEVELOPMENT === "true";
@@ -71,7 +71,7 @@ function detectedQuality(online: boolean, latencyMs: number | null) {
 }
 
 export function PwaRuntime({ children }: { children: ReactNode }) {
-  const { t } = useOperationsLocale();
+  const { t } = useAppLocale();
   const [online, setOnline] = useState(true);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [effectiveType, setEffectiveType] = useState<string | null>(null);
@@ -329,10 +329,10 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
             ? <WifiOff className="h-4 w-4 shrink-0" />
             : <CircleAlert className="h-4 w-4 shrink-0" />}
           {quality === "OFFLINE"
-            ? t("pwa.offline")
+            ? t("pwa.runtime.offline")
             : latencyMs
-              ? t("pwa.poorNetworkLatency", { latency: latencyMs })
-              : t("pwa.poorNetwork")}
+              ? t("pwa.runtime.poorNetworkLatency", { latency: latencyMs })
+              : t("pwa.runtime.poorNetwork")}
         </div>
       ) : null}
       {updateAvailable ? (
@@ -340,14 +340,14 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
           role="status"
           className="sticky top-0 z-50 flex min-h-10 flex-wrap items-center justify-center gap-3 bg-emerald-50 px-4 py-2 text-center text-xs font-semibold text-emerald-950"
         >
-          <span>{updateBlocked ? t("pwa.updateBlocked") : t("pwa.updateReady")}</span>
+          <span>{updateBlocked ? t("pwa.runtime.updateBlocked") : t("pwa.runtime.updateReady")}</span>
           <button
             type="button"
             className="inline-flex min-h-9 items-center gap-2 border border-emerald-800 bg-white px-3 py-1.5 text-emerald-950"
             onClick={applyServiceWorkerUpdate}
           >
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            {t("pwa.safeUpdate")}
+            {t("pwa.runtime.safeUpdate")}
           </button>
         </div>
       ) : null}

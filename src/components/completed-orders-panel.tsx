@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import type { CancellationReason, PaymentOptionKind } from "@prisma/client";
 import { ChevronDown, ChevronUp, History, Printer, Search, ShieldCheck } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
+import { readApiJson } from "@/lib/api-response";
 import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatAppDateTime } from "@/lib/locale-format";
@@ -90,7 +91,10 @@ export function CompletedOrdersPanel({
     try {
       const parameters = new URLSearchParams({ query: nextQuery, status: nextStatus });
       const response = await fetch(`/api/stalls/${encodeURIComponent(stallSlug)}/completed-orders?${parameters}`, { cache: "no-store" });
-      const payload = await response.json() as { orders?: CompletedOrder[]; paymentOptions?: PaymentOption[]; error?: string };
+      const payload = await readApiJson<{ orders?: CompletedOrder[]; paymentOptions?: PaymentOption[]; error?: string }>(
+        response,
+        t("completedOrders.loadFailed"),
+      );
       if (!response.ok) throw new Error(payload.error ?? t("completedOrders.loadFailed"));
       setOrders(payload.orders ?? []);
       setPaymentOptions(payload.paymentOptions ?? []);
@@ -144,11 +148,15 @@ export function CompletedOrdersPanel({
         headers: csrfHeaders(),
         body: JSON.stringify(body),
       });
-      const payload = await response.json() as { error?: string; warning?: string };
+      const payload = await readApiJson<{ error?: string; warning?: string }>(
+        response,
+        t("completedOrders.updateFailed"),
+      );
       if (!response.ok) throw new Error(payload.error ?? t("completedOrders.updateFailed"));
       setPendingAction(null);
-      setMessage(payload.warning ?? t("completedOrders.updated"));
+      const successMessage = payload.warning ?? t("completedOrders.updated");
       await load();
+      setMessage(successMessage);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("completedOrders.updateFailed"));
     } finally {
@@ -165,7 +173,7 @@ export function CompletedOrdersPanel({
         headers: csrfHeaders(),
         body: JSON.stringify({ operation: "QUEUE_RECEIPT", orderId }),
       });
-      const payload = await response.json() as { error?: string };
+      const payload = await readApiJson<{ error?: string }>(response, t("completedOrders.receiptFailed"));
       if (!response.ok) throw new Error(payload.error ?? t("completedOrders.receiptFailed"));
       setMessage(t("completedOrders.receiptQueued"));
     } catch (error) {
