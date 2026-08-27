@@ -42,6 +42,43 @@ test("單一啟用攤位從頁首直接進入 QR 管理", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
 });
 
+test("QR 管理在各尺寸維持適當正方形且不隨桌面無限放大", async ({ page }) => {
+  await loginAsOwner(page);
+
+  for (const viewport of [
+    { name: "mobile", width: 390, height: 844 },
+    { name: "tablet", width: 768, height: 1024 },
+    { name: "scaled-desktop", width: 1180, height: 800 },
+    { name: "desktop", width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await gotoLocalPath(page, "/merchant/aming-chicken");
+
+    const qrShell = page.getByTestId("merchant-ordering-qr");
+    const qrCode = page.getByTestId("merchant-ordering-qr-code");
+    await expect(qrCode, `${viewport.name} QR`).toBeVisible();
+    const layout = await qrShell.evaluate((shell) => {
+      const shellBox = shell.getBoundingClientRect();
+      const qr = shell.querySelector<SVGElement>('[data-testid="merchant-ordering-qr-code"]');
+      const qrBox = qr?.getBoundingClientRect();
+      return {
+        shell: { left: shellBox.left, right: shellBox.right, width: shellBox.width },
+        qr: qrBox ? { width: qrBox.width, height: qrBox.height } : null,
+        pageClientWidth: document.documentElement.clientWidth,
+        pageScrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+
+    expect(layout.shell.width, `${viewport.name} QR shell width`).toBeLessThanOrEqual(384.5);
+    expect(layout.shell.left, `${viewport.name} QR left boundary`).toBeGreaterThanOrEqual(0);
+    expect(layout.shell.right, `${viewport.name} QR right boundary`).toBeLessThanOrEqual(layout.pageClientWidth + 1);
+    expect(layout.qr, `${viewport.name} QR box`).not.toBeNull();
+    expect(layout.qr!.width, `${viewport.name} rendered QR width`).toBeLessThanOrEqual(352.5);
+    expect(layout.qr!.width, `${viewport.name} square QR`).toBeCloseTo(layout.qr!.height, 0);
+    expect(layout.pageScrollWidth, `${viewport.name} page overflow`).toBeLessThanOrEqual(layout.pageClientWidth + 1);
+  }
+});
+
 test("工作模式與攤位遮罩在各尺寸保持置中、橫向文字與完整寬度", async ({ page }) => {
   test.setTimeout(120_000);
   await loginAsOwner(page);
@@ -132,7 +169,7 @@ test("廚房只保留一組共用工具並使用不同工作模式人像", async
       const settings = box("kitchen-nav-settings");
       const alert = box("kitchen-alert-control");
       const refresh = box("kitchen-refresh-control");
-      const logout = box("kitchen-pinned-logout");
+      const logout = box("kitchen-logout-control");
       return {
         headerHeight: headerBox?.height ?? -1,
         orders: orders ? { left: orders.left, top: orders.top, width: orders.width, height: orders.height } : null,
@@ -147,9 +184,8 @@ test("廚房只保留一組共用工具並使用不同工作模式人像", async
         live: live ? { left: live.left, top: live.top } : null,
         settings: settings ? { left: settings.left, top: settings.top } : null,
         alert: alert ? { left: alert.left, top: alert.top } : null,
-        refresh: refresh ? { left: refresh.left, top: refresh.top } : null,
-        logout: logout ? { right: logout.right, top: logout.top, height: logout.height } : null,
-        headerRight: headerBox?.right ?? -1,
+        refresh: refresh ? { left: refresh.left, right: refresh.right, top: refresh.top } : null,
+        logout: logout ? { left: logout.left, right: logout.right, top: logout.top, height: logout.height } : null,
         pageClientWidth: document.documentElement.clientWidth,
         pageScrollWidth: document.documentElement.scrollWidth,
       };
@@ -185,9 +221,11 @@ test("廚房只保留一組共用工具並使用不同工作模式人像", async
     expect(headerLayout.stations!.left, `${viewport.name} station settings before KDS settings`).toBeLessThan(headerLayout.settings!.left);
     expect(headerLayout.settings!.left, `${viewport.name} KDS settings before sound`).toBeLessThan(headerLayout.alert!.left);
     expect(headerLayout.alert!.left, `${viewport.name} sound before refresh`).toBeLessThan(headerLayout.refresh!.left);
+    expect(headerLayout.refresh!.left, `${viewport.name} refresh before logout`).toBeLessThan(headerLayout.logout!.left);
+    expect(headerLayout.logout!.left - headerLayout.refresh!.right, `${viewport.name} logout follows refresh`).toBeGreaterThanOrEqual(0);
+    expect(headerLayout.logout!.left - headerLayout.refresh!.right, `${viewport.name} logout follows refresh`).toBeLessThanOrEqual(8);
     expect(headerLayout.language!.width, `${viewport.name} language width`).toBeCloseTo(headerLayout.orders!.width, 0);
     expect(headerLayout.language!.height, `${viewport.name} language height`).toBeCloseTo(headerLayout.orders!.height, 0);
-    expect(headerLayout.headerRight - headerLayout.logout!.right, `${viewport.name} logout pinned right`).toBeLessThanOrEqual(24);
     expect(headerLayout.pageScrollWidth, `${viewport.name} page overflow`).toBeLessThanOrEqual(headerLayout.pageClientWidth + 1);
   }
 

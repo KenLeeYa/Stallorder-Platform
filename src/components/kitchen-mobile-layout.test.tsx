@@ -59,7 +59,7 @@ describe("kitchen mobile layout", () => {
     expect(html).toContain('data-testid="kitchen-primary-navigation"');
     expect(html).toContain('data-testid="kitchen-language-control"');
     expect(html).toContain('data-testid="kitchen-live-status"');
-    expect(html).toContain('data-testid="kitchen-pinned-logout"');
+    expect(html).toContain('data-testid="kitchen-logout-control"');
     expect(html).toContain('data-testid="mock-work-mode-switcher"');
     expect(html).not.toContain('data-testid="mock-workspace-switcher"');
     expect(html.match(/data-testid="mock-pwa-controls"/g)).toHaveLength(1);
@@ -87,7 +87,7 @@ describe("kitchen mobile layout", () => {
     const settingsIndex = html.indexOf('data-testid="kitchen-nav-settings"');
     const alertIndex = html.indexOf('data-testid="kitchen-alert-control"');
     const refreshIndex = html.indexOf('data-testid="kitchen-refresh-control"');
-    const logoutIndex = html.indexOf('data-testid="kitchen-pinned-logout"');
+    const logoutIndex = html.indexOf('data-testid="kitchen-logout-control"');
     expect(orderIndex).toBeGreaterThan(-1);
     expect(itemIndex).toBeGreaterThan(orderIndex);
     expect(workstationIndex).toBeGreaterThan(itemIndex);
