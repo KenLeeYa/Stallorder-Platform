@@ -141,7 +141,6 @@ describe("completed order protected corrections", () => {
         cashShiftId: null,
         cashReceived: null,
         changeAmount: null,
-        reconciliationStatus: "PAYMENT_METHOD_CORRECTED",
       },
     });
     expect(mocks.orderUpdateMany).not.toHaveBeenCalled();
@@ -150,6 +149,22 @@ describe("completed order protected corrections", () => {
       before: expect.objectContaining({ methodLabel: "現金" }),
       after: expect.objectContaining({ methodLabel: "LINE Pay", cashShiftId: null }),
     }));
+  });
+
+  it("付款資料庫更新失敗時仍回傳 JSON 錯誤契約", async () => {
+    mocks.transaction.mockRejectedValueOnce(new Error("constraint failed"));
+
+    const response = await patch({
+      operation: "CHANGE_COMPLETED_PAYMENT",
+      orderId,
+      paymentOptionId,
+      reason: "顧客改用 LINE Pay",
+      managerAuthorizationCode: "2468",
+    });
+
+    expect(response.status).toBe(500);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    await expect(response.json()).resolves.toEqual({ error: "付款方式更新失敗，請稍後再試。" });
   });
 });
 

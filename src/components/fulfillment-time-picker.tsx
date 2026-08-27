@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { useOperationsLocale } from "@/components/operations-locale";
+import { useAppLocale } from "@/components/locale-provider";
 import {
   findFulfillmentTimeSlot,
   uniqueFulfillmentTimeValues,
@@ -41,7 +41,7 @@ export function FulfillmentTimePicker({
   testId,
   className = "",
 }: Props) {
-  const { t } = useOperationsLocale();
+  const { t } = useAppLocale();
   const radioName = useId();
   const dateListId = useId();
   const selected = slots.find((slot) => slot.iso === value) ?? slots[0] ?? null;

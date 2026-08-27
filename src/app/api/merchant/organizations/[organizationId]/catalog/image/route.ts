@@ -64,13 +64,38 @@ export async function POST(request: Request, context: RouteContext) {
 
   const objectPath = `${organizationId}/${randomUUID()}.webp`;
   const admin = createClient(supabaseUrl, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const upload = await admin.storage.from("product-images").upload(objectPath, optimizedBytes, {
-    contentType: "image/webp",
-    upsert: false,
-    cacheControl: "31536000",
-  });
-  if (upload.error) {
-    return NextResponse.json({ error: "圖片上傳失敗，請稍後再試。" }, { status: 502 });
+  try {
+    const upload = await admin.storage.from("product-images").upload(objectPath, optimizedBytes, {
+      contentType: "image/webp",
+      upsert: false,
+      cacheControl: "31536000",
+    });
+    if (upload.error) {
+      console.error(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: "error",
+        event: "PRODUCT_IMAGE_STORAGE_UPLOAD_FAILED",
+        requestId: authorization.requestId,
+        organizationId,
+      }));
+      return NextResponse.json(
+        { error: "圖片上傳失敗，請稍後再試。" },
+        { status: 502, headers: { "x-request-id": authorization.requestId } },
+      );
+    }
+  } catch (error) {
+    console.error(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: "error",
+      event: "PRODUCT_IMAGE_STORAGE_UPLOAD_FAILED",
+      requestId: authorization.requestId,
+      organizationId,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    }));
+    return NextResponse.json(
+      { error: "圖片上傳失敗，請稍後再試。" },
+      { status: 502, headers: { "x-request-id": authorization.requestId } },
+    );
   }
   const primaryChecksum = createHash("sha256").update(optimizedBytes).digest("hex");
   try {

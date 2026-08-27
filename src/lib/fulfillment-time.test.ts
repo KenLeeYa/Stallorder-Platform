@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   classifyFulfillmentForProduction,
   fulfillmentTimeBlocksProduction,
-  fulfillmentTimeCommandSchema,
   isUninitializedLegacyQrTakeout,
   resolveEffectiveFulfillmentAt,
   resolveFulfillmentTimeReadModel,
   stallBusinessDateKey,
-} from "./fulfillment-time";
+} from "./fulfillment-time-client";
+import { fulfillmentTimeCommandSchema } from "./fulfillment-time";
 
 describe("fulfillment time commands", () => {
   it("accepts versioned confirmation and proposal commands", () => {
