@@ -38,11 +38,12 @@ test.describe("每日三碼取餐與店員快速載單", () => {
     }
   });
 
-  test("在線訂單不重複，終止後號碼可回收，店員可直接載入結帳", async ({ browser }) => {
+  test("在線訂單不重複，終止後號碼可回收，店員可直接載入結帳", async ({ browser }, testInfo) => {
     test.setTimeout(180_000);
+    const publicOrderClientIp = `203.0.113.${180 + testInfo.retry + (testInfo.repeatEachIndex * 4)}`;
 
-    const first = await placeTakeoutOrder(browser, `${runMarker}-A`);
-    const second = await placeTakeoutOrder(browser, `${runMarker}-B`);
+    const first = await placeTakeoutOrder(browser, `${runMarker}-A`, publicOrderClientIp);
+    const second = await placeTakeoutOrder(browser, `${runMarker}-B`, publicOrderClientIp);
     createdOrders.push(first, second);
 
     expect(first.pickupCode).toMatch(/^\d{3}$/u);
@@ -54,7 +55,7 @@ test.describe("每日三碼取餐與店員快速載單", () => {
       data: { status: "EXPIRED", expiredAt: new Date() },
     });
 
-    const recycled = await placeTakeoutOrder(browser, `${runMarker}-C`);
+    const recycled = await placeTakeoutOrder(browser, `${runMarker}-C`, publicOrderClientIp);
     createdOrders.push(recycled);
     expect(recycled.pickupCode).toBe(first.pickupCode);
 
@@ -78,8 +79,7 @@ test.describe("每日三碼取餐與店員快速載單", () => {
     try {
       const staffPage = await context.newPage();
       await loginAsStaff(staffPage);
-      const pickupLookupButton = staffPage.getByTestId("staff-pickup-code-lookup");
-      await expect(pickupLookupButton).toHaveCount(1);
+      const pickupLookupButton = await stablePickupLookupButton(staffPage);
       await pickupLookupButton.click();
 
       const lookupDialog = staffPage.getByRole("dialog", { name: "以取餐碼載入訂單" });
@@ -111,8 +111,16 @@ test.describe("每日三碼取餐與店員快速載單", () => {
   });
 });
 
-async function placeTakeoutOrder(browser: Browser, customerName: string): Promise<CreatedOrder> {
+async function placeTakeoutOrder(
+  browser: Browser,
+  customerName: string,
+  clientIp: string,
+): Promise<CreatedOrder> {
   const context = await browser.newContext({
+    extraHTTPHeaders: {
+      "cf-connecting-ip": clientIp,
+      "x-vercel-forwarded-for": clientIp,
+    },
     locale: "zh-TW",
     timezoneId: "Asia/Taipei",
     viewport: { width: 390, height: 844 },
@@ -185,4 +193,19 @@ async function loginAsStaff(page: Page) {
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
   await expect(page).toHaveURL(/\/staff\//u, { timeout: 30_000 });
+}
+
+async function stablePickupLookupButton(page: Page) {
+  const header = page.getByTestId("staff-sticky-header");
+  const pickupLookupButton = page.getByTestId("staff-pickup-code-lookup");
+  await expect(async () => {
+    await expect(header).toHaveCount(1);
+    await expect(pickupLookupButton).toHaveCount(1);
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }));
+    await expect(header).toHaveCount(1);
+    await expect(pickupLookupButton).toHaveCount(1);
+  }).toPass({ timeout: 10_000 });
+  return pickupLookupButton;
 }
