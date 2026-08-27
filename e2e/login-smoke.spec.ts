@@ -7,7 +7,7 @@ test("手機登入欄位具備正確語意、焦點與無水平溢位", async ({
   await page.setViewportSize({ width: 360, height: 740 });
   await page.goto("/login");
 
-  await expect(page.getByRole("heading", { name: "登入攤點通" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "商家登入" })).toBeVisible();
   await expect(page.getByText("StallOrder", { exact: true })).toHaveCount(0);
   await expect(page.getByText("已註冊商家請優先使用 Google 帳號登入。", { exact: true })).toBeVisible();
   await expect(page.getByText(/平台管理員請使用/)).toHaveCount(0);
@@ -62,6 +62,19 @@ test("示範 Owner 可登入並建立有效 session", async ({ page }) => {
   expect((await loginResponse).status()).toBe(200);
   await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/);
   await expect(page.getByText("多攤位營運總覽", { exact: true })).toBeVisible();
+});
+
+test("店員由獨立入口登入並返回店員工作區", async ({ page }) => {
+  await page.goto("/staff/login");
+  await expect(page.getByRole("heading", { name: "員工登入" })).toBeVisible();
+  await expect(page.getByText("供受邀的店員與廚房人員使用。", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
+  await page.getByLabel("電子郵件").fill("staff@stallorder.test");
+  await page.getByLabel("密碼").fill(password);
+  await page.getByRole("button", { name: "登入", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/staff\/aming-chicken/);
 });
 
 test("本機平台管理員可登入管理後台", async ({ page }) => {

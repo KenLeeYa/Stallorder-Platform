@@ -227,9 +227,9 @@ export function getDefaultWorkspacePath(workspaces: WorkspaceOrganization[]) {
   return role ? defaultPathForRole(role, stall.slug) : "/select-stall";
 }
 
-export const requireWorkspacePage = cache(async function requireWorkspacePage() {
+export const requireWorkspacePage = cache(async function requireWorkspacePage(loginPath = "/login") {
   const principal = await getPagePrincipal();
-  if (!principal) redirect("/login");
+  if (!principal) redirect(loginPath);
 
   const workspaces = await getWorkspaceAccess(principal.user.id, principal.user.platformRole);
   if (workspaces.length === 0) redirect("/onboarding");

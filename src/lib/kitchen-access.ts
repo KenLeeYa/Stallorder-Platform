@@ -1,6 +1,7 @@
 import "server-only";
 
 import { notFound } from "next/navigation";
+import { loginPathForReturnPath } from "@/lib/login-routing";
 import { hasPermission, resolvePrimaryRole, type Permission } from "@/lib/rbac";
 import { requireWorkspacePage } from "@/lib/workspace";
 import { entitlementService } from "@/server/billing/entitlement-service";
@@ -9,7 +10,7 @@ export async function requireKitchenPage(
   requestedStallSlug: string | undefined,
   permission: Permission,
 ) {
-  const { principal, workspaces } = await requireWorkspacePage();
+  const { principal, workspaces } = await requireWorkspacePage(loginPathForReturnPath("/kitchen"));
   const candidates = workspaces.flatMap((workspace) => workspace.stalls
     .filter((stall) => (
       stall.isActive
