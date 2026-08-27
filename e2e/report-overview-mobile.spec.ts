@@ -17,18 +17,19 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto(`/merchant/reports/overview?organizationId=${organizationId}`);
 
-    const overview = page.getByTestId("report-overview");
-    const summary = page.getByTestId("sales-summary-dashboard");
-    const hourly = page.getByTestId("hourly-sales-dashboard");
-    const hourlyCells = page.getByTestId("hourly-sales-cell");
+    const mainContent = page.locator("#main-content");
+    const overview = mainContent.getByTestId("report-overview");
+    const summary = mainContent.getByTestId("sales-summary-dashboard");
+    const hourly = mainContent.getByTestId("hourly-sales-dashboard");
+    const hourlyCells = mainContent.getByTestId("hourly-sales-cell");
 
-    await expect(page.getByRole("heading", { name: "銷售趨勢總覽", exact: true })).toBeVisible();
+    await expect(mainContent.getByRole("heading", { name: "銷售趨勢總覽", exact: true })).toBeVisible();
     await expect(summary.locator("dt")).toHaveCount(4);
     await expect(hourlyCells).toHaveCount(24);
     await expect(hourly.getByText("00:00", { exact: true })).toBeVisible();
     await expect(hourly.getByText("23:00", { exact: true })).toBeVisible();
 
-    const dateInputWidths = await page.locator('input[type="date"]').evaluateAll((inputs) => inputs.map((input) => input.getBoundingClientRect().width));
+    const dateInputWidths = await mainContent.locator('input[type="date"]').evaluateAll((inputs) => inputs.map((input) => input.getBoundingClientRect().width));
     expect(dateInputWidths.every((width) => width >= 150)).toBe(true);
 
     expect(await countGridColumns(summary.locator(":scope > div"))).toBe(viewport.summaryColumns);
@@ -36,7 +37,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
 
     await expectNoHorizontalOverflow(overview);
 
-    const hourlyValues = await page.getByTestId("hourly-sales-value").evaluateAll((elements) => elements.map((element) => {
+    const hourlyValues = await mainContent.getByTestId("hourly-sales-value").evaluateAll((elements) => elements.map((element) => {
       const styles = window.getComputedStyle(element);
       return {
         clientWidth: element.clientWidth,
@@ -49,11 +50,11 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
     expect(hourlyValues.every((value) => value.textOverflow !== "ellipsis" && value.whiteSpace === "normal")).toBe(true);
 
     if (viewport.width === 390) {
-      const firstStallCheckbox = page.locator('form input[name="stallId"]').first();
+      const firstStallCheckbox = mainContent.locator('form input[name="stallId"]').first();
       const removedStallId = await firstStallCheckbox.getAttribute("value");
       await expect(firstStallCheckbox).toBeChecked();
       await firstStallCheckbox.uncheck();
-      await page.getByLabel("開始日期").fill("2026-01-01");
+      await mainContent.getByLabel("開始日期").fill("2026-01-01");
 
       const exportCapture: { payload?: { stallIds: string[]; dateFrom: string } } = {};
       await page.route("**/api/merchant/reports/export", async (route) => {
@@ -65,7 +66,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
           body: "order_no,total\n",
         });
       });
-      await page.getByRole("button", { name: "匯出 CSV", exact: true }).click();
+      await mainContent.getByRole("button", { name: "匯出 CSV", exact: true }).click();
       await expect.poll(() => exportCapture.payload).toBeDefined();
 
       const appliedFilter = await firstStallCheckbox.locator("xpath=ancestor::form").evaluate((form) => ({
@@ -78,18 +79,18 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
     }
 
     await page.goto(`/merchant/reports/products?organizationId=${organizationId}`);
-    const products = page.getByTestId("report-products");
-    const productHours = page.getByTestId("product-hourly-dashboard");
-    await expect(page.getByRole("heading", { name: "商品與時段分析", exact: true })).toBeVisible();
+    const products = mainContent.getByTestId("report-products");
+    const productHours = mainContent.getByTestId("product-hourly-dashboard");
+    await expect(mainContent.getByRole("heading", { name: "商品與時段分析", exact: true })).toBeVisible();
     await expect(productHours).toBeVisible();
     expect(await countComputedGridColumns(productHours)).toBe(viewport.productColumns);
     await expectNoHorizontalOverflow(products);
 
     await page.goto(`/merchant/reports/payments?organizationId=${organizationId}`);
-    const payments = page.getByTestId("report-payments");
-    const paymentSummary = page.getByTestId("payment-summary-dashboard");
-    const stallPayments = page.getByTestId("stall-payment-dashboard");
-    await expect(page.getByRole("heading", { name: "付款分析", exact: true })).toBeVisible();
+    const payments = mainContent.getByTestId("report-payments");
+    const paymentSummary = mainContent.getByTestId("payment-summary-dashboard");
+    const stallPayments = mainContent.getByTestId("stall-payment-dashboard");
+    await expect(mainContent.getByRole("heading", { name: "付款分析", exact: true })).toBeVisible();
     await expect(paymentSummary).toHaveCount(1);
     await expect(stallPayments).toHaveCount(1);
     await expect(paymentSummary.locator("dt")).not.toHaveCount(0);
@@ -98,12 +99,12 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
     await expectNoHorizontalOverflow(payments);
 
     await page.goto(`/merchant/reports/stalls?organizationId=${organizationId}`);
-    const stalls = page.getByTestId("report-stalls");
-    const stallDashboard = page.getByTestId("stall-performance-dashboard");
-    const firstStallCard = page.getByTestId("stall-performance-card").first();
-    await expect(page.getByRole("heading", { name: "攤位績效比較", exact: true })).toBeVisible();
+    const stalls = mainContent.getByTestId("report-stalls");
+    const stallDashboard = mainContent.getByTestId("stall-performance-dashboard");
+    const firstStallCard = mainContent.getByTestId("stall-performance-card").first();
+    await expect(mainContent.getByRole("heading", { name: "攤位績效比較", exact: true })).toBeVisible();
     await expect(stallDashboard).toHaveCount(1);
-    await expect(page.getByTestId("stall-performance-table")).toBeHidden();
+    await expect(mainContent.getByTestId("stall-performance-table")).toBeHidden();
     await expect(firstStallCard).toBeVisible();
     await expect(firstStallCard.locator("dt")).toHaveCount(7);
     expect(await countComputedGridColumns(firstStallCard.locator("dl"))).toBe(viewport.stallColumns);

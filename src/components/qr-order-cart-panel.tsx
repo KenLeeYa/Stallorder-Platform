@@ -1,6 +1,6 @@
 import type { ReactNode, RefObject } from "react";
-import dynamic from "next/dynamic";
 import { AlertTriangle, Minus, Plus, Send, X } from "lucide-react";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 import { deliveryOrderMessages } from "@/lib/delivery-order-i18n";
 import { formatMoney } from "@/lib/money";
 import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
@@ -16,11 +16,6 @@ import { qrOrderMessages, type QrLocale } from "@/lib/qr-order-i18n";
 import type { QrOrderSession } from "@/components/qr-order-flow-orchestration";
 
 export { resolveQrCheckoutBlocker } from "@/components/qr-order-checkout-controller";
-
-const TurnstileWidget = dynamic(
-  () => import("@/components/turnstile-widget").then((module) => module.TurnstileWidget),
-  { ssr: false, loading: () => <div className="min-h-16 w-full" aria-hidden="true" /> },
-);
 
 type QrOrderCartPanelProps = {
   session: QrOrderSession;

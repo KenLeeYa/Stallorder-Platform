@@ -24,6 +24,12 @@ describe("client bundle boundaries", () => {
     expect(staffPresentation).not.toMatch(/^import \{ Offline(?:BootstrapControl|QueueStatus)/m);
   });
 
+  it("keeps Turnstile inside the existing QR bundle instead of a nested dynamic chunk", () => {
+    const cartPanel = source("src/components/qr-order-cart-panel.tsx");
+    expect(cartPanel).toContain('import { TurnstileWidget } from "@/components/turnstile-widget"');
+    expect(cartPanel).not.toContain('from "next/dynamic"');
+  });
+
   it("retains Zod at the server command-validation boundaries", () => {
     expect(source("src/lib/fulfillment-time.ts")).toMatch(/from ["']zod["']/);
     expect(source("src/lib/special-closures.ts")).toMatch(/from ["']zod["']/);

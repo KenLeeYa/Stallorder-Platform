@@ -495,10 +495,12 @@ async function verifyClosedPreorder(browser: Browser) {
   try {
     const page = await context.newPage();
     const pageErrors: string[] = [];
-    const consoleErrors: string[] = [];
+    const consoleErrors: Array<{ text: string; url: string }> = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     page.on("console", (message) => {
-      if (message.type() === "error") consoleErrors.push(message.text());
+      if (message.type() === "error") {
+        consoleErrors.push({ text: message.text(), url: message.location().url });
+      }
     });
     const physicalQrSessionPromise = page.waitForResponse((response) => (
       new URL(response.url()).pathname.endsWith("/create-order-session")
@@ -542,7 +544,8 @@ async function verifyClosedPreorder(browser: Browser) {
     ))).toBe(true);
     await expect(page.getByRole("region", { name: "抽抽樂推薦" })).toHaveCount(0);
     expect(pageErrors).toEqual([]);
-    expect(consoleErrors.filter((message) => !message.includes("status of 409 (Conflict)"))).toEqual([]);
+    const unexpectedConsoleErrors = consoleErrors.filter(({ text }) => !text.includes("status of 409 (Conflict)"));
+    expect(unexpectedConsoleErrors).toEqual([]);
   } finally {
     await context.close();
   }
