@@ -40,6 +40,10 @@ jobs:
     steps:
       - name: Validate protected invocation
         shell: bash
+        env:
+          INPUT_OPERATION: ${{ inputs.operation }}
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+          INPUT_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = "refs/heads/main" || {
@@ -47,15 +51,15 @@ jobs:
             exit 1
           }
           expected="PLAN_STATUS_PAGE"
-          if [ "${{ inputs.operation }}" = "deploy" ]; then
+          if [ "$INPUT_OPERATION" = "deploy" ]; then
             expected="DEPLOY_STATUS_PAGE"
           fi
-          test "${{ inputs.confirmation }}" = "$expected" || {
+          test "$INPUT_CONFIRMATION" = "$expected" || {
             echo "::error::Confirmation must be ${expected}."
             exit 1
           }
-          if [ "${{ inputs.operation }}" = "deploy" ]; then
-            [[ "${{ inputs.plan_run_id }}" =~ ^[1-9][0-9]{0,19}$ ]] || {
+          if [ "$INPUT_OPERATION" = "deploy" ]; then
+            [[ "$INPUT_PLAN_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
               echo "::error::Deploy requires the successful Plan workflow run ID."
               exit 1
             }

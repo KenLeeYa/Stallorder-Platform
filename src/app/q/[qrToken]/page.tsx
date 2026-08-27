@@ -1,4 +1,4 @@
-import { QrOrderFlow } from "@/components/qr-order-flow";
+import { LazyQrOrderFlow } from "@/components/lazy-qr-order-flow";
 import { isAppLocale } from "@/lib/app-locale";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { createPerformanceTiming } from "@/lib/performance-timing";
@@ -47,7 +47,7 @@ export default async function QrOrderPage({ params, searchParams }: PageProps) {
   timing.addSince("renderMs", renderStartedAt);
   timing.finish({ status: 200 });
   return (
-    <QrOrderFlow
+    <LazyQrOrderFlow
       qrToken={qrToken}
       orderingMode={initialMenu?.orderingMode ?? "DEFAULT"}
       initialMenu={initialMenu}

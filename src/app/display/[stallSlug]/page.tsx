@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { PickupDisplayBoard } from "@/components/pickup-display-board";
+import { LazyPickupDisplayBoard } from "@/components/lazy-pickup-display-board";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { getOperationsMessage } from "@/lib/messages/operations";
 
@@ -17,7 +17,7 @@ export default async function PickupDisplayPage({ params }: PageProps) {
   const { stallSlug } = await params;
   const encodedSlug = encodeURIComponent(stallSlug);
   return (
-    <PickupDisplayBoard
+    <LazyPickupDisplayBoard
       dataEndpoint={`/api/public/display/${encodedSlug}`}
       streamEndpoint={`/api/public/display/${encodedSlug}/stream`}
     />

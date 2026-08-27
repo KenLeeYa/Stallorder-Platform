@@ -415,7 +415,7 @@ test.describe("多攤位商戶關鍵流程", () => {
       new RegExp(`/merchant/stalls\\?organizationId=${organization.id}$`),
     );
     await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organization.id}`);
-    await expect(page.getByLabel("營運摘要")).toContainText("1,500");
+    await expect(page.locator("#main-content").getByLabel("營運摘要")).toContainText("1,500");
     await expect(page.getByRole("heading", { name: "攤位比較" })).toBeVisible();
     await expect(page.getByRole("link", { name: firstStall.name, exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: secondStall.name, exact: true })).toBeVisible();
@@ -450,8 +450,10 @@ test.describe("多攤位商戶關鍵流程", () => {
     await expect(page.getByRole("heading", { name: organization.businessName, exact: true })).toBeVisible();
 
     await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organization.id}&stallId=${secondStall.id}`);
-    await expect(page.locator("details").filter({ hasText: "攤位範圍" }).locator("summary")).toContainText("已選 1 個");
-    const comparisonTable = page.getByRole("table");
+    const merchantMain = page.locator("#main-content");
+    await expect(merchantMain.locator("details").filter({ hasText: "攤位範圍" }).locator("summary"))
+      .toContainText("已選 1 個");
+    const comparisonTable = merchantMain.getByRole("table");
     await expect(comparisonTable.getByRole("link", { name: secondStall.name, exact: true })).toBeVisible();
     await expect(comparisonTable.getByRole("link", { name: firstStall.name, exact: true })).toHaveCount(0);
 
@@ -477,7 +479,10 @@ test.describe("多攤位商戶關鍵流程", () => {
     await expect(page.getByTestId("work-mode-icon-staff")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^選擇攤位/u })).toHaveCount(0);
     const unassignedStaffResponse = await page.goto(`/staff/${secondStall.slug}`);
-    expect(unassignedStaffResponse?.status()).toBe(404);
+    // A streamed App Router shell may commit 200 before notFound() resolves.
+    expect([200, 404]).toContain(unassignedStaffResponse?.status());
+    await expect(page.getByRole("heading", { name: "找不到此頁面", exact: true })).toBeVisible();
+    await expect(page.getByText(secondStall.name, { exact: true })).toHaveCount(0);
 
     await page.context().clearCookies();
     await loginWithPassword(page, financeEmail);
@@ -517,7 +522,10 @@ test.describe("多攤位商戶關鍵流程", () => {
     const kitchenFinanceResponse = await page.goto(
       `/merchant/reports/payments?organizationId=${organization.id}`,
     );
-    expect(kitchenFinanceResponse?.status()).toBe(404);
+    // A streamed App Router shell may commit 200 before notFound() resolves.
+    expect([200, 404]).toContain(kitchenFinanceResponse?.status());
+    await expect(page.getByRole("heading", { name: "找不到此頁面", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "付款分析", exact: true })).toHaveCount(0);
   });
 
   test("多攤位介面在手機寬度無水平溢出", async ({ page }) => {
@@ -538,11 +546,12 @@ test.describe("多攤位商戶關鍵流程", () => {
     await expect(page.getByRole("button", { name: "選擇攤位：全部攤位", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "攤位比較" })).toBeVisible();
     await expect(page.getByRole("article").filter({ hasText: secondStall.name })).toBeVisible();
-    const summaryColumnCount = await page.getByLabel("營運摘要").evaluate((element) => (
+    const summaryDashboard = page.locator("#main-content").getByLabel("營運摘要");
+    const summaryColumnCount = await summaryDashboard.evaluate((element) => (
       window.getComputedStyle(element).gridTemplateColumns.split(" ").length
     ));
     expect(summaryColumnCount).toBe(2);
-    await expect(page.getByLabel("營運摘要").locator(":scope > div").nth(6))
+    await expect(summaryDashboard.locator(":scope > div").nth(6))
       .toHaveCSS("grid-column-end", "auto");
     const dimensions = await page.evaluate(() => ({
       viewport: window.innerWidth,
@@ -553,12 +562,12 @@ test.describe("多攤位商戶關鍵流程", () => {
     expect(dimensions.body).toBeLessThanOrEqual(dimensions.viewport + 1);
 
     await page.setViewportSize({ width: 320, height: 720 });
-    await expect(page.getByLabel("營運摘要")).toBeVisible();
-    const narrowSummaryColumnCount = await page.getByLabel("營運摘要").evaluate((element) => (
+    await expect(summaryDashboard).toBeVisible();
+    const narrowSummaryColumnCount = await summaryDashboard.evaluate((element) => (
       window.getComputedStyle(element).gridTemplateColumns.split(" ").length
     ));
     expect(narrowSummaryColumnCount).toBe(2);
-    await expect(page.getByLabel("營運摘要").locator(":scope > div").nth(6))
+    await expect(summaryDashboard.locator(":scope > div").nth(6))
       .toHaveCSS("grid-column-end", "auto");
     const narrowDimensions = await page.evaluate(() => ({
       viewport: window.innerWidth,
@@ -569,8 +578,8 @@ test.describe("多攤位商戶關鍵流程", () => {
     expect(narrowDimensions.body).toBeLessThanOrEqual(narrowDimensions.viewport + 1);
 
     await page.setViewportSize({ width: 768, height: 1024 });
-    await expect(page.getByLabel("營運摘要")).toBeVisible();
-    const tabletSummaryColumnCount = await page.getByLabel("營運摘要").evaluate((element) => (
+    await expect(summaryDashboard).toBeVisible();
+    const tabletSummaryColumnCount = await summaryDashboard.evaluate((element) => (
       window.getComputedStyle(element).gridTemplateColumns.split(" ").length
     ));
     expect(tabletSummaryColumnCount).toBe(4);

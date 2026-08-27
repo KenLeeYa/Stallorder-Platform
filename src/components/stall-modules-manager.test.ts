@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { LocaleProvider } from "@/components/locale-provider";
+import { MessageTestProvider } from "@/test/message-test-provider";
 import {
   buildPublicStorefrontShare,
   mergeModuleStateAfterCommand,
@@ -138,10 +138,9 @@ describe("buildPublicStorefrontShare", () => {
   });
 
   it("renders one customer URL field with the unified pickup label", () => {
-    const html = renderToStaticMarkup(createElement(LocaleProvider, {
+    const html = renderToStaticMarkup(createElement(MessageTestProvider, {
       initialLocale: "zh-TW",
-      hasLocaleCookie: true,
-    } as Parameters<typeof LocaleProvider>[0], createElement(StallModulesManager, {
+    }, createElement(StallModulesManager, {
         stallId: "stall-1",
         stallCode: "VIET-FOOD-YC",
         appUrl: "https://app.qidaigo.com",
@@ -156,10 +155,9 @@ describe("buildPublicStorefrontShare", () => {
   });
 
   it("keeps every stall setting section visible without accordion controls", () => {
-    const html = renderToStaticMarkup(createElement(LocaleProvider, {
+    const html = renderToStaticMarkup(createElement(MessageTestProvider, {
       initialLocale: "zh-TW",
-      hasLocaleCookie: true,
-    } as Parameters<typeof LocaleProvider>[0], createElement(StallModulesManager, {
+    }, createElement(StallModulesManager, {
       stallId: "stall-1",
       stallCode: "VIET-FOOD-YC",
       appUrl: "https://app.qidaigo.com",

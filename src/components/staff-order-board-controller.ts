@@ -70,7 +70,7 @@ import {
   type FulfillmentProductionTiming,
 } from "@/lib/fulfillment-time-client";
 import { formatMoney } from "@/lib/money";
-import { getOperationsErrorMessage } from "@/lib/messages/operations";
+import { getOperationsErrorMessageKey } from "@/lib/messages/operations-errors";
 import { canTransitionOrderItem } from "@/lib/order-item-status";
 import type { StaffOrderDto } from "@/lib/orders";
 import { isCompletePickupCode, normalizePickupCode } from "@/lib/pickup-code";
@@ -479,7 +479,7 @@ export function useStaffOrderBoardController({
         code?: string;
       };
       if (!response.ok || !payload.order) {
-        throw new Error(getOperationsErrorMessage(locale, payload.code, "staff.error.edit"));
+        throw new Error(t(getOperationsErrorMessageKey(payload.code, "staff.error.edit")));
       }
       knownOrderIdsRef.current.add(payload.order.id);
       setOrders((current) => current.map((order) => (

@@ -17,7 +17,8 @@ describe("localized login form", () => {
       </LocaleProvider>,
     );
 
-    expect(html).toContain("Sign in to StallOrder");
+    expect(html).toContain("Merchant sign-in");
+    expect(html).toContain("Customer QR ordering does not require sign-in");
     expect(html).toContain("Continue with Google");
     expect(html).toContain("Other sign-in methods");
     expect(html).toContain("Sign in with email and password");
@@ -25,6 +26,24 @@ describe("localized login form", () => {
     expect(html).toContain("Email");
     expect(html).toContain("Password");
     expect(html).not.toContain("登入");
+  });
+
+  it("renders a distinct staff and kitchen sign-in entry", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+        <LoginForm
+          audience="STAFF"
+          legacyGoogleEnabled={false}
+          oauthOnly={false}
+          oauthProviders={[{ provider: "LINE", label: "LINE" }]}
+        />
+      </LocaleProvider>,
+    );
+
+    expect(html).toContain("員工登入");
+    expect(html).toContain("供受邀的店員與廚房人員使用");
+    expect(html).toContain("使用 LINE 登入");
+    expect(html).not.toContain("商家登入");
   });
 
   it("renders the server-selected application link through the same provider", () => {

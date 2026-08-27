@@ -226,7 +226,9 @@ test.describe("P1 營運功能", () => {
     await expect(reprintJob).toContainText("待列印");
 
     await page.goto("/staff/aming-chicken/cash");
-    await expect(page.getByText("$2,606", { exact: true })).toBeVisible();
+    const cashMain = page.locator("#main-content");
+    await expect(cashMain).toHaveCount(1);
+    await expect(cashMain.getByText("$2,606", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: /^盤點交班/ }).click();
     const closeShiftDialog = page.getByRole("dialog", { name: "盤點並交班", exact: true });
     await expect(closeShiftDialog).toBeVisible();

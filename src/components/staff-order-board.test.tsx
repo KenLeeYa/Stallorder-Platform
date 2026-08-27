@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { LocaleProvider } from "@/components/locale-provider";
+import { MessageTestProvider } from "@/test/message-test-provider";
 import { StaffOrderBoard } from "@/components/staff-order-board";
 import type { StaffOrderDto } from "@/lib/orders";
 
@@ -68,7 +68,7 @@ function order(override: Partial<StaffOrderDto> = {}): StaffOrderDto {
 }
 
 function render(orders: StaffOrderDto[], moduleOverride: Partial<{ dineIn: boolean; delivery: boolean; print: boolean; kds: boolean; payment: boolean; discount: boolean; discountApprovalThresholdBps: number }> = {}) {
-  return renderToStaticMarkup(<LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+  return renderToStaticMarkup(<MessageTestProvider initialLocale="zh-TW">
     <StaffOrderBoard
     stall={{
       id: "44444444-4444-4444-8444-444444444444",
@@ -104,7 +104,7 @@ function render(orders: StaffOrderDto[], moduleOverride: Partial<{ dineIn: boole
     workModeDestinations={[]}
     appVersion="test"
     />
-  </LocaleProvider>);
+  </MessageTestProvider>);
 }
 
 describe("StaffOrderBoard ticket presentation", () => {

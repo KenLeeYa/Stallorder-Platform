@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { RouteLoadingSkeleton } from "@/components/route-loading-skeleton";
-import { StaffOrderBoard } from "@/components/staff-order-board";
+import { LazyStaffOrderBoard } from "@/components/lazy-staff-order-board";
 import { requirePagePermission } from "@/lib/authorization";
 import { prisma } from "@/lib/prisma";
 import { activeOrderStatuses, serializeStaffOrder, staffOrderSelect } from "@/lib/orders";
@@ -80,7 +80,7 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
   const workModeDestinations = buildWorkModeDestinations(workspaces);
 
   return (
-    <StaffOrderBoard
+    <LazyStaffOrderBoard
       stall={{
         id: stall.id,
         organizationId: stall.organizationId,

@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { KitchenBoard } from "@/components/kitchen-board";
 import { KitchenNavigation } from "@/components/kitchen-navigation";
-import { LocaleProvider } from "@/components/locale-provider";
+import { MessageTestProvider } from "@/test/message-test-provider";
 
 vi.mock("@/components/work-mode-switcher", () => ({
   WorkModeSwitcher: () => <div data-testid="mock-work-mode-switcher" />,
@@ -26,7 +26,7 @@ vi.mock("@/components/logout-button", () => ({ LogoutButton: () => <div data-tes
 describe("kitchen mobile layout", () => {
   it("renders every kitchen header control in one ordered row", () => {
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <KitchenNavigation
           active="BOARD"
           stall={{
@@ -52,14 +52,14 @@ describe("kitchen mobile layout", () => {
             onRefresh: () => undefined,
           }}
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).toContain('data-testid="kitchen-toolbar-row"');
     expect(html).toContain('data-testid="kitchen-primary-navigation"');
     expect(html).toContain('data-testid="kitchen-language-control"');
     expect(html).toContain('data-testid="kitchen-live-status"');
-    expect(html).toContain('data-testid="kitchen-pinned-logout"');
+    expect(html).toContain('data-testid="kitchen-logout-control"');
     expect(html).toContain('data-testid="mock-work-mode-switcher"');
     expect(html).not.toContain('data-testid="mock-workspace-switcher"');
     expect(html.match(/data-testid="mock-pwa-controls"/g)).toHaveLength(1);
@@ -87,7 +87,7 @@ describe("kitchen mobile layout", () => {
     const settingsIndex = html.indexOf('data-testid="kitchen-nav-settings"');
     const alertIndex = html.indexOf('data-testid="kitchen-alert-control"');
     const refreshIndex = html.indexOf('data-testid="kitchen-refresh-control"');
-    const logoutIndex = html.indexOf('data-testid="kitchen-pinned-logout"');
+    const logoutIndex = html.indexOf('data-testid="kitchen-logout-control"');
     expect(orderIndex).toBeGreaterThan(-1);
     expect(itemIndex).toBeGreaterThan(orderIndex);
     expect(workstationIndex).toBeGreaterThan(itemIndex);
@@ -104,7 +104,7 @@ describe("kitchen mobile layout", () => {
 
   it("hides both switchers for a pure kitchen account", () => {
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <KitchenNavigation
           active="BOARD"
           stall={{
@@ -118,7 +118,7 @@ describe("kitchen mobile layout", () => {
             { value: "kitchen:11111111-1111-4111-8111-111111111111", mode: "KITCHEN", organizationId: "22222222-2222-4222-8222-222222222222", stallId: "11111111-1111-4111-8111-111111111111", label: "廚房 · 測試攤位", href: "/kitchen?stall=demo" },
           ]}
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).not.toContain('data-testid="mock-work-mode-switcher"');
@@ -127,7 +127,7 @@ describe("kitchen mobile layout", () => {
 
   it("shows work mode but not stall switching for a single-stall merchant", () => {
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <KitchenNavigation
           active="BOARD"
           stall={{
@@ -142,7 +142,7 @@ describe("kitchen mobile layout", () => {
             { value: "kitchen:11111111-1111-4111-8111-111111111111", mode: "KITCHEN", organizationId: "22222222-2222-4222-8222-222222222222", stallId: "11111111-1111-4111-8111-111111111111", label: "廚房 · 測試攤位", href: "/kitchen?stall=demo" },
           ]}
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).toContain('data-testid="mock-work-mode-switcher"');
@@ -151,7 +151,7 @@ describe("kitchen mobile layout", () => {
 
   it("renders only board-specific controls in the sticky board toolbar", () => {
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <KitchenBoard
           stall={{ id: "11111111-1111-4111-8111-111111111111", organizationId: "22222222-2222-4222-8222-222222222222", slug: "demo", name: "測試攤位" }}
           canManage
@@ -174,7 +174,7 @@ describe("kitchen mobile layout", () => {
           }}
           role="KITCHEN"
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).toContain('data-testid="kitchen-mode-selector"');

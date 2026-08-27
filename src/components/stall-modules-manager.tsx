@@ -1,8 +1,6 @@
 "use client";
 
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
-import type { AppLocale } from "@/lib/app-locale";
-import { getMerchantMessage } from "@/lib/messages/merchant";
 import { useMemo, useRef, useState } from "react";
 import { CalendarClock, Copy, Dices, Languages, MapPinned, MessageCircle, Percent, Plus, Printer, QrCode, RotateCw, Save, SlidersHorizontal, Trash2, Truck, Utensils, WalletCards } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -10,6 +8,7 @@ import { CollapsibleSectionSummary } from "@/components/collapsible-section-summ
 import { DiningFloorEditor } from "@/components/dining-floor-editor";
 import { LocaleFlag } from "@/components/locale-flag";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { interpolateMessage } from "@/lib/message-catalog";
 import {
   DEFAULT_DINING_FLOOR_NAME,
   DINING_TABLE_SHAPES,
@@ -116,11 +115,15 @@ type PaymentDraft = Omit<ModuleState["paymentOptions"][number], "id">;
 type DiscountDraft = Omit<ModuleState["discounts"][number], "id">;
 type MessageKind = "success" | "error";
 
-export function buildPublicStorefrontShare(appUrl: string, stallCode: string, locale: AppLocale = "zh-TW") {
+export function buildPublicStorefrontShare(
+  appUrl: string,
+  stallCode: string,
+  translate: ReturnType<typeof useMerchantMessages>["m"] = (key, values) => interpolateMessage(key, values),
+) {
   const storefrontUrl = `${appUrl.replace(/\/+$/, "")}/store/${encodeURIComponent(stallCode.trim().toLowerCase())}`;
   return {
     storefrontUrl,
-    lineReply: getMerchantMessage(locale, "您好，請開啟以下連結，選擇線上 Menu、外帶自取或外送：\n{value0}", { value0: storefrontUrl }),
+    lineReply: translate("您好，請開啟以下連結，選擇線上 Menu、外帶自取或外送：\n{value0}", { value0: storefrontUrl }),
   };
 }
 
@@ -137,7 +140,7 @@ export function StallModulesManager({
   initialState: ModuleState;
   view?: StallModuleView;
 }) {
-  const { locale, m, label } = useMerchantMessages();
+  const { m, label } = useMerchantMessages();
   const [state, setState] = useState(initialState);
   const [savedState, setSavedState] = useState(initialState);
   const initialFloorTabs = getDiningFloorTabs(initialState.floors, initialState.tables);
@@ -177,7 +180,7 @@ export function StallModulesManager({
     languages: "QR 點餐語系",
   }[view]);
   const showsModuleControls = !["dining-tables", "languages"].includes(view);
-  const { storefrontUrl, lineReply } = buildPublicStorefrontShare(appUrl, stallCode, locale);
+  const { storefrontUrl, lineReply } = buildPublicStorefrontShare(appUrl, stallCode, m);
   const floorTabs = useMemo(() => getDiningFloorTabs(state.floors, state.tables), [state.floors, state.tables]);
   const activeFloor = floorTabs.find((floor) => floor.key === activeFloorKey) ?? floorTabs[0] ?? null;
   const activeFloorRecord = activeFloor?.id ? state.floors.find((floor) => floor.id === activeFloor.id) ?? null : null;

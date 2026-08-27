@@ -17,6 +17,7 @@ const DEFAULT_GATEWAY_TRANSLATION_MODEL = "google/gemini-3-flash";
 const VERCEL_AI_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v1";
 const OPENAI_MODEL_NAME_PATTERN = /^[a-zA-Z0-9._-]{1,100}$/;
 const GATEWAY_MODEL_NAME_PATTERN = /^[a-zA-Z0-9._-]{1,100}\/[a-zA-Z0-9._-]{1,100}$/;
+const PROVIDER_ERROR_VALUE_PATTERN = /^[a-zA-Z0-9._-]{1,100}$/;
 const OIDC_EXPIRATION_BUFFER_MS = 6 * 60_000;
 
 export type CatalogTranslationUpstreamFailure =
@@ -26,6 +27,20 @@ export type CatalogTranslationUpstreamFailure =
   | "PERMISSION_OR_VERIFICATION"
   | "RATE_LIMIT"
   | "UPSTREAM";
+
+export type CatalogTranslationProviderDiagnostics = {
+  upstreamFailure: CatalogTranslationUpstreamFailure;
+  providerStatus: number | null;
+  providerCode: string | null;
+  providerType: string | null;
+  providerErrorKind:
+    | "API_ERROR"
+    | "CONNECTION_TIMEOUT"
+    | "CONNECTION_ERROR"
+    | "OPENAI_ERROR"
+    | "UPSTREAM_ERROR"
+    | "UNKNOWN";
+};
 
 const targetLanguageInstructions: Record<TranslationLocale, string> = {
   en: "natural international English used on professional food-ordering menus",
@@ -45,8 +60,10 @@ export class CatalogTranslationProviderError extends Error {
   constructor(
     message: string,
     readonly upstreamFailure?: CatalogTranslationUpstreamFailure,
+    readonly diagnostics?: CatalogTranslationProviderDiagnostics,
   ) {
     super(message);
+    this.name = "CatalogTranslationProviderError";
   }
 }
 
@@ -146,9 +163,11 @@ export class OpenAiCatalogTranslationProvider implements CatalogTranslationProvi
       return catalogTranslationOutputSchema.parse(response.output_parsed);
     } catch (error) {
       if (error instanceof CatalogTranslationProviderError) throw error;
+      const diagnostics = getCatalogTranslationProviderDiagnostics(error);
       throw new CatalogTranslationProviderError(
         "翻譯供應器暫時無法使用。",
-        classifyUpstreamFailure(error),
+        diagnostics.upstreamFailure,
+        diagnostics,
       );
     }
   }
@@ -167,6 +186,61 @@ function classifyUpstreamFailure(error: unknown): CatalogTranslationUpstreamFail
   if (status === 404) return "MODEL_OR_ROUTE";
   if (status === 429) return "RATE_LIMIT";
   return "UPSTREAM";
+}
+
+export function getCatalogTranslationProviderDiagnostics(
+  error: unknown,
+): CatalogTranslationProviderDiagnostics {
+  if (!error || typeof error !== "object") {
+    return emptyProviderDiagnostics("UNKNOWN", "UPSTREAM");
+  }
+  const status = "status" in error
+    && typeof error.status === "number"
+    && Number.isInteger(error.status)
+    ? error.status
+    : null;
+  const code = "code" in error && typeof error.code === "string"
+    ? safeProviderErrorValue(error.code)
+    : null;
+  const type = "type" in error && typeof error.type === "string"
+    ? safeProviderErrorValue(error.type)
+    : null;
+  const name = "name" in error && typeof error.name === "string" ? error.name : "";
+  const providerErrorKind = name === "APIConnectionTimeoutError"
+    ? "CONNECTION_TIMEOUT"
+    : name === "APIConnectionError"
+      ? "CONNECTION_ERROR"
+      : status !== null
+        ? "API_ERROR"
+        : name.startsWith("OpenAI")
+          ? "OPENAI_ERROR"
+          : name
+            ? "UPSTREAM_ERROR"
+            : "UNKNOWN";
+  return {
+    upstreamFailure: classifyUpstreamFailure(error),
+    providerStatus: status,
+    providerCode: code,
+    providerType: type,
+    providerErrorKind,
+  };
+}
+
+function safeProviderErrorValue(value: string) {
+  return PROVIDER_ERROR_VALUE_PATTERN.test(value) ? value : null;
+}
+
+function emptyProviderDiagnostics(
+  providerErrorKind: CatalogTranslationProviderDiagnostics["providerErrorKind"],
+  upstreamFailure: CatalogTranslationUpstreamFailure,
+): CatalogTranslationProviderDiagnostics {
+  return {
+    upstreamFailure,
+    providerStatus: null,
+    providerCode: null,
+    providerType: null,
+    providerErrorKind,
+  };
 }
 
 function getConfiguration(requestCredential?: string) {

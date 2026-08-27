@@ -24,7 +24,10 @@ type LocalQaAccount = {
   password: string;
 };
 
+type LoginAudience = "MERCHANT" | "STAFF";
+
 export function LoginForm({
+  audience = "MERCHANT",
   nextPath,
   legacyGoogleEnabled,
   oauthOnly,
@@ -32,6 +35,7 @@ export function LoginForm({
   oauthError,
   localQaAccounts,
 }: {
+  audience?: LoginAudience;
   nextPath?: string;
   legacyGoogleEnabled: boolean;
   oauthOnly: boolean;
@@ -54,6 +58,8 @@ export function LoginForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const passwordDialogRef = useRef<HTMLDialogElement>(null);
   const hasOAuthProvider = oauthProviders.length > 0 || legacyGoogleEnabled;
+  const titleKey = audience === "STAFF" ? "login.staff.title" : "login.title";
+  const descriptionKey = audience === "STAFF" ? "login.staff.description" : "login.description";
 
   function openPasswordDialog() {
     setSubmissionError(null);
@@ -105,8 +111,8 @@ export function LoginForm({
         <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-md bg-teal-50 text-teal-800">
           <LogIn className="h-5 w-5" />
         </div>
-        <h1 id="login-title" className="text-2xl font-semibold">{t("login.title")}</h1>
-        <p className="mt-2 text-sm text-stone-600">{t("login.description")}</p>
+        <h1 id="login-title" className="text-2xl font-semibold">{t(titleKey)}</h1>
+        <p className="mt-2 text-sm text-stone-600">{t(descriptionKey)}</p>
       </div>
       {urlError ? <p role="alert" className="mb-4 text-sm text-red-700">{urlError}</p> : null}
       {localQaAccounts?.length ? (

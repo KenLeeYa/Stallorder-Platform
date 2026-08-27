@@ -1,12 +1,10 @@
-"use client";
-
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useAppLocale } from "@/components/locale-provider";
+import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { publicMessages } from "@/lib/messages/public";
 
-export function OnboardingShell({ children }: { children: ReactNode }) {
-  const { locale } = useAppLocale();
+export async function OnboardingShell({ children }: { children: ReactNode }) {
+  const { locale } = await getRequestAppLocale();
   return (
     <main className="min-h-screen px-4 py-8">
       <div className="mx-auto mb-5 max-w-3xl">

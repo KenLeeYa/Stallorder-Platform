@@ -1,12 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { LocaleProvider } from "@/components/locale-provider";
+import { MessageTestProvider } from "@/test/message-test-provider";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
 
 describe("StaffOrderComposer mobile toolbar", () => {
   it("keeps all five mobile actions in one icon-only row and hides explanatory copy", () => {
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <StaffOrderComposer
           stall={{
             id: "11111111-1111-4111-8111-111111111111",
@@ -40,7 +40,7 @@ describe("StaffOrderComposer mobile toolbar", () => {
           onCreated={() => undefined}
           onClose={() => undefined}
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).toContain('data-testid="staff-composer-mobile-toolbar"');
@@ -56,7 +56,7 @@ describe("StaffOrderComposer mobile toolbar", () => {
 
   it("renders one localized group navigation item without a duplicate category item", () => {
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="vi" hasLocaleCookie>
+      <MessageTestProvider initialLocale="vi">
         <StaffOrderComposer
           stall={{
             id: "11111111-1111-4111-8111-111111111111",
@@ -104,7 +104,7 @@ describe("StaffOrderComposer mobile toolbar", () => {
           onCreated={() => undefined}
           onClose={() => undefined}
         />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html.match(/href="#staff-catalog-section-/g)).toHaveLength(1);

@@ -1667,6 +1667,10 @@ const merchantMessageCatalog = createMessageCatalog(
 
 export const merchantMessages = merchantMessageCatalog.messages;
 
+export function getMerchantMessages(locale: AppLocale) {
+  return dictionaryFor(locale);
+}
+
 export function getMerchantMessage(
   locale: AppLocale,
   key: MerchantMessageKey,

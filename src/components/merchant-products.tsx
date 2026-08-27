@@ -116,8 +116,8 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
         </button>
 
         {orderUrl ? (
-          <div className="mt-5">
-            <div className="rounded-lg border border-stone-200 bg-white p-4"><QRCodeSVG value={orderUrl} size={240} className="h-auto w-full" /></div>
+          <div data-testid="merchant-ordering-qr" className="mx-auto mt-5 w-full max-w-sm xl:mx-0">
+            <div className="rounded-lg border border-stone-200 bg-white p-4"><QRCodeSVG data-testid="merchant-ordering-qr-code" value={orderUrl} size={240} className="h-auto w-full" /></div>
             <p className="mt-3 text-sm font-medium">{label("顧客點餐 QR Code · v")}{ordering.qrCode?.tokenVersion}</p>
             <p className="mt-1 break-all text-xs text-stone-500">{orderUrl}</p>
           </div>

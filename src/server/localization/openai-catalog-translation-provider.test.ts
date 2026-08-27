@@ -22,6 +22,7 @@ import {
   CatalogTranslationConfigurationError,
   CatalogTranslationProviderError,
   getCatalogAiTranslationProviderLabel,
+  getCatalogTranslationProviderDiagnostics,
   isCatalogAiTranslationConfigured,
   OpenAiCatalogTranslationProvider,
   resolveCatalogAiTranslationRequestCredential,
@@ -322,6 +323,36 @@ describe("OpenAiCatalogTranslationProvider", () => {
       code: "AI_TRANSLATION_PROVIDER_FAILED",
       upstreamFailure,
       message: "翻譯供應器暫時無法使用。",
+    });
+  });
+
+  it("只保留可安全記錄的供應器診斷欄位", () => {
+    expect(getCatalogTranslationProviderDiagnostics(Object.assign(
+      new Error("sensitive provider message"),
+      {
+        status: 401,
+        code: "invalid_api_key",
+        type: "invalid_request_error",
+      },
+    ))).toEqual({
+      upstreamFailure: "AUTHENTICATION",
+      providerStatus: 401,
+      providerCode: "invalid_api_key",
+      providerType: "invalid_request_error",
+      providerErrorKind: "API_ERROR",
+    });
+
+    expect(getCatalogTranslationProviderDiagnostics(Object.assign(
+      new Error("sensitive provider message"),
+      {
+        status: 400,
+        code: "unsafe\nvalue",
+        type: "invalid request",
+      },
+    ))).toMatchObject({
+      providerStatus: 400,
+      providerCode: null,
+      providerType: null,
     });
   });
 });

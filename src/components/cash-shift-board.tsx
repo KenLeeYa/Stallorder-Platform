@@ -17,7 +17,7 @@ import { useOperationsLocale } from "@/components/operations-locale";
 import { OfflineQueueStatus } from "@/components/offline-queue-status";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatAppDateTime } from "@/lib/locale-format";
-import { getOperationsErrorMessage } from "@/lib/messages/operations";
+import { getOperationsErrorMessageKey } from "@/lib/messages/operations-errors";
 import { formatMoney } from "@/lib/money";
 
 type ShiftStatus = "OPEN" | "CLOSING" | "REVIEW_REQUIRED" | "CLOSED";
@@ -169,7 +169,7 @@ export function CashShiftBoard({
         body: JSON.stringify(command),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(getOperationsErrorMessage(locale, payload.code, "cash.error.update"));
+      if (!response.ok) throw new Error(t(getOperationsErrorMessageKey(payload.code, "cash.error.update")));
       applyPayload(payload);
       setMessage(successMessage);
       return true;
@@ -179,7 +179,7 @@ export function CashShiftBoard({
     } finally {
       setBusy(false);
     }
-  }, [applyPayload, locale, stall.slug, t]);
+  }, [applyPayload, stall.slug, t]);
 
   useEffect(() => {
     const timer = window.setInterval(() => void refresh(), 15_000);

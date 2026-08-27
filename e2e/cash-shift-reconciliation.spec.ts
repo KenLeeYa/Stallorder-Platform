@@ -188,6 +188,9 @@ test.describe.serial("現金交班與短溢收", () => {
   test("手機現金 Dashboard 在 320、390 與 768 寬度可掃讀且操作視窗可捲動與還原焦點", async ({ page }) => {
     await login(page, "staff@stallorder.test", /\/staff\/aming-chicken/);
     await page.goto(`/staff/${stallSlug}/cash`);
+    const staffMain = page.locator("#main-content");
+    const cashShiftDashboard = staffMain.getByTestId("cash-shift-dashboard");
+    await expect(cashShiftDashboard).toHaveCount(1);
 
     for (const viewport of [
       { width: 320, height: 568 },
@@ -195,7 +198,7 @@ test.describe.serial("現金交班與短溢收", () => {
       { width: 768, height: 1024 },
     ]) {
       await page.setViewportSize(viewport);
-      await expect(page.getByTestId("cash-shift-dashboard")).toBeVisible();
+      await expect(cashShiftDashboard).toBeVisible();
       const layout = await page.evaluate(() => ({
         clientWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,
@@ -204,12 +207,12 @@ test.describe.serial("現金交班與短溢收", () => {
     }
 
     await page.setViewportSize({ width: 320, height: 260 });
-    const openButton = page.getByRole("button", { name: "開始現金班次" });
+    const openButton = staffMain.getByRole("button", { name: "開始現金班次" });
     await openButton.focus();
     await openButton.click();
     const dialog = page.getByRole("dialog", { name: "開啟現金班次" });
     await expect(dialog).toBeVisible();
-    await expect(page.getByLabel("開班金額")).toBeFocused();
+    await expect(staffMain.getByLabel("開班金額")).toBeFocused();
     const dialogLayout = await dialog.evaluate((element) => ({
       clientHeight: element.clientHeight,
       scrollHeight: element.scrollHeight,
@@ -228,10 +231,10 @@ test.describe.serial("現金交班與短溢收", () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await openButton.click();
-    await page.getByLabel("開班金額").fill("500");
-    await page.getByLabel("備註（選填）").fill("Cash shift E2E responsive dashboard");
-    await page.getByRole("button", { name: "開始班次" }).click();
-    await expect(page.getByText("班次進行中", { exact: true })).toBeVisible();
+    await staffMain.getByLabel("開班金額").fill("500");
+    await staffMain.getByLabel("備註（選填）").fill("Cash shift E2E responsive dashboard");
+    await staffMain.getByRole("button", { name: "開始班次" }).click();
+    await expect(staffMain.getByText("班次進行中", { exact: true })).toBeVisible();
 
     for (const viewport of [
       { width: 320, height: 568, metricColumns: 2, actionColumns: 2 },
@@ -254,11 +257,12 @@ test.describe.serial("現金交班與短溢收", () => {
   test("財務角色唯讀，廚房角色無法存取現金資料", async ({ browser }) => {
     const financePage = await newRolePage(browser, financeEmail, /\/merchant\/dashboard/);
     await financePage.goto(`/staff/${stallSlug}/cash`);
-    await expect(financePage.getByText(/目前為唯讀模式/)).toBeVisible();
-    await expect(financePage.getByRole("button", { name: "開始現金班次", exact: true })).toHaveCount(0);
+    const financeMain = financePage.locator("#main-content");
+    await expect(financeMain.getByText(/目前為唯讀模式/)).toBeVisible();
+    await expect(financeMain.getByRole("button", { name: "開始現金班次", exact: true })).toHaveCount(0);
     await financePage.goto(`/merchant/reports/cash-shifts?organizationId=${organizationId}&stallId=${stallId}`);
-    await expect(financePage.getByRole("heading", { name: "現金交班與短溢收" })).toBeVisible();
-    const reportRow = financePage.getByRole("article").filter({ hasText: "$1,150" });
+    await expect(financeMain.getByRole("heading", { name: "現金交班與短溢收" })).toBeVisible();
+    const reportRow = financeMain.getByRole("article").filter({ hasText: "$1,150" });
     await expect(reportRow).toContainText("已結班");
     await expect(reportRow).toContainText("-$50");
     for (const viewport of [
@@ -266,7 +270,8 @@ test.describe.serial("現金交班與短溢收", () => {
       { width: 390, height: 844 },
     ]) {
       await financePage.setViewportSize(viewport);
-      const summaryDashboard = financePage.getByTestId("cash-shift-report-dashboard");
+      const summaryDashboard = financeMain.getByTestId("cash-shift-report-dashboard");
+      await expect(summaryDashboard).toHaveCount(1);
       await expect(summaryDashboard).toBeVisible();
       await expect(summaryDashboard).toContainText("實收現金");
       await expect(summaryDashboard).toContainText("短溢收合計");
