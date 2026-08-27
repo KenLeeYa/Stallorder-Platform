@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { getPagePrincipal, getRequestPrincipal, type SessionPrincipal } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
+import { loginPathForReturnPath } from "@/lib/login-routing";
 import { prisma } from "@/lib/prisma";
 import {
   authorizedStallIdsForPermission,
@@ -89,7 +90,7 @@ export async function findStallAccess(principal: SessionPrincipal, stallSlug: st
 
 export async function requirePagePermission(stallSlug: string, permission: Permission, returnPath: string) {
   const principal = await getPagePrincipal();
-  if (!principal) redirect(`/login?next=${encodeURIComponent(returnPath)}`);
+  if (!principal) redirect(loginPathForReturnPath(returnPath));
 
   const access = await findStallAccess(principal, stallSlug);
   if (!access || !access.roles.some((role) => hasPermission(role, permission))) notFound();

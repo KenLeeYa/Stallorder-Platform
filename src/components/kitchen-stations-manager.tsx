@@ -4,7 +4,7 @@ import { useCallback, useRef, useState, type ReactNode } from "react";
 import { LoaderCircle, Plus, Save, Trash2 } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { csrfHeaders } from "@/lib/csrf-client";
-import { getOperationsErrorMessage } from "@/lib/messages/operations";
+import { getOperationsErrorMessageKey } from "@/lib/messages/operations-errors";
 
 type Assignment = { id: string; category: { id: string; name: string } | null; product: { id: string; name: string } | null };
 type Station = { id: string; name: string; code: string; description: string | null; sortOrder: number; isActive: boolean; taskCount: number; assignments: Assignment[] };
@@ -17,7 +17,7 @@ type Data = {
 type StationDraft = { name: string; code: string; description: string; sortOrder: number | ""; isActive: boolean };
 
 export function KitchenStationsManager({ stallSlug, initialData }: { stallSlug: string; initialData: Data }) {
-  const { locale, t } = useOperationsLocale();
+  const { t } = useOperationsLocale();
   const [data, setData] = useState(initialData);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -51,7 +51,7 @@ export function KitchenStationsManager({ stallSlug, initialData }: { stallSlug: 
       const payload = await response.json() as { error?: string; code?: string; fieldErrors?: Record<string, string> };
       if (!response.ok) {
         setMessage(payload.code
-          ? getOperationsErrorMessage(locale, payload.code, "kitchen.station.updateFailed")
+          ? t(getOperationsErrorMessageKey(payload.code, "kitchen.station.updateFailed"))
           : t("kitchen.station.updateFailed"));
         const nextFieldErrors = scope
           ? Object.fromEntries(Object.entries(payload.fieldErrors ?? {}).map(([field, error]) => [`${scope}:${field}`, error]))

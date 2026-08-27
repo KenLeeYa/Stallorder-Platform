@@ -21,9 +21,9 @@ import { resolveEffectiveFulfillmentAt } from "@/lib/fulfillment-time-client";
 import type { AppLocale } from "@/lib/app-locale";
 import { formatAppDateTime } from "@/lib/locale-format";
 import {
-  getOperationsErrorMessage,
   type OperationsMessageKey,
 } from "@/lib/messages/operations";
+import { getOperationsErrorMessageKey } from "@/lib/messages/operations-errors";
 import {
   aggregateKitchenItems,
   kitchenWaitDisplay,
@@ -104,7 +104,7 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
       const response = await fetch(`/api/stalls/${stall.slug}/kitchen/board`, { cache: "no-store" });
       const payload: BoardData & { error?: string; code?: string } = await response.json();
       if (!response.ok) throw new Error(payload.code
-        ? getOperationsErrorMessage(locale, payload.code, "kitchen.board.reloadFailed")
+        ? t(getOperationsErrorMessageKey(payload.code, "kitchen.board.reloadFailed"))
         : t("kitchen.board.reloadFailed"));
       const nextOrderIds = new Set(payload.tasks.map((task) => task.orderId));
       const newOrderCount = [...nextOrderIds].filter((orderId) => !knownOrderIdsRef.current.has(orderId)).length;
@@ -118,7 +118,7 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
     } finally {
       if (!silent) setBusyId(null);
     }
-  }, [locale, notifyNewOrders, stall.slug, t]);
+  }, [notifyNewOrders, stall.slug, t]);
 
   useEffect(() => {
     const preferenceTimer = window.setTimeout(() => {
@@ -167,7 +167,7 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
       });
       const payload = await response.json() as { error?: string; code?: string };
       if (!response.ok) throw new Error(payload.code
-        ? getOperationsErrorMessage(locale, payload.code, "kitchen.board.operationFailed")
+        ? t(getOperationsErrorMessageKey(payload.code, "kitchen.board.operationFailed"))
         : t("kitchen.board.operationFailed"));
       await refresh(true);
       return true;
@@ -249,7 +249,7 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
       });
       const payload = await response.json() as { error?: string; code?: string };
       if (!response.ok) throw new Error(payload.code
-        ? getOperationsErrorMessage(locale, payload.code, "kitchen.cancel.failed")
+        ? t(getOperationsErrorMessageKey(payload.code, "kitchen.cancel.failed"))
         : t("kitchen.cancel.failed"));
       await refresh(true);
       finishCancellation();

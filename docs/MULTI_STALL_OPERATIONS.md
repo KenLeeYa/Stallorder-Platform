@@ -53,7 +53,7 @@ REPORT_FROM_EMAIL
 REPORT_DELIVERY_MODE=send
 ```
 
-`TRUSTED_CLIENT_IP_HEADER` 只允許 `cf-connecting-ip` 或 `x-real-ip`。上游必須先移除客戶端同名標頭再寫入可信 IP；應用不接受 `X-Forwarded-For` 鏈。production 缺少此設定會 fail closed。
+Supabase Edge 的 `TRUSTED_CLIENT_IP_HEADER` 只允許 `cf-connecting-ip` 或 `x-real-ip`；Next.js 在 Vercel 可使用由邊緣層覆寫的單一 `x-forwarded-for`。上游必須先移除客戶端同名標頭再寫入可信 IP；應用拒絕逗號鏈與無效 IP，production 缺少此設定會 fail closed。
 
 `ALLOW_DEMO_SEED=true` 仍只允許 loopback `DATABASE_URL`。正式環境不得設定此值，也不得執行 `npm run db:seed`。
 

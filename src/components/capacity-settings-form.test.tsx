@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CapacitySettingsForm } from "@/components/capacity-settings-form";
-import { LocaleProvider } from "@/components/locale-provider";
+import { MessageTestProvider } from "@/test/message-test-provider";
 import type { CapacityManagerData } from "@/lib/capacity-contract";
 
 const initialData: CapacityManagerData = {
@@ -59,9 +59,9 @@ const initialData: CapacityManagerData = {
 describe("CapacitySettingsForm", () => {
   it("shows every settings section without collapsible summaries", () => {
     const html = renderToStaticMarkup(
-      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+      <MessageTestProvider initialLocale="zh-TW">
         <CapacitySettingsForm stallId="11111111-1111-4111-8111-111111111111" initialData={initialData} />
-      </LocaleProvider>,
+      </MessageTestProvider>,
     );
 
     expect(html).not.toContain("<details");

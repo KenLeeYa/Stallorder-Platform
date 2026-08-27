@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { LocaleProvider } from "@/components/locale-provider";
+import { MessageTestProvider } from "@/test/message-test-provider";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -53,7 +53,7 @@ describe("stall editor code immutability", () => {
 
 function renderEditor(editor: React.ReactNode) {
   return renderToStaticMarkup(
-    <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>{editor}</LocaleProvider>,
+    <MessageTestProvider initialLocale="zh-TW">{editor}</MessageTestProvider>,
   );
 }
 

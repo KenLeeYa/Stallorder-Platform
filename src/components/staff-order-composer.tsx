@@ -10,7 +10,7 @@ import { csrfHeaders } from "@/lib/csrf-client";
 import { calculateOrderDiscount } from "@/lib/checkout";
 import { formatMoney } from "@/lib/money";
 import { formatAppDateTime } from "@/lib/locale-format";
-import { getOperationsErrorMessage } from "@/lib/messages/operations";
+import { getOperationsErrorMessageKey } from "@/lib/messages/operations-errors";
 import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
 import { notePriceAdjustment, noteSelectionIsValid, toggleNoteOption } from "@/lib/product-note-selection";
 import {
@@ -722,7 +722,7 @@ export function StaffOrderComposer({
           await createOfflineFallback(new Error("ORDER_INTAKE_TEMPORARILY_UNAVAILABLE"));
           return;
         }
-        throw new Error(getOperationsErrorMessage(locale, payload.code, "composer.createFailed"));
+        throw new Error(t(getOperationsErrorMessageKey(payload.code, "composer.createFailed")));
       }
       if (!payload.order) {
         await createOfflineFallback(new Error("ORDER_RESPONSE_MISSING"));
@@ -736,7 +736,7 @@ export function StaffOrderComposer({
       }
     } catch (error) {
       setMessage(error instanceof Error
-        ? getOperationsErrorMessage(locale, error.message, "composer.createFailed")
+        ? t(getOperationsErrorMessageKey(error.message, "composer.createFailed"))
         : t("composer.createFailed"));
     } finally {
       setBusy(false);

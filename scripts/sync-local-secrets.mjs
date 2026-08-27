@@ -29,12 +29,26 @@ function saveConfig(config) {
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
 }
 
+function usesExamplePreviewUrl(value) {
+  return value.split(",").some((candidate) => {
+    try {
+      const hostname = new URL(candidate.trim()).hostname.toLowerCase().replace(/\.$/, "");
+      return hostname === "preview.example.com";
+    } catch {
+      return false;
+    }
+  });
+}
+
 function collectSecretValues(config) {
   const values = new Map();
   let changed = false;
   for (const item of config.secrets ?? []) {
     if (!item?.name || typeof item.name !== "string") fail("each secret requires a string name");
     if (typeof item.value === "string" && item.value.length > 0) {
+      if (usesExamplePreviewUrl(item.value)) {
+        fail(`${item.name} still uses the example Preview URL`);
+      }
       values.set(item.name, item.value);
       continue;
     }
@@ -98,7 +112,7 @@ function syncVercel(config, values) {
     const value = values.get(item.secret);
     if (!value) fail(`Vercel item ${item.name} references missing secret ${item.secret}`);
     for (const environment of item.environments ?? []) {
-      if (item.replace !== false) {
+      if (item.replace === true) {
         runSecretCommand(
           `Vercel remove ${item.name} (${environment})`,
           ["vercel", "env", "rm", item.name, environment, "--yes", ...team],
@@ -158,4 +172,6 @@ console.log(`Loaded secret names: ${[...values.keys()].join(", ") || "(none)"}`)
 syncVercel(config, values);
 syncSupabaseVault(config, values);
 
-console.log(apply ? "Done: secrets synced without printing values." : "Done: dry-run only. Use npm run secrets:sync:apply to update targets.");
+console.log(apply
+  ? "Done: secrets synced without printing values."
+  : "Done: dry-run only. Remote apply still requires an explicit, Preview-only approval.");

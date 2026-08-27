@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { ReportScheduleManager } from "@/components/report-schedule-manager";
+import { LazyReportScheduleManager } from "@/components/lazy-report-schedule-manager";
 import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { createReportScheduleTranslator } from "@/lib/messages/report-schedules";
@@ -39,7 +39,7 @@ export default async function ReportSchedulesPage({ searchParams }: PageProps) {
   ]);
 
   return (
-    <ReportScheduleManager
+    <LazyReportScheduleManager
       organizationId={workspace.id}
       organizationEmail={organization?.email ?? ""}
       stalls={workspace.stalls.filter((stall) => stall.isActive).map((stall) => ({ id: stall.id, name: stall.name }))}

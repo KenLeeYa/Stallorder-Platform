@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { OnboardingForm } from "@/components/onboarding-form";
+import { LazyOnboardingForm } from "@/components/lazy-onboarding-form";
 import { OnboardingShell } from "@/components/onboarding-shell";
 import type { AppLocale } from "@/lib/app-locale";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
@@ -33,7 +33,7 @@ export default async function OnboardingPage() {
   const initialValues = serializeApplicationInitialValues(data.application);
   if (isReapplication && initialValues) initialValues.currentStep = 1;
   return <OnboardingShell>
-    {data.pendingInvitation ? <InvitationPriority locale={locale} /> : <OnboardingForm authenticatedProfile={data.profile} initialValues={initialValues} trial={data.trial} businessTypeOptions={data.businessTypeOptions} isReapplication={isReapplication} />}
+    {data.pendingInvitation ? <InvitationPriority locale={locale} /> : <LazyOnboardingForm authenticatedProfile={data.profile} initialValues={initialValues} trial={data.trial} businessTypeOptions={data.businessTypeOptions} isReapplication={isReapplication} />}
   </OnboardingShell>;
 }
 

@@ -37,6 +37,8 @@ describe("merchant mobile action bars", () => {
     expect(products).toContain('role={catalogDialogOpen ? "dialog" : undefined}');
     expect(products).toContain("xl:h-full xl:overflow-y-auto xl:overscroll-contain");
     expect(products).toContain("min-h-0 flex-1 overflow-y-auto overscroll-contain");
+    expect(products).toContain('data-testid="merchant-ordering-qr"');
+    expect(products).toContain("mx-auto mt-5 w-full max-w-sm xl:mx-0");
   });
 
   it("keeps product-note action controls icon-only on mobile", () => {

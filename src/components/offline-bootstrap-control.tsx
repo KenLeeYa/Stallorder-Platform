@@ -23,7 +23,7 @@ import {
 } from "@/offline/storage-capability";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatAppDateTime } from "@/lib/locale-format";
-import { getOperationsErrorMessage } from "@/lib/messages/operations";
+import { getOperationsErrorMessageKey } from "@/lib/messages/operations-errors";
 import { createWebUuid } from "@/lib/web-uuid";
 
 type DeviceRegistrationResponse = {
@@ -182,7 +182,7 @@ export function OfflineBootstrapControl({
       body: JSON.stringify(body),
     });
     const payload = await response.json() as T & { error?: string; code?: string };
-    if (!response.ok) throw new Error(getOperationsErrorMessage(locale, payload.code, "offline.bootstrap.error.generic"));
+    if (!response.ok) throw new Error(t(getOperationsErrorMessageKey(payload.code, "offline.bootstrap.error.generic")));
     return payload;
   }
 

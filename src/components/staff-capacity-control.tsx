@@ -5,7 +5,7 @@ import { AlertTriangle, Clock3, Gauge, LoaderCircle, Pause, Play, RefreshCw, Sav
 import { useOperationsLocale } from "@/components/operations-locale";
 import type { StaffCapacityData } from "@/lib/capacity-contract";
 import { csrfHeaders } from "@/lib/csrf-client";
-import { getOperationsErrorMessage } from "@/lib/messages/operations";
+import { getOperationsErrorMessageKey } from "@/lib/messages/operations-errors";
 
 export function StaffCapacityControl({
   stallSlug,
@@ -16,7 +16,7 @@ export function StaffCapacityControl({
   initialData: StaffCapacityData;
   compact?: boolean;
 }) {
-  const { locale, t } = useOperationsLocale();
+  const { t } = useOperationsLocale();
   const [data, setData] = useState(initialData);
   const [reason, setReason] = useState("");
   const [waitMinutes, setWaitMinutes] = useState(
@@ -32,7 +32,7 @@ export function StaffCapacityControl({
         cache: "no-store",
       });
       const payload = await response.json() as StaffCapacityData & { code?: string };
-      if (!response.ok) throw new Error(getOperationsErrorMessage(locale, payload.code, "capacity.dataFailed"));
+      if (!response.ok) throw new Error(t(getOperationsErrorMessageKey(payload.code, "capacity.dataFailed")));
       setData(payload);
       setWaitMinutes(payload.settings.manualWaitMinutes?.toString() ?? "");
       if (showMessage) {
@@ -45,7 +45,7 @@ export function StaffCapacityControl({
         setMessageIsError(true);
       }
     }
-  }, [locale, stallSlug, t]);
+  }, [stallSlug, t]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -70,7 +70,7 @@ export function StaffCapacityControl({
         body: JSON.stringify(command),
       });
       const payload = await response.json() as StaffCapacityData & { code?: string };
-      if (!response.ok) throw new Error(getOperationsErrorMessage(locale, payload.code, "capacity.settingsFailed"));
+      if (!response.ok) throw new Error(t(getOperationsErrorMessageKey(payload.code, "capacity.settingsFailed")));
       setData(payload);
       setWaitMinutes(payload.settings.manualWaitMinutes?.toString() ?? "");
       setMessage(successMessage);
