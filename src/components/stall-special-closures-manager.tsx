@@ -6,7 +6,7 @@ import { csrfHeaders } from "@/lib/csrf-client";
 import type { AppLocale } from "@/lib/app-locale";
 import { formatAppDate } from "@/lib/locale-format";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
-import type { SpecialClosureView } from "@/lib/special-closures";
+import type { SpecialClosureView } from "@/lib/special-closures-client";
 
 type Draft = {
   range: boolean;

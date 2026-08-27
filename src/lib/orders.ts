@@ -2,7 +2,7 @@ import type { FulfillmentType, OrderItemStatus, OrderStatus, PaymentStatus, Prin
 import {
   resolveFulfillmentTimeReadModel,
   type FulfillmentTimeState,
-} from "@/lib/fulfillment-time";
+} from "@/lib/fulfillment-time-client";
 
 export const activeOrderStatuses = ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "PACKING", "READY"] as const;
 

@@ -1,4 +1,4 @@
-import { classifyFulfillmentForProduction } from "@/lib/fulfillment-time";
+import { classifyFulfillmentForProduction } from "@/lib/fulfillment-time-client";
 
 export const kitchenBoardModes = ["ORDER", "ITEM", "STATION"] as const;
 export type KitchenBoardMode = (typeof kitchenBoardModes)[number];

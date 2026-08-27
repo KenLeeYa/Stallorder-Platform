@@ -26,7 +26,7 @@ import { SessionExpiryDialog } from "@/components/qr-session-expiry-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { QrOrderMenu } from "@/components/qr-order-menu";
 import { formatMoney } from "@/lib/money";
-import { localizeSpecialClosureTitle } from "@/lib/special-closures";
+import { localizeSpecialClosureTitle } from "@/lib/special-closures-client";
 
 type QrOrderFlowPresentationProps = {
   controller: QrOrderFlowController;
