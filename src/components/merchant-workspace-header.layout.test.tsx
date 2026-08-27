@@ -64,12 +64,14 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain('data-compact="false"');
     expect(html).toContain('aria-label="選擇攤位：測試攤位"');
-    expect(html).toContain('href="/merchant/stalls/stall-1"');
+    expect(html).toContain('href="/merchant/test-stall"');
     expect(html).not.toContain('aria-haspopup="dialog"');
     expect(html).not.toContain("<select");
     expect(html).toContain('href="/merchant/dashboard?organizationId=organization-1"');
     expect(html).not.toContain("/merchant/billing?");
     expect(html).not.toContain("/merchant/payments?");
+    expect(html).not.toContain("/merchant/supply?");
+    expect(html).not.toContain("/merchant/growth?");
   });
 
   it("opens the centered selector only when two or more active stalls are available", () => {
@@ -99,7 +101,7 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
 
     expect(html).toContain('aria-label="選擇攤位：全部攤位"');
     expect(html).toContain('aria-haspopup="dialog"');
-    expect(html).not.toContain('href="/merchant/stalls/stall-1"');
+    expect(html).not.toContain('href="/merchant/test-stall"');
   });
 
   it("does not render an invalid stall destination when no active stall exists", () => {
@@ -119,7 +121,7 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     );
 
     expect(html).not.toContain('aria-label="選擇攤位');
-    expect(html).not.toContain('href="/merchant/stalls/stall-1"');
+    expect(html).not.toContain('href="/merchant/test-stall"');
   });
 
   it("shows billing navigation only after the platform switch is enabled", () => {
@@ -151,5 +153,23 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     );
 
     expect(html).toContain("/merchant/payments?");
+  });
+
+  it("shows only enabled competitive modules in merchant navigation", () => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+        <MerchantWorkspaceHeader
+          workspaces={[workspace]}
+          displayName="店主"
+          routeContext={{ organizationId: workspace.id, stallId: null }}
+          showBilling={false}
+          showGrowth
+          showSupply
+        />
+      </LocaleProvider>,
+    );
+
+    expect(html).toContain("/merchant/supply?");
+    expect(html).toContain("/merchant/growth?");
   });
 });

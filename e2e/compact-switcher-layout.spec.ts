@@ -27,19 +27,19 @@ async function loginAsPlatformAdmin(page: Page) {
   await expect(page).toHaveURL(/\/admin\/billing/u, { timeout: 30_000 });
 }
 
-test("單一啟用攤位從頁首直接進入攤位管理", async ({ page }) => {
+test("單一啟用攤位從頁首直接進入 QR 管理", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await loginAsOwner(page);
   await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organizationId}`);
 
   const directLink = page.getByTestId("merchant-single-stall-link");
   await expect(directLink).toBeVisible();
-  await expect(directLink).toHaveAttribute("href", /^\/merchant\/stalls\/[^/?#]+$/u);
+  await expect(directLink).toHaveAttribute("href", "/merchant/aming-chicken");
   await expect(page.getByRole("button", { name: /^選擇攤位/u })).toHaveCount(0);
 
   await directLink.click();
-  await expect(page).toHaveURL(/\/merchant\/stalls\/[^/?#]+$/u);
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/\/merchant\/aming-chicken$/u);
+  await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
 });
 
 test("工作模式與攤位遮罩在各尺寸保持置中、橫向文字與完整寬度", async ({ page }) => {
@@ -106,8 +106,8 @@ test("廚房只保留一組共用工具並使用不同工作模式人像", async
   await expect(page.getByTestId("pwa-controls")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "登出", exact: true })).toHaveCount(1);
   await expect(page.getByTestId("kitchen-primary-navigation")).toBeVisible();
-  await expect(page.getByTestId("kitchen-board-utility-toolbar")).toBeVisible();
-  await expect(page.getByTestId("kitchen-primary-navigation").getByRole("link")).toHaveCount(3);
+  await expect(page.getByTestId("kitchen-board-utility-toolbar")).toHaveCount(0);
+  await expect(page.getByTestId("kitchen-primary-navigation").getByRole("link")).toHaveCount(2);
 
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -119,15 +119,35 @@ test("廚房只保留一組共用工具並使用不同工作模式人像", async
       const header = toolbar.closest("header");
       const box = (testId: string) => toolbar.querySelector<HTMLElement>(`[data-testid="${testId}"]`)?.getBoundingClientRect();
       const headerBox = header?.getBoundingClientRect();
-      const board = box("kitchen-nav-board");
-      const stations = box("kitchen-nav-stations");
+      const orders = box("kitchen-mode-order");
+      const items = box("kitchen-mode-item");
+      const workstation = box("kitchen-mode-station");
+      const kitchenSwitch = box("kitchen-work-mode-control");
       const languageBox = toolbar.querySelector<HTMLElement>('[data-testid="kitchen-language-control"] label')?.getBoundingClientRect();
+      const theme = box("theme-toggle");
+      const network = box("pwa-network-status");
+      const wake = box("pwa-wake-control");
+      const live = box("kitchen-live-status");
+      const stations = box("kitchen-nav-stations");
+      const settings = box("kitchen-nav-settings");
+      const alert = box("kitchen-alert-control");
+      const refresh = box("kitchen-refresh-control");
       const logout = box("kitchen-pinned-logout");
       return {
         headerHeight: headerBox?.height ?? -1,
-        board: board ? { left: board.left, top: board.top, width: board.width, height: board.height } : null,
+        orders: orders ? { left: orders.left, top: orders.top, width: orders.width, height: orders.height } : null,
+        items: items ? { left: items.left, top: items.top } : null,
+        workstation: workstation ? { left: workstation.left, top: workstation.top } : null,
+        kitchenSwitch: kitchenSwitch ? { left: kitchenSwitch.left, top: kitchenSwitch.top } : null,
         stations: stations ? { left: stations.left, right: stations.right, top: stations.top } : null,
         language: languageBox ? { left: languageBox.left, top: languageBox.top, width: languageBox.width, height: languageBox.height } : null,
+        theme: theme ? { left: theme.left, top: theme.top } : null,
+        network: network ? { left: network.left, top: network.top } : null,
+        wake: wake ? { left: wake.left, top: wake.top } : null,
+        live: live ? { left: live.left, top: live.top } : null,
+        settings: settings ? { left: settings.left, top: settings.top } : null,
+        alert: alert ? { left: alert.left, top: alert.top } : null,
+        refresh: refresh ? { left: refresh.left, top: refresh.top } : null,
         logout: logout ? { right: logout.right, top: logout.top, height: logout.height } : null,
         headerRight: headerBox?.right ?? -1,
         pageClientWidth: document.documentElement.clientWidth,
@@ -136,17 +156,37 @@ test("廚房只保留一組共用工具並使用不同工作模式人像", async
     });
 
     expect(headerLayout.headerHeight, `${viewport.name} header height`).toBeLessThanOrEqual(64);
-    expect(headerLayout.board, `${viewport.name} board`).not.toBeNull();
+    expect(headerLayout.orders, `${viewport.name} orders`).not.toBeNull();
+    expect(headerLayout.items, `${viewport.name} items`).not.toBeNull();
+    expect(headerLayout.workstation, `${viewport.name} workstation`).not.toBeNull();
+    expect(headerLayout.kitchenSwitch, `${viewport.name} kitchen switch`).not.toBeNull();
     expect(headerLayout.stations, `${viewport.name} stations`).not.toBeNull();
     expect(headerLayout.language, `${viewport.name} language`).not.toBeNull();
+    expect(headerLayout.theme, `${viewport.name} theme`).not.toBeNull();
+    expect(headerLayout.network, `${viewport.name} network`).not.toBeNull();
+    expect(headerLayout.wake, `${viewport.name} wake lock`).not.toBeNull();
+    expect(headerLayout.live, `${viewport.name} SSE`).not.toBeNull();
+    expect(headerLayout.settings, `${viewport.name} settings`).not.toBeNull();
+    expect(headerLayout.alert, `${viewport.name} sound`).not.toBeNull();
+    expect(headerLayout.refresh, `${viewport.name} refresh`).not.toBeNull();
     expect(headerLayout.logout, `${viewport.name} logout`).not.toBeNull();
-    expect(Math.abs(headerLayout.board!.top - headerLayout.stations!.top), `${viewport.name} board/stations row`).toBeLessThanOrEqual(1);
-    expect(Math.abs(headerLayout.board!.top - headerLayout.language!.top), `${viewport.name} board/language row`).toBeLessThanOrEqual(1);
-    expect(Math.abs(headerLayout.board!.top - headerLayout.logout!.top), `${viewport.name} board/logout row`).toBeLessThanOrEqual(1);
-    expect(headerLayout.board!.left, `${viewport.name} board first`).toBeLessThan(headerLayout.stations!.left);
-    expect(headerLayout.stations!.right, `${viewport.name} language after stations`).toBeLessThanOrEqual(headerLayout.language!.left + 1);
-    expect(headerLayout.language!.width, `${viewport.name} language width`).toBeCloseTo(headerLayout.board!.width, 0);
-    expect(headerLayout.language!.height, `${viewport.name} language height`).toBeCloseTo(headerLayout.board!.height, 0);
+    for (const control of [headerLayout.items, headerLayout.workstation, headerLayout.kitchenSwitch, headerLayout.language, headerLayout.theme, headerLayout.network, headerLayout.wake, headerLayout.live, headerLayout.stations, headerLayout.settings, headerLayout.alert, headerLayout.refresh, headerLayout.logout]) {
+      expect(Math.abs(headerLayout.orders!.top - control!.top), `${viewport.name} one toolbar row`).toBeLessThanOrEqual(1);
+    }
+    expect(headerLayout.orders!.left, `${viewport.name} orders first`).toBeLessThan(headerLayout.items!.left);
+    expect(headerLayout.items!.left, `${viewport.name} items before workstation`).toBeLessThan(headerLayout.workstation!.left);
+    expect(headerLayout.workstation!.left, `${viewport.name} workstation before kitchen switch`).toBeLessThan(headerLayout.kitchenSwitch!.left);
+    expect(headerLayout.kitchenSwitch!.left, `${viewport.name} kitchen switch before language`).toBeLessThan(headerLayout.language!.left);
+    expect(headerLayout.language!.left, `${viewport.name} language before theme`).toBeLessThan(headerLayout.theme!.left);
+    expect(headerLayout.theme!.left, `${viewport.name} theme before network`).toBeLessThan(headerLayout.network!.left);
+    expect(headerLayout.network!.left, `${viewport.name} network before wake lock`).toBeLessThan(headerLayout.wake!.left);
+    expect(headerLayout.wake!.left, `${viewport.name} wake lock before SSE`).toBeLessThan(headerLayout.live!.left);
+    expect(headerLayout.live!.left, `${viewport.name} SSE before station settings`).toBeLessThan(headerLayout.stations!.left);
+    expect(headerLayout.stations!.left, `${viewport.name} station settings before KDS settings`).toBeLessThan(headerLayout.settings!.left);
+    expect(headerLayout.settings!.left, `${viewport.name} KDS settings before sound`).toBeLessThan(headerLayout.alert!.left);
+    expect(headerLayout.alert!.left, `${viewport.name} sound before refresh`).toBeLessThan(headerLayout.refresh!.left);
+    expect(headerLayout.language!.width, `${viewport.name} language width`).toBeCloseTo(headerLayout.orders!.width, 0);
+    expect(headerLayout.language!.height, `${viewport.name} language height`).toBeCloseTo(headerLayout.orders!.height, 0);
     expect(headerLayout.headerRight - headerLayout.logout!.right, `${viewport.name} logout pinned right`).toBeLessThanOrEqual(24);
     expect(headerLayout.pageScrollWidth, `${viewport.name} page overflow`).toBeLessThanOrEqual(headerLayout.pageClientWidth + 1);
   }

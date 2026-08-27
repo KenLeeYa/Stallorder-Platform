@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   headers: vi.fn(),
   merchantWorkspaceHeader: vi.fn(),
   requireWorkspacePage: vi.fn(),
+  resolveResilienceFeatureFlags: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ headers: mocks.headers }));
@@ -27,6 +28,9 @@ vi.mock("@/server/billing/billing-feature-flags", () => ({
 }));
 vi.mock("@/server/admin/admin-module-visibility", () => ({
   getAdminModuleVisibility: mocks.getAdminModuleVisibility,
+}));
+vi.mock("@/server/resilience/feature-flag-service", () => ({
+  resolveResilienceFeatureFlags: mocks.resolveResilienceFeatureFlags,
 }));
 
 import MerchantTemplate from "./template";
@@ -96,6 +100,10 @@ describe("MerchantTemplate route context boundary", () => {
       merchantBillingVisible: false,
     });
     mocks.getAdminModuleVisibility.mockResolvedValue({ delivery: false, payments: false });
+    mocks.resolveResilienceFeatureFlags.mockResolvedValue({
+      MODULE_GROWTH_ENABLED: { enabled: false },
+      MODULE_SUPPLY_LITE_ENABLED: { enabled: true },
+    });
     mocks.headers.mockResolvedValue(requestHeaders("/merchant"));
     mocks.merchantWorkspaceHeader.mockImplementation(() => null);
     mocks.requireWorkspacePage.mockResolvedValue({
@@ -121,7 +129,13 @@ describe("MerchantTemplate route context boundary", () => {
         stallId: "stall-b",
       },
       showPayments: false,
+      showGrowth: false,
+      showSupply: true,
     });
+    expect(mocks.resolveResilienceFeatureFlags).toHaveBeenCalledWith(
+      ["MODULE_GROWTH_ENABLED", "MODULE_SUPPLY_LITE_ENABLED"],
+      { organizationId: "organization-b", rolloutKey: "organization-b" },
+    );
   });
 
   it("uses an authorized query stall on an aggregate route", async () => {

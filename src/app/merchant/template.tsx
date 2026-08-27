@@ -3,6 +3,7 @@ import { MerchantWorkspaceHeader } from "@/components/merchant-workspace-header"
 import { requireWorkspacePage } from "@/lib/workspace";
 import { getBillingExperienceState } from "@/server/billing/billing-feature-flags";
 import { getAdminModuleVisibility } from "@/server/admin/admin-module-visibility";
+import { resolveResilienceFeatureFlags } from "@/server/resilience/feature-flag-service";
 import {
   MERCHANT_ROUTE_ORGANIZATION_HEADER,
   MERCHANT_ROUTE_PATHNAME_HEADER,
@@ -23,6 +24,16 @@ export default async function MerchantTemplate({ children }: { children: React.R
     requestHeaders.get(MERCHANT_ROUTE_ORGANIZATION_HEADER),
     requestHeaders.get(MERCHANT_ROUTE_STALL_HEADER),
   );
+  const headerOrganizationId = routeContext.organizationId ?? workspaces[0]?.id;
+  const merchantModuleFlags = headerOrganizationId
+    ? await resolveResilienceFeatureFlags([
+        "MODULE_GROWTH_ENABLED",
+        "MODULE_SUPPLY_LITE_ENABLED",
+      ], {
+        organizationId: headerOrganizationId,
+        rolloutKey: headerOrganizationId,
+      })
+    : null;
 
   return (
     <>
@@ -32,6 +43,8 @@ export default async function MerchantTemplate({ children }: { children: React.R
         routeContext={routeContext}
         showBilling={billingExperience.merchantBillingVisible}
         showPayments={moduleVisibility.payments}
+        showGrowth={merchantModuleFlags?.MODULE_GROWTH_ENABLED.enabled ?? false}
+        showSupply={merchantModuleFlags?.MODULE_SUPPLY_LITE_ENABLED.enabled ?? false}
       />
       {children}
     </>
