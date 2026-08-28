@@ -498,16 +498,15 @@ async function loadStallMenu(
     prisma.stallProduct.findMany({
       where: {
         stallId,
-        isEnabled: true,
-        isSoldOut: false,
         product: {
-          isActive: true,
           category: { isActive: true },
           OR: [{ groupId: null }, { group: { isActive: true } }],
         },
       },
       orderBy: [{ sortOrder: "asc" }, { product: { sortOrder: "asc" } }],
       select: {
+        isEnabled: true,
+        isSoldOut: true,
         priceOverride: true,
         sortOrder: true,
         availableFrom: true,
@@ -521,6 +520,7 @@ async function loadStallMenu(
             defaultPrice: true,
             kind: true,
             imageUrl: true,
+            isActive: true,
             isOrderDiscountEligible: true,
             sortOrder: true,
             category: {
@@ -622,12 +622,20 @@ async function loadStallMenu(
   ]);
   if (!settings) return null;
 
-  const saleableProductIds = new Set(assignments.map((assignment) => assignment.product.id));
+  const displayedAssignments = assignments.filter((assignment) => (
+    assignment.isEnabled || !assignment.product.isActive
+  ));
+  const saleableProductIds = new Set(assignments.flatMap((assignment) => (
+    assignment.isEnabled && !assignment.isSoldOut && assignment.product.isActive
+      ? [assignment.product.id]
+      : []
+  )));
   const assignmentsByProductId = new Map(
     assignments.map((assignment) => [assignment.product.id, assignment]),
   );
-  const publicProducts = assignments.flatMap((assignment) => {
+  const publicProducts = displayedAssignments.flatMap((assignment) => {
     const product = assignment.product;
+    const isSoldOut = assignment.isSoldOut || !product.isActive;
     const bundleChoiceGroups = product.kind === "BUNDLE"
       ? product.bundleChoiceGroups.map((group) => ({
         id: group.id,
@@ -662,7 +670,7 @@ async function loadStallMenu(
       }))
       : [];
 
-    if (product.kind === "BUNDLE" && (
+    if (!isSoldOut && product.kind === "BUNDLE" && (
       bundleChoiceGroups.length === 0
       || bundleChoiceGroups.some((group) => (
         group.organizationId !== product.organizationId
@@ -672,6 +680,7 @@ async function loadStallMenu(
 
     return [{
       assignment,
+      isSoldOut,
       bundleChoiceGroups: bundleChoiceGroups.map((group) => ({
         id: group.id,
         name: group.name,
@@ -683,7 +692,7 @@ async function loadStallMenu(
     }];
   });
 
-  const menuProducts = applyBestSellerRanking(publicProducts.map(({ assignment, bundleChoiceGroups }) => ({
+  const menuProducts = applyBestSellerRanking(publicProducts.map(({ assignment, isSoldOut, bundleChoiceGroups }) => ({
       id: assignment.product.id,
       name: assignment.product.name,
       description: assignment.product.description,
@@ -692,6 +701,7 @@ async function loadStallMenu(
       availableUntil: assignment.availableUntil?.toISOString() ?? null,
       translations: assignment.product.translations,
       kind: assignment.product.kind,
+      isSoldOut,
       isOrderDiscountEligible: assignment.product.isOrderDiscountEligible,
       bundleChoiceGroups,
       noteGroups: assignment.product.noteGroupAssignments.map((assignmentItem) => ({
@@ -723,6 +733,7 @@ async function loadStallMenu(
       availableUntil: product.availableUntil,
       translations: product.translations,
       kind: product.kind,
+      isSoldOut: product.isSoldOut,
       isOrderDiscountEligible: product.isOrderDiscountEligible,
       bundleChoiceGroups: product.bundleChoiceGroups,
       noteGroups: product.noteGroups,

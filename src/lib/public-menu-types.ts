@@ -50,6 +50,7 @@ export type PublicMenuProduct = {
   groupTranslations?: Array<{ locale: string; name: string }>;
   rank: number | null;
   isBestSeller: boolean;
+  isSoldOut: boolean;
   isOrderDiscountEligible: boolean;
   imageUrl: string | null;
   availableFrom?: string | null;

@@ -113,6 +113,7 @@ export function QrOrderMenu({
             <div className="grid gap-2 sm:gap-3">
               {visibleProducts.filter((product) => product.category === category).map((product, productIndex, categoryProducts) => {
                 const configurable = product.noteGroups.length > 0 || product.bundleChoiceGroups.length > 0;
+                const soldOut = product.isSoldOut;
                 const showGroupHeading = Boolean(product.group)
                   && product.group !== categoryProducts[productIndex - 1]?.group;
                 const draft = productDrafts[product.id] ?? {
@@ -130,13 +131,18 @@ export function QrOrderMenu({
                   <article
                     id={`qr-product-${product.id}`}
                     data-best-seller-rank={product.rank ?? undefined}
+                    aria-disabled={soldOut}
                     tabIndex={-1}
-                    className="rounded-lg border border-stone-200 bg-white p-3 sm:p-4"
+                    className={`rounded-lg border p-3 sm:p-4 ${soldOut ? "border-stone-300 bg-stone-100" : "border-stone-200 bg-white"}`}
                   >
                     <div className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:gap-4">
-                      {product.imageUrl ? <ProductImage src={product.imageUrl} alt={copy.productImage(localizedProduct(product).name)} width={80} height={80} sizes="(max-width: 639px) 56px, 80px" className="h-14 w-14 shrink-0 rounded-md object-cover sm:h-20 sm:w-20" /> : <div aria-hidden="true" className="h-14 w-14 rounded-md bg-stone-100 sm:h-20 sm:w-20" />}
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md bg-stone-100 sm:h-20 sm:w-20">
+                        {product.imageUrl ? <ProductImage src={product.imageUrl} alt={copy.productImage(localizedProduct(product).name)} width={80} height={80} sizes="(max-width: 639px) 56px, 80px" className={`h-full w-full object-cover ${soldOut ? "grayscale opacity-45" : ""}`} /> : <div aria-hidden="true" className={`h-full w-full bg-stone-100 ${soldOut ? "opacity-45" : ""}`} />}
+                        {soldOut ? <span data-testid="sold-out-image-overlay" className="absolute inset-0 grid place-items-center bg-stone-950/45 px-1 text-center text-xs font-black text-white">{copy.soldOutBadge}</span> : null}
+                      </div>
                       <div className="min-w-0 flex-1">
                         {product.isBestSeller ? <span data-testid="best-seller-badge" className="mb-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950"><Flame aria-hidden="true" className="h-3.5 w-3.5" />{copy.hotSellerBadge}</span> : null}
+                        {soldOut ? <span data-testid="sold-out-badge" className="mb-1 ml-1 inline-flex rounded-full bg-stone-700 px-2 py-1 text-xs font-semibold text-white">{copy.soldOutBadge}</span> : null}
                         {!product.isOrderDiscountEligible ? <span data-testid="discount-ineligible-badge" className="mb-1 ml-1 inline-flex rounded-full bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">{copy.discountIneligible}</span> : null}
                         <h3 className="font-semibold">{localizedProduct(product).name}</h3>
                         <p className="mt-1 line-clamp-2 text-sm leading-5 text-stone-600">{localizedProduct(product).description}</p>
@@ -150,16 +156,16 @@ export function QrOrderMenu({
                       </div>
                       <div aria-hidden={configuringProductId === product.id ? true : undefined} className="col-span-2 flex items-center justify-self-end gap-2 sm:col-span-1">
                         {configurable && committedQuantity > 0 ? <span className="mr-1 text-xs font-medium text-stone-500">{copy.additionalQuantity}</span> : null}
-                        <button type="button" title={copy.decrease(localizedProduct(product).name)} aria-label={copy.decrease(localizedProduct(product).name)} disabled={!orderingEnabled || configuringProductId === product.id || displayedQuantity <= 0} onClick={() => onUpdateQuantity(product.id, displayedQuantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
+                        <button type="button" title={copy.decrease(localizedProduct(product).name)} aria-label={copy.decrease(localizedProduct(product).name)} disabled={soldOut || !orderingEnabled || configuringProductId === product.id || displayedQuantity <= 0} onClick={() => onUpdateQuantity(product.id, displayedQuantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
                           <Minus className="h-4 w-4" />
                         </button>
                         <span className="w-8 text-center font-semibold">{displayedQuantity}</span>
-                        <button type="button" title={copy.increase(localizedProduct(product).name)} aria-label={copy.increase(localizedProduct(product).name)} disabled={!orderingEnabled || configuringProductId === product.id} onClick={() => onUpdateQuantity(product.id, displayedQuantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
+                        <button type="button" title={copy.increase(localizedProduct(product).name)} aria-label={copy.increase(localizedProduct(product).name)} disabled={soldOut || !orderingEnabled || configuringProductId === product.id} onClick={() => onUpdateQuantity(product.id, displayedQuantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
                           <Plus className="h-4 w-4" />
                         </button>
                       </div>
                     </div>
-                    {configurable && configuringProductId === product.id && !sessionExpiryDialogOpen && draft.quantity > 0 ? (
+                    {!soldOut && configurable && configuringProductId === product.id && !sessionExpiryDialogOpen && draft.quantity > 0 ? (
                       <>
                         <button type="button" aria-label={copy.close} onClick={() => onCancelConfiguration(product.id)} className="fixed inset-0 z-40 bg-black/50" />
                         <section

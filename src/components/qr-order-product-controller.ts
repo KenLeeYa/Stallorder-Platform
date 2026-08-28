@@ -330,7 +330,7 @@ export function useQrOrderProductController(input: UseQrOrderProductControllerIn
   function updateQuantity(productId: string, quantity: number) {
     if (!input.limits || !input.orderingEnabled) return;
     const product = visibleProducts.find((candidate) => candidate.id === productId);
-    if (!product) return;
+    if (!product || product.isSoldOut) return;
     const configurable = product.noteGroups.length > 0 || product.bundleChoiceGroups.length > 0;
     if (!configurable) {
       const currentLine = input.cartLines.find((line) => line.productId === productId);
@@ -395,7 +395,7 @@ export function useQrOrderProductController(input: UseQrOrderProductControllerIn
   }
 
   function addProductDraft(product: PublicMenuProduct) {
-    if (!input.limits || !input.orderingEnabled) return;
+    if (!input.limits || !input.orderingEnabled || product.isSoldOut) return;
     const result = commitQrProductDraft({
       product,
       draft: state.drafts[product.id],

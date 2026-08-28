@@ -91,6 +91,7 @@ type GroupDraft = Omit<Group, "id"> & { id?: string };
 type ProductDraft = Omit<Product, "id" | "stallProducts" | "bundleChoiceGroups" | "defaultPrice"> & {
   id?: string;
   stallIds: string[];
+  isSoldOut: boolean;
   defaultPrice: number | "";
 };
 type BundleChoiceGroupDraft = Omit<ProductBundleChoiceGroupView, "id" | "choices"> & { id?: string };
@@ -132,15 +133,21 @@ function productUnavailableReason(
   categories: Category[],
 ) {
   if (!product) return "商品不存在";
-  if (!product.isActive) return "商品已停用";
+  if (!product.isActive) return "商品已售完";
   if (categories.find((category) => category.id === product.categoryId)?.isActive === false) {
     return "商品分類已停用";
   }
   const assignment = product.stallProducts.find((item) => item.stallId === stallId);
   if (!assignment) return "未分派";
   if (!assignment.isEnabled) return "分派未啟用";
-  if (assignment.isSoldOut) return "已售罄";
+  if (assignment.isSoldOut) return "已售完";
   return null;
+}
+
+function productIsSoldOut(product: Pick<Product, "isActive" | "stallProducts">) {
+  return !product.isActive
+    || (product.stallProducts.length > 0
+      && product.stallProducts.every((assignment) => assignment.isSoldOut));
 }
 
 function getBundleComponentIssues(
@@ -172,13 +179,13 @@ function getBundleStallVisibility(
   return bundleProduct.stallProducts.map((assignment) => {
     const stall = stalls.find((item) => item.id === assignment.stallId);
     const reasons = new Set<string>();
-    if (!bundleProduct.isActive) reasons.add(translateLabel("套餐已停用"));
+    if (!bundleProduct.isActive) reasons.add(translateLabel("套餐已售完"));
     if (categories.find((category) => category.id === bundleProduct.categoryId)?.isActive === false) {
       reasons.add(translateLabel("套餐分類已停用"));
     }
     if (!stall?.isActive) reasons.add(translateLabel("攤位已停用"));
     if (!assignment.isEnabled) reasons.add(translateLabel("套餐分派未啟用"));
-    if (assignment.isSoldOut) reasons.add(translateLabel("套餐已售罄"));
+    if (assignment.isSoldOut) reasons.add(translateLabel("套餐已售完"));
     if (bundleProduct.bundleChoiceGroups.length === 0) reasons.add(translateLabel("尚未設定套餐群組"));
 
     for (const group of bundleProduct.bundleChoiceGroups) {
@@ -449,7 +456,7 @@ export function SharedCatalogManager({
 
   function editProduct(product: Product) {
     clearEditorFeedback();
-    setProductDraft({ ...product, stallIds: [] });
+    setProductDraft({ ...product, isSoldOut: productIsSoldOut(product), stallIds: [] });
   }
 
   function createProduct(kind: ProductKindValue = "SINGLE") {
@@ -474,6 +481,7 @@ export function SharedCatalogManager({
       isLotteryEligible: true,
       sortOrder: catalog.products.length + 1,
       isActive: true,
+      isSoldOut: false,
       stallIds: activeStalls.length === 1 ? [activeStalls[0]!.id] : [],
       translations: [],
     });
@@ -529,7 +537,7 @@ export function SharedCatalogManager({
     };
     const ok = await runCommand(
       productDraft.id
-        ? { operation: "UPDATE_PRODUCT", productId: productDraft.id, ...data, isActive: productDraft.isActive }
+        ? { operation: "UPDATE_PRODUCT", productId: productDraft.id, ...data, isSoldOut: productDraft.isSoldOut }
         : { operation: "CREATE_PRODUCT", ...data, stallIds: productDraft.stallIds },
       productDraft.id ? label("商品已更新。") : label("商品已新增。"),
       "editor",
@@ -666,6 +674,28 @@ export function SharedCatalogManager({
   }
 
   async function toggleActive(kind: "CATEGORY" | "GROUP" | "PRODUCT", item: Category | Group | Product) {
+    if (kind === "PRODUCT") {
+      const product = item as Product;
+      const nextSoldOut = !productIsSoldOut(product);
+      if (nextSoldOut && !window.confirm(`確定將「${product.name}」設為售完？商品仍會顯示於線上 Menu，但顧客無法點選。`)) return;
+      await runCommand({
+        operation: "UPDATE_PRODUCT",
+        productId: product.id,
+        categoryId: product.categoryId,
+        groupId: product.groupId,
+        name: product.name,
+        description: product.description,
+        defaultPrice: product.defaultPrice,
+        kind: product.kind,
+        imageUrl: product.imageUrl,
+        isOrderDiscountEligible: product.isOrderDiscountEligible,
+        isLotteryEligible: product.isLotteryEligible,
+        sortOrder: product.sortOrder,
+        isSoldOut: nextSoldOut,
+        translations: product.translations,
+      }, nextSoldOut ? label("商品已設為售完。") : label("商品已恢復販售。"));
+      return;
+    }
     const nextActive = !item.isActive;
     if (!nextActive && !window.confirm(m("確定停用「{value0}」？商品與歷史訂單資料仍會保留。", { value0: item.name }))) return;
     if (kind === "CATEGORY") {
@@ -673,9 +703,6 @@ export function SharedCatalogManager({
     } else if (kind === "GROUP") {
       const group = item as Group;
       await runCommand({ operation: "UPDATE_GROUP", groupId: group.id, categoryId: group.categoryId, name: group.name, sortOrder: group.sortOrder, isActive: nextActive, translations: group.translations }, nextActive ? label("群組已恢復。") : label("群組已停用。"));
-    } else {
-      const product = item as Product;
-      await runCommand({ operation: "UPDATE_PRODUCT", productId: product.id, categoryId: product.categoryId, groupId: product.groupId, name: product.name, description: product.description, defaultPrice: product.defaultPrice, kind: product.kind, imageUrl: product.imageUrl, sortOrder: product.sortOrder, isActive: nextActive, translations: product.translations }, nextActive ? label("商品已恢復。") : label("商品已停用並停止各攤供應。"));
     }
   }
 
@@ -1035,7 +1062,7 @@ export function SharedCatalogManager({
                 })}
               </div>
             </fieldset> : null}
-            {!productDraft.id ? <StallChecks stalls={stalls} selected={productDraft.stallIds} error={editorFieldErrors.stallIds} onChange={(stallIds) => { clearEditorField("stallIds"); setProductDraft({ ...productDraft, stallIds }); }} /> : <CheckField label={label("啟用商品主檔")} checked={productDraft.isActive} onChange={(isActive) => setProductDraft({ ...productDraft, isActive })} />}
+            {!productDraft.id ? <StallChecks stalls={stalls} selected={productDraft.stallIds} error={editorFieldErrors.stallIds} onChange={(stallIds) => { clearEditorField("stallIds"); setProductDraft({ ...productDraft, stallIds }); }} /> : <CheckField label={label("所有攤位皆已售完")} checked={productDraft.isSoldOut} onChange={(isSoldOut) => setProductDraft({ ...productDraft, isSoldOut })} />}
             <SubmitButton busy={busy} wide />
           </form>
         </Editor>
@@ -1266,6 +1293,9 @@ function ProductRows({ busy, products, currency, onMove, onEdit, onBundle, onAss
   const localizedMoney = (amount: number, selectedCurrency = currency) => formatRawMoney(amount, selectedCurrency, locale);
   return <div className="mt-2 divide-y divide-stone-100">{products.map((product, index) => {
     const productDisplayName = localizedCatalogName(product, locale);
+    const isSoldOut = productIsSoldOut(product);
+    const hasPartiallySoldOutStalls = !isSoldOut
+      && product.stallProducts.some((assignment) => assignment.isSoldOut);
     return (
     <div key={product.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <div className="min-w-0">
@@ -1274,7 +1304,8 @@ function ProductRows({ busy, products, currency, onMove, onEdit, onBundle, onAss
           {product.kind === "BUNDLE" ? <span className="rounded bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">{label("套餐")}</span> : null}
           {!product.isOrderDiscountEligible ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{label("不適用訂單折扣")}</span> : null}
           {product.kind === "SINGLE" && !product.isLotteryEligible ? <span className="rounded bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-800">{label("不參與抽抽樂")}</span> : null}
-          {!product.isActive ? <span className="text-xs text-red-700">{label("已停用")}</span> : null}
+          {isSoldOut ? <span className="rounded bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">{label("已售完")}</span> : null}
+          {hasPartiallySoldOutStalls ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{label("部分攤位售完")}</span> : null}
         </div>
         <p className="mt-1 text-sm text-stone-600">{localizedMoney(product.defaultPrice)} · {label("已分派")} {product.stallProducts.length} {label("攤")}</p>
       </div>
@@ -1286,7 +1317,7 @@ function ProductRows({ busy, products, currency, onMove, onEdit, onBundle, onAss
           <IconButton label={m("分派 {value0}", { value0: product.name })} onClick={() => onAssignments(product)}><Store className="h-4 w-4" /></IconButton>
           <IconButton label={m("複製 {value0}", { value0: product.name })} onClick={() => onClone(product)}><Copy className="h-4 w-4" /></IconButton>
           <IconButton label={m("編輯 {value0}", { value0: product.name })} onClick={() => onEdit(product)}><Pencil className="h-4 w-4" /></IconButton>
-          <IconButton label={`${product.isActive ? label("停用") : label("恢復")} ${product.name}`} onClick={() => onToggle(product)}>{product.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
+          <IconButton label={`${isSoldOut ? label("恢復販售") : label("設為售完")} ${product.name}`} onClick={() => onToggle(product)}>{isSoldOut ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}</IconButton>
           <IconButton label={m("刪除 {value0}", { value0: product.name })} danger onClick={() => onDelete(product)}><Trash2 className="h-4 w-4" /></IconButton>
         </div>
       </div>

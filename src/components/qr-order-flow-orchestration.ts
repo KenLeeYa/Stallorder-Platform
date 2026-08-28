@@ -100,6 +100,7 @@ export function normalizeQrOrderSession(
         ? product.bundleChoiceGroups
         : [],
       isBestSeller: product.isBestSeller === true,
+      isSoldOut: product.isSoldOut === true,
       isOrderDiscountEligible: product.isOrderDiscountEligible !== false,
       rank: typeof product.rank === "number" ? product.rank : null,
     })),

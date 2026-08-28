@@ -102,6 +102,11 @@ export async function POST(request: Request, context: RouteContext) {
         isLotteryEligible: true,
         sortOrder: true,
         isActive: true,
+        stallProducts: {
+          where: { stallId: { in: authorizedStallIds } },
+          select: { stallId: true, isEnabled: true, isSoldOut: true },
+          orderBy: { stallId: "asc" },
+        },
       },
     });
     before = product ?? undefined;
@@ -389,6 +394,7 @@ export async function POST(request: Request, context: RouteContext) {
             id: true,
             kind: true,
             imageUrl: true,
+            isActive: true,
             _count: { select: { bundleChoiceGroups: true, componentChoices: true } },
           },
         });
@@ -401,7 +407,7 @@ export async function POST(request: Request, context: RouteContext) {
         }
         const product = await transaction.product.update({
           where: { id: existing.id },
-          data: { ...productData, isActive: command.isActive },
+          data: { ...productData, isActive: true },
           select: { id: true },
         });
         if (command.imageUrl !== existing.imageUrl) {
@@ -420,12 +426,13 @@ export async function POST(request: Request, context: RouteContext) {
           create: { organizationId, productId: product.id, ...translation },
           update: { name: translation.name, description: translation.description },
         })));
-        if (!command.isActive) {
-          await transaction.stallProduct.updateMany({
-            where: { organizationId, productId: product.id },
-            data: { isEnabled: false },
-          });
-        }
+        await transaction.stallProduct.updateMany({
+          where: { organizationId, productId: product.id },
+          data: {
+            isSoldOut: command.isSoldOut,
+            ...(!existing.isActive ? { isEnabled: true } : {}),
+          },
+        });
         return product;
       }
 
@@ -702,6 +709,7 @@ export async function POST(request: Request, context: RouteContext) {
     }
     if ("translations" in command && command.translations) after.translations = command.translations;
     if ("isActive" in command) after.isActive = command.isActive;
+    if ("isSoldOut" in command) after.isSoldOut = command.isSoldOut;
     if ("stallIds" in command) after.stallIds = [...command.stallIds].sort();
     if ("bundleProductId" in command) after.bundleProductId = command.bundleProductId;
     if ("choiceGroupId" in command) after.choiceGroupId = command.choiceGroupId;

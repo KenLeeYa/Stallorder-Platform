@@ -166,4 +166,28 @@ describe("商品與分類輸入驗證", () => {
       productIds: [categoryIds[0], categoryIds[0]],
     }).success).toBe(false);
   });
+
+  it("商品更新使用售完狀態，拒絕舊的商品停用欄位", () => {
+    const command = {
+      operation: "UPDATE_PRODUCT",
+      productId: crypto.randomUUID(),
+      categoryId: crypto.randomUUID(),
+      groupId: null,
+      name: "售完測試商品",
+      description: "",
+      defaultPrice: 100,
+      kind: "SINGLE",
+      imageUrl: null,
+      sortOrder: 1,
+      isSoldOut: true,
+      translations: [],
+    };
+
+    expect(sharedCatalogCommandSchema.safeParse(command).success).toBe(true);
+    expect(sharedCatalogCommandSchema.safeParse({
+      ...command,
+      isSoldOut: undefined,
+      isActive: false,
+    }).success).toBe(false);
+  });
 });

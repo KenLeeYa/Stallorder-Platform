@@ -12,6 +12,7 @@ type AvailabilityBundleGroup = {
 
 type AvailabilityProduct = PublicMenuAvailabilityWindow & {
   kind: "SINGLE" | "BUNDLE";
+  isSoldOut?: boolean;
   bundleChoiceGroups?: AvailabilityBundleGroup[];
 };
 
@@ -42,6 +43,7 @@ export function filterPublicMenuProductsForTime<T extends AvailabilityProduct>(
 ): T[] {
   return products.flatMap((product) => {
     if (!publicMenuItemIsAvailableAt(product, target)) return [];
+    if (product.isSoldOut) return [product];
     if (product.kind !== "BUNDLE") return [product];
 
     const groups = product.bundleChoiceGroups ?? [];
@@ -73,6 +75,7 @@ export function filterPublicMenuProductsForTimeWindow<T extends AvailabilityProd
       publicMenuItemIsAvailableAt(product, target)
     ));
     if (productTargets.length === 0) return [];
+    if (product.isSoldOut) return [product];
     if (product.kind !== "BUNDLE") return [product];
 
     const groups = product.bundleChoiceGroups ?? [];

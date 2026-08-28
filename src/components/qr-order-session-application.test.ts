@@ -185,6 +185,7 @@ function session(orderingMode: QrOrderSession["orderingMode"]): QrOrderSession {
       category: "main",
       rank: null,
       isBestSeller: false,
+      isSoldOut: false,
       isOrderDiscountEligible: true,
       imageUrl: null,
       translations: [],
