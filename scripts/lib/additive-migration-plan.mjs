@@ -39,6 +39,10 @@ const DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS = new Set([
 ]);
 const COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST =
   "f5800627472b5df8278ff6a11f6d9a514201706e06021852b5bf5f37a67b8891";
+const AUTHORIZED_COMPLETED_PAYMENT_CORRECTION_MIGRATION_DIGEST =
+  "0bf7d40a446e11abe7bd278914d7a1921dd73bbda77518055714f20dc27c3bde";
+const PRIVATE_PRODUCT_IMAGE_DELIVERY_MIGRATION_DIGEST =
+  "5e50459f4d3a5f9441eebf8ac2823a81a8feb956c8f6fbec4885fed28b051132";
 const EXISTING_TABLE_TRIGGER_MIGRATION_DIGEST =
   "f05d1e7dc42860f348b7607fd792ddd0d961d2cb48035dfac5ed8fa3d2532999";
 const INTEGRATED_PRINT_CENTER_MIGRATION_DIGEST =
@@ -193,6 +197,8 @@ export function assertAdditiveMigrationSql(sql) {
     isApprovedPaygContractRuntimeGapsMigration(sql);
   const privateAlertSoundBucketMigration =
     isApprovedPrivateAlertSoundBucketMigration(sql);
+  const privateProductImageDeliveryMigration =
+    isApprovedPrivateProductImageDeliveryMigration(sql);
   const staffKdsSpecialClosuresMigration =
     isApprovedStaffKdsSpecialClosuresMigration(sql);
   const drStandbyCompatibleMigration =
@@ -218,6 +224,10 @@ export function assertAdditiveMigrationSql(sql) {
     if (
       /^update\b/iu.test(statement)
       && !(phaseThreeHardLock && isPhaseThreeHardLockCleanup(statement))
+      && !(
+        privateProductImageDeliveryMigration
+        && isSafePrivateProductImageDeliveryUpdate(statement)
+      )
     ) {
       throw new AdditiveMigrationPlanError("MIGRATION_STATEMENT_FORBIDDEN");
     }
@@ -268,6 +278,7 @@ export function assertAdditiveMigrationSql(sql) {
       phaseThreeHardLock,
       staffKdsSpecialClosuresMigration,
       privateAlertSoundBucketMigration,
+      privateProductImageDeliveryMigration,
     );
   }
   assertReplacementPairs(replacements);
@@ -1020,6 +1031,11 @@ function isApprovedPrivateAlertSoundBucketMigration(sql) {
     === PRIVATE_ALERT_SOUND_BUCKET_MIGRATION_DIGEST;
 }
 
+function isApprovedPrivateProductImageDeliveryMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === PRIVATE_PRODUCT_IMAGE_DELIVERY_MIGRATION_DIGEST;
+}
+
 function isApprovedDrStandbyCompatibleMigration(sql) {
   return DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS.has(
     sha256(sql.replace(/\r\n/gu, "\n").trim()),
@@ -1029,6 +1045,7 @@ function isApprovedDrStandbyCompatibleMigration(sql) {
 function isApprovedCompatibleFunctionBodyMigration(sql) {
   const digest = sha256(sql.replace(/\r\n/gu, "\n").trim());
   return digest === COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST
+    || digest === AUTHORIZED_COMPLETED_PAYMENT_CORRECTION_MIGRATION_DIGEST
     || digest === GLOBAL_STALL_CODE_ROLLOUT_MIGRATION_DIGEST
     || digest === REPORT_DELIVERY_SCHEDULER_MIGRATION_DIGEST
     || digest === STAFF_KDS_SPECIAL_CLOSURES_MIGRATION_DIGEST
@@ -1127,6 +1144,16 @@ function isPhaseThreeHardLockCleanup(statement) {
     "iu",
   );
   return overrideCleanup.test(statement) || catalogCleanup.test(statement);
+}
+
+function isSafePrivateProductImageDeliveryUpdate(statement) {
+  const normalized = statement.replace(/\s+/gu, " ").trim().toLowerCase();
+  return new Set([
+    "update storage.buckets set public = false where id = ''",
+    "update public.products set image_url = regexp_replace( image_url, '' , '' , '' ) where image_url ~* ''",
+    "update public.stalls set cover_image_url = regexp_replace( cover_image_url, '' , '' , '' ) where cover_image_url ~* ''",
+    "update public.stalls set location_guide_image_url = regexp_replace( location_guide_image_url, '' , '' , '' ) where location_guide_image_url ~* ''",
+  ]).has(normalized);
 }
 
 function isPhaseThreeHardLockTrigger(statement, tableIdentity) {
@@ -1380,6 +1407,7 @@ function assertAllowedStatement(
   phaseThreeHardLock,
   staffKdsSpecialClosuresMigration,
   privateAlertSoundBucketMigration,
+  privateProductImageDeliveryMigration,
 ) {
   const allowed = [
     phaseThreeHardLock && isPhaseThreeHardLockCleanup(statement),
@@ -1387,6 +1415,8 @@ function assertAllowedStatement(
       && /^alter\s+table\s+public\.stall_ordering_settings\s+alter\s+column\s+kds_module_enabled\s+set\s+default\s+false$/iu.test(statement),
     privateAlertSoundBucketMigration
       && isSafePrivateAlertSoundBucketSeed(statement),
+    privateProductImageDeliveryMigration
+      && isSafePrivateProductImageDeliveryUpdate(statement),
     isAllowedAlterTableStatement(statement),
     /^alter\s+type\b[\s\S]*\badd\s+value\b/iu,
     /^create\s+(?:or\s+replace\s+)?function\b/iu,
