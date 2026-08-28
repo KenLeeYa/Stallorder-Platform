@@ -7,7 +7,7 @@ import { getRequestDeviceLabel } from "@/lib/device-label";
 import { prisma } from "@/lib/prisma";
 import { verifyPasswordCredential } from "@/lib/password-auth";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, resetRateLimitBucket } from "@/lib/rate-limit";
 import {
   createRequestId,
   hashClientIp,
@@ -48,6 +48,36 @@ export async function POST(request: Request) {
     ));
   }
 
+  const rateLimitEnabled = !isLocalQaLoginRateLimitDisabled();
+  if (rateLimitEnabled) {
+    const ipLimit = await timing.measure(
+      "authMs",
+      () => timing.measureDb(() => checkRateLimit({
+        scope: "login-ip",
+        identifier: ipHash,
+        limit: 20,
+        windowMs: 15 * 60_000,
+      })),
+    );
+    if (!ipLimit.allowed) {
+      await timing.measureDb(() => recordAuditEvent({
+        action: "RATE_LIMIT_HIT",
+        entityType: "AUTH",
+        outcome: "DENIED",
+        requestId,
+        ipHash,
+        metadata: { scope: "login-ip" },
+      }));
+      return finalize(NextResponse.json(
+        { error: "登入嘗試次數過多，請稍後再試。" },
+        {
+          status: 429,
+          headers: { "retry-after": String(ipLimit.retryAfterSeconds), "x-request-id": requestId },
+        },
+      ));
+    }
+  }
+
   const oauthState = await timing.measureDb(() => resolveOAuthLoginFeatureState());
   if (oauthState.oauthOnly) {
     await timing.measureDb(() => recordAuditEvent({
@@ -73,49 +103,7 @@ export async function POST(request: Request) {
     ));
   }
 
-  if (!isLocalQaLoginRateLimitDisabled()) {
-    const accountHash = hashToken(parsed.data.email);
-    const [ipLimit, ipAccountLimit, accountLimit] = await timing.measure(
-      "authMs",
-      () => timing.measureDb(() => Promise.all([
-      checkRateLimit({ scope: "login-ip", identifier: ipHash, limit: 20, windowMs: 15 * 60_000 }),
-      checkRateLimit({
-        scope: "login-ip-account",
-        identifier: `${ipHash}:${accountHash}`,
-        limit: 5,
-        windowMs: 15 * 60_000,
-      }),
-      checkRateLimit({
-        scope: "login-account",
-        identifier: accountHash,
-        limit: 5,
-        windowMs: 15 * 60_000,
-      }),
-      ]), 3),
-    );
-    const limited = !ipLimit.allowed
-      ? ipLimit
-      : !ipAccountLimit.allowed
-        ? ipAccountLimit
-        : !accountLimit.allowed ? accountLimit : null;
-    if (limited) {
-      await timing.measureDb(() => recordAuditEvent({
-        action: "RATE_LIMIT_HIT",
-        entityType: "AUTH",
-        outcome: "DENIED",
-        requestId,
-        ipHash,
-        metadata: { scope: "login" },
-      }));
-      return finalize(NextResponse.json(
-        { error: "登入嘗試次數過多，請稍後再試。" },
-        {
-          status: 429,
-          headers: { "retry-after": String(limited.retryAfterSeconds), "x-request-id": requestId },
-        },
-      ));
-    }
-  }
+  const accountHash = rateLimitEnabled ? hashToken(parsed.data.email) : null;
 
   const profile = await timing.measureDb(() => prisma.profile.findUnique({
     where: { email: parsed.data.email },
@@ -170,6 +158,45 @@ export async function POST(request: Request) {
     || !passwordValid
     || (!organizationMembership && !stallMembership && profile.platformRole !== "PLATFORM_ADMIN")
   ) {
+    if (accountHash) {
+      const [ipAccountLimit, accountLimit] = await timing.measure(
+        "authMs",
+        () => timing.measureDb(() => Promise.all([
+          checkRateLimit({
+            scope: "login-ip-account-failure",
+            identifier: `${ipHash}:${accountHash}`,
+            limit: 5,
+            windowMs: 15 * 60_000,
+          }),
+          checkRateLimit({
+            scope: "login-account-failure",
+            identifier: accountHash,
+            limit: 5,
+            windowMs: 15 * 60_000,
+          }),
+        ]), 2),
+      );
+      const limited = !ipAccountLimit.allowed ? ipAccountLimit : !accountLimit.allowed ? accountLimit : null;
+      if (limited) {
+        await timing.measureDb(() => recordAuditEvent({
+          action: "RATE_LIMIT_HIT",
+          entityType: "AUTH",
+          outcome: "DENIED",
+          requestId,
+          actorProfileId: profile?.id,
+          stallId: stallMembership?.stallId,
+          ipHash,
+          metadata: { scope: "login-failure" },
+        }));
+        return finalize(NextResponse.json(
+          { error: "登入嘗試次數過多，請稍後再試。" },
+          {
+            status: 429,
+            headers: { "retry-after": String(limited.retryAfterSeconds), "x-request-id": requestId },
+          },
+        ));
+      }
+    }
     await timing.measureDb(() => recordAuditEvent({
       action: "LOGIN_FAILURE",
       entityType: "AUTH",
@@ -183,6 +210,24 @@ export async function POST(request: Request) {
       { error: "電子郵件或密碼不正確。" },
       { status: 401, headers: { "x-request-id": requestId } },
     ));
+  }
+
+  if (accountHash) {
+    try {
+      await timing.measureDb(() => Promise.all([
+        resetRateLimitBucket({ scope: "login-ip-account-failure", identifier: `${ipHash}:${accountHash}` }),
+        resetRateLimitBucket({ scope: "login-account-failure", identifier: accountHash }),
+      ]), 2);
+    } catch {
+      await timing.measureDb(() => recordAuditEvent({
+        action: "LOGIN_FAILURE_BUCKET_RESET_FAILED",
+        entityType: "AUTH",
+        outcome: "FAILURE",
+        requestId,
+        actorProfileId: profile.id,
+        ipHash,
+      }));
+    }
   }
 
   const deviceId = resolveSessionDeviceId(request);

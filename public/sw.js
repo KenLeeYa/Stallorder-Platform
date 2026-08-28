@@ -1,6 +1,7 @@
-const CACHE_NAME = "stallorder-shell-v8";
+const CACHE_NAME = "stallorder-shell-v9";
 const OFFLINE_URL = "/offline";
 const OFFLINE_DB_NAME = "stallorder-offline-pos";
+const OFFLINE_PUBLIC_MENU_RESPONSE = "public-menu-v1";
 const IS_LOCAL_DEVELOPMENT = ["localhost", "127.0.0.1", "[::1]"].includes(self.location.hostname)
   && !new URL(self.location.href).searchParams.has("pwa-enabled");
 const SHELL_ASSETS = [
@@ -199,9 +200,12 @@ async function networkFirstPublicMenuNavigation(request) {
     const response = await fetch(request);
     const cacheControl = response.headers.get("cache-control") ?? "";
     const hasSensitiveQuery = new URL(request.url).search.length > 0;
+    const explicitlyOfflineCacheable = response.headers.get("x-stallorder-offline-cache")
+      === OFFLINE_PUBLIC_MENU_RESPONSE;
     const cacheAllowed = response.ok
       && !hasSensitiveQuery
-      && !/(?:^|,)\s*(?:private|no-store)\b/i.test(cacheControl);
+      && (explicitlyOfflineCacheable
+        || !/(?:^|,)\s*(?:private|no-store)\b/i.test(cacheControl));
     if (cacheAllowed) await cache.put(request, response.clone());
     else if (hasSensitiveQuery || response.status === 404 || response.status === 410) {
       await cache.delete(request);

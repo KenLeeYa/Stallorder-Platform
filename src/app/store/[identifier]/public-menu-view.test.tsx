@@ -191,7 +191,6 @@ describe("PublicMenuView category navigation", () => {
     const html = renderToStaticMarkup(<PublicMenuView menu={menu} locale="zh-TW" />);
 
     expect(html).toContain('data-testid="public-menu-sold-out"');
-    expect(html).toContain('aria-disabled="true"');
     expect(html).toContain("grayscale opacity-45");
     expect(html).toContain("售完");
   });

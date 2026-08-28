@@ -8,7 +8,7 @@ describe("PWA 安全無縫更新契約", () => {
   it("以新版 service worker 觸發更新且先檢查未同步資料", () => {
     const worker = readFileSync(join(projectRoot, "public", "sw.js"), "utf8");
 
-    expect(worker).toContain('const CACHE_NAME = "stallorder-shell-v8";');
+    expect(worker).toContain('const CACHE_NAME = "stallorder-shell-v9";');
     expect(worker).toContain('event.data?.type === "CHECK_UPDATE_SAFETY"');
     expect(worker).toContain('event.data?.type === "ACTIVATE_UPDATE"');
     expect(worker).toContain("if (pendingRecords > 0)");
@@ -39,12 +39,18 @@ describe("PWA 安全無縫更新契約", () => {
     expect(shell).toContain('lazy(() => import("@/components/pwa-update-controller")');
   });
 
-  it("不快取含訂單修改能力憑證的 public navigation", () => {
+  it("只離線快取明確標記且不含敏感查詢的 public navigation", () => {
     const worker = readFileSync(join(projectRoot, "public", "sw.js"), "utf8");
+    const nextConfig = readFileSync(join(projectRoot, "next.config.ts"), "utf8");
 
     expect(worker).toContain("purgeSensitiveNavigationEntries");
     expect(worker).toContain("hasSensitiveQuery");
     expect(worker).toContain("private|no-store");
+    expect(worker).toContain("x-stallorder-offline-cache");
+    expect(worker).toContain("OFFLINE_PUBLIC_MENU_RESPONSE");
+    expect(nextConfig).toContain('source: "/q/:qrToken"');
+    expect(nextConfig).toContain('source: "/store/:identifier"');
+    expect(nextConfig).toContain('{ key: "X-StallOrder-Offline-Cache", value: "public-menu-v1" }');
   });
 
   it("禁止瀏覽器或 CDN 快取 service worker 入口", () => {

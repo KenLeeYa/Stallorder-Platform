@@ -186,8 +186,6 @@ function MenuProductCard({
 
   return (
     <article
-      role="group"
-      aria-disabled={product.isSoldOut}
       data-testid={product.isSoldOut ? "public-menu-sold-out" : undefined}
       className={`break-inside-avoid overflow-hidden rounded-2xl border shadow-sm print:rounded-none print:shadow-none ${product.isSoldOut ? "border-stone-300 bg-stone-100" : "border-stone-200 bg-white"}`}
     >

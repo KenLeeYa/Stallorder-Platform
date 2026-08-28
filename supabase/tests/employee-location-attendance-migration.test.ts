@@ -15,6 +15,9 @@ describe("employee location attendance migration", () => {
     expect(migration).toContain("revoke all on table public.attendance_events from public, anon, authenticated");
     expect(migration).toContain("organization_id uuid not null");
     expect(migration).toContain("stall_id uuid not null");
+    expect(migration).toContain("attendance_policies_stall_scope_fkey");
+    expect(migration).toContain("attendance_events_stall_scope_fkey");
+    expect(migration).toContain("references public.stalls(id, organization_id)");
   });
 
   it("constrains geofence policy and minimizes expired location evidence", () => {

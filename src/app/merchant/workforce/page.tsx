@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { BriefcaseBusiness } from "lucide-react";
 import { WorkforceManager } from "@/components/workforce-manager";
-import { hasPermission } from "@/lib/rbac";
+import { authorizedStallIdsForPermission, hasPermission } from "@/lib/rbac";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 import { getWorkforceDashboard } from "@/server/workforce/workforce-service";
 
@@ -16,6 +16,8 @@ export default async function WorkforcePage({ searchParams }: PageProps) {
   const workspace = requireWorkspaceOrganization(workspaces, query.organizationId);
   const roles = [...workspace.roles, ...workspace.stalls.flatMap((stall) => stall.roles)];
   if (!roles.some((role) => hasPermission(role, "MANAGE_ATTENDANCE"))) notFound();
+  const authorizedStallIds = authorizedStallIdsForPermission(workspace.stalls, "MANAGE_ATTENDANCE");
+  if (!workspace.canUseAllStalls && authorizedStallIds.length === 0) notFound();
   const today = new Date().toISOString().slice(0, 10);
   const dateFrom = validDate(query.dateFrom) ? query.dateFrom : `${today.slice(0, 8)}01`;
   const dateTo = validDate(query.dateTo) ? query.dateTo : today;
@@ -23,6 +25,7 @@ export default async function WorkforcePage({ searchParams }: PageProps) {
     organizationId: workspace.id,
     dateFrom,
     dateTo,
+    accessScope: { canUseAllStalls: workspace.canUseAllStalls, authorizedStallIds },
   });
 
   return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-5 md:px-8 md:py-7">

@@ -379,7 +379,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
       if (order.payment!.method !== nextMethod || order.payment!.cashShiftId !== cashShiftId) {
         await transaction.$executeRaw(
-          Prisma.sql`select set_config('app.payment_method_correction', 'authorized', true)`,
+          Prisma.sql`set local app.payment_method_correction = 'authorized'`,
         );
       }
       const result = await transaction.payment.updateMany({
@@ -398,7 +398,6 @@ export async function PATCH(request: Request, context: RouteContext) {
           cashShiftId,
           cashReceived: paymentOption.kind === "CASH" ? order.payment!.amount : null,
           changeAmount: paymentOption.kind === "CASH" ? 0 : null,
-          reconciliationStatus: "PAYMENT_METHOD_CORRECTED",
         },
       });
       if (result.count !== 1) return "CONFLICT" as const;
@@ -438,6 +437,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       requestId: authorization.requestId,
       orderId: order.id,
       errorName: error instanceof Error ? error.name : "UnknownError",
+      ...(process.env.NODE_ENV !== "production" && error instanceof Error
+        ? { errorMessage: error.message }
+        : {}),
     }));
     return NextResponse.json(
       { error: "付款方式更新失敗，請稍後再試。" },

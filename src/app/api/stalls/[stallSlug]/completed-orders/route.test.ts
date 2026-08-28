@@ -197,7 +197,6 @@ describe("completed order protected corrections", () => {
         cashShiftId: null,
         cashReceived: null,
         changeAmount: null,
-        reconciliationStatus: "PAYMENT_METHOD_CORRECTED",
       },
     });
     expect(mocks.executeRaw).toHaveBeenCalledOnce();

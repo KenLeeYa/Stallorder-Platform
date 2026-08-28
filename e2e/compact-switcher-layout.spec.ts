@@ -144,7 +144,7 @@ test("廚房只保留一組共用工具並使用不同工作模式人像", async
   await expect(page.getByRole("button", { name: "登出", exact: true })).toHaveCount(1);
   await expect(page.getByTestId("kitchen-primary-navigation")).toBeVisible();
   await expect(page.getByTestId("kitchen-board-utility-toolbar")).toHaveCount(0);
-  await expect(page.getByTestId("kitchen-primary-navigation").getByRole("link")).toHaveCount(2);
+  await expect(page.getByTestId("kitchen-primary-navigation").getByRole("link")).toHaveCount(3);
 
   for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });

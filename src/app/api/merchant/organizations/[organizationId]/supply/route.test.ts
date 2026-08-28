@@ -26,6 +26,7 @@ vi.mock("@/server/supply-lite/supply-service", () => ({
 }));
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "44444444-4444-4444-8444-444444444444";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,6 +34,8 @@ beforeEach(() => {
     ok: true,
     requestId: "request-1",
     principal: { user: { id: "55555555-5555-4555-8555-555555555551" } },
+    authorizedStallIds: [stallId],
+    workspace: { canUseAllStalls: false },
   });
   mocks.validateCsrf.mockReturnValue(true);
   mocks.applySupplyCommand.mockResolvedValue({ id: "22222222-2222-4222-8222-222222222222" });
@@ -87,12 +90,32 @@ describe("Supply Lite merchant API", () => {
       organizationId,
       actorProfileId: "55555555-5555-4555-8555-555555555551",
       command: expect.objectContaining({ operation: "CREATE_INGREDIENT", code: "CHICKEN" }),
+      accessScope: { canUseAllStalls: false, authorizedStallIds: [stallId] },
     }));
     expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
       organizationId,
       action: "SUPPLY_CREATE_INGREDIENT",
       outcome: "SUCCESS",
     }));
+  });
+
+  it("requests stall-scoped authorization and filters the dashboard", async () => {
+    const route = await import("./route");
+    const response = await route.GET(new Request(
+      `https://example.test/api/merchant/organizations/${organizationId}/supply`,
+    ), { params: Promise.resolve({ organizationId }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      expect.any(Request),
+      organizationId,
+      "MANAGE_SHARED_PRODUCTS",
+      true,
+    );
+    expect(mocks.getSupplyDashboard).toHaveBeenCalledWith({
+      organizationId,
+      accessScope: { canUseAllStalls: false, authorizedStallIds: [stallId] },
+    });
   });
 
   it("maps idempotency conflicts without exposing internals", async () => {

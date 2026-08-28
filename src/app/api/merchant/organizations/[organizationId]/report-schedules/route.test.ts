@@ -37,13 +37,33 @@ beforeEach(() => {
     ok: true,
     requestId: "request-1",
     principal: { user: { id: "55555555-5555-4555-8555-555555555551" } },
-    workspace: { stalls: [{ id: stallId, isActive: true }] },
+    authorizedStallIds: [stallId],
+    workspace: { canUseAllStalls: false, stalls: [{ id: stallId, isActive: true }] },
   });
   mocks.validateCsrf.mockReturnValue(true);
   mocks.assertFeatureEnabled.mockResolvedValue(undefined);
+  mocks.createSchedule.mockResolvedValue({
+    id: "44444444-4444-4444-8444-444444444444",
+    reportType: "DAILY_SALES",
+    stallIds: [stallId],
+    recipients: ["owner@example.com"],
+    isEnabled: true,
+    nextRunAt: new Date("2026-08-30T00:00:00.000Z"),
+    createdAt: new Date("2026-08-29T00:00:00.000Z"),
+    updatedAt: new Date("2026-08-29T00:00:00.000Z"),
+  });
 });
 
 describe("建立報表排程 API 欄位錯誤", () => {
+  it("要求可回傳授權攤位的組織授權", async () => {
+    const route = await import("./route");
+    const response = await route.POST(scheduleRequest(validSchedule()), { params: Promise.resolve({ organizationId }) });
+    expect(response.status).toBe(201);
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      expect.any(Request), organizationId, "MANAGE_REPORT_SCHEDULES", true,
+    );
+  });
+
   it("以繁中欄位錯誤回報空白與格式錯誤", async () => {
     const route = await import("./route");
     const response = await route.POST(scheduleRequest({

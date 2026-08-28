@@ -97,6 +97,99 @@ export async function releaseRateLimitToken(
   `;
 }
 
+export async function resetRateLimitBucket(
+  options: Pick<RateLimitOptions, "scope" | "identifier">,
+) {
+  const key = createHash("sha256").update(`${options.scope}:${options.identifier}`).digest("hex");
+  await prisma.$executeRaw`
+    delete from public.rate_limit_buckets
+    where key = ${key}
+      and scope = ${options.scope}
+  `;
+}
+
+export async function acquireRateLimitLease(options: RateLimitOptions) {
+  const key = createHash("sha256").update(`${options.scope}:${options.identifier}`).digest("hex");
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + options.windowMs);
+  const [bucket] = await prisma.$queryRaw<Array<{
+    count: number;
+    expiresAt: Date;
+    acquired: boolean;
+  }>>`
+    with scope_lock as (
+      select pg_advisory_xact_lock(
+        hashtextextended(${`rate-limit-cardinality:${options.scope}`}, 0)
+      )
+    ), expired as (
+      select key
+      from public.rate_limit_buckets
+      where expires_at <= ${now}
+      order by expires_at asc
+      limit 100
+    ), cleanup as (
+      delete from public.rate_limit_buckets buckets
+      using expired
+      where buckets.key = expired.key
+    ), cardinality as (
+      select count(*)::integer as bucket_count
+      from public.rate_limit_buckets, scope_lock
+      where scope = ${options.scope}
+        and expires_at > ${now}
+    ), admitted as (
+      select 1
+      from cardinality
+      where bucket_count < ${MAX_BUCKETS_PER_SCOPE}
+        or exists (select 1 from public.rate_limit_buckets where key = ${key})
+    ), acquired as (
+      insert into public.rate_limit_buckets (key, scope, count, expires_at, updated_at)
+      select ${key}, ${options.scope}, 1, ${expiresAt}, ${now}
+      from admitted
+      on conflict (key) do update set
+        scope = excluded.scope,
+        count = case
+          when public.rate_limit_buckets.expires_at <= ${now} then 1
+          else public.rate_limit_buckets.count + 1
+        end,
+        expires_at = ${expiresAt},
+        updated_at = ${now}
+      where public.rate_limit_buckets.expires_at <= ${now}
+        or public.rate_limit_buckets.count < ${options.limit}
+      returning count, expires_at as "expiresAt"
+    )
+    select count, "expiresAt", true as acquired from acquired
+    union all
+    select count, expires_at as "expiresAt", false as acquired
+    from public.rate_limit_buckets
+    where key = ${key}
+      and not exists (select 1 from acquired)
+    limit 1
+  `;
+
+  if (!bucket?.acquired) {
+    return {
+      allowed: false as const,
+      remaining: 0,
+      retryAfterSeconds: bucket
+        ? Math.max(1, Math.ceil((bucket.expiresAt.getTime() - now.getTime()) / 1000))
+        : Math.max(1, Math.ceil(options.windowMs / 1000)),
+      release: async () => undefined,
+    };
+  }
+
+  let released = false;
+  return {
+    allowed: true as const,
+    remaining: Math.max(0, options.limit - bucket.count),
+    retryAfterSeconds: Math.max(1, Math.ceil((bucket.expiresAt.getTime() - now.getTime()) / 1000)),
+    release: async () => {
+      if (released) return;
+      released = true;
+      await releaseRateLimitToken(options);
+    },
+  };
+}
+
 export async function checkPublicRateLimit(options: PublicRateLimitOptions) {
   const source = await checkRateLimit({
     scope: `${options.scope}:source`,

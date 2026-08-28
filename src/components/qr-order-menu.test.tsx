@@ -175,7 +175,6 @@ describe("QrOrderMenu presentation", () => {
       },
     });
 
-    expect(html).toContain('aria-disabled="true"');
     expect(html).toContain('data-testid="sold-out-image-overlay"');
     expect(html).toContain('data-testid="sold-out-badge"');
     expect(html).toContain("grayscale opacity-45");

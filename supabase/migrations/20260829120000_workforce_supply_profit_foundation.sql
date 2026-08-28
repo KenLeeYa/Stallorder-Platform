@@ -26,7 +26,7 @@ create table public.workforce_wage_rates (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   profile_id uuid not null references public.profiles(id) on delete restrict,
-  stall_id uuid references public.stalls(id) on delete cascade,
+  stall_id uuid,
   hourly_rate integer not null check (hourly_rate between 1 and 1000000),
   effective_from date not null,
   effective_to date,
@@ -130,13 +130,14 @@ create table public.workforce_payroll_periods (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (organization_id, period_start, period_end),
+  unique (id, organization_id),
   check (period_end >= period_start)
 );
 
 create table public.workforce_payroll_lines (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  payroll_period_id uuid not null references public.workforce_payroll_periods(id) on delete cascade,
+  payroll_period_id uuid not null,
   profile_id uuid not null references public.profiles(id) on delete restrict,
   hourly_rate integer not null check (hourly_rate between 1 and 1000000),
   regular_minutes integer not null default 0 check (regular_minutes between 0 and 100000),
@@ -152,6 +153,9 @@ create table public.workforce_payroll_lines (
   note varchar(500),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  constraint workforce_payroll_lines_period_scope_fkey
+    foreign key (payroll_period_id, organization_id)
+    references public.workforce_payroll_periods(id, organization_id) on delete cascade,
   unique (payroll_period_id, profile_id)
 );
 
@@ -173,6 +177,7 @@ create table public.supply_suppliers (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (organization_id, code),
+  unique (id, organization_id),
   check (code ~ '^[A-Z0-9][A-Z0-9_-]{1,39}$')
 );
 
@@ -182,13 +187,17 @@ alter table public.supply_ingredients
   add column track_expiry boolean not null default false,
   add column default_shelf_life_days smallint
     check (default_shelf_life_days is null or default_shelf_life_days between 1 and 3650),
-  add column preferred_supplier_id uuid references public.supply_suppliers(id) on delete set null;
+  add column preferred_supplier_id uuid,
+  add constraint supply_ingredients_preferred_supplier_scope_fkey
+    foreign key (preferred_supplier_id, organization_id)
+    references public.supply_suppliers(id, organization_id)
+    on delete set null (preferred_supplier_id);
 
 create table public.supply_purchase_orders (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  supplier_id uuid not null references public.supply_suppliers(id) on delete restrict,
-  stall_id uuid references public.stalls(id) on delete set null,
+  supplier_id uuid not null,
+  stall_id uuid,
   document_number varchar(80) not null,
   ordered_on date not null,
   expected_on date,
@@ -203,7 +212,15 @@ create table public.supply_purchase_orders (
   created_by_profile_id uuid not null references public.profiles(id) on delete restrict,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (organization_id, document_number)
+  constraint supply_purchase_orders_supplier_scope_fkey
+    foreign key (supplier_id, organization_id)
+    references public.supply_suppliers(id, organization_id) on delete restrict,
+  constraint supply_purchase_orders_stall_scope_fkey
+    foreign key (stall_id, organization_id)
+    references public.stalls(id, organization_id)
+    on delete set null (stall_id),
+  unique (organization_id, document_number),
+  unique (id, organization_id)
 );
 
 create index supply_purchase_orders_date_idx
@@ -212,7 +229,7 @@ create index supply_purchase_orders_date_idx
 create table public.supply_purchase_order_lines (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  purchase_order_id uuid not null references public.supply_purchase_orders(id) on delete cascade,
+  purchase_order_id uuid not null,
   ingredient_id uuid not null,
   location_id uuid not null,
   quantity_micros bigint not null check (quantity_micros > 0),
@@ -222,12 +239,16 @@ create table public.supply_purchase_order_lines (
   manufactured_on date,
   expires_on date,
   created_at timestamptz not null default now(),
+  constraint supply_purchase_order_lines_order_scope_fkey
+    foreign key (purchase_order_id, organization_id)
+    references public.supply_purchase_orders(id, organization_id) on delete cascade,
   constraint supply_purchase_order_lines_ingredient_scope_fkey
     foreign key (ingredient_id, organization_id)
     references public.supply_ingredients(id, organization_id) on delete restrict,
   constraint supply_purchase_order_lines_location_scope_fkey
     foreign key (location_id, organization_id)
     references public.supply_locations(id, organization_id) on delete restrict,
+  unique (id, organization_id),
   check (expires_on is null or manufactured_on is null or expires_on >= manufactured_on)
 );
 
@@ -237,7 +258,7 @@ create index supply_purchase_order_lines_order_idx
 create table public.supply_inventory_lots (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  purchase_order_line_id uuid references public.supply_purchase_order_lines(id) on delete set null,
+  purchase_order_line_id uuid,
   ingredient_id uuid not null,
   location_id uuid not null,
   lot_number varchar(100) not null,
@@ -251,6 +272,10 @@ create table public.supply_inventory_lots (
     check (status in ('AVAILABLE', 'CONSUMED', 'EXPIRED', 'QUARANTINED')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  constraint supply_inventory_lots_purchase_line_scope_fkey
+    foreign key (purchase_order_line_id, organization_id)
+    references public.supply_purchase_order_lines(id, organization_id)
+    on delete set null (purchase_order_line_id),
   constraint supply_inventory_lots_ingredient_scope_fkey
     foreign key (ingredient_id, organization_id)
     references public.supply_ingredients(id, organization_id) on delete restrict,
@@ -269,7 +294,7 @@ create index supply_inventory_lots_expiry_idx
 create table public.operating_expenses (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
-  stall_id uuid references public.stalls(id) on delete set null,
+  stall_id uuid,
   expense_date date not null,
   category varchar(24) not null
     check (category in ('RENT', 'UTILITIES', 'PLATFORM_FEE', 'DELIVERY_FEE', 'MARKETING', 'MAINTENANCE', 'INSURANCE', 'TAX', 'OTHER')),
@@ -279,7 +304,11 @@ create table public.operating_expenses (
   is_recurring boolean not null default false,
   created_by_profile_id uuid not null references public.profiles(id) on delete restrict,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint operating_expenses_stall_scope_fkey
+    foreign key (stall_id, organization_id)
+    references public.stalls(id, organization_id)
+    on delete set null (stall_id)
 );
 
 create index operating_expenses_period_idx

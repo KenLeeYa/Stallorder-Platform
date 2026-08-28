@@ -26,7 +26,13 @@ const profileId = "55555555-5555-4555-8555-555555555551";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.authorize.mockResolvedValue({ ok: true, requestId: "request-1", principal: { user: { id: profileId } } });
+  mocks.authorize.mockResolvedValue({
+    ok: true,
+    requestId: "request-1",
+    principal: { user: { id: profileId } },
+    authorizedStallIds: ["44444444-4444-4444-8444-444444444444"],
+    workspace: { canUseAllStalls: false },
+  });
   mocks.validateCsrf.mockReturnValue(true);
   mocks.applyCommand.mockResolvedValue({ id: "22222222-2222-4222-8222-222222222222" });
   mocks.getDashboard.mockResolvedValue({ payrollPreview: [], schedules: [], leaveRequests: [] });
@@ -49,10 +55,35 @@ describe("workforce manager API", () => {
       organizationId,
       actorProfileId: profileId,
       command: expect.objectContaining({ operation: "SET_WAGE_RATE", hourlyRate: 210 }),
+      accessScope: {
+        canUseAllStalls: false,
+        authorizedStallIds: ["44444444-4444-4444-8444-444444444444"],
+      },
     }));
     expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
       action: "WORKFORCE_SET_WAGE_RATE",
       outcome: "SUCCESS",
+    }));
+  });
+
+  it("requests stall-scoped authorization and forwards the authorized stalls", async () => {
+    const route = await import("./route");
+    const response = await route.GET(new Request(
+      `https://example.test/api/merchant/organizations/${organizationId}/workforce`,
+    ), { params: Promise.resolve({ organizationId }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      expect.any(Request),
+      organizationId,
+      "MANAGE_ATTENDANCE",
+      true,
+    );
+    expect(mocks.getDashboard).toHaveBeenCalledWith(expect.objectContaining({
+      accessScope: {
+        canUseAllStalls: false,
+        authorizedStallIds: ["44444444-4444-4444-8444-444444444444"],
+      },
     }));
   });
 

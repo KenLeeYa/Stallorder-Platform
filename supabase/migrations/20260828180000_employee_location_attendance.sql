@@ -2,8 +2,7 @@ create table public.attendance_policies (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null
     references public.organizations(id) on delete cascade,
-  stall_id uuid not null unique
-    references public.stalls(id) on delete cascade,
+  stall_id uuid not null unique,
   enabled boolean not null default false,
   latitude numeric(9, 6),
   longitude numeric(10, 6),
@@ -18,6 +17,9 @@ create table public.attendance_policies (
     references public.profiles(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  constraint attendance_policies_stall_scope_fkey
+    foreign key (stall_id, organization_id)
+    references public.stalls(id, organization_id) on delete cascade,
   check ((latitude is null) = (longitude is null)),
   check (latitude is null or latitude between -90 and 90),
   check (longitude is null or longitude between -180 and 180),
@@ -32,8 +34,7 @@ create table public.attendance_events (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null
     references public.organizations(id) on delete cascade,
-  stall_id uuid not null
-    references public.stalls(id) on delete cascade,
+  stall_id uuid not null,
   profile_id uuid not null
     references public.profiles(id) on delete restrict,
   session_id uuid
@@ -58,6 +59,9 @@ create table public.attendance_events (
   evidence_purge_at timestamptz not null,
   occurred_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
+  constraint attendance_events_stall_scope_fkey
+    foreign key (stall_id, organization_id)
+    references public.stalls(id, organization_id) on delete cascade,
   check ((latitude is null) = (longitude is null)),
   check (latitude is null or latitude between -90 and 90),
   check (longitude is null or longitude between -180 and 180),

@@ -46,4 +46,22 @@ describe("workforce, supply and operating profit foundation migration", () => {
     expect(migrationSource).toContain("track_expiry boolean");
     expect(migrationSource).toContain("supply_inventory_lots_expiry_idx");
   });
+
+  it("binds tenant-owned references to the same organization", () => {
+    for (const constraint of [
+      "workforce_payroll_lines_period_scope_fkey",
+      "supply_ingredients_preferred_supplier_scope_fkey",
+      "supply_purchase_orders_supplier_scope_fkey",
+      "supply_purchase_orders_stall_scope_fkey",
+      "supply_purchase_order_lines_order_scope_fkey",
+      "supply_inventory_lots_purchase_line_scope_fkey",
+      "operating_expenses_stall_scope_fkey",
+    ]) {
+      expect(migrationSource).toContain(constraint);
+    }
+    expect(migrationSource).toContain("references public.workforce_payroll_periods(id, organization_id)");
+    expect(migrationSource).toContain("references public.supply_suppliers(id, organization_id)");
+    expect(migrationSource).toContain("references public.supply_purchase_orders(id, organization_id)");
+    expect(migrationSource).toContain("references public.supply_purchase_order_lines(id, organization_id)");
+  });
 });

@@ -3,6 +3,8 @@ import { recordAuditEvent } from "@/lib/audit";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
 import { createTestReportDelivery } from "@/lib/report-delivery";
+import { prisma } from "@/lib/prisma";
+import { canAccessReportSchedule, reportScheduleAccessScope } from "@/lib/report-schedule-access";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
@@ -11,7 +13,7 @@ type RouteContext = { params: Promise<{ organizationId: string; scheduleId: stri
 
 export async function POST(request: Request, context: RouteContext) {
   const { organizationId, scheduleId } = await context.params;
-  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_REPORT_SCHEDULES");
+  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_REPORT_SCHEDULES", true);
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json({ error: "安全驗證已失效，請重新整理後再試。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
@@ -24,6 +26,16 @@ export async function POST(request: Request, context: RouteContext) {
     throw error;
   }
   try {
+    const schedule = await prisma.reportSchedule.findFirst({
+      where: { id: scheduleId, organizationId, archivedAt: null },
+      select: { stallIds: true },
+    });
+    if (!schedule) {
+      return NextResponse.json({ error: "找不到指定排程。" }, { status: 404, headers: { "x-request-id": authorization.requestId } });
+    }
+    if (!canAccessReportSchedule(schedule.stallIds, reportScheduleAccessScope(authorization))) {
+      return NextResponse.json({ error: "此排程超出您可管理的攤位範圍。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
+    }
     const result = await createTestReportDelivery(scheduleId, organizationId);
     await recordAuditEvent({
       organizationId,

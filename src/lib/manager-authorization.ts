@@ -63,16 +63,34 @@ export async function verifyManagerAuthorization(input: {
     throw new ManagerAuthorizationError("CODE_NOT_CONFIGURED");
   }
   const codeVersion = settings.managerAuthorizationCodeUpdatedAt?.getTime() ?? 0;
-  const rateLimitKey = {
-    scope: "manager-authorization-code",
-    identifier: `${input.stallId}:${codeVersion}`,
+  const actorRateLimitKey = {
+    scope: "manager-authorization-code:actor",
+    identifier: `${input.stallId}:${codeVersion}:${input.actorProfileId}`,
   };
   const limit = await checkRateLimit({
-    ...rateLimitKey,
-    limit: 8,
+    ...actorRateLimitKey,
+    limit: 3,
     windowMs: 15 * 60_000,
   });
   if (!limit.allowed) {
+    logEvent("warn", "MANAGER_AUTHORIZATION_CODE_LOCKED", {
+      stallId: input.stallId,
+      codeVersion,
+      actorProfileId: input.actorProfileId,
+    });
+    throw new ManagerAuthorizationError("RATE_LIMITED");
+  }
+  const stallRateLimitKey = {
+    scope: "manager-authorization-code:stall",
+    identifier: `${input.stallId}:${codeVersion}`,
+  };
+  const stallLimit = await checkRateLimit({
+    ...stallRateLimitKey,
+    limit: 8,
+    windowMs: 15 * 60_000,
+  });
+  if (!stallLimit.allowed) {
+    await releaseRateLimitToken(actorRateLimitKey);
     logEvent("warn", "MANAGER_AUTHORIZATION_CODE_LOCKED", {
       stallId: input.stallId,
       codeVersion,
@@ -82,7 +100,10 @@ export async function verifyManagerAuthorization(input: {
   if (!(await compare(authorizationCode, settings.managerAuthorizationCodeHash))) {
     throw new ManagerAuthorizationError("INVALID_CODE");
   }
-  await releaseRateLimitToken(rateLimitKey);
+  await Promise.all([
+    releaseRateLimitToken(actorRateLimitKey),
+    releaseRateLimitToken(stallRateLimitKey),
+  ]);
 
   return { method: "SHARED_CODE" as const, approvedById: input.actorProfileId };
 }

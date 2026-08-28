@@ -5,6 +5,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { getZodFieldErrors } from "@/lib/form-field-errors";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { canAccessReportSchedule, reportScheduleAccessScope } from "@/lib/report-schedule-access";
 import { nextScheduledRun, reportScheduleInputSchema } from "@/lib/report-scheduling";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
@@ -14,7 +15,7 @@ type RouteContext = { params: Promise<{ organizationId: string; scheduleId: stri
 
 export async function PATCH(request: Request, context: RouteContext) {
   const { organizationId, scheduleId } = await context.params;
-  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_REPORT_SCHEDULES");
+  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_REPORT_SCHEDULES", true);
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json({ error: "安全驗證已失效，請重新整理後再試。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
@@ -35,8 +36,11 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
   const schedule = await prisma.reportSchedule.findFirst({ where: { id: scheduleId, organizationId, archivedAt: null } });
   if (!schedule) return NextResponse.json({ error: "找不到指定排程。" }, { status: 404, headers: { "x-request-id": authorization.requestId } });
-  const allowedStallIds = new Set(authorization.workspace.stalls.filter((stall) => stall.isActive).map((stall) => stall.id));
-  if (parsed.data.stallIds.some((stallId) => !allowedStallIds.has(stallId))) {
+  const accessScope = reportScheduleAccessScope(authorization);
+  if (!canAccessReportSchedule(schedule.stallIds, accessScope)) {
+    return NextResponse.json({ error: "此排程超出您可管理的攤位範圍。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
+  }
+  if (!canAccessReportSchedule(parsed.data.stallIds, accessScope)) {
     const message = "攤位範圍包含未授權資源。";
     return NextResponse.json({ error: message, fieldErrors: { stallIds: message } }, { status: 403, headers: { "x-request-id": authorization.requestId } });
   }
@@ -74,7 +78,7 @@ const reportScheduleFieldLabels = {
 
 export async function DELETE(request: Request, context: RouteContext) {
   const { organizationId, scheduleId } = await context.params;
-  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_REPORT_SCHEDULES");
+  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_REPORT_SCHEDULES", true);
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json({ error: "安全驗證已失效，請重新整理後再試。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
@@ -85,6 +89,14 @@ export async function DELETE(request: Request, context: RouteContext) {
     const response = entitlementErrorResponse(error, authorization.requestId);
     if (response) return response;
     throw error;
+  }
+  const schedule = await prisma.reportSchedule.findFirst({
+    where: { id: scheduleId, organizationId, archivedAt: null },
+    select: { id: true, stallIds: true },
+  });
+  if (!schedule) return NextResponse.json({ error: "找不到指定排程。" }, { status: 404, headers: { "x-request-id": authorization.requestId } });
+  if (!canAccessReportSchedule(schedule.stallIds, reportScheduleAccessScope(authorization))) {
+    return NextResponse.json({ error: "此排程超出您可管理的攤位範圍。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
   }
   const update = await prisma.reportSchedule.updateMany({
     where: { id: scheduleId, organizationId, archivedAt: null },

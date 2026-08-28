@@ -25,6 +25,7 @@ export type DependencyHealth = {
 
 const DATABASE_DEGRADED_AFTER_MS = 800;
 const DATABASE_TIMEOUT_MS = 2_500;
+const databaseProbeInFlight = new Map<string, Promise<unknown>>();
 
 function roundDuration(value: number) {
   return Math.max(0, Math.round(value * 10) / 10);
@@ -110,7 +111,7 @@ export function providerDependency(
 export async function checkPrimaryDatabaseHealth() {
   return probeDatabase(
     "primaryDatabase",
-    () => prisma.$queryRaw`SELECT 1`,
+    () => sharedDatabaseProbe("primaryDatabase", () => prisma.$queryRaw`SELECT 1`),
   );
 }
 
@@ -122,7 +123,10 @@ export async function checkDrDatabaseHealth() {
   try {
     const client = getDrPrismaClient();
     if (!client) return unknownDependency("drDatabase", "NOT_CONFIGURED");
-    return probeDatabase("drDatabase", () => client.$queryRaw`SELECT 1`);
+    return probeDatabase(
+      "drDatabase",
+      () => sharedDatabaseProbe("drDatabase", () => client.$queryRaw`SELECT 1`),
+    );
   } catch {
     return {
       key: "drDatabase",
@@ -132,6 +136,19 @@ export async function checkDrDatabaseHealth() {
       reasonCode: "INVALID_CONFIGURATION",
     };
   }
+}
+
+function sharedDatabaseProbe(key: string, load: () => Promise<unknown>) {
+  const existing = databaseProbeInFlight.get(key);
+  if (existing) return existing;
+
+  const pending = Promise.resolve().then(load);
+  databaseProbeInFlight.set(key, pending);
+  const clear = () => {
+    if (databaseProbeInFlight.get(key) === pending) databaseProbeInFlight.delete(key);
+  };
+  void pending.then(clear, clear);
+  return pending;
 }
 
 export async function checkReplicationHealth(): Promise<DependencyHealth> {

@@ -39,6 +39,8 @@ export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ stallId: string }> };
 type StallImageSlot = "cover" | "location-guide";
 
+class StallImageConcurrentUpdateError extends Error {}
+
 function resolveImageSlot(request: Request): StallImageSlot {
   return new URL(request.url).searchParams.get("slot") === "location-guide"
     ? "location-guide"
@@ -195,8 +197,14 @@ export async function POST(request: Request, context: RouteContext) {
   );
   try {
     await prisma.$transaction(async (transaction) => {
-      await transaction.stall.update({
-        where: { id: stallId, organizationId },
+      const updated = await transaction.stall.updateMany({
+        where: {
+          id: stallId,
+          organizationId,
+          ...(slot === "cover"
+            ? { coverImageUrl: previous?.coverImageUrl ?? null }
+            : { locationGuideImageUrl: previous?.locationGuideImageUrl ?? null }),
+        },
         data: slot === "cover"
           ? {
               coverImageUrl: imageUrl,
@@ -206,6 +214,7 @@ export async function POST(request: Request, context: RouteContext) {
             }
           : { locationGuideImageUrl: imageUrl },
       });
+      if (updated.count !== 1) throw new StallImageConcurrentUpdateError();
       if (previousObjectPath && previousObjectPath !== objectPath) {
         await enqueueStorageDeletion({
           organizationId,
@@ -215,7 +224,7 @@ export async function POST(request: Request, context: RouteContext) {
         }, transaction);
       }
     });
-  } catch {
+  } catch (error) {
     await enqueueStorageDeletion({
       organizationId,
       bucket: "product-images",
@@ -223,8 +232,10 @@ export async function POST(request: Request, context: RouteContext) {
       contentType: "image/webp",
     }).catch(() => undefined);
     return NextResponse.json(
-      { error: "圖片更新失敗，請稍後再試。" },
-      { status: 503, headers: { "x-request-id": authorization.requestId } },
+      { error: error instanceof StallImageConcurrentUpdateError
+        ? "圖片已被其他操作更新，請重新整理後再試。"
+        : "圖片更新失敗，請稍後再試。" },
+      { status: error instanceof StallImageConcurrentUpdateError ? 409 : 503, headers: { "x-request-id": authorization.requestId } },
     );
   }
   await invalidateCoverImage(stallId, organizationId);
@@ -337,8 +348,14 @@ export async function DELETE(request: Request, context: RouteContext) {
   );
   try {
     await prisma.$transaction(async (transaction) => {
-      await transaction.stall.update({
-        where: { id: stallId, organizationId },
+      const updated = await transaction.stall.updateMany({
+        where: {
+          id: stallId,
+          organizationId,
+          ...(slot === "cover"
+            ? { coverImageUrl: previous?.coverImageUrl ?? null }
+            : { locationGuideImageUrl: previous?.locationGuideImageUrl ?? null }),
+        },
         data: slot === "cover"
           ? {
               coverImageUrl: null,
@@ -348,6 +365,7 @@ export async function DELETE(request: Request, context: RouteContext) {
             }
           : { locationGuideImageUrl: null },
       });
+      if (updated.count !== 1) throw new StallImageConcurrentUpdateError();
       if (previousObjectPath) {
         await enqueueStorageDeletion({
           organizationId,
@@ -357,10 +375,12 @@ export async function DELETE(request: Request, context: RouteContext) {
         }, transaction);
       }
     });
-  } catch {
+  } catch (error) {
     return NextResponse.json(
-      { error: "目前無法建立安全刪除工作，圖片尚未移除，請稍後再試。" },
-      { status: 503, headers: { "x-request-id": authorization.requestId } },
+      { error: error instanceof StallImageConcurrentUpdateError
+        ? "圖片已被其他操作更新，請重新整理後再試。"
+        : "目前無法建立安全刪除工作，圖片尚未移除，請稍後再試。" },
+      { status: error instanceof StallImageConcurrentUpdateError ? 409 : 503, headers: { "x-request-id": authorization.requestId } },
     );
   }
   await invalidateCoverImage(stallId, organizationId);

@@ -103,6 +103,18 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/q/:qrToken",
+        headers: [
+          { key: "X-StallOrder-Offline-Cache", value: "public-menu-v1" },
+        ],
+      },
+      {
+        source: "/store/:identifier",
+        headers: [
+          { key: "X-StallOrder-Offline-Cache", value: "public-menu-v1" },
+        ],
+      },
+      {
         source: "/(.*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },

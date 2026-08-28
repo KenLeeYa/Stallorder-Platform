@@ -78,7 +78,7 @@ describe("shared manager authorization code", () => {
     );
   });
 
-  it("rejects four-digit codes and shares one stall/code-version budget for valid guesses", async () => {
+  it("rejects four-digit codes and uses an actor-scoped budget for valid guesses", async () => {
     await expect(verifyManagerAuthorization({
       ...input,
       authorizationCode: "2468",
@@ -92,18 +92,24 @@ describe("shared manager authorization code", () => {
     })).resolves.toEqual({ method: "SHARED_CODE", approvedById: input.actorProfileId });
     expect(mocks.compare).toHaveBeenCalledWith("246810", "hash");
     expect(mocks.checkRateLimit).toHaveBeenCalledWith({
-      scope: "manager-authorization-code",
+      scope: "manager-authorization-code:actor",
+      identifier: `${input.stallId}:${new Date("2026-08-28T00:00:00.000Z").getTime()}:${input.actorProfileId}`,
+      limit: 3,
+      windowMs: 15 * 60_000,
+    });
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith({
+      scope: "manager-authorization-code:stall",
       identifier: `${input.stallId}:${new Date("2026-08-28T00:00:00.000Z").getTime()}`,
       limit: 8,
       windowMs: 15 * 60_000,
     });
     expect(mocks.releaseRateLimitToken).toHaveBeenCalledWith({
-      scope: "manager-authorization-code",
-      identifier: `${input.stallId}:${new Date("2026-08-28T00:00:00.000Z").getTime()}`,
+      scope: "manager-authorization-code:actor",
+      identifier: `${input.stallId}:${new Date("2026-08-28T00:00:00.000Z").getTime()}:${input.actorProfileId}`,
     });
   });
 
-  it("keeps failed guesses in the shared budget and refunds successful approvals", async () => {
+  it("keeps failed guesses in the actor budget and resets it after approval", async () => {
     mocks.compare.mockResolvedValueOnce(false);
     await expect(verifyManagerAuthorization({ ...input, authorizationCode: "246810" })).rejects.toEqual(
       expect.objectContaining<Partial<ManagerAuthorizationError>>({ code: "INVALID_CODE" }),
@@ -115,7 +121,24 @@ describe("shared manager authorization code", () => {
       method: "SHARED_CODE",
       approvedById: input.actorProfileId,
     });
-    expect(mocks.releaseRateLimitToken).toHaveBeenCalledTimes(1);
+    expect(mocks.releaseRateLimitToken).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not let one actor exhaust the approval budget for another actor", async () => {
+    mocks.checkRateLimit.mockResolvedValueOnce({ allowed: false });
+    await expect(verifyManagerAuthorization({ ...input, authorizationCode: "246810" })).rejects.toEqual(
+      expect.objectContaining<Partial<ManagerAuthorizationError>>({ code: "RATE_LIMITED" }),
+    );
+
+    const otherActorProfileId = "33333333-3333-4333-8333-333333333333";
+    await expect(verifyManagerAuthorization({
+      ...input,
+      actorProfileId: otherActorProfileId,
+      authorizationCode: "246810",
+    })).resolves.toEqual({ method: "SHARED_CODE", approvedById: otherActorProfileId });
+    expect(mocks.checkRateLimit).toHaveBeenCalledWith(expect.objectContaining({
+      identifier: expect.stringContaining(otherActorProfileId),
+    }));
   });
 
   it("requires newly configured codes to contain at least six digits", () => {

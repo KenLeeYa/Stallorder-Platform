@@ -13,6 +13,11 @@ export class SupplyOperationError extends Error {
   }
 }
 
+export type SupplyAccessScope = {
+  canUseAllStalls: boolean;
+  authorizedStallIds: readonly string[];
+};
+
 async function assertSupplyModuleEnabled(organizationId: string) {
   const flags = await resolveResilienceFeatureFlags(
     ["MODULE_SUPPLY_LITE_ENABLED"],
@@ -23,11 +28,28 @@ async function assertSupplyModuleEnabled(organizationId: string) {
   }
 }
 
-export async function getSupplyDashboard(organizationId: string) {
+export async function getSupplyDashboard(input: {
+  organizationId: string;
+  accessScope: SupplyAccessScope;
+}) {
+  const { organizationId } = input;
   await assertSupplyModuleEnabled(organizationId);
+  const restrictedStallIds = input.accessScope.canUseAllStalls
+    ? null
+    : [...new Set(input.accessScope.authorizedStallIds)];
+  const locations = await prisma.supplyLocation.findMany({
+    where: {
+      organizationId,
+      isActive: true,
+      ...(restrictedStallIds ? { stallId: { in: restrictedStallIds } } : {}),
+    },
+    orderBy: [{ locationType: "asc" }, { name: "asc" }, { id: "asc" }],
+    take: 200,
+  });
+  const locationIds = locations.map((location) => location.id);
+  const locationScopeWhere = restrictedStallIds ? { locationId: { in: locationIds } } : {};
   const [
     ingredients,
-    locations,
     balances,
     products,
     stalls,
@@ -35,7 +57,6 @@ export async function getSupplyDashboard(organizationId: string) {
     recentMovements,
     suppliers,
     purchaseOrders,
-    purchaseOrderLines,
     inventoryLots,
   ] = await Promise.all([
     prisma.supplyIngredient.findMany({
@@ -43,13 +64,8 @@ export async function getSupplyDashboard(organizationId: string) {
       orderBy: [{ name: "asc" }, { id: "asc" }],
       take: 500,
     }),
-    prisma.supplyLocation.findMany({
-      where: { organizationId, isActive: true },
-      orderBy: [{ locationType: "asc" }, { name: "asc" }, { id: "asc" }],
-      take: 200,
-    }),
     prisma.supplyInventoryBalance.findMany({
-      where: { organizationId },
+      where: { organizationId, ...locationScopeWhere },
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: 2_000,
     }),
@@ -60,7 +76,11 @@ export async function getSupplyDashboard(organizationId: string) {
       take: 1_000,
     }),
     prisma.stall.findMany({
-      where: { organizationId, isActive: true },
+      where: {
+        organizationId,
+        isActive: true,
+        ...(restrictedStallIds ? { id: { in: restrictedStallIds } } : {}),
+      },
       select: { id: true, name: true },
       orderBy: [{ name: "asc" }, { id: "asc" }],
       take: 500,
@@ -71,7 +91,7 @@ export async function getSupplyDashboard(organizationId: string) {
       take: 5_000,
     }),
     prisma.supplyInventoryMovement.findMany({
-      where: { organizationId },
+      where: { organizationId, ...locationScopeWhere },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 50,
     }),
@@ -81,21 +101,31 @@ export async function getSupplyDashboard(organizationId: string) {
       take: 500,
     }),
     prisma.supplyPurchaseOrder.findMany({
-      where: { organizationId },
+      where: {
+        organizationId,
+        ...(restrictedStallIds ? { stallId: { in: restrictedStallIds } } : {}),
+      },
       orderBy: [{ orderedOn: "desc" }, { createdAt: "desc" }],
       take: 50,
     }),
-    prisma.supplyPurchaseOrderLine.findMany({
-      where: { organizationId },
-      orderBy: { createdAt: "desc" },
-      take: 500,
-    }),
     prisma.supplyInventoryLot.findMany({
-      where: { organizationId, remainingQuantityMicros: { gt: BigInt(0) } },
+      where: {
+        organizationId,
+        remainingQuantityMicros: { gt: BigInt(0) },
+        ...locationScopeWhere,
+      },
       orderBy: [{ expiresOn: "asc" }, { receivedAt: "asc" }],
       take: 1_000,
     }),
   ]);
+  const purchaseOrderLines = await prisma.supplyPurchaseOrderLine.findMany({
+    where: {
+      organizationId,
+      ...(restrictedStallIds ? { purchaseOrderId: { in: purchaseOrders.map((order) => order.id) } } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  });
 
   const quantityByIngredient = new Map<string, bigint>();
   for (const balance of balances) {
@@ -273,6 +303,7 @@ export async function applySupplyCommand(input: {
   organizationId: string;
   actorProfileId: string;
   command: SupplyCommand;
+  accessScope: SupplyAccessScope;
 }) {
   await assertSupplyModuleEnabled(input.organizationId);
   try {
@@ -335,7 +366,13 @@ async function createLocation(input: {
   organizationId: string;
   actorProfileId: string;
   command: Extract<SupplyCommand, { operation: "CREATE_LOCATION" }>;
+  accessScope: SupplyAccessScope;
 }) {
+  if (!input.accessScope.canUseAllStalls) {
+    if (input.command.locationType !== "STALL" || !isAuthorizedStall(input.accessScope, input.command.stallId)) {
+      throw new SupplyOperationError("SUPPLY_SCOPE_DENIED");
+    }
+  }
   if (input.command.locationType === "STALL") {
     const stall = await prisma.stall.findFirst({
       where: { id: input.command.stallId ?? "", organizationId: input.organizationId, isActive: true },
@@ -403,6 +440,7 @@ async function postMovement(input: {
   organizationId: string;
   actorProfileId: string;
   command: Extract<SupplyCommand, { operation: "POST_MOVEMENT" }>;
+  accessScope: SupplyAccessScope;
 }) {
   return prisma.$transaction(async (transaction) => {
     await transaction.$executeRaw(Prisma.sql`
@@ -411,6 +449,13 @@ async function postMovement(input: {
         0
       ))
     `);
+
+    const location = await transaction.supplyLocation.findFirst({
+      where: { id: input.command.locationId, organizationId: input.organizationId, isActive: true },
+      select: { id: true, stallId: true },
+    });
+    if (!location) throw new SupplyOperationError("SUPPLY_LOCATION_NOT_FOUND");
+    assertLocationAccess(input.accessScope, location.stallId);
 
     const existing = await transaction.supplyInventoryMovement.findUnique({
       where: {
@@ -427,18 +472,11 @@ async function postMovement(input: {
       return existing;
     }
 
-    const [ingredient, location] = await Promise.all([
-      transaction.supplyIngredient.findFirst({
-        where: { id: input.command.ingredientId, organizationId: input.organizationId, isActive: true },
-        select: { id: true, trackExpiry: true },
-      }),
-      transaction.supplyLocation.findFirst({
-        where: { id: input.command.locationId, organizationId: input.organizationId, isActive: true },
-        select: { id: true },
-      }),
-    ]);
+    const ingredient = await transaction.supplyIngredient.findFirst({
+      where: { id: input.command.ingredientId, organizationId: input.organizationId, isActive: true },
+      select: { id: true, trackExpiry: true },
+    });
     if (!ingredient) throw new SupplyOperationError("SUPPLY_INGREDIENT_NOT_FOUND");
-    if (!location) throw new SupplyOperationError("SUPPLY_LOCATION_NOT_FOUND");
     if (ingredient.trackExpiry && input.command.movementType === "RECEIPT") {
       throw new SupplyOperationError("SUPPLY_LOT_REQUIRED");
     }
@@ -533,7 +571,11 @@ async function receivePurchase(input: {
   organizationId: string;
   actorProfileId: string;
   command: Extract<SupplyCommand, { operation: "RECEIVE_PURCHASE" }>;
+  accessScope: SupplyAccessScope;
 }) {
+  if (!input.accessScope.canUseAllStalls && !isAuthorizedStall(input.accessScope, input.command.stallId)) {
+    throw new SupplyOperationError("SUPPLY_SCOPE_DENIED");
+  }
   return prisma.$transaction(async (transaction) => {
     const [supplier, stall, ingredients, locations] = await Promise.all([
       transaction.supplySupplier.findFirst({
@@ -558,7 +600,7 @@ async function receivePurchase(input: {
           id: { in: [...new Set(input.command.lines.map((line) => line.locationId))] },
           isActive: true,
         },
-        select: { id: true },
+        select: { id: true, stallId: true },
       }),
     ]);
     if (!supplier) throw new SupplyOperationError("SUPPLY_SUPPLIER_NOT_FOUND");
@@ -569,6 +611,7 @@ async function receivePurchase(input: {
     if (locations.length !== new Set(input.command.lines.map((line) => line.locationId)).size) {
       throw new SupplyOperationError("SUPPLY_LOCATION_NOT_FOUND");
     }
+    for (const location of locations) assertLocationAccess(input.accessScope, location.stallId);
     const ingredientById = new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
     for (const line of input.command.lines) {
       if (ingredientById.get(line.ingredientId)?.trackExpiry && !line.lotNumber) {
@@ -721,6 +764,16 @@ async function receivePurchase(input: {
     }
     return order;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+function isAuthorizedStall(scope: SupplyAccessScope, stallId: string | null | undefined) {
+  return Boolean(stallId && scope.authorizedStallIds.includes(stallId));
+}
+
+function assertLocationAccess(scope: SupplyAccessScope, stallId: string | null) {
+  if (!scope.canUseAllStalls && !isAuthorizedStall(scope, stallId)) {
+    throw new SupplyOperationError("SUPPLY_SCOPE_DENIED");
+  }
 }
 
 function purchaseLineAmount(quantityMicros: bigint, unitCostMicros: bigint) {

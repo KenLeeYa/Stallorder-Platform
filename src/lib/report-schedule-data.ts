@@ -1,17 +1,30 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { canAccessReportSchedule, type ReportScheduleAccessScope } from "@/lib/report-schedule-access";
 
-export async function getReportScheduleManagementData(organizationId: string) {
+export async function getReportScheduleManagementData(input: {
+  organizationId: string;
+  accessScope: ReportScheduleAccessScope;
+}) {
+  const restrictedStallIds = input.accessScope.canUseAllStalls
+    ? null
+    : [...new Set(input.accessScope.authorizedStallIds)];
   const schedules = await prisma.reportSchedule.findMany({
-    where: { organizationId, archivedAt: null },
+    where: {
+      organizationId: input.organizationId,
+      archivedAt: null,
+      ...(restrictedStallIds ? { stallIds: { hasSome: restrictedStallIds } } : {}),
+    },
     include: {
       createdBy: { select: { displayName: true } },
       deliveries: { orderBy: { createdAt: "desc" }, take: 5 },
     },
     orderBy: [{ isEnabled: "desc" }, { nextRunAt: "asc" }],
   });
-  return schedules.map((schedule) => ({
+  return schedules
+    .filter((schedule) => canAccessReportSchedule(schedule.stallIds, input.accessScope))
+    .map((schedule) => ({
     id: schedule.id,
     name: schedule.name,
     reportType: schedule.reportType,
@@ -36,7 +49,7 @@ export async function getReportScheduleManagementData(organizationId: string) {
       sentAt: delivery.sentAt?.toISOString() ?? null,
       createdAt: delivery.createdAt.toISOString(),
     })),
-  }));
+    }));
 }
 
 export function reportDeliveryMode() {

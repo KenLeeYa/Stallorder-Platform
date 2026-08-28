@@ -19,7 +19,9 @@ begin
     ) = 'authorized'
       and old.status = 'PAID'::public.payment_status
       and new.status = 'PAID'::public.payment_status
-      and new.reconciliation_status = 'PAYMENT_METHOD_CORRECTED';
+      and new.payment_option_id is distinct from old.payment_option_id
+      and new.reconciliation_status is not distinct from old.reconciliation_status
+      and new.offline_payment_method is not distinct from old.offline_payment_method;
 
     if v_authorized_correction and new.amount is distinct from old.amount then
       raise exception 'PAYMENT_CASH_SHIFT_IMMUTABLE';

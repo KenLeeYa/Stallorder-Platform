@@ -24,11 +24,12 @@ export async function GET(request: Request, context: RouteContext) {
     request,
     organizationId,
     "MANAGE_SHARED_PRODUCTS",
+    true,
   );
   if (!authorization.ok) return authorization.response;
   try {
     return NextResponse.json(
-      await getSupplyDashboard(organizationId),
+      await getSupplyDashboard({ organizationId, accessScope: supplyAccessScope(authorization) }),
       { headers: headers(authorization.requestId) },
     );
   } catch (error) {
@@ -42,6 +43,7 @@ export async function POST(request: Request, context: RouteContext) {
     request,
     organizationId,
     "MANAGE_SHARED_PRODUCTS",
+    true,
   );
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
@@ -110,6 +112,7 @@ export async function POST(request: Request, context: RouteContext) {
       organizationId,
       actorProfileId: authorization.principal.user.id,
       command: parsed.data,
+      accessScope: supplyAccessScope(authorization),
     });
     await recordAuditEvent({
       organizationId,
@@ -123,7 +126,7 @@ export async function POST(request: Request, context: RouteContext) {
       metadata: { operation: parsed.data.operation },
     });
     return NextResponse.json(
-      await getSupplyDashboard(organizationId),
+      await getSupplyDashboard({ organizationId, accessScope: supplyAccessScope(authorization) }),
       { headers: headers(authorization.requestId) },
     );
   } catch (error) {
@@ -144,6 +147,8 @@ function supplyError(code: string) {
   switch (code) {
     case "SUPPLY_MODULE_DISABLED":
       return { status: 403, message: "Supply Lite 模組尚未對此組織開放。" };
+    case "SUPPLY_SCOPE_DENIED":
+      return { status: 403, message: "此操作超出您可管理的攤位範圍。" };
     case "SUPPLY_INGREDIENT_NOT_FOUND":
     case "SUPPLY_LOCATION_NOT_FOUND":
     case "SUPPLY_PRODUCT_NOT_FOUND":
@@ -164,4 +169,14 @@ function supplyError(code: string) {
     default:
       return { status: 500, message: "目前無法更新 Supply Lite 庫存。" };
   }
+}
+
+function supplyAccessScope(authorization: {
+  authorizedStallIds: readonly string[];
+  workspace: { canUseAllStalls: boolean };
+}) {
+  return {
+    canUseAllStalls: authorization.workspace.canUseAllStalls,
+    authorizedStallIds: authorization.authorizedStallIds,
+  };
 }

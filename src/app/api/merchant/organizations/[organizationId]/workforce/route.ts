@@ -16,12 +16,12 @@ type RouteContext = { params: Promise<{ organizationId: string }> };
 
 export async function GET(request: Request, context: RouteContext) {
   const { organizationId } = await context.params;
-  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_ATTENDANCE");
+  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_ATTENDANCE", true);
   if (!authorization.ok) return authorization.response;
   const range = requestedRange(request);
   try {
     return NextResponse.json(
-      await getWorkforceDashboard({ organizationId, ...range }),
+      await getWorkforceDashboard({ organizationId, ...range, accessScope: workforceAccessScope(authorization) }),
       { headers: noStoreHeaders(authorization.requestId) },
     );
   } catch (error) {
@@ -31,7 +31,7 @@ export async function GET(request: Request, context: RouteContext) {
 
 export async function POST(request: Request, context: RouteContext) {
   const { organizationId } = await context.params;
-  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_ATTENDANCE");
+  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_ATTENDANCE", true);
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json(
@@ -69,6 +69,7 @@ export async function POST(request: Request, context: RouteContext) {
       organizationId,
       actorProfileId: authorization.principal.user.id,
       command: parsed.data,
+      accessScope: workforceAccessScope(authorization),
     });
     await recordAuditEvent({
       organizationId,
@@ -82,7 +83,11 @@ export async function POST(request: Request, context: RouteContext) {
       metadata: { operation: parsed.data.operation },
     });
     return NextResponse.json(
-      await getWorkforceDashboard({ organizationId, ...requestedRange(request) }),
+      await getWorkforceDashboard({
+        organizationId,
+        ...requestedRange(request),
+        accessScope: workforceAccessScope(authorization),
+      }),
       { headers: noStoreHeaders(authorization.requestId) },
     );
   } catch (error) {
@@ -113,6 +118,8 @@ function workforceError(code: string) {
     case "WORKFORCE_DATE_RANGE_INVALID":
     case "WORKFORCE_DATE_RANGE_TOO_LARGE":
       return { status: 400, message: "日期區間不正確或範圍過大。" };
+    case "WORKFORCE_SCOPE_DENIED":
+      return { status: 403, message: "此操作超出您可管理的攤位範圍。" };
     case "WORKFORCE_EMPLOYEE_NOT_FOUND":
     case "WORKFORCE_STALL_NOT_FOUND":
       return { status: 404, message: "找不到指定的員工或攤位。" };
@@ -132,6 +139,16 @@ function workforceError(code: string) {
     default:
       return { status: 500, message: "目前無法更新員工薪資資料，請稍後再試。" };
   }
+}
+
+function workforceAccessScope(authorization: {
+  authorizedStallIds: readonly string[];
+  workspace: { canUseAllStalls: boolean };
+}) {
+  return {
+    canUseAllStalls: authorization.workspace.canUseAllStalls,
+    authorizedStallIds: authorization.authorizedStallIds,
+  };
 }
 
 function noStoreHeaders(requestId: string) {

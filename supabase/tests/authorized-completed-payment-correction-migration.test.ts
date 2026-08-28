@@ -11,7 +11,9 @@ describe("authorized completed-payment correction migration", () => {
   it("keeps direct payment and cash-shift rewrites immutable", () => {
     expect(migrationSource).toContain("PAYMENT_CASH_SHIFT_IMMUTABLE");
     expect(migrationSource).toContain("current_setting('app.payment_method_correction', true)");
-    expect(migrationSource).toContain("new.reconciliation_status = 'PAYMENT_METHOD_CORRECTED'");
+    expect(migrationSource).toContain("new.payment_option_id is distinct from old.payment_option_id");
+    expect(migrationSource).toContain("new.reconciliation_status is not distinct from old.reconciliation_status");
+    expect(migrationSource).toContain("new.offline_payment_method is not distinct from old.offline_payment_method");
     expect(migrationSource).toContain("new.amount is distinct from old.amount");
   });
 

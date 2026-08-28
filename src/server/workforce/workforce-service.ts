@@ -26,10 +26,16 @@ export class WorkforceOperationError extends Error {
   }
 }
 
+export type WorkforceAccessScope = {
+  canUseAllStalls: boolean;
+  authorizedStallIds: readonly string[];
+};
+
 export async function getWorkforceDashboard(input: {
   organizationId: string;
   dateFrom: string;
   dateTo: string;
+  accessScope: WorkforceAccessScope;
 }) {
   assertDateRange(input.dateFrom, input.dateTo, 366);
   const from = new Date(`${input.dateFrom}T00:00:00.000Z`);
@@ -37,6 +43,11 @@ export async function getWorkforceDashboard(input: {
   dayAfterTo.setUTCDate(dayAfterTo.getUTCDate() + 1);
   const bufferFrom = new Date(from.getTime() - 24 * 60 * 60_000);
   const bufferTo = new Date(dayAfterTo.getTime() + 24 * 60 * 60_000);
+
+  const restrictedStallIds = input.accessScope.canUseAllStalls
+    ? null
+    : [...new Set(input.accessScope.authorizedStallIds)];
+  const stallScopeWhere = restrictedStallIds ? { stallId: { in: restrictedStallIds } } : {};
 
   const [
     policyRecord,
@@ -56,6 +67,7 @@ export async function getWorkforceDashboard(input: {
         role: { in: ["STAFF", "KITCHEN", "STALL_MANAGER"] },
         profile: { isActive: true },
         stall: { isActive: true },
+        ...stallScopeWhere,
       },
       select: {
         profileId: true,
@@ -68,10 +80,20 @@ export async function getWorkforceDashboard(input: {
     prisma.workforceWageRate.findMany({
       where: {
         organizationId: input.organizationId,
-        effectiveFrom: { lte: new Date(`${input.dateTo}T00:00:00.000Z`) },
-        OR: [
-          { effectiveTo: null },
-          { effectiveTo: { gte: new Date(`${input.dateFrom}T00:00:00.000Z`) } },
+        AND: [
+          {
+            effectiveFrom: { lte: new Date(`${input.dateTo}T00:00:00.000Z`) },
+            OR: [
+              { effectiveTo: null },
+              { effectiveTo: { gte: new Date(`${input.dateFrom}T00:00:00.000Z`) } },
+            ],
+          },
+          ...(restrictedStallIds ? [{
+            OR: [
+              { stallId: null },
+              { stallId: { in: restrictedStallIds } },
+            ],
+          }] : []),
         ],
       },
       orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
@@ -80,6 +102,7 @@ export async function getWorkforceDashboard(input: {
       where: {
         organizationId: input.organizationId,
         workDate: { gte: from, lt: dayAfterTo },
+        ...stallScopeWhere,
       },
       orderBy: [{ workDate: "asc" }, { shiftStartAt: "asc" }],
       take: 5_000,
@@ -89,6 +112,7 @@ export async function getWorkforceDashboard(input: {
         organizationId: input.organizationId,
         startDate: { lt: dayAfterTo },
         endDate: { gte: from },
+        ...stallScopeWhere,
       },
       orderBy: [{ status: "asc" }, { startDate: "asc" }, { createdAt: "asc" }],
       take: 2_000,
@@ -105,6 +129,7 @@ export async function getWorkforceDashboard(input: {
         organizationId: input.organizationId,
         decision: "ACCEPTED",
         occurredAt: { gte: bufferFrom, lt: bufferTo },
+        ...stallScopeWhere,
       },
       select: {
         id: true,
@@ -119,7 +144,10 @@ export async function getWorkforceDashboard(input: {
       take: 20_000,
     }),
     prisma.workforcePayrollPeriod.findMany({
-      where: { organizationId: input.organizationId },
+      where: {
+        organizationId: input.organizationId,
+        ...(restrictedStallIds ? { id: { in: [] } } : {}),
+      },
       orderBy: [{ periodEnd: "desc" }, { createdAt: "desc" }],
       take: 12,
     }),
@@ -228,7 +256,9 @@ export async function applyWorkforceManagerCommand(input: {
   organizationId: string;
   actorProfileId: string;
   command: WorkforceManagerCommand;
+  accessScope: WorkforceAccessScope;
 }) {
+  assertWorkforceCommandAccess(input.command, input.accessScope);
   switch (input.command.operation) {
     case "UPDATE_POLICY":
       return prisma.workforcePayrollPolicy.upsert({
@@ -545,12 +575,14 @@ async function cancelSchedule(input: {
   organizationId: string;
   actorProfileId: string;
   command: Extract<WorkforceManagerCommand, { operation: "CANCEL_SCHEDULE" }>;
+  accessScope: WorkforceAccessScope;
 }) {
   const result = await prisma.workforceSchedule.updateMany({
     where: {
       id: input.command.scheduleId,
       organizationId: input.organizationId,
       status: { not: "CANCELLED" },
+      ...restrictedStallWhere(input.accessScope),
     },
     data: { status: "CANCELLED", note: "由排班主管取消" },
   });
@@ -562,12 +594,14 @@ async function reviewLeaveRequest(input: {
   organizationId: string;
   actorProfileId: string;
   command: Extract<WorkforceManagerCommand, { operation: "REVIEW_LEAVE" }>;
+  accessScope: WorkforceAccessScope;
 }) {
   const result = await prisma.workforceLeaveRequest.updateMany({
     where: {
       id: input.command.leaveRequestId,
       organizationId: input.organizationId,
       status: "PENDING",
+      ...restrictedStallWhere(input.accessScope),
     },
     data: {
       status: input.command.decision,
@@ -584,12 +618,14 @@ async function cancelLeaveRequest(input: {
   organizationId: string;
   actorProfileId: string;
   command: Extract<WorkforceManagerCommand, { operation: "CANCEL_LEAVE" }>;
+  accessScope: WorkforceAccessScope;
 }) {
   const result = await prisma.workforceLeaveRequest.updateMany({
     where: {
       id: input.command.leaveRequestId,
       organizationId: input.organizationId,
       status: { in: ["PENDING", "APPROVED"] },
+      ...restrictedStallWhere(input.accessScope),
     },
     data: {
       status: "CANCELLED",
@@ -606,12 +642,14 @@ async function generatePayrollPeriod(input: {
   organizationId: string;
   actorProfileId: string;
   command: Extract<WorkforceManagerCommand, { operation: "GENERATE_PAYROLL" }>;
+  accessScope: WorkforceAccessScope;
 }) {
   assertDateRange(input.command.periodStart, input.command.periodEnd, 62);
   const dashboard = await getWorkforceDashboard({
     organizationId: input.organizationId,
     dateFrom: input.command.periodStart,
     dateTo: input.command.periodEnd,
+    accessScope: input.accessScope,
   });
   if (dashboard.payrollPreview.some((line) => line.missingWageRate)) {
     throw new WorkforceOperationError("WORKFORCE_WAGE_RATE_MISSING");
@@ -697,7 +735,12 @@ async function finalizePayrollPeriod(input: {
 async function assertEmployeeAndStall(organizationId: string, profileId: string, stallId: string | null) {
   const [membership, stall] = await Promise.all([
     prisma.stallMembership.findFirst({
-      where: { organizationId, profileId, isActive: true },
+      where: {
+        organizationId,
+        profileId,
+        isActive: true,
+        ...(stallId ? { stallId } : {}),
+      },
       select: { id: true },
     }),
     stallId ? prisma.stall.findFirst({
@@ -707,6 +750,26 @@ async function assertEmployeeAndStall(organizationId: string, profileId: string,
   ]);
   if (!membership) throw new WorkforceOperationError("WORKFORCE_EMPLOYEE_NOT_FOUND");
   if (!stall) throw new WorkforceOperationError("WORKFORCE_STALL_NOT_FOUND");
+}
+
+function assertWorkforceCommandAccess(command: WorkforceManagerCommand, scope: WorkforceAccessScope) {
+  if (scope.canUseAllStalls) return;
+  const organizationWide = command.operation === "UPDATE_POLICY"
+    || command.operation === "UPSERT_HOLIDAY"
+    || command.operation === "GENERATE_PAYROLL"
+    || command.operation === "FINALIZE_PAYROLL"
+    || (command.operation === "SET_WAGE_RATE" && !command.stallId);
+  if (organizationWide) throw new WorkforceOperationError("WORKFORCE_SCOPE_DENIED");
+  if (
+    (command.operation === "SET_WAGE_RATE" || command.operation === "CREATE_SCHEDULE")
+    && !scope.authorizedStallIds.includes(command.stallId ?? "")
+  ) {
+    throw new WorkforceOperationError("WORKFORCE_SCOPE_DENIED");
+  }
+}
+
+function restrictedStallWhere(scope: WorkforceAccessScope) {
+  return scope.canUseAllStalls ? {} : { stallId: { in: [...scope.authorizedStallIds] } };
 }
 
 async function serializePayrollPeriods(
