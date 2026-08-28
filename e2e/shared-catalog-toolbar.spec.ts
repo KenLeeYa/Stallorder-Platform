@@ -17,8 +17,11 @@ test("商品管理工具列依裝置寬度維持功能分列且不溢位", async
   await login(page);
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
 
-  const toolRow = page.getByTestId("shared-catalog-tools");
-  const createRow = page.getByTestId("shared-catalog-create-actions");
+  const catalogRegion = page.getByRole("region", { name: "共用商品" });
+  await expect(catalogRegion).toHaveCount(1);
+  await expect(catalogRegion).toBeVisible();
+  const toolRow = catalogRegion.getByTestId("shared-catalog-tools");
+  const createRow = catalogRegion.getByTestId("shared-catalog-create-actions");
   const toolBounds = await toolRow.boundingBox();
   const createBounds = await createRow.boundingBox();
   expect(toolBounds).not.toBeNull();
@@ -35,7 +38,7 @@ test("商品管理工具列依裝置寬度維持功能分列且不溢位", async
   for (const bounds of desktopCreateButtons) expect(bounds.height).toBeGreaterThanOrEqual(44);
 
   await page.setViewportSize({ width: 375, height: 812 });
-  const actions = page.getByTestId("shared-catalog-action-scroller");
+  const actions = catalogRegion.getByTestId("shared-catalog-action-scroller");
   const toolbarControls = actions.locator(":scope > div > button, :scope > div > a, :scope > div > label");
   const mobileBounds = await toolbarControls.evaluateAll((controls) => controls.map((control) => {
     const bounds = control.getBoundingClientRect();
