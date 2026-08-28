@@ -159,7 +159,7 @@ export function getStaffOrderCheckoutModel(input: {
       state.discountApprovalReason.trim()
       && (
         operatorCanApproveDiscount
-        || /^\d{4,8}$/.test(managerAuthorizationCode)
+        || /^\d{6,8}$/.test(managerAuthorizationCode)
       )
     ))
   );

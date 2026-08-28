@@ -127,9 +127,11 @@ export async function getCachedPublicMenuForQrToken(
       name: context.stall.name,
       slug: context.stall.slug,
       location: context.location?.name ?? context.stall.location,
+      address: context.stall.address,
       currency: context.stall.currency,
       timezone: context.stall.timezone,
       coverImageUrl: context.stall.coverImageUrl,
+      locationGuideImageUrl: context.stall.locationGuideImageUrl,
       coverImagePositionX: context.stall.coverImagePositionX,
       coverImagePositionY: context.stall.coverImagePositionY,
       coverImageZoom: context.stall.coverImageZoom,
@@ -168,9 +170,11 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
       name: stall.name,
       slug: stall.slug,
       location: stall.location,
+      address: stall.address,
       currency: stall.currency,
       timezone: stall.timezone,
       coverImageUrl: stall.coverImageUrl,
+      locationGuideImageUrl: stall.locationGuideImageUrl,
       coverImagePositionX: stall.coverImagePositionX,
       coverImagePositionY: stall.coverImagePositionY,
       coverImageZoom: stall.coverImageZoom,
@@ -216,9 +220,11 @@ async function getPublicDisplayMenuForStallSlug(
       name: stall.name,
       slug: stall.slug,
       location: stall.location,
+      address: stall.address,
       currency: stall.currency,
       timezone: stall.timezone,
       coverImageUrl: stall.coverImageUrl,
+      locationGuideImageUrl: stall.locationGuideImageUrl,
       coverImagePositionX: stall.coverImagePositionX,
       coverImagePositionY: stall.coverImagePositionY,
       coverImageZoom: stall.coverImageZoom,
@@ -266,9 +272,11 @@ async function findPublicStallBySlug(stallSlug: string) {
       name: true,
       slug: true,
       location: true,
+      address: true,
       currency: true,
       timezone: true,
       coverImageUrl: true,
+      locationGuideImageUrl: true,
       coverImagePositionX: true,
       coverImagePositionY: true,
       coverImageZoom: true,
@@ -307,9 +315,11 @@ async function loadQrContext(qrToken: string) {
           name: true,
           slug: true,
           location: true,
+          address: true,
           currency: true,
           timezone: true,
           coverImageUrl: true,
+          locationGuideImageUrl: true,
           coverImagePositionX: true,
           coverImagePositionY: true,
           coverImageZoom: true,
@@ -488,16 +498,15 @@ async function loadStallMenu(
     prisma.stallProduct.findMany({
       where: {
         stallId,
-        isEnabled: true,
-        isSoldOut: false,
         product: {
-          isActive: true,
           category: { isActive: true },
           OR: [{ groupId: null }, { group: { isActive: true } }],
         },
       },
       orderBy: [{ sortOrder: "asc" }, { product: { sortOrder: "asc" } }],
       select: {
+        isEnabled: true,
+        isSoldOut: true,
         priceOverride: true,
         sortOrder: true,
         availableFrom: true,
@@ -511,6 +520,7 @@ async function loadStallMenu(
             defaultPrice: true,
             kind: true,
             imageUrl: true,
+            isActive: true,
             isOrderDiscountEligible: true,
             sortOrder: true,
             category: {
@@ -612,12 +622,20 @@ async function loadStallMenu(
   ]);
   if (!settings) return null;
 
-  const saleableProductIds = new Set(assignments.map((assignment) => assignment.product.id));
+  const displayedAssignments = assignments.filter((assignment) => (
+    assignment.isEnabled || !assignment.product.isActive
+  ));
+  const saleableProductIds = new Set(assignments.flatMap((assignment) => (
+    assignment.isEnabled && !assignment.isSoldOut && assignment.product.isActive
+      ? [assignment.product.id]
+      : []
+  )));
   const assignmentsByProductId = new Map(
     assignments.map((assignment) => [assignment.product.id, assignment]),
   );
-  const publicProducts = assignments.flatMap((assignment) => {
+  const publicProducts = displayedAssignments.flatMap((assignment) => {
     const product = assignment.product;
+    const isSoldOut = assignment.isSoldOut || !product.isActive;
     const bundleChoiceGroups = product.kind === "BUNDLE"
       ? product.bundleChoiceGroups.map((group) => ({
         id: group.id,
@@ -652,7 +670,7 @@ async function loadStallMenu(
       }))
       : [];
 
-    if (product.kind === "BUNDLE" && (
+    if (!isSoldOut && product.kind === "BUNDLE" && (
       bundleChoiceGroups.length === 0
       || bundleChoiceGroups.some((group) => (
         group.organizationId !== product.organizationId
@@ -662,6 +680,7 @@ async function loadStallMenu(
 
     return [{
       assignment,
+      isSoldOut,
       bundleChoiceGroups: bundleChoiceGroups.map((group) => ({
         id: group.id,
         name: group.name,
@@ -673,7 +692,7 @@ async function loadStallMenu(
     }];
   });
 
-  const menuProducts = applyBestSellerRanking(publicProducts.map(({ assignment, bundleChoiceGroups }) => ({
+  const menuProducts = applyBestSellerRanking(publicProducts.map(({ assignment, isSoldOut, bundleChoiceGroups }) => ({
       id: assignment.product.id,
       name: assignment.product.name,
       description: assignment.product.description,
@@ -682,6 +701,7 @@ async function loadStallMenu(
       availableUntil: assignment.availableUntil?.toISOString() ?? null,
       translations: assignment.product.translations,
       kind: assignment.product.kind,
+      isSoldOut,
       isOrderDiscountEligible: assignment.product.isOrderDiscountEligible,
       bundleChoiceGroups,
       noteGroups: assignment.product.noteGroupAssignments.map((assignmentItem) => ({
@@ -713,6 +733,7 @@ async function loadStallMenu(
       availableUntil: product.availableUntil,
       translations: product.translations,
       kind: product.kind,
+      isSoldOut: product.isSoldOut,
       isOrderDiscountEligible: product.isOrderDiscountEligible,
       bundleChoiceGroups: product.bundleChoiceGroups,
       noteGroups: product.noteGroups,

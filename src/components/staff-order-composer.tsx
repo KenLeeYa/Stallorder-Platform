@@ -660,7 +660,7 @@ export function StaffOrderComposer({
         return;
       }
       if (needsApproval && (!discountApprovalReason.trim()
-        || (!operatorCanApprove && !/^\d{4,8}$/.test(managerAuthorizationCode)))) {
+        || (!operatorCanApprove && !/^\d{6,8}$/.test(managerAuthorizationCode)))) {
         setMessage(t("composer.approvalIncomplete"));
         return;
       }

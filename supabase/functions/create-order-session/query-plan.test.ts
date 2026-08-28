@@ -60,4 +60,11 @@ describe("create-order-session lightweight query plan", () => {
     expect(source).toContain("groupTranslations: product.groupTranslations");
     expect(source).toContain("supportedLocales: completeCatalogLocales(products, enabledLocales)");
   });
+
+  it("returns sold-out products for display while keeping bundle components saleable-only", () => {
+    expect(source).toContain("is_enabled, is_sold_out");
+    expect(source).toContain("assignment.is_enabled || !product.is_active");
+    expect(source).toContain("const isSoldOut = assignment?.is_sold_out === true || !product.is_active");
+    expect(source).toContain("&& !assignment.is_sold_out");
+  });
 });

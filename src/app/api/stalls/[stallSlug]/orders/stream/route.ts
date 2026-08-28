@@ -1,6 +1,7 @@
 import { logEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
 import { prisma } from "@/lib/prisma";
+import { acquireStaffSseLease } from "@/server/realtime/sse-admission";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,6 +27,17 @@ export async function GET(request: Request, context: RouteContext) {
   const { stallSlug } = await context.params;
   const authorization = await authorizeApiRequest(request, stallSlug, "VIEW_ORDERS");
   if (!authorization.ok) return authorization.response;
+  const lease = await acquireStaffSseLease({
+    profileId: authorization.principal.user.id,
+    stallId: authorization.stall.id,
+    streamKind: "orders",
+  });
+  if (!lease.allowed) {
+    return Response.json(
+      { error: "即時連線數量過多，請稍後再試。" },
+      { status: 429, headers: { "retry-after": String(lease.retryAfterSeconds), "x-request-id": authorization.requestId } },
+    );
+  }
 
   let cleanup = () => {};
   const stream = new ReadableStream<Uint8Array>({
@@ -44,6 +56,7 @@ export async function GET(request: Request, context: RouteContext) {
         if (pollTimer) clearTimeout(pollTimer);
         clearInterval(heartbeatTimer);
         clearTimeout(lifetimeTimer);
+        void lease.release().catch(() => undefined);
         try {
           controller.close();
         } catch {

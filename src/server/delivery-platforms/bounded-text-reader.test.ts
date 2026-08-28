@@ -38,6 +38,23 @@ describe("bounded text reader", () => {
     });
     expect(stream.pulls()).toBe(0);
   });
+
+  it("cancels a stalled body when the total read deadline expires", async () => {
+    let cancelled = false;
+    const response = new Response(new ReadableStream<Uint8Array>({
+      pull() {
+        return new Promise<void>(() => undefined);
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }));
+
+    await expect(readBoundedText(response, 100, 20)).rejects.toMatchObject({
+      reason: "READ_TIMEOUT",
+    });
+    expect(cancelled).toBe(true);
+  });
 });
 
 function streamFromChunks(chunks: Uint8Array[], highWaterMark = 1) {

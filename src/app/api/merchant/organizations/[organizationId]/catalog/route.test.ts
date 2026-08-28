@@ -13,7 +13,11 @@ const mocks = vi.hoisted(() => ({
   aggregateChoiceGroups: vi.fn(),
   createChoiceGroup: vi.fn(),
   updateChoiceGroup: vi.fn(),
+  findCategory: vi.fn(),
   findProduct: vi.fn(),
+  updateProduct: vi.fn(),
+  updateStallProducts: vi.fn(),
+  deleteProductTranslations: vi.fn(),
   createChoice: vi.fn(),
   findProducts: vi.fn(),
   executeRaw: vi.fn(),
@@ -41,6 +45,7 @@ vi.mock("@/server/billing/entitlement-service", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    product: { findFirst: mocks.findProduct },
     productBundleChoiceGroup: { findFirst: mocks.findChoiceGroup },
     $transaction: mocks.runTransaction,
   },
@@ -64,7 +69,11 @@ beforeEach(() => {
   mocks.aggregateChoiceGroups.mockResolvedValue({ _sum: { maxSelections: 0 } });
   mocks.createChoiceGroup.mockResolvedValue({ id: choiceGroupId });
   mocks.updateChoiceGroup.mockResolvedValue({ id: choiceGroupId });
+  mocks.findCategory.mockResolvedValue({ id: "77777777-7777-4777-8777-777777777771" });
   mocks.findProduct.mockResolvedValue({ id: componentProductId, kind: "SINGLE" });
+  mocks.updateProduct.mockResolvedValue({ id: componentProductId });
+  mocks.updateStallProducts.mockResolvedValue({ count: 1 });
+  mocks.deleteProductTranslations.mockResolvedValue({ count: 0 });
   mocks.createChoice.mockResolvedValue({ id: "ab200000-0000-4000-8000-000000000001" });
   mocks.findProducts.mockResolvedValue([]);
   mocks.executeRaw.mockResolvedValue(0);
@@ -75,7 +84,17 @@ beforeEach(() => {
       create: mocks.createChoiceGroup,
       update: mocks.updateChoiceGroup,
     },
-    product: { findFirst: mocks.findProduct, findMany: mocks.findProducts },
+    productCategory: { findFirst: mocks.findCategory },
+    product: {
+      findFirst: mocks.findProduct,
+      findMany: mocks.findProducts,
+      update: mocks.updateProduct,
+    },
+    stallProduct: { updateMany: mocks.updateStallProducts },
+    productTranslation: {
+      deleteMany: mocks.deleteProductTranslations,
+      upsert: vi.fn(),
+    },
     productBundleChoice: { create: mocks.createChoice },
     $executeRaw: mocks.executeRaw,
   }));
@@ -245,6 +264,71 @@ describe("共享商品套餐 API", () => {
     expect(sqlText(mocks.executeRaw.mock.calls[0]?.[0])).toContain("update public.products");
     expect(sqlText(mocks.executeRaw.mock.calls[1]?.[0])).toContain("update public.stall_products");
     expect(mocks.invalidatePublicMenus).toHaveBeenCalledWith(["22222222-2222-4222-8222-222222222222"]);
+  });
+
+  it("將舊停用商品轉為可顯示的售完商品，並同步所有攤位售完狀態", async () => {
+    const categoryId = "77777777-7777-4777-8777-777777777771";
+    mocks.findProduct
+      .mockResolvedValueOnce({
+        categoryId,
+        groupId: null,
+        name: "舊停用商品",
+        description: "",
+        defaultPrice: 100,
+        kind: "SINGLE",
+        imageUrl: null,
+        isOrderDiscountEligible: true,
+        isLotteryEligible: true,
+        sortOrder: 1,
+        isActive: false,
+        stallProducts: [{
+          stallId: "22222222-2222-4222-8222-222222222222",
+          isEnabled: false,
+          isSoldOut: false,
+        }],
+      })
+      .mockResolvedValueOnce({
+        id: componentProductId,
+        kind: "SINGLE",
+        imageUrl: null,
+        isActive: false,
+        _count: { bundleChoiceGroups: 0, componentChoices: 0 },
+      });
+    const route = await import("./route");
+
+    const response = await route.POST(new Request(`https://example.test/api/merchant/organizations/${organizationId}/catalog`, {
+      method: "POST",
+      body: JSON.stringify({
+        operation: "UPDATE_PRODUCT",
+        productId: componentProductId,
+        categoryId,
+        groupId: null,
+        name: "舊停用商品",
+        description: "",
+        defaultPrice: 100,
+        kind: "SINGLE",
+        imageUrl: null,
+        isOrderDiscountEligible: true,
+        isLotteryEligible: true,
+        sortOrder: 1,
+        isSoldOut: true,
+        translations: [],
+      }),
+    }), { params: Promise.resolve({ organizationId }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateProduct).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: componentProductId },
+      data: expect.objectContaining({ isActive: true }),
+    }));
+    expect(mocks.updateStallProducts).toHaveBeenCalledWith({
+      where: { organizationId, productId: componentProductId },
+      data: { isSoldOut: true, isEnabled: true },
+    });
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: "PRODUCT_UPDATED",
+      after: expect.objectContaining({ isSoldOut: true }),
+    }));
   });
 });
 

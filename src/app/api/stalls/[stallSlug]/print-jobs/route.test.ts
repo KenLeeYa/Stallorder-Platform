@@ -328,7 +328,7 @@ describe("print queue capability enforcement", () => {
     const response = await postCommand({
       operation: "AUTHORIZE_CASH_DRAWER",
       printerId,
-      managerAuthorizationCode: "2468",
+      managerAuthorizationCode: "246810",
     });
 
     expect(response.status).toBe(200);
@@ -337,7 +337,7 @@ describe("print queue capability enforcement", () => {
       actorProfileId: "66666666-6666-4666-8666-666666666666",
       actorRoles: ["STAFF"],
       operation: "OPEN_CASH_DRAWER",
-      authorizationCode: "2468",
+      authorizationCode: "246810",
     });
     expect(mocks.topLevelPrinterFindFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ id: printerId, connectionType: "WEBPRNT_BLUETOOTH" }),

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
@@ -17,8 +17,6 @@ import { hashClientIp } from "@/lib/security";
 const querySchema = z.object({
   query: z.string().trim().max(80).default(""),
   status: z.enum(["ALL", "COMPLETED", "CANCELLED"]).default("ALL"),
-  from: z.string().datetime({ offset: true }).optional(),
-  to: z.string().datetime({ offset: true }).optional(),
 });
 
 const commandSchema = z.discriminatedUnion("operation", [
@@ -58,8 +56,6 @@ export async function GET(request: Request, context: RouteContext) {
   const parsed = querySchema.safeParse({
     query: url.searchParams.get("query") ?? "",
     status: url.searchParams.get("status") ?? "ALL",
-    from: url.searchParams.get("from") || undefined,
-    to: url.searchParams.get("to") || undefined,
   });
   if (!parsed.success) {
     return NextResponse.json(
@@ -68,12 +64,10 @@ export async function GET(request: Request, context: RouteContext) {
     );
   }
 
-  const defaultRange = !parsed.data.from && !parsed.data.to
-    ? zonedCalendarDayUtcRange(new Date(), authorization.stall.timezone)
-    : null;
+  const defaultRange = zonedCalendarDayUtcRange(new Date(), authorization.stall.timezone);
   const terminalDateFilter = {
-    ...(parsed.data.from ? { gte: new Date(parsed.data.from) } : defaultRange ? { gte: defaultRange.from } : {}),
-    ...(parsed.data.to ? { lt: new Date(parsed.data.to) } : defaultRange ? { lt: defaultRange.to } : {}),
+    gte: defaultRange.from,
+    lt: defaultRange.to,
   };
   const terminalFilter: Prisma.OrderWhereInput = parsed.data.status === "ALL"
     ? {
@@ -85,19 +79,21 @@ export async function GET(request: Request, context: RouteContext) {
     : parsed.data.status === "COMPLETED"
       ? { status: "COMPLETED", completedAt: terminalDateFilter }
       : { status: "CANCELLED", cancelledAt: terminalDateFilter };
-
-  const orders = await prisma.order.findMany({
-    where: {
-      organizationId: authorization.stall.organizationId,
-      stallId: authorization.stall.id,
-      ...terminalFilter,
-      ...(parsed.data.query ? {
+  const searchFilter: Prisma.OrderWhereInput | null = parsed.data.query
+    ? {
         OR: [
           { orderNo: { contains: parsed.data.query, mode: "insensitive" } },
           { customerName: { contains: parsed.data.query, mode: "insensitive" } },
           { customerPhone: { contains: parsed.data.query } },
         ],
-      } : {}),
+      }
+    : null;
+
+  const orders = await prisma.order.findMany({
+    where: {
+      organizationId: authorization.stall.organizationId,
+      stallId: authorization.stall.id,
+      AND: searchFilter ? [terminalFilter, searchFilter] : [terminalFilter],
     },
     orderBy: [{ completedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
     take: 100,
@@ -317,6 +313,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       { status: 409, headers: { "x-request-id": authorization.requestId } },
     );
   }
+  const paymentCommand = parsed.data;
   if (order.payment.checkoutGroupId) {
     return NextResponse.json(
       { error: "併桌結帳屬於群組付款，請從現金交班或帳務介面整組處理，避免只修改其中一張訂單。" },
@@ -326,7 +323,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const paymentOption = await prisma.paymentOption.findFirst({
     where: {
-      id: parsed.data.paymentOptionId,
+      id: paymentCommand.paymentOptionId,
       organizationId: authorization.stall.organizationId,
       stallId: authorization.stall.id,
       isEnabled: true,
@@ -347,28 +344,56 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const now = new Date();
+  const nextMethod = paymentOption.kind === "CASH" ? "CASH" : "OTHER";
+  const cashClassificationChanged = (order.payment.method === "CASH") !== (nextMethod === "CASH");
   let changed: "CASH_SHIFT_REQUIRED" | "CONFLICT" | { status: "UPDATED"; cashShiftId: string | null };
   try {
     changed = await prisma.$transaction(async (transaction) => {
-      let cashShiftId: string | null = null;
-      if (paymentOption.kind === "CASH") {
+      let cashShiftId = order.payment!.cashShiftId;
+      let adjustmentShiftId: string | null = null;
+      if (cashClassificationChanged) {
+        if (order.payment!.method === "CASH" && !order.payment!.cashShiftId) {
+          return "CASH_SHIFT_REQUIRED" as const;
+        }
         const openShift = await transaction.cashShift.findFirst({
-          where: {
-            organizationId: authorization.stall.organizationId,
-            stallId: authorization.stall.id,
-            status: "OPEN",
-          },
-          orderBy: { openedAt: "desc" },
+          where: order.payment!.method === "CASH"
+            ? {
+                id: order.payment!.cashShiftId!,
+                organizationId: authorization.stall.organizationId,
+                stallId: authorization.stall.id,
+                status: "OPEN",
+              }
+            : {
+                organizationId: authorization.stall.organizationId,
+                stallId: authorization.stall.id,
+                status: "OPEN",
+              },
+          ...(order.payment!.method === "CASH" ? {} : { orderBy: { openedAt: "desc" as const } }),
           select: { id: true },
         });
         if (!openShift) return "CASH_SHIFT_REQUIRED" as const;
-        cashShiftId = openShift.id;
+        adjustmentShiftId = openShift.id;
+        cashShiftId = nextMethod === "CASH" ? openShift.id : null;
+      } else if (nextMethod !== "CASH") {
+        cashShiftId = null;
+      }
+      if (order.payment!.method !== nextMethod || order.payment!.cashShiftId !== cashShiftId) {
+        await transaction.$executeRaw(
+          Prisma.sql`set local app.payment_method_correction = 'authorized'`,
+        );
       }
       const result = await transaction.payment.updateMany({
-        where: { id: order.payment!.id, orderId: order.id, status: "PAID" },
+        where: {
+          id: order.payment!.id,
+          orderId: order.id,
+          status: "PAID",
+          paymentOptionId: order.payment!.paymentOptionId,
+          method: order.payment!.method,
+          cashShiftId: order.payment!.cashShiftId,
+        },
         data: {
           paymentOptionId: paymentOption.id,
-          method: paymentOption.kind === "CASH" ? "CASH" : "OTHER",
+          method: nextMethod,
           methodLabel: paymentOption.name,
           cashShiftId,
           cashReceived: paymentOption.kind === "CASH" ? order.payment!.amount : null,
@@ -376,7 +401,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
       });
       if (result.count !== 1) return "CONFLICT" as const;
-      await transaction.orderEvent.create({
+      const event = await transaction.orderEvent.create({
         data: {
           organizationId: authorization.stall.organizationId,
           stallId: authorization.stall.id,
@@ -387,6 +412,21 @@ export async function PATCH(request: Request, context: RouteContext) {
           createdBy: authorization.principal.user.id,
         },
       });
+      if (cashClassificationChanged && adjustmentShiftId) {
+        await transaction.cashMovement.create({
+          data: {
+            organizationId: authorization.stall.organizationId,
+            stallId: authorization.stall.id,
+            cashShiftId: adjustmentShiftId,
+            type: nextMethod === "CASH" ? "CASH_IN" : "CASH_OUT",
+            amount: order.payment!.amount,
+            reason: `付款方式更正：${paymentCommand.reason}`,
+            referenceType: "PAYMENT_METHOD_CORRECTION",
+            referenceId: event.id,
+            recordedById: authorization.principal.user.id,
+          },
+        });
+      }
       return { status: "UPDATED" as const, cashShiftId };
     });
   } catch (error) {
@@ -397,6 +437,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       requestId: authorization.requestId,
       orderId: order.id,
       errorName: error instanceof Error ? error.name : "UnknownError",
+      ...(process.env.NODE_ENV !== "production" && error instanceof Error
+        ? { errorMessage: error.message }
+        : {}),
     }));
     return NextResponse.json(
       { error: "付款方式更新失敗，請稍後再試。" },
@@ -405,7 +448,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
   if (changed === "CASH_SHIFT_REQUIRED") {
     return NextResponse.json(
-      { error: "改為現金前必須先開啟現金班次。" },
+      { error: "跨現金與非現金更正前，必須先開啟現金班次；已關班的帳務請從現金交班處理。" },
       { status: 409, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -429,7 +472,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     },
     after: {
       paymentOptionId: paymentOption.id,
-      method: paymentOption.kind === "CASH" ? "CASH" : "OTHER",
+      method: nextMethod,
       methodLabel: paymentOption.name,
       cashShiftId: changed.cashShiftId,
     },

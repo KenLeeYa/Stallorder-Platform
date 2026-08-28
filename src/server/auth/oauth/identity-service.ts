@@ -114,8 +114,8 @@ export async function completeOAuthLogin(input: {
       const targetProfileId = oauthTransaction.currentProfileId ?? invitation?.profileId;
       if (!targetProfileId) throw new Error("OAUTH_IDENTITY_LINK_TARGET_MISSING");
       if (
-        oauthTransaction.currentProfileId
-        && input.authenticatedProfileId !== oauthTransaction.currentProfileId
+        input.authenticatedProfileId !== targetProfileId
+        || (invitation && invitation.profileId !== targetProfileId)
       ) {
         throw new Error("OAUTH_IDENTITY_LINK_SESSION_MISMATCH");
       }

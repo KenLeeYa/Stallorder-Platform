@@ -32,6 +32,7 @@ vi.mock("@/lib/prisma", () => ({
 const category = { name: "主餐", sortOrder: 0 };
 const baseProduct = {
   organizationId: "organization-a",
+  isActive: true,
   description: "",
   defaultPrice: 100,
   imageUrl: null,
@@ -80,6 +81,8 @@ describe("public bundle menu", () => {
     };
     stallProductFindMany.mockResolvedValue([
       {
+        isEnabled: true,
+        isSoldOut: false,
         priceOverride: null,
         sortOrder: 1,
         product: {
@@ -91,6 +94,8 @@ describe("public bundle menu", () => {
         },
       },
       {
+        isEnabled: true,
+        isSoldOut: false,
         priceOverride: 180,
         sortOrder: 2,
         product: {
@@ -118,6 +123,8 @@ describe("public bundle menu", () => {
         },
       },
       {
+        isEnabled: true,
+        isSoldOut: false,
         priceOverride: null,
         sortOrder: 3,
         product: {
@@ -193,6 +200,8 @@ describe("public bundle menu", () => {
       organization: { status: "ACTIVE" },
     });
     stallProductFindMany.mockResolvedValue([{
+      isEnabled: true,
+      isSoldOut: false,
       priceOverride: null,
       sortOrder: 1,
       availableFrom: new Date("2099-01-01T00:00:00.000Z"),

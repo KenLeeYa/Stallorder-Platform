@@ -56,6 +56,7 @@ export default async function MerchantStallsPage({ searchParams }: PageProps) {
           canManageLocalization={workspace.roles.some((role) => hasPermission(role, "MANAGE_SHARED_PRODUCTS"))}
           canManageEvents={workspace.roles.some((role) => hasPermission(role, "MANAGE_MARKET_EVENTS"))}
           canManageTeam={singleStallRoles.some((role) => hasPermission(role, "MANAGE_STAFF"))}
+          canManageAttendance={singleStallRoles.some((role) => hasPermission(role, "MANAGE_ATTENDANCE"))}
           canManageOrdering={singleStallRoles.some((role) => hasPermission(role, "MANAGE_ORDERING"))}
           canManageReportSchedules={workspace.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES"))}
           canManageOrganization={canCreate}

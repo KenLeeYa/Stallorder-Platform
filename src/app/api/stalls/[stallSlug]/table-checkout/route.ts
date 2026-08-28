@@ -26,7 +26,7 @@ const tableCheckoutSchema = z.object({
   discountApprovalReason: z.string().trim().min(1).max(200).nullable().optional(),
   managerEmail: z.string().trim().email().max(254).nullable().optional(),
   managerPassword: z.string().min(1).max(128).nullable().optional(),
-  managerAuthorizationCode: z.string().trim().regex(/^\d{4,8}$/).nullable().optional(),
+  managerAuthorizationCode: z.string().trim().regex(/^\d{6,8}$/).nullable().optional(),
 }).strict();
 
 export async function PATCH(request: Request, context: RouteContext) {

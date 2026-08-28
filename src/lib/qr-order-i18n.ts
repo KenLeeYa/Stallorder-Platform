@@ -75,6 +75,7 @@ export type QrOrderMessages = {
   lotteryUnavailableProduct: string;
   lotteryNotEligible: string;
   hotSellerBadge: string;
+  soldOutBadge: string;
   qrUnavailableTitle: string;
   degradedTitle: string;
   degradedMessage: string;
@@ -197,6 +198,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailableProduct: "抽中的商品目前無法供應，請稍後再試。",
     lotteryNotEligible: "目前尚未符合免費抽獎資格。",
     hotSellerBadge: "熱銷",
+    soldOutBadge: "售完",
     qrUnavailableTitle: "目前無法使用此 QR Code",
     degradedTitle: "線上送單暫時停用",
     degradedMessage: "您仍可查看菜單，請至攤位櫃台點餐。",
@@ -315,6 +317,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailableProduct: "The selected item is currently unavailable. Try again later.",
     lotteryNotEligible: "This order is not yet eligible for the free draw.",
     hotSellerBadge: "Popular",
+    soldOutBadge: "Sold out",
     qrUnavailableTitle: "This QR code is currently unavailable",
     degradedTitle: "Online ordering is temporarily unavailable",
     degradedMessage: "You can still view the menu. Please order at the stall counter.",
@@ -433,6 +436,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailableProduct: "抽選された商品は現在ご注文いただけません。しばらくしてからお試しください。",
     lotteryNotEligible: "この注文はまだ無料抽選の条件を満たしていません。",
     hotSellerBadge: "人気",
+    soldOutBadge: "売り切れ",
     qrUnavailableTitle: "このQRコードは現在ご利用いただけません",
     degradedTitle: "オンライン注文は一時的にご利用いただけません",
     degradedMessage: "メニューは引き続きご覧いただけます。ご注文は売り場カウンターにてお願いいたします。",
@@ -551,6 +555,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailableProduct: "추첨된 상품은 현재 주문할 수 없습니다. 잠시 후 다시 시도해 주세요.",
     lotteryNotEligible: "이 주문은 아직 무료 추첨 조건을 충족하지 않았습니다.",
     hotSellerBadge: "인기",
+    soldOutBadge: "품절",
     qrUnavailableTitle: "현재 이 QR 코드를 사용할 수 없습니다",
     degradedTitle: "온라인 주문을 일시적으로 이용할 수 없습니다",
     degradedMessage: "메뉴는 계속 확인할 수 있습니다. 매장 카운터에서 주문해 주세요.",
@@ -669,6 +674,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailableProduct: "Món được chọn hiện không khả dụng. Vui lòng thử lại sau.",
     lotteryNotEligible: "Đơn này chưa đủ điều kiện quay miễn phí.",
     hotSellerBadge: "Bán chạy",
+    soldOutBadge: "Hết món",
     qrUnavailableTitle: "Mã QR này hiện không khả dụng",
     degradedTitle: "Tạm thời không thể gửi đơn trực tuyến",
     degradedMessage: "Bạn vẫn có thể xem thực đơn. Vui lòng gọi món tại quầy.",
@@ -787,6 +793,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailableProduct: "สินค้าที่สุ่มได้ไม่พร้อมจำหน่ายในขณะนี้ โปรดลองอีกครั้งภายหลัง",
     lotteryNotEligible: "คำสั่งซื้อนี้ยังไม่ผ่านเงื่อนไขการสุ่มฟรี",
     hotSellerBadge: "ขายดี",
+    soldOutBadge: "สินค้าหมด",
     qrUnavailableTitle: "ไม่สามารถใช้ QR Code นี้ได้ในขณะนี้",
     degradedTitle: "ไม่สามารถส่งคำสั่งซื้อออนไลน์ได้ชั่วคราว",
     degradedMessage: "คุณยังดูเมนูได้ โปรดสั่งอาหารที่เคาน์เตอร์ของร้าน",

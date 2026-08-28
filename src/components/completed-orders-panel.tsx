@@ -316,7 +316,7 @@ export function CompletedOrdersPanel({
                             <button
                               type="button"
                               disabled={loading
-                                || (requiresAuthorizationCode && !/^\d{4,8}$/.test(action.authorizationCode))
+                                || (requiresAuthorizationCode && !/^\d{6,8}$/.test(action.authorizationCode))
                                 || (action.type === "CANCEL" && (action.confirmationOrderNo !== order.orderNo || (action.cancellationReason === "OTHER" && !action.detail.trim())))
                                 || (action.type === "PAYMENT" && (!action.paymentOptionId || action.reason.trim().length < 3))}
                               onClick={() => void submitAction(order)}

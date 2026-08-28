@@ -20,7 +20,7 @@ export const cashShiftCommandSchema = z.discriminatedUnion("operation", [
     type: z.enum(["CASH_IN", "CASH_OUT"]),
     amount: z.number().int().min(1).max(100_000_000),
     reason: z.string().trim().min(1).max(200),
-    managerAuthorizationCode: z.string().trim().regex(/^\d{4,8}$/).optional(),
+    managerAuthorizationCode: z.string().trim().regex(/^\d{6,8}$/).optional(),
   }).strict(),
   z.object({
     operation: z.literal("CLOSE"),
@@ -33,7 +33,7 @@ export const cashShiftCommandSchema = z.discriminatedUnion("operation", [
     shiftId: uuid,
     paymentId: uuid,
     reason: z.string().trim().min(1).max(200),
-    managerAuthorizationCode: z.string().trim().regex(/^\d{4,8}$/).optional(),
+    managerAuthorizationCode: z.string().trim().regex(/^\d{6,8}$/).optional(),
   }).strict(),
   z.object({
     operation: z.literal("REVIEW"),
@@ -122,26 +122,15 @@ export async function getCashShiftRuntimeTotals(
   client: CashDataClient,
   shift: { id: string; stallId: string; openingAmount: number },
 ) {
-  const [payments, movements] = await Promise.all([
-    client.payment.aggregate({
-      where: {
-        cashShiftId: shift.id,
-        stallId: shift.stallId,
-        method: "CASH",
-        status: { in: ["PAID", "REFUNDED"] },
-      },
-      _sum: { amount: true },
-    }),
-    client.cashMovement.groupBy({
-      by: ["type"],
-      where: { cashShiftId: shift.id },
-      _sum: { amount: true },
-    }),
-  ]);
-  const amountFor = (type: "CASH_IN" | "CASH_OUT" | "CASH_REFUND" | "CORRECTION") => (
+  const movements = await client.cashMovement.groupBy({
+    by: ["type"],
+    where: { cashShiftId: shift.id },
+    _sum: { amount: true },
+  });
+  const amountFor = (type: "CASH_SALE" | "CASH_IN" | "CASH_OUT" | "CASH_REFUND" | "CORRECTION") => (
     movements.find((movement) => movement.type === type)?._sum.amount ?? 0
   );
-  const cashSales = payments._sum.amount ?? 0;
+  const cashSales = amountFor("CASH_SALE");
   const cashIn = amountFor("CASH_IN");
   const cashOut = amountFor("CASH_OUT");
   const cashRefund = amountFor("CASH_REFUND");

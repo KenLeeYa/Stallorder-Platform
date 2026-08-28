@@ -10,30 +10,30 @@ export function isRenderableProductImageUrl(value: string) {
   }
 }
 
-export function normalizeProductImageUrl(value: string) {
+export function normalizeProductImageUrl(
+  value: string,
+  supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL,
+) {
   if (value.startsWith("/api/assets/product-images/")) return value;
   try {
     const url = new URL(value);
-    return url.pathname.startsWith("/api/assets/product-images/")
-      ? `${url.pathname}${url.search}`
-      : value;
+    if (url.pathname.startsWith("/api/assets/product-images/")) {
+      return `${url.pathname}${url.search}`;
+    }
+    if (supabaseUrl) {
+      const storageUrl = new URL(supabaseUrl);
+      const publicPrefix = "/storage/v1/object/public/product-images/";
+      if (url.origin === storageUrl.origin && url.pathname.startsWith(publicPrefix)) {
+        return `/api/assets/product-images/${url.pathname.slice(publicPrefix.length)}`;
+      }
+    }
+    return value;
   } catch {
     return value;
   }
 }
 
-export function isOptimizableProductImageUrl(
-  value: string,
-  supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL,
-) {
+export function isOptimizableProductImageUrl(value: string) {
   if (value.startsWith("/api/assets/product-images/")) return true;
-  if (!supabaseUrl || !isRenderableProductImageUrl(value)) return false;
-  try {
-    const imageUrl = new URL(value);
-    const storageUrl = new URL(supabaseUrl);
-    return imageUrl.origin === storageUrl.origin
-      && imageUrl.pathname.startsWith("/storage/v1/object/public/product-images/");
-  } catch {
-    return false;
-  }
+  return false;
 }

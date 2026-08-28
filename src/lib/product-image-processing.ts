@@ -1,12 +1,52 @@
-import sharp from "sharp";
+import type { Sharp } from "sharp";
 
 export const PRODUCT_IMAGE_TARGET_BYTES = 320 * 1024;
-export const PRODUCT_IMAGE_MAX_INPUT_PIXELS = 50_000_000;
+export const PRODUCT_IMAGE_MAX_INPUT_PIXELS = 20_000_000;
 export type ProductImageCrop = {
   positionX: number;
   positionY: number;
   zoom: number;
 };
+
+type SharpFactory = (typeof import("sharp"))["default"];
+
+export class ProductImageProcessorUnavailableError extends Error {
+  readonly code = "PRODUCT_IMAGE_PROCESSOR_UNAVAILABLE";
+
+  constructor() {
+    super("PRODUCT_IMAGE_PROCESSOR_UNAVAILABLE");
+    this.name = "ProductImageProcessorUnavailableError";
+  }
+}
+
+export class ProductImageProcessingBusyError extends Error {
+  readonly code = "PRODUCT_IMAGE_PROCESSING_BUSY";
+
+  constructor() {
+    super("PRODUCT_IMAGE_PROCESSING_BUSY");
+    this.name = "ProductImageProcessingBusyError";
+  }
+}
+
+const activeByOrganization = new Map<string, number>();
+let activeGlobally = 0;
+
+export async function withProductImageProcessingSlot<T>(
+  organizationId: string,
+  task: () => Promise<T>,
+) {
+  if ((activeByOrganization.get(organizationId) ?? 0) >= 1 || activeGlobally >= 4) {
+    throw new ProductImageProcessingBusyError();
+  }
+  activeByOrganization.set(organizationId, 1);
+  activeGlobally += 1;
+  try {
+    return await task();
+  } finally {
+    activeGlobally -= 1;
+    activeByOrganization.delete(organizationId);
+  }
+}
 
 export function calculateProductImageCrop(
   width: number,
@@ -34,6 +74,7 @@ const variants = [
 ] as const;
 
 export async function optimizeProductImage(bytes: Uint8Array, crop?: ProductImageCrop) {
+  const sharp = await loadSharp();
   const input = sharp(bytes, { failOn: "error", limitInputPixels: PRODUCT_IMAGE_MAX_INPUT_PIXELS }).rotate();
   const source = crop
     ? await cropProductImage(input, crop)
@@ -61,11 +102,21 @@ export async function optimizeProductImage(bytes: Uint8Array, crop?: ProductImag
   return smallest;
 }
 
-async function cropProductImage(input: ReturnType<typeof sharp>, crop: ProductImageCrop) {
-  const normalized = await input.toBuffer({ resolveWithObject: true });
-  if (!normalized.info.width || !normalized.info.height) throw new Error("IMAGE_DIMENSIONS_UNAVAILABLE");
-  return sharp(normalized.data, {
-    failOn: "error",
-    limitInputPixels: PRODUCT_IMAGE_MAX_INPUT_PIXELS,
-  }).extract(calculateProductImageCrop(normalized.info.width, normalized.info.height, crop));
+async function loadSharp(): Promise<SharpFactory> {
+  try {
+    return (await import("sharp")).default;
+  } catch {
+    throw new ProductImageProcessorUnavailableError();
+  }
+}
+
+async function cropProductImage(input: Sharp, crop: ProductImageCrop) {
+  const metadata = await input.clone().metadata();
+  if (!metadata.width || !metadata.height) throw new Error("IMAGE_DIMENSIONS_UNAVAILABLE");
+  const swapsDimensions = metadata.orientation !== undefined
+    && metadata.orientation >= 5
+    && metadata.orientation <= 8;
+  const width = swapsDimensions ? metadata.height : metadata.width;
+  const height = swapsDimensions ? metadata.width : metadata.height;
+  return input.clone().extract(calculateProductImageCrop(width, height, crop));
 }

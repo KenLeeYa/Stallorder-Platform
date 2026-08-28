@@ -2,6 +2,8 @@
 
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -10,11 +12,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { CircleAlert, RefreshCw, WifiOff } from "lucide-react";
+import { CircleAlert, WifiOff } from "lucide-react";
 import { useAppLocale } from "@/components/locale-provider";
 
-const SERVICE_WORKER_ENABLED = process.env.NODE_ENV === "production"
-  || process.env.NEXT_PUBLIC_ENABLE_PWA_IN_DEVELOPMENT === "true";
+const PwaUpdateController = lazy(() => import("@/components/pwa-update-controller")
+  .then((module) => ({ default: module.PwaUpdateController })));
 
 type NetworkQuality = "GOOD" | "POOR" | "OFFLINE";
 
@@ -45,9 +47,6 @@ type PwaContextValue = {
   wakeLockSupported: boolean;
   wakeLockActive: boolean;
   toggleWakeLock: () => Promise<boolean>;
-  updateAvailable: boolean;
-  updateBlocked: boolean;
-  applyServiceWorkerUpdate: () => void;
 };
 
 const PwaContext = createContext<PwaContextValue | null>(null);
@@ -78,12 +77,9 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [wakeLockSupported, setWakeLockSupported] = useState(false);
   const [wakeLockActive, setWakeLockActive] = useState(false);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [updateBlocked, setUpdateBlocked] = useState(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const wakeLockRequestedRef = useRef(false);
-  const waitingWorkerRef = useRef<ServiceWorker | null>(null);
-  const applyingUpdateRef = useRef(false);
+  const activeMutationsRef = useRef(0);
 
   const updateConnection = useCallback(() => {
     const nextOnline = navigator.onLine;
@@ -150,79 +146,7 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
     return choice.outcome === "accepted";
   }, [installPrompt]);
 
-  const applyServiceWorkerUpdate = useCallback(() => {
-    const worker = waitingWorkerRef.current;
-    if (!worker) return;
-    applyingUpdateRef.current = true;
-    setUpdateBlocked(false);
-    worker.postMessage({ type: "ACTIVATE_UPDATE" });
-  }, []);
-
   useEffect(() => {
-    let disposed = false;
-    let serviceWorkerUpdateTimer: number | null = null;
-    const onServiceWorkerMessage = (event: MessageEvent) => {
-      if (event.data?.type === "SW_UPDATE_AVAILABLE") setUpdateAvailable(true);
-      if (event.data?.type === "SW_UPDATE_SAFETY") {
-        setUpdateBlocked((event.data.pendingRecords ?? 0) > 0);
-      }
-      if (event.data?.type === "SW_UPDATE_BLOCKED") {
-        applyingUpdateRef.current = false;
-        setUpdateBlocked(true);
-        setUpdateAvailable(true);
-      }
-    };
-    const onControllerChange = () => {
-      if (applyingUpdateRef.current) window.location.reload();
-    };
-
-    if ("serviceWorker" in navigator && !SERVICE_WORKER_ENABLED) {
-      void (async () => {
-        const hadController = Boolean(navigator.serviceWorker.controller);
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        const unregistered = await Promise.all(
-          registrations.map((registration) => registration.unregister()),
-        );
-        if ("caches" in window) {
-          const keys = await window.caches.keys();
-          await Promise.all(
-            keys
-              .filter((key) => key.startsWith("stallorder-shell-"))
-              .map((key) => window.caches.delete(key)),
-          );
-        }
-        if (!disposed && hadController && unregistered.some(Boolean)) window.location.reload();
-      })().catch(() => undefined);
-    }
-
-    if ("serviceWorker" in navigator && SERVICE_WORKER_ENABLED) {
-      navigator.serviceWorker.addEventListener("message", onServiceWorkerMessage);
-      navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-      void navigator.serviceWorker.register("/sw.js?pwa-enabled=1", { scope: "/" }).then((registration) => {
-        if (disposed) return;
-        const markWaiting = (worker: ServiceWorker) => {
-          waitingWorkerRef.current = worker;
-          setUpdateAvailable(true);
-          worker.postMessage({ type: "CHECK_UPDATE_SAFETY" });
-        };
-        if (registration.waiting && navigator.serviceWorker.controller) {
-          markWaiting(registration.waiting);
-        }
-        registration.addEventListener("updatefound", () => {
-          const worker = registration.installing;
-          worker?.addEventListener("statechange", () => {
-            if (worker.state === "installed" && navigator.serviceWorker.controller) {
-              markWaiting(worker);
-            }
-          });
-        });
-        serviceWorkerUpdateTimer = window.setInterval(
-          () => void registration.update(),
-          60 * 60_000,
-        );
-      });
-    }
-
     const captureInstallPrompt = (event: Event) => {
       event.preventDefault();
       setInstallPrompt(event as BeforeInstallPromptEvent);
@@ -237,17 +161,13 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
     const initialCheck = window.setTimeout(() => void measureConnection(), 0);
     const timer = window.setInterval(() => void measureConnection(), 30_000);
     return () => {
-      disposed = true;
       window.clearTimeout(initialCheck);
       window.clearInterval(timer);
-      if (serviceWorkerUpdateTimer !== null) window.clearInterval(serviceWorkerUpdateTimer);
       window.removeEventListener("online", updateConnection);
       window.removeEventListener("offline", updateConnection);
       window.removeEventListener("beforeinstallprompt", captureInstallPrompt);
       window.removeEventListener("appinstalled", clearInstallPrompt);
       connection?.removeEventListener("change", updateConnection);
-      navigator.serviceWorker?.removeEventListener("message", onServiceWorkerMessage);
-      navigator.serviceWorker?.removeEventListener("controllerchange", onControllerChange);
     };
   }, [measureConnection, updateConnection]);
 
@@ -258,7 +178,16 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
       if (!navigator.onLine && !["GET", "HEAD", "OPTIONS"].includes(method)) {
         return Promise.reject(new Error("OFFLINE_READ_ONLY"));
       }
-      return originalFetch(input, init);
+      if (["GET", "HEAD", "OPTIONS"].includes(method)) return originalFetch(input, init);
+      activeMutationsRef.current += 1;
+      try {
+        return originalFetch(input, init).finally(() => {
+          activeMutationsRef.current = Math.max(0, activeMutationsRef.current - 1);
+        });
+      } catch (error) {
+        activeMutationsRef.current = Math.max(0, activeMutationsRef.current - 1);
+        throw error;
+      }
     };
     const preventOfflineSubmit = (event: SubmitEvent) => {
       const form = event.target instanceof HTMLFormElement ? event.target : null;
@@ -298,11 +227,7 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
     wakeLockSupported,
     wakeLockActive,
     toggleWakeLock,
-    updateAvailable,
-    updateBlocked,
-    applyServiceWorkerUpdate,
   }), [
-    applyServiceWorkerUpdate,
     effectiveType,
     installPrompt,
     latencyMs,
@@ -310,8 +235,6 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
     quality,
     requestInstall,
     toggleWakeLock,
-    updateAvailable,
-    updateBlocked,
     wakeLockActive,
     wakeLockSupported,
   ]);
@@ -335,22 +258,9 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
               : t("pwa.runtime.poorNetwork")}
         </div>
       ) : null}
-      {updateAvailable ? (
-        <div
-          role="status"
-          className="sticky top-0 z-50 flex min-h-10 flex-wrap items-center justify-center gap-3 bg-emerald-50 px-4 py-2 text-center text-xs font-semibold text-emerald-950"
-        >
-          <span>{updateBlocked ? t("pwa.runtime.updateBlocked") : t("pwa.runtime.updateReady")}</span>
-          <button
-            type="button"
-            className="inline-flex min-h-9 items-center gap-2 border border-emerald-800 bg-white px-3 py-1.5 text-emerald-950"
-            onClick={applyServiceWorkerUpdate}
-          >
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            {t("pwa.runtime.safeUpdate")}
-          </button>
-        </div>
-      ) : null}
+      <Suspense fallback={null}>
+        <PwaUpdateController activeMutationsRef={activeMutationsRef} />
+      </Suspense>
       {children}
     </PwaContext.Provider>
   );

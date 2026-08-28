@@ -37,6 +37,11 @@ const productImageRemotePatterns = (() => {
     return [];
   }
 })();
+const productImageRuntimeFiles = [
+  "./node_modules/sharp/**/*",
+  "./node_modules/@img/sharp-linux-x64/**/*",
+  "./node_modules/@img/sharp-libvips-linux-x64/**/*",
+];
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com${isProduction ? "" : " 'unsafe-eval'"}`,
@@ -44,7 +49,7 @@ const contentSecurityPolicy = [
   `img-src 'self' data: blob: https: ${publicEdgeOrigin}`,
   "font-src 'self'",
   `connect-src 'self' ${publicEdgeOrigin} ${publicRealtimeOrigin} https://challenges.cloudflare.com`,
-  "frame-src https://challenges.cloudflare.com",
+  "frame-src https://challenges.cloudflare.com https://www.google.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -52,7 +57,15 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_STALLORDER_BUILD_REVISION:
+      process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? "local",
+  },
   allowedDevOrigins,
+  outputFileTracingIncludes: {
+    "/api/merchant/**/image": productImageRuntimeFiles,
+    "/api/merchant/**/cover-image": productImageRuntimeFiles,
+  },
   logging: {
     incomingRequests: {
       ignore: [
@@ -84,12 +97,30 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-store, max-age=0, must-revalidate" },
+        ],
+      },
+      {
+        source: "/q/:qrToken",
+        headers: [
+          { key: "X-StallOrder-Offline-Cache", value: "public-menu-v1" },
+        ],
+      },
+      {
+        source: "/store/:identifier",
+        headers: [
+          { key: "X-StallOrder-Offline-Cache", value: "public-menu-v1" },
+        ],
+      },
+      {
         source: "/(.*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
           { key: "Content-Security-Policy", value: contentSecurityPolicy },

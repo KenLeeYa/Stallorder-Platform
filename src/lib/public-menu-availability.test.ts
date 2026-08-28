@@ -20,6 +20,7 @@ function product(
     category: "主餐",
     rank: null,
     isBestSeller: false,
+    isSoldOut: false,
     isOrderDiscountEligible: true,
     imageUrl: null,
     translations: [],
@@ -271,5 +272,32 @@ describe("public preorder menu availability", () => {
       noteOptionIds: [],
       bundleChoiceIds: [],
     }]);
+  });
+
+  it("keeps a sold-out bundle visible but removes it from every cart representation", () => {
+    const soldOutBundle = product({
+      id: "sold-out-bundle",
+      kind: "BUNDLE",
+      isSoldOut: true,
+      bundleChoiceGroups: [],
+    });
+
+    expect(publicMenuProductsForPickup(
+      [soldOutBundle],
+      "2026-08-03T05:00:00.000Z",
+    )).toEqual([soldOutBundle]);
+    expect(prunePublicCartForProducts([soldOutBundle], {
+      quantities: { "sold-out-bundle": 2 },
+      noteSelections: {},
+      bundleSelections: {},
+    })).toEqual({ quantities: {}, noteSelections: {}, bundleSelections: {} });
+    expect(prunePublicCartLinesForProducts([soldOutBundle], [{
+      id: "sold-out-line",
+      productId: soldOutBundle.id,
+      quantity: 1,
+      note: "",
+      noteOptionIds: [],
+      bundleChoiceIds: [],
+    }])).toEqual([]);
   });
 });

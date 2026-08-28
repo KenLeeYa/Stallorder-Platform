@@ -15,6 +15,7 @@ import {
   Languages,
   ListTree,
   MapPinned,
+  MapPinCheck,
   MessageCircle,
   MonitorUp,
   Percent,
@@ -60,6 +61,7 @@ export function StallSettingsOverview({
   canManageLocalization,
   canManageEvents,
   canManageTeam,
+  canManageAttendance,
   canManageOrdering,
   canManageReportSchedules,
   canManageOrganization,
@@ -72,6 +74,7 @@ export function StallSettingsOverview({
   canManageLocalization: boolean;
   canManageEvents: boolean;
   canManageTeam: boolean;
+  canManageAttendance: boolean;
   canManageOrdering: boolean;
   canManageReportSchedules: boolean;
   canManageOrganization: boolean;
@@ -105,6 +108,7 @@ export function StallSettingsOverview({
           ) : null}
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/templates`} icon={Copy} label={m("多攤位範本")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/members`} icon={UserRoundCog} label={m("攤位成員")} />
+          {canManageAttendance ? <SettingsLink href={`/merchant/stalls/${stallId}/attendance`} icon={MapPinCheck} label={m("員工定位打卡")} /> : null}
           {showMerchantSetup ? (
             <SettingsLink href={`/merchant/setup?organizationId=${workspaceId}`} icon={Rocket} label={m("開店設定")} />
           ) : null}

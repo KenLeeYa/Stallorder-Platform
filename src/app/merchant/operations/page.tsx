@@ -1,5 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { OperationsConsole } from "@/components/operations-console";
+import { dashboardDateRange } from "@/lib/dashboard-validation";
+import { calendarDateInTimeZone } from "@/lib/date-time";
 import { getOperationsConsoleData, type OperationsFilters } from "@/lib/operations-data";
 import { parseOperationsPage, parseOperationsPageSize } from "@/lib/operations-pagination";
 import { authorizedStallIdsForPermission, hasPermission } from "@/lib/rbac";
@@ -26,6 +28,10 @@ export default async function OperationsPage({ searchParams }: PageProps) {
   if (!canViewAudit && alertStallIds.length === 0) notFound();
   const requestedStallId = single(params.stallId);
   if (requestedStallId && !workspace.stalls.some((stall) => stall.id === requestedStallId)) notFound();
+  const today = calendarDateInTimeZone(new Date(), "Asia/Taipei");
+  const dateFrom = single(params.dateFrom) ?? today;
+  const dateTo = single(params.dateTo) ?? today;
+  if (!dashboardDateRange(dateFrom, dateTo).ok) notFound();
 
   const filters: OperationsFilters = {
     stallId: requestedStallId,
@@ -33,8 +39,8 @@ export default async function OperationsPage({ searchParams }: PageProps) {
     alertSeverity: oneOf(single(params.alertSeverity), ["INFO", "WARNING", "CRITICAL", "ALL"]),
     auditOutcome: oneOf(single(params.auditOutcome), ["SUCCESS", "DENIED", "FAILURE", "ALL"]),
     auditQuery: single(params.auditQuery),
-    dateFrom: single(params.dateFrom),
-    dateTo: single(params.dateTo),
+    dateFrom,
+    dateTo,
   };
   const pagination = {
     alerts: {

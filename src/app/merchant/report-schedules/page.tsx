@@ -34,7 +34,13 @@ export default async function ReportSchedulesPage({ searchParams }: PageProps) {
     );
   }
   const [schedules, organization] = await Promise.all([
-    getReportScheduleManagementData(workspace.id),
+    getReportScheduleManagementData({
+      organizationId: workspace.id,
+      accessScope: {
+        canUseAllStalls: workspace.canUseAllStalls,
+        authorizedStallIds: workspace.stalls.map((stall) => stall.id),
+      },
+    }),
     prisma.organization.findUnique({ where: { id: workspace.id }, select: { email: true } }),
   ]);
 

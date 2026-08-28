@@ -187,7 +187,7 @@ export function StaffOrderCancellationDialog({
           </button>
           <button
             type="button"
-            disabled={updatingOrderId === pending.id || (controller.requiresAuthorizationCode && !/^\d{4,8}$/.test(pending.managerAuthorizationCode))}
+            disabled={updatingOrderId === pending.id || (controller.requiresAuthorizationCode && !/^\d{6,8}$/.test(pending.managerAuthorizationCode))}
             onClick={() => void controller.confirm()}
             className="rounded-md bg-red-700 px-3 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
           >

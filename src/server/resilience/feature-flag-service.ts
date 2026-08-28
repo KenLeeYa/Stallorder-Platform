@@ -7,6 +7,17 @@ import { logEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getOAuthMigrationReadiness } from "@/server/auth/oauth/migration-readiness";
 
+type ResilienceFeatureFlagRecord = Prisma.ResilienceFeatureFlagGetPayload<{
+  include: { overrides: true };
+}>;
+
+const FLAG_SNAPSHOT_TTL_MS = 2_000;
+const flagSnapshotCache = new Map<string, {
+  expiresAt: number;
+  value?: ResilienceFeatureFlagRecord[];
+  pending?: Promise<ResilienceFeatureFlagRecord[]>;
+}>();
+
 export const resilienceFeatureFlagCodes = [
   "DUAL_ORDER_INTAKE_ENABLED",
   "DR_READ_ROUTING_ENABLED",
@@ -385,7 +396,22 @@ export async function resolveResilienceFeatureFlags(
   codes: readonly ResilienceFeatureFlagCode[] = resilienceFeatureFlagCodes,
   context: ResilienceFlagEvaluationContext = {},
 ) {
-  const flags = await prisma.resilienceFeatureFlag.findMany({
+  const flags = await getResilienceFeatureFlagSnapshot(codes);
+  const byCode = new Map(flags.map((flag) => [flag.code, flag]));
+  return Object.fromEntries(codes.map((code) => {
+    const flag = byCode.get(code);
+    return [code, flag ? evaluateResilienceFeatureFlag(flag, context) : fallbackState(code)];
+  })) as Record<ResilienceFeatureFlagCode, ResilienceFlagState>;
+}
+
+async function getResilienceFeatureFlagSnapshot(codes: readonly ResilienceFeatureFlagCode[]) {
+  const key = [...codes].sort().join(",");
+  const now = Date.now();
+  const cached = flagSnapshotCache.get(key);
+  if (cached?.value && cached.expiresAt > now) return cached.value;
+  if (cached?.pending) return cached.pending;
+
+  const pending = prisma.resilienceFeatureFlag.findMany({
     where: { code: { in: [...codes] } },
     include: {
       overrides: {
@@ -398,11 +424,15 @@ export async function resolveResilienceFeatureFlags(
       },
     },
   });
-  const byCode = new Map(flags.map((flag) => [flag.code, flag]));
-  return Object.fromEntries(codes.map((code) => {
-    const flag = byCode.get(code);
-    return [code, flag ? evaluateResilienceFeatureFlag(flag, context) : fallbackState(code)];
-  })) as Record<ResilienceFeatureFlagCode, ResilienceFlagState>;
+  flagSnapshotCache.set(key, { expiresAt: now + FLAG_SNAPSHOT_TTL_MS, pending });
+  try {
+    const value = await pending;
+    flagSnapshotCache.set(key, { expiresAt: Date.now() + FLAG_SNAPSHOT_TTL_MS, value });
+    return value;
+  } catch (error) {
+    flagSnapshotCache.delete(key);
+    throw error;
+  }
 }
 
 export async function listResilienceFeatureFlagsForAdmin() {
@@ -575,6 +605,7 @@ export async function setResilienceFeatureFlagOverride(
 
     return override;
   });
+  flagSnapshotCache.clear();
 
   logEvent(flag.isEmergency ? "warn" : "info", "RESILIENCE_FEATURE_FLAG_CHANGED", {
     requestId: actor.requestId,

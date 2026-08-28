@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   ChefHat,
+  Clock3,
   ListChecks,
   RadioTower,
   RefreshCw,
@@ -98,6 +99,16 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
                 stallId={stall.id}
               />
             </div> : null}
+            <Link
+              data-testid="kitchen-attendance"
+              href={`/attendance/${encodeURIComponent(stall.slug)}`}
+              title="員工定位打卡"
+              aria-label="員工定位打卡"
+              className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white text-stone-600 hover:text-stone-950"
+            >
+              <Clock3 className="h-5 w-5" />
+              <span className="sr-only">員工定位打卡</span>
+            </Link>
             <div data-testid="kitchen-language-control" className="[&>label]:!h-11 [&>label]:!min-h-11 [&>label]:!w-11 [&_svg]:!h-5 [&_svg]:!w-5">
               <LocaleSelector compact />
             </div>

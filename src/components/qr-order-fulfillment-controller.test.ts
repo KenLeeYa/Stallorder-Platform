@@ -202,6 +202,7 @@ function product(
     category: "main",
     rank: null,
     isBestSeller: false,
+    isSoldOut: false,
     isOrderDiscountEligible: true,
     imageUrl: null,
     translations: [],

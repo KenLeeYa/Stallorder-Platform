@@ -6,7 +6,7 @@ import type { ProductNoteTransfer } from "../src/lib/product-note-transfer";
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 const password = "StallOrderDemo!2026";
-const managerAuthorizationCode = "2468";
+const managerAuthorizationCode = "246810";
 const takeoutQrToken = "demo-aming-chicken-qr-2026-rotate-me";
 type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
 const authCookies = new Map<string, AuthCookies>();

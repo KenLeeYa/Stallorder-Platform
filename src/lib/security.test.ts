@@ -10,6 +10,7 @@ import {
 } from "./security";
 
 const originalTrustedIpHeader = process.env.TRUSTED_CLIENT_IP_HEADER;
+const originalAppBaseUrl = process.env.APP_BASE_URL;
 const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
 const originalTrustedAppOrigins = process.env.TRUSTED_APP_ORIGINS;
 const originalVercelProjectProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
@@ -19,6 +20,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
   if (originalTrustedIpHeader === undefined) delete process.env.TRUSTED_CLIENT_IP_HEADER;
   else process.env.TRUSTED_CLIENT_IP_HEADER = originalTrustedIpHeader;
+  if (originalAppBaseUrl === undefined) delete process.env.APP_BASE_URL;
+  else process.env.APP_BASE_URL = originalAppBaseUrl;
   if (originalAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
   else process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
   if (originalTrustedAppOrigins === undefined) delete process.env.TRUSTED_APP_ORIGINS;
@@ -84,6 +87,22 @@ describe("安全工具", () => {
       headers: { origin: "http://192.168.1.102:3000", "sec-fetch-site": "same-origin" },
     });
 
+    expect(isTrustedOrigin(untrusted)).toBe(false);
+  });
+
+  it("正式模式使用伺服器端 APP_BASE_URL 驗證同源請求", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_BASE_URL", "http://127.0.0.1:3000");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://127.0.0.1:3010");
+
+    const trusted = new Request("http://127.0.0.1:3000/api/test", {
+      headers: { origin: "http://127.0.0.1:3000", "sec-fetch-site": "same-origin" },
+    });
+    const untrusted = new Request("http://127.0.0.1:3000/api/test", {
+      headers: { origin: "https://evil.example", "sec-fetch-site": "same-origin" },
+    });
+
+    expect(isTrustedOrigin(trusted)).toBe(true);
     expect(isTrustedOrigin(untrusted)).toBe(false);
   });
 

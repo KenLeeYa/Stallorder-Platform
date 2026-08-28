@@ -19,6 +19,7 @@ const product = {
   category: "主餐",
   rank: null,
   isBestSeller: false,
+  isSoldOut: false,
   isOrderDiscountEligible: true,
   imageUrl: null,
   translations: [],

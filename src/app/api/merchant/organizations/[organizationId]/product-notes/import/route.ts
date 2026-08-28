@@ -2,6 +2,10 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
+import {
+  BoundedMultipartError,
+  readBoundedMultipartFormData,
+} from "@/lib/bounded-multipart-form-data";
 import { validateCsrf } from "@/lib/csrf";
 import {
   getOrganizationProductNotes,
@@ -59,14 +63,24 @@ export async function POST(request: Request, context: RouteContext) {
     throw error;
   }
 
-  const contentLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > maxMultipartBytes) {
-    return NextResponse.json(
-      { error: "註記匯入檔不可超過 1MB。" },
-      { status: 413, headers: { "x-request-id": authorization.requestId } },
-    );
+  let form: FormData | null = null;
+  try {
+    form = await readBoundedMultipartFormData(request, maxMultipartBytes);
+  } catch (error) {
+    if (error instanceof BoundedMultipartError) {
+      const status = error.reason === "BODY_TOO_LARGE" || error.reason === "INVALID_CONTENT_LENGTH"
+        ? 413
+        : error.reason === "INVALID_CONTENT_TYPE"
+          ? 415
+          : error.reason === "READ_TIMEOUT"
+            ? 408
+            : 400;
+      return NextResponse.json(
+        { error: status === 413 ? "註記匯入檔不可超過 1MB。" : status === 408 ? "註記匯入逾時，請重試。" : "註記匯入格式不正確。" },
+        { status, headers: { "x-request-id": authorization.requestId } },
+      );
+    }
   }
-  const form = await request.formData().catch(() => null);
   const file = form?.get("productNotes") ?? null;
   const mode = form?.get("mode") ?? null;
   if (!isImportMode(mode)) {

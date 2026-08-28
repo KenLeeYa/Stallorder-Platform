@@ -100,6 +100,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       where: { tokenHash: hashToken(parsed.data.invitationToken) },
       select: {
         id: true,
+        profileId: true,
         allowedProviders: true,
         expiresAt: true,
         usedAt: true,
@@ -112,10 +113,26 @@ export async function POST(request: Request, { params }: RouteContext) {
       || invitation.revokedAt
       || invitation.expiresAt <= new Date()
       || !invitation.allowedProviders.includes(provider)
+      || !principal
+      || invitation.profileId !== principal.user.id
     ) {
       return NextResponse.json(
         { error: "帳號綁定邀請無效或已過期。" },
         { status: 404, headers: { "x-request-id": requestId } },
+      );
+    }
+    const currentSession = await prisma.authSession.findUnique({
+      where: { id: principal.sessionId },
+      select: { issuedAt: true, revokedAt: true },
+    });
+    if (
+      !currentSession
+      || currentSession.revokedAt
+      || currentSession.issuedAt < new Date(Date.now() - 10 * 60_000)
+    ) {
+      return NextResponse.json(
+        { error: "請由受邀帳號重新登入後再綁定其他登入方式。" },
+        { status: 403, headers: { "x-request-id": requestId } },
       );
     }
     invitationId = invitation.id;
@@ -149,7 +166,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       provider,
       redirectUri,
       returnTo: sanitizeRedirectPath(parsed.data.returnTo, "/select-organization"),
-      currentProfileId: invitationId ? undefined : principal?.user.id,
+      currentProfileId: principal?.user.id,
       invitationId,
     });
     const authorizationUrl = await adapter.buildAuthorizationUrl({

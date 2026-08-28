@@ -1,6 +1,7 @@
-const CACHE_NAME = "stallorder-shell-v5";
+const CACHE_NAME = "stallorder-shell-v9";
 const OFFLINE_URL = "/offline";
 const OFFLINE_DB_NAME = "stallorder-offline-pos";
+const OFFLINE_PUBLIC_MENU_RESPONSE = "public-menu-v1";
 const IS_LOCAL_DEVELOPMENT = ["localhost", "127.0.0.1", "[::1]"].includes(self.location.hostname)
   && !new URL(self.location.href).searchParams.has("pwa-enabled");
 const SHELL_ASSETS = [
@@ -81,6 +82,18 @@ async function cacheOfflineShell() {
   }));
 }
 
+async function purgeSensitiveNavigationEntries() {
+  const keys = await caches.keys();
+  await Promise.all(keys.filter((key) => key.startsWith("stallorder-shell-")).map(async (key) => {
+    const cache = await caches.open(key);
+    const requests = await cache.keys();
+    await Promise.all(requests.map((request) => {
+      const url = new URL(request.url);
+      return url.search ? cache.delete(request) : Promise.resolve(false);
+    }));
+  }));
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     if (IS_LOCAL_DEVELOPMENT) {
@@ -107,6 +120,7 @@ self.addEventListener("activate", (event) => {
       await Promise.all(clients.map((client) => client.navigate(client.url)));
       return;
     }
+    await purgeSensitiveNavigationEntries();
     const pendingRecords = await countUnsynchronizedRecords();
     if (pendingRecords === 0) {
       const keys = await caches.keys();
@@ -164,12 +178,38 @@ async function staleWhileRevalidate(request) {
   return cached ?? network;
 }
 
+async function networkFirstRevocableAsset(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request, { cache: "no-store" });
+    if (response.ok && !response.headers.get("cache-control")?.includes("no-store")) {
+      await cache.put(request, response.clone());
+    } else if (response.status === 404 || response.status === 410) {
+      await cache.delete(request);
+    }
+    return response;
+  } catch {
+    return await cache.match(request) ?? new Response(null, { status: 503 });
+  }
+}
+
 async function networkFirstPublicMenuNavigation(request) {
   const cache = await caches.open(CACHE_NAME);
   const cached = await cache.match(request);
   try {
     const response = await fetch(request);
-    if (response.ok) await cache.put(request, response.clone());
+    const cacheControl = response.headers.get("cache-control") ?? "";
+    const hasSensitiveQuery = new URL(request.url).search.length > 0;
+    const explicitlyOfflineCacheable = response.headers.get("x-stallorder-offline-cache")
+      === OFFLINE_PUBLIC_MENU_RESPONSE;
+    const cacheAllowed = response.ok
+      && !hasSensitiveQuery
+      && (explicitlyOfflineCacheable
+        || !/(?:^|,)\s*(?:private|no-store)\b/i.test(cacheControl));
+    if (cacheAllowed) await cache.put(request, response.clone());
+    else if (hasSensitiveQuery || response.status === 404 || response.status === 410) {
+      await cache.delete(request);
+    }
     if (response.status >= 500 && cached) return cached;
     return response;
   } catch {
@@ -205,7 +245,11 @@ self.addEventListener("fetch", (event) => {
   const isStableProductImage = url.pathname.startsWith("/api/assets/product-images/");
   const isOfflineMenuSnapshot = url.pathname.startsWith("/api/assets/offline-menus/");
   const isPublicMenu = /^\/api\/public\/stalls\/[^/]+\/menu$/.test(url.pathname);
-  if (isStableProductImage || isOfflineMenuSnapshot || isPublicMenu) {
+  if (isStableProductImage) {
+    event.respondWith(networkFirstRevocableAsset(request));
+    return;
+  }
+  if (isOfflineMenuSnapshot || isPublicMenu) {
     event.respondWith(staleWhileRevalidate(request));
   }
 });

@@ -5,6 +5,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { getZodFieldErrors } from "@/lib/form-field-errors";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { canAccessReportSchedule, reportScheduleAccessScope } from "@/lib/report-schedule-access";
 import { nextScheduledRun, reportScheduleInputSchema } from "@/lib/report-scheduling";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
@@ -14,7 +15,7 @@ type RouteContext = { params: Promise<{ organizationId: string }> };
 
 export async function POST(request: Request, context: RouteContext) {
   const { organizationId } = await context.params;
-  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_REPORT_SCHEDULES");
+  const authorization = await authorizeOrganizationApiRequest(request, organizationId, "MANAGE_REPORT_SCHEDULES", true);
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json({ error: "安全驗證已失效，請重新整理後再試。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
@@ -33,8 +34,7 @@ export async function POST(request: Request, context: RouteContext) {
     const fieldErrors = getZodFieldErrors(parsed.error, reportScheduleFieldLabels);
     return NextResponse.json({ error: "排程資料不正確，請檢查標示欄位。", fieldErrors }, { status: 400, headers: { "x-request-id": authorization.requestId } });
   }
-  const allowedStallIds = new Set(authorization.workspace.stalls.filter((stall) => stall.isActive).map((stall) => stall.id));
-  if (parsed.data.stallIds.some((stallId) => !allowedStallIds.has(stallId))) {
+  if (!canAccessReportSchedule(parsed.data.stallIds, reportScheduleAccessScope(authorization))) {
     const message = "攤位範圍包含未授權資源。";
     return NextResponse.json({ error: message, fieldErrors: { stallIds: message } }, { status: 403, headers: { "x-request-id": authorization.requestId } });
   }

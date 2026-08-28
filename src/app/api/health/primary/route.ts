@@ -8,11 +8,13 @@ export async function GET() {
   const health = await checkPrimaryDatabaseHealth();
   const available = health.status === "HEALTHY" || health.status === "DEGRADED";
 
-  logEvent(available ? "info" : "error", "PRIMARY_HEALTH_CHECK_COMPLETED", {
-    requestId,
-    status: health.status,
-    latencyMs: health.latencyMs,
-  });
+  if (!available || health.status === "DEGRADED") {
+    logEvent(available ? "warn" : "error", "PRIMARY_HEALTH_CHECK_COMPLETED", {
+      requestId,
+      status: health.status,
+      latencyMs: health.latencyMs,
+    });
+  }
 
   return NextResponse.json(
     {

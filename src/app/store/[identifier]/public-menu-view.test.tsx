@@ -14,6 +14,7 @@ function product(id: string, category: string, group: string | null = null): Pub
     group,
     rank: null,
     isBestSeller: false,
+    isSoldOut: false,
     isOrderDiscountEligible: true,
     imageUrl: null,
     translations: [],
@@ -36,6 +37,8 @@ describe("PublicMenuView category navigation", () => {
         coverImagePositionY: 68,
         coverImageZoom: 125,
         location: "台中市",
+        address: "台中市西區測試路 1 號",
+        locationGuideImageUrl: "/api/assets/product-images/demo/stall-location-guides/guide.webp",
         currency: "TWD",
         timezone: "Asia/Taipei",
         fulfillmentType: "TAKEOUT",
@@ -68,6 +71,7 @@ describe("PublicMenuView category navigation", () => {
     expect(html).toContain("object-position:42% 68%");
     expect(html).toContain("transform:scale(1.25)");
     expect(html).not.toContain("aspect-[3/1]");
+    expect(html).toContain("查看地圖與店面指引");
   });
 
   it("renders named product groups in the supplied catalog order", () => {
@@ -149,5 +153,45 @@ describe("PublicMenuView category navigation", () => {
     expect(html).toContain("Phở bò");
     expect(html).not.toContain(">湯河粉<");
     expect(html).not.toContain(">牛肉湯底<");
+  });
+
+  it("keeps sold-out products on the public Menu with a grey image treatment and label", () => {
+    const soldOutProduct = product("sold-out", "主餐");
+    soldOutProduct.isSoldOut = true;
+    soldOutProduct.imageUrl = "https://example.test/sold-out.webp";
+    const menu: PublicMenu = {
+      orderingMode: "DEFAULT",
+      preorderSlots: [],
+      lotteryEnabled: false,
+      stall: {
+        name: "測試攤位",
+        slug: "demo",
+        location: "台中市",
+        currency: "TWD",
+        timezone: "Asia/Taipei",
+        fulfillmentType: "TAKEOUT",
+        table: null,
+      },
+      products: [soldOutProduct],
+      supportedLocales: ["zh-TW"],
+      estimatedWaitMinutes: 0,
+      estimatedWaitMinMinutes: 0,
+      estimatedWaitMaxMinutes: 0,
+      waitAcknowledgmentThresholdMinutes: null,
+      requiresWaitAcknowledgment: false,
+      lastTableOrderAt: null,
+      limits: {
+        maxItemQuantity: 100,
+        maxUniqueProducts: 100,
+        maxTotalQuantity: 100,
+        maxNoteLength: 1000,
+      },
+    };
+
+    const html = renderToStaticMarkup(<PublicMenuView menu={menu} locale="zh-TW" />);
+
+    expect(html).toContain('data-testid="public-menu-sold-out"');
+    expect(html).toContain("grayscale opacity-45");
+    expect(html).toContain("售完");
   });
 });

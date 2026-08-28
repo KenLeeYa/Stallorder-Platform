@@ -70,6 +70,7 @@ describe("public menu locale completeness", () => {
     groupTranslations: [{ locale: "vi", name: "Nước dùng bò" }],
     rank: null,
     isBestSeller: false,
+    isSoldOut: false,
     isOrderDiscountEligible: true,
     imageUrl: null,
     translations: [{ locale: "vi", name: "Phở bò", description: "Nấu mỗi ngày" }],

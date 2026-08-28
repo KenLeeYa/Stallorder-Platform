@@ -3,10 +3,14 @@ import { NextResponse } from "next/server";
 import { logEvent, recordAuditEvent } from "@/lib/audit";
 import { lineIntegrationSecretsSchema, lineWebhookBodySchema } from "@/lib/line-notification-contract";
 import { prisma } from "@/lib/prisma";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkPublicRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp, hashToken } from "@/lib/security";
 import { verifyLineWebhookSignature } from "@/server/notifications/line-security";
 import { deleteNotificationSecret, readNotificationSecret } from "@/server/notifications/notification-secrets";
+import {
+  BoundedTextReadError,
+  readBoundedText,
+} from "@/server/delivery-platforms/bounded-text-reader";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,23 +25,26 @@ export async function POST(request: Request, context: RouteContext) {
   if (request.headers.get("content-type")?.split(";", 1)[0]?.trim() !== "application/json") {
     return response({ error: "UNSUPPORTED_MEDIA_TYPE" }, 415, requestId);
   }
-  const declaredLength = Number(request.headers.get("content-length") ?? 0);
-  if (Number.isFinite(declaredLength) && declaredLength > 64_000) {
-    return response({ error: "REQUEST_TOO_LARGE" }, 413, requestId);
-  }
-
   const ipHash = hashClientIp(request);
-  const limit = await checkRateLimit({
+  const limit = await checkPublicRateLimit({
     scope: "line-webhook",
-    identifier: `${integrationId}:${ipHash}`,
-    limit: 600,
+    sourceIdentifier: ipHash,
+    resourceIdentifier: `${integrationId}:${ipHash}`,
+    sourceLimit: 1_200,
+    resourceLimit: 600,
     windowMs: 5 * 60_000,
   });
   if (!limit.allowed) return response({ error: "RATE_LIMITED" }, 429, requestId, limit.retryAfterSeconds);
 
-  const rawBody = await request.text();
-  if (Buffer.byteLength(rawBody, "utf8") > 64_000) {
-    return response({ error: "REQUEST_TOO_LARGE" }, 413, requestId);
+  let rawBody: string;
+  try {
+    rawBody = await readBoundedText(request, 64_000);
+  } catch (error) {
+    const status = error instanceof BoundedTextReadError
+      && (error.reason === "BODY_TOO_LARGE" || error.reason === "INVALID_CONTENT_LENGTH")
+      ? 413
+      : 408;
+    return response({ error: status === 413 ? "REQUEST_TOO_LARGE" : "REQUEST_TIMEOUT" }, status, requestId);
   }
   const integration = await prisma.notificationIntegration.findFirst({
     where: { id: integrationId, provider: "LINE", status: "ACTIVE" },

@@ -4,7 +4,9 @@ import {
   kitchenTicketCommandBytes,
   KITCHEN_TICKET_MEDIA_TYPE,
 } from "@/lib/kitchen-print-ticket";
+import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   cloudPrntAuthState,
   cloudPrntJobToken,
@@ -33,6 +35,18 @@ export async function POST(request: Request, context: RouteContext) {
   if (authentication instanceof Response) return authentication;
   const printer = await loadPrinter(authentication.printerId);
   if (printer instanceof Response) return printer;
+  const limit = await checkRateLimit({
+    scope: "cloudprnt-poll",
+    identifier: printer.id,
+    limit: 300,
+    windowMs: 60_000,
+  });
+  if (!limit.allowed) {
+    return new Response(null, {
+      status: 429,
+      headers: { ...responseHeaders, "retry-after": String(limit.retryAfterSeconds) },
+    });
+  }
 
   const body = await readPoll(request);
   if (!body) return new Response(null, { status: 400, headers: responseHeaders });
@@ -281,12 +295,10 @@ function automaticRuleEligibility(): Prisma.PrintJobWhereInput {
 }
 
 async function readPoll(request: Request) {
-  try {
-    const parsed = cloudPrntPollSchema.safeParse(await request.json());
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
+  const body = await readJson(request, undefined, { maxBytes: 16_384 });
+  if (body.error) return null;
+  const parsed = cloudPrntPollSchema.safeParse(body.data);
+  return parsed.success ? parsed.data : null;
 }
 
 async function touchPrinter(printerId: string) {
