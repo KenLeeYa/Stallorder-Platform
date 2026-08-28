@@ -55,6 +55,14 @@ const paygContractRuntimeGapsMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260824110000_payg_contract_and_runtime_gaps.sql",
 ), "utf8");
+const authorizedCompletedPaymentCorrectionMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260828110000_authorized_completed_payment_correction.sql",
+), "utf8");
+const privateProductImageDeliveryMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260828190000_private_product_image_delivery.sql",
+), "utf8");
 const lotteryFreeProductCampaignsMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260825120000_lottery_free_product_campaigns.sql",
@@ -423,6 +431,34 @@ describe("additive DR migration plan", () => {
         "or settings.print_module_enabled",
       ),
     )).toThrow("FUNCTION_REPLACEMENT_EXISTING_OBJECT_FORBIDDEN");
+  });
+
+  it("allows only the exact reviewed completed-payment correction function", () => {
+    expect(assertAdditiveMigrationSql(
+      authorizedCompletedPaymentCorrectionMigration,
+    )).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      authorizedCompletedPaymentCorrectionMigration.replace(
+        "= 'authorized'",
+        "<> 'authorized'",
+      ),
+    )).toThrow("FUNCTION_REPLACEMENT_EXISTING_OBJECT_FORBIDDEN");
+  });
+
+  it("allows only the exact reviewed private product-image transition", () => {
+    expect(assertAdditiveMigrationSql(privateProductImageDeliveryMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      privateProductImageDeliveryMigration.replace(
+        "set public = false",
+        "set public = true",
+      ),
+    )).toThrow("MIGRATION_STATEMENT_FORBIDDEN");
+    expect(() => assertAdditiveMigrationSql(
+      privateProductImageDeliveryMigration.replace(
+        "'/api/assets/product-images/'",
+        "'/storage/v1/object/public/product-images/'",
+      ),
+    )).toThrow("MIGRATION_STATEMENT_FORBIDDEN");
   });
 
   it("allows only the exact reviewed preflight reconciliation", () => {
