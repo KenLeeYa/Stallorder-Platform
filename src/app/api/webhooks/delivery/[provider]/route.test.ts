@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const checkRateLimit = vi.fn();
 const processDeliveryWebhook = vi.fn();
 
-vi.mock("@/lib/rate-limit", () => ({ checkRateLimit }));
+vi.mock("@/lib/rate-limit", () => ({ checkPublicRateLimit: checkRateLimit }));
 vi.mock("@/lib/security", () => ({
   hashClientIp: () => "hashed-client-ip",
 }));

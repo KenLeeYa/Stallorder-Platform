@@ -486,6 +486,8 @@ model Organization {
   lineLinkSessions              LineLinkSession[]
   lineWebhookEvents             LineWebhookEvent[]
   identityLinkInvitations       AuthIdentityLinkInvitation[]
+  attendancePolicies           AttendancePolicy[]
+  attendanceEvents             AttendanceEvent[]
 
   @@map("organizations")
 }
@@ -506,6 +508,7 @@ model Stall {
   orderingEnabled        Boolean                  @default(true) @map("ordering_enabled")
   logoUrl                String?                  @map("logo_url")
   coverImageUrl          String?                  @map("cover_image_url")
+  locationGuideImageUrl  String?                  @map("location_guide_image_url")
   coverImagePositionX       Int                          @default(50) @map("cover_image_position_x") @db.SmallInt
   coverImagePositionY       Int                          @default(50) @map("cover_image_position_y") @db.SmallInt
   coverImageZoom            Int                          @default(100) @map("cover_image_zoom") @db.SmallInt
@@ -569,6 +572,8 @@ model Stall {
   paymentProviderWebhookEvents PaymentProviderWebhookEvent[]
   paymentProviderRefunds       PaymentProviderRefund[]
   paymentReconciliationCases   PaymentReconciliationCase[]
+  attendancePolicy             AttendancePolicy?
+  attendanceEvents             AttendanceEvent[]
 
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
@@ -632,6 +637,9 @@ model Profile {
   createdIdentityLinkInvitations AuthIdentityLinkInvitation[] @relation("IdentityLinkCreator")
   requestedPaymentRefunds        PaymentProviderRefund[]     @relation("PaymentRefundRequestedBy")
   reviewedPaymentReconciliations PaymentReconciliationCase[] @relation("PaymentReconciliationReviewedBy")
+  attendanceEvents              AttendanceEvent[]            @relation("AttendanceEventProfile")
+  reviewedAttendanceEvents      AttendanceEvent[]            @relation("AttendanceEventReviewer")
+  updatedAttendancePolicies     AttendancePolicy[]            @relation("AttendancePolicyUpdatedBy")
 
   @@map("profiles")
 }
@@ -697,12 +705,71 @@ model AuthSession {
   rotatedFrom             AuthSession? @relation("AuthSessionRotation", fields: [rotatedFromId], references: [id], onDelete: SetNull)
   rotatedTo               AuthSession? @relation("AuthSessionRotation")
   oauthTransactionResults OAuthTransaction[]
+  attendanceEvents        AttendanceEvent[]
 
   @@index([profileId])
   @@index([expiresAt])
   @@index([rotationFamilyId, issuedAt(sort: Desc)])
   @@index([profileId, expiresAt(sort: Desc)])
   @@map("auth_sessions")
+}
+
+model AttendancePolicy {
+  id                     String   @id @default(uuid()) @db.Uuid
+  organizationId         String   @map("organization_id") @db.Uuid
+  stallId                String   @unique @map("stall_id") @db.Uuid
+  enabled                Boolean  @default(false)
+  latitude               Decimal? @db.Decimal(9, 6)
+  longitude              Decimal? @db.Decimal(10, 6)
+  radiusMeters           Int      @default(150) @map("radius_meters") @db.SmallInt
+  maxAccuracyMeters      Int      @default(80) @map("max_accuracy_meters") @db.SmallInt
+  requireRotatingCode    Boolean  @default(true) @map("require_rotating_code")
+  locationEvidenceDays   Int      @default(90) @map("location_evidence_days") @db.SmallInt
+  updatedByProfileId     String?  @map("updated_by_profile_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                  Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  updatedBy              Profile?     @relation("AttendancePolicyUpdatedBy", fields: [updatedByProfileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, enabled])
+  @@map("attendance_policies")
+}
+
+model AttendanceEvent {
+  id                   String    @id @default(uuid()) @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  stallId              String    @map("stall_id") @db.Uuid
+  profileId            String    @map("profile_id") @db.Uuid
+  sessionId            String?   @map("session_id") @db.Uuid
+  deviceId             String?   @map("device_id") @db.Uuid
+  eventType            String    @map("event_type") @db.VarChar(20)
+  decision             String    @db.VarChar(24)
+  latitude             Decimal?  @db.Decimal(9, 4)
+  longitude            Decimal?  @db.Decimal(10, 4)
+  accuracyMeters       Decimal?  @map("accuracy_meters") @db.Decimal(8, 2)
+  distanceMeters       Decimal?  @map("distance_meters") @db.Decimal(10, 2)
+  clientCapturedAt     DateTime? @map("client_captured_at")
+  riskCodes            String[]  @default([]) @map("risk_codes")
+  rotatingCodeVerified Boolean   @default(false) @map("rotating_code_verified")
+  challengeNonceHash   String    @unique @map("challenge_nonce_hash")
+  reviewNote           String?   @map("review_note") @db.VarChar(500)
+  reviewedByProfileId  String?   @map("reviewed_by_profile_id") @db.Uuid
+  reviewedAt           DateTime? @map("reviewed_at")
+  evidencePurgeAt      DateTime  @map("evidence_purge_at")
+  occurredAt           DateTime  @default(now()) @map("occurred_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  profile              Profile      @relation("AttendanceEventProfile", fields: [profileId], references: [id], onDelete: Restrict)
+  session              AuthSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  reviewedBy           Profile?     @relation("AttendanceEventReviewer", fields: [reviewedByProfileId], references: [id], onDelete: SetNull)
+
+  @@index([stallId, profileId, occurredAt(sort: Desc)])
+  @@index([organizationId, occurredAt(sort: Desc)])
+  @@index([decision, occurredAt(sort: Desc)])
+  @@index([evidencePurgeAt])
+  @@map("attendance_events")
 }
 
 model AuditLog {
@@ -1568,11 +1635,13 @@ model OrganizationInvitation {
 
 model RateLimitBucket {
   key       String   @id
+  scope     String   @default("legacy")
   count     Int      @default(0)
   expiresAt DateTime @map("expires_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([expiresAt])
+  @@index([scope, expiresAt])
   @@map("rate_limit_buckets")
 }
 
@@ -3710,6 +3779,7 @@ model StorageObjectManifest {
   replicationStatus String  @default("PENDING") @map("replication_status")
   retryCount       Int      @default(0) @map("retry_count")
   lastErrorCode    String?  @map("last_error_code")
+  deletedAt        DateTime? @map("deleted_at")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
   jobs             StorageReplicationJob[]
@@ -3718,6 +3788,35 @@ model StorageObjectManifest {
   @@index([organizationId, replicationStatus])
   @@index([replicationStatus, updatedAt])
   @@map("storage_object_manifest")
+}
+
+model CatalogImageUpload {
+  id                 String    @id @default(uuid()) @db.Uuid
+  organizationId     String    @map("organization_id") @db.Uuid
+  bucket             String    @default("product-images")
+  objectPath         String    @map("object_path")
+  expiresAt          DateTime  @map("expires_at")
+  attachedAt         DateTime? @map("attached_at")
+  cleanupRequestedAt DateTime? @map("cleanup_requested_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@unique([bucket, objectPath])
+  @@index([organizationId, attachedAt, expiresAt])
+  @@index([cleanupRequestedAt, expiresAt])
+  @@map("catalog_image_uploads")
+}
+
+model OperationalAlertRefreshState {
+  organizationId String    @id @map("organization_id") @db.Uuid
+  lastRefreshedAt DateTime? @map("last_refreshed_at")
+  claimedAt       DateTime? @map("claimed_at")
+  lastErrorCode   String?   @map("last_error_code")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([lastRefreshedAt, claimedAt])
+  @@map("operational_alert_refresh_states")
 }
 
 model StorageReplicationJob {

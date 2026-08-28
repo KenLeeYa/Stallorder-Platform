@@ -81,9 +81,11 @@ export type PublicMenu = {
     name: string;
     slug: string;
     location: string;
+    address?: string;
     currency: string;
     timezone: string;
     coverImageUrl?: string | null;
+    locationGuideImageUrl?: string | null;
     coverImagePositionX?: number;
     coverImagePositionY?: number;
     coverImageZoom?: number;

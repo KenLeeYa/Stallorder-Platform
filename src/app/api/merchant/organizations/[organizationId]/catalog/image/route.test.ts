@@ -5,6 +5,10 @@ const mocks = vi.hoisted(() => ({
   validateCsrf: vi.fn(),
   optimizeProductImage: vi.fn(),
   storageUpload: vi.fn(),
+  reserveCatalogImageUpload: vi.fn(),
+  expireCatalogImageUpload: vi.fn(),
+  ProductImageProcessingBusyError: class ProductImageProcessingBusyError extends Error {},
+  ProductImageProcessorUnavailableError: class ProductImageProcessorUnavailableError extends Error {},
 }));
 
 vi.mock("@/lib/authorization", () => ({
@@ -15,6 +19,9 @@ vi.mock("@/lib/audit", () => ({ recordAuditEvent: vi.fn() }));
 vi.mock("@/lib/security", () => ({ hashClientIp: vi.fn(() => "ip-hash") }));
 vi.mock("@/lib/product-image-processing", () => ({
   optimizeProductImage: mocks.optimizeProductImage,
+  withProductImageProcessingSlot: (_organizationId: string, task: () => Promise<Buffer>) => task(),
+  ProductImageProcessingBusyError: mocks.ProductImageProcessingBusyError,
+  ProductImageProcessorUnavailableError: mocks.ProductImageProcessorUnavailableError,
 }));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => ({
@@ -25,6 +32,11 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 vi.mock("@/server/resilience/storage-replication-service", () => ({
   enqueueStorageReplication: vi.fn(),
+}));
+vi.mock("@/server/catalog/catalog-image-upload-service", () => ({
+  CatalogImageQuotaError: class CatalogImageQuotaError extends Error {},
+  reserveCatalogImageUpload: mocks.reserveCatalogImageUpload,
+  expireCatalogImageUpload: mocks.expireCatalogImageUpload,
 }));
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -39,6 +51,8 @@ beforeEach(() => {
   mocks.validateCsrf.mockReturnValue(true);
   mocks.optimizeProductImage.mockResolvedValue(Buffer.from("optimized-image"));
   mocks.storageUpload.mockResolvedValue({ error: null });
+  mocks.reserveCatalogImageUpload.mockResolvedValue(undefined);
+  mocks.expireCatalogImageUpload.mockResolvedValue(undefined);
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://storage.example.test");
   vi.stubEnv("SUPABASE_SECRET_KEY", "local-test-secret");
 });
@@ -71,6 +85,17 @@ describe("商品圖片上傳 API", () => {
     expect(response.headers.get("content-type")).toContain("application/json");
     expect(response.headers.get("x-request-id")).toBe("request-1");
     await expect(response.json()).resolves.toEqual({ error: "圖片上傳失敗，請稍後再試。" });
+  });
+
+  it("圖片處理原生模組不可用時回傳 503 JSON，而不是 HTML 500", async () => {
+    mocks.optimizeProductImage.mockRejectedValueOnce(new mocks.ProductImageProcessorUnavailableError());
+    const response = await uploadPng();
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(response.headers.get("x-request-id")).toBe("request-1");
+    await expect(response.json()).resolves.toEqual({ error: "圖片處理服務暫時無法使用，請稍後再試。" });
+    expect(mocks.storageUpload).not.toHaveBeenCalled();
   });
 
   it("圖片成功最佳化並寫入儲存服務時回傳可用網址", async () => {

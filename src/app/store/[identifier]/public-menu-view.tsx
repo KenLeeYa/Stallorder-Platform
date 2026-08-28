@@ -5,9 +5,17 @@ import { publicMessages } from "@/lib/messages/public";
 import { formatMoney } from "@/lib/money";
 import type { PublicMenu, PublicMenuProduct } from "@/lib/public-menu-types";
 import { localizeSpecialClosureTitle } from "@/lib/special-closures-client";
+import { LocationGuideDialog } from "./location-guide-dialog";
 
 export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: AppLocale }) {
   const sections = groupProductsByCategory(menu.products, locale);
+  const mapQuery = menu.stall.address?.trim() || menu.stall.location.trim() || menu.stall.name;
+  const encodedMapQuery = encodeURIComponent(mapQuery);
+  const googleMapsEmbedKey = process.env.GOOGLE_MAPS_EMBED_API_KEY?.trim();
+  const googleMapsEmbedUrl = googleMapsEmbedKey
+    ? `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(googleMapsEmbedKey)}&q=${encodedMapQuery}`
+    : null;
+  const googleMapsNavigationUrl = `https://www.google.com/maps/search/?api=1&query=${encodedMapQuery}`;
 
   return (
     <main data-testid="storefront-menu-view" className="min-h-screen bg-[#f5f1e8] text-stone-950 print:bg-white">
@@ -44,6 +52,15 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
                   <span>{menu.stall.location}</span>
                 </p>
               ) : null}
+              <LocationGuideDialog
+                stallName={menu.stall.name}
+                location={menu.stall.location}
+                address={menu.stall.address ?? ""}
+                guideImageUrl={menu.stall.locationGuideImageUrl ?? null}
+                googleMapsEmbedUrl={googleMapsEmbedUrl}
+                googleMapsNavigationUrl={googleMapsNavigationUrl}
+                locale={locale}
+              />
             </div>
           </div>
           <p className="mt-6 max-w-2xl text-sm leading-6 text-teal-50 print:text-stone-600">

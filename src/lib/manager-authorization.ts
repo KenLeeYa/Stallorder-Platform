@@ -3,13 +3,18 @@ import "server-only";
 import { compare } from "bcryptjs";
 import type { UserRole } from "@prisma/client";
 import { z } from "zod";
+import { logEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, releaseRateLimitToken } from "@/lib/rate-limit";
 
 export const managerAuthorizationCodeSchema = z.string()
   .trim()
-  .regex(/^\d{4,8}$/, "授權碼必須是 4～8 位數字。");
+  .regex(/^\d{6,8}$/, "授權碼必須是 6～8 位數字。");
+
+export const newManagerAuthorizationCodeSchema = z.string()
+  .trim()
+  .regex(/^\d{6,8}$/, "新授權碼必須是 6～8 位數字。");
 
 export type SensitiveOperation =
   | "HIGH_DISCOUNT"
@@ -47,24 +52,37 @@ export async function verifyManagerAuthorization(input: {
     throw new ManagerAuthorizationError("INVALID_CODE");
   }
 
-  const limit = await checkRateLimit({
-    scope: "manager-authorization-code",
-    identifier: `${input.stallId}:${input.actorProfileId}:${input.operation}`,
-    limit: 8,
-    windowMs: 5 * 60_000,
-  });
-  if (!limit.allowed) throw new ManagerAuthorizationError("RATE_LIMITED");
-
   const settings = await prisma.stallOrderingSettings.findUnique({
     where: { stallId: input.stallId },
-    select: { managerAuthorizationCodeHash: true },
+    select: {
+      managerAuthorizationCodeHash: true,
+      managerAuthorizationCodeUpdatedAt: true,
+    },
   });
   if (!settings?.managerAuthorizationCodeHash) {
     throw new ManagerAuthorizationError("CODE_NOT_CONFIGURED");
   }
+  const codeVersion = settings.managerAuthorizationCodeUpdatedAt?.getTime() ?? 0;
+  const rateLimitKey = {
+    scope: "manager-authorization-code",
+    identifier: `${input.stallId}:${codeVersion}`,
+  };
+  const limit = await checkRateLimit({
+    ...rateLimitKey,
+    limit: 8,
+    windowMs: 15 * 60_000,
+  });
+  if (!limit.allowed) {
+    logEvent("warn", "MANAGER_AUTHORIZATION_CODE_LOCKED", {
+      stallId: input.stallId,
+      codeVersion,
+    });
+    throw new ManagerAuthorizationError("RATE_LIMITED");
+  }
   if (!(await compare(authorizationCode, settings.managerAuthorizationCodeHash))) {
     throw new ManagerAuthorizationError("INVALID_CODE");
   }
+  await releaseRateLimitToken(rateLimitKey);
 
   return { method: "SHARED_CODE" as const, approvedById: input.actorProfileId };
 }

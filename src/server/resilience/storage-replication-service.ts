@@ -1,12 +1,14 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { logEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 const MAX_REPLICATION_ATTEMPTS = 5;
 const MAX_OBJECT_BYTES = 6 * 1024 * 1024;
+const PROCESSING_LEASE_MS = 5 * 60_000;
 
 type StorageReplicationInput = {
   organizationId: string | null;
@@ -15,6 +17,13 @@ type StorageReplicationInput = {
   contentType: string;
   primaryChecksum: string;
   primaryUpdatedAt: Date;
+};
+
+type StorageDeletionInput = {
+  organizationId: string | null;
+  bucket: string;
+  objectPath: string;
+  contentType: string;
 };
 
 function assertStorageObjectReference(bucket: string, objectPath: string, contentType: string) {
@@ -59,6 +68,7 @@ export async function enqueueStorageReplication(input: StorageReplicationInput) 
     });
     if (
       existing
+      && !existing.deletedAt
       && existing.primaryChecksum === input.primaryChecksum
       && existing.contentType === input.contentType
       && ["PENDING", "PROCESSING", "MIRRORED"].includes(existing.replicationStatus)
@@ -87,6 +97,7 @@ export async function enqueueStorageReplication(input: StorageReplicationInput) 
         contentType: input.contentType,
         primaryChecksum: input.primaryChecksum,
         primaryUpdatedAt: input.primaryUpdatedAt,
+        deletedAt: null,
         replicationStatus: "PENDING",
         retryCount: 0,
         lastErrorCode: null,
@@ -112,6 +123,73 @@ export async function enqueueStorageReplication(input: StorageReplicationInput) 
     });
     return manifest.id;
   });
+}
+
+export async function enqueueStorageDeletion(
+  input: StorageDeletionInput,
+  transaction?: Prisma.TransactionClient,
+) {
+  assertStorageObjectReference(input.bucket, input.objectPath, input.contentType);
+  if (transaction) return enqueueStorageDeletionWithTransaction(transaction, input);
+  return prisma.$transaction((currentTransaction) => (
+    enqueueStorageDeletionWithTransaction(currentTransaction, input)
+  ));
+}
+
+async function enqueueStorageDeletionWithTransaction(
+  transaction: Prisma.TransactionClient,
+  input: StorageDeletionInput,
+) {
+  const existing = await transaction.storageObjectManifest.findUnique({
+    where: {
+      bucket_objectPath: { bucket: input.bucket, objectPath: input.objectPath },
+    },
+  });
+  if (existing?.deletedAt && ["PENDING", "PROCESSING", "DELETED"].includes(existing.replicationStatus)) {
+    return existing.id;
+  }
+
+  const deletedAt = new Date();
+  const manifest = await transaction.storageObjectManifest.upsert({
+    where: {
+      bucket_objectPath: { bucket: input.bucket, objectPath: input.objectPath },
+    },
+    create: {
+      organizationId: input.organizationId,
+      bucket: input.bucket,
+      objectPath: input.objectPath,
+      contentType: input.contentType,
+      deletedAt,
+      replicationStatus: "PENDING",
+    },
+    update: {
+      organizationId: input.organizationId,
+      contentType: input.contentType,
+      deletedAt,
+      replicationStatus: "PENDING",
+      retryCount: 0,
+      lastErrorCode: null,
+    },
+  });
+  await transaction.storageReplicationJob.updateMany({
+    where: {
+      manifestId: manifest.id,
+      status: { in: ["PENDING", "PROCESSING", "FAILED"] },
+    },
+    data: {
+      status: "CANCELLED",
+      completedAt: deletedAt,
+      lastErrorCode: "SUPERSEDED_BY_DELETE",
+    },
+  });
+  await transaction.storageReplicationJob.create({
+    data: {
+      manifestId: manifest.id,
+      sourceBackendCode: "PRIMARY",
+      targetBackendCode: "DR",
+    },
+  });
+  return manifest.id;
 }
 
 function storageAdmin(url: string | undefined, secret: string | undefined) {
@@ -210,6 +288,16 @@ async function mirrorObject(
   return targetChecksum;
 }
 
+async function deleteObject(
+  client: SupabaseClient,
+  bucket: string,
+  objectPath: string,
+  errorCode: "PRIMARY_DELETE_FAILED" | "DR_DELETE_FAILED",
+) {
+  const result = await client.storage.from(bucket).remove([objectPath]);
+  if (result.error) throw new Error(errorCode);
+}
+
 function safeReplicationErrorCode(error: unknown) {
   const code = error instanceof Error ? error.message : "";
   return [
@@ -218,6 +306,8 @@ function safeReplicationErrorCode(error: unknown) {
     "SOURCE_CHECKSUM_CHANGED",
     "TARGET_UPLOAD_FAILED",
     "TARGET_CHECKSUM_MISMATCH",
+    "PRIMARY_DELETE_FAILED",
+    "DR_DELETE_FAILED",
   ].includes(code)
     ? code
     : "STORAGE_REPLICATION_FAILED";
@@ -230,11 +320,20 @@ export async function processStorageReplicationJobs(limit = 10) {
   }
 
   const now = new Date();
+  const staleBefore = new Date(now.getTime() - PROCESSING_LEASE_MS);
   const candidates = await prisma.storageReplicationJob.findMany({
     where: {
-      status: { in: ["PENDING", "FAILED"] },
       attemptCount: { lt: MAX_REPLICATION_ATTEMPTS },
-      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
+      OR: [
+        {
+          status: { in: ["PENDING", "FAILED"] },
+          OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
+        },
+        {
+          status: "PROCESSING",
+          claimedAt: { lte: staleBefore },
+        },
+      ],
     },
     orderBy: { createdAt: "asc" },
     take: Math.max(1, Math.min(limit, 50)),
@@ -242,17 +341,22 @@ export async function processStorageReplicationJobs(limit = 10) {
   });
 
   let mirrored = 0;
+  let deleted = 0;
   let failed = 0;
   for (const candidate of candidates) {
+    const claimedAt = new Date();
     const claim = await prisma.storageReplicationJob.updateMany({
       where: {
         id: candidate.id,
-        status: { in: ["PENDING", "FAILED"] },
         attemptCount: candidate.attemptCount,
+        ...(candidate.status === "PROCESSING"
+          ? { status: "PROCESSING" as const, claimedAt: candidate.claimedAt }
+          : { status: { in: ["PENDING" as const, "FAILED" as const] } }),
       },
       data: {
         status: "PROCESSING",
-        claimedAt: new Date(),
+        claimedAt,
+        completedAt: null,
         attemptCount: { increment: 1 },
         lastErrorCode: null,
       },
@@ -260,43 +364,66 @@ export async function processStorageReplicationJobs(limit = 10) {
     if (claim.count !== 1) continue;
 
     try {
-      if (!candidate.manifest.primaryChecksum) throw new Error("SOURCE_CHECKSUM_CHANGED");
-      const drChecksum = await mirrorObject(
-        clients.primary,
-        clients.dr,
-        candidate.manifest.bucket,
-        candidate.manifest.objectPath,
-        candidate.manifest.contentType,
-        candidate.manifest.primaryChecksum,
-      );
-      await prisma.$transaction([
-        prisma.storageReplicationJob.update({
-          where: { id: candidate.id },
+      const isDeletion = Boolean(candidate.manifest.deletedAt);
+      let drChecksum: string | null = null;
+      if (isDeletion) {
+        await deleteObject(
+          clients.primary,
+          candidate.manifest.bucket,
+          candidate.manifest.objectPath,
+          "PRIMARY_DELETE_FAILED",
+        );
+        await deleteObject(
+          clients.dr,
+          candidate.manifest.bucket,
+          candidate.manifest.objectPath,
+          "DR_DELETE_FAILED",
+        );
+      } else {
+        if (!candidate.manifest.primaryChecksum) throw new Error("SOURCE_CHECKSUM_CHANGED");
+        drChecksum = await mirrorObject(
+          clients.primary,
+          clients.dr,
+          candidate.manifest.bucket,
+          candidate.manifest.objectPath,
+          candidate.manifest.contentType,
+          candidate.manifest.primaryChecksum,
+        );
+      }
+      const committed = await prisma.$transaction(async (transaction) => {
+        const job = await transaction.storageReplicationJob.updateMany({
+          where: { id: candidate.id, status: "PROCESSING", claimedAt },
           data: {
             status: "MIRRORED",
             completedAt: new Date(),
             nextAttemptAt: null,
           },
-        }),
-        prisma.storageObjectManifest.update({
+        });
+        if (job.count !== 1) return false;
+        await transaction.storageObjectManifest.update({
           where: { id: candidate.manifestId },
           data: {
             drChecksum,
-            drUpdatedAt: new Date(),
-            replicationStatus: "MIRRORED",
+            drUpdatedAt: isDeletion ? null : new Date(),
+            primaryChecksum: isDeletion ? null : undefined,
+            primaryUpdatedAt: isDeletion ? null : undefined,
+            replicationStatus: isDeletion ? "DELETED" : "MIRRORED",
             retryCount: candidate.attemptCount + 1,
             lastErrorCode: null,
           },
-        }),
-      ]);
-      mirrored += 1;
+        });
+        return true;
+      });
+      if (!committed) continue;
+      if (isDeletion) deleted += 1;
+      else mirrored += 1;
     } catch (error) {
       const attempt = candidate.attemptCount + 1;
       const errorCode = safeReplicationErrorCode(error);
       const exhausted = attempt >= MAX_REPLICATION_ATTEMPTS;
-      await prisma.$transaction([
-        prisma.storageReplicationJob.update({
-          where: { id: candidate.id },
+      const committed = await prisma.$transaction(async (transaction) => {
+        const job = await transaction.storageReplicationJob.updateMany({
+          where: { id: candidate.id, status: "PROCESSING", claimedAt },
           data: {
             status: "FAILED",
             nextAttemptAt: exhausted
@@ -304,16 +431,19 @@ export async function processStorageReplicationJobs(limit = 10) {
               : new Date(Date.now() + storageReplicationRetryDelayMs(attempt)),
             lastErrorCode: errorCode,
           },
-        }),
-        prisma.storageObjectManifest.update({
+        });
+        if (job.count !== 1) return false;
+        await transaction.storageObjectManifest.update({
           where: { id: candidate.manifestId },
           data: {
             replicationStatus: "FAILED",
             retryCount: attempt,
             lastErrorCode: errorCode,
           },
-        }),
-      ]);
+        });
+        return true;
+      });
+      if (!committed) continue;
       failed += 1;
       logEvent("warn", "STORAGE_REPLICATION_FAILED", {
         jobId: candidate.id,
@@ -324,8 +454,9 @@ export async function processStorageReplicationJobs(limit = 10) {
   }
 
   return {
-    processed: mirrored + failed,
+    processed: mirrored + deleted + failed,
     mirrored,
+    deleted,
     failed,
     status: "PROCESSED" as const,
   };

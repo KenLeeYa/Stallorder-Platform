@@ -8,7 +8,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
-import { managerAuthorizationCodeSchema } from "@/lib/manager-authorization";
+import { newManagerAuthorizationCodeSchema } from "@/lib/manager-authorization";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
@@ -41,7 +41,7 @@ const controlSchema = z.discriminatedUnion("action", [
   z.object({ action: z.enum(["PAUSE", "RESUME", "REVOKE_QR", "ROTATE_QR", "MARK_SOLD_OUT", "MARK_AVAILABLE", "CLOSE", "OPEN"]) }),
   z.object({ action: z.literal("UPDATE_LIMITS"), settings: settingsSchema }),
   z.object({ action: z.literal("UPDATE_ALERT_SETTINGS"), settings: alertSettingsSchema }),
-  z.object({ action: z.literal("UPDATE_MANAGER_AUTHORIZATION_CODE"), authorizationCode: managerAuthorizationCodeSchema }),
+  z.object({ action: z.literal("UPDATE_MANAGER_AUTHORIZATION_CODE"), authorizationCode: newManagerAuthorizationCodeSchema }),
 ]);
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Prisma } from "@prisma/client";
+import { zonedCalendarDateRangeUtc } from "@/lib/date-time";
 import { prisma } from "@/lib/prisma";
 import {
   buildOperationsPageMeta,
@@ -13,17 +14,9 @@ export type OperationsFilters = {
   alertSeverity?: "INFO" | "WARNING" | "CRITICAL" | "ALL";
   auditOutcome?: "SUCCESS" | "DENIED" | "FAILURE" | "ALL";
   auditQuery?: string;
-  dateFrom?: string;
-  dateTo?: string;
+  dateFrom: string;
+  dateTo: string;
 };
-
-function startOfDate(value: string | undefined) {
-  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : undefined;
-}
-
-function endOfDate(value: string | undefined) {
-  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T23:59:59.999Z`) : undefined;
-}
 
 export async function getOperationsConsoleData({
   organizationId,
@@ -43,9 +36,6 @@ export async function getOperationsConsoleData({
     auditLogs: OperationsPageRequest;
   };
 }) {
-  if (alertStallIds.length > 0) {
-    await prisma.$queryRaw`select public.refresh_operational_alerts(${organizationId}::uuid)`;
-  }
   const selectedAlertStallIds = filters.stallId && alertStallIds.includes(filters.stallId)
     ? [filters.stallId]
     : alertStallIds;
@@ -53,6 +43,7 @@ export async function getOperationsConsoleData({
     ? [filters.stallId]
     : auditStallIds;
   const auditQuery = filters.auditQuery?.trim().slice(0, 80);
+  const dateRange = zonedCalendarDateRangeUtc(filters.dateFrom, filters.dateTo, "Asia/Taipei");
 
   const alertWhere: Prisma.OperationalAlertWhereInput | null = selectedAlertStallIds.length === 0
     ? null
@@ -61,6 +52,7 @@ export async function getOperationsConsoleData({
       stallId: { in: selectedAlertStallIds },
       status: filters.alertStatus && filters.alertStatus !== "ALL" ? filters.alertStatus : undefined,
       severity: filters.alertSeverity && filters.alertSeverity !== "ALL" ? filters.alertSeverity : undefined,
+      detectedAt: { gte: dateRange.from, lt: dateRange.to },
     };
   const auditWhere: Prisma.AuditLogWhereInput | null = !canViewAudit
     ? null
@@ -71,7 +63,7 @@ export async function getOperationsConsoleData({
         ...(selectedAuditStallIds.length > 0 ? [{ stallId: { in: selectedAuditStallIds } }] : []),
       ],
       outcome: filters.auditOutcome && filters.auditOutcome !== "ALL" ? filters.auditOutcome : undefined,
-      createdAt: { gte: startOfDate(filters.dateFrom), lte: endOfDate(filters.dateTo) },
+      createdAt: { gte: dateRange.from, lt: dateRange.to },
       ...(auditQuery ? {
         AND: [{
           OR: [

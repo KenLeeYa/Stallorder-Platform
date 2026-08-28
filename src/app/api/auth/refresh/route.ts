@@ -9,6 +9,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { validateCsrfHash } from "@/lib/csrf";
 import { getRequestDeviceLabel } from "@/lib/device-label";
 import { prisma } from "@/lib/prisma";
+import { checkPublicRateLimit } from "@/lib/rate-limit";
 import {
   createRequestId,
   getCookieValue,
@@ -41,6 +42,27 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "目前無法驗證連線來源。" },
       { status: 503, headers: { "x-request-id": requestId } },
+    );
+  }
+  const limit = await checkPublicRateLimit({
+    scope: "session-refresh",
+    sourceIdentifier: ipHash,
+    resourceIdentifier: stored.profileId,
+    sourceLimit: 60,
+    resourceLimit: 30,
+    windowMs: 5 * 60_000,
+  });
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Session 更新次數過多，請稍後再試。" },
+      {
+        status: 429,
+        headers: {
+          "cache-control": "no-store",
+          "retry-after": String(limit.retryAfterSeconds),
+          "x-request-id": requestId,
+        },
+      },
     );
   }
   const deviceId = resolveSessionDeviceId(request);

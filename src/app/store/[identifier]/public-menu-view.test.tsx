@@ -36,6 +36,8 @@ describe("PublicMenuView category navigation", () => {
         coverImagePositionY: 68,
         coverImageZoom: 125,
         location: "台中市",
+        address: "台中市西區測試路 1 號",
+        locationGuideImageUrl: "/api/assets/product-images/demo/stall-location-guides/guide.webp",
         currency: "TWD",
         timezone: "Asia/Taipei",
         fulfillmentType: "TAKEOUT",
@@ -68,6 +70,7 @@ describe("PublicMenuView category navigation", () => {
     expect(html).toContain("object-position:42% 68%");
     expect(html).toContain("transform:scale(1.25)");
     expect(html).not.toContain("aspect-[3/1]");
+    expect(html).toContain("查看地圖與店面指引");
   });
 
   it("renders named product groups in the supplied catalog order", () => {

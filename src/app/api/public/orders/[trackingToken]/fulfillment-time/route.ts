@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { createRequestId, hashToken, isTrustedOrigin } from "@/lib/security";
+import { checkPublicRateLimit } from "@/lib/rate-limit";
+import { createRequestId, hashClientIp, hashToken, isTrustedOrigin } from "@/lib/security";
 import {
   errorMessage,
   statusForCode,
@@ -74,10 +74,12 @@ export async function POST(
     .digest("hex");
 
   try {
-    const limit = await checkRateLimit({
+    const limit = await checkPublicRateLimit({
       scope: "public-fulfillment-time-response",
-      identifier: `${trackingTokenHash}:${deviceHash}`,
-      limit: 12,
+      sourceIdentifier: hashClientIp(request),
+      resourceIdentifier: `${trackingTokenHash}:${deviceHash}`,
+      sourceLimit: 60,
+      resourceLimit: 12,
       windowMs: 15 * 60_000,
     });
     if (!limit.allowed) {

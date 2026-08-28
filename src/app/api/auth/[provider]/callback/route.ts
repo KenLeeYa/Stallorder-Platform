@@ -22,6 +22,7 @@ import {
 } from "@/server/auth/oauth/transaction-service";
 import { parseOAuthProvider } from "@/server/auth/oauth/types";
 import { getPendingMerchantSetupPath } from "@/server/merchant-applications/merchant-setup-service";
+import { readBoundedText } from "@/server/delivery-platforms/bounded-text-reader";
 
 type RouteContext = { params: Promise<{ provider: string }> };
 type CallbackInput = {
@@ -38,13 +39,9 @@ function callbackErrorCode(error: unknown) {
 
 async function readPostCallback(request: Request): Promise<CallbackInput | null> {
   const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.toLowerCase();
-  const contentLength = Number(request.headers.get("content-length") ?? 0);
-  if (
-    contentType !== "application/x-www-form-urlencoded"
-    || contentLength > 16_384
-  ) return null;
-  const body = await request.text();
-  if (body.length > 16_384) return null;
+  if (contentType !== "application/x-www-form-urlencoded") return null;
+  const body = await readBoundedText(request, 16_384).catch(() => null);
+  if (body === null) return null;
   const params = new URLSearchParams(body);
   return {
     code: params.get("code"),

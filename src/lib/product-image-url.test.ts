@@ -14,11 +14,11 @@ describe("product image URL allowlist", () => {
     )).toBe("/api/assets/product-images/org/stall-banners/stall/banner.webp");
   });
 
-  it("accepts only the public product image bucket for optimization", () => {
-    expect(isOptimizableProductImageUrl(
+  it("normalizes a legacy public bucket URL through the revocation-aware proxy", () => {
+    expect(normalizeProductImageUrl(
       "https://project-ref.supabase.co/storage/v1/object/public/product-images/org/product.webp",
       supabaseUrl,
-    )).toBe(true);
+    )).toBe("/api/assets/product-images/org/product.webp");
   });
 
   it.each([
@@ -27,7 +27,7 @@ describe("product image URL allowlist", () => {
     "https://user:password@project-ref.supabase.co/storage/v1/object/public/product-images/product.webp",
     "not-a-url",
   ])("rejects non-allowlisted URL %s", (value) => {
-    expect(isOptimizableProductImageUrl(value, supabaseUrl)).toBe(false);
+    expect(isOptimizableProductImageUrl(value)).toBe(false);
   });
 
   it("allows ordinary HTTPS merchant images without proxying them", () => {

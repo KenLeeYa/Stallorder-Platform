@@ -12,11 +12,12 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
-  checkRateLimit: mocks.rateLimit,
+  checkPublicRateLimit: mocks.rateLimit,
 }));
 
 vi.mock("@/lib/security", () => ({
   createRequestId: () => "fulfillment-time-request-id",
+  hashClientIp: () => "source-ip-hash",
   hashToken: () => "t".repeat(64),
   isTrustedOrigin: mocks.trustedOrigin,
 }));
@@ -64,6 +65,9 @@ describe("POST /api/public/orders/:trackingToken/fulfillment-time", () => {
   });
 
   it("hashes the tracking token and device before the service-role RPC", async () => {
+    const expectedDeviceHash = createHmac("sha256", "test-abuse-secret")
+      .update(`device:${validBody.deviceId}`)
+      .digest("hex");
     const route = await import("./route");
     const response = await route.POST(responseRequest(), {
       params: Promise.resolve({ trackingToken }),
@@ -78,15 +82,17 @@ describe("POST /api/public/orders/:trackingToken/fulfillment-time", () => {
     });
     expect(mocks.rateLimit).toHaveBeenCalledWith(expect.objectContaining({
       scope: "public-fulfillment-time-response",
-      limit: 12,
+      sourceIdentifier: "source-ip-hash",
+      resourceIdentifier: `${"t".repeat(64)}:${expectedDeviceHash}`,
+      sourceLimit: 60,
+      resourceLimit: 12,
+      windowMs: 15 * 60_000,
     }));
     expect(mocks.queryRaw).toHaveBeenCalledOnce();
     const query = mocks.queryRaw.mock.calls[0]?.[0] as { values?: unknown[] };
     expect(query.values).toEqual([
       "t".repeat(64),
-      createHmac("sha256", "test-abuse-secret")
-        .update(`device:${validBody.deviceId}`)
-        .digest("hex"),
+      expectedDeviceHash,
       2,
       "ACCEPT",
     ]);

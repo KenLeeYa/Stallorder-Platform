@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkPublicRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp, hashToken } from "@/lib/security";
 import {
   lineIntegrationSecretsSchema,
@@ -35,10 +35,12 @@ export async function GET(request: Request) {
 
   const stateHash = hashToken(state);
   const ipHash = hashClientIp(request);
-  const limit = await checkRateLimit({
+  const limit = await checkPublicRateLimit({
     scope: "line-oauth-callback",
-    identifier: `${ipHash}:${stateHash}`,
-    limit: 12,
+    sourceIdentifier: ipHash,
+    resourceIdentifier: stateHash,
+    sourceLimit: 30,
+    resourceLimit: 12,
     windowMs: 15 * 60_000,
   });
   if (!limit.allowed) {

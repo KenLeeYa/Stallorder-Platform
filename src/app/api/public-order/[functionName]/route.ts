@@ -6,6 +6,10 @@ import {
 } from "@/lib/public-order-proxy-headers";
 import { createRequestId } from "@/lib/security";
 import {
+  BoundedTextReadError,
+  readBoundedText,
+} from "@/server/delivery-platforms/bounded-text-reader";
+import {
   getPublicOrderOperationId,
   PUBLIC_ORDER_OPERATION_ID_HEADER,
 } from "@/lib/public-order-operation-id";
@@ -17,6 +21,7 @@ const ALLOWED_FUNCTIONS = new Set([
   "manage-line-link",
   "prepare-reorder",
 ]);
+const MAX_PUBLIC_ORDER_BODY_BYTES = 256 * 1024;
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -77,7 +82,22 @@ export async function POST(
   }
 
   const clientIp = trustedPublicOrderClientIp(request);
-  const requestBody = await request.text();
+  let requestBody: string;
+  try {
+    requestBody = await readBoundedText(request, MAX_PUBLIC_ORDER_BODY_BYTES);
+  } catch (error) {
+    const status = error instanceof BoundedTextReadError
+      && (error.reason === "BODY_TOO_LARGE" || error.reason === "INVALID_CONTENT_LENGTH")
+      ? 413
+      : 408;
+    return finalizePerformanceResponse(
+      NextResponse.json(
+        { error: status === 413 ? "點餐資料超過允許大小。" : "點餐資料讀取逾時，請重試。", code: status === 413 ? "REQUEST_TOO_LARGE" : "REQUEST_TIMEOUT" },
+        { status, headers: { [PUBLIC_ORDER_OPERATION_ID_HEADER]: operationId } },
+      ),
+      timing,
+    );
+  }
 
   const upstream = await timing.measure("externalApiMs", () => fetch(`${publicFunctionsBaseUrl()}/${functionName}`, {
     method: "POST",

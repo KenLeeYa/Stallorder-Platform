@@ -12,7 +12,7 @@ import {
   hashClientIp,
   hashToken,
 } from "@/lib/security";
-import { assertIdentityAdminScope } from "@/server/auth/oauth/admin-authorization";
+import { assertIdentityInvitationAdminScope } from "@/server/auth/oauth/admin-authorization";
 import { getOAuthAppBaseUrl } from "@/server/auth/oauth/config";
 import { resolveOAuthFeatureState } from "@/server/auth/oauth/feature-flags";
 
@@ -74,7 +74,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   }
 
   try {
-    const scope = await assertIdentityAdminScope({
+    const scope = await assertIdentityInvitationAdminScope({
       principal,
       targetProfileId: userId,
       organizationId: parsed.data.organizationId,

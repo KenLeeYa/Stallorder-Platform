@@ -22,6 +22,7 @@ export default async function EditStallPage({ params }: PageProps) {
   const canManageLocalization = workspace.roles.some((role) => hasPermission(role, "MANAGE_SHARED_PRODUCTS"));
   const canManageEvents = workspace.roles.some((role) => hasPermission(role, "MANAGE_MARKET_EVENTS"));
   const canManageTeam = roles.some((role) => hasPermission(role, "MANAGE_STAFF"));
+  const canManageAttendance = roles.some((role) => hasPermission(role, "MANAGE_ATTENDANCE"));
   const canManageOrdering = roles.some((role) => hasPermission(role, "MANAGE_ORDERING"));
   const canManageReportSchedules = workspace.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES"));
   const deliveryFeatureState = await resolveDeliveryFeatureState("UBER_EATS", {
@@ -50,6 +51,7 @@ export default async function EditStallPage({ params }: PageProps) {
         canManageLocalization={canManageLocalization}
         canManageEvents={canManageEvents}
         canManageTeam={canManageTeam}
+        canManageAttendance={canManageAttendance}
         canManageOrdering={canManageOrdering}
         canManageReportSchedules={canManageReportSchedules}
         canManageOrganization={workspace.roles.some((role) => hasPermission(role, "MANAGE_ORGANIZATION"))}

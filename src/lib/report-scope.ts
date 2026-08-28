@@ -2,6 +2,7 @@ import "server-only";
 
 import { notFound, redirect } from "next/navigation";
 import { dashboardDateRange } from "@/lib/dashboard-validation";
+import { calendarDateInTimeZone } from "@/lib/date-time";
 import { authorizedStallIdsForPermission } from "@/lib/rbac";
 import { requireWorkspaceOrganization, requireWorkspacePage } from "@/lib/workspace";
 
@@ -28,8 +29,7 @@ export async function requireReportScope({
   if (stalls.length === 0) notFound();
 
   const today = taipeiToday();
-  const defaultFrom = addDays(today, -29);
-  const resolvedDateFrom = dateFrom ?? defaultFrom;
+  const resolvedDateFrom = dateFrom ?? today;
   const resolvedDateTo = dateTo ?? today;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(resolvedDateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(resolvedDateTo)) notFound();
   if (!dashboardDateRange(resolvedDateFrom, resolvedDateTo).ok) notFound();
@@ -38,11 +38,5 @@ export async function requireReportScope({
 }
 
 function taipeiToday() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-}
-
-function addDays(value: string, days: number) {
-  const date = new Date(`${value}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
+  return calendarDateInTimeZone(new Date(), "Asia/Taipei");
 }

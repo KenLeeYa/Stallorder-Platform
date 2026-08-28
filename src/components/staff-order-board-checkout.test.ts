@@ -103,7 +103,7 @@ describe("staff order checkout model", () => {
 
     state = staffOrderCheckoutReducer(state, {
       type: "SET_MANAGER_AUTHORIZATION_CODE",
-      value: " 2468 ",
+      value: " 246810 ",
     });
     const ready = getStaffOrderCheckoutModel({
       state,
@@ -119,7 +119,7 @@ describe("staff order checkout model", () => {
       discountOptionId: "discount-20",
       cashReceived: 200,
       discountApprovalReason: "現場補償",
-      managerAuthorizationCode: "2468",
+      managerAuthorizationCode: "246810",
     });
   });
 

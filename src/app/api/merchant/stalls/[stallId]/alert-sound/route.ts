@@ -9,6 +9,10 @@ import {
 } from "@/lib/alert-sound-upload";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
+import {
+  BoundedMultipartError,
+  readBoundedMultipartFormData,
+} from "@/lib/bounded-multipart-form-data";
 import { validateCsrf } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
@@ -20,6 +24,7 @@ const allowedTypes = new Set<SupportedAlertSoundMime>([
   "audio/mp4",
   "audio/x-m4a",
 ]);
+const maxMultipartBytes = MAX_ALERT_SOUND_BYTES + 128 * 1024;
 
 export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ stallId: string }> };
@@ -31,7 +36,24 @@ export async function POST(request: Request, context: RouteContext) {
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json({ error: "安全驗證已失效，請重新整理後再試。" }, { status: 403 });
   }
-  const form = await request.formData().catch(() => null);
+  let form: FormData | null = null;
+  try {
+    form = await readBoundedMultipartFormData(request, maxMultipartBytes);
+  } catch (error) {
+    if (error instanceof BoundedMultipartError) {
+      const status = error.reason === "BODY_TOO_LARGE" || error.reason === "INVALID_CONTENT_LENGTH"
+        ? 413
+        : error.reason === "INVALID_CONTENT_TYPE"
+          ? 415
+          : error.reason === "READ_TIMEOUT"
+            ? 408
+            : 400;
+      return NextResponse.json(
+        { error: status === 413 ? "音效上傳資料超過允許大小。" : status === 408 ? "音效上傳逾時，請重試。" : "音效上傳格式不正確。" },
+        { status, headers: { "x-request-id": authorization.requestId } },
+      );
+    }
+  }
   const file = form?.get("sound");
   if (
     !(file instanceof File)

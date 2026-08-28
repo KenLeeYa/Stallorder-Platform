@@ -12,6 +12,11 @@ import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
 import { invalidatePublicMenus } from "@/lib/public-menu";
+import {
+  attachCatalogImageUpload,
+  CatalogImageLeaseError,
+  enqueueUnreferencedCatalogImageDeletion,
+} from "@/server/catalog/catalog-image-upload-service";
 
 type RouteContext = { params: Promise<{ organizationId: string }> };
 
@@ -360,6 +365,7 @@ export async function POST(request: Request, context: RouteContext) {
             data: { organizationId, ...productData },
             select: { id: true },
           });
+          await attachCatalogImageUpload(transaction, organizationId, command.imageUrl);
           if (command.translations.length > 0) {
             await transaction.productTranslation.createMany({
               data: command.translations.map((translation) => ({ organizationId, productId: product.id, ...translation })),
@@ -382,6 +388,7 @@ export async function POST(request: Request, context: RouteContext) {
           select: {
             id: true,
             kind: true,
+            imageUrl: true,
             _count: { select: { bundleChoiceGroups: true, componentChoices: true } },
           },
         });
@@ -397,6 +404,14 @@ export async function POST(request: Request, context: RouteContext) {
           data: { ...productData, isActive: command.isActive },
           select: { id: true },
         });
+        if (command.imageUrl !== existing.imageUrl) {
+          await attachCatalogImageUpload(transaction, organizationId, command.imageUrl);
+          await enqueueUnreferencedCatalogImageDeletion(
+            transaction,
+            organizationId,
+            existing.imageUrl,
+          );
+        }
         await transaction.productTranslation.deleteMany({
           where: { productId: product.id, organizationId, locale: { notIn: command.translations.map((translation) => translation.locale) } },
         });
@@ -417,10 +432,15 @@ export async function POST(request: Request, context: RouteContext) {
       if (command.operation === "DELETE_PRODUCT") {
         const existing = await transaction.product.findFirst({
           where: { id: command.productId, organizationId },
-          select: { id: true },
+          select: { id: true, imageUrl: true },
         });
         if (!existing) throw new CatalogNotFoundError();
         await transaction.product.delete({ where: { id: existing.id } });
+        await enqueueUnreferencedCatalogImageDeletion(
+          transaction,
+          organizationId,
+          existing.imageUrl,
+        );
         return existing;
       }
 
@@ -720,11 +740,14 @@ export async function POST(request: Request, context: RouteContext) {
     const foreignKeyConflict = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003";
     const conflict = error instanceof CatalogConflictError || foreignKeyConflict;
     const notFound = error instanceof CatalogNotFoundError;
+    const invalidImageLease = error instanceof CatalogImageLeaseError;
     const fieldErrors = catalogCommandFieldErrors(command, { duplicate, conflictError: error });
     return NextResponse.json(
       {
         error: duplicate
           ? Object.values(fieldErrors)[0] ?? "名稱或套餐選項已存在。"
+          : invalidImageLease
+            ? "圖片暫存已逾時或不屬於此組織，請重新上傳圖片。"
           : conflict
             ? error instanceof CatalogConflictError
               ? error.message
@@ -735,7 +758,7 @@ export async function POST(request: Request, context: RouteContext) {
         ...(Object.keys(fieldErrors).length > 0 ? { fieldErrors } : {}),
       },
       {
-        status: duplicate || conflict ? 409 : notFound ? 404 : 500,
+        status: duplicate || conflict || invalidImageLease ? 409 : notFound ? 404 : 500,
         headers: { "x-request-id": authorization.requestId },
       },
     );
