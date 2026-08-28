@@ -18,7 +18,9 @@ const mocks = vi.hoisted(() => ({
   printJobUpdate: vi.fn(),
   printJobUpdateMany: vi.fn(),
   transaction: vi.fn(),
+  checkRateLimit: vi.fn(),
 }));
+vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: mocks.checkRateLimit }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -46,6 +48,7 @@ beforeEach(() => {
   mocks.printerUpdateMany.mockResolvedValue({ count: 1 });
   mocks.printJobUpdateMany.mockResolvedValue({ count: 1 });
   mocks.printJobUpdate.mockResolvedValue({ id: jobId });
+  mocks.checkRateLimit.mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
   mocks.transaction.mockImplementation(async (operation) => operation({
     printer: { findFirst: mocks.printerFindFirst },
     printJob: {
@@ -177,6 +180,34 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
       }),
     }));
     expect(mocks.printJobUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized polling payload before reading queue state", async () => {
+    const route = await import("./route");
+    const response = await route.POST(printerRequest(endpoint(), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": "20000",
+      },
+      body: JSON.stringify({ statusCode: "200%20OK" }),
+    }), context());
+
+    expect(response.status).toBe(400);
+    expect(mocks.printJobFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("rate limits each configured printer before queue work", async () => {
+    mocks.checkRateLimit.mockResolvedValue({ allowed: false, retryAfterSeconds: 12 });
+    const route = await import("./route");
+    const response = await route.POST(printerRequest(endpoint(), {
+      method: "POST",
+      body: JSON.stringify({ statusCode: "200%20OK" }),
+    }), context());
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("12");
+    expect(mocks.printJobFindFirst).not.toHaveBeenCalled();
   });
 
   it("persists one compact payload, claims once, and returns identical bytes for a repeated GET", async () => {
@@ -393,6 +424,7 @@ function context(id = printerId) {
 
 function printerRequest(url: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
+  if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   headers.set(
     "authorization",
     `Basic ${Buffer.from("mcp31lb:a-strong-test-password", "utf8").toString("base64")}`,

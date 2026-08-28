@@ -8,12 +8,14 @@ export async function GET() {
   const health = await checkDrDatabaseHealth();
   const unavailable = health.status === "UNAVAILABLE";
 
-  logEvent(unavailable ? "warn" : "info", "DR_HEALTH_CHECK_COMPLETED", {
-    requestId,
-    status: health.status,
-    latencyMs: health.latencyMs,
-    reasonCode: health.reasonCode,
-  });
+  if (unavailable || health.status === "DEGRADED") {
+    logEvent("warn", "DR_HEALTH_CHECK_COMPLETED", {
+      requestId,
+      status: health.status,
+      latencyMs: health.latencyMs,
+      reasonCode: health.reasonCode,
+    });
+  }
 
   return NextResponse.json(
     {

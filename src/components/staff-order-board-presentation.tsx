@@ -458,8 +458,15 @@ function StaffOrderBoardToolbar({
             organizationId={stall.organizationId}
             label={t("workMode.stallLabel")}
           /> : null}
+          {hasPermission(role, "USE_ATTENDANCE") ? <Link
+            data-testid="staff-attendance"
+            href={`/attendance/${encodeURIComponent(stall.slug)}`}
+            title="員工定位打卡"
+            aria-label="員工定位打卡"
+            className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}
+          ><Clock3 className={staffFunctionIconClass} /><span className="sr-only">員工定位打卡</span></Link> : null}
           <div className="shrink-0">
-            <PwaControls showWakeLock />
+            <PwaControls showWakeLock showQualityLabel={false} />
           </div>
           <LiveConnectionBadge state={liveConnection} t={t} />
         </div>

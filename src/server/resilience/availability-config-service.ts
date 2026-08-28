@@ -44,6 +44,19 @@ const availabilityFlagCodes = [
 
 type AvailabilityFlagMap = Record<(typeof availabilityFlagCodes)[number], ResilienceFlagState>;
 
+type BackendRuntimeSnapshot = {
+  backendRole: string;
+  writesEnabled: boolean;
+  enforcementEnabled: boolean;
+} | null;
+
+const RUNTIME_SNAPSHOT_TTL_MS = 2_000;
+let runtimeSnapshotCache: {
+  expiresAt: number;
+  value?: BackendRuntimeSnapshot;
+  pending?: Promise<BackendRuntimeSnapshot>;
+} | null = null;
+
 function parsePromotionEpoch(value: string | undefined) {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : 1;
@@ -119,14 +132,7 @@ export async function getAvailabilityConfig(
         deviceId: context.deviceId,
         rolloutKey: context.deviceId,
       }),
-      prisma.backendRuntimeState.findFirst({
-        where: { isCurrent: true },
-        select: {
-          backendRole: true,
-          writesEnabled: true,
-          enforcementEnabled: true,
-        },
-      }),
+      getBackendRuntimeSnapshot(),
     ]);
     const backendWritable = Boolean(runtime) && (
       !runtime?.enforcementEnabled
@@ -142,5 +148,31 @@ export async function getAvailabilityConfig(
   } catch {
     logEvent("error", "AVAILABILITY_CONFIG_RESOLUTION_FAILED", { requestId });
     return safeUnavailableConfig();
+  }
+}
+
+async function getBackendRuntimeSnapshot(): Promise<BackendRuntimeSnapshot> {
+  const now = Date.now();
+  if (runtimeSnapshotCache?.value !== undefined && runtimeSnapshotCache.expiresAt > now) {
+    return runtimeSnapshotCache.value;
+  }
+  if (runtimeSnapshotCache?.pending) return runtimeSnapshotCache.pending;
+
+  const pending = prisma.backendRuntimeState.findFirst({
+    where: { isCurrent: true },
+    select: {
+      backendRole: true,
+      writesEnabled: true,
+      enforcementEnabled: true,
+    },
+  });
+  runtimeSnapshotCache = { expiresAt: now + RUNTIME_SNAPSHOT_TTL_MS, pending };
+  try {
+    const value = await pending;
+    runtimeSnapshotCache = { expiresAt: Date.now() + RUNTIME_SNAPSHOT_TTL_MS, value };
+    return value;
+  } catch (error) {
+    runtimeSnapshotCache = null;
+    throw error;
   }
 }

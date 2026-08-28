@@ -34,7 +34,7 @@ export function prunePublicCartForProducts(
 
   for (const [productId, quantity] of Object.entries(cart.quantities)) {
     const product = productsById.get(productId);
-    if (!product || quantity <= 0) continue;
+    if (!product || product.isSoldOut || quantity <= 0) continue;
     quantities[productId] = quantity;
 
     const allowedNoteIds = new Set(product.noteGroups.flatMap((group) => (
@@ -64,7 +64,7 @@ export function prunePublicCartLinesForProducts(
   const productsById = new Map(products.map((product) => [product.id, product]));
   return lines.flatMap((line) => {
     const product = productsById.get(line.productId);
-    if (!product || line.quantity <= 0) return [];
+    if (!product || product.isSoldOut || line.quantity <= 0) return [];
     const allowedNoteIds = new Set(product.noteGroups.flatMap((group) => (
       group.options.map((option) => option.id)
     )));

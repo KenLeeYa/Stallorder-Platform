@@ -16,6 +16,11 @@ export function formatTaipeiDateTime(value: string | Date) {
   return `${parts.get("year")}/${parts.get("month")}/${parts.get("day")} ${parts.get("hour")}:${parts.get("minute")}:${parts.get("second")}`;
 }
 
+export function calendarDateInTimeZone(value: Date, timeZone: string) {
+  const parts = zonedParts(value, timeZone);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
 type LocalDateParts = { year: number; month: number; day: number; hour: number; minute: number };
 
 function zonedParts(date: Date, timeZone: string): LocalDateParts {
@@ -62,5 +67,34 @@ export function zonedCalendarDayUtcRange(value: Date, timeZone: string) {
       hour: 0,
       minute: 0,
     }, timeZone),
+  };
+}
+
+export function zonedCalendarDateRangeUtc(dateFrom: string, dateTo: string, timeZone: string) {
+  const from = parseCalendarDate(dateFrom);
+  const to = parseCalendarDate(dateTo);
+  const dayAfterTo = new Date(Date.UTC(to.year, to.month - 1, to.day + 1));
+  return {
+    from: zonedDateTimeToUtc({ ...from, hour: 0, minute: 0 }, timeZone),
+    to: zonedDateTimeToUtc({
+      year: dayAfterTo.getUTCFullYear(),
+      month: dayAfterTo.getUTCMonth() + 1,
+      day: dayAfterTo.getUTCDate(),
+      hour: 0,
+      minute: 0,
+    }, timeZone),
+  };
+}
+
+function parseCalendarDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("INVALID_CALENDAR_DATE");
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== value) {
+    throw new Error("INVALID_CALENDAR_DATE");
+  }
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
   };
 }

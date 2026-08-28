@@ -769,6 +769,17 @@ async function main() {
 
   const ownerProfileId = profileIds.get("owner@stallorder.test");
   if (!ownerProfileId) throw new Error("找不到示範商戶帳號。");
+  const staffProfileId = profileIds.get("staff@stallorder.test");
+  const kitchenProfileId = profileIds.get("kitchen@stallorder.test");
+  if (!staffProfileId || !kitchenProfileId) throw new Error("找不到示範店員或廚房帳號。");
+  await seedWorkforceSupplyProfitDemo({
+    organizationId: organization.id,
+    stallId: stall.id,
+    ownerProfileId,
+    staffProfileId,
+    kitchenProfileId,
+    productIds: seededProducts,
+  });
   const demoCashShiftId = "b5400000-0000-4000-8000-000000000001";
   const demoCashShiftOpenedAt = new Date(
     Math.min(...demoPaymentDefinitions.map((payment) => payment.paidAt.getTime())) - 60_000,
@@ -925,6 +936,559 @@ async function main() {
       paymentDueAt: billingPeriodEnd,
     },
   });
+}
+
+async function seedWorkforceSupplyProfitDemo(input: {
+  organizationId: string;
+  stallId: string;
+  ownerProfileId: string;
+  staffProfileId: string;
+  kitchenProfileId: string;
+  productIds: Map<string, string>;
+}) {
+  const today = taipeiCalendarDate();
+  const priorDate = offsetCalendarDate(today, -2);
+  const holidayDate = offsetCalendarDate(today, -1);
+  const futureDate = offsetCalendarDate(today, 1);
+  const evidencePurgeAt = new Date(`${offsetCalendarDate(today, 90)}T00:00:00.000Z`);
+
+  await prisma.workforcePayrollPolicy.upsert({
+    where: { organizationId: input.organizationId },
+    update: {
+      regularDayMinutes: 480,
+      roundingIncrementMinutes: 5,
+      overtimeTier1Minutes: 120,
+      overtimeTier1MultiplierBps: 13_333,
+      overtimeTier2MultiplierBps: 16_667,
+      defaultHolidayMultiplierBps: 20_000,
+      updatedByProfileId: input.ownerProfileId,
+    },
+    create: {
+      organizationId: input.organizationId,
+      regularDayMinutes: 480,
+      roundingIncrementMinutes: 5,
+      overtimeTier1Minutes: 120,
+      overtimeTier1MultiplierBps: 13_333,
+      overtimeTier2MultiplierBps: 16_667,
+      defaultHolidayMultiplierBps: 20_000,
+      updatedByProfileId: input.ownerProfileId,
+    },
+  });
+
+  const wageDefinitions = [
+    { id: "b5600000-0000-4000-8000-000000000001", profileId: input.staffProfileId, hourlyRate: 200, note: "示範店員時薪" },
+    { id: "b5600000-0000-4000-8000-000000000002", profileId: input.kitchenProfileId, hourlyRate: 230, note: "示範廚房時薪" },
+  ];
+  for (const wage of wageDefinitions) {
+    await prisma.workforceWageRate.upsert({
+      where: { id: wage.id },
+      update: {
+        organizationId: input.organizationId,
+        profileId: wage.profileId,
+        stallId: input.stallId,
+        hourlyRate: wage.hourlyRate,
+        effectiveFrom: new Date(`${offsetCalendarDate(today, -30)}T00:00:00.000Z`),
+        effectiveTo: null,
+        note: wage.note,
+        createdByProfileId: input.ownerProfileId,
+      },
+      create: {
+        ...wage,
+        organizationId: input.organizationId,
+        stallId: input.stallId,
+        effectiveFrom: new Date(`${offsetCalendarDate(today, -30)}T00:00:00.000Z`),
+        createdByProfileId: input.ownerProfileId,
+      },
+    });
+  }
+
+  const schedules = [
+    {
+      id: "b5610000-0000-4000-8000-000000000001",
+      profileId: input.staffProfileId,
+      workDate: priorDate,
+      shiftStartAt: taipeiDateTime(priorDate, "10:00"),
+      shiftEndAt: taipeiDateTime(priorDate, "19:00"),
+      unpaidBreakMinutes: 60,
+      dayType: "WORKDAY",
+      note: "示範店員一般班",
+    },
+    {
+      id: "b5610000-0000-4000-8000-000000000002",
+      profileId: input.staffProfileId,
+      workDate: holidayDate,
+      shiftStartAt: taipeiDateTime(holidayDate, "10:00"),
+      shiftEndAt: taipeiDateTime(holidayDate, "18:00"),
+      unpaidBreakMinutes: 0,
+      dayType: "NATIONAL_HOLIDAY",
+      note: "示範國定假日班",
+    },
+    {
+      id: "b5610000-0000-4000-8000-000000000003",
+      profileId: input.kitchenProfileId,
+      workDate: priorDate,
+      shiftStartAt: taipeiDateTime(priorDate, "11:00"),
+      shiftEndAt: taipeiDateTime(priorDate, "20:00"),
+      unpaidBreakMinutes: 60,
+      dayType: "WORKDAY",
+      note: "示範廚房班",
+    },
+  ];
+  for (const schedule of schedules) {
+    await prisma.workforceSchedule.upsert({
+      where: { id: schedule.id },
+      update: {
+        organizationId: input.organizationId,
+        stallId: input.stallId,
+        profileId: schedule.profileId,
+        workDate: new Date(`${schedule.workDate}T00:00:00.000Z`),
+        shiftStartAt: schedule.shiftStartAt,
+        shiftEndAt: schedule.shiftEndAt,
+        unpaidBreakMinutes: schedule.unpaidBreakMinutes,
+        dayType: schedule.dayType,
+        status: "PUBLISHED",
+        note: schedule.note,
+        createdByProfileId: input.ownerProfileId,
+      },
+      create: {
+        ...schedule,
+        organizationId: input.organizationId,
+        stallId: input.stallId,
+        workDate: new Date(`${schedule.workDate}T00:00:00.000Z`),
+        status: "PUBLISHED",
+        createdByProfileId: input.ownerProfileId,
+      },
+    });
+  }
+
+  await prisma.workforceHolidayRule.upsert({
+    where: { organizationId_holidayDate: { organizationId: input.organizationId, holidayDate: new Date(`${holidayDate}T00:00:00.000Z`) } },
+    update: { name: "示範國定假日", multiplierBps: 20_000, note: "店家可依實際法令與勞動契約調整" },
+    create: {
+      id: "b5620000-0000-4000-8000-000000000001",
+      organizationId: input.organizationId,
+      holidayDate: new Date(`${holidayDate}T00:00:00.000Z`),
+      name: "示範國定假日",
+      multiplierBps: 20_000,
+      note: "店家可依實際法令與勞動契約調整",
+      createdByProfileId: input.ownerProfileId,
+    },
+  });
+  await prisma.workforceLeaveRequest.upsert({
+    where: { id: "b5630000-0000-4000-8000-000000000001" },
+    update: {
+      organizationId: input.organizationId,
+      stallId: input.stallId,
+      profileId: input.staffProfileId,
+      leaveType: "DAY_OFF",
+      startDate: new Date(`${futureDate}T00:00:00.000Z`),
+      endDate: new Date(`${futureDate}T00:00:00.000Z`),
+      reason: "示範排休申請",
+      status: "PENDING",
+      requestedByProfileId: input.staffProfileId,
+      reviewedByProfileId: null,
+      reviewNote: null,
+      reviewedAt: null,
+    },
+    create: {
+      id: "b5630000-0000-4000-8000-000000000001",
+      organizationId: input.organizationId,
+      stallId: input.stallId,
+      profileId: input.staffProfileId,
+      leaveType: "DAY_OFF",
+      startDate: new Date(`${futureDate}T00:00:00.000Z`),
+      endDate: new Date(`${futureDate}T00:00:00.000Z`),
+      reason: "示範排休申請",
+      requestedByProfileId: input.staffProfileId,
+    },
+  });
+
+  const attendanceDefinitions = [
+    ["b5640000-0000-4000-8000-000000000001", input.staffProfileId, "CLOCK_IN", priorDate, "10:00"],
+    ["b5640000-0000-4000-8000-000000000002", input.staffProfileId, "CLOCK_OUT", priorDate, "19:00"],
+    ["b5640000-0000-4000-8000-000000000003", input.staffProfileId, "CLOCK_IN", holidayDate, "10:00"],
+    ["b5640000-0000-4000-8000-000000000004", input.staffProfileId, "CLOCK_OUT", holidayDate, "18:00"],
+    ["b5640000-0000-4000-8000-000000000005", input.kitchenProfileId, "CLOCK_IN", priorDate, "11:00"],
+    ["b5640000-0000-4000-8000-000000000006", input.kitchenProfileId, "CLOCK_OUT", priorDate, "20:00"],
+  ] as const;
+  for (const [id, profileId, eventType, workDate, time] of attendanceDefinitions) {
+    const eventData = {
+      organizationId: input.organizationId,
+      stallId: input.stallId,
+      profileId,
+      eventType,
+      decision: "ACCEPTED",
+      latitude: 25.0500,
+      longitude: 121.5800,
+      accuracyMeters: 12,
+      distanceMeters: 18,
+      clientCapturedAt: taipeiDateTime(workDate, time),
+      riskCodes: [] as string[],
+      rotatingCodeVerified: true,
+      challengeNonceHash: `demo-workforce-${id}`,
+      evidencePurgeAt,
+      occurredAt: taipeiDateTime(workDate, time),
+    };
+    await prisma.attendanceEvent.upsert({ where: { id }, update: eventData, create: { id, ...eventData } });
+  }
+
+  const supplier = await prisma.supplySupplier.upsert({
+    where: { organizationId_code: { organizationId: input.organizationId, code: "DEMO-FRESH" } },
+    update: { name: "示範鮮食供應商", contactName: "王先生", phone: "02-2345-6789", paymentTermsDays: 30, leadTimeDays: 2, isActive: true },
+    create: {
+      id: "b5700000-0000-4000-8000-000000000001",
+      organizationId: input.organizationId,
+      code: "DEMO-FRESH",
+      name: "示範鮮食供應商",
+      contactName: "王先生",
+      phone: "02-2345-6789",
+      paymentTermsDays: 30,
+      leadTimeDays: 2,
+      createdByProfileId: input.ownerProfileId,
+    },
+  });
+  const location = await prisma.supplyLocation.upsert({
+    where: { organizationId_code: { organizationId: input.organizationId, code: "AMING-STOCK" } },
+    update: { stallId: input.stallId, name: "阿明鹽酥雞庫房", locationType: "STALL", isActive: true },
+    create: {
+      id: "b5710000-0000-4000-8000-000000000001",
+      organizationId: input.organizationId,
+      stallId: input.stallId,
+      code: "AMING-STOCK",
+      name: "阿明鹽酥雞庫房",
+      locationType: "STALL",
+      createdByProfileId: input.ownerProfileId,
+    },
+  });
+  const ingredientDefinitions = [
+    { id: "b5720000-0000-4000-8000-000000000001", code: "CHICKEN", name: "去骨雞腿肉", baseUom: "KG", itemType: "INGREDIENT", trackExpiry: true, shelfLife: 5, quantity: BigInt(20_000_000), unitCost: BigInt(180_000_000), lot: "CH-202608", expiresOn: offsetCalendarDate(today, 3) },
+    { id: "b5720000-0000-4000-8000-000000000002", code: "FRY-OIL", name: "炸油", baseUom: "L", itemType: "INGREDIENT", trackExpiry: true, shelfLife: 90, quantity: BigInt(10_000_000), unitCost: BigInt(80_000_000), lot: "OIL-202608", expiresOn: offsetCalendarDate(today, 60) },
+    { id: "b5720000-0000-4000-8000-000000000003", code: "PAPER-BAG", name: "防油紙袋", baseUom: "EA", itemType: "PACKAGING", trackExpiry: false, shelfLife: null, quantity: BigInt(500_000_000), unitCost: BigInt(2_000_000), lot: "BAG-202608", expiresOn: null },
+    { id: "b5720000-0000-4000-8000-000000000004", code: "PEPPER-SALT", name: "胡椒鹽", baseUom: "KG", itemType: "CONSUMABLE", trackExpiry: true, shelfLife: 365, quantity: BigInt(5_000_000), unitCost: BigInt(120_000_000), lot: "SALT-202608", expiresOn: offsetCalendarDate(today, 180) },
+  ] as const;
+  for (const ingredient of ingredientDefinitions) {
+    await prisma.supplyIngredient.upsert({
+      where: { organizationId_code: { organizationId: input.organizationId, code: ingredient.code } },
+      update: {
+        name: ingredient.name,
+        baseUom: ingredient.baseUom,
+        itemType: ingredient.itemType,
+        trackExpiry: ingredient.trackExpiry,
+        defaultShelfLifeDays: ingredient.shelfLife,
+        preferredSupplierId: supplier.id,
+        lowStockThresholdMicros: ingredient.quantity / BigInt(4),
+        isActive: true,
+      },
+      create: {
+        id: ingredient.id,
+        organizationId: input.organizationId,
+        code: ingredient.code,
+        name: ingredient.name,
+        baseUom: ingredient.baseUom,
+        itemType: ingredient.itemType,
+        trackExpiry: ingredient.trackExpiry,
+        defaultShelfLifeDays: ingredient.shelfLife,
+        preferredSupplierId: supplier.id,
+        lowStockThresholdMicros: ingredient.quantity / BigInt(4),
+        createdByProfileId: input.ownerProfileId,
+      },
+    });
+  }
+
+  const ingredientByCode = new Map((await prisma.supplyIngredient.findMany({
+    where: { organizationId: input.organizationId, code: { in: ingredientDefinitions.map((item) => item.code) } },
+  })).map((ingredient) => [ingredient.code, ingredient]));
+  const purchaseOrder = await prisma.supplyPurchaseOrder.upsert({
+    where: { organizationId_documentNumber: { organizationId: input.organizationId, documentNumber: "DEMO-PO-202608" } },
+    update: {
+      supplierId: supplier.id,
+      stallId: input.stallId,
+      orderedOn: new Date(`${holidayDate}T00:00:00.000Z`),
+      status: "RECEIVED",
+      subtotalAmount: 6_000,
+      taxAmount: 0,
+      freightAmount: 100,
+      totalAmount: 6_100,
+      note: "示範食材、包材與耗材入庫",
+      receivedAt: taipeiDateTime(holidayDate, "09:00"),
+    },
+    create: {
+      id: "b5730000-0000-4000-8000-000000000001",
+      organizationId: input.organizationId,
+      supplierId: supplier.id,
+      stallId: input.stallId,
+      documentNumber: "DEMO-PO-202608",
+      orderedOn: new Date(`${holidayDate}T00:00:00.000Z`),
+      status: "RECEIVED",
+      subtotalAmount: 6_000,
+      freightAmount: 100,
+      totalAmount: 6_100,
+      note: "示範食材、包材與耗材入庫",
+      receivedAt: taipeiDateTime(holidayDate, "09:00"),
+      createdByProfileId: input.ownerProfileId,
+    },
+  });
+  for (const [index, definition] of ingredientDefinitions.entries()) {
+    const ingredient = ingredientByCode.get(definition.code);
+    if (!ingredient) throw new Error(`找不到示範庫存品項：${definition.code}`);
+    const lineAmount = Number((definition.quantity * definition.unitCost) / BigInt(1_000_000_000_000));
+    const lineId = `b5740000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
+    const line = await prisma.supplyPurchaseOrderLine.upsert({
+      where: { id: lineId },
+      update: {
+        organizationId: input.organizationId,
+        purchaseOrderId: purchaseOrder.id,
+        ingredientId: ingredient.id,
+        locationId: location.id,
+        quantityMicros: definition.quantity,
+        unitCostMicros: definition.unitCost,
+        lineAmount,
+        lotNumber: definition.lot,
+        manufacturedOn: new Date(`${offsetCalendarDate(today, -3)}T00:00:00.000Z`),
+        expiresOn: definition.expiresOn ? new Date(`${definition.expiresOn}T00:00:00.000Z`) : null,
+      },
+      create: {
+        id: lineId,
+        organizationId: input.organizationId,
+        purchaseOrderId: purchaseOrder.id,
+        ingredientId: ingredient.id,
+        locationId: location.id,
+        quantityMicros: definition.quantity,
+        unitCostMicros: definition.unitCost,
+        lineAmount,
+        lotNumber: definition.lot,
+        manufacturedOn: new Date(`${offsetCalendarDate(today, -3)}T00:00:00.000Z`),
+        expiresOn: definition.expiresOn ? new Date(`${definition.expiresOn}T00:00:00.000Z`) : null,
+      },
+    });
+    await prisma.supplyInventoryLot.upsert({
+      where: {
+        organizationId_ingredientId_locationId_lotNumber: {
+          organizationId: input.organizationId,
+          ingredientId: ingredient.id,
+          locationId: location.id,
+          lotNumber: definition.lot,
+        },
+      },
+      update: {
+        purchaseOrderLineId: line.id,
+        receivedQuantityMicros: definition.quantity,
+        remainingQuantityMicros: definition.quantity,
+        unitCostMicros: definition.unitCost,
+        manufacturedOn: new Date(`${offsetCalendarDate(today, -3)}T00:00:00.000Z`),
+        expiresOn: definition.expiresOn ? new Date(`${definition.expiresOn}T00:00:00.000Z`) : null,
+        status: "AVAILABLE",
+      },
+      create: {
+        id: `b5750000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+        organizationId: input.organizationId,
+        purchaseOrderLineId: line.id,
+        ingredientId: ingredient.id,
+        locationId: location.id,
+        lotNumber: definition.lot,
+        receivedQuantityMicros: definition.quantity,
+        remainingQuantityMicros: definition.quantity,
+        unitCostMicros: definition.unitCost,
+        manufacturedOn: new Date(`${offsetCalendarDate(today, -3)}T00:00:00.000Z`),
+        expiresOn: definition.expiresOn ? new Date(`${definition.expiresOn}T00:00:00.000Z`) : null,
+      },
+    });
+    const movementKey = {
+      organizationId_idempotencyKey: {
+        organizationId: input.organizationId,
+        idempotencyKey: `demo:purchase:${definition.code}`,
+      },
+    };
+    const existingMovement = await prisma.supplyInventoryMovement.findUnique({ where: movementKey });
+    const movement = existingMovement ?? await prisma.supplyInventoryMovement.create({
+      data: {
+        id: `b5760000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+        organizationId: input.organizationId,
+        ingredientId: ingredient.id,
+        locationId: location.id,
+        movementType: "RECEIPT",
+        quantityDeltaMicros: definition.quantity,
+        unitCostMicros: definition.unitCost,
+        sourceType: "PURCHASE_ORDER",
+        sourceId: purchaseOrder.id,
+        idempotencyKey: `demo:purchase:${definition.code}`,
+        reason: "示範進貨入庫",
+        actorProfileId: input.ownerProfileId,
+      },
+    });
+    await prisma.supplyInventoryBalance.upsert({
+      where: { organizationId_ingredientId_locationId: { organizationId: input.organizationId, ingredientId: ingredient.id, locationId: location.id } },
+      update: { quantityMicros: definition.quantity, averageUnitCostMicros: definition.unitCost, lastMovementId: movement.id },
+      create: {
+        id: `b5770000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+        organizationId: input.organizationId,
+        ingredientId: ingredient.id,
+        locationId: location.id,
+        quantityMicros: definition.quantity,
+        averageUnitCostMicros: definition.unitCost,
+        lastMovementId: movement.id,
+      },
+    });
+  }
+
+  const chickenId = ingredientByCode.get("CHICKEN")?.id;
+  const oilId = ingredientByCode.get("FRY-OIL")?.id;
+  const bagId = ingredientByCode.get("PAPER-BAG")?.id;
+  const saltId = ingredientByCode.get("PEPPER-SALT")?.id;
+  const chickenProductId = input.productIds.get("香酥雞排");
+  const popcornProductId = input.productIds.get("台式鹽酥雞");
+  if (!chickenId || !oilId || !bagId || !saltId || !chickenProductId || !popcornProductId) {
+    throw new Error("示範配方所需的商品或庫存品項不完整。");
+  }
+  const recipes = [
+    [chickenProductId, chickenId, BigInt(220_000), 500],
+    [chickenProductId, oilId, BigInt(40_000), 1_000],
+    [chickenProductId, bagId, BigInt(1_000_000), 0],
+    [chickenProductId, saltId, BigInt(8_000), 300],
+    [popcornProductId, chickenId, BigInt(180_000), 500],
+    [popcornProductId, oilId, BigInt(35_000), 1_000],
+    [popcornProductId, bagId, BigInt(1_000_000), 0],
+    [popcornProductId, saltId, BigInt(7_000), 300],
+  ] as const;
+  for (const [productId, ingredientId, quantityMicros, wasteBasisPoints] of recipes) {
+    await prisma.supplyRecipeComponent.upsert({
+      where: { organizationId_productId_ingredientId: { organizationId: input.organizationId, productId, ingredientId } },
+      update: { quantityMicros, wasteBasisPoints, createdByProfileId: input.ownerProfileId },
+      create: { organizationId: input.organizationId, productId, ingredientId, quantityMicros, wasteBasisPoints, createdByProfileId: input.ownerProfileId },
+    });
+  }
+
+  const payrollPeriod = await prisma.workforcePayrollPeriod.upsert({
+    where: {
+      organizationId_periodStart_periodEnd: {
+        organizationId: input.organizationId,
+        periodStart: new Date(`${priorDate}T00:00:00.000Z`),
+        periodEnd: new Date(`${holidayDate}T00:00:00.000Z`),
+      },
+    },
+    update: {
+      status: "FINALIZED",
+      generatedByProfileId: input.ownerProfileId,
+      finalizedByProfileId: input.ownerProfileId,
+      finalizedAt: new Date(),
+    },
+    create: {
+      id: "b5650000-0000-4000-8000-000000000001",
+      organizationId: input.organizationId,
+      periodStart: new Date(`${priorDate}T00:00:00.000Z`),
+      periodEnd: new Date(`${holidayDate}T00:00:00.000Z`),
+      status: "FINALIZED",
+      generatedByProfileId: input.ownerProfileId,
+      finalizedByProfileId: input.ownerProfileId,
+      finalizedAt: new Date(),
+    },
+  });
+  const payrollLines = [
+    {
+      id: "b5660000-0000-4000-8000-000000000001",
+      profileId: input.staffProfileId,
+      hourlyRate: 200,
+      regularMinutes: 480,
+      holidayMinutes: 480,
+      regularAmount: 1_600,
+      holidayAmount: 3_200,
+      grossAmount: 4_800,
+      shifts: [
+        { stallId: input.stallId, workDate: priorDate, grossAmount: 1_600 },
+        { stallId: input.stallId, workDate: holidayDate, grossAmount: 3_200 },
+      ],
+    },
+    {
+      id: "b5660000-0000-4000-8000-000000000002",
+      profileId: input.kitchenProfileId,
+      hourlyRate: 230,
+      regularMinutes: 480,
+      holidayMinutes: 0,
+      regularAmount: 1_840,
+      holidayAmount: 0,
+      grossAmount: 1_840,
+      shifts: [{ stallId: input.stallId, workDate: priorDate, grossAmount: 1_840 }],
+    },
+  ];
+  for (const line of payrollLines) {
+    await prisma.workforcePayrollLine.upsert({
+      where: { payrollPeriodId_profileId: { payrollPeriodId: payrollPeriod.id, profileId: line.profileId } },
+      update: {
+        hourlyRate: line.hourlyRate,
+        regularMinutes: line.regularMinutes,
+        overtimeTier1Minutes: 0,
+        overtimeTier2Minutes: 0,
+        holidayMinutes: line.holidayMinutes,
+        regularAmount: line.regularAmount,
+        overtimeAmount: 0,
+        holidayAmount: line.holidayAmount,
+        grossAmount: line.grossAmount,
+        calculationSnapshot: { source: "DEMO_SEED", shifts: line.shifts },
+      },
+      create: {
+        id: line.id,
+        organizationId: input.organizationId,
+        payrollPeriodId: payrollPeriod.id,
+        profileId: line.profileId,
+        hourlyRate: line.hourlyRate,
+        regularMinutes: line.regularMinutes,
+        holidayMinutes: line.holidayMinutes,
+        regularAmount: line.regularAmount,
+        holidayAmount: line.holidayAmount,
+        grossAmount: line.grossAmount,
+        calculationSnapshot: { source: "DEMO_SEED", shifts: line.shifts },
+      },
+    });
+  }
+
+  const expenses = [
+    { id: "b5800000-0000-4000-8000-000000000001", category: "RENT", amount: 12_000, vendorName: "示範房東", description: "本月攤位租金", isRecurring: true },
+    { id: "b5800000-0000-4000-8000-000000000002", category: "UTILITIES", amount: 2_500, vendorName: "示範公用事業", description: "本月水電瓦斯", isRecurring: true },
+    { id: "b5800000-0000-4000-8000-000000000003", category: "OTHER", amount: 800, vendorName: "示範清潔商", description: "清潔與臨時耗材", isRecurring: false },
+  ];
+  for (const expense of expenses) {
+    await prisma.operatingExpense.upsert({
+      where: { id: expense.id },
+      update: {
+        organizationId: input.organizationId,
+        stallId: input.stallId,
+        expenseDate: new Date(`${holidayDate}T00:00:00.000Z`),
+        category: expense.category,
+        amount: expense.amount,
+        vendorName: expense.vendorName,
+        description: expense.description,
+        isRecurring: expense.isRecurring,
+        createdByProfileId: input.ownerProfileId,
+      },
+      create: {
+        ...expense,
+        organizationId: input.organizationId,
+        stallId: input.stallId,
+        expenseDate: new Date(`${holidayDate}T00:00:00.000Z`),
+        createdByProfileId: input.ownerProfileId,
+      },
+    });
+  }
+}
+
+function taipeiCalendarDate(now = new Date()) {
+  const parts = new Map(new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now).map((part) => [part.type, part.value]));
+  return `${parts.get("year")}-${parts.get("month")}-${parts.get("day")}`;
+}
+
+function offsetCalendarDate(calendarDate: string, days: number) {
+  const date = new Date(`${calendarDate}T12:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function taipeiDateTime(calendarDate: string, time: string) {
+  return new Date(`${calendarDate}T${time}:00.000+08:00`);
 }
 
 function currentTaipeiBillingPeriod(now = new Date()) {

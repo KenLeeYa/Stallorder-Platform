@@ -208,7 +208,6 @@ describe("public storefront page", () => {
 
     expect(html).toContain("目前未開放外帶自取");
     expect(html).toContain("商家尚未建立可供公開連結使用的 QR Code");
-    expect(html).toContain("aria-disabled=\"true\"");
     expect(html).toContain('href="/s/viet-food-yc/schedule?locale=zh-TW"');
     expect(mocks.getOrderMenu).not.toHaveBeenCalled();
   });

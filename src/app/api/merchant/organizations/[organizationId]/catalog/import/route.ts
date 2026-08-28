@@ -4,6 +4,10 @@ import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeOrganizationApiRequest } from "@/lib/authorization";
 import {
+  BoundedMultipartError,
+  readBoundedMultipartFormData,
+} from "@/lib/bounded-multipart-form-data";
+import {
   getCatalogCsvTranslations,
   parseCatalogCsvPreview,
   type CatalogCsvRow,
@@ -18,6 +22,7 @@ import { entitlementService } from "@/server/billing/entitlement-service";
 import { invalidatePublicMenus } from "@/lib/public-menu";
 
 const maxCsvSize = 2 * 1024 * 1024;
+const maxMultipartSize = maxCsvSize + 128 * 1024;
 type RouteContext = { params: Promise<{ organizationId: string }> };
 
 export async function POST(request: Request, context: RouteContext) {
@@ -27,7 +32,24 @@ export async function POST(request: Request, context: RouteContext) {
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json({ error: "安全驗證已失效，請重新整理後再試。" }, { status: 403 });
   }
-  const form = await request.formData().catch(() => null);
+  let form: FormData | null = null;
+  try {
+    form = await readBoundedMultipartFormData(request, maxMultipartSize);
+  } catch (error) {
+    if (error instanceof BoundedMultipartError) {
+      const status = error.reason === "BODY_TOO_LARGE" || error.reason === "INVALID_CONTENT_LENGTH"
+        ? 413
+        : error.reason === "INVALID_CONTENT_TYPE"
+          ? 415
+          : error.reason === "READ_TIMEOUT"
+            ? 408
+            : 400;
+      return NextResponse.json(
+        { error: status === 413 ? "商品匯入資料超過允許大小。" : status === 408 ? "商品匯入逾時，請重試。" : "商品匯入格式不正確。" },
+        { status, headers: { "x-request-id": authorization.requestId } },
+      );
+    }
+  }
   const file = form?.get("catalog");
   const mode = form?.get("mode");
   if (mode !== "PREVIEW" && mode !== "APPLY") {

@@ -15,6 +15,7 @@ const product = {
   category: "main",
   rank: 1,
   isBestSeller: true,
+  isSoldOut: false,
   isOrderDiscountEligible: false,
   imageUrl: null,
   translations: [],
@@ -155,5 +156,30 @@ describe("QrOrderMenu presentation", () => {
     expect(selectTime).toContain("請先確認並套用預約取餐時間，完成後才會顯示可點商品。");
     expect(unavailable).toContain('role="status"');
     expect(unavailable).toContain("此時段暫無可預約商品，請選擇其他取餐時間。");
+  });
+
+  it("keeps sold-out products visible, greys the image, and blocks ordering controls", () => {
+    const html = renderMenu({
+      visibleProducts: [{
+        ...product,
+        isSoldOut: true,
+        imageUrl: "https://example.test/sold-out.webp",
+      }],
+      configuringProductId: product.id,
+      productDrafts: {
+        [product.id]: {
+          quantity: 1,
+          noteOptionIds: [],
+          bundleChoiceIds: [],
+        },
+      },
+    });
+
+    expect(html).toContain('data-testid="sold-out-image-overlay"');
+    expect(html).toContain('data-testid="sold-out-badge"');
+    expect(html).toContain("grayscale opacity-45");
+    expect(html).toContain(baseProps.copy.soldOutBadge);
+    expect(html).toContain(`aria-label="${baseProps.copy.increase(product.name)}" disabled=""`);
+    expect(html).not.toContain('data-testid="qr-product-configuration"');
   });
 });

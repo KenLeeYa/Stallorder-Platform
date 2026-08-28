@@ -9,9 +9,14 @@ import {
 } from "@/lib/alert-sound-upload";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
+import {
+  BoundedMultipartError,
+  readBoundedMultipartFormData,
+} from "@/lib/bounded-multipart-form-data";
 import { validateCsrf } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
+import { enqueueStorageDeletion } from "@/server/resilience/storage-replication-service";
 
 const allowedTypes = new Set<SupportedAlertSoundMime>([
   "audio/mpeg",
@@ -20,9 +25,12 @@ const allowedTypes = new Set<SupportedAlertSoundMime>([
   "audio/mp4",
   "audio/x-m4a",
 ]);
+const maxMultipartBytes = MAX_ALERT_SOUND_BYTES + 128 * 1024;
 
 export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ stallId: string }> };
+
+class AlertSoundConcurrentUpdateError extends Error {}
 
 export async function POST(request: Request, context: RouteContext) {
   const { stallId } = await context.params;
@@ -31,7 +39,24 @@ export async function POST(request: Request, context: RouteContext) {
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json({ error: "安全驗證已失效，請重新整理後再試。" }, { status: 403 });
   }
-  const form = await request.formData().catch(() => null);
+  let form: FormData | null = null;
+  try {
+    form = await readBoundedMultipartFormData(request, maxMultipartBytes);
+  } catch (error) {
+    if (error instanceof BoundedMultipartError) {
+      const status = error.reason === "BODY_TOO_LARGE" || error.reason === "INVALID_CONTENT_LENGTH"
+        ? 413
+        : error.reason === "INVALID_CONTENT_TYPE"
+          ? 415
+          : error.reason === "READ_TIMEOUT"
+            ? 408
+            : 400;
+      return NextResponse.json(
+        { error: status === 413 ? "音效上傳資料超過允許大小。" : status === 408 ? "音效上傳逾時，請重試。" : "音效上傳格式不正確。" },
+        { status, headers: { "x-request-id": authorization.requestId } },
+      );
+    }
+  }
   const file = form?.get("sound");
   if (
     !(file instanceof File)
@@ -56,6 +81,11 @@ export async function POST(request: Request, context: RouteContext) {
   const extension = alertSoundExtension(mime);
   const objectPath = `${organizationId}/stall-alerts/${stallId}/${randomUUID()}.${extension}`;
   const admin = createClient(supabaseUrl, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  await prisma.stallOrderingSettings.upsert({
+    where: { stallId },
+    create: { stallId, organizationId, orderAlertSoundPreset: "URGENT" },
+    update: {},
+  });
   const previous = await prisma.stallOrderingSettings.findUnique({
     where: { stallId },
     select: { orderAlertSoundObjectPath: true },
@@ -69,25 +99,43 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "提示音上傳失敗，請稍後再試。" }, { status: 502 });
   }
   try {
-    await prisma.stallOrderingSettings.upsert({
-      where: { stallId },
-      create: {
-        stallId,
-        organizationId,
-        orderAlertSoundPreset: "CUSTOM",
-        orderAlertSoundObjectPath: objectPath,
-      },
-      update: {
-        orderAlertSoundPreset: "CUSTOM",
-        orderAlertSoundObjectPath: objectPath,
-      },
+    await prisma.$transaction(async (transaction) => {
+      const updated = await transaction.stallOrderingSettings.updateMany({
+        where: {
+          stallId,
+          organizationId,
+          orderAlertSoundObjectPath: previous?.orderAlertSoundObjectPath ?? null,
+        },
+        data: {
+          orderAlertSoundPreset: "CUSTOM",
+          orderAlertSoundObjectPath: objectPath,
+        },
+      });
+      if (updated.count !== 1) throw new AlertSoundConcurrentUpdateError();
+      if (previous?.orderAlertSoundObjectPath) {
+        await enqueueStorageDeletion({
+          organizationId,
+          bucket: "alert-sounds",
+          objectPath: previous.orderAlertSoundObjectPath,
+          contentType: "application/octet-stream",
+        }, transaction);
+      }
     });
   } catch (error) {
-    await admin.storage.from("alert-sounds").remove([objectPath]);
-    throw error;
-  }
-  if (previous?.orderAlertSoundObjectPath) {
-    await admin.storage.from("alert-sounds").remove([previous.orderAlertSoundObjectPath]);
+    await enqueueStorageDeletion({
+      organizationId,
+      bucket: "alert-sounds",
+      objectPath,
+      contentType: mime,
+    }).catch(async () => {
+      await admin.storage.from("alert-sounds").remove([objectPath]).catch(() => undefined);
+    });
+    return NextResponse.json(
+      { error: error instanceof AlertSoundConcurrentUpdateError
+        ? "提示音已被其他操作更新，請重新整理後再試。"
+        : "提示音更新失敗，請稍後再試。" },
+      { status: error instanceof AlertSoundConcurrentUpdateError ? 409 : 503, headers: { "x-request-id": authorization.requestId } },
+    );
   }
   await recordAuditEvent({
     organizationId,
@@ -114,20 +162,42 @@ export async function DELETE(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "安全驗證已失效，請重新整理後再試。" }, { status: 403 });
   }
   const organizationId = authorization.workspace.id;
+  await prisma.stallOrderingSettings.upsert({
+    where: { stallId },
+    create: { stallId, organizationId, orderAlertSoundPreset: "URGENT" },
+    update: {},
+  });
   const previous = await prisma.stallOrderingSettings.findUnique({
     where: { stallId },
     select: { orderAlertSoundObjectPath: true },
   });
-  await prisma.stallOrderingSettings.upsert({
-    where: { stallId },
-    create: { stallId, organizationId, orderAlertSoundPreset: "URGENT" },
-    update: { orderAlertSoundPreset: "URGENT", orderAlertSoundObjectPath: null },
-  });
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const secretKey = process.env.SUPABASE_SECRET_KEY;
-  if (previous?.orderAlertSoundObjectPath && supabaseUrl && secretKey) {
-    const admin = createClient(supabaseUrl, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
-    await admin.storage.from("alert-sounds").remove([previous.orderAlertSoundObjectPath]);
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const updated = await transaction.stallOrderingSettings.updateMany({
+        where: {
+          stallId,
+          organizationId,
+          orderAlertSoundObjectPath: previous?.orderAlertSoundObjectPath ?? null,
+        },
+        data: { orderAlertSoundPreset: "URGENT", orderAlertSoundObjectPath: null },
+      });
+      if (updated.count !== 1) throw new AlertSoundConcurrentUpdateError();
+      if (previous?.orderAlertSoundObjectPath) {
+        await enqueueStorageDeletion({
+          organizationId,
+          bucket: "alert-sounds",
+          objectPath: previous.orderAlertSoundObjectPath,
+          contentType: "application/octet-stream",
+        }, transaction);
+      }
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof AlertSoundConcurrentUpdateError
+        ? "提示音已被其他操作更新，請重新整理後再試。"
+        : "目前無法建立安全刪除工作，提示音尚未移除，請稍後再試。" },
+      { status: error instanceof AlertSoundConcurrentUpdateError ? 409 : 503, headers: { "x-request-id": authorization.requestId } },
+    );
   }
   await recordAuditEvent({
     organizationId,

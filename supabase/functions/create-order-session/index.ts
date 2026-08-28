@@ -240,10 +240,8 @@ Deno.serve(async (request) => {
           .eq("id", result.stall_id)
           .single(),
         admin.from("stall_products")
-          .select("product_id, price_override, sort_order, available_from, available_until")
+          .select("product_id, price_override, sort_order, available_from, available_until, is_enabled, is_sold_out")
           .eq("stall_id", result.stall_id)
-          .eq("is_enabled", true)
-          .eq("is_sold_out", false)
           .order("sort_order", { ascending: true })
           .limit(100),
       ]), 2)
@@ -328,9 +326,8 @@ Deno.serve(async (request) => {
       productIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : admin.from("products")
-          .select("id, organization_id, name, description, default_price, kind, image_url, category_id, group_id, sort_order")
+          .select("id, organization_id, name, description, default_price, kind, image_url, category_id, group_id, sort_order, is_active")
           .eq("organization_id", stallQuery.data.organization_id)
-          .eq("is_active", true)
           .in("id", productIds)
           .limit(100),
       admin.from("product_categories")
@@ -472,7 +469,14 @@ Deno.serve(async (request) => {
       stallProductsQuery.data.map((assignment) => [assignment.product_id, assignment]),
     );
     const saleableProductsById = new Map(productsQuery.data
-      .filter((product) => categoriesById.has(product.category_id))
+      .filter((product) => {
+        const assignment = assignmentsByProductId.get(product.id);
+        return product.is_active
+          && assignment?.is_enabled
+          && !assignment.is_sold_out
+          && categoriesById.has(product.category_id)
+          && (!product.group_id || groupsById.has(product.group_id));
+      })
       .map((product) => [product.id, product]));
     const bundleGroupsByProductId = new Map<string, typeof bundleGroupsQuery.data>();
     for (const group of bundleGroupsQuery.data) {
@@ -534,6 +538,7 @@ Deno.serve(async (request) => {
         const category = categoriesById.get(product.category_id);
         const group = product.group_id ? groupsById.get(product.group_id) : null;
         const assignment = assignmentsByProductId.get(product.id);
+        const isSoldOut = assignment?.is_sold_out === true || !product.is_active;
         const bundleChoiceGroups = product.kind === "BUNDLE"
           ? (bundleGroupsByProductId.get(product.id) ?? []).map((group) => ({
             id: group.id,
@@ -570,7 +575,11 @@ Deno.serve(async (request) => {
             && group.options.length >= Math.max(1, group.minSelections)
           ))
         );
-        return category && assignment && bundleIsComplete && (!product.group_id || group) ? [{
+        return category
+          && assignment
+          && (assignment.is_enabled || !product.is_active)
+          && (isSoldOut || bundleIsComplete)
+          && (!product.group_id || group) ? [{
           id: product.id,
           name: product.name,
           description: product.description,
@@ -578,6 +587,7 @@ Deno.serve(async (request) => {
           availableFrom: assignment.available_from,
           availableUntil: assignment.available_until,
           kind: product.kind,
+          isSoldOut,
           bundleChoiceGroups: bundleChoiceGroups.map((group) => ({
             id: group.id,
             name: group.name,
@@ -640,6 +650,7 @@ Deno.serve(async (request) => {
       availableUntil: product.availableUntil,
       translations: product.translations,
       kind: product.kind,
+      isSoldOut: product.isSoldOut,
       bundleChoiceGroups: product.bundleChoiceGroups,
       noteGroups: product.noteGroups,
       price: product.price,

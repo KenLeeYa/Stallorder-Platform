@@ -36,6 +36,7 @@ function product(
     category: "main",
     rank: null,
     isBestSeller: false,
+    isSoldOut: false,
     isOrderDiscountEligible: true,
     imageUrl: null,
     translations: [],
@@ -118,6 +119,7 @@ describe("QR order flow characterization", () => {
         bundleChoiceGroups: undefined,
         rank: undefined,
         isBestSeller: undefined,
+        isSoldOut: undefined,
         isOrderDiscountEligible: undefined,
       } as unknown as PublicMenuProduct],
     }, "DEFAULT");
@@ -129,6 +131,7 @@ describe("QR order flow characterization", () => {
       bundleChoiceGroups: [],
       rank: null,
       isBestSeller: false,
+      isSoldOut: false,
       isOrderDiscountEligible: true,
     });
   });

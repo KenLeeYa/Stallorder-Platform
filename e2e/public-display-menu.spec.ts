@@ -12,7 +12,8 @@ test("公開 Menu 以匿名唯讀方式呈現並適合手機瀏覽", async ({ pa
   await expect(menuPage.getByText(/熱銷第/)).toHaveCount(0);
   await expect(menuPage.getByText(/客製選項：.*加蛋.*\+\$15/).first()).toBeVisible();
   await expect(menuPage.getByText("起", { exact: true }).first()).toBeVisible();
-  await expect(menuPage.getByRole("button")).toHaveCount(0);
+  await expect(menuPage.getByRole("button", { name: "查看地圖與店面指引" })).toBeVisible();
+  await expect(menuPage.getByRole("button")).toHaveCount(1);
   await expect(menuPage.locator("form")).toHaveCount(0);
   await expect(page.getByText("送出訂單", { exact: true })).toHaveCount(0);
 

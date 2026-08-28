@@ -130,9 +130,9 @@ export function StallOrderLimitsForm({
 
   async function saveAuthorizationCode() {
     setMessage("");
-    if (!/^\d{4,8}$/.test(authorizationCode)) {
+    if (!/^\d{6,8}$/.test(authorizationCode)) {
       setIsError(true);
-      setMessage(m("管理授權碼須為 4 到 8 位數字。"));
+      setMessage(m("管理授權碼須為 6 到 8 位數字。"));
       return;
     }
     if (authorizationCode !== authorizationCodeConfirmation) {
@@ -304,7 +304,7 @@ export function StallOrderLimitsForm({
               type="password"
               inputMode="numeric"
               pattern="[0-9]*"
-              minLength={4}
+              minLength={6}
               maxLength={8}
               autoComplete="new-password"
               value={authorizationCode}
@@ -318,7 +318,7 @@ export function StallOrderLimitsForm({
               type="password"
               inputMode="numeric"
               pattern="[0-9]*"
-              minLength={4}
+              minLength={6}
               maxLength={8}
               autoComplete="new-password"
               value={authorizationCodeConfirmation}

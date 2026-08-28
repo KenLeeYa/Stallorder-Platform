@@ -34,18 +34,15 @@ export async function getDashboardOverview({
       });
   const alertsPromise: Promise<OperationalAlert[]> = alertStallIds.length === 0
     ? Promise.resolve([])
-    : (async () => {
-        await prisma.$queryRaw`select public.refresh_operational_alerts(${organizationId}::uuid)`;
-        return prisma.operationalAlert.findMany({
-          where: {
-            organizationId,
-            stallId: { in: alertStallIds },
-            status: { in: ["ACTIVE", "ACKNOWLEDGED"] },
-          },
-          orderBy: [{ severity: "desc" }, { detectedAt: "desc" }],
-          take: 20,
-        });
-      })();
+    : prisma.operationalAlert.findMany({
+        where: {
+          organizationId,
+          stallId: { in: alertStallIds },
+          status: { in: ["ACTIVE", "ACKNOWLEDGED"] },
+        },
+        orderBy: [{ severity: "desc" }, { detectedAt: "desc" }],
+        take: 20,
+      });
   const [rows, alerts] = await Promise.all([
     summaryRowsPromise,
     alertsPromise,

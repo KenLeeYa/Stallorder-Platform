@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, CircleAlert, RefreshCw, ScrollText, ShieldAlert, TriangleAlert } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { auditActionLabel, auditEntityTypeLabel } from "@/lib/audit-log-labels";
+import { calendarDateInTimeZone } from "@/lib/date-time";
 import { formatAppDateTime, formatAppNumber } from "@/lib/locale-format";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import type { MerchantMessageKey } from "@/lib/messages/merchant";
@@ -49,8 +50,8 @@ type FilterValues = {
   alertSeverity?: string;
   auditOutcome?: string;
   auditQuery?: string;
-  dateFrom?: string;
-  dateTo?: string;
+  dateFrom: string;
+  dateTo: string;
 };
 
 const alertTypeLabels = {
@@ -170,11 +171,19 @@ export function OperationsConsole({
           <FilterSelect label={m("攤位")} name="stallId" defaultValue={filters.stallId ?? ""}><option value="">{m("全部授權攤位")}</option>{stalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}</FilterSelect>
           <FilterSelect label={m("警示狀態")} name="alertStatus" defaultValue={filters.alertStatus ?? "ACTIVE"}><option value="ALL">{m("全部")}</option><option value="ACTIVE">{m("待處理")}</option><option value="ACKNOWLEDGED">{m("已確認")}</option><option value="RESOLVED">{m("已解除")}</option></FilterSelect>
           <FilterSelect label={m("嚴重程度")} name="alertSeverity" defaultValue={filters.alertSeverity ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="CRITICAL">{m("嚴重")}</option><option value="WARNING">{m("警告")}</option><option value="INFO">{m("資訊")}</option></FilterSelect>
+          <OperationsDateRangeFields
+            key={`${filters.dateFrom}:${filters.dateTo}`}
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
+            startLabel={m("開始日期")}
+            endLabel={m("結束日期")}
+            todayLabel={m("今天")}
+            weekLabel={m("本週")}
+            monthLabel={m("本月")}
+          />
           {canViewAudit ? (
             <>
               <FilterSelect label={m("稽核結果")} name="auditOutcome" defaultValue={filters.auditOutcome ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="SUCCESS">{m("成功")}</option><option value="DENIED">{m("拒絕")}</option><option value="FAILURE">{m("失敗")}</option></FilterSelect>
-              <FilterInput label={m("開始日期")} type="date" name="dateFrom" defaultValue={filters.dateFrom} />
-              <FilterInput label={m("結束日期")} type="date" name="dateTo" defaultValue={filters.dateTo} />
               <label className="col-span-2 text-xs font-semibold text-stone-600">{m("搜尋稽核")}<input type="text" name="auditQuery" defaultValue={filters.auditQuery} maxLength={80} placeholder={m("操作、資料類型或 Request ID")} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>
             </>
           ) : null}
@@ -235,6 +244,52 @@ function FilterSelect({ label, children, ...props }: React.SelectHTMLAttributes<
 
 function FilterInput({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   return <label className="text-xs font-semibold text-stone-600">{label}<input type="text" maxLength={80} {...props} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-2 text-sm" /></label>;
+}
+
+function OperationsDateRangeFields({
+  dateFrom,
+  dateTo,
+  startLabel,
+  endLabel,
+  todayLabel,
+  weekLabel,
+  monthLabel,
+}: {
+  dateFrom: string;
+  dateTo: string;
+  startLabel: string;
+  endLabel: string;
+  todayLabel: string;
+  weekLabel: string;
+  monthLabel: string;
+}) {
+  const [from, setFrom] = useState(dateFrom);
+  const [to, setTo] = useState(dateTo);
+
+  function applyPreset(preset: "day" | "week" | "month") {
+    const today = calendarDateInTimeZone(new Date(), "Asia/Taipei");
+    let start = today;
+    if (preset === "week") {
+      const date = new Date(`${today}T00:00:00.000Z`);
+      date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+      start = date.toISOString().slice(0, 10);
+    }
+    if (preset === "month") start = `${today.slice(0, 8)}01`;
+    setFrom(start);
+    setTo(today);
+  }
+
+  return (
+    <>
+      <div className="col-span-2 flex flex-wrap justify-end gap-2 md:col-span-4">
+        <button type="button" onClick={() => applyPreset("day")} className="min-h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold">{todayLabel}</button>
+        <button type="button" onClick={() => applyPreset("week")} className="min-h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold">{weekLabel}</button>
+        <button type="button" onClick={() => applyPreset("month")} className="min-h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold">{monthLabel}</button>
+      </div>
+      <FilterInput required label={startLabel} type="date" name="dateFrom" value={from} onChange={(event) => setFrom(event.target.value)} />
+      <FilterInput required label={endLabel} type="date" name="dateTo" value={to} onChange={(event) => setTo(event.target.value)} />
+    </>
+  );
 }
 
 function formatAuditPayload(log: AuditLog, emptyLabel: string) {

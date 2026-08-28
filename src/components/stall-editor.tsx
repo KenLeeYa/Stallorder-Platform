@@ -3,7 +3,7 @@
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, ImageUp, Move, Plus, Save, Store, Trash2 } from "lucide-react";
+import { Activity, ImageUp, MapPinned, Move, Plus, Save, Store, Trash2 } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
 import { PublicIdentifierInputHint } from "@/components/public-identifier-input-hint";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
@@ -28,6 +28,7 @@ type StallDraft = {
   coverImagePositionX?: number;
   coverImagePositionY?: number;
   coverImageZoom?: number;
+  locationGuideImageUrl?: string | null;
   businessStatus?: "OPEN" | "PAUSED" | "CLOSED" | "SOLD_OUT";
   orderingEnabled?: boolean;
   isActive?: boolean;
@@ -59,6 +60,8 @@ export function StallEditor({
   const [uploadingCover, setUploadingCover] = useState(false);
   const [savingCoverCrop, setSavingCoverCrop] = useState(false);
   const [removingCover, setRemovingCover] = useState(false);
+  const [uploadingLocationGuide, setUploadingLocationGuide] = useState(false);
+  const [removingLocationGuide, setRemovingLocationGuide] = useState(false);
   const basicFormRef = useRef<HTMLFormElement>(null);
   const operationsFormRef = useRef<HTMLFormElement>(null);
   const isEditing = Boolean(stallId);
@@ -277,6 +280,55 @@ export function StallEditor({
     }
   }
 
+  async function uploadLocationGuideImage(file: File) {
+    if (!stallId) return;
+    const form = new FormData();
+    form.set("image", file);
+    setUploadingLocationGuide(true);
+    setMessage("basic", "", null);
+    try {
+      const response = await fetch(`/api/merchant/stalls/${stallId}/cover-image?slot=location-guide`, {
+        method: "POST",
+        headers: csrfFormHeaders(),
+        body: form,
+      });
+      const payload = await response.json() as { imageUrl?: string; error?: string };
+      if (!response.ok || !payload.imageUrl) {
+        throw new Error(payload.error ?? label("地點指引圖上傳失敗。"));
+      }
+      setDraft((current) => ({ ...current, locationGuideImageUrl: payload.imageUrl }));
+      setSavedDraft((current) => ({ ...current, locationGuideImageUrl: payload.imageUrl }));
+      setMessage("basic", label("地點指引圖已更新。"), "success");
+      router.refresh();
+    } catch (error) {
+      setMessage("basic", error instanceof Error ? error.message : label("地點指引圖上傳失敗。"));
+    } finally {
+      setUploadingLocationGuide(false);
+    }
+  }
+
+  async function removeLocationGuideImage() {
+    if (!stallId || !draft.locationGuideImageUrl || !window.confirm(label("確定移除地點指引圖？"))) return;
+    setRemovingLocationGuide(true);
+    setMessage("basic", "", null);
+    try {
+      const response = await fetch(`/api/merchant/stalls/${stallId}/cover-image?slot=location-guide`, {
+        method: "DELETE",
+        headers: csrfHeaders(),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? label("地點指引圖移除失敗。"));
+      setDraft((current) => ({ ...current, locationGuideImageUrl: null }));
+      setSavedDraft((current) => ({ ...current, locationGuideImageUrl: null }));
+      setMessage("basic", label("地點指引圖已移除。"), "success");
+      router.refresh();
+    } catch (error) {
+      setMessage("basic", error instanceof Error ? error.message : label("地點指引圖移除失敗。"));
+    } finally {
+      setRemovingLocationGuide(false);
+    }
+  }
+
   return (
     <div className="border-t border-stone-200">
       {section !== "operations" ? <section aria-labelledby="stall-basic-heading" data-settings-section data-settings-scope="stall-basic" data-settings-search={label("基本資料 名稱 代碼 說明 地址 電話 時區 幣別")} className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500">
@@ -365,6 +417,55 @@ export function StallEditor({
                 <button type="button" disabled={!coverCropDirty || savingCoverCrop || removingCover} onClick={() => void saveCoverCrop()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:opacity-40"><Save className="h-4 w-4" />{savingCoverCrop ? label("儲存中...") : label("儲存圖片範圍")}</button>
                 <button type="button" disabled={removingCover || savingCoverCrop} onClick={() => void removeCoverImage()} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-300 px-3 text-sm font-semibold text-red-700 disabled:opacity-40"><Trash2 className="h-4 w-4" />{removingCover ? label("移除中...") : label("移除文宣圖片")}</button>
               </> : null}
+              </div>
+            </div> : null}
+            {isEditing ? <div className="border-t border-stone-200 pt-5 sm:col-span-2">
+              <div className="flex items-start gap-3">
+                <MapPinned className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" aria-hidden="true" />
+                <div>
+                  <p className="text-sm font-medium">{label("Menu 地點指引圖")}</p>
+                  <p className="mt-1 text-xs leading-5 text-stone-500">{label("可上傳店面照、入口照片或步行指引圖；顧客點選 Menu 的地圖按鈕後會在置中視窗查看。")}</p>
+                </div>
+              </div>
+              {draft.locationGuideImageUrl ? (
+                <div className="mt-3 max-w-xl overflow-hidden rounded-md border border-stone-300 bg-stone-100">
+                  <ProductImage
+                    src={draft.locationGuideImageUrl}
+                    alt={label("店面與地點指引圖預覽")}
+                    width={960}
+                    height={720}
+                    sizes="(min-width: 640px) 576px, 100vw"
+                    className="h-auto max-h-96 w-full object-contain"
+                  />
+                </div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold">
+                  <ImageUp className="h-4 w-4" />
+                  {uploadingLocationGuide ? label("上傳中...") : label("上傳地點指引圖")}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    disabled={uploadingLocationGuide || removingLocationGuide || savingSection !== null}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadLocationGuideImage(file);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                {draft.locationGuideImageUrl ? (
+                  <button
+                    type="button"
+                    disabled={uploadingLocationGuide || removingLocationGuide}
+                    onClick={() => void removeLocationGuideImage()}
+                    className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-300 px-3 text-sm font-semibold text-red-700 disabled:opacity-40"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {removingLocationGuide ? label("移除中...") : label("移除地點指引圖")}
+                  </button>
+                ) : null}
               </div>
             </div> : null}
           </div>

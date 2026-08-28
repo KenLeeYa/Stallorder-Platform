@@ -1,7 +1,8 @@
 import { Link2 } from "lucide-react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { IdentityLinkInvitationForm } from "@/components/identity-link-invitation-form";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
+import { getPagePrincipal } from "@/lib/auth";
 import { publicMessages } from "@/lib/messages/public";
 import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/security";
@@ -15,6 +16,7 @@ export default async function IdentityLinkInvitationPage({ params }: PageProps) 
   const invitation = await prisma.authIdentityLinkInvitation.findUnique({
     where: { tokenHash: hashToken(token) },
     select: {
+      profileId: true,
       allowedProviders: true,
       expiresAt: true,
       usedAt: true,
@@ -27,6 +29,9 @@ export default async function IdentityLinkInvitationPage({ params }: PageProps) 
     || invitation.revokedAt
     || invitation.expiresAt <= new Date()
   ) notFound();
+  const principal = await getPagePrincipal();
+  if (!principal) redirect(`/login?next=${encodeURIComponent(`/auth/link/${token}`)}`);
+  if (principal.user.id !== invitation.profileId) notFound();
 
   return (
     <main className="mx-auto grid min-h-screen max-w-lg place-items-center px-4 py-10">

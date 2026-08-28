@@ -19,7 +19,13 @@ export default async function SupplyLitePage({ searchParams }: PageProps) {
 
   let dashboard;
   try {
-    dashboard = await getSupplyDashboard(workspace.id);
+    dashboard = await getSupplyDashboard({
+      organizationId: workspace.id,
+      accessScope: {
+        canUseAllStalls: workspace.canUseAllStalls,
+        authorizedStallIds: workspace.stalls.map((stall) => stall.id),
+      },
+    });
   } catch (error) {
     if (error instanceof SupplyOperationError && error.code === "SUPPLY_MODULE_DISABLED") notFound();
     throw error;

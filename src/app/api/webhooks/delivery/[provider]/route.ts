@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkPublicRateLimit } from "@/lib/rate-limit";
 import { hashClientIp } from "@/lib/security";
 import { deliveryApiErrorResponse } from "@/server/delivery-platforms/delivery-http";
 import { parseDeliveryProvider } from "@/server/delivery-platforms/delivery-platform-types";
@@ -17,10 +17,13 @@ export async function POST(request: Request, context: RouteContext) {
   if (!provider || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(connectionId)) {
     return webhookJson({ accepted: false }, 400);
   }
-  const rateLimit = await checkRateLimit({
+  const ipHash = hashClientIp(request);
+  const rateLimit = await checkPublicRateLimit({
     scope: "delivery-webhook",
-    identifier: `${provider}:${connectionId}:${hashClientIp(request)}`,
-    limit: 120,
+    sourceIdentifier: ipHash,
+    resourceIdentifier: `${provider}:${connectionId}:${ipHash}`,
+    sourceLimit: 240,
+    resourceLimit: 120,
     windowMs: 60_000,
   });
   if (!rateLimit.allowed) {

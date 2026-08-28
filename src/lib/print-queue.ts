@@ -87,7 +87,7 @@ export const printQueueCommandSchema = z.discriminatedUnion("operation", [
   z.object({
     operation: z.literal("AUTHORIZE_CASH_DRAWER"),
     printerId: uuid,
-    managerAuthorizationCode: z.string().trim().regex(/^\d{4,8}$/).optional(),
+    managerAuthorizationCode: z.string().trim().regex(/^\d{6,8}$/).optional(),
   }).strict(),
   z.object({ operation: z.literal("CREATE_RULE"), rule: printRuleConfiguration }).strict(),
   z.object({ operation: z.literal("UPDATE_RULE"), ruleId: uuid, rule: printRuleConfiguration }).strict(),

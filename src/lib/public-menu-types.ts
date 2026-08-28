@@ -50,6 +50,7 @@ export type PublicMenuProduct = {
   groupTranslations?: Array<{ locale: string; name: string }>;
   rank: number | null;
   isBestSeller: boolean;
+  isSoldOut: boolean;
   isOrderDiscountEligible: boolean;
   imageUrl: string | null;
   availableFrom?: string | null;
@@ -81,9 +82,11 @@ export type PublicMenu = {
     name: string;
     slug: string;
     location: string;
+    address?: string;
     currency: string;
     timezone: string;
     coverImageUrl?: string | null;
+    locationGuideImageUrl?: string | null;
     coverImagePositionX?: number;
     coverImagePositionY?: number;
     coverImageZoom?: number;

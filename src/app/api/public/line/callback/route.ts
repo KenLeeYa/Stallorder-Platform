@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkPublicRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp, hashToken } from "@/lib/security";
 import {
   lineIntegrationSecretsSchema,
@@ -35,10 +35,12 @@ export async function GET(request: Request) {
 
   const stateHash = hashToken(state);
   const ipHash = hashClientIp(request);
-  const limit = await checkRateLimit({
+  const limit = await checkPublicRateLimit({
     scope: "line-oauth-callback",
-    identifier: `${ipHash}:${stateHash}`,
-    limit: 12,
+    sourceIdentifier: ipHash,
+    resourceIdentifier: stateHash,
+    sourceLimit: 30,
+    resourceLimit: 12,
     windowMs: 15 * 60_000,
   });
   if (!limit.allowed) {
@@ -46,6 +48,7 @@ export async function GET(request: Request) {
   }
 
   let trackingToken = "";
+  let trustedRedirectOrigin = "";
   try {
     const session = await prisma.lineLinkSession.findFirst({
       where: { stateHash, status: "ACTIVE", expiresAt: { gt: new Date() } },
@@ -70,10 +73,15 @@ export async function GET(request: Request) {
     ]);
     const ephemeral = lineLinkEphemeralSecretSchema.parse(JSON.parse(ephemeralValue));
     const integrationSecrets = lineIntegrationSecretsSchema.parse(JSON.parse(integrationValue));
-    trackingToken = ephemeral.trackingToken;
-    if (ephemeral.redirectUri !== `${url.origin}/api/public/line/callback`) {
-      throw new Error("LINE_REDIRECT_URI_MISMATCH");
+    const redirectUri = new URL(ephemeral.redirectUri);
+    if (
+      redirectUri.origin !== url.origin
+      || ephemeral.redirectUri !== `${redirectUri.origin}/api/public/line/callback`
+    ) {
+      return lineLinkErrorResponse("LINE 綁定來源不符，請回到訂單頁重新操作。", requestId, 409);
     }
+    trustedRedirectOrigin = redirectUri.origin;
+    trackingToken = ephemeral.trackingToken;
 
     const identity = await exchangeAndVerifyLineAuthorization({
       code,
@@ -175,9 +183,11 @@ export async function GET(request: Request) {
       ipHash,
       metadata: { provider: "LINE" },
     });
-    return NextResponse.redirect(orderUrl(url.origin, trackingToken, "linked"), 303);
+    return NextResponse.redirect(orderUrl(trustedRedirectOrigin, trackingToken, "linked"), 303);
   } catch {
-    if (trackingToken) return NextResponse.redirect(orderUrl(url.origin, trackingToken, "error"), 303);
+    if (trackingToken && trustedRedirectOrigin) {
+      return NextResponse.redirect(orderUrl(trustedRedirectOrigin, trackingToken, "error"), 303);
+    }
     return lineLinkErrorResponse("目前無法完成 LINE 綁定，請稍後再試。", requestId, 400);
   }
 }

@@ -38,7 +38,7 @@ test.describe("P2 後續成長功能", () => {
     expect(serviceWorkerResponse.ok()).toBe(true);
     const serviceWorker = await serviceWorkerResponse.text();
     expect(serviceWorker).toContain('if (request.method !== "GET") return');
-    expect(serviceWorker).toContain('const CACHE_NAME = "stallorder-shell-v5"');
+    expect(serviceWorker).toContain('const CACHE_NAME = "stallorder-shell-v9"');
     expect(serviceWorker).toContain('const OFFLINE_DB_NAME = "stallorder-offline-pos"');
     expect(serviceWorker).toContain("const IS_LOCAL_DEVELOPMENT =");
     expect(serviceWorker).toContain('searchParams.has("pwa-enabled")');

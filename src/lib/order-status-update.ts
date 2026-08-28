@@ -12,14 +12,14 @@ export const orderStatusUpdateSchema = z.discriminatedUnion("status", [
     discountApprovalReason: z.string().trim().min(1).max(200).nullable().optional(),
     managerEmail: z.string().trim().email().max(254).nullable().optional(),
     managerPassword: z.string().min(1).max(128).nullable().optional(),
-    managerAuthorizationCode: z.string().trim().regex(/^\d{4,8}$/).nullable().optional(),
+    managerAuthorizationCode: z.string().trim().regex(/^\d{6,8}$/).nullable().optional(),
   }).strict(),
   z.object({
     status: z.literal("CANCELLED"),
     confirmationOrderNo: z.string().min(1).max(32),
     cancellationReason: z.enum(["SOLD_OUT", "CUSTOMER_CANCELLED", "WAIT_TOO_LONG", "DUPLICATE_ORDER", "OTHER"]),
     cancellationDetail: z.string().trim().min(1).max(200).nullable().optional(),
-    managerAuthorizationCode: z.string().trim().regex(/^\d{4,8}$/).nullable().optional(),
+    managerAuthorizationCode: z.string().trim().regex(/^\d{6,8}$/).nullable().optional(),
   }).strict(),
 ]).superRefine((command, context) => {
   if (command.status === "CANCELLED" && command.cancellationReason === "OTHER" && !command.cancellationDetail) {
