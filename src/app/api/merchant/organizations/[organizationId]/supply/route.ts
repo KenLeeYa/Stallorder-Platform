@@ -71,6 +71,10 @@ export async function POST(request: Request, context: RouteContext) {
           code: "原料代碼／庫位代碼",
           name: "原料名稱／庫位名稱",
           baseUom: "基本單位",
+          itemType: "品項類型",
+          trackExpiry: "效期追蹤",
+          defaultShelfLifeDays: "預設保存天數",
+          preferredSupplierId: "主要廠商",
           lowStockThresholdMicros: "低庫存門檻",
           stallId: "攤位",
           locationType: "庫位類型",
@@ -85,6 +89,16 @@ export async function POST(request: Request, context: RouteContext) {
           sourceId: "來源編號",
           idempotencyKey: "操作識別碼",
           reason: "異動原因",
+          supplierId: "廠商",
+          documentNumber: "進貨單號",
+          orderedOn: "進貨日期",
+          expectedOn: "預計到貨日",
+          taxAmount: "稅額",
+          freightAmount: "運費",
+          lotNumber: "批號",
+          manufacturedOn: "製造日",
+          expiresOn: "有效日期",
+          lines: "進貨明細",
         }),
       },
       { status: 400, headers: headers(authorization.requestId) },
@@ -135,6 +149,12 @@ function supplyError(code: string) {
     case "SUPPLY_PRODUCT_NOT_FOUND":
     case "SUPPLY_STALL_NOT_FOUND":
       return { status: 404, message: "找不到指定的原料、庫位、商品或攤位。" };
+    case "SUPPLY_SUPPLIER_NOT_FOUND":
+      return { status: 404, message: "找不到指定的進貨廠商。" };
+    case "SUPPLY_LOT_REQUIRED":
+      return { status: 400, message: "此品項已啟用效期追蹤，進貨時必須填寫批號。" };
+    case "SUPPLY_PURCHASE_AMOUNT_TOO_LARGE":
+      return { status: 400, message: "進貨金額超過單筆可處理範圍。" };
     case "SUPPLY_LOCATION_SCOPE_INVALID":
       return { status: 400, message: "只有攤位庫位可以指定攤位。" };
     case "SUPPLY_IDEMPOTENCY_CONFLICT":

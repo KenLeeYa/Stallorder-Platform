@@ -4,9 +4,11 @@ import { useMemo } from "react";
 import Link from "next/link";
 import {
   BarChart3,
+  BriefcaseBusiness,
   Boxes,
   Building2,
   Cable,
+  ChartNoAxesCombined,
   CreditCard,
   FileChartColumn,
   Package,
@@ -92,6 +94,11 @@ export function MerchantWorkspaceHeader({
             <FileChartColumn className="h-5 w-5" /><span className="sr-only">{m("跨攤位報表")}</span>
           </Link>
         ) : null}
+        {workspace?.roles.some((role) => hasPermission(role, "VIEW_REPORTS")) ? (
+          <Link title={m("營業損益與成本")} href={`/merchant/operating-profit?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+            <ChartNoAxesCombined className="h-5 w-5" /><span className="sr-only">{m("營業損益與成本")}</span>
+          </Link>
+        ) : null}
         <Link title={m("管理攤位")} href={`/merchant/stalls?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
           <Building2 className="h-5 w-5" /><span className="sr-only">{m("管理攤位")}</span>
         </Link>
@@ -103,6 +110,14 @@ export function MerchantWorkspaceHeader({
         {showSupply && workspace?.roles.some((role) => hasPermission(role, "MANAGE_SHARED_PRODUCTS")) ? (
           <Link title={m("庫存與配方")} href={`/merchant/supply?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <Boxes className="h-5 w-5" /><span className="sr-only">{m("庫存與配方")}</span>
+          </Link>
+        ) : null}
+        {workspace && (
+          workspace.roles.some((role) => hasPermission(role, "MANAGE_ATTENDANCE"))
+          || workspace.stalls.some((stall) => stall.roles.some((role) => hasPermission(role, "MANAGE_ATTENDANCE")))
+        ) ? (
+          <Link title={m("員工排班與薪資")} href={`/merchant/workforce?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+            <BriefcaseBusiness className="h-5 w-5" /><span className="sr-only">{m("員工排班與薪資")}</span>
           </Link>
         ) : null}
         {showGrowth && workspace?.roles.some((role) => hasPermission(role, "MANAGE_ORGANIZATION")) ? (

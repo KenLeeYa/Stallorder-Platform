@@ -70,4 +70,56 @@ describe("supply lite command contract", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("accepts a supplier and a multi-line purchase receipt", () => {
+    const supplier = supplyCommandSchema.parse({
+      operation: "CREATE_SUPPLIER",
+      code: " fresh-food ",
+      name: "鮮食供應商",
+      paymentTermsDays: 30,
+      leadTimeDays: 2,
+    });
+    expect(supplier).toMatchObject({ code: "FRESH-FOOD", paymentTermsDays: 30 });
+
+    const receipt = supplyCommandSchema.parse({
+      operation: "RECEIVE_PURCHASE",
+      supplierId: id,
+      stallId: id,
+      documentNumber: "PO-20260829-001",
+      orderedOn: "2026-08-29",
+      taxAmount: 50,
+      freightAmount: 80,
+      lines: [{
+        ingredientId: id,
+        locationId: id,
+        quantityMicros: 10_000_000,
+        unitCostMicros: 180_000_000,
+        lotNumber: "LOT-001",
+        manufacturedOn: "2026-08-28",
+        expiresOn: "2026-09-01",
+      }],
+    });
+    if (receipt.operation !== "RECEIVE_PURCHASE") throw new Error("expected purchase receipt");
+    expect(receipt.lines).toHaveLength(1);
+    expect(receipt.documentNumber).toBe("PO-20260829-001");
+  });
+
+  it("rejects a purchase lot whose expiry predates manufacture", () => {
+    const result = supplyCommandSchema.safeParse({
+      operation: "RECEIVE_PURCHASE",
+      supplierId: id,
+      documentNumber: "PO-BAD-DATE",
+      orderedOn: "2026-08-29",
+      lines: [{
+        ingredientId: id,
+        locationId: id,
+        quantityMicros: 1,
+        unitCostMicros: 1,
+        lotNumber: "LOT-BAD",
+        manufacturedOn: "2026-08-29",
+        expiresOn: "2026-08-28",
+      }],
+    });
+    expect(result.success).toBe(false);
+  });
 });

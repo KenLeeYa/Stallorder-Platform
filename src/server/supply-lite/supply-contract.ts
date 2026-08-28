@@ -15,7 +15,22 @@ const createIngredientSchema = z.object({
   name: z.string().trim().min(1).max(120),
   baseUom: z.string().trim().transform((value) => value.toUpperCase())
     .pipe(z.enum(["G", "KG", "ML", "L", "EA"])),
+  itemType: z.enum(["INGREDIENT", "PACKAGING", "CONSUMABLE"]).default("INGREDIENT"),
+  trackExpiry: z.boolean().default(false),
+  defaultShelfLifeDays: z.number().int().min(1).max(3650).nullable().optional(),
+  preferredSupplierId: uuidSchema.nullable().optional(),
   lowStockThresholdMicros: z.number().int().min(0).max(9_000_000_000_000_000).default(0),
+}).strict();
+
+const createSupplierSchema = z.object({
+  operation: z.literal("CREATE_SUPPLIER"),
+  code: codeSchema,
+  name: z.string().trim().min(1).max(120),
+  contactName: z.string().trim().max(120).nullable().optional(),
+  phone: z.string().trim().max(40).nullable().optional(),
+  email: z.string().trim().email().max(254).nullable().optional(),
+  paymentTermsDays: z.number().int().min(0).max(365).default(0),
+  leadTimeDays: z.number().int().min(0).max(365).default(0),
 }).strict();
 
 const createLocationSchema = z.object({
@@ -64,11 +79,39 @@ const recipeComponentSchema = z.object({
   wasteBasisPoints: z.number().int().min(0).max(10_000).default(0),
 }).strict();
 
+const purchaseLineSchema = z.object({
+  ingredientId: uuidSchema,
+  locationId: uuidSchema,
+  quantityMicros: z.number().int().min(1).max(9_000_000_000_000_000),
+  unitCostMicros: z.number().int().min(0).max(9_000_000_000_000_000),
+  lotNumber: z.string().trim().min(1).max(100).nullable().optional(),
+  manufacturedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  expiresOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+}).strict().refine(
+  (value) => !value.manufacturedOn || !value.expiresOn || value.expiresOn >= value.manufacturedOn,
+  { path: ["expiresOn"], message: "效期不得早於製造日" },
+);
+
+const receivePurchaseSchema = z.object({
+  operation: z.literal("RECEIVE_PURCHASE"),
+  supplierId: uuidSchema,
+  stallId: uuidSchema.nullable().optional(),
+  documentNumber: z.string().trim().min(1).max(80),
+  orderedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  expectedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  taxAmount: z.number().int().min(0).max(1_000_000_000).default(0),
+  freightAmount: z.number().int().min(0).max(1_000_000_000).default(0),
+  note: z.string().trim().max(500).nullable().optional(),
+  lines: z.array(purchaseLineSchema).min(1).max(100),
+}).strict();
+
 export const supplyCommandSchema = z.discriminatedUnion("operation", [
   createIngredientSchema,
+  createSupplierSchema,
   createLocationSchema,
   movementSchema,
   recipeComponentSchema,
+  receivePurchaseSchema,
 ]);
 
 export type SupplyCommand = z.infer<typeof supplyCommandSchema>;

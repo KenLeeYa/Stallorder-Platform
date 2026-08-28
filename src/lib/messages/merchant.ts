@@ -33,6 +33,8 @@ const merchantMessageRows = {
   "付款與金流": { "zh-TW": "付款與金流", en: "Payments and providers", ja: "決済とプロバイダー", ko: "결제 및 제공업체", vi: "Thanh toán và nhà cung cấp", th: "การชำระเงินและผู้ให้บริการ" },
   "整合設定中心": { "zh-TW": "整合設定中心", en: "Integration setup", ja: "連携設定", ko: "통합 설정", vi: "Thiết lập tích hợp", th: "ตั้งค่าการเชื่อมต่อ" },
   "庫存與配方": { "zh-TW": "庫存與配方", en: "Inventory and recipes", ja: "在庫とレシピ", ko: "재고 및 레시피", vi: "Kho và công thức", th: "สต็อกและสูตรอาหาร" },
+  "營業損益與成本": { "zh-TW": "營業損益與成本", en: "Operating profit and costs", ja: "営業利益とコスト", ko: "영업 손익 및 비용", vi: "Lợi nhuận và chi phí vận hành", th: "กำไรและต้นทุนการดำเนินงาน" },
+  "員工排班與薪資": { "zh-TW": "員工排班與薪資", en: "Workforce and payroll", ja: "シフトと給与", ko: "직원 일정 및 급여", vi: "Lịch làm việc và lương", th: "ตารางงานและเงินเดือนพนักงาน" },
   "會員與成長": { "zh-TW": "會員與成長", en: "Customers and growth", ja: "顧客と成長", ko: "고객 및 성장", vi: "Khách hàng và tăng trưởng", th: "ลูกค้าและการเติบโต" },
   "返回攤位設定": { "zh-TW": "返回攤位設定", en: "Back to stall settings", ja: "店舗設定に戻る", ko: "매장 설정으로 돌아가기", vi: "Quay lại cài đặt quầy", th: "กลับไปยังการตั้งค่าร้าน" },
   "返回攤位管理": { "zh-TW": "返回攤位管理", en: "Back to stall management", ja: "店舗管理に戻る", ko: "매장 관리로 돌아가기", vi: "Quay lại quản lý quầy", th: "กลับไปยังการจัดการร้าน" },

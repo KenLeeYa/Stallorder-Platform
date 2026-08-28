@@ -128,11 +128,12 @@ export function QrOrderMenu({
                 return (
                   <Fragment key={product.id}>
                   {showGroupHeading ? <p data-testid="qr-product-group-heading" className="col-span-full mt-2 text-xs font-bold uppercase tracking-wide text-teal-800 first:mt-0">{localizedProductGroup(product)}</p> : null}
-                  <article
-                    id={`qr-product-${product.id}`}
-                    data-best-seller-rank={product.rank ?? undefined}
-                    aria-disabled={soldOut}
-                    tabIndex={-1}
+                   <article
+                     role="group"
+                     id={`qr-product-${product.id}`}
+                     data-best-seller-rank={product.rank ?? undefined}
+                     aria-disabled={soldOut}
+                     tabIndex={-1}
                     className={`rounded-lg border p-3 sm:p-4 ${soldOut ? "border-stone-300 bg-stone-100" : "border-stone-200 bg-white"}`}
                   >
                     <div className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[80px_minmax(0,1fr)_auto] sm:gap-4">
