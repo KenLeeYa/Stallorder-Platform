@@ -42,7 +42,7 @@ const COMPATIBLE_FUNCTION_BODY_MIGRATION_DIGEST =
 const AUTHORIZED_COMPLETED_PAYMENT_CORRECTION_MIGRATION_DIGEST =
   "0bf7d40a446e11abe7bd278914d7a1921dd73bbda77518055714f20dc27c3bde";
 const PRIVATE_PRODUCT_IMAGE_DELIVERY_MIGRATION_DIGEST =
-  "5e50459f4d3a5f9441eebf8ac2823a81a8feb956c8f6fbec4885fed28b051132";
+  "43c33763c41e6a4fd3805c71fafbd32f8cb91a76112ab2559cb579ca36549379";
 const EXISTING_TABLE_TRIGGER_MIGRATION_DIGEST =
   "f05d1e7dc42860f348b7607fd792ddd0d961d2cb48035dfac5ed8fa3d2532999";
 const INTEGRATED_PRINT_CENTER_MIGRATION_DIGEST =
@@ -255,8 +255,14 @@ export function assertAdditiveMigrationSql(sql) {
       /\balter\s+(?:table|type|view|materialized\s+view|function|procedure)\b[\s\S]*\brename\b/iu
         .test(statement)
       || /\balter\s+table\b[\s\S]*\bset\s+(?:schema|unlogged)\b/iu.test(statement)
-      || /\balter\s+table\b[\s\S]*\bdisable\s+(?:trigger|row\s+level\s+security)\b/iu
-        .test(statement)
+      || (
+        /\balter\s+table\b[\s\S]*\bdisable\s+(?:trigger|row\s+level\s+security)\b/iu
+          .test(statement)
+        && !(
+          privateProductImageDeliveryMigration
+          && isSafePrivateProductImageWriteGuardToggle(statement)
+        )
+      )
       || /\balter\s+table\b[\s\S]*\bno\s+force\s+row\s+level\s+security\b/iu
         .test(statement)
       || /\balter\s+table\b[\s\S]*\balter\s+column\b[\s\S]*\b(?:type|set\s+data\s+type|set\s+not\s+null)\b/iu
@@ -290,6 +296,7 @@ export function assertAdditiveMigrationSql(sql) {
     integratedPrintCenterMigration,
     paygOpenBetaBillingMigration,
     paygContractRuntimeGapsMigration,
+    privateProductImageDeliveryMigration,
   );
   assertReplacementObjectProvenance(
     statements,
@@ -323,6 +330,7 @@ function assertSecurityObjectProvenance(
   integratedPrintCenterMigration,
   paygOpenBetaBillingMigration,
   paygContractRuntimeGapsMigration,
+  privateProductImageDeliveryMigration,
 ) {
   const createdTables = new Map();
   const createdFunctions = new Map();
@@ -396,12 +404,19 @@ function assertSecurityObjectProvenance(
         || /\b(?:enable|disable)\s+(?:(?:always|replica)\s+)?trigger\b/iu
           .test(statement)
       );
-    if (securityTableMutation && !alteredTable) {
+    const reviewedPrivateImageGuardToggle =
+      privateProductImageDeliveryMigration
+      && isSafePrivateProductImageWriteGuardToggle(statement);
+    if (
+      securityTableMutation
+      && !reviewedPrivateImageGuardToggle
+      && !alteredTable
+    ) {
       throw new AdditiveMigrationPlanError(
         "SECURITY_MUTATION_STATEMENT_UNPARSEABLE",
       );
     }
-    if (securityTableMutation) {
+    if (securityTableMutation && !reviewedPrivateImageGuardToggle) {
       assertObjectCreatedEarlier(
         createdTables,
         normalizeIdentifier(alteredTable[1]),
@@ -1036,6 +1051,11 @@ function isApprovedPrivateProductImageDeliveryMigration(sql) {
     === PRIVATE_PRODUCT_IMAGE_DELIVERY_MIGRATION_DIGEST;
 }
 
+function isSafePrivateProductImageWriteGuardToggle(statement) {
+  return /^alter\s+table\s+public\.(?:products|stalls)\s+(?:disable|enable)\s+trigger\s+backend_writable_guard$/iu
+    .test(statement);
+}
+
 function isApprovedDrStandbyCompatibleMigration(sql) {
   return DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS.has(
     sha256(sql.replace(/\r\n/gu, "\n").trim()),
@@ -1417,6 +1437,8 @@ function assertAllowedStatement(
       && isSafePrivateAlertSoundBucketSeed(statement),
     privateProductImageDeliveryMigration
       && isSafePrivateProductImageDeliveryUpdate(statement),
+    privateProductImageDeliveryMigration
+      && isSafePrivateProductImageWriteGuardToggle(statement),
     isAllowedAlterTableStatement(statement),
     /^alter\s+type\b[\s\S]*\badd\s+value\b/iu,
     /^create\s+(?:or\s+replace\s+)?function\b/iu,

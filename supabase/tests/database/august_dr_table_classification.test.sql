@@ -1,6 +1,6 @@
 begin;
 
-select plan(3);
+select plan(4);
 
 select is(
   (
@@ -34,6 +34,22 @@ select is(
   ),
   21,
   'August and Phase 3 business tables receive the backend write fence'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from pg_catalog.pg_trigger
+    where not tgisinternal
+      and tgname = 'backend_writable_guard'
+      and tgenabled = 'O'
+      and tgrelid = any (array[
+        'public.products'::regclass,
+        'public.stalls'::regclass
+      ])
+  ),
+  2,
+  'private image delivery leaves existing product and stall write fences enabled'
 );
 
 update public.backend_runtime_state
