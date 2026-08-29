@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { LocaleSelector } from "@/components/locale-selector";
 import { LogoutButton } from "@/components/logout-button";
+import { MobileSeniorActionMenu } from "@/components/mobile-senior-action-menu";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { PwaControls } from "@/components/pwa-controls";
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
@@ -59,11 +60,12 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
       ? t("kitchen.connection.connecting")
       : t("kitchen.connection.polling");
   return (
-    <header className="sticky top-0 z-50 h-16 overflow-x-clip border-b border-stone-200 bg-white/95 shadow-sm backdrop-blur print:static print:h-auto">
+    <header className="sticky top-0 z-50 min-h-16 overflow-x-clip border-b border-stone-200 bg-white/95 shadow-sm backdrop-blur print:static print:h-auto">
       <div className="mx-auto max-w-[1600px] px-3 py-2 md:px-6">
         <h1 className="sr-only">{t("kitchen.systemTitle")}</h1>
         <div data-testid="kitchen-toolbar-row" className="flex h-11 w-full min-w-0 items-center">
-          <nav data-testid="kitchen-primary-navigation" className="flex h-11 min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain pr-3 [&>*]:shrink-0" aria-label={t("kitchen.navigation")}>
+          <MobileSeniorActionMenu label={t("kitchen.navigation")}>
+            <nav data-testid="kitchen-primary-navigation" className="flex h-11 min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain pr-3 [&>*]:shrink-0" aria-label={t("kitchen.navigation")}>
             <div data-testid="kitchen-mode-selector" className="inline-grid h-11 grid-cols-3 overflow-hidden rounded-md border border-stone-300 bg-white" role="group" aria-label={t("kitchen.mode.label")}>
               {modes.map(({ key, label, icon: Icon }) => boardControls ? (
                 <button
@@ -158,7 +160,8 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
             <div data-testid="kitchen-logout-control" className="flex h-11 w-11 shrink-0 items-center justify-center [&_button]:!h-11 [&_button]:!w-11 [&_svg]:!h-5 [&_svg]:!w-5">
               <LogoutButton offlineStallId={stall.id} />
             </div>
-          </nav>
+            </nav>
+          </MobileSeniorActionMenu>
         </div>
       </div>
     </header>

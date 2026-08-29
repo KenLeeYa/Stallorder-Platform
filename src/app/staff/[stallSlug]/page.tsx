@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { RouteLoadingSkeleton } from "@/components/route-loading-skeleton";
 import { LazyStaffOrderBoard } from "@/components/lazy-staff-order-board";
+import { StaffStartReminder } from "@/components/staff-start-reminder";
 import { requirePagePermission } from "@/lib/authorization";
 import { prisma } from "@/lib/prisma";
 import { activeOrderStatuses, serializeStaffOrder, staffOrderSelect } from "@/lib/orders";
@@ -80,26 +81,33 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
   const workModeDestinations = buildWorkModeDestinations(workspaces);
 
   return (
-    <LazyStaffOrderBoard
-      stall={{
-        id: stall.id,
-        organizationId: stall.organizationId,
-        slug: stall.slug,
-        name: stall.name,
-        currency: stall.currency,
-        timezone: stall.timezone,
-        businessDayCutoffHour: configuration.businessDayCutoffHour,
-      }}
-      initialOrders={orders.map(serializeStaffOrder)}
-      initialNow={serverNow}
-      account={{ displayName: principal.user.displayName, role }}
-      modules={configuration.modules}
-      paymentOptions={paymentOptions}
-      discountOptions={discountOptions}
-      orderCatalog={configuration.catalog}
-      capacity={capacity}
-      workModeDestinations={workModeDestinations}
-      appVersion={(process.env.VERCEL_GIT_COMMIT_SHA ?? "web").slice(0, 40)}
-    />
+    <>
+      <LazyStaffOrderBoard
+        stall={{
+          id: stall.id,
+          organizationId: stall.organizationId,
+          slug: stall.slug,
+          name: stall.name,
+          currency: stall.currency,
+          timezone: stall.timezone,
+          businessDayCutoffHour: configuration.businessDayCutoffHour,
+        }}
+        initialOrders={orders.map(serializeStaffOrder)}
+        initialNow={serverNow}
+        account={{ displayName: principal.user.displayName, role }}
+        modules={configuration.modules}
+        paymentOptions={paymentOptions}
+        discountOptions={discountOptions}
+        orderCatalog={configuration.catalog}
+        capacity={capacity}
+        workModeDestinations={workModeDestinations}
+        appVersion={(process.env.VERCEL_GIT_COMMIT_SHA ?? "web").slice(0, 40)}
+      />
+      <StaffStartReminder
+        stallSlug={stall.slug}
+        canUseAttendance={roles.some((candidate) => hasPermission(candidate, "USE_ATTENDANCE"))}
+        canManageCashShift={roles.some((candidate) => hasPermission(candidate, "MANAGE_CASH_SHIFT"))}
+      />
+    </>
   );
 }

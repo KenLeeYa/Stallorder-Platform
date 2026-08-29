@@ -19,6 +19,7 @@ import {
   Store,
 } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
+import { MobileSeniorActionMenu } from "@/components/mobile-senior-action-menu";
 import { PwaControls } from "@/components/pwa-controls";
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
@@ -218,7 +219,9 @@ export function MerchantWorkspaceHeader({
       </header>
       <div className="sticky top-0 z-30 min-w-0 overflow-x-hidden border-b border-stone-200 bg-white/95 px-4 py-1 backdrop-blur md:hidden">
         <div className="mx-auto min-w-0 max-w-full">
-          {renderFunctionNavigation("flex w-full", "merchant-function-navigation-mobile")}
+          <MobileSeniorActionMenu label={m("商戶功能")}>
+            {renderFunctionNavigation("flex w-full", "merchant-function-navigation-mobile")}
+          </MobileSeniorActionMenu>
         </div>
       </div>
     </>

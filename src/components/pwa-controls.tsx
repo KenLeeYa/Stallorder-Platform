@@ -5,6 +5,7 @@ import { LocaleSelector } from "@/components/locale-selector";
 import { useAppLocale } from "@/components/locale-provider";
 import { usePwaRuntime } from "@/components/pwa-runtime";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AccessibilityModeToggle } from "@/components/accessibility-mode-toggle";
 
 export function PwaControls({
   showWakeLock = false,
@@ -30,6 +31,7 @@ export function PwaControls({
     <div data-testid="pwa-controls" className="flex items-center gap-1" aria-label={t("pwa.status.label")}>
       {showLocale ? <LocaleSelector compact /> : null}
       <ThemeToggle />
+      <AccessibilityModeToggle />
       <span data-testid="pwa-network-status" aria-label={qualityLabel} title={`${qualityLabel}${runtime.effectiveType ? ` · ${runtime.effectiveType}` : ""}`} className={`inline-flex h-10 items-center gap-2 px-2 text-xs font-semibold ${runtime.quality === "GOOD" ? "text-emerald-700" : runtime.quality === "POOR" ? "text-amber-800" : "text-red-700"}`}>
         <QualityIcon className="h-4 w-4" aria-hidden="true" />
         {showQualityLabel ? <span className="hidden xl:inline">{qualityLabel}</span> : null}

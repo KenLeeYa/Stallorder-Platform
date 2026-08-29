@@ -345,6 +345,8 @@ export function OfflineBootstrapControl({
       </button>
       {open ? (
         <section
+          role="dialog"
+          aria-modal="true"
           aria-label={t("staff.action.offlineDevice")}
           className="fixed inset-x-4 top-20 z-50 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-md border border-stone-300 bg-white p-4 shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-96"
         >

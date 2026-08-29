@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { LogoutButton } from "@/components/logout-button";
+import { MobileSeniorActionMenu } from "@/components/mobile-senior-action-menu";
 import { PwaControls } from "@/components/pwa-controls";
 import { CompletedOrdersPanel } from "@/components/completed-orders-panel";
 import { StaffAutoPrintAgent } from "@/components/staff-auto-print-agent";
@@ -442,7 +443,8 @@ function StaffOrderBoardToolbar({
             <p className="truncate text-xs font-medium text-teal-800">{account.displayName} · {roleLabel(role, t)}</p>
           </div>
         </div>
-        <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-2 pr-4 print:hidden sm:overflow-x-visible sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
+        <MobileSeniorActionMenu label={t("staff.functions")}>
+          <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-2 pr-4 print:hidden sm:overflow-x-visible sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
         <div data-testid="staff-function-status-group" className="flex items-center gap-2 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0">
           {switcherVisibility.showWorkMode ? <WorkModeSwitcher
             destinations={workModeDestinations}
@@ -465,7 +467,7 @@ function StaffOrderBoardToolbar({
             aria-label="員工定位打卡"
             className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}
           ><Clock3 className={staffFunctionIconClass} /><span className="sr-only">員工定位打卡</span></Link> : null}
-          <div className="shrink-0">
+          <div data-testid="staff-pwa-controls" className="shrink-0">
             <PwaControls showWakeLock showQualityLabel={false} />
           </div>
           <LiveConnectionBadge state={liveConnection} t={t} />
@@ -484,7 +486,8 @@ function StaffOrderBoardToolbar({
           <button type="button" onClick={actions.onRefresh} title={t("common.refresh")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} /><span className="sr-only">{t("common.refresh")}</span></button>
           <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} overflow-visible text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border [&>button]:border-stone-300 [&>button>svg]:h-5 [&>button>svg]:w-5`}><LogoutButton offlineStallId={stall.id} /><span className="sr-only">{t("staff.action.logout")}</span></div>
         </div>
-        </nav>
+          </nav>
+        </MobileSeniorActionMenu>
       </header>
       <OfflineQueueStatus stallId={stall.id} stallSlug={stall.slug} onSynchronized={actions.onSynchronized} />
       {message ? <p role="status" className="mt-4 text-sm text-stone-700 print:hidden">{message}</p> : null}

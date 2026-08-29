@@ -185,10 +185,7 @@ function MenuProductCard({
   );
 
   return (
-    <article
-      data-testid={product.isSoldOut ? "public-menu-sold-out" : undefined}
-      className={`break-inside-avoid overflow-hidden rounded-2xl border shadow-sm print:rounded-none print:shadow-none ${product.isSoldOut ? "border-stone-300 bg-stone-100" : "border-stone-200 bg-white"}`}
-    >
+    <article className="break-inside-avoid overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm print:rounded-none print:shadow-none">
       <div className="grid min-h-36 grid-cols-[112px_minmax(0,1fr)] sm:grid-cols-[144px_minmax(0,1fr)]">
         <div className="relative min-h-36 overflow-hidden bg-stone-100">
           {product.imageUrl ? (
@@ -198,14 +195,13 @@ function MenuProductCard({
               width={432}
               height={432}
               sizes="(max-width: 639px) 112px, 144px"
-              className={`h-full w-full object-cover ${product.isSoldOut ? "grayscale opacity-45" : ""}`}
+              className="h-full w-full object-cover"
             />
           ) : (
             <div className="grid h-full min-h-36 place-items-center text-stone-300">
               <Store className="h-9 w-9" aria-hidden="true" />
             </div>
           )}
-          {product.isSoldOut ? <span className="absolute inset-0 grid place-items-center bg-stone-950/45 px-2 text-center text-sm font-black text-white">{publicMessages.get(locale, "menuSoldOut")}</span> : null}
         </div>
         <div className="flex min-w-0 flex-col p-4">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -215,7 +211,6 @@ function MenuProductCard({
                 <Flame className="h-3 w-3" aria-hidden="true" />{publicMessages.get(locale, "menuBestSeller")}
               </span>
             ) : null}
-            {product.isSoldOut ? <span className="rounded-full bg-stone-700 px-2 py-1 text-[11px] font-bold text-white">{publicMessages.get(locale, "menuSoldOut")}</span> : null}
           </div>
           <h3 className="mt-2 text-lg font-bold leading-6">{productName}</h3>
           {productDescription ? <p className="mt-1 line-clamp-3 text-sm leading-5 text-stone-600 print:line-clamp-none">{productDescription}</p> : null}
