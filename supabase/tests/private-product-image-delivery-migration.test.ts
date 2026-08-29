@@ -15,4 +15,19 @@ describe("private product image delivery migration", () => {
     expect(migration).toMatch(/update public\.stalls/i);
     expect(migration).toMatch(/\/api\/assets\/product-images\//i);
   });
+
+  it("keeps the sealed DR write fence suspended only inside the migration transaction", () => {
+    expect(migration).toMatch(/^begin;/im);
+    expect(migration).toMatch(/^commit;/im);
+    for (const table of ["products", "stalls"]) {
+      expect(migration).toMatch(new RegExp(
+        `alter table public\\.${table} disable trigger backend_writable_guard`,
+        "i",
+      ));
+      expect(migration).toMatch(new RegExp(
+        `alter table public\\.${table} enable trigger backend_writable_guard`,
+        "i",
+      ));
+    }
+  });
 });

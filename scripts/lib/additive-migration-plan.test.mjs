@@ -459,6 +459,12 @@ describe("additive DR migration plan", () => {
         "'/storage/v1/object/public/product-images/'",
       ),
     )).toThrow("MIGRATION_STATEMENT_FORBIDDEN");
+    expect(() => assertAdditiveMigrationSql(
+      privateProductImageDeliveryMigration.replace(
+        "alter table public.products disable trigger backend_writable_guard",
+        "alter table public.orders disable trigger backend_writable_guard",
+      ),
+    )).toThrow();
   });
 
   it("allows only the exact reviewed preflight reconciliation", () => {
