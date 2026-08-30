@@ -43,7 +43,7 @@ export function EmployeeAttendance({ stallSlug, initialData }: { stallSlug: stri
       const body = await response.json() as { error?: string; event?: EventItem };
       if (!response.ok && !body.event) throw new Error(body.error ?? "打卡失敗。 ");
       if (body.event?.decision === "ACCEPTED") setMessage("打卡成功。 ");
-      else if (body.event?.decision === "REVIEW_REQUIRED") setMessage("定位落在邊界或精度不足，已送交主管覆核。 ");
+      else if (body.event?.decision === "REVIEW_REQUIRED") setMessage("偵測到遲到或早退，已送交主管覆核；正常打卡不需主管核准。");
       else setMessage(`打卡已阻擋：${body.event?.riskCodes.map(attendanceRiskLabel).join("、") || body.error || "驗證未通過"}`);
       setRotatingCode("");
       await refresh();

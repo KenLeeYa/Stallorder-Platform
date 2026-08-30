@@ -108,13 +108,18 @@ function render(orders: StaffOrderDto[], moduleOverride: Partial<{ dineIn: boole
 }
 
 describe("StaffOrderBoard ticket presentation", () => {
-  it("groups the icon-only toolbar by status, ordering, and device actions", () => {
+  it("places ordering actions before status controls in the icon-only toolbar", () => {
     const html = render([]);
 
     expect(html).toContain('data-testid="staff-function-grid"');
+    expect(html).toContain('data-persist-horizontal-scroll="staff-function-grid"');
+    expect(html).toContain('data-testid="staff-function-identity-group"');
     expect(html).toContain('data-testid="staff-function-status-group"');
     expect(html).toContain('data-testid="staff-function-order-group"');
     expect(html).toContain('data-testid="staff-function-device-group"');
+    expect(html.indexOf('data-testid="staff-function-identity-group"')).toBeLessThan(html.indexOf('data-testid="staff-function-order-group"'));
+    expect(html.indexOf('data-testid="staff-function-order-group"')).toBeLessThan(html.indexOf('data-testid="staff-function-status-group"'));
+    expect(html.indexOf('data-testid="staff-function-status-group"')).toBeLessThan(html.indexOf('data-testid="staff-function-device-group"'));
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain("sm:overflow-x-visible");
     expect(html).toContain("sticky top-0");

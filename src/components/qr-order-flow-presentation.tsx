@@ -81,6 +81,7 @@ export function QrOrderFlowPresentation({
     isDrawingLottery,
     isLoading,
     isSubmitting,
+    invoiceBuyerSelection,
     locale,
     localizedCategory,
     localizedGroupName,
@@ -116,6 +117,7 @@ export function QrOrderFlowPresentation({
     setCustomerName,
     setCustomerNote,
     setCustomerPhone,
+    setInvoiceBuyerSelection,
     setDeliveryAddress,
     setMessage,
     setSessionTimePhase,
@@ -208,6 +210,7 @@ export function QrOrderFlowPresentation({
       customerPhone={customerPhone}
       deliveryAddress={deliveryAddress}
       customerNote={customerNote}
+      invoiceBuyerSelection={invoiceBuyerSelection}
       waitAcknowledged={waitAcknowledged}
       fulfillmentTimePicker={fulfillmentTimePicker}
       turnstileRequested={turnstileRequested}
@@ -236,6 +239,7 @@ export function QrOrderFlowPresentation({
       onCustomerPhoneChange={setCustomerPhone}
       onDeliveryAddressChange={setDeliveryAddress}
       onCustomerNoteChange={setCustomerNote}
+      onInvoiceBuyerSelectionChange={setInvoiceBuyerSelection}
       onWaitAcknowledgedChange={(checked) => {
         setWaitAcknowledged(checked);
         setMessage("");

@@ -18,6 +18,7 @@ type OrganizationProfile = {
   businessName: string;
   email: string;
   phone: string;
+  operatingMode: "SINGLE_STALL" | "MULTI_STALL";
 };
 
 export function OrganizationProfileForm({
@@ -134,6 +135,26 @@ export function OrganizationProfileForm({
             className="mt-1.5 w-full rounded-md border border-stone-300 px-3 py-2.5"
           />
           {fieldErrors.phone ? <span id="organization-phone-error" role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors.phone}</span> : null}
+        </label>
+        <label className="text-sm font-medium sm:col-span-2">
+          {m("營運模式")}
+          <select
+            value={draft.operatingMode}
+            data-field-key="operatingMode"
+            aria-invalid={Boolean(fieldErrors.operatingMode)}
+            aria-describedby={fieldErrors.operatingMode ? "organization-operating-mode-error" : "organization-operating-mode-help"}
+            onChange={(event) => updateField("operatingMode", event.target.value)}
+            className="mt-1.5 min-h-11 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5"
+          >
+            <option value="SINGLE_STALL">{m("單一攤位營運")}</option>
+            <option value="MULTI_STALL">{m("多攤位營運")}</option>
+          </select>
+          <span id="organization-operating-mode-help" className="mt-1 block text-xs leading-5 text-stone-500">
+            {draft.operatingMode === "SINGLE_STALL"
+              ? m("隱藏商品分派、跨攤比較、批次控制與多攤位範本，保留單店需要的完整營運功能。")
+              : m("顯示跨攤位比較、商品分派、批次控制與多攤位範本。")}
+          </span>
+          {fieldErrors.operatingMode ? <span id="organization-operating-mode-error" role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors.operatingMode}</span> : null}
         </label>
       </div>
       {message ? (

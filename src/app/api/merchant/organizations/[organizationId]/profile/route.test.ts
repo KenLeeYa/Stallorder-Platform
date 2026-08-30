@@ -27,6 +27,7 @@ const validProfile = {
   businessName: "阿宏河粉",
   email: "owner@example.com",
   phone: "0916-166-504",
+  operatingMode: "SINGLE_STALL" as const,
 };
 
 beforeEach(() => {
@@ -37,7 +38,7 @@ beforeEach(() => {
     principal: { user: { id: "55555555-5555-4555-8555-555555555551" } },
   });
   mocks.validateCsrf.mockReturnValue(true);
-  mocks.findOrganization.mockResolvedValue(validProfile);
+  mocks.findOrganization.mockResolvedValue({ ...validProfile, _count: { stalls: 1 } });
   mocks.updateOrganization.mockResolvedValue(validProfile);
   mocks.transaction.mockImplementation(async (operation) => operation({
     organization: {
@@ -54,6 +55,7 @@ describe("組織基本資料 API 欄位錯誤", () => {
       businessName: " ",
       email: "not-an-email",
       phone: "x",
+      operatingMode: "SINGLE_STALL",
     }), { params: Promise.resolve({ organizationId }) });
 
     expect(response.status).toBe(400);
@@ -88,6 +90,23 @@ describe("組織基本資料 API 欄位錯誤", () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ error: "目前無法更新商家資料。" });
+  });
+
+  it("有兩個以上啟用攤位時不允許切換為單攤位模式", async () => {
+    mocks.findOrganization.mockResolvedValueOnce({
+      ...validProfile,
+      operatingMode: "MULTI_STALL",
+      _count: { stalls: 2 },
+    });
+    const route = await import("./route");
+    const response = await route.PATCH(profileRequest(validProfile), {
+      params: Promise.resolve({ organizationId }),
+    });
+
+    expect(response.status).toBe(409);
+    const payload = await response.json() as { fieldErrors: Record<string, string> };
+    expect(payload.fieldErrors.operatingMode).toMatch(/攤位/u);
+    expect(mocks.updateOrganization).not.toHaveBeenCalled();
   });
 });
 

@@ -395,6 +395,7 @@ model Organization {
   phone                         String
   defaultTimezone               String                         @default("Asia/Taipei") @map("default_timezone")
   defaultCurrency               String                         @default("TWD") @map("default_currency")
+  operatingMode                 String                         @default("SINGLE_STALL") @map("operating_mode") @db.VarChar(20)
   createdAt                     DateTime                       @default(now()) @map("created_at")
   updatedAt                     DateTime                       @updatedAt @map("updated_at")
   stalls                        Stall[]
@@ -452,6 +453,13 @@ model Organization {
   paymentReconciliationCases    PaymentReconciliationCase[]
   paymentAttempts               PaymentAttempt[]
   taxDocuments                  TaxDocument[]
+  invoiceSellerProfiles         InvoiceSellerProfile[]
+  invoiceProviderConnections    InvoiceProviderConnection[]
+  invoicePolicyVersions         InvoicePolicyVersion[]
+  invoiceCheckoutPreferences   InvoiceCheckoutPreference[]
+  invoiceDocuments              InvoiceDocument[]
+  invoiceProviderOperations     InvoiceProviderOperation[]
+  invoiceReconciliationCases    InvoiceReconciliationCase[]
   invitations                   OrganizationInvitation[]
   publicOrderAttempts           PublicOrderAttempt[]
   publicRateLimitBuckets        PublicRateLimitBucket[]
@@ -572,9 +580,12 @@ model Stall {
   paymentProviderWebhookEvents PaymentProviderWebhookEvent[]
   paymentProviderRefunds       PaymentProviderRefund[]
   paymentReconciliationCases   PaymentReconciliationCase[]
+  invoiceDocuments             InvoiceDocument[]
+  invoiceCheckoutPreferences   InvoiceCheckoutPreference[]
   attendancePolicy             AttendancePolicy?
   attendanceEvents             AttendanceEvent[]
 
+  @@unique([id, organizationId])
   @@unique([organizationId, code])
   @@index([organizationId, isActive, businessStatus])
   @@map("stalls")
@@ -640,6 +651,10 @@ model Profile {
   attendanceEvents              AttendanceEvent[]            @relation("AttendanceEventProfile")
   reviewedAttendanceEvents      AttendanceEvent[]            @relation("AttendanceEventReviewer")
   updatedAttendancePolicies     AttendancePolicy[]            @relation("AttendancePolicyUpdatedBy")
+  createdInvoiceConnections     InvoiceProviderConnection[]    @relation("InvoiceConnectionCreatedBy")
+  updatedInvoiceConnections     InvoiceProviderConnection[]    @relation("InvoiceConnectionUpdatedBy")
+  createdInvoicePolicies        InvoicePolicyVersion[]         @relation("InvoicePolicyCreatedBy")
+  reviewedInvoiceReconciliations InvoiceReconciliationCase[]   @relation("InvoiceReconciliationReviewedBy")
 
   @@map("profiles")
 }
@@ -1567,6 +1582,227 @@ model TaxDocumentEvent {
 
   @@index([taxDocumentId, createdAt])
   @@map("tax_document_events")
+}
+
+model InvoiceSellerProfile {
+  id                    String            @id @default(uuid()) @db.Uuid
+  organizationId        String            @unique @map("organization_id") @db.Uuid
+  legalName             String            @map("legal_name")
+  taxId                 String            @map("tax_id")
+  taxRegistrationNumber String?           @map("tax_registration_number")
+  registeredAddress     String            @map("registered_address")
+  contactName           String            @map("contact_name")
+  contactEmail          String            @map("contact_email")
+  contactPhone          String            @map("contact_phone")
+  countryCode           String            @default("TW") @map("country_code") @db.VarChar(2)
+  currency              String            @default("TWD") @db.VarChar(3)
+  defaultTaxType        String            @default("UNCONFIGURED") @map("default_tax_type")
+  verificationStatus    String            @default("DRAFT") @map("verification_status")
+  verifiedAt            DateTime?         @map("verified_at")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+  organization          Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceDocuments      InvoiceDocument[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, verificationStatus])
+  @@map("invoice_seller_profiles")
+}
+
+model InvoiceProviderConnection {
+  id                        String                     @id @default(uuid()) @db.Uuid
+  organizationId            String                     @map("organization_id") @db.Uuid
+  provider                  String
+  environment               String
+  status                    String                     @default("NOT_CONFIGURED")
+  merchantAccountId         String?                    @map("merchant_account_id")
+  providerStoreId           String?                    @map("provider_store_id")
+  secretReference           String?                    @map("secret_reference")
+  encryptionKeyReference    String?                    @map("encryption_key_reference")
+  webhookSecretReference    String?                    @map("webhook_secret_reference")
+  configurationJson         Json                       @default("{}") @map("configuration_json")
+  capabilitiesJson          Json                       @default("{}") @map("capabilities_json")
+  lastValidatedAt           DateTime?                  @map("last_validated_at")
+  lastSuccessfulRequestAt   DateTime?                  @map("last_successful_request_at")
+  lastErrorCode             String?                    @map("last_error_code")
+  lastErrorMessageSanitized String?                    @map("last_error_message_sanitized")
+  enabledAt                 DateTime?                  @map("enabled_at")
+  disabledAt                DateTime?                  @map("disabled_at")
+  createdByProfileId        String                     @map("created_by_profile_id") @db.Uuid
+  updatedByProfileId        String                     @map("updated_by_profile_id") @db.Uuid
+  createdAt                 DateTime                   @default(now()) @map("created_at")
+  updatedAt                 DateTime                   @updatedAt @map("updated_at")
+  organization              Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy                 Profile                    @relation("InvoiceConnectionCreatedBy", fields: [createdByProfileId], references: [id], onDelete: Restrict)
+  updatedBy                 Profile                    @relation("InvoiceConnectionUpdatedBy", fields: [updatedByProfileId], references: [id], onDelete: Restrict)
+  invoiceDocuments          InvoiceDocument[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, provider, environment])
+  @@index([organizationId, environment, status])
+  @@map("invoice_provider_connections")
+}
+
+model InvoicePolicyVersion {
+  id                       String            @id @default(uuid()) @db.Uuid
+  organizationId           String            @map("organization_id") @db.Uuid
+  version                  Int
+  trigger                  String
+  defaultTaxType           String            @map("default_tax_type")
+  buyerFieldsRequired      Json              @default("{}") @map("buyer_fields_required")
+  autoVoidOnFullRefund     Boolean           @default(false) @map("auto_void_on_full_refund")
+  allowanceOnPartialRefund Boolean           @default(false) @map("allowance_on_partial_refund")
+  carrierSupport           Boolean           @default(false) @map("carrier_support")
+  donationSupport          Boolean           @default(false) @map("donation_support")
+  paperProofSupport        Boolean           @default(false) @map("paper_proof_support")
+  notificationMode         String            @default("NONE") @map("notification_mode")
+  effectiveFrom            DateTime          @map("effective_from")
+  effectiveUntil           DateTime?         @map("effective_until")
+  createdByProfileId       String            @map("created_by_profile_id") @db.Uuid
+  createdAt                DateTime          @default(now()) @map("created_at")
+  organization             Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy                Profile           @relation("InvoicePolicyCreatedBy", fields: [createdByProfileId], references: [id], onDelete: Restrict)
+  invoiceDocuments         InvoiceDocument[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, version])
+  @@index([organizationId, effectiveFrom(sort: Desc)])
+  @@map("invoice_policy_versions")
+}
+
+model InvoiceCheckoutPreference {
+  id                    String       @id @default(uuid()) @db.Uuid
+  organizationId        String       @map("organization_id") @db.Uuid
+  stallId               String       @map("stall_id") @db.Uuid
+  orderId               String       @map("order_id") @db.Uuid
+  buyerType              String       @map("buyer_type")
+  buyerTaxId             String?      @map("buyer_tax_id")
+  buyerName              String?      @map("buyer_name")
+  carrierType            String?      @map("carrier_type")
+  carrierValueEncrypted  String?      @map("carrier_value_encrypted")
+  donationCode           String?      @map("donation_code")
+  selectionSnapshotJson  Json         @map("selection_snapshot_json")
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt              DateTime     @updatedAt @map("updated_at")
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                 Stall        @relation(fields: [stallId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  order                 Order        @relation(fields: [orderId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@unique([id, organizationId])
+  @@unique([orderId, organizationId])
+  @@index([stallId, createdAt(sort: Desc)])
+  @@map("invoice_checkout_preferences")
+}
+
+model InvoiceDocument {
+  id                       String                       @id @default(uuid()) @db.Uuid
+  organizationId           String                       @map("organization_id") @db.Uuid
+  stallId                  String                       @map("stall_id") @db.Uuid
+  orderId                  String                       @map("order_id") @db.Uuid
+  paymentId                String?                      @map("payment_id") @db.Uuid
+  providerConnectionId     String                       @map("provider_connection_id") @db.Uuid
+  sellerProfileId          String                       @map("seller_profile_id") @db.Uuid
+  policyVersionId          String                       @map("policy_version_id") @db.Uuid
+  documentType             String                       @default("ORIGINAL") @map("document_type")
+  status                   String                       @default("PENDING")
+  currency                 String                       @default("TWD") @db.VarChar(3)
+  salesAmount              Int                          @map("sales_amount")
+  taxAmount                Int                          @map("tax_amount")
+  totalAmount              Int                          @map("total_amount")
+  allowedAmount            Int                          @default(0) @map("allowed_amount")
+  taxType                  String                       @map("tax_type")
+  roundingPolicy           String                       @map("rounding_policy")
+  buyerType                String                       @map("buyer_type")
+  buyerTaxId               String?                      @map("buyer_tax_id")
+  buyerName                String?                      @map("buyer_name")
+  carrierType              String?                      @map("carrier_type")
+  carrierValueEncrypted    String?                      @map("carrier_value_encrypted")
+  donationCode             String?                      @map("donation_code")
+  externalInvoiceNumber    String?                      @map("external_invoice_number")
+  externalRandomCode       String?                      @map("external_random_code")
+  externalAllowanceReference String?                    @map("external_allowance_reference")
+  issuedAt                 DateTime?                    @map("issued_at")
+  voidedAt                 DateTime?                    @map("voided_at")
+  reconciliationStatus     String                       @default("NOT_CHECKED") @map("reconciliation_status")
+  policySnapshotJson       Json                         @map("policy_snapshot_json")
+  sellerSnapshotJson       Json                         @map("seller_snapshot_json")
+  buyerSnapshotJson        Json                         @map("buyer_snapshot_json")
+  testDocument             Boolean                      @default(false) @map("test_document")
+  createdAt                DateTime                     @default(now()) @map("created_at")
+  updatedAt                DateTime                     @updatedAt @map("updated_at")
+  organization             Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall                    Stall                        @relation(fields: [stallId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  order                    Order                        @relation(fields: [orderId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  payment                  Payment?                     @relation(fields: [paymentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  providerConnection       InvoiceProviderConnection    @relation(fields: [providerConnectionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  sellerProfile            InvoiceSellerProfile         @relation(fields: [sellerProfileId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  policyVersion            InvoicePolicyVersion          @relation(fields: [policyVersionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  operations               InvoiceProviderOperation[]
+  reconciliationCases      InvoiceReconciliationCase[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, orderId, documentType])
+  @@unique([providerConnectionId, externalInvoiceNumber])
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@index([stallId, issuedAt(sort: Desc)])
+  @@index([paymentId])
+  @@map("invoice_documents")
+}
+
+model InvoiceProviderOperation {
+  id                    String          @id @default(uuid()) @db.Uuid
+  organizationId        String          @map("organization_id") @db.Uuid
+  invoiceDocumentId     String          @map("invoice_document_id") @db.Uuid
+  operationType         String          @map("operation_type")
+  idempotencyKey        String          @map("idempotency_key")
+  providerRequestId     String?         @map("provider_request_id")
+  externalReference     String?         @map("external_reference")
+  status                String          @default("PENDING")
+  attempt               Int             @default(0)
+  maxAttempts           Int             @default(5) @map("max_attempts")
+  requestHash           String          @map("request_hash")
+  responseCode          String?         @map("response_code")
+  errorCode             String?         @map("error_code")
+  errorMessageSanitized String?         @map("error_message_sanitized")
+  nextAttemptAt         DateTime?       @map("next_attempt_at")
+  deadLetteredAt        DateTime?       @map("dead_lettered_at")
+  startedAt             DateTime        @default(now()) @map("started_at")
+  completedAt           DateTime?       @map("completed_at")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceDocument       InvoiceDocument @relation(fields: [invoiceDocumentId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([invoiceDocumentId, operationType, createdAt(sort: Desc)])
+  @@index([status, nextAttemptAt])
+  @@map("invoice_provider_operations")
+}
+
+model InvoiceReconciliationCase {
+  id                  String          @id @default(uuid()) @db.Uuid
+  organizationId      String          @map("organization_id") @db.Uuid
+  invoiceDocumentId   String          @map("invoice_document_id") @db.Uuid
+  provider            String
+  caseType             String          @map("case_type")
+  expectedAmount      Int?             @map("expected_amount")
+  actualAmount        Int?             @map("actual_amount")
+  expectedTaxAmount   Int?             @map("expected_tax_amount")
+  actualTaxAmount     Int?             @map("actual_tax_amount")
+  providerReference   String?          @map("provider_reference")
+  reviewStatus        String           @default("OPEN") @map("review_status")
+  reviewedByProfileId String?          @map("reviewed_by_profile_id") @db.Uuid
+  reviewedAt          DateTime?        @map("reviewed_at")
+  resolutionCode      String?          @map("resolution_code")
+  safeNotes           String?          @map("safe_notes")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoiceDocument     InvoiceDocument  @relation(fields: [invoiceDocumentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  reviewedBy          Profile?         @relation("InvoiceReconciliationReviewedBy", fields: [reviewedByProfileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, reviewStatus, createdAt(sort: Desc)])
+  @@index([invoiceDocumentId, caseType, reviewStatus])
+  @@map("invoice_reconciliation_cases")
 }
 
 model BillingNotification {
@@ -2513,7 +2749,10 @@ model Order {
   notificationJobs         NotificationJob[]
   lineLinkSessions         LineLinkSession[]
   providerTransactions     PaymentProviderTransaction[]
+  invoiceCheckoutPreference InvoiceCheckoutPreference?
+  invoiceDocuments         InvoiceDocument[]
 
+  @@unique([id, organizationId])
   @@unique([stallId, orderNo])
   @@unique([stallId, idempotencyKey])
   @@index([organizationId])
@@ -2560,7 +2799,9 @@ model Payment {
   paymentOption   PaymentOption? @relation(fields: [paymentOptionId], references: [id], onDelete: SetNull)
   cashShift       CashShift?     @relation(fields: [cashShiftId], references: [id], onDelete: Restrict)
   recordedBy      Profile?       @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  invoiceDocuments InvoiceDocument[]
 
+  @@unique([id, organizationId])
   @@index([organizationId, stallId, paidAt])
   @@index([status, method, paidAt])
   @@index([recordedById, paidAt])
@@ -4371,6 +4612,7 @@ model SupplySupplier {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
+  @@unique([id, organizationId])
   @@unique([organizationId, code])
   @@map("supply_suppliers")
 }

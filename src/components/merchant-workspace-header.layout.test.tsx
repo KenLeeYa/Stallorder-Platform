@@ -24,6 +24,7 @@ const workspace: WorkspaceOrganization = {
   slug: "test-business",
   status: "ACTIVE",
   defaultCurrency: "TWD",
+  operatingMode: "SINGLE_STALL",
   merchantSetupState: "COMPLETED",
   merchantSetupStallId: "stall-1",
   roles: ["ORGANIZATION_OWNER"],
@@ -59,9 +60,14 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     expect(html).toContain('data-testid="merchant-utility-toolbar"');
     expect(html).toContain('data-testid="merchant-function-navigation-mobile"');
     expect(html).toContain('data-testid="merchant-function-navigation-desktop"');
+    expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation-mobile"');
+    expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation-desktop"');
+    expect(html).toContain('data-persist-horizontal-scroll="merchant-utility-toolbar"');
     expect(html).toContain("sticky top-0");
     expect(html).toContain("overflow-x-hidden");
     expect(html).toContain("overflow-x-auto");
+    expect(html).toContain("[&amp;_button]:h-11");
+    expect(html).toContain("[&amp;_svg]:h-5");
     expect(html).toContain('data-compact="false"');
     expect(html).toContain('aria-label="選擇攤位：測試攤位"');
     expect(html).toContain('href="/merchant/test-stall"');
@@ -72,11 +78,13 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     expect(html).not.toContain("/merchant/payments?");
     expect(html).not.toContain("/merchant/supply?");
     expect(html).not.toContain("/merchant/growth?");
+    expect(html).toContain("/merchant/reports/overview?");
   });
 
   it("opens the centered selector only when two or more active stalls are available", () => {
     const multiStallWorkspace: WorkspaceOrganization = {
       ...workspace,
+      operatingMode: "MULTI_STALL",
       stalls: [
         ...workspace.stalls,
         {
@@ -102,6 +110,7 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     expect(html).toContain('aria-label="選擇攤位：全部攤位"');
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).not.toContain('href="/merchant/test-stall"');
+    expect(html).toContain("/merchant/reports/overview?");
   });
 
   it("does not render an invalid stall destination when no active stall exists", () => {
@@ -171,5 +180,6 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
 
     expect(html).toContain("/merchant/supply?");
     expect(html).toContain("/merchant/growth?");
+    expect(html).toContain("lucide-users-round");
   });
 });

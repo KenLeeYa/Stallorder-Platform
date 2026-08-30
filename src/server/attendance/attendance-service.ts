@@ -13,6 +13,8 @@ const LOCATION_MAX_AGE_MS = 30_000;
 const LOCATION_FUTURE_TOLERANCE_MS = 10_000;
 const REVIEW_SPEED_KMH = 120;
 const REJECT_SPEED_KMH = 250;
+const SCHEDULE_GRACE_MINUTES = 5;
+const SCHEDULE_MATCH_WINDOW_HOURS = 18;
 
 const challengePayloadSchema = z.object({
   sessionId: z.string().uuid(),
@@ -205,23 +207,57 @@ export function evaluateAttendanceLocation(input: {
   const hardReject = risks.some((risk) => [
     "LOCATION_STALE",
     "LOCATION_FUTURE",
+    "ACCURACY_TOO_POOR",
     "OUTSIDE_GEOFENCE",
+    "GEOFENCE_BOUNDARY",
     "ROTATING_CODE_INVALID",
     "IMPOSSIBLE_TRAVEL",
-  ].includes(risk));
-  const needsReview = risks.some((risk) => [
-    "ACCURACY_TOO_POOR",
     "HIGH_TRAVEL_SPEED",
-  ].includes(risk)) || (risks.includes("GEOFENCE_BOUNDARY") && !input.rotatingCodeVerified);
+  ].includes(risk));
   return {
     distanceMeters,
     riskCodes: risks,
-    decision: hardReject
-      ? "REJECTED" as const
-      : needsReview
-        ? "REVIEW_REQUIRED" as const
-        : "ACCEPTED" as const,
+    decision: hardReject ? "REJECTED" as const : "ACCEPTED" as const,
   };
+}
+
+export function attendanceScheduleRisk(input: {
+  eventType: AttendanceAttempt["eventType"];
+  occurredAt: Date;
+  shiftStartAt: Date | null;
+  shiftEndAt: Date | null;
+  graceMinutes?: number;
+}) {
+  const graceMs = Math.max(0, input.graceMinutes ?? SCHEDULE_GRACE_MINUTES) * 60_000;
+  if (
+    input.eventType === "CLOCK_IN"
+    && input.shiftStartAt
+    && input.occurredAt.getTime() > input.shiftStartAt.getTime() + graceMs
+  ) return "LATE_CLOCK_IN" as const;
+  if (
+    input.eventType === "CLOCK_OUT"
+    && input.shiftEndAt
+    && input.occurredAt.getTime() < input.shiftEndAt.getTime() - graceMs
+  ) return "EARLY_CLOCK_OUT" as const;
+  return null;
+}
+
+export function nearestAttendanceSchedule(input: {
+  eventType: AttendanceAttempt["eventType"];
+  occurredAt: Date;
+  schedules: Array<{ shiftStartAt: Date | null; shiftEndAt: Date | null }>;
+}) {
+  const target = input.eventType === "CLOCK_IN" ? "shiftStartAt" : "shiftEndAt";
+  return input.schedules.reduce<(typeof input.schedules)[number] | null>((nearest, schedule) => {
+    const scheduleTime = schedule[target];
+    if (!scheduleTime) return nearest;
+    const nearestTime = nearest?.[target];
+    if (!nearestTime) return schedule;
+    return Math.abs(scheduleTime.getTime() - input.occurredAt.getTime())
+      < Math.abs(nearestTime.getTime() - input.occurredAt.getTime())
+      ? schedule
+      : nearest;
+  }, null);
 }
 
 export async function getAttendancePolicy(organizationId: string, stallId: string) {
@@ -372,6 +408,11 @@ export async function submitAttendanceAttempt(input: {
     sessionId: input.sessionId,
   });
   const challengeNonceHash = attendanceNonceHash(challenge.nonce);
+  const occurredAt = new Date();
+  const scheduleWindow = {
+    gte: new Date(occurredAt.getTime() - SCHEDULE_MATCH_WINDOW_HOURS * 60 * 60_000),
+    lte: new Date(occurredAt.getTime() + SCHEDULE_MATCH_WINDOW_HOURS * 60 * 60_000),
+  };
 
   return prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`
@@ -385,7 +426,7 @@ export async function submitAttendanceAttempt(input: {
     });
     if (replay) throw new AttendanceError("CHALLENGE_REPLAYED");
 
-    const [policy, session, latestAccepted, previousLocated] = await Promise.all([
+    const [policy, session, latestAccepted, previousLocated, schedules] = await Promise.all([
       transaction.attendancePolicy.findUnique({ where: { stallId: input.stallId } }),
       transaction.authSession.findUnique({
         where: { id: input.sessionId },
@@ -406,6 +447,19 @@ export async function submitAttendanceAttempt(input: {
         },
         orderBy: { occurredAt: "desc" },
         select: { latitude: true, longitude: true, occurredAt: true },
+      }),
+      transaction.workforceSchedule.findMany({
+        where: {
+          organizationId: input.organizationId,
+          stallId: input.stallId,
+          profileId: input.profileId,
+          status: "PUBLISHED",
+          ...(input.attempt.eventType === "CLOCK_IN"
+            ? { shiftStartAt: scheduleWindow }
+            : { shiftEndAt: scheduleWindow }),
+        },
+        take: 8,
+        select: { shiftStartAt: true, shiftEndAt: true },
       }),
     ]);
     if (!policy?.enabled) throw new AttendanceError("ATTENDANCE_DISABLED");
@@ -442,7 +496,7 @@ export async function submitAttendanceAttempt(input: {
         : null,
     });
     const riskCodes = [...evaluation.riskCodes];
-    let decision = evaluation.decision;
+    let decision: "ACCEPTED" | "REJECTED" | "REVIEW_REQUIRED" = evaluation.decision;
     if (!deviceBound) {
       riskCodes.push("DEVICE_NOT_BOUND");
       decision = "REJECTED";
@@ -454,8 +508,22 @@ export async function submitAttendanceAttempt(input: {
       riskCodes.push(input.attempt.eventType === "CLOCK_IN" ? "ALREADY_CLOCKED_IN" : "NOT_CLOCKED_IN");
       decision = "REJECTED";
     }
+    const schedule = nearestAttendanceSchedule({
+      eventType: input.attempt.eventType,
+      occurredAt,
+      schedules,
+    });
+    const scheduleRisk = attendanceScheduleRisk({
+      eventType: input.attempt.eventType,
+      occurredAt,
+      shiftStartAt: schedule?.shiftStartAt ?? null,
+      shiftEndAt: schedule?.shiftEndAt ?? null,
+    });
+    if (scheduleRisk && decision === "ACCEPTED") {
+      riskCodes.push(scheduleRisk);
+      decision = "REVIEW_REQUIRED";
+    }
 
-    const occurredAt = new Date();
     const event = await transaction.attendanceEvent.create({
       data: {
         organizationId: input.organizationId,

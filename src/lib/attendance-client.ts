@@ -46,6 +46,8 @@ export function attendanceRiskLabel(code: string) {
     DEVICE_NOT_BOUND: "裝置登入綁定失效",
     IMPOSSIBLE_TRAVEL: "位置跳躍異常",
     HIGH_TRAVEL_SPEED: "移動速度異常",
+    LATE_CLOCK_IN: "遲到打卡，等待主管覆核",
+    EARLY_CLOCK_OUT: "早退打卡，等待主管覆核",
     ALREADY_CLOCKED_IN: "已是上班狀態",
     NOT_CLOCKED_IN: "尚未上班打卡",
   } as Record<string, string>)[code] ?? code;

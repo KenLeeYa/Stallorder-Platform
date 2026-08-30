@@ -14,6 +14,7 @@ function workspace(
     slug: organizationId,
     status: "ACTIVE",
     defaultCurrency: "TWD",
+    operatingMode: "SINGLE_STALL",
     merchantSetupState: "COMPLETED",
     merchantSetupStallId: stallId,
     roles: ["ORGANIZATION_OWNER"],

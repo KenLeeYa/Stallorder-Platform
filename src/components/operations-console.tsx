@@ -167,10 +167,10 @@ export function OperationsConsole({
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="alertPageSize" value={alertPagination.pageSize} />
         <input type="hidden" name="auditPageSize" value={auditPagination.pageSize} />
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <FilterSelect label={m("攤位")} name="stallId" defaultValue={filters.stallId ?? ""}><option value="">{m("全部授權攤位")}</option>{stalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}</FilterSelect>
-          <FilterSelect label={m("警示狀態")} name="alertStatus" defaultValue={filters.alertStatus ?? "ACTIVE"}><option value="ALL">{m("全部")}</option><option value="ACTIVE">{m("待處理")}</option><option value="ACKNOWLEDGED">{m("已確認")}</option><option value="RESOLVED">{m("已解除")}</option></FilterSelect>
-          <FilterSelect label={m("嚴重程度")} name="alertSeverity" defaultValue={filters.alertSeverity ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="CRITICAL">{m("嚴重")}</option><option value="WARNING">{m("警告")}</option><option value="INFO">{m("資訊")}</option></FilterSelect>
+        <div data-testid="operations-filter-grid" className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <FilterSelect wrapperClassName="col-start-1 row-start-1 md:col-start-1 md:row-start-1" data-testid="operations-filter-stall" label={m("攤位")} name="stallId" defaultValue={filters.stallId ?? ""}><option value="">{m("全部授權攤位")}</option>{stalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}</option>)}</FilterSelect>
+          <FilterSelect wrapperClassName="col-start-1 row-start-2 md:col-start-2 md:row-start-1" data-testid="operations-filter-alert-status" label={m("警示狀態")} name="alertStatus" defaultValue={filters.alertStatus ?? "ACTIVE"}><option value="ALL">{m("全部")}</option><option value="ACTIVE">{m("待處理")}</option><option value="ACKNOWLEDGED">{m("已確認")}</option><option value="RESOLVED">{m("已解除")}</option></FilterSelect>
+          <FilterSelect wrapperClassName="col-start-1 row-start-3 md:col-start-3 md:row-start-1" data-testid="operations-filter-alert-severity" label={m("嚴重程度")} name="alertSeverity" defaultValue={filters.alertSeverity ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="CRITICAL">{m("嚴重")}</option><option value="WARNING">{m("警告")}</option><option value="INFO">{m("資訊")}</option></FilterSelect>
           <OperationsDateRangeFields
             key={`${filters.dateFrom}:${filters.dateTo}`}
             dateFrom={filters.dateFrom}
@@ -183,12 +183,12 @@ export function OperationsConsole({
           />
           {canViewAudit ? (
             <>
-              <FilterSelect label={m("稽核結果")} name="auditOutcome" defaultValue={filters.auditOutcome ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="SUCCESS">{m("成功")}</option><option value="DENIED">{m("拒絕")}</option><option value="FAILURE">{m("失敗")}</option></FilterSelect>
-              <label className="col-span-2 text-xs font-semibold text-stone-600">{m("搜尋稽核")}<input type="text" name="auditQuery" defaultValue={filters.auditQuery} maxLength={80} placeholder={m("操作、資料類型或 Request ID")} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>
+              <FilterSelect wrapperClassName="col-start-2 row-start-3 md:col-start-3 md:row-start-2" data-testid="operations-filter-audit-outcome" label={m("稽核結果")} name="auditOutcome" defaultValue={filters.auditOutcome ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="SUCCESS">{m("成功")}</option><option value="DENIED">{m("拒絕")}</option><option value="FAILURE">{m("失敗")}</option></FilterSelect>
+              <label className="col-span-2 col-start-1 row-start-4 text-xs font-semibold text-stone-600 md:col-span-2 md:col-start-1 md:row-start-3">{m("搜尋稽核")}<input data-testid="operations-filter-audit-query" type="text" name="auditQuery" defaultValue={filters.auditQuery} maxLength={80} placeholder={m("操作、資料類型或 Request ID")} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>
             </>
           ) : null}
+          <div data-testid="operations-filter-actions" className="col-start-2 row-start-5 flex items-end justify-end gap-2 md:col-start-3 md:row-start-4"><button type="submit" className="inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white sm:px-4">{m("套用篩選")}</button><button type="button" title={m("重新整理")} aria-label={m("重新整理")} onClick={() => router.refresh()} className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-stone-300"><RefreshCw className="h-4 w-4" /></button></div>
         </div>
-        <div className="mt-3 flex justify-end gap-2"><button type="submit" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white">{m("套用篩選")}</button><button type="button" title={m("重新整理")} aria-label={m("重新整理")} onClick={() => router.refresh()} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300"><RefreshCw className="h-4 w-4" /></button></div>
       </form>
 
       {message ? <p role="status" className={`border-b border-stone-200 py-3 text-sm font-medium ${hasError ? "text-red-700" : "text-emerald-700"}`}>{message}</p> : null}
@@ -238,12 +238,12 @@ export function OperationsConsole({
   );
 }
 
-function FilterSelect({ label, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
-  return <label className="text-xs font-semibold text-stone-600">{label}<select {...props} className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-2 text-sm">{children}</select></label>;
+function FilterSelect({ label, children, wrapperClassName = "", ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; wrapperClassName?: string }) {
+  return <label className={`${wrapperClassName} min-w-0 text-xs font-semibold text-stone-600`}>{label}<select {...props} className="mt-1 h-10 min-w-0 w-full rounded-md border border-stone-300 bg-white px-2 text-sm">{children}</select></label>;
 }
 
-function FilterInput({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
-  return <label className="text-xs font-semibold text-stone-600">{label}<input type="text" maxLength={80} {...props} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-2 text-sm" /></label>;
+function FilterInput({ label, wrapperClassName = "", ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; wrapperClassName?: string }) {
+  return <label className={`${wrapperClassName} min-w-0 text-xs font-semibold text-stone-600`}>{label}<input type="text" maxLength={80} {...props} className="mt-1 h-10 min-w-0 w-full rounded-md border border-stone-300 px-2 text-sm" /></label>;
 }
 
 function OperationsDateRangeFields({
@@ -281,13 +281,13 @@ function OperationsDateRangeFields({
 
   return (
     <>
-      <div className="col-span-2 flex flex-wrap justify-end gap-2 md:col-span-4">
-        <button type="button" onClick={() => applyPreset("day")} className="min-h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold">{todayLabel}</button>
-        <button type="button" onClick={() => applyPreset("week")} className="min-h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold">{weekLabel}</button>
-        <button type="button" onClick={() => applyPreset("month")} className="min-h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold">{monthLabel}</button>
+      <div data-testid="operations-date-presets" className="col-start-1 row-start-5 grid grid-cols-3 gap-2 self-end md:col-start-3 md:row-start-3">
+        <button type="button" onClick={() => applyPreset("day")} className="min-h-10 min-w-0 rounded-md border border-stone-300 px-1 text-xs font-semibold sm:px-3">{todayLabel}</button>
+        <button type="button" onClick={() => applyPreset("week")} className="min-h-10 min-w-0 rounded-md border border-stone-300 px-1 text-xs font-semibold sm:px-3">{weekLabel}</button>
+        <button type="button" onClick={() => applyPreset("month")} className="min-h-10 min-w-0 rounded-md border border-stone-300 px-1 text-xs font-semibold sm:px-3">{monthLabel}</button>
       </div>
-      <FilterInput required label={startLabel} type="date" name="dateFrom" value={from} onChange={(event) => setFrom(event.target.value)} />
-      <FilterInput required label={endLabel} type="date" name="dateTo" value={to} onChange={(event) => setTo(event.target.value)} />
+      <FilterInput required wrapperClassName="col-start-2 row-start-1 md:col-start-1 md:row-start-2" data-testid="operations-filter-date-from" label={startLabel} type="date" name="dateFrom" value={from} onChange={(event) => setFrom(event.target.value)} />
+      <FilterInput required wrapperClassName="col-start-2 row-start-2 md:col-start-2 md:row-start-2" data-testid="operations-filter-date-to" label={endLabel} type="date" name="dateTo" value={to} onChange={(event) => setTo(event.target.value)} />
     </>
   );
 }

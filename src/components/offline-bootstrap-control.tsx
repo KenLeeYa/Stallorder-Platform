@@ -328,9 +328,10 @@ export function OfflineBootstrapControl({
   }
 
   return (
-    <div className="relative">
+    <div data-senior-action-container="true" className="relative">
       <button
         type="button"
+        data-senior-action-tile="true"
         title={t("staff.action.offlineDevice")}
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}

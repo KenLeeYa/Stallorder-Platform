@@ -37,6 +37,7 @@ export function AccessibilityModeToggle() {
     <button
       type="button"
       data-testid="accessibility-mode-toggle"
+      data-senior-action-tile="true"
       onClick={toggleMode}
       aria-label={label}
       aria-pressed={seniorMode}

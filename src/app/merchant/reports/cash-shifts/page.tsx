@@ -45,7 +45,7 @@ export default async function CashShiftReportPage({ searchParams }: PageProps) {
   return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-7 md:px-8">
     <header><p className="text-sm font-semibold text-teal-800">{t("reports.eyebrow")}</p><h1 className="mt-1 text-2xl font-semibold sm:text-3xl">{t("reports.cash.title")}</h1><p className="mt-2 text-sm text-stone-600">{t("reports.cash.description")}</p></header>
     <ReportNavigation organizationId={scope.workspace.id} active="cash-shifts" />
-    <ReportFilters organizationId={scope.workspace.id} stalls={scope.availableStalls} selectedStallIds={scope.stalls.map((stall) => stall.id)} dateFrom={scope.dateFrom} dateTo={scope.dateTo} pageSize={pagination.pageSize} />
+    <ReportFilters organizationId={scope.workspace.id} stalls={scope.availableStalls} selectedStallIds={scope.stalls.map((stall) => stall.id)} dateFrom={scope.dateFrom} dateTo={scope.dateTo} multiStallMode={scope.workspace.operatingMode === "MULTI_STALL"} pageSize={pagination.pageSize} />
     <section aria-label={t("reports.cash.summary")} data-testid="cash-shift-report-dashboard" className="grid grid-cols-2 gap-2 border-b border-stone-200 py-5 sm:grid-cols-3 lg:grid-cols-6">
       <SummaryMetric label={t("reports.cash.shifts")} value={t("reports.count.shifts", { count: formatAppNumber(locale, pagination.total) })} />
       <SummaryMetric label={t("reports.cash.sales")} value={formatAppCurrency(locale, summary.cashSales, currency, { maximumFractionDigits: 0 })} />

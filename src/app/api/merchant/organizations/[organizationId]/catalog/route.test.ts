@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   findCategory: vi.fn(),
   findProduct: vi.fn(),
   updateProduct: vi.fn(),
+  updateProducts: vi.fn(),
   updateStallProducts: vi.fn(),
   deleteProductTranslations: vi.fn(),
   createChoice: vi.fn(),
@@ -61,7 +62,10 @@ beforeEach(() => {
     ok: true,
     requestId: "request-1",
     principal: { user: { id: "55555555-5555-4555-8555-555555555551" } },
-    workspace: { stalls: [{ id: "22222222-2222-4222-8222-222222222222" }] },
+    workspace: {
+      operatingMode: "MULTI_STALL",
+      stalls: [{ id: "22222222-2222-4222-8222-222222222222", isActive: true }],
+    },
   });
   mocks.validateCsrf.mockReturnValue(true);
   mocks.getOrganizationCatalog.mockResolvedValue({ categories: [], groups: [], products: [] });
@@ -72,6 +76,7 @@ beforeEach(() => {
   mocks.findCategory.mockResolvedValue({ id: "77777777-7777-4777-8777-777777777771" });
   mocks.findProduct.mockResolvedValue({ id: componentProductId, kind: "SINGLE" });
   mocks.updateProduct.mockResolvedValue({ id: componentProductId });
+  mocks.updateProducts.mockResolvedValue({ count: 1 });
   mocks.updateStallProducts.mockResolvedValue({ count: 1 });
   mocks.deleteProductTranslations.mockResolvedValue({ count: 0 });
   mocks.createChoice.mockResolvedValue({ id: "ab200000-0000-4000-8000-000000000001" });
@@ -89,6 +94,7 @@ beforeEach(() => {
       findFirst: mocks.findProduct,
       findMany: mocks.findProducts,
       update: mocks.updateProduct,
+      updateMany: mocks.updateProducts,
     },
     stallProduct: { updateMany: mocks.updateStallProducts },
     productTranslation: {
@@ -289,9 +295,12 @@ describe("共享商品套餐 API", () => {
       })
       .mockResolvedValueOnce({
         id: componentProductId,
+        categoryId,
+        groupId: null,
         kind: "SINGLE",
         imageUrl: null,
         isActive: false,
+        sortOrder: 1,
         _count: { bundleChoiceGroups: 0, componentChoices: 0 },
       });
     const route = await import("./route");
@@ -323,11 +332,76 @@ describe("共享商品套餐 API", () => {
     }));
     expect(mocks.updateStallProducts).toHaveBeenCalledWith({
       where: { organizationId, productId: componentProductId },
-      data: { isSoldOut: true, isEnabled: true },
+      data: { isSoldOut: true, sortOrder: 1, isEnabled: true },
     });
     expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
       action: "PRODUCT_UPDATED",
       after: expect.objectContaining({ isSoldOut: true }),
+    }));
+  });
+
+  it("商品由排序 2 改為 1 時，自動將同群組後續商品往後移", async () => {
+    const categoryId = "77777777-7777-4777-8777-777777777771";
+    mocks.findProduct
+      .mockResolvedValueOnce({
+        categoryId,
+        groupId: null,
+        name: "第二項",
+        description: "",
+        defaultPrice: 100,
+        kind: "SINGLE",
+        imageUrl: null,
+        isOrderDiscountEligible: true,
+        isLotteryEligible: true,
+        sortOrder: 2,
+        isActive: true,
+        stallProducts: [],
+      })
+      .mockResolvedValueOnce({
+        id: componentProductId,
+        categoryId,
+        groupId: null,
+        kind: "SINGLE",
+        imageUrl: null,
+        isActive: true,
+        sortOrder: 2,
+        _count: { bundleChoiceGroups: 0, componentChoices: 0 },
+      });
+    const route = await import("./route");
+
+    const response = await route.POST(new Request(`https://example.test/api/merchant/organizations/${organizationId}/catalog`, {
+      method: "POST",
+      body: JSON.stringify({
+        operation: "UPDATE_PRODUCT",
+        productId: componentProductId,
+        categoryId,
+        groupId: null,
+        name: "第二項",
+        description: "",
+        defaultPrice: 100,
+        kind: "SINGLE",
+        imageUrl: null,
+        isOrderDiscountEligible: true,
+        isLotteryEligible: true,
+        sortOrder: 1,
+        isSoldOut: false,
+        translations: [],
+      }),
+    }), { params: Promise.resolve({ organizationId }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateProducts).toHaveBeenCalledWith({
+      where: {
+        organizationId,
+        categoryId,
+        groupId: null,
+        id: { not: componentProductId },
+        sortOrder: { gte: 1, lt: 2 },
+      },
+      data: { sortOrder: { increment: 1 } },
+    });
+    expect(mocks.updateStallProducts).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ sortOrder: 1 }),
     }));
   });
 });

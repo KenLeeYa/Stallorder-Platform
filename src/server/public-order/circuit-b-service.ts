@@ -49,6 +49,12 @@ import {
   resolveStoredPickupCode,
 } from "../../../supabase/functions/_shared/public-order-contract";
 import { resolveResilienceFeatureFlags } from "@/server/resilience/feature-flag-service";
+import type { InvoiceBuyerSelection } from "@/server/e-invoice/e-invoice-contract";
+import {
+  InvoiceCheckoutPreferenceError,
+  savePublicInvoiceCheckoutPreference,
+} from "@/server/e-invoice/checkout-preference-service";
+import { isInvoiceDevMode } from "@/server/e-invoice/runtime-policy";
 import {
   checkGlobalPublicRequestGate,
   checkPublicOrderIntakeAvailability,
@@ -646,6 +652,27 @@ async function resolveTrackedMutationOrder(
   );
   if (!stored?.orderId) throw new PublicOrderCircuitError("ORDER_NOT_FOUND", 404);
   return stored.orderId;
+}
+
+export async function saveInvoicePreferenceThroughCircuitB(
+  input: { trackingToken: string; deviceId: string; buyer: InvoiceBuyerSelection },
+  context: TrackedMutationContext,
+) {
+  await assertCircuitBEnabled(input.deviceId, context.timing);
+  const orderId = await resolveTrackedMutationOrder(input, context, "invoice-preference");
+  try {
+    await savePublicInvoiceCheckoutPreference({
+      orderId,
+      buyer: input.buyer,
+      correlationId: context.requestId,
+    });
+  } catch (error) {
+    if (error instanceof InvoiceCheckoutPreferenceError) {
+      throw new PublicOrderCircuitError(error.code, error.status);
+    }
+    throw error;
+  }
+  return { status: 200, body: { saved: true, testOnly: isInvoiceDevMode() } };
 }
 
 export async function prepareReorderThroughCircuitB(

@@ -13,6 +13,7 @@ function workspace(
     slug: "demo-organization",
     status: "ACTIVE",
     defaultCurrency: "TWD",
+    operatingMode: "SINGLE_STALL",
     merchantSetupState: "COMPLETED",
     merchantSetupStallId: "22222222-2222-4222-8222-222222222222",
     roles: ["ORGANIZATION_OWNER"],

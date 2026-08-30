@@ -6,12 +6,14 @@ function source(relativePath: string) {
 }
 
 describe("merchant report layout", () => {
-  it("arranges audit filters into two responsive rows", () => {
+  it("arranges audit filters into the responsive mobile and tablet columns", () => {
     const operations = source("./operations-console.tsx");
 
-    expect(operations).toContain('className="grid grid-cols-2 gap-3 md:grid-cols-4"');
-    expect(operations).toContain('className="col-span-2 text-xs font-semibold text-stone-600"');
-    expect(operations).toContain('className="mt-3 flex justify-end gap-2"');
+    expect(operations).toContain('data-testid="operations-filter-grid"');
+    expect(operations).toContain('className="grid grid-cols-2 gap-3 md:grid-cols-3"');
+    expect(operations).toContain('data-testid="operations-filter-audit-query"');
+    expect(operations).toContain('data-testid="operations-date-presets"');
+    expect(operations).toContain('data-testid="operations-filter-actions"');
   });
 
   it("uses the cash-shift card treatment for report summary grids", () => {

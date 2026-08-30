@@ -36,7 +36,7 @@ export default async function MerchantStallsPage({ searchParams }: PageProps) {
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8">
       <div className="flex flex-col gap-4 border-b border-stone-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 text-3xl font-semibold">{m("管理攤位")}</h1><p className="mt-2 text-sm text-stone-600">{m("停用攤位會保留歷史訂單、商品設定與報表資料。")}</p></div>
-        {canCreate ? <Link href={`/merchant/stalls/new?organizationId=${workspace.id}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4" />{m("新增攤位")}</Link> : null}
+        {canCreate && workspace.operatingMode === "MULTI_STALL" ? <Link href={`/merchant/stalls/new?organizationId=${workspace.id}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-4 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4" />{m("新增攤位")}</Link> : null}
       </div>
       <div className="mt-5 divide-y divide-stone-200 border-y border-stone-200">
         {workspace.stalls.map((stall) => {
@@ -67,6 +67,7 @@ export default async function MerchantStallsPage({ searchParams }: PageProps) {
           showMerchantSetup={workspace.roles.includes("ORGANIZATION_OWNER")
             && Boolean(workspace.merchantSetupState)
             && workspace.merchantSetupStallId === singleStall.id}
+          multiStallMode={workspace.operatingMode === "MULTI_STALL"}
         />
       ) : null}
       {workspace.stalls.length === 0 ? <p className="mt-6 text-sm text-stone-600">{m("尚未建立攤位。")}</p> : null}

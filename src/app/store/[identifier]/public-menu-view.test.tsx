@@ -63,9 +63,10 @@ describe("PublicMenuView category navigation", () => {
     const html = renderToStaticMarkup(<PublicMenuView menu={menu} locale="zh-TW" />);
 
     expect(html).toContain('data-testid="public-menu-category-navigation"');
-    expect(html).toContain("sticky top-0");
+    expect(html).toContain("position:sticky");
+    expect(html).toContain("top:var(--storefront-mode-nav-height, 7rem)");
     expect(html).toContain("overflow-x-auto");
-    expect(html).toContain("scroll-mt-20");
+    expect(html).toContain("scroll-margin-top:calc(var(--storefront-mode-nav-height, 7rem) + 5rem)");
     expect(html).toContain('data-testid="public-menu-cover-image"');
     expect(html).toContain("absolute inset-0 -z-10");
     expect(html).toContain("object-position:42% 68%");

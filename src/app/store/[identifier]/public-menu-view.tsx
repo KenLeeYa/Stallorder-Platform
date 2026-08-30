@@ -85,7 +85,7 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
           </section>
         ) : null}
         {sections.length > 1 ? (
-          <nav data-testid="public-menu-category-navigation" aria-label={publicMessages.get(locale, "menuCategoryNavigation")} className="sticky top-0 z-20 -mx-4 mb-7 flex gap-2 overflow-x-auto border-y border-stone-200 bg-[#f5f1e8]/95 px-4 py-3 shadow-sm backdrop-blur print:hidden sm:mx-0 sm:px-3">
+          <nav data-testid="public-menu-category-navigation" aria-label={publicMessages.get(locale, "menuCategoryNavigation")} style={{ position: "sticky", top: "var(--storefront-mode-nav-height, 7rem)" }} className="z-30 -mx-4 mb-7 flex gap-2 overflow-x-auto border-y border-stone-200 bg-[#f5f1e8]/95 px-4 py-3 shadow-sm backdrop-blur print:hidden sm:mx-0 sm:px-3">
             {sections.map((section, index) => (
               <a
                 key={section.category}
@@ -107,7 +107,7 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
         ) : (
           <div className="space-y-10 print:space-y-7">
             {sections.map((section, index) => (
-              <section key={section.category} id={`menu-category-${index + 1}`} className="scroll-mt-20" aria-labelledby={`menu-category-title-${index + 1}`}>
+              <section key={section.category} id={`menu-category-${index + 1}`} style={{ scrollMarginTop: "calc(var(--storefront-mode-nav-height, 7rem) + 5rem)" }} aria-labelledby={`menu-category-title-${index + 1}`}>
                 <div className="mb-4 flex items-end justify-between gap-3 border-b-2 border-stone-900 pb-2">
                   <h2 id={`menu-category-title-${index + 1}`} className="text-2xl font-bold tracking-tight">{section.localizedCategory}</h2>
                   <span className="shrink-0 text-xs font-medium text-stone-500">

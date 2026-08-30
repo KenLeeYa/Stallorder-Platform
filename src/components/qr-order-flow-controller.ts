@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { defaultInvoiceBuyerSelection } from "@/components/checkout-invoice-selector";
 import { persistQrOrderCartDraft } from "@/components/qr-order-cart-persistence";
 import { startQrOrderAvailabilityLifecycle } from "@/components/qr-order-availability-controller";
 import { startQrOrderCapacityLifecycle } from "@/components/qr-order-capacity-controller";
@@ -56,6 +57,7 @@ import type {
   PublicMenuNoteOption as NoteOption,
   PublicMenuProduct as Product,
 } from "@/lib/public-menu-types";
+import type { InvoiceBuyerSelection } from "@/lib/e-invoice-checkout-contract";
 import {
   isQrLocale,
   localizedQrCategory,
@@ -129,6 +131,7 @@ export function useQrOrderFlowController({
     usableInitialMenu?.orderingMode === "PREORDER" ? usableInitialMenu.preorderSlots[0] ?? "" : "",
   );
   const [customerNote, setCustomerNote] = useState("");
+  const [invoiceBuyerSelection, setInvoiceBuyerSelection] = useState<InvoiceBuyerSelection>({ buyerType: "CLOUD" });
   const [waitAcknowledged, setWaitAcknowledged] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
@@ -159,6 +162,11 @@ export function useQrOrderFlowController({
   const orderingEnabled = orderingAvailability === "AVAILABLE" && sessionReady && !specialClosureActive;
   const degradedMode = orderingAvailability !== "AVAILABLE"
     && orderingAvailability !== "CHECKING";
+  const invoiceCheckout = editMode ? undefined : session?.invoiceCheckout;
+  const effectiveInvoiceBuyerSelection = invoiceCheckout
+    && !invoiceChoiceEnabled(invoiceCheckout, invoiceBuyerSelection.buyerType)
+    ? defaultInvoiceBuyerSelection(invoiceCheckout)
+    : invoiceBuyerSelection;
   const visibleProducts = useMemo(() => {
     if (!session) return [];
     return activeOrderingMode === "PREORDER"
@@ -712,6 +720,7 @@ export function useQrOrderFlowController({
       lotteryDrawId: lotteryDraw?.drawId ?? null,
       waitAcknowledged,
       turnstileToken,
+      invoiceBuyerSelection: invoiceCheckout ? effectiveInvoiceBuyerSelection : null,
       localizedProductName: (product) => localizedProduct(product).name,
       messages: {
         orderingUnavailable: copy.degradedMessage,
@@ -726,6 +735,7 @@ export function useQrOrderFlowController({
         preorderTimeRequired: copy.selectPreorderTimeRequired,
         productUnavailable: copy.errors.productUnavailable,
         requiredNotes: copy.requiredNotes,
+        invoiceDetailsInvalid: copy.invoiceDetailsInvalid,
       },
     };
   }
@@ -815,6 +825,7 @@ export function useQrOrderFlowController({
     customerName,
     customerMembershipPreview,
     customerNote,
+    invoiceBuyerSelection: effectiveInvoiceBuyerSelection,
     customerPhone,
     degradedMode,
     deliveryAddress,
@@ -865,6 +876,7 @@ export function useQrOrderFlowController({
     setCartStep,
     setCustomerName,
     setCustomerNote,
+    setInvoiceBuyerSelection,
     setCustomerPhone,
     setDeliveryAddress,
     setMessage,
@@ -883,3 +895,15 @@ export function useQrOrderFlowController({
 }
 
 export type QrOrderFlowController = ReturnType<typeof useQrOrderFlowController>;
+
+function invoiceChoiceEnabled(
+  config: NonNullable<QrOrderSession["invoiceCheckout"]>,
+  buyerType: InvoiceBuyerSelection["buyerType"],
+) {
+  if (buyerType === "CLOUD") return config.choices.cloud;
+  if (buyerType === "MOBILE_BARCODE") return config.choices.mobileBarcode;
+  if (buyerType === "MEMBER_CARRIER") return config.choices.memberCarrier;
+  if (buyerType === "BUSINESS") return config.choices.business;
+  if (buyerType === "DONATION") return config.choices.donation;
+  return config.choices.paper;
+}

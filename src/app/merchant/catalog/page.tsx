@@ -64,6 +64,7 @@ export default async function SharedCatalogPage({ searchParams }: PageProps) {
       ) : null}
       <LazySharedCatalogManager
         organizationId={workspace.id}
+        operatingMode={workspace.operatingMode}
         currency={workspace.defaultCurrency}
         stalls={workspace.stalls.map((stall) => ({
           id: stall.id,

@@ -11,7 +11,7 @@ import {
   subscribeAccessibilityMode,
 } from "@/lib/accessibility-mode";
 
-const mobileMediaQuery = "(max-width: 767px)";
+const compactMediaQuery = "(max-width: 1023px)";
 
 export function MobileSeniorActionMenu({
   label,
@@ -34,7 +34,7 @@ export function MobileSeniorActionMenu({
   useEffect(() => {
     const close = () => setOpen(false);
     const unsubscribeMode = subscribeAccessibilityMode(close);
-    const media = window.matchMedia(mobileMediaQuery);
+    const media = window.matchMedia(compactMediaQuery);
     media.addEventListener("change", close);
     return () => {
       unsubscribeMode();
@@ -84,7 +84,7 @@ export function MobileSeniorActionMenu({
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="inline-flex min-h-16 w-full items-center justify-center gap-3 rounded-xl border border-teal-700 bg-teal-50 px-5 text-lg font-bold text-teal-900 md:hidden"
+        className="inline-flex min-h-16 w-full items-center justify-center gap-3 rounded-xl border border-teal-700 bg-teal-50 px-5 text-lg font-bold text-teal-900 lg:hidden"
       >
         <LayoutGrid className="h-7 w-7" aria-hidden="true" />
         {label}
@@ -96,7 +96,7 @@ export function MobileSeniorActionMenu({
             role="dialog"
             aria-modal="true"
             aria-label={label}
-            className="m-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white text-stone-950 shadow-2xl"
+            className="m-auto flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white text-stone-950 shadow-2xl sm:max-w-[calc(100vw-1.5rem)]"
           >
             <header className="flex shrink-0 items-center justify-between gap-4 border-b border-stone-200 px-5 py-4">
               <div>
@@ -130,13 +130,13 @@ export function MobileSeniorActionMenu({
 }
 
 function subscribeMobile(onStoreChange: () => void) {
-  const media = window.matchMedia(mobileMediaQuery);
+  const media = window.matchMedia(compactMediaQuery);
   media.addEventListener("change", onStoreChange);
   return () => media.removeEventListener("change", onStoreChange);
 }
 
 function readMobile() {
-  return window.matchMedia(mobileMediaQuery).matches;
+  return window.matchMedia(compactMediaQuery).matches;
 }
 
 function readServerMobile() {

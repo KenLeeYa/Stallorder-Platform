@@ -11,6 +11,7 @@ import {
   KeyRound,
   Layers3,
   PackageCheck,
+  ReceiptText,
   Store,
   Truck,
   WalletCards,
@@ -39,6 +40,7 @@ const items: ReadonlyArray<AdminNavigationItem> = [
   { href: "/admin/delivery-integrations", label: "Delivery integrations", icon: Truck, module: "delivery" },
   { href: "/admin/login-methods", label: "Login methods", icon: KeyRound },
   { href: "/admin/payment-integrations", label: "Payment integrations", icon: WalletCards, module: "payments" },
+  { href: "/admin/e-invoice", label: "Electronic invoice integrations", icon: ReceiptText },
 ];
 
 export function AdminBillingHeader({ displayName, moduleVisibility = { delivery: false, payments: false } }: {

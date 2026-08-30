@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  attendanceScheduleRisk,
   currentRotatingAttendanceCode,
   evaluateAttendanceLocation,
   haversineDistanceMeters,
   issueAttendanceChallenge,
+  nearestAttendanceSchedule,
   verifyAttendanceChallenge,
   verifyRotatingAttendanceCode,
 } from "@/server/attendance/attendance-service";
@@ -89,7 +91,7 @@ describe("attendance geofence", () => {
     ]));
   });
 
-  it("uses accuracy-aware boundary review instead of a brittle single radius", () => {
+  it("blocks an uncertain boundary reading instead of sending location risk to supervisor review", () => {
     const roughly140mNorth = 25.03426;
     const result = evaluateAttendanceLocation({
       attempt: attempt({ latitude: roughly140mNorth, accuracyMeters: 30 }),
@@ -97,8 +99,60 @@ describe("attendance geofence", () => {
       rotatingCodeVerified: false,
       now,
     });
-    expect(result.decision).toBe("REVIEW_REQUIRED");
+    expect(result.decision).toBe("REJECTED");
     expect(result.riskCodes).toContain("GEOFENCE_BOUNDARY");
+  });
+
+  it("only marks scheduled late arrival and early departure for supervisor review", () => {
+    const scheduledStart = new Date("2026-08-28T08:00:00.000Z");
+    const scheduledEnd = new Date("2026-08-28T16:00:00.000Z");
+    expect(attendanceScheduleRisk({
+      eventType: "CLOCK_IN",
+      occurredAt: new Date("2026-08-28T08:06:00.000Z"),
+      shiftStartAt: scheduledStart,
+      shiftEndAt: scheduledEnd,
+    })).toBe("LATE_CLOCK_IN");
+    expect(attendanceScheduleRisk({
+      eventType: "CLOCK_OUT",
+      occurredAt: new Date("2026-08-28T15:54:00.000Z"),
+      shiftStartAt: scheduledStart,
+      shiftEndAt: scheduledEnd,
+    })).toBe("EARLY_CLOCK_OUT");
+    expect(attendanceScheduleRisk({
+      eventType: "CLOCK_IN",
+      occurredAt: new Date("2026-08-28T08:05:00.000Z"),
+      shiftStartAt: scheduledStart,
+      shiftEndAt: scheduledEnd,
+    })).toBeNull();
+  });
+
+  it("matches clock-in and clock-out to the nearest corresponding shift boundary", () => {
+    const morning = {
+      shiftStartAt: new Date("2026-08-28T08:00:00.000Z"),
+      shiftEndAt: new Date("2026-08-28T12:00:00.000Z"),
+    };
+    const evening = {
+      shiftStartAt: new Date("2026-08-28T17:00:00.000Z"),
+      shiftEndAt: new Date("2026-08-28T21:00:00.000Z"),
+    };
+    expect(nearestAttendanceSchedule({
+      eventType: "CLOCK_IN",
+      occurredAt: new Date("2026-08-28T16:55:00.000Z"),
+      schedules: [morning, evening],
+    })).toBe(evening);
+    expect(nearestAttendanceSchedule({
+      eventType: "CLOCK_OUT",
+      occurredAt: new Date("2026-08-28T12:05:00.000Z"),
+      schedules: [morning, evening],
+    })).toBe(morning);
+  });
+
+  it("does not invent a schedule when the relevant boundary is missing", () => {
+    expect(nearestAttendanceSchedule({
+      eventType: "CLOCK_IN",
+      occurredAt: new Date("2026-08-28T08:00:00.000Z"),
+      schedules: [{ shiftStartAt: null, shiftEndAt: new Date("2026-08-28T16:00:00.000Z") }],
+    })).toBeNull();
   });
 
   it("flags impossible travel as a hard rejection", () => {

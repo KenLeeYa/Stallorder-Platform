@@ -14,9 +14,9 @@ import {
   Package,
   ScrollText,
   ShieldCheck,
-  Sparkles,
   WalletCards,
   Store,
+  UsersRound,
 } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
 import { MobileSeniorActionMenu } from "@/components/mobile-senior-action-menu";
@@ -86,13 +86,13 @@ export function MerchantWorkspaceHeader({
 
   function renderFunctionNavigation(className: string, testId: string) {
     return (
-      <nav data-testid={testId} className={`min-w-0 items-center gap-1 overflow-x-auto ${className}`} aria-label={m("商戶功能")}>
+      <nav data-testid={testId} data-persist-horizontal-scroll={testId} className={`min-w-0 items-center gap-1 overflow-x-auto ${className}`} aria-label={m("商戶功能")}>
         <Link title={m("儀表板")} href={`/merchant/dashboard?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
           <BarChart3 className="h-5 w-5" /><span className="sr-only">{m("儀表板")}</span>
         </Link>
         {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN" || role === "FINANCE_VIEWER") ? (
-          <Link title={m("跨攤位報表")} href={`/merchant/reports/overview?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
-            <FileChartColumn className="h-5 w-5" /><span className="sr-only">{m("跨攤位報表")}</span>
+          <Link title={m("攤位報表")} href={`/merchant/reports/overview?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+            <FileChartColumn className="h-5 w-5" /><span className="sr-only">{m("攤位報表")}</span>
           </Link>
         ) : null}
         {workspace?.roles.some((role) => hasPermission(role, "VIEW_REPORTS")) ? (
@@ -123,7 +123,7 @@ export function MerchantWorkspaceHeader({
         ) : null}
         {showGrowth && workspace?.roles.some((role) => hasPermission(role, "MANAGE_ORGANIZATION")) ? (
           <Link title={m("會員與成長")} href={`/merchant/growth?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
-            <Sparkles className="h-5 w-5" /><span className="sr-only">{m("會員與成長")}</span>
+            <UsersRound className="h-5 w-5" /><span className="sr-only">{m("會員與成長")}</span>
           </Link>
         ) : null}
         {workspace && (
@@ -174,9 +174,9 @@ export function MerchantWorkspaceHeader({
             <span className="hidden truncate min-[420px]:inline">{m("攤點通")}</span>
           </Link>
 
-          {renderFunctionNavigation("hidden min-w-0 flex-1 justify-end md:flex", "merchant-function-navigation-desktop")}
+          {renderFunctionNavigation("hidden min-w-0 flex-1 justify-end lg:flex", "merchant-function-navigation-desktop")}
 
-          <div data-testid="merchant-utility-toolbar" className="ml-auto flex min-w-0 shrink-0 items-center gap-1 overflow-x-auto">
+          <div data-testid="merchant-utility-toolbar" data-persist-horizontal-scroll="merchant-utility-toolbar" className="ml-auto flex min-w-0 shrink-0 items-center gap-1 overflow-x-auto [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:px-0 [&_svg]:h-5 [&_svg]:w-5">
             {workspace ? (
               <WorkModeSwitcher
                 destinations={workModeDestinations}
@@ -217,7 +217,7 @@ export function MerchantWorkspaceHeader({
           </div>
         </div>
       </header>
-      <div className="sticky top-0 z-30 min-w-0 overflow-x-hidden border-b border-stone-200 bg-white/95 px-4 py-1 backdrop-blur md:hidden">
+      <div className="sticky top-0 z-30 min-w-0 overflow-x-hidden border-b border-stone-200 bg-white/95 px-4 py-1 backdrop-blur lg:hidden">
         <div className="mx-auto min-w-0 max-w-full">
           <MobileSeniorActionMenu label={m("商戶功能")}>
             {renderFunctionNavigation("flex w-full", "merchant-function-navigation-mobile")}

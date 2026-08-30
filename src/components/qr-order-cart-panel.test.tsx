@@ -78,6 +78,7 @@ const baseProps: CartPanelProps = {
   customerPhone: "",
   deliveryAddress: "",
   customerNote: "",
+  invoiceBuyerSelection: { buyerType: "CLOUD" },
   waitAcknowledged: false,
   fulfillmentTimePicker: null,
   turnstileRequested: false,
@@ -100,6 +101,7 @@ const baseProps: CartPanelProps = {
   onCustomerPhoneChange: vi.fn(),
   onDeliveryAddressChange: vi.fn(),
   onCustomerNoteChange: vi.fn(),
+  onInvoiceBuyerSelectionChange: vi.fn(),
   onWaitAcknowledgedChange: vi.fn(),
   onTurnstileToken: vi.fn(),
   onSubmit: vi.fn(),
@@ -344,5 +346,34 @@ describe("QrOrderCartPanel checkout blocker presentation", () => {
 
     expect(html).not.toContain('data-testid="qr-checkout-blocker"');
     expect(submitOpeningTag(html)).not.toMatch(/\sdisabled=""/);
+  });
+
+  it("renders only server-enabled invoice choices and marks local mock output clearly", () => {
+    const html = renderPanel({
+      session: {
+        ...baseProps.session,
+        invoiceCheckout: {
+          enabled: true,
+          testOnly: true,
+          choices: {
+            cloud: true,
+            mobileBarcode: true,
+            memberCarrier: false,
+            business: true,
+            donation: false,
+            paper: false,
+          },
+        },
+      },
+    });
+
+    expect(html).toContain('data-testid="checkout-invoice-selector"');
+    expect(html).toContain("TEST / 本機測試，非合法發票");
+    expect(html).toContain("雲端發票");
+    expect(html).toContain("手機條碼載具");
+    expect(html).toContain("統編發票");
+    expect(html).not.toContain("會員載具");
+    expect(html).not.toContain("捐贈");
+    expect(html).not.toContain("紙本證明聯");
   });
 });

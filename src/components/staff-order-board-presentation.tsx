@@ -444,8 +444,8 @@ function StaffOrderBoardToolbar({
           </div>
         </div>
         <MobileSeniorActionMenu label={t("staff.functions")}>
-          <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-2 pr-4 print:hidden sm:overflow-x-visible sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
-        <div data-testid="staff-function-status-group" className="flex items-center gap-2 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0">
+          <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" data-persist-horizontal-scroll="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-2 pr-4 print:hidden sm:overflow-x-visible sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
+        <div data-testid="staff-function-identity-group" className="flex items-center gap-2 border-r border-stone-200 pr-2">
           {switcherVisibility.showWorkMode ? <WorkModeSwitcher
             destinations={workModeDestinations}
             currentMode="STAFF"
@@ -467,10 +467,6 @@ function StaffOrderBoardToolbar({
             aria-label="員工定位打卡"
             className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}
           ><Clock3 className={staffFunctionIconClass} /><span className="sr-only">員工定位打卡</span></Link> : null}
-          <div data-testid="staff-pwa-controls" className="shrink-0">
-            <PwaControls showWakeLock showQualityLabel={false} />
-          </div>
-          <LiveConnectionBadge state={liveConnection} t={t} />
         </div>
         <div data-testid="staff-function-order-group" className="flex items-center gap-2 border-r border-stone-200 pr-2">
           {orderCatalog && hasPermission(role, "CREATE_ORDERS") ? <button type="button" title={t("staff.action.createOrder")} disabled={posConfigurationLoading} onClick={() => void actions.onOpenComposer()} className={`${staffFunctionTileClass} bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}><ShoppingCart className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.createOrder")}</span></button> : null}
@@ -479,6 +475,12 @@ function StaffOrderBoardToolbar({
           {modules.print && hasPermission(role, "MANAGE_PRINT_QUEUE") ? <Link href={`/staff/${stall.slug}/print`} title={t("staff.action.printQueue")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><Printer className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.printQueue")}</span></Link> : null}
           {hasPermission(role, "MANAGE_CASH_SHIFT") ? <Link href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><WalletCards className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.cashShift")}</span></Link> : null}
           {capacity ? <StaffCapacityControl stallSlug={stall.slug} initialData={capacity} compact /> : null}
+        </div>
+        <div data-testid="staff-function-status-group" className="flex items-center gap-2 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0">
+          <div data-testid="staff-pwa-controls" className="shrink-0">
+            <PwaControls showWakeLock showQualityLabel={false} />
+          </div>
+          <LiveConnectionBadge state={liveConnection} t={t} />
         </div>
         <div data-testid="staff-function-device-group" className="flex items-center gap-2">
           <button type="button" role="switch" aria-checked={alertsEnabled} aria-label={alertsEnabled ? t("staff.action.notificationsOn") : t("staff.action.notificationsOff")} onClick={actions.onToggleAlerts} title={alertsEnabled ? t("staff.action.notificationsDisable") : t("staff.action.notificationsEnable")} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>{alertsEnabled ? <Volume2 className={staffFunctionIconClass} /> : <VolumeX className={staffFunctionIconClass} />}<span aria-hidden="true" className="sr-only">{t("staff.action.notifications")}</span></button>
@@ -735,7 +737,7 @@ function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, d
     : null;
   return (
     <>
-      {composerOpen && orderCatalog ? <StaffOrderComposer stall={stall} catalog={orderCatalog} account={account} modules={modules} paymentOptions={paymentOptions} discountOptions={discountOptions} discountSettingsHref={hasPermission(account.role, "MANAGE_STALL") ? `/merchant/stalls/${stall.id}/settings/discounts?source=staff#discount-options` : undefined} onCreated={actions.onCreated} onClose={actions.onCloseComposer} /> : null}
+      {composerOpen && orderCatalog ? <StaffOrderComposer stall={stall} catalog={orderCatalog} account={account} modules={modules} paymentOptions={paymentOptions} discountOptions={discountOptions} onCreated={actions.onCreated} onClose={actions.onCloseComposer} /> : null}
       {orderEditor.editingOrder && orderCatalog ? (
         <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4 print:hidden">
           <section role="dialog" aria-modal="true" aria-labelledby="order-edit-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-lg bg-white p-5 shadow-xl">
@@ -839,7 +841,7 @@ function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, d
           </section>
         </div>
       ) : null}
-      <StaffOrderCheckoutDialog controller={checkout} updatingOrderId={updatingOrderId} currency={stall.currency} discountSettingsHref={hasPermission(account.role, "MANAGE_STALL") ? `/merchant/stalls/${stall.id}/settings/discounts?source=staff#discount-options` : undefined} cashShiftHref={`/staff/${stall.slug}/cash`} message={message} />
+      <StaffOrderCheckoutDialog controller={checkout} updatingOrderId={updatingOrderId} currency={stall.currency} cashShiftHref={`/staff/${stall.slug}/cash`} message={message} />
       <StaffOrderTimeProposalDialog controller={timeProposal} orders={orders} updatingOrderId={updatingOrderId} />
       <StaffOrderManualPickupDialog controller={manualPickup} orders={orders} verifyingPickupOrderId={verifyingPickupOrderId} />
       <StaffOrderCancellationDialog controller={cancellation} updatingOrderId={updatingOrderId} />

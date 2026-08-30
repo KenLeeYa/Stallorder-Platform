@@ -60,18 +60,19 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
       ? t("kitchen.connection.connecting")
       : t("kitchen.connection.polling");
   return (
-    <header className="sticky top-0 z-50 min-h-16 overflow-x-clip border-b border-stone-200 bg-white/95 shadow-sm backdrop-blur print:static print:h-auto">
+    <header className="sticky top-0 z-50 min-h-[4.75rem] overflow-x-clip border-b border-stone-200 bg-white/95 shadow-sm backdrop-blur print:static print:h-auto">
       <div className="mx-auto max-w-[1600px] px-3 py-2 md:px-6">
         <h1 className="sr-only">{t("kitchen.systemTitle")}</h1>
-        <div data-testid="kitchen-toolbar-row" className="flex h-11 w-full min-w-0 items-center">
+        <div data-testid="kitchen-toolbar-row" className="flex h-[3.75rem] w-full min-w-0 items-start">
           <MobileSeniorActionMenu label={t("kitchen.navigation")}>
-            <nav data-testid="kitchen-primary-navigation" className="flex h-11 min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain pr-3 [&>*]:shrink-0" aria-label={t("kitchen.navigation")}>
-            <div data-testid="kitchen-mode-selector" className="inline-grid h-11 grid-cols-3 overflow-hidden rounded-md border border-stone-300 bg-white" role="group" aria-label={t("kitchen.mode.label")}>
+            <nav data-testid="kitchen-primary-navigation" data-persist-horizontal-scroll="kitchen-primary-navigation" className="flex h-[3.75rem] min-w-0 flex-1 items-start gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain pr-3 [&>*]:shrink-0" aria-label={t("kitchen.navigation")}>
+            <div data-testid="kitchen-mode-selector" data-senior-action-container="true" className="inline-grid h-11 grid-cols-3 overflow-hidden rounded-md border border-stone-300 bg-white" role="group" aria-label={t("kitchen.mode.label")}>
               {modes.map(({ key, label, icon: Icon }) => boardControls ? (
                 <button
                   key={key}
                   type="button"
                   data-testid={`kitchen-mode-${key.toLowerCase()}`}
+                  data-senior-action-tile="true"
                   title={label}
                   aria-label={label}
                   aria-pressed={boardControls.mode === key}
@@ -84,6 +85,7 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
                 <Link
                   key={key}
                   data-testid={`kitchen-mode-${key.toLowerCase()}`}
+                  data-senior-action-tile="true"
                   href={`/kitchen?stall=${encodeURIComponent(stall.slug)}&view=${key}`}
                   title={label}
                   aria-label={label}
@@ -93,7 +95,7 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
                 </Link>
               ))}
             </div>
-            {switcherVisibility.showWorkMode ? <div data-testid="kitchen-work-mode-control" className="shrink-0">
+            {switcherVisibility.showWorkMode ? <div data-testid="kitchen-work-mode-control" data-senior-action-container="true" className="shrink-0">
               <WorkModeSwitcher
                 destinations={workModeDestinations}
                 currentMode="KITCHEN"
@@ -103,6 +105,7 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
             </div> : null}
             <Link
               data-testid="kitchen-attendance"
+              data-senior-action-tile="true"
               href={`/attendance/${encodeURIComponent(stall.slug)}`}
               title="員工定位打卡"
               aria-label="員工定位打卡"
@@ -111,14 +114,15 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
               <Clock3 className="h-5 w-5" />
               <span className="sr-only">員工定位打卡</span>
             </Link>
-            <div data-testid="kitchen-language-control" className="[&>label]:!h-11 [&>label]:!min-h-11 [&>label]:!w-11 [&_svg]:!h-5 [&_svg]:!w-5">
+            <div data-testid="kitchen-language-control" data-senior-action-container="true" className="grid h-11 w-11 shrink-0 place-items-center [&>label]:h-11 [&>label]:min-h-11 [&>label]:w-11 [&_svg]:h-5 [&_svg]:w-5">
               <LocaleSelector compact />
             </div>
-            <div data-testid="kitchen-pwa-controls" className="[&>div]:gap-1 [&_button]:!h-11 [&_button]:!w-11 [&_span[title]]:!h-11 [&_span[title]]:!w-11 [&_span[title]]:!justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:!px-0 [&_svg]:!h-5 [&_svg]:!w-5">
+            <div data-testid="kitchen-pwa-controls" data-senior-action-container="true" className="[&>div]:gap-1 [&_button]:h-11 [&_button]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0 [&_svg]:h-5 [&_svg]:w-5">
               <PwaControls showWakeLock showLocale={false} showQualityLabel={false} showInstall={false} />
             </div>
             {boardControls ? <span
               data-testid="kitchen-live-status"
+              data-senior-action-tile="true"
               role="status"
               aria-label={`SSE · ${connectionLabel}`}
               title={boardControls.connection === "CONNECTED" ? `SSE · ${t("kitchen.connection.connectedTitle")}` : `SSE · ${t("kitchen.connection.fallbackTitle")}`}
@@ -130,6 +134,7 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
             {canManage ? <>
               <Link
                 data-testid="kitchen-nav-stations"
+                data-senior-action-tile="true"
                 href={`/merchant/stalls/${stall.id}/kitchen/stations?source=kitchen`}
                 title={t("kitchen.nav.stations")}
                 className={`grid h-11 w-11 place-items-center rounded-md border text-sm font-semibold ${active === "STATIONS" ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600 hover:text-stone-950"}`}
@@ -139,6 +144,7 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
               </Link>
               <Link
                 data-testid="kitchen-nav-settings"
+                data-senior-action-tile="true"
                 href={`/merchant/stalls/${stall.id}/kitchen/settings?source=kitchen`}
                 title={t("kitchen.nav.settings")}
                 className={`grid h-11 w-11 place-items-center rounded-md border text-sm font-semibold ${active === "SETTINGS" ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600 hover:text-stone-950"}`}
@@ -148,16 +154,16 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
               </Link>
             </> : null}
             {boardControls ? <>
-              <button data-testid="kitchen-alert-control" type="button" role="switch" aria-checked={boardControls.alertsEnabled} onClick={boardControls.onToggleAlerts} title={boardControls.alertsEnabled ? t("kitchen.alert.disable") : t("kitchen.alert.enable")} className={`grid h-11 w-11 place-items-center rounded-md border ${boardControls.alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
+              <button data-testid="kitchen-alert-control" data-senior-action-tile="true" type="button" role="switch" aria-checked={boardControls.alertsEnabled} onClick={boardControls.onToggleAlerts} title={boardControls.alertsEnabled ? t("kitchen.alert.disable") : t("kitchen.alert.enable")} className={`grid h-11 w-11 place-items-center rounded-md border ${boardControls.alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
                 {boardControls.alertsEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
                 <span className="sr-only">{boardControls.alertsEnabled ? t("kitchen.alert.enabledSr") : t("kitchen.alert.disabledSr")}</span>
               </button>
-              <button data-testid="kitchen-refresh-control" type="button" title={t("common.refresh")} disabled={boardControls.disabled} onClick={boardControls.onRefresh} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-50">
+              <button data-testid="kitchen-refresh-control" data-senior-action-tile="true" type="button" title={t("common.refresh")} disabled={boardControls.disabled} onClick={boardControls.onRefresh} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-50">
                 <RefreshCw className={`h-5 w-5 ${boardControls.refreshing ? "animate-spin" : ""}`} />
                 <span className="sr-only">{t("common.refresh")}</span>
               </button>
             </> : null}
-            <div data-testid="kitchen-logout-control" className="flex h-11 w-11 shrink-0 items-center justify-center [&_button]:!h-11 [&_button]:!w-11 [&_svg]:!h-5 [&_svg]:!w-5">
+            <div data-testid="kitchen-logout-control" data-senior-action-container="true" className="flex h-11 w-11 shrink-0 items-center justify-center [&_button]:h-11 [&_button]:w-11 [&_svg]:h-5 [&_svg]:w-5">
               <LogoutButton offlineStallId={stall.id} />
             </div>
             </nav>
