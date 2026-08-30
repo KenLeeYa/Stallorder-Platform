@@ -501,7 +501,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   for (const touchTarget of [
     cartPanel.getByRole("button", { name: "立即結帳", exact: true }),
     cartPanel.getByRole("button", { name: "稍後結帳", exact: true }),
-    cartPanel.getByLabel("客戶實收金額", { exact: true }),
+    cartPanel.getByLabel("實收金額", { exact: true }),
   ]) {
     await expect.poll(async () => (await touchTarget.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
