@@ -63,6 +63,14 @@ const privateProductImageDeliveryMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260828190000_private_product_image_delivery.sql",
 ), "utf8");
+const organizationOperatingModeMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260829150000_organization_operating_mode.sql",
+), "utf8");
+const multitenantEinvoiceLocalMockMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260830010000_multitenant_einvoice_local_mock.sql",
+), "utf8");
 const lotteryFreeProductCampaignsMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260825120000_lottery_free_product_campaigns.sql",
@@ -77,6 +85,26 @@ const drStandbyCompatibleMigrationFiles = [
 ];
 
 describe("additive DR migration plan", () => {
+  it("allows only the exact reviewed organization operating-mode backfill", () => {
+    expect(assertAdditiveMigrationSql(organizationOperatingModeMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      organizationOperatingModeMigration.replace(
+        "stall.is_active = true",
+        "stall.is_active = false",
+      ),
+    )).toThrow("MIGRATION_STATEMENT_FORBIDDEN");
+  });
+
+  it("allows only the exact reviewed multi-tenant e-invoice foundation", () => {
+    expect(assertAdditiveMigrationSql(multitenantEinvoiceLocalMockMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      multitenantEinvoiceLocalMockMigration.replace(
+        "set is_enabled = excluded.is_enabled",
+        "set is_enabled = true",
+      ),
+    )).toThrow();
+  });
+
   it("accepts the free-product lottery campaign as an additive migration", () => {
     expect(assertAdditiveMigrationSql(lotteryFreeProductCampaignsMigration)).toBe(true);
   });

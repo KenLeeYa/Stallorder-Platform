@@ -57,6 +57,10 @@ const STAFF_KDS_SPECIAL_CLOSURES_RECONCILIATION_MIGRATION_DIGEST =
   "4a812bc323348fad6f330a561ac2238fa9538c97ad0de0898f89c16e37406bd0";
 const NON_KDS_CONFIRMATION_PRINTING_MIGRATION_DIGEST =
   "6fe78c746d1bdf7515e78e8ce2b67a1fc04e8104492363de6b06434613be4c39";
+const ORGANIZATION_OPERATING_MODE_MIGRATION_DIGEST =
+  "52de0807084d4d7b275bb60698feb12ba29d9d1d6e4a30f59d0eeba421d147c2";
+const MULTITENANT_EINVOICE_LOCAL_MOCK_MIGRATION_DIGEST =
+  "740adaa5330fe8fcc29973d9e4e682c36c3a0ee09975afa6c288a80bccecd46e";
 
 export class AdditiveMigrationPlanError extends Error {
   constructor(code, details = {}) {
@@ -199,6 +203,10 @@ export function assertAdditiveMigrationSql(sql) {
     isApprovedPrivateAlertSoundBucketMigration(sql);
   const privateProductImageDeliveryMigration =
     isApprovedPrivateProductImageDeliveryMigration(sql);
+  const organizationOperatingModeMigration =
+    isApprovedOrganizationOperatingModeMigration(sql);
+  const multitenantEinvoiceLocalMockMigration =
+    isApprovedMultitenantEinvoiceLocalMockMigration(sql);
   const staffKdsSpecialClosuresMigration =
     isApprovedStaffKdsSpecialClosuresMigration(sql);
   const drStandbyCompatibleMigration =
@@ -228,13 +236,23 @@ export function assertAdditiveMigrationSql(sql) {
         privateProductImageDeliveryMigration
         && isSafePrivateProductImageDeliveryUpdate(statement)
       )
+      && !(
+        organizationOperatingModeMigration
+        && isSafeOrganizationOperatingModeUpdate(statement)
+      )
     ) {
       throw new AdditiveMigrationPlanError("MIGRATION_STATEMENT_FORBIDDEN");
     }
     if (/^insert\s+into\b/iu.test(statement)) {
       if (
-        !privateAlertSoundBucketMigration
-        || !isSafePrivateAlertSoundBucketSeed(statement)
+        !(
+          privateAlertSoundBucketMigration
+          && isSafePrivateAlertSoundBucketSeed(statement)
+        )
+        && !(
+          multitenantEinvoiceLocalMockMigration
+          && isSafeMultitenantEinvoiceFeatureFlagSeed(statement)
+        )
       ) {
         assertSafeFeatureFlagSeed(statement);
       }
@@ -285,6 +303,8 @@ export function assertAdditiveMigrationSql(sql) {
       staffKdsSpecialClosuresMigration,
       privateAlertSoundBucketMigration,
       privateProductImageDeliveryMigration,
+      organizationOperatingModeMigration,
+      multitenantEinvoiceLocalMockMigration,
     );
   }
   assertReplacementPairs(replacements);
@@ -1051,6 +1071,16 @@ function isApprovedPrivateProductImageDeliveryMigration(sql) {
     === PRIVATE_PRODUCT_IMAGE_DELIVERY_MIGRATION_DIGEST;
 }
 
+function isApprovedOrganizationOperatingModeMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === ORGANIZATION_OPERATING_MODE_MIGRATION_DIGEST;
+}
+
+function isApprovedMultitenantEinvoiceLocalMockMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === MULTITENANT_EINVOICE_LOCAL_MOCK_MIGRATION_DIGEST;
+}
+
 function isSafePrivateProductImageWriteGuardToggle(statement) {
   return /^alter\s+table\s+public\.(?:products|stalls)\s+(?:disable|enable)\s+trigger\s+backend_writable_guard$/iu
     .test(statement);
@@ -1072,7 +1102,8 @@ function isApprovedCompatibleFunctionBodyMigration(sql) {
     || digest === STAFF_KDS_SPECIAL_CLOSURES_RECONCILIATION_MIGRATION_DIGEST
     || digest === NON_KDS_CONFIRMATION_PRINTING_MIGRATION_DIGEST
     || digest === PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST
-    || digest === PAYG_CONTRACT_RUNTIME_GAPS_MIGRATION_DIGEST;
+    || digest === PAYG_CONTRACT_RUNTIME_GAPS_MIGRATION_DIGEST
+    || digest === MULTITENANT_EINVOICE_LOCAL_MOCK_MIGRATION_DIGEST;
 }
 
 function isApprovedStaffKdsSpecialClosuresMigration(sql) {
@@ -1174,6 +1205,22 @@ function isSafePrivateProductImageDeliveryUpdate(statement) {
     "update public.stalls set cover_image_url = regexp_replace( cover_image_url, '' , '' , '' ) where cover_image_url ~* ''",
     "update public.stalls set location_guide_image_url = regexp_replace( location_guide_image_url, '' , '' , '' ) where location_guide_image_url ~* ''",
   ]).has(normalized);
+}
+
+function isSafeOrganizationOperatingModeUpdate(statement) {
+  return /^update\s+public\.organizations\s+organization\s+set\s+operating_mode\s*=\s*''\s+where\s*\(\s*select\s+count\s*\(\s*\*\s*\)\s+from\s+public\.stalls\s+stall\s+where\s+stall\.organization_id\s*=\s*organization\.id\s+and\s+stall\.is_active\s*=\s*true\s*\)\s*>\s*1$/iu
+    .test(statement);
+}
+
+function isSafeMultitenantEinvoiceFeatureFlagSeed(statement) {
+  const match = statement.match(
+    /^insert\s+into\s+public\.billing_feature_flags\s*\(\s*code\s*,\s*is_enabled\s*,\s*phase\s*,\s*description\s*\)\s*values\s+([\s\S]+)\s+on\s+conflict\s*\(\s*code\s*\)\s+do\s+update\s+set\s+is_enabled\s*=\s*excluded\.is_enabled\s*,\s*description\s*=\s*excluded\.description\s*,\s*updated_at\s*=\s*now\s*\(\s*\)$/iu,
+  );
+  if (!match) return false;
+  const rows = splitTopLevelComma(match[1]);
+  return rows.length === 13 && rows.every((row) => (
+    /^\(\s*''\s*,\s*false\s*,\s*(?:2|3)\s*,\s*''\s*\)$/iu.test(row)
+  ));
 }
 
 function isPhaseThreeHardLockTrigger(statement, tableIdentity) {
@@ -1428,6 +1475,8 @@ function assertAllowedStatement(
   staffKdsSpecialClosuresMigration,
   privateAlertSoundBucketMigration,
   privateProductImageDeliveryMigration,
+  organizationOperatingModeMigration,
+  multitenantEinvoiceLocalMockMigration,
 ) {
   const allowed = [
     phaseThreeHardLock && isPhaseThreeHardLockCleanup(statement),
@@ -1439,6 +1488,10 @@ function assertAllowedStatement(
       && isSafePrivateProductImageDeliveryUpdate(statement),
     privateProductImageDeliveryMigration
       && isSafePrivateProductImageWriteGuardToggle(statement),
+    organizationOperatingModeMigration
+      && isSafeOrganizationOperatingModeUpdate(statement),
+    multitenantEinvoiceLocalMockMigration
+      && isSafeMultitenantEinvoiceFeatureFlagSeed(statement),
     isAllowedAlterTableStatement(statement),
     /^alter\s+type\b[\s\S]*\badd\s+value\b/iu,
     /^create\s+(?:or\s+replace\s+)?function\b/iu,
