@@ -53,6 +53,14 @@ subscription flags. It is rerunnable after a disable/drop or add/refresh
 partial failure, so a failed bootstrap can remove only the reviewed pair before
 rebuilding the standby.
 
+An invalidated logical slot cannot be resumed by increasing the catch-up
+timeout or advancing the subscriber past missing WAL. If PostgreSQL reports
+the slot as `lost`/`wal_removed`, stop incremental repair and use the protected
+`plan-bootstrap` / `bootstrap` rebuild. That path creates and restore-tests
+encrypted backups, proves the Storage mirror before and after reset, then
+creates a fresh initial-copy subscription. Never skip the missing WAL or mark
+the disconnected standby ready.
+
 Before any replication mutation, the tool also verifies that DR physically has
 every allowlisted base/partitioned table, matching published-column types and
 no target-only required column that could reject a replicated insert. The subscription

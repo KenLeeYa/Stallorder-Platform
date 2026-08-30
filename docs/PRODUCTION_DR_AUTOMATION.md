@@ -79,12 +79,16 @@ upgrade-only incremental replication operation; they must not reset DR.
 1. Require the exact verified Staging tree.
 2. Create encrypted logical backups of Primary and the former Staging project,
    including public data plus Auth and Storage metadata.
+   Before any reset, require identical Primary/DR Storage object inventories
+   and one healthy `MIRRORED` manifest with matching checksums for every live
+   object. An empty inventory passes the same proof.
 3. Restore-test both public data backups against the reviewed migrations,
    restoring their matching `auth.users` dependency first, and validate every
    archive before encryption.
 4. Upload only encrypted backup artifacts.
-5. Reset the former Staging project and clear the fixed logical-replication
-   table scope.
+5. Remove incomplete logical replication, reset the former Staging project's
+   application schema, then prove that the Supabase-managed Storage object
+   inventory and its pre-reset digests are unchanged before continuing.
 6. Configure DR Auth redirects, Edge secrets and Edge Functions.
 7. Enable database writer fencing.
 8. Create the least-privilege logical-replication role, publication and
@@ -104,7 +108,10 @@ the artifact only when:
 - all three former Staging encrypted dump checksums pass;
 - all three archives decrypt with the protected key and pass PostgreSQL 17
   archive validation;
-- the recorded former Staging Storage object count is zero.
+- the recorded former Staging Storage inventory was empty under the legacy
+  contract, or the artifact contains a complete mirror proof with equal object
+  inventories, matching manifest checksums and no pending/invalid manifest;
+- the current Primary object and manifest digests still match that proof.
 
 Resume mode creates and restore-tests a fresh Primary backup. It reuses only the
 verified, encrypted former Staging backup and does not treat a partially reset
@@ -217,11 +224,14 @@ writer fenced and follow `PRODUCTION_FAILBACK_RUNBOOK.md`.
 ## Artifacts
 
 Bootstrap uploads AES-256-CBC encrypted logical backups and SHA-256 files.
-The initial conversion blocked if either project contained Storage bytes
-because database metadata alone is not an object backup. New immutable objects
-use the Storage manifest/outbox mirror. The protected `storage-canary`
-operation proves real object bytes and cleanup independently of database row
-replication.
+It permits non-empty Storage only when the manifest/outbox mirror proves every
+live object is present on both projects with matching checksums. Because the
+remote reset targets the application schema while Supabase-managed Storage is
+retained, the workflow records object and manifest digests before reset and
+requires the exact same digests immediately afterward. It stops before DR
+configuration if any count, path, status or digest changes. The protected
+`storage-canary` operation proves real object bytes and cleanup independently
+of database row replication.
 DR schema Apply uploads `production-dr-schema-evidence.json`. A successful
 Production release consumes that evidence and uploads
 `production-primary-migration-evidence.json`; incremental replication consumes
