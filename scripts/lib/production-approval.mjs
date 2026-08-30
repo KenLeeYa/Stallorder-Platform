@@ -34,6 +34,10 @@ export const PRODUCTION_OPERATIONS = Object.freeze({
     workflowPath: ".github/workflows/production-dr-operations.yml",
     allowedPlanEvents: ["workflow_dispatch"],
   },
+  "production-dr-replication-conflict-repair": {
+    workflowPath: ".github/workflows/production-dr-operations.yml",
+    allowedPlanEvents: ["workflow_dispatch"],
+  },
   "production-storage-canary": {
     workflowPath: ".github/workflows/production-dr-operations.yml",
     allowedPlanEvents: ["workflow_dispatch"],

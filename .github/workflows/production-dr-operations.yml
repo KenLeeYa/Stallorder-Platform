@@ -16,6 +16,8 @@ on:
           - dr-schema
           - plan-incremental-replication
           - incremental-replication
+          - plan-replication-conflict-repair
+          - replication-conflict-repair
           - plan-storage-canary
           - storage-canary
       confirmation:
@@ -131,7 +133,9 @@ jobs:
         run: node scripts/export-dr-database-urls.mjs --dr-only
 
       - name: Build protected Primary and DR database URLs
-        if: inputs.operation == 'plan-incremental-replication'
+        if: >-
+          inputs.operation == 'plan-incremental-replication' ||
+          inputs.operation == 'plan-replication-conflict-repair'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
@@ -227,6 +231,14 @@ jobs:
               printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"primaryMigrationRunId":"%s","source":"PRIMARY","strategy":"UPGRADE_ONLY","target":"DR"}\n' \
                 "$INPUT_PRIMARY_MIGRATION_RUN_ID" >> "$GITHUB_ENV"
               ;;
+            plan-replication-conflict-repair)
+              DR_CHANGE_CONFIRMATION=INSPECT_DR_BILLING_FEATURE_FLAG_CONFLICT \
+                node scripts/repair-dr-billing-feature-flag-conflict.mjs \
+                --inspect \
+                > artifacts/production-dr-operation-plan.json
+              echo "PRODUCTION_APPROVAL_OPERATION=production-dr-replication-conflict-repair" >> "$GITHUB_ENV"
+              echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"repair":"EINVOICE_FEATURE_FLAG_SEED_CONFLICT","target":"DR"}' >> "$GITHUB_ENV"
+              ;;
             plan-storage-canary)
               node scripts/run-storage-replication-canary.mjs \
                 > artifacts/production-dr-operation-plan.json
@@ -258,6 +270,7 @@ jobs:
       inputs.operation == 'drill' ||
       inputs.operation == 'dr-schema' ||
       inputs.operation == 'incremental-replication' ||
+      inputs.operation == 'replication-conflict-repair' ||
       inputs.operation == 'storage-canary'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -313,6 +326,10 @@ jobs:
               echo "PRODUCTION_APPROVAL_OPERATION=production-dr-incremental-replication" >> "$GITHUB_ENV"
               printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"primaryMigrationRunId":"%s","source":"PRIMARY","strategy":"UPGRADE_ONLY","target":"DR"}\n' \
                 "$INPUT_PRIMARY_MIGRATION_RUN_ID" >> "$GITHUB_ENV"
+              ;;
+            replication-conflict-repair:REPAIR_PRODUCTION_DR_REPLICATION_CONFLICT)
+              echo "PRODUCTION_APPROVAL_OPERATION=production-dr-replication-conflict-repair" >> "$GITHUB_ENV"
+              echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"repair":"EINVOICE_FEATURE_FLAG_SEED_CONFLICT","target":"DR"}' >> "$GITHUB_ENV"
               ;;
             storage-canary:PROVE_STORAGE_DR)
               echo "PRODUCTION_APPROVAL_OPERATION=production-storage-canary" >> "$GITHUB_ENV"
@@ -645,6 +662,132 @@ jobs:
         if: always()
         with:
           name: production-dr-incremental-replication-${{ github.run_id }}
+          path: dr-artifacts/
+          if-no-files-found: warn
+          retention-days: 30
+
+  replication-conflict-repair:
+    needs: approval
+    if: "${{ inputs.operation == 'replication-conflict-repair' && needs.approval.result == 'success' }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      DR_AUTH_READY: "true"
+      DR_EDGE_FUNCTIONS_READY: "true"
+      DR_TURNSTILE_READY: "true"
+      DR_PAYMENT_CALLBACK_READY: "true"
+      DR_NO_ACTIVE_MIGRATION_CONFIRMED: "true"
+    steps:
+      - name: Validate protected replication conflict repair invocation
+        env:
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::Production DR operations must run from main."
+            exit 1
+          }
+          test "$INPUT_CONFIRMATION" = "REPAIR_PRODUCTION_DR_REPLICATION_CONFLICT" || {
+            echo "::error::Confirmation must be REPAIR_PRODUCTION_DR_REPLICATION_CONFLICT."
+            exit 1
+          }
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download approved conflict repair Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: production-dr-plan-${{ inputs.plan_run_id }}
+          path: approved-conflict-repair-plan
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.plan_run_id }}
+
+      - name: Build protected database URLs
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+          PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
+        run: node scripts/export-dr-database-urls.mjs
+
+      - name: Reconfirm immutable billing flag conflict Plan
+        env:
+          DR_CHANGE_CONFIRMATION: INSPECT_DR_BILLING_FEATURE_FLAG_CONFLICT
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dr-artifacts
+          node scripts/repair-dr-billing-feature-flag-conflict.mjs \
+            --inspect \
+            > dr-artifacts/replication-conflict-reconfirmed-plan.json
+          cmp --silent \
+            approved-conflict-repair-plan/production-dr-operation-plan.json \
+            dr-artifacts/replication-conflict-reconfirmed-plan.json || {
+              echo "::error::Billing feature flag conflict changed after the approved Plan."
+              exit 1
+            }
+
+      - name: Repair verified DR billing feature flag conflict
+        env:
+          DR_CHANGE_CONFIRMATION: REPAIR_DR_BILLING_FEATURE_FLAG_CONFLICT
+        run: |
+          set -euo pipefail
+          node scripts/repair-dr-billing-feature-flag-conflict.mjs \
+            --apply \
+            | tee dr-artifacts/replication-conflict-repair.json
+
+      - name: Wait for repaired replication to catch up
+        run: |
+          set -euo pipefail
+          node scripts/refresh-dr-replication-snapshot.mjs --wait-seconds 300 \
+            2>&1 | tee dr-artifacts/replication-conflict-snapshot.json
+
+      - name: Verify repaired billing flags exactly match Primary
+        env:
+          DR_CHANGE_CONFIRMATION: VERIFY_DR_BILLING_FEATURE_FLAG_REPAIR
+        run: |
+          set -euo pipefail
+          node scripts/repair-dr-billing-feature-flag-conflict.mjs \
+            --verify \
+            | tee dr-artifacts/replication-conflict-verification.json
+
+      - name: Verify DR readiness after conflict repair
+        env:
+          DR_CHANGE_CONFIRMATION: CHECK_DR_READINESS
+        run: |
+          set -euo pipefail
+          node scripts/check-dr-readiness.mjs --target DR --apply \
+            | tee dr-artifacts/replication-conflict-readiness.json
+
+      - name: Create immutable replication conflict repair evidence
+        env:
+          PRODUCTION_APPROVAL_OPERATION: production-dr-replication-conflict-repair
+          PRODUCTION_EVIDENCE_PATH: dr-artifacts/production-dr-replication-conflict-repair-evidence.json
+        run: node scripts/production-approval.mjs create-evidence
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-dr-replication-conflict-repair-${{ github.run_id }}
           path: dr-artifacts/
           if-no-files-found: warn
           retention-days: 30
