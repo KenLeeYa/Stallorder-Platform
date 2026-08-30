@@ -1,8 +1,15 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { calendarDateInTimeZone } from "../src/lib/date-time";
 import { waitForDefaultMerchantDashboard } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
+const reportDateTo = new Date();
+const reportQuery = new URLSearchParams({
+  organizationId,
+  dateFrom: calendarDateInTimeZone(new Date(reportDateTo.valueOf() - 24 * 60 * 60 * 1000), "Asia/Taipei"),
+  dateTo: calendarDateInTimeZone(reportDateTo, "Asia/Taipei"),
+}).toString();
 
 const viewportCases = [
   { width: 320, height: 800, hourlyColumns: 4, summaryColumns: 2, productColumns: 2, paymentColumns: 2, stallColumns: 2 },
@@ -16,7 +23,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
 
   for (const viewport of viewportCases) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await page.goto(`/merchant/reports/overview?organizationId=${organizationId}`);
+    await page.goto(`/merchant/reports/overview?${reportQuery}`);
 
     const mainContent = page.locator("#main-content");
     const overview = mainContent.getByTestId("report-overview");
@@ -78,7 +85,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
       await page.unroute("**/api/merchant/reports/export");
     }
 
-    await page.goto(`/merchant/reports/products?organizationId=${organizationId}`);
+    await page.goto(`/merchant/reports/products?${reportQuery}`);
     const products = mainContent.getByTestId("report-products");
     const productHours = mainContent.getByTestId("product-hourly-dashboard");
     await expect(mainContent.getByRole("heading", { name: "商品與時段分析", exact: true })).toBeVisible();
@@ -86,7 +93,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
     expect(await countComputedGridColumns(productHours)).toBe(viewport.productColumns);
     await expectNoHorizontalOverflow(products);
 
-    await page.goto(`/merchant/reports/payments?organizationId=${organizationId}`);
+    await page.goto(`/merchant/reports/payments?${reportQuery}`);
     const payments = mainContent.getByTestId("report-payments");
     const paymentSummary = mainContent.getByTestId("payment-summary-dashboard");
     const stallPayments = mainContent.getByTestId("stall-payment-dashboard");
@@ -98,7 +105,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
     await expect(stallPayments.locator("article").first()).toBeVisible();
     await expectNoHorizontalOverflow(payments);
 
-    await page.goto(`/merchant/reports/stalls?organizationId=${organizationId}`);
+    await page.goto(`/merchant/reports/stalls?${reportQuery}`);
     const stalls = mainContent.getByTestId("report-stalls");
     const stallDashboard = mainContent.getByTestId("stall-performance-dashboard");
     const firstStallCard = mainContent.getByTestId("stall-performance-card").first();
