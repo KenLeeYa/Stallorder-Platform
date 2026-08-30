@@ -60,8 +60,8 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
       ? t("kitchen.connection.connecting")
       : t("kitchen.connection.polling");
   return (
-    <header className="sticky top-0 z-50 min-h-[4.75rem] overflow-x-clip border-b border-stone-200 bg-white/95 shadow-sm backdrop-blur print:static print:h-auto">
-      <div className="mx-auto max-w-[1600px] px-3 py-2 md:px-6">
+    <header className="sticky top-0 z-50 min-h-[3.75rem] overflow-x-clip border-b border-stone-200 bg-white/95 shadow-sm backdrop-blur print:static print:h-auto">
+      <div className="mx-auto max-w-[1600px] px-3 md:px-6">
         <h1 className="sr-only">{t("kitchen.systemTitle")}</h1>
         <div data-testid="kitchen-toolbar-row" className="flex h-[3.75rem] w-full min-w-0 items-start">
           <MobileSeniorActionMenu label={t("kitchen.navigation")}>

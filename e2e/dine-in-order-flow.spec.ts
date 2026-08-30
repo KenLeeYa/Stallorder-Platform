@@ -316,7 +316,10 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   await expect(checkout.getByRole("button", { name: "LINE Pay" })).toBeVisible();
   await expect(checkout.getByRole("button", { name: "街口支付" })).toBeVisible();
   await expectNoHorizontalOverflow(staffPage);
-  await checkout.getByRole("button", { name: "9 折" }).click();
+  await checkout.getByTestId("staff-discount-trigger").click();
+  const discountDialog = staffPage.getByRole("dialog", { name: "結帳折扣" });
+  await expect(discountDialog).toBeVisible();
+  await discountDialog.getByRole("button", { name: "9 折" }).click();
   await checkout.getByRole("button", { name: "$500" }).click();
   await expect(checkout).toContainText("$135");
   await expect(checkout).toContainText("$365");
