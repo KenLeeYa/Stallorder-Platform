@@ -428,8 +428,15 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await dialog.getByLabel("顧客名稱（選填）").fill(draftCustomerName);
   await dialog.getByLabel("聯絡電話（選填）").fill(draftCustomerPhone);
   await dialog.getByTestId("staff-order-cart-tab").click();
-  await expect(dialog.getByTestId("staff-order-cart-panel")).toBeVisible();
-  await dialog.getByLabel("整單備註").fill(draftCustomerNote);
+  const draftCartPanel = dialog.getByTestId("staff-order-cart-panel");
+  await expect(draftCartPanel).toBeVisible();
+  await draftCartPanel.getByTestId("staff-tablet-confirm-order").click();
+  await draftCartPanel.getByTestId("staff-checkout-note-button").click();
+  const noteDialog = page.getByRole("dialog", { name: "整單備註", exact: true });
+  await noteDialog.locator("textarea").fill(draftCustomerNote);
+  await noteDialog.getByRole("button", { name: "儲存", exact: true }).click();
+  await expect(noteDialog).toBeHidden();
+  await draftCartPanel.getByTestId("staff-checkout-back-icon").click();
   await dialog.getByTestId("staff-save-draft").click();
   await expect(dialog.getByRole("status")).toContainText("暫存在此裝置");
   await expect(dialog.getByTestId("staff-cart-line")).toHaveCount(0);
@@ -467,7 +474,6 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await draftManager.getByRole("button", { name: "繼續點餐", exact: true }).click();
   await expect(dialog.getByLabel("顧客名稱（選填）")).toHaveValue("");
   await expect(dialog.getByLabel("聯絡電話（選填）")).toHaveValue("");
-  await expect(dialog.getByLabel("整單備註")).toHaveValue("");
   await expect(dialog.getByTestId("staff-cart-line")).toHaveCount(1);
 
   await dialog.getByTestId("staff-open-drafts").click();
