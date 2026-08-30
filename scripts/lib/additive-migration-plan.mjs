@@ -58,9 +58,9 @@ const STAFF_KDS_SPECIAL_CLOSURES_RECONCILIATION_MIGRATION_DIGEST =
 const NON_KDS_CONFIRMATION_PRINTING_MIGRATION_DIGEST =
   "6fe78c746d1bdf7515e78e8ce2b67a1fc04e8104492363de6b06434613be4c39";
 const ORGANIZATION_OPERATING_MODE_MIGRATION_DIGEST =
-  "52de0807084d4d7b275bb60698feb12ba29d9d1d6e4a30f59d0eeba421d147c2";
+  "b6ecfafbef7517870f64481fdaeb791d6a33df75fdfb5b5001da988fc36c5874";
 const MULTITENANT_EINVOICE_LOCAL_MOCK_MIGRATION_DIGEST =
-  "740adaa5330fe8fcc29973d9e4e682c36c3a0ee09975afa6c288a80bccecd46e";
+  "67e542ef6d919bf24b4e3e77c77bbfac959086a19bfe0217988bb8bd96f7a8c4";
 
 export class AdditiveMigrationPlanError extends Error {
   constructor(code, details = {}) {
@@ -280,6 +280,14 @@ export function assertAdditiveMigrationSql(sql) {
           privateProductImageDeliveryMigration
           && isSafePrivateProductImageWriteGuardToggle(statement)
         )
+        && !(
+          organizationOperatingModeMigration
+          && isSafeOrganizationOperatingModeWriteGuardToggle(statement)
+        )
+        && !(
+          multitenantEinvoiceLocalMockMigration
+          && isSafeMultitenantEinvoiceWriteGuardToggle(statement)
+        )
       )
       || /\balter\s+table\b[\s\S]*\bno\s+force\s+row\s+level\s+security\b/iu
         .test(statement)
@@ -317,6 +325,8 @@ export function assertAdditiveMigrationSql(sql) {
     paygOpenBetaBillingMigration,
     paygContractRuntimeGapsMigration,
     privateProductImageDeliveryMigration,
+    organizationOperatingModeMigration,
+    multitenantEinvoiceLocalMockMigration,
   );
   assertReplacementObjectProvenance(
     statements,
@@ -351,6 +361,8 @@ function assertSecurityObjectProvenance(
   paygOpenBetaBillingMigration,
   paygContractRuntimeGapsMigration,
   privateProductImageDeliveryMigration,
+  organizationOperatingModeMigration,
+  multitenantEinvoiceLocalMockMigration,
 ) {
   const createdTables = new Map();
   const createdFunctions = new Map();
@@ -424,19 +436,26 @@ function assertSecurityObjectProvenance(
         || /\b(?:enable|disable)\s+(?:(?:always|replica)\s+)?trigger\b/iu
           .test(statement)
       );
-    const reviewedPrivateImageGuardToggle =
+    const reviewedExistingTableGuardToggle = (
       privateProductImageDeliveryMigration
-      && isSafePrivateProductImageWriteGuardToggle(statement);
+      && isSafePrivateProductImageWriteGuardToggle(statement)
+    ) || (
+      organizationOperatingModeMigration
+      && isSafeOrganizationOperatingModeWriteGuardToggle(statement)
+    ) || (
+      multitenantEinvoiceLocalMockMigration
+      && isSafeMultitenantEinvoiceWriteGuardToggle(statement)
+    );
     if (
       securityTableMutation
-      && !reviewedPrivateImageGuardToggle
+      && !reviewedExistingTableGuardToggle
       && !alteredTable
     ) {
       throw new AdditiveMigrationPlanError(
         "SECURITY_MUTATION_STATEMENT_UNPARSEABLE",
       );
     }
-    if (securityTableMutation && !reviewedPrivateImageGuardToggle) {
+    if (securityTableMutation && !reviewedExistingTableGuardToggle) {
       assertObjectCreatedEarlier(
         createdTables,
         normalizeIdentifier(alteredTable[1]),
@@ -1086,6 +1105,16 @@ function isSafePrivateProductImageWriteGuardToggle(statement) {
     .test(statement);
 }
 
+function isSafeOrganizationOperatingModeWriteGuardToggle(statement) {
+  return /^alter\s+table\s+public\.organizations\s+(?:disable|enable)\s+trigger\s+backend_writable_guard$/iu
+    .test(statement);
+}
+
+function isSafeMultitenantEinvoiceWriteGuardToggle(statement) {
+  return /^alter\s+table\s+public\.billing_feature_flags\s+(?:disable|enable)\s+trigger\s+backend_writable_guard$/iu
+    .test(statement);
+}
+
 function isApprovedDrStandbyCompatibleMigration(sql) {
   return DR_STANDBY_COMPATIBLE_MIGRATION_DIGESTS.has(
     sha256(sql.replace(/\r\n/gu, "\n").trim()),
@@ -1490,8 +1519,12 @@ function assertAllowedStatement(
       && isSafePrivateProductImageWriteGuardToggle(statement),
     organizationOperatingModeMigration
       && isSafeOrganizationOperatingModeUpdate(statement),
+    organizationOperatingModeMigration
+      && isSafeOrganizationOperatingModeWriteGuardToggle(statement),
     multitenantEinvoiceLocalMockMigration
       && isSafeMultitenantEinvoiceFeatureFlagSeed(statement),
+    multitenantEinvoiceLocalMockMigration
+      && isSafeMultitenantEinvoiceWriteGuardToggle(statement),
     isAllowedAlterTableStatement(statement),
     /^alter\s+type\b[\s\S]*\badd\s+value\b/iu,
     /^create\s+(?:or\s+replace\s+)?function\b/iu,

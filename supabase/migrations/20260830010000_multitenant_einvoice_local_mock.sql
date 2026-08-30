@@ -2,6 +2,11 @@
 -- This migration intentionally enables only architecture and local mock readiness.
 -- Production issuing remains fail-closed behind separate feature flags.
 
+begin;
+
+set local lock_timeout = '5s';
+set local statement_timeout = '2min';
+
 create unique index if not exists stalls_id_organization_einvoice_idx
   on public.stalls (id, organization_id);
 create unique index if not exists orders_id_organization_einvoice_idx
@@ -274,6 +279,8 @@ create index invoice_reconciliation_cases_queue_idx
 create index invoice_reconciliation_cases_document_idx
   on public.invoice_reconciliation_cases (invoice_document_id, case_type, review_status);
 
+alter table public.billing_feature_flags disable trigger backend_writable_guard;
+
 insert into public.billing_feature_flags (code, is_enabled, phase, description) values
   ('EINVOICE_PLATFORM_ENABLED', false, 2, '店家自有帳號電子發票平台總開關。'),
   ('EINVOICE_MERCHANT_SETUP_ENABLED', false, 2, '允許商家準備電子發票設定；需在本機環境明確啟用。'),
@@ -292,6 +299,8 @@ on conflict (code) do update
 set is_enabled = excluded.is_enabled,
     description = excluded.description,
     updated_at = now();
+
+alter table public.billing_feature_flags enable trigger backend_writable_guard;
 
 alter table public.invoice_seller_profiles enable row level security;
 alter table public.invoice_seller_profiles force row level security;
@@ -398,3 +407,5 @@ comment on table public.invoice_documents is
   'Order e-invoice state is independent from order and payment state. test_document rows are not legal invoices.';
 comment on table public.invoice_provider_operations is
   'Idempotent provider operation ledger. Request/response bodies and credential values are intentionally not stored.';
+
+commit;
