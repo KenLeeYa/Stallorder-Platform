@@ -112,7 +112,7 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   expect(desktopFunctionPositions.every(({ y }) => Math.abs(y - desktopFunctionPositions[0]!.y) <= 1)).toBe(true);
   expect(desktopFunctionPositions.every(({ x }, index) => index === 0 || x > desktopFunctionPositions[index - 1]!.x)).toBe(true);
   await functionGrid.getByTitle("離線裝置", { exact: true }).click();
-  await expect(page.getByRole("region", { name: "離線裝置", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "離線裝置", exact: true })).toBeVisible();
   await page.getByTitle("關閉離線裝置視窗", { exact: true }).click();
   const configurationResponsePromise = page.waitForResponse((response) => (
     new URL(response.url()).pathname.endsWith("/api/stalls/aming-chicken/pos-configuration")
@@ -300,7 +300,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
     const style = window.getComputedStyle(element);
     return { display: style.display, flexWrap: style.flexWrap, overflowX: style.overflowX };
   })).toEqual({ display: "flex", flexWrap: "nowrap", overflowX: "auto" });
-  expect(await functionGrid.locator(":scope > [data-testid^='staff-function-']").count()).toBe(3);
+  expect(await functionGrid.locator(":scope > [data-testid^='staff-function-']").count()).toBe(4);
   expect(await functionGrid.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   expect(await functionGrid.locator(":scope > *").count()).toBeLessThanOrEqual(12);

@@ -252,7 +252,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       expect(response.request().postDataJSON()).toMatchObject({
         status: "COMPLETED",
         paymentOptionId: cashPaymentOptionId,
-        cashReceived: order.total,
+        cashReceived: null,
       });
       await expect(response.json()).resolves.toMatchObject({ completionPendingPrint: false });
       await expect(ticket).toHaveCount(0);
