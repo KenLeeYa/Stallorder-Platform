@@ -168,7 +168,7 @@ export function MerchantWorkspaceHeader({
           <Link
             href={workspace ? `/merchant/dashboard?organizationId=${workspace.id}` : "/merchant/dashboard"}
             aria-label={m("攤點通")}
-            className="inline-flex h-11 min-w-11 flex-1 items-center gap-2 overflow-hidden font-semibold text-stone-950 md:flex-none"
+            className="inline-flex h-11 min-w-11 flex-none items-center gap-2 overflow-hidden font-semibold text-stone-950"
           >
             <Store className="h-5 w-5 shrink-0 text-teal-700" />
             <span className="hidden truncate min-[420px]:inline">{m("攤點通")}</span>
@@ -176,7 +176,7 @@ export function MerchantWorkspaceHeader({
 
           {renderFunctionNavigation("hidden min-w-0 flex-1 justify-end lg:flex", "merchant-function-navigation-desktop")}
 
-          <div data-testid="merchant-utility-toolbar" data-persist-horizontal-scroll="merchant-utility-toolbar" className="ml-auto flex min-w-0 shrink-0 items-center gap-1 overflow-x-auto [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:px-0 [&_svg]:h-5 [&_svg]:w-5">
+          <div data-testid="merchant-utility-toolbar" data-persist-horizontal-scroll="merchant-utility-toolbar" className="ml-auto flex min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:flex-none [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:px-0 [&_svg]:h-5 [&_svg]:w-5">
             {workspace ? (
               <WorkModeSwitcher
                 destinations={workModeDestinations}
