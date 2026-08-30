@@ -283,9 +283,23 @@ test.describe.serial("現金交班與短溢收", () => {
         columns: getComputedStyle(document.querySelector<HTMLElement>("[data-testid='cash-shift-report-dashboard']")!).gridTemplateColumns.split(" ").length,
         clientWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,
+        offenders: Array.from(document.querySelectorAll<HTMLElement>("body *"))
+          .map((element) => {
+            const box = element.getBoundingClientRect();
+            return {
+              tag: element.tagName,
+              testId: element.dataset.testid ?? "",
+              className: typeof element.className === "string" ? element.className : "",
+              left: Math.round(box.left),
+              right: Math.round(box.right),
+              width: Math.round(box.width),
+            };
+          })
+          .filter((box) => box.left < -1 || box.right > document.documentElement.clientWidth + 1)
+          .slice(0, 10),
       }));
       expect(layout.columns).toBe(2);
-      expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
+      expect(layout.scrollWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.clientWidth);
     }
     await financePage.context().close();
 

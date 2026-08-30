@@ -55,10 +55,10 @@ function ReportFiltersForm({ organizationId, stalls, selectedStallIds, dateFrom,
     setTo(formatLocalDate(today));
   }
 
-  return <form method="get" className={`grid gap-3 border-b border-stone-200 py-3 sm:gap-4 sm:py-5 lg:items-end ${multiStallMode ? "lg:grid-cols-[minmax(340px,1.2fr)_minmax(260px,1fr)_auto]" : "lg:grid-cols-[minmax(340px,1fr)_auto]"}`}>
+  return <form method="get" className={`grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 border-b border-stone-200 py-3 sm:gap-4 sm:py-5 lg:items-end ${multiStallMode ? "lg:grid-cols-[minmax(340px,1.2fr)_minmax(260px,1fr)_auto]" : "lg:grid-cols-[minmax(340px,1fr)_auto]"}`}>
     <input type="hidden" name="organizationId" value={organizationId} />
     {pageSize ? <input type="hidden" name="pageSize" value={pageSize} /> : null}
-    <div>
+    <div className="min-w-0">
       <div className="flex items-center justify-between gap-2 sm:gap-3">
         <span className="text-sm font-medium text-stone-700">{t("reports.filter.dateRange")}</span>
         <div className="inline-flex overflow-hidden rounded-md border border-stone-300">
@@ -73,7 +73,7 @@ function ReportFiltersForm({ organizationId, stalls, selectedStallIds, dateFrom,
         <input required aria-label={t("reports.filter.endDate")} type="date" name="dateTo" value={to} onChange={(event) => setTo(event.target.value)} className="h-10 min-w-0 rounded-md border border-stone-300 px-3" />
       </div>
     </div>
-    {multiStallMode ? <fieldset>
+    {multiStallMode ? <fieldset className="min-w-0">
       <legend className="text-sm font-medium text-stone-700">{t("reports.filter.stalls")}</legend>
       <div className="mt-1 flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2">{stalls.map((stall) => <label key={stall.id} className="flex items-center gap-2 text-sm"><input type="checkbox" name="stallId" value={stall.id} checked={selectedIds.includes(stall.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, stall.id] : current.filter((id) => id !== stall.id))} />{stall.name}</label>)}</div>
     </fieldset> : null}
