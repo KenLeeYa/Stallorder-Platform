@@ -490,6 +490,8 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await dialog.getByTestId("staff-mobile-cart-summary").click();
   const cartPanel = dialog.getByTestId("staff-order-cart-panel");
   await expect(cartPanel).toBeVisible();
+  await cartPanel.getByTestId("staff-tablet-confirm-order").click();
+  await expect(cartPanel.getByTestId("staff-order-checkout-controls")).toBeVisible();
   for (const touchTarget of [
     cartPanel.getByRole("button", { name: "立即結帳", exact: true }),
     cartPanel.getByRole("button", { name: "稍後結帳", exact: true }),
