@@ -89,9 +89,11 @@ upgrade-only incremental replication operation; they must not reset DR.
 5. Remove incomplete logical replication, reset the former Staging project's
    application schema, then prove that the Supabase-managed Storage object
    inventory and its pre-reset digests are unchanged before continuing.
-   The high-fanout `app_private` and `internal` schemas are dropped through
-   separate PostgreSQL connections before the CLI reset so their locks are
-   released between transactions instead of exhausting shared lock memory.
+   Project-owned `app_private` and `internal` schemas, extensions and `public`
+   routines, views, relations, sequences and types are dropped one statement
+   per autocommit before the CLI reset. Locks are released between statements
+   instead of exhausting shared lock memory; Supabase-managed Auth and Storage
+   schemas are not pre-dropped.
 6. Configure DR Auth redirects, Edge secrets and Edge Functions.
 7. Enable database writer fencing.
 8. Create the least-privilege logical-replication role, publication and

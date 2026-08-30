@@ -252,7 +252,7 @@ describe("Production workflow approval contract", () => {
   it("releases application-schema locks before the remote bootstrap reset", () => {
     const bootstrap = workflowJob(disasterRecovery, "bootstrap");
     const splitSchemaDrop = bootstrap.indexOf(
-      "name: Drop large application schemas before DR reset",
+      "name: Release application-object locks before DR reset",
     );
     const reset = bootstrap.indexOf(
       'supabase db reset --db-url "$DR_DIRECT_URL" --no-seed --yes',
@@ -260,10 +260,11 @@ describe("Production workflow approval contract", () => {
 
     expect(splitSchemaDrop).toBeGreaterThan(-1);
     expect(splitSchemaDrop).toBeLessThan(reset);
-    expect(bootstrap).toContain("for schema in app_private internal; do");
     expect(bootstrap).toContain(
-      'drop schema if exists \\"$SCHEMA\\" cascade',
+      "DR_CHANGE_CONFIRMATION: RELEASE_DR_RESET_LOCKS",
     );
+    expect(bootstrap).toContain("node scripts/release-dr-reset-locks.mjs");
+    expect(bootstrap).not.toContain("for schema in app_private internal; do");
   });
 
   it("disables Vercel Git auto-deploy only for main", () => {
