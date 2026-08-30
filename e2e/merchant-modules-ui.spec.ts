@@ -69,7 +69,6 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
     "抽抽樂推薦",
     "QR 點餐語系",
     "安全與訂單限制",
-    "多攤位範本",
     "攤位成員",
     "CDS 取餐顯示",
     "產能與等候時間",
@@ -84,6 +83,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   ]) {
     await expect(page.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
+  await expect(page.getByRole("link", { name: "多攤位範本", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "線上外送", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "外帶預約", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "現金交班報表", exact: true })).toHaveCount(0);

@@ -243,7 +243,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     await expectDashboardOrganization(page, organizationId, 30_000);
     const merchantMain = page.locator("#main-content");
     await expect(merchantMain).toHaveCount(1);
-    await expect(merchantMain.getByText("多攤位營運總覽", { exact: true })).toBeVisible();
+    await expect(merchantMain.getByText("營運總覽", { exact: true })).toBeVisible();
     await gotoLocalPath(page, `/merchant/stalls/${live.stall.id}`);
     await expect(page.getByRole("link", { name: "開店設定", exact: true })).toHaveAttribute(
       "href",

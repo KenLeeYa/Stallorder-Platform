@@ -22,7 +22,7 @@ const authorizedStallSlug = "e2e-authorized-stall-two";
 const otherOrganizationSlug = "e2e-isolated-organization";
 const sharedProductName = "香酥雞排";
 
-let organization: { id: string; businessName: string };
+let organization: { id: string; businessName: string; operatingMode: string };
 let firstStall: { id: string; name: string; slug: string };
 let secondStall: { id: string; name: string; slug: string };
 let authorizedOrganization: { id: string; businessName: string };
@@ -36,7 +36,7 @@ test.describe("多攤位商戶關鍵流程", () => {
   test.beforeAll(async () => {
     organization = await prisma.organization.findUniqueOrThrow({
       where: { email: ownerEmail },
-      select: { id: true, businessName: true },
+      select: { id: true, businessName: true, operatingMode: true },
     });
     firstStall = await prisma.stall.findUniqueOrThrow({
       where: { slug: "aming-chicken" },
@@ -51,6 +51,10 @@ test.describe("多攤位商戶關鍵流程", () => {
     await prisma.orderSession.deleteMany({ where: { organizationId: organization.id } });
     await prisma.publicRateLimitBucket.deleteMany({ where: { organizationId: organization.id } });
     await prisma.stall.deleteMany({ where: { slug: secondStallSlug } });
+    await prisma.organization.update({
+      where: { id: organization.id },
+      data: { operatingMode: "MULTI_STALL" },
+    });
     await deleteTestOrganizations({
       where: {
         OR: [
@@ -164,6 +168,10 @@ test.describe("多攤位商戶關鍵流程", () => {
           });
         }
         await prisma.stall.deleteMany({ where: { organizationId: currentOrganization.id, slug: secondStallSlug } });
+        await prisma.organization.update({
+          where: { id: currentOrganization.id },
+          data: { operatingMode: organization.operatingMode },
+        });
       }
       await deleteTestOrganizations({
         where: {

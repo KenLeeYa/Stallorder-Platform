@@ -61,7 +61,7 @@ test("示範 Owner 可登入並建立有效 session", async ({ page }) => {
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await loginResponse).status()).toBe(200);
   await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/);
-  const dashboardLabel = page.locator("#main-content").getByText("多攤位營運總覽", { exact: true });
+  const dashboardLabel = page.locator("#main-content").getByText("營運總覽", { exact: true });
   await expect(dashboardLabel).toBeVisible();
 });
 
