@@ -249,6 +249,23 @@ describe("Production workflow approval contract", () => {
     );
   });
 
+  it("releases application-schema locks before the remote bootstrap reset", () => {
+    const bootstrap = workflowJob(disasterRecovery, "bootstrap");
+    const splitSchemaDrop = bootstrap.indexOf(
+      "name: Drop large application schemas before DR reset",
+    );
+    const reset = bootstrap.indexOf(
+      'supabase db reset --db-url "$DR_DIRECT_URL" --no-seed --yes',
+    );
+
+    expect(splitSchemaDrop).toBeGreaterThan(-1);
+    expect(splitSchemaDrop).toBeLessThan(reset);
+    expect(bootstrap).toContain("for schema in app_private internal; do");
+    expect(bootstrap).toContain(
+      'drop schema if exists \\"$SCHEMA\\" cascade',
+    );
+  });
+
   it("disables Vercel Git auto-deploy only for main", () => {
     expect(vercel.git.deploymentEnabled).toEqual({ main: false });
   });
