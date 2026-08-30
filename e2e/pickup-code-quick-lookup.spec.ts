@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { PrismaClient, type QrCodeState } from "@prisma/client";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl || !["127.0.0.1", "localhost"].includes(new URL(databaseUrl).hostname)) {
@@ -168,6 +169,7 @@ test.describe("每日三碼取餐與店員快速載單", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await test.step("店員以取餐碼載入完成訂單", async () => {
       await loginAsStaff(page);
+      await dismissStaffStartReminder(page);
       const pickupLookupButton = await stablePickupLookupButton(page);
       await pickupLookupButton.click();
 
