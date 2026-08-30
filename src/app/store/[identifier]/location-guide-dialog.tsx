@@ -2,6 +2,7 @@
 
 import { ExternalLink, MapPin, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ProductImage } from "@/components/product-image";
 import type { AppLocale } from "@/lib/app-locale";
 
@@ -144,7 +145,7 @@ export function LocationGuideDialog({
         {copy.button}
       </button>
 
-      {open ? (
+      {open ? createPortal(
         <div
           className="fixed inset-0 z-[100] grid place-items-center bg-black/65 p-3 backdrop-blur-sm sm:p-6"
           role="presentation"
@@ -223,7 +224,8 @@ export function LocationGuideDialog({
               </section>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </>
   );

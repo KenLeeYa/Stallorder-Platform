@@ -37,6 +37,7 @@ export function LogoutButton({ offlineStallId }: { offlineStallId?: string } = {
     <SessionKeepAlive />
     <button
       type="button"
+      data-senior-action-tile="true"
       onClick={logout}
       disabled={isSubmitting}
       title={label}

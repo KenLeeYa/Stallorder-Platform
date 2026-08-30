@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -91,6 +92,7 @@ test.describe.serial("現金交班與短溢收", () => {
       await warmupResponse.dispose();
     }
     await page.goto(`/staff/${stallSlug}`);
+    await dismissStaffStartReminder(page);
     const openComposerButton = page.getByRole("button", { name: "店員點餐" });
     await waitForReactHydration(openComposerButton);
     await openComposerButton.click();
@@ -108,9 +110,10 @@ test.describe.serial("現金交班與短溢收", () => {
     await composer.getByLabel("顧客名稱（選填）").fill(customerName);
     await composer.getByTestId("staff-mobile-cart-summary").click();
     await expect(composer.getByTestId("staff-order-cart-panel")).toBeVisible();
+    await composer.getByTestId("staff-tablet-confirm-order").click();
+    await expect(composer.getByTestId("staff-order-checkout-controls")).toBeVisible();
     const cashOption = composer.getByRole("button", { name: "現金", exact: true });
     if (await cashOption.count()) await cashOption.click();
-    await composer.getByRole("button", { name: "剛好", exact: true }).click();
     const orderResponsePromise = page.waitForResponse((response) => (
       response.url().endsWith(`/api/stalls/${stallSlug}/orders`)
       && response.request().method() === "POST"
@@ -280,9 +283,23 @@ test.describe.serial("現金交班與短溢收", () => {
         columns: getComputedStyle(document.querySelector<HTMLElement>("[data-testid='cash-shift-report-dashboard']")!).gridTemplateColumns.split(" ").length,
         clientWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,
+        offenders: Array.from(document.querySelectorAll<HTMLElement>("body *"))
+          .map((element) => {
+            const box = element.getBoundingClientRect();
+            return {
+              tag: element.tagName,
+              testId: element.dataset.testid ?? "",
+              className: typeof element.className === "string" ? element.className : "",
+              left: Math.round(box.left),
+              right: Math.round(box.right),
+              width: Math.round(box.width),
+            };
+          })
+          .filter((box) => box.left < -1 || box.right > document.documentElement.clientWidth + 1)
+          .slice(0, 10),
       }));
       expect(layout.columns).toBe(2);
-      expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
+      expect(layout.scrollWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.clientWidth);
     }
     await financePage.context().close();
 

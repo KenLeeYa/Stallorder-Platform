@@ -24,6 +24,7 @@ import {
   type BestSellerRankRow,
 } from "../../supabase/functions/_shared/bestseller-ranking";
 import { completeCatalogLocales } from "../../supabase/functions/_shared/catalog-locale-completeness";
+import { getPublicEInvoiceCheckoutConfig } from "@/server/e-invoice/checkout-preference-service";
 
 const QR_CONTEXT_TTL_SECONDS = 15;
 const PUBLIC_MENU_TTL_SECONDS = 45;
@@ -76,7 +77,7 @@ export async function getCachedPublicMenuForQrToken(
       ? settings.deliveryModuleEnabled
       : settings.takeoutPreorderEnabled);
 
-  const [menu, capacity, rawPreorderSlots, specialClosures] = await Promise.all([
+  const [menu, capacity, rawPreorderSlots, specialClosures, invoiceCheckout] = await Promise.all([
     getCachedStallMenu(context.stallId),
     resolvedOrderingMode === "PREORDER"
       ? Promise.resolve(null)
@@ -86,6 +87,7 @@ export async function getCachedPublicMenuForQrToken(
       ? getTakeoutPreorderSlots(context.stallId)
       : Promise.resolve([]),
     getPublicSpecialClosures(context.stallId, context.stall.timezone),
+    getPublicEInvoiceCheckoutConfig(context.stallId),
   ]);
   if (!menu || (resolvedOrderingMode === "PREORDER" && rawPreorderSlots.length === 0)) return null;
   const preorderSlots = filterPreorderSlotsForSpecialClosures(
@@ -114,6 +116,7 @@ export async function getCachedPublicMenuForQrToken(
       festivalActive: lotteryFestivalIsActive(settings, context.stall.timezone),
     },
     specialClosure,
+    ...(invoiceCheckout ? { invoiceCheckout } : {}),
     estimatedWaitMinutes: capacity?.quoteMaxMinutes ?? 0,
     estimatedWaitMinMinutes: capacity?.quoteMinMinutes ?? 0,
     estimatedWaitMaxMinutes: capacity?.quoteMaxMinutes ?? 0,
@@ -148,10 +151,11 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
   const stall = await findPublicStallBySlug(stallSlug);
   if (!stall || !publicStallIsAvailable(stall)) return null;
 
-  const [menu, capacity, specialClosure] = await Promise.all([
+  const [menu, capacity, specialClosure, invoiceCheckout] = await Promise.all([
     getCachedStallMenu(stall.id),
     calculateCapacitySnapshot(stall.id),
     getPublicSpecialClosure(stall.id, stall.timezone),
+    getPublicEInvoiceCheckoutConfig(stall.id),
   ]);
   if (!menu) return null;
   return {
@@ -161,6 +165,7 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
     preorderSlots: [],
     lotteryEnabled: false,
     specialClosure,
+    ...(invoiceCheckout ? { invoiceCheckout } : {}),
     estimatedWaitMinutes: capacity.quoteMaxMinutes,
     estimatedWaitMinMinutes: capacity.quoteMinMinutes,
     estimatedWaitMaxMinutes: capacity.quoteMaxMinutes,

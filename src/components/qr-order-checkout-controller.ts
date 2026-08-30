@@ -1,9 +1,14 @@
 import {
+  createPublicOrderOperationId,
   parseEdgeResponse,
   publicOrderCircuitHeaders,
   requestPublicOrder,
   type PublicAvailabilityStatus,
 } from "@/lib/public-order-client";
+import {
+  invoiceBuyerSelectionSchema,
+  type InvoiceBuyerSelection,
+} from "@/lib/e-invoice-checkout-contract";
 import type { QrOrderSessionController } from "@/components/qr-order-session-controller";
 import {
   buildQrPublicOrderRequest,
@@ -45,6 +50,7 @@ type QrOrderCheckoutInput = {
   onInvalidTurnstile: () => void;
   clearPersistedCart: () => void;
   navigateToOrder: (trackingToken: string) => void;
+  afterOrderCreated?: (trackingToken: string) => Promise<string | null>;
 };
 
 export type QrCheckoutBlockerInput = {
@@ -76,6 +82,7 @@ type QrOrderCheckoutBlockerMessages = {
 type QrOrderCheckoutMessages = QrOrderCheckoutBlockerMessages & {
   preorderTimeRequired: string;
   productUnavailable: string;
+  invoiceDetailsInvalid: string;
   requiredNotes: (productName: string) => string;
 };
 
@@ -100,6 +107,7 @@ export type QrOrderCheckoutFlowInput = {
   lotteryDrawId: string | null;
   waitAcknowledged: boolean;
   turnstileToken: string | null;
+  invoiceBuyerSelection: InvoiceBuyerSelection | null;
   localizedProductName: (product: PublicMenuProduct) => string;
   messages: QrOrderCheckoutMessages;
 };
@@ -156,6 +164,8 @@ export async function submitQrOrderCheckout(input: QrOrderCheckoutInput) {
     }
 
     const trackingToken = String(response.payload.trackingToken);
+    const postOrderError = await input.afterOrderCreated?.(trackingToken);
+    if (postOrderError) throw new LocalizedCheckoutError(postOrderError);
     try {
       input.clearPersistedCart();
     } catch {
@@ -233,7 +243,9 @@ export function createQrOrderCheckoutModel(input: QrOrderCheckoutFlowInput) {
       deliveryDetailsMissing,
       requiredOptionMessage: invalidCartProduct
         ? input.messages.requiredNotes(input.localizedProductName(invalidCartProduct))
-        : null,
+        : input.invoiceBuyerSelection && !invoiceBuyerSelectionSchema.safeParse(input.invoiceBuyerSelection).success
+          ? input.messages.invoiceDetailsInvalid
+          : null,
       waitAcknowledgmentRequired: Boolean(
         input.session?.requiresWaitAcknowledgment && !input.waitAcknowledged,
       ),
@@ -330,6 +342,14 @@ export async function submitQrOrderFlowCheckout({
     },
     clearPersistedCart: effects.clearPersistedCart,
     navigateToOrder: effects.navigateToOrder,
+    afterOrderCreated: input.invoiceBuyerSelection
+      ? (trackingToken) => saveInvoicePreference({
+          trackingToken,
+          deviceId: input.deviceId,
+          buyer: input.invoiceBuyerSelection as InvoiceBuyerSelection,
+          failureMessage: input.messages.invoiceDetailsInvalid,
+        })
+      : undefined,
   });
   return "SUBMITTED" as const;
 }
@@ -463,6 +483,9 @@ function resolveQrOrderSubmitValidation(
   if (input.orderingMode === "PREORDER" && !input.scheduledPickupAt) {
     return input.messages.preorderTimeRequired;
   }
+  if (input.invoiceBuyerSelection && !invoiceBuyerSelectionSchema.safeParse(input.invoiceBuyerSelection).success) {
+    return input.messages.invoiceDetailsInvalid;
+  }
   const invalidLine = input.cartLines.find((line) => {
     const product = input.visibleProducts.find((candidate) => candidate.id === line.productId);
     return !product || !validSelections(product, line);
@@ -474,6 +497,33 @@ function resolveQrOrderSubmitValidation(
   return invalidProduct
     ? input.messages.requiredNotes(input.localizedProductName(invalidProduct))
     : input.messages.productUnavailable;
+}
+
+async function saveInvoicePreference(input: {
+  trackingToken: string;
+  deviceId: string;
+  buyer: InvoiceBuyerSelection;
+  failureMessage: string;
+}) {
+  try {
+    const operationId = createPublicOrderOperationId();
+    const response = await fetch(
+      `/api/public/orders/${encodeURIComponent(input.trackingToken)}/invoice-preference`,
+      {
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          ...publicOrderCircuitHeaders(operationId),
+        },
+        body: JSON.stringify({ deviceId: input.deviceId, buyer: input.buyer }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(4_000),
+      },
+    );
+    return response.ok ? null : input.failureMessage;
+  } catch {
+    return input.failureMessage;
+  }
 }
 
 function validSelections(product: PublicMenuProduct, line: QrCartLine) {

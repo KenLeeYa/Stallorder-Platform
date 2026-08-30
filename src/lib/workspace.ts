@@ -38,6 +38,7 @@ export type WorkspaceOrganization = {
   slug: string;
   status: OrganizationStatus;
   defaultCurrency: string;
+  operatingMode: "SINGLE_STALL" | "MULTI_STALL";
   merchantSetupState: "IN_PROGRESS" | "COMPLETED" | null;
   merchantSetupStallId: string | null;
   roles: UserRole[];
@@ -81,6 +82,7 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
       slug: true,
       status: true,
       defaultCurrency: true,
+      operatingMode: true,
       merchantSetupProgress: {
         select: {
           stallId: true,
@@ -173,6 +175,7 @@ export const getWorkspaceAccess = cache(async function getWorkspaceAccess(
       slug: organization.slug,
       status: organization.status,
       defaultCurrency: organization.defaultCurrency,
+      operatingMode: organization.operatingMode === "MULTI_STALL" ? "MULTI_STALL" : "SINGLE_STALL",
       merchantSetupState: organization.merchantSetupProgress
         ? isMerchantSetupEffectivelyComplete({
           ...organization.merchantSetupProgress,

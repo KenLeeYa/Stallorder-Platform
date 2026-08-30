@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { expect, test, type Page, type Response } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { derivePublicOrderTokens } from "../supabase/functions/_shared/crypto";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -164,6 +165,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await expect(ownerPage.getByRole("link", { name: "KDS 設定", exact: true })).toHaveCount(0);
 
       await ownerPage.goto(`/staff/${stallSlug}`);
+      await dismissStaffStartReminder(ownerPage);
       const visibleHeader = ownerPage.locator('[data-testid="staff-sticky-header"]:visible').last();
       const workMode = visibleHeader.getByTestId("work-mode-icon-staff").locator("..");
       await expect(workMode).toBeVisible();
@@ -235,6 +237,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       const staffPage = await staffContext.newPage();
       await login(staffPage, "staff@stallorder.test", new RegExp(`/staff/${stallSlug}`));
       await staffPage.goto(`/staff/${stallSlug}`);
+      await dismissStaffStartReminder(staffPage);
       const ticket = staffPage.getByRole("article").filter({ hasText: order.customerName });
       await expect(ticket).toBeVisible();
       await expect(ticket.getByRole("button", { name: /開始製作|餐點完成/u })).toHaveCount(0);
@@ -242,7 +245,6 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
 
       const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
       await checkout.getByRole("button", { name: "現金", exact: true }).click();
-      await checkout.getByRole("button", { name: "剛好", exact: true }).click();
       const responsePromise = waitForOrderPatch(staffPage, order.id);
       await checkout.getByRole("button", { name: "完成訂單", exact: true }).click();
       const response = await responsePromise;
@@ -250,7 +252,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       expect(response.request().postDataJSON()).toMatchObject({
         status: "COMPLETED",
         paymentOptionId: cashPaymentOptionId,
-        cashReceived: order.total,
+        cashReceived: null,
       });
       await expect(response.json()).resolves.toMatchObject({ completionPendingPrint: false });
       await expect(ticket).toHaveCount(0);
@@ -304,6 +306,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       const staffPage = await staffContext.newPage();
       await login(staffPage, "staff@stallorder.test", new RegExp(`/staff/${stallSlug}`));
       await staffPage.goto(`/staff/${stallSlug}`);
+      await dismissStaffStartReminder(staffPage);
       const ticket = staffPage.getByRole("article").filter({ hasText: order.customerName });
       const finishAndNotify = ticket.getByRole("button", {
         name: "餐點完成・通知可取餐",
@@ -381,12 +384,12 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       });
       await login(staffPage, "staff@stallorder.test", new RegExp(`/staff/${stallSlug}`));
       await staffPage.goto(`/staff/${stallSlug}`);
+      await dismissStaffStartReminder(staffPage);
       const ticket = staffPage.getByRole("article").filter({ hasText: order.customerName });
       await expect(ticket).toBeVisible();
       await ticket.getByRole("button", { name: "代結帳", exact: true }).click();
       const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
       await checkout.getByRole("button", { name: "現金", exact: true }).click();
-      await checkout.getByRole("button", { name: "剛好", exact: true }).click();
       const checkoutResponsePromise = waitForOrderPatch(staffPage, order.id);
       await checkout.getByRole("button", { name: "完成訂單", exact: true }).click();
       const checkoutResponse = await checkoutResponsePromise;
@@ -439,6 +442,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await staffPage.screenshot({ path: testInfo.outputPath("print-success-auto-complete.png"), fullPage: true });
 
       await staffPage.goto(`/staff/${stallSlug}`);
+      await dismissStaffStartReminder(staffPage);
       await expect(staffPage.getByRole("article").filter({ hasText: order.customerName })).toHaveCount(0);
     } finally {
       await staffContext.close();

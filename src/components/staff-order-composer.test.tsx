@@ -1,9 +1,56 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { MessageTestProvider } from "@/test/message-test-provider";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
 
+const composerSource = readFileSync(
+  fileURLToPath(new URL("./staff-order-composer.tsx", import.meta.url)),
+  "utf8",
+).replace(/\r\n/g, "\n");
+
 describe("StaffOrderComposer mobile toolbar", () => {
+  it("shows a centered required-selection prompt for 1.5 seconds", () => {
+    expect(composerSource).toContain("showActionPrompt(t(\"composer.requiredNotes\"");
+    expect(composerSource).toContain("}, 1_500)");
+    expect(composerSource).toContain('data-testid="staff-action-prompt"');
+    expect(composerSource).toContain("border-2 border-red-600");
+  });
+
+  it("uses a separate phone and tablet cart confirmation step before checkout", () => {
+    const html = renderToStaticMarkup(
+      <MessageTestProvider initialLocale="zh-TW">
+        <StaffOrderComposer
+          stall={{
+            id: "11111111-1111-4111-8111-111111111111",
+            organizationId: "22222222-2222-4222-8222-222222222222",
+            slug: "demo",
+            currency: "TWD",
+            timezone: "Asia/Taipei",
+          }}
+          catalog={{ products: [], tables: [], fulfillmentSlots: [], limits: { maxItemQuantity: 100, maxUniqueProducts: 100, maxTotalQuantity: 100, maxNoteLength: 1000 } }}
+          account={{ role: "STAFF" }}
+          modules={{ dineIn: true, delivery: true, print: false, payment: true, discount: false, discountApprovalThresholdBps: 8000 }}
+          paymentOptions={[{ id: "cash", name: "現金", kind: "CASH" }]}
+          discountOptions={[]}
+          onCreated={() => undefined}
+          onClose={() => undefined}
+        />
+      </MessageTestProvider>,
+    );
+
+    expect(html).toContain('data-testid="staff-tablet-confirm-order"');
+    expect(html).toContain('data-testid="staff-order-checkout-controls"');
+    expect(html).toContain('data-testid="staff-checkout-back-icon"');
+    expect(html).toContain('data-testid="staff-checkout-note-button"');
+    expect(html).toContain('data-testid="staff-checkout-payment-row"');
+    expect(html).toContain("確認訂單並前往結帳");
+    expect(html).toContain("inline-flex min-h-12");
+    expect(html).toContain("hidden lg:block");
+    expect(html).not.toContain("剛好");
+  });
+
   it("keeps all five mobile actions in one icon-only row and hides explanatory copy", () => {
     const html = renderToStaticMarkup(
       <MessageTestProvider initialLocale="zh-TW">
@@ -49,7 +96,7 @@ describe("StaffOrderComposer mobile toolbar", () => {
     expect(html).toContain('data-testid="staff-open-drafts"');
     expect(html).toContain('data-testid="staff-order-menu-tab"');
     expect(html).toContain('data-testid="staff-order-cart-tab"');
-    expect(html).toContain('class="mt-1 hidden text-sm text-stone-600 md:block"');
+    expect(html).toContain('class="mt-1 hidden text-sm text-stone-600 lg:block"');
     expect(html).toContain('class="hidden border-t border-stone-100 pt-3 md:block"');
     expect(html).toContain("sr-only md:not-sr-only");
   });

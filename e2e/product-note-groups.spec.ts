@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Locator, type Page } from "@pla
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
 import type { ProductNoteTransfer } from "../src/lib/product-note-transfer";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -42,6 +43,7 @@ async function login(page: Page, email: string) {
     await page.context().addCookies(cachedCookies);
     await page.goto(email === "staff@stallorder.test" ? "/staff/aming-chicken" : "/merchant/dashboard");
     await expect(page).toHaveURL(/\/merchant\/dashboard(?:\?organizationId=|$)|\/staff\//);
+    if (email === "staff@stallorder.test") await dismissStaffStartReminder(page);
     return;
   }
   await page.goto("/login");
@@ -50,6 +52,7 @@ async function login(page: Page, email: string) {
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
   await expect(page).toHaveURL(/\/merchant\/dashboard(?:\?organizationId=|$)|\/staff\//);
+  if (email === "staff@stallorder.test") await dismissStaffStartReminder(page);
   authCookies.set(email, await page.context().cookies());
 }
 
@@ -59,6 +62,35 @@ async function openAttachReusableNotesDialog(page: Page, group: Locator) {
   const dialog = page.getByRole("dialog", { name: /將共用註記加入/ });
   await expect(dialog).toBeVisible();
   return { dialog, trigger };
+}
+
+async function openProductNoteActions(page: Page, scope: Locator, itemName: string) {
+  await scope.getByRole("button", { name: `管理 ${itemName}`, exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: `管理 ${itemName}`, exact: true });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+async function selectProductNoteAction(
+  page: Page,
+  scope: Locator,
+  itemName: string,
+  action: string,
+) {
+  const dialog = await openProductNoteActions(page, scope, itemName);
+  await dialog.getByRole("button", { name: action, exact: true }).click();
+}
+
+async function expectProductNoteAction(
+  page: Page,
+  scope: Locator,
+  itemName: string,
+  action: string,
+) {
+  const dialog = await openProductNoteActions(page, scope, itemName);
+  await expect(dialog.getByRole("button", { name: action, exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "關閉", exact: true }).click();
+  await expect(dialog).toBeHidden();
 }
 
 async function fetchJsonInBrowser<T>(page: Page, path: string) {
@@ -172,7 +204,7 @@ test("商家可新增、修改、指派與刪除商品註記群組", async ({ pa
   await expect(page.getByRole("status")).toHaveText("註記選項已新增。");
   await expect(group).toContainText("正常甜");
 
-  await group.getByLabel("編輯 正常甜").click();
+  await selectProductNoteAction(page, group, "正常甜", "編輯");
   const editOption = page.getByRole("dialog", { name: "編輯群組專用註記" });
   await editOption.getByLabel("註記名稱").fill("固定甜度");
   await editOption.getByRole("button", { name: "儲存" }).click();
@@ -180,11 +212,11 @@ test("商家可新增、修改、指派與刪除商品註記群組", async ({ pa
   await expect(group).toContainText("固定甜度");
 
   page.once("dialog", (dialog) => dialog.accept());
-  await group.getByLabel("刪除 固定甜度").click();
+  await selectProductNoteAction(page, group, "固定甜度", "刪除");
   await expect(page.getByRole("status")).toHaveText("註記選項已刪除。");
 
   page.once("dialog", (dialog) => dialog.accept());
-  await group.getByLabel(`刪除 ${groupName}`).click();
+  await selectProductNoteAction(page, group, groupName, "刪除");
   await expect(page.getByRole("status")).toHaveText("註記群組已刪除。");
   await expect(page.getByText(groupName, { exact: true })).toHaveCount(0);
 });
@@ -225,7 +257,7 @@ test("群組內共用與專用註記排序可儲存並於重載後保留", async
   await attachDialog.getByRole("button", { name: "加入群組", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("已將 1 個共用單一註記加入群組。");
 
-  await group.getByLabel(`調整排序 ${reusableName}`).click();
+  await selectProductNoteAction(page, group, reusableName, "調整排序");
   const reusableSortEditor = page.getByRole("dialog", { name: "調整群組內排序" });
   await reusableSortEditor.getByLabel("排序").fill("0");
   const reusableSortResponse = page.waitForResponse((response) => (
@@ -236,7 +268,7 @@ test("群組內共用與專用註記排序可儲存並於重載後保留", async
   await reusableSortEditor.getByRole("button", { name: "儲存" }).click();
   expect((await reusableSortResponse).status()).toBe(200);
 
-  await group.getByLabel(`編輯 ${dedicatedName}`).click();
+  await selectProductNoteAction(page, group, dedicatedName, "編輯");
   const dedicatedSortEditor = page.getByRole("dialog", { name: "編輯群組專用註記" });
   await dedicatedSortEditor.getByLabel("排序").fill("5");
   const dedicatedSortResponse = page.waitForResponse((response) => (
@@ -254,11 +286,11 @@ test("群組內共用與專用註記排序可儲存並於重載後保留", async
   await expect(optionNames).toHaveText([reusableName, dedicatedName]);
 
   page.once("dialog", (dialog) => dialog.accept());
-  await group.getByLabel(`刪除 ${groupName}`).click();
+  await selectProductNoteAction(page, group, groupName, "刪除");
   await expect(page.getByRole("status")).toHaveText("註記群組已刪除。");
   await page.getByRole("tab", { name: "所有單一註記" }).click();
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByLabel(`刪除 ${reusableName}`).click();
+  await selectProductNoteAction(page, page.locator("body"), reusableName, "刪除");
   await expect(page.getByRole("status")).toHaveText("共用單一註記已刪除。");
 });
 
@@ -435,7 +467,7 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
   await page.getByRole("tab", { name: "註記群組" }).click();
   group = page.locator("details").filter({ has: page.getByText(groupName, { exact: true }) }).first();
   for (const noteName of noteNames) {
-    await expect(group.getByLabel(`從群組移除 ${noteName}`)).toHaveCount(0);
+    await expect(group.getByRole("button", { name: `管理 ${noteName}`, exact: true })).toHaveCount(0);
   }
 
   ({ dialog: choices, trigger: attachTrigger } = await openAttachReusableNotesDialog(page, group));
@@ -470,16 +502,16 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
   await page.getByRole("tab", { name: "註記群組" }).click();
   group = page.locator("details").filter({ has: page.getByText(groupName, { exact: true }) }).first();
   for (const noteName of noteNames) {
-    await expect(group.getByLabel(`從群組移除 ${noteName}`)).toBeVisible();
+    await expectProductNoteAction(page, group, noteName, "從群組移除");
   }
 
   page.once("dialog", (dialog) => dialog.accept());
-  await group.getByLabel(`刪除 ${groupName}`).click();
+  await selectProductNoteAction(page, group, groupName, "刪除");
   await expect(page.getByRole("status")).toHaveText("註記群組已刪除。");
   await page.getByRole("tab", { name: "所有單一註記" }).click();
   for (const noteName of [...noteNames, ...scrollFixtureNames]) {
     page.once("dialog", (dialog) => dialog.accept());
-    await page.getByLabel(`刪除 ${noteName}`).click();
+    await selectProductNoteAction(page, page.locator("body"), noteName, "刪除");
     await expect(page.getByRole("status")).toHaveText("共用單一註記已刪除。");
   }
 });
@@ -525,15 +557,15 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
   await emptyAttachChoices.getByLabel(noteName, { exact: true }).check();
   await expect(emptyAttachChoices).toHaveAttribute("aria-invalid", "false");
   await emptyAttachButton.click();
-  await expect(spiceGroup.getByLabel(`從群組移除 ${noteName}`)).toBeVisible();
+  await expectProductNoteAction(page, spiceGroup, noteName, "從群組移除");
 
   const { dialog: toppingAttachDialog } = await openAttachReusableNotesDialog(page, toppingGroup);
   await toppingAttachDialog.getByLabel(noteName, { exact: true }).check();
   await toppingAttachDialog.getByRole("button", { name: "加入群組", exact: true }).click();
-  await expect(toppingGroup.getByLabel(`從群組移除 ${noteName}`)).toBeVisible();
+  await expectProductNoteAction(page, toppingGroup, noteName, "從群組移除");
 
   await page.getByRole("tab", { name: "所有單一註記" }).click();
-  await page.getByLabel(`編輯 ${noteName}`).click();
+  await selectProductNoteAction(page, page.locator("body"), noteName, "編輯");
   const editEditor = page.getByRole("dialog", { name: "編輯共用單一註記" });
   await editEditor.getByLabel("註記名稱").fill(updatedName);
   await editEditor.getByLabel("價格調整").fill("9");
@@ -542,20 +574,20 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
   await expect(page.getByText("已加入 2 個群組", { exact: false })).toBeVisible();
 
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByLabel(`刪除 ${updatedName}`).click();
+  await selectProductNoteAction(page, page.locator("body"), updatedName, "刪除");
   await expect(page.getByRole("status")).toHaveText("此共用註記仍在註記群組中使用，請先從所有群組移除。");
 
   await page.getByRole("tab", { name: "註記群組" }).click();
   for (const group of [spiceGroup, toppingGroup]) {
     await expect(group.getByText(updatedName, { exact: true })).toBeVisible();
     page.once("dialog", (dialog) => dialog.accept());
-    await group.getByLabel(`從群組移除 ${updatedName}`).click();
-    await expect(group.getByLabel(`從群組移除 ${updatedName}`)).toHaveCount(0);
+    await selectProductNoteAction(page, group, updatedName, "從群組移除");
+    await expect(group.getByRole("button", { name: `管理 ${updatedName}`, exact: true })).toHaveCount(0);
   }
 
   await page.getByRole("tab", { name: "所有單一註記" }).click();
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByLabel(`刪除 ${updatedName}`).click();
+  await selectProductNoteAction(page, page.locator("body"), updatedName, "刪除");
   await expect(page.getByRole("status")).toHaveText("共用單一註記已刪除。");
   await expect(page.getByText(updatedName, { exact: true })).toHaveCount(0);
 });
@@ -701,23 +733,23 @@ test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) 
   const importedGroup = page.locator("details").filter({ has: page.getByText(groupName, { exact: true }) }).first();
   await expect(importedGroup).toContainText(noteName);
   page.once("dialog", (dialog) => dialog.accept());
-  await importedGroup.getByLabel(`刪除 ${groupName}`).click();
+  await selectProductNoteAction(page, importedGroup, groupName, "刪除");
   await expect(page.getByRole("status")).toHaveText("註記群組已刪除。");
 
   await page.getByRole("tab", { name: "所有單一註記" }).click();
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByLabel(`刪除 ${noteName}`).click();
+  await selectProductNoteAction(page, page.locator("body"), noteName, "刪除");
   await expect(page.getByRole("status")).toHaveText("共用單一註記已刪除。");
 });
 
-test("QR 依瀏覽器語系自動切換並保留手動選擇", async ({ browser }) => {
-  const baseURL = String(test.info().project.use.baseURL ?? "http://localhost:3001");
-  const context = await browser.newContext({ baseURL, locale: "ja-JP", timezoneId: "Asia/Taipei" });
-  const page = await context.newPage();
+test.describe("QR 瀏覽器語系", () => {
+  test.use({ locale: "ja-JP", timezoneId: "Asia/Taipei" });
 
-  try {
+  test("QR 依瀏覽器語系自動切換並保留手動選擇", async ({ page }) => {
     const sessionResponse = page.waitForResponse((response) => (
-      new URL(response.url()).pathname.endsWith("/create-order-session")
+      ["/create-order-session", "/api/public/order-session"].some((path) => (
+        new URL(response.url()).pathname.endsWith(path)
+      ))
       && response.request().method() === "POST"
     ));
     await page.goto(`/q/${takeoutQrToken}`);
@@ -745,9 +777,7 @@ test("QR 依瀏覽器語系自動切換並保留手動選擇", async ({ browser 
     await page.reload();
     await expect(page.getByRole("button", { name: "Menu language" })).toHaveAttribute("data-current-locale", "en");
     await expect(page.getByRole("heading", { name: "Pepper Popcorn Chicken" })).toBeVisible();
-  } finally {
-    await context.close();
-  }
+  });
 });
 
 test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ browser, page }) => {
@@ -771,7 +801,9 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
 
   let createResponsePromise = page.waitForResponse((response) => (
-    new URL(response.url()).pathname.endsWith("/create-public-order")
+    ["/create-public-order", "/api/public/orders"].some((path) => (
+      new URL(response.url()).pathname.endsWith(path)
+    ))
     && response.request().method() === "POST"
   ));
   await submitOrder.click();
@@ -782,7 +814,9 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
     await waitAcknowledgment.check();
     await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
     createResponsePromise = page.waitForResponse((response) => (
-      new URL(response.url()).pathname.endsWith("/create-public-order")
+      ["/create-public-order", "/api/public/orders"].some((path) => (
+        new URL(response.url()).pathname.endsWith(path)
+      ))
       && response.request().method() === "POST"
     ));
     await submitOrder.click();
@@ -796,6 +830,7 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   const staffPage = await staffContext.newPage();
   await login(staffPage, "staff@stallorder.test");
   await staffPage.goto("/staff/aming-chicken");
+  await dismissStaffStartReminder(staffPage);
   const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
   await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
   await expect(staffOrder).toContainText("辣度：中辣");

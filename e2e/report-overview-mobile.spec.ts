@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { waitForDefaultMerchantDashboard } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "22222222-2222-4222-8222-222222222222";
 
 const viewportCases = [
   { width: 320, height: 800, hourlyColumns: 4, summaryColumns: 2, productColumns: 2, paymentColumns: 2, stallColumns: 2 },
@@ -28,6 +29,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
     await expect(hourlyCells).toHaveCount(24);
     await expect(hourly.getByText("00:00", { exact: true })).toBeVisible();
     await expect(hourly.getByText("23:00", { exact: true })).toBeVisible();
+    await expect(mainContent.locator('form input[name="stallId"]')).toHaveCount(0);
 
     const dateInputWidths = await mainContent.locator('input[type="date"]').evaluateAll((inputs) => inputs.map((input) => input.getBoundingClientRect().width));
     expect(dateInputWidths.every((width) => width >= 150)).toBe(true);
@@ -50,11 +52,9 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
     expect(hourlyValues.every((value) => value.textOverflow !== "ellipsis" && value.whiteSpace === "normal")).toBe(true);
 
     if (viewport.width === 390) {
-      const firstStallCheckbox = mainContent.locator('form input[name="stallId"]').first();
-      const removedStallId = await firstStallCheckbox.getAttribute("value");
-      await expect(firstStallCheckbox).toBeChecked();
-      await firstStallCheckbox.uncheck();
-      await mainContent.getByLabel("開始日期").fill("2026-01-01");
+      const startDateInput = mainContent.getByLabel("開始日期");
+      const filterForm = startDateInput.locator("xpath=ancestor::form");
+      await startDateInput.fill("2026-01-01");
 
       const exportCapture: { payload?: { stallIds: string[]; dateFrom: string } } = {};
       await page.route("**/api/merchant/reports/export", async (route) => {
@@ -69,12 +69,12 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
       await mainContent.getByRole("button", { name: "匯出 CSV", exact: true }).click();
       await expect.poll(() => exportCapture.payload).toBeDefined();
 
-      const appliedFilter = await firstStallCheckbox.locator("xpath=ancestor::form").evaluate((form) => ({
+      const appliedFilter = await filterForm.evaluate((form) => ({
         stallIds: new FormData(form as HTMLFormElement).getAll("stallId"),
         dateFrom: new FormData(form as HTMLFormElement).get("dateFrom"),
       }));
-      expect(exportCapture.payload).toMatchObject(appliedFilter);
-      expect(exportCapture.payload?.stallIds).not.toContain(removedStallId);
+      expect(appliedFilter).toEqual({ stallIds: [], dateFrom: "2026-01-01" });
+      expect(exportCapture.payload).toMatchObject({ stallIds: [stallId], dateFrom: "2026-01-01" });
       await page.unroute("**/api/merchant/reports/export");
     }
 

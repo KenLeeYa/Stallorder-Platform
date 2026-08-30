@@ -9,7 +9,16 @@ import { createReportTranslator } from "@/lib/messages/reports";
 import type { OperationsPageSize } from "@/lib/operations-pagination";
 
 type Stall = { id: string; name: string };
-type ReportFiltersProps = { organizationId: string; stalls: Stall[]; selectedStallIds: string[]; dateFrom: string; dateTo: string; pageSize?: OperationsPageSize };
+type ReportFiltersProps = {
+  organizationId: string;
+  stalls: Stall[];
+  selectedStallIds: string[];
+  dateFrom: string;
+  dateTo: string;
+  multiStallMode: boolean;
+  pageSize?: OperationsPageSize;
+  showExport?: boolean;
+};
 
 export function ReportNavigation({ organizationId, active }: { organizationId: string; active: "overview" | "orders" | "stalls" | "products" | "payments" | "cash-shifts" }) {
   const { locale } = useAppLocale();
@@ -27,10 +36,10 @@ export function ReportNavigation({ organizationId, active }: { organizationId: s
 
 export function ReportFilters(props: ReportFiltersProps) {
   const selectionKey = props.selectedStallIds.join(",");
-  return <ReportFiltersForm key={`${props.organizationId}:${props.dateFrom}:${props.dateTo}:${selectionKey}`} {...props} />;
+  return <ReportFiltersForm key={`${props.organizationId}:${props.dateFrom}:${props.dateTo}:${selectionKey}:${props.multiStallMode}`} {...props} />;
 }
 
-function ReportFiltersForm({ organizationId, stalls, selectedStallIds, dateFrom, dateTo, pageSize }: ReportFiltersProps) {
+function ReportFiltersForm({ organizationId, stalls, selectedStallIds, dateFrom, dateTo, multiStallMode, pageSize, showExport = true }: ReportFiltersProps) {
   const { locale } = useAppLocale();
   const t = createReportTranslator(locale);
   const [from, setFrom] = useState(dateFrom);
@@ -46,7 +55,33 @@ function ReportFiltersForm({ organizationId, stalls, selectedStallIds, dateFrom,
     setTo(formatLocalDate(today));
   }
 
-  return <form method="get" className="grid gap-3 border-b border-stone-200 py-3 sm:gap-4 sm:py-5 lg:grid-cols-[minmax(340px,1.2fr)_minmax(260px,1fr)_auto] lg:items-end"><input type="hidden" name="organizationId" value={organizationId} />{pageSize ? <input type="hidden" name="pageSize" value={pageSize} /> : null}<div><div className="flex items-center justify-between gap-2 sm:gap-3"><span className="text-sm font-medium text-stone-700">{t("reports.filter.dateRange")}</span><div className="inline-flex overflow-hidden rounded-md border border-stone-300"><button type="button" onClick={() => applyPreset("day")} className="h-8 border-r border-stone-300 px-3 text-xs font-semibold hover:bg-stone-100">{t("reports.filter.day")}</button><button type="button" onClick={() => applyPreset("week")} className="h-8 border-r border-stone-300 px-3 text-xs font-semibold hover:bg-stone-100">{t("reports.filter.week")}</button><button type="button" onClick={() => applyPreset("month")} className="h-8 px-3 text-xs font-semibold hover:bg-stone-100">{t("reports.filter.month")}</button></div></div><div className="mt-1 grid gap-2 min-[360px]:grid-cols-[1fr_auto_1fr] min-[360px]:items-center"><input required aria-label={t("reports.filter.startDate")} type="date" name="dateFrom" value={from} onChange={(event) => setFrom(event.target.value)} className="h-10 min-w-0 rounded-md border border-stone-300 px-3" /><span className="text-center text-xs text-stone-600 min-[360px]:text-sm">{t("reports.filter.to")}</span><input required aria-label={t("reports.filter.endDate")} type="date" name="dateTo" value={to} onChange={(event) => setTo(event.target.value)} className="h-10 min-w-0 rounded-md border border-stone-300 px-3" /></div></div><fieldset><legend className="text-sm font-medium text-stone-700">{t("reports.filter.stalls")}</legend><div className="mt-1 flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2">{stalls.map((stall) => <label key={stall.id} className="flex items-center gap-2 text-sm"><input type="checkbox" name="stallId" value={stall.id} checked={selectedIds.includes(stall.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, stall.id] : current.filter((id) => id !== stall.id))} />{stall.name}</label>)}</div></fieldset><div className="flex flex-wrap gap-2"><button type="submit" className="min-h-10 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white">{t("reports.filter.apply")}</button><ReportExportButton organizationId={organizationId} stallIds={selectedIds} dateFrom={from} dateTo={to} /></div></form>;
+  return <form method="get" className={`grid gap-3 border-b border-stone-200 py-3 sm:gap-4 sm:py-5 lg:items-end ${multiStallMode ? "lg:grid-cols-[minmax(340px,1.2fr)_minmax(260px,1fr)_auto]" : "lg:grid-cols-[minmax(340px,1fr)_auto]"}`}>
+    <input type="hidden" name="organizationId" value={organizationId} />
+    {pageSize ? <input type="hidden" name="pageSize" value={pageSize} /> : null}
+    <div>
+      <div className="flex items-center justify-between gap-2 sm:gap-3">
+        <span className="text-sm font-medium text-stone-700">{t("reports.filter.dateRange")}</span>
+        <div className="inline-flex overflow-hidden rounded-md border border-stone-300">
+          <button type="button" onClick={() => applyPreset("day")} className="h-8 border-r border-stone-300 px-3 text-xs font-semibold hover:bg-stone-100">{t("reports.filter.day")}</button>
+          <button type="button" onClick={() => applyPreset("week")} className="h-8 border-r border-stone-300 px-3 text-xs font-semibold hover:bg-stone-100">{t("reports.filter.week")}</button>
+          <button type="button" onClick={() => applyPreset("month")} className="h-8 px-3 text-xs font-semibold hover:bg-stone-100">{t("reports.filter.month")}</button>
+        </div>
+      </div>
+      <div className="mt-1 grid gap-2 min-[360px]:grid-cols-[1fr_auto_1fr] min-[360px]:items-center">
+        <input required aria-label={t("reports.filter.startDate")} type="date" name="dateFrom" value={from} onChange={(event) => setFrom(event.target.value)} className="h-10 min-w-0 rounded-md border border-stone-300 px-3" />
+        <span className="text-center text-xs text-stone-600 min-[360px]:text-sm">{t("reports.filter.to")}</span>
+        <input required aria-label={t("reports.filter.endDate")} type="date" name="dateTo" value={to} onChange={(event) => setTo(event.target.value)} className="h-10 min-w-0 rounded-md border border-stone-300 px-3" />
+      </div>
+    </div>
+    {multiStallMode ? <fieldset>
+      <legend className="text-sm font-medium text-stone-700">{t("reports.filter.stalls")}</legend>
+      <div className="mt-1 flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2">{stalls.map((stall) => <label key={stall.id} className="flex items-center gap-2 text-sm"><input type="checkbox" name="stallId" value={stall.id} checked={selectedIds.includes(stall.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, stall.id] : current.filter((id) => id !== stall.id))} />{stall.name}</label>)}</div>
+    </fieldset> : null}
+    <div className="flex flex-wrap gap-2">
+      <button type="submit" className="min-h-10 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white">{t("reports.filter.apply")}</button>
+      {showExport ? <ReportExportButton organizationId={organizationId} stallIds={selectedIds} dateFrom={from} dateTo={to} /> : null}
+    </div>
+  </form>;
 }
 
 function formatLocalDate(date: Date) {

@@ -5,7 +5,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import { offlineSyncRequestSchema } from "../src/offline/offline-order-contract";
-import { gotoLocalPath } from "./local-navigation";
+import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -100,6 +100,7 @@ test.describe("P4 離線 PWA 基礎", () => {
         await assetWarmupResponse.dispose();
       }
       await gotoLocalPath(staffPage, `/staff/${stallSlug}`);
+      await dismissStaffStartReminder(staffPage);
       const staffBoard = staffPage.locator("main:visible").last();
       const offlineDeviceButton = staffBoard.getByTitle("離線裝置", { exact: true });
       await waitForReactHandler(offlineDeviceButton, "onClick");
@@ -309,9 +310,7 @@ test.describe("P4 離線 PWA 基礎", () => {
       if (!productionOfflineRuntime) return;
 
       await staffPage.getByTitle("關閉離線裝置視窗").click();
-      await staffPage.evaluate(async () => {
-        await navigator.serviceWorker.ready;
-      });
+      await waitForActivatedServiceWorker(staffPage);
       await staffPage.reload();
       await expect(staffPage.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
       await expect.poll(
@@ -338,6 +337,8 @@ test.describe("P4 離線 PWA 基礎", () => {
       await composer.getByRole("button", { name: "加入購物車", exact: true }).click();
       await expect(composer.getByTestId("staff-cart-line")).toHaveCount(1);
       await composer.getByTestId("staff-order-cart-tab").click();
+      await composer.getByTestId("staff-tablet-confirm-order").click();
+      await expect(composer.getByTestId("staff-order-checkout-controls")).toBeVisible();
       await composer.getByRole("button", { name: "稍後結帳" }).click();
       await composer.getByRole("button", { name: "建立訂單送入廚房" }).click();
       await expect(composer).toBeHidden();
@@ -502,16 +503,29 @@ test.describe("P4 離線 PWA 基礎", () => {
       if (offlineIdempotencyKey) {
         await cleanupSyncedOfflineOrder(offlineIdempotencyKey);
       }
-      await staffContext.close();
-      await ownerContext.close();
+      await Promise.allSettled([
+        staffContext.close(),
+        ownerContext.close(),
+      ]);
     }
   });
 });
 
+async function waitForActivatedServiceWorker(page: Page) {
+  await expect.poll(async () => page.evaluate(async () => {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    return registrations.some((registration) => registration.active?.state === "activated");
+  }), {
+    message: "等待 Service Worker 啟用",
+    timeout: 15_000,
+  }).toBe(true);
+}
+
 async function serviceWorkerPendingRecords(page: Page) {
   return page.evaluate(async () => {
-    const registration = await navigator.serviceWorker.ready;
-    const worker = navigator.serviceWorker.controller ?? registration.active;
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    const worker = navigator.serviceWorker.controller
+      ?? registrations.find((registration) => registration.active)?.active;
     if (!worker) throw new Error("Service Worker 尚未控制頁面");
     return new Promise<number>((resolvePending, reject) => {
       const timeout = window.setTimeout(() => {

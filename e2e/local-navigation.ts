@@ -46,6 +46,18 @@ export async function gotoLocalPath(page: Page, path: string, expectedPath = pat
   }
 }
 
+export async function dismissStaffStartReminder(page: Page) {
+  const backdrop = page.getByTestId("staff-start-reminder-backdrop");
+  try {
+    await backdrop.waitFor({ state: "visible", timeout: 3_000 });
+  } catch (error) {
+    if (error instanceof errors.TimeoutError) return;
+    throw error;
+  }
+  await backdrop.getByRole("button", { name: "稍後處理", exact: true }).last().click();
+  await backdrop.waitFor({ state: "detached", timeout: 5_000 });
+}
+
 export async function waitForDefaultMerchantDashboard(page: Page, organizationId: string) {
   await page.waitForURL((url) => (
     url.pathname === "/merchant/dashboard"

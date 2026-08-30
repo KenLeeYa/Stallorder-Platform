@@ -63,9 +63,10 @@ describe("PublicMenuView category navigation", () => {
     const html = renderToStaticMarkup(<PublicMenuView menu={menu} locale="zh-TW" />);
 
     expect(html).toContain('data-testid="public-menu-category-navigation"');
-    expect(html).toContain("sticky top-0");
+    expect(html).toContain("position:sticky");
+    expect(html).toContain("top:var(--storefront-mode-nav-height, 7rem)");
     expect(html).toContain("overflow-x-auto");
-    expect(html).toContain("scroll-mt-20");
+    expect(html).toContain("scroll-margin-top:calc(var(--storefront-mode-nav-height, 7rem) + 5rem)");
     expect(html).toContain('data-testid="public-menu-cover-image"');
     expect(html).toContain("absolute inset-0 -z-10");
     expect(html).toContain("object-position:42% 68%");
@@ -155,7 +156,7 @@ describe("PublicMenuView category navigation", () => {
     expect(html).not.toContain(">牛肉湯底<");
   });
 
-  it("keeps sold-out products on the public Menu with a grey image treatment and label", () => {
+  it("keeps sold-out products visually unchanged on the display-only Menu", () => {
     const soldOutProduct = product("sold-out", "主餐");
     soldOutProduct.isSoldOut = true;
     soldOutProduct.imageUrl = "https://example.test/sold-out.webp";
@@ -190,8 +191,10 @@ describe("PublicMenuView category navigation", () => {
 
     const html = renderToStaticMarkup(<PublicMenuView menu={menu} locale="zh-TW" />);
 
-    expect(html).toContain('data-testid="public-menu-sold-out"');
-    expect(html).toContain("grayscale opacity-45");
-    expect(html).toContain("售完");
+    expect(html).toContain("主餐商品");
+    expect(html).toContain("https://example.test/sold-out.webp");
+    expect(html).not.toContain('data-testid="public-menu-sold-out"');
+    expect(html).not.toContain("grayscale opacity-45");
+    expect(html).not.toContain("售完");
   });
 });

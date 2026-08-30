@@ -68,6 +68,7 @@ export function StallSettingsOverview({
   canManageDelivery,
   kdsEnabled,
   showMerchantSetup,
+  multiStallMode,
 }: {
   workspaceId: string;
   stallId: string;
@@ -81,6 +82,7 @@ export function StallSettingsOverview({
   canManageDelivery: boolean;
   kdsEnabled: boolean;
   showMerchantSetup: boolean;
+  multiStallMode: boolean;
 }) {
   const { m } = useMerchantMessages();
 
@@ -106,7 +108,7 @@ export function StallSettingsOverview({
           {canManageOrdering ? (
             <SettingsLink href={`/merchant/stalls/${stallId}/settings/order-limits`} icon={ShieldCheck} label={m("安全與訂單限制")} />
           ) : null}
-          <SettingsLink href={`/merchant/stalls/${stallId}/settings/templates`} icon={Copy} label={m("多攤位範本")} />
+          {multiStallMode ? <SettingsLink href={`/merchant/stalls/${stallId}/settings/templates`} icon={Copy} label={m("多攤位範本")} /> : null}
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/members`} icon={UserRoundCog} label={m("攤位成員")} />
           {canManageAttendance ? <SettingsLink href={`/merchant/stalls/${stallId}/attendance`} icon={MapPinCheck} label={m("員工定位打卡")} /> : null}
           {showMerchantSetup ? (

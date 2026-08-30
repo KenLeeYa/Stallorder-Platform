@@ -8,6 +8,7 @@ import { VercelPerformanceMonitoring } from "@/components/vercel-performance-mon
 import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { getAppMessage } from "@/lib/app-messages";
 import { initializeThemeScript } from "@/lib/theme";
+import { initializeAccessibilityModeScript } from "@/lib/accessibility-mode";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -55,6 +56,7 @@ export default async function RootLayout({
     <html
       lang={locale}
       data-theme="light"
+      data-interface-mode="standard"
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
@@ -63,6 +65,11 @@ export default async function RootLayout({
           id="stallorder-theme-initializer"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: initializeThemeScript }}
+        />
+        <Script
+          id="stallorder-accessibility-mode-initializer"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: initializeAccessibilityModeScript }}
         />
       </head>
       <body suppressHydrationWarning className="min-h-full bg-stone-50 text-stone-950">

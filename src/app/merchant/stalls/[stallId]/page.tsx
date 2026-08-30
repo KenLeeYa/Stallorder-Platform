@@ -60,6 +60,7 @@ export default async function EditStallPage({ params }: PageProps) {
         showMerchantSetup={workspace.roles.includes("ORGANIZATION_OWNER")
           && Boolean(workspace.merchantSetupState)
           && workspace.merchantSetupStallId === stall.id}
+        multiStallMode={workspace.operatingMode === "MULTI_STALL"}
       />
     </main>
   );

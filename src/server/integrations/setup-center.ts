@@ -37,7 +37,7 @@ export const integrationSetupCatalog: readonly IntegrationSetupDefinition[] = [
   { code: "PX_PAY_PLUS", category: "PAYMENT", label: "全支付", description: "台灣行動支付 Provider 預留。", capabilities: ["付款", "退款"], setupPath: "/merchant/payments", architecture: "FOUNDATION", manualApprovalRequired: true },
   { code: "TAIWAN_PAY", category: "PAYMENT", label: "台灣 Pay", description: "台灣 Pay Provider 預留。", capabilities: ["付款", "退款"], setupPath: "/merchant/payments", architecture: "FOUNDATION", manualApprovalRequired: true },
   { code: "CREDIT_CARD_PROVIDER", category: "PAYMENT", label: "信用卡金流服務", description: "不綁定單一供應商的信用卡聚合介面。", capabilities: ["授權", "請款", "部分退款", "對帳"], setupPath: "/merchant/payments", architecture: "FOUNDATION", manualApprovalRequired: true },
-  { code: "E_INVOICE", category: "PAYMENT", label: "電子發票", description: "開立、作廢、折讓、查詢與補發的安全介面。", capabilities: ["開立", "作廢", "折讓", "對帳"], setupPath: null, architecture: "FOUNDATION", manualApprovalRequired: true },
+  { code: "E_INVOICE", category: "PAYMENT", label: "電子發票", description: "店家自有賣方身分與 Provider 帳號；目前提供本機 Mock 開立、作廢、折讓與對帳。", capabilities: ["開立", "作廢", "折讓", "對帳"], setupPath: "/merchant/integrations/e-invoice", architecture: "READY", manualApprovalRequired: true },
   { code: "FOODPANDA", category: "COMMERCE", label: "foodpanda", description: "店舖、菜單、訂單 Webhook 與對帳。", capabilities: ["店舖", "菜單", "訂單", "對帳"], setupPath: "/merchant/integrations/delivery", architecture: "READY", manualApprovalRequired: true },
   { code: "UBER_EATS", category: "COMMERCE", label: "Uber Eats", description: "店舖、菜單、訂單 Webhook 與對帳。", capabilities: ["店舖", "菜單", "訂單", "對帳"], setupPath: "/merchant/integrations/delivery", architecture: "READY", manualApprovalRequired: true },
   { code: "LOGISTICS", category: "COMMERCE", label: "物流／外送派遣", description: "未來物流與派遣 Adapter 的統一入口。", capabilities: ["報價", "派遣", "追蹤"], setupPath: null, architecture: "PLANNED", manualApprovalRequired: true },
@@ -115,7 +115,7 @@ function snapshot(code: string): ConnectionSnapshot {
 }
 
 export async function getIntegrationSetupCenterData(organizationId: string) {
-  const [notifications, payments, delivery, printers, apiClients, webhookEndpoints] = await Promise.all([
+  const [notifications, payments, invoiceConnections, delivery, printers, apiClients, webhookEndpoints] = await Promise.all([
     prisma.notificationIntegration.findMany({
       where: { organizationId },
       select: { provider: true, status: true, updatedAt: true },
@@ -123,6 +123,10 @@ export async function getIntegrationSetupCenterData(organizationId: string) {
     prisma.paymentProviderConnection.findMany({
       where: { organizationId },
       select: { provider: true, status: true, lastVerifiedAt: true, lastErrorCode: true },
+    }),
+    prisma.invoiceProviderConnection.findMany({
+      where: { organizationId },
+      select: { status: true, lastSuccessfulRequestAt: true, lastErrorCode: true },
     }),
     prisma.deliveryPlatformConnection.findMany({
       where: { organizationId },
@@ -161,6 +165,9 @@ export async function getIntegrationSetupCenterData(organizationId: string) {
     const provider = connection.provider.toUpperCase();
     const code = provider === "CREDIT_CARD_AGGREGATOR" ? "CREDIT_CARD_PROVIDER" : provider;
     append(code, connection.status, connection.lastVerifiedAt, connection.lastErrorCode);
+  }
+  for (const connection of invoiceConnections) {
+    append("E_INVOICE", connection.status, connection.lastSuccessfulRequestAt, connection.lastErrorCode);
   }
   for (const connection of delivery) {
     append(

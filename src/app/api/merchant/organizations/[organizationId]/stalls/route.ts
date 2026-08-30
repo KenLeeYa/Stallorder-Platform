@@ -58,6 +58,13 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     await entitlementService.assertLimitAvailable(organizationId, "STALLS", 1);
     const stall = await prisma.$transaction(async (transaction) => {
+      const organization = await transaction.organization.findUnique({
+        where: { id: organizationId },
+        select: { operatingMode: true, _count: { select: { stalls: true } } },
+      });
+      if (organization?.operatingMode !== "MULTI_STALL" && organization?._count.stalls) {
+        throw new Error("SINGLE_STALL_MODE");
+      }
       await assertGlobalStallCodeAvailable(transaction, parsed.data.code);
       return transaction.stall.create({
         data: {
@@ -107,6 +114,7 @@ export async function POST(request: Request, context: RouteContext) {
       SUBSCRIPTION_INACTIVE: "訂閱目前不可新增攤位，請先處理訂閱狀態。",
       PLAN_STALL_LIMIT: "已達方案可建立的攤位上限。",
       ADDITIONAL_STALL_APPROVAL_REQUIRED: "此攤位需要平台管理員先核准額外攤位額度。",
+      SINGLE_STALL_MODE: "目前為單攤位營運模式；請先在商家資料切換為多攤位營運。",
     };
     const entitlementMessage = entitlementMessages[entitlementCode];
     return NextResponse.json(

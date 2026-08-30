@@ -69,7 +69,6 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
     "抽抽樂推薦",
     "QR 點餐語系",
     "安全與訂單限制",
-    "多攤位範本",
     "攤位成員",
     "CDS 取餐顯示",
     "產能與等候時間",
@@ -84,6 +83,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   ]) {
     await expect(page.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
+  await expect(page.getByRole("link", { name: "多攤位範本", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "線上外送", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "外帶預約", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "現金交班報表", exact: true })).toHaveCount(0);
@@ -225,7 +225,12 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       const aiTranslationButton = localizationPage.getByRole("button", { name: "一鍵補齊翻譯" });
       await expect(aiTranslationButton).toBeDisabled();
       await expect(aiTranslationButton).toHaveAttribute("title", "AI 翻譯尚未完成伺服器設定");
-      const editProductButton = localizationPage.getByRole("button", { name: "編輯 香酥雞排" }).first();
+      const productActionsButton = localizationPage.getByRole("button", { name: "操作：香酥雞排" }).first();
+      await waitForReactHandler(productActionsButton, "onClick");
+      await productActionsButton.click();
+      const editProductButton = localizationPage
+        .getByRole("dialog", { name: "商品：香酥雞排" })
+        .getByRole("button", { name: "編輯商品" });
       await waitForReactHandler(editProductButton, "onClick");
       await editProductButton.click();
       const productEditor = localizationPage.getByRole("dialog", { name: "編輯商品" });
@@ -235,7 +240,14 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       await productEditor.getByRole("button", { name: "關閉" }).click();
 
       await localizationPage.getByRole("tab", { name: "註記群組", exact: true }).click();
-      await localizationPage.getByRole("button", { name: "編輯 辣度" }).click();
+      const noteGroupActionsButton = localizationPage.getByRole("button", { name: "管理 辣度" });
+      await waitForReactHandler(noteGroupActionsButton, "onClick");
+      await noteGroupActionsButton.click();
+      const editNoteGroupButton = localizationPage
+        .getByRole("dialog", { name: "管理 辣度" })
+        .getByRole("button", { name: "編輯", exact: true });
+      await waitForReactHandler(editNoteGroupButton, "onClick");
+      await editNoteGroupButton.click();
       const noteEditor = localizationPage.getByRole("dialog", { name: "編輯註記群組" });
       await noteEditor.getByText("多語名稱", { exact: true }).click();
       await expect(noteEditor.getByLabel("英文", { exact: true })).toBeVisible();
@@ -401,7 +413,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await page.getByRole("tab", { name: "註記群組" }).click();
   await expect(page.getByText("辣度", { exact: true })).toBeVisible();
   await expect(page.getByText("加蛋", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "複製 香酥雞排" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "操作：香酥雞排" }).first()).toBeVisible();
   const validCsvRow = ["", "測試分類", "", "匯入預覽商品", "", "88", "", "1", "true", "AMING-01", "Preview item", "", "", "", "", "", "", "", "", "", "true", "true"];
   const invalidCsvRow = ["", "測試分類", "", "錯誤價格商品", "", "=100", "", "2", "true", "AMING-01", "", "", "", "", "", "", "", "", "", "", "true", "true"];
   const csvInput = page.getByLabel("匯入 CSV", { exact: true });
@@ -421,7 +433,14 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await expect(importDialog.getByRole("button", { name: "套用 1 筆有效資料" })).toBeVisible();
   await expect(importDialog.getByRole("button", { name: "下載錯誤 CSV" })).toBeVisible();
   await importDialog.getByRole("button", { name: "關閉" }).click();
-  await page.getByRole("button", { name: "編輯 香酥雞排" }).first().click();
+  const productActionsButton = page.getByRole("button", { name: "操作：香酥雞排" }).first();
+  await waitForReactHandler(productActionsButton, "onClick");
+  await productActionsButton.click();
+  const editProductButton = page
+    .getByRole("dialog", { name: "商品：香酥雞排" })
+    .getByRole("button", { name: "編輯商品" });
+  await waitForReactHandler(editProductButton, "onClick");
+  await editProductButton.click();
   const editor = page.getByRole("dialog", { name: "編輯商品" });
   await expect(editor.getByLabel("圖片網址")).toBeVisible();
   await expect(editor.getByText("本機上傳", { exact: true })).toBeVisible();

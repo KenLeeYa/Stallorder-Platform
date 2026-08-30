@@ -7,10 +7,12 @@ describe("organization profile contract", () => {
       businessName: "阿宏河粉",
       email: "OWNER@EXAMPLE.COM",
       phone: "0916-166-504",
+      operatingMode: "SINGLE_STALL",
     })).toEqual({
       businessName: "阿宏河粉",
       email: "owner@example.com",
       phone: "0916-166-504",
+      operatingMode: "SINGLE_STALL",
     });
   });
 
@@ -19,6 +21,7 @@ describe("organization profile contract", () => {
       businessName: "阿宏河粉",
       email: "owner@example.com",
       phone: "0916166504",
+      operatingMode: "SINGLE_STALL",
       status: "ACTIVE",
     }).success).toBe(false);
   });

@@ -26,6 +26,7 @@ export function LocaleSelector({
   return (
     <label
       title={label}
+      data-senior-action-tile="true"
       className={`relative inline-flex min-h-10 items-center rounded-md border border-stone-300 bg-white text-sm text-stone-700 focus-within:ring-2 focus-within:ring-teal-600 focus-within:ring-offset-1 ${compact ? "h-10 w-10 justify-center" : "gap-2 px-2"} ${className}`}
     >
       <Languages className="h-4 w-4 text-teal-700" aria-hidden="true" />

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { gotoLocalPath } from "./local-navigation";
+import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const viewports = [
@@ -136,6 +136,7 @@ test("廚房只保留一組共用工具並使用不同工作模式人像", async
 
   await expect(page.getByTestId("work-mode-icon-merchant")).toHaveCount(1);
   await gotoLocalPath(page, "/staff/aming-chicken");
+  await dismissStaffStartReminder(page);
   await expect(page.getByTestId("work-mode-icon-staff")).toHaveCount(1);
 
   await gotoLocalPath(page, "/kitchen?stall=aming-chicken");

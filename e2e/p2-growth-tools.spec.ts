@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -64,6 +65,7 @@ test.describe("P2 後續成長功能", () => {
     });
     await login(page, "staff@stallorder.test");
     await page.goto("/staff/aming-chicken");
+    await dismissStaffStartReminder(page);
     const wakeButton = page.getByTitle("開啟螢幕保持喚醒");
     await expect(wakeButton).toBeVisible();
     await wakeButton.click();

@@ -15,3 +15,7 @@ export function navigationScrollKey(path: string) {
 export function navigationRestoreKey(path: string) {
   return `stallorder:navigation:restore:${path}`;
 }
+
+export function navigationHorizontalScrollKey(toolbarId: string) {
+  return `stallorder:navigation:horizontal:${encodeURIComponent(toolbarId)}`;
+}

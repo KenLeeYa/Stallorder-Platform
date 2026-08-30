@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import type { AppLocale } from "@/lib/app-locale";
 import { publicMessages } from "@/lib/messages/public";
@@ -27,8 +30,28 @@ export function StorefrontModeNav({
   searchParams: PublicStorefrontSearchParams;
   locale: AppLocale;
 }) {
+  const headerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const root = document.documentElement;
+    const updateOffset = () => {
+      root.style.setProperty("--storefront-mode-nav-height", `${header.offsetHeight}px`);
+    };
+    updateOffset();
+    const observer = new ResizeObserver(updateOffset);
+    observer.observe(header);
+    window.addEventListener("resize", updateOffset);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateOffset);
+      root.style.removeProperty("--storefront-mode-nav-height");
+    };
+  }, []);
+
   return (
-    <header data-testid="storefront-mode-nav" className="border-b border-stone-200 bg-white print:hidden">
+    <header ref={headerRef} data-testid="storefront-mode-nav" className="sticky top-0 z-40 border-b border-stone-200 bg-white/95 shadow-sm backdrop-blur print:static print:hidden">
       <div className="mx-auto max-w-5xl px-4 py-4 md:px-8">
         <nav aria-label={publicMessages.get(locale, "storefrontModeNav")} className="grid grid-cols-3 gap-2">
           {modes.map((view) => {
