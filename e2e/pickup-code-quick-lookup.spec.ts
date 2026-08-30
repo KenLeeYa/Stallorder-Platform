@@ -126,7 +126,7 @@ test.describe("每日三碼取餐與店員快速載單", () => {
     }
   });
 
-  test("在線訂單不重複，終止後號碼可回收，店員可直接載入結帳", async ({ browser }, testInfo) => {
+  test("在線訂單不重複，終止後號碼可回收，店員可直接載入結帳", async ({ browser, page }, testInfo) => {
     test.setTimeout(180_000);
     const publicOrderClientIp = `203.0.113.${180 + testInfo.retry + (testInfo.repeatEachIndex * 4)}`;
 
@@ -165,45 +165,36 @@ test.describe("每日三碼取餐與店員快速載單", () => {
       }),
     ]);
 
-    const context = await browser.newContext({
-      locale: "zh-TW",
-      timezoneId: "Asia/Taipei",
-      viewport: { width: 390, height: 844 },
+    await page.setViewportSize({ width: 390, height: 844 });
+    await test.step("店員以取餐碼載入完成訂單", async () => {
+      await loginAsStaff(page);
+      const pickupLookupButton = await stablePickupLookupButton(page);
+      await pickupLookupButton.click();
+
+      const lookupDialog = page.getByRole("dialog", { name: "以取餐碼載入訂單" });
+      await lookupDialog.getByLabel("取餐驗證碼").fill(recycled.pickupCode);
+      const lookupResponse = page.waitForResponse((response) => (
+        new URL(response.url()).pathname.endsWith("/orders/pickup-code")
+        && response.request().method() === "POST"
+      ));
+      await lookupDialog.getByRole("button", { name: "載入並開啟結帳", exact: true }).click();
+      expect((await lookupResponse).status()).toBe(200);
+
+      await expect(page.getByRole("dialog", { name: "完成訂單" })).toBeVisible();
     });
-    try {
-      const staffPage = await context.newPage();
-      await test.step("店員以取餐碼載入完成訂單", async () => {
-        await loginAsStaff(staffPage);
-        const pickupLookupButton = await stablePickupLookupButton(staffPage);
-        await pickupLookupButton.click();
-
-        const lookupDialog = staffPage.getByRole("dialog", { name: "以取餐碼載入訂單" });
-        await lookupDialog.getByLabel("取餐驗證碼").fill(recycled.pickupCode);
-        const lookupResponse = staffPage.waitForResponse((response) => (
-          new URL(response.url()).pathname.endsWith("/orders/pickup-code")
-          && response.request().method() === "POST"
-        ));
-        await lookupDialog.getByRole("button", { name: "載入並開啟結帳", exact: true }).click();
-        expect((await lookupResponse).status()).toBe(200);
-
-        await expect(staffPage.getByRole("dialog", { name: "完成訂單" })).toBeVisible();
-      });
-      const verified = await prisma.order.findUniqueOrThrow({
-        where: { id: recycled.id },
-        select: {
-          pickupVerifiedAt: true,
-          pickupVerificationMethod: true,
-          status: true,
-          paymentStatus: true,
-        },
-      });
-      expect(verified.pickupVerifiedAt).not.toBeNull();
-      expect(verified.pickupVerificationMethod).toBe("CODE");
-      expect(verified.status).toBe("READY");
-      expect(verified.paymentStatus).toBe("UNPAID");
-    } finally {
-      await context.close();
-    }
+    const verified = await prisma.order.findUniqueOrThrow({
+      where: { id: recycled.id },
+      select: {
+        pickupVerifiedAt: true,
+        pickupVerificationMethod: true,
+        status: true,
+        paymentStatus: true,
+      },
+    });
+    expect(verified.pickupVerifiedAt).not.toBeNull();
+    expect(verified.pickupVerificationMethod).toBe("CODE");
+    expect(verified.status).toBe("READY");
+    expect(verified.paymentStatus).toBe("UNPAID");
   });
 });
 
