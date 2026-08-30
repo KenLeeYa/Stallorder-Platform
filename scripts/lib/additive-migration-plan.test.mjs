@@ -92,7 +92,13 @@ describe("additive DR migration plan", () => {
         "stall.is_active = true",
         "stall.is_active = false",
       ),
-    )).toThrow("MIGRATION_STATEMENT_FORBIDDEN");
+    )).toThrow();
+    expect(() => assertAdditiveMigrationSql(
+      organizationOperatingModeMigration.replace(
+        "alter table public.organizations disable trigger backend_writable_guard",
+        "alter table public.orders disable trigger backend_writable_guard",
+      ),
+    )).toThrow();
   });
 
   it("allows only the exact reviewed multi-tenant e-invoice foundation", () => {
@@ -101,6 +107,12 @@ describe("additive DR migration plan", () => {
       multitenantEinvoiceLocalMockMigration.replace(
         "set is_enabled = excluded.is_enabled",
         "set is_enabled = true",
+      ),
+    )).toThrow();
+    expect(() => assertAdditiveMigrationSql(
+      multitenantEinvoiceLocalMockMigration.replace(
+        "alter table public.billing_feature_flags disable trigger backend_writable_guard",
+        "alter table public.plans disable trigger backend_writable_guard",
       ),
     )).toThrow();
   });
