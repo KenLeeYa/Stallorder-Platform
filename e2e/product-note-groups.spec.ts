@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Locator, type Page } from "@pla
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
 import type { ProductNoteTransfer } from "../src/lib/product-note-transfer";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -42,6 +43,7 @@ async function login(page: Page, email: string) {
     await page.context().addCookies(cachedCookies);
     await page.goto(email === "staff@stallorder.test" ? "/staff/aming-chicken" : "/merchant/dashboard");
     await expect(page).toHaveURL(/\/merchant\/dashboard(?:\?organizationId=|$)|\/staff\//);
+    if (email === "staff@stallorder.test") await dismissStaffStartReminder(page);
     return;
   }
   await page.goto("/login");
@@ -50,6 +52,7 @@ async function login(page: Page, email: string) {
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
   await expect(page).toHaveURL(/\/merchant\/dashboard(?:\?organizationId=|$)|\/staff\//);
+  if (email === "staff@stallorder.test") await dismissStaffStartReminder(page);
   authCookies.set(email, await page.context().cookies());
 }
 
@@ -796,6 +799,7 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   const staffPage = await staffContext.newPage();
   await login(staffPage, "staff@stallorder.test");
   await staffPage.goto("/staff/aming-chicken");
+  await dismissStaffStartReminder(staffPage);
   const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
   await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
   await expect(staffOrder).toContainText("辣度：中辣");

@@ -5,7 +5,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import { offlineSyncRequestSchema } from "../src/offline/offline-order-contract";
-import { gotoLocalPath } from "./local-navigation";
+import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -100,6 +100,7 @@ test.describe("P4 離線 PWA 基礎", () => {
         await assetWarmupResponse.dispose();
       }
       await gotoLocalPath(staffPage, `/staff/${stallSlug}`);
+      await dismissStaffStartReminder(staffPage);
       const staffBoard = staffPage.locator("main:visible").last();
       const offlineDeviceButton = staffBoard.getByTitle("離線裝置", { exact: true });
       await waitForReactHandler(offlineDeviceButton, "onClick");

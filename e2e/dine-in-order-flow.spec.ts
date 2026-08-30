@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 const password = "StallOrderDemo!2026";
 const tableQrToken = "demo-aming-chicken-table-a1-qr-2026";
@@ -241,6 +242,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({ b
   const staffPage = await staffContext.newPage();
   await login(staffPage, "staff@stallorder.test");
   await staffPage.goto("/staff/aming-chicken");
+  await dismissStaffStartReminder(staffPage);
   const staffMain = staffPage.getByRole("main");
   await expect(staffMain.getByRole("switch", { name: /新單提示音已(?:開啟|關閉)/ })).toBeVisible();
   await staffMain.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("A1");

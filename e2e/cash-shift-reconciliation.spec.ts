@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -91,6 +92,7 @@ test.describe.serial("現金交班與短溢收", () => {
       await warmupResponse.dispose();
     }
     await page.goto(`/staff/${stallSlug}`);
+    await dismissStaffStartReminder(page);
     const openComposerButton = page.getByRole("button", { name: "店員點餐" });
     await waitForReactHydration(openComposerButton);
     await openComposerButton.click();
@@ -110,7 +112,6 @@ test.describe.serial("現金交班與短溢收", () => {
     await expect(composer.getByTestId("staff-order-cart-panel")).toBeVisible();
     const cashOption = composer.getByRole("button", { name: "現金", exact: true });
     if (await cashOption.count()) await cashOption.click();
-    await composer.getByRole("button", { name: "剛好", exact: true }).click();
     const orderResponsePromise = page.waitForResponse((response) => (
       response.url().endsWith(`/api/stalls/${stallSlug}/orders`)
       && response.request().method() === "POST"

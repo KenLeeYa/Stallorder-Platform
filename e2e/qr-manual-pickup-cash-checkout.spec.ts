@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -201,6 +202,7 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       const staffPage = await staffContext.newPage();
       await login(staffPage);
       await staffPage.goto("/staff/aming-chicken");
+      await dismissStaffStartReminder(staffPage);
       const staffOrder = staffPage.getByRole("article").filter({ hasText: testMarker });
       await expect(staffOrder).toBeVisible();
       await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
@@ -254,7 +256,7 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
       await expect(checkout).toBeVisible();
       await checkout.getByRole("button", { name: "現金", exact: true }).click();
-      await checkout.getByRole("button", { name: "剛好", exact: true }).click();
+      await checkout.getByLabel("客戶實收金額").fill(String(createdOrder.total));
       await expect(checkout.getByLabel("客戶實收金額")).toHaveValue(String(createdOrder.total));
 
       const checkoutResponsePromise = waitForOrderPatch(staffPage, createdOrderId);

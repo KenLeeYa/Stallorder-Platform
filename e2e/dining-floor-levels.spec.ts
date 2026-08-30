@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient, type DiningTableShape } from "@prisma/client";
-import { gotoLocalPath } from "./local-navigation";
+import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
 
 const prisma = new PrismaClient();
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -137,6 +137,7 @@ test("樓層桌型會連動商家配置、員工看板與店員點餐", async ({
   await expect(page.getByRole("button", { name: /^QA 2樓桌，/ })).toBeVisible();
 
   await page.goto(`/staff/${stallSlug}`);
+  await dismissStaffStartReminder(page);
   await page.getByRole("button", { name: "店員點餐" }).click();
   const composer = page.getByRole("dialog", { name: "店員點餐" });
   await composer.getByRole("button", { name: "內用", exact: true }).click();

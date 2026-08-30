@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -167,6 +168,7 @@ test.describe("P1 營運功能", () => {
     const secondOrderNo = await createDineInOrder(secondCustomer, "P1 E2E 同桌乙", "Sweet Potato Fries");
 
     await page.goto("/staff/aming-chicken");
+    await dismissStaffStartReminder(page);
     await page.getByRole("main").getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 同桌");
     for (const customerName of ["P1 E2E 同桌甲", "P1 E2E 同桌乙"]) {
       const order = page.getByRole("article").filter({ hasText: customerName });
@@ -244,6 +246,7 @@ test.describe("P1 營運功能", () => {
     const cancelCustomer = await cancelContext.newPage();
     const cancelledOrderNo = await createDineInOrder(cancelCustomer, "P1 E2E 取消單", "Deep-Fried Chicken Cutlet");
     await page.goto("/staff/aming-chicken");
+    await dismissStaffStartReminder(page);
     const cancellationMain = page.getByRole("main");
     await cancellationMain.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 取消單");
     const cancelledOrder = cancellationMain.getByRole("article").filter({ hasText: "P1 E2E 取消單" });

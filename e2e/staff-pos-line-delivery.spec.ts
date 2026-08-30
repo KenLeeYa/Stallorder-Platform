@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { buildFulfillmentTimeSlots } from "../src/lib/fulfillment-time-options";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 const prisma = new PrismaClient();
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -91,6 +92,7 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   await page.setViewportSize({ width: 1024, height: 768 });
   await login(page);
   await page.goto("/staff/aming-chicken");
+  await dismissStaffStartReminder(page);
   const staffMain = page.getByRole("main");
   await expect(staffMain).toHaveCount(1);
   const functionGrid = staffMain.getByTestId("staff-function-grid");
@@ -189,6 +191,7 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
     await page.setViewportSize({ width: 1024, height: 900 });
     await login(page);
     await page.goto("/staff/aming-chicken");
+    await dismissStaffStartReminder(page);
     const initialConfigurationPromise = page.waitForResponse((response) => (
       new URL(response.url()).pathname.endsWith("/api/stalls/aming-chicken/pos-configuration")
       && response.request().method() === "GET"
@@ -287,6 +290,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await page.goto("/staff/aming-chicken");
+  await dismissStaffStartReminder(page);
   const staffMain = page.getByRole("main");
   await expect(staffMain).toHaveCount(1);
   const functionGrid = staffMain.getByTestId("staff-function-grid");
@@ -489,7 +493,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   for (const touchTarget of [
     cartPanel.getByRole("button", { name: "立即結帳", exact: true }),
     cartPanel.getByRole("button", { name: "稍後結帳", exact: true }),
-    cartPanel.getByRole("button", { name: "剛好", exact: true }),
+    cartPanel.getByLabel("客戶實收金額", { exact: true }),
   ]) {
     await expect.poll(async () => (await touchTarget.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
@@ -580,6 +584,7 @@ test("店員可將同商品不同註記分列加入購物車，並移除選錯�
   await page.setViewportSize({ width: 1024, height: 900 });
   await login(page);
   await page.goto("/staff/aming-chicken");
+  await dismissStaffStartReminder(page);
   await page.getByRole("button", { name: "店員點餐" }).click();
 
   const dialog = page.getByRole("dialog", { name: "店員點餐" });
@@ -869,6 +874,7 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
     const staffPage = await staffContext.newPage();
     await login(staffPage);
     await staffPage.goto("/staff/aming-chicken");
+    await dismissStaffStartReminder(staffPage);
     const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
     await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
     await expect(staffOrder).toContainText("顧客希望送達");

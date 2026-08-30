@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 const takeoutQrToken = "demo-aming-chicken-qr-2026-rotate-me";
 const password = "StallOrderDemo!2026";
@@ -71,6 +72,7 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
     const staffPage = await staffContext.newPage();
     await login(staffPage, "staff@stallorder.test");
     await staffPage.goto("/staff/aming-chicken");
+    await dismissStaffStartReminder(staffPage);
     const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
     await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
     await staffOrder.getByRole("button", { name: "確認接單", exact: true }).click();

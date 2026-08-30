@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const password = "StallOrderDemo!2026";
@@ -129,6 +130,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await bundleEditor.getByRole("button", { name: "關閉", exact: true }).click();
 
   await page.goto("/staff/aming-chicken");
+  await dismissStaffStartReminder(page);
   await page.getByRole("button", { name: "店員點餐", exact: true }).click();
   const staffComposer = page.getByRole("dialog", { name: "店員點餐" });
   await expect(staffComposer.getByTestId("staff-product-card").filter({ hasText: bundleName })).toBeVisible();

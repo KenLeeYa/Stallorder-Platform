@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { gotoLocalPath } from "./local-navigation";
+import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
 
 const prisma = new PrismaClient();
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -177,6 +177,7 @@ test.describe.serial("產能與等候時間", () => {
       await warmupResponse.dispose();
     }
     await gotoLocalPath(page, `/staff/${stallSlug}`);
+    await dismissStaffStartReminder(page);
 
     const panel = page.locator("details").filter({ hasText: "產能與等候時間" }).first();
     await expect(panel).toBeVisible();

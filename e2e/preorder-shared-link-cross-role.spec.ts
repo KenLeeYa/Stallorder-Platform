@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { buildFulfillmentTimeSlots } from "../src/lib/fulfillment-time-options";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -494,6 +495,7 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       const staffPage = await staffContext.newPage();
       await login(staffPage, "staff@stallorder.test");
       await staffPage.goto("/staff/aming-chicken");
+      await dismissStaffStartReminder(staffPage);
       const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
       await expect(staffOrder).toBeVisible();
       await expect(staffOrder).toContainText(`訂單 ${orderNo}`);
