@@ -225,6 +225,30 @@ describe("Production workflow approval contract", () => {
     );
   });
 
+  it("proves mirrored Storage metadata before and after a bootstrap reset", () => {
+    const bootstrap = workflowJob(disasterRecovery, "bootstrap");
+    const preReset = bootstrap.indexOf("storage-mirror-pre-reset.json");
+    const reset = bootstrap.indexOf(
+      'supabase db reset --db-url "$DR_DIRECT_URL" --no-seed --yes',
+    );
+    const postReset = bootstrap.indexOf("storage-mirror-post-reset.json");
+
+    expect(preReset).toBeGreaterThan(-1);
+    expect(preReset).toBeLessThan(reset);
+    expect(reset).toBeLessThan(postReset);
+    expect(bootstrap).toContain("node scripts/verify-dr-storage-mirror.mjs");
+    expect(bootstrap).toContain("storageMirrorVerified");
+    expect(bootstrap).toContain("primaryInventoryDigest");
+    expect(bootstrap).toContain("drInventoryDigest");
+    expect(bootstrap).toContain("manifestDigest");
+    expect(bootstrap).not.toContain(
+      'test "$primary_storage_objects" = "0"',
+    );
+    expect(bootstrap).not.toContain(
+      'test "$former_staging_storage_objects" = "0"',
+    );
+  });
+
   it("disables Vercel Git auto-deploy only for main", () => {
     expect(vercel.git.deploymentEnabled).toEqual({ main: false });
   });

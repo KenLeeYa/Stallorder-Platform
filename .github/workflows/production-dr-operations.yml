@@ -875,8 +875,41 @@ jobs:
             "$verification" >/dev/null
           jq -e \
             '(.formerStagingAuthUsers | type) == "number"
-              and .formerStagingStorageObjects == 0' \
+              and (.primaryStorageObjects | type) == "number"
+              and (.formerStagingStorageObjects | type) == "number"
+              and (
+                (
+                  .primaryStorageObjects == 0
+                  and .formerStagingStorageObjects == 0
+                  and (.storageMirrorVerified // false) == false
+                )
+                or (
+                  .storageMirrorVerified == true
+                  and .primaryStorageObjects == .formerStagingStorageObjects
+                  and (.primaryStorageInventoryDigest | type) == "string"
+                  and .primaryStorageInventoryDigest == .formerStagingStorageInventoryDigest
+                  and .storageManifestRows == .primaryStorageObjects
+                  and (.storageManifestDigest | type) == "string"
+                  and .pendingOrInvalidStorageManifests == 0
+                )
+              )' \
             "$inventory" >/dev/null
+          if jq -e '.storageMirrorVerified == true' "$inventory" >/dev/null; then
+            mirror=dr-resume-artifacts/storage-mirror-pre-reset.json
+            test -f "$mirror"
+            jq -e \
+              --slurpfile inventory "$inventory" \
+              '.storageMirrorVerified == true
+                and .changesRemoteState == false
+                and .primaryObjects == $inventory[0].primaryStorageObjects
+                and .drObjects == $inventory[0].formerStagingStorageObjects
+                and .primaryInventoryDigest == $inventory[0].primaryStorageInventoryDigest
+                and .drInventoryDigest == $inventory[0].formerStagingStorageInventoryDigest
+                and .manifestRows == $inventory[0].storageManifestRows
+                and .manifestDigest == $inventory[0].storageManifestDigest
+                and .pendingOrInvalidManifests == 0' \
+              "$mirror" >/dev/null
+          fi
           artifact_commit="$(jq -r '.commit' "$verification")"
           run_metadata="$(
             gh api \
@@ -1001,6 +1034,16 @@ jobs:
           primary_storage_objects="$(
             run_psql_scalar "$DIRECT_URL" "select count(*) from storage.objects"
           )"
+          node scripts/verify-dr-storage-mirror.mjs --primary-only \
+            > dr-artifacts/storage-primary-pre-reset.json
+          jq -e \
+            '.primaryStorageVerified == true
+              and .changesRemoteState == false
+              and .pendingOrInvalidManifests == 0' \
+            dr-artifacts/storage-primary-pre-reset.json >/dev/null
+          test "$primary_storage_objects" = "$(
+            jq -r '.primaryObjects' dr-artifacts/storage-primary-pre-reset.json
+          )"
 
           if [ -z "$RESUME_BACKUP_RUN_ID" ]; then
             run_pg_dump "$DR_DIRECT_URL" \
@@ -1030,40 +1073,68 @@ jobs:
             former_staging_auth_users="$(
               run_psql_scalar "$DR_DIRECT_URL" "select count(*) from auth.users"
             )"
-            former_staging_storage_objects="$(
-              run_psql_scalar "$DR_DIRECT_URL" "select count(*) from storage.objects"
-            )"
+            node scripts/verify-dr-storage-mirror.mjs \
+              > dr-artifacts/storage-mirror-pre-reset.json
           else
             former_staging_auth_users="$(
               jq -r '.formerStagingAuthUsers' \
                 dr-resume-artifacts/pre-conversion-inventory.json
             )"
-            former_staging_storage_objects="$(
-              jq -r '.formerStagingStorageObjects' \
-                dr-resume-artifacts/pre-conversion-inventory.json
-            )"
+            if jq -e \
+              '.storageMirrorVerified == true' \
+              dr-resume-artifacts/pre-conversion-inventory.json >/dev/null; then
+              cp dr-resume-artifacts/storage-mirror-pre-reset.json \
+                dr-artifacts/storage-mirror-pre-reset.json
+            else
+              jq -e \
+                '.primaryStorageVerified == true
+                  and .primaryObjects == 0
+                  and .manifestRows == 0
+                  and .pendingOrInvalidManifests == 0' \
+                dr-artifacts/storage-primary-pre-reset.json >/dev/null
+              jq \
+                '.event = "legacy_zero_storage_mirror_verified"
+                  | .storageMirrorVerified = true
+                  | .drObjects = 0
+                  | .drInventoryDigest = .primaryInventoryDigest
+                  | del(.primaryStorageVerified)' \
+                dr-artifacts/storage-primary-pre-reset.json \
+                > dr-artifacts/storage-mirror-pre-reset.json
+            fi
           fi
+          jq -e \
+            --slurpfile primary dr-artifacts/storage-primary-pre-reset.json \
+            '.storageMirrorVerified == true
+              and .changesRemoteState == false
+              and .primaryObjects == .drObjects
+              and .primaryInventoryDigest == .drInventoryDigest
+              and .primaryObjects == $primary[0].primaryObjects
+              and .primaryInventoryDigest == $primary[0].primaryInventoryDigest
+              and .manifestRows == $primary[0].manifestRows
+              and .manifestDigest == $primary[0].manifestDigest
+              and .pendingOrInvalidManifests == 0' \
+            dr-artifacts/storage-mirror-pre-reset.json >/dev/null
           for archive in dr-artifacts/*.dump; do
             docker run --rm \
               -v "$PWD/dr-artifacts:/out" postgres:17 \
               pg_restore --list "/out/$(basename "$archive")" >/dev/null
           done
-          test "$primary_storage_objects" = "0" || {
-            echo "::error::Primary Storage contains objects; bootstrap requires the reviewed byte-mirror migration first."
-            exit 1
-          }
-          test "$former_staging_storage_objects" = "0" || {
-            echo "::error::Former Staging Storage contains objects; bootstrap will not delete unarchived bytes."
-            exit 1
-          }
-          cat > dr-artifacts/pre-conversion-inventory.json <<JSON
-          {
-            "primaryAuthUsers": ${primary_auth_users},
-            "primaryStorageObjects": ${primary_storage_objects},
-            "formerStagingAuthUsers": ${former_staging_auth_users},
-            "formerStagingStorageObjects": ${former_staging_storage_objects}
-          }
-          JSON
+          jq -n \
+            --argjson primary_auth_users "$primary_auth_users" \
+            --argjson former_staging_auth_users "$former_staging_auth_users" \
+            --slurpfile mirror dr-artifacts/storage-mirror-pre-reset.json \
+            '{
+              primaryAuthUsers: $primary_auth_users,
+              primaryStorageObjects: $mirror[0].primaryObjects,
+              formerStagingAuthUsers: $former_staging_auth_users,
+              formerStagingStorageObjects: $mirror[0].drObjects,
+              storageMirrorVerified: $mirror[0].storageMirrorVerified,
+              primaryStorageInventoryDigest: $mirror[0].primaryInventoryDigest,
+              formerStagingStorageInventoryDigest: $mirror[0].drInventoryDigest,
+              storageManifestRows: $mirror[0].manifestRows,
+              storageManifestDigest: $mirror[0].manifestDigest,
+              pendingOrInvalidStorageManifests: $mirror[0].pendingOrInvalidManifests
+            }' > dr-artifacts/pre-conversion-inventory.json
 
       - name: Restore-test both logical backups
         shell: bash
@@ -1291,6 +1362,38 @@ jobs:
 
       - name: Reset former Staging into an empty DR schema
         run: supabase db reset --db-url "$DR_DIRECT_URL" --no-seed --yes
+
+      - name: Verify Storage mirror survived DR reset
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-dr-storage-mirror.mjs \
+            > dr-artifacts/storage-mirror-post-reset.json
+          jq -e \
+            --slurpfile before dr-artifacts/storage-mirror-pre-reset.json \
+            '.storageMirrorVerified == true
+              and .changesRemoteState == false
+              and .primaryObjects == $before[0].primaryObjects
+              and .drObjects == $before[0].drObjects
+              and .primaryInventoryDigest == $before[0].primaryInventoryDigest
+              and .drInventoryDigest == $before[0].drInventoryDigest
+              and .manifestRows == $before[0].manifestRows
+              and .manifestDigest == $before[0].manifestDigest
+              and .pendingOrInvalidManifests == 0' \
+            dr-artifacts/storage-mirror-post-reset.json >/dev/null
+
+      - name: Upload Storage reset evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-dr-storage-reset-evidence-${{ github.run_id }}
+          path: |
+            dr-artifacts/pre-conversion-inventory.json
+            dr-artifacts/storage-primary-pre-reset.json
+            dr-artifacts/storage-mirror-pre-reset.json
+            dr-artifacts/storage-mirror-post-reset.json
+          retention-days: 7
+          if-no-files-found: warn
 
       - name: Configure Supabase DR project
         env:
