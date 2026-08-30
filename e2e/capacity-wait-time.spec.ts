@@ -95,6 +95,7 @@ async function login(page: Page, email: string) {
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await responsePromise).status()).toBe(200);
+  await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 30_000 });
 }
 
 test.describe.serial("產能與等候時間", () => {
