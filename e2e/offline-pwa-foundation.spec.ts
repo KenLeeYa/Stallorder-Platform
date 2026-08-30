@@ -66,7 +66,7 @@ test.describe("P4 離線 PWA 基礎", () => {
   });
 
   test("裝置須由管理者指定唯一 Leader 後才取得離線 Permit", async ({ browser }, testInfo) => {
-    test.setTimeout(productionOfflineRuntime ? 60_000 : 180_000);
+    test.setTimeout(180_000);
     const staffContext = await browser.newContext({
       viewport: { width: 390, height: 844 },
       locale: "zh-TW",

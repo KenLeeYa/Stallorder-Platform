@@ -185,7 +185,10 @@ test.describe("P1 營運功能", () => {
     await expect(tableGroup).toContainText(secondOrderNo);
     await tableGroup.getByRole("button", { name: "合併結帳（2 筆）" }).click();
     const checkout = page.getByRole("dialog", { name: "同桌合併結帳" });
-    await checkout.getByRole("button", { name: "7 折 P1" }).click();
+    await checkout.getByTestId("staff-discount-trigger").click();
+    const discountDialog = page.getByRole("dialog", { name: "結帳折扣" });
+    await expect(discountDialog).toBeVisible();
+    await discountDialog.getByRole("button", { name: "7 折 P1" }).click();
     await expect(checkout.getByText("此折扣超過店員免核准門檻")).toBeVisible();
     await checkout.getByLabel("折扣原因").fill("P1 E2E 等候補償");
     await checkout.getByLabel("管理授權碼").fill(managerAuthorizationCode);
