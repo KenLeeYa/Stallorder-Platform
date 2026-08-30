@@ -58,6 +58,10 @@ export async function POST(request: Request, context: RouteContext) {
   const authorizedStallIds = authorization.workspace.stalls.map((stall) => stall.id);
   const authorizedStallSet = new Set(authorizedStallIds);
   const command = parsed.data;
+  const singleStallMode = authorization.workspace.operatingMode === "SINGLE_STALL";
+  const singleActiveStallId = singleStallMode
+    ? authorization.workspace.stalls.find((stall) => stall.isActive)?.id
+    : undefined;
   if ("stallIds" in command && command.stallIds.some((stallId) => !authorizedStallSet.has(stallId))) {
     await recordAuditEvent({
       organizationId,
@@ -71,6 +75,12 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json(
       { error: "分派清單包含未授權攤位。" },
       { status: 403, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+  if (singleStallMode && command.operation === "SET_ASSIGNMENTS") {
+    return NextResponse.json(
+      { error: "單攤位營運會自動套用目前攤位，不需要設定商品分派。" },
+      { status: 409, headers: { "x-request-id": authorization.requestId } },
     );
   }
 
@@ -376,9 +386,12 @@ export async function POST(request: Request, context: RouteContext) {
               data: command.translations.map((translation) => ({ organizationId, productId: product.id, ...translation })),
             });
           }
-          if (command.stallIds.length > 0) {
+          const assignmentStallIds = singleStallMode
+            ? (singleActiveStallId ? [singleActiveStallId] : [])
+            : command.stallIds;
+          if (assignmentStallIds.length > 0) {
             await transaction.stallProduct.createMany({
-              data: command.stallIds.map((stallId) => ({
+              data: assignmentStallIds.map((stallId) => ({
                 organizationId,
                 stallId,
                 productId: product.id,
@@ -392,9 +405,12 @@ export async function POST(request: Request, context: RouteContext) {
           where: { id: command.productId, organizationId },
           select: {
             id: true,
+            categoryId: true,
+            groupId: true,
             kind: true,
             imageUrl: true,
             isActive: true,
+            sortOrder: true,
             _count: { select: { bundleChoiceGroups: true, componentChoices: true } },
           },
         });
@@ -405,6 +421,13 @@ export async function POST(request: Request, context: RouteContext) {
         if (command.kind === "SINGLE" && existing._count.bundleChoiceGroups > 0) {
           throw new CatalogConflictError("請先移除套餐選擇群組，再改成一般商品。");
         }
+        await shiftProductSortOrder(
+          transaction,
+          organizationId,
+          existing.id,
+          { categoryId: existing.categoryId, groupId: existing.groupId, sortOrder: existing.sortOrder },
+          { categoryId: category.id, groupId: group?.id ?? null, sortOrder: command.sortOrder },
+        );
         const product = await transaction.product.update({
           where: { id: existing.id },
           data: { ...productData, isActive: true },
@@ -430,6 +453,7 @@ export async function POST(request: Request, context: RouteContext) {
           where: { organizationId, productId: product.id },
           data: {
             isSoldOut: command.isSoldOut,
+            sortOrder: command.sortOrder,
             ...(!existing.isActive ? { isEnabled: true } : {}),
           },
         });
@@ -776,6 +800,91 @@ export async function POST(request: Request, context: RouteContext) {
 class CatalogNotFoundError extends Error {}
 
 class CatalogConflictError extends Error {}
+
+type ProductSortPosition = {
+  categoryId: string;
+  groupId: string | null;
+  sortOrder: number;
+};
+
+async function shiftProductSortOrder(
+  transaction: Prisma.TransactionClient,
+  organizationId: string,
+  productId: string,
+  previous: ProductSortPosition,
+  next: ProductSortPosition,
+) {
+  const sameScope = previous.categoryId === next.categoryId && previous.groupId === next.groupId;
+  if (sameScope && previous.sortOrder === next.sortOrder) return;
+
+  if (sameScope) {
+    if (next.sortOrder < previous.sortOrder) {
+      await transaction.product.updateMany({
+        where: {
+          organizationId,
+          categoryId: next.categoryId,
+          groupId: next.groupId,
+          id: { not: productId },
+          sortOrder: { gte: next.sortOrder, lt: previous.sortOrder },
+        },
+        data: { sortOrder: { increment: 1 } },
+      });
+    } else {
+      await transaction.product.updateMany({
+        where: {
+          organizationId,
+          categoryId: next.categoryId,
+          groupId: next.groupId,
+          id: { not: productId },
+          sortOrder: { gt: previous.sortOrder, lte: next.sortOrder },
+        },
+        data: { sortOrder: { decrement: 1 } },
+      });
+    }
+    await synchronizeStallProductSortOrder(transaction, organizationId, next);
+    return;
+  }
+
+  await transaction.product.updateMany({
+    where: {
+      organizationId,
+      categoryId: previous.categoryId,
+      groupId: previous.groupId,
+      id: { not: productId },
+      sortOrder: { gt: previous.sortOrder },
+    },
+    data: { sortOrder: { decrement: 1 } },
+  });
+  await transaction.product.updateMany({
+    where: {
+      organizationId,
+      categoryId: next.categoryId,
+      groupId: next.groupId,
+      id: { not: productId },
+      sortOrder: { gte: next.sortOrder },
+    },
+    data: { sortOrder: { increment: 1 } },
+  });
+  await synchronizeStallProductSortOrder(transaction, organizationId, previous);
+  await synchronizeStallProductSortOrder(transaction, organizationId, next);
+}
+
+async function synchronizeStallProductSortOrder(
+  transaction: Prisma.TransactionClient,
+  organizationId: string,
+  scope: Pick<ProductSortPosition, "categoryId" | "groupId">,
+) {
+  await transaction.$executeRaw(Prisma.sql`
+    update public.stall_products as assignment
+    set sort_order = product.sort_order, updated_at = now()
+    from public.products as product
+    where assignment.product_id = product.id
+      and assignment.organization_id = ${organizationId}::uuid
+      and product.organization_id = ${organizationId}::uuid
+      and product.category_id = ${scope.categoryId}::uuid
+      and product.group_id is not distinct from ${scope.groupId}::uuid
+  `);
+}
 
 function catalogCommandFieldErrors(
   command: { operation: string },

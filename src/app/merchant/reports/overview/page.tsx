@@ -90,7 +90,7 @@ async function ReportOverviewContent({
   return <main data-testid="report-overview" className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-4 sm:py-7 md:px-8">
     <div><p className="text-sm font-semibold text-teal-800">{t("reports.eyebrow")}</p><h1 className="mt-1 text-3xl font-semibold">{t("reports.overview.title")}</h1><p className="mt-2 hidden text-sm text-stone-600 sm:block">{scope.workspace.businessName} · {formatAppDate(locale, `${scope.dateFrom}T00:00:00Z`)} {t("reports.filter.to")} {formatAppDate(locale, `${scope.dateTo}T00:00:00Z`)}</p></div>
     <ReportNavigation organizationId={scope.workspace.id} active="overview" />
-    <ReportFilters organizationId={scope.workspace.id} stalls={scope.availableStalls} selectedStallIds={scope.stalls.map((stall) => stall.id)} dateFrom={scope.dateFrom} dateTo={scope.dateTo} />
+    <ReportFilters organizationId={scope.workspace.id} stalls={scope.availableStalls} selectedStallIds={scope.stalls.map((stall) => stall.id)} dateFrom={scope.dateFrom} dateTo={scope.dateTo} multiStallMode={scope.workspace.operatingMode === "MULTI_STALL"} />
     <section className="border-b border-stone-200 py-3 sm:py-5" aria-labelledby="sales-summary-title">
       <h2 id="sales-summary-title" className="sr-only">{t("reports.overview.summary")}</h2>
       <dl data-testid="sales-summary-dashboard" className="grid grid-cols-2 gap-2 sm:grid-cols-4">

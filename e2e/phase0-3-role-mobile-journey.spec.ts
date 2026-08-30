@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -265,6 +266,7 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       const staffPage = await staffContext.newPage();
       await login(staffPage, "staff@stallorder.test");
       await staffPage.goto(`/staff/${stallSlug}`);
+      await dismissStaffStartReminder(staffPage);
       await expect(staffPage).toHaveURL(new RegExp(`/staff/${stallSlug}$`, "u"));
       await expect(
         staffPage.getByTestId("staff-sticky-header").getByRole("heading"),

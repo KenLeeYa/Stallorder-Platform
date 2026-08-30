@@ -40,6 +40,7 @@ const rows = {
   "This change affects navigation and direct page access immediately. Continue?": ["此異動會立即影響導覽與直接網址存取，是否繼續？", "この変更はナビゲーションとURL直接アクセスに直ちに反映されます。続行しますか？", "이 변경은 탐색과 직접 URL 접근에 즉시 적용됩니다. 계속할까요?", "Thay đổi này ảnh hưởng ngay đến điều hướng và truy cập URL trực tiếp. Tiếp tục?", "การเปลี่ยนแปลงนี้มีผลต่อเมนูและการเข้าผ่าน URL โดยตรงทันที ดำเนินการต่อหรือไม่"],
   "Module visibility updated.": ["模組顯示狀態已更新。", "モジュール表示状態を更新しました。", "모듈 표시 상태가 업데이트되었습니다.", "Đã cập nhật trạng thái hiển thị mô-đun.", "อัปเดตสถานะการแสดงโมดูลแล้ว"],
   "Payment integrations": ["付款整合", "決済連携", "결제 연동", "Tích hợp thanh toán", "การเชื่อมต่อการชำระเงิน"],
+  "Electronic invoice integrations": ["電子發票整合", "電子インボイス連携", "전자 송장 연동", "Tích hợp hóa đơn điện tử", "การเชื่อมต่อใบกำกับภาษีอิเล็กทรอนิกส์"],
   "Payment provider health": ["付款 Provider 健康狀態", "決済プロバイダーの健全性", "결제 제공업체 상태", "Tình trạng nhà cung cấp thanh toán", "สถานะผู้ให้บริการชำระเงิน"],
   "Read-only payment provider health. Merchant secrets are never displayed.": ["唯讀檢視付款 Provider 健康狀態；不顯示商家密鑰。", "決済プロバイダーの状態を読み取り専用で表示し、加盟店の秘密情報は表示しません。", "결제 제공업체 상태를 읽기 전용으로 표시하며 가맹점 비밀은 표시하지 않습니다.", "Chỉ đọc tình trạng nhà cung cấp; không bao giờ hiển thị bí mật của cửa hàng.", "แสดงสถานะผู้ให้บริการแบบอ่านอย่างเดียวและไม่แสดงความลับของร้านค้า"],
   "Organizations affected": ["受影響商家", "影響を受ける組織", "영향받는 조직", "Tổ chức bị ảnh hưởng", "องค์กรที่ได้รับผลกระทบ"],

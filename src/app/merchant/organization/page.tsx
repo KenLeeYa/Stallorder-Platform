@@ -20,7 +20,7 @@ export default async function OrganizationProfilePage({ searchParams }: PageProp
 
   const organization = await prisma.organization.findUnique({
     where: { id: workspace.id },
-    select: { businessName: true, email: true, phone: true },
+    select: { businessName: true, email: true, phone: true, operatingMode: true },
   });
   if (!organization) notFound();
   const returnStallId = workspace.stalls.some((stall) => stall.id === stallId) ? stallId : undefined;
@@ -41,7 +41,13 @@ export default async function OrganizationProfilePage({ searchParams }: PageProp
         </p>
       </header>
       <div className="py-7">
-        <OrganizationProfileForm organizationId={workspace.id} initial={organization} />
+        <OrganizationProfileForm
+          organizationId={workspace.id}
+          initial={{
+            ...organization,
+            operatingMode: organization.operatingMode === "MULTI_STALL" ? "MULTI_STALL" : "SINGLE_STALL",
+          }}
+        />
       </div>
     </main>
   );

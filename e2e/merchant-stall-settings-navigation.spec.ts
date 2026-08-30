@@ -24,7 +24,6 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     ["抽抽樂推薦", "lottery"],
     ["QR 點餐語系", "languages"],
     ["安全與訂單限制", "order-limits"],
-    ["多攤位範本", "templates"],
     ["攤位成員", "members"],
   ] as const;
   const moduleSections = new Set([
@@ -43,7 +42,6 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     basic: "stall-basic",
     operations: "stall-operations",
     "business-hours": "business-hours",
-    templates: "stall-template",
     members: "stall-team",
   };
   const organizationLinks = [
@@ -102,6 +100,7 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
   await expect(page.getByRole("link", { name: "現金交班報表", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "多攤位範本", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "線上外送", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "外帶預約", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "KDS 工作站", exact: true }))

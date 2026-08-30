@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { buildFulfillmentTimeSlots } from "../src/lib/fulfillment-time-options";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 const prisma = new PrismaClient();
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -91,6 +92,7 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   await page.setViewportSize({ width: 1024, height: 768 });
   await login(page);
   await page.goto("/staff/aming-chicken");
+  await dismissStaffStartReminder(page);
   const staffMain = page.getByRole("main");
   await expect(staffMain).toHaveCount(1);
   const functionGrid = staffMain.getByTestId("staff-function-grid");
@@ -110,7 +112,7 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   expect(desktopFunctionPositions.every(({ y }) => Math.abs(y - desktopFunctionPositions[0]!.y) <= 1)).toBe(true);
   expect(desktopFunctionPositions.every(({ x }, index) => index === 0 || x > desktopFunctionPositions[index - 1]!.x)).toBe(true);
   await functionGrid.getByTitle("離線裝置", { exact: true }).click();
-  await expect(page.getByRole("region", { name: "離線裝置", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "離線裝置", exact: true })).toBeVisible();
   await page.getByTitle("關閉離線裝置視窗", { exact: true }).click();
   const configurationResponsePromise = page.waitForResponse((response) => (
     new URL(response.url()).pathname.endsWith("/api/stalls/aming-chicken/pos-configuration")
@@ -189,6 +191,7 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
     await page.setViewportSize({ width: 1024, height: 900 });
     await login(page);
     await page.goto("/staff/aming-chicken");
+    await dismissStaffStartReminder(page);
     const initialConfigurationPromise = page.waitForResponse((response) => (
       new URL(response.url()).pathname.endsWith("/api/stalls/aming-chicken/pos-configuration")
       && response.request().method() === "GET"
@@ -287,6 +290,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await page.goto("/staff/aming-chicken");
+  await dismissStaffStartReminder(page);
   const staffMain = page.getByRole("main");
   await expect(staffMain).toHaveCount(1);
   const functionGrid = staffMain.getByTestId("staff-function-grid");
@@ -296,7 +300,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
     const style = window.getComputedStyle(element);
     return { display: style.display, flexWrap: style.flexWrap, overflowX: style.overflowX };
   })).toEqual({ display: "flex", flexWrap: "nowrap", overflowX: "auto" });
-  expect(await functionGrid.locator(":scope > [data-testid^='staff-function-']").count()).toBe(3);
+  expect(await functionGrid.locator(":scope > [data-testid^='staff-function-']").count()).toBe(4);
   expect(await functionGrid.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   expect(await functionGrid.locator(":scope > *").count()).toBeLessThanOrEqual(12);
@@ -424,8 +428,15 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await dialog.getByLabel("顧客名稱（選填）").fill(draftCustomerName);
   await dialog.getByLabel("聯絡電話（選填）").fill(draftCustomerPhone);
   await dialog.getByTestId("staff-order-cart-tab").click();
-  await expect(dialog.getByTestId("staff-order-cart-panel")).toBeVisible();
-  await dialog.getByLabel("整單備註").fill(draftCustomerNote);
+  const draftCartPanel = dialog.getByTestId("staff-order-cart-panel");
+  await expect(draftCartPanel).toBeVisible();
+  await draftCartPanel.getByTestId("staff-tablet-confirm-order").click();
+  await draftCartPanel.getByTestId("staff-checkout-note-button").click();
+  const noteDialog = page.getByRole("dialog", { name: "整單備註", exact: true });
+  await noteDialog.locator("textarea").fill(draftCustomerNote);
+  await noteDialog.getByRole("button", { name: "儲存", exact: true }).click();
+  await expect(noteDialog).toBeHidden();
+  await draftCartPanel.getByTestId("staff-checkout-back-icon").click();
   await dialog.getByTestId("staff-save-draft").click();
   await expect(dialog.getByRole("status")).toContainText("暫存在此裝置");
   await expect(dialog.getByTestId("staff-cart-line")).toHaveCount(0);
@@ -463,7 +474,6 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await draftManager.getByRole("button", { name: "繼續點餐", exact: true }).click();
   await expect(dialog.getByLabel("顧客名稱（選填）")).toHaveValue("");
   await expect(dialog.getByLabel("聯絡電話（選填）")).toHaveValue("");
-  await expect(dialog.getByLabel("整單備註")).toHaveValue("");
   await expect(dialog.getByTestId("staff-cart-line")).toHaveCount(1);
 
   await dialog.getByTestId("staff-open-drafts").click();
@@ -486,10 +496,12 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await dialog.getByTestId("staff-mobile-cart-summary").click();
   const cartPanel = dialog.getByTestId("staff-order-cart-panel");
   await expect(cartPanel).toBeVisible();
+  await cartPanel.getByTestId("staff-tablet-confirm-order").click();
+  await expect(cartPanel.getByTestId("staff-order-checkout-controls")).toBeVisible();
   for (const touchTarget of [
     cartPanel.getByRole("button", { name: "立即結帳", exact: true }),
     cartPanel.getByRole("button", { name: "稍後結帳", exact: true }),
-    cartPanel.getByRole("button", { name: "剛好", exact: true }),
+    cartPanel.getByLabel("實收金額", { exact: true }),
   ]) {
     await expect.poll(async () => (await touchTarget.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
@@ -580,6 +592,7 @@ test("店員可將同商品不同註記分列加入購物車，並移除選錯�
   await page.setViewportSize({ width: 1024, height: 900 });
   await login(page);
   await page.goto("/staff/aming-chicken");
+  await dismissStaffStartReminder(page);
   await page.getByRole("button", { name: "店員點餐" }).click();
 
   const dialog = page.getByRole("dialog", { name: "店員點餐" });
@@ -869,6 +882,7 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
     const staffPage = await staffContext.newPage();
     await login(staffPage);
     await staffPage.goto("/staff/aming-chicken");
+    await dismissStaffStartReminder(staffPage);
     const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
     await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
     await expect(staffOrder).toContainText("顧客希望送達");

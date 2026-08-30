@@ -80,6 +80,7 @@ export function MultiStallDashboard({
   stalls,
   canManageOrdering,
   multiStallEnabled,
+  singleStallMode = false,
   initialSelectedStallIds,
   initialDateRange,
   initialPreset = "TODAY",
@@ -93,6 +94,7 @@ export function MultiStallDashboard({
   stalls: StallOption[];
   canManageOrdering: boolean;
   multiStallEnabled: boolean;
+  singleStallMode?: boolean;
   initialSelectedStallIds?: string[];
   initialDateRange?: { dateFrom: string; dateTo: string };
   initialPreset?: DatePreset;
@@ -311,7 +313,7 @@ export function MultiStallDashboard({
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-3 sm:py-4 md:px-8 md:py-7">
       <div className="border-b border-stone-200 pb-3 sm:pb-5">
         <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div><p className="text-sm font-semibold text-teal-800">{label("多攤位營運總覽")}</p><h1 className="mt-1 text-3xl font-semibold">{organizationName}</h1><p className="mt-2 hidden text-sm text-stone-600 sm:block">{label("依攤位時區彙整的銷售、訂單與付款資料。")}</p></div>
+          <div><p className="text-sm font-semibold text-teal-800">{singleStallMode ? label("營運總覽") : label("多攤位營運總覽")}</p><h1 className="mt-1 text-3xl font-semibold">{organizationName}</h1><p className="mt-2 hidden text-sm text-stone-600 sm:block">{label("依攤位時區彙整的銷售、訂單與付款資料。")}</p></div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <span className={`inline-flex min-h-10 items-center gap-2 text-xs font-medium ${realtimeState === "LIVE" ? "text-emerald-700" : "text-amber-700"}`} title={realtimeState === "LIVE" ? label("Supabase Realtime 已連線") : label("即時連線未就緒，使用 45 秒自動更新備援")}>
               {realtimeState === "LIVE" ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
@@ -321,7 +323,7 @@ export function MultiStallDashboard({
           </div>
         </div>
 
-        <div className="mt-3 grid gap-3 sm:mt-5 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,420px)]">
+        <div className={`mt-3 grid gap-3 sm:mt-5 sm:gap-4 ${singleStallMode ? "" : "lg:grid-cols-[minmax(0,1fr)_minmax(260px,420px)]"}`}>
           <div>
             <div className="flex flex-wrap gap-1" aria-label={label("日期範圍")}>
               {([[
@@ -331,14 +333,14 @@ export function MultiStallDashboard({
             </div>
             {preset === "CUSTOM" ? <div className="mt-2 flex flex-wrap gap-2 sm:mt-3 sm:gap-3"><label className="text-sm text-stone-600">{label("開始日期")}<input type="date" value={dateRange.dateFrom} onChange={(event) => setDateRange((current) => ({ ...current, dateFrom: event.target.value }))} className="ml-2 rounded-md border border-stone-300 px-2 py-2 text-stone-900" /></label><label className="text-sm text-stone-600">{label("結束日期")}<input type="date" value={dateRange.dateTo} onChange={(event) => setDateRange((current) => ({ ...current, dateTo: event.target.value }))} className="ml-2 rounded-md border border-stone-300 px-2 py-2 text-stone-900" /></label></div> : <p className="mt-2 text-sm text-stone-600 sm:mt-3">{dateRange.dateFrom} {label("至")} {dateRange.dateTo}</p>}
           </div>
-          <details className="border-y border-stone-200 py-2">
+          {!singleStallMode ? <details className="border-y border-stone-200 py-2">
             <summary className="cursor-pointer list-none py-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">{label("攤位範圍 · 已選")} {selectedStallIds.length} {label("個")}</summary>
             {multiStallEnabled ? <label className="flex min-h-10 items-center gap-2 border-t border-stone-100 text-sm"><input type="checkbox" checked={stalls.length > 0 && stalls.every((stall) => selectedStallIds.includes(stall.id))} onChange={(event) => setSelectedStallIds(event.target.checked ? stalls.map((stall) => stall.id) : [])} />{label("全部攤位")}</label> : null}
             {stalls.map((stall) => <label key={stall.id} className="flex min-h-10 items-center gap-2 border-t border-stone-100 text-sm"><input type="checkbox" checked={selectedStallIds.includes(stall.id)} onChange={() => toggleStall(stall.id)} />{stall.name}</label>)}
-          </details>
+          </details> : null}
         </div>
-        {!multiStallEnabled && stalls.length > 1 ? <p className="mt-3 border-y border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 sm:mt-4 sm:py-3">{label("目前方案僅支援單攤位檢視；升級後可同時比較與批次管理多個攤位。")}</p> : null}
-        {canManageOrdering && multiStallEnabled ? (
+        {!singleStallMode && !multiStallEnabled && stalls.length > 1 ? <p className="mt-3 border-y border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 sm:mt-4 sm:py-3">{label("目前方案僅支援單攤位檢視；升級後可同時比較與批次管理多個攤位。")}</p> : null}
+        {!singleStallMode && canManageOrdering && multiStallEnabled ? (
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-stone-100 pt-3 sm:mt-4 sm:pt-4">
             <button type="button" disabled={selectedStallIds.length === 0 || batchRunning} onClick={() => setPendingBatchAction("PAUSE")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-amber-300 px-3 text-sm font-semibold text-amber-900 disabled:opacity-50"><Pause className="h-4 w-4" />{label("暫停已選攤位")}</button>
             <button type="button" disabled={selectedStallIds.length === 0 || batchRunning} onClick={() => setPendingBatchAction("RESUME")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-emerald-300 px-3 text-sm font-semibold text-emerald-800 disabled:opacity-50"><Play className="h-4 w-4" />{label("恢復已選攤位")}</button>
@@ -379,12 +381,12 @@ export function MultiStallDashboard({
           <Metric label={label("取消率")} value={percent(summary.cancellationRate)} />
         </section>
 
-        <section className="grid gap-3 border-b border-stone-200 py-4 sm:grid-cols-2 sm:gap-5 sm:py-5">
+        {!singleStallMode ? <section className="grid gap-3 border-b border-stone-200 py-4 sm:grid-cols-2 sm:gap-5 sm:py-5">
           <div><p className="text-sm text-stone-500">{label("最佳銷售攤位")}</p><p className="mt-1 font-semibold">{summary.bestPerformingStall ? `${summary.bestPerformingStall.stallName} · ${formatMoney(summary.bestPerformingStall.totalSales, currency)}` : label("尚無完成銷售")}</p></div>
           <div><p className="text-sm text-stone-500">{label("最忙碌攤位")}</p><p className="mt-1 font-semibold">{summary.busiestStall ? m("{value0} · {value1} 筆訂單", { value0: summary.busiestStall.stallName, value1: summary.busiestStall.orderCount }) : label("尚無訂單")}</p></div>
-        </section>
+        </section> : null}
 
-        <section className="py-4 sm:py-6">
+        {!singleStallMode ? <section className="py-4 sm:py-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"><div><h2 className="text-xl font-semibold">{label("攤位比較")}</h2><p className="mt-1 text-xs text-stone-500">{label("更新時間")} {formatTaipeiDateTime(overview.generatedAt)}</p></div><div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"><label className="relative min-w-0"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-stone-400" /><input type="search" aria-label={label("搜尋攤位")} value={query} maxLength={120} onChange={(event) => setQuery(event.target.value)} placeholder={label("搜尋攤位")} className="h-11 w-full min-w-0 rounded-md border border-stone-300 pl-9 pr-3 text-sm" /></label><select aria-label={label("排序攤位")} value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)} className="h-11 rounded-md border border-stone-300 bg-white px-2 text-sm"><option value="sales">{label("銷售額")}</option><option value="orders">{label("訂單數")}</option><option value="pending">{label("待處理")}</option><option value="name">{label("攤位名稱")}</option></select></div></div>
 
           <div className="mt-4 hidden md:block">
@@ -392,7 +394,7 @@ export function MultiStallDashboard({
           </div>
           <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3 md:hidden">{visibleStalls.map((stall) => <article key={stall.stallId} className="rounded-md border border-stone-200 bg-white p-3 sm:p-4"><div className="flex items-center justify-between gap-3"><Link href={`/merchant/stalls/${stall.stallId}/dashboard`} className="font-semibold text-teal-800">{stall.stallName}</Link><Status status={stall.businessStatus} /></div><dl className="mt-3 grid grid-cols-2 gap-2 text-sm sm:mt-4 sm:gap-3"><MobileMetric label={label("銷售額")} value={formatMoney(stall.totalSales, currency)} /><MobileMetric label={label("訂單 / 完成")} value={`${stall.orderCount} / ${stall.completedOrderCount}`} /><MobileMetric label={label("待處理 / 未付款")} value={`${stall.pendingOrderCount} / ${stall.unpaidOrderCount}`} /><MobileMetric label={label("客單價 / 取消率")} value={`${formatMoney(stall.averageOrderValue, currency)} / ${percent(stall.cancellationRate)}`} /></dl></article>)}</div>
           {visibleStalls.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{label("此範圍沒有符合條件的攤位資料。")}</p> : null}
-        </section>
+        </section> : null}
       </> : null}
 
       {pendingBatchAction ? (

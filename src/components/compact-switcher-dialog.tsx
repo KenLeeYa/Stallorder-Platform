@@ -82,6 +82,7 @@ export function CompactSwitcherDialog({
     <>
       <button
         ref={triggerRef}
+        data-senior-action-tile="true"
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}

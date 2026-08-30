@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -182,6 +183,7 @@ async function login(page: Page) {
 
 async function openPaymentCorrection(page: Page) {
   await page.goto(`/staff/${stallSlug}`);
+  await dismissStaffStartReminder(page);
   await page.getByRole("button", { name: /已完成訂單查詢/ }).click();
   await page.getByPlaceholder("訂單編號、顧客或電話").fill(orderNo);
   await page.getByRole("button", { name: "查詢", exact: true }).click();

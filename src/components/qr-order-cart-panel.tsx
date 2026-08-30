@@ -14,6 +14,8 @@ import type {
 } from "@/lib/public-menu-types";
 import { qrOrderMessages, type QrLocale } from "@/lib/qr-order-i18n";
 import type { QrOrderSession } from "@/components/qr-order-flow-orchestration";
+import { CheckoutInvoiceSelector } from "@/components/checkout-invoice-selector";
+import type { InvoiceBuyerSelection } from "@/lib/e-invoice-checkout-contract";
 
 export { resolveQrCheckoutBlocker } from "@/components/qr-order-checkout-controller";
 
@@ -32,6 +34,7 @@ type QrOrderCartPanelProps = {
   customerPhone: string;
   deliveryAddress: string;
   customerNote: string;
+  invoiceBuyerSelection: InvoiceBuyerSelection;
   waitAcknowledged: boolean;
   fulfillmentTimePicker: ReactNode;
   turnstileRequested: boolean;
@@ -54,6 +57,7 @@ type QrOrderCartPanelProps = {
   onCustomerPhoneChange: (value: string) => void;
   onDeliveryAddressChange: (value: string) => void;
   onCustomerNoteChange: (value: string) => void;
+  onInvoiceBuyerSelectionChange: (value: InvoiceBuyerSelection) => void;
   onWaitAcknowledgedChange: (value: boolean) => void;
   onTurnstileToken: (token: string | null) => void;
   onSubmit: () => void;
@@ -74,6 +78,7 @@ export function QrOrderCartPanel({
   customerPhone,
   deliveryAddress,
   customerNote,
+  invoiceBuyerSelection,
   waitAcknowledged,
   fulfillmentTimePicker,
   turnstileRequested,
@@ -96,6 +101,7 @@ export function QrOrderCartPanel({
   onCustomerPhoneChange,
   onDeliveryAddressChange,
   onCustomerNoteChange,
+  onInvoiceBuyerSelectionChange,
   onWaitAcknowledgedChange,
   onTurnstileToken,
   onSubmit,
@@ -233,6 +239,15 @@ export function QrOrderCartPanel({
             disabled={!orderingEnabled}
             onChange={(event) => onCustomerNoteChange(event.target.value)}
           />
+          {session.invoiceCheckout ? (
+            <CheckoutInvoiceSelector
+              config={session.invoiceCheckout}
+              locale={locale}
+              value={invoiceBuyerSelection}
+              disabled={!orderingEnabled}
+              onChange={onInvoiceBuyerSelectionChange}
+            />
+          ) : null}
         </div>
         <div className="mt-5 flex items-center justify-between border-t border-stone-200 pt-4">
           <span className="text-sm text-stone-600">{copy.itemCount(totalQuantity)}</span>

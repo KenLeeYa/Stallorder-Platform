@@ -13,7 +13,7 @@ test("單店入口、商品摺疊與訂單限制設定維持一致", async ({ pa
   await waitForDefaultMerchantDashboard(page, organizationId);
   const merchantMain = page.locator("#main-content");
   await expect(merchantMain).toHaveCount(1);
-  await expect(merchantMain.getByText("多攤位營運總覽", { exact: true })).toBeVisible();
+  await expect(merchantMain.getByText("營運總覽", { exact: true })).toBeVisible();
 
   await page.goto(`/merchant/stalls?organizationId=${organizationId}`);
   await expect(page.getByRole("heading", { name: "管理攤位", exact: true })).toBeVisible();

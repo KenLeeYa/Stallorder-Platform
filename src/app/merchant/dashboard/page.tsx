@@ -49,6 +49,8 @@ export default async function MerchantDashboardPage({ searchParams }: PageProps)
       requireUsableSubscription: false,
     }),
   );
+  const multiStallMode = workspace.operatingMode === "MULTI_STALL";
+  const multiStallEnabled = multiStallMode && multiStallAccess.allowed;
 
   const requestedStallIds = typeof stallId === "string" ? [stallId] : stallId ?? [];
   const activeReportStallIds = new Set(activeReportStalls.map((stall) => stall.id));
@@ -57,7 +59,7 @@ export default async function MerchantDashboardPage({ searchParams }: PageProps)
     authorizedSelection.length > 0
       ? authorizedSelection
       : activeReportStalls.map((stall) => stall.id)
-  ).slice(0, multiStallAccess.allowed ? undefined : 1);
+  ).slice(0, multiStallEnabled ? undefined : 1);
   const selectedStalls = activeReportStalls.filter((stall) => initialSelectedStallIds.includes(stall.id));
   const alertStallIds = selectedStalls
     .filter((stall) => [...workspace.roles, ...stall.roles]
@@ -98,7 +100,8 @@ export default async function MerchantDashboardPage({ searchParams }: PageProps)
         isActive: stall.isActive,
       }))}
       canManageOrdering={authorizedStallIdsForPermission(reportStalls, "MANAGE_ORDERING").length > 0}
-      multiStallEnabled={multiStallAccess.allowed}
+      multiStallEnabled={multiStallEnabled}
+      singleStallMode={!multiStallMode}
       initialSelectedStallIds={initialSelectedStallIds}
       initialDateRange={initialDateRange}
       initialPreset={initialPreset}

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { CancellationReason, PaymentOptionKind } from "@prisma/client";
-import { ChevronDown, ChevronUp, History, Printer, Search, ShieldCheck } from "lucide-react";
+import { ChevronDown, ChevronUp, CircleX, CreditCard, History, Printer, Search, ShieldCheck } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { readApiJson } from "@/lib/api-response";
 import { cancellationReasonOptions } from "@/lib/cancellation-reasons";
@@ -282,13 +282,13 @@ export function CompletedOrdersPanel({
                       {order.note ? <p className="mt-3 text-xs text-stone-600">{t("completedOrders.note")}：{order.note}</p> : null}
                       {order.status === "COMPLETED" ? (
                         <div className="mt-4 flex flex-wrap gap-2 border-t border-stone-200 pt-4">
-                          <button type="button" onClick={() => openAction(order, "PAYMENT")} className="min-h-10 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold">
-                            {t("completedOrders.changePayment")}
+                          <button data-testid="completed-order-change-payment" type="button" title={t("completedOrders.changePayment")} aria-label={t("completedOrders.changePayment")} onClick={() => openAction(order, "PAYMENT")} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white text-sm font-semibold sm:inline-flex sm:w-auto sm:gap-2 sm:px-3">
+                            <CreditCard className="h-5 w-5 sm:h-4 sm:w-4" /><span className="sr-only sm:not-sr-only">{t("completedOrders.changePayment")}</span>
                           </button>
-                          <button type="button" onClick={() => openAction(order, "CANCEL")} className="min-h-10 rounded-md border border-red-300 bg-white px-3 text-sm font-semibold text-red-700">
-                            {t("completedOrders.cancelOrder")}
+                          <button data-testid="completed-order-cancel" type="button" title={t("completedOrders.cancelOrder")} aria-label={t("completedOrders.cancelOrder")} onClick={() => openAction(order, "CANCEL")} className="grid h-11 w-11 place-items-center rounded-md border border-red-300 bg-white text-sm font-semibold text-red-700 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3">
+                            <CircleX className="h-5 w-5 sm:h-4 sm:w-4" /><span className="sr-only sm:not-sr-only">{t("completedOrders.cancelOrder")}</span>
                           </button>
-                          {canPrintReceipt ? <button type="button" disabled={loading} onClick={() => void printReceipt(order.id)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold disabled:opacity-50"><Printer className="h-4 w-4" />{t("completedOrders.printReceipt")}</button> : null}
+                          {canPrintReceipt ? <button data-testid="completed-order-print" type="button" title={t("completedOrders.printReceipt")} aria-label={t("completedOrders.printReceipt")} disabled={loading} onClick={() => void printReceipt(order.id)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white text-sm font-semibold disabled:opacity-50 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><Printer className="h-5 w-5 sm:h-4 sm:w-4" /><span className="sr-only sm:not-sr-only">{t("completedOrders.printReceipt")}</span></button> : null}
                         </div>
                       ) : (
                         <p className="mt-4 text-xs font-medium text-stone-600">{t("completedOrders.cancelledPaymentWarning")}</p>

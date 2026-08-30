@@ -78,6 +78,18 @@ export type PublicMenu = {
     message: string;
     isActive: boolean;
   } | null;
+  invoiceCheckout?: {
+    enabled: true;
+    testOnly: boolean;
+    choices: {
+      cloud: boolean;
+      mobileBarcode: boolean;
+      memberCarrier: boolean;
+      business: boolean;
+      donation: boolean;
+      paper: boolean;
+    };
+  };
   stall: {
     name: string;
     slug: string;

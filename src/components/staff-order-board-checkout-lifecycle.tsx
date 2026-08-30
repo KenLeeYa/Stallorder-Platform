@@ -164,14 +164,12 @@ export function StaffOrderCheckoutDialog({
   controller,
   updatingOrderId,
   currency,
-  discountSettingsHref,
   cashShiftHref,
   message,
 }: {
   controller: StaffOrderCheckoutController;
   updatingOrderId: string | null;
   currency: string;
-  discountSettingsHref?: string;
   cashShiftHref: string;
   message: string;
 }) {
@@ -245,17 +243,7 @@ export function StaffOrderCheckoutDialog({
           )}
         </div>
 
-        <StaffDiscountSelector
-          enabled={modules.discount}
-          options={discountOptions}
-          selectedOptionId={state.selectedDiscountOptionId}
-          onSelect={controller.selectDiscount}
-          settingsHref={discountSettingsHref}
-          isApplicable={model.discountEligibleSubtotal > 0}
-          existingDiscountLabel={model.preview.discountAmount > 0
-            ? model.preview.discountLabel ?? "訂單既有折扣"
-            : null}
-        />
+        {!model.usesCash ? <div className="mt-4"><StaffDiscountSelector enabled={modules.discount} options={discountOptions} selectedOptionId={state.selectedDiscountOptionId} onSelect={controller.selectDiscount} isApplicable={model.discountEligibleSubtotal > 0} existingDiscountLabel={model.preview.discountAmount > 0 ? model.preview.discountLabel ?? "訂單既有折扣" : null} /></div> : null}
 
         {model.discountEligibleSubtotal < model.subtotal ? (
           <p className="mt-2 text-xs text-amber-800">
@@ -319,22 +307,13 @@ export function StaffOrderCheckoutDialog({
 
         {model.usesCash ? (
           <div className="mt-5">
-            <label className="text-xs font-semibold text-stone-600" htmlFor="cash-received">客戶實收金額</label>
-            <input
-              type="text"
-              id="cash-received"
-              inputMode="numeric"
-              maxLength={9}
-              pattern="[0-9]{0,9}"
-              value={state.cashReceived}
-              onChange={(event) => controller.setCashReceived(event.target.value.replace(/\D/g, "").slice(0, 9))}
-              placeholder={String(model.total)}
-              className="mt-2 h-11 w-full rounded-md border border-stone-300 px-3 text-lg font-semibold"
-            />
-            <div className="mt-2 grid grid-cols-4 gap-2">
-              {[model.total, 200, 500, 1000]
-                .filter((value, index, values) => values.indexOf(value) === index)
-                .map((value, index) => (
+            <div data-testid="staff-checkout-cash-row" className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+              <StaffDiscountSelector enabled={modules.discount} options={discountOptions} selectedOptionId={state.selectedDiscountOptionId} onSelect={controller.selectDiscount} isApplicable={model.discountEligibleSubtotal > 0} existingDiscountLabel={model.preview.discountAmount > 0 ? model.preview.discountLabel ?? "訂單既有折扣" : null} />
+              <label data-testid="staff-cash-received-field" className="grid min-w-0 grid-cols-[auto_minmax(0,11rem)] items-center justify-end gap-2 text-xs font-semibold text-stone-600" htmlFor="cash-received"><span className="shrink-0">客戶實收金額</span><input type="text" id="cash-received" inputMode="numeric" maxLength={9} pattern="[0-9]{0,9}" value={state.cashReceived} onChange={(event) => controller.setCashReceived(event.target.value.replace(/\D/g, "").slice(0, 9))} placeholder={String(model.total)} className="h-11 w-full min-w-0 rounded-md border border-stone-300 px-3 text-lg font-semibold" /></label>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {[200, 500, 1000]
+                .map((value) => (
                   <button
                     key={value}
                     type="button"
@@ -342,7 +321,7 @@ export function StaffOrderCheckoutDialog({
                     onClick={() => controller.setCashReceived(String(value))}
                     className="h-10 rounded-md border border-stone-300 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {index === 0 ? "剛好" : formatMoney(value, currency)}
+                    {formatMoney(value, currency)}
                   </button>
                 ))}
             </div>

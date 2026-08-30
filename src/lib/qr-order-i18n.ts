@@ -125,6 +125,7 @@ export type QrOrderMessages = {
   selectAtLeastOne: string;
   sessionExpired: string;
   requiredNotes: (product: string) => string;
+  invoiceDetailsInvalid: string;
   orderSubmitError: string;
   networkError: string;
   submitting: string;
@@ -250,6 +251,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     selectAtLeastOne: "請至少選擇一項商品。",
     sessionExpired: "點餐工作階段已逾時，請重新掃描 QR Code。",
     requiredNotes: (product) => `請完成「${product}」的必選註記。`,
+    invoiceDetailsInvalid: "請確認電子發票選項與欄位內容。",
     orderSubmitError: "目前無法送出訂單。",
     networkError: "網路連線中斷，請稍後再試。",
     submitting: "送出中...",
@@ -369,6 +371,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     selectAtLeastOne: "Select at least one item.",
     sessionExpired: "Your ordering session has expired. Scan the QR code again.",
     requiredNotes: (product) => `Complete the required options for “${product}”.`,
+    invoiceDetailsInvalid: "Check the e-invoice option and required fields.",
     orderSubmitError: "Unable to submit your order right now.",
     networkError: "The network connection was interrupted. Try again shortly.",
     submitting: "Submitting...",
@@ -488,6 +491,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     selectAtLeastOne: "商品を1点以上選択してください。",
     sessionExpired: "注文セッションの有効期限が切れました。QRコードを再度読み取ってください。",
     requiredNotes: (product) => `「${product}」の必須オプションを選択してください。`,
+    invoiceDetailsInvalid: "電子インボイスの選択内容と必須項目を確認してください。",
     orderSubmitError: "現在、ご注文を送信できません。",
     networkError: "ネットワーク接続が中断されました。しばらくしてから再度お試しください。",
     submitting: "送信中...",
@@ -607,6 +611,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     selectAtLeastOne: "상품을 1개 이상 선택해 주세요.",
     sessionExpired: "주문 세션이 만료되었습니다. QR 코드를 다시 스캔해 주세요.",
     requiredNotes: (product) => `“${product}”의 필수 옵션을 선택해 주세요.`,
+    invoiceDetailsInvalid: "전자 인보이스 선택과 필수 항목을 확인해 주세요.",
     orderSubmitError: "현재 주문을 전송할 수 없습니다.",
     networkError: "네트워크 연결이 끊겼습니다. 잠시 후 다시 시도해 주세요.",
     submitting: "전송 중...",
@@ -726,6 +731,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     selectAtLeastOne: "Vui lòng chọn ít nhất một món.",
     sessionExpired: "Phiên đặt món đã hết hạn. Vui lòng quét lại mã QR.",
     requiredNotes: (product) => `Vui lòng chọn đầy đủ tùy chọn bắt buộc cho “${product}”.`,
+    invoiceDetailsInvalid: "Vui lòng kiểm tra lựa chọn và trường bắt buộc của hóa đơn điện tử.",
     orderSubmitError: "Hiện không thể gửi đơn hàng.",
     networkError: "Kết nối mạng bị gián đoạn. Vui lòng thử lại sau.",
     submitting: "Đang gửi...",
@@ -845,6 +851,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     selectAtLeastOne: "โปรดเลือกสินค้าอย่างน้อย 1 รายการ",
     sessionExpired: "เซสชันการสั่งซื้อหมดอายุ โปรดสแกน QR Code อีกครั้ง",
     requiredNotes: (product) => `โปรดเลือกตัวเลือกที่จำเป็นสำหรับ “${product}” ให้ครบ`,
+    invoiceDetailsInvalid: "โปรดตรวจสอบตัวเลือกและข้อมูลที่จำเป็นของใบกำกับภาษีอิเล็กทรอนิกส์",
     orderSubmitError: "ไม่สามารถส่งคำสั่งซื้อได้ในขณะนี้",
     networkError: "การเชื่อมต่อเครือข่ายขัดข้อง โปรดลองอีกครั้งในภายหลัง",
     submitting: "กำลังส่ง...",

@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Check, ChevronDown, Download, Eye, EyeOff, MessageSquareText, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Download, Eye, EyeOff, MessageSquareText, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
 import {
   getTranslationLocaleOptions,
@@ -55,6 +55,10 @@ type AttachDialogDraft = {
   query: string;
   reusableNoteIds: string[];
 };
+type NoteActionTarget =
+  | { kind: "REUSABLE_NOTE"; id: string }
+  | { kind: "NOTE_GROUP"; id: string }
+  | { kind: "NOTE_OPTION"; groupId: string; id: string };
 type ProductNoteImportPreview = {
   file: File;
   summary: {
@@ -105,6 +109,7 @@ export function ProductNoteGroupsManager({
   const [settingsExpanded, setSettingsExpanded] = useState(true);
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => new Set());
   const [attachDialog, setAttachDialog] = useState<AttachDialogDraft | null>(null);
+  const [noteActionTarget, setNoteActionTarget] = useState<NoteActionTarget | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [editorMessage, setEditorMessage] = useState("");
@@ -149,6 +154,32 @@ export function ProductNoteGroupsManager({
         .includes(query)
     ));
   }, [attachDialog?.query, availableReusableNotes]);
+  const actionReusableNote = noteActionTarget?.kind === "REUSABLE_NOTE"
+    ? sortedReusableNotes.find((note) => note.id === noteActionTarget.id) ?? null
+    : null;
+  const actionReusableNoteIndex = actionReusableNote
+    ? sortedReusableNotes.findIndex((note) => note.id === actionReusableNote.id)
+    : -1;
+  const actionGroup = noteActionTarget?.kind === "NOTE_GROUP"
+    ? sortedGroups.find((group) => group.id === noteActionTarget.id) ?? null
+    : null;
+  const actionGroupIndex = actionGroup
+    ? sortedGroups.findIndex((group) => group.id === actionGroup.id)
+    : -1;
+  const actionOptionGroup = noteActionTarget?.kind === "NOTE_OPTION"
+    ? groups.find((group) => group.id === noteActionTarget.groupId) ?? null
+    : null;
+  const actionOptions = actionOptionGroup
+    ? [...actionOptionGroup.options].sort((left, right) => (
+        left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "zh-TW")
+      ))
+    : [];
+  const actionOption = noteActionTarget?.kind === "NOTE_OPTION"
+    ? actionOptions.find((option) => option.id === noteActionTarget.id) ?? null
+    : null;
+  const actionOptionIndex = actionOption
+    ? actionOptions.findIndex((option) => option.id === actionOption.id)
+    : -1;
 
   function clearEditorFeedback() {
     setEditorMessage("");
@@ -602,18 +633,14 @@ export function ProductNoteGroupsManager({
       {message ? <p role="status" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
       {activeTab === "NOTES" ? (
         <div role="tabpanel" className="mt-5 divide-y divide-stone-200 border-y border-stone-200">
-          {sortedReusableNotes.map((note, noteIndex) => (
+          {sortedReusableNotes.map((note) => (
             <div key={note.id} className="grid min-h-16 gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <div>
                 <div className="flex flex-wrap items-center gap-2"><strong>{note.name}</strong>{!note.isActive ? <span className="text-xs text-red-700">{label("已停用")}</span> : null}</div>
                 <p className="mt-1 text-xs text-stone-500">{m("{price} · 排序 {sortOrder} · 已加入 {count} 個群組", { price: note.priceDelta === 0 ? label("不加價") : `${note.priceDelta > 0 ? "+" : ""}${formatMoney(note.priceDelta, currency, locale)}`, sortOrder: note.sortOrder, count: note.linkedOptionCount })}</p>
               </div>
-              <div className="flex flex-wrap items-center justify-end">
-                <IconButton disabled={busy || noteIndex === 0} label={m("將 {value0} 上移", { value0: note.name })} onClick={() => void moveReusableNote(noteIndex, -1)}><ArrowUp className="h-4 w-4" /></IconButton>
-                <IconButton disabled={busy || noteIndex === sortedReusableNotes.length - 1} label={m("將 {value0} 下移", { value0: note.name })} onClick={() => void moveReusableNote(noteIndex, 1)}><ArrowDown className="h-4 w-4" /></IconButton>
-                <IconButton label={m("編輯 {name}", { name: note.name })} onClick={() => setReusableNoteDraft({ id: note.id, name: note.name, priceDelta: note.priceDelta, sortOrder: note.sortOrder, isActive: note.isActive, translations: note.translations })}><Pencil className="h-4 w-4" /></IconButton>
-                <IconButton label={m("{action} {name}", { action: note.isActive ? label("停用") : label("啟用"), name: note.name })} onClick={() => void toggleReusableNote(note)}>{note.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
-                <IconButton label={m("刪除 {name}", { name: note.name })} danger onClick={() => void deleteReusableNote(note)}><Trash2 className="h-4 w-4" /></IconButton>
+              <div className="flex items-center justify-end">
+                <IconButton testId="reusable-note-action-trigger" label={m("管理 {name}", { name: note.name })} onClick={() => setNoteActionTarget({ kind: "REUSABLE_NOTE", id: note.id })}><MoreHorizontal className="h-5 w-5" /></IconButton>
               </div>
             </div>
           ))}
@@ -621,7 +648,7 @@ export function ProductNoteGroupsManager({
         </div>
       ) : (
         <div id="product-note-groups-list" role="tabpanel" className="mt-3 divide-y divide-stone-200 border-y border-stone-200">
-          {sortedGroups.map((group, groupIndex) => {
+          {sortedGroups.map((group) => {
             const assignedNames = group.assignments
               .map((assignment) => products.find((product) => product.id === assignment.productId)?.name)
               .filter((name): name is string => Boolean(name));
@@ -647,12 +674,8 @@ export function ProductNoteGroupsManager({
                     <div className="flex flex-wrap items-center gap-2"><strong>{group.name}</strong>{!group.isActive ? <span className="text-xs text-red-700">{label("已停用")}</span> : null}</div>
                     <p className="mt-1 truncate text-xs text-stone-500">{m("{selectionMode} · {required} · 最少 {min} 項 · 最多 {max} 項 · {count} 項商品", { selectionMode: group.selectionMode === "SINGLE" ? label("單選") : label("複選"), required: group.isRequired ? label("必選") : label("選填"), min: group.minSelections, max: group.maxSelections ?? label("不限"), count: assignedNames.length })}</p>
                   </div>
-                  <div className="ml-auto flex w-full flex-wrap items-center justify-end pl-5 sm:w-auto sm:flex-nowrap sm:pl-0">
-                    <IconButton disabled={busy || groupIndex === 0} label={m("將 {value0} 上移", { value0: group.name })} onClick={(event) => { event.preventDefault(); void moveNoteGroup(groupIndex, -1); }}><ArrowUp className="h-4 w-4" /></IconButton>
-                    <IconButton disabled={busy || groupIndex === sortedGroups.length - 1} label={m("將 {value0} 下移", { value0: group.name })} onClick={(event) => { event.preventDefault(); void moveNoteGroup(groupIndex, 1); }}><ArrowDown className="h-4 w-4" /></IconButton>
-                    <IconButton label={m("編輯 {name}", { name: group.name })} onClick={(event) => { event.preventDefault(); editGroup(group); }}><Pencil className="h-4 w-4" /></IconButton>
-                    <IconButton label={m("{action} {name}", { action: group.isActive ? label("停用") : label("啟用"), name: group.name })} onClick={(event) => { event.preventDefault(); void toggleGroup(group); }}>{group.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton>
-                    <IconButton label={m("刪除 {name}", { name: group.name })} danger onClick={(event) => { event.preventDefault(); void deleteGroup(group); }}><Trash2 className="h-4 w-4" /></IconButton>
+                  <div className="ml-auto flex w-full items-center justify-end pl-5 sm:w-auto sm:pl-0">
+                    <IconButton testId="note-group-action-trigger" label={m("管理 {name}", { name: group.name })} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setNoteActionTarget({ kind: "NOTE_GROUP", id: group.id }); }}><MoreHorizontal className="h-5 w-5" /></IconButton>
                     <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-stone-500 transition-transform group-open:rotate-180" />
                   </div>
                 </summary>
@@ -672,15 +695,11 @@ export function ProductNoteGroupsManager({
                     <button type="button" onClick={() => setOptionDraft({ noteGroupId: group.id, reusableNoteId: null, name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(group.options), isActive: true, translations: [] })} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold sm:ml-auto sm:w-auto"><Plus className="h-4 w-4" />{label("新增群組專用註記")}</button>
                   </div>
                   <div className="divide-y divide-stone-100">
-                    {sortedOptions.map((option, optionIndex) => (
+                    {sortedOptions.map((option) => (
                       <div key={option.id} className="grid min-h-12 gap-2 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                         <div><span className="text-sm font-medium">{option.name}</span><span className="ml-2 text-xs text-stone-500">{option.priceDelta === 0 ? label("不加價") : `${option.priceDelta > 0 ? "+" : ""}${formatMoney(option.priceDelta, currency, locale)}`}</span><span className="ml-2 text-xs text-teal-700">{option.reusableNoteId ? label("共用單一註記") : label("群組專用")}</span>{!option.isActive ? <span className="ml-2 text-xs text-red-700">{label("已停用")}</span> : null}</div>
-                        <div className="flex flex-wrap items-center justify-end">
-                          <IconButton disabled={busy || optionIndex === 0} label={m("將 {value0} 上移", { value0: option.name })} onClick={() => void moveNoteOption(group.id, sortedOptions, optionIndex, -1)}><ArrowUp className="h-4 w-4" /></IconButton>
-                          <IconButton disabled={busy || optionIndex === sortedOptions.length - 1} label={m("將 {value0} 下移", { value0: option.name })} onClick={() => void moveNoteOption(group.id, sortedOptions, optionIndex, 1)}><ArrowDown className="h-4 w-4" /></IconButton>
-                          <IconButton label={m("{action} {name}", { action: option.reusableNoteId ? label("調整排序") : label("編輯"), name: option.name })} onClick={() => setOptionDraft({ ...option, noteGroupId: group.id })}><Pencil className="h-4 w-4" /></IconButton>
-                          {!option.reusableNoteId ? <IconButton label={m("{action} {name}", { action: option.isActive ? label("停用") : label("啟用"), name: option.name })} onClick={() => void toggleOption(option)}>{option.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</IconButton> : null}
-                          <IconButton label={m("{action} {name}", { action: option.reusableNoteId ? label("從群組移除") : label("刪除"), name: option.name })} danger onClick={() => void deleteOption(option)}><Trash2 className="h-4 w-4" /></IconButton>
+                        <div className="flex items-center justify-end">
+                          <IconButton testId="note-option-action-trigger" label={m("管理 {name}", { name: option.name })} onClick={() => setNoteActionTarget({ kind: "NOTE_OPTION", groupId: group.id, id: option.id })}><MoreHorizontal className="h-5 w-5" /></IconButton>
                         </div>
                       </div>
                     ))}
@@ -693,6 +712,42 @@ export function ProductNoteGroupsManager({
           {groups.length === 0 ? <p className="py-10 text-center text-sm text-stone-500">{label("尚未建立商品註記群組。")}</p> : null}
         </div>
       )}
+
+      {actionReusableNote ? (
+        <Editor title={m("管理 {name}", { name: actionReusableNote.name })} onClose={() => setNoteActionTarget(null)} dialogRef={editorRef} errorMessage="">
+          <div data-testid="product-note-action-dialog" className="grid grid-cols-2 gap-3">
+            <ProductNoteActionButton disabled={busy || actionReusableNoteIndex === 0} icon={<ArrowUp className="h-6 w-6" />} label={label("上移")} onSelect={() => { setNoteActionTarget(null); void moveReusableNote(actionReusableNoteIndex, -1); }} />
+            <ProductNoteActionButton disabled={busy || actionReusableNoteIndex === sortedReusableNotes.length - 1} icon={<ArrowDown className="h-6 w-6" />} label={label("下移")} onSelect={() => { setNoteActionTarget(null); void moveReusableNote(actionReusableNoteIndex, 1); }} />
+            <ProductNoteActionButton disabled={busy} icon={<Pencil className="h-6 w-6" />} label={label("編輯")} onSelect={() => { setNoteActionTarget(null); setReusableNoteDraft({ id: actionReusableNote.id, name: actionReusableNote.name, priceDelta: actionReusableNote.priceDelta, sortOrder: actionReusableNote.sortOrder, isActive: actionReusableNote.isActive, translations: actionReusableNote.translations }); }} />
+            <ProductNoteActionButton disabled={busy} icon={actionReusableNote.isActive ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />} label={actionReusableNote.isActive ? label("停用") : label("啟用")} onSelect={() => { setNoteActionTarget(null); void toggleReusableNote(actionReusableNote); }} />
+            <ProductNoteActionButton disabled={busy} danger icon={<Trash2 className="h-6 w-6" />} label={label("刪除")} onSelect={() => { setNoteActionTarget(null); void deleteReusableNote(actionReusableNote); }} />
+          </div>
+        </Editor>
+      ) : null}
+
+      {actionGroup ? (
+        <Editor title={m("管理 {name}", { name: actionGroup.name })} onClose={() => setNoteActionTarget(null)} dialogRef={editorRef} errorMessage="">
+          <div data-testid="product-note-action-dialog" className="grid grid-cols-2 gap-3">
+            <ProductNoteActionButton disabled={busy || actionGroupIndex === 0} icon={<ArrowUp className="h-6 w-6" />} label={label("上移")} onSelect={() => { setNoteActionTarget(null); void moveNoteGroup(actionGroupIndex, -1); }} />
+            <ProductNoteActionButton disabled={busy || actionGroupIndex === sortedGroups.length - 1} icon={<ArrowDown className="h-6 w-6" />} label={label("下移")} onSelect={() => { setNoteActionTarget(null); void moveNoteGroup(actionGroupIndex, 1); }} />
+            <ProductNoteActionButton disabled={busy} icon={<Pencil className="h-6 w-6" />} label={label("編輯")} onSelect={() => { setNoteActionTarget(null); editGroup(actionGroup); }} />
+            <ProductNoteActionButton disabled={busy} icon={actionGroup.isActive ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />} label={actionGroup.isActive ? label("停用") : label("啟用")} onSelect={() => { setNoteActionTarget(null); void toggleGroup(actionGroup); }} />
+            <ProductNoteActionButton disabled={busy} danger icon={<Trash2 className="h-6 w-6" />} label={label("刪除")} onSelect={() => { setNoteActionTarget(null); void deleteGroup(actionGroup); }} />
+          </div>
+        </Editor>
+      ) : null}
+
+      {actionOption && actionOptionGroup ? (
+        <Editor title={m("管理 {name}", { name: actionOption.name })} onClose={() => setNoteActionTarget(null)} dialogRef={editorRef} errorMessage="">
+          <div data-testid="product-note-action-dialog" className="grid grid-cols-2 gap-3">
+            <ProductNoteActionButton disabled={busy || actionOptionIndex === 0} icon={<ArrowUp className="h-6 w-6" />} label={label("上移")} onSelect={() => { setNoteActionTarget(null); void moveNoteOption(actionOptionGroup.id, actionOptions, actionOptionIndex, -1); }} />
+            <ProductNoteActionButton disabled={busy || actionOptionIndex === actionOptions.length - 1} icon={<ArrowDown className="h-6 w-6" />} label={label("下移")} onSelect={() => { setNoteActionTarget(null); void moveNoteOption(actionOptionGroup.id, actionOptions, actionOptionIndex, 1); }} />
+            <ProductNoteActionButton disabled={busy} icon={<Pencil className="h-6 w-6" />} label={actionOption.reusableNoteId ? label("調整排序") : label("編輯")} onSelect={() => { setNoteActionTarget(null); setOptionDraft({ ...actionOption, noteGroupId: actionOptionGroup.id }); }} />
+            {!actionOption.reusableNoteId ? <ProductNoteActionButton disabled={busy} icon={actionOption.isActive ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />} label={actionOption.isActive ? label("停用") : label("啟用")} onSelect={() => { setNoteActionTarget(null); void toggleOption(actionOption); }} /> : null}
+            <ProductNoteActionButton disabled={busy} danger icon={<Trash2 className="h-6 w-6" />} label={actionOption.reusableNoteId ? label("從群組移除") : label("刪除")} onSelect={() => { setNoteActionTarget(null); void deleteOption(actionOption); }} />
+          </div>
+        </Editor>
+      ) : null}
 
       {attachDialog && attachGroup ? (
         <Editor
@@ -1024,8 +1079,12 @@ function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constra
   );
 }
 
-function IconButton({ label, danger = false, disabled = false, onClick, children }: { label: string; danger?: boolean; disabled?: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; children: React.ReactNode }) {
-  return <button type="button" title={label} aria-label={label} disabled={disabled} onClick={onClick} className={`grid h-11 w-11 shrink-0 place-items-center rounded-md border bg-white hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "border-red-200 text-red-700" : "border-stone-200 text-stone-600"}`}>{children}</button>;
+function IconButton({ label, danger = false, disabled = false, testId, onClick, children }: { label: string; danger?: boolean; disabled?: boolean; testId?: string; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; children: React.ReactNode }) {
+  return <button type="button" data-testid={testId} title={label} aria-label={label} disabled={disabled} onClick={onClick} className={`grid h-11 w-11 shrink-0 place-items-center rounded-md border bg-white hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "border-red-200 text-red-700" : "border-stone-200 text-stone-600"}`}>{children}</button>;
+}
+
+function ProductNoteActionButton({ icon, label, onSelect, disabled = false, danger = false }: { icon: React.ReactNode; label: string; onSelect: () => void; disabled?: boolean; danger?: boolean }) {
+  return <button type="button" disabled={disabled} onClick={onSelect} className={`flex min-h-24 min-w-0 flex-col items-center justify-center gap-2 rounded-lg border p-3 text-center text-base font-semibold disabled:opacity-35 ${danger ? "border-red-200 text-red-700" : "border-stone-300 text-stone-900"}`}>{icon}<span className="break-words leading-tight">{label}</span></button>;
 }
 
 function moveOrderedId(ids: string[], index: number, direction: -1 | 1) {

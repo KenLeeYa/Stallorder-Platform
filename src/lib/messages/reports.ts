@@ -12,7 +12,7 @@ const reportDescriptionOverrides = {
 } as const satisfies Record<string, ReportMessageRow>;
 
 const definitions = {
-  "reports.eyebrow": ["跨攤位報表", "Cross-stall reports", "店舗横断レポート", "매장 통합 보고서", "Báo cáo nhiều quầy", "รายงานหลายร้าน"],
+  "reports.eyebrow": ["攤位報表", "Stall reports", "店舗レポート", "매장 보고서", "Báo cáo quầy", "รายงานร้านค้า"],
   "reports.nav": ["報表分類", "Report categories", "レポート分類", "보고서 분류", "Danh mục báo cáo", "หมวดหมู่รายงาน"],
   "reports.nav.overview": ["趨勢總覽", "Trends", "トレンド概要", "추세 개요", "Tổng quan xu hướng", "ภาพรวมแนวโน้ม"],
   "reports.nav.orders": ["所有訂單", "All orders", "すべての注文", "전체 주문", "Tất cả đơn hàng", "ออเดอร์ทั้งหมด"],

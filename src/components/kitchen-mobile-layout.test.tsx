@@ -57,6 +57,7 @@ describe("kitchen mobile layout", () => {
 
     expect(html).toContain('data-testid="kitchen-toolbar-row"');
     expect(html).toContain('data-testid="kitchen-primary-navigation"');
+    expect(html).toContain('data-persist-horizontal-scroll="kitchen-primary-navigation"');
     expect(html).toContain('data-testid="kitchen-language-control"');
     expect(html).toContain('data-testid="kitchen-live-status"');
     expect(html).toContain('data-testid="kitchen-logout-control"');
@@ -69,11 +70,14 @@ describe("kitchen mobile layout", () => {
     expect(html).toContain('data-show-install="false"');
     expect(html.match(/data-testid="mock-logout-button"/g)).toHaveLength(1);
     expect(html).toContain("sticky top-0");
-    expect(html).toContain("h-16");
+    expect(html).toContain("min-h-[3.75rem]");
+    expect(html).not.toContain("py-2");
+    expect(html).toContain("h-[3.75rem]");
     expect(html).not.toContain("md:h-28");
     expect(html).not.toContain("md:grid-cols-[minmax(0,1fr)_auto]");
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain("grid h-11 w-11");
+    expect(html).toMatch(/class="lucide [^"]* h-5 w-5"/);
     expect(html).not.toContain("生產看板");
 
     const orderIndex = html.indexOf('data-testid="kitchen-mode-order"');

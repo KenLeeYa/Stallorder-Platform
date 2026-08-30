@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PaymentOptionKind, UserRole } from "@prisma/client";
-import { ArchiveRestore, ChevronDown, List, Minus, Package, Plus, Save, Send, ShoppingCart, Trash2, Truck, Utensils, X } from "lucide-react";
+import { ArchiveRestore, ArrowLeft, ChevronDown, List, MessageSquareText, Minus, Package, Plus, Save, Send, ShoppingCart, Trash2, Truck, Utensils, X } from "lucide-react";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { StaffDiscountSelector } from "@/components/staff-discount-selector";
@@ -59,7 +59,6 @@ type Props = {
   modules: { dineIn: boolean; delivery: boolean; print: boolean; payment: boolean; discount: boolean; discountApprovalThresholdBps: number };
   paymentOptions: Array<{ id: string; name: string; kind: PaymentOptionKind }>;
   discountOptions: Array<{ id: string; name: string; rateBps: number }>;
-  discountSettingsHref?: string;
   onCreated: (order: StaffOrderDto) => void;
   onClose: () => void;
 };
@@ -71,13 +70,13 @@ export function StaffOrderComposer({
   modules,
   paymentOptions,
   discountOptions,
-  discountSettingsHref,
   onCreated,
   onClose,
 }: Props) {
   const { locale, t } = useOperationsLocale();
   const optionSeparator = locale === "zh-TW" || locale === "ja" ? "、" : ", ";
   const idempotencyKeyRef = useRef(createWebUuid());
+  const actionPromptTimerRef = useRef<number | null>(null);
   const menuScrollRef = useRef<HTMLDivElement>(null);
   const cartScrollRef = useRef<HTMLElement>(null);
   const defaultPayment = modules.payment
@@ -103,7 +102,10 @@ export function StaffOrderComposer({
   const [managerAuthorizationCode, setManagerAuthorizationCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [actionPrompt, setActionPrompt] = useState("");
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [activePane, setActivePane] = useState<"MENU" | "CART">("MENU");
+  const [tabletCheckoutStep, setTabletCheckoutStep] = useState<"CART" | "CHECKOUT">("CART");
   const [catalogExpanded, setCatalogExpanded] = useState(true);
   const [collapsedCatalogSections, setCollapsedCatalogSections] = useState<Set<string>>(() => new Set());
   const [savedDrafts, setSavedDrafts] = useState<StaffOrderDraft[]>([]);
@@ -209,8 +211,27 @@ export function StaffOrderComposer({
     return () => window.cancelAnimationFrame(frame);
   }, [draftStorageKey, t]);
 
+  useEffect(() => () => {
+    if (actionPromptTimerRef.current !== null) {
+      window.clearTimeout(actionPromptTimerRef.current);
+    }
+  }, []);
+
+  function showActionPrompt(text: string) {
+    setMessage(text);
+    setActionPrompt(text);
+    if (actionPromptTimerRef.current !== null) {
+      window.clearTimeout(actionPromptTimerRef.current);
+    }
+    actionPromptTimerRef.current = window.setTimeout(() => {
+      setActionPrompt("");
+      actionPromptTimerRef.current = null;
+    }, 1_500);
+  }
+
   function switchPane(pane: "MENU" | "CART") {
     setActivePane(pane);
+    setTabletCheckoutStep("CART");
     (pane === "MENU" ? menuScrollRef.current : cartScrollRef.current)?.scrollTo({ top: 0 });
   }
 
@@ -284,7 +305,10 @@ export function StaffOrderComposer({
     setDiscountApprovalReason("");
     setManagerAuthorizationCode("");
     setMessage("");
+    setActionPrompt("");
+    setNoteDialogOpen(false);
     setActivePane("MENU");
+    setTabletCheckoutStep("CART");
     setCatalogExpanded(true);
     setCollapsedCatalogSections(new Set());
     setActiveCatalogAnchor(catalogNavigationItems[0]?.id ?? "");
@@ -410,6 +434,7 @@ export function StaffOrderComposer({
     setCollapsedCatalogSections(new Set());
     setActiveCatalogAnchor(catalogNavigationItems[0]?.id ?? "");
     setActivePane("MENU");
+    setTabletCheckoutStep("CART");
     setActiveDraftId(draft.id);
     setDraftManagerOpen(false);
     setDraftNotice([
@@ -458,7 +483,7 @@ export function StaffOrderComposer({
       || qrCartTotalQuantity(effectiveLines) + next > catalog.limits.maxTotalQuantity
       || nextUnique > catalog.limits.maxUniqueProducts
     ) {
-      setMessage(t("composer.itemLimit"));
+      showActionPrompt(t("composer.itemLimit"));
       return;
     }
     setMessage("");
@@ -486,11 +511,11 @@ export function StaffOrderComposer({
     const noteOptionIds = noteSelections[product.id] ?? [];
     const bundleChoiceIds = bundleSelections[product.id] ?? [];
     if (!noteSelectionIsValid(product.noteGroups, noteOptionIds)) {
-      setMessage(t("composer.requiredNotes", { item: localizedStaffProduct(product, locale).name }));
+      showActionPrompt(t("composer.requiredNotes", { item: localizedStaffProduct(product, locale).name }));
       return;
     }
     if (!bundleSelectionIsValid(product, bundleChoiceIds)) {
-      setMessage(t("composer.requiredBundle", { item: localizedStaffProduct(product, locale).name }));
+      showActionPrompt(t("composer.requiredBundle", { item: localizedStaffProduct(product, locale).name }));
       return;
     }
     const editingLineId = editingLineIds[product.id];
@@ -505,7 +530,7 @@ export function StaffOrderComposer({
       ? replaceQrCartLine(cartLines, editingLineId, nextLine, catalog.limits)
       : addQrCartLine(cartLines, nextLine, catalog.limits, createWebUuid);
     if (!nextLines) {
-      setMessage(t("composer.itemLimit"));
+      showActionPrompt(t("composer.itemLimit"));
       return;
     }
     setCartLines(nextLines);
@@ -535,7 +560,7 @@ export function StaffOrderComposer({
   function changeCartLineQuantity(lineId: string, quantity: number) {
     const nextLines = updateQrCartLineQuantity(cartLines, lineId, quantity, catalog.limits);
     if (!nextLines) {
-      setMessage(t("composer.itemLimit"));
+      showActionPrompt(t("composer.itemLimit"));
       return;
     }
     setCartLines(nextLines);
@@ -615,7 +640,7 @@ export function StaffOrderComposer({
 
   async function submit() {
     if (selectedItems.length === 0) {
-      setMessage(Object.values(quantities).some((quantity) => quantity > 0)
+      showActionPrompt(Object.values(quantities).some((quantity) => quantity > 0)
         ? t("composer.addPendingItem")
         : t("composer.addAtLeastOne"));
       return;
@@ -624,22 +649,22 @@ export function StaffOrderComposer({
       !noteSelectionIsValid(product.noteGroups, noteOptionIds)
     ));
     if (invalidNotes) {
-      setMessage(t("composer.requiredNotes", { item: localizedStaffProduct(invalidNotes.product, locale).name }));
+      showActionPrompt(t("composer.requiredNotes", { item: localizedStaffProduct(invalidNotes.product, locale).name }));
       return;
     }
     const invalidBundle = selectedItems.find(({ product, bundleChoiceIds }) => (
       !bundleSelectionIsValid(product, bundleChoiceIds)
     ));
     if (invalidBundle) {
-      setMessage(t("composer.requiredBundle", { item: localizedStaffProduct(invalidBundle.product, locale).name }));
+      showActionPrompt(t("composer.requiredBundle", { item: localizedStaffProduct(invalidBundle.product, locale).name }));
       return;
     }
     if (fulfillmentType === "DINE_IN" && !diningTableId) {
-      setMessage(t("composer.tableRequired"));
+      showActionPrompt(t("composer.tableRequired"));
       return;
     }
     if (customerPhone.trim() && !PHONE_NUMBER.test(customerPhone.trim())) {
-      setMessage(t("composer.phoneInvalid"));
+      showActionPrompt(t("composer.phoneInvalid"));
       return;
     }
     if (
@@ -647,21 +672,21 @@ export function StaffOrderComposer({
       && requestedFulfillmentAt
       && !fulfillmentTimeSlots.some((slot) => slot.iso === requestedFulfillmentAt)
     ) {
-      setMessage(t("composer.slotInvalid", { kind: fulfillmentType === "DELIVERY" ? t("composer.deliveryTime") : t("composer.pickupTime") }));
+      showActionPrompt(t("composer.slotInvalid", { kind: fulfillmentType === "DELIVERY" ? t("composer.deliveryTime") : t("composer.pickupTime") }));
       return;
     }
     if (paymentTiming === "PAY_NOW") {
       if (modules.payment && !payment) {
-        setMessage(t("composer.paymentRequired"));
+        showActionPrompt(t("composer.paymentRequired"));
         return;
       }
       if (usesCash && (!Number.isInteger(received) || received < total)) {
-        setMessage(t("composer.cashInsufficient"));
+        showActionPrompt(t("composer.cashInsufficient"));
         return;
       }
       if (needsApproval && (!discountApprovalReason.trim()
         || (!operatorCanApprove && !/^\d{6,8}$/.test(managerAuthorizationCode)))) {
-        setMessage(t("composer.approvalIncomplete"));
+        showActionPrompt(t("composer.approvalIncomplete"));
         return;
       }
     }
@@ -790,12 +815,12 @@ export function StaffOrderComposer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/45 print:hidden sm:p-6">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-black/45 print:hidden sm:p-3 lg:p-6">
       <section role="dialog" aria-modal="true" aria-labelledby="staff-order-title" className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl sm:rounded-lg">
-        <header className="z-20 flex shrink-0 flex-wrap items-start justify-between gap-2 border-b border-stone-200 bg-white px-4 py-3 sm:rounded-t-lg sm:px-6 md:gap-4 md:py-4">
+        <header className="z-20 flex shrink-0 flex-wrap items-start justify-between gap-2 border-b border-stone-200 bg-white px-4 py-3 sm:rounded-t-lg sm:px-6 md:gap-4 lg:py-4">
           <div>
             <h2 id="staff-order-title" className="text-xl font-semibold">{t("composer.title")}</h2>
-            <p className="mt-1 hidden text-sm text-stone-600 md:block">{t("composer.description")}</p>
+            <p className="mt-1 hidden text-sm text-stone-600 lg:block">{t("composer.description")}</p>
           </div>
           <div data-testid="staff-composer-mobile-toolbar" className="grid w-full grid-cols-5 gap-2 md:flex md:w-auto md:flex-wrap md:justify-end">
             <button
@@ -857,8 +882,8 @@ export function StaffOrderComposer({
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_360px]">
-          <div ref={menuScrollRef} data-testid="staff-order-menu-panel" className={`${activePane === "MENU" ? "block" : "hidden"} min-h-0 overflow-y-auto overscroll-contain px-4 py-5 pb-28 sm:px-6 md:block md:pb-5`}>
+        <div className={`grid min-h-0 flex-1 ${tabletCheckoutStep === "CHECKOUT" ? "md:grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]" : "md:grid-cols-[minmax(0,1fr)_360px]"}`}>
+          <div ref={menuScrollRef} data-testid="staff-order-menu-panel" className={`${activePane === "MENU" ? "block" : "hidden"} min-h-0 overflow-y-auto overscroll-contain px-4 py-5 pb-28 sm:px-6 ${tabletCheckoutStep === "CHECKOUT" ? "md:hidden lg:block" : "md:block"} md:pb-5`}>
             <div className="grid grid-cols-3 gap-2" aria-label={t("composer.fulfillmentMethod")}>
               <ModeButton active={fulfillmentType === "TAKEOUT"} icon={<Package className="h-4 w-4" />} label={t("composer.takeout")} onClick={() => selectFulfillmentType("TAKEOUT")} />
               <ModeButton active={fulfillmentType === "DINE_IN"} disabled={!modules.dineIn || catalog.tables.length === 0} icon={<Utensils className="h-4 w-4" />} label={t("composer.dineIn")} onClick={() => selectFulfillmentType("DINE_IN")} />
@@ -1003,9 +1028,9 @@ export function StaffOrderComposer({
             {selectedItems.length > 0 ? <button data-testid="staff-mobile-cart-summary" type="button" onClick={() => switchPane("CART")} className="safe-area-bottom fixed inset-x-3 bottom-0 z-30 flex min-h-16 items-center gap-3 rounded-t-lg bg-stone-900 px-4 pt-3 text-left text-white shadow-2xl md:hidden"><ShoppingCart className="h-5 w-5" /><span className="flex-1"><span className="block text-xs text-stone-300">{t("common.portions", { count: totalQuantity })}</span><strong>{formatMoney(total, stall.currency, locale)}</strong></span><span className="text-sm font-semibold">{t("composer.checkout")}</span></button> : null}
           </div>
 
-          <aside ref={cartScrollRef} data-testid="staff-order-cart-panel" className={`${activePane === "CART" ? "flex" : "hidden"} safe-area-bottom min-h-0 flex-col overflow-y-auto overscroll-contain border-t border-stone-200 bg-stone-50 px-4 py-5 sm:px-6 md:flex md:h-full md:overflow-hidden md:border-l md:border-t-0`}>
-            <div className="flex shrink-0 items-center gap-2"><ShoppingCart className="h-4 w-4 text-teal-800" /><h3 className="font-semibold">{t("composer.currentOrder")}</h3><span className="ml-auto text-sm text-stone-500">{t("common.portions", { count: totalQuantity })}</span></div>
-            <div data-testid="staff-order-cart-lines" className="mt-3 divide-y divide-stone-200 border-y border-stone-200 md:min-h-32 md:flex-1 md:overflow-y-auto md:overscroll-contain md:pr-1">{selectedItems.map(({ cartLineId, product, quantity, noteOptionIds, bundleChoiceIds }) => {
+          <aside ref={cartScrollRef} data-testid="staff-order-cart-panel" className={`${activePane === "CART" ? "flex" : "hidden"} safe-area-bottom min-h-0 flex-col overscroll-contain border-t border-stone-200 bg-stone-50 px-4 py-4 sm:px-6 md:flex md:h-full md:overflow-hidden md:border-l md:border-t-0 ${tabletCheckoutStep === "CHECKOUT" ? "overflow-hidden md:col-span-full lg:col-span-1" : "overflow-y-auto"}`}>
+            <div className={tabletCheckoutStep === "CHECKOUT" ? "hidden lg:flex" : "flex"}><div className="flex w-full shrink-0 items-center gap-2"><ShoppingCart className="h-4 w-4 text-teal-800" /><h3 className="font-semibold">{t("composer.currentOrder")}</h3><span className="ml-auto text-sm text-stone-500">{t("common.portions", { count: totalQuantity })}</span></div></div>
+            <div data-testid="staff-order-cart-lines" className={`${tabletCheckoutStep === "CHECKOUT" ? "hidden lg:block" : "block"} mt-3 min-h-0 flex-1 divide-y divide-stone-200 overflow-y-auto overscroll-contain border-y border-stone-200 pr-1 md:min-h-32`}>{selectedItems.map(({ cartLineId, product, quantity, noteOptionIds, bundleChoiceIds }) => {
               const productCopy = localizedStaffProduct(product, locale);
               const selectedBundleChoices = (product.bundleChoiceGroups ?? []).flatMap((group) => (
                 group.choices.filter((choice) => bundleChoiceIds.includes(choice.id))
@@ -1038,36 +1063,60 @@ export function StaffOrderComposer({
                 </div>
               </div>;
             })}</div>
-            <div data-testid="staff-order-checkout-controls" className="shrink-0 md:max-h-[55%] md:overflow-y-auto md:overscroll-contain md:pr-1">
-              <label className="mt-4 block text-xs font-semibold text-stone-600">{t("composer.customerNote")}<textarea value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-1 min-h-20" /></label>
+            {tabletCheckoutStep === "CART" ? <button
+              type="button"
+              data-testid="staff-tablet-confirm-order"
+              disabled={selectedItems.length === 0}
+              onClick={() => {
+                setTabletCheckoutStep("CHECKOUT");
+                window.requestAnimationFrame(() => cartScrollRef.current?.scrollTo({ top: 0 }));
+              }}
+              className="mt-4 inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-40 lg:hidden"
+            ><ShoppingCart className="h-4 w-4" />{t("composer.confirmOrder")}</button> : null}
+            <div data-testid="staff-order-checkout-controls" className={`${tabletCheckoutStep === "CART" ? "hidden lg:block" : "flex min-h-0 flex-1 flex-col md:mx-auto md:w-full md:max-w-2xl lg:mx-0 lg:block lg:max-w-none"} shrink-0 overflow-hidden`}>
+              <div className="sticky top-0 z-10 mb-2 flex shrink-0 items-center gap-2 bg-stone-50 pb-2 lg:hidden">
+                <button
+                  type="button"
+                  data-testid="staff-checkout-back-icon"
+                  title={t("composer.backToCart")}
+                  aria-label={t("composer.backToCart")}
+                  onClick={() => {
+                    setTabletCheckoutStep("CART");
+                    window.requestAnimationFrame(() => cartScrollRef.current?.scrollTo({ top: 0 }));
+                  }}
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 bg-white text-stone-700"
+                ><ArrowLeft className="h-5 w-5" /></button>
+                <button
+                  type="button"
+                  data-testid="staff-checkout-note-button"
+                  onClick={() => setNoteDialogOpen(true)}
+                  className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700"
+                ><MessageSquareText className="h-5 w-5 shrink-0" /><span className="truncate">{t("composer.customerNote")}{customerNote.trim() ? " ✓" : ""}</span></button>
+              </div>
+              <label className="mt-3 hidden text-xs font-semibold text-stone-600 lg:block">{t("composer.customerNote")}<textarea value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-1 min-h-20" /></label>
 
-            <div className="mt-5 grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("composer.paymentTiming")}>
+            <div className="mt-2 grid shrink-0 grid-cols-2 rounded-md border border-stone-300 bg-white p-1 lg:mt-5" aria-label={t("composer.paymentTiming")}>
               <button type="button" aria-pressed={paymentTiming === "PAY_NOW"} onClick={() => setPaymentTiming("PAY_NOW")} className={`h-11 rounded text-xs font-semibold ${paymentTiming === "PAY_NOW" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("composer.payNow")}</button>
               <button type="button" aria-pressed={paymentTiming === "PAY_LATER"} onClick={() => setPaymentTiming("PAY_LATER")} className={`h-11 rounded text-xs font-semibold ${paymentTiming === "PAY_LATER" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("composer.payLater")}</button>
             </div>
 
             {paymentTiming === "PAY_NOW" ? <>
-              {modules.payment ? <div className="mt-4 grid grid-cols-2 gap-2">{paymentOptions.map((option) => <button key={option.id} type="button" aria-pressed={paymentOptionId === option.id} onClick={() => { setPaymentOptionId(option.id); setCashReceived(""); }} className={`min-h-11 rounded-md border px-2 text-xs font-semibold ${paymentOptionId === option.id ? "border-teal-700 bg-teal-50" : "border-stone-300 bg-white"}`}>{option.name}</button>)}</div> : <p className="mt-4 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-semibold">{t("composer.cash")}</p>}
-              <StaffDiscountSelector
-                enabled={modules.discount}
-                options={discountOptions}
-                selectedOptionId={applicableDiscountOptionId}
-                onSelect={setDiscountOptionId}
-                settingsHref={discountSettingsHref}
-                isApplicable={discountEligibleSubtotal > 0}
-              />
+              {modules.payment ? <div data-testid="staff-checkout-payment-row" className="mt-3 grid shrink-0 grid-flow-col auto-cols-[minmax(6rem,1fr)] gap-2 overflow-x-auto pb-1 lg:mt-4">{paymentOptions.map((option) => <button key={option.id} type="button" aria-pressed={paymentOptionId === option.id} onClick={() => { setPaymentOptionId(option.id); setCashReceived(""); }} className={`min-h-11 rounded-md border px-2 text-xs font-semibold ${paymentOptionId === option.id ? "border-teal-700 bg-teal-50" : "border-stone-300 bg-white"}`}>{option.name}</button>)}</div> : <p className="mt-3 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-semibold lg:mt-4">{t("composer.cash")}</p>}
+              {usesCash ? <div data-testid="staff-checkout-cash-row" className="mt-3 grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2"><StaffDiscountSelector enabled={modules.discount} options={discountOptions} selectedOptionId={applicableDiscountOptionId} onSelect={setDiscountOptionId} isApplicable={discountEligibleSubtotal > 0} /><label data-testid="staff-cash-received-field" className="grid min-w-0 grid-cols-[auto_minmax(0,11rem)] items-center justify-end gap-2 text-xs font-semibold text-stone-600"><span className="shrink-0">{t("composer.cashReceived")}</span><input type="text" inputMode="numeric" value={cashReceived} maxLength={9} onChange={(event) => setCashReceived(event.target.value.replace(/\D/g, ""))} className="form-input m-0 min-w-0" /></label></div> : <div className="mt-3 shrink-0"><StaffDiscountSelector enabled={modules.discount} options={discountOptions} selectedOptionId={applicableDiscountOptionId} onSelect={setDiscountOptionId} isApplicable={discountEligibleSubtotal > 0} /></div>}
               {discountEligibleSubtotal < subtotal ? <p className="mt-2 text-xs text-amber-800">{t("composer.discountEligible", { amount: formatMoney(discountEligibleSubtotal, stall.currency, locale) })}</p> : null}
               {needsApproval ? <div className="mt-4 border-y border-amber-300 bg-amber-50 py-3"><p className="text-xs font-semibold text-amber-900">{t("composer.approvalRequired")}</p><TextField label={t("composer.approvalReason")} value={discountApprovalReason} maxLength={200} onChange={setDiscountApprovalReason} />{!operatorCanApprove ? <TextField label={t("composer.managerAuthorizationCode")} value={managerAuthorizationCode} maxLength={8} onChange={(value) => setManagerAuthorizationCode(value.replace(/\D/g, "").slice(0, 8))} type="password" inputMode="numeric" autoComplete="one-time-code" /> : null}</div> : null}
-              {usesCash ? <div className="mt-4"><TextField label={t("composer.cashReceived")} value={cashReceived} maxLength={9} inputMode="numeric" onChange={(value) => setCashReceived(value.replace(/\D/g, ""))} /><div className="mt-2 grid grid-cols-4 gap-2">{[total, 200, 500, 1000].filter((value, index, values) => values.indexOf(value) === index).map((value, index) => <button key={value} type="button" disabled={value < total} onClick={() => setCashReceived(String(value))} className="h-11 rounded-md border border-stone-300 bg-white text-xs font-semibold disabled:opacity-40">{index === 0 ? t("composer.exact") : value}</button>)}</div><div className="mt-3 flex justify-between bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900"><span>{t("composer.change")}</span><span>{formatMoney(change, stall.currency, locale)}</span></div></div> : null}
+              {usesCash ? <div className="mt-2 shrink-0"><div className="grid grid-cols-3 gap-2">{[200, 500, 1000].map((value) => <button key={value} type="button" disabled={value < total} onClick={() => setCashReceived(String(value))} className="h-11 rounded-md border border-stone-300 bg-white text-xs font-semibold disabled:opacity-40">{value}</button>)}</div><div className="mt-2 flex justify-between bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900"><span>{t("composer.change")}</span><span>{formatMoney(change, stall.currency, locale)}</span></div></div> : null}
             </> : null}
 
-            <dl className="mt-5 space-y-2 border-y border-stone-200 py-4 text-sm"><div className="flex justify-between"><dt>{t("composer.subtotal")}</dt><dd>{formatMoney(subtotal, stall.currency, locale)}</dd></div>{paymentTiming === "PAY_NOW" && discount ? <div className="flex justify-between text-emerald-800"><dt>{discount.name}</dt><dd>-{formatMoney(subtotal - total, stall.currency, locale)}</dd></div> : null}<div className="flex justify-between text-lg font-semibold"><dt>{paymentTiming === "PAY_NOW" ? t("composer.amountDue") : t("composer.orderAmount")}</dt><dd>{formatMoney(paymentTiming === "PAY_NOW" ? total : subtotal, stall.currency, locale)}</dd></div></dl>
+            <dl className="mt-3 shrink-0 space-y-1 border-y border-stone-200 py-3 text-sm lg:mt-5 lg:space-y-2 lg:py-4"><div className="flex justify-between"><dt>{t("composer.subtotal")}</dt><dd>{formatMoney(subtotal, stall.currency, locale)}</dd></div>{paymentTiming === "PAY_NOW" && discount ? <div className="flex justify-between text-emerald-800"><dt>{discount.name}</dt><dd>-{formatMoney(subtotal - total, stall.currency, locale)}</dd></div> : null}<div className="flex justify-between text-lg font-semibold"><dt>{paymentTiming === "PAY_NOW" ? t("composer.amountDue") : t("composer.orderAmount")}</dt><dd>{formatMoney(paymentTiming === "PAY_NOW" ? total : subtotal, stall.currency, locale)}</dd></div></dl>
             {message ? <p role="alert" className="mt-4 text-sm text-red-700">{message}</p> : null}
-              <button type="button" disabled={busy || selectedItems.length === 0} onClick={() => void submit()} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-40"><Send className="h-4 w-4" />{busy ? t("composer.creating") : paymentTiming === "PAY_NOW" ? t("composer.createPaid") : t("composer.createKitchen")}</button>
+              <button type="button" disabled={busy || selectedItems.length === 0} onClick={() => void submit()} className="mt-3 inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-40 lg:mt-5"><Send className="h-4 w-4" />{busy ? t("composer.creating") : paymentTiming === "PAY_NOW" ? t("composer.createPaid") : t("composer.createKitchen")}</button>
             </div>
           </aside>
         </div>
       </section>
+      {actionPrompt ? <div className="pointer-events-none fixed inset-0 z-[80] grid place-items-center p-6" aria-live="assertive"><p data-testid="staff-action-prompt" role="alert" className="max-w-md rounded-xl border-2 border-red-600 bg-white px-5 py-4 text-center text-base font-bold text-red-800 shadow-2xl">{actionPrompt}</p></div> : null}
+      {noteDialogOpen ? <div className="fixed inset-0 z-[75] grid place-items-center bg-black/55 p-4"><section role="dialog" aria-modal="true" aria-labelledby="staff-note-dialog-title" className="w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-3"><h3 id="staff-note-dialog-title" className="text-xl font-semibold">{t("composer.customerNote")}</h3><button type="button" title={t("common.close")} aria-label={t("common.close")} onClick={() => setNoteDialogOpen(false)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-5 w-5" /></button></div><textarea autoFocus value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-4 min-h-36" /><button type="button" onClick={() => setNoteDialogOpen(false)} className="mt-4 min-h-12 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white">{t("common.save")}</button></section></div> : null}
       {draftManagerOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-4">
           <section role="dialog" aria-modal="true" aria-labelledby="staff-drafts-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">

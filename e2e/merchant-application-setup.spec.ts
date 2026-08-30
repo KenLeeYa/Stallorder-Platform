@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
-import { gotoLocalPath } from "./local-navigation";
+import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -211,6 +211,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     })).toBe(0);
 
     await gotoLocalPath(page, `/staff/${requestedSlug}`);
+    await dismissStaffStartReminder(page);
     const orderCard = page.getByRole("article").filter({ hasText: createdTestOrder.orderNo });
     await orderCard.getByRole("button", { name: "查看明細", exact: true }).click();
     await expect(orderCard.getByText("開店測試訂單")).toBeVisible();
@@ -242,7 +243,7 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
     await expectDashboardOrganization(page, organizationId, 30_000);
     const merchantMain = page.locator("#main-content");
     await expect(merchantMain).toHaveCount(1);
-    await expect(merchantMain.getByText("多攤位營運總覽", { exact: true })).toBeVisible();
+    await expect(merchantMain.getByText("營運總覽", { exact: true })).toBeVisible();
     await gotoLocalPath(page, `/merchant/stalls/${live.stall.id}`);
     await expect(page.getByRole("link", { name: "開店設定", exact: true })).toHaveAttribute(
       "href",

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient, type Prisma } from "@prisma/client";
-import { gotoLocalPath } from "./local-navigation";
+import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -22,7 +22,7 @@ const authorizedStallSlug = "e2e-authorized-stall-two";
 const otherOrganizationSlug = "e2e-isolated-organization";
 const sharedProductName = "香酥雞排";
 
-let organization: { id: string; businessName: string };
+let organization: { id: string; businessName: string; operatingMode: string };
 let firstStall: { id: string; name: string; slug: string };
 let secondStall: { id: string; name: string; slug: string };
 let authorizedOrganization: { id: string; businessName: string };
@@ -36,7 +36,7 @@ test.describe("多攤位商戶關鍵流程", () => {
   test.beforeAll(async () => {
     organization = await prisma.organization.findUniqueOrThrow({
       where: { email: ownerEmail },
-      select: { id: true, businessName: true },
+      select: { id: true, businessName: true, operatingMode: true },
     });
     firstStall = await prisma.stall.findUniqueOrThrow({
       where: { slug: "aming-chicken" },
@@ -51,6 +51,10 @@ test.describe("多攤位商戶關鍵流程", () => {
     await prisma.orderSession.deleteMany({ where: { organizationId: organization.id } });
     await prisma.publicRateLimitBucket.deleteMany({ where: { organizationId: organization.id } });
     await prisma.stall.deleteMany({ where: { slug: secondStallSlug } });
+    await prisma.organization.update({
+      where: { id: organization.id },
+      data: { operatingMode: "MULTI_STALL" },
+    });
     await deleteTestOrganizations({
       where: {
         OR: [
@@ -164,6 +168,10 @@ test.describe("多攤位商戶關鍵流程", () => {
           });
         }
         await prisma.stall.deleteMany({ where: { organizationId: currentOrganization.id, slug: secondStallSlug } });
+        await prisma.organization.update({
+          where: { id: currentOrganization.id },
+          data: { operatingMode: organization.operatingMode },
+        });
       }
       await deleteTestOrganizations({
         where: {
@@ -316,7 +324,12 @@ test.describe("多攤位商戶關鍵流程", () => {
       }
     }
     await gotoLocalPath(page, `/merchant/catalog?organizationId=${organization.id}`);
-    const openAssignmentsButton = page.getByRole("button", { name: `分派 ${sharedProductName}` });
+    const productActionsButton = page.getByRole("button", { name: `操作：${sharedProductName}` });
+    await waitForReactHandler(productActionsButton, "onClick");
+    await productActionsButton.click();
+    const openAssignmentsButton = page
+      .getByRole("dialog", { name: `商品：${sharedProductName}` })
+      .getByRole("button", { name: "分派攤位" });
     await waitForReactHandler(openAssignmentsButton, "onClick");
     await openAssignmentsButton.click();
     const assignmentDialog = page.getByRole("dialog", { name: `分派「${sharedProductName}」` });
@@ -429,6 +442,7 @@ test.describe("多攤位商戶關鍵流程", () => {
     await expect(page).toHaveURL(new RegExp(`/staff/${firstStall.slug}$`));
     await expect(page.getByRole("heading", { name: firstStall.name, exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: `店員 · ${firstStall.name}`, exact: true })).toBeVisible();
+    await dismissStaffStartReminder(page);
 
     await selectCompactOption(
       page,

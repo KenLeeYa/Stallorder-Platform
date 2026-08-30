@@ -20,6 +20,7 @@ vi.mock("@/lib/prisma", () => ({
     stallProduct: { findMany: stallProductFindMany },
     stallOrderingSettings: { findUnique: settingsFindUnique },
     stallSpecialClosure: { findMany: specialClosureFindMany },
+    billingFeatureFlag: { findMany: vi.fn().mockResolvedValue([]) },
     $queryRaw: queryRaw,
   },
 }));

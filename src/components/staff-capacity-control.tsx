@@ -98,6 +98,7 @@ export function StaffCapacityControl({
       open={compact ? undefined : paused || warning || Boolean(message)}
     >
       <summary
+        data-senior-action-tile="true"
         title={t("capacity.title")}
         aria-label={`${t("capacity.title")} · ${summaryStatus}`}
         className={compact

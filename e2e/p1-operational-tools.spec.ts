@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
+import { dismissStaffStartReminder } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -167,6 +168,7 @@ test.describe("P1 營運功能", () => {
     const secondOrderNo = await createDineInOrder(secondCustomer, "P1 E2E 同桌乙", "Sweet Potato Fries");
 
     await page.goto("/staff/aming-chicken");
+    await dismissStaffStartReminder(page);
     await page.getByRole("main").getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 同桌");
     for (const customerName of ["P1 E2E 同桌甲", "P1 E2E 同桌乙"]) {
       const order = page.getByRole("article").filter({ hasText: customerName });
@@ -183,7 +185,10 @@ test.describe("P1 營運功能", () => {
     await expect(tableGroup).toContainText(secondOrderNo);
     await tableGroup.getByRole("button", { name: "合併結帳（2 筆）" }).click();
     const checkout = page.getByRole("dialog", { name: "同桌合併結帳" });
-    await checkout.getByRole("button", { name: "7 折 P1" }).click();
+    await checkout.getByTestId("staff-discount-trigger").click();
+    const discountDialog = page.getByRole("dialog", { name: "結帳折扣" });
+    await expect(discountDialog).toBeVisible();
+    await discountDialog.getByRole("button", { name: "7 折 P1" }).click();
     await expect(checkout.getByText("此折扣超過店員免核准門檻")).toBeVisible();
     await checkout.getByLabel("折扣原因").fill("P1 E2E 等候補償");
     await checkout.getByLabel("管理授權碼").fill(managerAuthorizationCode);
@@ -244,6 +249,7 @@ test.describe("P1 營運功能", () => {
     const cancelCustomer = await cancelContext.newPage();
     const cancelledOrderNo = await createDineInOrder(cancelCustomer, "P1 E2E 取消單", "Deep-Fried Chicken Cutlet");
     await page.goto("/staff/aming-chicken");
+    await dismissStaffStartReminder(page);
     const cancellationMain = page.getByRole("main");
     await cancellationMain.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("P1 E2E 取消單");
     const cancelledOrder = cancellationMain.getByRole("article").filter({ hasText: "P1 E2E 取消單" });
