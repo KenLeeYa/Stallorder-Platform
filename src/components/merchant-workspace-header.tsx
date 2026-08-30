@@ -163,7 +163,7 @@ export function MerchantWorkspaceHeader({
 
   return (
     <>
-      <header className="z-30 border-b border-stone-200 bg-white/95 backdrop-blur md:sticky md:top-0">
+      <header data-testid="merchant-workspace-header" className="z-30 overflow-x-clip border-b border-stone-200 bg-white/95 backdrop-blur md:sticky md:top-0">
         <div className="mx-auto flex max-w-7xl items-center gap-1 px-2 py-2 sm:gap-2 sm:px-4 md:px-8 md:py-3">
           <Link
             href={workspace ? `/merchant/dashboard?organizationId=${workspace.id}` : "/merchant/dashboard"}

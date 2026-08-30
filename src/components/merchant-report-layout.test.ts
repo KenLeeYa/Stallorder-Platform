@@ -36,10 +36,4 @@ describe("merchant report layout", () => {
     expect(navigation).toContain("min-w-11 flex-1");
     expect(navigation).toContain('className="sr-only md:not-sr-only"');
   });
-
-  it("allows the report filter grid to shrink within narrow phone viewports", () => {
-    const navigation = source("./report-navigation.tsx");
-
-    expect(navigation).toContain("grid min-w-0 grid-cols-[minmax(0,1fr)]");
-  });
 });

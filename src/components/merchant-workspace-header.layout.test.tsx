@@ -66,6 +66,8 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     const utilityToolbarClass = html.match(/data-testid="merchant-utility-toolbar"[^>]*class="([^"]+)"/)?.[1] ?? "";
     expect(utilityToolbarClass).toContain("flex-1");
     expect(utilityToolbarClass).not.toContain("shrink-0");
+    const workspaceHeaderClass = html.match(/data-testid="merchant-workspace-header"[^>]*class="([^"]+)"/)?.[1] ?? "";
+    expect(workspaceHeaderClass).toContain("overflow-x-clip");
     expect(html).toContain("sticky top-0");
     expect(html).toContain("overflow-x-hidden");
     expect(html).toContain("overflow-x-auto");
