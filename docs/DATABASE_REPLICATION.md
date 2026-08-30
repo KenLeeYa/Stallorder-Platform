@@ -81,6 +81,15 @@ tool never emits the connection string or password.
    system canary or feature writes.
 7. Perform destructive contract changes only in a later release.
 
+DR-first schema migrations must not insert, update, delete or truncate rows in
+replicated tables. Those writes would be repeated by Primary logical
+replication and can stop the apply worker on a row conflict. The
+`20260830010000` electronic-invoice flag seed is the final grandfathered
+exception; its one-time recovery is protected by the
+`plan-replication-conflict-repair` / `replication-conflict-repair` Plan and
+Apply pair, which deletes only the verified matching DR seed copies before
+replaying Primary WAL and proving exact row equality plus DR readiness.
+
 Routine DR schema Apply is additive-only and never uses `--include-all`, seed,
 reset or replication teardown. Never move DR schema changes after the Primary
 migration or after the replication upgrade.
