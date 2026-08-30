@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient, type Prisma } from "@prisma/client";
-import { gotoLocalPath } from "./local-navigation";
+import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -442,6 +442,7 @@ test.describe("多攤位商戶關鍵流程", () => {
     await expect(page).toHaveURL(new RegExp(`/staff/${firstStall.slug}$`));
     await expect(page.getByRole("heading", { name: firstStall.name, exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: `店員 · ${firstStall.name}`, exact: true })).toBeVisible();
+    await dismissStaffStartReminder(page);
 
     await selectCompactOption(
       page,

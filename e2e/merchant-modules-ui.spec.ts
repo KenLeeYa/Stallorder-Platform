@@ -240,7 +240,14 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       await productEditor.getByRole("button", { name: "關閉" }).click();
 
       await localizationPage.getByRole("tab", { name: "註記群組", exact: true }).click();
-      await localizationPage.getByRole("button", { name: "編輯 辣度" }).click();
+      const noteGroupActionsButton = localizationPage.getByRole("button", { name: "管理 辣度" });
+      await waitForReactHandler(noteGroupActionsButton, "onClick");
+      await noteGroupActionsButton.click();
+      const editNoteGroupButton = localizationPage
+        .getByRole("dialog", { name: "管理 辣度" })
+        .getByRole("button", { name: "編輯", exact: true });
+      await waitForReactHandler(editNoteGroupButton, "onClick");
+      await editNoteGroupButton.click();
       const noteEditor = localizationPage.getByRole("dialog", { name: "編輯註記群組" });
       await noteEditor.getByText("多語名稱", { exact: true }).click();
       await expect(noteEditor.getByLabel("英文", { exact: true })).toBeVisible();
