@@ -80,14 +80,8 @@ test.describe("P4 離線 PWA 基礎", () => {
     let staffPage = await staffContext.newPage();
     const ownerPage = await ownerContext.newPage();
     let offlineIdempotencyKey: string | null = null;
-    let phase = "initialize";
-    const enterPhase = (nextPhase: string) => {
-      phase = nextPhase;
-      console.info(`[offline-pwa] phase=${phase}`);
-    };
 
     try {
-      enterPhase("staff-login");
       await login(staffPage, "staff@stallorder.test", /\/staff\/aming-chicken/);
       if (!productionOfflineRuntime) {
         for (const path of [
@@ -107,7 +101,6 @@ test.describe("P4 離線 PWA 基礎", () => {
       }
       await gotoLocalPath(staffPage, `/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
-      enterPhase("initial-device-registration");
       const staffBoard = staffPage.locator("main:visible").last();
       const offlineDeviceButton = staffBoard.getByTitle("離線裝置", { exact: true });
       await waitForReactHandler(offlineDeviceButton, "onClick");
@@ -143,7 +136,6 @@ test.describe("P4 離線 PWA 基礎", () => {
         },
       });
 
-      enterPhase("owner-login");
       await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard\?organizationId=/);
       if (!productionOfflineRuntime) {
         for (const path of [
@@ -160,7 +152,6 @@ test.describe("P4 離線 PWA 基礎", () => {
       await expect(ownerSettings.getByRole("heading", { name: "離線裝置" })).toBeVisible();
       await expect(ownerSettings.getByRole("heading", { name: deviceName, exact: true })).toBeVisible();
 
-      enterPhase("offline-policy-validation");
       const policyReasonField = ownerSettings.getByLabel("異動原因");
       const saveOfflinePolicyButton = ownerSettings.getByRole("button", { name: "儲存離線政策" });
       await waitForReactHandler(saveOfflinePolicyButton, "onClick");
@@ -187,7 +178,6 @@ test.describe("P4 離線 PWA 基礎", () => {
       expect((await updatePolicyResponse).status()).toBe(200);
       await expect(ownerSettings.getByRole("status")).toContainText("離線裝置設定已更新");
 
-      enterPhase("conflict-validation");
       const conflictCard = ownerSettings
         .getByRole("article")
         .filter({ hasText: deviceName })
@@ -227,7 +217,6 @@ test.describe("P4 離線 PWA 基礎", () => {
       expect(approved.offlineRole).toBe("OFFLINE_LEADER");
       expect(approved.offlineEnabled).toBe(true);
 
-      enterPhase("approved-device-bootstrap");
       const offlineDeviceTrigger = staffBoard.getByTitle("離線裝置", { exact: true });
       if (await offlineDeviceTrigger.getAttribute("aria-expanded") !== "true") {
         await waitForReactHandler(offlineDeviceTrigger, "onClick");
@@ -302,7 +291,6 @@ test.describe("P4 離線 PWA 基礎", () => {
       });
       expect(manifest.contentType).toBe("application/json");
 
-      enterPhase("offline-snapshot-verification");
       const publicSnapshotResponse = await staffPage.request.get(
         `/api/assets/offline-menus/${snapshot.publicObjectPath}`,
       );
@@ -321,7 +309,6 @@ test.describe("P4 離線 PWA 基礎", () => {
       );
       if (!productionOfflineRuntime) return;
 
-      enterPhase("service-worker-activation");
       await staffPage.getByTitle("關閉離線裝置視窗").click();
       await waitForActivatedServiceWorker(staffPage);
       await staffPage.reload();
@@ -336,7 +323,6 @@ test.describe("P4 離線 PWA 基礎", () => {
       await staffPage.reload({ waitUntil: "domcontentloaded" });
       await expect(staffPage.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
       await expect(staffPage.getByText("目前離線", { exact: true })).toBeVisible();
-      enterPhase("offline-order-creation");
       await staffPage.getByRole("button", { name: "新增現場訂單" }).click();
       const composer = staffPage.getByRole("dialog", { name: "店員點餐" });
       await composer.getByLabel("顧客名稱（選填）").fill(offlineCustomerName);
@@ -351,6 +337,8 @@ test.describe("P4 離線 PWA 基礎", () => {
       await composer.getByRole("button", { name: "加入購物車", exact: true }).click();
       await expect(composer.getByTestId("staff-cart-line")).toHaveCount(1);
       await composer.getByTestId("staff-order-cart-tab").click();
+      await composer.getByTestId("staff-tablet-confirm-order").click();
+      await expect(composer.getByTestId("staff-order-checkout-controls")).toBeVisible();
       await composer.getByRole("button", { name: "稍後結帳" }).click();
       await composer.getByRole("button", { name: "建立訂單送入廚房" }).click();
       await expect(composer).toBeHidden();
@@ -387,7 +375,6 @@ test.describe("P4 離線 PWA 基礎", () => {
       offlineIdempotencyKey = localIdentity;
 
       expect(await serviceWorkerPendingRecords(staffPage)).toBeGreaterThan(0);
-      enterPhase("offline-order-persistence");
       await staffPage.close();
       staffPage = await staffContext.newPage();
       await gotoLocalPath(staffPage, "/offline");
@@ -419,7 +406,6 @@ test.describe("P4 離線 PWA 基礎", () => {
           return originalFetch(input, init);
         };
       });
-      enterPhase("offline-order-sync");
       await staffContext.setOffline(false);
       await expect(staffPage.getByText("網路已恢復", { exact: true })).toBeVisible();
       await staffPage.waitForTimeout(5_000);
@@ -457,7 +443,6 @@ test.describe("P4 離線 PWA 基礎", () => {
       expect(syncPayload).toBeTruthy();
       expect(await serviceWorkerPendingRecords(staffPage)).toBe(0);
 
-      enterPhase("server-reconciliation");
       const importedOrders = await prisma.order.findMany({
         where: {
           organizationId,
@@ -485,7 +470,6 @@ test.describe("P4 離線 PWA 基礎", () => {
         lastErrorCode: "DOMAIN_OUTBOX_DORMANT_NO_CONSUMER",
       });
 
-      enterPhase("duplicate-protection");
       const duplicateResult = await staffPage.evaluate(async ({ body, slug }) => {
         const csrf = document.cookie
           .split(";")
@@ -515,9 +499,7 @@ test.describe("P4 離線 PWA 基礎", () => {
           idempotencyKey: localIdentity,
         },
       })).toBe(1);
-      enterPhase("complete");
     } finally {
-      console.info(`[offline-pwa] final-phase=${phase}`);
       if (offlineIdempotencyKey) {
         await cleanupSyncedOfflineOrder(offlineIdempotencyKey);
       }
