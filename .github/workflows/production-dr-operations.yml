@@ -1360,6 +1360,19 @@ jobs:
               drop sequence if exists public.merchant_application_number_seq cascade;
             '
 
+      - name: Drop large application schemas before DR reset
+        shell: bash
+        run: |
+          set -euo pipefail
+          for schema in app_private internal; do
+            DATABASE_URL="$DR_DIRECT_URL" SCHEMA="$schema" \
+              docker run --rm --network host \
+                --env DATABASE_URL \
+                --env SCHEMA \
+                postgres:17 \
+                sh -ceu 'exec psql --dbname "$DATABASE_URL" --set ON_ERROR_STOP=1 --command "drop schema if exists \"$SCHEMA\" cascade"'
+          done
+
       - name: Reset former Staging into an empty DR schema
         run: supabase db reset --db-url "$DR_DIRECT_URL" --no-seed --yes
 
