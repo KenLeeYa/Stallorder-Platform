@@ -324,7 +324,12 @@ test.describe("多攤位商戶關鍵流程", () => {
       }
     }
     await gotoLocalPath(page, `/merchant/catalog?organizationId=${organization.id}`);
-    const openAssignmentsButton = page.getByRole("button", { name: `分派 ${sharedProductName}` });
+    const productActionsButton = page.getByRole("button", { name: `操作：${sharedProductName}` });
+    await waitForReactHandler(productActionsButton, "onClick");
+    await productActionsButton.click();
+    const openAssignmentsButton = page
+      .getByRole("dialog", { name: `商品：${sharedProductName}` })
+      .getByRole("button", { name: "分派攤位" });
     await waitForReactHandler(openAssignmentsButton, "onClick");
     await openAssignmentsButton.click();
     const assignmentDialog = page.getByRole("dialog", { name: `分派「${sharedProductName}」` });
