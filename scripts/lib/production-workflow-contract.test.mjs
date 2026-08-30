@@ -54,6 +54,7 @@ describe("Production workflow approval contract", () => {
       "plan-drill",
       "plan-dr-schema",
       "plan-incremental-replication",
+      "plan-replication-conflict-repair",
       "plan-storage-canary",
     ]) {
       expect(disasterRecovery).toContain(`- ${operation}`);
@@ -63,6 +64,7 @@ describe("Production workflow approval contract", () => {
       "drill",
       "dr-schema",
       "incremental-replication",
+      "replication-conflict-repair",
       "storage-canary",
     ]) {
       expect(workflowJob(disasterRecovery, jobName)).toMatch(/needs: approval/u);
@@ -139,6 +141,35 @@ describe("Production workflow approval contract", () => {
     expect(snapshot).toBeLessThan(readinessCheck);
     expect(job).not.toContain("supabase db reset");
     expect(job).not.toContain("--rollback");
+    expect(job).not.toContain("drop publication");
+    expect(job).not.toContain("drop subscription");
+  });
+
+  it("binds the one-time replication conflict repair to exact Plan and readiness proof", () => {
+    expect(productionApproval).toContain(
+      '"production-dr-replication-conflict-repair"',
+    );
+    const plan = workflowJob(disasterRecovery, "plan");
+    const job = workflowJob(disasterRecovery, "replication-conflict-repair");
+    const inspect = job.indexOf("--inspect");
+    const apply = job.indexOf("--apply");
+    const snapshot = job.indexOf("refresh-dr-replication-snapshot.mjs");
+    const verify = job.indexOf("--verify");
+    const readinessCheck = job.indexOf("check-dr-readiness.mjs --target DR --apply");
+
+    expect(plan).toContain("plan-replication-conflict-repair)");
+    expect(plan).toContain("INSPECT_DR_BILLING_FEATURE_FLAG_CONFLICT");
+    expect(plan).toContain("EINVOICE_FEATURE_FLAG_SEED_CONFLICT");
+    expect(job).toContain("needs: approval");
+    expect(job).toContain("REPAIR_PRODUCTION_DR_REPLICATION_CONFLICT");
+    expect(job).toContain("cmp --silent");
+    expect(inspect).toBeGreaterThan(-1);
+    expect(inspect).toBeLessThan(apply);
+    expect(apply).toBeLessThan(snapshot);
+    expect(snapshot).toBeLessThan(verify);
+    expect(verify).toBeLessThan(readinessCheck);
+    expect(job).toContain("production-dr-replication-conflict-repair-evidence.json");
+    expect(job).not.toContain("supabase db reset");
     expect(job).not.toContain("drop publication");
     expect(job).not.toContain("drop subscription");
   });
