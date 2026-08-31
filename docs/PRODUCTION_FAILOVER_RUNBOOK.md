@@ -19,6 +19,15 @@ Functions 與付款 callback 全部完成後，才可進入實際切換。
 - 每次操作都要有不含顧客資料的事故原因。
 - 禁止同時把 Primary 與 DR 設成 `ACTIVE_WRITER`。
 - 不以 Browser redirect、Realtime 或 CDN 可用推定資料庫可寫。
+- `app.qidaigo.com` 始終是唯一顧客正式網址；故障切換不得要求顧客改用
+  `dr.qidaigo.com`。
+- `dr.qidaigo.com` 僅可作受保護的 operator validation host，而且必須回報
+  DR backend 與預期 promotion epoch；DNS／Vercel alias 本身不是 DR 證據。
+- `staging.qidaigo.com` 不參與 failover。任何 hostname 變更都使用獨立的
+  domain Plan/Apply 與 rollback，不沿用資料庫 promotion 核准。
+
+Domain policy 見
+[`ADR-005`](adr/ADR-005-dr-hostname-and-environment-domain-policy.md)。
 
 ## 1. 只讀評估
 

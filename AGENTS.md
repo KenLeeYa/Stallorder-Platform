@@ -4,6 +4,18 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
+## StallOrder change memory
+
+For every owner-approved architecture or product-function change in this repository:
+
+- Read `docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md` and the affected domain documentation before editing.
+- Update the relevant Markdown architecture, ADR, runbook, requirement, or operating document in the same change as the code.
+- Append one entry to `docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md` with status, affected surfaces, verification, and release evidence. Use `Proposed` for an evaluation that has not been applied.
+- Update the `stallorder-product-qa` Skill only when the change creates or supersedes a durable acceptance rule, architecture invariant, regression dependency, or release gate. Keep detailed design in repository Markdown and keep the Skill as routing plus non-obvious invariants.
+- Do not treat documentation, a Skill entry, a prior chat, or an old Plan/Apply receipt as authorization for a remote mutation.
+
+Before release, verify that code, executable tests, repository documentation, the change ledger, and applicable Skill rules describe the same behavior. A release with missing or contradictory change memory is incomplete.
+
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
