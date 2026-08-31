@@ -85,6 +85,7 @@ export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
     view: moduleUpdateViewSchema.default("all"),
     dineInEnabled: z.boolean(),
     deliveryModuleEnabled: z.boolean(),
+    deliveryCustomerNotice: z.string().trim().max(500, "外送提醒不可超過 500 個字。").default(""),
     staffDeliveryEnabled: z.boolean(),
     printModuleEnabled: z.boolean(),
     kdsModuleEnabled: z.boolean().default(false),
@@ -95,7 +96,7 @@ export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
       .max(10_000, "經理核准門檻不可超過 100%。"),
     takeoutPreorderEnabled: z.boolean(),
     preorderMinLeadMinutes: z.number().int("最少提前時間必須是整數分鐘。")
-      .min(15, "最少提前時間不可少於 15 分鐘。")
+      .min(5, "最少提前時間不可少於 5 分鐘。")
       .max(1440, "最少提前時間不可超過 1440 分鐘。"),
     preorderMaxDays: z.number().int("最多預約天數必須是整數。")
       .min(1, "最多預約天數不可少於 1 天。")
@@ -159,6 +160,7 @@ const fieldLabels: Record<string, string> = {
   kind: "付款方式類型",
   discountApprovalThresholdBps: "經理核准門檻",
   preorderMinLeadMinutes: "最少提前時間",
+  deliveryCustomerNotice: "外送提醒",
   preorderMaxDays: "最多預約天數",
   preorderSlotMinutes: "預約時段間隔",
   lotteryDiscountOptionId: "中獎折扣",
@@ -231,7 +233,7 @@ export function normalizeDisabledModuleSettings<T extends ModuleSettingsForSave>
   return {
     ...settings,
     ...(!settings.takeoutPreorderEnabled ? {
-      preorderMinLeadMinutes: 15,
+      preorderMinLeadMinutes: 5,
       preorderMaxDays: 1,
       preorderSlotMinutes: 5 as const,
     } : {}),

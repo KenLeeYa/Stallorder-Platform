@@ -47,7 +47,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       organizationId: authorization.stall.organizationId,
       stallId: authorization.stall.id,
       actorProfileId: authorization.principal.user.id,
-      action: "STAFF_ORDER_ITEMS_EDITED",
+      action: result.eventType ?? "STAFF_ORDER_ITEMS_EDITED",
       entityType: "ORDER",
       entityId: orderId,
       outcome: "SUCCESS",
@@ -91,7 +91,8 @@ function editErrorResponse(error: unknown, requestId: string) {
   if (error instanceof StaffOrderEditError) {
     const messages: Record<StaffOrderEditFailure, string> = {
       NOT_FOUND: "找不到此訂單。",
-      NOT_EDITABLE_SOURCE: "只有店員建立的訂單可以修改商品內容。",
+      NOT_EDITABLE_SOURCE: "僅能修改尚未製作的店員訂單或線上外帶自取訂單。",
+      CUSTOMER_NOTICE_REQUIRED: "修改線上外帶訂單時，請選擇原因並填寫通知顧客的內容。",
       PAYMENT_ALREADY_RECORDED: "此訂單已結帳或已套用付款資料，無法修改商品。",
       ORDER_ALREADY_STARTED: "餐點已開始製作，無法再修改訂單商品。",
       PRINT_ALREADY_STARTED: "此訂單已開始列印，請取消訂單並重新建立以避免出單內容不一致。",

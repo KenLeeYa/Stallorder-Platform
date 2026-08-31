@@ -7,6 +7,7 @@ import {
   getPublicOrderCustomerActions,
   getPublicOrderStatusLabel,
   formatOrderRefreshTime,
+  OrderAmendmentNoticeDialog,
   OrderHelpPanel,
   OrderProgressPanel,
 } from "./public-order-tracker";
@@ -33,6 +34,30 @@ function findElementByAriaLabel(
 }
 
 describe("public order progress", () => {
+  it("renders the merchant amendment as a centered customer notice", () => {
+    const html = renderToStaticMarkup(
+      <OrderAmendmentNoticeDialog
+        notice={{
+          id: "event-1",
+          reason: "SOLD_OUT_REMOVE",
+          message: "香酥雞已售完，已移除並重新計算金額。",
+          previousTotal: 190,
+          total: 95,
+          createdAt: "2026-08-30T10:00:00.000Z",
+        }}
+        locale="zh-TW"
+        currency="TWD"
+        onDismiss={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain("訂單內容已由店家調整");
+    expect(html).toContain("香酥雞已售完");
+    expect(html).toContain("$190");
+    expect(html).toContain("$95");
+  });
   it("exposes self-service modification and cancellation only at safe order stages", () => {
     expect(getPublicOrderCustomerActions("WAITING_CONFIRMATION", "TAKEOUT", "UNPAID")).toEqual({
       canModify: true,

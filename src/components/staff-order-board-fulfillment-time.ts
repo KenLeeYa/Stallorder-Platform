@@ -3,6 +3,7 @@ import type { StaffOrderDto } from "@/lib/orders";
 
 export type StaffOrderFulfillmentTimeCommand =
   | { operation: "CONFIRM_REQUESTED"; version: number }
+  | { operation: "CUSTOMER_PRESENT"; version: number }
   | {
     operation: "PROPOSE";
     version: number;

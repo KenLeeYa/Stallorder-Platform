@@ -64,6 +64,7 @@ export type PublicMenu = {
   orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
   preorderSlots: string[];
   lotteryEnabled: boolean;
+  deliveryNotice?: string | null;
   lotteryReward?: {
     spendEnabled: boolean;
     spendThresholdAmount: number;

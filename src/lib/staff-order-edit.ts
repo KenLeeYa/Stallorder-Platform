@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 export type StaffOrderEditFailure =
   | "NOT_FOUND"
   | "NOT_EDITABLE_SOURCE"
+  | "CUSTOMER_NOTICE_REQUIRED"
   | "PAYMENT_ALREADY_RECORDED"
   | "ORDER_ALREADY_STARTED"
   | "PRINT_ALREADY_STARTED"
@@ -27,6 +28,7 @@ export class StaffOrderEditError extends Error {
 
 type EligibilityOrder = {
   source: string;
+  fulfillmentType: string;
   status: string;
   paymentStatus: string;
   payment: { id: string } | null;
@@ -42,11 +44,19 @@ type EligibilityOrder = {
 };
 
 export function getStaffOrderEditFailure(order: EligibilityOrder): StaffOrderEditFailure | null {
-  if (order.source !== "STAFF_POS") return "NOT_EDITABLE_SOURCE";
+  const staffOrder = order.source === "STAFF_POS";
+  const publicTakeoutOrder = order.source === "QR_MENU" && order.fulfillmentType === "TAKEOUT";
+  if (!staffOrder && !publicTakeoutOrder) return "NOT_EDITABLE_SOURCE";
+  if (
+    (staffOrder && order.status !== "CONFIRMED")
+    || (publicTakeoutOrder && order.status !== "WAITING_CONFIRMATION" && order.status !== "CONFIRMED")
+  ) return "ORDER_ALREADY_STARTED";
   if (order.paymentStatus !== "UNPAID" || order.payment) return "PAYMENT_ALREADY_RECORDED";
   if (
-    order.status !== "CONFIRMED"
-    || order.items.some((item) => item.status !== "PENDING" || item.productionTask?.status !== "PENDING")
+    order.items.some((item) => (
+      item.status !== "PENDING"
+      || (item.productionTask && item.productionTask.status !== "PENDING")
+    ))
   ) return "ORDER_ALREADY_STARTED";
   if (order.discountAmount !== 0 || order.discountOptionId) return "PAYMENT_ALREADY_RECORDED";
   if (order.printJobs.some((job) => job.status !== "PENDING")) return "PRINT_ALREADY_STARTED";
@@ -70,6 +80,7 @@ export type StaffOrderEditResult = {
   order: ReturnType<typeof serializeStaffOrder>;
   before: Prisma.InputJsonObject;
   after: Prisma.InputJsonObject;
+  eventType: "STAFF_ORDER_ITEMS_EDITED" | "PUBLIC_ORDER_ITEMS_ADJUSTED";
 };
 
 export async function editStaffOrderItems(input: {
@@ -106,6 +117,7 @@ export async function editStaffOrderItems(input: {
           id: true,
           orderNo: true,
           source: true,
+          fulfillmentType: true,
           status: true,
           paymentStatus: true,
           note: true,
@@ -142,6 +154,10 @@ export async function editStaffOrderItems(input: {
       if (!order) throw new StaffOrderEditError("NOT_FOUND");
       const failure = getStaffOrderEditFailure(order);
       if (failure) throw new StaffOrderEditError(failure);
+      const publicTakeoutOrder = order.source === "QR_MENU" && order.fulfillmentType === "TAKEOUT";
+      if (publicTakeoutOrder && !input.request.publicAmendment) {
+        throw new StaffOrderEditError("CUSTOMER_NOTICE_REQUIRED");
+      }
 
       const byId = new Map(order.items.map((item) => [item.id, item]));
       const requestedItems = input.request.items.map((item) => {
@@ -201,12 +217,22 @@ export async function editStaffOrderItems(input: {
         noteOptions: item.noteOptions.map((option) => `${option.groupName}:${option.optionName}`),
       }));
 
+      const removedPrintJobs = await transaction.printJob.deleteMany({
+        where: { orderId: order.id, status: "PENDING" },
+      });
+      if (removedPrintJobs.count !== order.printJobs.length) {
+        throw new StaffOrderEditError("PRINT_ALREADY_STARTED");
+      }
+
       const deleted = await transaction.orderItem.deleteMany({
         where: {
           orderId: order.id,
           stallId: input.stallId,
           status: "PENDING",
-          productionTask: { is: { status: "PENDING" } },
+          OR: [
+            { productionTask: null },
+            { productionTask: { is: { status: "PENDING" } } },
+          ],
         },
       });
       if (deleted.count !== order.items.length) throw new StaffOrderEditError("ORDER_ALREADY_STARTED");
@@ -245,7 +271,7 @@ export async function editStaffOrderItems(input: {
         where: {
           id: order.id,
           stallId: input.stallId,
-          status: "CONFIRMED",
+          status: order.status,
           paymentStatus: "UNPAID",
         },
         data: { subtotal: prepared.subtotal, total: prepared.subtotal },
@@ -262,20 +288,30 @@ export async function editStaffOrderItems(input: {
         total: prepared.subtotal,
         items: afterItems,
       } satisfies Prisma.InputJsonObject;
+      const eventType = publicTakeoutOrder
+        ? "PUBLIC_ORDER_ITEMS_ADJUSTED"
+        : "STAFF_ORDER_ITEMS_EDITED";
       await transaction.orderEvent.create({
         data: {
           organizationId: input.organizationId,
           stallId: input.stallId,
           orderId: order.id,
-          eventType: "STAFF_ORDER_ITEMS_EDITED",
-          previousStatus: "CONFIRMED",
-          newStatus: "CONFIRMED",
+          eventType,
+          previousStatus: order.status,
+          newStatus: order.status,
           createdBy: input.actorProfileId,
-          metadataJson: { before, after },
+          metadataJson: publicTakeoutOrder
+            ? {
+                before,
+                after,
+                reason: input.request.publicAmendment!.reason,
+                customerMessage: input.request.publicAmendment!.customerMessage,
+              }
+            : { before, after },
         },
       });
       await transaction.$queryRaw(Prisma.sql`
-        select public.refresh_stall_capacity(${input.stallId}::uuid, true, 'STAFF_ORDER_ITEMS_EDITED')
+        select public.refresh_stall_capacity(${input.stallId}::uuid, true, ${eventType})
       `);
 
       const updated = await transaction.order.findUnique({
@@ -283,7 +319,7 @@ export async function editStaffOrderItems(input: {
         select: staffOrderSelect,
       });
       if (!updated) throw new StaffOrderEditError("ORDER_CONFLICT");
-      return { order: serializeStaffOrder(updated), before, after };
+      return { order: serializeStaffOrder(updated), before, after, eventType };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
     if (error instanceof StaffOrderEditError || error instanceof StaffOrderCreateError) throw error;

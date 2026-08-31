@@ -36,6 +36,7 @@ export async function loadStallTemplateData(stallId: string, organizationId: str
         discountModuleEnabled: true,
         discountApprovalThresholdBps: true,
         staffDeliveryEnabled: true,
+        deliveryCustomerNotice: true,
         takeoutPreorderEnabled: true,
         preorderMinLeadMinutes: true,
         preorderMaxDays: true,
@@ -140,6 +141,7 @@ function orderingExperienceDiff(
   const targetDiscounts = lotteryPrizeSummary(target);
   const values = [
     ["店員外送", enabledLabel(source.settings.staffDeliveryEnabled), enabledLabel(target.settings.staffDeliveryEnabled)],
+    ["外送提醒", source.settings.deliveryCustomerNotice || "未設定", target.settings.deliveryCustomerNotice || "未設定"],
     ["外帶預約", enabledLabel(source.settings.takeoutPreorderEnabled), enabledLabel(target.settings.takeoutPreorderEnabled)],
     ["最少提前", `${source.settings.preorderMinLeadMinutes} 分鐘`, `${target.settings.preorderMinLeadMinutes} 分鐘`],
     ["最多預約", `${source.settings.preorderMaxDays} 天`, `${target.settings.preorderMaxDays} 天`],

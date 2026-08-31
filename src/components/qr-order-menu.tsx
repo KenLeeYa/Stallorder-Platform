@@ -88,7 +88,7 @@ export function QrOrderMenu({
   return (
     <>
       {categories.length > 0 ? (
-        <nav aria-label={copy.categoryNavigation} className="sticky top-0 z-20 -mx-4 mt-5 flex gap-2 overflow-x-auto border-y border-stone-200 bg-stone-50/95 px-4 py-2 backdrop-blur sm:mx-0 sm:px-3">
+        <nav data-testid="qr-category-navigation" aria-label={copy.categoryNavigation} style={{ position: "sticky", top: "var(--storefront-mode-nav-height, 0px)" }} className="z-30 -mx-4 mt-5 flex gap-2 overflow-x-auto border-y border-stone-200 bg-stone-50/95 px-4 py-2 backdrop-blur sm:mx-0 sm:px-3">
           {categories.map((category, index) => (
             <a key={category} href={`#qr-category-${index}`} className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700">
               {localizedCategory(category)}
@@ -108,7 +108,7 @@ export function QrOrderMenu({
           </p>
         ) : null}
         {categories.map((category, categoryIndex) => (
-          <section key={category} id={`qr-category-${categoryIndex}`} className="scroll-mt-16">
+          <section key={category} id={`qr-category-${categoryIndex}`} style={{ scrollMarginTop: "calc(var(--storefront-mode-nav-height, 0px) + 5rem)" }}>
             <h2 className="mb-2 text-sm font-semibold text-stone-500 sm:mb-3">{localizedCategory(category)}</h2>
             <div className="grid gap-2 sm:gap-3">
               {visibleProducts.filter((product) => product.category === category).map((product, productIndex, categoryProducts) => {

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   orderUpdateMany: vi.fn(),
   itemDeleteMany: vi.fn(),
   itemCreate: vi.fn(),
+  printJobDeleteMany: vi.fn(),
   eventCreate: vi.fn(),
   prepare: vi.fn(),
 }));
@@ -33,6 +34,7 @@ function databaseOrder() {
     id: orderId,
     orderNo: "260813-001",
     source: "STAFF_POS",
+    fulfillmentType: "TAKEOUT",
     status: "CONFIRMED",
     paymentStatus: "UNPAID",
     note: null,
@@ -72,6 +74,7 @@ beforeEach(() => {
   mocks.orderUpdateMany.mockResolvedValue({ count: 1 });
   mocks.itemDeleteMany.mockResolvedValue({ count: 1 });
   mocks.itemCreate.mockResolvedValue({ id: "77777777-7777-4777-8777-777777777777" });
+  mocks.printJobDeleteMany.mockResolvedValue({ count: 1 });
   mocks.eventCreate.mockResolvedValue({});
   mocks.prepare.mockResolvedValue({
     settings: { maxItemQuantity: 100, maxUniqueProducts: 100, maxTotalQuantity: 100, maxNoteLength: 1000 },
@@ -99,6 +102,7 @@ beforeEach(() => {
     $queryRaw: mocks.queryRaw,
     order: { findUnique: mocks.orderFindUnique, updateMany: mocks.orderUpdateMany },
     orderItem: { deleteMany: mocks.itemDeleteMany, create: mocks.itemCreate },
+    printJob: { deleteMany: mocks.printJobDeleteMany },
     orderEvent: { create: mocks.eventCreate },
   }));
 });
@@ -155,7 +159,10 @@ describe("editStaffOrderItems transaction", () => {
         orderId,
         stallId,
         status: "PENDING",
-        productionTask: { is: { status: "PENDING" } },
+        OR: [
+          { productionTask: null },
+          { productionTask: { is: { status: "PENDING" } } },
+        ],
       },
     });
     expect(mocks.itemDeleteMany.mock.invocationCallOrder[0]).toBeLessThan(mocks.itemCreate.mock.invocationCallOrder[0]);
@@ -175,6 +182,66 @@ describe("editStaffOrderItems transaction", () => {
       }),
     }));
     expect(result.order).toMatchObject({ total: 240 });
+  });
+
+  it("requires and records a customer-facing reason for public takeout adjustments", async () => {
+    const { editStaffOrderItems, StaffOrderEditError } = await import("@/lib/staff-order-edit");
+    mocks.orderFindUnique
+      .mockReset()
+      .mockResolvedValueOnce({
+        ...databaseOrder(),
+        source: "QR_MENU",
+        status: "WAITING_CONFIRMATION",
+        items: [{ ...databaseOrder().items[0], productionTask: null }],
+      })
+      .mockResolvedValueOnce({ id: orderId, orderNo: "260813-001", total: 240 });
+
+    await expect(editStaffOrderItems({
+      organizationId,
+      stallId,
+      orderId,
+      actorProfileId: organizationId,
+      request: { items: [{ kind: "EXISTING", itemId, quantity: 2 }] },
+    })).rejects.toEqual(new StaffOrderEditError("CUSTOMER_NOTICE_REQUIRED"));
+
+    mocks.queryRaw.mockReset()
+      .mockResolvedValueOnce([{ id: orderId }])
+      .mockResolvedValue([]);
+    mocks.orderFindUnique
+      .mockReset()
+      .mockResolvedValueOnce({
+        ...databaseOrder(),
+        source: "QR_MENU",
+        status: "WAITING_CONFIRMATION",
+        items: [{ ...databaseOrder().items[0], productionTask: null }],
+      })
+      .mockResolvedValueOnce({ id: orderId, orderNo: "260813-001", total: 240 });
+
+    await editStaffOrderItems({
+      organizationId,
+      stallId,
+      orderId,
+      actorProfileId: organizationId,
+      request: {
+        items: [{ kind: "EXISTING", itemId, quantity: 2 }],
+        publicAmendment: {
+          reason: "SOLD_OUT_REMOVE",
+          customerMessage: "商品售完，已調整訂單。",
+        },
+      },
+    });
+
+    expect(mocks.eventCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventType: "PUBLIC_ORDER_ITEMS_ADJUSTED",
+        previousStatus: "WAITING_CONFIRMATION",
+        newStatus: "WAITING_CONFIRMATION",
+        metadataJson: expect.objectContaining({
+          reason: "SOLD_OUT_REMOVE",
+          customerMessage: "商品售完，已調整訂單。",
+        }),
+      }),
+    }));
   });
 
   it("aborts before replacement when a KDS transition wins the conditional delete race", async () => {

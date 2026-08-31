@@ -46,12 +46,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     const result = await prisma.$transaction(async (transaction) => {
       const current = await transaction.order.findFirst({
         where: { id: orderId, stallId: authorization.stall.id },
-        select: staffOrderSelect,
+        select: { ...staffOrderSelect, confirmedAt: true },
       });
       if (!current) throw new FulfillmentTimeError("NOT_FOUND");
+      if (current.fulfillmentType === "DINE_IN") throw new FulfillmentTimeError("UNAVAILABLE");
       if (
-        current.fulfillmentType === "DINE_IN"
-        || !["WAITING_CONFIRMATION", "CONFIRMED"].includes(current.status)
+        parsed.data.operation !== "CUSTOMER_PRESENT"
+        && !["WAITING_CONFIRMATION", "CONFIRMED"].includes(current.status)
       ) throw new FulfillmentTimeError("UNAVAILABLE");
       if (current.fulfillmentTimeVersion !== parsed.data.version) {
         throw new FulfillmentTimeError("CONFLICT");
@@ -64,7 +65,82 @@ export async function PATCH(request: Request, context: RouteContext) {
         throw new FulfillmentTimeError("CONFLICT");
       }
 
-      if (parsed.data.operation === "CONFIRM_REQUESTED") {
+      if (parsed.data.operation === "CUSTOMER_PRESENT") {
+        if (
+          current.source !== "QR_MENU"
+          || current.fulfillmentType !== "TAKEOUT"
+          || current.fulfillmentTimeState !== "CUSTOMER_ACTION_REQUIRED"
+        ) {
+          throw new FulfillmentTimeError("UNAVAILABLE");
+        }
+        const settings = await transaction.stallOrderingSettings.findUnique({
+          where: { stallId: authorization.stall.id },
+          select: { kdsModuleEnabled: true },
+        });
+        const kdsEnabled = settings?.kdsModuleEnabled ?? true;
+        const kdsItemsReady = current.items.every((item) => (
+          item.status === "READY" || item.status === "SERVED"
+        ));
+        if (
+          (kdsEnabled && (current.status !== "READY" || !kdsItemsReady))
+          || (!kdsEnabled && !["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "PACKING", "READY"].includes(current.status))
+        ) {
+          throw new FulfillmentTimeError("UNAVAILABLE");
+        }
+
+        const now = new Date();
+        const nextVersion = current.fulfillmentTimeVersion + 1;
+        if (!kdsEnabled) {
+          await transaction.orderItem.updateMany({
+            where: {
+              orderId: current.id,
+              stallId: authorization.stall.id,
+              status: { in: ["PENDING", "PREPARING"] },
+            },
+            data: { status: "READY", readyAt: now },
+          });
+        }
+        const updated = await transaction.order.updateMany({
+          where: {
+            id: current.id,
+            stallId: authorization.stall.id,
+            status: current.status,
+            fulfillmentTimeVersion: parsed.data.version,
+            fulfillmentTimeState: "CUSTOMER_ACTION_REQUIRED",
+          },
+          data: {
+            status: "READY",
+            confirmedAt: current.confirmedAt ?? now,
+            committedFulfillmentAt: now,
+            pendingFulfillmentAt: null,
+            fulfillmentTimeState: "CONFIRMED",
+            fulfillmentTimeVersion: nextVersion,
+            fulfillmentTimeResponseExpiresAt: null,
+            fulfillmentTimeChangeReason: null,
+            fulfillmentTimeProposedById: null,
+            customerTimeRespondedAt: now,
+          },
+        });
+        if (updated.count !== 1) throw new FulfillmentTimeError("CONFLICT");
+        await transaction.orderEvent.create({
+          data: {
+            organizationId: authorization.stall.organizationId,
+            stallId: authorization.stall.id,
+            orderId: current.id,
+            eventType: "FULFILLMENT_TIME_OVERRIDDEN_AT_PICKUP",
+            previousStatus: current.status,
+            newStatus: "READY",
+            createdBy: authorization.principal.user.id,
+            metadataJson: {
+              previousVersion: parsed.data.version,
+              version: nextVersion,
+              previousProposedFulfillmentAt: current.pendingFulfillmentAt?.toISOString() ?? null,
+              customerPresentAt: now.toISOString(),
+              kdsModuleEnabled: kdsEnabled,
+            },
+          },
+        });
+      } else if (parsed.data.operation === "CONFIRM_REQUESTED") {
         if (current.fulfillmentTimeState !== "REQUESTED" || !current.requestedFulfillmentAt) {
           throw new FulfillmentTimeError("CONFLICT");
         }
@@ -173,7 +249,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       actorProfileId: authorization.principal.user.id,
       action: parsed.data.operation === "PROPOSE"
         ? "FULFILLMENT_TIME_PROPOSED"
-        : "FULFILLMENT_TIME_CONFIRMED_BY_STAFF",
+        : parsed.data.operation === "CUSTOMER_PRESENT"
+          ? "FULFILLMENT_TIME_OVERRIDDEN_AT_PICKUP"
+          : "FULFILLMENT_TIME_CONFIRMED_BY_STAFF",
       entityType: "ORDER",
       entityId: result.order.id,
       outcome: "SUCCESS",

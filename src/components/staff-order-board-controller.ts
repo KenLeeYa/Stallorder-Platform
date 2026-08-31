@@ -96,6 +96,12 @@ export type StaffOrderEditLine = {
   quantity: number;
 };
 
+export type StaffOrderPublicAmendmentReason =
+  | "SOLD_OUT_REMOVE"
+  | "SOLD_OUT_REPLACE"
+  | "QUANTITY_ADJUSTMENT"
+  | "OTHER";
+
 export type StaffOrderBoardControllerInput = {
   stall: { id: string; organizationId: string; slug: string; name: string; currency: string; timezone: string; businessDayCutoffHour: number };
   initialOrders: OrderWithItems[];
@@ -153,6 +159,8 @@ export function useStaffOrderBoardController({
   const [orderEditProductId, setOrderEditProductId] = useState("");
   const [orderEditBusy, setOrderEditBusy] = useState(false);
   const [orderEditMessage, setOrderEditMessage] = useState("");
+  const [orderEditAmendmentReason, setOrderEditAmendmentReason] = useState<StaffOrderPublicAmendmentReason>("SOLD_OUT_REMOVE");
+  const [orderEditCustomerMessage, setOrderEditCustomerMessage] = useState("");
   const [posSnapshot, setPosSnapshot] = useState<StaffOrderPosSnapshot>({
     modules: initialModules,
     paymentOptions: initialPaymentOptions,
@@ -349,12 +357,38 @@ export function useStaffOrderBoardController({
       )));
       setMessage(command.operation === "PROPOSE"
         ? t("staff.message.timeProposed")
-        : t("staff.message.timeAccepted")
+        : command.operation === "CUSTOMER_PRESENT"
+          ? t("staff.message.customerPresent")
+          : t("staff.message.timeAccepted")
       );
       return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("staff.error.time"));
       return false;
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  }
+
+  async function checkoutCustomerPresent(order: OrderWithItems) {
+    setMessage("");
+    setUpdatingOrderId(order.id);
+    try {
+      const updatedOrder = await updateStaffOrderFulfillmentTime({
+        stallSlug: stall.slug,
+        orderId: order.id,
+        command: {
+          operation: "CUSTOMER_PRESENT",
+          version: order.fulfillmentTimeVersion,
+        },
+      });
+      setOrders((current) => current.map((candidate) => (
+        candidate.id === updatedOrder.id ? updatedOrder : candidate
+      )));
+      setMessage(t("staff.message.customerPresent"));
+      await openCheckout(updatedOrder);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("staff.error.time"));
     } finally {
       setUpdatingOrderId(null);
     }
@@ -402,11 +436,15 @@ export function useStaffOrderBoardController({
   }
 
   function canEditOrderContent(order: OrderWithItems) {
+    const editableSource = order.source === "STAFF_POS"
+      ? order.status === "CONFIRMED"
+      : order.source === "QR_MENU"
+        && order.fulfillmentType === "TAKEOUT"
+        && (order.status === "WAITING_CONFIRMATION" || order.status === "CONFIRMED");
     return Boolean(
       orderCatalog
       && hasPermission(account.role, "UPDATE_ORDERS")
-      && order.source === "STAFF_POS"
-      && order.status === "CONFIRMED"
+      && editableSource
       && order.paymentStatus === "UNPAID"
       && order.items.every((item) => item.status === "PENDING"),
     );
@@ -417,6 +455,10 @@ export function useStaffOrderBoardController({
     setEditingOrderId(order.id);
     setOrderEditMessage("");
     setOrderEditProductId("");
+    setOrderEditAmendmentReason("SOLD_OUT_REMOVE");
+    setOrderEditCustomerMessage(order.source === "QR_MENU"
+      ? t("staff.edit.defaultSoldOutNotice")
+      : "");
     setOrderEditLines(order.items.map((item) => ({
       kind: "EXISTING" as const,
       key: item.id,
@@ -472,14 +514,23 @@ export function useStaffOrderBoardController({
                 noteOptionIds: [],
                 bundleChoiceIds: [],
               }),
+          ...(orders.find((order) => order.id === editingOrderId)?.source === "QR_MENU"
+            ? {
+                publicAmendment: {
+                  reason: orderEditAmendmentReason,
+                  customerMessage: orderEditCustomerMessage,
+                },
+              }
+            : {}),
         }),
       });
       const payload = await response.json() as {
         order?: OrderWithItems;
         code?: string;
+        error?: string;
       };
       if (!response.ok || !payload.order) {
-        throw new Error(t(getOperationsErrorMessageKey(payload.code, "staff.error.edit")));
+        throw new Error(payload.error ?? t(getOperationsErrorMessageKey(payload.code, "staff.error.edit")));
       }
       knownOrderIdsRef.current.add(payload.order.id);
       setOrders((current) => current.map((order) => (
@@ -873,12 +924,15 @@ export function useStaffOrderBoardController({
       lines: orderEditLines,
       products: orderEditProducts,
       selectedProductId: orderEditProductId,
+      amendmentReason: orderEditAmendmentReason,
+      customerMessage: orderEditCustomerMessage,
       busy: orderEditBusy,
       message: orderEditMessage,
       editableOrderIds: new Set(operationalOrders.filter(canEditOrderContent).map((order) => order.id)),
     },
     actions: {
       onClearSelectedItems: clearSelectedItems,
+      onCheckoutCustomerPresent: checkoutCustomerPresent,
       onCloseComposer: () => setComposerOpen(false),
       onClosePickupCheckout: () => {
         setPickupCheckoutOrderId(null);
@@ -900,6 +954,8 @@ export function useStaffOrderBoardController({
       onAddOrderEditProduct: addOrderEditProduct,
       onChangeOrderEditProduct: setOrderEditProductId,
       onChangeOrderEditQuantity: changeOrderEditQuantity,
+      onChangeOrderEditAmendmentReason: setOrderEditAmendmentReason,
+      onChangeOrderEditCustomerMessage: setOrderEditCustomerMessage,
       onCloseOrderEditor: () => setEditingOrderId(null),
       onOpenCheckout: openCheckout,
       onOpenComposer: openComposer,
