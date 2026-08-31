@@ -7,6 +7,7 @@ import {
   environmentLocalTables,
   replicatedPublicTables,
 } from "./lib/dr-replication-scope.mjs";
+import { buildDrStorageMirrorProof } from "./lib/dr-storage-mirror.mjs";
 
 const expectedCronJobNames = new Set([
   "invoke-vercel-preview-process-orders",
@@ -40,7 +41,9 @@ try {
     activeOrders,
     activeSessions,
     drBusinessRows,
+    primaryStorageObjects,
     drStorageObjects,
+    storageManifestRows,
     actors,
   ] = await Promise.all([
     primary.$queryRawUnsafe(
@@ -69,8 +72,22 @@ try {
          (select count(*) from public.stalls)::integer as stalls,
          (select count(*) from public.orders)::integer as orders`,
     ),
+    primary.$queryRawUnsafe(
+      "select bucket_id, name from storage.objects order by bucket_id, name",
+    ),
     dr.$queryRawUnsafe(
-      "select count(*)::integer as count from storage.objects",
+      "select bucket_id, name from storage.objects order by bucket_id, name",
+    ),
+    primary.$queryRawUnsafe(
+      `select
+         bucket,
+         object_path,
+         replication_status,
+         primary_checksum,
+         dr_checksum,
+         deleted_at
+       from public.storage_object_manifest
+       order by bucket, object_path`,
     ),
     primary.$queryRawUnsafe(
       `select id
@@ -89,9 +106,11 @@ try {
   if (Object.values(drBusinessRows[0] ?? {}).some((count) => Number(count) !== 0)) {
     throw new Error("DR_BUSINESS_DATA_NOT_EMPTY");
   }
-  if (drStorageObjects[0]?.count !== 0) {
-    throw new Error("DR_STORAGE_OBJECTS_PRESENT");
-  }
+  const storageMirror = buildDrStorageMirrorProof({
+    primaryObjects: primaryStorageObjects,
+    drObjects: drStorageObjects,
+    manifestRows: storageManifestRows,
+  });
 
   await dr.$executeRawUnsafe("delete from auth.users");
   const activeCronJobs = await dr.$queryRawUnsafe(
@@ -317,7 +336,7 @@ try {
     dr: drAfter,
     activeOrders: 0,
     activeSessions: 0,
-    storageObjects: 0,
+    storageObjects: storageMirror.drObjects,
     disabledCronJobs,
     clearedReplicatedTables: replicatedPublicTables.length,
     clearedEnvironmentLocalTables: environmentLocalTables.length,
