@@ -8,6 +8,7 @@ import { useAppLocale } from "@/components/locale-provider";
 import type { AppLocale } from "@/lib/app-locale";
 import { playAlertSound, primeAlertSound } from "@/lib/browser-alert-sound";
 import { publicOrderMessages } from "@/lib/messages/public-order";
+import { formatMoney } from "@/lib/money";
 import {
   getOrCreateDeviceId,
   parseEdgeResponse,
@@ -48,6 +49,7 @@ type PublicOrder = {
   orderStatus: PublicOrderStatus;
   paymentStatus: "UNPAID" | "PAID" | "REFUNDED";
   totalAmount: number;
+  currency: string;
   createdAt: string;
   confirmedAt: string | null;
   completedAt: string | null;
@@ -70,6 +72,7 @@ type PublicOrder = {
   fulfillmentTimeVersion: number;
   fulfillmentTimeResponseExpiresAt: string | null;
   fulfillmentTimeChangeReason: string | null;
+  merchantAmendment: OrderAmendmentNotice | null;
   items: Array<{
     id: string;
     name: string;
@@ -78,6 +81,15 @@ type PublicOrder = {
     noteOptions: Array<{ groupName: string; optionName: string; priceDelta: number }>;
     status: "PENDING" | "PREPARING" | "READY" | "SERVED";
   }>;
+};
+
+export type OrderAmendmentNotice = {
+  id: string;
+  reason: "SOLD_OUT_REMOVE" | "SOLD_OUT_REPLACE" | "QUANTITY_ADJUSTMENT" | "OTHER";
+  message: string;
+  previousTotal: number | null;
+  total: number | null;
+  createdAt: string;
 };
 
 const itemStatusMessageKeys = {
@@ -335,6 +347,62 @@ export function formatOrderRefreshTime(updatedAt: Date, locale: AppLocale = "zh-
   }).format(updatedAt);
 }
 
+export function OrderAmendmentNoticeDialog({
+  notice,
+  locale = "zh-TW",
+  currency = "TWD",
+  onDismiss,
+}: {
+  notice: OrderAmendmentNotice;
+  locale?: AppLocale;
+  currency?: string;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-stone-950/65 p-4" role="presentation">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="order-amendment-dialog-title"
+        className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
+      >
+        <button
+          type="button"
+          aria-label={publicOrderMessages.get(locale, "amendmentDismiss")}
+          onClick={onDismiss}
+          className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full text-stone-500 hover:bg-stone-100"
+        >
+          <X aria-hidden="true" className="h-5 w-5" />
+        </button>
+        <FilePenLine aria-hidden="true" className="h-10 w-10 text-amber-700" />
+        <h2 id="order-amendment-dialog-title" className="mt-3 pr-10 text-xl font-bold text-stone-950">
+          {publicOrderMessages.get(locale, "amendmentTitle")}
+        </h2>
+        <p className="mt-3 rounded-lg bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">
+          {notice.message}
+        </p>
+        {notice.previousTotal !== null && notice.total !== null
+          ? (
+            <dl className="mt-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-stone-500">{publicOrderMessages.get(locale, "amendmentPreviousTotal")}</dt>
+              <dd className="text-right text-stone-500 line-through">{formatMoney(notice.previousTotal, currency, locale)}</dd>
+              <dt className="font-semibold text-stone-900">{publicOrderMessages.get(locale, "amendmentNewTotal")}</dt>
+              <dd className="text-right font-bold text-teal-800">{formatMoney(notice.total, currency, locale)}</dd>
+            </dl>
+          )
+          : null}
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="mt-5 min-h-12 w-full rounded-md bg-teal-700 px-4 font-semibold text-white"
+        >
+          {publicOrderMessages.get(locale, "amendmentDismiss")}
+        </button>
+      </section>
+    </div>
+  );
+}
+
 const fulfillmentTimeStateMessageKeys = {
   NOT_REQUESTED: "fulfillmentStateNotRequested",
   REQUESTED: "fulfillmentStateRequested",
@@ -508,7 +576,9 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
   const [isCancelling, setIsCancelling] = useState(false);
   const [fulfillmentFeedback, setFulfillmentFeedback] = useState<FulfillmentFeedback | null>(null);
   const [showPickupReadyDialog, setShowPickupReadyDialog] = useState(false);
+  const [amendmentNotice, setAmendmentNotice] = useState<OrderAmendmentNotice | null>(null);
   const announcedReadyOrderRef = useRef<string | null>(null);
+  const announcedAmendmentRef = useRef<string | null>(null);
 
   useEffect(() => {
     const prime = () => void primeAlertSound();
@@ -548,6 +618,8 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
         fulfillmentTimeVersion: publicOrder.fulfillmentTimeVersion ?? 0,
         fulfillmentTimeResponseExpiresAt: publicOrder.fulfillmentTimeResponseExpiresAt ?? null,
         fulfillmentTimeChangeReason: publicOrder.fulfillmentTimeChangeReason ?? null,
+        currency: publicOrder.currency ?? "TWD",
+        merchantAmendment: publicOrder.merchantAmendment ?? null,
       },
     };
   }, [locale, trackingToken]);
@@ -560,6 +632,14 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
       setOrder(nextOrder);
       setLastUpdatedAt(new Date());
       setMessage("");
+      if (
+        nextOrder.merchantAmendment
+        && announcedAmendmentRef.current !== nextOrder.merchantAmendment.id
+      ) {
+        announcedAmendmentRef.current = nextOrder.merchantAmendment.id;
+        setAmendmentNotice(nextOrder.merchantAmendment);
+        void playAlertSound({ preset: "CHIME", volume: 100, repeatCount: 2 });
+      }
       if (
         nextOrder.fulfillmentType === "TAKEOUT"
         && nextOrder.orderStatus === "READY"
@@ -814,6 +894,16 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
               </button>
             </section>
           </div>
+        )
+        : null}
+      {amendmentNotice
+        ? (
+          <OrderAmendmentNoticeDialog
+            notice={amendmentNotice}
+            locale={locale}
+            currency={order?.currency ?? "TWD"}
+            onDismiss={() => setAmendmentNotice(null)}
+          />
         )
         : null}
     </main>

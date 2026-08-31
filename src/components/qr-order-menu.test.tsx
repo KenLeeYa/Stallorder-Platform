@@ -96,11 +96,11 @@ describe("QrOrderMenu presentation", () => {
   it("preserves category navigation, product semantics, badges, and compact mobile classes", () => {
     const html = renderMenu();
 
-    expect(html).toContain(`<nav aria-label="${baseProps.copy.categoryNavigation}"`);
-    expect(html).toContain("sticky top-0");
+    expect(html).toContain(`<nav data-testid="qr-category-navigation" aria-label="${baseProps.copy.categoryNavigation}"`);
+    expect(html).toContain("position:sticky;top:var(--storefront-mode-nav-height, 0px)");
     expect(html).not.toContain("md:static");
     expect(html).toContain('href="#qr-category-0"');
-    expect(html).toContain('id="qr-category-0" class="scroll-mt-16"');
+    expect(html).toContain('id="qr-category-0" style="scroll-margin-top:calc(var(--storefront-mode-nav-height, 0px) + 5rem)"');
     expect(html).toContain('id="qr-product-meal"');
     expect(html).toContain('data-best-seller-rank="1"');
     expect(html).toContain('data-testid="best-seller-badge"');

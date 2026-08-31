@@ -242,7 +242,7 @@ test.describe.serial("產能與等候時間", () => {
       requiresWaitAcknowledgment: true,
     });
 
-    await expect(page.getByText("目前預估等候約 35 分鐘", { exact: true })).toBeVisible();
+    await expect(page.locator("#main-content").getByText("目前預估等候約 35 分鐘", { exact: true })).toBeVisible();
     const product = page.getByRole("article").filter({ hasText: "香酥雞排" });
     await product.getByRole("button", { name: "增加 香酥雞排" }).click();
     await product.getByRole("button", { name: "加入購物車", exact: true }).click();

@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   orderUpdateMany: vi.fn(),
   orderFindUnique: vi.fn(),
   orderEventCreate: vi.fn(),
+  settingsFindUnique: vi.fn(),
+  itemUpdateMany: vi.fn(),
   queryRaw: vi.fn(),
   recordAuditEvent: vi.fn(),
 }));
@@ -85,6 +87,8 @@ beforeEach(() => {
   mocks.orderFindFirst.mockResolvedValue(legacyOrder());
   mocks.orderUpdateMany.mockResolvedValue({ count: 1 });
   mocks.orderEventCreate.mockResolvedValue({});
+  mocks.settingsFindUnique.mockResolvedValue({ kdsModuleEnabled: false });
+  mocks.itemUpdateMany.mockResolvedValue({ count: 0 });
   mocks.queryRaw.mockResolvedValue([{ code: null }]);
   mocks.orderFindUnique.mockImplementation(async () => ({
     ...legacyOrder(),
@@ -101,6 +105,8 @@ beforeEach(() => {
       updateMany: mocks.orderUpdateMany,
       findUnique: mocks.orderFindUnique,
     },
+    stallOrderingSettings: { findUnique: mocks.settingsFindUnique },
+    orderItem: { updateMany: mocks.itemUpdateMany },
     orderEvent: { create: mocks.orderEventCreate },
   }));
 });
@@ -147,5 +153,57 @@ describe("staff fulfillment-time legacy version zero boundary", () => {
     await expect(response.json()).resolves.toMatchObject({ code: "CONFLICT" });
     expect(mocks.queryRaw).not.toHaveBeenCalled();
     expect(mocks.orderUpdateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("staff fulfillment-time customer-present override", () => {
+  it("resolves an unanswered takeout proposal and marks a non-KDS order ready for pickup verification", async () => {
+    mocks.readJson.mockResolvedValue({
+      data: { operation: "CUSTOMER_PRESENT", version: 2 },
+    });
+    mocks.orderFindFirst.mockResolvedValue({
+      ...legacyOrder(),
+      status: "CONFIRMED",
+      fulfillmentTimeState: "CUSTOMER_ACTION_REQUIRED",
+      fulfillmentTimeVersion: 2,
+      pendingFulfillmentAt: new Date("2026-08-06T04:45:00.000Z"),
+      items: [{ id: "item-1", status: "PENDING" }],
+    });
+    mocks.orderFindUnique.mockResolvedValue({
+      ...legacyOrder(),
+      status: "READY",
+      fulfillmentTimeState: "CONFIRMED",
+      fulfillmentTimeVersion: 3,
+      committedFulfillmentAt: new Date("2026-08-06T03:00:00.000Z"),
+      items: [{ id: "item-1", status: "READY" }],
+    });
+
+    const route = await import("./route");
+    const response = await route.PATCH(
+      new Request("https://example.test/api/stalls/demo/orders/order/fulfillment-time", {
+        method: "PATCH",
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ stallSlug: "demo", orderId }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.itemUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "READY" }),
+    }));
+    expect(mocks.orderUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        status: "READY",
+        fulfillmentTimeState: "CONFIRMED",
+        fulfillmentTimeVersion: 3,
+      }),
+    }));
+    expect(mocks.orderEventCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        eventType: "FULFILLMENT_TIME_OVERRIDDEN_AT_PICKUP",
+        previousStatus: "CONFIRMED",
+        newStatus: "READY",
+      }),
+    }));
   });
 });

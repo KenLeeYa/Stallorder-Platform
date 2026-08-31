@@ -11,6 +11,10 @@ export const fulfillmentTimeCommandSchema = z.discriminatedUnion("operation", [
     version,
   }).strict(),
   z.object({
+    operation: z.literal("CUSTOMER_PRESENT"),
+    version,
+  }).strict(),
+  z.object({
     operation: z.literal("PROPOSE"),
     version: proposalVersion,
     proposedFulfillmentAt: z.string().datetime({ offset: true }),

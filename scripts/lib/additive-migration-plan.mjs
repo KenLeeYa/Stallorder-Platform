@@ -61,6 +61,8 @@ const ORGANIZATION_OPERATING_MODE_MIGRATION_DIGEST =
   "b6ecfafbef7517870f64481fdaeb791d6a33df75fdfb5b5001da988fc36c5874";
 const MULTITENANT_EINVOICE_LOCAL_MOCK_MIGRATION_DIGEST =
   "67e542ef6d919bf24b4e3e77c77bbfac959086a19bfe0217988bb8bd96f7a8c4";
+const PUBLIC_TAKEOUT_AMENDMENT_DELIVERY_NOTICE_MIGRATION_DIGEST =
+  "207a7533fae43b8d6b115497a9eb1b54e2b07a03b5ca3d49dbe0945d444d154d";
 
 export class AdditiveMigrationPlanError extends Error {
   constructor(code, details = {}) {
@@ -207,6 +209,8 @@ export function assertAdditiveMigrationSql(sql) {
     isApprovedOrganizationOperatingModeMigration(sql);
   const multitenantEinvoiceLocalMockMigration =
     isApprovedMultitenantEinvoiceLocalMockMigration(sql);
+  const publicTakeoutAmendmentDeliveryNoticeMigration =
+    isApprovedPublicTakeoutAmendmentDeliveryNoticeMigration(sql);
   const staffKdsSpecialClosuresMigration =
     isApprovedStaffKdsSpecialClosuresMigration(sql);
   const drStandbyCompatibleMigration =
@@ -313,6 +317,7 @@ export function assertAdditiveMigrationSql(sql) {
       privateProductImageDeliveryMigration,
       organizationOperatingModeMigration,
       multitenantEinvoiceLocalMockMigration,
+      publicTakeoutAmendmentDeliveryNoticeMigration,
     );
   }
   assertReplacementPairs(replacements);
@@ -334,6 +339,7 @@ export function assertAdditiveMigrationSql(sql) {
     paygOpenBetaBillingMigration,
     deliveryProviderContractsMigration,
     paygContractRuntimeGapsMigration,
+    publicTakeoutAmendmentDeliveryNoticeMigration,
   );
   return true;
 }
@@ -597,6 +603,7 @@ function assertReplacementObjectProvenance(
   paygOpenBetaBillingMigration,
   deliveryProviderContractsMigration,
   paygContractRuntimeGapsMigration,
+  publicTakeoutAmendmentDeliveryNoticeMigration,
 ) {
   const createdTables = new Map();
   const indexCreations = new Map();
@@ -654,6 +661,11 @@ function assertReplacementObjectProvenance(
           paygContractRuntimeGapsMigration
           && key
             === "constraint:public.invoice_line_items:invoice_line_items_type_check"
+        )
+        && !(
+          publicTakeoutAmendmentDeliveryNoticeMigration
+          && key
+            === "constraint:public.stall_ordering_settings:stall_ordering_settings_preorder_min_lead_check"
         )
       ) {
         throw new AdditiveMigrationPlanError(
@@ -1100,6 +1112,16 @@ function isApprovedMultitenantEinvoiceLocalMockMigration(sql) {
     === MULTITENANT_EINVOICE_LOCAL_MOCK_MIGRATION_DIGEST;
 }
 
+function isApprovedPublicTakeoutAmendmentDeliveryNoticeMigration(sql) {
+  return sha256(sql.replace(/\r\n/gu, "\n").trim())
+    === PUBLIC_TAKEOUT_AMENDMENT_DELIVERY_NOTICE_MIGRATION_DIGEST;
+}
+
+function isSafePublicTakeoutAmendmentDeliveryNoticeAlter(statement) {
+  return /^alter\s+table\s+public\.stall_ordering_settings\b/iu
+    .test(statement);
+}
+
 function isSafePrivateProductImageWriteGuardToggle(statement) {
   return /^alter\s+table\s+public\.(?:products|stalls)\s+(?:disable|enable)\s+trigger\s+backend_writable_guard$/iu
     .test(statement);
@@ -1132,7 +1154,8 @@ function isApprovedCompatibleFunctionBodyMigration(sql) {
     || digest === NON_KDS_CONFIRMATION_PRINTING_MIGRATION_DIGEST
     || digest === PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST
     || digest === PAYG_CONTRACT_RUNTIME_GAPS_MIGRATION_DIGEST
-    || digest === MULTITENANT_EINVOICE_LOCAL_MOCK_MIGRATION_DIGEST;
+    || digest === MULTITENANT_EINVOICE_LOCAL_MOCK_MIGRATION_DIGEST
+    || digest === PUBLIC_TAKEOUT_AMENDMENT_DELIVERY_NOTICE_MIGRATION_DIGEST;
 }
 
 function isApprovedStaffKdsSpecialClosuresMigration(sql) {
@@ -1506,6 +1529,7 @@ function assertAllowedStatement(
   privateProductImageDeliveryMigration,
   organizationOperatingModeMigration,
   multitenantEinvoiceLocalMockMigration,
+  publicTakeoutAmendmentDeliveryNoticeMigration,
 ) {
   const allowed = [
     phaseThreeHardLock && isPhaseThreeHardLockCleanup(statement),
@@ -1525,6 +1549,8 @@ function assertAllowedStatement(
       && isSafeMultitenantEinvoiceFeatureFlagSeed(statement),
     multitenantEinvoiceLocalMockMigration
       && isSafeMultitenantEinvoiceWriteGuardToggle(statement),
+    publicTakeoutAmendmentDeliveryNoticeMigration
+      && isSafePublicTakeoutAmendmentDeliveryNoticeAlter(statement),
     isAllowedAlterTableStatement(statement),
     /^alter\s+type\b[\s\S]*\badd\s+value\b/iu,
     /^create\s+(?:or\s+replace\s+)?function\b/iu,

@@ -169,7 +169,10 @@ export async function PATCH(request: Request, context: RouteContext) {
               ? { dineInEnabled: command.dineInEnabled }
               : {}),
             ...(updatesModuleView(command.view, "delivery")
-              ? { deliveryModuleEnabled: command.deliveryModuleEnabled }
+              ? {
+                  deliveryModuleEnabled: command.deliveryModuleEnabled,
+                  deliveryCustomerNotice: command.deliveryCustomerNotice,
+                }
               : {}),
             ...(updatesModuleView(command.view, "staff-delivery")
               ? { staffDeliveryEnabled: command.staffDeliveryEnabled }

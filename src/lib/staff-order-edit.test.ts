@@ -8,6 +8,7 @@ const productId = "22222222-2222-4222-8222-222222222222";
 function editableOrder() {
   return {
     source: "STAFF_POS",
+    fulfillmentType: "TAKEOUT",
     status: "CONFIRMED",
     paymentStatus: "UNPAID",
     payment: null,
@@ -29,7 +30,7 @@ describe("staff order item edit boundary", () => {
   });
 
   it.each([
-    ["QR source", { source: "QR_MENU" }, "NOT_EDITABLE_SOURCE"],
+    ["dine-in QR source", { source: "QR_MENU", fulfillmentType: "DINE_IN" }, "NOT_EDITABLE_SOURCE"],
     ["paid order", { paymentStatus: "PAID" }, "PAYMENT_ALREADY_RECORDED"],
     ["non-confirmed order", { status: "PREPARING" }, "ORDER_ALREADY_STARTED"],
     ["started item", { items: [{ ...editableOrder().items[0], status: "PREPARING" }] }, "ORDER_ALREADY_STARTED"],
@@ -39,9 +40,41 @@ describe("staff order item edit boundary", () => {
   ])("rejects %s", (_label, override, expected) => {
     expect(getStaffOrderEditFailure({ ...editableOrder(), ...override })).toBe(expected);
   });
+
+  it.each(["WAITING_CONFIRMATION", "CONFIRMED"])(
+    "allows an unpaid public takeout order in %s before production or printing starts",
+    (status) => {
+      expect(getStaffOrderEditFailure({
+        ...editableOrder(),
+        source: "QR_MENU",
+        fulfillmentType: "TAKEOUT",
+        status,
+        items: [{ ...editableOrder().items[0], productionTask: null }],
+      })).toBeNull();
+    },
+  );
 });
 
 describe("updateStaffOrderItemsSchema", () => {
+  it("accepts an explicit customer notice for a sold-out public-order adjustment", () => {
+    expect(updateStaffOrderItemsSchema.safeParse({
+      items: [{ kind: "EXISTING", itemId, quantity: 1 }],
+      publicAmendment: {
+        reason: "SOLD_OUT_REMOVE",
+        customerMessage: "香酥雞已售完，已移除並重新計算金額。",
+      },
+    }).success).toBe(true);
+  });
+
+  it("rejects an empty public-order customer notice", () => {
+    expect(updateStaffOrderItemsSchema.safeParse({
+      items: [{ kind: "EXISTING", itemId, quantity: 1 }],
+      publicAmendment: {
+        reason: "SOLD_OUT_REMOVE",
+        customerMessage: " ",
+      },
+    }).success).toBe(false);
+  });
   it("accepts quantity changes, removals by omission, and trusted new product requests", () => {
     expect(updateStaffOrderItemsSchema.safeParse({
       items: [

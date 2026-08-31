@@ -11,7 +11,10 @@ import {
   RefreshCw,
   ShieldCheck,
   ShoppingCart,
+  Truck,
+  X,
 } from "lucide-react";
+import { useState } from "react";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
 import { QrOrderCartPanel } from "@/components/qr-order-cart-panel";
 import type { QrOrderFlowController } from "@/components/qr-order-flow-controller";
@@ -132,6 +135,7 @@ export function QrOrderFlowPresentation({
     waitAcknowledged,
     acceptLotteryRecommendation,
   } = controller;
+  const [dismissedDeliveryNotice, setDismissedDeliveryNotice] = useState<string | null>(null);
 
   if (isLoading) {
     return <main className="grid min-h-screen place-items-center px-5 text-sm text-stone-600">{copy.sessionLoading}</main>;
@@ -194,6 +198,9 @@ export function QrOrderFlowPresentation({
   const lotterySpendRemaining = session.lotteryReward?.spendEnabled
     ? Math.max(0, session.lotteryReward.spendThresholdAmount - total)
     : 0;
+  const deliveryNotice = activeOrderingMode === "DELIVERY"
+    ? session.deliveryNotice?.trim() ?? ""
+    : "";
   const cartPanel = (
     <QrOrderCartPanel
       session={session}
@@ -450,7 +457,43 @@ export function QrOrderFlowPresentation({
           onRefresh={reloadWithPersistedCart}
         />
       ) : null}
+      {deliveryNotice && dismissedDeliveryNotice !== deliveryNotice ? (
+        <DeliveryNoticeDialog
+          title={deliveryCopy.noticeTitle}
+          message={deliveryNotice}
+          dismissLabel={deliveryCopy.noticeDismiss}
+          onDismiss={() => setDismissedDeliveryNotice(deliveryNotice)}
+        />
+      ) : null}
     </main>
+  );
+}
+
+export function DeliveryNoticeDialog({
+  title,
+  message,
+  dismissLabel,
+  onDismiss,
+}: {
+  title: string;
+  message: string;
+  dismissLabel: string;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-stone-950/65 p-4">
+      <section role="dialog" aria-modal="true" aria-labelledby="delivery-notice-title" className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+        <button type="button" aria-label={dismissLabel} onClick={onDismiss} className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full text-stone-500 hover:bg-stone-100">
+          <X aria-hidden="true" className="h-5 w-5" />
+        </button>
+        <Truck aria-hidden="true" className="h-10 w-10 text-teal-700" />
+        <h2 id="delivery-notice-title" className="mt-3 pr-10 text-xl font-bold text-stone-950">{title}</h2>
+        <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-stone-700">{message}</p>
+        <button type="button" onClick={onDismiss} className="mt-6 min-h-12 w-full rounded-md bg-teal-700 px-4 font-semibold text-white">
+          {dismissLabel}
+        </button>
+      </section>
+    </div>
   );
 }
 

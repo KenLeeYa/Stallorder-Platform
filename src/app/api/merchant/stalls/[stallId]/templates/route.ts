@@ -139,6 +139,7 @@ export async function POST(request: Request, context: RouteContext) {
         where: { stallId },
         data: {
           staffDeliveryEnabled: source.settings.staffDeliveryEnabled,
+          deliveryCustomerNotice: source.settings.deliveryCustomerNotice,
           takeoutPreorderEnabled: source.settings.takeoutPreorderEnabled,
           preorderMinLeadMinutes: source.settings.preorderMinLeadMinutes,
           preorderMaxDays: source.settings.preorderMaxDays,
