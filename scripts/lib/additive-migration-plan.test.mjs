@@ -71,6 +71,10 @@ const multitenantEinvoiceLocalMockMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260830010000_multitenant_einvoice_local_mock.sql",
 ), "utf8");
+const publicTakeoutAmendmentDeliveryNoticeMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260831010000_public_takeout_amendment_delivery_notice.sql",
+), "utf8");
 const lotteryFreeProductCampaignsMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260825120000_lottery_free_product_campaigns.sql",
@@ -113,6 +117,18 @@ describe("additive DR migration plan", () => {
       multitenantEinvoiceLocalMockMigration.replace(
         "alter table public.billing_feature_flags disable trigger backend_writable_guard",
         "alter table public.plans disable trigger backend_writable_guard",
+      ),
+    )).toThrow();
+  });
+
+  it("allows only the exact reviewed public takeout amendment transition", () => {
+    expect(assertAdditiveMigrationSql(
+      publicTakeoutAmendmentDeliveryNoticeMigration,
+    )).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      publicTakeoutAmendmentDeliveryNoticeMigration.replace(
+        "check (preorder_min_lead_minutes between 5 and 1440)",
+        "check (preorder_min_lead_minutes between 1 and 1440)",
       ),
     )).toThrow();
   });

@@ -15,8 +15,19 @@ const newItemSchema = z.object({
   bundleChoiceIds: z.array(z.string().uuid()).max(400).default([]),
 }).strict();
 
+const publicOrderAmendmentSchema = z.object({
+  reason: z.enum([
+    "SOLD_OUT_REMOVE",
+    "SOLD_OUT_REPLACE",
+    "QUANTITY_ADJUSTMENT",
+    "OTHER",
+  ]),
+  customerMessage: z.string().trim().min(2, "請填寫要通知顧客的內容。").max(200),
+}).strict();
+
 export const updateStaffOrderItemsSchema = z.object({
   items: z.array(z.discriminatedUnion("kind", [existingItemSchema, newItemSchema])).min(1).max(100),
+  publicAmendment: publicOrderAmendmentSchema.optional(),
 }).strict().superRefine((value, context) => {
   const existingIds = value.items
     .filter((item): item is z.infer<typeof existingItemSchema> => item.kind === "EXISTING")

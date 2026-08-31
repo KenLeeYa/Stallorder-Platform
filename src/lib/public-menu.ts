@@ -109,6 +109,9 @@ export async function getCachedPublicMenuForQrToken(
     orderingMode: resolvedOrderingMode,
     preorderSlots,
     lotteryEnabled: resolvedOrderingMode === "DEFAULT" && settings.lotteryEnabled,
+    deliveryNotice: resolvedOrderingMode === "DELIVERY"
+      ? settings.deliveryCustomerNotice || null
+      : null,
     lotteryReward: {
       spendEnabled: settings.lotterySpendRewardEnabled,
       spendThresholdAmount: settings.lotterySpendThresholdAmount,
@@ -338,6 +341,7 @@ async function loadQrContext(qrToken: string) {
             select: {
               dineInEnabled: true,
               deliveryModuleEnabled: true,
+              deliveryCustomerNotice: true,
               takeoutPreorderEnabled: true,
               lotteryEnabled: true,
               lotterySpendRewardEnabled: true,

@@ -10,6 +10,12 @@ import {
 import { fulfillmentTimeCommandSchema } from "./fulfillment-time";
 
 describe("fulfillment time commands", () => {
+  it("accepts the audited customer-present override command", () => {
+    expect(fulfillmentTimeCommandSchema.safeParse({
+      operation: "CUSTOMER_PRESENT",
+      version: 3,
+    }).success).toBe(true);
+  });
   it("accepts versioned confirmation and proposal commands", () => {
     expect(fulfillmentTimeCommandSchema.safeParse({
       operation: "CONFIRM_REQUESTED",

@@ -53,6 +53,24 @@ describe("StaffOrderBoard fulfillment-time command", () => {
     );
   });
 
+  it("submits the customer-present override without inventing a fulfillment time", async () => {
+    const order = { id: "order-1", status: "READY", fulfillmentTimeVersion: 5 } as StaffOrderDto;
+    const command = { operation: "CUSTOMER_PRESENT" as const, version: 4 };
+    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ order }));
+
+    await expect(updateStaffOrderFulfillmentTime({
+      stallSlug: "night-market",
+      orderId: "order-1",
+      command,
+      fetchImpl,
+      getCsrfHeaders: () => csrf,
+    })).resolves.toEqual(order);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/api/stalls/night-market/orders/order-1/fulfillment-time",
+      expect.objectContaining({ body: JSON.stringify(command) }),
+    );
+  });
+
   it("rejects an unsuccessful or incomplete response with the existing fallback", async () => {
     for (const response of [jsonResponse({}, 500), jsonResponse({}, 200)]) {
       await expect(updateStaffOrderFulfillmentTime({

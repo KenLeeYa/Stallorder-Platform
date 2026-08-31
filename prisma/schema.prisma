@@ -2247,6 +2247,7 @@ model StallOrderingSettings {
   maxBehaviorFrequency           Int          @default(4) @map("max_behavior_frequency")
   dineInEnabled                  Boolean      @default(false) @map("dine_in_enabled")
   deliveryModuleEnabled          Boolean      @default(false) @map("delivery_module_enabled")
+  deliveryCustomerNotice         String       @default("") @map("delivery_customer_notice") @db.VarChar(500)
   staffDeliveryEnabled           Boolean      @default(false) @map("staff_delivery_enabled")
   printModuleEnabled             Boolean      @default(false) @map("print_module_enabled")
   kdsModuleEnabled               Boolean      @default(false) @map("kds_module_enabled")
@@ -2254,7 +2255,7 @@ model StallOrderingSettings {
   discountModuleEnabled          Boolean      @default(false) @map("discount_module_enabled")
   discountApprovalThresholdBps   Int          @default(8000) @map("discount_approval_threshold_bps")
   takeoutPreorderEnabled         Boolean      @default(false) @map("takeout_preorder_enabled")
-  preorderMinLeadMinutes         Int          @default(60) @map("preorder_min_lead_minutes") @db.SmallInt
+  preorderMinLeadMinutes         Int          @default(5) @map("preorder_min_lead_minutes") @db.SmallInt
   preorderMaxDays                Int          @default(7) @map("preorder_max_days") @db.SmallInt
   preorderSlotMinutes            Int          @default(5) @map("preorder_slot_minutes") @db.SmallInt
   preorderReminderMinutes           Int          @default(30) @map("preorder_reminder_minutes") @db.SmallInt

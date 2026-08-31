@@ -34,6 +34,7 @@ export type ModuleState = {
   settings: {
     dineInEnabled: boolean;
     deliveryModuleEnabled: boolean;
+    deliveryCustomerNotice: string;
     staffDeliveryEnabled: boolean;
     printModuleEnabled: boolean;
     kdsModuleEnabled: boolean;
@@ -334,6 +335,7 @@ export function StallModulesManager({
       view,
       dineInEnabled: settings.dineInEnabled,
       deliveryModuleEnabled: settings.deliveryModuleEnabled,
+      deliveryCustomerNotice: settings.deliveryCustomerNotice,
       staffDeliveryEnabled: settings.staffDeliveryEnabled,
       printModuleEnabled: settings.printModuleEnabled,
       kdsModuleEnabled: settings.kdsModuleEnabled,
@@ -425,8 +427,33 @@ export function StallModulesManager({
         {isView("preorder", "online-ordering") ? <ModuleSwitch label={label("外帶自取（需選時段）")} icon={<CalendarClock className="h-4 w-4" />} checked={state.settings.takeoutPreorderEnabled} onChange={(takeoutPreorderEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, takeoutPreorderEnabled }) }))} /> : null}
         {isView("lottery") ? <ModuleSwitch label={label("抽抽樂推薦")} icon={<Dices className="h-4 w-4" />} checked={state.settings.lotteryEnabled} onChange={(lotteryEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, lotteryEnabled }) }))} /> : null}
       </div> : null}
+      {isView("delivery", "online-ordering") && state.settings.deliveryModuleEnabled ? (
+        <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-4">
+          <label className="block text-sm font-semibold text-sky-950">
+            {label("顧客進入外送時的提醒")}
+            <textarea
+              value={state.settings.deliveryCustomerNotice}
+              maxLength={500}
+              rows={4}
+              placeholder={label("例如：僅配送 3 公里內；大量餐點請提前一天預訂。")}
+              onChange={(event) => setState((current) => ({
+                ...current,
+                settings: {
+                  ...current.settings,
+                  deliveryCustomerNotice: event.target.value,
+                },
+              }))}
+              className="mt-2 w-full rounded-md border border-sky-300 bg-white p-3 text-sm font-normal text-stone-900"
+            />
+          </label>
+          <div className="mt-1 flex items-start justify-between gap-3 text-xs text-sky-800">
+            <p>{label("有填寫時，顧客進入外送點餐會先看到置中提醒視窗。")}</p>
+            <span className="shrink-0">{state.settings.deliveryCustomerNotice.length}/500</span>
+          </div>
+        </div>
+      ) : null}
       {isView("preorder", "online-ordering") && state.settings.takeoutPreorderEnabled ? <div className="mt-4 grid gap-3 rounded-lg border border-stone-200 p-4 sm:grid-cols-3">
-        <NumberInput label={label("最少提前（分鐘）")} value={state.settings.preorderMinLeadMinutes} fieldKey={fieldKey("modules", "preorderMinLeadMinutes")} error={errorFor("modules", "preorderMinLeadMinutes")} min={15} max={1440} onChange={(preorderMinLeadMinutes) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMinLeadMinutes } }))} />
+        <NumberInput label={label("最少提前（分鐘）")} value={state.settings.preorderMinLeadMinutes} fieldKey={fieldKey("modules", "preorderMinLeadMinutes")} error={errorFor("modules", "preorderMinLeadMinutes")} min={5} max={1440} onChange={(preorderMinLeadMinutes) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMinLeadMinutes } }))} />
         <NumberInput label={label("最多預約天數")} value={state.settings.preorderMaxDays} fieldKey={fieldKey("modules", "preorderMaxDays")} error={errorFor("modules", "preorderMaxDays")} min={1} max={30} onChange={(preorderMaxDays) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMaxDays } }))} />
         <label className="text-xs font-medium text-stone-600">{label("時段間隔")}<select {...validationAttributes(fieldKey("modules", "preorderSlotMinutes"), errorFor("modules", "preorderSlotMinutes"))} value={state.settings.preorderSlotMinutes} onChange={(event) => setState((current) => ({ ...current, settings: { ...current.settings, preorderSlotMinutes: Number(event.target.value) as 5 | 15 | 30 | 60 | 120 } }))} className={`${inputClass(errorFor("modules", "preorderSlotMinutes"))} bg-white`}><option value={5}>{label("5 分鐘")}</option><option value={15}>{label("15 分鐘")}</option><option value={30}>{label("30 分鐘")}</option><option value={60}>{label("60 分鐘")}</option><option value={120}>{label("120 分鐘")}</option></select><FieldError fieldKey={fieldKey("modules", "preorderSlotMinutes")} error={errorFor("modules", "preorderSlotMinutes")} /></label>
         <p className="text-xs text-stone-500 sm:col-span-3">{label("關店期間只接受營業時間內的合法外帶時段；暫停接單與售罄仍會阻擋預約。")}</p>

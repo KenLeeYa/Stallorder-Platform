@@ -56,6 +56,7 @@ export function LoginForm({
     : "";
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isClientReady = useSyncExternalStore(subscribeToClientReady, readClientReady, readServerNotReady);
   const passwordDialogRef = useRef<HTMLDialogElement>(null);
   const hasOAuthProvider = oauthProviders.length > 0 || legacyGoogleEnabled;
   const titleKey = audience === "STAFF" ? "login.staff.title" : "login.title";
@@ -120,7 +121,7 @@ export function LoginForm({
           <p className="text-xs font-semibold text-teal-900">本機測試快速登入</p>
           <div data-testid="local-qa-login-grid" className="mt-2 grid grid-cols-2 gap-2">
             {localQaAccounts.map((account) => (
-              <button key={account.email} type="button" disabled={isSubmitting} onClick={() => void authenticate(account.email, account.password)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900 hover:bg-teal-100 disabled:opacity-50">
+              <button key={account.email} type="button" disabled={!isClientReady || isSubmitting} onClick={() => void authenticate(account.email, account.password)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900 hover:bg-teal-100 disabled:opacity-50">
                 <LogIn className="h-4 w-4" />{account.label}
               </button>
             ))}
@@ -165,6 +166,7 @@ export function LoginForm({
           ) : null}
           <button
             type="button"
+            disabled={!isClientReady}
             onClick={openPasswordDialog}
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-900 hover:bg-stone-50"
           >
@@ -265,4 +267,16 @@ function subscribeToLocation(callback: () => void) {
 
 function readLocationSearch() {
   return window.location.search;
+}
+
+function subscribeToClientReady() {
+  return () => undefined;
+}
+
+function readClientReady() {
+  return true;
+}
+
+function readServerNotReady() {
+  return false;
 }

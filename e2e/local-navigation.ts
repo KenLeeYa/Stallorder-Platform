@@ -49,7 +49,7 @@ export async function gotoLocalPath(page: Page, path: string, expectedPath = pat
 export async function dismissStaffStartReminder(page: Page) {
   const backdrop = page.getByTestId("staff-start-reminder-backdrop");
   try {
-    await backdrop.waitFor({ state: "visible", timeout: 3_000 });
+    await backdrop.waitFor({ state: "visible", timeout: 10_000 });
   } catch (error) {
     if (error instanceof errors.TimeoutError) return;
     throw error;

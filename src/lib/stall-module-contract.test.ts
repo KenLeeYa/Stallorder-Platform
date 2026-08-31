@@ -38,7 +38,7 @@ describe("stall module field validation", () => {
       discountModuleEnabled: true,
       discountApprovalThresholdBps: 10_001,
       takeoutPreorderEnabled: true,
-      preorderMinLeadMinutes: 14,
+      preorderMinLeadMinutes: 4,
       preorderMaxDays: 31,
       preorderSlotMinutes: 45,
       lotteryEnabled: true,
@@ -56,7 +56,7 @@ describe("stall module field validation", () => {
     if (result.success) return;
     expect(getStallModuleFieldErrors(result.error)).toEqual({
       discountApprovalThresholdBps: "經理核准門檻不可超過 100%。",
-      preorderMinLeadMinutes: "最少提前時間不可少於 15 分鐘。",
+      preorderMinLeadMinutes: "最少提前時間不可少於 5 分鐘。",
       preorderMaxDays: "最多預約天數不可超過 30 天。",
       preorderSlotMinutes: "預約時段間隔只能選擇 5、15、30、60 或 120 分鐘。",
       lotteryDiscountWinRateBps: "折扣中獎率不可小於 0%。",
@@ -102,7 +102,7 @@ describe("stall module field validation", () => {
       lotteryBirthdayRewardEnabled: false,
     })).toEqual({
       takeoutPreorderEnabled: false,
-      preorderMinLeadMinutes: 15,
+      preorderMinLeadMinutes: 5,
       preorderMaxDays: 1,
       preorderSlotMinutes: 5,
       lotteryEnabled: false,
@@ -116,6 +116,17 @@ describe("stall module field validation", () => {
       lotteryFestivalEndsOn: null,
       lotteryBirthdayRewardEnabled: false,
     });
+  });
+
+  it("accepts a delivery reminder up to 500 characters and rejects longer content", () => {
+    expect(stallModuleCommandSchema.safeParse({
+      ...validModuleCommand(),
+      deliveryCustomerNotice: "僅配送三公里內；大量餐點請提前預訂。",
+    }).success).toBe(true);
+    expect(stallModuleCommandSchema.safeParse({
+      ...validModuleCommand(),
+      deliveryCustomerNotice: "外".repeat(501),
+    }).success).toBe(false);
   });
 
   it("accepts multiple lottery discounts while reserving the remaining probability for no prize", () => {

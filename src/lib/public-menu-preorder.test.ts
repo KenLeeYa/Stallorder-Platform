@@ -52,6 +52,7 @@ describe("Next public preorder menu", () => {
         orderingSettings: {
           dineInEnabled: true,
           deliveryModuleEnabled: false,
+          deliveryCustomerNotice: "僅配送鄰近區域，大量訂購請先聯絡商家。",
           takeoutPreorderEnabled: true,
           lotteryEnabled: true,
         },
@@ -84,6 +85,7 @@ describe("Next public preorder menu", () => {
       maxNoteLength: 200,
       enabledLocales: ["zh-TW"],
       estimatedWaitMinutes: 10,
+      deliveryCustomerNotice: "僅配送鄰近區域，大量訂購請先聯絡商家。",
     });
     specialClosureFindMany.mockResolvedValue([]);
     queryRaw.mockImplementation((template: TemplateStringsArray) => (
@@ -246,6 +248,7 @@ describe("Next public preorder menu", () => {
     expect(menu).toMatchObject({
       orderingMode: "DELIVERY",
       preorderSlots: ["2099-08-03T05:00:00.000Z"],
+      deliveryNotice: "僅配送鄰近區域，大量訂購請先聯絡商家。",
       stall: { fulfillmentType: "DELIVERY" },
     });
     expect(queryRaw.mock.calls.some(([template]) => (

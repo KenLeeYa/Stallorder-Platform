@@ -12,6 +12,7 @@ export async function getStallModuleState(stallId: string, organizationId: strin
       select: {
         dineInEnabled: true,
         deliveryModuleEnabled: true,
+        deliveryCustomerNotice: true,
         staffDeliveryEnabled: true,
         printModuleEnabled: true,
         kdsModuleEnabled: true,
