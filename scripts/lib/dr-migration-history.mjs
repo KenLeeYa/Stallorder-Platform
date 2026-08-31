@@ -11,6 +11,26 @@ const legacyMigrationLastVersion = "20260724175025";
 const legacyMigrationIdentityDigest =
   "c9dcb6c185fb3b23cdc692f572d6fad17d164d24c9b5485f69a4e2f17dde81fd";
 const migrationVersionPattern = /^\d{14}$/;
+const approvedHistoricalMetadataRewrites = new Map([
+  ["20260813133000", {
+    name: "global_stall_code_guard",
+    primaryStatementCount: 5,
+    drStatementCount: 5,
+    primaryStatementsDigest:
+      "679d775e2d96f5d39621c2a0735681b399e88c2094becc34b1dde4197a9e6a5e",
+    drStatementsDigest:
+      "40cf03d0d1a17ae76143e9d0cb9daa6d5654c2f2af7796a3e170c3f002a28322",
+  }],
+  ["20260813194500", {
+    name: "future_fulfillment_production_load",
+    primaryStatementCount: 12,
+    drStatementCount: 4,
+    primaryStatementsDigest:
+      "c670716986a01f7264a8d5b8bd9661336eff3117645183e5552c49d3a752099c",
+    drStatementsDigest:
+      "8da438dd906ae98d706758bc354b507bf89c39f9410872a1a051c37de8d8efc3",
+  }],
+]);
 
 export class DrMigrationHistoryError extends Error {
   constructor(code) {
@@ -31,17 +51,51 @@ export function assertMigrationHistoriesCompatible(primaryRows, drRows) {
   for (let index = 0; index < primary.length; index += 1) {
     const primaryRow = primary[index];
     const drRow = dr[index];
+    const statementsMatch =
+      JSON.stringify(primaryRow.statements) === JSON.stringify(drRow.statements);
+    const approvedHistoricalRewrite = !statementsMatch
+      && isApprovedHistoricalMetadataRewrite({
+        version: primaryRow.version,
+        name: primaryRow.name,
+        primaryStatementCount: primaryRow.statements.length,
+        drStatementCount: drRow.statements.length,
+        primaryStatementsDigest: statementsDigest(primaryRow.statements),
+        drStatementsDigest: statementsDigest(drRow.statements),
+      });
     if (
       primaryRow.version !== drRow.version
       || primaryRow.name !== drRow.name
       || (
         primaryRow.version >= modernMigrationMetadataFrom
-        && JSON.stringify(primaryRow.statements) !== JSON.stringify(drRow.statements)
+        && !statementsMatch
+        && !approvedHistoricalRewrite
       )
     ) {
       throw new DrMigrationHistoryError("MIGRATION_HISTORY_MISMATCH");
     }
   }
+}
+
+export function isApprovedHistoricalMetadataRewrite({
+  version,
+  name,
+  primaryStatementCount,
+  drStatementCount,
+  primaryStatementsDigest,
+  drStatementsDigest,
+}) {
+  const approved = approvedHistoricalMetadataRewrites.get(version);
+  return approved?.name === name
+    && approved.primaryStatementCount === primaryStatementCount
+    && approved.drStatementCount === drStatementCount
+    && approved.primaryStatementsDigest === primaryStatementsDigest
+    && approved.drStatementsDigest === drStatementsDigest;
+}
+
+function statementsDigest(statements) {
+  return createHash("sha256")
+    .update(JSON.stringify(statements))
+    .digest("hex");
 }
 
 function validateMigrationHistory(rows) {
