@@ -2,6 +2,7 @@ import { readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   assertMigrationHistoriesCompatible,
+  isApprovedHistoricalMetadataRewrite,
   modernMigrationMetadataFrom,
 } from "./dr-migration-history.mjs";
 
@@ -52,6 +53,38 @@ describe("DR migration history compatibility", () => {
 
     expect(() => assertMigrationHistoriesCompatible(primary, dr))
       .toThrowError("MIGRATION_HISTORY_MISMATCH");
+  });
+
+  it("accepts only the audited Primary-to-DR metadata rewrite digests", () => {
+    expect(isApprovedHistoricalMetadataRewrite({
+      version: "20260813133000",
+      name: "global_stall_code_guard",
+      primaryStatementCount: 5,
+      drStatementCount: 5,
+      primaryStatementsDigest:
+        "679d775e2d96f5d39621c2a0735681b399e88c2094becc34b1dde4197a9e6a5e",
+      drStatementsDigest:
+        "40cf03d0d1a17ae76143e9d0cb9daa6d5654c2f2af7796a3e170c3f002a28322",
+    })).toBe(true);
+    expect(isApprovedHistoricalMetadataRewrite({
+      version: "20260813194500",
+      name: "future_fulfillment_production_load",
+      primaryStatementCount: 12,
+      drStatementCount: 4,
+      primaryStatementsDigest:
+        "c670716986a01f7264a8d5b8bd9661336eff3117645183e5552c49d3a752099c",
+      drStatementsDigest:
+        "8da438dd906ae98d706758bc354b507bf89c39f9410872a1a051c37de8d8efc3",
+    })).toBe(true);
+    expect(isApprovedHistoricalMetadataRewrite({
+      version: "20260813194500",
+      name: "future_fulfillment_production_load",
+      primaryStatementCount: 12,
+      drStatementCount: 4,
+      primaryStatementsDigest: "0".repeat(64),
+      drStatementsDigest:
+        "8da438dd906ae98d706758bc354b507bf89c39f9410872a1a051c37de8d8efc3",
+    })).toBe(false);
   });
 
   it.each([
