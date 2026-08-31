@@ -29,6 +29,23 @@ Functions 與付款 callback 全部完成後，才可進入實際切換。
 Domain policy 見
 [`ADR-005`](adr/ADR-005-dr-hostname-and-environment-domain-policy.md)。
 
+## 0. 建立受保護 operator 入口（一次性）
+
+先完成正常 `staging` → `main` 發布，使兩者 tree 完全一致。再於 GitHub
+Actions 執行 `Production DR Operator Entry`：
+
+1. `plan` + `PLAN_DR_OPERATOR_ENTRY`，下載並審查 immutable Plan。
+2. 使用該 Plan run ID 執行 `apply` +
+   `CREATE_PROTECTED_DR_OPERATOR_ENTRY`。
+3. 證據必須包含 unauthenticated access 已遭拒絕、authenticated
+   `/api/health/dr/operator` 為 `READY`、Supabase project/URL 與 DR ref
+   一致、Auth/Storage 回應健康、所有 Edge Functions 為 `ACTIVE`、DR 資料庫
+   是 fenced `READ_ONLY_STANDBY`，以及 `app.qidaigo.com/api/health=200`。
+
+這個入口只驗證待命能力，不會提升 DR 或移動 Production hostname。任何
+Apply 失敗都必須以本次建立的精確 provider resource ID 回復；不得依名稱刪除
+既有資源，也不得更動 Primary/DR writer state。
+
 ## 1. 只讀評估
 
 先查看不連線、不寫入的計畫：

@@ -7,7 +7,7 @@
 | Development | `http://localhost:<port>` 或核准的同網段本機 QA URL | 本機 Supabase CLI | local | feature branch | 僅本機 fixture；不可連 Production Primary／DR | 只允許明確本機 QA policy |
 | Ephemeral Preview | 與 Pull Request 配對的 Vercel Preview URL | Data-less Supabase Preview Branch | 每次動態建立 | same-repository PR | `with_data=false`；只載入 deterministic synthetic fixtures；PR 關閉後刪除 | 精確 Preview hostname；秘密不持久化 |
 | Source-tree gate | 無 persistent runtime | 無 remote database | n/a | `staging` | 只作 promotion gate；不得重新連到舊 Staging／DR 專案 | n/a |
-| Production DR | 尚無一般公開 URL；規劃 `https://dr.qidaigo.com` 僅供受保護 operator validation | `stallorder-dr`，former Staging project | `daeqwtpaxcebmtwxqdkj` | verified `main` tree | `READ_ONLY_STANDBY`、writer fenced；只接受核准的 Primary 單向複寫；不得載入 Preview fixture | DR 專用 Auth／Storage／Edge secrets；hostname 未 provision 前不得宣稱通過 |
+| Production DR | 尚無一般公開 URL；`https://dr.qidaigo.com` 的受保護 operator-only Plan/Apply 已實作但尚未遠端套用 | `stallorder-dr`，former Staging project | `daeqwtpaxcebmtwxqdkj` | verified `main` tree | `READ_ONLY_STANDBY`、writer fenced；只接受核准的 Primary 單向複寫；不得載入 Preview fixture | DR 專用 Auth／Storage／Edge secrets；Vercel Authentication、operator probe 與服務檢查全通過前不得宣稱 hostname 可用 |
 | Production Primary | `https://app.qidaigo.com` | `stallorder-production` | `eyuctbnlvnbnivwasvqr` | `main` | 唯一正常 writer；禁止 demo seed／remote reset | `app.qidaigo.com` 與精確 Production origins |
 
 ## 資料規則
@@ -28,6 +28,7 @@
 - former Staging 專案已轉為 DR；不得再稱為 Staging、接收 synthetic test data，或綁定 `staging.qidaigo.com`。
 - Schema、RLS/grants、Auth identity mapping、Storage manifest、Edge Functions 與 replication readiness 必須由最新 immutable evidence 證明，不在本表硬編容易過期的 migration／relation 數量。
 - `dr.qidaigo.com` 只有在 DR-configured deployment、access protection、backend identity、promotion epoch、Turnstile/origin/callback 與 fence 驗證完成後才可建立。
+- 專用 operator runtime 使用獨立 `stallorder-dr` Vercel project、無 Cron、DR-only database/Supabase bindings；它不會提升資料庫，也不會接管 `app.qidaigo.com`。
 
 ### Production Primary
 

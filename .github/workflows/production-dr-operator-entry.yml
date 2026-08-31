@@ -1,0 +1,286 @@
+name: Production DR Operator Entry
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Protected DR operator entry operation
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+      confirmation:
+        description: Type PLAN_DR_OPERATOR_ENTRY or CREATE_PROTECTED_DR_OPERATOR_ENTRY
+        required: true
+        type: string
+      plan_run_id:
+        description: Successful matching Plan run ID required for Apply
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-dr-operator-entry
+  cancel-in-progress: false
+
+env:
+  DR_SUPABASE_PROJECT_REF: ${{ vars.DR_SUPABASE_PROJECT_REF }}
+  VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+
+jobs:
+  plan:
+    if: inputs.operation == 'plan'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Validate protected Plan invocation
+        env:
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::DR operator entry plans must run from main."
+            exit 1
+          }
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+            echo "::error::Only the repository owner may create a DR operator entry Plan."
+            exit 1
+          }
+          test "$INPUT_CONFIRMATION" = "PLAN_DR_OPERATOR_ENTRY" || {
+            echo "::error::Confirmation must be PLAN_DR_OPERATOR_ENTRY."
+            exit 1
+          }
+          for name in \
+            DR_SUPABASE_PROJECT_REF \
+            VERCEL_ORG_ID \
+            VERCEL_PROJECT_ID \
+            CLOUDFLARE_ACCOUNT_ID \
+            CLOUDFLARE_ZONE_ID
+          do
+            test -n "${!name:-}" || {
+              echo "::error::Missing protected configuration: ${name}"
+              exit 1
+            }
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Normalize protected Vercel token
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node scripts/export-normalized-vercel-token.mjs
+
+      - name: Export DR-only database URLs
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+        run: node scripts/export-dr-database-urls.mjs --dr-only
+
+      - name: Capture immutable provider and DR runtime Plan
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          node scripts/manage-dr-operator-entry.mjs \
+            > artifacts/dr-operator-entry-plan.json
+          echo "PRODUCTION_APPROVAL_OPERATION=production-dr-operator-entry" >> "$GITHUB_ENV"
+          echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"hostname":"dr.qidaigo.com","projectName":"stallorder-dr","protection":"VERCEL_AUTHENTICATION_ALL","retireLegacyStaging":true}' >> "$GITHUB_ENV"
+
+      - name: Create immutable Production plan receipt
+        env:
+          PRODUCTION_APPROVAL_RECEIPT_PATH: artifacts/production-approval.json
+        run: node scripts/production-approval.mjs create
+
+      - name: Upload DR operator entry Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-dr-operator-entry-plan-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 1
+
+  approval:
+    if: inputs.operation == 'apply'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Validate Plan-bound Apply invocation
+        env:
+          INPUT_CONFIRMATION: ${{ inputs.confirmation }}
+          INPUT_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main" || {
+            echo "::error::DR operator entry Apply must run from main."
+            exit 1
+          }
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+            echo "::error::Only the repository owner may Apply a DR operator entry Plan."
+            exit 1
+          }
+          test "$INPUT_CONFIRMATION" = "CREATE_PROTECTED_DR_OPERATOR_ENTRY" || {
+            echo "::error::Confirmation must be CREATE_PROTECTED_DR_OPERATOR_ENTRY."
+            exit 1
+          }
+          [[ "$INPUT_PLAN_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || {
+            echo "::error::Apply requires the successful matching Plan run ID."
+            exit 1
+          }
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Download approved DR operator entry Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: production-dr-operator-entry-plan-${{ inputs.plan_run_id }}
+          path: approved-plan
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.plan_run_id }}
+
+      - name: Verify Apply is bound to the immutable Plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PRODUCTION_APPROVAL_OPERATION: production-dr-operator-entry
+          PRODUCTION_APPROVAL_PARAMETERS_JSON: >-
+            {"hostname":"dr.qidaigo.com","projectName":"stallorder-dr","protection":"VERCEL_AUTHENTICATION_ALL","retireLegacyStaging":true}
+          PRODUCTION_APPROVAL_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          PRODUCTION_APPROVAL_RECEIPT_PATH: approved-plan/production-approval.json
+        run: node scripts/production-approval.mjs verify
+
+  apply:
+    needs: approval
+    if: "${{ inputs.operation == 'apply' && needs.approval.result == 'success' }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the verified Staging tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')" || {
+            echo "::error::main does not match the verified staging tree."
+            exit 1
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm install --global vercel@56.3.1
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Normalize protected Vercel token
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node scripts/export-normalized-vercel-token.mjs
+
+      - name: Export DR-only database URLs
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+        run: node scripts/export-dr-database-urls.mjs --dr-only
+
+      - name: Export DR-only Supabase runtime keys
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/export-dr-runtime-environment.mjs --dr-only
+
+      - name: Download approved DR operator entry Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: production-dr-operator-entry-plan-${{ inputs.plan_run_id }}
+          path: approved-plan
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.plan_run_id }}
+
+      - name: Apply protected DR operator entry
+        id: apply-entry
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_OPERATOR_ENTRY_CONFIRMATION: CREATE_PROTECTED_DR_OPERATOR_ENTRY
+          DR_OPERATOR_EVIDENCE_PATH: dr-operator-artifacts/dr-operator-entry-evidence.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dr-operator-artifacts
+          node scripts/manage-dr-operator-entry.mjs \
+            --apply \
+            --approved-plan approved-plan/dr-operator-entry-plan.json
+
+      - name: Create immutable DR operator entry evidence
+        env:
+          PRODUCTION_APPROVAL_OPERATION: production-dr-operator-entry
+          PRODUCTION_EVIDENCE_PATH: dr-operator-artifacts/production-dr-operator-entry-evidence.json
+        run: node scripts/production-approval.mjs create-evidence
+
+      - name: Upload DR operator entry evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-dr-operator-entry-apply-${{ github.run_id }}
+          path: dr-operator-artifacts/
+          if-no-files-found: warn
+          retention-days: 30

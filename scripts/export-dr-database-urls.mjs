@@ -34,12 +34,20 @@ try {
   if (primaryOnly) {
     values = { SUPABASE_CI_DATABASE_URL: primaryDirectUrl };
   } else if (drOnly) {
+    const drPassword = required("DR_SUPABASE_DB_PASSWORD");
     values = {
       DR_DIRECT_URL: poolerUrl(
         drConnection,
-        required("DR_SUPABASE_DB_PASSWORD"),
+        drPassword,
         5432,
         false,
+        false,
+      ),
+      DR_RUNTIME_DATABASE_URL: poolerUrl(
+        drConnection,
+        drPassword,
+        drConnection.transactionPort,
+        true,
         false,
       ),
     };
