@@ -8,8 +8,23 @@ gate, but it is not a persistent runtime environment.
 | ----------------- | ---------------------------- | --------------------------- | ------------------------------------------------------ |
 | Ephemeral Preview | Same-repository Pull Request | Matching Vercel Preview URL | Data-less Preview Branch created for that Pull Request |
 | Source-tree gate  | `staging`                    | No persistent runtime       | No remote database                                     |
-| Production DR     | Verified `main` tree         | No normal public traffic    | Former Staging project, fenced read-only standby       |
+| Production DR     | Verified `main` tree         | Protected `https://dr.qidaigo.com` automation implemented; remote entry not provisioned until its reviewed Plan/Apply completes | Former Staging project, fenced read-only standby       |
 | Production        | `main`                       | `https://app.qidaigo.com`   | `stallorder-production` Primary                        |
+
+## Hostname invariants
+
+- `app.qidaigo.com` is the stable customer-facing Production hostname whether Primary or DR is active. Failover changes protected runtime bindings behind this hostname, not customer URLs.
+- `dr.qidaigo.com` is reserved for access-protected operator validation and is not a persistent Staging site or a second public writer. Its separate project/Plan/Apply automation is implemented, but it remains unprovisioned until the protected remote Apply succeeds.
+- `staging.qidaigo.com` is a stale legacy alias, not a release target. Ephemeral Preview is the hosted Staging-equivalent environment.
+- DNS and Vercel-domain changes require their own immutable before-state, Plan, Apply, rollback, and post-change HTTP/backend-identity evidence. Database promotion authorization does not implicitly authorize a domain mutation.
+
+See [ADR-005](adr/ADR-005-dr-hostname-and-environment-domain-policy.md) for the evaluated replacement plan and affected origin/callback controls.
+
+After the application release reaches an identical `staging`/`main` tree, the
+domain operation uses `Production DR Operator Entry`: first `plan` with
+`PLAN_DR_OPERATOR_ENTRY`, then—only after reviewing its digest—`apply` with the
+Plan run ID and `CREATE_PROTECTED_DR_OPERATOR_ENTRY`. This is separate from the
+normal Production application/database Apply and from database promotion.
 
 ## Required release order
 

@@ -22,6 +22,36 @@ Pull Request
 Production DR operations never use a Preview Branch and may run only from the
 verified `main` tree after it matches `staging`.
 
+## Protected DR operator entry
+
+`.github/workflows/production-dr-operator-entry.yml` is the independent
+domain/runtime workflow for `dr.qidaigo.com`. It is not a database promotion
+and cannot move `app.qidaigo.com`.
+
+1. Merge the exact change through `staging`, CI, paired Ephemeral Preview and
+   Playwright, then promote the identical tree to `main`.
+2. Dispatch `plan` with `PLAN_DR_OPERATOR_ENTRY`. The read-only job records the
+   current Vercel/Cloudflare state, the exact commit/tree, DR database identity,
+   read-only role, writer fence, epoch, rollback state, and Plan digest.
+3. Review the one-day Plan artifact. Apply requires that Plan run ID plus
+   `CREATE_PROTECTED_DR_OPERATOR_ENTRY`; current provider state and tree must
+   still match its digest.
+4. Apply creates a separate, Git-unlinked `stallorder-dr` Vercel project with
+   Vercel Authentication on all deployments. `vercel.dr.json` contains no
+   Crons. The unaliased deployment must reject unauthenticated access and its
+   authenticated operator probe must prove DR database and Supabase bindings.
+5. Apply also checks DR Auth and Storage health and lists every DR Edge Function
+   as `ACTIVE` before it creates DNS. It then binds the protected hostname,
+   verifies the same probe again, retires the stale `staging.qidaigo.com`
+   binding/record, and proves `app.qidaigo.com` is still healthy.
+
+Any failure automatically restores the legacy staging state and deletes only
+the exact project/record IDs created by that run. The rollback never changes a
+database writer role. Cloudflare Access is not currently enabled; the planned
+record is therefore DNS-only and project-level Vercel Authentication is the
+mandatory access boundary. If Vercel does not accept `All Deployments`, Apply
+fails and rolls back instead of exposing the endpoint or purchasing a feature.
+
 ## Protected workflow
 
 `.github/workflows/production-dr-operations.yml` has five protected Plan/Apply
@@ -194,6 +224,7 @@ GitHub `production` environment secrets:
 - `PRIMARY_REPLICATION_PASSWORD`
 - `DR_BACKUP_ENCRYPTION_KEY`
 - `VERCEL_TOKEN`
+- `CLOUDFLARE_API_TOKEN`
 
 GitHub `production` environment variables:
 
@@ -202,6 +233,8 @@ GitHub `production` environment variables:
 - `APP_BASE_URL`
 - `VERCEL_ORG_ID`
 - `VERCEL_PROJECT_ID`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_ZONE_ID`
 
 Values must never be committed or printed. Database URLs are assembled at run
 time and masked before use. The workflow retrieves each project's current

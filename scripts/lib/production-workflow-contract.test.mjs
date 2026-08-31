@@ -6,6 +6,9 @@ const root = resolve(import.meta.dirname, "../..");
 const readiness = read(".github/workflows/production-readiness.yml");
 const applicationRelease = read(".github/workflows/production-application-release.yml");
 const disasterRecovery = read(".github/workflows/production-dr-operations.yml");
+const drOperatorEntry = read(".github/workflows/production-dr-operator-entry.yml");
+const drOperatorEntryScript = read("scripts/manage-dr-operator-entry.mjs");
+const drVercel = JSON.parse(read("vercel.dr.json"));
 const ephemeralPreview = read(".github/workflows/ephemeral-preview.yml");
 const statusPage = read(".github/workflows/status-page-deploy.yml");
 const drSmoke = read("scripts/run-dr-readonly-smoke.mjs");
@@ -71,6 +74,35 @@ describe("Production workflow approval contract", () => {
       expect(workflowJob(disasterRecovery, jobName)).toMatch(/needs: approval/u);
     }
     expect(disasterRecovery).toContain("production-approval.mjs verify");
+    expect(drOperatorEntry).toContain("plan_run_id:");
+    expect(drOperatorEntry).toContain("production-approval.mjs verify");
+    expect(drOperatorEntry).toContain("CREATE_PROTECTED_DR_OPERATOR_ENTRY");
+    expect(drOperatorEntry.indexOf("production-approval.mjs verify")).toBeLessThan(
+      drOperatorEntry.indexOf("name: Apply protected DR operator entry"),
+    );
+    expect(drOperatorEntry).toContain("VERCEL_AUTHENTICATION_ALL");
+    expect(drOperatorEntryScript).toContain("--local-config");
+    expect(drOperatorEntryScript).toContain("vercel.dr.json");
+    expect(drOperatorEntry).toContain("supabase/setup-cli@v1");
+    expect(drOperatorEntry).toContain("version: 2.109.1");
+    expect(drOperatorEntry.match(/name: Normalize protected Vercel token/gu)).toHaveLength(2);
+    expect(drOperatorEntryScript).toContain("/auth/v1/health");
+    expect(drOperatorEntryScript).toContain("/storage/v1/status");
+    expect(drOperatorEntryScript).toContain('"functions", "list"');
+    expect(drOperatorEntryScript).toContain("DR_ENTRY_EDGE_FUNCTIONS_INCOMPLETE");
+    expect(drOperatorEntryScript).toContain("supabaseProjectRef");
+    expect(drOperatorEntryScript).toContain("DR_ENTRY_ROLLBACK_PROJECT_IDENTITY_MISMATCH");
+    expect(drOperatorEntryScript).toContain("DR_ENTRY_ROLLBACK_DNS_IDENTITY_MISMATCH");
+    expect(drOperatorEntryScript).toContain("rollbackCompleted");
+    expect(drOperatorEntryScript).toContain("DR_OPERATOR_EVIDENCE_PATH");
+    expect(drOperatorEntry).not.toContain("Roll back a failed provider Apply");
+    expect(drVercel.crons).toBeUndefined();
+    expect(drVercel.headers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "/(.*)" }),
+    ]));
+    expect(drOperatorEntry).not.toContain("vercel promote");
+    expect(drOperatorEntry).not.toContain("supabase db push");
+    expect(drOperatorEntry).not.toContain("supabase db reset");
     expect(statusPage).toContain("plan_run_id:");
     expect(statusPage.indexOf("production-approval.mjs verify")).toBeLessThan(
       statusPage.indexOf("name: Deploy Worker and custom domain"),

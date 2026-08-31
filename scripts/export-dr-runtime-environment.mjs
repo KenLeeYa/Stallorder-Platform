@@ -1,25 +1,32 @@
 import { appendFile } from "node:fs/promises";
 
 const accessToken = required("SUPABASE_ACCESS_TOKEN");
-const primaryRef = required("PRIMARY_SUPABASE_PROJECT_REF");
+const options = process.argv.slice(2);
+if (options.length > 1 || (options[0] && options[0] !== "--dr-only")) {
+  throw new Error("UNSUPPORTED_ARGUMENTS");
+}
+const drOnly = options[0] === "--dr-only";
+const primaryRef = drOnly ? null : required("PRIMARY_SUPABASE_PROJECT_REF");
 const drRef = required("DR_SUPABASE_PROJECT_REF");
 const output = required("GITHUB_ENV");
 
 try {
   const [primaryKeys, drKeys] = await Promise.all([
-    apiKeys(primaryRef),
+    primaryRef ? apiKeys(primaryRef) : Promise.resolve(null),
     apiKeys(drRef),
   ]);
-  const primarySecret = selectKey(primaryKeys, "secret");
+  const primarySecret = primaryKeys ? selectKey(primaryKeys, "secret") : null;
   const drSecret = selectKey(drKeys, "secret");
   const drPublishable = selectKey(drKeys, "publishable");
-  for (const secret of [primarySecret, drSecret]) {
+  for (const secret of [primarySecret, drSecret].filter(Boolean)) {
     console.log(`::add-mask::${secret}`);
   }
 
   const values = {
-    PRIMARY_SUPABASE_URL: `https://${primaryRef}.supabase.co`,
-    PRIMARY_SUPABASE_SECRET_KEY: primarySecret,
+    ...(primaryRef ? {
+      PRIMARY_SUPABASE_URL: `https://${primaryRef}.supabase.co`,
+      PRIMARY_SUPABASE_SECRET_KEY: primarySecret,
+    } : {}),
     DR_SUPABASE_URL: `https://${drRef}.supabase.co`,
     DR_SUPABASE_SECRET_KEY: drSecret,
     DR_SUPABASE_PUBLISHABLE_KEY: drPublishable,

@@ -13,7 +13,6 @@ export function getServiceRoleKey() {
 const canonicalPublicOrigins = [
   "https://stallorder-platform.vercel.app",
   "https://app.qidaigo.com",
-  "https://staging.qidaigo.com",
 ];
 
 export function getAllowedOrigins() {
