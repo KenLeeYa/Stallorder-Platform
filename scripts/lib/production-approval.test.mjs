@@ -89,6 +89,30 @@ describe("production approval receipts", () => {
     })).toMatchObject({ operation: "production-application" });
   });
 
+  it("binds a DR operator entry Apply to its dedicated domain workflow", () => {
+    const parameters = {
+      hostname: "dr.qidaigo.com",
+      projectName: "stallorder-dr",
+      protection: "VERCEL_AUTHENTICATION_ALL",
+      retireLegacyStaging: true,
+    };
+    const receipt = validReceipt({
+      operation: "production-dr-operator-entry",
+      parameters,
+    });
+
+    expect(validate(receipt, {
+      expected: {
+        operation: "production-dr-operator-entry",
+        parameters,
+      },
+      runMetadata: validMetadata({
+        path: ".github/workflows/production-dr-operator-entry.yml",
+        event: "workflow_dispatch",
+      }),
+    })).toMatchObject({ operation: "production-dr-operator-entry" });
+  });
+
   it("binds predecessor evidence to a completed successful operation run", () => {
     const evidence = createProductionOperationEvidence({
       repository: "KenLeeYa/Stallorder-Platform",

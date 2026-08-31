@@ -129,7 +129,7 @@ describe("Supabase database URL export", () => {
     }
   });
 
-  it("exports only DR direct access without touching Primary JIT in DR-only mode", async () => {
+  it("exports DR direct and runtime access without touching Primary JIT in DR-only mode", async () => {
     const directory = await mkdtemp(join(tmpdir(), "stallorder-dr-url-"));
     const githubEnvironment = join(directory, "github-env");
     const projectRef = "zyxwvutsrqponmlkjihg";
@@ -183,13 +183,19 @@ describe("Supabase database URL export", () => {
       const lines = (await readFile(githubEnvironment, "utf8"))
         .trim()
         .split(/\r?\n/);
-      expect(lines).toHaveLength(1);
+      expect(lines).toHaveLength(2);
       expect(lines[0]).toMatch(/^DR_DIRECT_URL=/);
       const databaseUrl = new URL(lines[0].slice("DR_DIRECT_URL=".length));
       expect(decodeURIComponent(databaseUrl.username)).toBe(`postgres.${projectRef}`);
       expect(decodeURIComponent(databaseUrl.password)).toBe(drPassword);
       expect(databaseUrl.port).toBe("5432");
       expect(databaseUrl.searchParams.get("sslmode")).toBe("require");
+      expect(lines[1]).toMatch(/^DR_RUNTIME_DATABASE_URL=/);
+      const runtimeUrl = new URL(
+        lines[1].slice("DR_RUNTIME_DATABASE_URL=".length),
+      );
+      expect(runtimeUrl.port).toBe("6543");
+      expect(runtimeUrl.searchParams.get("pgbouncer")).toBe("true");
       expect(requestedPaths).not.toContain("/v1/profile");
       expect(requestedPaths.every((path) => !path.includes("/jit"))).toBe(true);
     } finally {

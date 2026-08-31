@@ -9,12 +9,19 @@ set is_enabled = false
 where code = 'OPEN_BETA_FREE_ACCESS_ENABLED';
 
 create temporary table billing_test_baseline on commit drop as
-select coalesce((
+with current_billing_period as (
+  select date_trunc('month', now() at time zone subscription.billing_timezone)::date
+    as billing_period
+  from public.subscriptions subscription
+  where subscription.organization_id = '11111111-1111-4111-8111-111111111111'
+)
+select period.billing_period, coalesce((
   select billable_order_count
   from public.billing_usage_summaries
   where organization_id = '11111111-1111-4111-8111-111111111111'
-    and billing_period = date_trunc('month', now())::date
-), 0)::integer as billable_order_count;
+    and billing_period = period.billing_period
+), 0)::integer as billable_order_count
+from current_billing_period period;
 
 select is(
   public.billing_order_access_code('11111111-1111-4111-8111-111111111111', false),
@@ -331,7 +338,7 @@ select is((
   from public.billing_usage_summaries summary
   cross join billing_test_baseline baseline
   where summary.organization_id = '11111111-1111-4111-8111-111111111111'
-    and summary.billing_period = date_trunc('month', now())::date
+    and summary.billing_period = baseline.billing_period
 ), 2, 'usage summary adds two unique completed-order events');
 
 update public.subscriptions set status = 'SUSPENDED', suspended_at = now()

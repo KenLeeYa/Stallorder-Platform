@@ -19,6 +19,32 @@ Functions 與付款 callback 全部完成後，才可進入實際切換。
 - 每次操作都要有不含顧客資料的事故原因。
 - 禁止同時把 Primary 與 DR 設成 `ACTIVE_WRITER`。
 - 不以 Browser redirect、Realtime 或 CDN 可用推定資料庫可寫。
+- `app.qidaigo.com` 始終是唯一顧客正式網址；故障切換不得要求顧客改用
+  `dr.qidaigo.com`。
+- `dr.qidaigo.com` 僅可作受保護的 operator validation host，而且必須回報
+  DR backend 與預期 promotion epoch；DNS／Vercel alias 本身不是 DR 證據。
+- `staging.qidaigo.com` 不參與 failover。任何 hostname 變更都使用獨立的
+  domain Plan/Apply 與 rollback，不沿用資料庫 promotion 核准。
+
+Domain policy 見
+[`ADR-005`](adr/ADR-005-dr-hostname-and-environment-domain-policy.md)。
+
+## 0. 建立受保護 operator 入口（一次性）
+
+先完成正常 `staging` → `main` 發布，使兩者 tree 完全一致。再於 GitHub
+Actions 執行 `Production DR Operator Entry`：
+
+1. `plan` + `PLAN_DR_OPERATOR_ENTRY`，下載並審查 immutable Plan。
+2. 使用該 Plan run ID 執行 `apply` +
+   `CREATE_PROTECTED_DR_OPERATOR_ENTRY`。
+3. 證據必須包含 unauthenticated access 已遭拒絕、authenticated
+   `/api/health/dr/operator` 為 `READY`、Supabase project/URL 與 DR ref
+   一致、Auth/Storage 回應健康、所有 Edge Functions 為 `ACTIVE`、DR 資料庫
+   是 fenced `READ_ONLY_STANDBY`，以及 `app.qidaigo.com/api/health=200`。
+
+這個入口只驗證待命能力，不會提升 DR 或移動 Production hostname。任何
+Apply 失敗都必須以本次建立的精確 provider resource ID 回復；不得依名稱刪除
+既有資源，也不得更動 Primary/DR writer state。
 
 ## 1. 只讀評估
 

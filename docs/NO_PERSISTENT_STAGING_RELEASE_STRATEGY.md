@@ -16,6 +16,12 @@ The `staging` Git branch remains the source-tree promotion gate, but
 The former Staging Supabase project is now Production DR and must never receive
 synthetic Preview fixtures or act as an online Staging target.
 
+Read-only inspection on 2026-09-01 found that the legacy hostname still had a
+Cloudflare CNAME and a verified Vercel domain bound to Git branch `staging`, but
+its health route returned `404 DEPLOYMENT_NOT_FOUND`. `dr.qidaigo.com` had no
+DNS or Vercel binding. This is stale configuration, not a working Staging or DR
+runtime.
+
 ## Target state
 
 After the exit criteria in this document pass:
@@ -137,6 +143,19 @@ Vercel Preview must never point to:
 
 Generated credentials are masked and remain inside the workflow environment;
 they are not written to the repository, Pull Request or artifacts.
+
+## Legacy hostname retirement
+
+- Keep `app.qidaigo.com` as the sole customer-facing Production hostname.
+- Reserve `dr.qidaigo.com` for protected operator-only DR validation after a
+  DR-configured deployment, access protection, backend identity, epoch and
+  fencing checks pass.
+- Do not bind `dr.qidaigo.com` directly to Git branch `staging` and do not
+  redirect `staging.qidaigo.com` to `dr.qidaigo.com`.
+- Remove the old Vercel branch domain and Cloudflare DNS record only through a
+  separately reviewed domain Plan/Apply with before-state and rollback.
+
+See [ADR-005](adr/ADR-005-dr-hostname-and-environment-domain-policy.md).
 
 ## Feature rollout
 
