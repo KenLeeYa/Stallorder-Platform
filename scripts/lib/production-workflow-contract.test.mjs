@@ -267,6 +267,27 @@ describe("Production workflow approval contract", () => {
     expect(bootstrap).not.toContain("for schema in app_private internal; do");
   });
 
+  it("passes the replication credential into DR initialization", () => {
+    const bootstrap = workflowJob(disasterRecovery, "bootstrap");
+    const initializeStart = bootstrap.indexOf(
+      "name: Initialize writer fencing and replication role",
+    );
+    const configureStart = bootstrap.indexOf(
+      "name: Configure Primary to DR logical replication",
+    );
+    const initializeStep = bootstrap.slice(initializeStart, configureStart);
+
+    expect(initializeStart).toBeGreaterThan(-1);
+    expect(configureStart).toBeGreaterThan(initializeStart);
+    expect(initializeStep).toContain(
+      "PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}",
+    );
+    expect(initializeStep).toContain(
+      "DR_CHANGE_CONFIRMATION: INITIALIZE_PRODUCTION_DR",
+    );
+    expect(initializeStep).toContain("run: node scripts/initialize-production-dr.mjs");
+  });
+
   it("disables Vercel Git auto-deploy only for main", () => {
     expect(vercel.git.deploymentEnabled).toEqual({ main: false });
   });

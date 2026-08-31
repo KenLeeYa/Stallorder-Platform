@@ -1414,6 +1414,7 @@ jobs:
       - name: Initialize writer fencing and replication role
         env:
           DR_CHANGE_CONFIRMATION: INITIALIZE_PRODUCTION_DR
+          PRIMARY_REPLICATION_PASSWORD: ${{ secrets.PRIMARY_REPLICATION_PASSWORD }}
         run: node scripts/initialize-production-dr.mjs
 
       - name: Configure Primary to DR logical replication
