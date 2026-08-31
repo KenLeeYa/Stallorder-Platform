@@ -9,6 +9,7 @@ const disasterRecovery = read(".github/workflows/production-dr-operations.yml");
 const ephemeralPreview = read(".github/workflows/ephemeral-preview.yml");
 const statusPage = read(".github/workflows/status-page-deploy.yml");
 const drSmoke = read("scripts/run-dr-readonly-smoke.mjs");
+const drInitialization = read("scripts/initialize-production-dr.mjs");
 const productionApproval = read("scripts/lib/production-approval.mjs");
 const vercel = JSON.parse(read("vercel.json"));
 
@@ -286,6 +287,14 @@ describe("Production workflow approval contract", () => {
       "DR_CHANGE_CONFIRMATION: INITIALIZE_PRODUCTION_DR",
     );
     expect(initializeStep).toContain("run: node scripts/initialize-production-dr.mjs");
+  });
+
+  it("accepts only a live verified Storage mirror during DR initialization", () => {
+    expect(drInitialization).toContain("buildDrStorageMirrorProof");
+    expect(drInitialization).toContain("primaryStorageObjects");
+    expect(drInitialization).toContain("storageManifestRows");
+    expect(drInitialization).toContain("storageObjects: storageMirror.drObjects");
+    expect(drInitialization).not.toContain("DR_STORAGE_OBJECTS_PRESENT");
   });
 
   it("disables Vercel Git auto-deploy only for main", () => {
