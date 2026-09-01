@@ -209,10 +209,14 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       const csrfCookie = storageState.cookies.find((cookie) => cookie.name === "stallorder_csrf");
       expect(csrfCookie).toBeDefined();
       localeRecoveryCsrf = decodeURIComponent(csrfCookie?.value ?? "");
+      const localeRecoveryCookie = storageState.cookies
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join("; ");
       localeRecoveryRequest = await playwrightRequest.newContext({
         baseURL: appOrigin,
         storageState,
         extraHTTPHeaders: {
+          cookie: localeRecoveryCookie,
           origin: appOrigin,
           ...(process.env.PLAYWRIGHT_PRODUCTION_SERVER === "true"
             ? {
