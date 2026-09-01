@@ -11,6 +11,7 @@ let originalStaffDeliveryEnabled = false;
 let originalDineInEnabled = false;
 let originalTakeoutPreorderEnabled = false;
 let cashShiftId = "";
+let createdCashShiftId = "";
 type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
 let ownerAuthCookies: AuthCookies | null = null;
 
@@ -56,25 +57,34 @@ test.beforeAll(async () => {
       takeoutPreorderEnabled: true,
     },
   });
-  const shift = await prisma.cashShift.create({
-    data: {
-      organizationId: "11111111-1111-4111-8111-111111111111",
-      stallId,
-      openingAmount: 0,
-      openedById: owner.id,
-      note: "Staff POS E2E 班次",
-    },
+  const existingOpenShift = await prisma.cashShift.findFirst({
+    where: { stallId, status: "OPEN" },
+    select: { id: true },
   });
-  cashShiftId = shift.id;
+  if (!existingOpenShift) {
+    const shift = await prisma.cashShift.create({
+      data: {
+        organizationId: "11111111-1111-4111-8111-111111111111",
+        stallId,
+        openingAmount: 0,
+        openedById: owner.id,
+        note: "Staff POS E2E 班次",
+      },
+    });
+    cashShiftId = shift.id;
+    createdCashShiftId = shift.id;
+  } else {
+    cashShiftId = existingOpenShift.id;
+  }
 });
 
 test.afterAll(async () => {
   if (createdOrderIds.length > 0) {
     await prisma.order.deleteMany({ where: { id: { in: createdOrderIds } } });
   }
-  if (cashShiftId) {
-    await prisma.cashShiftReview.deleteMany({ where: { cashShiftId } });
-    await prisma.cashShift.deleteMany({ where: { id: cashShiftId } });
+  if (createdCashShiftId) {
+    await prisma.cashShiftReview.deleteMany({ where: { cashShiftId: createdCashShiftId } });
+    await prisma.cashShift.deleteMany({ where: { id: createdCashShiftId } });
   }
   await prisma.stallOrderingSettings.update({
     where: { stallId },
@@ -122,18 +132,17 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   expect((await configurationResponsePromise).status()).toBe(200);
 
   const dialog = page.getByRole("dialog", { name: "店員點餐" });
-  await expect(dialog.getByRole("region", { name: "結帳折扣" })).toBeVisible();
   const menuPanel = dialog.getByTestId("staff-order-menu-panel");
   const cartPanel = dialog.getByTestId("staff-order-cart-panel");
   const cartLines = dialog.getByTestId("staff-order-cart-lines");
   const checkoutControls = dialog.getByTestId("staff-order-checkout-controls");
   const groupNavigation = dialog.getByTestId("staff-group-navigation");
+  await expect(checkoutControls).toBeHidden();
   await expect(groupNavigation).toBeVisible();
   expect(await groupNavigation.evaluate((element) => window.getComputedStyle(element).position)).toBe("sticky");
   expect(await menuPanel.evaluate((element) => window.getComputedStyle(element).overflowY)).toBe("auto");
   expect(await cartPanel.evaluate((element) => window.getComputedStyle(element).overflowY)).toBe("hidden");
   expect(await cartLines.evaluate((element) => window.getComputedStyle(element).overflowY)).toBe("auto");
-  expect(await checkoutControls.evaluate((element) => window.getComputedStyle(element).flexShrink)).toBe("0");
   const catalogToggle = dialog.getByTestId("staff-product-list-toggle");
   await expect(catalogToggle).toHaveAttribute("aria-expanded", "true");
   await expect(dialog.getByTestId("staff-product-list")).toBeVisible();
@@ -221,6 +230,7 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
       }
     }
     await dialog.getByRole("button", { name: "加入購物車", exact: true }).click();
+    await dialog.getByTestId("staff-tablet-confirm-order").click();
     await dialog.getByRole("button", { name: "稍後結帳", exact: true }).click();
 
     await prisma.stallOrderingSettings.update({
@@ -236,8 +246,10 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
     expect(rejectedDelivery.status()).toBe(400);
     expect(await rejectedDelivery.json()).toMatchObject({ code: "DELIVERY_UNAVAILABLE" });
 
+    await dialog.getByTestId("staff-checkout-back-icon").click();
     await dineInButton.click();
     await expect(dialog.getByLabel("桌位")).toBeVisible();
+    await dialog.getByTestId("staff-tablet-confirm-order").click();
     await prisma.stallOrderingSettings.update({
       where: { stallId },
       data: { dineInEnabled: false },
@@ -653,6 +665,7 @@ test("店員可將同商品不同註記分列加入購物車，並移除選錯�
   await expect(editedLine).toContainText("1 × 香酥雞排");
   await product.getByRole("button", { name: "修改完成", exact: true }).click();
   await expect(editedLine).toContainText("1 × 香酥雞排");
+  await dialog.getByTestId("staff-tablet-confirm-order").click();
   await dialog.getByRole("button", { name: "稍後結帳", exact: true }).click();
 
   const orderResponsePromise = page.waitForResponse((response) => (

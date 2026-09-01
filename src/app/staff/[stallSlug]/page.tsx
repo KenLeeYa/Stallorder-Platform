@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { RouteLoadingSkeleton } from "@/components/route-loading-skeleton";
 import { LazyStaffOrderBoard } from "@/components/lazy-staff-order-board";
 import { StaffStartReminder } from "@/components/staff-start-reminder";
+import { staffStartReminderPolicy } from "@/components/staff-start-reminder-state";
 import { requirePagePermission } from "@/lib/authorization";
 import { prisma } from "@/lib/prisma";
 import { activeOrderStatuses, serializeStaffOrder, staffOrderSelect } from "@/lib/orders";
@@ -79,6 +80,7 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
   const serverNow = getServerNowMs();
   timing.finish({ status: 200 });
   const workModeDestinations = buildWorkModeDestinations(workspaces);
+  const startReminderPolicy = staffStartReminderPolicy(role);
 
   return (
     <>
@@ -105,8 +107,8 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
       />
       <StaffStartReminder
         stallSlug={stall.slug}
-        canUseAttendance={roles.some((candidate) => hasPermission(candidate, "USE_ATTENDANCE"))}
-        canManageCashShift={roles.some((candidate) => hasPermission(candidate, "MANAGE_CASH_SHIFT"))}
+        canUseAttendance={startReminderPolicy.attendanceRequired}
+        canManageCashShift={startReminderPolicy.cashShiftRequired}
       />
     </>
   );

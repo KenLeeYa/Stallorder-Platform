@@ -1,5 +1,6 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, request as playwrightRequest, test, type APIRequestContext, type Locator } from "@playwright/test";
 import { catalogCsvHeaders } from "../src/lib/catalog-csv";
+import { QR_LOCALES } from "../src/lib/qr-order-i18n";
 import { gotoLocalPath, waitForDefaultMerchantDashboard } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -192,10 +193,39 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await expect(traditionalChineseSwitch).toBeDisabled();
   await expect(traditionalChineseSwitch).toHaveAttribute("aria-checked", "true");
   const japaneseInitiallyEnabled = await japaneseSwitch.getAttribute("aria-checked") === "true";
+  const localeSwitchStates = await localeSection.getByRole("switch").evaluateAll((switches) => (
+    switches.map((control) => control.getAttribute("aria-checked") === "true")
+  ));
+  expect(localeSwitchStates).toHaveLength(QR_LOCALES.length);
+  const enabledLocalesBeforeTest = QR_LOCALES.filter((_, index) => localeSwitchStates[index]);
 
   let japaneseChanged = false;
+  let localeRecoveryRequest: APIRequestContext | null = null;
+  let localeRecoveryCsrf = "";
   try {
     if (japaneseInitiallyEnabled) {
+      const appOrigin = new URL(page.url()).origin;
+      const storageState = await page.context().storageState();
+      const csrfCookie = storageState.cookies.find((cookie) => cookie.name === "stallorder_csrf");
+      expect(csrfCookie).toBeDefined();
+      localeRecoveryCsrf = decodeURIComponent(csrfCookie?.value ?? "");
+      const localeRecoveryCookie = storageState.cookies
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join("; ");
+      localeRecoveryRequest = await playwrightRequest.newContext({
+        baseURL: appOrigin,
+        storageState,
+        extraHTTPHeaders: {
+          cookie: localeRecoveryCookie,
+          origin: appOrigin,
+          ...(process.env.PLAYWRIGHT_PRODUCTION_SERVER === "true"
+            ? {
+                "x-vercel-forwarded-for": process.env.PLAYWRIGHT_TRUSTED_CLIENT_IP ?? "203.0.113.10",
+                "cf-connecting-ip": process.env.PLAYWRIGHT_TRUSTED_CLIENT_IP ?? "203.0.113.10",
+              }
+            : {}),
+        },
+      });
       await japaneseSwitch.click();
       const disableResponse = page.waitForResponse((response) => (
         response.url().includes(`/api/merchant/stalls/${stallId}/modules`)
@@ -269,19 +299,20 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       await localizationPage.close();
     }
   } finally {
-    if (japaneseChanged) {
-      await waitForReactHandler(japaneseSwitch, "onClick");
-      await japaneseSwitch.click();
-      await expect(japaneseSwitch).toHaveAttribute("aria-checked", "true");
-      const saveLocaleSettingsButton = localeSection.getByRole("button", { name: "儲存語系設定" });
-      await waitForReactHandler(saveLocaleSettingsButton, "onClick");
-      await expect(saveLocaleSettingsButton).toBeEnabled();
-      const restoreResponse = page.waitForResponse((response) => (
-        response.url().includes(`/api/merchant/stalls/${stallId}/modules`)
-        && response.request().method() === "PATCH"
-      ));
-      await saveLocaleSettingsButton.click();
-      expect((await restoreResponse).status()).toBe(200);
+    try {
+      if (japaneseChanged && localeRecoveryRequest) {
+        const restoreResponse = await localeRecoveryRequest.patch(
+          `/api/merchant/stalls/${stallId}/modules`,
+          {
+            headers: { "x-csrf-token": localeRecoveryCsrf },
+            data: { operation: "UPDATE_LOCALES", enabledLocales: enabledLocalesBeforeTest },
+          },
+        );
+        expect(restoreResponse.status()).toBe(200);
+        await restoreResponse.dispose();
+      }
+    } finally {
+      await localeRecoveryRequest?.dispose();
     }
   }
 

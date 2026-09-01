@@ -18,7 +18,7 @@ describe("StaffOrderComposer mobile toolbar", () => {
     expect(composerSource).toContain("border-2 border-red-600");
   });
 
-  it("uses a separate phone and tablet cart confirmation step before checkout", () => {
+  it("uses a separate cart confirmation step before checkout at every viewport", () => {
     const html = renderToStaticMarkup(
       <MessageTestProvider initialLocale="zh-TW">
         <StaffOrderComposer
@@ -47,7 +47,9 @@ describe("StaffOrderComposer mobile toolbar", () => {
     expect(html).toContain('data-testid="staff-checkout-payment-row"');
     expect(html).toContain("確認訂單並前往結帳");
     expect(html).toContain("inline-flex min-h-12");
-    expect(html).toContain("hidden lg:block");
+    expect(html).toContain('data-testid="staff-order-checkout-controls" class="hidden pb-4 pr-1"');
+    expect(html).toContain("sticky bottom-0");
+    expect(html).not.toContain("hidden lg:block");
     expect(html).not.toContain("剛好");
   });
 
