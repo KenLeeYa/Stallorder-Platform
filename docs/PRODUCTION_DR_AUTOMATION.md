@@ -36,32 +36,44 @@ and cannot move `app.qidaigo.com`.
 3. Review the one-day Plan artifact. Apply requires that Plan run ID plus
    `CREATE_PROTECTED_DR_OPERATOR_ENTRY`; current provider state and tree must
    still match its digest.
-4. Apply creates a separate, Git-unlinked `stallorder-dr` Vercel project, then
-   immediately enables Vercel Authentication on all deployments through the
-   Update Project API and reads that state back before linking or deploying.
-   `vercel.dr.json` contains no Crons. The unaliased deployment must reject
-   unauthenticated access and its authenticated operator probe must prove DR
-   database and Supabase bindings.
-5. Apply also checks DR Auth and Storage health and lists every DR Edge Function
-   as `ACTIVE` before it creates DNS. It then binds the protected hostname,
-   verifies the same probe again, retires the stale `staging.qidaigo.com`
-   binding/record, and proves `app.qidaigo.com` is still healthy.
+4. Plan fails closed unless the Cloudflare Zero Trust organization is already
+   enabled and its Cloudflare identity provider is restricted to current
+   Cloudflare account members. Apply creates a one-hour Access service token
+   and a self-hosted `dr.qidaigo.com` application with separate account-member
+   Allow and temporary Service Auth policies.
+5. Apply creates a separate, Git-unlinked `stallorder-dr` Vercel project and
+   reads back Standard protection (`all_except_custom_domains`) before linking
+   or deploying. `vercel.dr.json` contains no Crons. The generated deployment
+   URL remains protected by Vercel, while the custom hostname is protected by
+   Cloudflare Access.
+6. The exact deployment receives the Plan-bound Access team domain and
+   application audience. Its proxy validates the `Cf-Access-Jwt-Assertion`
+   signature, issuer and audience for `dr.qidaigo.com`; an unexpected custom
+   hostname fails closed. This prevents a public-origin bypass from trusting a
+   forged Access header.
+7. Apply checks DR Auth and Storage health and lists every DR Edge Function as
+   `ACTIVE`, binds the hostname, and creates a **proxied** Cloudflare CNAME.
+   It proves unauthenticated edge denial and runs the operator probe with the
+   temporary service token. The token and its Service Auth policy are then
+   deleted and read back as absent.
+8. Only after those checks pass does Apply retire the stale
+   `staging.qidaigo.com` binding/record and prove `app.qidaigo.com` is healthy.
 
 Any failure automatically restores the legacy staging state and deletes only
-the exact project/record IDs created by that run. The rollback never changes a
-database writer role. Cloudflare Access is not currently enabled; the planned
-record is therefore DNS-only and project-level Vercel Authentication is the
-mandatory access boundary. If Vercel does not accept `All Deployments`, Apply
-fails and rolls back instead of exposing the endpoint or purchasing a feature.
+the exact Vercel project, DNS record, Access application and QA service-token
+IDs created by that run. The rollback never changes a database writer role.
+The Access application and DNS record are never created when Access is disabled,
+the identity provider is not account-member restricted, the token lacks the
+required permissions, or Standard deployment protection cannot be read back.
 
 The Create Project request contains only fields supported by Vercel's current
-`/v11/projects` schema. Node.js `24.x` and `All Deployments` authentication are
-set together by Update Project after the created project ID is validated. A
-failed Apply evidence file records the internal failure stage and a short,
-allowlisted provider error code only; it never records provider response text,
-tokens, authorization headers, or request payloads. Apply run `33466252565`
-returned `VERCEL_API_400` under the former create payload and independently
-proved a complete rollback before this schema correction.
+`/v11/projects` schema. Node.js `24.x` and Standard protection are set together
+by Update Project after the created project ID is validated. A failed Apply
+evidence file records only the internal failure stage and a short allowlisted
+provider error code; it never records provider response text, service-token
+credentials, authorization headers, JWTs or request payloads. The earlier
+`All Deployments` design and its failed Apply evidence remain historical input;
+they no longer define the DR access boundary.
 
 ## Protected workflow
 
@@ -246,6 +258,12 @@ GitHub `production` environment variables:
 - `VERCEL_PROJECT_ID`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_ZONE_ID`
+
+The Cloudflare API token is least privilege and must cover only the selected
+account/zone with `Access: Apps and Policies Write`, `Access: Service Tokens
+Write`, `Access: Organizations, Identity Providers, and Groups Read`, and DNS
+Edit. Enabling a Zero Trust organization or accepting provider terms is a
+one-time account-owner prerequisite, not an implicit side effect of DR Apply.
 
 Values must never be committed or printed. Database URLs are assembled at run
 time and masked before use. The workflow retrieves each project's current

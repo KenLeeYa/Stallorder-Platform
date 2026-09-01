@@ -93,7 +93,7 @@ describe("production approval receipts", () => {
     const parameters = {
       hostname: "dr.qidaigo.com",
       projectName: "stallorder-dr",
-      protection: "VERCEL_AUTHENTICATION_ALL",
+      protection: "CLOUDFLARE_ACCESS_PLUS_VERCEL_STANDARD",
       retireLegacyStaging: true,
     };
     const receipt = validReceipt({

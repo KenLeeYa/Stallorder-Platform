@@ -42,6 +42,13 @@ Actions 執行 `Production DR Operator Entry`：
    一致、Auth/Storage 回應健康、所有 Edge Functions 為 `ACTIVE`、DR 資料庫
    是 fenced `READ_ONLY_STANDBY`，以及 `app.qidaigo.com/api/health=200`。
 
+`dr.qidaigo.com` 必須是 Cloudflare Proxy DNS，Cloudflare Access 人員規則只允許
+目前 Cloudflare 帳戶成員；Apply QA 使用一小時 Service Auth token。DR origin
+另行驗證 `Cf-Access-Jwt-Assertion` 的簽章、issuer 與 application audience，
+不能只以來源 header 存在或 Cloudflare DNS 已啟用當成授權證據。QA 完成後，
+臨時 token 與 policy 必須刪除並 read back 為不存在。生成的 Vercel deployment
+URL 則維持 Standard protection。
+
 這個入口只驗證待命能力，不會提升 DR 或移動 Production hostname。任何
 Apply 失敗都必須以本次建立的精確 provider resource ID 回復；不得依名稱刪除
 既有資源，也不得更動 Primary/DR writer state。

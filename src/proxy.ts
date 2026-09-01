@@ -1,7 +1,23 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { authorizeDrAccessRequest } from "@/lib/cloudflare-access";
 import { buildMerchantRouteRequestHeaders } from "@/lib/workspace-route-context";
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
+  const authorized = await authorizeDrAccessRequest({
+    hostname: request.headers.get("host") ?? request.nextUrl.host,
+    headers: request.headers,
+  });
+  if (!authorized) {
+    return new NextResponse(null, {
+      status: 403,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+
+  if (!request.nextUrl.pathname.startsWith("/merchant")) {
+    return NextResponse.next();
+  }
+
   const requestHeaders = buildMerchantRouteRequestHeaders(
     request.headers,
     request.nextUrl.pathname,
@@ -13,5 +29,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/merchant/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
