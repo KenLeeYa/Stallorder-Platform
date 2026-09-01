@@ -36,10 +36,12 @@ and cannot move `app.qidaigo.com`.
 3. Review the one-day Plan artifact. Apply requires that Plan run ID plus
    `CREATE_PROTECTED_DR_OPERATOR_ENTRY`; current provider state and tree must
    still match its digest.
-4. Apply creates a separate, Git-unlinked `stallorder-dr` Vercel project with
-   Vercel Authentication on all deployments. `vercel.dr.json` contains no
-   Crons. The unaliased deployment must reject unauthenticated access and its
-   authenticated operator probe must prove DR database and Supabase bindings.
+4. Apply creates a separate, Git-unlinked `stallorder-dr` Vercel project, then
+   immediately enables Vercel Authentication on all deployments through the
+   Update Project API and reads that state back before linking or deploying.
+   `vercel.dr.json` contains no Crons. The unaliased deployment must reject
+   unauthenticated access and its authenticated operator probe must prove DR
+   database and Supabase bindings.
 5. Apply also checks DR Auth and Storage health and lists every DR Edge Function
    as `ACTIVE` before it creates DNS. It then binds the protected hostname,
    verifies the same probe again, retires the stale `staging.qidaigo.com`

@@ -167,13 +167,18 @@ async function applyEntry(plan) {
         framework: "nextjs",
         nodeVersion: "24.x",
         skipGitConnectDuringLink: true,
-        ssoProtection: { deploymentType: "all" },
       }),
     });
     targetProjectId = project.id;
     if (!/^prj_[A-Za-z0-9]+$/u.test(targetProjectId ?? "")) {
       throw new Error("DR_ENTRY_PROJECT_CREATE_INVALID");
     }
+    await vercel(`/v9/projects/${targetProjectId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        ssoProtection: { deploymentType: "all" },
+      }),
+    });
     await assertTargetProjectProtected(targetProjectId);
     await linkProject(targetProjectId);
 
