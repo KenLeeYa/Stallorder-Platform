@@ -54,6 +54,15 @@ record is therefore DNS-only and project-level Vercel Authentication is the
 mandatory access boundary. If Vercel does not accept `All Deployments`, Apply
 fails and rolls back instead of exposing the endpoint or purchasing a feature.
 
+The Create Project request contains only fields supported by Vercel's current
+`/v11/projects` schema. Node.js `24.x` and `All Deployments` authentication are
+set together by Update Project after the created project ID is validated. A
+failed Apply evidence file records the internal failure stage and a short,
+allowlisted provider error code only; it never records provider response text,
+tokens, authorization headers, or request payloads. Apply run `33466252565`
+returned `VERCEL_API_400` under the former create payload and independently
+proved a complete rollback before this schema correction.
+
 ## Protected workflow
 
 `.github/workflows/production-dr-operations.yml` has five protected Plan/Apply
