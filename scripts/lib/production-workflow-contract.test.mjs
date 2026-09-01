@@ -109,6 +109,35 @@ describe("Production workflow approval contract", () => {
     );
   });
 
+  it("creates the DR project before enabling All Deployments protection", () => {
+    const createProject = drOperatorEntryScript.indexOf(
+      'const project = await vercel("/v11/projects"',
+    );
+    const captureProjectId = drOperatorEntryScript.indexOf(
+      "targetProjectId = project.id;",
+      createProject,
+    );
+    const updateProtection = drOperatorEntryScript.indexOf(
+      'await vercel(`/v9/projects/${targetProjectId}`, {',
+      captureProjectId,
+    );
+    const verifyProtection = drOperatorEntryScript.indexOf(
+      "await assertTargetProjectProtected(targetProjectId);",
+      captureProjectId,
+    );
+
+    expect(createProject).toBeGreaterThan(-1);
+    expect(captureProjectId).toBeGreaterThan(createProject);
+    expect(drOperatorEntryScript.slice(createProject, captureProjectId)).not.toContain(
+      "ssoProtection",
+    );
+    expect(updateProtection).toBeGreaterThan(captureProjectId);
+    expect(updateProtection).toBeLessThan(verifyProtection);
+    expect(
+      drOperatorEntryScript.slice(updateProtection, verifyProtection),
+    ).toContain('ssoProtection: { deploymentType: "all" }');
+  });
+
   it("applies additive schema to DR before Primary and never resets DR", () => {
     const plan = workflowJob(disasterRecovery, "plan");
     const job = workflowJob(disasterRecovery, "dr-schema");
