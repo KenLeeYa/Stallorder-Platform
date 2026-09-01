@@ -39,8 +39,19 @@ function input(overrides = {}) {
         legacyCnameTarget: "6b2c35820840b357.vercel-dns-017.com",
       },
       cloudflare: {
+        accountId: "c".repeat(32),
         zoneId: "a".repeat(32),
-        access: { enabled: false, reason: "NOT_ENABLED" },
+        access: {
+          enabled: true,
+          teamDomain: "https://qidaigo.cloudflareaccess.com",
+          identityProvider: {
+            id: "cloudflare-idp-id",
+            type: "cloudflare",
+            restrictToAccountMembers: true,
+          },
+          applications: [],
+          serviceTokens: [],
+        },
         drRecords: [],
         stagingRecord: {
           id: "record-id",
@@ -67,7 +78,15 @@ describe("DR operator entry plan", () => {
         hostname: "dr.qidaigo.com",
         projectName: "stallorder-dr",
         cnameTarget: "cname.vercel-dns.com",
-        protection: "VERCEL_AUTHENTICATION_ALL",
+        dnsProxy: true,
+        protection: "CLOUDFLARE_ACCESS_PLUS_VERCEL_STANDARD",
+        vercelDeploymentProtection: "all_except_custom_domains",
+        cloudflareAccess: {
+          teamDomain: "https://qidaigo.cloudflareaccess.com",
+          identityProviderId: "cloudflare-idp-id",
+          humanSelector: "cloudflare_account_member",
+          qaServiceTokenDuration: "1h",
+        },
         runtime: {
           backendTarget: "DR",
           supabaseProjectRef: "abcdefghijklmnopqrst",
@@ -131,6 +150,41 @@ describe("DR operator entry plan", () => {
     expect(plan.target.cnameTarget).toBe("newtarget.vercel-dns-018.com");
     expect(plan.before.legacyStaging.cloudflare.content).toBe(
       "6b2c35820840b357.vercel-dns-017.com",
+    );
+  });
+
+  it("requires enabled Cloudflare Access with the account-member IdP", () => {
+    const disabled = input();
+    disabled.providers.cloudflare.access = { enabled: false, reason: "NOT_ENABLED" };
+    expect(() => buildDrOperatorEntryPlan(disabled)).toThrow(
+      "DR_ENTRY_CLOUDFLARE_ACCESS_NOT_ENABLED",
+    );
+
+    const unrestricted = input();
+    unrestricted.providers.cloudflare.access.identityProvider.restrictToAccountMembers = false;
+    expect(() => buildDrOperatorEntryPlan(unrestricted)).toThrow(
+      "DR_ENTRY_CLOUDFLARE_ACCOUNT_IDP_INVALID",
+    );
+  });
+
+  it("rejects an existing Access application or colliding QA token", () => {
+    const application = input();
+    application.providers.cloudflare.access.applications = [{
+      id: "access-app-id",
+      name: "StallOrder Production DR Operator",
+      domain: "dr.qidaigo.com",
+    }];
+    expect(() => buildDrOperatorEntryPlan(application)).toThrow(
+      "DR_ENTRY_ACCESS_APPLICATION_ALREADY_EXISTS",
+    );
+
+    const token = input();
+    token.providers.cloudflare.access.serviceTokens = [{
+      id: "service-token-id",
+      name: "stallorder-dr-qa-aaaaaaaaaaaa",
+    }];
+    expect(() => buildDrOperatorEntryPlan(token)).toThrow(
+      "DR_ENTRY_QA_SERVICE_TOKEN_ALREADY_EXISTS",
     );
   });
 });

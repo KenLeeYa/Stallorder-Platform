@@ -15,6 +15,7 @@ gate, but it is not a persistent runtime environment.
 
 - `app.qidaigo.com` is the stable customer-facing Production hostname whether Primary or DR is active. Failover changes protected runtime bindings behind this hostname, not customer URLs.
 - `dr.qidaigo.com` is reserved for access-protected operator validation and is not a persistent Staging site or a second public writer. Its separate project/Plan/Apply automation is implemented, but it remains unprovisioned until the protected remote Apply succeeds.
+- The DR custom hostname uses a proxied Cloudflare CNAME and Cloudflare Access. The DR origin independently verifies the Access JWT; the generated Vercel deployment URL stays behind Vercel Standard protection. A DNS-only DR record or an Access edge check without origin JWT validation is not acceptable.
 - `staging.qidaigo.com` is a stale legacy alias, not a release target. Ephemeral Preview is the hosted Staging-equivalent environment.
 - DNS and Vercel-domain changes require their own immutable before-state, Plan, Apply, rollback, and post-change HTTP/backend-identity evidence. Database promotion authorization does not implicitly authorize a domain mutation.
 

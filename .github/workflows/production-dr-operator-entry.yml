@@ -116,7 +116,7 @@ jobs:
           node scripts/manage-dr-operator-entry.mjs \
             > artifacts/dr-operator-entry-plan.json
           echo "PRODUCTION_APPROVAL_OPERATION=production-dr-operator-entry" >> "$GITHUB_ENV"
-          echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"hostname":"dr.qidaigo.com","projectName":"stallorder-dr","protection":"VERCEL_AUTHENTICATION_ALL","retireLegacyStaging":true}' >> "$GITHUB_ENV"
+          echo 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"hostname":"dr.qidaigo.com","projectName":"stallorder-dr","protection":"CLOUDFLARE_ACCESS_PLUS_VERCEL_STANDARD","retireLegacyStaging":true}' >> "$GITHUB_ENV"
 
       - name: Create immutable Production plan receipt
         env:
@@ -192,7 +192,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           PRODUCTION_APPROVAL_OPERATION: production-dr-operator-entry
           PRODUCTION_APPROVAL_PARAMETERS_JSON: >-
-            {"hostname":"dr.qidaigo.com","projectName":"stallorder-dr","protection":"VERCEL_AUTHENTICATION_ALL","retireLegacyStaging":true}
+            {"hostname":"dr.qidaigo.com","projectName":"stallorder-dr","protection":"CLOUDFLARE_ACCESS_PLUS_VERCEL_STANDARD","retireLegacyStaging":true}
           PRODUCTION_APPROVAL_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
           PRODUCTION_APPROVAL_RECEIPT_PATH: approved-plan/production-approval.json
         run: node scripts/production-approval.mjs verify

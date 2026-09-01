@@ -80,7 +80,7 @@ describe("Production workflow approval contract", () => {
     expect(drOperatorEntry.indexOf("production-approval.mjs verify")).toBeLessThan(
       drOperatorEntry.indexOf("name: Apply protected DR operator entry"),
     );
-    expect(drOperatorEntry).toContain("VERCEL_AUTHENTICATION_ALL");
+    expect(drOperatorEntry).toContain("CLOUDFLARE_ACCESS_PLUS_VERCEL_STANDARD");
     expect(drOperatorEntryScript).toContain("--local-config");
     expect(drOperatorEntryScript).toContain("vercel.dr.json");
     expect(drOperatorEntry).toContain("supabase/setup-cli@v1");
@@ -109,13 +109,16 @@ describe("Production workflow approval contract", () => {
     );
   });
 
-  it("creates the DR project before enabling All Deployments protection", () => {
+  it("uses Cloudflare Access for the custom hostname and Standard protection for deployments", () => {
     const createProject = drOperatorEntryScript.indexOf(
       'const project = await vercel("/v11/projects"',
     );
     const captureProjectId = drOperatorEntryScript.indexOf(
       "targetProjectId = project.id;",
       createProject,
+    );
+    const createAccess = drOperatorEntryScript.indexOf(
+      "await createCloudflareAccessResources(plan)",
     );
     const updateProtection = drOperatorEntryScript.indexOf(
       'await vercel(`/v9/projects/${targetProjectId}`, {',
@@ -127,6 +130,8 @@ describe("Production workflow approval contract", () => {
     );
 
     expect(createProject).toBeGreaterThan(-1);
+    expect(createAccess).toBeGreaterThan(-1);
+    expect(createAccess).toBeLessThan(createProject);
     expect(captureProjectId).toBeGreaterThan(createProject);
     expect(drOperatorEntryScript.slice(createProject, captureProjectId)).not.toContain(
       "ssoProtection",
@@ -138,12 +143,19 @@ describe("Production workflow approval contract", () => {
     expect(updateProtection).toBeLessThan(verifyProtection);
     expect(
       drOperatorEntryScript.slice(updateProtection, verifyProtection),
-    ).toContain('ssoProtection: { deploymentType: "all" }');
+    ).toContain('ssoProtection: { deploymentType: "all_except_custom_domains" }');
     expect(
       drOperatorEntryScript.slice(updateProtection, verifyProtection),
     ).toContain('nodeVersion: "24.x"');
     expect(drOperatorEntryScript).toContain('"CREATE_VERCEL_PROJECT"');
-    expect(drOperatorEntryScript).toContain('"ENABLE_ALL_DEPLOYMENTS_PROTECTION"');
+    expect(drOperatorEntryScript).toContain('"ENABLE_STANDARD_DEPLOYMENT_PROTECTION"');
+    expect(drOperatorEntryScript).toContain('cloudflare_account_member');
+    expect(drOperatorEntryScript).toContain('decision: "non_identity"');
+    expect(drOperatorEntryScript).toContain('"CF-Access-Client-Id"');
+    expect(drOperatorEntryScript).toContain('"CF-Access-Client-Secret"');
+    expect(drOperatorEntryScript).toContain("CLOUDFLARE_ACCESS_AUD");
+    expect(drOperatorEntryScript).toContain("DR_ACCESS_ENFORCEMENT_ENABLED");
+    expect(drOperatorEntryScript).toContain("proxied: true");
     expect(drOperatorEntryScript).toContain("failedStage");
     expect(drOperatorEntryScript).toContain("providerErrorCode");
   });
