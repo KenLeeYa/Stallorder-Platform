@@ -69,4 +69,16 @@ describe("PWA 安全無縫更新契約", () => {
     expect(route).toContain("process.env.VERCEL_GIT_COMMIT_SHA");
     expect(route).toContain('"cache-control": "no-store, max-age=0, must-revalidate"');
   });
+
+  it("重新進入店員或廚房頁面時恢復保持喚醒選擇", () => {
+    const runtime = readFileSync(
+      join(projectRoot, "src", "components", "pwa-runtime.tsx"),
+      "utf8",
+    );
+
+    expect(runtime).toContain("readWakeLockPreference(window.localStorage)");
+    expect(runtime).toContain("writeWakeLockPreference(window.localStorage, true)");
+    expect(runtime).toContain("writeWakeLockPreference(window.localStorage, false)");
+    expect(runtime).toContain("if (wakeLockRequestedRef.current) void requestWakeLock()");
+  });
 });

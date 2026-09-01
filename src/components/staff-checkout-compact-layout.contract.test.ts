@@ -33,13 +33,15 @@ describe("staff checkout compact layout", () => {
     expect(lifecycle).not.toContain("max-w-[45vw]");
   });
 
-  it("keeps the two-stage checkout controls on one non-scrolling page", () => {
+  it("keeps two-stage checkout scrollable with a reachable sticky submit button", () => {
     const controls = composer.slice(
       composer.indexOf('data-testid="staff-order-checkout-controls"'),
       composer.indexOf('data-testid="staff-checkout-payment-row"'),
     );
-    expect(controls).toContain("overflow-hidden");
-    expect(controls).not.toContain("overflow-y-auto");
+    expect(controls).toContain("overflow-y-auto");
+    expect(controls).toContain("overscroll-contain");
+    expect(controls).not.toContain("overflow-hidden");
+    expect(composer).toContain("sticky bottom-0");
     expect(composer).toContain("sm:p-3 lg:p-6");
     expect(composer).toContain('className="mt-1 hidden text-sm text-stone-600 lg:block"');
   });
