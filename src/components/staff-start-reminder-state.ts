@@ -1,4 +1,14 @@
+import type { UserRole } from "@prisma/client";
+import { hasPermission } from "@/lib/rbac";
+
 export type StaffStartStep = "ATTENDANCE" | "CASH_SHIFT" | null;
+
+export function staffStartReminderPolicy(role: UserRole) {
+  return {
+    attendanceRequired: role === "STAFF",
+    cashShiftRequired: hasPermission(role, "MANAGE_CASH_SHIFT"),
+  };
+}
 
 export function resolveStaffStartStep(input: {
   attendanceAvailable: boolean;
