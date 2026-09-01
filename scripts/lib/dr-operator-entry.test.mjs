@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDrOperatorEntryPlan,
   missingActiveEdgeFunctions,
+  sanitizeProviderErrorCode,
   validateApprovedDrOperatorEntryPlan,
   validateDrSupabaseBindings,
 } from "./dr-operator-entry.mjs";
@@ -160,5 +161,18 @@ describe("DR operator runtime bindings", () => {
         { name: "webhooks", status: "ACTIVE" },
       ],
     )).toEqual(["payments"]);
+  });
+});
+
+describe("DR operator provider diagnostics", () => {
+  it("keeps only a short provider error code and never a free-form secret", () => {
+    expect(sanitizeProviderErrorCode({ error: { code: "bad_request" } })).toBe(
+      "bad_request",
+    );
+    expect(sanitizeProviderErrorCode({ errors: [{ code: 1001 }] })).toBe("1001");
+    expect(sanitizeProviderErrorCode({
+      error: { code: "token secret-value-must-not-reach-evidence" },
+    })).toBeNull();
+    expect(sanitizeProviderErrorCode({ error: { message: "invalid nodeVersion" } })).toBeNull();
   });
 });

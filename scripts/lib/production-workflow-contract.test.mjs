@@ -131,11 +131,21 @@ describe("Production workflow approval contract", () => {
     expect(drOperatorEntryScript.slice(createProject, captureProjectId)).not.toContain(
       "ssoProtection",
     );
+    expect(drOperatorEntryScript.slice(createProject, captureProjectId)).not.toContain(
+      "nodeVersion",
+    );
     expect(updateProtection).toBeGreaterThan(captureProjectId);
     expect(updateProtection).toBeLessThan(verifyProtection);
     expect(
       drOperatorEntryScript.slice(updateProtection, verifyProtection),
     ).toContain('ssoProtection: { deploymentType: "all" }');
+    expect(
+      drOperatorEntryScript.slice(updateProtection, verifyProtection),
+    ).toContain('nodeVersion: "24.x"');
+    expect(drOperatorEntryScript).toContain('"CREATE_VERCEL_PROJECT"');
+    expect(drOperatorEntryScript).toContain('"ENABLE_ALL_DEPLOYMENTS_PROTECTION"');
+    expect(drOperatorEntryScript).toContain("failedStage");
+    expect(drOperatorEntryScript).toContain("providerErrorCode");
   });
 
   it("applies additive schema to DR before Primary and never resets DR", () => {

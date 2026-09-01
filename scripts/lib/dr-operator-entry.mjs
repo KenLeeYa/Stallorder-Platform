@@ -64,6 +64,13 @@ export function missingActiveEdgeFunctions(expectedNames, deployedFunctions) {
   return [...expectedNames].filter((name) => !activeNames.has(name)).sort();
 }
 
+export function sanitizeProviderErrorCode(payload) {
+  const value = payload?.error?.code ?? payload?.errors?.[0]?.code;
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const code = String(value).trim();
+  return /^[A-Za-z0-9_.:-]{1,80}$/u.test(code) ? code : null;
+}
+
 export function buildDrOperatorEntryPlan(input) {
   validateSource(input.source);
   validateDrRuntime(input.drRuntime);

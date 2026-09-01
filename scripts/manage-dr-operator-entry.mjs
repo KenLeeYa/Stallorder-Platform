@@ -7,6 +7,7 @@ import {
   DR_OPERATOR_ENTRY,
   buildDrOperatorEntryPlan,
   missingActiveEdgeFunctions,
+  sanitizeProviderErrorCode,
   validateApprovedDrOperatorEntryPlan,
   validateDrSupabaseBindings,
 } from "./lib/dr-operator-entry.mjs";
@@ -165,10 +166,9 @@ async function applyEntry(plan) {
       body: JSON.stringify({
         name: plan.target.projectName,
         framework: "nextjs",
-        nodeVersion: "24.x",
         skipGitConnectDuringLink: true,
       }),
-    });
+    }, "CREATE_VERCEL_PROJECT");
     targetProjectId = project.id;
     if (!/^prj_[A-Za-z0-9]+$/u.test(targetProjectId ?? "")) {
       throw new Error("DR_ENTRY_PROJECT_CREATE_INVALID");
@@ -176,9 +176,10 @@ async function applyEntry(plan) {
     await vercel(`/v9/projects/${targetProjectId}`, {
       method: "PATCH",
       body: JSON.stringify({
+        nodeVersion: "24.x",
         ssoProtection: { deploymentType: "all" },
       }),
-    });
+    }, "ENABLE_ALL_DEPLOYMENTS_PROTECTION");
     await assertTargetProjectProtected(targetProjectId);
     await linkProject(targetProjectId);
 
@@ -260,6 +261,8 @@ async function applyEntry(plan) {
       source: plan.source,
       completed: false,
       reasonCode: error instanceof Error ? error.message : "DR_ENTRY_APPLY_FAILED",
+      failedStage: error?.failureStage ?? "DR_ENTRY_APPLY",
+      providerErrorCode: error?.providerErrorCode ?? null,
       rollbackCompleted: rollbackResult.completed === true,
       failedAt: new Date().toISOString(),
     }).catch(() => {});
@@ -649,11 +652,11 @@ async function readCloudflareAccessState() {
   throw new Error(`CLOUDFLARE_ACCESS_STATE_${response.status}`);
 }
 
-async function vercel(path, init = {}) {
+async function vercel(path, init = {}, failureStage = "VERCEL_REQUEST") {
   return providerRequest(`https://api.vercel.com${path}${path.includes("?") ? "&" : "?"}teamId=${encodeURIComponent(vercelTeamId)}`, {
     ...init,
     headers: { authorization: `Bearer ${vercelToken}`, "content-type": "application/json" },
-  }, "VERCEL");
+  }, "VERCEL", false, failureStage);
 }
 
 async function vercelDomainConfig(hostname) {
@@ -667,11 +670,20 @@ async function cloudflare(path, init = {}) {
   }, "CLOUDFLARE", true);
 }
 
-async function providerRequest(url, init, provider, unwrapResult = false) {
+async function providerRequest(
+  url,
+  init,
+  provider,
+  unwrapResult = false,
+  failureStage = `${provider}_REQUEST`,
+) {
   const response = await fetch(url, { ...init, signal: AbortSignal.timeout(30_000) });
   const payload = await response.json().catch(() => null);
   if (!response.ok || (unwrapResult && payload?.success !== true)) {
-    throw new Error(`${provider}_API_${response.status}`);
+    const error = new Error(`${provider}_API_${response.status}`);
+    error.failureStage = failureStage;
+    error.providerErrorCode = sanitizeProviderErrorCode(payload);
+    throw error;
   }
   return unwrapResult ? payload.result : payload;
 }
