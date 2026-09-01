@@ -24,6 +24,7 @@ const vercelToken = required("VERCEL_TOKEN");
 const vercelTeamId = required("VERCEL_ORG_ID");
 const sourceProjectId = required("VERCEL_PROJECT_ID");
 const cloudflareToken = required("CLOUDFLARE_API_TOKEN");
+const cloudflareAccountId = required("CLOUDFLARE_ACCOUNT_ID");
 const cloudflareZoneId = required("CLOUDFLARE_ZONE_ID");
 const drDirectUrl = requiredPostgresUrl("DR_DIRECT_URL");
 
@@ -34,6 +35,8 @@ try {
     const result = await rollbackEntry(plan, {
       targetProjectId: requiredProjectId("DR_OPERATOR_TARGET_PROJECT_ID"),
       drDnsRecordId: process.env.DR_OPERATOR_DNS_RECORD_ID?.trim() || null,
+      accessApplicationId: process.env.DR_OPERATOR_ACCESS_APPLICATION_ID?.trim() || null,
+      qaServiceTokenId: process.env.DR_OPERATOR_QA_SERVICE_TOKEN_ID?.trim() || null,
     });
     console.log(JSON.stringify(result, null, 2));
   } else if (apply) {
@@ -145,6 +148,7 @@ async function readProviderState() {
       legacyCnameTarget,
     },
     cloudflare: {
+      accountId: cloudflareAccountId,
       zoneId: cloudflareZoneId,
       access,
       drRecords: records
@@ -160,7 +164,13 @@ async function readProviderState() {
 async function applyEntry(plan) {
   let targetProjectId = null;
   let drDnsRecordId = null;
+  let accessApplicationId = null;
+  let qaServiceTokenId = null;
   try {
+    const accessResources = await createCloudflareAccessResources(plan);
+    accessApplicationId = accessResources.applicationId;
+    qaServiceTokenId = accessResources.serviceTokenId;
+
     const project = await vercel("/v11/projects", {
       method: "POST",
       body: JSON.stringify({
@@ -177,13 +187,13 @@ async function applyEntry(plan) {
       method: "PATCH",
       body: JSON.stringify({
         nodeVersion: "24.x",
-        ssoProtection: { deploymentType: "all" },
+        ssoProtection: { deploymentType: "all_except_custom_domains" },
       }),
-    }, "ENABLE_ALL_DEPLOYMENTS_PROTECTION");
+    }, "ENABLE_STANDARD_DEPLOYMENT_PROTECTION");
     await assertTargetProjectProtected(targetProjectId);
     await linkProject(targetProjectId);
 
-    const deploymentUrl = await deployDrRuntime(plan);
+    const deploymentUrl = await deployDrRuntime(plan, accessResources);
     const unauthenticatedDeploymentStatus = await assertProtected(deploymentUrl);
     const deploymentProbe = await vercelCurl(deploymentUrl);
     assertProbeReady(deploymentProbe, plan.target.runtime);
@@ -204,7 +214,7 @@ async function applyEntry(plan) {
         name: plan.target.hostname,
         content: configuredTarget,
         ttl: 1,
-        proxied: false,
+        proxied: true,
         comment: "Protected StallOrder DR operator validation entry",
       }),
     });
@@ -214,8 +224,13 @@ async function applyEntry(plan) {
     const unauthenticatedCustomDomainStatus = await waitForProtectedDomain(
       `https://${plan.target.hostname}`,
     );
-    const customDomainProbe = await vercelCurl(`https://${plan.target.hostname}`);
+    const customDomainProbe = await cloudflareAccessProbe(
+      `https://${plan.target.hostname}`,
+      accessResources,
+    );
     assertProbeReady(customDomainProbe, plan.target.runtime);
+    await removeTemporaryQaAccess(accessResources);
+    qaServiceTokenId = null;
 
     await retireLegacyStaging(plan);
     const primaryHealth = await fetch("https://app.qidaigo.com/api/health", {
@@ -224,8 +239,9 @@ async function applyEntry(plan) {
     });
     if (primaryHealth.status !== 200) throw new Error("PRIMARY_HEALTH_CHANGED_DURING_DR_ENTRY");
     const finalState = await readProviderStateAfterApply(
+      plan,
       targetProjectId,
-      plan.target.cnameTarget,
+      accessApplicationId,
     );
 
     const evidence = {
@@ -236,9 +252,12 @@ async function applyEntry(plan) {
       completed: true,
       targetProjectId,
       drDnsRecordId,
+      accessApplicationId,
       deploymentUrl,
       hostname: plan.target.hostname,
       protection: plan.target.protection,
+      accessAudience: accessResources.audience,
+      temporaryQaAccessRemoved: true,
       unauthenticatedDeploymentStatus,
       unauthenticatedCustomDomainStatus,
       probe: customDomainProbe,
@@ -250,9 +269,13 @@ async function applyEntry(plan) {
     await writeEvidence(evidence);
     return evidence;
   } catch (error) {
+    accessApplicationId ??= error?.accessApplicationId ?? null;
+    qaServiceTokenId ??= error?.qaServiceTokenId ?? null;
     const rollbackResult = await rollbackEntry(plan, {
       targetProjectId,
       drDnsRecordId,
+      accessApplicationId,
+      qaServiceTokenId,
     }).catch(() => ({ completed: false }));
     await writeEvidence({
       schemaVersion: 1,
@@ -273,7 +296,178 @@ async function applyEntry(plan) {
   }
 }
 
-async function deployDrRuntime(plan) {
+async function createCloudflareAccessResources(plan) {
+  let serviceTokenId = null;
+  let applicationId = null;
+  try {
+    const serviceToken = await cloudflare(
+      `/accounts/${cloudflareAccountId}/access/service_tokens`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: plan.target.cloudflareAccess.qaServiceTokenName,
+          duration: plan.target.cloudflareAccess.qaServiceTokenDuration,
+        }),
+      },
+      "CREATE_CLOUDFLARE_ACCESS_QA_TOKEN",
+    );
+    serviceTokenId = requireProviderId(serviceToken.id, "DR_ENTRY_QA_SERVICE_TOKEN_ID_INVALID");
+    const clientId = requiredProviderCredential(
+      serviceToken.client_id,
+      "DR_ENTRY_QA_SERVICE_TOKEN_CLIENT_ID_INVALID",
+    );
+    const clientSecret = requiredProviderCredential(
+      serviceToken.client_secret,
+      "DR_ENTRY_QA_SERVICE_TOKEN_SECRET_INVALID",
+    );
+
+    const application = await cloudflare(
+      `/accounts/${cloudflareAccountId}/access/apps`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: plan.target.cloudflareAccess.applicationName,
+          domain: plan.target.hostname,
+          type: "self_hosted",
+          session_duration: "1h",
+          auto_redirect_to_identity: true,
+          allowed_idps: [plan.target.cloudflareAccess.identityProviderId],
+          policies: [
+            {
+              name: "Allow current Cloudflare account members",
+              decision: "allow",
+              precedence: 1,
+              include: [{
+                cloudflare_account_member: {
+                  account_id: plan.target.cloudflareAccess.accountId,
+                },
+              }],
+            },
+            {
+              name: "Temporary DR QA service token",
+              decision: "non_identity",
+              precedence: 2,
+              include: [{ service_token: { token_id: serviceTokenId } }],
+            },
+          ],
+        }),
+      },
+      "CREATE_CLOUDFLARE_ACCESS_APPLICATION",
+    );
+    applicationId = requireProviderId(
+      application.id,
+      "DR_ENTRY_ACCESS_APPLICATION_ID_INVALID",
+    );
+    const readback = await readCloudflareAccessApplication(applicationId);
+    assertCloudflareAccessApplication(readback, plan, serviceTokenId);
+
+    return {
+      applicationId,
+      audience: readback.application.aud,
+      serviceTokenId,
+      serviceTokenClientId: clientId,
+      serviceTokenClientSecret: clientSecret,
+      qaPolicyId: readback.qaPolicy.id,
+    };
+  } catch (error) {
+    if (error && typeof error === "object") {
+      error.accessApplicationId = applicationId;
+      error.qaServiceTokenId = serviceTokenId;
+    }
+    throw error;
+  }
+}
+
+async function readCloudflareAccessApplication(applicationId) {
+  const [application, policies] = await Promise.all([
+    cloudflare(`/accounts/${cloudflareAccountId}/access/apps/${applicationId}`),
+    cloudflare(
+      `/accounts/${cloudflareAccountId}/access/apps/${applicationId}/policies?per_page=100`,
+    ),
+  ]);
+  return { application, policies };
+}
+
+function assertCloudflareAccessApplication(readback, plan, serviceTokenId) {
+  const { application, policies } = readback;
+  if (
+    application?.name !== plan.target.cloudflareAccess.applicationName
+    || application?.domain !== plan.target.hostname
+    || application?.type !== "self_hosted"
+    || !Array.isArray(application.allowed_idps)
+    || application.allowed_idps.length !== 1
+    || application.allowed_idps[0] !== plan.target.cloudflareAccess.identityProviderId
+    || !/^[A-Za-z0-9_-]{16,256}$/u.test(application.aud ?? "")
+    || !Array.isArray(policies)
+    || policies.length !== 2
+  ) {
+    throw new Error("DR_ENTRY_ACCESS_APPLICATION_READBACK_INVALID");
+  }
+  const humanPolicy = policies.find((policy) =>
+    policy.name === "Allow current Cloudflare account members"
+    && policy.decision === "allow"
+    && policy.include?.some((rule) =>
+      rule.cloudflare_account_member?.account_id === plan.target.cloudflareAccess.accountId));
+  const qaPolicy = policies.find((policy) =>
+    policy.name === "Temporary DR QA service token"
+    && policy.decision === "non_identity"
+    && policy.include?.some((rule) => rule.service_token?.token_id === serviceTokenId));
+  if (!humanPolicy || !qaPolicy) {
+    throw new Error("DR_ENTRY_ACCESS_POLICY_READBACK_INVALID");
+  }
+  requireProviderId(qaPolicy.id, "DR_ENTRY_QA_POLICY_ID_INVALID");
+  readback.qaPolicy = qaPolicy;
+}
+
+function assertFinalCloudflareAccessApplication(readback, plan) {
+  const { application, policies } = readback;
+  const humanPolicy = policies.find((policy) =>
+    policy.name === "Allow current Cloudflare account members"
+    && policy.decision === "allow"
+    && policy.include?.some((rule) =>
+      rule.cloudflare_account_member?.account_id === plan.target.cloudflareAccess.accountId));
+  const temporaryPolicy = policies.find(
+    (policy) => policy.name === "Temporary DR QA service token",
+  );
+  if (
+    application?.name !== plan.target.cloudflareAccess.applicationName
+    || application?.domain !== plan.target.hostname
+    || application?.type !== "self_hosted"
+    || !Array.isArray(application.allowed_idps)
+    || application.allowed_idps.length !== 1
+    || application.allowed_idps[0] !== plan.target.cloudflareAccess.identityProviderId
+    || policies.length !== 1
+    || !humanPolicy
+    || temporaryPolicy
+  ) {
+    throw new Error("DR_ENTRY_ACCESS_APPLICATION_FINAL_READBACK_FAILED");
+  }
+}
+
+async function removeTemporaryQaAccess(resources) {
+  await cloudflare(
+    `/accounts/${cloudflareAccountId}/access/apps/${resources.applicationId}/policies/${resources.qaPolicyId}`,
+    { method: "DELETE" },
+    "DELETE_CLOUDFLARE_ACCESS_QA_POLICY",
+  );
+  await cloudflare(
+    `/accounts/${cloudflareAccountId}/access/service_tokens/${resources.serviceTokenId}`,
+    { method: "DELETE" },
+    "DELETE_CLOUDFLARE_ACCESS_QA_TOKEN",
+  );
+  const [readback, serviceTokens] = await Promise.all([
+    readCloudflareAccessApplication(resources.applicationId),
+    listCloudflareServiceTokens(),
+  ]);
+  if (
+    readback.policies.some((policy) => policy.id === resources.qaPolicyId)
+    || serviceTokens.some((token) => token.id === resources.serviceTokenId)
+  ) {
+    throw new Error("DR_ENTRY_TEMPORARY_QA_ACCESS_CLEANUP_FAILED");
+  }
+}
+
+async function deployDrRuntime(plan, accessResources) {
   assertDrEnvironmentBindings(plan.target.runtime.supabaseProjectRef);
   const deploymentArgs = [
     "deploy", ".", "--prod", "--skip-domain", "--force", "--yes",
@@ -292,6 +486,10 @@ async function deployDrRuntime(plan) {
     AUTH_PROJECT_CODE: "DR",
     PROMOTION_EPOCH: String(plan.target.runtime.promotionEpoch),
     DR_OPERATOR_PROBE_ENABLED: "true",
+    DR_ACCESS_ENFORCEMENT_ENABLED: "true",
+    DR_ACCESS_HOSTNAME: plan.target.hostname,
+    CLOUDFLARE_ACCESS_TEAM_DOMAIN: plan.target.cloudflareAccess.teamDomain,
+    CLOUDFLARE_ACCESS_AUD: accessResources.audience,
     APP_BASE_URL: `https://${plan.target.hostname}`,
     NEXT_PUBLIC_APP_URL: `https://${plan.target.hostname}`,
     TRUSTED_APP_ORIGINS: `https://${plan.target.hostname}`,
@@ -333,6 +531,24 @@ async function vercelCurl(baseUrl) {
   const start = output.indexOf("{");
   if (start < 0) throw new Error("DR_ENTRY_PROBE_JSON_MISSING");
   return JSON.parse(output.slice(start));
+}
+
+async function cloudflareAccessProbe(baseUrl, accessResources) {
+  const response = await fetch(`${baseUrl}${planProbePath()}`, {
+    headers: {
+      "CF-Access-Client-Id": accessResources.serviceTokenClientId,
+      "CF-Access-Client-Secret": accessResources.serviceTokenClientSecret,
+    },
+    redirect: "manual",
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (response.status !== 200) {
+    await response.arrayBuffer();
+    throw new Error(`DR_ENTRY_CLOUDFLARE_ACCESS_PROBE_${response.status}`);
+  }
+  const payload = await response.json().catch(() => null);
+  if (!payload) throw new Error("DR_ENTRY_CLOUDFLARE_ACCESS_PROBE_INVALID");
+  return payload;
 }
 
 function assertProbeReady(probe, expectedRuntime) {
@@ -487,7 +703,12 @@ async function retireLegacyStaging(plan) {
   );
 }
 
-async function rollbackEntry(plan, { targetProjectId, drDnsRecordId }) {
+async function rollbackEntry(plan, {
+  targetProjectId,
+  drDnsRecordId,
+  accessApplicationId,
+  qaServiceTokenId,
+}) {
   const projects = (await vercel("/v9/projects?limit=100")).projects ?? [];
   const target = projects.find((project) => project.name === plan.target.projectName);
   const records = await cloudflare(`/zones/${cloudflareZoneId}/dns_records?per_page=100`);
@@ -501,7 +722,7 @@ async function rollbackEntry(plan, { targetProjectId, drDnsRecordId }) {
         createdRecord.name !== plan.target.hostname
         || createdRecord.type !== "CNAME"
         || String(createdRecord.content ?? "").replace(/\.$/u, "") !== plan.target.cnameTarget
-        || createdRecord.proxied !== false
+        || createdRecord.proxied !== true
       ) {
         throw new Error("DR_ENTRY_ROLLBACK_DNS_IDENTITY_MISMATCH");
       }
@@ -515,6 +736,46 @@ async function rollbackEntry(plan, { targetProjectId, drDnsRecordId }) {
       throw new Error("DR_ENTRY_ROLLBACK_PROJECT_IDENTITY_MISMATCH");
     }
     await vercel(`/v9/projects/${target.id}`, { method: "DELETE" });
+  }
+
+  const accessState = await readCloudflareAccessState();
+  const targetAccessApplications = accessState.applications.filter((application) =>
+    application.domain === plan.target.hostname
+    || application.name === plan.target.cloudflareAccess.applicationName);
+  if (!accessApplicationId && targetAccessApplications.length > 0) {
+    throw new Error("DR_ENTRY_ROLLBACK_ACCESS_APPLICATION_IDENTITY_MISMATCH");
+  }
+  if (accessApplicationId) {
+    const application = targetAccessApplications.find(
+      (candidate) => candidate.id === accessApplicationId,
+    );
+    if (application) {
+      await cloudflare(
+        `/accounts/${cloudflareAccountId}/access/apps/${application.id}`,
+        { method: "DELETE" },
+        "ROLLBACK_CLOUDFLARE_ACCESS_APPLICATION",
+      );
+    } else if (targetAccessApplications.length > 0) {
+      throw new Error("DR_ENTRY_ROLLBACK_ACCESS_APPLICATION_IDENTITY_MISMATCH");
+    }
+  }
+  const targetQaTokens = accessState.serviceTokens.filter(
+    (token) => token.name === plan.target.cloudflareAccess.qaServiceTokenName,
+  );
+  if (!qaServiceTokenId && targetQaTokens.length > 0) {
+    throw new Error("DR_ENTRY_ROLLBACK_QA_TOKEN_IDENTITY_MISMATCH");
+  }
+  if (qaServiceTokenId) {
+    const token = targetQaTokens.find((candidate) => candidate.id === qaServiceTokenId);
+    if (token) {
+      await cloudflare(
+        `/accounts/${cloudflareAccountId}/access/service_tokens/${token.id}`,
+        { method: "DELETE" },
+        "ROLLBACK_CLOUDFLARE_ACCESS_QA_TOKEN",
+      );
+    } else if (targetQaTokens.length > 0) {
+      throw new Error("DR_ENTRY_ROLLBACK_QA_TOKEN_IDENTITY_MISMATCH");
+    }
   }
 
   const sourceDomains = (await vercel(
@@ -563,10 +824,11 @@ async function rollbackEntry(plan, { targetProjectId, drDnsRecordId }) {
 
 async function waitForRollbackState(plan) {
   for (let attempt = 1; attempt <= 12; attempt += 1) {
-    const [projectsResponse, sourceDomainsResponse, records] = await Promise.all([
+    const [projectsResponse, sourceDomainsResponse, records, accessState] = await Promise.all([
       vercel("/v9/projects?limit=100"),
       vercel(`/v9/projects/${sourceProjectId}/domains?limit=100`),
       cloudflare(`/zones/${cloudflareZoneId}/dns_records?per_page=100`),
+      readCloudflareAccessState(),
     ]);
     const targetAbsent = !(projectsResponse.projects ?? []).some(
       (project) => project.name === plan.target.projectName,
@@ -581,13 +843,30 @@ async function waitForRollbackState(plan) {
       && String(record.content ?? "").replace(/\.$/u, "")
         === plan.before.legacyStaging.cloudflare.content
       && record.proxied === plan.before.legacyStaging.cloudflare.proxied);
-    if (targetAbsent && drDnsAbsent && restoredVercel && restoredDns) return;
+    const accessApplicationAbsent = !accessState.applications.some((application) =>
+      application.domain === plan.target.hostname
+      || application.name === plan.target.cloudflareAccess.applicationName);
+    const qaTokenAbsent = !accessState.serviceTokens.some(
+      (token) => token.name === plan.target.cloudflareAccess.qaServiceTokenName,
+    );
+    if (
+      targetAbsent
+      && drDnsAbsent
+      && restoredVercel
+      && restoredDns
+      && accessApplicationAbsent
+      && qaTokenAbsent
+    ) return;
     if (attempt < 12) await delay(5_000);
   }
   throw new Error("DR_ENTRY_ROLLBACK_READBACK_FAILED");
 }
 
-async function readProviderStateAfterApply(targetProjectId, expectedCnameTarget) {
+async function readProviderStateAfterApply(
+  plan,
+  targetProjectId,
+  accessApplicationId,
+) {
   await assertTargetProjectProtected(targetProjectId);
   const sourceDomains = (await vercel(
     `/v9/projects/${sourceProjectId}/domains?limit=100`,
@@ -595,7 +874,10 @@ async function readProviderStateAfterApply(targetProjectId, expectedCnameTarget)
   const targetDomains = (await vercel(
     `/v9/projects/${targetProjectId}/domains?limit=100`,
   )).domains ?? [];
-  const records = await cloudflare(`/zones/${cloudflareZoneId}/dns_records?per_page=100`);
+  const [records, accessState] = await Promise.all([
+    cloudflare(`/zones/${cloudflareZoneId}/dns_records?per_page=100`),
+    readCloudflareAccessState(),
+  ]);
   const drRecord = records.find((record) => record.name === DR_OPERATOR_ENTRY.hostname);
   const stagingRecord = records.find((record) => record.name === DR_OPERATOR_ENTRY.legacyHostname);
   if (!targetDomains.some((domain) => domain.name === DR_OPERATOR_ENTRY.hostname)) {
@@ -603,9 +885,9 @@ async function readProviderStateAfterApply(targetProjectId, expectedCnameTarget)
   }
   if (
     !drRecord
-    || drRecord.content.replace(/\.$/u, "") !== expectedCnameTarget
+    || drRecord.content.replace(/\.$/u, "") !== plan.target.cnameTarget
     || drRecord.type !== "CNAME"
-    || drRecord.proxied !== false
+    || drRecord.proxied !== true
   ) {
     throw new Error("DR_ENTRY_DNS_READBACK_FAILED");
   }
@@ -613,13 +895,30 @@ async function readProviderStateAfterApply(targetProjectId, expectedCnameTarget)
     (domain) => domain.name === DR_OPERATOR_ENTRY.legacyHostname,
   ) && !stagingRecord;
   if (!legacyStagingRetired) throw new Error("LEGACY_STAGING_RETIREMENT_READBACK_FAILED");
+  const accessApplication = accessState.applications.find(
+    (application) => application.id === accessApplicationId,
+  );
+  if (
+    !accessApplication
+    || accessApplication.domain !== DR_OPERATOR_ENTRY.hostname
+    || accessApplication.name !== DR_OPERATOR_ENTRY.accessApplicationName
+  ) {
+    throw new Error("DR_ENTRY_ACCESS_APPLICATION_FINAL_READBACK_FAILED");
+  }
+  const finalAccessReadback = await readCloudflareAccessApplication(accessApplicationId);
+  assertFinalCloudflareAccessApplication(finalAccessReadback, plan);
+  if (accessState.serviceTokens.some(
+    (token) => token.name === plan.target.cloudflareAccess.qaServiceTokenName,
+  )) {
+    throw new Error("DR_ENTRY_QA_SERVICE_TOKEN_FINAL_READBACK_FAILED");
+  }
   return { legacyStagingRetired };
 }
 
 async function assertTargetProjectProtected(projectId) {
   const project = await vercel(`/v9/projects/${projectId}`);
-  if (project.ssoProtection?.deploymentType !== "all") {
-    throw new Error("DR_ENTRY_ALL_DEPLOYMENTS_PROTECTION_UNAVAILABLE");
+  if (project.ssoProtection?.deploymentType !== "all_except_custom_domains") {
+    throw new Error("DR_ENTRY_STANDARD_DEPLOYMENT_PROTECTION_UNAVAILABLE");
   }
 }
 
@@ -634,22 +933,70 @@ async function linkProject(projectId) {
 
 async function readCloudflareAccessState() {
   const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${required("CLOUDFLARE_ACCOUNT_ID")}/access/apps?per_page=100`,
+    `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/access/apps?per_page=1000`,
     { headers: cloudflareHeaders(), signal: AbortSignal.timeout(30_000) },
   );
   const payload = await response.json().catch(() => null);
-  if (response.ok && payload?.success) {
-    return { enabled: true, applicationCount: payload.result?.length ?? 0 };
+  if (!response.ok || payload?.success !== true) {
+    if (cloudflareAccessNotEnabled(payload)) {
+      return { enabled: false, reason: "NOT_ENABLED" };
+    }
+    const error = new Error(`CLOUDFLARE_ACCESS_STATE_${response.status}`);
+    error.failureStage = "READ_CLOUDFLARE_ACCESS_APPLICATIONS";
+    error.providerErrorCode = sanitizeProviderErrorCode(payload);
+    throw error;
   }
-  const notEnabled = payload?.errors?.some((error) => {
+  if (
+    !Array.isArray(payload.result)
+    || Number(payload.result_info?.total_pages ?? 1) !== 1
+  ) {
+    throw new Error("DR_ENTRY_CLOUDFLARE_ACCESS_APPLICATIONS_INVALID");
+  }
+
+  const [organization, identityProviders, serviceTokens] = await Promise.all([
+    cloudflare(`/accounts/${cloudflareAccountId}/access/organizations`),
+    cloudflare(`/accounts/${cloudflareAccountId}/access/identity_providers?per_page=1000`),
+    listCloudflareServiceTokens(),
+  ]);
+  if (
+    !organization
+    || typeof organization !== "object"
+    || !Array.isArray(identityProviders)
+    || !Array.isArray(serviceTokens)
+  ) {
+    throw new Error("DR_ENTRY_CLOUDFLARE_ACCESS_STATE_INVALID");
+  }
+  const identityProvider = identityProviders
+    .filter((provider) =>
+      provider.type === "cloudflare"
+      && provider.config?.restrict_to_account_members === true)
+    .sort((left, right) => String(left.id).localeCompare(String(right.id)))[0];
+  return {
+    enabled: true,
+    teamDomain: normalizeAccessTeamDomain(organization.auth_domain),
+    identityProvider: identityProvider ? {
+      id: identityProvider.id,
+      type: identityProvider.type,
+      restrictToAccountMembers: true,
+    } : null,
+    applications: payload.result.map(safeAccessApplication),
+    serviceTokens: serviceTokens.map(safeAccessServiceToken),
+  };
+}
+
+async function listCloudflareServiceTokens() {
+  return cloudflare(`/accounts/${cloudflareAccountId}/access/service_tokens?per_page=1000`);
+}
+
+function cloudflareAccessNotEnabled(payload) {
+  return payload?.errors?.some((error) => {
     const code = String(error.code ?? "").toLowerCase();
     const message = String(error.message ?? "").toLowerCase();
-    return code.includes("not_enabled")
+    return code === "9999"
+      || code.includes("not_enabled")
       || message.includes("not_enabled")
       || message.includes("access is not enabled");
-  });
-  if (notEnabled) return { enabled: false, reason: "NOT_ENABLED" };
-  throw new Error(`CLOUDFLARE_ACCESS_STATE_${response.status}`);
+  }) === true;
 }
 
 async function vercel(path, init = {}, failureStage = "VERCEL_REQUEST") {
@@ -663,11 +1010,11 @@ async function vercelDomainConfig(hostname) {
   return vercel(`/v6/domains/${encodeURIComponent(hostname)}/config`);
 }
 
-async function cloudflare(path, init = {}) {
+async function cloudflare(path, init = {}, failureStage = "CLOUDFLARE_REQUEST") {
   return providerRequest(`https://api.cloudflare.com/client/v4${path}`, {
     ...init,
     headers: cloudflareHeaders(),
-  }, "CLOUDFLARE", true);
+  }, "CLOUDFLARE", true, failureStage);
 }
 
 async function providerRequest(
@@ -742,6 +1089,40 @@ function safeDnsRecord(record) {
   };
 }
 
+function safeAccessApplication(application) {
+  return {
+    id: application.id,
+    name: application.name,
+    domain: application.domain ?? null,
+    type: application.type,
+    aud: application.aud ?? null,
+  };
+}
+
+function safeAccessServiceToken(token) {
+  return {
+    id: token.id,
+    name: token.name,
+    duration: token.duration ?? null,
+    expiresAt: token.expires_at ?? null,
+  };
+}
+
+function normalizeAccessTeamDomain(value) {
+  const candidate = String(value ?? "").trim();
+  const parsed = new URL(candidate.includes("://") ? candidate : `https://${candidate}`);
+  if (
+    parsed.protocol !== "https:"
+    || parsed.username
+    || parsed.password
+    || parsed.port
+    || !/^[a-z0-9-]+\.cloudflareaccess\.com$/u.test(parsed.hostname)
+  ) {
+    throw new Error("DR_ENTRY_CLOUDFLARE_TEAM_DOMAIN_INVALID");
+  }
+  return parsed.origin;
+}
+
 function preferredCname(config) {
   return config.recommendedCNAME
     ?.slice()
@@ -778,6 +1159,23 @@ function requiredPostgresUrl(name) {
 function requiredSupabaseRef(name) {
   const value = required(name);
   if (!/^[a-z]{20}$/u.test(value)) throw new Error(`${name}_INVALID`);
+  return value;
+}
+
+function requireProviderId(value, errorCode) {
+  if (!/^[A-Za-z0-9_.:-]{1,128}$/u.test(value ?? "")) throw new Error(errorCode);
+  return value;
+}
+
+function requiredProviderCredential(value, errorCode) {
+  if (
+    typeof value !== "string"
+    || value.length < 16
+    || value.length > 4096
+    || /[\r\n]/u.test(value)
+  ) {
+    throw new Error(errorCode);
+  }
   return value;
 }
 

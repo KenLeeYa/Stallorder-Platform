@@ -1,6 +1,6 @@
 # ADR-005: DR hostname and environment domain policy
 
-- Status: Implemented in source; protected remote Plan/Apply not yet run; no DNS or Vercel mutation applied
+- Status: Cloudflare Access architecture implemented in source; protected remote Plan/Apply not yet run; no DNS, Access, or Vercel mutation applied
 - Date: 2026-09-01
 - Scope: `staging.qidaigo.com`, `dr.qidaigo.com`, `app.qidaigo.com`, Vercel application routing, and Production DR validation
 
@@ -16,8 +16,8 @@ Read-only inspection on 2026-09-01 found:
 | Vercel `staging.qidaigo.com` | Verified custom domain bound to Git branch `staging`, without a redirect |
 | HTTPS `staging.qidaigo.com/api/health` | `404 DEPLOYMENT_NOT_FOUND` |
 | Cloudflare/Vercel `dr.qidaigo.com` | No DNS record and no project-domain binding |
-| Cloudflare Access | Not enabled for the account; it cannot currently protect this hostname |
-| Vercel plan and project state | Pro plan; no `stallorder-dr` project; project-level Vercel Authentication is available and the Apply must prove `All Deployments` was accepted |
+| Cloudflare Access | Not enabled for the account; the current DNS-capable token cannot read or create Access resources. A least-privilege Access-capable token and one-time Zero Trust activation are prerequisites. |
+| Vercel plan and project state | Pro plan; no `stallorder-dr` project; Standard protection is available for generated deployments, while paid `All Deployments` protection was rejected by the provider. |
 | `app.qidaigo.com/api/health` | Production application responded `200` |
 | GitHub Production `APP_BASE_URL` | `https://app.qidaigo.com` |
 | Edge CORS source | `supabase/functions/_shared/env.ts` still includes `https://staging.qidaigo.com` in `canonicalPublicOrigins` |
@@ -28,12 +28,13 @@ The database project becoming DR does not make a Vercel branch alias a DR applic
 
 1. `app.qidaigo.com` remains the only customer-facing Production application hostname. A failover changes the protected runtime behind this stable hostname; customers are not sent to a different URL.
 2. `dr.qidaigo.com` is reserved for operator-only DR readiness and cutover validation. It must not receive normal public traffic, be indexed, or become a second permanent writer.
-3. `dr.qidaigo.com` may be provisioned only after an exact DR deployment exists with DR-specific bindings, `AUTH_PROJECT_CODE=DR`, active-backend/epoch checks, writer fencing, and access protection. Cloudflare Access requires a proxied record; otherwise use an equivalent Vercel deployment-protection control.
+3. `dr.qidaigo.com` may be provisioned only after an exact DR deployment exists with DR-specific bindings, `AUTH_PROJECT_CODE=DR`, active-backend/epoch checks, writer fencing, and access protection. Its Cloudflare DNS record must be proxied, its Access application must allow current Cloudflare account members, and the DR origin must validate the Access JWT signature, issuer, and application audience.
 4. `staging.qidaigo.com` is a legacy runtime alias and is not Staging. It should be removed from Vercel and Cloudflare after a reviewed Plan/Apply and rollback check. Do not redirect it to `dr.qidaigo.com`, because that would preserve an incorrect environment meaning and expose an operational endpoint.
 5. Ephemeral Preview remains the only hosted pre-Production validation environment. The Git branch `staging` remains a source-tree gate and has no persistent hostname or database.
 6. The operator entry uses a separate, Git-unlinked Vercel project named `stallorder-dr`, not the customer-facing `stallorder-platform` project. Its deployment uses `vercel.dr.json`, has no Cron jobs, and is built from the exact reviewed `main` commit/tree with DR-only database and Supabase bindings.
-7. Because Cloudflare Access is not enabled, the initial DNS record is a DNS-only CNAME and Vercel Authentication must protect all project deployments, including the generated deployment URL and `dr.qidaigo.com`. The Apply aborts and deletes the newly created project if the provider does not return that protection state; it does not purchase or enable a paid protection feature automatically.
-8. The protected `/api/health/dr/operator` endpoint is disabled by default and returns `READY` only when the runtime, Supabase project ref/URLs, database identity, promotion epoch, `READ_ONLY_STANDBY` role, disabled writes, and writer-fence enforcement all match. Apply separately checks DR Auth health, Storage health, and that every repository Edge Function is active in the DR project.
+7. The separate Vercel project uses Standard protection (`all_except_custom_domains`) for its generated deployment URL. It does not purchase Advanced Deployment Protection. The custom domain trust boundary is Cloudflare Access plus origin JWT validation, not a Vercel project setting.
+8. Automated Apply QA creates a one-hour Cloudflare Access service token and an application-owned Service Auth policy. Credentials remain only in process memory, are never written to evidence, and the token and policy are deleted and read back as absent after verification. Normal operator login uses the Cloudflare identity provider restricted to current account members.
+9. The protected `/api/health/dr/operator` endpoint is disabled by default and returns `READY` only when the runtime, Supabase project ref/URLs, database identity, promotion epoch, `READ_ONLY_STANDBY` role, disabled writes, and writer-fence enforcement all match. Apply separately checks DR Auth health, Storage health, and that every repository Edge Function is active in the DR project.
 
 ## Why a direct rename is unsafe
 
@@ -50,7 +51,7 @@ The required application changes are configuration and verification work rather 
 
 ## Required Plan before any remote mutation
 
-The immutable Plan is created by `.github/workflows/production-dr-operator-entry.yml` and must identify the exact Cloudflare zone, Vercel team/project, source commit/tree, DR runtime epoch, DNS before-state, Vercel domain before-state, access-protection mode, rollback operations, and these checks:
+The immutable Plan is created by `.github/workflows/production-dr-operator-entry.yml` and must identify the exact Cloudflare account/zone, Access team domain and account-member-restricted IdP, Vercel team/project, source commit/tree, DR runtime epoch, DNS before-state, Vercel domain before-state, access-protection mode, rollback operations, and these checks:
 
 - the `dr` deployment uses DR database, Auth, Storage, Edge Functions, and public-order origin bindings;
 - `APP_BASE_URL`, `NEXT_PUBLIC_APP_URL`, `TRUSTED_APP_ORIGINS`, `PUBLIC_APP_ORIGINS`, and `TURNSTILE_EXPECTED_HOSTNAME` agree with the intended host;
@@ -60,19 +61,23 @@ The immutable Plan is created by `.github/workflows/production-dr-operator-entry
 - the DR database is fenced `READ_ONLY_STANDBY` before promotion and is never writable concurrently with Primary;
 - monitoring distinguishes public `app` health from protected `dr` readiness;
 - the exact Preview-validated artifact is used; no branch-only rebuild is trusted as a cutover artifact.
+- no `dr.qidaigo.com` Access application, DNS record, Vercel binding/project, or colliding QA service token already exists;
+- the Cloudflare token has least-privilege Access application/policy, service-token, organization/IdP read, and zone DNS capabilities; provider terms or Zero Trust activation are never accepted implicitly.
 
 Apply order:
 
-1. Create the separate `stallorder-dr` project with Vercel Authentication set to `All Deployments`; read it back before deployment.
-2. Build the DR-configured deployment without assigning a public domain or Cron jobs.
-3. Prove unauthenticated access is rejected; use authenticated `vercel curl` to validate the operator endpoint, database fence, Supabase binding, Auth, Storage, and Edge Functions.
-4. Add and verify the `dr.qidaigo.com` Vercel binding.
-5. Add the exact DNS-only Cloudflare CNAME recorded by the Plan and verify Vercel sees a configured domain.
-6. Prove the custom domain still rejects unauthenticated access and the protected operator endpoint remains `READY`; normal customer traffic remains on `app.qidaigo.com`.
-7. Remove the Vercel `staging.qidaigo.com` branch binding and its Cloudflare DNS record.
-8. Verify `staging` is retired, `dr` is protected, and `app` remains healthy.
+1. Create the one-hour QA service token and the self-hosted Cloudflare Access application with separate account-member Allow and Service Auth policies; read back the exact policy selectors.
+2. Create the separate `stallorder-dr` project with Vercel Standard protection; read it back before deployment.
+3. Build the DR-configured deployment without assigning a public domain or Cron jobs. Bind its Access team domain and newly assigned application audience into both build and runtime configuration.
+4. Prove the generated deployment rejects unauthenticated access; use authenticated `vercel curl` to validate the operator endpoint, database fence, Supabase binding, Auth, Storage, and Edge Functions.
+5. Add and verify the `dr.qidaigo.com` Vercel binding.
+6. Add the exact **proxied** Cloudflare CNAME recorded by the Plan and verify Vercel sees a configured domain.
+7. Prove the custom domain rejects unauthenticated access, then use the short-lived service token to reach a `READY` operator probe through Cloudflare. The origin must accept only a valid `Cf-Access-Jwt-Assertion` for the Plan-bound issuer and audience.
+8. Delete the temporary Service Auth policy and token and read both back as absent. Keep only the account-member Allow policy.
+9. Remove the Vercel `staging.qidaigo.com` branch binding and its Cloudflare DNS record.
+10. Verify `staging` is retired, `dr` is protected, and `app` remains healthy.
 
-Rollback restores the recorded DNS/domain before-state and removes only the exact Vercel project ID and Cloudflare record ID created by that Apply. It never deletes by name alone and must read the restored state back. It must not change database writer state. A failed DR probe stops before any `app.qidaigo.com` cutover.
+Rollback restores the recorded DNS/domain before-state and removes only the exact Vercel project, Cloudflare DNS record, Access application, and QA service-token IDs created by that Apply. It never deletes by name alone and must read the restored state back. It must not change database writer state. A failed DR probe stops before any `app.qidaigo.com` cutover.
 
 ## Consequences
 

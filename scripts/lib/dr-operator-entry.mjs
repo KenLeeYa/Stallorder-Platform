@@ -8,7 +8,11 @@ export const DR_OPERATOR_ENTRY = Object.freeze({
   hostname: "dr.qidaigo.com",
   legacyHostname: "staging.qidaigo.com",
   projectName: "stallorder-dr",
-  protection: "VERCEL_AUTHENTICATION_ALL",
+  accessApplicationName: "StallOrder Production DR Operator",
+  protection: "CLOUDFLARE_ACCESS_PLUS_VERCEL_STANDARD",
+  vercelDeploymentProtection: "all_except_custom_domains",
+  humanSelector: "cloudflare_account_member",
+  qaServiceTokenDuration: "1h",
 });
 
 export function stableJson(value) {
@@ -87,6 +91,17 @@ export function buildDrOperatorEntryPlan(input) {
     throw new Error("DR_DNS_ALREADY_EXISTS");
   }
 
+  const access = input.providers.cloudflare.access;
+  if (access.applications.some((application) =>
+    application.domain === DR_OPERATOR_ENTRY.hostname
+    || application.name === DR_OPERATOR_ENTRY.accessApplicationName)) {
+    throw new Error("DR_ENTRY_ACCESS_APPLICATION_ALREADY_EXISTS");
+  }
+  const qaServiceTokenName = `stallorder-dr-qa-${input.source.commitSha.slice(0, 12)}`;
+  if (access.serviceTokens.some((token) => token.name === qaServiceTokenName)) {
+    throw new Error("DR_ENTRY_QA_SERVICE_TOKEN_ALREADY_EXISTS");
+  }
+
   const stagingDomain = input.providers.vercel.stagingDomain;
   const stagingRecord = input.providers.cloudflare.stagingRecord;
   if (!stagingDomain || stagingDomain.gitBranch !== "staging") {
@@ -97,7 +112,7 @@ export function buildDrOperatorEntryPlan(input) {
   }
 
   const core = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     operation: "CREATE_PROTECTED_DR_OPERATOR_ENTRY",
     changesRemoteState: false,
     source: input.source,
@@ -108,8 +123,18 @@ export function buildDrOperatorEntryPlan(input) {
       sourceProjectId: input.providers.vercel.sourceProject.id,
       cloudflareZoneId: input.providers.cloudflare.zoneId,
       cnameTarget: input.providers.vercel.cnameTarget,
-      dnsProxy: false,
+      dnsProxy: true,
       protection: DR_OPERATOR_ENTRY.protection,
+      vercelDeploymentProtection: DR_OPERATOR_ENTRY.vercelDeploymentProtection,
+      cloudflareAccess: {
+        accountId: input.providers.cloudflare.accountId,
+        applicationName: DR_OPERATOR_ENTRY.accessApplicationName,
+        teamDomain: access.teamDomain,
+        identityProviderId: access.identityProvider.id,
+        humanSelector: DR_OPERATOR_ENTRY.humanSelector,
+        qaServiceTokenName,
+        qaServiceTokenDuration: DR_OPERATOR_ENTRY.qaServiceTokenDuration,
+      },
       runtime: {
         backendTarget: "DR",
         authProjectCode: "DR",
@@ -129,20 +154,29 @@ export function buildDrOperatorEntryPlan(input) {
         vercel: stagingDomain,
         cloudflare: stagingRecord,
       },
-      cloudflareAccess: input.providers.cloudflare.access,
+      cloudflareAccess: {
+        enabled: true,
+        teamDomain: access.teamDomain,
+        identityProvider: access.identityProvider,
+        application: null,
+        qaServiceToken: null,
+      },
     },
     applySteps: [
-      "create an unlinked stallorder-dr Vercel project with Vercel Authentication on all deployments",
-      "deploy the exact source commit with vercel.dr.json and DR-only runtime bindings without assigning a domain",
-      "verify the generated deployment rejects unauthenticated access, the authenticated operator probe reports READY, and DR Auth, Storage and Edge Functions pass read-only checks",
-      "bind dr.qidaigo.com to the DR project and create its DNS-only Cloudflare CNAME",
-      "verify the custom domain remains protected and app.qidaigo.com remains healthy",
+      "create a one-hour Cloudflare Access QA service token and a self-hosted dr.qidaigo.com application limited to Cloudflare account members",
+      "create an unlinked stallorder-dr Vercel project with Standard deployment protection for generated deployment URLs",
+      "deploy the exact source commit with vercel.dr.json, DR-only runtime bindings and Plan-bound Cloudflare Access JWT validation",
+      "verify the generated deployment rejects unauthenticated access and the authenticated operator probe reports READY",
+      "bind dr.qidaigo.com to the DR project and create its proxied Cloudflare CNAME",
+      "verify unauthenticated edge denial, service-token QA, origin JWT validation, DR services and app.qidaigo.com health",
+      "delete the temporary QA service token and its policy after verification",
       "remove the stale staging.qidaigo.com Vercel binding and Cloudflare record",
     ],
     rollback: [
       "restore the recorded staging.qidaigo.com Vercel binding and Cloudflare CNAME if they were removed",
       "delete the newly created dr.qidaigo.com Cloudflare record and Vercel binding",
       "delete the newly created stallorder-dr Vercel project",
+      "delete only the exact Cloudflare Access application and QA service token created by this Apply",
       "do not alter Primary or DR database writer state",
     ],
   };
@@ -223,6 +257,26 @@ function validateProviderState(providers) {
   if (!/^[a-f0-9]{32}$/u.test(providers.cloudflare.zoneId ?? "")) {
     throw new Error("DR_ENTRY_CLOUDFLARE_ZONE_INVALID");
   }
+  if (!/^[a-f0-9]{32}$/u.test(providers.cloudflare.accountId ?? "")) {
+    throw new Error("DR_ENTRY_CLOUDFLARE_ACCOUNT_INVALID");
+  }
+  const access = providers.cloudflare.access;
+  if (access?.enabled !== true) {
+    throw new Error("DR_ENTRY_CLOUDFLARE_ACCESS_NOT_ENABLED");
+  }
+  if (!isCloudflareAccessTeamDomain(access.teamDomain)) {
+    throw new Error("DR_ENTRY_CLOUDFLARE_TEAM_DOMAIN_INVALID");
+  }
+  if (
+    !/^[A-Za-z0-9_-]{1,128}$/u.test(access.identityProvider?.id ?? "")
+    || access.identityProvider?.type !== "cloudflare"
+    || access.identityProvider?.restrictToAccountMembers !== true
+  ) {
+    throw new Error("DR_ENTRY_CLOUDFLARE_ACCOUNT_IDP_INVALID");
+  }
+  if (!Array.isArray(access.applications) || !Array.isArray(access.serviceTokens)) {
+    throw new Error("DR_ENTRY_CLOUDFLARE_ACCESS_STATE_INVALID");
+  }
   if (!VERCEL_CNAME_PATTERN.test(providers.vercel.cnameTarget ?? "")) {
     throw new Error("DR_ENTRY_CNAME_TARGET_INVALID");
   }
@@ -238,5 +292,16 @@ function validateProviderState(providers) {
     )
   ) {
     throw new Error("LEGACY_STAGING_DNS_TARGET_INVALID");
+  }
+}
+
+function isCloudflareAccessTeamDomain(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:"
+      && parsed.origin === value
+      && /^[a-z0-9-]+\.cloudflareaccess\.com$/u.test(parsed.hostname);
+  } catch {
+    return false;
   }
 }
