@@ -14,6 +14,10 @@ import {
 } from "react";
 import { CircleAlert, WifiOff } from "lucide-react";
 import { useAppLocale } from "@/components/locale-provider";
+import {
+  readWakeLockPreference,
+  writeWakeLockPreference,
+} from "@/components/wake-lock-preference";
 
 const PwaUpdateController = lazy(() => import("@/components/pwa-update-controller")
   .then((module) => ({ default: module.PwaUpdateController })));
@@ -110,8 +114,13 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
       wakeLock?: { request: (type: "screen") => Promise<WakeLockSentinel> };
     }).wakeLock;
     if (!wakeLockApi || document.visibilityState !== "visible") return false;
+    if (wakeLockRef.current && !wakeLockRef.current.released) return true;
     try {
       const sentinel = await wakeLockApi.request("screen");
+      if (!wakeLockRequestedRef.current) {
+        await sentinel.release();
+        return false;
+      }
       wakeLockRef.current = sentinel;
       setWakeLockActive(true);
       sentinel.addEventListener("release", () => {
@@ -128,6 +137,7 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
   const toggleWakeLock = useCallback(async () => {
     if (wakeLockRequestedRef.current) {
       wakeLockRequestedRef.current = false;
+      writeWakeLockPreference(window.localStorage, false);
       const current = wakeLockRef.current;
       wakeLockRef.current = null;
       if (current && !current.released) await current.release();
@@ -135,6 +145,7 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
       return false;
     }
     wakeLockRequestedRef.current = true;
+    writeWakeLockPreference(window.localStorage, true);
     return requestWakeLock();
   }, [requestWakeLock]);
 
@@ -201,6 +212,11 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
       document.removeEventListener("submit", preventOfflineSubmit, true);
     };
   }, []);
+
+  useEffect(() => {
+    wakeLockRequestedRef.current = readWakeLockPreference(window.localStorage);
+    if (wakeLockRequestedRef.current) void requestWakeLock();
+  }, [requestWakeLock]);
 
   useEffect(() => {
     const restoreWakeLock = () => {

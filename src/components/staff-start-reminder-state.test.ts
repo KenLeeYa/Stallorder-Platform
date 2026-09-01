@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveStaffStartStep } from "@/components/staff-start-reminder-state";
+import {
+  resolveStaffStartStep,
+  staffStartReminderPolicy,
+} from "@/components/staff-start-reminder-state";
 
 describe("staff start reminder sequence", () => {
   it("asks for attendance before cash opening", () => {
@@ -40,5 +43,24 @@ describe("staff start reminder sequence", () => {
       cashShiftAvailable: false,
       hasOpenCashShift: false,
     })).toBe(null);
+  });
+
+  it("only requires attendance for the employee role", () => {
+    expect(staffStartReminderPolicy("STAFF")).toEqual({
+      attendanceRequired: true,
+      cashShiftRequired: true,
+    });
+    expect(staffStartReminderPolicy("ORGANIZATION_OWNER")).toEqual({
+      attendanceRequired: false,
+      cashShiftRequired: true,
+    });
+    expect(staffStartReminderPolicy("STALL_MANAGER")).toEqual({
+      attendanceRequired: false,
+      cashShiftRequired: true,
+    });
+    expect(staffStartReminderPolicy("KITCHEN")).toEqual({
+      attendanceRequired: false,
+      cashShiftRequired: false,
+    });
   });
 });
