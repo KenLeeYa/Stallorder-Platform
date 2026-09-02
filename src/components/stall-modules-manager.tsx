@@ -2,7 +2,8 @@
 
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import { useMemo, useRef, useState } from "react";
-import { CalendarClock, Copy, Dices, Languages, MapPinned, MessageCircle, Percent, Plus, Printer, QrCode, RotateCw, Save, SlidersHorizontal, Trash2, Truck, Utensils, WalletCards } from "lucide-react";
+import Link from "next/link";
+import { CalendarClock, Copy, Dices, FileDown, Languages, MapPinned, MessageCircle, Percent, Plus, Printer, QrCode, RotateCw, Save, ShoppingBag, SlidersHorizontal, Trash2, Truck, Utensils, WalletCards } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
 import { DiningFloorEditor } from "@/components/dining-floor-editor";
@@ -42,6 +43,8 @@ export type ModuleState = {
     discountModuleEnabled: boolean;
     discountApprovalThresholdBps: number;
     takeoutPreorderEnabled: boolean;
+    checkoutUpsellEnabled: boolean;
+    checkoutUpsellProductIds: string[];
     preorderMinLeadMinutes: number;
     preorderMaxDays: number;
     preorderSlotMinutes: 5 | 15 | 30 | 60 | 120;
@@ -77,6 +80,13 @@ export type ModuleState = {
     shape: DiningTableShape;
     rotationDegrees: number;
     qrCode: { token: string; tokenVersion: number } | null;
+  }>;
+  upsellProducts: Array<{
+    id: string;
+    name: string;
+    price: number;
+    isAvailable: boolean;
+    translations: Array<{ locale: string; name: string }>;
   }>;
   paymentOptions: Array<{
     id: string;
@@ -343,6 +353,8 @@ export function StallModulesManager({
       discountModuleEnabled: settings.discountModuleEnabled,
       discountApprovalThresholdBps: settings.discountApprovalThresholdBps,
       takeoutPreorderEnabled: settings.takeoutPreorderEnabled,
+      checkoutUpsellEnabled: settings.checkoutUpsellEnabled,
+      checkoutUpsellProductIds: settings.checkoutUpsellProductIds,
       preorderMinLeadMinutes: settings.preorderMinLeadMinutes,
       preorderMaxDays: settings.preorderMaxDays,
       preorderSlotMinutes: settings.preorderSlotMinutes,
@@ -406,7 +418,7 @@ export function StallModulesManager({
         data-module-section="overview"
         data-settings-section
         data-settings-scope="stall-modules"
-        data-settings-search={label("營運模組 內用桌位 外送 LINE 專屬 QR 點餐語系 訂單列印 付款方式 結帳折扣 桌位平面配置")}
+        data-settings-search={label("營運模組 內用桌位 外送 LINE 專屬 QR 點餐語系 訂單列印 付款方式 結帳折扣 結帳前加點推薦 桌位平面配置")}
         className="border-y border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500"
       >
         <CollapsibleSectionSummary
@@ -425,6 +437,7 @@ export function StallModulesManager({
         {isView("payments") ? <ModuleSwitch label={label("多元付款")} icon={<WalletCards className="h-4 w-4" />} checked={state.settings.paymentModuleEnabled} onChange={(paymentModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, paymentModuleEnabled } }))} /> : null}
         {isView("discounts") ? <ModuleSwitch label={label("結帳折扣")} icon={<Percent className="h-4 w-4" />} checked={state.settings.discountModuleEnabled} onChange={(discountModuleEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, discountModuleEnabled } }))} /> : null}
         {isView("preorder", "online-ordering") ? <ModuleSwitch label={label("外帶自取（需選時段）")} icon={<CalendarClock className="h-4 w-4" />} checked={state.settings.takeoutPreorderEnabled} onChange={(takeoutPreorderEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, takeoutPreorderEnabled }) }))} /> : null}
+        {isView("online-ordering") ? <ModuleSwitch label={label("結帳前加點推薦")} icon={<ShoppingBag className="h-4 w-4" />} checked={state.settings.checkoutUpsellEnabled} onChange={(checkoutUpsellEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, checkoutUpsellEnabled }) }))} /> : null}
         {isView("lottery") ? <ModuleSwitch label={label("抽抽樂推薦")} icon={<Dices className="h-4 w-4" />} checked={state.settings.lotteryEnabled} onChange={(lotteryEnabled) => setState((current) => ({ ...current, settings: normalizeDisabledModuleSettings({ ...current.settings, lotteryEnabled }) }))} /> : null}
       </div> : null}
       {isView("delivery", "online-ordering") && state.settings.deliveryModuleEnabled ? (
@@ -458,6 +471,13 @@ export function StallModulesManager({
         <label className="text-xs font-medium text-stone-600">{label("時段間隔")}<select {...validationAttributes(fieldKey("modules", "preorderSlotMinutes"), errorFor("modules", "preorderSlotMinutes"))} value={state.settings.preorderSlotMinutes} onChange={(event) => setState((current) => ({ ...current, settings: { ...current.settings, preorderSlotMinutes: Number(event.target.value) as 5 | 15 | 30 | 60 | 120 } }))} className={`${inputClass(errorFor("modules", "preorderSlotMinutes"))} bg-white`}><option value={5}>{label("5 分鐘")}</option><option value={15}>{label("15 分鐘")}</option><option value={30}>{label("30 分鐘")}</option><option value={60}>{label("60 分鐘")}</option><option value={120}>{label("120 分鐘")}</option></select><FieldError fieldKey={fieldKey("modules", "preorderSlotMinutes")} error={errorFor("modules", "preorderSlotMinutes")} /></label>
         <p className="text-xs text-stone-500 sm:col-span-3">{label("關店期間只接受營業時間內的合法外帶時段；暫停接單與售罄仍會阻擋預約。")}</p>
       </div> : null}
+      {isView("online-ordering") && state.settings.checkoutUpsellEnabled ? (
+        <div className="mt-4 rounded-lg border border-teal-200 bg-teal-50/60 p-4 text-sm text-teal-950">
+          <p className="font-semibold">{label("請到攤位商品設定選擇推薦商品。")}</p>
+          <p className="mt-1 text-xs leading-5 text-teal-800">{label("顧客準備結帳時只提醒一次；已加入或暫停供應的商品不會重複顯示。")}</p>
+          <p className="mt-2 text-xs font-semibold">{label("已設定推薦商品")} {state.settings.checkoutUpsellProductIds.length}/6</p>
+        </div>
+      ) : null}
       {isView("lottery") && state.settings.lotteryEnabled ? <fieldset className="mt-4 rounded-lg border border-violet-200 bg-violet-50/60 p-4">
         <legend className="px-1 text-sm font-semibold text-violet-950">{label("免費餐點抽獎資格")}</legend>
         <p className="text-xs leading-5 text-violet-800">{label("符合資格後，顧客送出訂單前會看到抽獎視窗；抽中的免費商品由伺服器以 0 元贈品加入同一張訂單。")}</p>
@@ -594,6 +614,14 @@ export function StallModulesManager({
       >
         <CollapsibleSectionSummary icon={QrCode} title={label("內用桌位與專屬 QR")} level={3} />
         <div className="pb-6">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-teal-200 bg-teal-50 p-4">
+            <div><p className="text-sm font-semibold text-teal-950">{label("桌位 QR 印刷版")}</p><p className="mt-1 text-xs text-teal-800">{label("A4 會自動排列裁切間距，每張最多 6 個桌位。")}</p></div>
+            {state.tables.some((table) => table.isActive && table.qrCode) ? (
+              <Link href={`/merchant/stalls/${stallId}/qr-print?target=tables&paper=A4`} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white">
+                <FileDown className="h-4 w-4" />{label("A4 一鍵列印全部")}
+              </Link>
+            ) : <span className="text-xs font-semibold text-stone-500">{label("建立並啟用桌位後即可列印。")}</span>}
+          </div>
           <div className="mb-5 border-b border-stone-200 pb-5">
             <div role="tablist" aria-label={label("樓層")} className="flex gap-2 overflow-x-auto pb-2">
               {floorTabs.map((floor) => (
@@ -689,7 +717,7 @@ export function StallModulesManager({
                     <button type="button" disabled={busy} onClick={() => { if (window.confirm(m("確定刪除 {value0}？", { value0: table.label }))) void run({ operation: "DELETE_TABLE", tableId: table.id }, label("桌位已刪除。")); }} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-300 text-red-700" title={m("刪除 {value0}", { value0: table.label })}><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </div>
-                {qrUrl ? <div className="flex flex-col items-center gap-2 border-l-0 border-stone-200 lg:border-l lg:pl-4"><QRCodeSVG value={qrUrl} size={120} level="M" /><button type="button" onClick={() => void copyShareText(qrUrl, m("{value0} QR 網址", { value0: table.label }))} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-800"><Copy className="h-3.5 w-3.5" />{label("複製網址")}</button><span className="text-xs text-stone-500">QR v{table.qrCode?.tokenVersion}</span></div> : null}
+                {qrUrl ? <div className="flex flex-col items-center gap-2 border-l-0 border-stone-200 lg:border-l lg:pl-4"><QRCodeSVG value={qrUrl} size={120} level="M" /><div className="flex flex-wrap justify-center gap-2"><button type="button" onClick={() => void copyShareText(qrUrl, m("{value0} QR 網址", { value0: table.label }))} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-stone-300 px-2 text-xs font-semibold text-teal-800"><Copy className="h-3.5 w-3.5" />{label("複製網址")}</button><Link href={`/merchant/stalls/${stallId}/qr-print?target=table&paper=A4&tableId=${encodeURIComponent(table.id)}`} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-2 text-xs font-semibold text-white"><FileDown className="h-3.5 w-3.5" />{label("列印此桌")}</Link></div><span className="text-xs text-stone-500">QR v{table.qrCode?.tokenVersion}</span></div> : null}
               </div>;
             })}
             {activeFloorTables.length === 0 ? <p className="py-6 text-sm text-stone-500">{activeFloor?.name ?? label("此樓層")}{label("尚未建立內用桌位。")}</p> : null}
@@ -877,6 +905,7 @@ export function mergeModuleStateAfterCommand(
     settings: mergeDirtyRecord(draftState.settings, savedState.settings, serverState.settings),
     floors: mergeDirtyEntities(draftState.floors, savedState.floors, serverState.floors),
     tables: mergeDirtyEntities(draftState.tables, savedState.tables, serverState.tables),
+    upsellProducts: serverState.upsellProducts,
     paymentOptions: mergeDirtyEntities(
       draftState.paymentOptions,
       savedState.paymentOptions,

@@ -24,4 +24,3 @@
 ## 回復
 
 關閉 platform/checkout/mock flags 即可停止入口；不得刪除既有文件、operation 或 policy history。Production rollback 不在本機 Mock 授權範圍內。
-

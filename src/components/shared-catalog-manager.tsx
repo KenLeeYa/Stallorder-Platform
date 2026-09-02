@@ -4,13 +4,13 @@ import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import type { MessageValues } from "@/lib/message-catalog";
 import type { MerchantMessageKey } from "@/lib/messages/merchant";
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
+  ArrowLeft,
   ArrowDown,
   ArrowUp,
   Boxes,
   Check,
-  ChevronDown,
+  ChevronRight,
   Copy,
   Download,
   Eye,
@@ -26,6 +26,7 @@ import {
   Pencil,
   Plus,
   Save,
+  Search,
   Sparkles,
   Store,
   Trash2,
@@ -114,6 +115,20 @@ type ImportPreview = {
 type TaxonomyAction =
   | { kind: "CATEGORY"; item: Category; index: number }
   | { kind: "GROUP"; item: Group; categoryId: string; index: number; siblings: Group[] };
+
+type CatalogNavigatorLevel =
+  | { kind: "CATEGORIES" }
+  | { kind: "GROUPS"; categoryId: string }
+  | { kind: "PRODUCTS"; categoryId: string; groupId: string | null };
+
+type CatalogNavigatorAction = TaxonomyAction | {
+  kind: "PRODUCT";
+  item: Product;
+  categoryId: string;
+  groupId: string | null;
+  index: number;
+  siblings: Product[];
+};
 
 type ProductImageCrop = { positionX: number; positionY: number; zoom: number };
 type ImageFeedback = { kind: "success" | "error"; text: string };
@@ -262,8 +277,10 @@ export function SharedCatalogManager({
   const formatMoney = (amount: number, selectedCurrency = currency) => formatRawMoney(amount, selectedCurrency, locale);
   const singleStallMode = operatingMode === "SINGLE_STALL";
   const [catalog, setCatalog] = useState(initialCatalog);
-  const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set());
-  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
+  const [catalogNavigatorOpen, setCatalogNavigatorOpen] = useState(false);
+  const [catalogNavigatorLevel, setCatalogNavigatorLevel] = useState<CatalogNavigatorLevel>({ kind: "CATEGORIES" });
+  const [catalogNavigatorAction, setCatalogNavigatorAction] = useState<CatalogNavigatorAction | null>(null);
+  const [catalogSearch, setCatalogSearch] = useState("");
   const [noteGroups, setNoteGroups] = useState(initialNoteGroups);
   const [reusableNotes, setReusableNotes] = useState(initialReusableNotes);
   const [noteGroupsRevision, setNoteGroupsRevision] = useState(0);
@@ -274,7 +291,6 @@ export function SharedCatalogManager({
   const [imageFeedback, setImageFeedback] = useState<ImageFeedback | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [assignmentProduct, setAssignmentProduct] = useState<Product | null>(null);
-  const [taxonomyAction, setTaxonomyAction] = useState<TaxonomyAction | null>(null);
   const [assignmentStallIds, setAssignmentStallIds] = useState<string[]>([]);
   const [bundleProductId, setBundleProductId] = useState<string | null>(null);
   const [bundleChoiceGroupDraft, setBundleChoiceGroupDraft] = useState<BundleChoiceGroupDraft | null>(null);
@@ -308,27 +324,6 @@ export function SharedCatalogManager({
     () => [...catalog.categories].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-TW")),
     [catalog.categories],
   );
-  const allProductsExpanded = sortedCategories.every((category) => !collapsedCategoryIds.has(category.id))
-    && catalog.groups.every((group) => !collapsedGroupIds.has(group.id));
-
-  function toggleAllProducts() {
-    const expand = !allProductsExpanded;
-    setCollapsedCategoryIds(expand
-      ? new Set()
-      : new Set(sortedCategories.map((category) => category.id)));
-    setCollapsedGroupIds(expand
-      ? new Set()
-      : new Set(catalog.groups.map((group) => group.id)));
-  }
-
-  function updateGroupDisclosure(groupId: string, isOpen: boolean) {
-    setCollapsedGroupIds((current) => {
-      const next = new Set(current);
-      if (isOpen) next.delete(groupId);
-      else next.add(groupId);
-      return next;
-    });
-  }
 
   function clearBundleFeedback() {
     setBundleMessage("");
@@ -444,10 +439,15 @@ export function SharedCatalogManager({
     setCategoryDraft({ name: "", sortOrder: catalog.categories.length + 1, isActive: true, translations: [] });
   }
 
-  function createGroup() {
+  function createGroup(categoryId?: string) {
     clearEditorFeedback();
+    const category = sortedCategories.find((item) => item.id === categoryId) ?? sortedCategories[0];
+    if (!category) {
+      setMessage(label("請先建立可用的商品分類。"));
+      return;
+    }
     setGroupDraft({
-      categoryId: sortedCategories[0].id,
+      categoryId: category.id,
       name: "",
       sortOrder: catalog.groups.length + 1,
       isActive: true,
@@ -470,19 +470,28 @@ export function SharedCatalogManager({
     setProductDraft({ ...product, isSoldOut: productIsSoldOut(product), stallIds: [] });
   }
 
-  function createProduct(kind: ProductKindValue = "SINGLE") {
+  function createProduct(
+    kind: ProductKindValue = "SINGLE",
+    location?: { categoryId: string; groupId: string | null },
+  ) {
     clearEditorFeedback();
-    const category = sortedCategories.find((item) => item.isActive);
+    const category = sortedCategories.find((item) => item.id === location?.categoryId && item.isActive)
+      ?? sortedCategories.find((item) => item.isActive);
     if (!category) {
       setMessage(label("請先建立可用的商品分類。"));
       setCategoryDraft({ name: "", sortOrder: catalog.categories.length + 1, isActive: true, translations: [] });
       return;
     }
-    const group = catalog.groups.find((item) => item.categoryId === category.id && item.isActive);
+    const requestedGroup = location?.groupId
+      ? catalog.groups.find((item) => item.id === location.groupId && item.categoryId === category.id && item.isActive)
+      : null;
+    const group = location
+      ? requestedGroup
+      : catalog.groups.find((item) => item.categoryId === category.id && item.isActive);
     const activeStalls = stalls.filter((stall) => stall.isActive);
     setProductDraft({
       categoryId: category.id,
-      groupId: group?.id ?? null,
+      groupId: location?.groupId === null ? null : group?.id ?? null,
       name: "",
       description: "",
       defaultPrice: "",
@@ -904,6 +913,65 @@ export function SharedCatalogManager({
     await runCommand({ operation: "REORDER_PRODUCTS", categoryId, groupId, productIds }, label("商品排序已更新。"));
   }
 
+  const navigatorCategory = catalogNavigatorLevel.kind === "CATEGORIES"
+    ? null
+    : sortedCategories.find((category) => category.id === catalogNavigatorLevel.categoryId) ?? null;
+  const navigatorGroup = catalogNavigatorLevel.kind === "PRODUCTS" && catalogNavigatorLevel.groupId
+    ? catalog.groups.find((group) => group.id === catalogNavigatorLevel.groupId) ?? null
+    : null;
+  const navigatorGroups = navigatorCategory
+    ? catalog.groups
+      .filter((group) => group.categoryId === navigatorCategory.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-TW"))
+    : [];
+  const navigatorProducts = catalogNavigatorLevel.kind === "PRODUCTS"
+    ? productsFor(catalogNavigatorLevel.categoryId, catalogNavigatorLevel.groupId)
+    : [];
+  const normalizedCatalogSearch = catalogSearch.trim().toLocaleLowerCase(locale);
+  const catalogSearchResults = normalizedCatalogSearch
+    ? catalog.products
+      .filter((product) => localizedCatalogName(product, locale).toLocaleLowerCase(locale).includes(normalizedCatalogSearch))
+      .sort((a, b) => localizedCatalogName(a, locale).localeCompare(localizedCatalogName(b, locale), locale))
+    : [];
+
+  function closeCatalogNavigator() {
+    setCatalogNavigatorOpen(false);
+    setCatalogNavigatorAction(null);
+    setCatalogSearch("");
+  }
+
+  function leaveCatalogNavigator(run: () => void) {
+    closeCatalogNavigator();
+    run();
+  }
+
+  function backCatalogNavigator() {
+    if (catalogNavigatorAction) {
+      setCatalogNavigatorAction(null);
+      return;
+    }
+    if (catalogNavigatorLevel.kind === "PRODUCTS") {
+      setCatalogNavigatorLevel({ kind: "GROUPS", categoryId: catalogNavigatorLevel.categoryId });
+      return;
+    }
+    if (catalogNavigatorLevel.kind === "GROUPS") {
+      setCatalogNavigatorLevel({ kind: "CATEGORIES" });
+    }
+  }
+
+  function openCatalogProductActions(product: Product) {
+    const siblings = productsFor(product.categoryId, product.groupId);
+    setCatalogNavigatorLevel({ kind: "PRODUCTS", categoryId: product.categoryId, groupId: product.groupId });
+    setCatalogNavigatorAction({
+      kind: "PRODUCT",
+      item: product,
+      categoryId: product.categoryId,
+      groupId: product.groupId,
+      index: siblings.findIndex((item) => item.id === product.id),
+      siblings,
+    });
+  }
+
   return (
     <section aria-labelledby="shared-catalog-heading">
       <div className="flex min-w-0 flex-col gap-4 border-b border-stone-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
@@ -917,7 +985,6 @@ export function SharedCatalogManager({
         <div data-testid="shared-catalog-actions" className="w-full min-w-0 max-w-[calc(100vw-2rem)] overflow-x-hidden md:max-w-[calc(100vw-4rem)] xl:w-auto xl:max-w-none xl:overflow-visible">
           <div data-testid="shared-catalog-action-scroller" className="flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 xl:w-auto xl:flex-col xl:overflow-visible xl:pb-0">
             <div data-testid="shared-catalog-tools" className="flex shrink-0 gap-2 xl:flex-wrap xl:justify-end">
-            <button type="button" title={allProductsExpanded ? label("收合全部品項") : label("展開全部品項")} aria-label={allProductsExpanded ? label("收合全部品項") : label("展開全部品項")} data-testid="shared-products-toggle-all" aria-expanded={allProductsExpanded} aria-controls="shared-product-catalog" onClick={toggleAllProducts} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><ChevronDown className={`h-5 w-5 transition-transform ${allProductsExpanded ? "rotate-180" : ""}`} /><span className="hidden xl:inline">{allProductsExpanded ? label("收合全部品項") : label("展開全部品項")}</span></button>
             <button
               type="button"
               disabled={!aiTranslationConfigured || translationOptions.length === 0 || busy || aiTranslating}
@@ -934,7 +1001,7 @@ export function SharedCatalogManager({
             </div>
             <div data-testid="shared-catalog-create-actions" className="flex shrink-0 gap-2 xl:flex-wrap xl:justify-end">
               <button type="button" title={label("新增分類")} aria-label={label("新增分類")} onClick={createCategory} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><FolderPlus className="h-5 w-5" /><span className="hidden xl:inline">{label("分類")}</span></button>
-              <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={createGroup} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Layers3 className="h-5 w-5" /><span className="hidden xl:inline">{label("群組")}</span></button>
+              <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={() => createGroup()} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Layers3 className="h-5 w-5" /><span className="hidden xl:inline">{label("群組")}</span></button>
               <button type="button" title={label("新增商品")} aria-label={label("新增商品")} onClick={() => createProduct("SINGLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackagePlus className="h-5 w-5" /><span className="hidden xl:inline">{label("商品")}</span></button>
               <button type="button" title={label("新增套餐")} aria-label={label("新增套餐")} onClick={() => createProduct("BUNDLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-sm font-semibold text-teal-900 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackageOpen className="h-5 w-5" /><span className="hidden xl:inline">{label("新增套餐")}</span></button>
               {versionsHref ? <a data-testid="catalog-versions-action" href={versionsHref} title={label("菜單版本與發布")} aria-label={label("菜單版本與發布")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-teal-900"><GitBranch className="h-5 w-5" /></a> : null}
@@ -945,131 +1012,161 @@ export function SharedCatalogManager({
 
       {message ? <p role="status" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
       <div id="shared-product-catalog" data-shared-product-catalog className="mt-5">
-        <div className="divide-y divide-stone-200 border-b border-stone-200">
-          {sortedCategories.map((category, categoryIndex) => {
-            const categoryDisplayName = localizedCatalogName(category, locale);
-            const groups = catalog.groups
-              .filter((group) => group.categoryId === category.id)
-              .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-TW"));
-            const ungrouped = productsFor(category.id, null);
-            return (
-              <details key={category.id} open={!collapsedCategoryIds.has(category.id)} onToggle={(event) => {
-                const isOpen = event.currentTarget.open;
-                setCollapsedCategoryIds((current) => {
-                  const next = new Set(current);
-                  if (isOpen) next.delete(category.id);
-                  else next.add(category.id);
-                  return next;
-                });
-              }} className="group py-1">
-                <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center gap-2 py-3 [&::-webkit-details-marker]:hidden">
-                  <span className="flex min-w-0 flex-1 items-center gap-2">
-                    <Boxes className="h-4 w-4 shrink-0 text-teal-700" />
-                    <span className="min-w-0 truncate font-semibold">{categoryDisplayName}</span>
-                    {!category.isActive ? <span className="shrink-0 rounded-md bg-stone-100 px-2 py-0.5 text-xs text-stone-600">{label("已停用")}</span> : null}
-                    <span className="ml-auto shrink-0 text-xs text-stone-500">{catalog.products.filter((product) => product.categoryId === category.id).length} {label("項")}</span>
-                  </span>
-                  <button
-                    type="button"
-                    title={`${label("操作")}：${category.name}`}
-                    aria-label={`${label("操作")}：${category.name}`}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setTaxonomyAction({ kind: "CATEGORY", item: category, index: categoryIndex });
-                    }}
-                    className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 bg-white"
-                  >
-                    <MoreHorizontal className="h-5 w-5" />
-                  </button>
-                </summary>
-                <div className="pb-4 pl-3 sm:pl-6">
-                  {groups.map((group, groupIndex) => {
-                    const groupDisplayName = localizedCatalogName(group, locale);
-                    return (
-                    <details key={group.id} data-testid="shared-product-group" open={!collapsedGroupIds.has(group.id)} onToggle={(event) => updateGroupDisclosure(group.id, event.currentTarget.open)} className="group/product border-l-2 border-stone-200 py-3 pl-4">
-                      <summary className="grid min-h-12 cursor-pointer list-none gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center [&::-webkit-details-marker]:hidden">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <ChevronDown className="h-4 w-4 shrink-0 text-stone-500 transition-transform group-open/product:rotate-180" />
-                          <h2 className="min-w-0 truncate text-sm font-semibold">{groupDisplayName}</h2>
-                          {!group.isActive ? <span className="shrink-0 text-xs text-stone-500">{label("已停用")}</span> : null}
-                          <span className="ml-auto shrink-0 text-xs text-stone-500">{productsFor(category.id, group.id).length} {label("項")}</span>
-                        </div>
-                        <button
-                          type="button"
-                          title={`${label("操作")}：${group.name}`}
-                          aria-label={`${label("操作")}：${group.name}`}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setTaxonomyAction({ kind: "GROUP", item: group, categoryId: category.id, index: groupIndex, siblings: groups });
-                          }}
-                          className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 bg-white"
-                        >
-                          <MoreHorizontal className="h-5 w-5" />
-                        </button>
-                      </summary>
-                      <ProductRows singleStallMode={singleStallMode} busy={busy} products={productsFor(category.id, group.id)} currency={currency} onMove={(products, index, direction) => void moveProduct(products, category.id, group.id, index, direction)} onEdit={editProduct} onBundle={openBundle} onAssignments={openAssignments} onClone={(product) => void cloneProduct(product)} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
-                    </details>
-                    );
-                  })}
-                  {ungrouped.length > 0 ? (
-                    <div className="border-l-2 border-stone-200 py-3 pl-4">
-                      <h2 className="text-sm font-semibold">{label("未分組商品")}</h2>
-                      <ProductRows singleStallMode={singleStallMode} busy={busy} products={ungrouped} currency={currency} onMove={(products, index, direction) => void moveProduct(products, category.id, null, index, direction)} onEdit={editProduct} onBundle={openBundle} onAssignments={openAssignments} onClone={(product) => void cloneProduct(product)} onToggle={(product) => void toggleActive("PRODUCT", product)} onDelete={(product) => void deleteProduct(product)} />
-                    </div>
-                  ) : null}
-                </div>
-              </details>
-            );
-          })}
-          {sortedCategories.length === 0 ? <p className="py-10 text-center text-sm text-stone-500">{label("尚未建立商品分類。")}</p> : null}
-        </div>
+        <button
+          type="button"
+          data-testid="open-catalog-navigator"
+          onClick={() => {
+            setCatalogNavigatorLevel({ kind: "CATEGORIES" });
+            setCatalogNavigatorAction(null);
+            setCatalogSearch("");
+            setCatalogNavigatorOpen(true);
+          }}
+          className="flex min-h-32 w-full items-center gap-4 rounded-xl border-2 border-teal-700 bg-teal-50 p-5 text-left shadow-sm transition hover:bg-teal-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
+        >
+          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-teal-700 text-white"><Boxes className="h-8 w-8" /></span>
+          <span className="min-w-0 flex-1">
+            <strong className="block text-xl text-teal-950">{label("商品目錄")}</strong>
+            <span className="mt-1 block text-sm leading-6 text-teal-800">{catalog.categories.length} {label("分類")} · {catalog.products.length} {label("商品")}</span>
+            <span className="mt-1 block text-xs text-teal-700">{label("依分類、群組逐層管理，避免一次顯示過長清單。")}</span>
+          </span>
+          <ChevronRight className="h-7 w-7 shrink-0 text-teal-800" />
+        </button>
       </div>
 
-      {taxonomyAction ? (
-        <CatalogActionDialog
-          title={`${taxonomyAction.kind === "CATEGORY" ? label("分類") : label("群組")}：${localizedCatalogName(taxonomyAction.item, locale)}`}
-          onClose={() => setTaxonomyAction(null)}
+      {catalogNavigatorOpen ? (
+        <Editor
+          title={catalogNavigatorAction
+            ? `${catalogNavigatorAction.kind === "CATEGORY" ? label("分類") : catalogNavigatorAction.kind === "GROUP" ? label("群組") : label("商品")}：${localizedCatalogName(catalogNavigatorAction.item, locale)}`
+            : catalogNavigatorLevel.kind === "CATEGORIES"
+              ? label("商品目錄")
+              : catalogNavigatorLevel.kind === "GROUPS"
+                ? `${label("分類")}：${navigatorCategory ? localizedCatalogName(navigatorCategory, locale) : ""}`
+                : `${label("群組")}：${navigatorGroup ? localizedCatalogName(navigatorGroup, locale) : label("未分組商品")}`}
+          onClose={closeCatalogNavigator}
+          fullScreen
+          testId="catalog-navigator-dialog"
         >
-          <CatalogActionButton
-            disabled={busy || taxonomyAction.index === 0}
-            icon={<ArrowUp className="h-6 w-6" />}
-            label={label("上移")}
-            onSelect={() => {
-              setTaxonomyAction(null);
-              if (taxonomyAction.kind === "CATEGORY") void moveCategory(taxonomyAction.index, -1);
-              else void moveGroup(taxonomyAction.siblings, taxonomyAction.categoryId, taxonomyAction.index, -1);
-            }}
-          />
-          <CatalogActionButton
-            disabled={busy || taxonomyAction.index === (taxonomyAction.kind === "CATEGORY" ? sortedCategories.length : taxonomyAction.siblings.length) - 1}
-            icon={<ArrowDown className="h-6 w-6" />}
-            label={label("下移")}
-            onSelect={() => {
-              setTaxonomyAction(null);
-              if (taxonomyAction.kind === "CATEGORY") void moveCategory(taxonomyAction.index, 1);
-              else void moveGroup(taxonomyAction.siblings, taxonomyAction.categoryId, taxonomyAction.index, 1);
-            }}
-          />
-          <CatalogActionButton
-            icon={<Pencil className="h-6 w-6" />}
-            label={label("編輯")}
-            onSelect={() => {
-              setTaxonomyAction(null);
-              if (taxonomyAction.kind === "CATEGORY") editCategory(taxonomyAction.item);
-              else editGroup(taxonomyAction.item);
-            }}
-          />
-          <CatalogActionButton
-            icon={taxonomyAction.item.isActive ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />}
-            label={taxonomyAction.item.isActive ? label("停用") : label("恢復")}
-            onSelect={() => {
-              setTaxonomyAction(null);
-              void toggleActive(taxonomyAction.kind, taxonomyAction.item);
-            }}
-          />
-        </CatalogActionDialog>
+          <div className="flex min-h-full flex-col">
+            <div className="flex flex-wrap items-center gap-3 border-b border-stone-200 pb-4">
+              {(catalogNavigatorAction || catalogNavigatorLevel.kind !== "CATEGORIES") ? (
+                <button type="button" onClick={backCatalogNavigator} className="inline-flex min-h-14 items-center gap-2 rounded-lg border border-stone-300 px-4 text-base font-semibold">
+                  <ArrowLeft className="h-5 w-5" />{label("返回上一層")}
+                </button>
+              ) : null}
+              <p className="min-w-0 flex-1 text-sm font-medium text-stone-600">
+                {label("商品目錄")}
+                {navigatorCategory ? ` ／ ${localizedCatalogName(navigatorCategory, locale)}` : ""}
+                {catalogNavigatorLevel.kind === "PRODUCTS" ? ` ／ ${navigatorGroup ? localizedCatalogName(navigatorGroup, locale) : label("未分組商品")}` : ""}
+              </p>
+            </div>
+
+            {!catalogNavigatorAction ? (
+              <label className="relative mt-4 block">
+                <span className="sr-only">{label("搜尋商品")}</span>
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-500" />
+                <input
+                  type="search"
+                  maxLength={80}
+                  value={catalogSearch}
+                  onChange={(event) => setCatalogSearch(event.target.value)}
+                  placeholder={label("搜尋所有商品")}
+                  className="min-h-14 w-full rounded-xl border border-stone-300 bg-white pl-12 pr-4 text-base"
+                />
+              </label>
+            ) : null}
+
+            {catalogNavigatorAction ? (
+              <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-3">
+                {catalogNavigatorAction.kind === "PRODUCT" && catalogNavigatorAction.item.kind === "BUNDLE" ? <CatalogActionButton icon={<PackageOpen className="h-7 w-7" />} label={label("設定套餐內容")} onSelect={() => leaveCatalogNavigator(() => openBundle(catalogNavigatorAction.item))} /> : null}
+                <CatalogActionButton
+                  disabled={busy || catalogNavigatorAction.index === 0}
+                  icon={<ArrowUp className="h-7 w-7" />}
+                  label={label("上移")}
+                  onSelect={() => {
+                    const action = catalogNavigatorAction;
+                    setCatalogNavigatorAction(null);
+                    if (action.kind === "CATEGORY") void moveCategory(action.index, -1);
+                    else if (action.kind === "GROUP") void moveGroup(action.siblings, action.categoryId, action.index, -1);
+                    else void moveProduct(action.siblings, action.categoryId, action.groupId, action.index, -1);
+                  }}
+                />
+                <CatalogActionButton
+                  disabled={busy || catalogNavigatorAction.index === (catalogNavigatorAction.kind === "CATEGORY" ? sortedCategories.length : catalogNavigatorAction.siblings.length) - 1}
+                  icon={<ArrowDown className="h-7 w-7" />}
+                  label={label("下移")}
+                  onSelect={() => {
+                    const action = catalogNavigatorAction;
+                    setCatalogNavigatorAction(null);
+                    if (action.kind === "CATEGORY") void moveCategory(action.index, 1);
+                    else if (action.kind === "GROUP") void moveGroup(action.siblings, action.categoryId, action.index, 1);
+                    else void moveProduct(action.siblings, action.categoryId, action.groupId, action.index, 1);
+                  }}
+                />
+                {catalogNavigatorAction.kind === "PRODUCT" && !singleStallMode ? <CatalogActionButton icon={<Store className="h-7 w-7" />} label={label("分派攤位")} onSelect={() => leaveCatalogNavigator(() => openAssignments(catalogNavigatorAction.item))} /> : null}
+                {catalogNavigatorAction.kind === "PRODUCT" ? <CatalogActionButton icon={<Copy className="h-7 w-7" />} label={label("複製商品")} onSelect={() => { const product = catalogNavigatorAction.item; setCatalogNavigatorAction(null); void cloneProduct(product); }} /> : null}
+                <CatalogActionButton
+                  icon={<Pencil className="h-7 w-7" />}
+                  label={catalogNavigatorAction.kind === "PRODUCT" ? label("編輯商品") : label("編輯")}
+                  onSelect={() => {
+                    const action = catalogNavigatorAction;
+                    leaveCatalogNavigator(() => {
+                      if (action.kind === "CATEGORY") editCategory(action.item);
+                      else if (action.kind === "GROUP") editGroup(action.item);
+                      else editProduct(action.item);
+                    });
+                  }}
+                />
+                <CatalogActionButton
+                  icon={(catalogNavigatorAction.kind === "PRODUCT" ? productIsSoldOut(catalogNavigatorAction.item) : !catalogNavigatorAction.item.isActive) ? <Eye className="h-7 w-7" /> : <EyeOff className="h-7 w-7" />}
+                  label={catalogNavigatorAction.kind === "PRODUCT"
+                    ? productIsSoldOut(catalogNavigatorAction.item) ? label("恢復販售") : label("設為售完")
+                    : catalogNavigatorAction.item.isActive ? label("停用") : label("恢復")}
+                  onSelect={() => {
+                    const action = catalogNavigatorAction;
+                    setCatalogNavigatorAction(null);
+                    void toggleActive(action.kind, action.item);
+                  }}
+                />
+                {catalogNavigatorAction.kind === "PRODUCT" ? <CatalogActionButton danger icon={<Trash2 className="h-7 w-7" />} label={label("刪除商品")} onSelect={() => { const product = catalogNavigatorAction.item; setCatalogNavigatorAction(null); void deleteProduct(product); }} /> : null}
+              </div>
+            ) : normalizedCatalogSearch ? (
+              <div className="mt-5">
+                <p className="mb-3 text-sm font-semibold text-stone-700">{catalogSearchResults.length} {label("商品")}</p>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {catalogSearchResults.map((product) => <CatalogProductCard key={product.id} product={product} currency={currency} singleStallMode={singleStallMode} onSelect={() => openCatalogProductActions(product)} />)}
+                  {catalogSearchResults.length === 0 ? <p className="rounded-xl border border-dashed border-stone-300 p-8 text-center text-sm text-stone-500 md:col-span-2 xl:col-span-3">{label("找不到符合的商品。")}</p> : null}
+                </div>
+              </div>
+            ) : catalogNavigatorLevel.kind === "CATEGORIES" ? (
+              <div className="mt-5">
+                <button type="button" onClick={() => leaveCatalogNavigator(createCategory)} className="mb-4 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-base font-semibold text-white sm:w-auto"><FolderPlus className="h-5 w-5" />{label("新增分類")}</button>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {sortedCategories.map((category, categoryIndex) => <CatalogLevelCard key={category.id} icon={<Boxes className="h-7 w-7" />} name={localizedCatalogName(category, locale)} count={catalog.products.filter((product) => product.categoryId === category.id).length} active={category.isActive} onOpen={() => setCatalogNavigatorLevel({ kind: "GROUPS", categoryId: category.id })} onAction={() => setCatalogNavigatorAction({ kind: "CATEGORY", item: category, index: categoryIndex })} />)}
+                  {sortedCategories.length === 0 ? <p className="rounded-xl border border-dashed border-stone-300 p-8 text-center text-sm text-stone-500 sm:col-span-2 xl:col-span-3">{label("尚未建立商品分類。")}</p> : null}
+                </div>
+              </div>
+            ) : catalogNavigatorLevel.kind === "GROUPS" && navigatorCategory ? (
+              <div className="mt-5">
+                <button type="button" onClick={() => leaveCatalogNavigator(() => createGroup(navigatorCategory.id))} className="mb-4 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-base font-semibold text-white sm:w-auto"><Layers3 className="h-5 w-5" />{label("新增群組")}</button>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {navigatorGroups.map((group, groupIndex) => <CatalogLevelCard key={group.id} icon={<Layers3 className="h-7 w-7" />} name={localizedCatalogName(group, locale)} count={productsFor(navigatorCategory.id, group.id).length} active={group.isActive} onOpen={() => setCatalogNavigatorLevel({ kind: "PRODUCTS", categoryId: navigatorCategory.id, groupId: group.id })} onAction={() => setCatalogNavigatorAction({ kind: "GROUP", item: group, categoryId: navigatorCategory.id, index: groupIndex, siblings: navigatorGroups })} />)}
+                  <CatalogLevelCard icon={<PackagePlus className="h-7 w-7" />} name={label("未分組商品")} count={productsFor(navigatorCategory.id, null).length} active onOpen={() => setCatalogNavigatorLevel({ kind: "PRODUCTS", categoryId: navigatorCategory.id, groupId: null })} />
+                </div>
+              </div>
+            ) : catalogNavigatorLevel.kind === "PRODUCTS" && navigatorCategory ? (
+              <div className="mt-5">
+                <div className="mb-4 grid grid-cols-2 gap-3 sm:flex">
+                  <button type="button" onClick={() => leaveCatalogNavigator(() => createProduct("SINGLE", { categoryId: navigatorCategory.id, groupId: catalogNavigatorLevel.groupId }))} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-base font-semibold text-white"><PackagePlus className="h-5 w-5" />{label("新增商品")}</button>
+                  <button type="button" onClick={() => leaveCatalogNavigator(() => createProduct("BUNDLE", { categoryId: navigatorCategory.id, groupId: catalogNavigatorLevel.groupId }))} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl border border-teal-700 bg-teal-50 px-4 text-base font-semibold text-teal-900"><PackageOpen className="h-5 w-5" />{label("新增套餐")}</button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {navigatorProducts.map((product) => <CatalogProductCard key={product.id} product={product} currency={currency} singleStallMode={singleStallMode} onSelect={() => openCatalogProductActions(product)} />)}
+                  {navigatorProducts.length === 0 ? <p className="rounded-xl border border-dashed border-stone-300 p-8 text-center text-sm text-stone-500 md:col-span-2 xl:col-span-3">{label("此群組尚未建立商品。")}</p> : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </Editor>
       ) : null}
 
       {categoryDraft ? (
@@ -1126,13 +1223,13 @@ export function SharedCatalogManager({
             {productDraft.imageUrl ? <div className="sm:col-span-2"><div className="flex min-h-48 max-h-72 items-center justify-center overflow-hidden rounded-md border border-stone-200 bg-stone-100 p-2"><ProductImage src={productDraft.imageUrl} alt={m("{value0}圖片預覽", { value0: productDraft.name || label("商品") })} width={800} height={800} sizes="(max-width: 640px) 100vw, 50vw" className="max-h-64 h-auto w-auto max-w-full object-contain" /></div><button type="button" disabled={busy} onClick={() => { if (window.confirm(label("確定移除商品圖片？"))) { setProductDraft({ ...productDraft, imageUrl: null }); setImageFeedback({ kind: "success", text: label("商品圖片已移除，儲存商品後生效。") }); } }} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md border border-red-200 px-3 text-sm font-semibold text-red-700 disabled:opacity-50"><Trash2 className="h-4 w-4" />{label("移除商品圖片")}</button></div> : null}
             <div className="sm:col-span-2">
               <CheckField label={label("不適用訂單折扣")} checked={!productDraft.isOrderDiscountEligible} onChange={(excluded) => setProductDraft({ ...productDraft, isOrderDiscountEligible: !excluded })} />
-              <p className="mt-1 text-xs text-stone-500">{label("勾選後，員工結帳折扣與 QR 抽抽樂折扣都不會套用此商品。套餐以套餐商品本身的設定為準。")}</p>
+              <p className="mt-1 text-xs text-stone-500">{label("開啟後，員工結帳折扣與 QR 抽抽樂折扣都不會套用此商品。套餐以套餐商品本身的設定為準。")}</p>
             </div>
             <div className="sm:col-span-2">
               {productDraft.kind === "SINGLE" ? (
                 <>
                   <CheckField label={label("可作為抽抽樂推薦／免費贈品")} checked={productDraft.isLotteryEligible} onChange={(isLotteryEligible) => setProductDraft({ ...productDraft, isLotteryEligible })} />
-                  <p className="mt-1 text-xs text-stone-500">{label("預設啟用；取消勾選後，此商品不會被抽中。需必選客製內容的商品不會作為免費贈品。")}</p>
+                  <p className="mt-1 text-xs text-stone-500">{label("預設開啟；關閉後，此商品不會被抽中。需必選客製內容的商品不會作為免費贈品。")}</p>
                 </>
               ) : (
                 <p className="rounded-md bg-stone-50 px-3 py-2 text-xs text-stone-600">{label("套餐需由客人選擇組合內容，目前不參與抽抽樂推薦。")}</p>
@@ -1375,86 +1472,46 @@ export function SharedCatalogManager({
   );
 }
 
-function ProductRows({ singleStallMode, busy, products, currency, onMove, onEdit, onBundle, onAssignments, onClone, onToggle, onDelete }: { singleStallMode: boolean; busy: boolean; products: Product[]; currency: string; onMove: (products: Product[], index: number, direction: -1 | 1) => void; onEdit: (product: Product) => void; onBundle: (product: Product) => void; onAssignments: (product: Product) => void; onClone: (product: Product) => void; onToggle: (product: Product) => void; onDelete: (product: Product) => void }) {
-  const { locale, label } = useMerchantMessages();
-  const localizedMoney = (amount: number, selectedCurrency = currency) => formatRawMoney(amount, selectedCurrency, locale);
-  const [actionProductId, setActionProductId] = useState<string | null>(null);
-  const actionProductIndex = products.findIndex((product) => product.id === actionProductId);
-  const actionProduct = actionProductIndex >= 0 ? products[actionProductIndex] : null;
-  return <>
-    <div className="mt-2 divide-y divide-stone-100">{products.map((product) => {
-    const productDisplayName = localizedCatalogName(product, locale);
-    const isSoldOut = productIsSoldOut(product);
-    const hasPartiallySoldOutStalls = !isSoldOut
-      && product.stallProducts.some((assignment) => assignment.isSoldOut);
-    return (
-    <div key={product.id} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="min-w-0 max-w-full truncate font-medium">{productDisplayName}</span>
-          {product.kind === "BUNDLE" ? <span className="rounded bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">{label("套餐")}</span> : null}
-          {!product.isOrderDiscountEligible ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{label("不適用訂單折扣")}</span> : null}
-          {product.kind === "SINGLE" && !product.isLotteryEligible ? <span className="rounded bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-800">{label("不參與抽抽樂")}</span> : null}
-          {isSoldOut ? <span className="rounded bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">{label("已售完")}</span> : null}
-          {hasPartiallySoldOutStalls ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{label("部分攤位售完")}</span> : null}
-        </div>
-        <p className="mt-1 text-sm text-stone-600">{localizedMoney(product.defaultPrice)}{singleStallMode ? "" : ` · ${label("已分派")} ${product.stallProducts.length} ${label("攤")}`}</p>
-      </div>
-      <button
-        type="button"
-        data-testid="shared-product-actions"
-        title={`${label("操作")}：${productDisplayName}`}
-        aria-label={`${label("操作")}：${productDisplayName}`}
-        onClick={() => setActionProductId(product.id)}
-        className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 bg-white"
-      >
-        <MoreHorizontal className="h-5 w-5" />
+function CatalogLevelCard({ icon, name, count, active, onOpen, onAction }: { icon: ReactNode; name: string; count: number; active: boolean; onOpen: () => void; onAction?: () => void }) {
+  const { label } = useMerchantMessages();
+  return (
+    <div className="grid min-h-28 grid-cols-[minmax(0,1fr)_3.5rem] overflow-hidden rounded-xl border border-stone-300 bg-white shadow-sm">
+      <button type="button" onClick={onOpen} className="flex min-w-0 items-center gap-3 p-4 text-left hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-700">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-teal-50 text-teal-800">{icon}</span>
+        <span className="min-w-0 flex-1">
+          <strong className="line-clamp-2 block text-base leading-6">{name}</strong>
+          <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+            <span>{count} {label("項")}</span>
+            {!active ? <span className="rounded bg-stone-100 px-2 py-0.5">{label("已停用")}</span> : null}
+          </span>
+        </span>
+        <ChevronRight className="h-5 w-5 shrink-0 text-stone-500" />
       </button>
+      {onAction ? <button type="button" title={`${label("操作")}：${name}`} aria-label={`${label("操作")}：${name}`} onClick={onAction} className="grid min-h-14 place-items-center border-l border-stone-200 bg-stone-50 hover:bg-stone-100"><MoreHorizontal className="h-6 w-6" /></button> : <span aria-hidden="true" className="border-l border-stone-200 bg-stone-50" />}
     </div>
-    );
-  })}</div>
-    {actionProduct ? (
-      <CatalogActionDialog title={`${label("商品")}：${localizedCatalogName(actionProduct, locale)}`} onClose={() => setActionProductId(null)}>
-        {actionProduct.kind === "BUNDLE" ? <CatalogActionButton icon={<PackageOpen className="h-6 w-6" />} label={label("設定套餐內容")} onSelect={() => { setActionProductId(null); onBundle(actionProduct); }} /> : null}
-        <CatalogActionButton disabled={busy || actionProductIndex === 0} icon={<ArrowUp className="h-6 w-6" />} label={label("上移")} onSelect={() => { setActionProductId(null); onMove(products, actionProductIndex, -1); }} />
-        <CatalogActionButton disabled={busy || actionProductIndex === products.length - 1} icon={<ArrowDown className="h-6 w-6" />} label={label("下移")} onSelect={() => { setActionProductId(null); onMove(products, actionProductIndex, 1); }} />
-        {!singleStallMode ? <CatalogActionButton icon={<Store className="h-6 w-6" />} label={label("分派攤位")} onSelect={() => { setActionProductId(null); onAssignments(actionProduct); }} /> : null}
-        <CatalogActionButton icon={<Copy className="h-6 w-6" />} label={label("複製商品")} onSelect={() => { setActionProductId(null); onClone(actionProduct); }} />
-        <CatalogActionButton icon={<Pencil className="h-6 w-6" />} label={label("編輯商品")} onSelect={() => { setActionProductId(null); onEdit(actionProduct); }} />
-        <CatalogActionButton icon={productIsSoldOut(actionProduct) ? <Eye className="h-6 w-6" /> : <EyeOff className="h-6 w-6" />} label={productIsSoldOut(actionProduct) ? label("恢復販售") : label("設為售完")} onSelect={() => { setActionProductId(null); onToggle(actionProduct); }} />
-        <CatalogActionButton danger icon={<Trash2 className="h-6 w-6" />} label={label("刪除商品")} onSelect={() => { setActionProductId(null); onDelete(actionProduct); }} />
-      </CatalogActionDialog>
-    ) : null}
-  </>;
+  );
 }
 
-function CatalogActionDialog({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
-  const { label } = useMerchantMessages();
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [onClose]);
-
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <div className="fixed inset-0 z-[70] grid place-items-center overflow-y-auto bg-black/60 p-3" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-label={title} className="m-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200 px-5 py-4">
-          <h2 className="min-w-0 truncate text-xl font-semibold">{title}</h2>
-          <button type="button" autoFocus title={label("關閉操作選單")} aria-label={label("關閉操作選單")} onClick={onClose} className="grid h-12 w-12 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-6 w-6" /></button>
-        </header>
-        <div className="grid min-h-0 grid-cols-2 gap-3 overflow-y-auto p-4">{children}</div>
-      </section>
-    </div>,
-    document.body,
+function CatalogProductCard({ product, currency, singleStallMode, onSelect }: { product: Product; currency: string; singleStallMode: boolean; onSelect: () => void }) {
+  const { locale, label } = useMerchantMessages();
+  const productDisplayName = localizedCatalogName(product, locale);
+  const isSoldOut = productIsSoldOut(product);
+  const hasPartiallySoldOutStalls = !isSoldOut && product.stallProducts.some((assignment) => assignment.isSoldOut);
+  return (
+    <button type="button" data-testid="shared-product-actions" aria-label={`${label("操作")}：${productDisplayName}`} onClick={onSelect} className="flex min-h-28 w-full items-center gap-3 rounded-xl border border-stone-300 bg-white p-4 text-left shadow-sm hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
+      {product.imageUrl ? <ProductImage src={product.imageUrl} alt="" width={96} height={96} sizes="64px" className="h-16 w-16 shrink-0 rounded-lg object-cover" /> : <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-stone-100 text-stone-500"><PackagePlus className="h-7 w-7" /></span>}
+      <span className="min-w-0 flex-1">
+        <strong className="line-clamp-2 block text-base leading-6">{productDisplayName}</strong>
+        <span className="mt-1 block text-sm font-semibold text-stone-700">{formatRawMoney(product.defaultPrice, currency, locale)}</span>
+        <span className="mt-2 flex flex-wrap gap-1.5 text-xs">
+          {product.kind === "BUNDLE" ? <span className="rounded bg-teal-50 px-2 py-0.5 font-semibold text-teal-800">{label("套餐")}</span> : null}
+          {isSoldOut ? <span className="rounded bg-red-50 px-2 py-0.5 font-semibold text-red-700">{label("已售完")}</span> : null}
+          {hasPartiallySoldOutStalls ? <span className="rounded bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">{label("部分攤位售完")}</span> : null}
+          {!singleStallMode ? <span className="rounded bg-stone-100 px-2 py-0.5 text-stone-600">{label("已分派")} {product.stallProducts.length} {label("攤")}</span> : null}
+        </span>
+      </span>
+      <ChevronRight className="h-6 w-6 shrink-0 text-stone-500" />
+    </button>
   );
 }
 
@@ -1466,7 +1523,25 @@ function StallChecks({ stalls, selected, error, onChange }: { stalls: Stall[]; s
   const { label } = useMerchantMessages();
   const allSelected = stalls.length > 0 && stalls.every((stall) => selected.includes(stall.id));
   const errorId = "catalog-stallIds-error";
-  return <fieldset tabIndex={-1} data-field-key="stallIds" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className={`sm:col-span-2 rounded-md ${error ? "border border-red-500 bg-red-50 p-2" : ""}`}><legend className="text-sm font-medium text-stone-700">{label("分派攤位")}</legend><label className="mt-2 flex min-h-11 items-center gap-2 border-b border-stone-100"><input type="checkbox" checked={allSelected} onChange={(event) => onChange(event.target.checked ? stalls.map((stall) => stall.id) : [])} />{label("全部授權攤位")}</label>{stalls.map((stall) => <label key={stall.id} className="flex min-h-11 items-center gap-2 border-b border-stone-100"><input type="checkbox" checked={selected.includes(stall.id)} onChange={(event) => onChange(event.target.checked ? [...selected, stall.id] : selected.filter((id) => id !== stall.id))} />{stall.name}{!stall.isActive ? <span className="text-xs text-stone-500">{label("（已停用）")}</span> : null}</label>)}{selected.length === 0 ? <p className="mt-2 text-xs font-medium text-amber-800">{label("未分派的商品不會出現在 QR 或店員點餐；單店模式預設會勾選該店。")}</p> : null}{error ? <span id={errorId} role="alert" className="mt-1 block text-xs text-red-700">{error}</span> : null}</fieldset>;
+  return (
+    <fieldset tabIndex={-1} data-field-key="stallIds" aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className={`sm:col-span-2 rounded-lg ${error ? "border border-red-500 bg-red-50 p-2" : ""}`}>
+      <legend className="text-sm font-medium text-stone-700">{label("分派攤位")}</legend>
+      <div className="mt-2 grid gap-2">
+        <TouchSwitch label={label("全部授權攤位")} checked={allSelected} onChange={(checked) => onChange(checked ? stalls.map((stall) => stall.id) : [])} />
+        {stalls.map((stall) => (
+          <TouchSwitch
+            key={stall.id}
+            label={<span>{stall.name}{!stall.isActive ? <span className="ml-2 text-xs text-stone-500">{label("（已停用）")}</span> : null}</span>}
+            accessibleLabel={stall.name}
+            checked={selected.includes(stall.id)}
+            onChange={(checked) => onChange(checked ? [...selected, stall.id] : selected.filter((id) => id !== stall.id))}
+          />
+        ))}
+      </div>
+      {selected.length === 0 ? <p className="mt-2 text-xs font-medium text-amber-800">{label("未分派的商品不會出現在 QR 或店員點餐；單店模式會預設選取該店。")}</p> : null}
+      {error ? <span id={errorId} role="alert" className="mt-1 block text-xs text-red-700">{error}</span> : null}
+    </fieldset>
+  );
 }
 
 function ProductImageCropEditor({
@@ -1565,7 +1640,7 @@ function clampCrop(value: number) {
   return Math.min(100, Math.max(0, value));
 }
 
-function Editor({ title, onClose, dialogRef, errorMessage, wide = false, children }: { title: string; onClose: () => void; dialogRef?: React.RefObject<HTMLElement | null>; errorMessage?: string; wide?: boolean; children: React.ReactNode }) {
+function Editor({ title, onClose, dialogRef, errorMessage, wide = false, fullScreen = false, testId, children }: { title: string; onClose: () => void; dialogRef?: React.RefObject<HTMLElement | null>; errorMessage?: string; wide?: boolean; fullScreen?: boolean; testId?: string; children: React.ReactNode }) {
   const { label } = useMerchantMessages();
   const fallbackDialogRef = useRef<HTMLElement>(null);
   const activeDialogRef = dialogRef ?? fallbackDialogRef;
@@ -1633,11 +1708,12 @@ function Editor({ title, onClose, dialogRef, errorMessage, wide = false, childre
     <div className="fixed inset-0 z-50 grid place-items-center overflow-hidden overscroll-contain bg-black/45 p-4">
       <section
         ref={activeDialogRef}
+        data-testid={testId}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`my-auto flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-lg bg-white shadow-xl ${wide ? "max-w-2xl" : "max-w-md"}`}
+        className={`my-auto flex w-full flex-col overflow-hidden bg-white shadow-xl ${fullScreen ? "h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] max-w-6xl rounded-xl sm:h-[min(92dvh,900px)] sm:max-h-[min(92dvh,900px)]" : `max-h-[calc(100dvh-2rem)] rounded-lg ${wide ? "max-w-2xl" : "max-w-md"}`}`}
       >
         <div data-testid="catalog-editor-header" className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 border-b border-stone-200 bg-white px-5 py-4">
           <h2 className="text-lg font-semibold">{title}</h2>
@@ -1691,7 +1767,27 @@ function SelectField({ label, fieldKey, error, value, options, onChange, require
 }
 
 function CheckField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-stone-700"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />{label}</label>;
+  return <TouchSwitch label={label} checked={checked} onChange={onChange} />;
+}
+
+function TouchSwitch({ label, accessibleLabel, checked, onChange }: { label: ReactNode; accessibleLabel?: string; checked: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-label={accessibleLabel}
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`flex min-h-14 w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${checked ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-700"}`}
+    >
+      <span className="min-w-0 flex-1">{label}</span>
+      <span aria-hidden="true" className={`relative h-8 w-14 shrink-0 rounded-full transition ${checked ? "bg-teal-700" : "bg-stone-300"}`}>
+        <span className={`absolute top-1 grid h-6 w-6 place-items-center rounded-full bg-white shadow transition-transform ${checked ? "translate-x-7 text-teal-700" : "translate-x-1 text-stone-400"}`}>
+          {checked ? <Check className="h-4 w-4" /> : null}
+        </span>
+      </span>
+    </button>
+  );
 }
 
 function SubmitButton({ busy, wide = false }: { busy: boolean; wide?: boolean }) {

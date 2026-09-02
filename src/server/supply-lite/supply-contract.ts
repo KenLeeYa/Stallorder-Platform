@@ -15,11 +15,30 @@ const createIngredientSchema = z.object({
   name: z.string().trim().min(1).max(120),
   baseUom: z.string().trim().transform((value) => value.toUpperCase())
     .pipe(z.enum(["G", "KG", "ML", "L", "EA"])),
-  itemType: z.enum(["INGREDIENT", "PACKAGING", "CONSUMABLE"]).default("INGREDIENT"),
+  itemType: z.enum(["INGREDIENT", "PACKAGING", "CONSUMABLE", "REUSABLE_EQUIPMENT"]).default("INGREDIENT"),
   trackExpiry: z.boolean().default(false),
   defaultShelfLifeDays: z.number().int().min(1).max(3650).nullable().optional(),
   preferredSupplierId: uuidSchema.nullable().optional(),
   lowStockThresholdMicros: z.number().int().min(0).max(9_000_000_000_000_000).default(0),
+}).strict();
+
+const updateIngredientSchema = z.object({
+  operation: z.literal("UPDATE_INGREDIENT"),
+  ingredientId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(120),
+  baseUom: z.string().trim().transform((value) => value.toUpperCase())
+    .pipe(z.enum(["G", "KG", "ML", "L", "EA"])),
+  itemType: z.enum(["INGREDIENT", "PACKAGING", "CONSUMABLE", "REUSABLE_EQUIPMENT"]),
+  trackExpiry: z.boolean(),
+  defaultShelfLifeDays: z.number().int().min(1).max(3650).nullable().optional(),
+  preferredSupplierId: uuidSchema.nullable().optional(),
+  lowStockThresholdMicros: z.number().int().min(0).max(9_000_000_000_000_000),
+}).strict();
+
+const archiveIngredientSchema = z.object({
+  operation: z.literal("ARCHIVE_INGREDIENT"),
+  ingredientId: uuidSchema,
 }).strict();
 
 const createSupplierSchema = z.object({
@@ -31,6 +50,23 @@ const createSupplierSchema = z.object({
   email: z.string().trim().email().max(254).nullable().optional(),
   paymentTermsDays: z.number().int().min(0).max(365).default(0),
   leadTimeDays: z.number().int().min(0).max(365).default(0),
+}).strict();
+
+const updateSupplierSchema = z.object({
+  operation: z.literal("UPDATE_SUPPLIER"),
+  supplierId: uuidSchema,
+  code: codeSchema,
+  name: z.string().trim().min(1).max(120),
+  contactName: z.string().trim().max(120).nullable().optional(),
+  phone: z.string().trim().max(40).nullable().optional(),
+  email: z.string().trim().email().max(254).nullable().optional(),
+  paymentTermsDays: z.number().int().min(0).max(365),
+  leadTimeDays: z.number().int().min(0).max(365),
+}).strict();
+
+const archiveSupplierSchema = z.object({
+  operation: z.literal("ARCHIVE_SUPPLIER"),
+  supplierId: uuidSchema,
 }).strict();
 
 const createLocationSchema = z.object({
@@ -79,6 +115,25 @@ const recipeComponentSchema = z.object({
   wasteBasisPoints: z.number().int().min(0).max(10_000).default(0),
 }).strict();
 
+const removeRecipeComponentSchema = z.object({
+  operation: z.literal("REMOVE_RECIPE_COMPONENT"),
+  componentId: uuidSchema,
+}).strict();
+
+const updateLocationSchema = z.object({
+  operation: z.literal("UPDATE_LOCATION"),
+  locationId: uuidSchema,
+  stallId: uuidSchema.nullable().optional(),
+  code: codeSchema,
+  name: z.string().trim().min(1).max(120),
+  locationType: z.enum(["CENTRAL", "STALL", "STORAGE", "IN_TRANSIT"]),
+}).strict();
+
+const archiveLocationSchema = z.object({
+  operation: z.literal("ARCHIVE_LOCATION"),
+  locationId: uuidSchema,
+}).strict();
+
 const purchaseLineSchema = z.object({
   ingredientId: uuidSchema,
   locationId: uuidSchema,
@@ -107,10 +162,17 @@ const receivePurchaseSchema = z.object({
 
 export const supplyCommandSchema = z.discriminatedUnion("operation", [
   createIngredientSchema,
+  updateIngredientSchema,
+  archiveIngredientSchema,
   createSupplierSchema,
+  updateSupplierSchema,
+  archiveSupplierSchema,
   createLocationSchema,
+  updateLocationSchema,
+  archiveLocationSchema,
   movementSchema,
   recipeComponentSchema,
+  removeRecipeComponentSchema,
   receivePurchaseSchema,
 ]);
 

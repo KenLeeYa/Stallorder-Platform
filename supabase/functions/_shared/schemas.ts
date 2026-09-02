@@ -52,9 +52,17 @@ export function publicOrderCustomerDetailsCode(
     customerPhone: string;
     deliveryAddress: string;
   },
-  fulfillmentType: PublicOrderFulfillmentType,
+  orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER",
+  qrContext?: {
+    dining_table_id?: string | null;
+    fulfillment_type_context?: string | null;
+  } | null,
 ) {
+  const fulfillmentType = resolvePublicOrderFulfillmentType(orderingMode, qrContext);
   if (fulfillmentType === "DINE_IN") return null;
+  const isGeneralQrOrder = orderingMode === "DEFAULT"
+    && !qrContext?.fulfillment_type_context;
+  if (isGeneralQrOrder) return null;
   const phone = input.customerPhone.trim();
   if (
     input.customerName.trim().length === 0

@@ -22,4 +22,3 @@
 ## 剩餘 Gate
 
 正式 secret manager、key rotation、Provider IP/domain policy、webhook signature、credential revocation、incident drill 與 penetration test 尚未取得外部證據。
-

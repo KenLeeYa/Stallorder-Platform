@@ -42,4 +42,3 @@ export function decideRefundInvoiceAction(input: {
   }
   return { action: "MANUAL_REVIEW", reason: "NO_APPROVED_AUTOMATIC_ADJUSTMENT" };
 }
-

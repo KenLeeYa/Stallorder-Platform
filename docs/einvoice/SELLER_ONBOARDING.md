@@ -19,4 +19,3 @@
 本次只有本機 Mock 步驟可以完成；畫面必須持續顯示 `TEST / NOT A LEGAL INVOICE`。步驟 12、13 不因前端點擊而解鎖。
 
 每個組織自行擁有 seller profile 與 connection；Provider secret 必須放在正式 secret store，本資料庫只保存 reference、遮罩帳號、狀態與驗證時間。
-

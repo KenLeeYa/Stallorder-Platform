@@ -58,6 +58,7 @@ const baseProps: CartPanelProps = {
     orderSessionToken: "stos_test",
     expiresAt: "2099-08-03T01:10:00.000Z",
   },
+  entryChannel: "SHARED_LINK",
   cartLines: [{
     id: "line-1",
     productId: product.id,
@@ -364,6 +365,14 @@ describe("QrOrderCartPanel checkout blocker presentation", () => {
 
     expect(html).not.toContain('data-testid="qr-checkout-blocker"');
     expect(submitOpeningTag(html)).not.toMatch(/\sdisabled=""/);
+  });
+
+  it("keeps only the note field for direct QR checkout", () => {
+    const html = renderPanel({ entryChannel: "QR" });
+
+    expect(html).not.toContain('aria-label="顧客稱呼"');
+    expect(html).not.toContain('aria-label="聯絡電話"');
+    expect(html).toContain('aria-label="訂單備註"');
   });
 
   it("renders only server-enabled invoice choices and marks local mock output clearly", () => {

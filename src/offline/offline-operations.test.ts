@@ -78,4 +78,15 @@ describe("offline staff order item preparation", () => {
     expect(snapshot.localItemId).toBe("00000000-0000-4000-8000-000000000000");
     expect(getRandomValues).toHaveBeenCalledOnce();
   });
+
+  it("keeps products marked sold out online available for onsite staff orders", () => {
+    const [snapshot] = prepareOfflineOrderItemSnapshots([
+      { productId, quantity: 1, note: "", noteOptionIds: [] },
+    ], {
+      ...catalog,
+      products: [{ ...catalog.products[0], isSoldOut: true }],
+    }, new Date("2026-08-06T01:00:00.000Z"));
+
+    expect(snapshot.productId).toBe(productId);
+  });
 });

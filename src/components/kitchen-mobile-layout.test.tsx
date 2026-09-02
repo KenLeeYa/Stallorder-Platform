@@ -174,6 +174,7 @@ describe("kitchen mobile layout", () => {
             stations: [],
             tasks: [],
             futureReservations: [],
+            alertOrderIds: [],
             serverNow: "2026-08-20T10:00:00.000Z",
           }}
           role="KITCHEN"

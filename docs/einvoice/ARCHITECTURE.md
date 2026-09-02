@@ -25,4 +25,3 @@
 - Local/Test：只有在 runtime policy 明確判定 dev mode 時可取得 Mock adapter。
 - Production：Mock 禁止；正式開票 flag 若被單獨打開，runtime gate 仍會拒絕。
 - Provider endpoint 由程式碼 allowlist 定義，不接受商家輸入任意 URL。
-

@@ -95,6 +95,9 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
       currency: true,
       coverImageUrl: true,
       locationGuideImageUrl: true,
+      locationGuideImagePositionX: true,
+      locationGuideImagePositionY: true,
+      locationGuideImageZoom: true,
       coverImagePositionX: true,
       coverImagePositionY: true,
       coverImageZoom: true,
@@ -123,6 +126,9 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
           currency: stall.currency,
           coverImageUrl: stall.coverImageUrl,
           locationGuideImageUrl: stall.locationGuideImageUrl,
+          locationGuideImagePositionX: stall.locationGuideImagePositionX,
+          locationGuideImagePositionY: stall.locationGuideImagePositionY,
+          locationGuideImageZoom: stall.locationGuideImageZoom,
           coverImagePositionX: stall.coverImagePositionX,
           coverImagePositionY: stall.coverImagePositionY,
           coverImageZoom: stall.coverImageZoom,
@@ -143,7 +149,7 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
     const closures = await prisma.stallSpecialClosure.findMany({
       where: { stallId, organizationId: workspace.id },
       orderBy: [{ startsOn: "asc" }, { createdAt: "asc" }],
-      select: { id: true, startsOn: true, endsOn: true, title: true, message: true },
+      select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, title: true, message: true },
     });
     content = (
       <StallSpecialClosuresManager

@@ -236,7 +236,7 @@ Deno.serve(async (request) => {
     const fullMenuQueries = parsed.data.includeMenu
       ? await timing.measureDb(() => Promise.all([
         admin.from("stalls")
-          .select("organization_id, name, slug, location, currency, timezone")
+          .select("organization_id, name, slug, location, currency, timezone, ordering_settings:stall_ordering_settings(checkout_upsell_enabled, checkout_upsell_product_ids)")
           .eq("id", result.stall_id)
           .single(),
         admin.from("stall_products")
@@ -685,6 +685,13 @@ Deno.serve(async (request) => {
       products,
       preorderSlots,
       lotteryEnabled: orderingMode === "DEFAULT" && settings.lottery_enabled === true,
+      checkoutUpsell: {
+        enabled: stallQuery.data.ordering_settings?.checkout_upsell_enabled === true,
+        productIds: Array.isArray(stallQuery.data.ordering_settings?.checkout_upsell_product_ids)
+          ? stallQuery.data.ordering_settings.checkout_upsell_product_ids
+            .filter((productId): productId is string => typeof productId === "string")
+          : [],
+      },
       supportedLocales: completeCatalogLocales(products, enabledLocales),
       lastTableOrderAt: lastTableOrderQuery.data?.created_at ?? null,
       limits: {

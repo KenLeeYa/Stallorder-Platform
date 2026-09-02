@@ -520,6 +520,9 @@ model Stall {
   coverImagePositionX       Int                          @default(50) @map("cover_image_position_x") @db.SmallInt
   coverImagePositionY       Int                          @default(50) @map("cover_image_position_y") @db.SmallInt
   coverImageZoom            Int                          @default(100) @map("cover_image_zoom") @db.SmallInt
+  locationGuideImagePositionX Int                        @default(50) @map("location_guide_image_position_x") @db.SmallInt
+  locationGuideImagePositionY Int                        @default(50) @map("location_guide_image_position_y") @db.SmallInt
+  locationGuideImageZoom      Int                        @default(100) @map("location_guide_image_zoom") @db.SmallInt
   location               String
   orderingState          StallOrderingState       @default(OPEN) @map("ordering_state")
   isSoldOut              Boolean                  @default(false) @map("is_sold_out")
@@ -2255,6 +2258,8 @@ model StallOrderingSettings {
   discountModuleEnabled          Boolean      @default(false) @map("discount_module_enabled")
   discountApprovalThresholdBps   Int          @default(8000) @map("discount_approval_threshold_bps")
   takeoutPreorderEnabled         Boolean      @default(false) @map("takeout_preorder_enabled")
+  checkoutUpsellEnabled          Boolean      @default(false) @map("checkout_upsell_enabled")
+  checkoutUpsellProductIds       String[]     @default([]) @map("checkout_upsell_product_ids") @db.Uuid
   preorderMinLeadMinutes         Int          @default(5) @map("preorder_min_lead_minutes") @db.SmallInt
   preorderMaxDays                Int          @default(7) @map("preorder_max_days") @db.SmallInt
   preorderSlotMinutes            Int          @default(5) @map("preorder_slot_minutes") @db.SmallInt
@@ -2409,6 +2414,8 @@ model StallSpecialClosure {
   stallId        String       @map("stall_id") @db.Uuid
   startsOn       DateTime     @map("starts_on") @db.Date
   endsOn         DateTime     @map("ends_on") @db.Date
+  opensAt        String?      @map("opens_at")
+  closesAt       String?      @map("closes_at")
   title          String       @default("公休日")
   message        String       @default("")
   createdAt      DateTime     @default(now()) @map("created_at")
@@ -4688,15 +4695,22 @@ model OperatingExpense {
   stallId            String?  @map("stall_id") @db.Uuid
   expenseDate        DateTime @map("expense_date") @db.Date
   category           String   @db.VarChar(24)
+  customCategoryName String?  @map("custom_category_name") @db.VarChar(40)
   amount             Int
   vendorName         String?  @map("vendor_name") @db.VarChar(120)
   description        String   @db.VarChar(300)
   isRecurring        Boolean  @default(false) @map("is_recurring")
   createdByProfileId String   @map("created_by_profile_id") @db.Uuid
+  voidedAt           DateTime? @map("voided_at")
+  voidedByProfileId  String?   @map("voided_by_profile_id") @db.Uuid
+  voidReason         String?   @map("void_reason") @db.VarChar(300)
+  correctsExpenseId  String?   @map("corrects_expense_id") @db.Uuid
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@index([organizationId, expenseDate(sort: Desc), category])
+  @@index([organizationId, voidedAt, expenseDate(sort: Desc)])
+  @@unique([organizationId, correctsExpenseId])
   @@map("operating_expenses")
 }
 

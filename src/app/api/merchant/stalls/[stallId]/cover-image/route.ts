@@ -212,7 +212,12 @@ export async function POST(request: Request, context: RouteContext) {
               coverImagePositionY: 50,
               coverImageZoom: 100,
             }
-          : { locationGuideImageUrl: imageUrl },
+          : {
+              locationGuideImageUrl: imageUrl,
+              locationGuideImagePositionX: 50,
+              locationGuideImagePositionY: 50,
+              locationGuideImageZoom: 100,
+            },
       });
       if (updated.count !== 1) throw new StallImageConcurrentUpdateError();
       if (previousObjectPath && previousObjectPath !== objectPath) {
@@ -270,9 +275,7 @@ export async function POST(request: Request, context: RouteContext) {
 
 export async function PATCH(request: Request, context: RouteContext) {
   const { stallId } = await context.params;
-  if (resolveImageSlot(request) !== "cover") {
-    return NextResponse.json({ error: "地點指引圖不需要設定裁切範圍。" }, { status: 400 });
-  }
+  const slot = resolveImageSlot(request);
   const authorization = await authorizeStallManagementApiRequest(request, stallId, "MANAGE_STALL");
   if (!authorization.ok) return authorization.response;
   if (!validateCsrf(request, authorization.principal)) {
@@ -282,33 +285,63 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (body.error) return body.error;
   const parsed = cropSchema.safeParse(body.data);
   if (!parsed.success) {
-    return NextResponse.json({ error: "文宣圖片顯示範圍不正確。" }, { status: 400 });
+    return NextResponse.json({ error: "圖片顯示範圍不正確。" }, { status: 400 });
   }
 
   const organizationId = authorization.workspace.id;
-  const updated = await prisma.stall.update({
-    where: { id: stallId, organizationId },
-    data: {
-      coverImagePositionX: parsed.data.positionX,
-      coverImagePositionY: parsed.data.positionY,
-      coverImageZoom: parsed.data.zoom,
-    },
-    select: {
-      coverImageUrl: true,
-      coverImagePositionX: true,
-      coverImagePositionY: true,
-      coverImageZoom: true,
-    },
-  });
-  if (!updated.coverImageUrl) {
-    return NextResponse.json({ error: "尚未上傳文宣圖片。" }, { status: 409 });
+  const updated = slot === "cover"
+    ? await prisma.stall.update({
+        where: { id: stallId, organizationId },
+        data: {
+          coverImagePositionX: parsed.data.positionX,
+          coverImagePositionY: parsed.data.positionY,
+          coverImageZoom: parsed.data.zoom,
+        },
+        select: {
+          coverImageUrl: true,
+          coverImagePositionX: true,
+          coverImagePositionY: true,
+          coverImageZoom: true,
+        },
+      })
+    : await prisma.stall.update({
+        where: { id: stallId, organizationId },
+        data: {
+          locationGuideImagePositionX: parsed.data.positionX,
+          locationGuideImagePositionY: parsed.data.positionY,
+          locationGuideImageZoom: parsed.data.zoom,
+        },
+        select: {
+          locationGuideImageUrl: true,
+          locationGuideImagePositionX: true,
+          locationGuideImagePositionY: true,
+          locationGuideImageZoom: true,
+        },
+      });
+  const framing = "coverImageUrl" in updated
+    ? {
+        imageUrl: updated.coverImageUrl,
+        positionX: updated.coverImagePositionX,
+        positionY: updated.coverImagePositionY,
+        zoom: updated.coverImageZoom,
+      }
+    : {
+        imageUrl: updated.locationGuideImageUrl,
+        positionX: updated.locationGuideImagePositionX,
+        positionY: updated.locationGuideImagePositionY,
+        zoom: updated.locationGuideImageZoom,
+      };
+  if (!framing.imageUrl) {
+    return NextResponse.json({ error: slot === "cover" ? "尚未上傳文宣圖片。" : "尚未上傳地點指引圖。" }, { status: 409 });
   }
   await invalidateCoverImage(stallId, organizationId);
   await recordAuditEvent({
     organizationId,
     stallId,
     actorProfileId: authorization.principal.user.id,
-    action: "STALL_MENU_COVER_IMAGE_CROP_UPDATED",
+    action: slot === "cover"
+      ? "STALL_MENU_COVER_IMAGE_CROP_UPDATED"
+      : "STALL_LOCATION_GUIDE_IMAGE_CROP_UPDATED",
     entityType: "STALL",
     entityId: stallId,
     outcome: "SUCCESS",
@@ -317,10 +350,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     metadata: parsed.data,
   });
   return NextResponse.json({
-    imageUrl: updated.coverImageUrl,
-    positionX: updated.coverImagePositionX,
-    positionY: updated.coverImagePositionY,
-    zoom: updated.coverImageZoom,
+    imageUrl: framing.imageUrl,
+    positionX: framing.positionX,
+    positionY: framing.positionY,
+    zoom: framing.zoom,
   }, { headers: { "x-request-id": authorization.requestId } });
 }
 
@@ -363,7 +396,12 @@ export async function DELETE(request: Request, context: RouteContext) {
               coverImagePositionY: 50,
               coverImageZoom: 100,
             }
-          : { locationGuideImageUrl: null },
+          : {
+              locationGuideImageUrl: null,
+              locationGuideImagePositionX: 50,
+              locationGuideImagePositionY: 50,
+              locationGuideImageZoom: 100,
+            },
       });
       if (updated.count !== 1) throw new StallImageConcurrentUpdateError();
       if (previousObjectPath) {

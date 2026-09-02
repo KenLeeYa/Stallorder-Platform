@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { ChevronDown, Copy, Eye, EyeOff, PackageCheck, PackageX, Save } from "lucide-react";
+import { ChevronDown, Copy, Eye, EyeOff, PackageCheck, PackageX, Save, ShoppingBag } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
@@ -23,6 +23,7 @@ export type StallCatalogProduct = {
   availableFrom: string | null;
   availableUntil: string | null;
   masterIsActive: boolean;
+  checkoutUpsellSelected: boolean;
 };
 
 export function StallCatalogSettings({
@@ -80,6 +81,7 @@ export function StallCatalogSettings({
           sortOrder: product.sortOrder,
           availableFrom: product.availableFrom,
           availableUntil: product.availableUntil,
+          checkoutUpsellSelected: product.checkoutUpsellSelected,
         }),
       });
       const payload = await response.json();
@@ -104,7 +106,12 @@ export function StallCatalogSettings({
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(typeof payload.error === "string" ? label(payload.error) : m("目前無法批次更新商品。"));
-      const nextProducts = payload.products as StallCatalogProduct[];
+      const nextProducts = (payload.products as StallCatalogProduct[]).map((product) => ({
+        ...product,
+        checkoutUpsellSelected: productsRef.current.find((candidate) => (
+          candidate.productId === product.productId
+        ))?.checkoutUpsellSelected ?? false,
+      }));
       productsRef.current = nextProducts;
       setProducts(nextProducts);
       setSelectedProductIds(new Set());
@@ -181,6 +188,15 @@ export function StallCatalogSettings({
                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                     <button type="button" role="switch" aria-checked={product.isEnabled} onClick={() => update(product.productId, { isEnabled: !product.isEnabled })} className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold ${product.isEnabled ? "border border-stone-300" : "bg-stone-900 text-white"}`}>{product.isEnabled ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}{product.isEnabled ? m("已啟用") : m("已停用")}</button>
                     <label className="flex min-h-10 items-center gap-2 text-sm font-semibold text-red-800"><input type="checkbox" checked={product.isSoldOut} onChange={(event) => update(product.productId, { isSoldOut: event.target.checked })} />{m("售罄")}</label>
+                    <button
+                      type="button"
+                      data-testid="stall-product-upsell-switch"
+                      role="switch"
+                      aria-checked={product.checkoutUpsellSelected}
+                      disabled={!product.checkoutUpsellSelected && (!product.masterIsActive || !product.isEnabled || product.isSoldOut)}
+                      onClick={() => update(product.productId, { checkoutUpsellSelected: !product.checkoutUpsellSelected })}
+                      className={`inline-flex min-h-12 items-center gap-2 rounded-lg border-2 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${product.checkoutUpsellSelected ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-700"}`}
+                    ><ShoppingBag className="h-4 w-4" />{product.checkoutUpsellSelected ? m("結帳推薦中") : m("設為結帳推薦")}</button>
                     <button type="button" title={m("儲存 {productName}", { productName: product.name })} disabled={busyId !== null} onClick={() => void save(product.productId)} className="grid h-10 w-10 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-50"><Save className="h-4 w-4" /><span className="sr-only">{m("儲存 {productName}", { productName: product.name })}</span></button>
                   </div>
                 </div>

@@ -86,6 +86,7 @@ export async function POST(request: Request, context: RouteContext) {
           quantityMicros: "配方用量",
           quantityDeltaMicros: "庫存異動量",
           wasteBasisPoints: "耗損比例",
+          componentId: "配方項目",
           unitCostMicros: "單位成本",
           sourceType: "來源類型",
           sourceId: "來源編號",
@@ -146,28 +147,41 @@ function supplyErrorResponse(error: unknown, requestId: string) {
 function supplyError(code: string) {
   switch (code) {
     case "SUPPLY_MODULE_DISABLED":
-      return { status: 403, message: "Supply Lite 模組尚未對此組織開放。" };
+      return { status: 403, message: "原料與庫存管理尚未對此組織開放。" };
     case "SUPPLY_SCOPE_DENIED":
       return { status: 403, message: "此操作超出您可管理的攤位範圍。" };
     case "SUPPLY_INGREDIENT_NOT_FOUND":
     case "SUPPLY_LOCATION_NOT_FOUND":
     case "SUPPLY_PRODUCT_NOT_FOUND":
     case "SUPPLY_STALL_NOT_FOUND":
+    case "SUPPLY_RECIPE_NOT_FOUND":
       return { status: 404, message: "找不到指定的原料、庫位、商品或攤位。" };
     case "SUPPLY_SUPPLIER_NOT_FOUND":
       return { status: 404, message: "找不到指定的進貨廠商。" };
     case "SUPPLY_LOT_REQUIRED":
       return { status: 400, message: "此品項已啟用效期追蹤，進貨時必須填寫批號。" };
+    case "SUPPLY_RECIPE_ITEM_TYPE_INVALID":
+      return { status: 400, message: "商品配方只能加入食材或一次性包材。" };
     case "SUPPLY_PURCHASE_AMOUNT_TOO_LARGE":
       return { status: 400, message: "進貨金額超過單筆可處理範圍。" };
     case "SUPPLY_LOCATION_SCOPE_INVALID":
       return { status: 400, message: "只有攤位庫位可以指定攤位。" };
+    case "SUPPLY_INGREDIENT_IN_USE":
+      return { status: 409, message: "此品項仍有庫存、批號或商品配方，請先處理完成再停用。" };
+    case "SUPPLY_LOCATION_HAS_STOCK":
+      return { status: 409, message: "此庫位仍有庫存或批號，請先移轉或盤點完成再停用。" };
+    case "SUPPLY_INGREDIENT_UNIT_LOCKED":
+      return { status: 409, message: "已有庫存紀錄後不可更改基本單位；請另建新品項。" };
+    case "SUPPLY_INGREDIENT_TRACKING_LOCKED":
+      return { status: 409, message: "仍有庫存或批號時不可切換效期追蹤。" };
+    case "SUPPLY_LOCATION_SCOPE_LOCKED":
+      return { status: 409, message: "已有庫存紀錄後不可更改庫位類型或所屬攤位；請另建庫位。" };
     case "SUPPLY_IDEMPOTENCY_CONFLICT":
       return { status: 409, message: "此庫存操作代碼已被其他內容使用，請重新送出。" };
     case "SUPPLY_DUPLICATE_RECORD":
-      return { status: 409, message: "原料或庫位代碼已存在，請改用其他代碼。" };
+      return { status: 409, message: "品項、廠商或庫位代碼已存在，請改用其他代碼。" };
     default:
-      return { status: 500, message: "目前無法更新 Supply Lite 庫存。" };
+      return { status: 500, message: "目前無法更新原料與庫存資料。" };
   }
 }
 

@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   validateCsrf: vi.fn(),
   recordAuditEvent: vi.fn(),
-  createExpense: vi.fn(),
+  applyExpenseCommand: vi.fn(),
   getDashboard: vi.fn(),
 }));
 
@@ -17,7 +17,7 @@ vi.mock("@/server/finance/operating-profit-service", () => ({
   OperatingProfitError: class OperatingProfitError extends Error {
     constructor(readonly code: string) { super(code); }
   },
-  createOperatingExpense: mocks.createExpense,
+  applyOperatingExpenseCommand: mocks.applyExpenseCommand,
   getOperatingProfitDashboard: mocks.getDashboard,
 }));
 
@@ -38,7 +38,7 @@ beforeEach(() => {
     },
   });
   mocks.validateCsrf.mockReturnValue(true);
-  mocks.createExpense.mockResolvedValue({ id: "66666666-6666-4666-8666-666666666666" });
+  mocks.applyExpenseCommand.mockResolvedValue({ id: "66666666-6666-4666-8666-666666666666" });
   mocks.getDashboard.mockResolvedValue({ summary: {}, expenses: [] });
 });
 
@@ -75,7 +75,7 @@ describe("operating profit API", () => {
       },
     ), { params: Promise.resolve({ organizationId }) });
     expect(response.status).toBe(201);
-    expect(mocks.createExpense).toHaveBeenCalledWith(expect.objectContaining({ organizationId }));
+    expect(mocks.applyExpenseCommand).toHaveBeenCalledWith(expect.objectContaining({ organizationId }));
     expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
       action: "OPERATING_EXPENSE_CREATED",
       outcome: "SUCCESS",

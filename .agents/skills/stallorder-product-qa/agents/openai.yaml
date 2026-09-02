@@ -1,0 +1,7 @@
+interface:
+  display_name: "StallOrder 產品需求與 QA"
+  short_description: "依歷史需求執行跨角色、跨裝置完整回歸與安全發布驗證"
+  brand_color: "#0F8A7A"
+  default_prompt: "Use $stallorder-product-qa to implement and verify this StallOrder change without regressing prior requirements."
+policy:
+  allow_implicit_invocation: true

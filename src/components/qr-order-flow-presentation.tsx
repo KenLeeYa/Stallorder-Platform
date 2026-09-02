@@ -14,7 +14,8 @@ import {
   Truck,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { CheckoutUpsellDialog } from "@/components/checkout-upsell-dialog";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
 import { QrOrderCartPanel } from "@/components/qr-order-cart-panel";
 import type { QrOrderFlowController } from "@/components/qr-order-flow-controller";
@@ -26,9 +27,12 @@ import { QrLanguageSelector } from "@/components/qr-language-selector";
 import { QrCustomerMembershipEntry } from "@/components/qr-customer-membership-entry";
 import { QrSessionCountdown } from "@/components/qr-session-countdown";
 import { SessionExpiryDialog } from "@/components/qr-session-expiry-dialog";
+import { SpecialClosureNoticeDialog } from "@/components/special-closure-notice-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { QrOrderMenu } from "@/components/qr-order-menu";
 import { formatMoney } from "@/lib/money";
+import { resolveCheckoutUpsellCandidates } from "@/lib/checkout-upsell";
+import type { PublicMenuProduct } from "@/lib/public-menu-types";
 import { localizeSpecialClosureTitle } from "@/lib/special-closures-client";
 
 type QrOrderFlowPresentationProps = {
@@ -78,6 +82,7 @@ export function QrOrderFlowPresentation({
     drawLottery,
     editingLineIds,
     editCartLine,
+    entryChannel,
     fulfillment,
     handleTurnstileToken,
     hasUnappliedFulfillmentTime,
@@ -136,6 +141,20 @@ export function QrOrderFlowPresentation({
     acceptLotteryRecommendation,
   } = controller;
   const [dismissedDeliveryNotice, setDismissedDeliveryNotice] = useState<string | null>(null);
+  const [upsellReviewed, setUpsellReviewed] = useState(false);
+  const [upsellDialogOpen, setUpsellDialogOpen] = useState(false);
+  const [upsellProductIds, setUpsellProductIds] = useState<string[]>([]);
+  const [upsellNextAction, setUpsellNextAction] = useState<"CHECKOUT" | "SUBMIT">("CHECKOUT");
+  const continueFromUpsell = useCallback(() => {
+    setUpsellReviewed(true);
+    setUpsellDialogOpen(false);
+    if (upsellNextAction === "SUBMIT") {
+      void submitOrder();
+      return;
+    }
+    setCartStep("CHECKOUT");
+    window.requestAnimationFrame(() => checkoutHeadingRef.current?.focus());
+  }, [checkoutHeadingRef, setCartStep, submitOrder, upsellNextAction]);
 
   if (isLoading) {
     return <main className="grid min-h-screen place-items-center px-5 text-sm text-stone-600">{copy.sessionLoading}</main>;
@@ -150,6 +169,8 @@ export function QrOrderFlowPresentation({
       </main>
     );
   }
+
+  const checkoutUpsell = session.checkoutUpsell;
 
   const fulfillmentTimeLabel = activeOrderingMode === "PREORDER"
     ? copy.preorderPickupTime
@@ -201,9 +222,56 @@ export function QrOrderFlowPresentation({
   const deliveryNotice = activeOrderingMode === "DELIVERY"
     ? session.deliveryNotice?.trim() ?? ""
     : "";
+  const addedProductIds = new Set(cartLines.map((line) => line.productId));
+  const upsellProducts = upsellProductIds.flatMap((productId) => {
+    const product = visibleProducts.find((candidate) => candidate.id === productId);
+    return product && !product.isSoldOut ? [product] : [];
+  });
+
+  function openCheckoutUpsell(nextAction: "CHECKOUT" | "SUBMIT") {
+    const candidates = checkoutUpsell?.enabled && !upsellReviewed
+      ? resolveCheckoutUpsellCandidates({
+          products: visibleProducts,
+          configuredProductIds: checkoutUpsell.productIds,
+          cartProductIds: addedProductIds,
+        })
+      : [];
+    if (candidates.length > 0) {
+      setUpsellProductIds(candidates.map((product) => product.id));
+      setUpsellNextAction(nextAction);
+      setUpsellDialogOpen(true);
+      return true;
+    }
+    return false;
+  }
+
+  function requestCheckout() {
+    if (openCheckoutUpsell("CHECKOUT")) return;
+    setCartStep("CHECKOUT");
+    window.requestAnimationFrame(() => checkoutHeadingRef.current?.focus());
+  }
+
+  function requestSubmit() {
+    if (openCheckoutUpsell("SUBMIT")) return;
+    void submitOrder();
+  }
+
+  function addUpsellProduct(product: PublicMenuProduct) {
+    const currentQuantity = cartLines
+      .filter((line) => line.productId === product.id)
+      .reduce((total, line) => total + line.quantity, 0);
+    const configurable = product.noteGroups.length > 0 || product.bundleChoiceGroups.length > 0;
+    updateQuantity(product.id, currentQuantity + 1);
+    if (!configurable) return;
+    setUpsellReviewed(true);
+    setUpsellDialogOpen(false);
+    setCartOpen(false);
+    window.requestAnimationFrame(() => document.getElementById(`qr-product-${product.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
   const cartPanel = (
     <QrOrderCartPanel
       session={session}
+      entryChannel={entryChannel}
       cartLines={cartLines}
       activeCartStep={activeCartStep}
       activeOrderingMode={activeOrderingMode}
@@ -234,10 +302,7 @@ export function QrOrderFlowPresentation({
       onClose={closeCart}
       onChangeLineQuantity={changeCartLineQuantity}
       onEditLine={editCartLine}
-      onContinueToCheckout={() => {
-        setCartStep("CHECKOUT");
-        window.requestAnimationFrame(() => checkoutHeadingRef.current?.focus());
-      }}
+      onContinueToCheckout={requestCheckout}
       onBackToCart={() => {
         setCartStep("CART");
         window.requestAnimationFrame(() => cartContinueButtonRef.current?.focus());
@@ -252,12 +317,13 @@ export function QrOrderFlowPresentation({
         setMessage("");
       }}
       onTurnstileToken={handleTurnstileToken}
-      onSubmit={() => void submitOrder()}
+      onSubmit={requestSubmit}
     />
   );
 
   return (
     <main className="mx-auto grid min-h-screen max-w-5xl gap-6 px-4 py-5 pb-28 md:grid-cols-[minmax(0,1fr)_340px] md:px-8 md:pb-5">
+      {session.specialClosure ? <SpecialClosureNoticeDialog closure={session.specialClosure} locale={locale} timeZone={session.stall.timezone} /> : null}
       <section>
         <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
           <div><p className="text-sm font-medium text-teal-800">{session.stall.location}</p><h1 className="mt-1 text-3xl font-semibold">{session.stall.name}</h1></div>
@@ -465,6 +531,18 @@ export function QrOrderFlowPresentation({
           onDismiss={() => setDismissedDeliveryNotice(deliveryNotice)}
         />
       ) : null}
+      {upsellDialogOpen && !sessionExpiryDialogOpen && !lotteryDialogVisible && (!deliveryNotice || dismissedDeliveryNotice === deliveryNotice) ? (
+        <CheckoutUpsellDialog
+          products={upsellProducts}
+          addedProductIds={addedProductIds}
+          currency={session.stall.currency}
+          locale={locale}
+          copy={copy}
+          localizedProduct={localizedProduct}
+          onAdd={addUpsellProduct}
+          onContinue={continueFromUpsell}
+        />
+      ) : null}
     </main>
   );
 }
@@ -498,12 +576,15 @@ export function DeliveryNoticeDialog({
 }
 
 function formatSpecialClosureRange(
-  closure: { startsOn: string; endsOn: string },
+  closure: { startsOn: string; endsOn: string; opensAt?: string | null; closesAt?: string | null },
   locale: string,
 ) {
   const formatter = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" });
   const start = formatter.format(new Date(`${closure.startsOn}T00:00:00.000Z`));
-  if (closure.startsOn === closure.endsOn) return start;
-  const end = formatter.format(new Date(`${closure.endsOn}T00:00:00.000Z`));
-  return `${start} – ${end}`;
+  const dates = closure.startsOn === closure.endsOn
+    ? start
+    : `${start} – ${formatter.format(new Date(`${closure.endsOn}T00:00:00.000Z`))}`;
+  return closure.opensAt && closure.closesAt
+    ? `${dates} · ${closure.opensAt}–${closure.closesAt}`
+    : dates;
 }

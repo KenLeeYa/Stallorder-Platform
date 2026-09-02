@@ -140,17 +140,21 @@ describe("店員套餐伺服器定價", () => {
     })).toThrowError("INVALID_PRODUCT_NOTES");
   });
 
-  it("拒絕售罄元件、跨攤位元件與跨組織套餐", () => {
+  it("允許只對線上標記售完的元件", () => {
     const soldOut = bundleAssignment();
     soldOut.product.bundleChoiceGroups[0]!.choices[0]!.componentProduct.stallProducts[0]!.isSoldOut = true;
-    expect(() => prepareTrustedStaffOrderItem({
+    const item = prepareTrustedStaffOrderItem({
       organizationId,
       stallId,
       now,
       assignment: soldOut,
       requested: requestedItem(),
-    })).toThrowError("PRODUCT_UNAVAILABLE");
+    });
 
+    expect(item.unitPrice).toBe(155);
+  });
+
+  it("拒絕跨攤位元件與跨組織套餐", () => {
     const wrongStall = bundleAssignment();
     wrongStall.product.bundleChoiceGroups[0]!.choices[0]!.componentProduct.stallProducts[0]!.stallId = "20000000-0000-4000-8000-000000000002";
     expect(() => prepareTrustedStaffOrderItem({

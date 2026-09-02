@@ -5,12 +5,16 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ProductImage } from "@/components/product-image";
 import type { AppLocale } from "@/lib/app-locale";
+import { locationGuideImageStyle } from "@/lib/location-guide-image-framing";
 
 type Props = {
   stallName: string;
   location: string;
   address: string;
   guideImageUrl: string | null;
+  guideImagePositionX?: number;
+  guideImagePositionY?: number;
+  guideImageZoom?: number;
   googleMapsEmbedUrl: string | null;
   googleMapsNavigationUrl: string;
   locale: AppLocale;
@@ -86,6 +90,9 @@ export function LocationGuideDialog({
   location,
   address,
   guideImageUrl,
+  guideImagePositionX,
+  guideImagePositionY,
+  guideImageZoom,
   googleMapsEmbedUrl,
   googleMapsNavigationUrl,
   locale,
@@ -185,14 +192,21 @@ export function LocationGuideDialog({
               {guideImageUrl ? (
                 <section aria-labelledby="location-guide-image-title">
                   <h3 id="location-guide-image-title" className="mb-2 text-sm font-bold text-stone-700">{copy.guideImage}</h3>
-                  <ProductImage
-                    src={guideImageUrl}
-                    alt={`${stallName} ${copy.guideImage}`}
-                    width={1200}
-                    height={800}
-                    sizes="(min-width: 672px) 624px, calc(100vw - 56px)"
-                    className="max-h-[48dvh] w-full rounded-xl border border-stone-200 object-contain"
-                  />
+                  <div data-testid="public-location-guide-image" className="relative aspect-[3/2] overflow-hidden rounded-xl border border-stone-200 bg-stone-100">
+                    <ProductImage
+                      src={guideImageUrl}
+                      alt={`${stallName} ${copy.guideImage}`}
+                      width={1200}
+                      height={800}
+                      sizes="(min-width: 672px) 624px, calc(100vw - 56px)"
+                      className="h-full w-full object-cover"
+                      style={locationGuideImageStyle({
+                        positionX: guideImagePositionX,
+                        positionY: guideImagePositionY,
+                        zoom: guideImageZoom,
+                      })}
+                    />
+                  </div>
                 </section>
               ) : null}
 

@@ -1,18 +1,65 @@
-import { errors, type Page, type Response } from "@playwright/test";
+import {
+  errors,
+  type Locator,
+  type Page,
+  type Response,
+} from "@playwright/test";
 
-export async function gotoLocalPath(page: Page, path: string, expectedPath = path) {
+export function qrProductSelectionControl(
+  product: Locator,
+  productName: string,
+  increaseLabel = `增加 ${productName}`,
+) {
+  return product
+    .getByTestId("qr-open-product-configurator")
+    .or(product.getByRole("button", { name: increaseLabel, exact: true }))
+    .first();
+}
+
+export async function openSharedCatalogProductActions(
+  page: Page,
+  productName: string,
+) {
+  const navigator = page.getByTestId("catalog-navigator-dialog");
+  if (!(await navigator.isVisible())) {
+    const openNavigator = page.getByTestId("open-catalog-navigator");
+    await openNavigator.waitFor({ state: "visible" });
+    await openNavigator.click();
+    await navigator.waitFor({ state: "visible" });
+  }
+  const search = navigator.getByPlaceholder("搜尋所有商品");
+  await search.fill(productName);
+  const product = navigator.getByRole("button", {
+    name: `操作：${productName}`,
+    exact: true,
+  });
+  await product.waitFor({ state: "visible" });
+  await product.click();
+  const actions = page.getByRole("dialog", {
+    name: `商品：${productName}`,
+    exact: true,
+  });
+  await actions.waitFor({ state: "visible" });
+  return actions;
+}
+
+export async function gotoLocalPath(
+  page: Page,
+  path: string,
+  expectedPath = path,
+) {
   if (
-    !path.startsWith("/")
-    || path.startsWith("//")
-    || !expectedPath.startsWith("/")
-    || expectedPath.startsWith("//")
+    !path.startsWith("/") ||
+    path.startsWith("//") ||
+    !expectedPath.startsWith("/") ||
+    expectedPath.startsWith("//")
   ) {
     throw new Error(`E2E_LOCAL_NAVIGATION_PATH_INVALID: ${path}`);
   }
   const expectedUrl = new URL(
     expectedPath,
     page.url() === "about:blank"
-      ? process.env.PLAYWRIGHT_APP_URL ?? "http://localhost:3001"
+      ? (process.env.PLAYWRIGHT_APP_URL ?? "http://localhost:3001")
       : page.url(),
   );
 
@@ -23,10 +70,11 @@ export async function gotoLocalPath(page: Page, path: string, expectedPath = pat
     return response;
   } catch (error) {
     if (
-      process.env.PLAYWRIGHT_PRODUCTION_SERVER === "true"
-      || !(error instanceof Error)
-      || !error.message.includes("page.goto: net::ERR_ABORTED")
-    ) throw error;
+      process.env.PLAYWRIGHT_PRODUCTION_SERVER === "true" ||
+      !(error instanceof Error) ||
+      !error.message.includes("page.goto: net::ERR_ABORTED")
+    )
+      throw error;
 
     try {
       await page.waitForURL((url) => matchesExpectedRoute(url, expectedUrl), {
@@ -54,19 +102,27 @@ export async function dismissStaffStartReminder(page: Page) {
     if (error instanceof errors.TimeoutError) return;
     throw error;
   }
-  await backdrop.getByRole("button", { name: "稍後處理", exact: true }).last().click();
+  await backdrop
+    .getByRole("button", { name: "稍後處理", exact: true })
+    .last()
+    .click();
   await backdrop.waitFor({ state: "detached", timeout: 5_000 });
 }
 
-export async function waitForDefaultMerchantDashboard(page: Page, organizationId: string) {
-  await page.waitForURL((url) => (
-    url.pathname === "/merchant/dashboard"
-    && url.searchParams.get("organizationId") === organizationId
-    && url.searchParams.get("dateFrom") === url.searchParams.get("dateTo")
-    && url.searchParams.get("dashboardPreset") === "TODAY"
-    && url.searchParams.get("dashboardSort") === "sales"
-    && url.searchParams.getAll("stallId").length > 0
-  ), { timeout: 30_000 });
+export async function waitForDefaultMerchantDashboard(
+  page: Page,
+  organizationId: string,
+) {
+  await page.waitForURL(
+    (url) =>
+      url.pathname === "/merchant/dashboard" &&
+      url.searchParams.get("organizationId") === organizationId &&
+      url.searchParams.get("dateFrom") === url.searchParams.get("dateTo") &&
+      url.searchParams.get("dashboardPreset") === "TODAY" &&
+      url.searchParams.get("dashboardSort") === "sales" &&
+      url.searchParams.getAll("stallId").length > 0,
+    { timeout: 30_000 },
+  );
 }
 
 function assertSuccessfulResponse(path: string, response: Response | null) {
@@ -85,7 +141,11 @@ function assertExpectedRoute(page: Page, expectedUrl: URL) {
 }
 
 function matchesExpectedRoute(actualUrl: URL, expectedUrl: URL) {
-  if (actualUrl.origin !== expectedUrl.origin || actualUrl.pathname !== expectedUrl.pathname) return false;
+  if (
+    actualUrl.origin !== expectedUrl.origin ||
+    actualUrl.pathname !== expectedUrl.pathname
+  )
+    return false;
   const remainingValues = new Map<string, string[]>();
   for (const [key, value] of actualUrl.searchParams) {
     const values = remainingValues.get(key) ?? [];

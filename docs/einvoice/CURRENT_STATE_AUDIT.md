@@ -18,4 +18,3 @@
 ## 不重複實作的界線
 
 平台訂閱 `Invoice`/`TaxDocument` 繼續處理 StallOrder 對商家的計費；新 `InvoiceDocument` 只處理商家對顧客的訂單發票。兩者不可互相回填或共用法律編號。
-

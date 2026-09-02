@@ -339,35 +339,53 @@ describe("dual public order contract", () => {
 
   it.each([
     {
-      fulfillmentType: "TAKEOUT" as const,
+      name: "shared-link takeaway",
+      orderingMode: "PREORDER" as const,
+      qrContext: { dining_table_id: null, fulfillment_type_context: "TAKEOUT" },
       customerName: "",
       customerPhone: "0912345678",
       deliveryAddress: "",
       expected: "INVALID_CUSTOMER_DETAILS",
     },
     {
-      fulfillmentType: "TAKEOUT" as const,
+      name: "shared-link takeaway with invalid phone",
+      orderingMode: "PREORDER" as const,
+      qrContext: { dining_table_id: null, fulfillment_type_context: "TAKEOUT" },
       customerName: "Lin",
       customerPhone: "bad",
       deliveryAddress: "",
       expected: "INVALID_CUSTOMER_DETAILS",
     },
     {
-      fulfillmentType: "DELIVERY" as const,
+      name: "shared-link delivery",
+      orderingMode: "DELIVERY" as const,
+      qrContext: { dining_table_id: null, fulfillment_type_context: "DELIVERY" },
       customerName: "Lin",
       customerPhone: "0912345678",
       deliveryAddress: "",
       expected: "INVALID_DELIVERY_DETAILS",
     },
     {
-      fulfillmentType: "DINE_IN" as const,
+      name: "table QR",
+      orderingMode: "DEFAULT" as const,
+      qrContext: { dining_table_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", fulfillment_type_context: null },
       customerName: "",
       customerPhone: "",
       deliveryAddress: "",
       expected: null,
     },
-  ])("validates public customer details for $fulfillmentType", ({
-    fulfillmentType,
+    {
+      name: "general QR",
+      orderingMode: "DEFAULT" as const,
+      qrContext: { dining_table_id: null, fulfillment_type_context: null },
+      customerName: "",
+      customerPhone: "",
+      deliveryAddress: "",
+      expected: null,
+    },
+  ])("validates public customer details for $name", ({
+    orderingMode,
+    qrContext,
     customerName,
     customerPhone,
     deliveryAddress,
@@ -377,7 +395,7 @@ describe("dual public order contract", () => {
       customerName,
       customerPhone,
       deliveryAddress,
-    }, fulfillmentType)).toBe(expected);
+    }, orderingMode, qrContext)).toBe(expected);
   });
 
   it("keeps both order circuits on the shared post-preflight customer-details gate", () => {

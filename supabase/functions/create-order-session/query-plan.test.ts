@@ -15,6 +15,7 @@ describe("create-order-session lightweight query plan", () => {
     expect(lightweightReturn).toBeGreaterThan(planStart);
     expect(plan).toContain("parsed.data.includeMenu");
     expect(plan).toContain('admin.from("stalls")');
+    expect(plan).toContain("ordering_settings:stall_ordering_settings(checkout_upsell_enabled, checkout_upsell_product_ids)");
     expect(plan).toContain('admin.from("stall_products")');
     expect(plan).toContain("), 2)");
     expect(plan).not.toContain('admin.from("stall_ordering_settings")');
@@ -59,6 +60,12 @@ describe("create-order-session lightweight query plan", () => {
     expect(source).toContain("categoryTranslations: product.categoryTranslations");
     expect(source).toContain("groupTranslations: product.groupTranslations");
     expect(source).toContain("supportedLocales: completeCatalogLocales(products, enabledLocales)");
+  });
+
+  it("returns checkout recommendations without adding a menu query", () => {
+    expect(source).toContain("checkoutUpsell: {");
+    expect(source).toContain("stallQuery.data.ordering_settings?.checkout_upsell_enabled === true");
+    expect(source).toContain("stallQuery.data.ordering_settings?.checkout_upsell_product_ids");
   });
 
   it("returns sold-out products for display while keeping bundle components saleable-only", () => {

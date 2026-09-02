@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { Prisma, PrismaClient } from "@prisma/client";
+import { qrProductSelectionControl } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -45,31 +46,43 @@ test.describe("P8 生產韌性故障注入", () => {
     await prisma.$disconnect();
   });
 
-  test("Supabase Edge 回傳 503 時以同一請求識別轉入 Circuit B", async ({ page }) => {
-    await page.route((url) => [
-      "/functions/v1/create-order-session",
-      "/api/public-order/create-order-session",
-    ].includes(url.pathname), async (route) => {
-      await route.fulfill({
-        status: 503,
-        contentType: "application/json",
-        body: JSON.stringify({
-          code: "ORDER_CREATE_ERROR",
-          error: "Injected local Edge failure",
-        }),
-      });
-    });
-    const fallbackResponse = page.waitForResponse((response) => (
-      new URL(response.url()).pathname === "/api/public/order-session"
-      && response.request().method() === "POST"
-    ));
+  test("Supabase Edge 回傳 503 時以同一請求識別轉入 Circuit B", async ({
+    page,
+  }) => {
+    await page.route(
+      (url) =>
+        [
+          "/functions/v1/create-order-session",
+          "/api/public-order/create-order-session",
+        ].includes(url.pathname),
+      async (route) => {
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({
+            code: "ORDER_CREATE_ERROR",
+            error: "Injected local Edge failure",
+          }),
+        });
+      },
+    );
+    const fallbackResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/public/order-session" &&
+        response.request().method() === "POST",
+    );
 
     await page.goto(`/q/${demoQrToken}`);
     const response = await fallbackResponse;
 
     expect(response.status()).toBe(201);
     expect(response.headers()["x-order-circuit"]).toBe("B");
-    await expect(page.getByRole("button", { name: "增加 香酥雞排" })).toBeEnabled();
+    await expect(
+      qrProductSelectionControl(
+        page.getByRole("article").filter({ hasText: "香酥雞排" }),
+        "香酥雞排",
+      ),
+    ).toBeEnabled();
     await expect(page.getByText(/點餐時間剩餘 \d{1,2}:\d{2}/)).toBeVisible();
   });
 
@@ -89,13 +102,19 @@ test.describe("P8 生產韌性故障注入", () => {
       },
     ].map((identity) => ({
       ...identity,
-      sessionTokenHash: sha256(`session:${identity.sessionRequestId}:${identity.deviceId}`),
+      sessionTokenHash: sha256(
+        `session:${identity.sessionRequestId}:${identity.deviceId}`,
+      ),
       ipHash: sha256(`ip:${identity.deviceId}`),
       deviceHash: sha256(`device:${identity.deviceId}`),
-      behaviorHash: sha256(`scan:${identity.sessionRequestId}:${identity.deviceId}`),
+      behaviorHash: sha256(
+        `scan:${identity.sessionRequestId}:${identity.deviceId}`,
+      ),
     }));
     const requestIds = identities.map((identity) => identity.sessionRequestId);
-    const sessionTokenHashes = identities.map((identity) => identity.sessionTokenHash);
+    const sessionTokenHashes = identities.map(
+      (identity) => identity.sessionTokenHash,
+    );
     const qrTokenHash = sha256(`qr:${demoQrToken}`);
     const rateLimitHashes = [
       ...identities.flatMap((identity) => [
@@ -106,7 +125,11 @@ test.describe("P8 生產韌性故障注入", () => {
       qrTokenHash,
       sha256(demoStallId),
     ];
-    await cleanupConcurrentSessionState(requestIds, sessionTokenHashes, rateLimitHashes);
+    await cleanupConcurrentSessionState(
+      requestIds,
+      sessionTokenHashes,
+      rateLimitHashes,
+    );
     const blocker = new PrismaClient();
     const sessionClient = new PrismaClient();
     const observer = new PrismaClient();
@@ -120,26 +143,32 @@ test.describe("P8 生產韌性故障注入", () => {
       resolveBlockerReady = resolve;
       rejectBlockerReady = reject;
     });
-    const blockerWork = blocker.$transaction(async (transaction) => {
-      const [row] = await transaction.$queryRaw<Array<{ pid: number }>>`
+    const blockerWork = blocker
+      .$transaction(
+        async (transaction) => {
+          const [row] = await transaction.$queryRaw<Array<{ pid: number }>>`
         select pg_catalog.pg_backend_pid()::integer as pid
         from public.stalls
         where id = ${demoStallId}::uuid
         for update
       `;
-      if (!row) throw new Error("E2E_BLOCKER_STALL_NOT_FOUND");
-      resolveBlockerReady(row.pid);
-      await blockerRelease;
-    }, { maxWait: 5_000, timeout: 20_000 }).catch((error) => {
-      rejectBlockerReady(error);
-      throw error;
-    });
+          if (!row) throw new Error("E2E_BLOCKER_STALL_NOT_FOUND");
+          resolveBlockerReady(row.pid);
+          await blockerRelease;
+        },
+        { maxWait: 5_000, timeout: 20_000 },
+      )
+      .catch((error) => {
+        rejectBlockerReady(error);
+        throw error;
+      });
     let sessionWork: Array<Promise<SessionIssueRow[]>> = [];
 
     try {
       const blockerPid = await blockerReady;
-      sessionWork = identities.map(async (identity) => (
-        await sessionClient.$queryRaw<SessionIssueRow[]>(Prisma.sql`
+      sessionWork = identities.map(
+        async (identity) =>
+          await sessionClient.$queryRaw<SessionIssueRow[]>(Prisma.sql`
           select public.issue_idempotent_order_session_with_schedule(
             ${demoQrToken}::text,
             ${identity.sessionTokenHash}::text,
@@ -150,11 +179,15 @@ test.describe("P8 生產韌性故障注入", () => {
             ${identity.sessionRequestId}::text,
             'DEFAULT'::text
           ) as result
-        `)
-      ));
+        `),
+      );
 
-      await expect.poll(async () => {
-        const [row] = await observer.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      await expect
+        .poll(
+          async () => {
+            const [row] = await observer.$queryRaw<
+              Array<{ count: number }>
+            >(Prisma.sql`
           with recursive wait_chain(pid) as (
             select ${blockerPid}::integer
             union
@@ -169,16 +202,21 @@ test.describe("P8 生產韌性故障注入", () => {
           select (count(*) - 1)::integer as count
           from wait_chain
         `);
-        return row?.count ?? 0;
-      }, { timeout: 10_000 }).toBeGreaterThanOrEqual(3);
+            return row?.count ?? 0;
+          },
+          { timeout: 10_000 },
+        )
+        .toBeGreaterThanOrEqual(3);
 
       releaseBlocker();
       await blockerWork;
       const outcomes = await Promise.allSettled(sessionWork);
-      expect(outcomes.filter((outcome) => outcome.status === "rejected")).toEqual([]);
-      const results = outcomes.flatMap((outcome) => (
-        outcome.status === "fulfilled" ? outcome.value : []
-      ));
+      expect(
+        outcomes.filter((outcome) => outcome.status === "rejected"),
+      ).toEqual([]);
+      const results = outcomes.flatMap((outcome) =>
+        outcome.status === "fulfilled" ? outcome.value : [],
+      );
       expect(results).toHaveLength(3);
       const sessionIds = results.map((row) => {
         expect(row.result).toMatchObject({ ok: true });
@@ -190,7 +228,11 @@ test.describe("P8 生產韌性故障注入", () => {
     } finally {
       releaseBlocker();
       await Promise.allSettled([blockerWork, ...sessionWork]);
-      await cleanupConcurrentSessionState(requestIds, sessionTokenHashes, rateLimitHashes);
+      await cleanupConcurrentSessionState(
+        requestIds,
+        sessionTokenHashes,
+        rateLimitHashes,
+      );
       await Promise.all([
         blocker.$disconnect(),
         sessionClient.$disconnect(),
@@ -199,7 +241,9 @@ test.describe("P8 生產韌性故障注入", () => {
     }
   });
 
-  test("SSE 與 Realtime 同時失效時顯示 5 秒輪詢並持續抓取訂單", async ({ page }) => {
+  test("SSE 與 Realtime 同時失效時顯示 5 秒輪詢並持續抓取訂單", async ({
+    page,
+  }) => {
     let orderListRequests = 0;
     await page.route("**/api/stalls/*/orders/stream", async (route) => {
       await route.fulfill({
@@ -212,8 +256,8 @@ test.describe("P8 生產韌性故障注入", () => {
     page.on("request", (request) => {
       const url = new URL(request.url());
       if (
-        request.method() === "GET"
-        && url.pathname === "/api/stalls/aming-chicken/orders"
+        request.method() === "GET" &&
+        url.pathname === "/api/stalls/aming-chicken/orders"
       ) {
         orderListRequests += 1;
       }
@@ -221,10 +265,12 @@ test.describe("P8 生產韌性故障注入", () => {
 
     await login(page, "staff@stallorder.test", /\/staff\/aming-chicken/);
 
-    await expect(page.locator(
-      '[title="SSE 與 Realtime 未就緒，已啟用 5 秒輪詢"]',
-    )).toBeVisible({ timeout: 15_000 });
-    await expect.poll(() => orderListRequests, { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+    await expect(
+      page.locator('[title="SSE 與 Realtime 未就緒，已啟用 5 秒輪詢"]'),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(() => orderListRequests, { timeout: 15_000 })
+      .toBeGreaterThanOrEqual(2);
   });
 });
 
@@ -241,7 +287,9 @@ async function removeTemporaryFlag() {
 
 async function login(page: Page, email: string, expectedUrl: RegExp) {
   await page.goto("/login");
-  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
+  await page
+    .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
+    .click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
@@ -269,9 +317,8 @@ function loadLocalEnv() {
     const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
     if (!match || process.env[match[1]]) continue;
     const value = match[2].trim();
-    process.env[match[1]] = value.startsWith('"') && value.endsWith('"')
-      ? value.slice(1, -1)
-      : value;
+    process.env[match[1]] =
+      value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
   }
 }
 

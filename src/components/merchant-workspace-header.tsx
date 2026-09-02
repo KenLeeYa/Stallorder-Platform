@@ -19,6 +19,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
+import { MerchantGuideDialog } from "@/components/merchant-guide-dialog";
 import { MobileSeniorActionMenu } from "@/components/mobile-senior-action-menu";
 import { PwaControls } from "@/components/pwa-controls";
 import { WorkModeSwitcher } from "@/components/work-mode-switcher";
@@ -59,6 +60,9 @@ export function MerchantWorkspaceHeader({
     : undefined;
   const activeStalls = workspace?.stalls.filter((stall) => stall.isActive) ?? [];
   const singleActiveStall = activeStalls.length === 1 ? activeStalls[0] : null;
+  const guideStall = routeStall?.organizationId === workspace?.id
+    ? routeStall
+    : singleActiveStall;
   const workModeDestinations = useMemo(
     () => buildWorkModeDestinations(workspaces),
     [workspaces],
@@ -83,6 +87,29 @@ export function MerchantWorkspaceHeader({
       href: `/merchant/${encodeURIComponent(stall.slug)}`,
     })),
   ] : [];
+  const merchantGuide = workspace ? (
+    <MerchantGuideDialog
+      scope={{
+        organizationId: workspace.id,
+        operatingMode: workspace.operatingMode,
+        merchantSetupState: workspace.merchantSetupState,
+        roles: workspace.roles,
+        stall: guideStall ? {
+          id: guideStall.id,
+          name: guideStall.name,
+          slug: guideStall.slug,
+          kdsEnabled: guideStall.kdsEnabled,
+          roles: guideStall.roles,
+        } : null,
+        features: {
+          billing: showBilling,
+          growth: showGrowth,
+          payments: showPayments,
+          supply: showSupply,
+        },
+      }}
+    />
+  ) : null;
 
   function renderFunctionNavigation(className: string, testId: string) {
     return (
@@ -211,7 +238,7 @@ export function MerchantWorkspaceHeader({
                 label={m("選擇攤位")}
               />
             ) : null}
-            <PwaControls />
+            <PwaControls afterAccessibility={merchantGuide} />
             <span className="hidden max-w-36 truncate text-sm text-stone-600 lg:inline">{displayName}</span>
             <LogoutButton />
           </div>

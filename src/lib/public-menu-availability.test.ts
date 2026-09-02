@@ -5,6 +5,7 @@ import {
   prunePublicCartForProducts,
   publicMenuProductsForPickup,
   publicMenuProductsForPickupWindow,
+  publicMenuProductsVisibleForOrdering,
 } from "@/lib/public-menu-availability";
 
 function product(
@@ -274,7 +275,7 @@ describe("public preorder menu availability", () => {
     }]);
   });
 
-  it("keeps a sold-out bundle visible but removes it from every cart representation", () => {
+  it("hides sold-out products from customer ordering and removes them from every cart representation", () => {
     const soldOutBundle = product({
       id: "sold-out-bundle",
       kind: "BUNDLE",
@@ -286,6 +287,7 @@ describe("public preorder menu availability", () => {
       [soldOutBundle],
       "2026-08-03T05:00:00.000Z",
     )).toEqual([soldOutBundle]);
+    expect(publicMenuProductsVisibleForOrdering([soldOutBundle])).toEqual([]);
     expect(prunePublicCartForProducts([soldOutBundle], {
       quantities: { "sold-out-bundle": 2 },
       noteSelections: {},

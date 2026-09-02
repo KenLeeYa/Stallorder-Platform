@@ -8,4 +8,3 @@
 - 對帳不得自動修改訂單、付款或發票金額；必須由授權人員調查後結案。
 
 目前 Mock 可驗證完整分支；真實 Provider 的批次查詢、日結檔、時區 cut-off 與 eventual consistency 規則尚待正式 contract。
-

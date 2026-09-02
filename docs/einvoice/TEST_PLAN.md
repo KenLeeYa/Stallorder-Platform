@@ -17,4 +17,3 @@
 | Production | 漸進 rollout、監控告警、credential rotation、DR、負載與安全測試 |
 
 CI 不需要也不得包含真實統編、字軌、Merchant ID、HashKey/HashIV 或 Production API key。
-

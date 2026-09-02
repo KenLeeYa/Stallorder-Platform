@@ -26,7 +26,6 @@ import {
 import {
   canonicalPublicOrderBehavior,
   publicOrderCustomerDetailsCode,
-  resolvePublicOrderFulfillmentType,
   type GetPublicOrderInput,
   type IssueOrderSessionInput,
   type PublicOrderInput,
@@ -399,7 +398,8 @@ export async function createOrderThroughCircuitB(
   }
   const customerDetailsCode = publicOrderCustomerDetailsCode(
     input,
-    resolvePublicOrderFulfillmentType(input.orderingMode, preflight.qr_context),
+    input.orderingMode,
+    preflight.qr_context,
   );
   if (customerDetailsCode) {
     throw new PublicOrderCircuitError(

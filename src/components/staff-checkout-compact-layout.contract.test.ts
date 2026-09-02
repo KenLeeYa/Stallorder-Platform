@@ -33,12 +33,16 @@ describe("staff checkout compact layout", () => {
     expect(lifecycle).not.toContain("max-w-[45vw]");
   });
 
-  it("keeps two-stage checkout scrollable with a reachable sticky submit button", () => {
+  it("keeps two-stage checkout scrollable with a reachable sticky submit button at desktop and iPad widths", () => {
     const controls = composer.slice(
       composer.indexOf('data-testid="staff-order-checkout-controls"'),
       composer.indexOf('data-testid="staff-checkout-payment-row"'),
     );
     expect(controls).toContain("overflow-y-auto");
+    expect(controls).not.toContain("hidden lg:block");
+    expect(composer).toContain('tabletCheckoutStep === "CHECKOUT" ? "grid-cols-1"');
+    expect(composer).not.toContain('lg:grid-cols-[minmax(0,1fr)_360px]');
+    expect(composer).not.toContain('disabled:opacity-40 lg:hidden');
     expect(controls).toContain("overscroll-contain");
     expect(controls).not.toContain("overflow-hidden");
     expect(composer).toContain("sticky bottom-0");

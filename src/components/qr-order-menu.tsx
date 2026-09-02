@@ -1,5 +1,5 @@
 import { Fragment, type RefObject } from "react";
-import { Flame, Minus, Plus, X } from "lucide-react";
+import { Flame, Minus, Plus, ShoppingCart, X } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
 import type { QrProductDraft } from "@/components/qr-order-product-controller";
 import { formatMoney } from "@/lib/money";
@@ -154,19 +154,31 @@ export function QrOrderMenu({
                         {configurable && committedQuantity > 0 ? <p className="mt-1 text-xs font-medium text-teal-800">{copy.cartProductQuantity(committedQuantity)}</p> : null}
                       </div>
                       <div aria-hidden={configuringProductId === product.id ? true : undefined} className="col-span-2 flex items-center justify-self-end gap-2 sm:col-span-1">
-                        {configurable && committedQuantity > 0 ? <span className="mr-1 text-xs font-medium text-stone-500">{copy.additionalQuantity}</span> : null}
-                        <button type="button" title={copy.decrease(localizedProduct(product).name)} aria-label={copy.decrease(localizedProduct(product).name)} disabled={soldOut || !orderingEnabled || configuringProductId === product.id || displayedQuantity <= 0} onClick={() => onUpdateQuantity(product.id, displayedQuantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <span className="w-8 text-center font-semibold">{displayedQuantity}</span>
-                        <button type="button" title={copy.increase(localizedProduct(product).name)} aria-label={copy.increase(localizedProduct(product).name)} disabled={soldOut || !orderingEnabled || configuringProductId === product.id} onClick={() => onUpdateQuantity(product.id, displayedQuantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
-                          <Plus className="h-4 w-4" />
-                        </button>
+                        {configurable ? (
+                          <button
+                            type="button"
+                            data-testid="qr-open-product-configurator"
+                            disabled={soldOut || !orderingEnabled || configuringProductId === product.id}
+                            onClick={() => onUpdateQuantity(product.id, displayedQuantity > 0 ? displayedQuantity : 1)}
+                            className="inline-flex min-h-14 min-w-32 items-center justify-center rounded-lg border-2 border-teal-700 bg-teal-50 px-4 text-sm font-bold text-teal-900 disabled:opacity-40"
+                          >
+                            {editingLineIds[product.id] ? copy.editCartItem : copy.upsellChooseOptions}
+                          </button>
+                        ) : (
+                          <>
+                            <button type="button" title={copy.decrease(localizedProduct(product).name)} aria-label={copy.decrease(localizedProduct(product).name)} disabled={soldOut || !orderingEnabled || displayedQuantity <= 0} onClick={() => onUpdateQuantity(product.id, displayedQuantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40">
+                              <Minus className="h-4 w-4" />
+                            </button>
+                            <span className="w-8 text-center font-semibold">{displayedQuantity}</span>
+                            <button type="button" title={copy.increase(localizedProduct(product).name)} aria-label={copy.increase(localizedProduct(product).name)} disabled={soldOut || !orderingEnabled} onClick={() => onUpdateQuantity(product.id, displayedQuantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40">
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                     {!soldOut && configurable && configuringProductId === product.id && !sessionExpiryDialogOpen && draft.quantity > 0 ? (
-                      <>
-                        <button type="button" aria-label={copy.close} onClick={() => onCancelConfiguration(product.id)} className="fixed inset-0 z-40 bg-black/50" />
+                      <div className="fixed inset-0 z-[76] flex items-end justify-center bg-black/60 sm:items-center sm:p-4">
                         <section
                           ref={configurationRef}
                           role="dialog"
@@ -174,112 +186,97 @@ export function QrOrderMenu({
                           aria-labelledby={`qr-product-configuration-${product.id}`}
                           tabIndex={-1}
                           data-testid="qr-product-configuration"
-                          className="safe-area-bottom fixed inset-x-0 bottom-0 z-50 max-h-[88dvh] overflow-y-auto rounded-t-xl bg-white p-5 text-stone-900 shadow-2xl outline-none sm:left-1/2 sm:max-w-lg sm:-translate-x-1/2 sm:rounded-xl"
+                          className="flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white text-stone-900 shadow-2xl outline-none sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
                         >
-                          <div className="flex items-start justify-between gap-3 border-b border-stone-200 pb-4">
+                          <header className="flex shrink-0 items-start justify-between gap-4 border-b border-stone-200 px-4 py-4 sm:px-6">
                             <div className="min-w-0">
-                              <p className="text-xs font-semibold text-teal-800">{editingLineIds[product.id] ? copy.editCartItem : copy.addToCart}</p>
-                              <h2 id={`qr-product-configuration-${product.id}`} className="mt-1 text-xl font-semibold">{localizedProduct(product).name}</h2>
+                              <p className="text-xs font-bold text-teal-800">{copy.upsellChooseOptions}</p>
+                              <h2 id={`qr-product-configuration-${product.id}`} className="mt-1 break-words text-xl font-semibold">{localizedProduct(product).name}</h2>
+                              <p className="mt-1 text-sm font-semibold text-stone-700">{formatMoney(Math.max(
+                                0,
+                                product.price
+                                  + notePriceAdjustment(product.noteGroups, draft.noteOptionIds)
+                                  + bundlePriceAdjustment(product.bundleChoiceGroups, draft.bundleChoiceIds),
+                              ), currency, locale)}</p>
                             </div>
-                            <button type="button" title={copy.close} aria-label={copy.close} onClick={() => onCancelConfiguration(product.id)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300">
-                              <X className="h-4 w-4" />
+                            <button type="button" title={copy.close} aria-label={copy.close} onClick={() => onCancelConfiguration(product.id)} className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-stone-300 bg-white">
+                              <X className="h-5 w-5" />
                             </button>
-                          </div>
-                          <div className="mt-4 flex items-center justify-between gap-3 rounded-md bg-stone-50 p-3">
-                            <span className="text-sm font-semibold">{copy.itemCount(draft.quantity)}</span>
-                            <div className="grid grid-cols-[44px_32px_44px] items-center gap-2">
-                              <button type="button" aria-label={copy.decrease(localizedProduct(product).name)} disabled={!orderingEnabled || draft.quantity <= 1} onClick={() => onUpdateQuantity(product.id, draft.quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Minus className="h-4 w-4" /></button>
-                              <span className="text-center font-semibold">{draft.quantity}</span>
-                              <button type="button" aria-label={copy.increase(localizedProduct(product).name)} disabled={!orderingEnabled} onClick={() => onUpdateQuantity(product.id, draft.quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-40"><Plus className="h-4 w-4" /></button>
-                            </div>
-                          </div>
-                          {draft.quantity > 0 && product.noteGroups.length > 0 ? (
-                            <div className="mt-4 space-y-4 border-t border-stone-200 pt-4">
+                          </header>
+                          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
+                            {draft.quantity > 0 && product.noteGroups.length > 0 ? (
+                            <div className="space-y-6">
                               {product.noteGroups.map((group) => {
                                 const groupOptionIds = new Set(group.options.map((option) => option.id));
                                 const selectedCount = draft.noteOptionIds.filter((id) => groupOptionIds.has(id)).length;
                                 const maximumReached = group.maxSelections !== null && selectedCount >= group.maxSelections;
+                                const role = group.selectionMode === "SINGLE" ? "radio" : "checkbox";
                                 return (
-                                  <fieldset key={group.id}>
-                                    <legend className="text-sm font-semibold text-stone-700">{localizedGroupName(group)}{group.isRequired ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.selectionMode === "SINGLE" ? copy.singleChoice : group.maxSelections ? copy.maxSelections(group.maxSelections) : copy.multipleChoice}</span></legend>
-                                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-                                      {group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-9 items-center gap-2 text-sm"><input type="radio" name={`note-${product.id}-${group.id}`} checked={selectedCount === 0} disabled={!orderingEnabled} onChange={() => onSelectNoteOption(product.id, group, null)} />{copy.noSelection}</label> : null}
+                                  <section key={group.id} aria-labelledby={`qr-configurator-note-${group.id}`}>
+                                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                      <h3 id={`qr-configurator-note-${group.id}`} className="text-base font-bold">{localizedGroupName(group)}{group.isRequired ? " *" : ""}</h3>
+                                      <span className="text-xs font-semibold text-stone-500">{group.selectionMode === "SINGLE" ? copy.singleChoice : group.maxSelections ? copy.maxSelections(group.maxSelections) : copy.multipleChoice}</span>
+                                    </div>
+                                    <div className="mt-3 grid gap-2 sm:grid-cols-2" role={role === "radio" ? "radiogroup" : "group"} aria-labelledby={`qr-configurator-note-${group.id}`}>
+                                      {role === "radio" && !group.isRequired ? <button type="button" data-testid="qr-configurator-option" role="radio" aria-checked={selectedCount === 0} disabled={!orderingEnabled} onClick={() => onSelectNoteOption(product.id, group, null)} className={`flex min-h-14 items-center justify-between rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold disabled:opacity-40 ${selectedCount === 0 ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-800"}`}><span>{copy.noSelection}</span><SelectionMark selected={selectedCount === 0} /></button> : null}
                                       {group.options.map((option) => {
                                         const checked = draft.noteOptionIds.includes(option.id);
-                                        return <label key={option.id} className="inline-flex min-h-9 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`note-${product.id}-${group.id}`} checked={checked} disabled={!orderingEnabled || (group.selectionMode === "MULTIPLE" && maximumReached && !checked)} onChange={() => onSelectNoteOption(product.id, group, option.id)} /><span>{localizedOptionName(option)}</span>{option.priceDelta !== 0 ? <span className="text-xs text-stone-500">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, currency, locale)}</span> : null}</label>;
+                                        return <button key={option.id} type="button" data-testid="qr-configurator-option" role={role} aria-checked={checked} disabled={!orderingEnabled || (role === "checkbox" && maximumReached && !checked)} onClick={() => onSelectNoteOption(product.id, group, option.id)} className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold disabled:opacity-40 ${checked ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-800"}`}><span>{localizedOptionName(option)}{option.priceDelta !== 0 ? <span className="ml-2 text-teal-800">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, currency, locale)}</span> : null}</span><SelectionMark selected={checked} multiple={role === "checkbox"} /></button>;
                                       })}
                                     </div>
-                                  </fieldset>
+                                  </section>
                                 );
                               })}
                             </div>
-                          ) : null}
-                          {draft.quantity > 0 && (product.bundleChoiceGroups?.length ?? 0) > 0 ? (
-                            <div className="mt-4 space-y-4 border-t border-stone-200 pt-4">
+                            ) : null}
+                            {draft.quantity > 0 && (product.bundleChoiceGroups?.length ?? 0) > 0 ? (
+                            <div className="space-y-6">
                               {(product.bundleChoiceGroups ?? []).map((group) => {
                                 const groupChoiceIds = new Set(group.options.map((option) => option.id));
                                 const selected = draft.bundleChoiceIds;
                                 const selectedCount = selected.filter((id) => groupChoiceIds.has(id)).length;
                                 const maximumReached = selectedCount >= group.maxSelections;
+                                const role = group.maxSelections === 1 ? "radio" : "checkbox";
                                 return (
-                                  <fieldset key={group.id} className="rounded-md border border-teal-200 bg-teal-50/60 p-3">
-                                    <legend className="px-2 text-sm font-bold text-teal-950">
-                                      <span className="mr-2 rounded-full bg-teal-700 px-2 py-0.5 text-[11px] text-white">{copy.bundleGroup}</span>
-                                      {group.name}{group.minSelections > 0 ? " *" : ""}
-                                      <span className="ml-2 text-xs font-normal text-teal-800">
-                                        {group.maxSelections === 1
-                                          ? copy.singleChoice
-                                          : copy.selectionRange(group.minSelections, group.maxSelections)}
-                                      </span>
-                                    </legend>
-                                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-                                      {group.maxSelections === 1 && group.minSelections === 0 ? (
-                                        <label className="inline-flex min-h-9 items-center gap-2 text-sm">
-                                          <input
-                                            type="radio"
-                                            name={`bundle-${product.id}-${group.id}`}
-                                            checked={selectedCount === 0}
-                                            disabled={!orderingEnabled}
-                                            onChange={() => onSelectBundleChoice(product.id, group, null)}
-                                          />
-                                          {copy.noSelection}
-                                        </label>
-                                      ) : null}
+                                  <section key={group.id} aria-labelledby={`qr-configurator-bundle-${group.id}`}>
+                                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                      <h3 id={`qr-configurator-bundle-${group.id}`} className="text-base font-bold"><span className="mr-2 rounded-full bg-teal-700 px-2 py-0.5 text-[11px] text-white">{copy.bundleGroup}</span>{group.name}{group.minSelections > 0 ? " *" : ""}</h3>
+                                      <span className="text-xs font-semibold text-stone-500">{group.maxSelections === 1 ? copy.singleChoice : copy.selectionRange(group.minSelections, group.maxSelections)}</span>
+                                    </div>
+                                    <div className="mt-3 grid gap-2 sm:grid-cols-2" role={role === "radio" ? "radiogroup" : "group"} aria-labelledby={`qr-configurator-bundle-${group.id}`}>
+                                      {role === "radio" && group.minSelections === 0 ? <button type="button" data-testid="qr-configurator-option" role="radio" aria-checked={selectedCount === 0} disabled={!orderingEnabled} onClick={() => onSelectBundleChoice(product.id, group, null)} className={`flex min-h-14 items-center justify-between rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold disabled:opacity-40 ${selectedCount === 0 ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-800"}`}><span>{copy.noSelection}</span><SelectionMark selected={selectedCount === 0} /></button> : null}
                                       {group.options.map((option) => {
                                         const checked = selected.includes(option.id);
                                         return (
-                                          <label key={option.id} className="inline-flex min-h-9 items-center gap-2 text-sm">
-                                            <input
-                                              type={group.maxSelections === 1 ? "radio" : "checkbox"}
-                                              name={`bundle-${product.id}-${group.id}`}
-                                              checked={checked}
-                                              disabled={!orderingEnabled || (group.maxSelections > 1 && maximumReached && !checked)}
-                                              onChange={() => onSelectBundleChoice(product.id, group, option.id)}
-                                            />
-                                            <span>{bundleChoiceLabel(option)}</span>
-                                            {option.priceDelta !== 0 ? (
-                                              <span className="text-xs text-stone-500">
-                                                {option.priceDelta > 0 ? "+" : ""}
-                                                {formatMoney(option.priceDelta, currency, locale)}
-                                              </span>
-                                            ) : null}
-                                          </label>
+                                          <button key={option.id} type="button" data-testid="qr-configurator-option" role={role} aria-checked={checked} disabled={!orderingEnabled || (role === "checkbox" && maximumReached && !checked)} onClick={() => onSelectBundleChoice(product.id, group, option.id)} className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold disabled:opacity-40 ${checked ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-800"}`}>
+                                            <span>{bundleChoiceLabel(option)}{option.priceDelta !== 0 ? <span className="ml-2 text-teal-800">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, currency, locale)}</span> : null}</span>
+                                            <SelectionMark selected={checked} multiple={role === "checkbox"} />
+                                          </button>
                                         );
                                       })}
                                     </div>
-                                  </fieldset>
+                                  </section>
                                 );
                               })}
                             </div>
-                          ) : null}
-                          {configurable && draft.quantity > 0 ? (
-                            <button id={`qr-product-action-${product.id}`} type="button" onClick={() => onAddProduct(product)} disabled={!orderingEnabled || !configurationComplete} className="mt-4 min-h-11 w-full scroll-mb-24 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white disabled:opacity-40">
-                              {editingLineIds[product.id] ? copy.finishEditingCartItem : copy.addToCart}
-                            </button>
-                          ) : null}
-                          {!configurationComplete ? <p role="status" className="mt-3 text-sm font-medium text-amber-800">{copy.requiredNotes(localizedProduct(product).name)}</p> : null}
+                            ) : null}
+                          </div>
+                          <footer className="safe-area-bottom sticky bottom-0 shrink-0 border-t border-stone-200 bg-white px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] sm:px-6">
+                            {!configurationComplete ? <p role="status" className="mb-3 text-sm font-medium text-amber-800">{copy.requiredNotes(localizedProduct(product).name)}</p> : null}
+                            <div className="grid grid-cols-[56px_48px_56px_minmax(0,1fr)] items-center gap-2">
+                              <button type="button" aria-label={copy.decrease(localizedProduct(product).name)} disabled={!orderingEnabled || draft.quantity <= 1} onClick={() => onUpdateQuantity(product.id, draft.quantity - 1)} className="grid h-14 w-14 place-items-center rounded-xl border border-stone-300 bg-white disabled:opacity-40"><Minus className="h-5 w-5" /></button>
+                              <strong className="text-center text-lg">{draft.quantity}</strong>
+                              <button type="button" aria-label={copy.increase(localizedProduct(product).name)} disabled={!orderingEnabled} onClick={() => onUpdateQuantity(product.id, draft.quantity + 1)} className="grid h-14 w-14 place-items-center rounded-xl bg-stone-900 text-white disabled:opacity-40"><Plus className="h-5 w-5" /></button>
+                              <button id={`qr-product-action-${product.id}`} type="button" onClick={() => onAddProduct(product)} disabled={!orderingEnabled || !configurationComplete} className="inline-flex min-h-14 min-w-0 items-center justify-center gap-2 rounded-xl bg-teal-800 px-3 text-sm font-bold text-white disabled:opacity-40">
+                                <ShoppingCart className="h-5 w-5 shrink-0" />
+                                <span className="truncate">
+                                  {editingLineIds[product.id] ? copy.finishEditingCartItem : copy.addToCart}
+                                </span>
+                              </button>
+                            </div>
+                          </footer>
                         </section>
-                      </>
+                      </div>
                     ) : null}
                   </article>
                   </Fragment>
@@ -291,4 +288,8 @@ export function QrOrderMenu({
       </div>
     </>
   );
+}
+
+function SelectionMark({ selected, multiple = false }: { selected: boolean; multiple?: boolean }) {
+  return <span aria-hidden="true" className={`grid h-6 w-6 shrink-0 place-items-center border-2 text-sm font-black ${multiple ? "rounded-md" : "rounded-full"} ${selected ? "border-teal-700 bg-teal-700 text-white" : "border-stone-400 bg-white text-transparent"}`}>✓</span>;
 }
