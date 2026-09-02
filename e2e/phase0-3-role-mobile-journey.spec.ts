@@ -212,9 +212,11 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
     expect(clientOrderId).toEqual(expect.any(String));
     if (!clientOrderId) throw new Error("create-public-order request 缺少 clientOrderId");
 
-    await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+$/u);
+    await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+(?:\?.*)?$/u);
+    const trackerUrl = new URL(page.url());
+    expect(trackerUrl.searchParams.get("qr")).toBe(takeoutQrToken);
     const trackingToken = decodeURIComponent(
-      new URL(page.url()).pathname.replace(/^\/order\//u, ""),
+      trackerUrl.pathname.replace(/^\/order\//u, ""),
     );
     expect(trackingToken).toMatch(/^sto_[A-Za-z0-9_-]+$/u);
     const trackingTokenHash = createHash("sha256").update(trackingToken).digest("hex");
@@ -371,7 +373,8 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
     await expect(page.getByText("製作中", { exact: true }).first()).toBeVisible();
     await expect(page.getByText(`訂單 ${orderNo}`, { exact: true })).toBeVisible();
     await expect(page.getByText(productName, { exact: false })).toBeVisible();
-    await expect(page).toHaveURL(new RegExp(`/order/${trackingToken}$`, "u"));
+    await expect(page).toHaveURL(new RegExp(`/order/${trackingToken}(?:\\?.*)?$`, "u"));
+    expect(new URL(page.url()).searchParams.get("qr")).toBe(takeoutQrToken);
     await expectInitiallyInViewport(trackerRefresh);
     await expectNoHorizontalOverflow(page);
   });

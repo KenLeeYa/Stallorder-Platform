@@ -325,6 +325,24 @@ describe("QrOrderCartPanel checkout blocker presentation", () => {
     expect(html).not.toContain('aria-label="外送地址"');
   });
 
+  it("keeps dine-in name optional and hides phone and delivery address", () => {
+    const html = renderPanel({
+      session: {
+        ...baseProps.session,
+        stall: {
+          ...baseProps.session.stall,
+          fulfillmentType: "DINE_IN",
+          table: { id: "table-1", code: "A1", label: "A1" },
+        },
+      },
+    });
+
+    expect(fieldOpeningTag(html, "顧客稱呼")).not.toMatch(/\srequired=""/);
+    expect(html).toContain("稱呼（選填）");
+    expect(html).not.toContain('aria-label="聯絡電話"');
+    expect(html).not.toContain('aria-label="外送地址"');
+  });
+
   it("renders required delivery fields beside the delivery blocker", () => {
     const html = renderPanel({
       session: {
