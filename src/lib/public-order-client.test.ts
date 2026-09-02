@@ -97,6 +97,16 @@ describe("getOrCreateDeviceId", () => {
       id: generatedDeviceId,
     });
   });
+
+  it("可用已驗證的訂單指標修復裝置識別", async () => {
+    const browser = installBrowserStorage("", null);
+    const { rememberPublicOrderDeviceId } = await import("./public-order-client");
+
+    expect(rememberPublicOrderDeviceId(storedDeviceId)).toBe(true);
+    expect(browser.getCookie()).toContain(`stallorder_device=${storedDeviceId}`);
+    expect(JSON.parse(browser.getStoredValue() ?? "{}")).toMatchObject({ id: storedDeviceId });
+    expect(rememberPublicOrderDeviceId("invalid")).toBe(false);
+  });
 });
 
 describe("publicEdgeUrl", () => {

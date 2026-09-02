@@ -31,6 +31,8 @@ describe("PWA 安全無縫更新契約", () => {
     expect(runtime).toContain("waitingWorkerRef.current || deploymentUpdateAvailableRef.current");
     expect(runtime).toContain("activeMutationsRef.current > 0");
     expect(runtime).toContain("stillActive");
+    expect(runtime).toContain("if (!registration || disposed) return");
+    expect(runtime).toContain(".catch(() => undefined)");
 
     const shell = readFileSync(
       join(projectRoot, "src", "components", "pwa-runtime.tsx"),
