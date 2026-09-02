@@ -141,7 +141,7 @@ describe("buildPublicStorefrontShare", () => {
 
     expect(share.storefrontUrl).toBe("https://app.qidaigo.com/store/viet-food-yc");
     expect(share.lineReply).toContain("線上 Menu、外帶自取或外送");
-    expect(share.lineReply.match(/https:\/\/app\.qidaigo\.com/g)).toHaveLength(1);
+    expect(share.lineReply.split("https://app.qidaigo.com").length - 1).toBe(1);
     expect(share.lineReply).not.toContain("/s/");
     expect(share.lineReply).not.toContain("/delivery/");
     expect(share.lineReply).not.toContain("外帶預約");
@@ -157,7 +157,7 @@ describe("buildPublicStorefrontShare", () => {
         initialState: moduleState(),
     })));
 
-    expect(html.match(/https:\/\/app\.qidaigo\.com\/store\/viet-food-yc/g)).toHaveLength(2);
+    expect(html.split("https://app.qidaigo.com/store/viet-food-yc").length - 1).toBe(2);
     expect(html.match(/顧客公開點餐網址/g)).toHaveLength(1);
     expect(html).toContain("外帶自取");
     expect(html).not.toContain("顧客外帶預約網址");
