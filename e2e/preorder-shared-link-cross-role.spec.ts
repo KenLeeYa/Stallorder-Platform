@@ -4,7 +4,10 @@ import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { buildFulfillmentTimeSlots } from "../src/lib/fulfillment-time-options";
-import { dismissStaffStartReminder } from "./local-navigation";
+import {
+  dismissStaffStartReminder,
+  qrProductSelectionControl,
+} from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -63,50 +66,54 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
-    const [settings, stall, hours, sourceProduct, station, qrVersion] = await Promise.all([
-      prisma.stallOrderingSettings.findUniqueOrThrow({
-        where: { stallId },
-        select: {
-          takeoutPreorderEnabled: true,
-          preorderMinLeadMinutes: true,
-          preorderMaxDays: true,
-          preorderSlotMinutes: true,
-          businessDayCutoffHour: true,
-          lotteryEnabled: true,
-        },
-      }),
-      prisma.stall.findUniqueOrThrow({
-        where: { id: stallId },
-        select: {
-          businessStatus: true,
-          orderingEnabled: true,
-          orderingState: true,
-          isActive: true,
-          isSoldOut: true,
-        },
-      }),
-      prisma.stallBusinessHour.findMany({
-        where: { organizationId, stallId },
-        orderBy: { dayOfWeek: "asc" },
-        select: { id: true, opensAt: true, closesAt: true, isClosed: true },
-      }),
-      prisma.stallProduct.findFirstOrThrow({
-        where: {
-          organizationId,
-          stallId,
-          isEnabled: true,
-          product: { isActive: true, category: { isActive: true } },
-        },
-        orderBy: { sortOrder: "asc" },
-        select: { product: { select: { categoryId: true } } },
-      }),
-      prisma.kitchenStation.findFirstOrThrow({
-        where: { organizationId, stallId, isActive: true },
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        select: { id: true },
-      }),
-      prisma.qrCode.aggregate({ where: { stallId }, _max: { tokenVersion: true } }),
-    ]);
+    const [settings, stall, hours, sourceProduct, station, qrVersion] =
+      await Promise.all([
+        prisma.stallOrderingSettings.findUniqueOrThrow({
+          where: { stallId },
+          select: {
+            takeoutPreorderEnabled: true,
+            preorderMinLeadMinutes: true,
+            preorderMaxDays: true,
+            preorderSlotMinutes: true,
+            businessDayCutoffHour: true,
+            lotteryEnabled: true,
+          },
+        }),
+        prisma.stall.findUniqueOrThrow({
+          where: { id: stallId },
+          select: {
+            businessStatus: true,
+            orderingEnabled: true,
+            orderingState: true,
+            isActive: true,
+            isSoldOut: true,
+          },
+        }),
+        prisma.stallBusinessHour.findMany({
+          where: { organizationId, stallId },
+          orderBy: { dayOfWeek: "asc" },
+          select: { id: true, opensAt: true, closesAt: true, isClosed: true },
+        }),
+        prisma.stallProduct.findFirstOrThrow({
+          where: {
+            organizationId,
+            stallId,
+            isEnabled: true,
+            product: { isActive: true, category: { isActive: true } },
+          },
+          orderBy: { sortOrder: "asc" },
+          select: { product: { select: { categoryId: true } } },
+        }),
+        prisma.kitchenStation.findFirstOrThrow({
+          where: { organizationId, stallId, isActive: true },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          select: { id: true },
+        }),
+        prisma.qrCode.aggregate({
+          where: { stallId },
+          _max: { tokenVersion: true },
+        }),
+      ]);
 
     expect(hours).toHaveLength(7);
     expect(station.id).not.toBe("");
@@ -147,10 +154,14 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       select public.get_takeout_preorder_slots(${stallId}::uuid, now()) as slots
     `;
     const slots = Array.isArray(slotRows[0]?.slots)
-      ? slotRows[0].slots.filter((slot): slot is string => typeof slot === "string")
+      ? slotRows[0].slots.filter(
+          (slot): slot is string => typeof slot === "string",
+        )
       : [];
     if (slots.length < 2) {
-      throw new Error(`PREORDER fixture 至少需要兩個真實時段，實際取得 ${slots.length} 個。`);
+      throw new Error(
+        `PREORDER fixture 至少需要兩個真實時段，實際取得 ${slots.length} 個。`,
+      );
     }
     firstPickupSlot = new Date(slots[0]).toISOString();
     secondPickupSlot = new Date(slots[1]).toISOString();
@@ -271,38 +282,68 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
     try {
       await resolveCreatedRecords();
       if (createdSessionId) {
-        await prisma.publicOrderAttempt.deleteMany({ where: { orderSessionId: createdSessionId } });
-        await prisma.orderSession.deleteMany({ where: { id: createdSessionId } });
-      }
-      if (createdOrderId) await prisma.order.deleteMany({ where: { id: createdOrderId } });
-      if (fixtureQrId) await prisma.qrCode.deleteMany({ where: { id: fixtureQrId } });
-      if (retainedProductId || prunedProductId) {
-        await prisma.product.deleteMany({
-          where: { id: { in: [retainedProductId, prunedProductId].filter(Boolean) } },
+        await prisma.publicOrderAttempt.deleteMany({
+          where: { orderSessionId: createdSessionId },
+        });
+        await prisma.orderSession.deleteMany({
+          where: { id: createdSessionId },
         });
       }
-      if (noteGroupId) await prisma.productNoteGroup.deleteMany({ where: { id: noteGroupId } });
+      if (createdOrderId)
+        await prisma.order.deleteMany({ where: { id: createdOrderId } });
+      if (fixtureQrId)
+        await prisma.qrCode.deleteMany({ where: { id: fixtureQrId } });
+      if (retainedProductId || prunedProductId) {
+        await prisma.product.deleteMany({
+          where: {
+            id: { in: [retainedProductId, prunedProductId].filter(Boolean) },
+          },
+        });
+      }
+      if (noteGroupId)
+        await prisma.productNoteGroup.deleteMany({
+          where: { id: noteGroupId },
+        });
 
       if (originalSettings) {
-        await prisma.stallOrderingSettings.update({ where: { stallId }, data: originalSettings });
+        await prisma.stallOrderingSettings.update({
+          where: { stallId },
+          data: originalSettings,
+        });
       }
-      if (originalStall) await prisma.stall.update({ where: { id: stallId }, data: originalStall });
-      await Promise.all(originalHours.map((hour) => prisma.stallBusinessHour.update({
-        where: { id: hour.id },
-        data: { opensAt: hour.opensAt, closesAt: hour.closesAt, isClosed: hour.isClosed },
-      })));
+      if (originalStall)
+        await prisma.stall.update({
+          where: { id: stallId },
+          data: originalStall,
+        });
+      await Promise.all(
+        originalHours.map((hour) =>
+          prisma.stallBusinessHour.update({
+            where: { id: hour.id },
+            data: {
+              opensAt: hour.opensAt,
+              closesAt: hour.closesAt,
+              isClosed: hour.isClosed,
+            },
+          }),
+        ),
+      );
     } finally {
       await prisma.$disconnect();
     }
   });
 
-  test("套用第二時段後清除失效餐點，DB、Staff、KDS 與 Tracker 維持同一預約單", async ({ browser, page }) => {
+  test("套用第二時段後清除失效餐點，DB、Staff、KDS 與 Tracker 維持同一預約單", async ({
+    browser,
+    page,
+  }) => {
     test.setTimeout(180_000);
 
-    const sessionResponsePromise = page.waitForResponse((response) => (
-      new URL(response.url()).pathname.endsWith("/create-order-session")
-      && response.request().method() === "POST"
-    ));
+    const sessionResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith("/create-order-session") &&
+        response.request().method() === "POST",
+    );
     await page.goto("/s/aming-chicken");
     const sessionResponse = await sessionResponsePromise;
     expect([200, 201]).toContain(sessionResponse.status());
@@ -310,13 +351,15 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       qrToken,
       orderingMode: "PREORDER",
     });
-    const sessionPayload = await sessionResponse.json() as {
+    const sessionPayload = (await sessionResponse.json()) as {
       orderSessionToken?: string;
       orderingMode?: string;
       preorderSlots?: string[];
     };
     expect(sessionPayload).toMatchObject({ orderingMode: "PREORDER" });
-    expect(sessionPayload.preorderSlots?.map((slot) => new Date(slot).getTime())).toEqual(
+    expect(
+      sessionPayload.preorderSlots?.map((slot) => new Date(slot).getTime()),
+    ).toEqual(
       expect.arrayContaining([
         new Date(firstPickupSlot).getTime(),
         new Date(secondPickupSlot).getTime(),
@@ -326,22 +369,35 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
     const sessionTokenHash = createHash("sha256")
       .update(sessionPayload.orderSessionToken as string)
       .digest("hex");
-    createdSessionId = (await prisma.orderSession.findUniqueOrThrow({
-      where: { tokenHash: sessionTokenHash },
-      select: { id: true },
-    })).id;
+    createdSessionId = (
+      await prisma.orderSession.findUniqueOrThrow({
+        where: { tokenHash: sessionTokenHash },
+        select: { id: true },
+      })
+    ).id;
 
     await selectPickupSlot(page, firstPickupSlot);
-    await page.getByRole("button", { name: "套用這個時間", exact: true }).click();
+    await page
+      .getByRole("button", { name: "套用這個時間", exact: true })
+      .click();
 
     const prunedProduct = page.locator(`article#qr-product-${prunedProductId}`);
-    const retainedProduct = page.locator(`article#qr-product-${retainedProductId}`);
+    const retainedProduct = page.locator(
+      `article#qr-product-${retainedProductId}`,
+    );
     await expect(prunedProduct).toContainText(prunedProductName);
     await expect(retainedProduct).toContainText(retainedProductName);
-    await prunedProduct.getByRole("button", { name: `增加 ${prunedProductName}` }).click();
-    await retainedProduct.getByRole("button", { name: `增加 ${retainedProductName}` }).click();
-    await retainedProduct.getByRole("radio", { name: new RegExp(noteOptionName, "u") }).check();
-    await retainedProduct.getByRole("button", { name: "加入購物車", exact: true }).click();
+    await qrProductSelectionControl(prunedProduct, prunedProductName).click();
+    await qrProductSelectionControl(
+      retainedProduct,
+      retainedProductName,
+    ).click();
+    await retainedProduct
+      .getByRole("radio", { name: new RegExp(noteOptionName, "u") })
+      .check();
+    await retainedProduct
+      .getByRole("button", { name: "加入購物車", exact: true })
+      .click();
 
     const cart = page.getByTestId("qr-cart-panel");
     await expect(cart.getByTestId("qr-cart-line")).toHaveCount(2);
@@ -353,8 +409,12 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
     await expect(page.getByTestId("qr-checkout-blocker")).toHaveText(
       "取餐時間尚未套用，請先按下「套用這個時間」。",
     );
-    await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeDisabled();
-    await page.getByRole("button", { name: "套用這個時間", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "送出訂單", exact: true }),
+    ).toBeDisabled();
+    await page
+      .getByRole("button", { name: "套用這個時間", exact: true })
+      .click();
 
     await expect(prunedProduct).toHaveCount(0);
     await expect(cart.getByTestId("qr-cart-line")).toHaveCount(1);
@@ -362,30 +422,42 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
     await expect(cart).toContainText(retainedProductName);
     await expect(cart).toContainText(noteOptionName);
 
-    const continueButton = page.getByRole("button", { name: "繼續填寫訂購資料", exact: true });
+    const continueButton = page.getByRole("button", {
+      name: "繼續填寫訂購資料",
+      exact: true,
+    });
     if (await continueButton.isVisible()) await continueButton.click();
     await page.getByLabel("顧客稱呼").fill(customerName);
     await page.getByLabel("聯絡電話").fill("0912345678");
-    const waitAcknowledgment = page.getByRole("checkbox", { name: /我已了解目前預估等候時間/u });
+    const waitAcknowledgment = page.getByRole("checkbox", {
+      name: /我已了解目前預估等候時間/u,
+    });
     if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
 
-    let createOrderResponsePromise = page.waitForResponse((response) => (
-      new URL(response.url()).pathname.endsWith("/create-public-order")
-      && response.request().method() === "POST"
-    ));
-    const submitOrder = page.getByRole("button", { name: "送出訂單", exact: true });
+    let createOrderResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith("/create-public-order") &&
+        response.request().method() === "POST",
+    );
+    const submitOrder = page.getByRole("button", {
+      name: "送出訂單",
+      exact: true,
+    });
     await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
     await submitOrder.click();
     let createOrderResponse = await createOrderResponsePromise;
     if (createOrderResponse.status() === 422) {
-      await expect(createOrderResponse.json()).resolves.toMatchObject({ code: "WAIT_ACKNOWLEDGMENT_REQUIRED" });
+      await expect(createOrderResponse.json()).resolves.toMatchObject({
+        code: "WAIT_ACKNOWLEDGMENT_REQUIRED",
+      });
       await expect(waitAcknowledgment).toBeVisible();
       await waitAcknowledgment.check();
       await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
-      createOrderResponsePromise = page.waitForResponse((response) => (
-        new URL(response.url()).pathname.endsWith("/create-public-order")
-        && response.request().method() === "POST"
-      ));
+      createOrderResponsePromise = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname.endsWith("/create-public-order") &&
+          response.request().method() === "POST",
+      );
       await submitOrder.click();
       createOrderResponse = await createOrderResponsePromise;
     }
@@ -398,17 +470,22 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       qrToken,
       orderingMode: "PREORDER",
       customerName,
-      items: [{
-        productId: retainedProductId,
-        quantity: 1,
-        noteOptionIds: [noteOptionId],
-      }],
+      items: [
+        {
+          productId: retainedProductId,
+          quantity: 1,
+          noteOptionIds: [noteOptionId],
+        },
+      ],
     });
     expect(createOrderRequest.scheduledPickupAt).toEqual(expect.any(String));
-    expect(Date.parse(createOrderRequest.scheduledPickupAt as string)).toBe(Date.parse(secondPickupSlot));
+    expect(Date.parse(createOrderRequest.scheduledPickupAt as string)).toBe(
+      Date.parse(secondPickupSlot),
+    );
     const clientOrderId = createOrderRequest.clientOrderId;
     expect(clientOrderId).toEqual(expect.any(String));
-    if (!clientOrderId) throw new Error("create-public-order request 缺少 clientOrderId");
+    if (!clientOrderId)
+      throw new Error("create-public-order request 缺少 clientOrderId");
 
     await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+(?:\?.*)?$/u);
     const trackerUrl = new URL(page.url());
@@ -417,7 +494,9 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       trackerUrl.pathname.replace(/^\/order\//u, ""),
     );
     expect(trackingToken).toMatch(/^sto_[A-Za-z0-9_-]+$/u);
-    const trackingTokenHash = createHash("sha256").update(trackingToken).digest("hex");
+    const trackingTokenHash = createHash("sha256")
+      .update(trackingToken)
+      .digest("hex");
 
     const createdOrder = await prisma.order.findUniqueOrThrow({
       where: { id: clientOrderId },
@@ -436,7 +515,11 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
         fulfillmentTimeState: true,
         fulfillmentTimeVersion: true,
         orderSession: {
-          select: { id: true, orderingMode: true, requestedFulfillmentAt: true },
+          select: {
+            id: true,
+            orderingMode: true,
+            requestedFulfillmentAt: true,
+          },
         },
         items: {
           orderBy: { createdAt: "asc" },
@@ -445,7 +528,12 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
             name: true,
             quantity: true,
             noteOptions: {
-              select: { noteOptionId: true, groupName: true, optionName: true, priceDelta: true },
+              select: {
+                noteOptionId: true,
+                groupName: true,
+                optionName: true,
+                priceDelta: true,
+              },
             },
           },
         },
@@ -469,36 +557,61 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
         id: createdSessionId,
         orderingMode: "PREORDER",
       },
-      items: [{
-        productId: retainedProductId,
-        name: retainedProductName,
-        quantity: 1,
-        noteOptions: [{
-          noteOptionId,
-          groupName: noteGroupName,
-          optionName: noteOptionName,
-          priceDelta: 5,
-        }],
-      }],
+      items: [
+        {
+          productId: retainedProductId,
+          name: retainedProductName,
+          quantity: 1,
+          noteOptions: [
+            {
+              noteOptionId,
+              groupName: noteGroupName,
+              optionName: noteOptionName,
+              priceDelta: 5,
+            },
+          ],
+        },
+      ],
     });
-    expect(createdOrder.scheduledPickupAt?.toISOString()).toBe(secondPickupSlot);
-    expect(createdOrder.requestedFulfillmentAt?.toISOString()).toBe(secondPickupSlot);
-    expect(createdOrder.orderSession?.requestedFulfillmentAt?.toISOString()).toBe(secondPickupSlot);
+    expect(createdOrder.scheduledPickupAt?.toISOString()).toBe(
+      secondPickupSlot,
+    );
+    expect(createdOrder.requestedFulfillmentAt?.toISOString()).toBe(
+      secondPickupSlot,
+    );
+    expect(
+      createdOrder.orderSession?.requestedFulfillmentAt?.toISOString(),
+    ).toBe(secondPickupSlot);
 
-    await expect(page.getByText(`訂單 ${orderNo}`, { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "預計取餐時間", exact: true })).toBeVisible();
+    await expect(
+      page.getByText(`訂單 ${orderNo}`, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "預計取餐時間", exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("等待店家確認", { exact: true })).toBeVisible();
-    await expect(page.getByText(retainedProductName, { exact: false })).toBeVisible();
-    await expect(page.getByText(`${noteGroupName}：${noteOptionName}`, { exact: true })).toBeVisible();
-    await expect(page.getByText(prunedProductName, { exact: false })).toHaveCount(0);
+    await expect(
+      page.getByText(retainedProductName, { exact: false }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(`${noteGroupName}：${noteOptionName}`, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(prunedProductName, { exact: false }),
+    ).toHaveCount(0);
 
-    const staffContext = await browser.newContext({ locale: "zh-TW", timezoneId: testTimeZone });
+    const staffContext = await browser.newContext({
+      locale: "zh-TW",
+      timezoneId: testTimeZone,
+    });
     try {
       const staffPage = await staffContext.newPage();
       await login(staffPage, "staff@stallorder.test");
       await staffPage.goto("/staff/aming-chicken");
       await dismissStaffStartReminder(staffPage);
-      const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
+      const staffOrder = staffPage
+        .getByRole("article")
+        .filter({ hasText: customerName });
       await expect(staffOrder).toBeVisible();
       await expect(staffOrder).toContainText(`訂單 ${orderNo}`);
       await expect(staffOrder).toContainText(retainedProductName);
@@ -506,11 +619,15 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       await expect(staffOrder).not.toContainText(prunedProductName);
       await expect(staffOrder).toContainText("顧客希望取餐");
 
-      const acceptTimeResponsePromise = staffPage.waitForResponse((response) => (
-        new URL(response.url()).pathname.endsWith(`/orders/${createdOrderId}/fulfillment-time`)
-        && response.request().method() === "PATCH"
-      ));
-      await staffOrder.getByRole("button", { name: "接受原時間", exact: true }).click();
+      const acceptTimeResponsePromise = staffPage.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname.endsWith(
+            `/orders/${createdOrderId}/fulfillment-time`,
+          ) && response.request().method() === "PATCH",
+      );
+      await staffOrder
+        .getByRole("button", { name: "接受原時間", exact: true })
+        .click();
       const acceptTimeResponse = await acceptTimeResponsePromise;
       const acceptTimeBody = await acceptTimeResponse.json().catch(() => null);
       const acceptTimeDbOrder = await prisma.order.findUnique({
@@ -522,64 +639,89 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
           fulfillmentTimeVersion: true,
         },
       });
-      expect(acceptTimeResponse.status(), JSON.stringify({
-        url: acceptTimeResponse.url(),
-        requestId: acceptTimeResponse.headers()["x-request-id"] ?? null,
-        response: acceptTimeBody,
-        dbOrder: acceptTimeDbOrder,
-      })).toBe(200);
+      expect(
+        acceptTimeResponse.status(),
+        JSON.stringify({
+          url: acceptTimeResponse.url(),
+          requestId: acceptTimeResponse.headers()["x-request-id"] ?? null,
+          response: acceptTimeBody,
+          dbOrder: acceptTimeDbOrder,
+        }),
+      ).toBe(200);
       expect(acceptTimeResponse.request().postDataJSON()).toEqual({
         operation: "CONFIRM_REQUESTED",
         version: 1,
       });
       await expect(staffOrder).toContainText("已確認取餐");
 
-      const confirmOrderResponsePromise = staffPage.waitForResponse((response) => (
-        new URL(response.url()).pathname.endsWith(`/orders/${createdOrderId}`)
-        && response.request().method() === "PATCH"
-      ));
-      await staffOrder.getByRole("button", { name: "確認接單", exact: true }).click();
+      const confirmOrderResponsePromise = staffPage.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname.endsWith(
+            `/orders/${createdOrderId}`,
+          ) && response.request().method() === "PATCH",
+      );
+      await staffOrder
+        .getByRole("button", { name: "確認接單", exact: true })
+        .click();
       const confirmOrderResponse = await confirmOrderResponsePromise;
       expect(confirmOrderResponse.status()).toBe(200);
-      expect(confirmOrderResponse.request().postDataJSON()).toMatchObject({ status: "CONFIRMED" });
-      await expect(staffOrder).toContainText("待製作");
-      await expect(staffOrder.getByRole("button", { name: "確認接單", exact: true })).toHaveCount(0);
-
-      await expect.poll(async () => prisma.order.findUniqueOrThrow({
-        where: { id: createdOrderId },
-        select: {
-          status: true,
-          scheduledPickupAt: true,
-          requestedFulfillmentAt: true,
-          committedFulfillmentAt: true,
-          fulfillmentTimeState: true,
-          productionTasks: {
-            select: {
-              orderId: true,
-              orderItem: { select: { productId: true, name: true } },
-              station: { select: { id: true, isActive: true } },
-            },
-          },
-        },
-      })).toMatchObject({
+      expect(confirmOrderResponse.request().postDataJSON()).toMatchObject({
         status: "CONFIRMED",
-        scheduledPickupAt: new Date(secondPickupSlot),
-        requestedFulfillmentAt: new Date(secondPickupSlot),
-        committedFulfillmentAt: new Date(secondPickupSlot),
-        fulfillmentTimeState: "CONFIRMED",
-        productionTasks: [{
-          orderId: createdOrderId,
-          orderItem: { productId: retainedProductId, name: retainedProductName },
-          station: { isActive: true },
-        }],
       });
+      await expect(staffOrder).toContainText("待製作");
+      await expect(
+        staffOrder.getByRole("button", { name: "確認接單", exact: true }),
+      ).toHaveCount(0);
 
-      const kitchenContext = await browser.newContext({ locale: "zh-TW", timezoneId: testTimeZone });
+      await expect
+        .poll(async () =>
+          prisma.order.findUniqueOrThrow({
+            where: { id: createdOrderId },
+            select: {
+              status: true,
+              scheduledPickupAt: true,
+              requestedFulfillmentAt: true,
+              committedFulfillmentAt: true,
+              fulfillmentTimeState: true,
+              productionTasks: {
+                select: {
+                  orderId: true,
+                  orderItem: { select: { productId: true, name: true } },
+                  station: { select: { id: true, isActive: true } },
+                },
+              },
+            },
+          }),
+        )
+        .toMatchObject({
+          status: "CONFIRMED",
+          scheduledPickupAt: new Date(secondPickupSlot),
+          requestedFulfillmentAt: new Date(secondPickupSlot),
+          committedFulfillmentAt: new Date(secondPickupSlot),
+          fulfillmentTimeState: "CONFIRMED",
+          productionTasks: [
+            {
+              orderId: createdOrderId,
+              orderItem: {
+                productId: retainedProductId,
+                name: retainedProductName,
+              },
+              station: { isActive: true },
+            },
+          ],
+        });
+
+      const kitchenContext = await browser.newContext({
+        locale: "zh-TW",
+        timezoneId: testTimeZone,
+      });
       try {
         const kitchenPage = await kitchenContext.newPage();
         await login(kitchenPage, "kitchen@stallorder.test");
         await kitchenPage.goto("/kitchen?stall=aming-chicken");
-        const kitchenOrder = kitchenPage.getByRole("article").filter({ hasText: `#${orderNo}` });
+        const kitchenOrder = kitchenPage
+          .getByRole("article")
+          .filter({ hasText: `#${orderNo}` });
         await expect(kitchenOrder).toBeVisible();
         await expect(kitchenOrder).toContainText("外帶自取 · QR 點餐");
         await expect(kitchenOrder).toContainText("預約時間：");
@@ -596,8 +738,12 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
     await page.getByRole("button", { name: "重新整理訂單" }).click();
     await expect(page.getByText("攤位已確認", { exact: true })).toBeVisible();
     await expect(page.getByText("時間已確認", { exact: true })).toBeVisible();
-    await expect(page.getByText(retainedProductName, { exact: false })).toBeVisible();
-    await expect(page.getByText(prunedProductName, { exact: false })).toHaveCount(0);
+    await expect(
+      page.getByText(retainedProductName, { exact: false }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(prunedProductName, { exact: false }),
+    ).toHaveCount(0);
   });
 });
 
@@ -615,41 +761,55 @@ function currentHourInTimeZone(timeZone: string) {
     timeZone,
     hour: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(new Date()).find((part) => part.type === "hour")?.value;
+  })
+    .formatToParts(new Date())
+    .find((part) => part.type === "hour")?.value;
   if (hour === undefined) throw new Error(`無法取得 ${timeZone} 的目前小時。`);
   return Number(hour);
 }
 
 async function resolveCreatedRecords() {
   if (!createdOrderId) {
-    createdOrderId = (await prisma.order.findFirst({
-      where: { stallId, customerName },
-      select: { id: true },
-    }))?.id ?? "";
+    createdOrderId =
+      (
+        await prisma.order.findFirst({
+          where: { stallId, customerName },
+          select: { id: true },
+        })
+      )?.id ?? "";
   }
   if (!createdSessionId && createdOrderId) {
-    createdSessionId = (await prisma.orderSession.findUnique({
-      where: { orderId: createdOrderId },
-      select: { id: true },
-    }))?.id ?? "";
+    createdSessionId =
+      (
+        await prisma.orderSession.findUnique({
+          where: { orderId: createdOrderId },
+          select: { id: true },
+        })
+      )?.id ?? "";
   }
   if (!fixtureQrId) {
-    fixtureQrId = (await prisma.qrCode.findUnique({
-      where: { token: qrToken },
-      select: { id: true },
-    }))?.id ?? "";
+    fixtureQrId =
+      (
+        await prisma.qrCode.findUnique({
+          where: { token: qrToken },
+          select: { id: true },
+        })
+      )?.id ?? "";
   }
 }
 
 async function login(page: Page, email: string) {
   await page.goto("/login");
-  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
+  await page
+    .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
+    .click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
-  const loginResponsePromise = page.waitForResponse((response) => (
-    new URL(response.url()).pathname === "/api/auth/login"
-    && response.request().method() === "POST"
-  ));
+  const loginResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/auth/login" &&
+      response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await loginResponsePromise).status()).toBe(200);
   await expect(page).toHaveURL(/\/staff\/|\/kitchen\?/u, { timeout: 30_000 });
