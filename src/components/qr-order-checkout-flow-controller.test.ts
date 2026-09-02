@@ -113,6 +113,22 @@ describe("QR order checkout flow controller", () => {
     );
   });
 
+  it("allows dine-in checkout without customer name or phone", () => {
+    const dineInSession = session("DEFAULT");
+    dineInSession.stall = {
+      ...dineInSession.stall,
+      fulfillmentType: "DINE_IN",
+      table: { id: "table-1", code: "A1", label: "A1" },
+    };
+
+    expect(createQrOrderCheckoutModel(checkoutInput({
+      session: dineInSession,
+      customerName: "",
+      customerPhone: "",
+      deliveryAddress: "",
+    })).blocker).toBe("");
+  });
+
   it("preserves UI blocker priority and submission guard priority", async () => {
     const input = checkoutInput({
       orderingAvailability: "DEGRADED",

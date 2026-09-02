@@ -71,6 +71,11 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation-mobile"');
     expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation-desktop"');
     expect(html).toContain('data-persist-horizontal-scroll="merchant-utility-toolbar"');
+    const utilityToolbarClass = html.match(/data-testid="merchant-utility-toolbar"[^>]*class="([^"]+)"/)?.[1] ?? "";
+    expect(utilityToolbarClass).toContain("flex-1");
+    expect(utilityToolbarClass).not.toContain("shrink-0");
+    const workspaceHeaderClass = html.match(/data-testid="merchant-workspace-header"[^>]*class="([^"]+)"/)?.[1] ?? "";
+    expect(workspaceHeaderClass).toContain("overflow-x-clip");
     expect(html).toContain("sticky top-0");
     expect(html).toContain("overflow-x-hidden");
     expect(html).toContain("overflow-x-auto");

@@ -5,6 +5,7 @@ import {
   getOrderHelpGuidance,
   getPublicOrderProgress,
   getPublicOrderCustomerActions,
+  getQrOrderReturnPath,
   getPublicOrderStatusLabel,
   formatOrderRefreshTime,
   formatNoteOptions,
@@ -47,6 +48,18 @@ describe("public order progress", () => {
     ])).toBe("Extras: Egg, Cheese");
   });
 
+  it("offers the same QR menu only after the tracked order reaches a terminal state", () => {
+    const qrToken = "qr_abcdefghijklmnopqrstuvwxyz123456";
+
+    expect(getQrOrderReturnPath("COMPLETED", qrToken)).toBe(
+      `/q/${encodeURIComponent(qrToken)}?newOrder=1`,
+    );
+    expect(getQrOrderReturnPath("CANCELLED", qrToken)).toBe(
+      `/q/${encodeURIComponent(qrToken)}?newOrder=1`,
+    );
+    expect(getQrOrderReturnPath("PREPARING", qrToken)).toBeNull();
+    expect(getQrOrderReturnPath("COMPLETED", null)).toBeNull();
+  });
   it("renders the merchant amendment as a centered customer notice", () => {
     const html = renderToStaticMarkup(
       <OrderAmendmentNoticeDialog
