@@ -364,7 +364,7 @@ test("商家可新增、修改、指派與刪除商品註記群組", async ({ pa
     .getByRole("button", { name: "關閉", exact: true })
     .click();
 
-  const group = await openNoteGroup(page, groupName);
+  let group = await openNoteGroup(page, groupName);
   await group.getByRole("button", { name: "新增群組專用註記" }).click();
 
   const optionEditor = page.getByRole("dialog", { name: "新增群組專用註記" });
