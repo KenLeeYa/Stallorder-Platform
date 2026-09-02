@@ -100,6 +100,13 @@ export function getOrCreateDeviceId() {
   return deviceId;
 }
 
+export function rememberPublicOrderDeviceId(deviceId: string) {
+  if (!UUID_PATTERN.test(deviceId)) return false;
+  persistDeviceCookie(deviceId);
+  persistDeviceStorage(deviceId);
+  return true;
+}
+
 function persistDeviceCookie(deviceId: string) {
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
   document.cookie = `${DEVICE_COOKIE}=${encodeURIComponent(deviceId)}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;

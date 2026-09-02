@@ -10,6 +10,7 @@ type PageProps = {
   searchParams?: Promise<{
     locale?: string | string[];
     editOrder?: string | string[];
+    newOrder?: string | string[];
   }>;
 };
 
@@ -24,6 +25,7 @@ export default async function QrOrderPage({ params, searchParams }: PageProps) {
     searchParams ?? Promise.resolve<{
       locale?: string | string[];
       editOrder?: string | string[];
+      newOrder?: string | string[];
     }>({}),
     getRequestAppLocale(),
   ]);
@@ -36,6 +38,8 @@ export default async function QrOrderPage({ params, searchParams }: PageProps) {
     && /^[A-Za-z0-9_-]{40,200}$/.test(rawEditTrackingToken)
     ? rawEditTrackingToken
     : null;
+  const rawNewOrder = Array.isArray(query.newOrder) ? query.newOrder[0] : query.newOrder;
+  const startNewOrder = rawNewOrder === "1";
   const initialMenu = await timing.measureDb(
     () => getCachedPublicMenuForQrToken(
       qrToken,
@@ -55,6 +59,7 @@ export default async function QrOrderPage({ params, searchParams }: PageProps) {
       initialUiLocale={requestLocale.locale}
       requestedLocale={requestedLocale}
       editTrackingToken={editTrackingToken}
+      startNewOrder={startNewOrder}
       customerMembershipPreview={process.env.NODE_ENV !== "production"}
     />
   );

@@ -39,8 +39,15 @@ import {
 import { notePriceAdjustment } from "@/lib/product-note-selection";
 import {
   getOrCreateDeviceId,
+  rememberPublicOrderDeviceId,
+  requestPublicOrder,
   type PublicAvailabilityStatus,
 } from "@/lib/public-order-client";
+import {
+  buildQrTrackedOrderPath,
+  persistQrOrderRecovery,
+  resolveQrOrderRecovery,
+} from "@/lib/qr-order-recovery";
 import {
   qrCartProductQuantity,
   qrCartStorageKey,
@@ -81,6 +88,7 @@ export type QrOrderFlowControllerInput = {
   initialUiLocale?: QrLocale;
   requestedLocale?: QrLocale | null;
   editTrackingToken?: string | null;
+  startNewOrder?: boolean;
   customerMembershipPreview?: boolean;
 };
 
@@ -92,6 +100,7 @@ export function useQrOrderFlowController({
   initialUiLocale = "zh-TW",
   requestedLocale = null,
   editTrackingToken = null,
+  startNewOrder = false,
   customerMembershipPreview = false,
 }: QrOrderFlowControllerInput) {
   const usableInitialMenu = usableQrInitialMenu(entryChannel, initialMenu);
@@ -318,7 +327,12 @@ export function useQrOrderFlowController({
       });
       if (transition.kind === "STALE") return;
       if (transition.kind === "RESUME") {
-        window.location.replace(`/order/${encodeURIComponent(transition.trackingToken)}`);
+        persistQrOrderRecovery(window.localStorage, {
+          qrToken,
+          trackingToken: transition.trackingToken,
+          deviceId: currentDeviceId,
+        });
+        window.location.replace(buildQrTrackedOrderPath(transition.trackingToken, qrToken));
         return;
       }
       if (transition.kind === "FAILURE") {
@@ -438,6 +452,23 @@ export function useQrOrderFlowController({
       localeRef.current = browserLocale;
       setLocale(browserLocale);
       setDeviceId(currentDeviceId);
+      if (!editMode) {
+        const recoveredOrder = await resolveQrOrderRecovery({
+          storage: window.localStorage,
+          qrToken,
+          startNewOrder,
+          validateOrder: ({ trackingToken, deviceId: recoveredDeviceId }) => requestPublicOrder(
+            "get-public-order",
+            { trackingToken, deviceId: recoveredDeviceId },
+          ),
+        });
+        if (!active) return;
+        if (recoveredOrder) {
+          rememberPublicOrderDeviceId(recoveredOrder.deviceId);
+          window.location.replace(buildQrTrackedOrderPath(recoveredOrder.trackingToken, qrToken));
+          return;
+        }
+      }
       if (editMode && usableInitialMenu) {
         const editSession: QrOrderSession = {
           ...usableInitialMenu,
@@ -481,7 +512,7 @@ export function useQrOrderFlowController({
     return () => {
       active = false;
     };
-  }, [editMode, initialUiLocale, qrToken, requestedLocale, startOrderSession, usableInitialMenu]);
+  }, [editMode, initialUiLocale, qrToken, requestedLocale, startNewOrder, startOrderSession, usableInitialMenu]);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -764,7 +795,12 @@ export function useQrOrderFlowController({
         window.localStorage.removeItem(qrCartStorageKey(qrToken, activeOrderingMode));
       },
       navigateToOrder: (nextTrackingToken: string) => {
-        window.location.assign(`/order/${encodeURIComponent(nextTrackingToken)}`);
+        persistQrOrderRecovery(window.localStorage, {
+          qrToken,
+          trackingToken: nextTrackingToken,
+          deviceId,
+        });
+        window.location.assign(buildQrTrackedOrderPath(nextTrackingToken, qrToken));
       },
     };
     const shared = {

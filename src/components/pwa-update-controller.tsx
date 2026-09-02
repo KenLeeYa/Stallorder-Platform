@@ -159,7 +159,7 @@ export function PwaUpdateController({ activeMutationsRef }: {
       navigator.serviceWorker.addEventListener("message", onServiceWorkerMessage);
       navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
       void navigator.serviceWorker.register("/sw.js?pwa-enabled=1", { scope: "/" }).then((registration) => {
-        if (disposed) return;
+        if (!registration || disposed) return;
         const markWaiting = (worker: ServiceWorker) => {
           waitingWorkerRef.current = worker;
           updateSafetyPendingRef.current = null;
@@ -179,7 +179,7 @@ export function PwaUpdateController({ activeMutationsRef }: {
           SERVICE_WORKER_UPDATE_INTERVAL_MS,
         );
         checkForUpdate();
-      });
+      }).catch(() => undefined);
     }
 
     const markInteraction = () => {

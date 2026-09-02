@@ -19,6 +19,7 @@ import {
 } from "@/lib/public-order-client";
 import { useLiveResource } from "@/lib/use-live-resource";
 import { localizedPublicOrderError } from "@/lib/qr-order-i18n";
+import { buildQrNewOrderPath } from "@/lib/qr-order-recovery";
 
 type FulfillmentTimeState =
   | "NOT_REQUESTED"
@@ -565,7 +566,19 @@ function FulfillmentTimePanel({
   );
 }
 
-export function PublicOrderTracker({ trackingToken }: { trackingToken: string }) {
+export function getQrOrderReturnPath(orderStatus: PublicOrderStatus, qrToken: string | null) {
+  return qrToken && ["COMPLETED", "CANCELLED", "EXPIRED"].includes(orderStatus)
+    ? buildQrNewOrderPath(qrToken)
+    : null;
+}
+
+export function PublicOrderTracker({
+  trackingToken,
+  qrToken = null,
+}: {
+  trackingToken: string;
+  qrToken?: string | null;
+}) {
   const { locale } = useAppLocale();
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [message, setMessage] = useState("");
@@ -579,6 +592,7 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
   const [amendmentNotice, setAmendmentNotice] = useState<OrderAmendmentNotice | null>(null);
   const announcedReadyOrderRef = useRef<string | null>(null);
   const announcedAmendmentRef = useRef<string | null>(null);
+  const qrOrderReturnPath = order ? getQrOrderReturnPath(order.orderStatus, qrToken) : null;
 
   useEffect(() => {
     const prime = () => void primeAlertSound();
@@ -748,7 +762,18 @@ export function PublicOrderTracker({ trackingToken }: { trackingToken: string })
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {order
+          {qrOrderReturnPath
+            ? (
+              <button
+                type="button"
+                onClick={() => window.location.assign(qrOrderReturnPath)}
+                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-teal-700 bg-white px-3 text-sm font-semibold text-teal-800"
+              >
+                <Store aria-hidden="true" className="h-4 w-4" />
+                {publicOrderMessages.get(locale, "returnMenu")}
+              </button>
+            )
+            : order
             && order.fulfillmentType !== "DINE_IN"
             && order.publicMenuIdentifier
             ? (
