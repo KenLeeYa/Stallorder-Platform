@@ -5,24 +5,6 @@ alter table public.operating_expenses
   add column if not exists corrects_expense_id uuid;
 
 alter table public.operating_expenses
-  drop constraint if exists operating_expenses_category_check;
-
-alter table public.operating_expenses
-  add constraint operating_expenses_category_check
-  check (category in (
-    'RENT',
-    'UTILITIES',
-    'PLATFORM_FEE',
-    'DELIVERY_FEE',
-    'MARKETING',
-    'MAINTENANCE',
-    'EQUIPMENT',
-    'INSURANCE',
-    'TAX',
-    'OTHER'
-  ));
-
-alter table public.operating_expenses
   add constraint operating_expenses_voided_by_profile_fkey
   foreign key (voided_by_profile_id)
   references public.profiles(id)

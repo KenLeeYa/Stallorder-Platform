@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { assertAdditiveMigrationSql } from "../../../scripts/lib/additive-migration-plan.mjs";
 
 function read(relativePath: string) {
   return readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8")
@@ -38,6 +39,7 @@ describe("operating expense correction audit contract", () => {
   });
 
   it("adds correction lineage and void metadata to the database", () => {
+    expect(assertAdditiveMigrationSql(migrationSource)).toBe(true);
     expect(schemaSource).toContain("correctsExpenseId");
     expect(schemaSource).toContain("voidedAt");
     expect(schemaSource).toContain("voidReason");
