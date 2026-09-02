@@ -22,4 +22,3 @@
 - [ ] HTTPS domain、callback/webhook URL
 - [ ] secret storage、key rotation、monitoring、alerting、backup
 - [ ] incident contact、runbook、DR 與 audit retention
-

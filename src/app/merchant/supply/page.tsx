@@ -37,7 +37,7 @@ export default async function SupplyLitePage({ searchParams }: PageProps) {
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold text-stone-950">
           <Boxes className="h-7 w-7 text-teal-700" />
-          Supply Lite 原料與庫存
+          原料與庫存管理
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">
           建立原料、庫位與商品配方，並以不可變、可追溯的庫存流水帳記錄進貨、耗損及調整。

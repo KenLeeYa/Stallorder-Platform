@@ -6,6 +6,7 @@ import {
   productInputSchema,
   productUpdateSchema,
   sharedCatalogCommandSchema,
+  stallProductSettingsSchema,
 } from "./catalog-validation";
 
 describe("商品與分類輸入驗證", () => {
@@ -189,5 +190,17 @@ describe("商品與分類輸入驗證", () => {
       isSoldOut: undefined,
       isActive: false,
     }).success).toBe(false);
+  });
+
+  it("攤位商品可個別設定結帳前推薦", () => {
+    expect(stallProductSettingsSchema.safeParse({
+      priceOverride: null,
+      isEnabled: true,
+      isSoldOut: false,
+      sortOrder: 1,
+      availableFrom: null,
+      availableUntil: null,
+      checkoutUpsellSelected: true,
+    }).success).toBe(true);
   });
 });

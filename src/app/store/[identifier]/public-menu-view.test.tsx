@@ -156,7 +156,7 @@ describe("PublicMenuView category navigation", () => {
     expect(html).not.toContain(">牛肉湯底<");
   });
 
-  it("keeps sold-out products visually unchanged on the display-only Menu", () => {
+  it("hides sold-out products from the display-only Menu", () => {
     const soldOutProduct = product("sold-out", "主餐");
     soldOutProduct.isSoldOut = true;
     soldOutProduct.imageUrl = "https://example.test/sold-out.webp";
@@ -191,10 +191,7 @@ describe("PublicMenuView category navigation", () => {
 
     const html = renderToStaticMarkup(<PublicMenuView menu={menu} locale="zh-TW" />);
 
-    expect(html).toContain("主餐商品");
-    expect(html).toContain("https://example.test/sold-out.webp");
-    expect(html).not.toContain('data-testid="public-menu-sold-out"');
-    expect(html).not.toContain("grayscale opacity-45");
-    expect(html).not.toContain("售完");
+    expect(html).not.toContain("主餐商品");
+    expect(html).not.toContain("https://example.test/sold-out.webp");
   });
 });

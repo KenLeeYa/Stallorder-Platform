@@ -96,7 +96,7 @@ export async function getSupplyDashboard(input: {
       take: 50,
     }),
     prisma.supplySupplier.findMany({
-      where: { organizationId, isActive: true },
+      where: { organizationId },
       orderBy: [{ name: "asc" }, { id: "asc" }],
       take: 500,
     }),
@@ -157,7 +157,13 @@ export async function getSupplyDashboard(input: {
     );
   }
   const productCostMicros = new Map<string, bigint>();
+  const recipeEligibleIngredientIds = new Set(
+    ingredients
+      .filter((ingredient) => ingredient.itemType === "INGREDIENT" || ingredient.itemType === "PACKAGING")
+      .map((ingredient) => ingredient.id),
+  );
   for (const component of recipeComponents) {
+    if (!recipeEligibleIngredientIds.has(component.ingredientId)) continue;
     const unitCost = averageCostByIngredient.get(component.ingredientId) ?? BigInt(0);
     const baseCost = component.quantityMicros * unitCost / BigInt(1_000_000);
     const costWithWaste = baseCost * BigInt(10_000 + component.wasteBasisPoints) / BigInt(10_000);
@@ -243,7 +249,7 @@ export async function getSupplyDashboard(input: {
       reason: movement.reason,
       createdAt: movement.createdAt.toISOString(),
     })),
-    suppliers: suppliers.map((supplier) => ({
+    suppliers: suppliers.filter((supplier) => supplier.isActive).map((supplier) => ({
       id: supplier.id,
       code: supplier.code,
       name: supplier.name,
@@ -287,7 +293,9 @@ export async function getSupplyDashboard(input: {
         grossMarginBasisPoints: product.defaultPrice > 0
           ? Math.round(grossProfit * 10_000 / product.defaultPrice)
           : 0,
-        recipeComplete: recipeComponents.some((component) => component.productId === product.id),
+        recipeComplete: recipeComponents.some((component) => (
+          component.productId === product.id && recipeEligibleIngredientIds.has(component.ingredientId)
+        )),
       };
     }),
     inventoryValueAmount: Number(
@@ -330,6 +338,10 @@ export async function applySupplyCommand(input: {
             createdByProfileId: input.actorProfileId,
           },
         });
+      case "UPDATE_INGREDIENT":
+        return await updateIngredient({ ...input, command: input.command });
+      case "ARCHIVE_INGREDIENT":
+        return await archiveIngredient({ ...input, command: input.command });
       case "CREATE_SUPPLIER":
         return await prisma.supplySupplier.create({
           data: {
@@ -344,10 +356,20 @@ export async function applySupplyCommand(input: {
             createdByProfileId: input.actorProfileId,
           },
         });
+      case "UPDATE_SUPPLIER":
+        return await updateSupplier({ ...input, command: input.command });
+      case "ARCHIVE_SUPPLIER":
+        return await archiveSupplier({ ...input, command: input.command });
       case "CREATE_LOCATION":
         return await createLocation({ ...input, command: input.command });
+      case "UPDATE_LOCATION":
+        return await updateLocation({ ...input, command: input.command });
+      case "ARCHIVE_LOCATION":
+        return await archiveLocation({ ...input, command: input.command });
       case "UPSERT_RECIPE_COMPONENT":
         return await upsertRecipeComponent({ ...input, command: input.command });
+      case "REMOVE_RECIPE_COMPONENT":
+        return await removeRecipeComponent({ ...input, command: input.command });
       case "POST_MOVEMENT":
         return await postMovement({ ...input, command: input.command });
       case "RECEIVE_PURCHASE":
@@ -360,6 +382,164 @@ export async function applySupplyCommand(input: {
     }
     throw error;
   }
+}
+
+async function updateIngredient(input: {
+  organizationId: string;
+  command: Extract<SupplyCommand, { operation: "UPDATE_INGREDIENT" }>;
+}) {
+  return prisma.$transaction(async (transaction) => {
+    const ingredient = await transaction.supplyIngredient.findFirst({
+      where: { id: input.command.ingredientId, organizationId: input.organizationId, isActive: true },
+      select: { id: true, baseUom: true, itemType: true, trackExpiry: true },
+    });
+    if (!ingredient) throw new SupplyOperationError("SUPPLY_INGREDIENT_NOT_FOUND");
+
+    if (input.command.preferredSupplierId) {
+      const supplier = await transaction.supplySupplier.findFirst({
+        where: { id: input.command.preferredSupplierId, organizationId: input.organizationId, isActive: true },
+        select: { id: true },
+      });
+      if (!supplier) throw new SupplyOperationError("SUPPLY_SUPPLIER_NOT_FOUND");
+    }
+
+    if (ingredient.baseUom !== input.command.baseUom) {
+      const movementCount = await transaction.supplyInventoryMovement.count({
+        where: { organizationId: input.organizationId, ingredientId: ingredient.id },
+      });
+      if (movementCount > 0) throw new SupplyOperationError("SUPPLY_INGREDIENT_UNIT_LOCKED");
+    }
+
+    if (ingredient.trackExpiry !== input.command.trackExpiry) {
+      const [stockCount, remainingLotCount] = await Promise.all([
+        transaction.supplyInventoryBalance.count({
+          where: {
+            organizationId: input.organizationId,
+            ingredientId: ingredient.id,
+            quantityMicros: { not: BigInt(0) },
+          },
+        }),
+        transaction.supplyInventoryLot.count({
+          where: {
+            organizationId: input.organizationId,
+            ingredientId: ingredient.id,
+            remainingQuantityMicros: { gt: BigInt(0) },
+          },
+        }),
+      ]);
+      if (stockCount > 0 || remainingLotCount > 0) {
+        throw new SupplyOperationError("SUPPLY_INGREDIENT_TRACKING_LOCKED");
+      }
+    }
+
+    if (
+      ingredient.itemType !== input.command.itemType
+      && input.command.itemType !== "INGREDIENT"
+      && input.command.itemType !== "PACKAGING"
+    ) {
+      const recipeCount = await transaction.supplyRecipeComponent.count({
+        where: { organizationId: input.organizationId, ingredientId: ingredient.id },
+      });
+      if (recipeCount > 0) throw new SupplyOperationError("SUPPLY_RECIPE_ITEM_TYPE_INVALID");
+    }
+
+    return transaction.supplyIngredient.update({
+      where: { id: ingredient.id },
+      data: {
+        code: input.command.code,
+        name: input.command.name,
+        baseUom: input.command.baseUom,
+        itemType: input.command.itemType,
+        trackExpiry: input.command.trackExpiry,
+        defaultShelfLifeDays: input.command.defaultShelfLifeDays ?? null,
+        preferredSupplierId: input.command.preferredSupplierId ?? null,
+        lowStockThresholdMicros: BigInt(input.command.lowStockThresholdMicros),
+      },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+async function archiveIngredient(input: {
+  organizationId: string;
+  command: Extract<SupplyCommand, { operation: "ARCHIVE_INGREDIENT" }>;
+}) {
+  return prisma.$transaction(async (transaction) => {
+    const ingredient = await transaction.supplyIngredient.findFirst({
+      where: { id: input.command.ingredientId, organizationId: input.organizationId, isActive: true },
+      select: { id: true },
+    });
+    if (!ingredient) throw new SupplyOperationError("SUPPLY_INGREDIENT_NOT_FOUND");
+    const [recipeCount, stockCount, remainingLotCount] = await Promise.all([
+      transaction.supplyRecipeComponent.count({
+        where: { organizationId: input.organizationId, ingredientId: ingredient.id },
+      }),
+      transaction.supplyInventoryBalance.count({
+        where: {
+          organizationId: input.organizationId,
+          ingredientId: ingredient.id,
+          quantityMicros: { not: BigInt(0) },
+        },
+      }),
+      transaction.supplyInventoryLot.count({
+        where: {
+          organizationId: input.organizationId,
+          ingredientId: ingredient.id,
+          remainingQuantityMicros: { gt: BigInt(0) },
+        },
+      }),
+    ]);
+    if (recipeCount > 0 || stockCount > 0 || remainingLotCount > 0) {
+      throw new SupplyOperationError("SUPPLY_INGREDIENT_IN_USE");
+    }
+    return transaction.supplyIngredient.update({
+      where: { id: ingredient.id },
+      data: { isActive: false },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+async function updateSupplier(input: {
+  organizationId: string;
+  command: Extract<SupplyCommand, { operation: "UPDATE_SUPPLIER" }>;
+}) {
+  const supplier = await prisma.supplySupplier.findFirst({
+    where: { id: input.command.supplierId, organizationId: input.organizationId, isActive: true },
+    select: { id: true },
+  });
+  if (!supplier) throw new SupplyOperationError("SUPPLY_SUPPLIER_NOT_FOUND");
+  return prisma.supplySupplier.update({
+    where: { id: supplier.id },
+    data: {
+      code: input.command.code,
+      name: input.command.name,
+      contactName: input.command.contactName ?? null,
+      phone: input.command.phone ?? null,
+      email: input.command.email ?? null,
+      paymentTermsDays: input.command.paymentTermsDays,
+      leadTimeDays: input.command.leadTimeDays,
+    },
+  });
+}
+
+async function archiveSupplier(input: {
+  organizationId: string;
+  command: Extract<SupplyCommand, { operation: "ARCHIVE_SUPPLIER" }>;
+}) {
+  return prisma.$transaction(async (transaction) => {
+    const supplier = await transaction.supplySupplier.findFirst({
+      where: { id: input.command.supplierId, organizationId: input.organizationId, isActive: true },
+      select: { id: true },
+    });
+    if (!supplier) throw new SupplyOperationError("SUPPLY_SUPPLIER_NOT_FOUND");
+    await transaction.supplyIngredient.updateMany({
+      where: { organizationId: input.organizationId, preferredSupplierId: supplier.id, isActive: true },
+      data: { preferredSupplierId: null },
+    });
+    return transaction.supplySupplier.update({
+      where: { id: supplier.id },
+      data: { isActive: false },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 async function createLocation(input: {
@@ -394,6 +574,97 @@ async function createLocation(input: {
   });
 }
 
+async function updateLocation(input: {
+  organizationId: string;
+  command: Extract<SupplyCommand, { operation: "UPDATE_LOCATION" }>;
+  accessScope: SupplyAccessScope;
+}) {
+  const location = await prisma.supplyLocation.findFirst({
+    where: { id: input.command.locationId, organizationId: input.organizationId, isActive: true },
+    select: { id: true, stallId: true, locationType: true },
+  });
+  if (!location) throw new SupplyOperationError("SUPPLY_LOCATION_NOT_FOUND");
+  assertLocationAccess(input.accessScope, location.stallId);
+
+  if (!input.accessScope.canUseAllStalls) {
+    if (input.command.locationType !== "STALL" || !isAuthorizedStall(input.accessScope, input.command.stallId)) {
+      throw new SupplyOperationError("SUPPLY_SCOPE_DENIED");
+    }
+  }
+  if (input.command.locationType === "STALL") {
+    const stall = await prisma.stall.findFirst({
+      where: { id: input.command.stallId ?? "", organizationId: input.organizationId, isActive: true },
+      select: { id: true },
+    });
+    if (!stall) throw new SupplyOperationError("SUPPLY_STALL_NOT_FOUND");
+  } else if (input.command.stallId) {
+    throw new SupplyOperationError("SUPPLY_LOCATION_SCOPE_INVALID");
+  }
+
+  const nextStallId = input.command.stallId ?? null;
+  if (location.locationType !== input.command.locationType || location.stallId !== nextStallId) {
+    const [movementCount, balanceCount] = await Promise.all([
+      prisma.supplyInventoryMovement.count({
+        where: { organizationId: input.organizationId, locationId: location.id },
+      }),
+      prisma.supplyInventoryBalance.count({
+        where: { organizationId: input.organizationId, locationId: location.id },
+      }),
+    ]);
+    if (movementCount > 0 || balanceCount > 0) {
+      throw new SupplyOperationError("SUPPLY_LOCATION_SCOPE_LOCKED");
+    }
+  }
+
+  return prisma.supplyLocation.update({
+    where: { id: location.id },
+    data: {
+      stallId: nextStallId,
+      code: input.command.code,
+      name: input.command.name,
+      locationType: input.command.locationType,
+    },
+  });
+}
+
+async function archiveLocation(input: {
+  organizationId: string;
+  command: Extract<SupplyCommand, { operation: "ARCHIVE_LOCATION" }>;
+  accessScope: SupplyAccessScope;
+}) {
+  return prisma.$transaction(async (transaction) => {
+    const location = await transaction.supplyLocation.findFirst({
+      where: { id: input.command.locationId, organizationId: input.organizationId, isActive: true },
+      select: { id: true, stallId: true },
+    });
+    if (!location) throw new SupplyOperationError("SUPPLY_LOCATION_NOT_FOUND");
+    assertLocationAccess(input.accessScope, location.stallId);
+    const [stockCount, remainingLotCount] = await Promise.all([
+      transaction.supplyInventoryBalance.count({
+        where: {
+          organizationId: input.organizationId,
+          locationId: location.id,
+          quantityMicros: { not: BigInt(0) },
+        },
+      }),
+      transaction.supplyInventoryLot.count({
+        where: {
+          organizationId: input.organizationId,
+          locationId: location.id,
+          remainingQuantityMicros: { gt: BigInt(0) },
+        },
+      }),
+    ]);
+    if (stockCount > 0 || remainingLotCount > 0) {
+      throw new SupplyOperationError("SUPPLY_LOCATION_HAS_STOCK");
+    }
+    return transaction.supplyLocation.update({
+      where: { id: location.id },
+      data: { isActive: false },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
 async function upsertRecipeComponent(input: {
   organizationId: string;
   actorProfileId: string;
@@ -407,11 +678,14 @@ async function upsertRecipeComponent(input: {
       }),
       transaction.supplyIngredient.findFirst({
         where: { id: input.command.ingredientId, organizationId: input.organizationId, isActive: true },
-        select: { id: true },
+        select: { id: true, itemType: true },
       }),
     ]);
     if (!product) throw new SupplyOperationError("SUPPLY_PRODUCT_NOT_FOUND");
     if (!ingredient) throw new SupplyOperationError("SUPPLY_INGREDIENT_NOT_FOUND");
+    if (ingredient.itemType !== "INGREDIENT" && ingredient.itemType !== "PACKAGING") {
+      throw new SupplyOperationError("SUPPLY_RECIPE_ITEM_TYPE_INVALID");
+    }
     return transaction.supplyRecipeComponent.upsert({
       where: {
         organizationId_productId_ingredientId: {
@@ -434,6 +708,18 @@ async function upsertRecipeComponent(input: {
       },
     });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+async function removeRecipeComponent(input: {
+  organizationId: string;
+  command: Extract<SupplyCommand, { operation: "REMOVE_RECIPE_COMPONENT" }>;
+}) {
+  const component = await prisma.supplyRecipeComponent.findFirst({
+    where: { id: input.command.componentId, organizationId: input.organizationId },
+    select: { id: true },
+  });
+  if (!component) throw new SupplyOperationError("SUPPLY_RECIPE_NOT_FOUND");
+  return prisma.supplyRecipeComponent.delete({ where: { id: component.id } });
 }
 
 async function postMovement(input: {

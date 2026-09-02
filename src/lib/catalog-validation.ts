@@ -242,6 +242,7 @@ export const stallProductSettingsSchema = z.object({
   sortOrder,
   availableFrom: z.string().datetime({ offset: true }).nullable().default(null),
   availableUntil: z.string().datetime({ offset: true }).nullable().default(null),
+  checkoutUpsellSelected: z.boolean(),
 }).strict().refine((value) => (
   !value.availableFrom || !value.availableUntil
   || new Date(value.availableFrom).getTime() < new Date(value.availableUntil).getTime()

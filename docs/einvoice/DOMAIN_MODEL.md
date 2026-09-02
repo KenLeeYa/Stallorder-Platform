@@ -20,4 +20,3 @@
 - `totalAmount = salesAmount + taxAmount` 在 adapter boundary 驗證。
 - 本機 Mock 不推導真實稅務，固定使用明確的 `MOCK_NOT_TAX_DETERMINED`。
 - 賣方、買方與 policy 都在開立時快照，避免事後設定變更改寫歷史。
-

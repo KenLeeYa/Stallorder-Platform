@@ -1,5 +1,6 @@
 import { CalendarOff, Flame, MapPin, Package, Store } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
+import { SpecialClosureNoticeDialog } from "@/components/special-closure-notice-dialog";
 import type { AppLocale } from "@/lib/app-locale";
 import { publicMessages } from "@/lib/messages/public";
 import { formatMoney } from "@/lib/money";
@@ -8,7 +9,10 @@ import { localizeSpecialClosureTitle } from "@/lib/special-closures-client";
 import { LocationGuideDialog } from "./location-guide-dialog";
 
 export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: AppLocale }) {
-  const sections = groupProductsByCategory(menu.products, locale);
+  const sections = groupProductsByCategory(
+    menu.products.filter((product) => !product.isSoldOut),
+    locale,
+  );
   const mapQuery = menu.stall.address?.trim() || menu.stall.location.trim() || menu.stall.name;
   const encodedMapQuery = encodeURIComponent(mapQuery);
   const googleMapsEmbedKey = process.env.GOOGLE_MAPS_EMBED_API_KEY?.trim();
@@ -19,6 +23,7 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
 
   return (
     <main data-testid="storefront-menu-view" className="min-h-screen bg-[#f5f1e8] text-stone-950 print:bg-white">
+      {menu.specialClosure ? <SpecialClosureNoticeDialog closure={menu.specialClosure} locale={locale} timeZone={menu.stall.timezone} /> : null}
       <header className="border-b border-stone-900/10 bg-[#0f766e] text-white print:border-stone-300 print:bg-white print:text-stone-950">
         <div className="relative isolate mx-auto max-w-6xl overflow-hidden px-4 py-8 sm:px-6 sm:py-11 lg:px-8">
           {menu.stall.coverImageUrl ? <div data-testid="public-menu-cover-image" className="absolute inset-0 -z-10 overflow-hidden bg-teal-950 print:hidden">
@@ -57,6 +62,9 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
                 location={menu.stall.location}
                 address={menu.stall.address ?? ""}
                 guideImageUrl={menu.stall.locationGuideImageUrl ?? null}
+                guideImagePositionX={menu.stall.locationGuideImagePositionX}
+                guideImagePositionY={menu.stall.locationGuideImagePositionY}
+                guideImageZoom={menu.stall.locationGuideImageZoom}
                 googleMapsEmbedUrl={googleMapsEmbedUrl}
                 googleMapsNavigationUrl={googleMapsNavigationUrl}
                 locale={locale}
@@ -145,9 +153,12 @@ function formatClosureRange(
 ) {
   const formatter = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" });
   const start = formatter.format(new Date(`${closure.startsOn}T00:00:00.000Z`));
-  if (closure.startsOn === closure.endsOn) return start;
-  const end = formatter.format(new Date(`${closure.endsOn}T00:00:00.000Z`));
-  return `${start} – ${end}`;
+  const dates = closure.startsOn === closure.endsOn
+    ? start
+    : `${start} – ${formatter.format(new Date(`${closure.endsOn}T00:00:00.000Z`))}`;
+  return closure.opensAt && closure.closesAt
+    ? `${dates} · ${closure.opensAt}–${closure.closesAt}`
+    : dates;
 }
 
 function MenuProductCard({

@@ -18,4 +18,3 @@ export function calculateInvoiceRetry(input: {
     attempt: nextAttempt,
   };
 }
-

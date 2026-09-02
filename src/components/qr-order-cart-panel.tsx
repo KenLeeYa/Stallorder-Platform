@@ -16,11 +16,13 @@ import { qrOrderMessages, type QrLocale } from "@/lib/qr-order-i18n";
 import type { QrOrderSession } from "@/components/qr-order-flow-orchestration";
 import { CheckoutInvoiceSelector } from "@/components/checkout-invoice-selector";
 import type { InvoiceBuyerSelection } from "@/lib/e-invoice-checkout-contract";
+import type { QrOrderEntryChannel } from "@/components/qr-order-flow-orchestration";
 
 export { resolveQrCheckoutBlocker } from "@/components/qr-order-checkout-controller";
 
 type QrOrderCartPanelProps = {
   session: QrOrderSession;
+  entryChannel: QrOrderEntryChannel;
   cartLines: QrCartLine[];
   activeCartStep: "CART" | "CHECKOUT";
   activeOrderingMode: QrCartOrderingMode;
@@ -65,6 +67,7 @@ type QrOrderCartPanelProps = {
 
 export function QrOrderCartPanel({
   session,
+  entryChannel,
   cartLines,
   activeCartStep,
   activeOrderingMode,
@@ -106,8 +109,11 @@ export function QrOrderCartPanel({
   onTurnstileToken,
   onSubmit,
 }: QrOrderCartPanelProps) {
-  const requiresCustomerDetails = session.stall.fulfillmentType === "TAKEOUT"
-    || session.stall.fulfillmentType === "DELIVERY";
+  const showCustomerIdentity = entryChannel !== "QR";
+  const requiresCustomerDetails = showCustomerIdentity && (
+    session.stall.fulfillmentType === "TAKEOUT"
+    || session.stall.fulfillmentType === "DELIVERY"
+  );
 
   return (
     <>
@@ -184,21 +190,23 @@ export function QrOrderCartPanel({
           <button type="button" onClick={onBackToCart} className="min-h-10 rounded-md px-2 text-xs font-semibold text-teal-800 md:hidden">{copy.backToCart}</button>
         </div>
         <div className="mt-4 space-y-3">
-          <input
-            required={requiresCustomerDetails}
-            type="text"
-            autoComplete="name"
-            enterKeyHint="next"
-            aria-label={copy.customerName}
-            className="form-input"
-            placeholder={requiresCustomerDetails
-              ? copy.customerNameRequiredPlaceholder
-              : copy.customerNamePlaceholder}
-            maxLength={50}
-            value={customerName}
-            disabled={!orderingEnabled}
-            onChange={(event) => onCustomerNameChange(event.target.value)}
-          />
+          {showCustomerIdentity ? (
+            <input
+              required={requiresCustomerDetails}
+              type="text"
+              autoComplete="name"
+              enterKeyHint="next"
+              aria-label={copy.customerName}
+              className="form-input"
+              placeholder={requiresCustomerDetails
+                ? copy.customerNameRequiredPlaceholder
+                : copy.customerNamePlaceholder}
+              maxLength={50}
+              value={customerName}
+              disabled={!orderingEnabled}
+              onChange={(event) => onCustomerNameChange(event.target.value)}
+            />
+          ) : null}
           {requiresCustomerDetails ? (
             <input
               required

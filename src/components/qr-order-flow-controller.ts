@@ -56,7 +56,10 @@ import {
   type QrCartLine,
 } from "@/lib/qr-cart";
 import type { SessionCountdownPhase } from "@/lib/session-countdown";
-import { publicMenuProductsForPickup } from "@/lib/public-menu-availability";
+import {
+  publicMenuProductsForPickup,
+  publicMenuProductsVisibleForOrdering,
+} from "@/lib/public-menu-availability";
 import type {
   PublicMenu,
   PublicMenuBundleChoiceOption as BundleChoiceOption,
@@ -126,7 +129,7 @@ export function useQrOrderFlowController({
   const [session, setSession] = useState<QrOrderSession | null>(usableInitialMenu
     ? {
         ...usableInitialMenu,
-        ...(editMode ? { lotteryEnabled: false, requiresWaitAcknowledgment: false } : {}),
+        ...(editMode ? { lotteryEnabled: false, checkoutUpsell: undefined, requiresWaitAcknowledgment: false } : {}),
         orderSessionToken: "",
         expiresAt: "",
       }
@@ -178,9 +181,10 @@ export function useQrOrderFlowController({
     : invoiceBuyerSelection;
   const visibleProducts = useMemo(() => {
     if (!session) return [];
-    return activeOrderingMode === "PREORDER"
+    const productsForTime = activeOrderingMode === "PREORDER"
       ? publicMenuProductsForPickup(session.products, scheduledPickupAt)
       : session.products;
+    return publicMenuProductsVisibleForOrdering(productsForTime);
   }, [activeOrderingMode, scheduledPickupAt, session]);
   const catalogLocale = resolveQrCatalogLocale(locale, session?.supportedLocales ?? []);
   const localizedProduct = useCallback((product: Product) => {
@@ -473,6 +477,7 @@ export function useQrOrderFlowController({
         const editSession: QrOrderSession = {
           ...usableInitialMenu,
           lotteryEnabled: false,
+          checkoutUpsell: undefined,
           requiresWaitAcknowledgment: false,
           orderSessionToken: "",
           expiresAt: "",
@@ -829,6 +834,7 @@ export function useQrOrderFlowController({
   return {
     activeCartStep,
     activeOrderingMode,
+    entryChannel,
     addProductDraft,
     applyFulfillmentTime,
     availabilityRefreshing,

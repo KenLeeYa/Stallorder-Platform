@@ -5,15 +5,18 @@ function source(relativePath: string) {
   return readFileSync(new URL(relativePath, import.meta.url), "utf8");
 }
 
-describe("catalog disclosure layout", () => {
-  it("keeps the catalog visible and collapses individual product groups", () => {
+describe("catalog hierarchy layout", () => {
+  it("opens the product catalog as a large hierarchical dialog", () => {
     const catalog = source("./shared-catalog-manager.tsx");
 
     expect(catalog).not.toContain('<details id="shared-product-catalog"');
     expect(catalog).toContain('id="shared-product-catalog"');
-    expect(catalog).toContain('data-testid="shared-product-group"');
-    expect(catalog).toContain("collapsedGroupIds");
-    expect(catalog).toContain("updateGroupDisclosure");
+    expect(catalog).toContain('data-testid="open-catalog-navigator"');
+    expect(catalog).toContain('kind: "CATEGORIES"');
+    expect(catalog).toContain('kind: "GROUPS"');
+    expect(catalog).toContain('kind: "PRODUCTS"');
+    expect(catalog).toContain("<CatalogLevelCard");
+    expect(catalog).toContain("<CatalogActionButton");
   });
 
   it("keeps menu versions as the last compact create-toolbar action", () => {
@@ -27,10 +30,13 @@ describe("catalog disclosure layout", () => {
     expect(createToolbar).toContain("inline-grid h-11 w-11");
   });
 
-  it("places the group toggle in the tab row and only shows it for groups", () => {
+  it("opens note groups and their options in the same large-button hierarchy", () => {
     const notes = source("./product-note-groups-manager.tsx");
 
-    expect(notes).toMatch(/role="tablist"[\s\S]*activeTab === "GROUPS"[\s\S]*data-testid="product-note-groups-toggle-all"[\s\S]*<\/div>\s*\{message/);
-    expect(notes).not.toContain('<div className="mt-4 flex justify-end">');
+    expect(notes).toContain('data-testid="open-note-group-navigator"');
+    expect(notes).toContain("<ProductNoteGroupCard");
+    expect(notes).toContain("<ProductNoteOptionCard");
+    expect(notes).toContain('data-testid="product-note-action-dialog"');
+    expect(notes).not.toContain('data-testid="product-note-groups-toggle-all"');
   });
 });

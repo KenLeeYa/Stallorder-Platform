@@ -96,6 +96,17 @@ export async function editTrackedPublicOrder(input: {
           total: true,
           note: true,
           scheduledPickupAt: true,
+          orderSession: {
+            select: {
+              orderingMode: true,
+              qrCode: {
+                select: {
+                  diningTableId: true,
+                  fulfillmentTypeContext: true,
+                },
+              },
+            },
+          },
           items: {
             select: {
               id: true,
@@ -109,9 +120,20 @@ export async function editTrackedPublicOrder(input: {
       if (!order) throw new PublicOrderEditError("ORDER_NOT_FOUND");
       const failure = getPublicOrderEditFailure(order);
       if (failure) throw new PublicOrderEditError(failure);
+      const orderingMode = order.orderSession?.orderingMode === "DELIVERY"
+        || order.orderSession?.orderingMode === "PREORDER"
+        ? order.orderSession.orderingMode
+        : "DEFAULT";
       const customerDetailsFailure = publicOrderCustomerDetailsCode(
         input.request,
-        order.fulfillmentType,
+        orderingMode,
+        order.orderSession ? {
+          dining_table_id: order.orderSession.qrCode.diningTableId,
+          fulfillment_type_context: order.orderSession.qrCode.fulfillmentTypeContext,
+        } : {
+          dining_table_id: null,
+          fulfillment_type_context: order.fulfillmentType,
+        },
       );
       if (customerDetailsFailure) throw new PublicOrderEditError(customerDetailsFailure);
 

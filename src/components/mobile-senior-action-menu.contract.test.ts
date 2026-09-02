@@ -37,6 +37,16 @@ describe("mobile senior action menu contract", () => {
     expect(kitchenSource).toContain('<MobileSeniorActionMenu label={t("kitchen.navigation")}');
   });
 
+  it("places the merchant guide immediately after senior mode in the utility controls", () => {
+    expect(merchantSource).toContain('<PwaControls afterAccessibility={merchantGuide} />');
+    expect(pwaSource.indexOf("<AccessibilityModeToggle />")).toBeLessThan(
+      pwaSource.indexOf("{afterAccessibility}"),
+    );
+    expect(pwaSource.indexOf("{afterAccessibility}")).toBeLessThan(
+      pwaSource.indexOf('data-testid="pwa-network-status"'),
+    );
+  });
+
   it("uses square responsive tiles with three phone columns and five tablet columns", () => {
     expect(menuSource).toContain("h-[calc(100dvh-1.5rem)]");
     expect(menuSource).toContain("sm:max-w-[calc(100vw-1.5rem)]");

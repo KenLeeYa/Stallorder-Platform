@@ -92,4 +92,3 @@ export const invoiceProviderDefinitions: readonly InvoiceProviderDefinition[] = 
 export function getInvoiceProviderDefinition(provider: InvoiceProviderCode) {
   return invoiceProviderDefinitions.find((definition) => definition.provider === provider)!;
 }
-

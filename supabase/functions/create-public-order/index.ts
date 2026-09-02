@@ -16,7 +16,6 @@ import {
   createPublicOrderSchema,
   createPublicOrderValidationCode,
   publicOrderCustomerDetailsCode,
-  resolvePublicOrderFulfillmentType,
 } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
 import { verifyTurnstile } from "../_shared/turnstile.ts";
@@ -241,7 +240,8 @@ Deno.serve(async (request) => {
 
     const customerDetailsCode = publicOrderCustomerDetailsCode(
       input,
-      resolvePublicOrderFulfillmentType(input.orderingMode, preflight.qr_context),
+      input.orderingMode,
+      preflight.qr_context,
     );
     if (customerDetailsCode) {
       return respond(

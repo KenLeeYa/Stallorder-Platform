@@ -7,7 +7,7 @@ import { readJson } from "@/lib/http";
 import { hashClientIp } from "@/lib/security";
 import { operatingExpenseCommandSchema } from "@/server/finance/operating-profit-contract";
 import {
-  createOperatingExpense,
+  applyOperatingExpenseCommand,
   getOperatingProfitDashboard,
   OperatingProfitError,
 } from "@/server/finance/operating-profit-service";
@@ -49,14 +49,17 @@ export async function POST(request: Request, context: RouteContext) {
         stallId: "攤位",
         expenseDate: "支出日期",
         category: "支出分類",
+        customCategoryName: "其他支出品項",
         amount: "金額",
         vendorName: "收款方",
         description: "支出說明",
+        expenseId: "原支出紀錄",
+        correctionReason: "更正原因",
       }),
     }, { status: 400, headers: noStoreHeaders(authorization.requestId) });
   }
   try {
-    const result = await createOperatingExpense({
+    const result = await applyOperatingExpenseCommand({
       organizationId,
       actorProfileId: authorization.principal.user.id,
       command: parsed.data,
@@ -65,13 +68,21 @@ export async function POST(request: Request, context: RouteContext) {
       organizationId,
       stallId: parsed.data.stallId ?? undefined,
       actorProfileId: authorization.principal.user.id,
-      action: "OPERATING_EXPENSE_CREATED",
+      action: parsed.data.operation === "CORRECT_EXPENSE" ? "OPERATING_EXPENSE_CORRECTED" : "OPERATING_EXPENSE_CREATED",
       entityType: "OPERATING_EXPENSE",
       entityId: result.id,
       outcome: "SUCCESS",
       requestId: authorization.requestId,
       ipHash: hashClientIp(request),
-      metadata: { category: parsed.data.category, amount: parsed.data.amount },
+      metadata: {
+        category: parsed.data.category,
+        customCategoryName: parsed.data.customCategoryName ?? null,
+        amount: parsed.data.amount,
+        ...(parsed.data.operation === "CORRECT_EXPENSE" ? {
+          correctedExpenseId: parsed.data.expenseId,
+          correctionReason: parsed.data.correctionReason,
+        } : {}),
+      },
     });
     return NextResponse.json(await getOperatingProfitDashboard({
       organizationId,
@@ -101,10 +112,13 @@ function requestedRange(request: Request) {
 function operatingProfitErrorResponse(error: unknown, requestId: string) {
   const code = error instanceof OperatingProfitError ? error.code : "OPERATING_PROFIT_FAILED";
   const status = code === "OPERATING_EXPENSE_STALL_NOT_FOUND" ? 404
+    : code === "OPERATING_EXPENSE_NOT_CORRECTABLE" ? 409
     : code === "OPERATING_PROFIT_DATE_RANGE_INVALID" ? 400
       : 500;
   const message = code === "OPERATING_EXPENSE_STALL_NOT_FOUND"
     ? "找不到指定的攤位。"
+    : code === "OPERATING_EXPENSE_NOT_CORRECTABLE"
+      ? "這筆支出已被更正或不在目前商家中，請重新整理後再試。"
     : code === "OPERATING_PROFIT_DATE_RANGE_INVALID"
       ? "日期區間不正確或超過一年。"
       : "目前無法讀取營運損益，請稍後再試。";

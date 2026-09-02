@@ -18,7 +18,7 @@ export default async function MerchantPage({ params }: PageProps) {
   );
   const workspaces = await getWorkspaceAccess(principal.user.id, principal.user.platformRole);
   const workspace = workspaces.find((candidate) => candidate.id === stall.organizationId);
-  const [products, qrCode] = await Promise.all([
+  const [products, qrCode, orderingSettings] = await Promise.all([
     prisma.stallProduct.findMany({
       where: { stallId: stall.id },
       orderBy: [{ sortOrder: "asc" }, { product: { name: "asc" } }],
@@ -32,9 +32,18 @@ export default async function MerchantPage({ params }: PageProps) {
       },
     }),
     prisma.qrCode.findFirst({
-      where: { stallId: stall.id },
+      where: {
+        stallId: stall.id,
+        organizationId: stall.organizationId,
+        diningTableId: null,
+        fulfillmentTypeContext: null,
+      },
       orderBy: { tokenVersion: "desc" },
       select: { token: true, state: true, tokenVersion: true },
+    }),
+    prisma.stallOrderingSettings.findUnique({
+      where: { stallId: stall.id },
+      select: { checkoutUpsellProductIds: true },
     }),
   ]);
   const configuredUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -67,6 +76,7 @@ export default async function MerchantPage({ params }: PageProps) {
         availableFrom: product.availableFrom?.toISOString() ?? null,
         availableUntil: product.availableUntil?.toISOString() ?? null,
         masterIsActive: product.product.isActive,
+        checkoutUpsellSelected: orderingSettings?.checkoutUpsellProductIds.includes(product.productId) ?? false,
       }))}
       sourceStalls={(workspace?.stalls ?? [])
         .filter((candidate) => candidate.id !== stall.id && candidate.roles.some((candidateRole) => hasPermission(candidateRole, "MANAGE_PRODUCTS")))

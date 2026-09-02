@@ -444,16 +444,23 @@ function formatFulfillmentTime(
   }
 }
 
-function formatNoteOptions(
+export function formatNoteOptions(
   locale: AppLocale,
   noteOptions: Array<{ groupName: string; optionName: string }>,
 ) {
   const usesCjkPunctuation = locale === "zh-TW" || locale === "ja";
   const pairSeparator = usesCjkPunctuation ? "：" : ": ";
   const optionSeparator = usesCjkPunctuation ? "、" : ", ";
-  return noteOptions
-    .map((option) => `${option.groupName}${pairSeparator}${option.optionName}`)
-    .join(optionSeparator);
+  const groupSeparator = usesCjkPunctuation ? "；" : " · ";
+  const groups = new Map<string, string[]>();
+  for (const option of noteOptions) {
+    const options = groups.get(option.groupName) ?? [];
+    options.push(option.optionName);
+    groups.set(option.groupName, options);
+  }
+  return [...groups]
+    .map(([groupName, options]) => `${groupName}${pairSeparator}${options.join(optionSeparator)}`)
+    .join(groupSeparator);
 }
 
 function FulfillmentTimePanel({

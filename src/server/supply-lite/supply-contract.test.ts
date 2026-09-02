@@ -20,6 +20,19 @@ describe("supply lite command contract", () => {
     });
   });
 
+  it("accepts reusable tableware as inventory rather than a per-order recipe cost", () => {
+    const result = supplyCommandSchema.parse({
+      operation: "CREATE_INGREDIENT",
+      code: "PLATE-01",
+      name: "內用餐盤",
+      baseUom: "EA",
+      itemType: "REUSABLE_EQUIPMENT",
+      lowStockThresholdMicros: 10_000_000,
+    });
+    if (result.operation !== "CREATE_INGREDIENT") throw new Error("expected inventory item");
+    expect(result.itemType).toBe("REUSABLE_EQUIPMENT");
+  });
+
   it.each([
     ["RECEIPT", -1],
     ["TRANSFER_IN", -1],
@@ -121,5 +134,40 @@ describe("supply lite command contract", () => {
       }],
     });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts scoped master-data updates and archive commands", () => {
+    expect(supplyCommandSchema.parse({
+      operation: "UPDATE_INGREDIENT",
+      ingredientId: id,
+      code: "CHICKEN-02",
+      name: "去骨雞腿排",
+      baseUom: "G",
+      itemType: "INGREDIENT",
+      trackExpiry: true,
+      defaultShelfLifeDays: 5,
+      preferredSupplierId: null,
+      lowStockThresholdMicros: 2_000_000,
+    }).operation).toBe("UPDATE_INGREDIENT");
+    expect(supplyCommandSchema.parse({ operation: "ARCHIVE_INGREDIENT", ingredientId: id }).operation).toBe("ARCHIVE_INGREDIENT");
+    expect(supplyCommandSchema.parse({
+      operation: "UPDATE_SUPPLIER",
+      supplierId: id,
+      code: "FRESH-FOOD",
+      name: "安心食材行",
+      paymentTermsDays: 30,
+      leadTimeDays: 2,
+    }).operation).toBe("UPDATE_SUPPLIER");
+    expect(supplyCommandSchema.parse({ operation: "ARCHIVE_SUPPLIER", supplierId: id }).operation).toBe("ARCHIVE_SUPPLIER");
+    expect(supplyCommandSchema.parse({
+      operation: "UPDATE_LOCATION",
+      locationId: id,
+      stallId: null,
+      code: "CENTRAL-02",
+      name: "中央冷藏庫",
+      locationType: "CENTRAL",
+    }).operation).toBe("UPDATE_LOCATION");
+    expect(supplyCommandSchema.parse({ operation: "ARCHIVE_LOCATION", locationId: id }).operation).toBe("ARCHIVE_LOCATION");
+    expect(supplyCommandSchema.parse({ operation: "REMOVE_RECIPE_COMPONENT", componentId: id }).operation).toBe("REMOVE_RECIPE_COMPONENT");
   });
 });

@@ -124,6 +124,24 @@ export async function PATCH(request: Request, context: RouteContext) {
     const entityId = await prisma.$transaction(async (transaction) => {
       if (command.operation === "UPDATE_MODULES") {
         const updatesLottery = updatesModuleView(command.view, "lottery");
+        const updatesCheckoutUpsell = command.view === "all" || command.view === "online-ordering";
+        if (updatesCheckoutUpsell && command.checkoutUpsellEnabled) {
+          if (command.checkoutUpsellProductIds.length === 0) {
+            throw new CheckoutUpsellConfigurationError("請至少選擇 1 個推薦商品。");
+          }
+          const availableAssignments = await transaction.stallProduct.count({
+            where: {
+              stallId,
+              organizationId,
+              productId: { in: command.checkoutUpsellProductIds },
+              isEnabled: true,
+              product: { isActive: true },
+            },
+          });
+          if (availableAssignments !== command.checkoutUpsellProductIds.length) {
+            throw new CheckoutUpsellConfigurationError("推薦商品已停用或不屬於此攤位，請重新選擇。");
+          }
+        }
         if (updatesLottery && command.lotteryFestivalRewardEnabled) {
           if (!command.lotteryFestivalStartsOn || !command.lotteryFestivalEndsOn) {
             throw new LotteryCampaignConfigurationError({
@@ -195,6 +213,12 @@ export async function PATCH(request: Request, context: RouteContext) {
               preorderMinLeadMinutes: command.preorderMinLeadMinutes,
               preorderMaxDays: command.preorderMaxDays,
               preorderSlotMinutes: command.preorderSlotMinutes,
+            } : {}),
+            ...(updatesCheckoutUpsell ? {
+              checkoutUpsellEnabled: command.checkoutUpsellEnabled,
+              checkoutUpsellProductIds: command.checkoutUpsellEnabled
+                ? command.checkoutUpsellProductIds
+                : [],
             } : {}),
             ...(updatesLottery ? {
               lotteryEnabled: command.lotteryEnabled,
@@ -610,6 +634,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     const invalidLotteryCampaign = error instanceof LotteryCampaignConfigurationError
       ? error
       : null;
+    const invalidCheckoutUpsell = error instanceof CheckoutUpsellConfigurationError
+      ? error
+      : null;
     const activeOrders = error instanceof ActiveTableOrdersError;
     const floorInUse = error instanceof DiningFloorInUseError;
     const duplicateFieldErrors = duplicate
@@ -617,14 +644,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       : undefined;
     return NextResponse.json(
       {
-        error: duplicateFieldErrors?.name ? "樓層名稱已存在。" : duplicateFieldErrors ? "代碼已存在。" : duplicate ? "資料與現有設定衝突，請重新整理後再試。" : invalidLotteryDiscount ? "抽抽樂折扣已停用或不存在，請重新選擇。" : invalidLotteryCampaign ? "請檢查免費抽獎活動日期。" : notFound ? "找不到指定設定。" : activeOrders ? "桌位仍有未完成訂單，請先停用而不要刪除。" : floorInUse ? "樓層仍有桌位，請先移動或刪除桌位。" : "目前無法更新模組設定。",
+        error: duplicateFieldErrors?.name ? "樓層名稱已存在。" : duplicateFieldErrors ? "代碼已存在。" : duplicate ? "資料與現有設定衝突，請重新整理後再試。" : invalidLotteryDiscount ? "抽抽樂折扣已停用或不存在，請重新選擇。" : invalidLotteryCampaign ? "請檢查免費抽獎活動日期。" : invalidCheckoutUpsell ? invalidCheckoutUpsell.message : notFound ? "找不到指定設定。" : activeOrders ? "桌位仍有未完成訂單，請先停用而不要刪除。" : floorInUse ? "樓層仍有桌位，請先移動或刪除桌位。" : "目前無法更新模組設定。",
         ...(duplicateFieldErrors ? { fieldErrors: duplicateFieldErrors } : invalidLotteryDiscount ? {
           fieldErrors: { lotteryDiscountChances: "抽抽樂折扣已停用或不存在，請重新選擇。" },
         } : invalidLotteryCampaign ? {
           fieldErrors: invalidLotteryCampaign.fieldErrors,
+        } : invalidCheckoutUpsell ? {
+          fieldErrors: { checkoutUpsellProductIds: invalidCheckoutUpsell.message },
         } : {}),
       },
-      { status: duplicate || activeOrders || floorInUse ? 409 : invalidLotteryDiscount || invalidLotteryCampaign ? 400 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
+      { status: duplicate || activeOrders || floorInUse ? 409 : invalidLotteryDiscount || invalidLotteryCampaign || invalidCheckoutUpsell ? 400 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }
 }
@@ -664,5 +693,6 @@ class LotteryCampaignConfigurationError extends Error {
     super("LOTTERY_CAMPAIGN_CONFIGURATION_INVALID");
   }
 }
+class CheckoutUpsellConfigurationError extends Error {}
 class ActiveTableOrdersError extends Error {}
 class DiningFloorInUseError extends Error {}

@@ -4,6 +4,7 @@ const stallId = "22222222-2222-4222-8222-222222222222";
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const firstDiscountId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
 const secondDiscountId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
+const upsellProductId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
 
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   discountDelete: vi.fn(),
   settingsUpdate: vi.fn(),
   settingsUpdateMany: vi.fn(),
+  stallProductCount: vi.fn(),
   orderSessionUpdateMany: vi.fn(),
   productionTaskUpdateMany: vi.fn(),
   printJobUpdateMany: vi.fn(),
@@ -97,6 +99,7 @@ beforeEach(() => {
   }]);
   mocks.settingsUpdate.mockResolvedValue({ stallId });
   mocks.settingsUpdateMany.mockResolvedValue({ count: 1 });
+  mocks.stallProductCount.mockResolvedValue(1);
   mocks.orderSessionUpdateMany.mockResolvedValue({ count: 0 });
   mocks.productionTaskUpdateMany.mockResolvedValue({ count: 0 });
   mocks.printJobUpdateMany.mockResolvedValue({ count: 0 });
@@ -115,6 +118,7 @@ beforeEach(() => {
       update: mocks.settingsUpdate,
       updateMany: mocks.settingsUpdateMany,
     },
+    stallProduct: { count: mocks.stallProductCount },
     orderSession: { updateMany: mocks.orderSessionUpdateMany },
     orderProductionTask: { updateMany: mocks.productionTaskUpdateMany },
     printJob: { updateMany: mocks.printJobUpdateMany },
@@ -126,6 +130,61 @@ beforeEach(() => {
     $executeRaw: mocks.executeRaw,
     $queryRaw: mocks.queryRaw,
   }));
+});
+
+describe("merchant checkout recommendation writes", () => {
+  it("stores only enabled products assigned to this stall", async () => {
+    mocks.readJson.mockResolvedValue({
+      data: {
+        ...updateModulesCommand(),
+        view: "online-ordering",
+        checkoutUpsellEnabled: true,
+        checkoutUpsellProductIds: [upsellProductId],
+      },
+    });
+
+    const response = await patchModules();
+
+    expect(response.status).toBe(200);
+    expect(mocks.stallProductCount).toHaveBeenCalledWith({
+      where: {
+        stallId,
+        organizationId,
+        productId: { in: [upsellProductId] },
+        isEnabled: true,
+        product: { isActive: true },
+      },
+    });
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { stallId, organizationId },
+      data: expect.objectContaining({
+        checkoutUpsellEnabled: true,
+        checkoutUpsellProductIds: [upsellProductId],
+      }),
+    }));
+  });
+
+  it("rejects a disabled or cross-stall recommendation before saving", async () => {
+    mocks.stallProductCount.mockResolvedValue(0);
+    mocks.readJson.mockResolvedValue({
+      data: {
+        ...updateModulesCommand(),
+        view: "online-ordering",
+        checkoutUpsellEnabled: true,
+        checkoutUpsellProductIds: [upsellProductId],
+      },
+    });
+
+    const response = await patchModules();
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      fieldErrors: {
+        checkoutUpsellProductIds: "推薦商品已停用或不屬於此攤位，請重新選擇。",
+      },
+    });
+    expect(mocks.settingsUpdate).not.toHaveBeenCalled();
+  });
 });
 
 describe("merchant printer module entitlement", () => {

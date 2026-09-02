@@ -6,7 +6,7 @@ import { isQrLocale } from "@/lib/qr-order-i18n";
 export { stallModuleCommandSchema } from "@/lib/stall-module-contract";
 
 export async function getStallModuleState(stallId: string, organizationId: string) {
-  const [settings, floors, tables, paymentOptions, discounts, lotteryDiscountChances] = await Promise.all([
+  const [settings, floors, tables, paymentOptions, discounts, lotteryDiscountChances, upsellProducts] = await Promise.all([
     prisma.stallOrderingSettings.findFirstOrThrow({
       where: { stallId, organizationId },
       select: {
@@ -20,6 +20,8 @@ export async function getStallModuleState(stallId: string, organizationId: strin
         discountModuleEnabled: true,
         discountApprovalThresholdBps: true,
         takeoutPreorderEnabled: true,
+        checkoutUpsellEnabled: true,
+        checkoutUpsellProductIds: true,
         preorderMinLeadMinutes: true,
         preorderMaxDays: true,
         preorderSlotMinutes: true,
@@ -66,6 +68,27 @@ export async function getStallModuleState(stallId: string, organizationId: strin
       from public.stall_lottery_discount_chances chance
       where chance.stall_id = ${stallId}::uuid
     `),
+    prisma.stallProduct.findMany({
+      where: {
+        stallId,
+        organizationId,
+        product: { isActive: true },
+      },
+      orderBy: [{ sortOrder: "asc" }, { product: { sortOrder: "asc" } }, { product: { name: "asc" } }],
+      select: {
+        productId: true,
+        priceOverride: true,
+        isEnabled: true,
+        isSoldOut: true,
+        product: {
+          select: {
+            name: true,
+            defaultPrice: true,
+            translations: { select: { locale: true, name: true } },
+          },
+        },
+      },
+    }),
   ]);
 
   const discountOrder = new Map(discounts.flatMap((discount, index) => (
@@ -103,6 +126,13 @@ export async function getStallModuleState(stallId: string, organizationId: strin
     },
     floors,
     tables: tables.map(({ qrCodes, ...table }) => ({ ...table, qrCode: qrCodes[0] ?? null })),
+    upsellProducts: upsellProducts.map((assignment) => ({
+      id: assignment.productId,
+      name: assignment.product.name,
+      price: assignment.priceOverride ?? assignment.product.defaultPrice,
+      isAvailable: assignment.isEnabled && !assignment.isSoldOut,
+      translations: assignment.product.translations,
+    })),
     paymentOptions,
     discounts,
   };

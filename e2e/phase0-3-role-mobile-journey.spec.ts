@@ -1,9 +1,12 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { dismissStaffStartReminder } from "./local-navigation";
+import {
+  dismissStaffStartReminder,
+  qrProductSelectionControl,
+} from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -17,8 +20,6 @@ const productName = "香酥雞排";
 const takeoutQrToken = "demo-aming-chicken-qr-2026-rotate-me";
 const password = "StallOrderDemo!2026";
 const mobileViewport = { width: 390, height: 844 };
-const customerName = `Phase 0-3 手機旅程 ${Date.now()}-${randomUUID().slice(0, 8)}`;
-
 let productId = "";
 let createdOrderId = "";
 let createdSessionId = "";
@@ -84,9 +85,13 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       stallId,
       state: "ACTIVE",
     });
-    expect(qrCode.expiresAt === null || qrCode.expiresAt.getTime() > Date.now()).toBe(true);
-    expect(qrCode.fulfillmentTypeContext === null || qrCode.fulfillmentTypeContext === "TAKEOUT")
-      .toBe(true);
+    expect(
+      qrCode.expiresAt === null || qrCode.expiresAt.getTime() > Date.now(),
+    ).toBe(true);
+    expect(
+      qrCode.fulfillmentTypeContext === null ||
+        qrCode.fulfillmentTypeContext === "TAKEOUT",
+    ).toBe(true);
     expect(station.id).not.toBe("");
     productId = stallProduct.productId;
   });
@@ -98,7 +103,9 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         await prisma.publicOrderAttempt.deleteMany({
           where: { orderSessionId: createdSessionId },
         });
-        await prisma.orderSession.deleteMany({ where: { id: createdSessionId } });
+        await prisma.orderSession.deleteMany({
+          where: { id: createdSessionId },
+        });
       }
       if (createdOrderId) {
         await prisma.order.deleteMany({ where: { id: createdOrderId } });
@@ -108,7 +115,10 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
     }
   });
 
-  test("商家到 Tracker 以同一張外帶單驗證手機 CTA、角色與狀態", async ({ browser, page }) => {
+  test("商家到 Tracker 以同一張外帶單驗證手機 CTA、角色與狀態", async ({
+    browser,
+    page,
+  }) => {
     test.setTimeout(180_000);
     await page.setViewportSize(mobileViewport);
 
@@ -121,45 +131,67 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       const merchantPage = await merchantContext.newPage();
       await login(merchantPage, "owner@stallorder.test");
       await merchantPage.goto(`/merchant/${stallSlug}`);
-      await expect(merchantPage).toHaveURL(new RegExp(`/merchant/${stallSlug}$`, "u"));
-      await expect(merchantPage.getByRole("heading", { name: stallName, exact: true })).toBeVisible();
-      await expectInitiallyInViewport(merchantPage.getByText("開放點餐", { exact: true }));
-      await expectInitiallyInViewport(merchantPage.getByText("可供應", { exact: true }));
-      await expectInitiallyInViewport(merchantPage.getByText("QR 啟用中", { exact: true }));
+      await expect(merchantPage).toHaveURL(
+        new RegExp(`/merchant/${stallSlug}$`, "u"),
+      );
+      await expect(
+        merchantPage.getByRole("heading", { name: stallName, exact: true }),
+      ).toBeVisible();
+      await expectInitiallyInViewport(
+        merchantPage.getByText("開放點餐", { exact: true }),
+      );
+      await expectInitiallyInViewport(
+        merchantPage.getByText("可供應", { exact: true }),
+      );
+      await expectInitiallyInViewport(
+        merchantPage.getByText("QR 啟用中", { exact: true }),
+      );
       await expect(merchantPage.getByText(/顧客點餐 QR Code/u)).toBeVisible();
 
-      await expect(merchantPage.getByRole("button", { name: /^(?:展開|收合)商戶選項$/u })).toHaveCount(0);
-      const workMode = merchantPage.getByRole("button", { name: "商家管理", exact: true });
+      await expect(
+        merchantPage.getByRole("button", { name: /^(?:展開|收合)商戶選項$/u }),
+      ).toHaveCount(0);
+      const workMode = merchantPage.getByRole("button", {
+        name: "商家管理",
+        exact: true,
+      });
       await expectInitiallyInViewport(workMode);
       await expectNoHorizontalOverflow(merchantPage);
     } finally {
       await merchantContext.close();
     }
 
-    const sessionResponsePromise = page.waitForResponse((response) => (
-      new URL(response.url()).pathname.endsWith("/create-order-session")
-      && response.request().method() === "POST"
-    ));
+    const sessionResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith("/create-order-session") &&
+        response.request().method() === "POST",
+    );
     await page.goto(`/q/${takeoutQrToken}`);
     const sessionResponse = await sessionResponsePromise;
     expect([200, 201]).toContain(sessionResponse.status());
-    const sessionPayload = await sessionResponse.json() as { orderSessionToken?: string };
+    const sessionPayload = (await sessionResponse.json()) as {
+      orderSessionToken?: string;
+    };
     expect(sessionPayload.orderSessionToken).toEqual(expect.any(String));
     const sessionTokenHash = createHash("sha256")
       .update(sessionPayload.orderSessionToken as string)
       .digest("hex");
-    createdSessionId = (await prisma.orderSession.findUniqueOrThrow({
-      where: { tokenHash: sessionTokenHash },
-      select: { id: true },
-    })).id;
+    createdSessionId = (
+      await prisma.orderSession.findUniqueOrThrow({
+        where: { tokenHash: sessionTokenHash },
+        select: { id: true },
+      })
+    ).id;
 
     await expect(page).toHaveURL(new RegExp(`/q/${takeoutQrToken}$`, "u"));
     const product = page.getByRole("article").filter({
       has: page.getByRole("heading", { name: productName, exact: true }),
     });
     await expect(product).toBeVisible();
-    await product.getByRole("button", { name: `增加 ${productName}` }).click();
-    await product.getByRole("button", { name: "加入購物車", exact: true }).click();
+    await qrProductSelectionControl(product, productName).click();
+    await product
+      .getByRole("button", { name: "加入購物車", exact: true })
+      .click();
 
     const mobileCartSummary = page.getByTestId("qr-mobile-cart-summary");
     await expectInitiallyInViewport(mobileCartSummary);
@@ -169,30 +201,42 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
     await expect(cart).toHaveAttribute("role", "dialog");
     await expect(cart.getByTestId("qr-cart-line")).toHaveCount(1);
     await expect(cart).toContainText(productName);
-    await page.getByRole("button", { name: "繼續填寫訂購資料", exact: true }).click();
-    await page.getByLabel("顧客稱呼").fill(customerName);
-    await page.getByLabel("聯絡電話").fill("0912345678");
-    const waitAcknowledgment = page.getByRole("checkbox", { name: /我已了解目前預估等候時間/u });
+    await page
+      .getByRole("button", { name: "繼續填寫訂購資料", exact: true })
+      .click();
+    await expect(page.getByLabel("顧客稱呼")).toHaveCount(0);
+    await expect(page.getByLabel("聯絡電話")).toHaveCount(0);
+    await expect(page.getByLabel("訂單備註")).toBeVisible();
+    const waitAcknowledgment = page.getByRole("checkbox", {
+      name: /我已了解目前預估等候時間/u,
+    });
     if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
 
-    let createOrderResponsePromise = page.waitForResponse((response) => (
-      new URL(response.url()).pathname.endsWith("/create-public-order")
-      && response.request().method() === "POST"
-    ));
-    const submitOrder = page.getByRole("button", { name: "送出訂單", exact: true });
+    let createOrderResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith("/create-public-order") &&
+        response.request().method() === "POST",
+    );
+    const submitOrder = page.getByRole("button", {
+      name: "送出訂單",
+      exact: true,
+    });
     await expectActionInViewport(submitOrder);
     await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
     await submitOrder.click();
     let createOrderResponse = await createOrderResponsePromise;
     if (createOrderResponse.status() === 422) {
-      await expect(createOrderResponse.json()).resolves.toMatchObject({ code: "WAIT_ACKNOWLEDGMENT_REQUIRED" });
+      await expect(createOrderResponse.json()).resolves.toMatchObject({
+        code: "WAIT_ACKNOWLEDGMENT_REQUIRED",
+      });
       await expect(waitAcknowledgment).toBeVisible();
       await waitAcknowledgment.check();
       await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
-      createOrderResponsePromise = page.waitForResponse((response) => (
-        new URL(response.url()).pathname.endsWith("/create-public-order")
-        && response.request().method() === "POST"
-      ));
+      createOrderResponsePromise = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname.endsWith("/create-public-order") &&
+          response.request().method() === "POST",
+      );
       await submitOrder.click();
       createOrderResponse = await createOrderResponsePromise;
     }
@@ -201,16 +245,19 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       clientOrderId?: string;
       qrToken?: string;
       customerName?: string;
+      customerPhone?: string;
       items?: Array<{ productId?: string; quantity?: number }>;
     };
     expect(createOrderRequest).toMatchObject({
       qrToken: takeoutQrToken,
-      customerName,
+      customerName: "",
+      customerPhone: "",
       items: [{ productId, quantity: 1 }],
     });
     const clientOrderId = createOrderRequest.clientOrderId;
     expect(clientOrderId).toEqual(expect.any(String));
-    if (!clientOrderId) throw new Error("create-public-order request 缺少 clientOrderId");
+    if (!clientOrderId)
+      throw new Error("create-public-order request 缺少 clientOrderId");
 
     await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+(?:\?.*)?$/u);
     const trackerUrl = new URL(page.url());
@@ -219,7 +266,9 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       trackerUrl.pathname.replace(/^\/order\//u, ""),
     );
     expect(trackingToken).toMatch(/^sto_[A-Za-z0-9_-]+$/u);
-    const trackingTokenHash = createHash("sha256").update(trackingToken).digest("hex");
+    const trackingTokenHash = createHash("sha256")
+      .update(trackingToken)
+      .digest("hex");
 
     const createdOrder = await prisma.order.findUniqueOrThrow({
       where: { id: clientOrderId },
@@ -233,7 +282,9 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         source: true,
         origin: true,
         orderSession: { select: { id: true } },
-        items: { select: { productId: true, name: true, quantity: true, status: true } },
+        items: {
+          select: { productId: true, name: true, quantity: true, status: true },
+        },
       },
     });
     createdOrderId = createdOrder.id;
@@ -242,7 +293,7 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       id: clientOrderId,
       orderNo,
       trackingTokenHash,
-      customerName,
+      customerName: "現場顧客",
       fulfillmentType: "TAKEOUT",
       status: "WAITING_CONFIRMATION",
       source: "QR_MENU",
@@ -251,7 +302,9 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       items: [{ productId, name: productName, quantity: 1, status: "PENDING" }],
     });
 
-    await expect(page.getByText(`訂單 ${orderNo}`, { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(`訂單 ${orderNo}`, { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("等待攤位確認", { exact: true })).toBeVisible();
     await expect(page.getByText(productName, { exact: false })).toBeVisible();
     await expect(page.getByTestId("pickup-code")).toHaveText(/^\d{3}$/u);
@@ -269,54 +322,76 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       await login(staffPage, "staff@stallorder.test");
       await staffPage.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
-      await expect(staffPage).toHaveURL(new RegExp(`/staff/${stallSlug}$`, "u"));
+      await expect(staffPage).toHaveURL(
+        new RegExp(`/staff/${stallSlug}$`, "u"),
+      );
       await expect(
         staffPage.getByTestId("staff-sticky-header").getByRole("heading"),
       ).toContainText(stallName);
-      await staffPage.getByRole("searchbox", { name: "搜尋桌號或訂單編號" }).fill(customerName);
-      const staffOrder = staffPage.getByRole("article").filter({ hasText: customerName });
+      await staffPage
+        .getByRole("searchbox", { name: "搜尋桌號或訂單編號" })
+        .fill(orderNo);
+      const staffOrder = staffPage
+        .getByRole("article")
+        .filter({ hasText: `訂單 ${orderNo}` });
       await expect(staffOrder).toBeVisible();
       await expect(staffOrder).toContainText(`訂單 ${orderNo}`);
       await expect(staffOrder).toContainText("外帶");
       await expect(staffOrder).toContainText(productName);
-      const confirmOrder = staffOrder.getByRole("button", { name: "確認接單", exact: true });
+      const confirmOrder = staffOrder.getByRole("button", {
+        name: "確認接單",
+        exact: true,
+      });
       await expectActionInViewport(confirmOrder);
       await expectNoHorizontalOverflow(staffPage);
 
       await waitForReactHydration(confirmOrder);
-      const confirmResponsePromise = staffPage.waitForResponse((response) => (
-        new URL(response.url()).pathname.endsWith(`/orders/${createdOrderId}`)
-        && response.request().method() === "PATCH"
-      ), { timeout: 20_000 });
+      const confirmResponsePromise = staffPage.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname.endsWith(
+            `/orders/${createdOrderId}`,
+          ) && response.request().method() === "PATCH",
+        { timeout: 20_000 },
+      );
       await confirmOrder.click({ timeout: 20_000 });
       const confirmResponse = await confirmResponsePromise;
       expect(confirmResponse.status()).toBe(200);
-      expect(confirmResponse.request().postDataJSON()).toMatchObject({ status: "CONFIRMED" });
+      expect(confirmResponse.request().postDataJSON()).toMatchObject({
+        status: "CONFIRMED",
+      });
       await expect(staffOrder).toContainText("待製作");
       await expect(confirmOrder).toHaveCount(0);
 
-      await expect.poll(async () => prisma.order.findUnique({
-        where: { id: createdOrderId },
-        select: {
-          status: true,
-          productionTasks: {
+      await expect
+        .poll(async () =>
+          prisma.order.findUnique({
+            where: { id: createdOrderId },
             select: {
-              orderId: true,
               status: true,
-              orderItem: { select: { productId: true, name: true, status: true } },
-              station: { select: { isActive: true } },
+              productionTasks: {
+                select: {
+                  orderId: true,
+                  status: true,
+                  orderItem: {
+                    select: { productId: true, name: true, status: true },
+                  },
+                  station: { select: { isActive: true } },
+                },
+              },
             },
-          },
-        },
-      })).toMatchObject({
-        status: "CONFIRMED",
-        productionTasks: [{
-          orderId: createdOrderId,
-          status: "PENDING",
-          orderItem: { productId, name: productName, status: "PENDING" },
-          station: { isActive: true },
-        }],
-      });
+          }),
+        )
+        .toMatchObject({
+          status: "CONFIRMED",
+          productionTasks: [
+            {
+              orderId: createdOrderId,
+              status: "PENDING",
+              orderItem: { productId, name: productName, status: "PENDING" },
+              station: { isActive: true },
+            },
+          ],
+        });
 
       const kitchenContext = await browser.newContext({
         locale: "zh-TW",
@@ -327,9 +402,15 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         const kitchenPage = await kitchenContext.newPage();
         await login(kitchenPage, "kitchen@stallorder.test");
         await kitchenPage.goto(`/kitchen?stall=${stallSlug}`);
-        await expect(kitchenPage).toHaveURL(new RegExp(`/kitchen\\?stall=${stallSlug}$`, "u"));
-        await expect(kitchenPage.getByRole("heading", { name: "廚房生產系統" })).toBeVisible();
-        const kitchenOrder = kitchenPage.getByRole("article").filter({ hasText: `#${orderNo}` });
+        await expect(kitchenPage).toHaveURL(
+          new RegExp(`/kitchen\\?stall=${stallSlug}$`, "u"),
+        );
+        await expect(
+          kitchenPage.getByRole("heading", { name: "廚房生產系統" }),
+        ).toBeVisible();
+        const kitchenOrder = kitchenPage
+          .getByRole("article")
+          .filter({ hasText: `#${orderNo}` });
         await expect(kitchenOrder).toBeVisible();
         await expect(kitchenOrder).toContainText("外帶自取 · QR 點餐");
         await expect(kitchenOrder).toContainText(productName);
@@ -340,20 +421,32 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         await expectNoHorizontalOverflow(kitchenPage);
         await waitForReactHydration(startPreparation);
         await startPreparation.click({ timeout: 20_000 });
-        await expect(kitchenOrder.getByText("製作中", { exact: true }).first()).toBeVisible();
+        await expect(
+          kitchenOrder.getByText("製作中", { exact: true }).first(),
+        ).toBeVisible();
 
-        await expect.poll(async () => prisma.order.findUnique({
-          where: { id: createdOrderId },
-          select: {
-            status: true,
-            items: { select: { productId: true, name: true, status: true } },
-            productionTasks: { select: { status: true, orderItemId: true, startedAt: true } },
-          },
-        })).toMatchObject({
-          status: "PREPARING",
-          items: [{ productId, name: productName, status: "PREPARING" }],
-          productionTasks: [{ status: "PREPARING", startedAt: expect.any(Date) }],
-        });
+        await expect
+          .poll(async () =>
+            prisma.order.findUnique({
+              where: { id: createdOrderId },
+              select: {
+                status: true,
+                items: {
+                  select: { productId: true, name: true, status: true },
+                },
+                productionTasks: {
+                  select: { status: true, orderItemId: true, startedAt: true },
+                },
+              },
+            }),
+          )
+          .toMatchObject({
+            status: "PREPARING",
+            items: [{ productId, name: productName, status: "PREPARING" }],
+            productionTasks: [
+              { status: "PREPARING", startedAt: expect.any(Date) },
+            ],
+          });
       } finally {
         await kitchenContext.close();
       }
@@ -370,10 +463,16 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
     }
 
     await trackerRefresh.click();
-    await expect(page.getByText("製作中", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText(`訂單 ${orderNo}`, { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("製作中", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByText(`訂單 ${orderNo}`, { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText(productName, { exact: false })).toBeVisible();
-    await expect(page).toHaveURL(new RegExp(`/order/${trackingToken}(?:\\?.*)?$`, "u"));
+    await expect(page).toHaveURL(
+      new RegExp(`/order/${trackingToken}(?:\\?.*)?$`, "u"),
+    );
     expect(new URL(page.url()).searchParams.get("qr")).toBe(takeoutQrToken);
     await expectInitiallyInViewport(trackerRefresh);
     await expectNoHorizontalOverflow(page);
@@ -390,15 +489,19 @@ async function login(page: Page, email: string) {
   await emailLoginButton.click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
-  const loginResponsePromise = page.waitForResponse((response) => (
-    new URL(response.url()).pathname === "/api/auth/login"
-    && response.request().method() === "POST"
-  ));
+  const loginResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/auth/login" &&
+      response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await loginResponsePromise).status()).toBe(200);
-  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=|\/staff\/|\/kitchen\?/u, {
-    timeout: 30_000,
-  });
+  await expect(page).toHaveURL(
+    /\/merchant\/dashboard\?organizationId=|\/staff\/|\/kitchen\?/u,
+    {
+      timeout: 30_000,
+    },
+  );
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -424,25 +527,39 @@ async function expectActionInViewport(target: Locator) {
 }
 
 async function waitForReactHydration(control: Locator) {
-  await expect.poll(() => control.evaluate((element) => (
-    Object.keys(element).some((key) => (
-      key.startsWith("__reactProps$") || key.startsWith("__reactFiber$")
-    ))
-  )), { message: "等待 React 完成控制項 hydration" }).toBe(true);
+  await expect
+    .poll(
+      () =>
+        control.evaluate((element) =>
+          Object.keys(element).some(
+            (key) =>
+              key.startsWith("__reactProps$") ||
+              key.startsWith("__reactFiber$"),
+          ),
+        ),
+      { message: "等待 React 完成控制項 hydration" },
+    )
+    .toBe(true);
 }
 
 async function resolveCreatedRecords() {
-  if (!createdOrderId) {
-    createdOrderId = (await prisma.order.findFirst({
-      where: { stallId, customerName },
-      select: { id: true },
-    }))?.id ?? "";
+  if (!createdOrderId && createdSessionId) {
+    createdOrderId =
+      (
+        await prisma.orderSession.findUnique({
+          where: { id: createdSessionId },
+          select: { orderId: true },
+        })
+      )?.orderId ?? "";
   }
   if (!createdSessionId && createdOrderId) {
-    createdSessionId = (await prisma.orderSession.findUnique({
-      where: { orderId: createdOrderId },
-      select: { id: true },
-    }))?.id ?? "";
+    createdSessionId =
+      (
+        await prisma.orderSession.findUnique({
+          where: { orderId: createdOrderId },
+          select: { id: true },
+        })
+      )?.id ?? "";
   }
 }
 

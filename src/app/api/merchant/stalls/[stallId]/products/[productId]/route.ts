@@ -39,7 +39,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       organizationId: authorization.workspace.id,
       product: { organizationId: authorization.workspace.id },
     },
-    include: { product: { select: { defaultPrice: true } } },
+    include: { product: { select: { defaultPrice: true, isActive: true } } },
   });
   if (!existing) {
     return NextResponse.json(
@@ -48,22 +48,64 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
-  const stallProduct = await prisma.stallProduct.update({
-    where: { id: existing.id },
-    data: parsed.data,
-    select: {
-      id: true,
-      stallId: true,
-      productId: true,
-      priceOverride: true,
-      isEnabled: true,
-      isSoldOut: true,
-      sortOrder: true,
-      availableFrom: true,
-      availableUntil: true,
-      product: { select: { defaultPrice: true } },
-    },
+  const orderingSettings = await prisma.stallOrderingSettings.findUnique({
+    where: { stallId },
+    select: { checkoutUpsellProductIds: true },
   });
+  if (!orderingSettings) {
+    return NextResponse.json(
+      { error: "找不到此攤位的線上點餐設定。" },
+      { status: 409, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+  const wasCheckoutUpsellSelected = orderingSettings.checkoutUpsellProductIds.includes(productId);
+  if (
+    parsed.data.checkoutUpsellSelected
+    && !wasCheckoutUpsellSelected
+    && (!existing.product.isActive || !parsed.data.isEnabled || parsed.data.isSoldOut)
+  ) {
+    return NextResponse.json(
+      { error: "請先啟用並恢復供應商品，再設為結帳推薦。" },
+      { status: 400, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+  if (
+    parsed.data.checkoutUpsellSelected
+    && !wasCheckoutUpsellSelected
+    && orderingSettings.checkoutUpsellProductIds.length >= 6
+  ) {
+    return NextResponse.json(
+      { error: "結帳推薦商品最多可設定 6 項。" },
+      { status: 400, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+  const nextCheckoutUpsellProductIds = parsed.data.checkoutUpsellSelected
+    ? [...new Set([...orderingSettings.checkoutUpsellProductIds, productId])]
+    : orderingSettings.checkoutUpsellProductIds.filter((candidate) => candidate !== productId);
+  const { checkoutUpsellSelected, ...stallProductSettings } = parsed.data;
+
+  const [stallProduct] = await prisma.$transaction([
+    prisma.stallProduct.update({
+      where: { id: existing.id },
+      data: stallProductSettings,
+      select: {
+        id: true,
+        stallId: true,
+        productId: true,
+        priceOverride: true,
+        isEnabled: true,
+        isSoldOut: true,
+        sortOrder: true,
+        availableFrom: true,
+        availableUntil: true,
+        product: { select: { defaultPrice: true } },
+      },
+    }),
+    prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: { checkoutUpsellProductIds: nextCheckoutUpsellProductIds },
+    }),
+  ]);
 
   await recordAuditEvent({
     organizationId: authorization.workspace.id,
@@ -86,6 +128,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       sortOrder: existing.sortOrder,
       availableFrom: existing.availableFrom,
       availableUntil: existing.availableUntil,
+      checkoutUpsellSelected: wasCheckoutUpsellSelected,
     },
     after: {
       isEnabled: stallProduct.isEnabled,
@@ -94,6 +137,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       sortOrder: stallProduct.sortOrder,
       availableFrom: stallProduct.availableFrom,
       availableUntil: stallProduct.availableUntil,
+      checkoutUpsellSelected,
     },
     metadata: {
       isEnabled: stallProduct.isEnabled,
@@ -110,6 +154,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     {
       stallProduct: {
         ...stallProduct,
+        checkoutUpsellSelected,
         effectivePrice: effectiveProductPrice(
           stallProduct.product.defaultPrice,
           stallProduct.priceOverride,

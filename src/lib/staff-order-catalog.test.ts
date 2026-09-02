@@ -115,7 +115,7 @@ describe("店員點餐套餐目錄", () => {
     });
   });
 
-  it("只顯示選項元件目前可售且能完成必選群組的套餐", async () => {
+  it("保留只對線上標記售完的品項，並排除其他不可供應元件", async () => {
     const availableBundleId = "30000000-0000-4000-8000-000000000001";
     const soldOutBundleId = "40000000-0000-4000-8000-000000000001";
     const singleId = "50000000-0000-4000-8000-000000000001";
@@ -138,6 +138,7 @@ describe("店員點餐套餐目錄", () => {
 
     expect(configuration.catalog?.products.map((product) => product.id)).toEqual([
       availableBundleId,
+      soldOutBundleId,
       singleId,
     ]);
     expect(configuration.catalog?.products[0]).toMatchObject({
@@ -150,12 +151,17 @@ describe("店員點餐套餐目錄", () => {
       }],
     });
     expect(configuration.catalog?.products[1]).toMatchObject({
+      kind: "BUNDLE",
+      bundleChoiceGroups: [{ choices: [{ name: "河粉" }] }],
+    });
+    expect(configuration.catalog?.products[2]).toMatchObject({
       kind: "SINGLE",
       bundleChoiceGroups: [],
     });
+    expect(database.stallProductFindMany.mock.calls[0]?.[0]?.where).not.toHaveProperty("isSoldOut");
   });
 
-  it("keeps a bundle with an optional group when its only choice is sold out", async () => {
+  it("keeps an online-sold-out optional bundle choice available to staff", async () => {
     const optionalBundleId = "90000000-0000-4000-8000-000000000001";
     database.stallProductFindMany.mockResolvedValue([
       assignment({ bundleId: optionalBundleId, soldOut: true, minSelections: 0 }),
@@ -166,7 +172,7 @@ describe("店員點餐套餐目錄", () => {
     expect(configuration.catalog?.products).toMatchObject([{
       id: optionalBundleId,
       kind: "BUNDLE",
-      bundleChoiceGroups: [{ minSelections: 0, choices: [] }],
+      bundleChoiceGroups: [{ minSelections: 0, choices: [{ name: "河粉" }] }],
     }]);
   });
 

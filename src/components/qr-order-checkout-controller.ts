@@ -214,8 +214,10 @@ export function createQrOrderCheckoutModel(input: QrOrderCheckoutFlowInput) {
     bundleChoiceIds,
   }));
   const totalQuantity = input.cartLines.reduce((sum, line) => sum + line.quantity, 0);
-  const requiresCustomerDetails = input.session?.stall.fulfillmentType === "TAKEOUT"
-    || input.session?.stall.fulfillmentType === "DELIVERY";
+  const requiresCustomerDetails = input.entryChannel !== "QR" && (
+    input.session?.stall.fulfillmentType === "TAKEOUT"
+    || input.session?.stall.fulfillmentType === "DELIVERY"
+  );
   const customerDetailsMissing = requiresCustomerDetails
     && (
       input.customerName.trim().length === 0
@@ -282,10 +284,12 @@ export async function submitQrOrderFlowCheckout({
 
   const session = input.session as QrOrderSession;
   const turnstileToken = input.turnstileToken as string;
+  const customerName = input.entryChannel === "QR" ? "" : input.customerName;
+  const customerPhone = input.entryChannel === "QR" ? "" : input.customerPhone;
   const fingerprint = createQrCheckoutFingerprint({
     orderingMode: input.orderingMode,
-    customerName: input.customerName,
-    customerPhone: input.customerPhone,
+    customerName,
+    customerPhone,
     deliveryAddress: input.deliveryAddress,
     customerNote: input.customerNote,
     scheduledPickupAt: input.scheduledPickupAt,
@@ -299,8 +303,8 @@ export async function submitQrOrderFlowCheckout({
     orderSessionToken: session.orderSessionToken,
     deviceId: input.deviceId,
     identity,
-    customerName: input.customerName,
-    customerPhone: input.customerPhone,
+    customerName,
+    customerPhone,
     deliveryAddress: input.deliveryAddress,
     customerNote: input.customerNote,
     waitAcknowledged: input.waitAcknowledged,
@@ -381,10 +385,12 @@ export async function submitQrOrderEditFlowCheckout({
     return "BLOCKED" as const;
   }
 
+  const customerName = input.entryChannel === "QR" ? "" : input.customerName;
+  const customerPhone = input.entryChannel === "QR" ? "" : input.customerPhone;
   const fingerprint = createQrCheckoutFingerprint({
     orderingMode: input.orderingMode,
-    customerName: input.customerName,
-    customerPhone: input.customerPhone,
+    customerName,
+    customerPhone,
     deliveryAddress: input.deliveryAddress,
     customerNote: input.customerNote,
     scheduledPickupAt: input.scheduledPickupAt,
@@ -416,8 +422,8 @@ export async function submitQrOrderEditFlowCheckout({
       deviceId: input.deviceId,
       idempotencyKey: identity.key,
       turnstileToken: input.turnstileToken as string,
-      customerName: input.customerName,
-      customerPhone: input.customerPhone,
+      customerName,
+      customerPhone,
       deliveryAddress: input.deliveryAddress,
       customerNote: input.customerNote,
       items: model.selectedItems,
@@ -465,7 +471,8 @@ function resolveQrOrderSubmitValidation(
     return input.messages.waitAcknowledgmentRequired;
   }
   if (
-    (input.session.stall.fulfillmentType === "TAKEOUT"
+    input.entryChannel !== "QR"
+    && (input.session.stall.fulfillmentType === "TAKEOUT"
       || input.session.stall.fulfillmentType === "DELIVERY")
     && (
       input.customerName.trim().length === 0

@@ -95,6 +95,11 @@ export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
       .min(0, "經理核准門檻不可小於 0%。")
       .max(10_000, "經理核准門檻不可超過 100%。"),
     takeoutPreorderEnabled: z.boolean(),
+    checkoutUpsellEnabled: z.boolean().default(false),
+    checkoutUpsellProductIds: z.array(uuid)
+      .max(6, "結帳前加點推薦最多可選 6 個商品。")
+      .refine((productIds) => new Set(productIds).size === productIds.length, "推薦商品不可重複。")
+      .default([]),
     preorderMinLeadMinutes: z.number().int("最少提前時間必須是整數分鐘。")
       .min(5, "最少提前時間不可少於 5 分鐘。")
       .max(1440, "最少提前時間不可超過 1440 分鐘。"),
@@ -163,6 +168,7 @@ const fieldLabels: Record<string, string> = {
   deliveryCustomerNotice: "外送提醒",
   preorderMaxDays: "最多預約天數",
   preorderSlotMinutes: "預約時段間隔",
+  checkoutUpsellProductIds: "推薦商品",
   lotteryDiscountOptionId: "中獎折扣",
   lotteryDiscountWinRateBps: "折扣中獎率",
   lotteryDiscountChances: "多折扣中獎率",
@@ -214,6 +220,8 @@ export function getStallModuleFieldLabel(field: string, operation: unknown) {
 
 type ModuleSettingsForSave = {
   takeoutPreorderEnabled: boolean;
+  checkoutUpsellEnabled?: boolean;
+  checkoutUpsellProductIds?: string[];
   preorderMinLeadMinutes: number;
   preorderMaxDays: number;
   preorderSlotMinutes: 5 | 15 | 30 | 60 | 120;
@@ -236,6 +244,9 @@ export function normalizeDisabledModuleSettings<T extends ModuleSettingsForSave>
       preorderMinLeadMinutes: 5,
       preorderMaxDays: 1,
       preorderSlotMinutes: 5 as const,
+    } : {}),
+    ...(settings.checkoutUpsellEnabled === false && settings.checkoutUpsellProductIds ? {
+      checkoutUpsellProductIds: [],
     } : {}),
     ...(!settings.lotteryEnabled ? {
       lotteryDiscountOptionId: null,

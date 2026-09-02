@@ -55,7 +55,7 @@ export const competitiveModuleCatalog: readonly CompetitiveModuleDefinition[] = 
   },
   {
     code: "SUPPLY_LITE",
-    label: "輕量供應",
+    label: "原料與庫存管理",
     description: "食材、配方、庫存異動、盤點、耗損與成本快照。",
     defaultEnabled: false,
     risk: "CONTROLLED",
