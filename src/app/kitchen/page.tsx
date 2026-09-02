@@ -23,7 +23,7 @@ export default async function KitchenPage({ searchParams }: PageProps) {
   );
   const initialData = await timing.measureDb(
     () => getKitchenBoardData(access.stall.organizationId, access.stall.id),
-    4,
+    5,
   );
   timing.finish({ status: 200 });
   const canManage = access.roles.some((role) => hasPermission(role, "MANAGE_KDS"));
