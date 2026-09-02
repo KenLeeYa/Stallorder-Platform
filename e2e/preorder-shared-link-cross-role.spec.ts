@@ -410,9 +410,11 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
     expect(clientOrderId).toEqual(expect.any(String));
     if (!clientOrderId) throw new Error("create-public-order request 缺少 clientOrderId");
 
-    await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+$/u);
+    await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+(?:\?.*)?$/u);
+    const trackerUrl = new URL(page.url());
+    expect(trackerUrl.searchParams.get("qr")).toBe(qrToken);
     const trackingToken = decodeURIComponent(
-      new URL(page.url()).pathname.replace(/^\/order\//u, ""),
+      trackerUrl.pathname.replace(/^\/order\//u, ""),
     );
     expect(trackingToken).toMatch(/^sto_[A-Za-z0-9_-]+$/u);
     const trackingTokenHash = createHash("sha256").update(trackingToken).digest("hex");
