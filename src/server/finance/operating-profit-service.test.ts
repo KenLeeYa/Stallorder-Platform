@@ -97,4 +97,31 @@ describe("operating expense correction transaction", () => {
     expect(transactionMock.operatingExpense.updateMany).not.toHaveBeenCalled();
     expect(transactionMock.operatingExpense.create).not.toHaveBeenCalled();
   });
+
+  it("stores the equipment reporting category without replacing the existing database constraint", async () => {
+    await applyOperatingExpenseCommand({
+      organizationId,
+      actorProfileId,
+      command: {
+        operation: "CORRECT_EXPENSE",
+        expenseId: originalExpenseId,
+        correctionReason: "改列餐具設備",
+        stallId: null,
+        expenseDate: "2026-09-01",
+        category: "EQUIPMENT",
+        customCategoryName: null,
+        amount: 1200,
+        vendorName: null,
+        description: "內用餐盤",
+        isRecurring: false,
+      },
+    });
+
+    expect(transactionMock.operatingExpense.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        category: "OTHER",
+        customCategoryName: "__SYSTEM_EQUIPMENT__",
+      }),
+    }));
+  });
 });
