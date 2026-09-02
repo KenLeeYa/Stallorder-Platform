@@ -29,6 +29,8 @@ type ProductMarginRow = {
 };
 type DailyRow = { business_date: Date; net_sales: bigint };
 
+const EQUIPMENT_CUSTOM_CATEGORY_NAME = "__SYSTEM_EQUIPMENT__";
+
 export class OperatingProfitError extends Error {
   constructor(readonly code: string) {
     super(code);
@@ -326,7 +328,7 @@ export async function getOperatingProfitDashboard(input: {
         organizationId: input.organizationId,
         voidedAt: null,
         category: "OTHER",
-        customCategoryName: { not: null },
+        customCategoryName: { not: EQUIPMENT_CUSTOM_CATEGORY_NAME },
       },
       select: { customCategoryName: true },
       orderBy: { createdAt: "desc" },
@@ -369,11 +371,14 @@ export async function getOperatingProfitDashboard(input: {
     amount: number;
   }>();
   for (const expense of expenses) {
-    const customCategoryName = expense.category === "OTHER" ? expense.customCategoryName : null;
-    const key = `${expense.category}:${customCategoryName ?? ""}`;
+    const equipmentExpense = expense.category === "OTHER"
+      && expense.customCategoryName === EQUIPMENT_CUSTOM_CATEGORY_NAME;
+    const category = equipmentExpense ? "EQUIPMENT" : expense.category;
+    const customCategoryName = category === "OTHER" ? expense.customCategoryName : null;
+    const key = `${category}:${customCategoryName ?? ""}`;
     const current = expenseByCategory.get(key);
     expenseByCategory.set(key, {
-      category: expense.category,
+      category,
       customCategoryName,
       amount: (current?.amount ?? 0) + expense.amount,
     });
@@ -445,17 +450,21 @@ export async function getOperatingProfitDashboard(input: {
     expenseCategories: [...expenseByCategory.values()]
       .sort((left, right) => right.amount - left.amount),
     customExpenseCategoryNames,
-    expenses: expenses.map((expense) => ({
-      id: expense.id,
-      stallId: expense.stallId,
-      expenseDate: expense.expenseDate.toISOString().slice(0, 10),
-      category: expense.category,
-      customCategoryName: expense.customCategoryName,
-      amount: expense.amount,
-      vendorName: expense.vendorName,
-      description: expense.description,
-      isRecurring: expense.isRecurring,
-    })),
+    expenses: expenses.map((expense) => {
+      const equipmentExpense = expense.category === "OTHER"
+        && expense.customCategoryName === EQUIPMENT_CUSTOM_CATEGORY_NAME;
+      return {
+        id: expense.id,
+        stallId: expense.stallId,
+        expenseDate: expense.expenseDate.toISOString().slice(0, 10),
+        category: equipmentExpense ? "EQUIPMENT" : expense.category,
+        customCategoryName: equipmentExpense ? null : expense.customCategoryName,
+        amount: expense.amount,
+        vendorName: expense.vendorName,
+        description: expense.description,
+        isRecurring: expense.isRecurring,
+      };
+    }),
   };
 }
 
@@ -485,13 +494,13 @@ async function createOperatingExpense(input: {
     });
     if (!stall) throw new OperatingProfitError("OPERATING_EXPENSE_STALL_NOT_FOUND");
   }
+  const storedCategory = operatingExpenseStorageCategory(input.command);
   return prisma.operatingExpense.create({
     data: {
       organizationId: input.organizationId,
       stallId: input.command.stallId ?? null,
       expenseDate: new Date(`${input.command.expenseDate}T00:00:00.000Z`),
-      category: input.command.category,
-      customCategoryName: input.command.customCategoryName ?? null,
+      ...storedCategory,
       amount: input.command.amount,
       vendorName: input.command.vendorName ?? null,
       description: input.command.description,
@@ -538,13 +547,13 @@ async function correctOperatingExpense(input: {
     });
     if (voided.count !== 1) throw new OperatingProfitError("OPERATING_EXPENSE_NOT_CORRECTABLE");
 
+    const storedCategory = operatingExpenseStorageCategory(input.command);
     return tx.operatingExpense.create({
       data: {
         organizationId: input.organizationId,
         stallId: input.command.stallId ?? null,
         expenseDate: new Date(`${input.command.expenseDate}T00:00:00.000Z`),
-        category: input.command.category,
-        customCategoryName: input.command.customCategoryName ?? null,
+        ...storedCategory,
         amount: input.command.amount,
         vendorName: input.command.vendorName ?? null,
         description: input.command.description,
@@ -554,6 +563,12 @@ async function correctOperatingExpense(input: {
       },
     });
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+function operatingExpenseStorageCategory(command: OperatingExpenseCommand) {
+  return command.category === "EQUIPMENT"
+    ? { category: "OTHER", customCategoryName: EQUIPMENT_CUSTOM_CATEGORY_NAME }
+    : { category: command.category, customCategoryName: command.customCategoryName ?? null };
 }
 
 function ratio(value: number, denominator: number) {
