@@ -74,6 +74,13 @@ export type QrOrderMessages = {
   lotteryUnavailable: string;
   lotteryUnavailableProduct: string;
   lotteryNotEligible: string;
+  upsellTitle: string;
+  upsellDescription: string;
+  upsellAdd: string;
+  upsellChooseOptions: string;
+  upsellAdded: string;
+  upsellContinue: string;
+  upsellSkip: string;
   hotSellerBadge: string;
   soldOutBadge: string;
   qrUnavailableTitle: string;
@@ -198,6 +205,13 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailable: "抽抽樂目前無法使用。",
     lotteryUnavailableProduct: "抽中的商品目前無法供應，請稍後再試。",
     lotteryNotEligible: "目前尚未符合免費抽獎資格。",
+    upsellTitle: "結帳前，再看看",
+    upsellDescription: "這些是店家推薦的加點商品，需要的話可直接加入。",
+    upsellAdd: "加入",
+    upsellChooseOptions: "選擇規格",
+    upsellAdded: "已加入",
+    upsellContinue: "完成加點，繼續結帳",
+    upsellSkip: "不用，直接結帳",
     hotSellerBadge: "熱銷",
     soldOutBadge: "售完",
     qrUnavailableTitle: "目前無法使用此 QR Code",
@@ -318,6 +332,13 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailable: "Lucky draw is unavailable right now.",
     lotteryUnavailableProduct: "The selected item is currently unavailable. Try again later.",
     lotteryNotEligible: "This order is not yet eligible for the free draw.",
+    upsellTitle: "One more look before checkout",
+    upsellDescription: "The store recommends these add-ons. Add any you would like.",
+    upsellAdd: "Add",
+    upsellChooseOptions: "Choose options",
+    upsellAdded: "Added",
+    upsellContinue: "Finish add-ons and checkout",
+    upsellSkip: "No thanks, checkout",
     hotSellerBadge: "Popular",
     soldOutBadge: "Sold out",
     qrUnavailableTitle: "This QR code is currently unavailable",
@@ -438,6 +459,13 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailable: "現在、抽選をご利用いただけません。",
     lotteryUnavailableProduct: "抽選された商品は現在ご注文いただけません。しばらくしてからお試しください。",
     lotteryNotEligible: "この注文はまだ無料抽選の条件を満たしていません。",
+    upsellTitle: "会計前にもう一度チェック",
+    upsellDescription: "お店おすすめの追加商品です。必要な商品をそのまま追加できます。",
+    upsellAdd: "追加",
+    upsellChooseOptions: "オプションを選ぶ",
+    upsellAdded: "追加済み",
+    upsellContinue: "追加を終えて会計へ",
+    upsellSkip: "追加せず会計へ",
     hotSellerBadge: "人気",
     soldOutBadge: "売り切れ",
     qrUnavailableTitle: "このQRコードは現在ご利用いただけません",
@@ -558,6 +586,13 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailable: "현재 추첨을 이용할 수 없습니다.",
     lotteryUnavailableProduct: "추첨된 상품은 현재 주문할 수 없습니다. 잠시 후 다시 시도해 주세요.",
     lotteryNotEligible: "이 주문은 아직 무료 추첨 조건을 충족하지 않았습니다.",
+    upsellTitle: "결제 전 한 번 더 확인하세요",
+    upsellDescription: "매장에서 추천하는 추가 메뉴입니다. 필요한 상품을 바로 담을 수 있어요.",
+    upsellAdd: "담기",
+    upsellChooseOptions: "옵션 선택",
+    upsellAdded: "담았어요",
+    upsellContinue: "추가 완료 후 결제",
+    upsellSkip: "추가 없이 결제",
     hotSellerBadge: "인기",
     soldOutBadge: "품절",
     qrUnavailableTitle: "현재 이 QR 코드를 사용할 수 없습니다",
@@ -678,6 +713,13 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailable: "Vòng quay hiện không khả dụng.",
     lotteryUnavailableProduct: "Món được chọn hiện không khả dụng. Vui lòng thử lại sau.",
     lotteryNotEligible: "Đơn này chưa đủ điều kiện quay miễn phí.",
+    upsellTitle: "Xem thêm trước khi thanh toán",
+    upsellDescription: "Đây là các món thêm do quán gợi ý. Bạn có thể thêm ngay nếu muốn.",
+    upsellAdd: "Thêm",
+    upsellChooseOptions: "Chọn tùy chọn",
+    upsellAdded: "Đã thêm",
+    upsellContinue: "Xong món thêm, tiếp tục thanh toán",
+    upsellSkip: "Không thêm, thanh toán",
     hotSellerBadge: "Bán chạy",
     soldOutBadge: "Hết món",
     qrUnavailableTitle: "Mã QR này hiện không khả dụng",
@@ -798,6 +840,13 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotteryUnavailable: "ขณะนี้ไม่สามารถใช้การสุ่มได้",
     lotteryUnavailableProduct: "สินค้าที่สุ่มได้ไม่พร้อมจำหน่ายในขณะนี้ โปรดลองอีกครั้งภายหลัง",
     lotteryNotEligible: "คำสั่งซื้อนี้ยังไม่ผ่านเงื่อนไขการสุ่มฟรี",
+    upsellTitle: "ดูก่อนชำระเงินอีกครั้ง",
+    upsellDescription: "ร้านแนะนำเมนูเสริมเหล่านี้ คุณสามารถเพิ่มได้ทันทีหากต้องการ",
+    upsellAdd: "เพิ่ม",
+    upsellChooseOptions: "เลือกตัวเลือก",
+    upsellAdded: "เพิ่มแล้ว",
+    upsellContinue: "เพิ่มเสร็จแล้ว ไปชำระเงิน",
+    upsellSkip: "ไม่เพิ่ม ไปชำระเงิน",
     hotSellerBadge: "ขายดี",
     soldOutBadge: "สินค้าหมด",
     qrUnavailableTitle: "ไม่สามารถใช้ QR Code นี้ได้ในขณะนี้",

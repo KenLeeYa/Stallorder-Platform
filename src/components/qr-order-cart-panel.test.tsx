@@ -58,6 +58,7 @@ const baseProps: CartPanelProps = {
     orderSessionToken: "stos_test",
     expiresAt: "2099-08-03T01:10:00.000Z",
   },
+  entryChannel: "SHARED_LINK",
   cartLines: [{
     id: "line-1",
     productId: product.id,
@@ -325,24 +326,6 @@ describe("QrOrderCartPanel checkout blocker presentation", () => {
     expect(html).not.toContain('aria-label="外送地址"');
   });
 
-  it("keeps dine-in name optional and hides phone and delivery address", () => {
-    const html = renderPanel({
-      session: {
-        ...baseProps.session,
-        stall: {
-          ...baseProps.session.stall,
-          fulfillmentType: "DINE_IN",
-          table: { id: "table-1", code: "A1", label: "A1" },
-        },
-      },
-    });
-
-    expect(fieldOpeningTag(html, "顧客稱呼")).not.toMatch(/\srequired=""/);
-    expect(html).toContain("稱呼（選填）");
-    expect(html).not.toContain('aria-label="聯絡電話"');
-    expect(html).not.toContain('aria-label="外送地址"');
-  });
-
   it("renders required delivery fields beside the delivery blocker", () => {
     const html = renderPanel({
       session: {
@@ -364,6 +347,14 @@ describe("QrOrderCartPanel checkout blocker presentation", () => {
 
     expect(html).not.toContain('data-testid="qr-checkout-blocker"');
     expect(submitOpeningTag(html)).not.toMatch(/\sdisabled=""/);
+  });
+
+  it("keeps only the note field for direct QR checkout", () => {
+    const html = renderPanel({ entryChannel: "QR" });
+
+    expect(html).not.toContain('aria-label="顧客稱呼"');
+    expect(html).not.toContain('aria-label="聯絡電話"');
+    expect(html).toContain('aria-label="訂單備註"');
   });
 
   it("renders only server-enabled invoice choices and marks local mock output clearly", () => {

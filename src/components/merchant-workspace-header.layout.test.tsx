@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { MessageTestProvider } from "@/test/message-test-provider";
@@ -9,7 +10,14 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => ({ get: () => "organization-1" }),
 }));
-vi.mock("@/components/pwa-controls", () => ({ PwaControls: () => null }));
+vi.mock("@/components/pwa-controls", () => ({
+  PwaControls: ({ afterAccessibility }: { afterAccessibility?: ReactNode }) => (
+    <div data-testid="mock-pwa-controls">
+      <span data-testid="mock-senior-mode" />
+      {afterAccessibility}
+    </div>
+  ),
+}));
 vi.mock("@/components/logout-button", () => ({ LogoutButton: () => null }));
 vi.mock("@/components/work-mode-switcher", () => ({
   WorkModeSwitcher: ({ compactOnMobile }: { compactOnMobile?: boolean }) => (
@@ -63,11 +71,6 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation-mobile"');
     expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation-desktop"');
     expect(html).toContain('data-persist-horizontal-scroll="merchant-utility-toolbar"');
-    const utilityToolbarClass = html.match(/data-testid="merchant-utility-toolbar"[^>]*class="([^"]+)"/)?.[1] ?? "";
-    expect(utilityToolbarClass).toContain("flex-1");
-    expect(utilityToolbarClass).not.toContain("shrink-0");
-    const workspaceHeaderClass = html.match(/data-testid="merchant-workspace-header"[^>]*class="([^"]+)"/)?.[1] ?? "";
-    expect(workspaceHeaderClass).toContain("overflow-x-clip");
     expect(html).toContain("sticky top-0");
     expect(html).toContain("overflow-x-hidden");
     expect(html).toContain("overflow-x-auto");
@@ -76,7 +79,10 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
     expect(html).toContain('data-compact="false"');
     expect(html).toContain('aria-label="選擇攤位：測試攤位"');
     expect(html).toContain('href="/merchant/test-stall"');
-    expect(html).not.toContain('aria-haspopup="dialog"');
+    expect(html).toContain('data-testid="merchant-guide-launcher"');
+    expect(html.indexOf('data-testid="mock-senior-mode"')).toBeLessThan(
+      html.indexOf('data-testid="merchant-guide-launcher"'),
+    );
     expect(html).not.toContain("<select");
     expect(html).toContain('href="/merchant/dashboard?organizationId=organization-1"');
     expect(html).not.toContain("/merchant/billing?");

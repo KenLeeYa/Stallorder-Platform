@@ -129,6 +129,28 @@ describe("stall module field validation", () => {
     }).success).toBe(false);
   });
 
+  it("accepts at most six unique checkout recommendation products", () => {
+    const productIds = Array.from(
+      { length: 6 },
+      (_, index) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(index + 1).padStart(12, "0")}`,
+    );
+    expect(stallModuleCommandSchema.safeParse({
+      ...validModuleCommand(),
+      checkoutUpsellEnabled: true,
+      checkoutUpsellProductIds: productIds,
+    }).success).toBe(true);
+    expect(stallModuleCommandSchema.safeParse({
+      ...validModuleCommand(),
+      checkoutUpsellEnabled: true,
+      checkoutUpsellProductIds: [...productIds, "aaaaaaaa-aaaa-4aaa-8aaa-000000000007"],
+    }).success).toBe(false);
+    expect(stallModuleCommandSchema.safeParse({
+      ...validModuleCommand(),
+      checkoutUpsellEnabled: true,
+      checkoutUpsellProductIds: [productIds[0], productIds[0]],
+    }).success).toBe(false);
+  });
+
   it("accepts multiple lottery discounts while reserving the remaining probability for no prize", () => {
     const result = stallModuleCommandSchema.safeParse({
       ...validModuleCommand(),

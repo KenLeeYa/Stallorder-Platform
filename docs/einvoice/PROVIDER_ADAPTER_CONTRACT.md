@@ -18,4 +18,3 @@
 - [TradeVan 電子發票服務](https://services.tradevan.com.tw/e-commerce/e-invoice/) 是產品證據，不是可安全實作的 API contract。
 
 因此三個 live adapters 均維持 fail-closed；不得猜測路徑、欄位、簽章或 webhook 驗證方式。
-

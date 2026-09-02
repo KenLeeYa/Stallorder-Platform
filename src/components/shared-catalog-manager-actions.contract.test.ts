@@ -8,11 +8,11 @@ const source = readFileSync(
 ).replace(/\r\n/g, "\n");
 
 describe("shared catalog compact action hierarchy", () => {
-  it("uses one ellipsis trigger and a centered accessible dialog for each catalog level", () => {
+  it("uses large accessible actions inside the catalog navigator for each catalog level", () => {
     expect(source).toContain("<MoreHorizontal");
-    expect(source).toContain("setTaxonomyAction({ kind: \"CATEGORY\"");
-    expect(source).toContain("setTaxonomyAction({ kind: \"GROUP\"");
-    expect(source).toContain("<CatalogActionDialog");
+    expect(source).toContain("setCatalogNavigatorAction({ kind: \"CATEGORY\"");
+    expect(source).toContain("setCatalogNavigatorAction({ kind: \"GROUP\"");
+    expect(source).toContain("<CatalogActionButton");
     expect(source).toContain('role="dialog"');
     expect(source).toContain('aria-modal="true"');
     expect(source).toContain("min-h-24");
@@ -22,7 +22,7 @@ describe("shared catalog compact action hierarchy", () => {
     expect(source).toContain('operatingMode: "SINGLE_STALL" | "MULTI_STALL"');
     expect(source).toContain("!singleStallMode ? <CatalogActionButton");
     expect(source).toContain("!singleStallMode && assignmentProduct");
-    expect(source).toContain('singleStallMode ? "" : ` · ${label("已分派")}');
+    expect(source).toContain('!singleStallMode ? <span');
   });
 
   it("prepares large images before upload and shows the complete saved preview", () => {
@@ -31,5 +31,26 @@ describe("shared catalog compact action hierarchy", () => {
     expect(source).toContain("min-h-48 max-h-72");
     expect(source).toContain("object-contain");
     expect(source).not.toContain("h-36 w-full object-cover");
+  });
+
+  it("opens the catalog through one large hierarchical dialog instead of a long disclosure tree", () => {
+    expect(source).toContain('data-testid="open-catalog-navigator"');
+    expect(source).toContain('testId="catalog-navigator-dialog"');
+    expect(source).toContain('type CatalogNavigatorLevel');
+    expect(source).toContain('kind: "CATEGORIES"');
+    expect(source).toContain('kind: "GROUPS"');
+    expect(source).toContain('kind: "PRODUCTS"');
+    expect(source).toContain('min-h-24');
+    expect(source).not.toContain("<details");
+  });
+
+  it("uses large touch switches instead of precision checkboxes in catalog workflows", () => {
+    expect(source).toContain('role="switch"');
+    expect(source).toContain('aria-checked={checked}');
+    expect(source).toContain('min-h-14');
+    expect(source).toContain("開啟後，員工結帳折扣");
+    expect(source).toContain("預設開啟；關閉後");
+    expect(source).not.toContain("取消勾選");
+    expect(source).not.toContain('type="checkbox"');
   });
 });

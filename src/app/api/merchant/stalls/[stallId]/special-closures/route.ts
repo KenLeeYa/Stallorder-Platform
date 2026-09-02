@@ -38,33 +38,88 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const organizationId = authorization.workspace.id;
-  let entityId = stallId;
-  if (parsed.data.operation === "CREATE") {
-    const closure = await prisma.stallSpecialClosure.create({
-      data: {
+  const mutation = await prisma.$transaction(async (transaction) => {
+    await transaction.$queryRaw`
+      select id
+      from public.stalls
+      where id = ${stallId}::uuid
+        and organization_id = ${organizationId}::uuid
+      for update
+    `;
+
+    if (parsed.data.operation === "DELETE") {
+      const existing = await transaction.stallSpecialClosure.findFirst({
+        where: { id: parsed.data.closureId, organizationId, stallId },
+        select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, title: true, message: true },
+      });
+      if (!existing) return { status: "NOT_FOUND" as const };
+      await transaction.stallSpecialClosure.delete({ where: { id: existing.id } });
+      return { status: "OK" as const, entityId: existing.id, before: serializeSpecialClosure(existing) };
+    }
+
+    const startsOn = new Date(`${parsed.data.startsOn}T00:00:00.000Z`);
+    const endsOn = new Date(`${parsed.data.endsOn}T00:00:00.000Z`);
+    const existing = parsed.data.operation === "UPDATE"
+      ? await transaction.stallSpecialClosure.findFirst({
+          where: { id: parsed.data.closureId, organizationId, stallId },
+          select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, title: true, message: true },
+        })
+      : null;
+    if (parsed.data.operation === "UPDATE" && !existing) {
+      return { status: "NOT_FOUND" as const };
+    }
+
+    const overlap = await transaction.stallSpecialClosure.findFirst({
+      where: {
         organizationId,
         stallId,
-        startsOn: new Date(`${parsed.data.startsOn}T00:00:00.000Z`),
-        endsOn: new Date(`${parsed.data.endsOn}T00:00:00.000Z`),
-        title: parsed.data.title,
-        message: parsed.data.message,
+        ...(parsed.data.operation === "UPDATE" ? { id: { not: parsed.data.closureId } } : {}),
+        startsOn: { lte: endsOn },
+        endsOn: { gte: startsOn },
       },
       select: { id: true },
     });
-    entityId = closure.id;
-  } else {
-    const closure = await prisma.stallSpecialClosure.findFirst({
-      where: { id: parsed.data.closureId, organizationId, stallId },
+    if (overlap) return { status: "CONFLICT" as const };
+
+    const data = {
+      startsOn,
+      endsOn,
+      opensAt: parsed.data.opensAt,
+      closesAt: parsed.data.closesAt,
+      title: parsed.data.title,
+      message: parsed.data.message,
+    };
+    if (parsed.data.operation === "CREATE") {
+      const created = await transaction.stallSpecialClosure.create({
+        data: { organizationId, stallId, ...data },
+        select: { id: true },
+      });
+      return { status: "OK" as const, entityId: created.id, before: undefined };
+    }
+
+    const updated = await transaction.stallSpecialClosure.update({
+      where: { id: parsed.data.closureId },
+      data,
       select: { id: true },
     });
-    if (!closure) {
-      return NextResponse.json(
-        { error: "找不到這筆特殊營業日設定。" },
-        { status: 404, headers: { "x-request-id": authorization.requestId } },
-      );
-    }
-    await prisma.stallSpecialClosure.delete({ where: { id: closure.id } });
-    entityId = closure.id;
+    return {
+      status: "OK" as const,
+      entityId: updated.id,
+      before: existing ? serializeSpecialClosure(existing) : undefined,
+    };
+  });
+
+  if (mutation.status === "NOT_FOUND") {
+    return NextResponse.json(
+      { error: "找不到這筆特殊營業日設定。" },
+      { status: 404, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+  if (mutation.status === "CONFLICT") {
+    return NextResponse.json(
+      { error: "此日期已設定特殊營業時間或店休，請直接修改既有設定。" },
+      { status: 409, headers: { "x-request-id": authorization.requestId } },
+    );
   }
 
   invalidatePublicMenu(stallId);
@@ -74,19 +129,22 @@ export async function PATCH(request: Request, context: RouteContext) {
     actorProfileId: authorization.principal.user.id,
     action: parsed.data.operation === "CREATE"
       ? "STALL_SPECIAL_CLOSURE_CREATED"
-      : "STALL_SPECIAL_CLOSURE_DELETED",
+      : parsed.data.operation === "UPDATE"
+        ? "STALL_SPECIAL_CLOSURE_UPDATED"
+        : "STALL_SPECIAL_CLOSURE_DELETED",
     entityType: "STALL_SPECIAL_CLOSURE",
-    entityId,
+    entityId: mutation.entityId,
     outcome: "SUCCESS",
     requestId: authorization.requestId,
     ipHash: hashClientIp(request),
-    after: parsed.data,
+    before: mutation.before,
+    after: parsed.data.operation === "DELETE" ? undefined : parsed.data,
   });
 
   const closures = await prisma.stallSpecialClosure.findMany({
     where: { organizationId, stallId },
     orderBy: [{ startsOn: "asc" }, { createdAt: "asc" }],
-    select: { id: true, startsOn: true, endsOn: true, title: true, message: true },
+    select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, title: true, message: true },
   });
   return NextResponse.json(
     { closures: closures.map(serializeSpecialClosure) },

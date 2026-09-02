@@ -13,6 +13,7 @@ import {
   dateInTimeZone,
   filterPreorderSlotsForSpecialClosures,
   serializeSpecialClosure,
+  specialClosureBlocksAt,
   type SpecialClosureView,
 } from "@/lib/special-closures";
 import {
@@ -138,6 +139,9 @@ export async function getCachedPublicMenuForQrToken(
       timezone: context.stall.timezone,
       coverImageUrl: context.stall.coverImageUrl,
       locationGuideImageUrl: context.stall.locationGuideImageUrl,
+      locationGuideImagePositionX: context.stall.locationGuideImagePositionX,
+      locationGuideImagePositionY: context.stall.locationGuideImagePositionY,
+      locationGuideImageZoom: context.stall.locationGuideImageZoom,
       coverImagePositionX: context.stall.coverImagePositionX,
       coverImagePositionY: context.stall.coverImagePositionY,
       coverImageZoom: context.stall.coverImageZoom,
@@ -183,6 +187,9 @@ export async function getCachedPublicMenuForStallSlug(stallSlug: string): Promis
       timezone: stall.timezone,
       coverImageUrl: stall.coverImageUrl,
       locationGuideImageUrl: stall.locationGuideImageUrl,
+      locationGuideImagePositionX: stall.locationGuideImagePositionX,
+      locationGuideImagePositionY: stall.locationGuideImagePositionY,
+      locationGuideImageZoom: stall.locationGuideImageZoom,
       coverImagePositionX: stall.coverImagePositionX,
       coverImagePositionY: stall.coverImagePositionY,
       coverImageZoom: stall.coverImageZoom,
@@ -233,6 +240,9 @@ async function getPublicDisplayMenuForStallSlug(
       timezone: stall.timezone,
       coverImageUrl: stall.coverImageUrl,
       locationGuideImageUrl: stall.locationGuideImageUrl,
+      locationGuideImagePositionX: stall.locationGuideImagePositionX,
+      locationGuideImagePositionY: stall.locationGuideImagePositionY,
+      locationGuideImageZoom: stall.locationGuideImageZoom,
       coverImagePositionX: stall.coverImagePositionX,
       coverImagePositionY: stall.coverImagePositionY,
       coverImageZoom: stall.coverImageZoom,
@@ -285,6 +295,9 @@ async function findPublicStallBySlug(stallSlug: string) {
       timezone: true,
       coverImageUrl: true,
       locationGuideImageUrl: true,
+      locationGuideImagePositionX: true,
+      locationGuideImagePositionY: true,
+      locationGuideImageZoom: true,
       coverImagePositionX: true,
       coverImagePositionY: true,
       coverImageZoom: true,
@@ -328,6 +341,9 @@ async function loadQrContext(qrToken: string) {
           timezone: true,
           coverImageUrl: true,
           locationGuideImageUrl: true,
+          locationGuideImagePositionX: true,
+          locationGuideImagePositionY: true,
+          locationGuideImageZoom: true,
           coverImagePositionX: true,
           coverImagePositionY: true,
           coverImageZoom: true,
@@ -440,7 +456,7 @@ async function getPublicSpecialClosures(stallId: string, timeZone: string) {
       endsOn: { gte: new Date(`${localDate}T00:00:00.000Z`) },
     },
     orderBy: [{ startsOn: "asc" }, { createdAt: "asc" }],
-    select: { id: true, startsOn: true, endsOn: true, title: true, message: true },
+    select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, title: true, message: true },
   });
   return closures.map(serializeSpecialClosure);
 }
@@ -451,10 +467,9 @@ function publicSpecialClosureAnnouncement(
 ) {
   const serialized = closures[0];
   if (!serialized) return null;
-  const localDate = dateInTimeZone(new Date(), timeZone);
   return {
     ...serialized,
-    isActive: serialized.startsOn <= localDate && serialized.endsOn >= localDate,
+    isActive: specialClosureBlocksAt(serialized, timeZone),
   };
 }
 
@@ -620,6 +635,8 @@ async function loadStallMenu(
         maxUniqueProducts: true,
         maxTotalQuantity: true,
         maxNoteLength: true,
+        checkoutUpsellEnabled: true,
+        checkoutUpsellProductIds: true,
         enabledLocales: true,
         estimatedWaitMinutes: true,
       },
@@ -755,6 +772,10 @@ async function loadStallMenu(
 
   return {
     products: menuProducts,
+    checkoutUpsell: {
+      enabled: settings.checkoutUpsellEnabled === true,
+      productIds: settings.checkoutUpsellProductIds ?? [],
+    },
     supportedLocales: completePublicMenuLocales(menuProducts, settings.enabledLocales),
     estimatedWaitMinutes: settings.estimatedWaitMinutes,
     estimatedWaitMinMinutes: settings.estimatedWaitMinutes,

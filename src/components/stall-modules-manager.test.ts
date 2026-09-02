@@ -22,6 +22,8 @@ function moduleState(): ModuleState {
       discountModuleEnabled: true,
       discountApprovalThresholdBps: 8_000,
       takeoutPreorderEnabled: false,
+      checkoutUpsellEnabled: false,
+      checkoutUpsellProductIds: [],
       preorderMinLeadMinutes: 5,
       preorderMaxDays: 7,
       preorderSlotMinutes: 15,
@@ -50,6 +52,13 @@ function moduleState(): ModuleState {
       shape: "SQUARE",
       rotationDegrees: 0,
       qrCode: null,
+    }],
+    upsellProducts: [{
+      id: "product-1",
+      name: "加點飲料",
+      price: 40,
+      isAvailable: true,
+      translations: [],
     }],
     paymentOptions: [{
       id: "payment-1",

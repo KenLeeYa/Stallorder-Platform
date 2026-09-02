@@ -56,11 +56,15 @@ describe("QR order checkout flow controller", () => {
       expected: "delivery details missing",
     },
   ])("blocks $name", ({ overrides, expected }) => {
-    expect(createQrOrderCheckoutModel(checkoutInput(overrides)).blocker).toBe(expected);
+    expect(createQrOrderCheckoutModel(checkoutInput({
+      entryChannel: "SHARED_LINK",
+      ...overrides,
+    })).blocker).toBe(expected);
   });
 
   it("derives blocker and selected items from the same delivery validation contract", () => {
     const checkout = createQrOrderCheckoutModel(checkoutInput({
+      entryChannel: "SHARED_LINK",
       orderingMode: "DELIVERY",
       session: session("DELIVERY"),
       customerPhone: "bad",
@@ -77,20 +81,36 @@ describe("QR order checkout flow controller", () => {
     }]);
   });
 
-  it("allows dine-in checkout without customer name or phone", () => {
-    const dineInSession = session("DEFAULT");
-    dineInSession.stall = {
-      ...dineInSession.stall,
-      fulfillmentType: "DINE_IN",
-      table: { id: "table-1", code: "A1", label: "A1" },
-    };
+  it("does not require or submit customer identity for direct QR orders", async () => {
+    const requestOrder = vi.fn<QrOrderCheckoutTransport>().mockResolvedValue({
+      ok: true,
+      status: 200,
+      payload: { trackingToken: "tracking-token" },
+    });
+    const input = checkoutInput({
+      entryChannel: "QR",
+      customerName: "stored name",
+      customerPhone: "0912345678",
+    });
 
-    expect(createQrOrderCheckoutModel(checkoutInput({
-      session: dineInSession,
+    expect(createQrOrderCheckoutModel({
+      ...input,
       customerName: "",
       customerPhone: "",
-      deliveryAddress: "",
-    })).blocker).toBe("");
+    }).blocker).toBe("");
+    await submitQrOrderFlowCheckout({
+      input,
+      sessionController: checkoutSessionController(),
+      networkError: "network",
+      localizeError: (code) => `localized:${code}`,
+      requestOrder,
+      effects: checkoutEffects(),
+    });
+
+    expect(requestOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ customerName: "", customerPhone: "" }),
+      "operation-1",
+    );
   });
 
   it("preserves UI blocker priority and submission guard priority", async () => {
@@ -267,7 +287,7 @@ describe("QR order checkout flow controller", () => {
 function checkoutInput(overrides: Partial<Parameters<typeof createQrOrderCheckoutModel>[0]> = {}) {
   return {
     qrToken: "qr-token",
-    entryChannel: "QR" as const,
+    entryChannel: "SHARED_LINK" as const,
     orderingAvailability: "AVAILABLE" as const,
     orderingEnabled: true,
     orderingMode: "DEFAULT" as const,

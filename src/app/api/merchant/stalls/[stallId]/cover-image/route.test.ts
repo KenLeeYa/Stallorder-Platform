@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   storageUpload: vi.fn(),
   storageRemove: vi.fn(),
   stallFindUnique: vi.fn(),
+  stallUpdate: vi.fn(),
   stallUpdateMany: vi.fn(),
   transaction: vi.fn(),
   qrFindMany: vi.fn(),
@@ -52,7 +53,7 @@ vi.mock("@/server/resilience/storage-replication-service", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    stall: { findUnique: mocks.stallFindUnique },
+    stall: { findUnique: mocks.stallFindUnique, update: mocks.stallUpdate },
     qrCode: { findMany: mocks.qrFindMany },
     $transaction: mocks.transaction,
   },
@@ -71,6 +72,12 @@ beforeEach(() => {
   mocks.storageUpload.mockResolvedValue({ error: null });
   mocks.storageRemove.mockResolvedValue({ error: null });
   mocks.stallFindUnique.mockResolvedValue({ coverImageUrl: null, locationGuideImageUrl: null });
+  mocks.stallUpdate.mockResolvedValue({
+    locationGuideImageUrl: "/api/assets/product-images/location-guide.webp",
+    locationGuideImagePositionX: 35,
+    locationGuideImagePositionY: 70,
+    locationGuideImageZoom: 140,
+  });
   mocks.stallUpdateMany.mockResolvedValue({ count: 1 });
   mocks.qrFindMany.mockResolvedValue([]);
   mocks.enqueueReplication.mockResolvedValue("replication-1");
@@ -122,6 +129,47 @@ describe("攤位圖片併發更新", () => {
     expect(response.status).toBe(409);
     expect(mocks.enqueueDeletion).not.toHaveBeenCalled();
     expect(mocks.qrFindMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("地點指引圖顯示範圍", () => {
+  it("可獨立儲存位置與縮放，不會改動文宣圖片設定", async () => {
+    const route = await import("./route");
+
+    const response = await route.PATCH(new Request(
+      `https://example.test/api/merchant/stalls/${stallId}/cover-image?slot=location-guide`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ positionX: 35, positionY: 70, zoom: 140 }),
+      },
+    ), { params: Promise.resolve({ stallId }) });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      imageUrl: "/api/assets/product-images/location-guide.webp",
+      positionX: 35,
+      positionY: 70,
+      zoom: 140,
+    });
+    expect(mocks.stallUpdate).toHaveBeenCalledWith({
+      where: { id: stallId, organizationId },
+      data: {
+        locationGuideImagePositionX: 35,
+        locationGuideImagePositionY: 70,
+        locationGuideImageZoom: 140,
+      },
+      select: {
+        locationGuideImageUrl: true,
+        locationGuideImagePositionX: true,
+        locationGuideImagePositionY: true,
+        locationGuideImageZoom: true,
+      },
+    });
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: "STALL_LOCATION_GUIDE_IMAGE_CROP_UPDATED",
+      metadata: { positionX: 35, positionY: 70, zoom: 140 },
+    }));
   });
 });
 

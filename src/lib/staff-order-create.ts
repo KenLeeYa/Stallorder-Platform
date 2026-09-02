@@ -369,7 +369,6 @@ export function prepareTrustedStaffOrderItem(input: {
           && choice.componentProduct.isActive
           && choice.componentProduct.category.isActive
           && Boolean(componentAssignment?.isEnabled)
-          && !componentAssignment?.isSoldOut
           && (!componentAssignment?.availableFrom || componentAssignment.availableFrom <= now)
           && (!componentAssignment?.availableUntil || componentAssignment.availableUntil > now);
       });
@@ -539,7 +538,6 @@ export async function prepareStaffOrderItems(
         stallId,
         productId: { in: requestedProductIds },
         isEnabled: true,
-        isSoldOut: false,
         OR: [{ availableFrom: null }, { availableFrom: { lte: now } }],
         AND: [{ OR: [{ availableUntil: null }, { availableUntil: { gt: now } }] }],
         product: { isActive: true, category: { isActive: true } },

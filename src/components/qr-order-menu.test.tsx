@@ -107,8 +107,9 @@ describe("QrOrderMenu presentation", () => {
     expect(html).toContain('data-testid="discount-ineligible-badge"');
     expect(html).toContain('grid-cols-[56px_minmax(0,1fr)]');
     expect(html).toContain('sm:grid-cols-[80px_minmax(0,1fr)_auto]');
-    expect(html).toContain(`aria-label="${baseProps.copy.decrease(product.name)}"`);
-    expect(html).toContain(`aria-label="${baseProps.copy.increase(product.name)}"`);
+    expect(html).toContain('data-testid="qr-open-product-configurator"');
+    expect(html).toContain("min-h-14 min-w-32");
+    expect(html).toContain(baseProps.copy.upsellChooseOptions);
     expect(html).toContain(baseProps.copy.cartProductQuantity(2));
   });
 
@@ -129,10 +130,14 @@ describe("QrOrderMenu presentation", () => {
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain('aria-labelledby="qr-product-configuration-meal"');
     expect(html).toContain('data-testid="qr-product-configuration"');
-    expect(html).toContain('safe-area-bottom fixed inset-x-0 bottom-0');
-    expect(html).toContain('max-h-[88dvh]');
-    expect(html).toContain('name="note-meal-spice"');
-    expect(html).toContain('name="bundle-meal-side"');
+    expect(html).toContain('max-h-[100dvh]');
+    expect(html).toContain('max-w-2xl');
+    expect(html).toContain('data-testid="qr-configurator-option"');
+    expect(html).toContain('role="radio"');
+    expect(html).toContain('aria-checked="false"');
+    expect(html).toContain('sticky bottom-0');
+    expect(html).not.toContain('type="radio"');
+    expect(html).not.toContain('type="checkbox"');
     expect(html).toContain('id="qr-product-action-meal"');
     expect(html).toContain(baseProps.copy.finishEditingCartItem);
     expect(html).toContain(baseProps.copy.requiredNotes(product.name));
@@ -179,7 +184,7 @@ describe("QrOrderMenu presentation", () => {
     expect(html).toContain('data-testid="sold-out-badge"');
     expect(html).toContain("grayscale opacity-45");
     expect(html).toContain(baseProps.copy.soldOutBadge);
-    expect(html).toContain(`aria-label="${baseProps.copy.increase(product.name)}" disabled=""`);
+    expect(html).toContain('data-testid="qr-open-product-configurator" disabled=""');
     expect(html).not.toContain('data-testid="qr-product-configuration"');
   });
 });

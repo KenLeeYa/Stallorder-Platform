@@ -6,7 +6,13 @@ import type { OperatingExpenseCommand } from "@/server/finance/operating-profit-
 
 type SummaryRow = { order_count: bigint; net_sales: bigint; discount_amount: bigint };
 type CashRow = { cash_collected: bigint };
-type CostRow = { theoretical_cogs: bigint; sold_products: bigint; missing_recipe_products: bigint };
+type CostRow = {
+  food_cost: bigint;
+  packaging_cost: bigint;
+  theoretical_cogs: bigint;
+  sold_products: bigint;
+  missing_recipe_products: bigint;
+};
 type PayrollRow = { payroll_cost: bigint };
 type PurchaseRow = { purchase_spend: bigint; shared_purchase_spend: bigint };
 type WasteRow = { waste_cost: bigint };
@@ -17,6 +23,8 @@ type ProductMarginRow = {
   product_name: string;
   quantity: bigint;
   revenue: bigint;
+  food_cost: bigint;
+  packaging_cost: bigint;
   estimated_cost: bigint;
 };
 type DailyRow = { business_date: Date; net_sales: bigint };
@@ -53,6 +61,7 @@ export async function getOperatingProfitDashboard(input: {
     productMargins,
     dailyRows,
     expenses,
+    customExpenseHistory,
     payrollDraftCount,
     stalls,
   ] = await Promise.all([
@@ -100,10 +109,20 @@ export async function getOperatingProfitDashboard(input: {
             * (10000 + component.waste_basis_points)::numeric / 10000
             * coalesce(ingredient_cost.average_cost_micros, 0)
             / 1000000000000
-          ) as cost_amount
+          ) filter (where ingredient.item_type = 'INGREDIENT') as food_cost_amount,
+          sum(
+            component.quantity_micros::numeric
+            * (10000 + component.waste_basis_points)::numeric / 10000
+            * coalesce(ingredient_cost.average_cost_micros, 0)
+            / 1000000000000
+          ) filter (where ingredient.item_type = 'PACKAGING') as packaging_cost_amount
         from public.supply_recipe_components component
+        join public.supply_ingredients ingredient
+          on ingredient.id = component.ingredient_id
+         and ingredient.organization_id = component.organization_id
         left join ingredient_cost on ingredient_cost.ingredient_id = component.ingredient_id
         where component.organization_id = ${input.organizationId}::uuid
+          and ingredient.item_type in ('INGREDIENT', 'PACKAGING')
         group by component.product_id
       ), sold as (
         select item.product_id, sum(item.quantity)::bigint as quantity
@@ -119,7 +138,11 @@ export async function getOperatingProfitDashboard(input: {
         group by item.product_id
       )
       select
-        coalesce(round(sum(sold.quantity * coalesce(recipe_cost.cost_amount, 0))), 0)::bigint as theoretical_cogs,
+        coalesce(round(sum(sold.quantity * coalesce(recipe_cost.food_cost_amount, 0))), 0)::bigint as food_cost,
+        coalesce(round(sum(sold.quantity * coalesce(recipe_cost.packaging_cost_amount, 0))), 0)::bigint as packaging_cost,
+        coalesce(round(sum(sold.quantity * (
+          coalesce(recipe_cost.food_cost_amount, 0) + coalesce(recipe_cost.packaging_cost_amount, 0)
+        ))), 0)::bigint as theoretical_cogs,
         count(*)::bigint as sold_products,
         count(*) filter (where sold.product_id is null or recipe_cost.product_id is null)::bigint as missing_recipe_products
       from sold
@@ -233,10 +256,20 @@ export async function getOperatingProfitDashboard(input: {
             * (10000 + component.waste_basis_points)::numeric / 10000
             * coalesce(ingredient_cost.average_cost_micros, 0)
             / 1000000000000
-          ) as cost_amount
+          ) filter (where ingredient.item_type = 'INGREDIENT') as food_cost_amount,
+          sum(
+            component.quantity_micros::numeric
+            * (10000 + component.waste_basis_points)::numeric / 10000
+            * coalesce(ingredient_cost.average_cost_micros, 0)
+            / 1000000000000
+          ) filter (where ingredient.item_type = 'PACKAGING') as packaging_cost_amount
         from public.supply_recipe_components component
+        join public.supply_ingredients ingredient
+          on ingredient.id = component.ingredient_id
+         and ingredient.organization_id = component.organization_id
         left join ingredient_cost on ingredient_cost.ingredient_id = component.ingredient_id
         where component.organization_id = ${input.organizationId}::uuid
+          and ingredient.item_type in ('INGREDIENT', 'PACKAGING')
         group by component.product_id
       )
       select
@@ -244,7 +277,11 @@ export async function getOperatingProfitDashboard(input: {
         item.name as product_name,
         sum(item.quantity)::bigint as quantity,
         sum(item.quantity * item.unit_price)::bigint as revenue,
-        coalesce(round(sum(item.quantity * coalesce(recipe_cost.cost_amount, 0))), 0)::bigint as estimated_cost
+        coalesce(round(sum(item.quantity * coalesce(recipe_cost.food_cost_amount, 0))), 0)::bigint as food_cost,
+        coalesce(round(sum(item.quantity * coalesce(recipe_cost.packaging_cost_amount, 0))), 0)::bigint as packaging_cost,
+        coalesce(round(sum(item.quantity * (
+          coalesce(recipe_cost.food_cost_amount, 0) + coalesce(recipe_cost.packaging_cost_amount, 0)
+        ))), 0)::bigint as estimated_cost
       from public.order_items item
       join public.orders order_record on order_record.id = item.order_id
       join public.stalls stall on stall.id = item.stall_id
@@ -277,11 +314,23 @@ export async function getOperatingProfitDashboard(input: {
     prisma.operatingExpense.findMany({
       where: {
         organizationId: input.organizationId,
+        voidedAt: null,
         OR: [{ stallId: null }, { stallId: { in: input.stallIds } }],
         expenseDate: { gte: fromDate, lt: dayAfterTo },
       },
       orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
       take: 2_000,
+    }),
+    prisma.operatingExpense.findMany({
+      where: {
+        organizationId: input.organizationId,
+        voidedAt: null,
+        category: "OTHER",
+        customCategoryName: { not: null },
+      },
+      select: { customCategoryName: true },
+      orderBy: { createdAt: "desc" },
+      take: 500,
     }),
     prisma.workforcePayrollPeriod.count({
       where: {
@@ -301,6 +350,8 @@ export async function getOperatingProfitDashboard(input: {
   const summary = summaryRows[0] ?? { order_count: BigInt(0), net_sales: BigInt(0), discount_amount: BigInt(0) };
   const netSales = Number(summary.net_sales);
   const cashCollected = Number(cashRows[0]?.cash_collected ?? 0);
+  const foodCost = Number(costRows[0]?.food_cost ?? 0);
+  const packagingCost = Number(costRows[0]?.packaging_cost ?? 0);
   const theoreticalCogs = Number(costRows[0]?.theoretical_cogs ?? 0);
   const payrollCost = Number(payrollRows[0]?.payroll_cost ?? 0);
   const purchaseSpend = Number(purchaseRows[0]?.purchase_spend ?? 0);
@@ -312,10 +363,26 @@ export async function getOperatingProfitDashboard(input: {
   const grossProfit = netSales - theoreticalCogs;
   const operatingProfit = grossProfit - payrollCost - operatingExpenseAmount;
   const netCashMovement = cashCollected - purchaseSpend - payrollCost - operatingExpenseAmount;
-  const expenseByCategory = new Map<string, number>();
+  const expenseByCategory = new Map<string, {
+    category: string;
+    customCategoryName: string | null;
+    amount: number;
+  }>();
   for (const expense of expenses) {
-    expenseByCategory.set(expense.category, (expenseByCategory.get(expense.category) ?? 0) + expense.amount);
+    const customCategoryName = expense.category === "OTHER" ? expense.customCategoryName : null;
+    const key = `${expense.category}:${customCategoryName ?? ""}`;
+    const current = expenseByCategory.get(key);
+    expenseByCategory.set(key, {
+      category: expense.category,
+      customCategoryName,
+      amount: (current?.amount ?? 0) + expense.amount,
+    });
   }
+  const customExpenseCategoryNames = [...new Set(
+    customExpenseHistory
+      .map((expense) => expense.customCategoryName)
+      .filter((name): name is string => Boolean(name)),
+  )].slice(0, 20);
 
   return {
     dateFrom: input.dateFrom,
@@ -326,6 +393,8 @@ export async function getOperatingProfitDashboard(input: {
       netSales,
       cashCollected,
       discountAmount: Number(summary.discount_amount),
+      foodCost,
+      packagingCost,
       theoreticalCogs,
       grossProfit,
       grossMarginBasisPoints: ratio(grossProfit, netSales),
@@ -354,12 +423,16 @@ export async function getOperatingProfitDashboard(input: {
     },
     productMargins: productMargins.map((row) => {
       const revenue = Number(row.revenue);
+      const foodCost = Number(row.food_cost);
+      const packagingCost = Number(row.packaging_cost);
       const estimatedCost = Number(row.estimated_cost);
       return {
         productId: row.product_id,
         productName: row.product_name,
         quantity: Number(row.quantity),
         revenue,
+        foodCost,
+        packagingCost,
         estimatedCost,
         grossProfit: revenue - estimatedCost,
         grossMarginBasisPoints: ratio(revenue - estimatedCost, revenue),
@@ -369,14 +442,15 @@ export async function getOperatingProfitDashboard(input: {
       businessDate: row.business_date.toISOString().slice(0, 10),
       netSales: Number(row.net_sales),
     })),
-    expenseCategories: [...expenseByCategory.entries()]
-      .map(([category, amount]) => ({ category, amount }))
+    expenseCategories: [...expenseByCategory.values()]
       .sort((left, right) => right.amount - left.amount),
+    customExpenseCategoryNames,
     expenses: expenses.map((expense) => ({
       id: expense.id,
       stallId: expense.stallId,
       expenseDate: expense.expenseDate.toISOString().slice(0, 10),
       category: expense.category,
+      customCategoryName: expense.customCategoryName,
       amount: expense.amount,
       vendorName: expense.vendorName,
       description: expense.description,
@@ -385,10 +459,24 @@ export async function getOperatingProfitDashboard(input: {
   };
 }
 
-export async function createOperatingExpense(input: {
+export async function applyOperatingExpenseCommand(input: {
   organizationId: string;
   actorProfileId: string;
   command: OperatingExpenseCommand;
+}) {
+  const { command } = input;
+  switch (command.operation) {
+    case "CREATE_EXPENSE":
+      return createOperatingExpense({ ...input, command });
+    case "CORRECT_EXPENSE":
+      return correctOperatingExpense({ ...input, command });
+  }
+}
+
+async function createOperatingExpense(input: {
+  organizationId: string;
+  actorProfileId: string;
+  command: Extract<OperatingExpenseCommand, { operation: "CREATE_EXPENSE" }>;
 }) {
   if (input.command.stallId) {
     const stall = await prisma.stall.findFirst({
@@ -403,6 +491,7 @@ export async function createOperatingExpense(input: {
       stallId: input.command.stallId ?? null,
       expenseDate: new Date(`${input.command.expenseDate}T00:00:00.000Z`),
       category: input.command.category,
+      customCategoryName: input.command.customCategoryName ?? null,
       amount: input.command.amount,
       vendorName: input.command.vendorName ?? null,
       description: input.command.description,
@@ -410,6 +499,61 @@ export async function createOperatingExpense(input: {
       createdByProfileId: input.actorProfileId,
     },
   });
+}
+
+async function correctOperatingExpense(input: {
+  organizationId: string;
+  actorProfileId: string;
+  command: Extract<OperatingExpenseCommand, { operation: "CORRECT_EXPENSE" }>;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const original = await tx.operatingExpense.findFirst({
+      where: {
+        id: input.command.expenseId,
+        organizationId: input.organizationId,
+        voidedAt: null,
+      },
+    });
+    if (!original) throw new OperatingProfitError("OPERATING_EXPENSE_NOT_CORRECTABLE");
+
+    if (input.command.stallId) {
+      const stall = await tx.stall.findFirst({
+        where: { id: input.command.stallId, organizationId: input.organizationId, isActive: true },
+        select: { id: true },
+      });
+      if (!stall) throw new OperatingProfitError("OPERATING_EXPENSE_STALL_NOT_FOUND");
+    }
+
+    const voided = await tx.operatingExpense.updateMany({
+      where: {
+        id: original.id,
+        organizationId: input.organizationId,
+        voidedAt: null,
+      },
+      data: {
+        voidedAt: new Date(),
+        voidedByProfileId: input.actorProfileId,
+        voidReason: input.command.correctionReason,
+      },
+    });
+    if (voided.count !== 1) throw new OperatingProfitError("OPERATING_EXPENSE_NOT_CORRECTABLE");
+
+    return tx.operatingExpense.create({
+      data: {
+        organizationId: input.organizationId,
+        stallId: input.command.stallId ?? null,
+        expenseDate: new Date(`${input.command.expenseDate}T00:00:00.000Z`),
+        category: input.command.category,
+        customCategoryName: input.command.customCategoryName ?? null,
+        amount: input.command.amount,
+        vendorName: input.command.vendorName ?? null,
+        description: input.command.description,
+        isRecurring: input.command.isRecurring,
+        createdByProfileId: input.actorProfileId,
+        correctsExpenseId: original.id,
+      },
+    });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 function ratio(value: number, denominator: number) {
@@ -432,7 +576,7 @@ function emptyDashboard(dateFrom: string, dateTo: string) {
     stalls: [],
     summary: {
       orderCount: 0, netSales: 0, cashCollected: 0, discountAmount: 0,
-      theoreticalCogs: 0, grossProfit: 0, grossMarginBasisPoints: 0,
+      foodCost: 0, packagingCost: 0, theoreticalCogs: 0, grossProfit: 0, grossMarginBasisPoints: 0,
       payrollCost: 0, laborCostBasisPoints: 0, primeCost: 0, primeCostBasisPoints: 0,
       operatingExpenseAmount: 0, operatingProfit: 0, operatingProfitBasisPoints: 0,
       purchaseSpend: 0, sharedPurchaseSpend: 0, sharedOperatingExpenseAmount: 0,
@@ -445,6 +589,7 @@ function emptyDashboard(dateFrom: string, dateTo: string) {
     productMargins: [],
     dailySales: [],
     expenseCategories: [],
+    customExpenseCategoryNames: [],
     expenses: [],
   };
 }

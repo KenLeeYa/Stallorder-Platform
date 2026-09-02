@@ -10,4 +10,3 @@
 | Provider 成功但本地 timeout／未知 | RECONCILIATION_REQUIRED，不可盲目重送 |
 
 作廢折讓必須引用既有 allowance reference。任何 Provider 4xx 不自動 retry；timeout/5xx 只記錄可 retry 分類，背景 worker 完成前由人工以新 idempotency key 重試。
-

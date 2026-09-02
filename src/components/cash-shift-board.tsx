@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ContextualBackButton } from "@/components/contextual-back-button";
 import {
   ArrowDown,
   ArrowUp,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   CircleDollarSign,
   RefreshCw,
   RotateCcw,
@@ -16,9 +18,16 @@ import {
 import { useOperationsLocale } from "@/components/operations-locale";
 import { OfflineQueueStatus } from "@/components/offline-queue-status";
 import { csrfHeaders } from "@/lib/csrf-client";
-import { formatAppDateTime } from "@/lib/locale-format";
+import { calendarDateInTimeZone } from "@/lib/date-time";
+import { formatAppDateTime, formatAppNumber } from "@/lib/locale-format";
 import { getOperationsErrorMessageKey } from "@/lib/messages/operations-errors";
 import { formatMoney } from "@/lib/money";
+import {
+  buildOperationsPageMeta,
+  OPERATIONS_PAGE_SIZES,
+  type OperationsPageMeta,
+  type OperationsPageSize,
+} from "@/lib/operations-pagination";
 
 type ShiftStatus = "OPEN" | "CLOSING" | "REVIEW_REQUIRED" | "CLOSED";
 type MovementType =
@@ -122,6 +131,10 @@ export function CashShiftBoard({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [activeAction, setActiveAction] = useState<CashShiftAction | null>(null);
+  const [historyDateFrom, setHistoryDateFrom] = useState("");
+  const [historyDateTo, setHistoryDateTo] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState<OperationsPageSize>(5);
   const actionTriggerRef = useRef<HTMLElement | null>(null);
   const [offlineSnapshot, setOfflineSnapshot] = useState<Awaited<
     ReturnType<typeof import("@/offline/offline-operations")["getOfflineCashShiftSnapshot"]>
@@ -365,6 +378,29 @@ export function CashShiftBoard({
   const liveVariance = state.openShift && counted !== null && Number.isFinite(counted)
     ? counted - activeExpectedAmount
     : null;
+  const filteredHistory = useMemo(() => state.history.filter((shift) => {
+    const openedOn = calendarDateInTimeZone(new Date(shift.openedAt), "Asia/Taipei");
+    return (!historyDateFrom || openedOn >= historyDateFrom)
+      && (!historyDateTo || openedOn <= historyDateTo);
+  }), [historyDateFrom, historyDateTo, state.history]);
+  const historyPagination = buildOperationsPageMeta(filteredHistory.length, {
+    page: historyPage,
+    pageSize: historyPageSize,
+  });
+  const visibleHistory = filteredHistory.slice(
+    (historyPagination.page - 1) * historyPagination.pageSize,
+    historyPagination.page * historyPagination.pageSize,
+  );
+
+  function applyHistoryPreset(preset: "DAY" | "WEEK" | "MONTH") {
+    const today = calendarDateInTimeZone(new Date(), "Asia/Taipei");
+    const start = new Date(`${today}T00:00:00.000Z`);
+    if (preset === "WEEK") start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
+    if (preset === "MONTH") start.setUTCDate(1);
+    setHistoryDateFrom(start.toISOString().slice(0, 10));
+    setHistoryDateTo(today);
+    setHistoryPage(1);
+  }
 
   return <main className="mx-auto min-h-screen max-w-5xl px-4 py-6 md:px-8">
     <header className="flex items-start justify-between gap-4">
@@ -466,8 +502,24 @@ export function CashShiftBoard({
 
     <section className="border-t border-stone-200 py-6">
       <div className="flex items-center gap-2"><CircleDollarSign className="h-5 w-5 text-teal-700" /><h2 className="text-xl font-semibold">{t("cash.historyTitle")}</h2></div>
+      <div data-testid="cash-history-filters" className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3 sm:p-4">
+        <div className="grid grid-cols-3 gap-2" aria-label={t("cash.historyPresets")}>
+          <button type="button" onClick={() => applyHistoryPreset("DAY")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800">{t("cash.historyDay")}</button>
+          <button type="button" onClick={() => applyHistoryPreset("WEEK")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800">{t("cash.historyWeek")}</button>
+          <button type="button" onClick={() => applyHistoryPreset("MONTH")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800">{t("cash.historyMonth")}</button>
+        </div>
+        <div className="mt-3 grid gap-2 min-[420px]:grid-cols-[1fr_auto_1fr] min-[420px]:items-end">
+          <label className="text-xs font-semibold text-stone-600">{t("cash.historyDateFrom")}<input data-testid="cash-history-date-from" type="date" value={historyDateFrom} onChange={(event) => { setHistoryDateFrom(event.target.value); setHistoryPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900" /></label>
+          <span className="hidden pb-3 text-center text-sm text-stone-500 min-[420px]:block">{t("cash.historyTo")}</span>
+          <label className="text-xs font-semibold text-stone-600">{t("cash.historyDateTo")}<input data-testid="cash-history-date-to" type="date" min={historyDateFrom || undefined} value={historyDateTo} onChange={(event) => { setHistoryDateTo(event.target.value); setHistoryPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900" /></label>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <button type="button" onClick={() => { setHistoryDateFrom(""); setHistoryDateTo(""); setHistoryPage(1); }} className="min-h-10 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700">{t("cash.historyAll")}</button>
+          <CashHistoryPageSizeSelect locale={locale} t={t} value={historyPageSize} onChange={(value) => { setHistoryPageSize(value); setHistoryPage(1); }} />
+        </div>
+      </div>
       <div className="mt-3 grid gap-3">
-        {state.history.map((shift) => <article key={shift.id} className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
+        {visibleHistory.map((shift) => <article key={shift.id} className="min-w-0 rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0"><strong>{formatAppDateTime(locale, shift.openedAt, { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Taipei" })}</strong><p className="mt-1 break-words text-xs text-stone-500">{shift.openedBy.displayName} → {shift.closedBy?.displayName ?? "-"} · {shift.closedAt ? formatAppDateTime(locale, shift.closedAt, { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Taipei" }) : "-"}</p></div>
             <StatusBadge status={shift.status} t={t} />
@@ -495,13 +547,62 @@ export function CashShiftBoard({
           </CollapsibleHistoryDetails>
         </article>)}
       </div>
-      {state.history.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{t("cash.noHistory")}</p> : null}
+      {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{t("cash.noHistory")}</p> : null}
+      {filteredHistory.length > 0 ? <CashHistoryPageNavigation locale={locale} t={t} pagination={historyPagination} onPageChange={setHistoryPage} /> : null}
     </section>
   </main>;
 }
 
 type OperationsTranslator = ReturnType<typeof useOperationsLocale>["t"];
 type OperationsLocale = ReturnType<typeof useOperationsLocale>["locale"];
+
+function CashHistoryPageSizeSelect({
+  locale,
+  t,
+  value,
+  onChange,
+}: {
+  locale: OperationsLocale;
+  t: OperationsTranslator;
+  value: OperationsPageSize;
+  onChange: (value: OperationsPageSize) => void;
+}) {
+  return <label className="inline-flex items-center gap-2 text-xs font-semibold text-stone-600">
+    {t("cash.historyPerPage")}
+    <select aria-label={t("cash.historyPageSizeLabel")} value={value} onChange={(event) => onChange(Number(event.target.value) as OperationsPageSize)} className="h-9 rounded-md border border-stone-300 bg-white px-2 text-sm text-stone-900">
+      {OPERATIONS_PAGE_SIZES.map((pageSize) => <option key={pageSize} value={pageSize}>{formatAppNumber(locale, pageSize)}</option>)}
+    </select>
+    {t("cash.historyRecords")}
+  </label>;
+}
+
+function CashHistoryPageNavigation({
+  locale,
+  t,
+  pagination,
+  onPageChange,
+}: {
+  locale: OperationsLocale;
+  t: OperationsTranslator;
+  pagination: OperationsPageMeta;
+  onPageChange: (page: number) => void;
+}) {
+  return <nav aria-label={t("cash.historyPagination")} className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-stone-600">
+    <span>{t("cash.historyRange", {
+      first: formatAppNumber(locale, pagination.firstItem),
+      last: formatAppNumber(locale, pagination.lastItem),
+      total: formatAppNumber(locale, pagination.total),
+    })}</span>
+    <div className="flex items-center gap-2">
+      <button type="button" title={t("cash.historyPrevious")} aria-label={t("cash.historyPrevious")} disabled={pagination.page <= 1} onClick={() => onPageChange(pagination.page - 1)} className="grid h-9 w-9 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+      <span className="min-w-20 text-center text-xs font-semibold text-stone-700">{t("cash.historyPageStatus", {
+        page: formatAppNumber(locale, pagination.page),
+        total: formatAppNumber(locale, pagination.totalPages),
+      })}</span>
+      <button type="button" title={t("cash.historyNext")} aria-label={t("cash.historyNext")} disabled={pagination.page >= pagination.totalPages} onClick={() => onPageChange(pagination.page + 1)} className="grid h-9 w-9 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+    </div>
+  </nav>;
+}
 
 function Metric({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return <div className={`min-w-0 rounded-lg border border-stone-200 bg-white p-3 shadow-sm ${strong ? "col-span-2 border-teal-200 bg-teal-50 min-[380px]:col-span-3 sm:col-span-2 lg:col-span-1" : ""}`}><div className="text-xs text-stone-500">{label}</div><div className={`mt-1 break-words ${strong ? "text-lg font-semibold text-teal-800" : "text-sm font-semibold"}`}>{value}</div></div>;

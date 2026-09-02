@@ -29,4 +29,3 @@ export function assertInvoiceTransition(from: InvoiceLifecycleStatus, to: Invoic
     throw new InvoiceProviderError("INVOICE_STATE_TRANSITION_INVALID", 409);
   }
 }
-

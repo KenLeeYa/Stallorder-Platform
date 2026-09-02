@@ -294,7 +294,6 @@ function catalogProductAvailable(
 ) {
   return product.isActive
     && product.isEnabled
-    && !product.isSoldOut
     && (!product.availableFrom || Date.parse(product.availableFrom) <= nowMs)
     && (!product.availableUntil || Date.parse(product.availableUntil) > nowMs);
 }
@@ -479,7 +478,6 @@ export function prepareOfflineOrderItemSnapshots(
       !product
       || !product.isActive
       || !product.isEnabled
-      || product.isSoldOut
       || (product.availableFrom && Date.parse(product.availableFrom) > now.getTime())
       || (product.availableUntil && Date.parse(product.availableUntil) <= now.getTime())
     ) {

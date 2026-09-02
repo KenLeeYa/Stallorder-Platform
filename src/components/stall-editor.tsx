@@ -13,6 +13,10 @@ import {
   PUBLIC_IDENTIFIER_PATTERN,
 } from "@/lib/public-identifier";
 import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
+import {
+  locationGuideImageStyle,
+  normalizeLocationGuideImageFraming,
+} from "@/lib/location-guide-image-framing";
 import { useUnsavedSettings } from "@/lib/unsaved-settings";
 
 type StallDraft = {
@@ -29,6 +33,9 @@ type StallDraft = {
   coverImagePositionY?: number;
   coverImageZoom?: number;
   locationGuideImageUrl?: string | null;
+  locationGuideImagePositionX?: number;
+  locationGuideImagePositionY?: number;
+  locationGuideImageZoom?: number;
   businessStatus?: "OPEN" | "PAUSED" | "CLOSED" | "SOLD_OUT";
   orderingEnabled?: boolean;
   isActive?: boolean;
@@ -61,6 +68,7 @@ export function StallEditor({
   const [savingCoverCrop, setSavingCoverCrop] = useState(false);
   const [removingCover, setRemovingCover] = useState(false);
   const [uploadingLocationGuide, setUploadingLocationGuide] = useState(false);
+  const [savingLocationGuideCrop, setSavingLocationGuideCrop] = useState(false);
   const [removingLocationGuide, setRemovingLocationGuide] = useState(false);
   const basicFormRef = useRef<HTMLFormElement>(null);
   const operationsFormRef = useRef<HTMLFormElement>(null);
@@ -71,6 +79,11 @@ export function StallEditor({
     coverPosition(draft, "x") !== coverPosition(savedDraft, "x")
     || coverPosition(draft, "y") !== coverPosition(savedDraft, "y")
     || coverZoom(draft) !== coverZoom(savedDraft)
+  );
+  const locationGuideCropDirty = Boolean(draft.locationGuideImageUrl) && (
+    locationGuideFraming(draft).positionX !== locationGuideFraming(savedDraft).positionX
+    || locationGuideFraming(draft).positionY !== locationGuideFraming(savedDraft).positionY
+    || locationGuideFraming(draft).zoom !== locationGuideFraming(savedDraft).zoom
   );
   useUnsavedSettings("stall-basic", basicDirty);
   useUnsavedSettings("stall-operations", operationsDirty);
@@ -292,18 +305,74 @@ export function StallEditor({
         headers: csrfFormHeaders(),
         body: form,
       });
-      const payload = await response.json() as { imageUrl?: string; error?: string };
+      const payload = await response.json() as { imageUrl?: string; positionX?: number; positionY?: number; zoom?: number; error?: string };
       if (!response.ok || !payload.imageUrl) {
         throw new Error(payload.error ?? label("地點指引圖上傳失敗。"));
       }
-      setDraft((current) => ({ ...current, locationGuideImageUrl: payload.imageUrl }));
-      setSavedDraft((current) => ({ ...current, locationGuideImageUrl: payload.imageUrl }));
+      const locationGuide = {
+        locationGuideImageUrl: payload.imageUrl,
+        locationGuideImagePositionX: payload.positionX ?? 50,
+        locationGuideImagePositionY: payload.positionY ?? 50,
+        locationGuideImageZoom: payload.zoom ?? 100,
+      };
+      setDraft((current) => ({ ...current, ...locationGuide }));
+      setSavedDraft((current) => ({ ...current, ...locationGuide }));
       setMessage("basic", label("地點指引圖已更新。"), "success");
       router.refresh();
     } catch (error) {
       setMessage("basic", error instanceof Error ? error.message : label("地點指引圖上傳失敗。"));
     } finally {
       setUploadingLocationGuide(false);
+    }
+  }
+
+  function updateLocationGuideCrop(
+    key: "locationGuideImagePositionX" | "locationGuideImagePositionY" | "locationGuideImageZoom",
+    value: number,
+  ) {
+    setDraft((current) => ({ ...current, [key]: Math.round(value) }));
+  }
+
+  function moveLocationGuideFocus(event: React.PointerEvent<HTMLDivElement>) {
+    if (!(event.buttons & 1)) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    updateLocationGuideCrop("locationGuideImagePositionX", clamp(((event.clientX - bounds.left) / bounds.width) * 100, 0, 100));
+    updateLocationGuideCrop("locationGuideImagePositionY", clamp(((event.clientY - bounds.top) / bounds.height) * 100, 0, 100));
+  }
+
+  async function saveLocationGuideCrop() {
+    if (!stallId || !draft.locationGuideImageUrl) return;
+    const framing = locationGuideFraming(draft);
+    setSavingLocationGuideCrop(true);
+    setMessage("basic", "", null);
+    try {
+      const response = await fetch(`/api/merchant/stalls/${stallId}/cover-image?slot=location-guide`, {
+        method: "PATCH",
+        headers: csrfHeaders(),
+        body: JSON.stringify(framing),
+      });
+      const payload = await response.json() as { positionX?: number; positionY?: number; zoom?: number; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? label("圖片顯示範圍儲存失敗。"));
+      const savedFraming = normalizeLocationGuideImageFraming({
+        positionX: payload.positionX ?? framing.positionX,
+        positionY: payload.positionY ?? framing.positionY,
+        zoom: payload.zoom ?? framing.zoom,
+      });
+      const locationGuide = {
+        locationGuideImagePositionX: savedFraming.positionX,
+        locationGuideImagePositionY: savedFraming.positionY,
+        locationGuideImageZoom: savedFraming.zoom,
+      };
+      setDraft((current) => ({ ...current, ...locationGuide }));
+      setSavedDraft((current) => ({ ...current, ...locationGuide }));
+      setMessage("basic", label("地點指引圖顯示範圍已更新。"), "success");
+      router.refresh();
+    } catch (error) {
+      setMessage("basic", error instanceof Error ? error.message : label("圖片顯示範圍儲存失敗。"));
+    } finally {
+      setSavingLocationGuideCrop(false);
     }
   }
 
@@ -318,8 +387,14 @@ export function StallEditor({
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? label("地點指引圖移除失敗。"));
-      setDraft((current) => ({ ...current, locationGuideImageUrl: null }));
-      setSavedDraft((current) => ({ ...current, locationGuideImageUrl: null }));
+      const locationGuide = {
+        locationGuideImageUrl: null,
+        locationGuideImagePositionX: 50,
+        locationGuideImagePositionY: 50,
+        locationGuideImageZoom: 100,
+      };
+      setDraft((current) => ({ ...current, ...locationGuide }));
+      setSavedDraft((current) => ({ ...current, ...locationGuide }));
       setMessage("basic", label("地點指引圖已移除。"), "success");
       router.refresh();
     } catch (error) {
@@ -427,18 +502,30 @@ export function StallEditor({
                   <p className="mt-1 text-xs leading-5 text-stone-500">{label("可上傳店面照、入口照片或步行指引圖；顧客點選 Menu 的地圖按鈕後會在置中視窗查看。")}</p>
                 </div>
               </div>
-              {draft.locationGuideImageUrl ? (
-                <div className="mt-3 max-w-xl overflow-hidden rounded-md border border-stone-300 bg-stone-100">
+              {draft.locationGuideImageUrl ? <>
+                <div
+                  data-testid="location-guide-image-framing"
+                  className="relative mt-3 aspect-[3/2] max-w-xl touch-none select-none overflow-hidden rounded-md border border-stone-300 bg-stone-100"
+                  onPointerDown={moveLocationGuideFocus}
+                  onPointerMove={moveLocationGuideFocus}
+                >
                   <ProductImage
                     src={draft.locationGuideImageUrl}
                     alt={label("店面與地點指引圖預覽")}
                     width={960}
-                    height={720}
+                    height={640}
                     sizes="(min-width: 640px) 576px, 100vw"
-                    className="h-auto max-h-96 w-full object-contain"
+                    className="pointer-events-none h-full w-full object-cover"
+                    style={locationGuideImageStyle(locationGuideFraming(draft))}
                   />
+                  <span className="pointer-events-none absolute bottom-2 left-2 inline-flex items-center gap-1 rounded bg-black/65 px-2 py-1 text-xs font-semibold text-white"><Move className="h-3.5 w-3.5" />{label("拖曳選擇圖片顯示重點")}</span>
                 </div>
-              ) : null}
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <CoverRange label={label("水平位置")} value={locationGuideFraming(draft).positionX} min={0} max={100} onChange={(value) => updateLocationGuideCrop("locationGuideImagePositionX", value)} />
+                  <CoverRange label={label("垂直位置")} value={locationGuideFraming(draft).positionY} min={0} max={100} onChange={(value) => updateLocationGuideCrop("locationGuideImagePositionY", value)} />
+                  <CoverRange label={label("圖片縮放")} value={locationGuideFraming(draft).zoom} min={100} max={200} suffix="%" onChange={(value) => updateLocationGuideCrop("locationGuideImageZoom", value)} />
+                </div>
+              </> : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold">
                   <ImageUp className="h-4 w-4" />
@@ -447,7 +534,7 @@ export function StallEditor({
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     className="sr-only"
-                    disabled={uploadingLocationGuide || removingLocationGuide || savingSection !== null}
+                    disabled={uploadingLocationGuide || savingLocationGuideCrop || removingLocationGuide || savingSection !== null}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       if (file) void uploadLocationGuideImage(file);
@@ -455,17 +542,26 @@ export function StallEditor({
                     }}
                   />
                 </label>
-                {draft.locationGuideImageUrl ? (
+                {draft.locationGuideImageUrl ? <>
                   <button
                     type="button"
-                    disabled={uploadingLocationGuide || removingLocationGuide}
+                    disabled={!locationGuideCropDirty || uploadingLocationGuide || savingLocationGuideCrop || removingLocationGuide}
+                    onClick={() => void saveLocationGuideCrop()}
+                    className="inline-flex min-h-10 items-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:opacity-40"
+                  >
+                    <Save className="h-4 w-4" />
+                    {savingLocationGuideCrop ? label("儲存中...") : label("儲存地點指引圖範圍")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={uploadingLocationGuide || savingLocationGuideCrop || removingLocationGuide}
                     onClick={() => void removeLocationGuideImage()}
                     className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-300 px-3 text-sm font-semibold text-red-700 disabled:opacity-40"
                   >
                     <Trash2 className="h-4 w-4" />
                     {removingLocationGuide ? label("移除中...") : label("移除地點指引圖")}
                   </button>
-                ) : null}
+                </> : null}
               </div>
             </div> : null}
           </div>
@@ -564,6 +660,14 @@ function coverImageStyle(draft: StallDraft) {
     transform: `scale(${coverZoom(draft) / 100})`,
     transformOrigin: `${x}% ${y}%`,
   };
+}
+
+function locationGuideFraming(draft: StallDraft) {
+  return normalizeLocationGuideImageFraming({
+    positionX: draft.locationGuideImagePositionX,
+    positionY: draft.locationGuideImagePositionY,
+    zoom: draft.locationGuideImageZoom,
+  });
 }
 
 function CoverRange({ label, value, min, max, suffix = "", onChange }: {

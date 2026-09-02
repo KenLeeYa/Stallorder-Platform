@@ -19,4 +19,3 @@
 - 訂單、付款與發票狀態彼此獨立；發票失敗不會取消訂單或自動退款。
 
 導覽：先讀 [目前狀態稽核](CURRENT_STATE_AUDIT.md)、[架構](ARCHITECTURE.md)、[安全模型](SECURITY_MODEL.md)、[測試計畫](TEST_PLAN.md) 與 [實作報告](IMPLEMENTATION_REPORT.md)。
-

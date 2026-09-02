@@ -70,8 +70,7 @@ describe("kitchen mobile layout", () => {
     expect(html).toContain('data-show-install="false"');
     expect(html.match(/data-testid="mock-logout-button"/g)).toHaveLength(1);
     expect(html).toContain("sticky top-0");
-    expect(html).toContain("min-h-[3.75rem]");
-    expect(html).not.toContain("py-2");
+    expect(html).toContain("min-h-[4.75rem]");
     expect(html).toContain("h-[3.75rem]");
     expect(html).not.toContain("md:h-28");
     expect(html).not.toContain("md:grid-cols-[minmax(0,1fr)_auto]");

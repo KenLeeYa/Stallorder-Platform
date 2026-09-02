@@ -21,7 +21,6 @@ export async function getStaffOrderPageConfiguration(
         stallId,
         organizationId,
         isEnabled: true,
-        isSoldOut: false,
         OR: [{ availableFrom: null }, { availableFrom: { lte: now } }],
         AND: [{ OR: [{ availableUntil: null }, { availableUntil: { gt: now } }] }],
         product: { isActive: true, category: { isActive: true } },
@@ -212,7 +211,6 @@ export async function getStaffOrderPageConfiguration(
           && componentAssignment?.organizationId === organizationId
           && componentAssignment.stallId === stallId
           && componentAssignment.isEnabled
-          && !componentAssignment.isSoldOut
           && (!componentAssignment.availableFrom || componentAssignment.availableFrom <= now)
           && (!componentAssignment.availableUntil || componentAssignment.availableUntil > now);
         return isAvailable ? [{

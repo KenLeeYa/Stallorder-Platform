@@ -104,6 +104,7 @@ export function StaffOrderComposer({
   const [message, setMessage] = useState("");
   const [actionPrompt, setActionPrompt] = useState("");
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [configuringProductId, setConfiguringProductId] = useState<string | null>(null);
   const [activePane, setActivePane] = useState<"MENU" | "CART">("MENU");
   const [tabletCheckoutStep, setTabletCheckoutStep] = useState<"CART" | "CHECKOUT">("CART");
   const [catalogExpanded, setCatalogExpanded] = useState(true);
@@ -118,6 +119,18 @@ export function StaffOrderComposer({
     () => new Map(catalog.products.map((product) => [product.id, product])),
     [catalog.products],
   );
+  const configuringProduct = configuringProductId
+    ? productsById.get(configuringProductId) ?? null
+    : null;
+  const configuringQuantity = configuringProduct
+    ? quantities[configuringProduct.id] ?? 0
+    : 0;
+  const configuringNoteSelections = configuringProduct
+    ? noteSelections[configuringProduct.id] ?? []
+    : [];
+  const configuringBundleSelections = configuringProduct
+    ? bundleSelections[configuringProduct.id] ?? []
+    : [];
   const restorableProducts = useMemo(() => catalog.products.map((product) => ({
     id: product.id,
     noteGroups: product.noteGroups,
@@ -307,6 +320,7 @@ export function StaffOrderComposer({
     setMessage("");
     setActionPrompt("");
     setNoteDialogOpen(false);
+    setConfiguringProductId(null);
     setActivePane("MENU");
     setTabletCheckoutStep("CART");
     setCatalogExpanded(true);
@@ -507,16 +521,16 @@ export function StaffOrderComposer({
 
   function addProductToCart(product: StaffCatalogProduct) {
     const quantity = quantities[product.id] ?? 0;
-    if (quantity <= 0) return;
+    if (quantity <= 0) return false;
     const noteOptionIds = noteSelections[product.id] ?? [];
     const bundleChoiceIds = bundleSelections[product.id] ?? [];
     if (!noteSelectionIsValid(product.noteGroups, noteOptionIds)) {
       showActionPrompt(t("composer.requiredNotes", { item: localizedStaffProduct(product, locale).name }));
-      return;
+      return false;
     }
     if (!bundleSelectionIsValid(product, bundleChoiceIds)) {
       showActionPrompt(t("composer.requiredBundle", { item: localizedStaffProduct(product, locale).name }));
-      return;
+      return false;
     }
     const editingLineId = editingLineIds[product.id];
     const nextLine = {
@@ -531,7 +545,7 @@ export function StaffOrderComposer({
       : addQrCartLine(cartLines, nextLine, catalog.limits, createWebUuid);
     if (!nextLines) {
       showActionPrompt(t("composer.itemLimit"));
-      return;
+      return false;
     }
     setCartLines(nextLines);
     setQuantities((current) => {
@@ -555,6 +569,53 @@ export function StaffOrderComposer({
       return nextLineIds;
     });
     setMessage("");
+    return true;
+  }
+
+  function openProductConfigurator(product: StaffCatalogProduct) {
+    setNoteSelections((current) => {
+      const nextSelections = { ...current };
+      delete nextSelections[product.id];
+      return nextSelections;
+    });
+    setBundleSelections((current) => {
+      const nextSelections = { ...current };
+      delete nextSelections[product.id];
+      return nextSelections;
+    });
+    setEditingLineIds((current) => {
+      const nextLineIds = { ...current };
+      delete nextLineIds[product.id];
+      return nextLineIds;
+    });
+    setQuantity(product.id, 1);
+    setConfiguringProductId(product.id);
+  }
+
+  function dismissProductConfigurator() {
+    if (!configuringProductId) return;
+    const productId = configuringProductId;
+    setQuantities((current) => {
+      const nextQuantities = { ...current };
+      delete nextQuantities[productId];
+      return nextQuantities;
+    });
+    setNoteSelections((current) => {
+      const nextSelections = { ...current };
+      delete nextSelections[productId];
+      return nextSelections;
+    });
+    setBundleSelections((current) => {
+      const nextSelections = { ...current };
+      delete nextSelections[productId];
+      return nextSelections;
+    });
+    setEditingLineIds((current) => {
+      const nextLineIds = { ...current };
+      delete nextLineIds[productId];
+      return nextLineIds;
+    });
+    setConfiguringProductId(null);
   }
 
   function changeCartLineQuantity(lineId: string, quantity: number) {
@@ -603,17 +664,7 @@ export function StaffOrderComposer({
     setNoteSelections((current) => ({ ...current, [line.productId]: line.noteOptionIds }));
     setBundleSelections((current) => ({ ...current, [line.productId]: line.bundleChoiceIds }));
     setEditingLineIds((current) => ({ ...current, [line.productId]: line.id }));
-    setCatalogExpanded(true);
-    const productSection = catalogNavigationItems.find((item) => (
-      item.products.some((candidate) => candidate.id === product.id)
-    ));
-    if (productSection) expandCatalogSection(productSection.key);
-    setActiveCatalogAnchor(productSection?.id ?? catalogNavigationItems[0]?.id ?? "");
-    switchPane("MENU");
-    window.setTimeout(() => document.getElementById(`staff-product-${line.productId}`)?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    }), 0);
+    setConfiguringProductId(line.productId);
   }
 
   function selectNoteOption(
@@ -977,6 +1028,8 @@ export function StaffOrderComposer({
                       const noteSelected = noteSelections[product.id] ?? [];
                       const bundleSelected = bundleSelections[product.id] ?? [];
                       const productCopy = localizedStaffProduct(product, locale);
+                      const hasConfiguration = product.noteGroups.length > 0
+                        || (product.bundleChoiceGroups?.length ?? 0) > 0;
                       const unitPrice = Math.max(
                         0,
                         product.price
@@ -991,31 +1044,18 @@ export function StaffOrderComposer({
                         <p className="mt-1 text-sm font-semibold">{formatMoney(unitPrice, stall.currency, locale)}</p>
                             {cartQuantity > 0 ? <p className="mt-1 text-xs font-medium text-teal-800">{t("composer.inCart", { count: cartQuantity })}</p> : null}
                           </div>
-                          <div className="grid grid-cols-[44px_32px_44px] items-center gap-2">
+                          {hasConfiguration ? <button
+                            type="button"
+                            data-testid="staff-open-product-configurator"
+                            onClick={() => openProductConfigurator(product)}
+                            className="inline-flex min-h-14 min-w-32 items-center justify-center rounded-lg border-2 border-teal-700 bg-teal-50 px-4 text-sm font-bold text-teal-900"
+                          >{t("composer.chooseOptions")}</button> : <div className="grid grid-cols-[44px_32px_44px] items-center gap-2">
                             <button type="button" title={t("composer.decreaseItem", { item: productCopy.name })} disabled={quantity === 0} onClick={() => setQuantity(product.id, quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Minus className="h-4 w-4" /></button>
                             <span className="text-center font-semibold">{quantity}</span>
                             <button type="button" title={t("composer.increaseItem", { item: productCopy.name })} onClick={() => setQuantity(product.id, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-800 text-white"><Plus className="h-4 w-4" /></button>
-                          </div>
+                          </div>}
                         </div>
-                        {quantity > 0 && product.kind === "BUNDLE" ? <div className="mt-4 space-y-3">
-                          {(product.bundleChoiceGroups ?? []).map((group) => {
-                            const groupIds = new Set(group.choices.map((choice) => choice.id));
-                            const selectedCount = bundleSelected.filter((id) => groupIds.has(id)).length;
-                            return <fieldset key={group.id} className="rounded-md border border-teal-200 bg-teal-50/60 p-3">
-                              <legend className="px-2 text-sm font-bold text-teal-950"><span className="mr-2 inline-flex rounded-full bg-teal-800 px-2 py-0.5 text-xs text-white">{t("composer.bundleGroup")}</span>{group.name}{group.minSelections > 0 ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-600">{group.minSelections === group.maxSelections ? t("composer.chooseExact", { count: group.minSelections }) : t("composer.chooseRange", { min: group.minSelections, max: group.maxSelections })}</span></legend>
-                              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
-                                {group.maxSelections === 1 && group.minSelections === 0 ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-bundle-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectBundleChoice(product.id, group, null)} />{t("composer.noSelection")}</label> : null}
-                                {group.choices.map((choice) => {
-                                  const checked = bundleSelected.includes(choice.id);
-                                  const maxed = selectedCount >= group.maxSelections;
-                                  return <label key={choice.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.maxSelections === 1 ? "radio" : "checkbox"} name={`staff-bundle-${product.id}-${group.id}`} checked={checked} disabled={group.maxSelections > 1 && maxed && !checked} onChange={() => selectBundleChoice(product.id, group, choice.id)} />{localizedStaffName(choice.name, choice.translations, locale)} × {choice.quantity}{choice.priceDelta !== 0 ? <span className="text-teal-800">{choice.priceDelta > 0 ? "+" : ""}{formatMoney(choice.priceDelta, stall.currency, locale)}</span> : null}</label>;
-                                })}
-                              </div>
-                            </fieldset>;
-                          })}
-                        </div> : null}
-                        {quantity > 0 && product.noteGroups.length > 0 ? <div className="mt-4 space-y-3 border-l-2 border-teal-700 pl-3">{product.noteGroups.map((group) => { const optionIds = new Set(group.options.map((option) => option.id)); const selectedCount = noteSelected.filter((id) => optionIds.has(id)).length; return <fieldset key={group.id}><legend className="text-sm font-semibold">{localizedStaffName(group.name, group.translations, locale)}{group.isRequired ? " *" : ""}<span className="ml-2 text-xs font-normal text-stone-500">{group.selectionMode === "SINGLE" ? t("composer.singleChoice") : group.maxSelections ? t("composer.maxChoices", { count: group.maxSelections }) : t("composer.multipleChoice")}</span></legend><div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">{group.selectionMode === "SINGLE" && !group.isRequired ? <label className="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name={`staff-note-${product.id}-${group.id}`} checked={selectedCount === 0} onChange={() => selectNoteOption(product.id, group, null)} />{t("composer.noSelection")}</label> : null}{group.options.map((option) => { const checked = noteSelected.includes(option.id); const maxed = group.maxSelections !== null && selectedCount >= group.maxSelections; return <label key={option.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><input type={group.selectionMode === "SINGLE" ? "radio" : "checkbox"} name={`staff-note-${product.id}-${group.id}`} checked={checked} disabled={group.selectionMode === "MULTIPLE" && maxed && !checked} onChange={() => selectNoteOption(product.id, group, option.id)} />{localizedStaffName(option.name, option.translations, locale)}{option.priceDelta !== 0 ? <span className="text-teal-800">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, stall.currency, locale)}</span> : null}</label>; })}</div></fieldset>; })}</div> : null}
-                        {quantity > 0 ? <button type="button" onClick={() => addProductToCart(product)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white"><ShoppingCart className="h-4 w-4" />{editingLineIds[product.id] ? t("composer.updateDone") : t("composer.addToCart")}</button> : null}
+                        {!hasConfiguration && quantity > 0 ? <button type="button" onClick={() => addProductToCart(product)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white"><ShoppingCart className="h-4 w-4" />{t("composer.addToCart")}</button> : null}
                         </article>;
                     })}
                   </div> : null}
@@ -1116,6 +1156,93 @@ export function StaffOrderComposer({
         </div>
       </section>
       {actionPrompt ? <div className="pointer-events-none fixed inset-0 z-[80] grid place-items-center p-6" aria-live="assertive"><p data-testid="staff-action-prompt" role="alert" className="max-w-md rounded-xl border-2 border-red-600 bg-white px-5 py-4 text-center text-base font-bold text-red-800 shadow-2xl">{actionPrompt}</p></div> : null}
+      {configuringProduct ? <div className="fixed inset-0 z-[76] flex items-end justify-center bg-black/60 sm:items-center sm:p-4">
+        <section
+          data-testid="staff-product-configurator"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="staff-product-configurator-title"
+          className="flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
+        >
+          <header className="flex shrink-0 items-start justify-between gap-4 border-b border-stone-200 px-4 py-4 sm:px-6">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-teal-800">{t("composer.chooseOptions")}</p>
+              <h3 id="staff-product-configurator-title" className="mt-1 break-words text-xl font-semibold">{localizedStaffProduct(configuringProduct, locale).name}</h3>
+              <p className="mt-1 text-sm font-semibold text-stone-700">{formatMoney(Math.max(0, configuringProduct.price + bundlePriceAdjustment(configuringProduct, configuringBundleSelections) + notePriceAdjustment(configuringProduct.noteGroups, configuringNoteSelections)), stall.currency, locale)}</p>
+            </div>
+            <button type="button" title={t("common.cancel")} aria-label={t("common.cancel")} onClick={dismissProductConfigurator} className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-stone-300 bg-white"><X className="h-5 w-5" /></button>
+          </header>
+
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
+            {(configuringProduct.bundleChoiceGroups ?? []).map((group) => {
+              const groupIds = new Set(group.choices.map((choice) => choice.id));
+              const selectedCount = configuringBundleSelections.filter((id) => groupIds.has(id)).length;
+              const role = group.maxSelections === 1 ? "radio" : "checkbox";
+              return <section key={group.id} aria-labelledby={`staff-configurator-bundle-${group.id}`}>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h4 id={`staff-configurator-bundle-${group.id}`} className="text-base font-bold">{group.name}{group.minSelections > 0 ? " *" : ""}</h4>
+                  <span className="text-xs font-semibold text-stone-500">{group.minSelections === group.maxSelections ? t("composer.chooseExact", { count: group.minSelections }) : t("composer.chooseRange", { min: group.minSelections, max: group.maxSelections })}</span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2" role={role === "radio" ? "radiogroup" : "group"} aria-labelledby={`staff-configurator-bundle-${group.id}`}>
+                  {group.maxSelections === 1 && group.minSelections === 0 ? <button type="button" data-testid="staff-configurator-option" role="radio" aria-checked={selectedCount === 0} onClick={() => selectBundleChoice(configuringProduct.id, group, null)} className={`flex min-h-14 items-center justify-between rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold ${selectedCount === 0 ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-800"}`}><span>{t("composer.noSelection")}</span><SelectionMark selected={selectedCount === 0} /></button> : null}
+                  {group.choices.map((choice) => {
+                    const checked = configuringBundleSelections.includes(choice.id);
+                    const maxed = selectedCount >= group.maxSelections;
+                    return <button
+                      key={choice.id}
+                      type="button"
+                      data-testid="staff-configurator-option"
+                      role={role}
+                      aria-checked={checked}
+                      disabled={role === "checkbox" && maxed && !checked}
+                      onClick={() => selectBundleChoice(configuringProduct.id, group, choice.id)}
+                      className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold disabled:opacity-40 ${checked ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-800"}`}
+                    ><span>{localizedStaffName(choice.name, choice.translations, locale)} × {choice.quantity}{choice.priceDelta !== 0 ? <span className="ml-2 text-teal-800">{choice.priceDelta > 0 ? "+" : ""}{formatMoney(choice.priceDelta, stall.currency, locale)}</span> : null}</span><SelectionMark selected={checked} multiple={role === "checkbox"} /></button>;
+                  })}
+                </div>
+              </section>;
+            })}
+
+            {configuringProduct.noteGroups.map((group) => {
+              const optionIds = new Set(group.options.map((option) => option.id));
+              const selectedCount = configuringNoteSelections.filter((id) => optionIds.has(id)).length;
+              const role = group.selectionMode === "SINGLE" ? "radio" : "checkbox";
+              return <section key={group.id} aria-labelledby={`staff-configurator-note-${group.id}`}>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h4 id={`staff-configurator-note-${group.id}`} className="text-base font-bold">{localizedStaffName(group.name, group.translations, locale)}{group.isRequired ? " *" : ""}</h4>
+                  <span className="text-xs font-semibold text-stone-500">{group.selectionMode === "SINGLE" ? t("composer.singleChoice") : group.maxSelections ? t("composer.maxChoices", { count: group.maxSelections }) : t("composer.multipleChoice")}</span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2" role={role === "radio" ? "radiogroup" : "group"} aria-labelledby={`staff-configurator-note-${group.id}`}>
+                  {role === "radio" && !group.isRequired ? <button type="button" data-testid="staff-configurator-option" role="radio" aria-checked={selectedCount === 0} onClick={() => selectNoteOption(configuringProduct.id, group, null)} className={`flex min-h-14 items-center justify-between rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold ${selectedCount === 0 ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-800"}`}><span>{t("composer.noSelection")}</span><SelectionMark selected={selectedCount === 0} /></button> : null}
+                  {group.options.map((option) => {
+                    const checked = configuringNoteSelections.includes(option.id);
+                    const maxed = group.maxSelections !== null && selectedCount >= group.maxSelections;
+                    return <button
+                      key={option.id}
+                      type="button"
+                      data-testid="staff-configurator-option"
+                      role={role}
+                      aria-checked={checked}
+                      disabled={role === "checkbox" && maxed && !checked}
+                      onClick={() => selectNoteOption(configuringProduct.id, group, option.id)}
+                      className={`flex min-h-14 items-center justify-between gap-3 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold disabled:opacity-40 ${checked ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-800"}`}
+                    ><span>{localizedStaffName(option.name, option.translations, locale)}{option.priceDelta !== 0 ? <span className="ml-2 text-teal-800">{option.priceDelta > 0 ? "+" : ""}{formatMoney(option.priceDelta, stall.currency, locale)}</span> : null}</span><SelectionMark selected={checked} multiple={role === "checkbox"} /></button>;
+                  })}
+                </div>
+              </section>;
+            })}
+          </div>
+
+          <footer className="safe-area-bottom sticky bottom-0 shrink-0 border-t border-stone-200 bg-white px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] sm:px-6">
+            <div className="grid grid-cols-[56px_48px_56px_minmax(0,1fr)] items-center gap-2">
+              <button type="button" title={t("composer.decreaseItem", { item: localizedStaffProduct(configuringProduct, locale).name })} disabled={configuringQuantity <= 1} onClick={() => setQuantity(configuringProduct.id, configuringQuantity - 1)} className="grid h-14 w-14 place-items-center rounded-xl border border-stone-300 bg-white disabled:opacity-40"><Minus className="h-5 w-5" /></button>
+              <strong className="text-center text-lg">{configuringQuantity}</strong>
+              <button type="button" title={t("composer.increaseItem", { item: localizedStaffProduct(configuringProduct, locale).name })} onClick={() => setQuantity(configuringProduct.id, configuringQuantity + 1)} className="grid h-14 w-14 place-items-center rounded-xl bg-stone-900 text-white"><Plus className="h-5 w-5" /></button>
+              <button type="button" disabled={configuringQuantity < 1} onClick={() => { if (addProductToCart(configuringProduct)) setConfiguringProductId(null); }} className="inline-flex min-h-14 min-w-0 items-center justify-center gap-2 rounded-xl bg-teal-800 px-3 text-sm font-bold text-white disabled:opacity-40"><ShoppingCart className="h-5 w-5 shrink-0" /><span className="truncate">{editingLineIds[configuringProduct.id] ? t("composer.updateDone") : t("composer.addToCart")}</span></button>
+            </div>
+          </footer>
+        </section>
+      </div> : null}
       {noteDialogOpen ? <div className="fixed inset-0 z-[75] grid place-items-center bg-black/55 p-4"><section role="dialog" aria-modal="true" aria-labelledby="staff-note-dialog-title" className="w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-3"><h3 id="staff-note-dialog-title" className="text-xl font-semibold">{t("composer.customerNote")}</h3><button type="button" title={t("common.close")} aria-label={t("common.close")} onClick={() => setNoteDialogOpen(false)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-5 w-5" /></button></div><textarea autoFocus value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-4 min-h-36" /><button type="button" onClick={() => setNoteDialogOpen(false)} className="mt-4 min-h-12 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white">{t("common.save")}</button></section></div> : null}
       {draftManagerOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-4">
@@ -1329,6 +1456,10 @@ function toggleBundleChoice(
 
 function ModeButton({ active, disabled, icon, label, onClick }: { active: boolean; disabled?: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {
   return <button type="button" disabled={disabled} aria-pressed={active} onClick={onClick} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md border text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-35 ${active ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white"}`}>{icon}{label}</button>;
+}
+
+function SelectionMark({ selected, multiple = false }: { selected: boolean; multiple?: boolean }) {
+  return <span aria-hidden="true" className={`grid h-6 w-6 shrink-0 place-items-center border-2 text-sm font-black ${multiple ? "rounded-md" : "rounded-full"} ${selected ? "border-teal-700 bg-teal-700 text-white" : "border-stone-400 bg-white text-transparent"}`}>✓</span>;
 }
 
 function TextField({ className = "mt-3", label, value, maxLength, type = "text", inputMode, autoComplete, pattern, onChange }: { className?: string; label: string; value: string; maxLength: number; type?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; autoComplete?: string; pattern?: string; onChange: (value: string) => void }) {

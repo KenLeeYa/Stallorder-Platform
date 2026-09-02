@@ -7,4 +7,3 @@
 5. **PRODUCTION_READY**：安全／法務／稅務核准、監控與 DR 證據、漸進百分比放量。
 
 每階段都需獨立證據；不能用 Mock、CI 或畫面截圖替代 Sandbox/Pilot/Production。任何 Gate=FAIL 都停止推進，不弱化測試或打開正式旗標。
-

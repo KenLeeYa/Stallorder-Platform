@@ -5,9 +5,9 @@ import {
   getOrderHelpGuidance,
   getPublicOrderProgress,
   getPublicOrderCustomerActions,
-  getQrOrderReturnPath,
   getPublicOrderStatusLabel,
   formatOrderRefreshTime,
+  formatNoteOptions,
   OrderAmendmentNoticeDialog,
   OrderHelpPanel,
   OrderProgressPanel,
@@ -35,18 +35,18 @@ function findElementByAriaLabel(
 }
 
 describe("public order progress", () => {
-  it("offers the same QR menu only after the tracked order reaches a terminal state", () => {
-    const qrToken = "qr_abcdefghijklmnopqrstuvwxyz123456";
-
-    expect(getQrOrderReturnPath("COMPLETED", qrToken)).toBe(
-      `/q/${encodeURIComponent(qrToken)}?newOrder=1`,
-    );
-    expect(getQrOrderReturnPath("CANCELLED", qrToken)).toBe(
-      `/q/${encodeURIComponent(qrToken)}?newOrder=1`,
-    );
-    expect(getQrOrderReturnPath("PREPARING", qrToken)).toBeNull();
-    expect(getQrOrderReturnPath("COMPLETED", null)).toBeNull();
+  it("shows one note group label followed by all selected options", () => {
+    expect(formatNoteOptions("zh-TW", [
+      { groupName: "加料", optionName: "蛋" },
+      { groupName: "加料", optionName: "起司" },
+      { groupName: "辣度", optionName: "小辣" },
+    ])).toBe("加料：蛋、起司；辣度：小辣");
+    expect(formatNoteOptions("en", [
+      { groupName: "Extras", optionName: "Egg" },
+      { groupName: "Extras", optionName: "Cheese" },
+    ])).toBe("Extras: Egg, Cheese");
   });
+
   it("renders the merchant amendment as a centered customer notice", () => {
     const html = renderToStaticMarkup(
       <OrderAmendmentNoticeDialog

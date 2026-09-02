@@ -240,7 +240,6 @@ function prepareSnapshotItems(
       !product
       || !product.isActive
       || !product.isEnabled
-      || product.isSoldOut
       || item.quantity > snapshotCatalog.limits.maxItemQuantity
       || item.note.length > snapshotCatalog.limits.maxNoteLength
       || item.name !== product.name
@@ -659,7 +658,6 @@ async function currentProductConflicts(
     }
     if (
       !current.isEnabled
-      || current.isSoldOut
       || !current.product.isActive
       || !current.product.category.isActive
       || (current.availableFrom && current.availableFrom > now)

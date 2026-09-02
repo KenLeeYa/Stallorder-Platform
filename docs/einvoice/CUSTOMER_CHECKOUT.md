@@ -15,4 +15,3 @@
 ## 隱私
 
 結帳選項與會員主檔分離；顧客這次輸入不會默默覆寫會員載具。API response、audit metadata 與錯誤訊息不得回傳明文載具、統編憑證或 Provider secret。
-

@@ -150,6 +150,39 @@ describe("Circuit B public order service", () => {
     expect(mocks.checkPublicOrderSubmissionGate).not.toHaveBeenCalled();
   });
 
+  it("allows a general DEFAULT QR order without customer identity", async () => {
+    mocks.preflightPublicOrder.mockResolvedValue({
+      ok: true,
+      resumable_order: null,
+      idempotent_order: null,
+      qr_context: {
+        dining_table_id: null,
+        fulfillment_type_context: null,
+        table: null,
+        settings: { dine_in_enabled: true, delivery_module_enabled: true },
+      },
+    });
+    mocks.verifyTurnstile.mockResolvedValue({
+      ok: false,
+      code: "INVALID_TURNSTILE",
+      errors: ["invalid-input-response"],
+    });
+    const { createOrderThroughCircuitB } = await import("./circuit-b-service");
+
+    await expect(createOrderThroughCircuitB({
+      ...validOrder(),
+      customerName: "",
+      customerPhone: "",
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    })).rejects.toMatchObject({ code: "INVALID_TURNSTILE" });
+
+    expect(mocks.checkPublicOrderSubmissionGate).toHaveBeenCalledOnce();
+    expect(mocks.verifyTurnstile).toHaveBeenCalledOnce();
+  });
+
   it("rejects Circuit B before public-order work when the audited flag is disabled", async () => {
     mocks.resolveResilienceFeatureFlags.mockResolvedValue({
       DUAL_ORDER_INTAKE_ENABLED: { enabled: false },
@@ -317,6 +350,10 @@ describe("Circuit B public order service", () => {
       orderingMode: "PREORDER",
       preorderSlots: ["2026-08-03T04:00:00.000Z"],
       lotteryEnabled: false,
+      checkoutUpsell: {
+        enabled: true,
+        productIds: ["77777777-7777-4777-8777-777777777777"],
+      },
     });
     const { issueOrderSessionThroughCircuitB } = await import("./circuit-b-service");
 
@@ -346,6 +383,10 @@ describe("Circuit B public order service", () => {
       orderingMode: "PREORDER",
       preorderSlots: ["2026-08-03T04:00:00.000Z"],
       lotteryEnabled: false,
+      checkoutUpsell: {
+        enabled: true,
+        productIds: ["77777777-7777-4777-8777-777777777777"],
+      },
       estimatedWaitMinutes: 0,
       estimatedWaitMinMinutes: 0,
       estimatedWaitMaxMinutes: 0,

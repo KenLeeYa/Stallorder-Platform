@@ -64,6 +64,10 @@ export type PublicMenu = {
   orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
   preorderSlots: string[];
   lotteryEnabled: boolean;
+  checkoutUpsell?: {
+    enabled: boolean;
+    productIds: string[];
+  };
   deliveryNotice?: string | null;
   lotteryReward?: {
     spendEnabled: boolean;
@@ -75,6 +79,8 @@ export type PublicMenu = {
     id: string;
     startsOn: string;
     endsOn: string;
+    opensAt?: string | null;
+    closesAt?: string | null;
     title: string;
     message: string;
     isActive: boolean;
@@ -100,6 +106,9 @@ export type PublicMenu = {
     timezone: string;
     coverImageUrl?: string | null;
     locationGuideImageUrl?: string | null;
+    locationGuideImagePositionX?: number;
+    locationGuideImagePositionY?: number;
+    locationGuideImageZoom?: number;
     coverImagePositionX?: number;
     coverImagePositionY?: number;
     coverImageZoom?: number;

@@ -19,6 +19,12 @@ export function publicMenuProductsForPickupWindow(
   return filterPublicMenuProductsForTimeWindow(products, preorderSlots);
 }
 
+export function publicMenuProductsVisibleForOrdering(
+  products: readonly PublicMenuProduct[],
+) {
+  return products.filter((product) => !product.isSoldOut);
+}
+
 export function prunePublicCartForProducts(
   products: readonly PublicMenuProduct[],
   cart: {

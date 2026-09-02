@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Download, Lightbulb, LightbulbOff, Signal, SignalLow, WifiOff } from "lucide-react";
 import { LocaleSelector } from "@/components/locale-selector";
 import { useAppLocale } from "@/components/locale-provider";
@@ -12,11 +13,13 @@ export function PwaControls({
   showLocale = true,
   showQualityLabel = true,
   showInstall = true,
+  afterAccessibility,
 }: {
   showWakeLock?: boolean;
   showLocale?: boolean;
   showQualityLabel?: boolean;
   showInstall?: boolean;
+  afterAccessibility?: ReactNode;
 }) {
   const { t } = useAppLocale();
   const runtime = usePwaRuntime();
@@ -32,6 +35,7 @@ export function PwaControls({
       {showLocale ? <LocaleSelector compact /> : null}
       <ThemeToggle />
       <AccessibilityModeToggle />
+      {afterAccessibility}
       <span data-testid="pwa-network-status" data-senior-action-tile="true" aria-label={qualityLabel} title={`${qualityLabel}${runtime.effectiveType ? ` · ${runtime.effectiveType}` : ""}`} className={`inline-flex h-10 items-center gap-2 px-2 text-xs font-semibold ${runtime.quality === "GOOD" ? "text-emerald-700" : runtime.quality === "POOR" ? "text-amber-800" : "text-red-700"}`}>
         <QualityIcon className="h-4 w-4" aria-hidden="true" />
         {showQualityLabel ? <span className="hidden xl:inline">{qualityLabel}</span> : null}

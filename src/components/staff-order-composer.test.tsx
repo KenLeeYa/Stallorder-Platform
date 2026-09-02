@@ -164,4 +164,14 @@ describe("StaffOrderComposer mobile toolbar", () => {
     expect(html).not.toContain(">湯河粉<");
     expect(html).not.toContain(">牛肉湯河粉<");
   });
+
+  it("moves configurable products into a touch-friendly hierarchical dialog", () => {
+    expect(composerSource).toContain('data-testid="staff-product-configurator"');
+    expect(composerSource).toContain('data-testid="staff-open-product-configurator"');
+    expect(composerSource).toContain('data-testid="staff-configurator-option"');
+    expect(composerSource).toContain("min-h-14");
+    expect(composerSource).toContain("sticky bottom-0");
+    expect(composerSource).not.toContain('name={`staff-note-${product.id}-${group.id}`}');
+    expect(composerSource).not.toContain('name={`staff-bundle-${product.id}-${group.id}`}');
+  });
 });
