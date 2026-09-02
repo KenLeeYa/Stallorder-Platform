@@ -10,6 +10,7 @@ import {
   type KitchenOperationalOrderStatus,
 } from "@/lib/kitchen-contract";
 import { classifyStallOrderForProduction } from "@/lib/fulfillment-time";
+import { kitchenAlertOrderStatuses } from "@/lib/kitchen-order-alerts";
 import { prisma } from "@/lib/prisma";
 import { entitlementService } from "@/server/billing/entitlement-service";
 import { persistExternalOrderTransitionForOrder } from "@/server/delivery-platforms/external-order-status-service";
@@ -79,7 +80,7 @@ export async function getKitchenBoardData(
   stationId?: string,
 ) {
   const serverNow = new Date();
-  const [, stallConfiguration, stations, tasks] = await Promise.all([
+  const [, stallConfiguration, stations, tasks, alertOrders] = await Promise.all([
     prisma.$queryRaw`select public.refresh_kds_operational_alerts(
       ${organizationId}::uuid,
       ${stallId}::uuid
@@ -128,6 +129,15 @@ export async function getKitchenBoardData(
       orderBy: [{ order: { createdAt: "asc" } }, { createdAt: "asc" }],
       include: kitchenTaskInclude,
     }),
+    prisma.order.findMany({
+      where: {
+        organizationId,
+        stallId,
+        status: { in: [...kitchenAlertOrderStatuses] },
+      },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    }),
   ]);
   const serializedTasks = tasks.map(serializeKitchenTask);
   const settings = stallConfiguration?.orderingSettings;
@@ -149,6 +159,7 @@ export async function getKitchenBoardData(
     stations,
     tasks: partitioned.currentTasks,
     futureReservations: partitioned.futureReservations,
+    alertOrderIds: alertOrders.map((order) => order.id),
     serverNow: serverNow.toISOString(),
   };
 }
