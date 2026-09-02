@@ -62,4 +62,13 @@ describe("physical QR order page", () => {
 
     expect(element.props).toMatchObject({ initialUiLocale: "en", requestedLocale: null });
   });
+
+  it("passes an explicit new-order choice to the client recovery flow", async () => {
+    const element = await QrOrderPage({
+      params: Promise.resolve({ qrToken: "physical-qr-token" }),
+      searchParams: Promise.resolve({ newOrder: "1" }),
+    });
+
+    expect(element.props).toMatchObject({ startNewOrder: true });
+  });
 });

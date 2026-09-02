@@ -57,14 +57,25 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
   const orderNo = orderNumberText?.replace(/^訂單\s*/, "") ?? "";
   expect(orderNo).not.toBe("");
   const trackingPath = new URL(page.url()).pathname;
+  const trackingToken = trackingPath.replace(/^\/order\//u, "");
 
-  const resumeResponse = page.waitForResponse((response) => (
-    new URL(response.url()).pathname.endsWith("/create-order-session")
-    && response.request().method() === "POST"
-  ));
+  const resumeSessionRequests: string[] = [];
+  page.on("request", (request) => {
+    if (
+      new URL(request.url()).pathname.endsWith("/create-order-session")
+      && request.method() === "POST"
+    ) resumeSessionRequests.push(request.url());
+  });
+  const recoveryValidationResponse = page.waitForResponse((response) => {
+    const pathname = new URL(response.url()).pathname;
+    const method = response.request().method();
+    return (pathname.endsWith("/get-public-order") && method === "POST")
+      || (pathname.endsWith(`/api/public/orders/${trackingToken}`) && method === "GET");
+  });
   await page.goto(`/q/${takeoutQrToken}`);
-  expect((await resumeResponse).status()).toBe(200);
+  expect((await recoveryValidationResponse).status()).toBe(200);
   await expect.poll(() => new URL(page.url()).pathname).toBe(trackingPath);
+  expect(resumeSessionRequests).toHaveLength(0);
   await expect(page.getByTestId("pickup-code")).toHaveText(/^\d{3}$/);
 
   const staffContext = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });

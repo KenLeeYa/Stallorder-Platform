@@ -38,8 +38,10 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
   await submit.click();
   const createResponse = await createResponsePromise;
   expect([200, 201]).toContain(createResponse.status());
-  await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+$/u);
-  const trackingToken = new URL(page.url()).pathname.split("/").at(-1);
+  await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+(?:\?.*)?$/u);
+  const trackerUrl = new URL(page.url());
+  expect(trackerUrl.searchParams.get("qr")).toBe(qrToken);
+  const trackingToken = trackerUrl.pathname.split("/").at(-1);
   expect(trackingToken).toMatch(/^sto_[A-Za-z0-9_-]+$/u);
 
   const prepareResponsePromise = page.waitForResponse((response) => (
