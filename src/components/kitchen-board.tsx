@@ -32,7 +32,6 @@ import {
   type KitchenBoardTask,
   type KitchenTaskState,
 } from "@/lib/kitchen-board-contract";
-import { reconcileKitchenOrderAlerts } from "@/lib/kitchen-order-alerts";
 import type { WorkModeDestination } from "@/lib/work-mode";
 
 type BoardData = {
@@ -46,7 +45,6 @@ type BoardData = {
   stations: Array<{ id: string; name: string; code: string }>;
   tasks: KitchenBoardTask[];
   futureReservations: KitchenBoardTask[];
-  alertOrderIds: string[];
   serverNow: string;
 };
 
@@ -74,7 +72,7 @@ type CancellationErrors = {
 
 export function KitchenBoard({ stall, canManage, workModeDestinations, initialData, role }: Props) {
   const { locale, t } = useOperationsLocale();
-  const knownOrderIdsRef = useRef(new Set(initialData.alertOrderIds));
+  const knownOrderIdsRef = useRef(new Set(initialData.tasks.map((task) => task.orderId)));
   const alertsEnabledRef = useRef(false);
   const [data, setData] = useState(initialData);
   const [mode, setMode] = useState<KitchenBoardMode>(initialData.settings.defaultView);
@@ -108,10 +106,9 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
       if (!response.ok) throw new Error(payload.code
         ? t(getOperationsErrorMessageKey(payload.code, "kitchen.board.reloadFailed"))
         : t("kitchen.board.reloadFailed"));
-      const newOrderCount = reconcileKitchenOrderAlerts(
-        knownOrderIdsRef.current,
-        payload.alertOrderIds,
-      );
+      const nextOrderIds = new Set(payload.tasks.map((task) => task.orderId));
+      const newOrderCount = [...nextOrderIds].filter((orderId) => !knownOrderIdsRef.current.has(orderId)).length;
+      nextOrderIds.forEach((orderId) => knownOrderIdsRef.current.add(orderId));
       setData(payload);
       setNow(Date.parse(payload.serverNow));
       setMessage("");
@@ -124,9 +121,11 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
   }, [notifyNewOrders, stall.slug, t]);
 
   useEffect(() => {
-    const enabled = window.localStorage.getItem("stallorder_kitchen_order_alerts") === "enabled";
-    alertsEnabledRef.current = enabled;
-    const preferenceTimer = window.setTimeout(() => setAlertsEnabled(enabled), 0);
+    const preferenceTimer = window.setTimeout(() => {
+      const enabled = window.localStorage.getItem("stallorder_kitchen_order_alerts") === "enabled";
+      alertsEnabledRef.current = enabled;
+      setAlertsEnabled(enabled);
+    }, 0);
     return () => window.clearTimeout(preferenceTimer);
   }, []);
 

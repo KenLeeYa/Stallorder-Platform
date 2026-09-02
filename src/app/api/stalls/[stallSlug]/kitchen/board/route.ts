@@ -39,7 +39,7 @@ export async function GET(request: Request, context: RouteContext) {
       authorization.stall.id,
       query.data.stationId,
     ),
-    5,
+    4,
   );
   return finalize(NextResponse.json(data, {
     headers: { "cache-control": "no-store", "x-request-id": authorization.requestId },

@@ -755,9 +755,11 @@ export function useStaffOrderBoardController({
   }
 
   useEffect(() => {
-    const enabled = window.localStorage.getItem("stallorder_staff_order_alerts") === "enabled";
-    alertsEnabledRef.current = enabled;
-    const preferenceTimer = window.setTimeout(() => setAlertsEnabled(enabled), 0);
+    const preferenceTimer = window.setTimeout(() => {
+      const enabled = window.localStorage.getItem("stallorder_staff_order_alerts") === "enabled";
+      alertsEnabledRef.current = enabled;
+      setAlertsEnabled(enabled);
+    }, 0);
     const ageTimer = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => {
       window.clearTimeout(preferenceTimer);
