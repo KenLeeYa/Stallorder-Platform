@@ -1,10 +1,13 @@
 import { Prisma } from "@prisma/client";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { cloudPrntTokenHash } from "@/server/cloudprnt/cloudprnt-credentials";
 
 const printerId = "44444444-4444-4444-8444-444444444444";
 const otherPrinterId = "66666666-6666-4666-8666-666666666666";
 const jobId = "55555555-5555-4555-8555-555555555555";
 const mediaType = "application/vnd.star.starprnt";
+const deviceId = "PRN_abcdefghijklmnop";
+const deviceToken = `cpt_v1_${"A".repeat(43)}`;
 const originalUsername = process.env.CLOUDPRNT_POC_BASIC_USERNAME;
 const originalPassword = process.env.CLOUDPRNT_POC_BASIC_PASSWORD;
 const originalEnabled = process.env.CLOUDPRNT_POC_ENABLED;
@@ -58,6 +61,87 @@ beforeEach(() => {
     order: { updateMany: vi.fn() },
     orderEvent: { create: vi.fn() },
   }));
+});
+
+describe("per-printer CloudPRNT Server URL", () => {
+  it("derives the queue scope from the authenticated device identity", async () => {
+    mocks.printerFindFirst.mockResolvedValueOnce({
+      id: printerId,
+      deviceId,
+      deviceTokenHash: cloudPrntTokenHash(deviceToken),
+    });
+    mocks.printJobFindFirst.mockResolvedValue({ id: jobId, attemptCount: 0, maxAttempts: 3 });
+    const route = await import("./route");
+
+    const response = await route.POST(deviceRequest(deviceEndpoint(), {
+      method: "POST",
+      body: JSON.stringify({ statusCode: "200%20OK" }),
+    }), deviceContext());
+
+    expect(response.status).toBe(200);
+    expect(mocks.printerFindFirst).toHaveBeenCalledWith({
+      where: { deviceId, isEnabled: true, connectionType: "CLOUDPRNT" },
+      select: { id: true, deviceId: true, deviceTokenHash: true },
+    });
+    expect(mocks.printJobFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ printerId, status: "PENDING" }),
+    }));
+  });
+
+  it("rejects a wrong or cross-printer password before reading queue state", async () => {
+    mocks.printerFindFirst.mockResolvedValueOnce({
+      id: printerId,
+      deviceId,
+      deviceTokenHash: cloudPrntTokenHash(deviceToken),
+    });
+    const route = await import("./route");
+
+    const response = await route.POST(deviceRequest(deviceEndpoint(), {
+      method: "POST",
+      body: JSON.stringify({ statusCode: "200%20OK" }),
+    }, `cpt_v1_${"B".repeat(43)}`), deviceContext());
+
+    expect(response.status).toBe(401);
+    expect(mocks.printJobFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("rejects another printer identity even when it presents this printer's password", async () => {
+    mocks.printerFindFirst.mockResolvedValueOnce({
+      id: printerId,
+      deviceId,
+      deviceTokenHash: cloudPrntTokenHash(deviceToken),
+    });
+    const otherDeviceId = "PRN_qrstuvwxyzABCDEF";
+    const route = await import("./route");
+    const response = await route.POST(new Request(deviceEndpoint(), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Basic ${Buffer.from(`${otherDeviceId}:${deviceToken}`, "utf8").toString("base64")}`,
+      },
+      body: JSON.stringify({ statusCode: "200%20OK" }),
+    }), deviceContext());
+
+    expect(response.status).toBe(401);
+    expect(mocks.printJobFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("disables the legacy UUID credential after a printer receives new credentials", async () => {
+    mocks.printerFindFirst.mockResolvedValueOnce({
+      id: printerId,
+      deviceId,
+      deviceTokenHash: cloudPrntTokenHash(deviceToken),
+    });
+    const route = await import("./route");
+
+    const response = await route.POST(printerRequest(endpoint(), {
+      method: "POST",
+      body: JSON.stringify({ statusCode: "200%20OK" }),
+    }), context());
+
+    expect(response.status).toBe(401);
+    expect(mocks.printJobFindFirst).not.toHaveBeenCalled();
+  });
 });
 
 afterAll(() => {
@@ -141,7 +225,7 @@ describe("MCP31LB CloudPRNT HTTP PoC", () => {
     expect(mocks.printerFindFirst).toHaveBeenCalledTimes(3);
     expect(mocks.printerFindFirst).toHaveBeenCalledWith({
       where: { id: printerId, isEnabled: true, connectionType: "CLOUDPRNT" },
-      select: { id: true },
+      select: { id: true, deviceId: true, deviceTokenHash: true },
     });
     expect(mocks.printJobFindFirst).not.toHaveBeenCalled();
   });
@@ -428,6 +512,24 @@ function printerRequest(url: string, init: RequestInit = {}) {
   headers.set(
     "authorization",
     `Basic ${Buffer.from("mcp31lb:a-strong-test-password", "utf8").toString("base64")}`,
+  );
+  return new Request(url, { ...init, headers });
+}
+
+function deviceEndpoint() {
+  return `https://app.qidaigo.com/api/cloudprnt/v1/${deviceId}`;
+}
+
+function deviceContext() {
+  return { params: Promise.resolve({ printerId: deviceId }) };
+}
+
+function deviceRequest(url: string, init: RequestInit = {}, token = deviceToken) {
+  const headers = new Headers(init.headers);
+  if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
+  headers.set(
+    "authorization",
+    `Basic ${Buffer.from(`${deviceId}:${token}`, "utf8").toString("base64")}`,
   );
   return new Request(url, { ...init, headers });
 }

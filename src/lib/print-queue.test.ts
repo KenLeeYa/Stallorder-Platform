@@ -65,6 +65,13 @@ describe("integrated print center commands", () => {
     expect(parsed.success).toBe(true);
   });
 
+  it("accepts a tenant-scoped CloudPRNT credential rotation command", () => {
+    expect(printQueueCommandSchema.parse({
+      operation: "ROTATE_CLOUDPRNT_TOKEN",
+      printerId,
+    })).toEqual({ operation: "ROTATE_CLOUDPRNT_TOKEN", printerId });
+  });
+
   it("rejects partial or split customer receipts to protect total accuracy", () => {
     const scoped = printQueueCommandSchema.safeParse({
       operation: "CREATE_RULE",
@@ -122,6 +129,48 @@ describe("print queue query and reconciliation boundaries", () => {
         nextRetryAt: null,
       },
     }));
+  });
+
+  it("returns a stable CloudPRNT Server URL without exposing the stored token hash", async () => {
+    mocks.printerFindMany.mockResolvedValue([{
+      id: printerId,
+      organizationId: "11111111-1111-4111-8111-111111111111",
+      stallId: "22222222-2222-4222-8222-222222222222",
+      name: "廚房雲端印表機",
+      connectionType: "CLOUDPRNT",
+      model: "MCP31LB",
+      paperWidthMm: 58,
+      autoDetectEnabled: false,
+      openCashDrawerOnCashPayment: false,
+      isEnabled: true,
+      deviceId: "PRN_abcdefghijklmnop",
+      deviceTokenHash: "a".repeat(64),
+      credentialVersion: 1,
+      credentialRotatedAt: new Date("2026-09-03T00:00:00.000Z"),
+      lastSeenAt: null,
+      createdAt: new Date("2026-09-03T00:00:00.000Z"),
+      updatedAt: new Date("2026-09-03T00:00:00.000Z"),
+    }]);
+
+    const previous = process.env.APP_BASE_URL;
+    process.env.APP_BASE_URL = "https://app.qidaigo.com";
+    try {
+      const state = await getPrintQueueState(
+        "22222222-2222-4222-8222-222222222222",
+        "11111111-1111-4111-8111-111111111111",
+      );
+
+      expect(state.printers[0]).toMatchObject({
+        deviceId: "PRN_abcdefghijklmnop",
+        hasCloudPrntCredentials: true,
+        cloudPrntServerUrl: "https://app.qidaigo.com/api/cloudprnt/v1/PRN_abcdefghijklmnop",
+      });
+      expect(JSON.stringify(state)).not.toContain("a".repeat(64));
+      expect(state.printers[0]).not.toHaveProperty("deviceTokenHash");
+    } finally {
+      if (previous === undefined) delete process.env.APP_BASE_URL;
+      else process.env.APP_BASE_URL = previous;
+    }
   });
 });
 

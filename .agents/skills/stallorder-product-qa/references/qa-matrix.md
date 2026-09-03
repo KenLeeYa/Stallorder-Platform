@@ -94,6 +94,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-KDS-06` | `KDS-009`,`KDS-010` | Proxy checkout has one primary action; packaging is conditional; sticky group navigation works across Staff/QR/takeout/delivery without obscuring content. |
 | `QA-PRN-01` | `PRN-001`,`PRN-002` | Device/printer capability reports supported/setup/unsupported accurately; paired Bluetooth or cable alone never produces a false success. |
 | `QA-PRN-02` | `PRN-003`–`PRN-006` | MCP31LB/57mm physical test covers compact content, no `[A1]` markers, auto/reprint retry, disconnect/paper-out, cutter/buzzer support, and cash-drawer outcome separately from payment. |
+| `QA-PRN-03` | `PRN-007` | Create and rotate two printer credentials; verify stable distinct URLs, one-time raw passwords, hash-only persistence, immediate old-password rejection, cross-printer denial, no secret in URL/logs, and copyable no-overflow setup at 320/390/768/1440 px. |
 
 ### Catalog, notes, bundles, and image upload
 
