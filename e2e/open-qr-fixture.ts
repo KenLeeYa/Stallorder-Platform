@@ -14,11 +14,7 @@ export async function createOpenQrFixture(input: {
   tokenPrefix: string;
   label: string;
 }) {
-  const databaseUrl = process.env.DATABASE_URL;
-  const hostname = databaseUrl ? new URL(databaseUrl).hostname : "";
-  if (!["localhost", "127.0.0.1", "[::1]"].includes(hostname)) {
-    throw new Error("OPEN_QR_FIXTURE_REQUIRES_LOCAL_DATABASE");
-  }
+  assertLocalDatabase();
 
   const prisma = new PrismaClient();
   let originalHours: BusinessHourSnapshot[] = [];
@@ -84,5 +80,13 @@ export async function createOpenQrFixture(input: {
     }
   }
 
-  return { qrToken, restore };
+  return { qrCodeId, qrToken, restore };
+}
+
+function assertLocalDatabase() {
+  const databaseUrl = process.env.DATABASE_URL;
+  const hostname = databaseUrl ? new URL(databaseUrl).hostname : "";
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(hostname)) {
+    throw new Error("OPEN_QR_FIXTURE_REQUIRES_LOCAL_DATABASE");
+  }
 }
