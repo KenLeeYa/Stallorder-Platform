@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:qa": "node scripts/start-local-qa.mjs",
+    "qa:local": "node scripts/check-local-qa.mjs",
     "postinstall": "prisma generate",
     "build": "prisma generate && next build",
     "start": "next start",

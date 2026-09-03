@@ -29,7 +29,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-UI-01` | Overflow | No unintended page-level horizontal scroll; intentional tool strips remain usable and do not hide logout/confirm actions. |
 | `QA-UI-02` | Touch | Interactive targets are at least 44x44 CSS px or have equivalent hit area. |
 | `QA-UI-03` | Text | No character-by-character compression, clipped label, overlapping icon, or unreadable ellipsis for critical actions. |
-| `QA-UI-04` | Modal | Centered, bounded width/height, body scrolls, header/footer remain reachable, focus enters/restores, Escape/close behaves safely. |
+| `QA-UI-04` | Modal | Centered, bounded width/height, body scrolls, header/footer remain reachable, focus enters/restores, Escape/close behaves safely. Global save feedback traps focus until acknowledged; field errors remain inline and receive focus after dismissal. |
 | `QA-UI-05` | Toolbar | Required order is preserved, controls do not duplicate, accessible name/tooltip exists for icon-only actions. |
 | `QA-UI-06` | Dashboard | Cards select a safe column count for viewport; values/labels do not overflow and keyboard/screen-reader order matches visual order. |
 | `QA-UI-07` | States | Loading, empty, success, validation, authorization, offline, retry, timeout, and unexpected failures render without layout collapse. |
@@ -66,7 +66,8 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-QR-10` | `QR-021` | Draft restore is scoped and bounded; valid lines restore, while next-day/version/price/sold-out changes are explained and cannot submit stale data. |
 | `QA-QR-11` | `QR-022` | Delivery notice appears once in a centered localized dialog only for delivery when configured; empty/plain-text/500-character boundaries and markup escaping pass. |
 | `QA-QR-12` | `QR-011`,`STAFF-016` | Published/enabled sold-out items stay visible in public Menu/QR/takeout/delivery with grayscale image and localized label; all customer add/customize controls and stale submission are blocked, while authorized Staff onsite ordering retains the item. Disabled and unpublished controls remain hidden. |
-| `QA-QR-13` | `QR-023` | Module and per-product recommendation default off; enabling both shows eligible recommendations once before checkout, skip/add/customization work, and cart-existing, sold-out, disabled, missing, or cross-stall candidates are excluded by UI and server validation. |
+| `QA-QR-13` | `QR-023` | Module and per-product recommendation default off; the large per-product switch is inside the stall product-detail dialog and the shared editor provides one switch per assigned stall below the lottery control. Both persist only on save and are not duplicated on catalog rows. Enabling both shows eligible recommendations once before checkout, skip/add/customization work, and cart-existing, sold-out, disabled, missing, or cross-stall candidates are excluded by UI and server validation. |
+| `QA-QR-14` | `QR-024` | Force a reorder transport timeout and verify localized guidance plus a working retry with no raw timeout text. Delay the first post-cancel read, verify confirmed cancellation renders immediately, and verify the stale read cannot restore the active state. Run the same tracking contract for QR, takeout, and delivery orders. |
 
 ### Pickup codes and checkout
 
@@ -100,13 +101,13 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 |---|---|---|
 | `QA-CAT-01` | `CAT-001`–`CAT-003`,`CAT-010` | Responsive tool grouping, group collapse, global single toggle, and menu publication icon remain reachable. |
 | `QA-CAT-02` | `CAT-002` | Bundle publish makes it visible/orderable in QR and Staff; price and group constraints are server-authoritative. |
-| `QA-CAT-03` | `CAT-004`–`CAT-006` | Shared-note modal scrolls, confirms, multi-adds, deduplicates, orders, and round-trips import/export. |
+| `QA-CAT-03` | `CAT-004`–`CAT-006` | The main page simultaneously shows exactly two large entries for single notes and note groups, with no duplicate top toolbar or tabs. Each opens the same searchable hierarchy and centered action dialog; note selection scrolls, confirms, multi-adds, deduplicates, orders, and round-trips import/export inside the overlays. |
 | `QA-CAT-04` | `CAT-007` | Numeric zero placeholder clears correctly and invalid numeric values identify the field. |
 | `QA-CAT-05` | `CAT-008`,`CAT-009` | Valid image uploads and invalid type/size/dimension failures return JSON; processed media meets bounds. |
 | `QA-CAT-06` | `CAT-011`,`CAT-012` | Lottery and no-extra-discount flags persist through create/edit/import/assignment/publish. |
 | `QA-CAT-07` | `CAT-013`,`STAFF-009`,`LOC-002` | Category/group/product order and translated names match Merchant, public Menu/QR, Staff, KDS/print, and reports. |
 | `QA-CAT-08` | `CAT-014`,`CAT-015` | Product and promo images preview, pan/zoom/crop, save, reload, render responsively, delete, and show JSON-backed success/failure; promo placement does not lengthen the page top. |
-| `QA-CAT-09` | `CAT-016`,`MER-021` | Shared-catalog/note icons form one row with distinct category/group controls; stall-product assignment uses a modal/view and desktop panes scroll independently. |
+| `QA-CAT-09` | `CAT-004`,`CAT-016`,`MER-021` | Shared-catalog/note icons form one row with distinct category/group controls; single-note/group overlays and stall-product assignment remain reachable at phone/tablet sizes, and desktop panes scroll independently. |
 | `QA-CAT-10` | `CAT-017`,`X-003` | Upload/assignment/publication/translation/order actions are reachable and provide immediate success/failure feedback without duplicate submission. |
 
 ### Lottery, capacity, and reservations
@@ -115,7 +116,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 |---|---|---|
 | `QA-LOT-01` | `LOT-001`–`LOT-004` | Probability config validates; draw result modal works; once-per-day token is privacy-safe and repeat draw is blocked. |
 | `QA-LOT-02` | `LOT-005`,`LOT-006` | Recommendation uses eligible sellable popularity and shows “推薦你點”. |
-| `QA-LOT-03` | `LOT-007` | Threshold, birthday, and holiday eligibility is server-derived; free item is eligible, zero-priced, audited, and idempotent under retries. |
+| `QA-LOT-03` | `LOT-007` | Threshold, birthday, and holiday eligibility is server-derived; live QR/takeout shows the centered final-submit eligibility alert, while delivery/preorder payloads suppress campaign eligibility and their draw requests fail before the draw RPC. The free item is eligible, zero-priced, audited, and idempotent under retries. |
 | `QA-CAP-01` | `CAP-001`,`CAP-002` | Wait range changes with configured base/prep/queue inputs; no client hard-coded 13–18 fallback is mislabeled as live estimate. |
 | `QA-CAP-02` | `CAP-003`,`CAP-004` | Pickup/delivery scheduling and merchant-proposed delivery change require valid windows and explicit customer decision. |
 | `QA-CAP-03` | `CAP-005`,`CAP-006` | Five-minute takeout lead is consistent across DB/API/UI; customer-present override honors KDS-ready boundaries, clears the pending proposal, audits the action, and still requires pickup/payment checks. |
@@ -127,7 +128,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 |---|---|---|
 | `QA-MER-01` | `MER-001`,`MER-002` | Activated merchant lands on overview; exactly one stall routes to QR management; multiple stalls open selector modal. |
 | `QA-MER-02` | `MER-003`–`MER-006` | Header, trend row, report actions/filters, dashboards pass responsive matrix. |
-| `QA-MER-03` | `MER-007`,`MER-013` | Return state and all centered overlays preserve usability/focus. |
+| `QA-MER-03` | `MER-007`,`MER-013`,`MER-023` | Return state and all centered overlays preserve usability/focus; stall-setting and stall-product-setting save success/global failure use the shared feedback dialog, while field validation remains inline and regains focus after acknowledgement. |
 | `QA-MER-04` | `MER-008`,`ADM-003` | Operator-facing names are Traditional Chinese; raw keys remain available in detail where useful. |
 | `QA-MER-05` | `MER-010`–`MER-012` | Floors/table shapes/single-page settings/group placement persist and remain usable. |
 | `QA-MER-06` | `MER-015`,`QA-PERF-04` | Cross-stall reports, audit logs, and operational alerts default to the local current day; day/week/month/custom ranges produce matching bounded server queries and reject invalid or overlong ranges. |
@@ -135,7 +136,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-MER-08` | `MER-017`,`MER-018` | Server pagination defaults to five; login devices have no size selector; orders/date filters and collapsible product analyses retain query state across pages. |
 | `QA-MER-09` | `MER-019`–`MER-022` | Metric cards, two-row filters, grouped non-accordion settings, independent scroll panes, and compact headers pass all viewports. |
 | `QA-ADM-01` | `ADM-001`–`ADM-004` | Responsive admin billing/plan UI, open-beta, and merchant billing visibility follow server flags. |
-| `QA-ADM-02` | `ADM-005`,`ADM-006` | Four local role buttons work locally and are absent/inert in Production; origins remain fail closed outside local config. |
+| `QA-ADM-02` | `ADM-005`,`ADM-006`,`ADM-011` | The fixed-port launcher proves the expected worktree/HEAD/origin, refuses collision/remote DB, disables stale development service workers, and the four local roles plus public Menu, successful QR/takeout session creation, and cash smoke work on that same origin. The guarded OAuth-policy bypass remains absent/inert in Production and all origins fail closed outside local config. |
 | `QA-ADM-03` | `ADM-007`–`ADM-010` | Login methods reflect policy plus configured credentials; incomplete modules stay hidden/direct APIs closed; phone header/theme, simple copy, and privacy-safe device labels pass. |
 
 ### Integrations and mobile

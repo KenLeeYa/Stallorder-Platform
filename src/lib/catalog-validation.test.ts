@@ -181,10 +181,15 @@ describe("商品與分類輸入驗證", () => {
       imageUrl: null,
       sortOrder: 1,
       isSoldOut: true,
+      checkoutUpsellStallIds: [crypto.randomUUID()],
       translations: [],
     };
 
     expect(sharedCatalogCommandSchema.safeParse(command).success).toBe(true);
+    expect(sharedCatalogCommandSchema.safeParse({
+      ...command,
+      checkoutUpsellStallIds: [command.checkoutUpsellStallIds[0], command.checkoutUpsellStallIds[0]],
+    }).success).toBe(false);
     expect(sharedCatalogCommandSchema.safeParse({
       ...command,
       isSoldOut: undefined,

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Play, Save, Trash2, Upload, Volume2 } from "lucide-react";
+import { SettingsFeedbackDialog } from "@/components/settings-feedback-dialog";
 import {
   MAX_ALERT_SOUND_BYTES,
   MAX_ALERT_SOUND_DURATION_SECONDS,
@@ -172,7 +173,7 @@ export function StallAlertSoundSettings({
         {customSoundConfigured ? <button type="button" disabled={busy !== null} onClick={() => void removeCustomSound()} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-300 px-4 text-sm font-semibold text-red-700 disabled:opacity-50"><Trash2 className="h-4 w-4" />{m("移除自訂提示音")}</button> : null}
       </div>
       <p className="mt-3 text-xs leading-5 text-stone-500">{m("自訂檔案限 MP3、WAV 或 M4A，最多 1MB、1 到 8 秒；請勿上傳含個資或受限制內容的錄音。")}</p>
-      {message ? <p role={isError ? "alert" : "status"} className={`mt-3 text-sm font-medium ${isError ? "text-red-700" : "text-emerald-800"}`}>{message}</p> : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={isError ? "error" : "success"} onClose={() => setMessage("")} /> : null}
     </section>
   );
 }

@@ -37,6 +37,7 @@ describe("QrOrderFlow composition boundary", () => {
     expect(presentationSource).toContain("<QrCustomerMembershipEntry");
     expect(presentationSource).toContain("<QrSessionCountdown");
     expect(presentationSource).toContain("<LotteryResultDialog");
+    expect(presentationSource).toContain("<LotteryRewardEligibilityDialog");
     expect(presentationSource).toContain("<CheckoutUpsellDialog");
     expect(presentationSource).toContain("onContinueToCheckout={requestCheckout}");
     expect(presentationSource).toContain("onSubmit={requestSubmit}");

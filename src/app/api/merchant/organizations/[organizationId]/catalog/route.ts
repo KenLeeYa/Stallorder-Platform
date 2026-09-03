@@ -57,6 +57,11 @@ export async function POST(request: Request, context: RouteContext) {
 
   const authorizedStallIds = authorization.workspace.stalls.map((stall) => stall.id);
   const authorizedStallSet = new Set(authorizedStallIds);
+  const activeAuthorizedStallSet = new Set(
+    authorization.workspace.stalls
+      .filter((stall) => stall.isActive)
+      .map((stall) => stall.id),
+  );
   const command = parsed.data;
   const singleStallMode = authorization.workspace.operatingMode === "SINGLE_STALL";
   const singleActiveStallId = singleStallMode
@@ -74,6 +79,15 @@ export async function POST(request: Request, context: RouteContext) {
     });
     return NextResponse.json(
       { error: "分派清單包含未授權攤位。" },
+      { status: 403, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+  if (
+    "checkoutUpsellStallIds" in command
+    && command.checkoutUpsellStallIds?.some((stallId) => !authorizedStallSet.has(stallId))
+  ) {
+    return NextResponse.json(
+      { error: "推薦加點清單包含未授權攤位。" },
       { status: 403, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -411,6 +425,10 @@ export async function POST(request: Request, context: RouteContext) {
             imageUrl: true,
             isActive: true,
             sortOrder: true,
+            stallProducts: {
+              where: { stallId: { in: authorizedStallIds } },
+              select: { stallId: true, isEnabled: true, isSoldOut: true },
+            },
             _count: { select: { bundleChoiceGroups: true, componentChoices: true } },
           },
         });
@@ -457,6 +475,56 @@ export async function POST(request: Request, context: RouteContext) {
             ...(!existing.isActive ? { isEnabled: true } : {}),
           },
         });
+        if (command.checkoutUpsellStallIds !== undefined) {
+          const selectedStallIds = new Set(command.checkoutUpsellStallIds);
+          const assignedStallIds = new Set(
+            existing.stallProducts.map((assignment) => assignment.stallId),
+          );
+          if ([...selectedStallIds].some((stallId) => !assignedStallIds.has(stallId))) {
+            throw new CatalogConflictError("推薦加點只能套用到已分派此商品的攤位。");
+          }
+          if ([...selectedStallIds].some((stallId) => !activeAuthorizedStallSet.has(stallId))) {
+            throw new CatalogConflictError("已停用攤位不能開啟推薦加點。");
+          }
+          if (command.kind !== "SINGLE" && selectedStallIds.size > 0) {
+            throw new CatalogConflictError("套餐目前不支援結帳前推薦加點。");
+          }
+          if (command.isSoldOut && selectedStallIds.size > 0) {
+            throw new CatalogConflictError("請先恢復供應商品，再設為結帳推薦。");
+          }
+          const unavailableSelection = existing.stallProducts.some((assignment) => (
+            selectedStallIds.has(assignment.stallId) && !assignment.isEnabled
+          ));
+          if (unavailableSelection) {
+            throw new CatalogConflictError("請先啟用攤位商品，再設為結帳推薦。");
+          }
+
+          const settingsRows = await transaction.stallOrderingSettings.findMany({
+            where: { stallId: { in: authorizedStallIds } },
+            select: { stallId: true, checkoutUpsellProductIds: true },
+          });
+          const settingsStallIds = new Set(settingsRows.map((settings) => settings.stallId));
+          if ([...selectedStallIds].some((stallId) => !settingsStallIds.has(stallId))) {
+            throw new CatalogConflictError("找不到所選攤位的線上點餐設定。");
+          }
+          await Promise.all(settingsRows.map((settings) => {
+            const otherProductIds = settings.checkoutUpsellProductIds.filter(
+              (productId) => productId !== product.id,
+            );
+            if (selectedStallIds.has(settings.stallId) && otherProductIds.length >= 6) {
+              throw new CatalogConflictError("每個攤位最多可設定 6 項結帳推薦商品。");
+            }
+            return transaction.stallOrderingSettings.update({
+              where: { stallId: settings.stallId },
+              data: {
+                checkoutUpsellProductIds: selectedStallIds.has(settings.stallId)
+                  ? [...otherProductIds, product.id]
+                  : otherProductIds,
+              },
+              select: { stallId: true },
+            });
+          }));
+        }
         return product;
       }
 
@@ -730,6 +798,9 @@ export async function POST(request: Request, context: RouteContext) {
     }
     if ("isLotteryEligible" in command && command.isLotteryEligible !== undefined) {
       after.isLotteryEligible = command.isLotteryEligible;
+    }
+    if ("checkoutUpsellStallIds" in command && command.checkoutUpsellStallIds !== undefined) {
+      after.checkoutUpsellStallIds = [...command.checkoutUpsellStallIds].sort();
     }
     if ("translations" in command && command.translations) after.translations = command.translations;
     if ("isActive" in command) after.isActive = command.isActive;

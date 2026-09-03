@@ -120,6 +120,7 @@ export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
     isLotteryEligible: z.boolean().optional(),
     sortOrder,
     isSoldOut: z.boolean(),
+    checkoutUpsellStallIds: stallIds.optional(),
     translations: productTranslations,
   }).strict(),
   z.object({

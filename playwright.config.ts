@@ -64,7 +64,7 @@ if (
 }
 const appServerCommand = productionServer
   ? `next start -p ${appPort}`
-  : `next dev -p ${appPort}`;
+  : `next dev --webpack -p ${appPort}`;
 
 export default defineConfig({
   testDir: "./e2e",

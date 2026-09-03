@@ -94,6 +94,36 @@ export async function gotoLocalPath(
   }
 }
 
+export async function loginLocalTestAccount(
+  page: Page,
+  email: string,
+  password: string,
+) {
+  await gotoLocalPath(page, "/login");
+  const origin = new URL(page.url()).origin;
+  const response = await page.context().request.post("/api/auth/login", {
+    data: { email, password },
+    headers: {
+      origin,
+      referer: page.url(),
+      "sec-fetch-site": "same-origin",
+    },
+  });
+  if (response.status() !== 200) {
+    throw new Error(`E2E_LOCAL_LOGIN_HTTP_${response.status()}`);
+  }
+  const body = await response.json() as { next?: unknown };
+  if (
+    typeof body.next !== "string" ||
+    !body.next.startsWith("/") ||
+    body.next.startsWith("//")
+  ) {
+    throw new Error("E2E_LOCAL_LOGIN_DESTINATION_INVALID");
+  }
+  await gotoLocalPath(page, body.next);
+  return body.next;
+}
+
 export async function dismissStaffStartReminder(page: Page) {
   const backdrop = page.getByTestId("staff-start-reminder-backdrop");
   try {

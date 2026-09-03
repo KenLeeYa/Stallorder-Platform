@@ -8,6 +8,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
 import { DiningFloorEditor } from "@/components/dining-floor-editor";
 import { LocaleFlag } from "@/components/locale-flag";
+import { SettingsFeedbackDialog } from "@/components/settings-feedback-dialog";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { interpolateMessage } from "@/lib/message-catalog";
 import {
@@ -762,7 +763,7 @@ export function StallModulesManager({
           })}</div>
         </div>
       </section>
-      {message ? <p role={messageKind === "error" ? "alert" : "status"} className={`mt-4 text-sm font-medium ${messageKind === "error" ? "text-red-700" : "text-stone-700"}`}>{message}</p> : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} focusAfterClose={() => managerRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()} /> : null}
         </div>
       </div>
     </section>

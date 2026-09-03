@@ -82,6 +82,7 @@ import {
   serializeQrLocalePreference,
   type QrLocale,
 } from "@/lib/qr-order-i18n";
+import { publicLotteryChannelAllows } from "@/lib/public-lottery-channel";
 
 export type QrOrderFlowControllerInput = {
   qrToken: string;
@@ -217,8 +218,13 @@ export function useQrOrderFlowController({
         + bundlePriceAdjustment(product.bundleChoiceGroups, line.bundleChoiceIds),
     ) * line.quantity;
   }, 0) : 0;
+  const lotteryChannelAllowed = publicLotteryChannelAllows(
+    activeOrderingMode,
+    session?.stall.fulfillmentType,
+  );
   const automaticLotteryRewardEligible = Boolean(
-    session?.lotteryReward
+    lotteryChannelAllowed
+    && session?.lotteryReward
     && (
       session.lotteryReward.festivalActive
       || (
@@ -228,7 +234,8 @@ export function useQrOrderFlowController({
     ),
   );
   const automaticLotteryRewardConfigured = Boolean(
-    session?.lotteryReward?.spendEnabled || session?.lotteryReward?.festivalEnabled,
+    lotteryChannelAllowed
+    && (session?.lotteryReward?.spendEnabled || session?.lotteryReward?.festivalEnabled),
   );
   const {
     productDrafts,

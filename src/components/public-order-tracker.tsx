@@ -599,6 +599,7 @@ export function PublicOrderTracker({
   const [amendmentNotice, setAmendmentNotice] = useState<OrderAmendmentNotice | null>(null);
   const announcedReadyOrderRef = useRef<string | null>(null);
   const announcedAmendmentRef = useRef<string | null>(null);
+  const cancellationConfirmedRef = useRef(false);
   const qrOrderReturnPath = order ? getQrOrderReturnPath(order.orderStatus, qrToken) : null;
 
   useEffect(() => {
@@ -613,10 +614,16 @@ export function PublicOrderTracker({
 
   const loadOrder = useCallback(async ({ signal }: { signal: AbortSignal }) => {
     signal.throwIfAborted();
-    const response = await requestPublicOrder("get-public-order", {
-      trackingToken,
-      deviceId: getOrCreateDeviceId(),
-    }, { signal });
+    let response: Response;
+    try {
+      response = await requestPublicOrder("get-public-order", {
+        trackingToken,
+        deviceId: getOrCreateDeviceId(),
+      }, { signal });
+    } catch {
+      signal.throwIfAborted();
+      throw new Error(publicOrderMessages.get(locale, "updateError"));
+    }
     const payload = await parseEdgeResponse(response);
     signal.throwIfAborted();
     if (!response.ok) {
@@ -650,6 +657,9 @@ export function PublicOrderTracker({
     intervalMs: 3_000,
     load: loadOrder,
     onData: (nextOrder) => {
+      if (cancellationConfirmedRef.current && nextOrder.orderStatus !== "CANCELLED") {
+        return;
+      }
       setOrder(nextOrder);
       setLastUpdatedAt(new Date());
       setMessage("");
@@ -726,9 +736,10 @@ export function PublicOrderTracker({
     if (!window.confirm(publicOrderMessages.get(locale, "cancelConfirm"))) return;
     setIsCancelling(true);
     setMessage("");
+    const operationId = createPublicOrderOperationId();
+    let response: Response;
     try {
-      const operationId = createPublicOrderOperationId();
-      const response = await fetch(`/api/public/orders/${encodeURIComponent(trackingToken)}`, {
+      response = await fetch(`/api/public/orders/${encodeURIComponent(trackingToken)}`, {
         method: "DELETE",
         headers: {
           "content-type": "application/json",
@@ -738,18 +749,24 @@ export function PublicOrderTracker({
         cache: "no-store",
         signal: AbortSignal.timeout(4_000),
       });
-      const payload = await parseEdgeResponse(response);
-      if (!response.ok) {
-        throw new Error(typeof payload.code === "string"
-          ? localizedPublicOrderError(locale, payload.code)
-          : publicOrderMessages.get(locale, "cancelFailed"));
-      }
-      await refreshOrder();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : publicOrderMessages.get(locale, "cancelFailed"));
-    } finally {
+    } catch {
+      setMessage(publicOrderMessages.get(locale, "cancelFailed"));
       setIsCancelling(false);
+      return;
     }
+    const payload = await parseEdgeResponse(response);
+    if (!response.ok || payload.orderStatus !== "CANCELLED") {
+      setMessage(!response.ok && typeof payload.code === "string"
+        ? localizedPublicOrderError(locale, payload.code)
+        : publicOrderMessages.get(locale, "cancelFailed"));
+    } else {
+      cancellationConfirmedRef.current = true;
+      setOrder((current) => current ? { ...current, orderStatus: "CANCELLED" } : current);
+      setLastUpdatedAt(new Date());
+      setMessage("");
+      void refreshOrder();
+    }
+    setIsCancelling(false);
   }, [locale, refreshOrder, trackingToken]);
 
   return (

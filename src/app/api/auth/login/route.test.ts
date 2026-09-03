@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   createSession: vi.fn(),
   setSessionCookies: vi.fn(),
   recordAuditEvent: vi.fn(),
+  localQuickLoginAllowed: vi.fn(() => false),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -43,6 +44,7 @@ vi.mock("@/lib/security", () => ({
   hashClientUserAgent: vi.fn(() => "ua-hash"),
   hashToken: vi.fn(() => "account-hash"),
   isLocalQaLoginRateLimitDisabled: vi.fn(() => false),
+  isLocalQaQuickLoginAllowed: mocks.localQuickLoginAllowed,
   isTrustedOrigin: vi.fn(() => true),
   resolveSessionDeviceId: vi.fn(() => "device-1"),
   sanitizeRedirectPath: vi.fn((_next: string | undefined, fallback: string) => fallback),
@@ -62,6 +64,7 @@ describe("password login anti-lockout", () => {
     mocks.checkRateLimit.mockResolvedValue({ allowed: true, remaining: 10, retryAfterSeconds: 60 });
     mocks.resetRateLimitBucket.mockResolvedValue(undefined);
     mocks.resolveOAuthState.mockResolvedValue({ oauthOnly: false });
+    mocks.localQuickLoginAllowed.mockReturnValue(false);
     mocks.verifyPassword.mockResolvedValue(true);
     mocks.createSession.mockResolvedValue({ token: "session" });
     mocks.findProfile.mockResolvedValue(validProfile());
@@ -98,6 +101,31 @@ describe("password login anti-lockout", () => {
     expect(response.status).toBe(429);
     expect(mocks.verifyPassword).toHaveBeenCalledTimes(1);
     expect(mocks.createSession).not.toHaveBeenCalled();
+  });
+
+  it("allows only the guarded local QA account when the platform is OAuth-only", async () => {
+    mocks.resolveOAuthState.mockResolvedValue({ oauthOnly: true });
+    mocks.localQuickLoginAllowed.mockReturnValue(true);
+    const route = await import("./route");
+
+    const response = await route.POST(loginRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.localQuickLoginAllowed).toHaveBeenCalledWith(
+      expect.any(Request),
+      "owner@example.test",
+    );
+    expect(mocks.createSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps OAuth-only password rejection when the local QA guard is not satisfied", async () => {
+    mocks.resolveOAuthState.mockResolvedValue({ oauthOnly: true });
+    const route = await import("./route");
+
+    const response = await route.POST(loginRequest());
+
+    expect(response.status).toBe(403);
+    expect(mocks.findProfile).not.toHaveBeenCalled();
   });
 });
 

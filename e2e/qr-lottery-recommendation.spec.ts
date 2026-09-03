@@ -281,6 +281,43 @@ test("接受一般商品推薦仍受商品數量上限限制", async ({ page }) 
   );
 });
 
+test("滿額抽獎在送單前以置中遮罩提醒", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const lottery = await mockLottery(page, SIMPLE_PRODUCT_ID, 20, 10 * 60_000, {
+    lotteryReward: {
+      spendEnabled: true,
+      spendThresholdAmount: 100,
+      festivalEnabled: false,
+      festivalActive: false,
+    },
+  });
+  const product = page.getByRole("article").filter({ hasText: "招牌餐點" });
+  await qrProductSelectionControl(product, "招牌餐點").click();
+  await page.getByTestId("qr-mobile-cart-summary").click();
+  const cart = page.getByTestId("qr-cart-panel");
+  await cart.getByRole("button", {
+    name: "繼續填寫訂購資料",
+    exact: true,
+  }).click();
+
+  await cart.getByRole("button", { name: "送出訂單", exact: true }).click();
+
+  const reminder = page.getByTestId("lottery-reward-eligibility-dialog");
+  await expect(reminder).toBeVisible();
+  await expect(reminder.getByRole("button", { name: "開始抽抽樂", exact: true })).toBeFocused();
+  expect(lottery.requestCount()).toBe(0);
+  const box = await reminder.boundingBox();
+  expect(box).not.toBeNull();
+  expect(Math.abs((box!.y + box!.height / 2) - 422)).toBeLessThan(24);
+
+  await reminder.getByRole("button", { name: "開始抽抽樂", exact: true }).click();
+  await expect(page.getByTestId("lottery-result-dialog")).toHaveAttribute(
+    "data-phase",
+    "result",
+  );
+  expect(lottery.requestCount()).toBe(1);
+});
+
 async function drawAndWaitForResult(page: Page, lotteryRegion: Locator) {
   await lotteryRegion
     .getByRole("button", { name: "開始抽抽樂", exact: true })
@@ -305,6 +342,12 @@ async function mockLottery(
   options: {
     firstDrawFailure?: "HTTP_503" | "NETWORK";
     holdFirstDraw?: boolean;
+    lotteryReward?: {
+      spendEnabled: boolean;
+      spendThresholdAmount: number;
+      festivalEnabled: boolean;
+      festivalActive: boolean;
+    };
   } = {},
 ) {
   let requestCount = 0;
@@ -341,6 +384,7 @@ async function mockLottery(
         supportedLocales: ["zh-TW"],
         preorderSlots: [],
         lotteryEnabled: true,
+        lotteryReward: options.lotteryReward,
         estimatedWaitMinutes: 13,
         estimatedWaitMinMinutes: 13,
         estimatedWaitMaxMinutes: 18,

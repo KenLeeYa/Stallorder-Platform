@@ -2,7 +2,6 @@ import {
   expect,
   test,
   type BrowserContext,
-  type Locator,
   type Page,
 } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
@@ -10,6 +9,7 @@ import { hash } from "bcryptjs";
 import type { ProductNoteTransfer } from "../src/lib/product-note-transfer";
 import {
   dismissStaffStartReminder,
+  loginLocalTestAccount,
   qrProductSelectionControl,
 } from "./local-navigation";
 
@@ -22,6 +22,8 @@ type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
 const authCookies = new Map<string, AuthCookies>();
 const prisma = new PrismaClient();
 let originalManagerAuthorizationCodeHash: string | null = null;
+
+test.use({ serviceWorkers: "block" });
 
 test.beforeAll(async () => {
   const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({
@@ -66,13 +68,7 @@ async function login(page: Page, email: string) {
       await dismissStaffStartReminder(page);
     return;
   }
-  await page.goto("/login");
-  await page
-    .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
-    .click();
-  await page.getByLabel("電子郵件").fill(email);
-  await page.getByLabel("密碼").fill(password);
-  await page.getByRole("button", { name: "登入", exact: true }).click();
+  await loginLocalTestAccount(page, email, password);
   await expect(page).toHaveURL(
     /\/merchant\/dashboard(?:\?organizationId=|$)|\/staff\//,
   );
@@ -196,10 +192,15 @@ async function expectProductNoteGroupOptionAction(
 
 async function openProductNoteActions(
   page: Page,
-  scope: Locator,
   itemName: string,
 ) {
-  await scope
+  const navigator = page.getByTestId("reusable-note-navigator-dialog");
+  if (!(await navigator.isVisible())) {
+    await page.getByTestId("open-reusable-note-navigator").click();
+    await expect(navigator).toBeVisible();
+  }
+  await navigator.getByPlaceholder("搜尋單一註記").fill(itemName);
+  await navigator
     .getByRole("button", { name: `管理 ${itemName}`, exact: true })
     .click();
   const dialog = page.getByRole("dialog", {
@@ -210,13 +211,32 @@ async function openProductNoteActions(
   return dialog;
 }
 
+async function openNewReusableNoteEditor(page: Page) {
+  const navigator = page.getByTestId("reusable-note-navigator-dialog");
+  if (!(await navigator.isVisible())) {
+    await page.getByTestId("open-reusable-note-navigator").click();
+    await expect(navigator).toBeVisible();
+  }
+  await navigator.getByRole("button", { name: "新增單一註記", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "新增共用單一註記" });
+  await expect(editor).toBeVisible();
+  return editor;
+}
+
+async function openNewProductNoteGroupEditor(page: Page) {
+  const navigator = await openNoteGroupNavigator(page);
+  await navigator.getByRole("button", { name: "新增群組", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "新增註記群組" });
+  await expect(editor).toBeVisible();
+  return editor;
+}
+
 async function selectProductNoteAction(
   page: Page,
-  scope: Locator,
   itemName: string,
   action: string,
 ) {
-  const dialog = await openProductNoteActions(page, scope, itemName);
+  const dialog = await openProductNoteActions(page, itemName);
   await dialog.getByRole("button", { name: action, exact: true }).click();
 }
 
@@ -256,7 +276,6 @@ test("商家可新增、修改、指派與刪除商品註記群組", async ({ pa
   await settingsToggle.click();
   await expect(settingsToggle).toHaveAttribute("aria-expanded", "true");
   await expect(settingsContent).toBeVisible();
-  await page.getByRole("tab", { name: "註記群組" }).click();
   const initialNavigator = await openNoteGroupNavigator(page);
   await expect(
     initialNavigator.getByRole("button").filter({ hasText: "辣度" }).first(),
@@ -271,11 +290,7 @@ test("商家可新增、修改、指派與刪除商品註記群組", async ({ pa
     0,
   );
 
-  await page
-    .getByTestId("product-note-tools")
-    .getByRole("button", { name: "新增群組", exact: true })
-    .click();
-  const groupEditor = page.getByRole("dialog", { name: "新增註記群組" });
+  const groupEditor = await openNewProductNoteGroupEditor(page);
   const groupNameInput = groupEditor.getByLabel("群組名稱");
   const invalidGroupResponse = page.waitForResponse(
     (response) =>
@@ -403,18 +418,12 @@ test("群組內共用與專用註記排序可儲存並於重載後保留", async
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
 
-  await page.getByRole("button", { name: "新增單一註記" }).click();
-  const reusableEditor = page.getByRole("dialog", { name: "新增共用單一註記" });
+  const reusableEditor = await openNewReusableNoteEditor(page);
   await reusableEditor.getByLabel("註記名稱").fill(reusableName);
   await reusableEditor.getByRole("button", { name: "儲存" }).click();
   await expect(page.getByRole("status")).toHaveText("共用單一註記已新增。");
 
-  await page.getByRole("tab", { name: "註記群組" }).click();
-  await page
-    .getByTestId("product-note-tools")
-    .getByRole("button", { name: "新增群組", exact: true })
-    .click();
-  const groupEditor = page.getByRole("dialog", { name: "新增註記群組" });
+  const groupEditor = await openNewProductNoteGroupEditor(page);
   await groupEditor.getByLabel("群組名稱").fill(groupName);
   await groupEditor.getByRole("button", { name: "儲存" }).click();
   await expect(page.getByRole("status")).toHaveText("註記群組已新增。");
@@ -481,7 +490,6 @@ test("群組內共用與專用註記排序可儲存並於重載後保留", async
   expect((await dedicatedSortResponse).status()).toBe(200);
 
   await page.reload();
-  await page.getByRole("tab", { name: "註記群組" }).click();
   group = await openNoteGroup(page, groupName);
   const optionNames = group
     .getByTestId("note-option-action-trigger")
@@ -493,11 +501,9 @@ test("群組內共用與專用註記排序可儲存並於重載後保留", async
   page.once("dialog", (dialog) => dialog.accept());
   await selectProductNoteGroupAction(page, groupName, "刪除");
   await expect(page.getByRole("status")).toHaveText("註記群組已刪除。");
-  await page.getByRole("tab", { name: "所有單一註記" }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await selectProductNoteAction(
     page,
-    page.locator("body"),
     reusableName,
     "刪除",
   );
@@ -519,8 +525,7 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
 
   for (const noteName of noteNames) {
-    await page.getByRole("button", { name: "新增單一註記" }).click();
-    const noteEditor = page.getByRole("dialog", { name: "新增共用單一註記" });
+    const noteEditor = await openNewReusableNoteEditor(page);
     await noteEditor.getByLabel("註記名稱").fill(noteName);
     await noteEditor.getByRole("button", { name: "儲存" }).click();
     await expect(page.getByRole("status")).toHaveText("共用單一註記已新增。");
@@ -561,12 +566,7 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
   expect(scrollFixtureStatuses).toEqual(scrollFixtureNames.map(() => 200));
   await page.reload();
 
-  await page.getByRole("tab", { name: "註記群組" }).click();
-  await page
-    .getByTestId("product-note-tools")
-    .getByRole("button", { name: "新增群組", exact: true })
-    .click();
-  const groupEditor = page.getByRole("dialog", { name: "新增註記群組" });
+  const groupEditor = await openNewProductNoteGroupEditor(page);
   await groupEditor.getByLabel("群組名稱").fill(groupName);
   await groupEditor.getByRole("button", { name: "儲存" }).click();
   await expect(page.getByRole("status")).toHaveText("註記群組已新增。");
@@ -737,7 +737,6 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
 
   await page.keyboard.press("Escape");
   await page.reload();
-  await page.getByRole("tab", { name: "註記群組" }).click();
   const group = await openNoteGroup(page, groupName);
   for (const noteName of noteNames) {
     await expect(
@@ -793,7 +792,6 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
   await expect(attachTrigger).toBeFocused();
 
   await page.reload();
-  await page.getByRole("tab", { name: "註記群組" }).click();
   for (const noteName of noteNames) {
     await expectProductNoteGroupOptionAction(
       page,
@@ -806,10 +804,9 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
   page.once("dialog", (dialog) => dialog.accept());
   await selectProductNoteGroupAction(page, groupName, "刪除");
   await expect(page.getByRole("status")).toHaveText("註記群組已刪除。");
-  await page.getByRole("tab", { name: "所有單一註記" }).click();
   for (const noteName of [...noteNames, ...scrollFixtureNames]) {
     page.once("dialog", (dialog) => dialog.accept());
-    await selectProductNoteAction(page, page.locator("body"), noteName, "刪除");
+    await selectProductNoteAction(page, noteName, "刪除");
     await expect(page.getByRole("status")).toHaveText("共用單一註記已刪除。");
   }
 });
@@ -824,22 +821,16 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
-  await expect(page.getByRole("tab", { name: "所有單一註記" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(page.getByTestId("open-reusable-note-navigator")).toBeVisible();
+  await expect(page.getByTestId("open-note-group-navigator")).toBeVisible();
 
-  await page.getByRole("button", { name: "新增單一註記" }).click();
-  const createEditor = page.getByRole("dialog", { name: "新增共用單一註記" });
+  const createEditor = await openNewReusableNoteEditor(page);
   await createEditor.getByLabel("註記名稱").fill(noteName);
   await createEditor.getByLabel("價格調整").fill("7");
   await createEditor.getByRole("button", { name: "儲存" }).click();
   await expect(page.getByRole("status")).toHaveText("共用單一註記已新增。");
 
-  await page.getByRole("button", { name: "新增單一註記" }).click();
-  const duplicateEditor = page.getByRole("dialog", {
-    name: "新增共用單一註記",
-  });
+  const duplicateEditor = await openNewReusableNoteEditor(page);
   const duplicateName = duplicateEditor.getByLabel("註記名稱");
   await duplicateName.fill(noteName);
   await duplicateEditor.getByRole("button", { name: "儲存" }).click();
@@ -850,7 +841,6 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
   await expect(duplicateName).toBeFocused();
   await duplicateEditor.getByRole("button", { name: "關閉" }).click();
 
-  await page.getByRole("tab", { name: "註記群組" }).click();
   const { dialog: spiceAttachDialog } = await openAttachReusableNotesDialog(
     page,
     "辣度",
@@ -894,8 +884,7 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
     "從群組移除",
   );
 
-  await page.getByRole("tab", { name: "所有單一註記" }).click();
-  await selectProductNoteAction(page, page.locator("body"), noteName, "編輯");
+  await selectProductNoteAction(page, noteName, "編輯");
   const editEditor = page.getByRole("dialog", { name: "編輯共用單一註記" });
   await editEditor.getByLabel("註記名稱").fill(updatedName);
   await editEditor.getByLabel("價格調整").fill("9");
@@ -903,14 +892,17 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
   await expect(page.getByRole("status")).toHaveText(
     "共用單一註記已更新，所有群組已同步。",
   );
+  await page.getByTestId("open-reusable-note-navigator").click();
+  const updatedNoteNavigator = page.getByTestId("reusable-note-navigator-dialog");
+  await updatedNoteNavigator.getByPlaceholder("搜尋單一註記").fill(updatedName);
   await expect(
-    page.getByText("已加入 2 個群組", { exact: false }),
-  ).toBeVisible();
+    updatedNoteNavigator.getByRole("button", { name: `管理 ${updatedName}`, exact: true }),
+  ).toContainText("已加入 2 個群組");
+  await updatedNoteNavigator.getByRole("button", { name: "關閉", exact: true }).click();
 
   page.once("dialog", (dialog) => dialog.accept());
   await selectProductNoteAction(
     page,
-    page.locator("body"),
     updatedName,
     "刪除",
   );
@@ -918,7 +910,6 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
     "此共用註記仍在註記群組中使用，請先從所有群組移除。",
   );
 
-  await page.getByRole("tab", { name: "註記群組" }).click();
   for (const groupName of ["辣度", "加料"]) {
     const group = await openNoteGroup(page, groupName);
     await expect(group.getByText(updatedName, { exact: true })).toBeVisible();
@@ -941,16 +932,19 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
       .click();
   }
 
-  await page.getByRole("tab", { name: "所有單一註記" }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await selectProductNoteAction(
     page,
-    page.locator("body"),
     updatedName,
     "刪除",
   );
   await expect(page.getByRole("status")).toHaveText("共用單一註記已刪除。");
-  await expect(page.getByText(updatedName, { exact: true })).toHaveCount(0);
+  await page.getByTestId("open-reusable-note-navigator").click();
+  const deletedNoteNavigator = page.getByTestId("reusable-note-navigator-dialog");
+  await deletedNoteNavigator.getByPlaceholder("搜尋單一註記").fill(updatedName);
+  await expect(
+    deletedNoteNavigator.getByRole("button", { name: `管理 ${updatedName}`, exact: true }),
+  ).toHaveCount(0);
 });
 
 test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) => {
@@ -961,6 +955,9 @@ test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) 
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  await page.getByTestId("open-reusable-note-navigator").click();
+  const transferNavigator = page.getByTestId("reusable-note-navigator-dialog");
+  await expect(transferNavigator).toBeVisible();
 
   const exportPath = `/api/merchant/organizations/${organizationId}/product-notes/export`;
   const importPath = `/api/merchant/organizations/${organizationId}/product-notes/import`;
@@ -973,7 +970,7 @@ test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) 
       }),
     }),
   );
-  await page.getByRole("button", { name: "匯出 JSON" }).click();
+  await transferNavigator.getByRole("button", { name: "匯出 JSON" }).click();
   await expect(page.getByRole("status")).toHaveText(
     "註記資料超過 1MB 匯出上限，請精簡註記後再匯出。",
   );
@@ -1037,7 +1034,7 @@ test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) 
     ],
   };
 
-  const importInput = page.locator('input[type="file"][accept*="json"]');
+  const importInput = transferNavigator.locator('input[type="file"][accept*="json"]');
   await importInput.focus();
   await expect(importInput.locator("..")).toHaveClass(/focus-within:ring-2/);
   await importInput.setInputFiles({
@@ -1136,7 +1133,7 @@ test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) 
     name: "Imported note",
   });
 
-  await page.getByRole("tab", { name: "註記群組" }).click();
+  await transferNavigator.getByRole("button", { name: "關閉", exact: true }).click();
   const importedGroup = await openNoteGroup(page, groupName);
   await expect(importedGroup).toContainText(noteName);
   await importedGroup
@@ -1146,9 +1143,8 @@ test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) 
   await selectProductNoteGroupAction(page, groupName, "刪除");
   await expect(page.getByRole("status")).toHaveText("註記群組已刪除。");
 
-  await page.getByRole("tab", { name: "所有單一註記" }).click();
   page.once("dialog", (dialog) => dialog.accept());
-  await selectProductNoteAction(page, page.locator("body"), noteName, "刪除");
+  await selectProductNoteAction(page, noteName, "刪除");
   await expect(page.getByRole("status")).toHaveText("共用單一註記已刪除。");
 });
 
@@ -1285,6 +1281,7 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   const staffContext = await browser.newContext({
     locale: "zh-TW",
     timezoneId: "Asia/Taipei",
+    serviceWorkers: "block",
   });
   const staffPage = await staffContext.newPage();
   await login(staffPage, "staff@stallorder.test");

@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   updateProduct: vi.fn(),
   updateProducts: vi.fn(),
   updateStallProducts: vi.fn(),
+  findOrderingSettings: vi.fn(),
+  updateOrderingSettings: vi.fn(),
   deleteProductTranslations: vi.fn(),
   createChoice: vi.fn(),
   findProducts: vi.fn(),
@@ -78,6 +80,8 @@ beforeEach(() => {
   mocks.updateProduct.mockResolvedValue({ id: componentProductId });
   mocks.updateProducts.mockResolvedValue({ count: 1 });
   mocks.updateStallProducts.mockResolvedValue({ count: 1 });
+  mocks.findOrderingSettings.mockResolvedValue([]);
+  mocks.updateOrderingSettings.mockResolvedValue({ stallId: "22222222-2222-4222-8222-222222222222" });
   mocks.deleteProductTranslations.mockResolvedValue({ count: 0 });
   mocks.createChoice.mockResolvedValue({ id: "ab200000-0000-4000-8000-000000000001" });
   mocks.findProducts.mockResolvedValue([]);
@@ -97,6 +101,10 @@ beforeEach(() => {
       updateMany: mocks.updateProducts,
     },
     stallProduct: { updateMany: mocks.updateStallProducts },
+    stallOrderingSettings: {
+      findMany: mocks.findOrderingSettings,
+      update: mocks.updateOrderingSettings,
+    },
     productTranslation: {
       deleteMany: mocks.deleteProductTranslations,
       upsert: vi.fn(),
@@ -337,6 +345,70 @@ describe("共享商品套餐 API", () => {
     expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
       action: "PRODUCT_UPDATED",
       after: expect.objectContaining({ isSoldOut: true }),
+    }));
+  });
+
+  it("在共享商品編輯交易內依攤位儲存結帳推薦", async () => {
+    const categoryId = "77777777-7777-4777-8777-777777777771";
+    const stallId = "22222222-2222-4222-8222-222222222222";
+    mocks.findProduct
+      .mockResolvedValueOnce({
+        categoryId,
+        groupId: null,
+        name: "香酥雞排",
+        description: "",
+        defaultPrice: 95,
+        kind: "SINGLE",
+        imageUrl: null,
+        isOrderDiscountEligible: true,
+        isLotteryEligible: true,
+        sortOrder: 1,
+        isActive: true,
+        stallProducts: [{ stallId, isEnabled: true, isSoldOut: false }],
+      })
+      .mockResolvedValueOnce({
+        id: componentProductId,
+        categoryId,
+        groupId: null,
+        kind: "SINGLE",
+        imageUrl: null,
+        isActive: true,
+        sortOrder: 1,
+        stallProducts: [{ stallId, isEnabled: true, isSoldOut: false }],
+        _count: { bundleChoiceGroups: 0, componentChoices: 0 },
+      });
+    mocks.findOrderingSettings.mockResolvedValue([{ stallId, checkoutUpsellProductIds: [] }]);
+    const route = await import("./route");
+
+    const response = await route.POST(new Request(`https://example.test/api/merchant/organizations/${organizationId}/catalog`, {
+      method: "POST",
+      body: JSON.stringify({
+        operation: "UPDATE_PRODUCT",
+        productId: componentProductId,
+        categoryId,
+        groupId: null,
+        name: "香酥雞排",
+        description: "",
+        defaultPrice: 95,
+        kind: "SINGLE",
+        imageUrl: null,
+        isOrderDiscountEligible: true,
+        isLotteryEligible: true,
+        sortOrder: 1,
+        isSoldOut: false,
+        checkoutUpsellStallIds: [stallId],
+        translations: [],
+      }),
+    }), { params: Promise.resolve({ organizationId }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateOrderingSettings).toHaveBeenCalledWith({
+      where: { stallId },
+      data: { checkoutUpsellProductIds: [componentProductId] },
+      select: { stallId: true },
+    });
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      after: expect.objectContaining({ checkoutUpsellStallIds: [stallId] }),
     }));
   });
 

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getClientIp,
   hashToken,
+  isLocalQaQuickLoginAllowed,
   isLocalQaLoginRateLimitDisabled,
   isTrustedOrigin,
   resolveAppOrigin,
@@ -210,6 +211,36 @@ describe("本機 QA 登入限制", () => {
     expect(isLocalQaLoginRateLimitDisabled({
       LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT: "true",
       NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3010",
+      DATABASE_URL: "postgresql://postgres:postgres@db.example/postgres",
+    })).toBe(false);
+  });
+
+  it("快速登入只允許開發模式、本機資料庫與固定測試帳號", () => {
+    const localRequest = new Request("http://127.0.0.1:3012/api/auth/login", {
+      headers: { origin: "http://127.0.0.1:3012", "sec-fetch-site": "same-origin" },
+    });
+    const localEnvironment = {
+      NODE_ENV: "development",
+      LOCAL_QA_QUICK_LOGIN_ENABLED: "true",
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3012",
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+    };
+
+    for (const email of [
+      "owner@stallorder.test",
+      "staff@stallorder.test",
+      "kitchen@stallorder.test",
+      "platform.admin@stallorder.test",
+    ]) {
+      expect(isLocalQaQuickLoginAllowed(localRequest, email, localEnvironment)).toBe(true);
+    }
+    expect(isLocalQaQuickLoginAllowed(localRequest, "customer@example.test", localEnvironment)).toBe(false);
+    expect(isLocalQaQuickLoginAllowed(localRequest, "owner@stallorder.test", {
+      ...localEnvironment,
+      NODE_ENV: "production",
+    })).toBe(false);
+    expect(isLocalQaQuickLoginAllowed(localRequest, "owner@stallorder.test", {
+      ...localEnvironment,
       DATABASE_URL: "postgresql://postgres:postgres@db.example/postgres",
     })).toBe(false);
   });

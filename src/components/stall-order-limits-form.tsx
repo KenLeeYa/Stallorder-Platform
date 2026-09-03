@@ -6,6 +6,7 @@ import {
   StallAlertSoundSettings,
   type StallAlertSoundSettingsValue,
 } from "@/components/stall-alert-sound-settings";
+import { SettingsFeedbackDialog } from "@/components/settings-feedback-dialog";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatAppNumber } from "@/lib/locale-format";
 import type { MessageValues } from "@/lib/message-catalog";
@@ -170,11 +171,7 @@ export function StallOrderLimitsForm({
         <p className="mt-2 text-sm text-stone-600">{m("設定 QR 點餐工作階段、訂單數量限制與顧客看到的預估等候時間。")}</p>
       </div>
 
-      {message ? (
-        <p role={isError ? "alert" : "status"} className={`mt-4 text-sm font-medium ${isError ? "text-red-700" : "text-emerald-800"}`}>
-          {message}
-        </p>
-      ) : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={isError ? "error" : "success"} onClose={() => setMessage("")} focusAfterClose={() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()} /> : null}
 
       <form noValidate className="mt-6" onSubmit={(event) => { event.preventDefault(); void saveLimits(); }}>
         <div className="mb-6 grid gap-4 border-b border-stone-200 pb-6 sm:grid-cols-2">

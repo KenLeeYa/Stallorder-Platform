@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { ChevronDown, Copy, Eye, EyeOff, PackageCheck, PackageX, Save, ShoppingBag } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Copy, Eye, EyeOff, PackageCheck, PackageX, Save, ShoppingBag, X } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import { effectiveProductPrice } from "@/lib/shared-catalog";
+import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
 
 export type StallCatalogProduct = {
   id: string;
@@ -42,13 +43,64 @@ export function StallCatalogSettings({
   const productsRef = useRef(initialProducts);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>("success");
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [sourceStallId, setSourceStallId] = useState(sourceStalls[0]?.id ?? "");
+  const [productSettingsDraft, setProductSettingsDraft] = useState<{
+    productId: string;
+    checkoutUpsellSelected: boolean;
+  } | null>(null);
+  const productSettingsDialogRef = useRef<HTMLElement>(null);
+  const productSettingsCloseRef = useRef<HTMLButtonElement>(null);
   const categories = useMemo(
     () => [...new Set(products.map((product) => product.categoryName))],
     [products],
   );
   const allSelected = products.length > 0 && products.every((product) => selectedProductIds.has(product.productId));
+  const settingsProduct = productSettingsDraft
+    ? products.find((product) => product.productId === productSettingsDraft.productId) ?? null
+    : null;
+  const productSettingsProductId = productSettingsDraft?.productId ?? null;
+
+  useEffect(() => {
+    if (!productSettingsProductId) return;
+    const returnFocusElement = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() => productSettingsCloseRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setProductSettingsDraft(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        productSettingsDialogRef.current?.querySelectorAll<HTMLButtonElement>(
+          "button:not(:disabled)",
+        ) ?? [],
+      );
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      returnFocusElement?.focus();
+    };
+  }, [productSettingsProductId]);
 
   function update(productId: string, changes: Partial<StallCatalogProduct>) {
     const nextProducts = productsRef.current.map((product) => product.productId === productId
@@ -67,7 +119,7 @@ export function StallCatalogSettings({
 
   async function save(productId: string) {
     const product = productsRef.current.find((candidate) => candidate.productId === productId);
-    if (!product) return;
+    if (!product) return false;
     setBusyId(productId);
     setMessage("");
     try {
@@ -87,9 +139,13 @@ export function StallCatalogSettings({
       const payload = await response.json();
       if (!response.ok) throw new Error(typeof payload.error === "string" ? label(payload.error) : m("目前無法更新攤位商品。"));
       update(product.productId, payload.stallProduct);
+      setMessageKind("success");
       setMessage(m("「{productName}」設定已儲存。", { productName: product.name }));
+      return true;
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error ? label(error.message) : m("網路連線中斷，請稍後再試。"));
+      return false;
     } finally {
       setBusyId(null);
     }
@@ -115,8 +171,10 @@ export function StallCatalogSettings({
       productsRef.current = nextProducts;
       setProducts(nextProducts);
       setSelectedProductIds(new Set());
+      setMessageKind("success");
       setMessage(m("{message}（{count} 項）", { message: successMessage, count: payload.changedCount }));
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error ? label(error.message) : m("網路連線中斷，請稍後再試。"));
     } finally {
       setBusyId(null);
@@ -127,6 +185,21 @@ export function StallCatalogSettings({
     const source = sourceStalls.find((stall) => stall.id === sourceStallId);
     if (!source || !window.confirm(m("將「{stallName}」的供應、價格、售完與排程設定合併到目前攤位？目前攤位額外商品不會被刪除。", { stallName: source.name }))) return;
     await runBulk({ operation: "COPY_FROM_STALL", sourceStallId }, m("已合併 {stallName} 的商品設定", { stallName: source.name }));
+  }
+
+  async function saveProductSettings() {
+    if (!productSettingsDraft) return;
+    const previousValue = settingsProduct?.checkoutUpsellSelected ?? false;
+    update(productSettingsDraft.productId, {
+      checkoutUpsellSelected: productSettingsDraft.checkoutUpsellSelected,
+    });
+    if (await save(productSettingsDraft.productId)) {
+      setProductSettingsDraft(null);
+    } else {
+      update(productSettingsDraft.productId, {
+        checkoutUpsellSelected: previousValue,
+      });
+    }
   }
 
   return (
@@ -144,7 +217,7 @@ export function StallCatalogSettings({
         </div>
         {sourceStalls.length > 0 ? <div className="flex min-w-0 flex-wrap items-end gap-2"><label className="text-xs font-semibold text-stone-600">{m("複製其他攤位設定")}<select value={sourceStallId} onChange={(event) => setSourceStallId(event.target.value)} className="mt-1 block h-10 max-w-56 rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-900">{sourceStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}（{stall.code}）</option>)}</select></label><button type="button" disabled={busyId !== null || !sourceStallId} onClick={() => void copyFromStall()} className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-40"><Copy className="h-4 w-4" />{m("合併設定")}</button></div> : null}
       </div>
-      {message ? <p role="status" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
       <details open data-stall-product-list className="group mt-4">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 border-y border-stone-200 py-3 font-semibold hover:text-teal-800 [&::-webkit-details-marker]:hidden">
           <span>{m("商品列表（{count}）", { count: products.length })}</span>
@@ -162,6 +235,7 @@ export function StallCatalogSettings({
                       <input type="checkbox" aria-label={m("選取 {productName}", { productName: product.name })} checked={selectedProductIds.has(product.productId)} onChange={(event) => setSelectedProductIds((current) => { const next = new Set(current); if (event.target.checked) next.add(product.productId); else next.delete(product.productId); return next; })} />
                       <h3 className="font-semibold">{product.name}</h3>
                       {product.groupName ? <span className="rounded-md bg-stone-100 px-2 py-0.5 text-xs text-stone-600">{product.groupName}</span> : null}
+                      {product.checkoutUpsellSelected ? <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">{m("結帳推薦中")}</span> : null}
                       {!product.masterIsActive ? <span className="text-xs font-semibold text-red-700">{m("主檔已停用")}</span> : null}
                     </div>
                     <p className="mt-1 text-sm text-stone-600">{m("預設 {defaultPrice} · 目前 {currentPrice}", { defaultPrice: formatMoney(product.defaultPrice, currency, locale), currentPrice: formatMoney(product.effectivePrice, currency, locale) })}</p>
@@ -190,13 +264,13 @@ export function StallCatalogSettings({
                     <label className="flex min-h-10 items-center gap-2 text-sm font-semibold text-red-800"><input type="checkbox" checked={product.isSoldOut} onChange={(event) => update(product.productId, { isSoldOut: event.target.checked })} />{m("售罄")}</label>
                     <button
                       type="button"
-                      data-testid="stall-product-upsell-switch"
-                      role="switch"
-                      aria-checked={product.checkoutUpsellSelected}
-                      disabled={!product.checkoutUpsellSelected && (!product.masterIsActive || !product.isEnabled || product.isSoldOut)}
-                      onClick={() => update(product.productId, { checkoutUpsellSelected: !product.checkoutUpsellSelected })}
-                      className={`inline-flex min-h-12 items-center gap-2 rounded-lg border-2 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${product.checkoutUpsellSelected ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white text-stone-700"}`}
-                    ><ShoppingBag className="h-4 w-4" />{product.checkoutUpsellSelected ? m("結帳推薦中") : m("設為結帳推薦")}</button>
+                      data-testid="stall-product-settings-trigger"
+                      onClick={() => setProductSettingsDraft({
+                        productId: product.productId,
+                        checkoutUpsellSelected: product.checkoutUpsellSelected,
+                      })}
+                      className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:border-teal-600 hover:text-teal-800"
+                    ><ShoppingBag className="h-4 w-4" />{m("設定")}</button>
                     <button type="button" title={m("儲存 {productName}", { productName: product.name })} disabled={busyId !== null} onClick={() => void save(product.productId)} className="grid h-10 w-10 place-items-center rounded-md bg-teal-700 text-white disabled:opacity-50"><Save className="h-4 w-4" /><span className="sr-only">{m("儲存 {productName}", { productName: product.name })}</span></button>
                   </div>
                 </div>
@@ -207,6 +281,50 @@ export function StallCatalogSettings({
           {products.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{m("組織尚未分派商品至此攤位。")}</p> : null}
         </div>
       </details>
+      {settingsProduct && productSettingsDraft ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-stone-950/65 p-4">
+          <section
+            ref={productSettingsDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="stall-product-settings-title"
+            aria-describedby="stall-product-settings-description"
+            data-testid="stall-product-settings-dialog"
+            className="relative w-full max-w-md rounded-2xl bg-white p-6 text-stone-950 shadow-2xl"
+          >
+            <button
+              ref={productSettingsCloseRef}
+              type="button"
+              aria-label={m("關閉")}
+              onClick={() => setProductSettingsDraft(null)}
+              className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full text-stone-500 hover:bg-stone-100"
+            ><X aria-hidden="true" className="h-5 w-5" /></button>
+            <p className="text-sm font-semibold text-teal-800">{m("編輯商品")}</p>
+            <h3 id="stall-product-settings-title" className="mt-1 pr-12 text-2xl font-bold">{settingsProduct.name}</h3>
+            <p id="stall-product-settings-description" className="mt-2 text-sm leading-6 text-stone-600">{m("設定此商品是否出現在顧客結帳前的加點推薦。預設為關閉。")}</p>
+            <button
+              type="button"
+              data-testid="stall-product-upsell-switch"
+              role="switch"
+              aria-checked={productSettingsDraft.checkoutUpsellSelected}
+              disabled={!productSettingsDraft.checkoutUpsellSelected && (!settingsProduct.masterIsActive || !settingsProduct.isEnabled || settingsProduct.isSoldOut)}
+              onClick={() => setProductSettingsDraft((current) => current ? {
+                ...current,
+                checkoutUpsellSelected: !current.checkoutUpsellSelected,
+              } : current)}
+              className={`mt-5 flex min-h-16 w-full items-center justify-between gap-4 rounded-xl border-2 px-4 text-left font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${productSettingsDraft.checkoutUpsellSelected ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-800"}`}
+            >
+              <span className="inline-flex items-center gap-3"><ShoppingBag className="h-5 w-5" />{m("結帳前加點推薦商品")}</span>
+              <span className={`rounded-full px-3 py-1 text-sm ${productSettingsDraft.checkoutUpsellSelected ? "bg-teal-700 text-white" : "bg-stone-200 text-stone-700"}`}>{productSettingsDraft.checkoutUpsellSelected ? m("開啟") : m("關閉")}</span>
+            </button>
+            {!productSettingsDraft.checkoutUpsellSelected && (!settingsProduct.masterIsActive || !settingsProduct.isEnabled || settingsProduct.isSoldOut) ? <p className="mt-2 text-sm font-medium text-amber-800">{m("商品需為啟用、供應中且未售完，才能設為推薦加點。")}</p> : null}
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setProductSettingsDraft(null)} className="min-h-12 rounded-md border border-stone-300 px-4 font-semibold">{m("取消")}</button>
+              <button type="button" disabled={busyId !== null} onClick={() => void saveProductSettings()} className="min-h-12 rounded-md bg-teal-700 px-4 font-semibold text-white disabled:opacity-50">{busyId === settingsProduct.productId ? m("儲存中...") : m("儲存設定")}</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -3,8 +3,10 @@ import { qrProductSelectionControl } from "./local-navigation";
 
 const qrToken = "demo-aming-chicken-qr-2026-rotate-me";
 
+test.use({ serviceWorkers: "block" });
+
 test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單", async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });
 
   const sessionResponse = page.waitForResponse(
@@ -43,6 +45,13 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
         new URL(response.url()).pathname.endsWith(path),
       ) && response.request().method() === "POST",
   );
+  const trackerResponsePromise = page.waitForResponse((response) => {
+    const pathname = new URL(response.url()).pathname;
+    return (
+      (pathname.includes("/api/public/orders/sto_") && response.request().method() === "GET")
+      || (pathname.endsWith("/get-public-order") && response.request().method() === "POST")
+    );
+  });
   const submit = page.getByRole("button", { name: "送出訂單", exact: true });
   await expect(submit).toBeEnabled({ timeout: 20_000 });
   await submit.click();
@@ -53,6 +62,29 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
   expect(trackerUrl.searchParams.get("qr")).toBe(qrToken);
   const trackingToken = trackerUrl.pathname.split("/").at(-1);
   expect(trackingToken).toMatch(/^sto_[A-Za-z0-9_-]+$/u);
+  expect((await trackerResponsePromise).status()).toBe(200);
+  await expect(page.getByRole("link", { name: "修改訂單", exact: true })).toBeVisible();
+
+  const reorderPageResponse = await page.request.get(
+    `/order/${trackingToken}/reorder`,
+  );
+  expect(reorderPageResponse.status()).toBe(200);
+
+  let prepareAttempts = 0;
+  await page.route(`**/api/public/orders/${trackingToken}/reorder`, async (route) => {
+    prepareAttempts += 1;
+    if (prepareAttempts === 1) {
+      await route.abort("timedout");
+      return;
+    }
+    await route.continue();
+  });
+  await page.getByRole("link", { name: "修改訂單", exact: true }).click();
+  await expect(page.getByText("目前無法準備訂單修改。", { exact: true })).toBeVisible({
+    timeout: 10_000,
+  });
+  const retryPrepare = page.getByRole("button", { name: "再試一次", exact: true });
+  await expect(retryPrepare).toBeVisible();
 
   const prepareResponsePromise = page.waitForResponse(
     (response) =>
@@ -62,7 +94,7 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
       ].some((path) => new URL(response.url()).pathname.endsWith(path)) &&
       response.request().method() === "POST",
   );
-  await page.getByRole("link", { name: "修改訂單", exact: true }).click();
+  await retryPrepare.click();
   const prepareResponse = await prepareResponsePromise;
   expect(prepareResponse.status()).toBe(200);
   const preparePath = new URL(prepareResponse.url()).pathname;
@@ -96,4 +128,32 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
   await expect(
     page.getByRole("heading", { name: "阿明鹽酥雞", exact: true }),
   ).toBeVisible();
+
+  await page.goto(trackerUrl.toString());
+  await expect(page.getByRole("button", { name: "取消訂單", exact: true })).toBeVisible();
+  let cancellationStarted = false;
+  await page.route(`**/api/public/orders/${trackingToken}`, async (route) => {
+    if (route.request().method() === "DELETE") {
+      cancellationStarted = true;
+      await route.continue();
+      return;
+    }
+    if (route.request().method() === "GET" && cancellationStarted) {
+      await new Promise((resolve) => setTimeout(resolve, 4_500));
+    }
+    await route.continue().catch(() => undefined);
+  });
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toBe("確定要取消此訂單嗎？取消後無法復原。");
+    await dialog.accept();
+  });
+  const cancelResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith(`/api/public/orders/${trackingToken}`) &&
+      response.request().method() === "DELETE",
+  );
+  await page.getByRole("button", { name: "取消訂單", exact: true }).click();
+  expect((await cancelResponsePromise).status()).toBe(200);
+  await expect(page.getByText("已取消", { exact: true })).toBeVisible({ timeout: 2_000 });
+  await expect(page.getByText(/signal timed out/iu)).toHaveCount(0);
 });

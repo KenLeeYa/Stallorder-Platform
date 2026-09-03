@@ -2,11 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   queryRaw: vi.fn(),
+  orderSessionFindUnique: vi.fn(),
   trustedOrigin: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { $queryRaw: mocks.queryRaw },
+  prisma: {
+    orderSession: { findUnique: mocks.orderSessionFindUnique },
+    $queryRaw: mocks.queryRaw,
+  },
 }));
 
 vi.mock("@/lib/security", () => ({
@@ -32,6 +36,10 @@ describe("POST /api/public/lottery-draw", () => {
   beforeEach(() => {
     vi.stubEnv("ABUSE_HASH_SECRET", "test-abuse-secret");
     mocks.trustedOrigin.mockReturnValue(true);
+    mocks.orderSessionFindUnique.mockResolvedValue({
+      orderingMode: "DEFAULT",
+      fulfillmentTypeContext: "TAKEOUT",
+    });
     mocks.queryRaw.mockResolvedValue([{
       result: {
         ok: true,
@@ -87,6 +95,52 @@ describe("POST /api/public/lottery-draw", () => {
     const response = await route.POST(drawRequest());
 
     expect(response.status).toBe(403);
+    expect(mocks.orderSessionFindUnique).not.toHaveBeenCalled();
+    expect(mocks.queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("rejects delivery sessions before drawing", async () => {
+    mocks.orderSessionFindUnique.mockResolvedValue({
+      orderingMode: "DELIVERY",
+      fulfillmentTypeContext: "DELIVERY",
+    });
+    const route = await import("./route");
+
+    const response = await route.POST(drawRequest());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "LOTTERY_NOT_ELIGIBLE",
+    });
+    expect(mocks.queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("rejects preorder sessions before drawing", async () => {
+    mocks.orderSessionFindUnique.mockResolvedValue({
+      orderingMode: "PREORDER",
+      fulfillmentTypeContext: "TAKEOUT",
+    });
+    const route = await import("./route");
+
+    const response = await route.POST(drawRequest());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "LOTTERY_NOT_ELIGIBLE",
+    });
+    expect(mocks.queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the session no longer exists", async () => {
+    mocks.orderSessionFindUnique.mockResolvedValue(null);
+    const route = await import("./route");
+
+    const response = await route.POST(drawRequest());
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "SESSION_NOT_FOUND",
+    });
     expect(mocks.queryRaw).not.toHaveBeenCalled();
   });
 
