@@ -17,6 +17,10 @@ import {
   decodeCloudPrntStatus,
 } from "@/server/cloudprnt/cloudprnt-protocol";
 import {
+  isCloudPrntDeviceId,
+  verifyCloudPrntRequest,
+} from "@/server/cloudprnt/cloudprnt-credentials";
+import {
   printJobTicketSelect,
   resolvePrintJobTicketPayload,
 } from "@/server/printing/print-job-ticket";
@@ -31,9 +35,7 @@ const responseHeaders = {
 };
 
 export async function POST(request: Request, context: RouteContext) {
-  const authentication = await authenticate(request, context);
-  if (authentication instanceof Response) return authentication;
-  const printer = await loadPrinter(authentication.printerId);
+  const printer = await authenticatePrinter(request, context);
   if (printer instanceof Response) return printer;
   const limit = await checkRateLimit({
     scope: "cloudprnt-poll",
@@ -102,9 +104,7 @@ export async function POST(request: Request, context: RouteContext) {
 }
 
 export async function GET(request: Request, context: RouteContext) {
-  const authentication = await authenticate(request, context);
-  if (authentication instanceof Response) return authentication;
-  const printer = await loadPrinter(authentication.printerId);
+  const printer = await authenticatePrinter(request, context);
   if (printer instanceof Response) return printer;
   if (cloudPrntRequestedMediaType(request) !== KITCHEN_TICKET_MEDIA_TYPE) {
     return new Response(null, { status: 415, headers: responseHeaders });
@@ -153,9 +153,7 @@ export async function GET(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
-  const authentication = await authenticate(request, context);
-  if (authentication instanceof Response) return authentication;
-  const printer = await loadPrinter(authentication.printerId);
+  const printer = await authenticatePrinter(request, context);
   if (printer instanceof Response) return printer;
   const token = cloudPrntJobToken(request);
   const code = new URL(request.url).searchParams.get("code");
@@ -199,22 +197,44 @@ export async function DELETE(request: Request, context: RouteContext) {
   return new Response(null, { status: 200, headers: responseHeaders });
 }
 
-async function loadPrinter(printerId: string) {
+async function loadLegacyPrinter(printerId: string) {
   if (!uuid.safeParse(printerId).success) return new Response(null, { status: 404, headers: responseHeaders });
   const printer = await prisma.printer.findFirst({
     where: { id: printerId, isEnabled: true, connectionType: "CLOUDPRNT" },
-    select: { id: true },
+    select: { id: true, deviceId: true, deviceTokenHash: true },
   });
   return printer ?? new Response(null, { status: 404, headers: responseHeaders });
 }
 
-async function authenticate(request: Request, context: RouteContext) {
-  const { printerId } = await context.params;
-  const state = cloudPrntAuthState(request, printerId);
-  if (state === "AUTHORIZED") return { printerId };
+async function authenticatePrinter(request: Request, context: RouteContext) {
+  const { printerId: routeIdentifier } = await context.params;
+  if (isCloudPrntDeviceId(routeIdentifier)) {
+    const printer = await prisma.printer.findFirst({
+      where: { deviceId: routeIdentifier, isEnabled: true, connectionType: "CLOUDPRNT" },
+      select: { id: true, deviceId: true, deviceTokenHash: true },
+    });
+    if (
+      printer?.deviceId
+      && printer.deviceTokenHash
+      && verifyCloudPrntRequest(request, printer.deviceId, printer.deviceTokenHash)
+    ) return { id: printer.id };
+    return unauthorizedResponse();
+  }
+
+  const state = cloudPrntAuthState(request, routeIdentifier);
+  if (state === "AUTHORIZED") {
+    const printer = await loadLegacyPrinter(routeIdentifier);
+    if (printer instanceof Response) return printer;
+    if (printer.deviceId || printer.deviceTokenHash) return unauthorizedResponse();
+    return { id: printer.id };
+  }
   if (state === "NOT_CONFIGURED") {
     return new Response(null, { status: 503, headers: responseHeaders });
   }
+  return unauthorizedResponse();
+}
+
+function unauthorizedResponse() {
   return new Response(null, {
     status: 401,
     headers: { ...responseHeaders, "www-authenticate": 'Basic realm="StallOrder CloudPRNT"' },

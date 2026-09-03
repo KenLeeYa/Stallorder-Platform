@@ -24,6 +24,12 @@ import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
 import {
+  cloudPrntServerUrl,
+  createCloudPrntCredential,
+  rotateCloudPrntCredential,
+  type CloudPrntCredential,
+} from "@/server/cloudprnt/cloudprnt-credentials";
+import {
   printJobTicketSelect,
   resolvePrintJobTicketPayload,
 } from "@/server/printing/print-job-ticket";
@@ -32,6 +38,13 @@ import { completeStreamlinedOrderAfterPrint } from "@/server/printing/streamline
 type RouteContext = { params: Promise<{ stallSlug: string }> };
 type Transaction = Prisma.TransactionClient;
 type PrintQueueCommand = ReturnType<typeof printQueueCommandSchema.parse>;
+type CloudPrntSetup = {
+  serverUrl: string;
+  deviceId: string;
+  deviceToken: string;
+  pollingIntervalSeconds: 5;
+  responseTimeoutSeconds: 60;
+};
 
 class PrintQueueNotFoundError extends Error {}
 class PrintQueueConflictError extends Error {
@@ -43,6 +56,7 @@ class PrintQueueConflictError extends Error {
 const capabilityGatedOperations = new Set<PrintQueueCommand["operation"]>([
   "REGISTER_PRINTER",
   "UPDATE_PRINTER",
+  "ROTATE_CLOUDPRNT_TOKEN",
   "TEST_PRINTER",
   "AUTHORIZE_CASH_DRAWER",
   "CREATE_RULE",
@@ -56,6 +70,7 @@ const capabilityGatedOperations = new Set<PrintQueueCommand["operation"]>([
 
 const serializableOperations = new Set<PrintQueueCommand["operation"]>([
   "UPDATE_PRINTER",
+  "ROTATE_CLOUDPRNT_TOKEN",
   "CREATE_RULE",
   "UPDATE_RULE",
   "DELETE_RULE",
@@ -172,11 +187,16 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     let printPayload: PrintTicketPayload | undefined;
+    let cloudPrntSetup: CloudPrntSetup | undefined;
     const transactionOptions = serializableOperations.has(command.operation)
       ? { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
       : undefined;
     const entityId = await prisma.$transaction(async (transaction) => {
       if (command.operation === "REGISTER_PRINTER") {
+        const credential = command.connectionType === "CLOUDPRNT"
+          ? createCloudPrntCredential()
+          : null;
+        if (credential) cloudPrntSetup = buildCloudPrntSetup(credential, request);
         const printer = await transaction.printer.create({
           data: {
             organizationId,
@@ -187,6 +207,12 @@ export async function POST(request: Request, context: RouteContext) {
             paperWidthMm: command.paperWidthMm,
             autoDetectEnabled: command.autoDetectEnabled,
             openCashDrawerOnCashPayment: command.openCashDrawerOnCashPayment,
+            ...(credential ? {
+              deviceId: credential.deviceId,
+              deviceTokenHash: credential.deviceTokenHash,
+              credentialVersion: 1,
+              credentialRotatedAt: new Date(),
+            } : {}),
           },
         });
         return printer.id;
@@ -214,6 +240,14 @@ export async function POST(request: Request, context: RouteContext) {
           });
           if (manualRules > 0) throw new PrintQueueConflictError("CLOUDPRNT_MANUAL_RULES_EXIST");
         }
+        const needsCloudPrntCredential = nextConnectionType === "CLOUDPRNT"
+          && (printer.connectionType !== "CLOUDPRNT" || !printer.deviceId || !printer.deviceTokenHash);
+        const credential = needsCloudPrntCredential
+          ? printer.deviceId
+            ? rotateCloudPrntCredential(printer.deviceId)
+            : createCloudPrntCredential()
+          : null;
+        if (credential) cloudPrntSetup = buildCloudPrntSetup(credential, request);
         await transaction.printer.update({
           where: { id: printer.id },
           data: {
@@ -226,6 +260,32 @@ export async function POST(request: Request, context: RouteContext) {
             ...(command.openCashDrawerOnCashPayment !== undefined
               ? { openCashDrawerOnCashPayment: command.openCashDrawerOnCashPayment }
               : {}),
+            ...(credential ? {
+              deviceId: credential.deviceId,
+              deviceTokenHash: credential.deviceTokenHash,
+              credentialVersion: { increment: 1 },
+              credentialRotatedAt: new Date(),
+            } : {}),
+          },
+        });
+        return printer.id;
+      }
+      if (command.operation === "ROTATE_CLOUDPRNT_TOKEN") {
+        const printer = await findScopedPrinter(transaction, command.printerId, organizationId, stallId);
+        if (printer.connectionType !== "CLOUDPRNT") {
+          throw new PrintQueueConflictError("CLOUDPRNT_PRINTER_REQUIRED");
+        }
+        const credential = printer.deviceId
+          ? rotateCloudPrntCredential(printer.deviceId)
+          : createCloudPrntCredential();
+        cloudPrntSetup = buildCloudPrntSetup(credential, request);
+        await transaction.printer.update({
+          where: { id: printer.id },
+          data: {
+            deviceId: credential.deviceId,
+            deviceTokenHash: credential.deviceTokenHash,
+            credentialVersion: { increment: 1 },
+            credentialRotatedAt: new Date(),
           },
         });
         return printer.id;
@@ -538,6 +598,7 @@ export async function POST(request: Request, context: RouteContext) {
         state: await getPrintQueueState(stallId, organizationId),
         entityId,
         ...(printPayload ? { printPayload } : {}),
+        ...(cloudPrntSetup ? { cloudPrntSetup } : {}),
       },
       { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
     );
@@ -559,10 +620,12 @@ export async function POST(request: Request, context: RouteContext) {
               ? "印表機仍有列印中的工作，請完成或處理後再切換連線方式。"
               : error.code === "CLOUDPRNT_DEVICE_CLAIM_REQUIRED"
                 ? "CloudPRNT 工作必須由印表機接單，不可由瀏覽器重複領取。"
-                : error.code === "PRINT_RULE_INACTIVE"
-                  ? "列印規則已停用或刪除，請重新整理列印佇列。"
-                  : error.code === "CUSTOMER_RECEIPT_RULE_REQUIRED"
-                    ? "請先在列印設定建立並啟用顧客收據規則。"
+                : error.code === "CLOUDPRNT_PRINTER_REQUIRED"
+                  ? "只有 CloudPRNT 印表機可以產生或重設裝置密碼。"
+                  : error.code === "PRINT_RULE_INACTIVE"
+                    ? "列印規則已停用或刪除，請重新整理列印佇列。"
+                    : error.code === "CUSTOMER_RECEIPT_RULE_REQUIRED"
+                      ? "請先在列印設定建立並啟用顧客收據規則。"
           : "列印設定或工作已被其他裝置變更，請重新整理。"
       : serializationConflict
         ? "列印設定同時被其他裝置更新，請重新整理後再試。"
@@ -629,9 +692,30 @@ function connectionLabel(type: "WEBPRNT_BLUETOOTH" | "CLOUDPRNT" | "SYSTEM_PRINT
 function auditEntityType(operation: PrintQueueCommand["operation"]) {
   if (operation === "TEST_PRINTER") return "PRINTER";
   if (operation === "AUTHORIZE_CASH_DRAWER") return "PRINTER";
+  if (operation === "ROTATE_CLOUDPRNT_TOKEN") return "PRINTER";
   if (operation.includes("RULE")) return "PRINT_RULE";
   if (operation.includes("PRINTER")) return "PRINTER";
   return "PRINT_JOB";
+}
+
+function buildCloudPrntSetup(
+  credential: CloudPrntCredential,
+  request: Request,
+): CloudPrntSetup {
+  let serverUrl: string;
+  try {
+    serverUrl = cloudPrntServerUrl(credential.deviceId);
+  } catch (error) {
+    if (process.env.NODE_ENV === "production") throw error;
+    serverUrl = `${new URL(request.url).origin}/api/cloudprnt/v1/${credential.deviceId}`;
+  }
+  return {
+    serverUrl,
+    deviceId: credential.deviceId,
+    deviceToken: credential.deviceToken,
+    pollingIntervalSeconds: 5,
+    responseTimeoutSeconds: 60,
+  };
 }
 
 function managerAuthorizationErrorResponse(error: ManagerAuthorizationError, requestId: string) {
