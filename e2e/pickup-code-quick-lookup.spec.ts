@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { PrismaClient, type QrCodeState } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import {
   dismissStaffStartReminder,
   qrProductSelectionControl,
@@ -16,7 +17,7 @@ if (
 const prisma = new PrismaClient();
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
-const qrToken = "demo-aming-chicken-qr-2026-rotate-me";
+const qrToken = `pickup-code-e2e-${randomUUID()}`;
 const password = "StallOrderDemo!2026";
 type CreatedOrder = {
   id: string;
@@ -39,17 +40,13 @@ let originalHours: Array<{
   closesAt: string;
   isClosed: boolean;
 }> = [];
-let originalQr: {
-  id: string;
-  state: QrCodeState;
-  expiresAt: Date | null;
-} | null = null;
+let fixtureQrId = "";
 
 test.describe("每日三碼取餐與店員快速載單", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
-    const [stall, hours, qr] = await Promise.all([
+    const [stall, hours, qrVersion] = await Promise.all([
       prisma.stall.findUniqueOrThrow({
         where: { id: stallId },
         select: {
@@ -65,15 +62,14 @@ test.describe("每日三碼取餐與店員快速載單", () => {
         orderBy: { dayOfWeek: "asc" },
         select: { id: true, opensAt: true, closesAt: true, isClosed: true },
       }),
-      prisma.qrCode.findUniqueOrThrow({
-        where: { token: qrToken },
-        select: { id: true, state: true, expiresAt: true },
+      prisma.qrCode.aggregate({
+        where: { stallId },
+        _max: { tokenVersion: true },
       }),
     ]);
     expect(hours).toHaveLength(7);
     originalStall = stall;
     originalHours = hours;
-    originalQr = qr;
 
     await prisma.$transaction([
       prisma.stall.update({
@@ -90,11 +86,20 @@ test.describe("每日三碼取餐與店員快速載單", () => {
         where: { organizationId, stallId },
         data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
       }),
-      prisma.qrCode.update({
-        where: { id: qr.id },
-        data: { state: "ACTIVE", expiresAt: null },
-      }),
     ]);
+    fixtureQrId = (
+      await prisma.qrCode.create({
+        data: {
+          organizationId,
+          stallId,
+          token: qrToken,
+          label: "Pickup code E2E",
+          state: "ACTIVE",
+          tokenVersion: (qrVersion._max.tokenVersion ?? 0) + 1,
+        },
+        select: { id: true },
+      })
+    ).id;
   });
 
   test.afterAll(async () => {
@@ -129,11 +134,9 @@ test.describe("每日三碼取餐與店員快速載單", () => {
             }),
           ),
         );
-        if (originalQr) {
-          await prisma.qrCode.update({
-            where: { id: originalQr.id },
-            data: { state: originalQr.state, expiresAt: originalQr.expiresAt },
-          });
+        if (fixtureQrId) {
+          await prisma.publicOrderAttempt.deleteMany({ where: { qrCodeId: fixtureQrId } });
+          await prisma.qrCode.deleteMany({ where: { id: fixtureQrId } });
         }
       } finally {
         await prisma.$disconnect();
