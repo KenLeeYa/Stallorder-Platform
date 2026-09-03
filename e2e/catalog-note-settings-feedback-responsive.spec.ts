@@ -25,8 +25,12 @@ test("單一註記分層遮罩與設定回饋通過響應式矩陣", async ({ pa
     await page.setViewportSize(viewport);
     await gotoLocalPath(page, `/merchant/catalog?organizationId=${organizationId}`);
 
-    const noteEntry = page.getByTestId("open-reusable-note-navigator");
-    const groupEntry = page.getByTestId("open-note-group-navigator");
+    const noteEntry = page
+      .getByTestId("open-reusable-note-navigator")
+      .filter({ visible: true });
+    const groupEntry = page
+      .getByTestId("open-note-group-navigator")
+      .filter({ visible: true });
     await expect(noteEntry).toBeVisible();
     await expect(groupEntry).toBeVisible();
     expect((await noteEntry.boundingBox())!.height).toBeGreaterThanOrEqual(44);

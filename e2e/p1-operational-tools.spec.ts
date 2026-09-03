@@ -24,12 +24,26 @@ let targetStallId = "";
 let highDiscountId = "";
 let additionalStallApprovalId = "";
 let originalManagerAuthorizationCodeHash: string | null = null;
+let originalPrimaryBusinessHours: Array<{
+  id: string;
+  opensAt: string;
+  closesAt: string;
+  isClosed: boolean;
+}> = [];
 const createdOrderIds: string[] = [];
 
 test.describe("P1 營運功能", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
+    originalPrimaryBusinessHours = await prisma.stallBusinessHour.findMany({
+      where: { stallId: primaryStallId },
+      select: { id: true, opensAt: true, closesAt: true, isClosed: true },
+    });
+    await prisma.stallBusinessHour.updateMany({
+      where: { stallId: primaryStallId },
+      data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+    });
     await prisma.rateLimitBucket.deleteMany();
     await prisma.publicRateLimitBucket.deleteMany({
       where: { stallId: primaryStallId },
@@ -240,6 +254,18 @@ test.describe("P1 營運功能", () => {
         managerAuthorizationCodeHash: originalManagerAuthorizationCodeHash,
       },
     });
+    await prisma.$transaction(
+      originalPrimaryBusinessHours.map((hour) =>
+        prisma.stallBusinessHour.update({
+          where: { id: hour.id },
+          data: {
+            opensAt: hour.opensAt,
+            closesAt: hour.closesAt,
+            isClosed: hour.isClosed,
+          },
+        }),
+      ),
+    );
     await prisma.$disconnect();
   });
 
@@ -440,10 +466,21 @@ test.describe("P1 營運功能", () => {
     await expect(closeShiftDialog).toBeVisible();
     await closeShiftDialog.getByLabel("實際盤點金額").fill("2606");
     await expect(page.getByText("帳款相符", { exact: true })).toBeVisible();
+    const closeShiftResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/stalls/aming-chicken/cash-shifts") &&
+        response.request().method() === "POST",
+    );
     await closeShiftDialog
       .getByRole("button", { name: "送出交班複核", exact: true })
       .click();
-    await expect(page.getByText("等待複核", { exact: true })).toBeVisible();
+    expect((await closeShiftResponse).status()).toBe(200);
+    const pendingShiftCard = page
+      .getByRole("article")
+      .filter({ hasText: "P1 E2E 班次" });
+    await expect(
+      pendingShiftCard.getByText("等待複核", { exact: true }),
+    ).toBeVisible();
     const pendingShift = await prisma.cashShift.findFirstOrThrow({
       where: { stallId: primaryStallId, note: "P1 E2E 班次" },
       orderBy: { openedAt: "desc" },
@@ -584,8 +621,15 @@ async function login(page: Page, email: string) {
 }
 
 async function createDineInOrder(page: Page, productName: string) {
-  await page.goto(`/q/${tableQrToken}`);
-  await page.getByRole("button", { name: "點餐語言" }).click();
+  const qrPath = `/q/${tableQrToken}`;
+  const qrResponse = await page.goto(qrPath, {
+    waitUntil: "domcontentloaded",
+  });
+  expect(qrResponse?.status()).toBe(200);
+  expect(new URL(page.url()).pathname).toBe(qrPath);
+  const languageMenu = page.getByRole("button", { name: "點餐語言" });
+  await expect(languageMenu).toBeVisible();
+  await languageMenu.click();
   await page.getByRole("option", { name: "English", exact: true }).click();
   const product = page.getByRole("article").filter({ hasText: productName });
   await qrProductSelectionControl(

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { businessHoursSchema, getBusinessHoursFieldErrors } from "@/lib/business-hours";
+import {
+  businessHoursSchema,
+  getBusinessHoursFieldErrors,
+  isWithinBusinessHours,
+} from "@/lib/business-hours";
 
 describe("business hours field errors", () => {
   it("identifies the day and time control for every invalid value", () => {
@@ -36,5 +40,37 @@ describe("business hours field errors", () => {
       closesAt: "00:00",
       isClosed: true,
     });
+  });
+});
+
+describe("business hours availability", () => {
+  const weeklyHours = Array.from({ length: 7 }, (_, dayOfWeek) => ({
+    dayOfWeek,
+    opensAt: "17:00",
+    closesAt: "23:00",
+    isClosed: false,
+  }));
+
+  it("closes a QR menu before the configured opening time", () => {
+    expect(isWithinBusinessHours(
+      weeklyHours,
+      "Asia/Taipei",
+      new Date("2026-09-03T08:59:00.000Z"),
+    )).toBe(false);
+  });
+
+  it("opens inside configured and overnight hours", () => {
+    expect(isWithinBusinessHours(
+      weeklyHours,
+      "Asia/Taipei",
+      new Date("2026-09-03T09:00:00.000Z"),
+    )).toBe(true);
+    expect(isWithinBusinessHours(
+      weeklyHours.map((hour) => hour.dayOfWeek === 4
+        ? { ...hour, opensAt: "17:00", closesAt: "02:00" }
+        : { ...hour, isClosed: true }),
+      "Asia/Taipei",
+      new Date("2026-09-03T17:30:00.000Z"),
+    )).toBe(true);
   });
 });

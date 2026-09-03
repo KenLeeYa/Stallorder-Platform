@@ -1,13 +1,56 @@
 import { expect, test, type Page } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import {
   dismissStaffStartReminder,
   qrProductSelectionControl,
 } from "./local-navigation";
+import { createOpenQrFixture } from "./open-qr-fixture";
 
 test.use({ serviceWorkers: "block" });
 
-const takeoutQrToken = "demo-aming-chicken-qr-2026-rotate-me";
+const prisma = new PrismaClient();
+let takeoutQrToken = "";
 const password = "StallOrderDemo!2026";
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "22222222-2222-4222-8222-222222222222";
+
+let qrFixture: Awaited<
+  ReturnType<typeof createOpenQrFixture>
+> | null = null;
+
+test.beforeAll(async () => {
+  qrFixture = await createOpenQrFixture({
+    organizationId,
+    stallId,
+    tokenPrefix: "e2e-qr-order-recovery",
+    label: "E2E QR 訂單找回",
+  });
+  takeoutQrToken = qrFixture.qrToken;
+});
+
+test.afterAll(async () => {
+  try {
+    if (qrFixture) {
+      const sessions = await prisma.orderSession.findMany({
+        where: { qrCodeId: qrFixture.qrCodeId, orderId: { not: null } },
+        select: { orderId: true },
+      });
+      const orderIds = sessions.flatMap((session) =>
+        session.orderId ? [session.orderId] : []
+      );
+      if (orderIds.length > 0) {
+        await prisma.payment.deleteMany({ where: { orderId: { in: orderIds } } });
+        await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
+      }
+    }
+  } finally {
+    try {
+      await qrFixture?.restore();
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
+});
 
 async function login(page: Page, email: string) {
   await page.goto("/login");

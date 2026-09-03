@@ -20,6 +20,7 @@ async function login(page: Page, email: string) {
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await response).status()).toBe(200);
+  await page.waitForURL((url) => url.pathname !== "/login", { waitUntil: "load", timeout: 30_000 });
 }
 
 async function waitForReactHydration(control: Locator) {

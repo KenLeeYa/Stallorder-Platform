@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   expect,
   test,
@@ -17,36 +18,93 @@ const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 const password = "StallOrderDemo!2026";
 const managerAuthorizationCode = "246810";
-const takeoutQrToken = "demo-aming-chicken-qr-2026-rotate-me";
+const takeoutQrToken = `product-notes-e2e-${randomUUID()}`;
 type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
 const authCookies = new Map<string, AuthCookies>();
 const prisma = new PrismaClient();
 let originalManagerAuthorizationCodeHash: string | null = null;
+let fixtureQrId = "";
+let originalBusinessHours: Array<{
+  id: string;
+  opensAt: string;
+  closesAt: string;
+  isClosed: boolean;
+}> = [];
 
 test.use({ serviceWorkers: "block" });
 
 test.beforeAll(async () => {
-  const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({
-    where: { stallId },
-    select: { managerAuthorizationCodeHash: true },
-  });
+  const [settings, businessHours, qrVersion] = await Promise.all([
+    prisma.stallOrderingSettings.findUniqueOrThrow({
+      where: { stallId },
+      select: { managerAuthorizationCodeHash: true },
+    }),
+    prisma.stallBusinessHour.findMany({
+      where: { organizationId, stallId },
+      orderBy: { dayOfWeek: "asc" },
+      select: { id: true, opensAt: true, closesAt: true, isClosed: true },
+    }),
+    prisma.qrCode.aggregate({
+      where: { stallId },
+      _max: { tokenVersion: true },
+    }),
+  ]);
+  expect(businessHours).toHaveLength(7);
   originalManagerAuthorizationCodeHash = settings.managerAuthorizationCodeHash;
-  await prisma.stallOrderingSettings.update({
-    where: { stallId },
-    data: {
-      managerAuthorizationCodeHash: await hash(managerAuthorizationCode, 10),
-    },
-  });
+  originalBusinessHours = businessHours;
+  await prisma.$transaction([
+    prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: {
+        managerAuthorizationCodeHash: await hash(managerAuthorizationCode, 10),
+      },
+    }),
+    prisma.stallBusinessHour.updateMany({
+      where: { organizationId, stallId },
+      data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+    }),
+  ]);
+  fixtureQrId = (
+    await prisma.qrCode.create({
+      data: {
+        organizationId,
+        stallId,
+        token: takeoutQrToken,
+        label: "Product notes E2E",
+        state: "ACTIVE",
+        tokenVersion: (qrVersion._max.tokenVersion ?? 0) + 1,
+      },
+      select: { id: true },
+    })
+  ).id;
 });
 
 test.afterAll(async () => {
   try {
-    await prisma.stallOrderingSettings.update({
-      where: { stallId },
-      data: {
-        managerAuthorizationCodeHash: originalManagerAuthorizationCodeHash,
-      },
-    });
+    await prisma.$transaction([
+      ...(fixtureQrId
+        ? [
+            prisma.publicOrderAttempt.deleteMany({ where: { qrCodeId: fixtureQrId } }),
+            prisma.qrCode.deleteMany({ where: { id: fixtureQrId } }),
+          ]
+        : []),
+      prisma.stallOrderingSettings.update({
+        where: { stallId },
+        data: {
+          managerAuthorizationCodeHash: originalManagerAuthorizationCodeHash,
+        },
+      }),
+      ...originalBusinessHours.map((hour) =>
+        prisma.stallBusinessHour.update({
+          where: { id: hour.id },
+          data: {
+            opensAt: hour.opensAt,
+            closesAt: hour.closesAt,
+            isClosed: hour.isClosed,
+          },
+        }),
+      ),
+    ]);
   } finally {
     await prisma.$disconnect();
   }

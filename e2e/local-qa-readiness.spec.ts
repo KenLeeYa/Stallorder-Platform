@@ -61,3 +61,70 @@ test("本機公開 Menu、QR、外帶自取與現金交班可實際操作", asyn
   await expect(page.getByRole("heading", { name: "發生錯誤", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "現金交班與對帳", exact: true })).toBeVisible();
 });
+
+test("本機 QR 印刷按鈕會開啟瀏覽器列印／另存 PDF", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.print = () => {
+      const count = Number(window.sessionStorage.getItem("qa-print-count") ?? "0") + 1;
+      window.sessionStorage.setItem("qa-print-count", String(count));
+      document.documentElement.dataset.qaPrintCount = String(count);
+    };
+  });
+  await page.goto("/login");
+  await page
+    .getByTestId("local-qa-login-grid")
+    .getByRole("button", { name: "商家", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/);
+
+  const response = await page.goto(
+    "/merchant/stalls/22222222-2222-4222-8222-222222222222/qr-print?target=stall&paper=A5",
+  );
+  expect(response?.status()).toBe(200);
+
+  const printButton = page.getByTestId("qr-print-button");
+  await expect(printButton).toBeVisible();
+  await expect(printButton).toBeEnabled();
+  await printButton.click();
+  await expect(page.locator("html")).toHaveAttribute("data-qa-print-count", "1");
+  await expect(page.getByRole("status")).toContainText("已送出列印指令");
+
+  const tableResponse = await page.goto(
+    "/merchant/stalls/22222222-2222-4222-8222-222222222222/qr-print?target=tables&paper=A4",
+  );
+  expect(tableResponse?.status()).toBe(200);
+  const tablePrintButton = page.getByTestId("qr-print-button");
+  await expect(tablePrintButton).toBeEnabled();
+  await tablePrintButton.click();
+  await expect(page.locator("html")).toHaveAttribute("data-qa-print-count", "2");
+});
+
+test("QR 非營業時間以置中視窗引導顧客前往線上 Menu", async ({ page }) => {
+  await page.route(
+    (url) => ["/create-order-session", "/api/public/order-session"].some(
+      (suffix) => url.pathname.endsWith(suffix),
+    ),
+    async (route) => {
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        json: {
+          orderSessionToken: `stos_${"h".repeat(43)}`,
+          expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+          orderingMode: "DEFAULT",
+          orderingOpenNow: false,
+          onlineMenuPath: "/store/aming-01?view=pickup",
+        },
+      });
+    },
+  );
+
+  const response = await page.goto("/q/demo-aming-chicken-qr-2026-rotate-me");
+  expect(response?.status()).toBe(200);
+  const dialog = page.getByRole("alertdialog", { name: "目前非營業時間" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("請前往線上 Menu");
+  await expect(
+    dialog.getByRole("button", { name: "前往線上 Menu 預約", exact: true }),
+  ).toBeVisible();
+});

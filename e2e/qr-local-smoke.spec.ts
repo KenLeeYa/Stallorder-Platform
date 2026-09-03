@@ -1,7 +1,23 @@
 import { expect, test } from "@playwright/test";
 import { qrProductSelectionControl } from "./local-navigation";
+import { createOpenQrFixture } from "./open-qr-fixture";
 
-const demoQrToken = "demo-aming-chicken-qr-2026-rotate-me";
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "22222222-2222-4222-8222-222222222222";
+let qrFixture: Awaited<ReturnType<typeof createOpenQrFixture>>;
+
+test.beforeAll(async () => {
+  qrFixture = await createOpenQrFixture({
+    organizationId,
+    stallId,
+    tokenPrefix: "qr-local-smoke-e2e",
+    label: "QR local smoke E2E",
+  });
+});
+
+test.afterAll(async () => {
+  await qrFixture.restore();
+});
 
 test("手機 QR 點餐使用固定訂單摘要且不產生水平溢位", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -12,7 +28,7 @@ test("手機 QR 點餐使用固定訂單摘要且不產生水平溢位", async (
       ) && response.request().method() === "POST",
   );
 
-  await page.goto(`/q/${demoQrToken}`);
+  await page.goto(`/q/${qrFixture.qrToken}`);
   expect((await sessionResponse).status()).toBe(201);
 
   const memberEntry = page.getByTestId("qr-member-entry");
@@ -67,7 +83,7 @@ test("本機 QA 可透過示範 QR 建立點餐 session", async ({ page }) => {
       ) && response.request().method() === "POST",
   );
 
-  await page.goto(`/q/${demoQrToken}`);
+  await page.goto(`/q/${qrFixture.qrToken}`);
 
   const response = await sessionResponse;
   expect(response.status()).toBe(201);
@@ -135,7 +151,7 @@ test("輕量 session 更新不載入菜單查詢", async ({ request }) => {
         "cf-connecting-ip": "203.0.113.45",
       },
       data: {
-        qrToken: demoQrToken,
+        qrToken: qrFixture.qrToken,
         deviceId: crypto.randomUUID(),
         sessionRequestId: crypto.randomUUID(),
         orderingMode: "DEFAULT",

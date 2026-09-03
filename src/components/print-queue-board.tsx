@@ -2,19 +2,30 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
-import { Bluetooth, Check, CircleOff, Cloud, ExternalLink, Printer, RefreshCw, RotateCcw, X } from "lucide-react";
+import { Bluetooth, Check, ChevronLeft, ChevronRight, CircleOff, Cloud, ExternalLink, Printer, RefreshCw, RotateCcw, X } from "lucide-react";
 import { ContextualBackButton } from "@/components/contextual-back-button";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { PrintCenterSettings } from "@/components/print-center-settings";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatAppDateTime } from "@/lib/locale-format";
 import { formatMoney } from "@/lib/money";
+import {
+  OPERATIONS_PAGE_SIZES,
+  type OperationsPageMeta,
+  type OperationsPageSize,
+} from "@/lib/operations-pagination";
 import type {
   PrinterView,
   PrintJobView,
   PrintQueueCommandResponse,
   PrintQueueState,
 } from "@/lib/print-center-types";
+import {
+  filterPrintJobsByDate,
+  printJobDateRange,
+  slicePrintJobPage,
+  type PrintJobDatePreset,
+} from "@/lib/print-job-list";
 import {
   detectStarWebPrntEnvironment,
   openStarCashDrawer,
@@ -43,16 +54,41 @@ export function PrintQueueBoard({ stall, initialState }: {
   const [printEnvironment, setPrintEnvironment] = useState<DetectedPrintEnvironment>("CHECKING");
   const [webPrntScriptReady, setWebPrntScriptReady] = useState(false);
   const [webPrntLaunchHref, setWebPrntLaunchHref] = useState("");
+  const [jobDateRange, setJobDateRange] = useState({ dateFrom: "", dateTo: "" });
+  const [jobPageSize, setJobPageSize] = useState<OperationsPageSize>(5);
+  const [visibleJobPage, setVisibleJobPage] = useState(1);
+  const [cancelledJobPage, setCancelledJobPage] = useState(1);
   const probingRef = useRef(false);
   const autoDetectPrintersRef = useRef<PrinterView[]>([]);
   const activePrinter = state.printers.find((printer) => printer.id === activePrinterId) ?? null;
   const activeConnectionType = activePrinter?.connectionType ?? null;
-  const visibleJobs = useMemo(() => state.jobs.filter((job) => job.status !== "CANCELLED"), [state.jobs]);
-  const cancelledJobs = useMemo(() => state.jobs.filter((job) => job.status === "CANCELLED"), [state.jobs]);
+  const filteredJobs = useMemo(() => filterPrintJobsByDate(
+    state.jobs,
+    jobDateRange.dateFrom,
+    jobDateRange.dateTo,
+  ), [jobDateRange.dateFrom, jobDateRange.dateTo, state.jobs]);
+  const visibleJobs = useMemo(() => filteredJobs.filter((job) => job.status !== "CANCELLED"), [filteredJobs]);
+  const cancelledJobs = useMemo(() => filteredJobs.filter((job) => job.status === "CANCELLED"), [filteredJobs]);
+  const visibleJobsPage = useMemo(() => slicePrintJobPage(
+    visibleJobs,
+    visibleJobPage,
+    jobPageSize,
+  ), [jobPageSize, visibleJobPage, visibleJobs]);
+  const cancelledJobsPage = useMemo(() => slicePrintJobPage(
+    cancelledJobs,
+    cancelledJobPage,
+    jobPageSize,
+  ), [cancelledJobPage, cancelledJobs, jobPageSize]);
   const autoDetectSignature = state.printers
     .filter((printer) => printer.isEnabled && printer.autoDetectEnabled && printer.connectionType === "WEBPRNT_BLUETOOTH")
     .map((printer) => `${printer.id}:${printer.name}`)
     .join("|");
+
+  function applyJobDatePreset(preset: PrintJobDatePreset) {
+    setJobDateRange(printJobDateRange(preset));
+    setVisibleJobPage(1);
+    setCancelledJobPage(1);
+  }
 
   const refresh = useCallback(async () => {
     try {
@@ -339,8 +375,21 @@ export function PrintQueueBoard({ stall, initialState }: {
     <PrintCenterSettings state={state} busy={busy} activePrinterId={activePrinterId} onRun={run} onTakeOver={takeOverPrinter} onTest={testPrinter} onOpenCashDrawer={openCashDrawer} />
 
     <section className="py-6 print:hidden">
+      <div className="mb-5 rounded-xl border border-stone-200 bg-stone-50 p-4">
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => applyJobDatePreset("DAY")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold">{t("cash.historyDay")}</button>
+          <button type="button" onClick={() => applyJobDatePreset("WEEK")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold">{t("cash.historyWeek")}</button>
+          <button type="button" onClick={() => applyJobDatePreset("MONTH")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold">{t("cash.historyMonth")}</button>
+          <button type="button" onClick={() => { setJobDateRange({ dateFrom: "", dateTo: "" }); setVisibleJobPage(1); setCancelledJobPage(1); }} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold">{t("cash.historyAll")}</button>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+          <label className="text-xs font-semibold text-stone-600">{t("cash.historyDateFrom")}<input data-testid="print-jobs-date-from" type="date" value={jobDateRange.dateFrom} max={jobDateRange.dateTo || undefined} onChange={(event) => { setJobDateRange((current) => ({ ...current, dateFrom: event.target.value })); setVisibleJobPage(1); setCancelledJobPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900" /></label>
+          <label className="text-xs font-semibold text-stone-600">{t("cash.historyDateTo")}<input data-testid="print-jobs-date-to" type="date" value={jobDateRange.dateTo} min={jobDateRange.dateFrom || undefined} onChange={(event) => { setJobDateRange((current) => ({ ...current, dateTo: event.target.value })); setVisibleJobPage(1); setCancelledJobPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900" /></label>
+          <label className="text-xs font-semibold text-stone-600">{t("cash.historyPerPage")}<select data-testid="print-jobs-page-size" value={jobPageSize} onChange={(event) => { setJobPageSize(Number(event.target.value) as OperationsPageSize); setVisibleJobPage(1); setCancelledJobPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900">{OPERATIONS_PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
+        </div>
+      </div>
       <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-semibold">{t("print.jobs")}</h2><span className="text-sm text-stone-500">{t("common.count", { count: visibleJobs.length })}</span></div>
-      <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{visibleJobs.map((job) => <article key={job.id} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div className="mt-3 divide-y divide-stone-200 border-y border-stone-200">{visibleJobsPage.items.map((job) => <article key={job.id} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">{job.printer?.connectionType === "CLOUDPRNT" ? <Cloud className="h-4 w-4 text-teal-700" /> : <Printer className="h-4 w-4 text-teal-700" />}<strong>{t("print.order", { orderNo: job.order.orderNo })}</strong><span className={`rounded px-2 py-0.5 text-xs font-semibold ${job.status === "FAILED" ? "bg-red-50 text-red-700" : job.status === "SUCCEEDED" ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-700"}`}>{printStatusLabel(t, job.status)}</span>{job.reprintOfId && !job.isRoutingCopy ? <span className="text-xs text-amber-700">{t("print.reprint")}</span> : null}</div>
           <p className="mt-1 text-sm text-stone-600">{job.order.fulfillmentType === "DELIVERY" ? job.order.deliveryAddress ?? job.order.customerName : job.order.tableLabel ?? job.order.customerName} · {formatMoney(job.order.total, stall.currency, locale)} · {t("print.attempt", { current: job.attemptCount, max: job.maxAttempts })}</p>
@@ -358,6 +407,7 @@ export function PrintQueueBoard({ stall, initialState }: {
         </div>
       </article>)}</div>
       {visibleJobs.length === 0 ? <p className="py-10 text-center text-sm text-stone-500">{t("print.empty")}</p> : null}
+      <PrintJobPagination pagination={visibleJobsPage.pagination} onPageChange={setVisibleJobPage} t={t} />
     </section>
 
     {systemPrintContent ? <pre className="hidden whitespace-pre-wrap font-mono text-[11pt] leading-tight print:block">{systemPrintContent}</pre> : null}
@@ -368,7 +418,7 @@ export function PrintQueueBoard({ stall, initialState }: {
         <span className="text-xs text-stone-500">{t("common.count", { count: cancelledJobs.length })}</span>
       </div>
       <div className="mt-2 divide-y divide-stone-100">
-        {cancelledJobs.map((job) => <article key={job.id} className="flex min-h-12 items-center justify-between gap-3 py-2">
+        {cancelledJobsPage.items.map((job) => <article key={job.id} className="flex min-h-12 items-center justify-between gap-3 py-2">
           <span className="min-w-0 truncate text-sm font-medium">{t("print.order", { orderNo: job.order.orderNo })}</span>
           <button
             type="button"
@@ -380,8 +430,35 @@ export function PrintQueueBoard({ stall, initialState }: {
           </button>
         </article>)}
       </div>
+      <PrintJobPagination pagination={cancelledJobsPage.pagination} onPageChange={setCancelledJobPage} t={t} />
     </section> : null}
   </main>;
+}
+
+function PrintJobPagination({
+  pagination,
+  onPageChange,
+  t,
+}: {
+  pagination: OperationsPageMeta;
+  onPageChange: (page: number) => void;
+  t: ReturnType<typeof useOperationsLocale>["t"];
+}) {
+  if (pagination.totalPages <= 1) return null;
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-600">
+      <span>{t("cash.historyRange", {
+        first: pagination.firstItem,
+        last: pagination.lastItem,
+        total: pagination.total,
+      })}</span>
+      <div className="flex items-center gap-2">
+        <button type="button" title={t("print.previousPage")} aria-label={t("print.previousPage")} disabled={pagination.page <= 1} onClick={() => onPageChange(pagination.page - 1)} className="grid h-9 w-9 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+        <span className="min-w-20 text-center font-semibold text-stone-700">{t("cash.historyPageStatus", { page: pagination.page, total: pagination.totalPages })}</span>
+        <button type="button" title={t("print.nextPage")} aria-label={t("print.nextPage")} disabled={pagination.page >= pagination.totalPages} onClick={() => onPageChange(pagination.page + 1)} className="grid h-9 w-9 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+      </div>
+    </div>
+  );
 }
 
 function starWebPrntErrorMessage(t: ReturnType<typeof useOperationsLocale>["t"], error: unknown) {

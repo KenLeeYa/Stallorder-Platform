@@ -172,7 +172,13 @@ export function useQrOrderFlowController({
     && (sessionTimePhase === "EXPIRING" || sessionTimePhase === "EXPIRED");
   const cartDialogOpen = cartOpen && !sessionExpiryDialogOpen;
   const specialClosureActive = session?.specialClosure?.isActive === true;
-  const orderingEnabled = orderingAvailability === "AVAILABLE" && sessionReady && !specialClosureActive;
+  const outsideBusinessHours = !editMode
+    && entryChannel === "QR"
+    && (session?.orderingOpenNow ?? usableInitialMenu?.orderingOpenNow) === false;
+  const orderingEnabled = orderingAvailability === "AVAILABLE"
+    && sessionReady
+    && !specialClosureActive
+    && !outsideBusinessHours;
   const degradedMode = orderingAvailability !== "AVAILABLE"
     && orderingAvailability !== "CHECKING";
   const invoiceCheckout = editMode ? undefined : session?.invoiceCheckout;
@@ -370,7 +376,11 @@ export function useQrOrderFlowController({
       sessionReadyRef.current = true;
       setSessionTimePhase(transition.sessionTimePhase);
       if (transition.availability) updateOrderingAvailability(transition.availability);
-      setSession(orderSession);
+      setSession({
+        ...orderSession,
+        orderingOpenNow: orderSession.orderingOpenNow ?? usableInitialMenu?.orderingOpenNow,
+        onlineMenuPath: orderSession.onlineMenuPath ?? usableInitialMenu?.onlineMenuPath,
+      });
       setActiveOrderingMode(orderSession.orderingMode);
       scheduledPickupAtRef.current = cartRecovery.scheduledPickupAt;
       setScheduledPickupAt(cartRecovery.scheduledPickupAt);
@@ -907,6 +917,7 @@ export function useQrOrderFlowController({
     message,
     orderingAvailability,
     orderingEnabled,
+    outsideBusinessHours,
     prefersReducedMotion,
     productConfigurationRef,
     productDrafts,

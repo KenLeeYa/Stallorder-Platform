@@ -273,9 +273,10 @@ test("接受一般商品推薦仍受商品數量上限限制", async ({ page }) 
     .click();
 
   await expect(resultDialog).toHaveCount(0);
-  await expect(
-    page.getByRole("alert").filter({ hasText: "已達本攤位的點餐數量限制" }),
-  ).toBeVisible();
+  const quantityLimitDialog = page.getByRole("alertdialog", {
+    name: "目前無法開始點餐。",
+  });
+  await expect(quantityLimitDialog).toContainText("已達本攤位的點餐數量限制");
   await expect(page.getByTestId("qr-mobile-cart-summary")).toContainText(
     "共 1 份",
   );

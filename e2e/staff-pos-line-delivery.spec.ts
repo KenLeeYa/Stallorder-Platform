@@ -1066,7 +1066,9 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
   const deliveryAddress = "台北市信義區測試路 1 號 2 樓";
   const sessionResponsePromise = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname.endsWith("/create-order-session") &&
+      ["/create-order-session", "/api/public/order-session"].some((path) =>
+        new URL(response.url()).pathname.endsWith(path),
+      ) &&
       response.request().method() === "POST",
   );
   await page.goto("/delivery/aming-chicken");
@@ -1260,7 +1262,9 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
   await expect(submit).toBeEnabled({ timeout: 15_000 });
   const createResponsePromise = page.waitForResponse(
     (response) =>
-      response.url().endsWith("/create-public-order") &&
+      ["/create-public-order", "/api/public/orders"].some((path) =>
+        new URL(response.url()).pathname.endsWith(path),
+      ) &&
       response.request().method() === "POST",
   );
   await submit.click();
@@ -1453,7 +1457,9 @@ test("外送頁依瀏覽器語系顯示英文欄位", async ({ browser }) => {
     const appUrl = process.env.PLAYWRIGHT_APP_URL ?? "http://localhost:3001";
     const sessionResponsePromise = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname.endsWith("/create-order-session") &&
+        ["/create-order-session", "/api/public/order-session"].some((path) =>
+          new URL(response.url()).pathname.endsWith(path),
+        ) &&
         response.request().method() === "POST",
     );
     await page.goto(`${appUrl}/delivery/aming-chicken`);

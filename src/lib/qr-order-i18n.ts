@@ -87,6 +87,9 @@ export type QrOrderMessages = {
   hotSellerBadge: string;
   soldOutBadge: string;
   qrUnavailableTitle: string;
+  outsideBusinessHoursTitle: string;
+  outsideBusinessHoursDescription: string;
+  outsideBusinessHoursAction: string;
   degradedTitle: string;
   degradedMessage: string;
   retryAvailability: string;
@@ -221,6 +224,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     hotSellerBadge: "熱銷",
     soldOutBadge: "售完",
     qrUnavailableTitle: "目前無法使用此 QR Code",
+    outsideBusinessHoursTitle: "目前非營業時間",
+    outsideBusinessHoursDescription: "QR 點餐目前未開放；如要預約餐點，請前往線上 Menu。",
+    outsideBusinessHoursAction: "前往線上 Menu 預約",
     degradedTitle: "線上送單暫時停用",
     degradedMessage: "您仍可查看菜單，請至攤位櫃台點餐。",
     retryAvailability: "重新檢查",
@@ -351,6 +357,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     hotSellerBadge: "Popular",
     soldOutBadge: "Sold out",
     qrUnavailableTitle: "This QR code is currently unavailable",
+    outsideBusinessHoursTitle: "Currently outside business hours",
+    outsideBusinessHoursDescription: "QR ordering is closed right now. Use the online menu to schedule a pickup order.",
+    outsideBusinessHoursAction: "Open online menu",
     degradedTitle: "Online ordering is temporarily unavailable",
     degradedMessage: "You can still view the menu. Please order at the stall counter.",
     retryAvailability: "Check again",
@@ -481,6 +490,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     hotSellerBadge: "人気",
     soldOutBadge: "売り切れ",
     qrUnavailableTitle: "このQRコードは現在ご利用いただけません",
+    outsideBusinessHoursTitle: "現在は営業時間外です",
+    outsideBusinessHoursDescription: "QR注文は現在受け付けていません。オンラインMenuから受取予約をご利用ください。",
+    outsideBusinessHoursAction: "オンラインMenuを開く",
     degradedTitle: "オンライン注文は一時的にご利用いただけません",
     degradedMessage: "メニューは引き続きご覧いただけます。ご注文は売り場カウンターにてお願いいたします。",
     retryAvailability: "再確認",
@@ -611,6 +623,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     hotSellerBadge: "인기",
     soldOutBadge: "품절",
     qrUnavailableTitle: "현재 이 QR 코드를 사용할 수 없습니다",
+    outsideBusinessHoursTitle: "현재 영업시간이 아닙니다",
+    outsideBusinessHoursDescription: "현재 QR 주문을 받지 않습니다. 온라인 Menu에서 픽업을 예약해 주세요.",
+    outsideBusinessHoursAction: "온라인 Menu 열기",
     degradedTitle: "온라인 주문을 일시적으로 이용할 수 없습니다",
     degradedMessage: "메뉴는 계속 확인할 수 있습니다. 매장 카운터에서 주문해 주세요.",
     retryAvailability: "다시 확인",
@@ -741,6 +756,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     hotSellerBadge: "Bán chạy",
     soldOutBadge: "Hết món",
     qrUnavailableTitle: "Mã QR này hiện không khả dụng",
+    outsideBusinessHoursTitle: "Hiện ngoài giờ mở cửa",
+    outsideBusinessHoursDescription: "QR hiện chưa nhận đơn. Hãy dùng Menu trực tuyến để đặt trước món mang đi.",
+    outsideBusinessHoursAction: "Mở Menu trực tuyến",
     degradedTitle: "Tạm thời không thể gửi đơn trực tuyến",
     degradedMessage: "Bạn vẫn có thể xem thực đơn. Vui lòng gọi món tại quầy.",
     retryAvailability: "Kiểm tra lại",
@@ -871,6 +889,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     hotSellerBadge: "ขายดี",
     soldOutBadge: "สินค้าหมด",
     qrUnavailableTitle: "ไม่สามารถใช้ QR Code นี้ได้ในขณะนี้",
+    outsideBusinessHoursTitle: "ขณะนี้อยู่นอกเวลาทำการ",
+    outsideBusinessHoursDescription: "ขณะนี้ยังไม่เปิดรับออเดอร์ผ่าน QR โปรดใช้ Menu ออนไลน์เพื่อจองรับอาหารล่วงหน้า",
+    outsideBusinessHoursAction: "เปิด Menu ออนไลน์",
     degradedTitle: "ไม่สามารถส่งคำสั่งซื้อออนไลน์ได้ชั่วคราว",
     degradedMessage: "คุณยังดูเมนูได้ โปรดสั่งอาหารที่เคาน์เตอร์ของร้าน",
     retryAvailability: "ตรวจสอบอีกครั้ง",

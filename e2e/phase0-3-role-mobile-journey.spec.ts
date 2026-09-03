@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
@@ -17,18 +17,25 @@ const stallId = "22222222-2222-4222-8222-222222222222";
 const stallSlug = "aming-chicken";
 const stallName = "阿明鹽酥雞";
 const productName = "香酥雞排";
-const takeoutQrToken = "demo-aming-chicken-qr-2026-rotate-me";
+const takeoutQrToken = `phase0-e2e-${randomUUID()}`;
 const password = "StallOrderDemo!2026";
 const mobileViewport = { width: 390, height: 844 };
 let productId = "";
 let createdOrderId = "";
 let createdSessionId = "";
+let fixtureQrId = "";
+let originalBusinessHours: Array<{
+  id: string;
+  opensAt: string;
+  closesAt: string;
+  isClosed: boolean;
+}> = [];
 
 test.describe("Phase 0-3 跨角色手機旅程", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
-    const [stall, qrCode, stallProduct, station] = await Promise.all([
+    const [stall, stallProduct, station, businessHours, qrVersion] = await Promise.all([
       prisma.stall.findUniqueOrThrow({
         where: { id: stallId },
         select: {
@@ -39,16 +46,6 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
           orderingEnabled: true,
           orderingState: true,
           isSoldOut: true,
-        },
-      }),
-      prisma.qrCode.findUniqueOrThrow({
-        where: { token: takeoutQrToken },
-        select: {
-          organizationId: true,
-          stallId: true,
-          state: true,
-          expiresAt: true,
-          fulfillmentTypeContext: true,
         },
       }),
       prisma.stallProduct.findFirstOrThrow({
@@ -69,6 +66,15 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         where: { organizationId, stallId, isActive: true },
         select: { id: true },
       }),
+      prisma.stallBusinessHour.findMany({
+        where: { organizationId, stallId },
+        orderBy: { dayOfWeek: "asc" },
+        select: { id: true, opensAt: true, closesAt: true, isClosed: true },
+      }),
+      prisma.qrCode.aggregate({
+        where: { stallId },
+        _max: { tokenVersion: true },
+      }),
     ]);
 
     expect(stall).toMatchObject({
@@ -80,20 +86,27 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       orderingState: "OPEN",
       isSoldOut: false,
     });
-    expect(qrCode).toMatchObject({
-      organizationId,
-      stallId,
-      state: "ACTIVE",
-    });
-    expect(
-      qrCode.expiresAt === null || qrCode.expiresAt.getTime() > Date.now(),
-    ).toBe(true);
-    expect(
-      qrCode.fulfillmentTypeContext === null ||
-        qrCode.fulfillmentTypeContext === "TAKEOUT",
-    ).toBe(true);
     expect(station.id).not.toBe("");
+    expect(businessHours).toHaveLength(7);
     productId = stallProduct.productId;
+    originalBusinessHours = businessHours;
+    await prisma.stallBusinessHour.updateMany({
+      where: { organizationId, stallId },
+      data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+    });
+    fixtureQrId = (
+      await prisma.qrCode.create({
+        data: {
+          organizationId,
+          stallId,
+          token: takeoutQrToken,
+          label: "Phase 0-3 E2E",
+          state: "ACTIVE",
+          tokenVersion: (qrVersion._max.tokenVersion ?? 0) + 1,
+        },
+        select: { id: true },
+      })
+    ).id;
   });
 
   test.afterAll(async () => {
@@ -111,7 +124,26 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         await prisma.order.deleteMany({ where: { id: createdOrderId } });
       }
     } finally {
-      await prisma.$disconnect();
+      try {
+        if (fixtureQrId) {
+          await prisma.publicOrderAttempt.deleteMany({ where: { qrCodeId: fixtureQrId } });
+          await prisma.qrCode.deleteMany({ where: { id: fixtureQrId } });
+        }
+        await Promise.all(
+          originalBusinessHours.map((hour) =>
+            prisma.stallBusinessHour.update({
+              where: { id: hour.id },
+              data: {
+                opensAt: hour.opensAt,
+                closesAt: hour.closesAt,
+                isClosed: hour.isClosed,
+              },
+            }),
+          ),
+        );
+      } finally {
+        await prisma.$disconnect();
+      }
     }
   });
 

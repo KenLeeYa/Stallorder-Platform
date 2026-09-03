@@ -41,6 +41,62 @@ export const defaultBusinessHours = Array.from({ length: 7 }, (_, dayOfWeek) => 
   isClosed: dayOfWeek === 1,
 }));
 
+type BusinessHourView = {
+  dayOfWeek: number;
+  opensAt: string;
+  closesAt: string;
+  isClosed: boolean;
+};
+
+function localBusinessTime(instant: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(instant);
+  const read = (type: Intl.DateTimeFormatPartTypes) => (
+    parts.find((part) => part.type === type)?.value ?? ""
+  );
+  const year = Number(read("year"));
+  const month = Number(read("month"));
+  const day = Number(read("day"));
+  return {
+    dayOfWeek: new Date(Date.UTC(year, month - 1, day)).getUTCDay(),
+    time: `${read("hour")}:${read("minute")}`,
+  };
+}
+
+export function isWithinBusinessHours(
+  hours: readonly BusinessHourView[] | null | undefined,
+  timeZone: string,
+  instant = new Date(),
+) {
+  if (!hours?.length) return true;
+  const local = localBusinessTime(instant, timeZone);
+  const today = hours.find((hour) => hour.dayOfWeek === local.dayOfWeek);
+  if (today && !today.isClosed) {
+    if (today.opensAt === today.closesAt) return true;
+    if (today.opensAt < today.closesAt) {
+      if (local.time >= today.opensAt && local.time < today.closesAt) return true;
+    } else if (local.time >= today.opensAt) {
+      return true;
+    }
+  }
+  const previousDay = hours.find((hour) => (
+    hour.dayOfWeek === (local.dayOfWeek + 6) % 7
+  ));
+  return Boolean(
+    previousDay
+    && !previousDay.isClosed
+    && previousDay.opensAt > previousDay.closesAt
+    && local.time < previousDay.closesAt,
+  );
+}
+
 export function getBusinessHoursFieldErrors(error: z.ZodError) {
   const fieldErrors: Record<string, string> = {};
   for (const issue of error.issues) {

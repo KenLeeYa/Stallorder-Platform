@@ -10,6 +10,7 @@ import {
   formatOrderRefreshTime,
   formatNoteOptions,
   OrderAmendmentNoticeDialog,
+  PublicOrderCancelDialog,
   OrderHelpPanel,
   OrderProgressPanel,
 } from "./public-order-tracker";
@@ -99,8 +100,24 @@ describe("public order progress", () => {
     });
     expect(getPublicOrderCustomerActions("WAITING_CONFIRMATION", "DINE_IN", "UNPAID")).toEqual({
       canModify: false,
-      canCancel: false,
+      canCancel: true,
     });
+  });
+
+  it("renders customer cancellation as a centered confirmation instead of a browser prompt", () => {
+    const html = renderToStaticMarkup(
+      <PublicOrderCancelDialog
+        locale="zh-TW"
+        busy={false}
+        onConfirm={() => undefined}
+        onDismiss={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('role="alertdialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain("確定要取消此訂單嗎？");
+    expect(html).toContain("取消訂單");
   });
 
   it.each([
