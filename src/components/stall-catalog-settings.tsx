@@ -134,7 +134,7 @@ export function StallCatalogSettings({
       <div className="border-b border-stone-200 pb-4">
         <p className="text-sm font-semibold text-teal-800">{m("攤位商品設定")}</p>
         <h2 id="stall-products-heading" className="mt-1 text-2xl font-semibold">{m("供應與價格")}</h2>
-        <p className="mt-2 text-sm text-stone-600">{m("價格留空時使用組織主檔預設售價；售罄商品不會出現在顧客菜單。")}</p>
+        <p className="mt-2 text-sm text-stone-600">{m("價格留空時使用組織主檔預設售價；售罄商品仍會顯示，但顧客無法點選。")}</p>
       </div>
       <div className="flex flex-col gap-3 border-b border-stone-200 py-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">

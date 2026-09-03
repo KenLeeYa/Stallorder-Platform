@@ -65,6 +65,8 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-QR-09` | `LOC-001`–`LOC-004` | Device locale and manual override resolve category/group/product/closure/order copy consistently; cache invalidation follows locale and catalog version. |
 | `QA-QR-10` | `QR-021` | Draft restore is scoped and bounded; valid lines restore, while next-day/version/price/sold-out changes are explained and cannot submit stale data. |
 | `QA-QR-11` | `QR-022` | Delivery notice appears once in a centered localized dialog only for delivery when configured; empty/plain-text/500-character boundaries and markup escaping pass. |
+| `QA-QR-12` | `QR-011`,`STAFF-016` | Published/enabled sold-out items stay visible in public Menu/QR/takeout/delivery with grayscale image and localized label; all customer add/customize controls and stale submission are blocked, while authorized Staff onsite ordering retains the item. Disabled and unpublished controls remain hidden. |
+| `QA-QR-13` | `QR-023` | Module and per-product recommendation default off; enabling both shows eligible recommendations once before checkout, skip/add/customization work, and cart-existing, sold-out, disabled, missing, or cross-stall candidates are excluded by UI and server validation. |
 
 ### Pickup codes and checkout
 
