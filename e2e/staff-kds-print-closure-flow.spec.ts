@@ -34,6 +34,13 @@ const temporarilyDisabledPrinterIds: string[] = [];
 const createdOrderIds: string[] = [];
 const createdClosureIds: string[] = [];
 
+async function acknowledgeSettingsFeedback(page: Page, message: string) {
+  const dialog = page.getByRole("dialog", { name: "設定已完成", exact: true });
+  await expect(dialog).toContainText(message);
+  await dialog.getByRole("button", { name: "我知道了", exact: true }).click();
+  await expect(dialog).toBeHidden();
+}
+
 test.describe("單店員 KDS／列印分流與公休公告", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -717,6 +724,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await expect(
         ownerPage.getByRole("article").filter({ hasText: closureTitle }),
       ).toBeVisible();
+      await acknowledgeSettingsFeedback(ownerPage, "特殊營業日已新增。");
 
       const customerContext = await browser.newContext({
         locale: "zh-TW",
@@ -779,6 +787,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
         .click();
       expect((await deleteResponsePromise).status()).toBe(200);
       await expect(closureArticle).toHaveCount(0);
+      await acknowledgeSettingsFeedback(ownerPage, "特殊營業日已刪除。");
       createdClosureIds.splice(createdClosureIds.indexOf(closureId!), 1);
     } finally {
       await ownerContext.close();
