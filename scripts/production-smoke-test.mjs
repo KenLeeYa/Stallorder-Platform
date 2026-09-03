@@ -6,6 +6,7 @@ import {
   isExpectedCanonicalRedirect,
   isExpectedPublicSiteResponse,
 } from "./lib/production-smoke-public-site.mjs";
+import { fetchWithTransientRetry } from "./lib/production-smoke-request.mjs";
 
 const baseUrl = new URL(process.env.PRODUCTION_BASE_URL ?? "https://app.qidaigo.com");
 const publicSiteUrl = process.env.ROOT_DOMAIN_URL ?? "https://qidaigo.com";
@@ -30,13 +31,16 @@ function assert(name, condition, detail) {
   record(name, Boolean(condition), detail);
 }
 
-async function request(url, options = {}) {
-  return fetch(url, {
-    method: options.method ?? "GET",
-    redirect: options.redirect ?? "follow",
-    headers: { ...requestHeaders, ...options.headers },
-    body: options.body,
-    signal: AbortSignal.timeout(15_000),
+async function request(label, url, options = {}) {
+  return fetchWithTransientRetry({
+    label,
+    url,
+    options: {
+      method: options.method ?? "GET",
+      redirect: options.redirect ?? "follow",
+      headers: { ...requestHeaders, ...options.headers },
+      body: options.body,
+    },
   });
 }
 
@@ -45,7 +49,7 @@ function containsDebugDetails(body) {
 }
 
 async function checkCanonicalRedirect(name, source, canonical) {
-  const response = await request(source, { redirect: "manual" });
+  const response = await request(name, source, { redirect: "manual" });
   const location = response.headers.get("location");
   assert(
     name,
@@ -60,7 +64,7 @@ async function checkCanonicalRedirect(name, source, canonical) {
 }
 
 async function checkPublicSite(name, source) {
-  const response = await request(source, { redirect: "manual" });
+  const response = await request(name, source, { redirect: "manual" });
   const body = await response.text();
   assert(
     name,
@@ -80,7 +84,7 @@ async function run() {
     `base=${baseUrl.origin}`,
   );
 
-  const mainResponse = await request(baseUrl);
+  const mainResponse = await request("Main application", baseUrl);
   const mainBody = await mainResponse.text();
   assert("Main application loads", mainResponse.status === 200, `status=${mainResponse.status}`);
   assert("Main page hides stack traces", !containsDebugDetails(mainBody), "response body inspected");
@@ -102,7 +106,7 @@ async function run() {
     assert("HSTS enabled", Boolean(mainResponse.headers.get("strict-transport-security")), mainResponse.headers.get("strict-transport-security") ?? "missing");
   }
 
-  const healthResponse = await request(new URL("/api/health", baseUrl));
+  const healthResponse = await request("Health endpoint", new URL("/api/health", baseUrl));
   const healthBody = await healthResponse.text();
   let healthPayload;
   try {
@@ -114,7 +118,10 @@ async function run() {
   assert("Health endpoint hides database details", !/database|postgres|connection|host|version|password/i.test(healthBody), healthBody.slice(0, 200));
   assert("Health endpoint hides stack traces", !containsDebugDetails(healthBody), "response body inspected");
 
-  const invalidQrResponse = await request(new URL("/q/production-smoke-invalid-qr-token", baseUrl));
+  const invalidQrResponse = await request(
+    "Invalid QR",
+    new URL("/q/production-smoke-invalid-qr-token", baseUrl),
+  );
   const invalidQrBody = await invalidQrResponse.text();
   assert("Invalid QR fails safely", invalidQrResponse.status < 500, `status=${invalidQrResponse.status}`);
   assert("Invalid QR hides stack traces", !containsDebugDetails(invalidQrBody), "response body inspected");
@@ -123,7 +130,7 @@ async function run() {
   merchantApi.searchParams.set("organizationId", "00000000-0000-4000-8000-000000000000");
   merchantApi.searchParams.set("dateFrom", "2026-01-01");
   merchantApi.searchParams.set("dateTo", "2026-01-01");
-  const unauthorizedResponse = await request(merchantApi);
+  const unauthorizedResponse = await request("Unauthenticated merchant API", merchantApi);
   assert(
     "Unauthenticated merchant API is denied",
     [401, 403].includes(unauthorizedResponse.status),
@@ -132,7 +139,7 @@ async function run() {
 
   const assetMatch = mainBody.match(/(?:src|href)=["']([^"']*(?:_next\/static|\.css|\.js)[^"']*)["']/i);
   if (assetMatch) {
-    const assetResponse = await request(new URL(assetMatch[1], baseUrl));
+    const assetResponse = await request("Static asset", new URL(assetMatch[1], baseUrl));
     assert("Static asset loads", assetResponse.status === 200, `status=${assetResponse.status}, asset=${assetMatch[1]}`);
   } else {
     record("Static asset loads", false, "No static asset URL found in main HTML.");
@@ -151,12 +158,13 @@ async function run() {
     required: requireTestQr,
   });
   if (testQrUrl) {
-    const qrResponse = await request(testQrUrl);
+    const qrResponse = await request("Dedicated test QR page", testQrUrl);
     const qrBody = await qrResponse.text();
     assert("Dedicated test QR page loads", qrResponse.status === 200, `status=${qrResponse.status}`);
     assert("Dedicated test QR hides stack traces", !containsDebugDetails(qrBody), "response body inspected");
 
     const sessionResponse = await request(
+      "Dedicated test QR session",
       new URL("/api/public-order/create-order-session", baseUrl),
       {
         method: "POST",
