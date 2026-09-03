@@ -10,6 +10,7 @@ import {
   publicMenuProductsForPickup,
 } from "@/lib/public-menu-availability";
 import type { PublicMenu } from "@/lib/public-menu-types";
+import { publicLotteryChannelAllows } from "@/lib/public-lottery-channel";
 import { createWebUuid } from "@/lib/web-uuid";
 
 export type QrOrderEntryChannel = "QR" | "SHARED_LINK";
@@ -86,13 +87,28 @@ export function normalizeQrOrderSession(
     rawOrderSession.orderingMode,
     fallbackOrderingMode,
   );
+  const lotteryChannelAllowed = publicLotteryChannelAllows(
+    orderingMode,
+    rawOrderSession.stall.fulfillmentType,
+  );
   return {
     ...rawOrderSession,
     orderingMode,
     preorderSlots: Array.isArray(rawOrderSession.preorderSlots)
       ? rawOrderSession.preorderSlots
       : [],
-    lotteryEnabled: orderingMode === "DEFAULT" && rawOrderSession.lotteryEnabled === true,
+    lotteryEnabled: lotteryChannelAllowed && rawOrderSession.lotteryEnabled === true,
+    lotteryReward: rawOrderSession.lotteryReward
+      ? {
+          ...rawOrderSession.lotteryReward,
+          spendEnabled: lotteryChannelAllowed
+            && rawOrderSession.lotteryReward.spendEnabled,
+          festivalEnabled: lotteryChannelAllowed
+            && rawOrderSession.lotteryReward.festivalEnabled,
+          festivalActive: lotteryChannelAllowed
+            && rawOrderSession.lotteryReward.festivalActive,
+        }
+      : undefined,
     products: rawOrderSession.products.map((product) => ({
       ...product,
       kind: product.kind === "BUNDLE" ? "BUNDLE" : "SINGLE",

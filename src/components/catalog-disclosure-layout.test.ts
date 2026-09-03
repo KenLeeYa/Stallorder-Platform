@@ -39,4 +39,12 @@ describe("catalog hierarchy layout", () => {
     expect(notes).toContain('data-testid="product-note-action-dialog"');
     expect(notes).not.toContain('data-testid="product-note-groups-toggle-all"');
   });
+
+  it("opens reusable single notes through the same large-button hierarchy", () => {
+    const notes = source("./product-note-groups-manager.tsx");
+
+    expect(notes).toContain('data-testid="open-reusable-note-navigator"');
+    expect(notes).toContain("<ReusableProductNoteCard");
+    expect(notes).toContain('testId="reusable-note-navigator-dialog"');
+  });
 });

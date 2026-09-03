@@ -9,6 +9,8 @@ import {
   qrProductSelectionControl,
 } from "./local-navigation";
 
+test.use({ serviceWorkers: "block" });
+
 loadLocalEnv();
 assertLocalDatabase();
 
@@ -800,18 +802,18 @@ async function resolveCreatedRecords() {
 
 async function login(page: Page, email: string) {
   await page.goto("/login");
-  await page
-    .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
-    .click();
-  await page.getByLabel("電子郵件").fill(email);
-  await page.getByLabel("密碼").fill(password);
-  const loginResponsePromise = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === "/api/auth/login" &&
-      response.request().method() === "POST",
-  );
-  await page.getByRole("button", { name: "登入", exact: true }).click();
-  expect((await loginResponsePromise).status()).toBe(200);
+  const origin = new URL(page.url()).origin;
+  const loginResponse = await page.context().request.post("/api/auth/login", {
+    data: { email, password },
+    headers: {
+      origin,
+      referer: page.url(),
+      "sec-fetch-site": "same-origin",
+    },
+  });
+  expect(loginResponse.status()).toBe(200);
+  const body = await loginResponse.json() as { next?: string };
+  await page.goto(body.next ?? "/");
   await expect(page).toHaveURL(/\/staff\/|\/kitchen\?/u, { timeout: 30_000 });
 }
 

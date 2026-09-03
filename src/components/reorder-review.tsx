@@ -53,14 +53,17 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
         deviceId: getOrCreateDeviceId(),
       });
       const payload = await parseEdgeResponse(response);
-      if (!response.ok) throw new Error(
-        typeof payload.code === "string"
+      if (!response.ok) {
+        setMessage(
+          typeof payload.code === "string"
           ? localizedPublicOrderError(locale, payload.code)
           : publicMessages.get(locale, "reorderPrepareError"),
-      );
+        );
+        return;
+      }
       setData(payload as unknown as ReorderData);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : publicMessages.get(locale, "reorderPrepareError"));
+    } catch {
+      setMessage(publicMessages.get(locale, "reorderPrepareError"));
     } finally {
       setLoading(false);
     }
@@ -109,7 +112,20 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
       <h1 className="mt-4 text-3xl font-semibold">{publicMessages.get(locale, "reorderTitle")}</h1>
 
       {loading ? <div className="mt-10 flex items-center gap-3 text-sm text-stone-600"><LoaderCircle className="h-5 w-5 animate-spin" />{publicMessages.get(locale, "reorderChecking")}</div> : null}
-      {message ? <p role="alert" className="mt-6 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{message}</p> : null}
+      {message ? (
+        <div className="mt-6 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p role="alert">{message}</p>
+          {!data && !loading ? (
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-red-300 bg-white px-4 font-semibold text-red-800"
+            >
+              <RotateCcw className="h-4 w-4" />{publicMessages.get(locale, "reorderRetry")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {data ? (
         <>
           <section className="mt-7 border-y border-stone-200 py-5">

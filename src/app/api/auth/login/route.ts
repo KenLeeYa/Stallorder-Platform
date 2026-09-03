@@ -13,6 +13,7 @@ import {
   hashClientIp,
   hashClientUserAgent,
   hashToken,
+  isLocalQaQuickLoginAllowed,
   isLocalQaLoginRateLimitDisabled,
   isTrustedOrigin,
   resolveSessionDeviceId,
@@ -78,8 +79,18 @@ export async function POST(request: Request) {
     }
   }
 
+  const body = await readJson(request, requestId);
+  if (body.error) return finalize(body.error);
+  const parsed = loginSchema.safeParse(body.data);
+  if (!parsed.success) {
+    return finalize(NextResponse.json(
+      { error: "電子郵件或密碼格式不正確。" },
+      { status: 400, headers: { "x-request-id": requestId } },
+    ));
+  }
+
   const oauthState = await timing.measureDb(() => resolveOAuthLoginFeatureState());
-  if (oauthState.oauthOnly) {
+  if (oauthState.oauthOnly && !isLocalQaQuickLoginAllowed(request, parsed.data.email)) {
     await timing.measureDb(() => recordAuditEvent({
       action: "PASSWORD_LOGIN_DISABLED",
       entityType: "AUTH",
@@ -90,16 +101,6 @@ export async function POST(request: Request) {
     return finalize(NextResponse.json(
       { error: "此環境已停用密碼登入，請使用已連結的登入方式。" },
       { status: 403, headers: { "x-request-id": requestId } },
-    ));
-  }
-
-  const body = await readJson(request, requestId);
-  if (body.error) return finalize(body.error);
-  const parsed = loginSchema.safeParse(body.data);
-  if (!parsed.success) {
-    return finalize(NextResponse.json(
-      { error: "電子郵件或密碼格式不正確。" },
-      { status: 400, headers: { "x-request-id": requestId } },
     ));
   }
 

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Activity, ImageUp, MapPinned, Move, Plus, Save, Store, Trash2 } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
 import { PublicIdentifierInputHint } from "@/components/public-identifier-input-hint";
+import { SettingsFeedbackDialog } from "@/components/settings-feedback-dialog";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
 import {
   PUBLIC_IDENTIFIER_MAX_LENGTH,
@@ -404,6 +405,12 @@ export function StallEditor({
     }
   }
 
+  const feedbackSection: SaveSection | null = messages.basic
+    ? "basic"
+    : messages.operations
+      ? "operations"
+      : null;
+
   return (
     <div className="border-t border-stone-200">
       {section !== "operations" ? <section aria-labelledby="stall-basic-heading" data-settings-section data-settings-scope="stall-basic" data-settings-search={label("基本資料 名稱 代碼 說明 地址 電話 時區 幣別")} className="border-b border-stone-200 data-[dirty=true]:border-l-2 data-[dirty=true]:border-l-amber-500">
@@ -565,7 +572,6 @@ export function StallEditor({
               </div>
             </div> : null}
           </div>
-          {messages.basic ? <p role={messageKinds.basic === "success" ? "status" : "alert"} className={messageKinds.basic === "success" ? "mt-4 text-sm text-emerald-700" : "mt-4 text-sm text-red-700"}>{messages.basic}</p> : null}
           <button type="submit" disabled={savingSection !== null} className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
             {isEditing ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             {savingSection === "basic" ? label("儲存中...") : isEditing ? label("儲存基本資料") : label("建立攤位")}
@@ -590,13 +596,23 @@ export function StallEditor({
                 <label className="flex min-h-11 items-center gap-3 text-sm font-medium text-red-800"><input type="checkbox" checked={draft.isActive} onChange={(event) => update("isActive", event.target.checked)} className="h-5 w-5" />{label("啟用此攤位")}</label>
               </div>
             </div>
-            {messages.operations ? <p role={messageKinds.operations === "success" ? "status" : "alert"} className={messageKinds.operations === "success" ? "mt-4 text-sm text-emerald-700" : "mt-4 text-sm text-red-700"}>{messages.operations}</p> : null}
             <button type="submit" disabled={savingSection !== null} className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
               <Save className="h-4 w-4" />
               {savingSection === "operations" ? label("儲存中...") : label("儲存營運狀態")}
             </button>
           </form>
         </section>
+      ) : null}
+      {feedbackSection ? (
+        <SettingsFeedbackDialog
+          message={messages[feedbackSection]}
+          kind={messageKinds[feedbackSection] === "success" ? "success" : "error"}
+          onClose={() => setMessage(feedbackSection, "", null)}
+          focusAfterClose={() => {
+            const form = feedbackSection === "basic" ? basicFormRef.current : operationsFormRef.current;
+            form?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+          }}
+        />
       ) : null}
     </div>
   );

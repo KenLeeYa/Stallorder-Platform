@@ -55,6 +55,11 @@ describe("Next public preorder menu", () => {
           deliveryCustomerNotice: "僅配送鄰近區域，大量訂購請先聯絡商家。",
           takeoutPreorderEnabled: true,
           lotteryEnabled: true,
+          lotterySpendRewardEnabled: true,
+          lotterySpendThresholdAmount: 666,
+          lotteryFestivalRewardEnabled: true,
+          lotteryFestivalStartsOn: new Date("2099-08-01T00:00:00.000Z"),
+          lotteryFestivalEndsOn: new Date("2099-08-31T00:00:00.000Z"),
         },
       },
     });
@@ -249,6 +254,12 @@ describe("Next public preorder menu", () => {
       orderingMode: "DELIVERY",
       preorderSlots: ["2099-08-03T05:00:00.000Z"],
       deliveryNotice: "僅配送鄰近區域，大量訂購請先聯絡商家。",
+      lotteryEnabled: false,
+      lotteryReward: {
+        spendEnabled: false,
+        festivalEnabled: false,
+        festivalActive: false,
+      },
       stall: { fulfillmentType: "DELIVERY" },
     });
     expect(queryRaw.mock.calls.some(([template]) => (

@@ -78,6 +78,7 @@ export function LoginForm({
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({
           email,
           password,
@@ -87,6 +88,10 @@ export function LoginForm({
       const result = await response.json();
       if (!response.ok) {
         setSubmissionError(t(getLoginResponseMessageKey(response.status)));
+        return;
+      }
+      if (!await waitForAuthenticatedSession()) {
+        setSubmissionError(t("login.error.network"));
         return;
       }
       window.location.assign(result.next);
@@ -250,6 +255,18 @@ export function LoginForm({
       ) : null}
     </section>
   );
+}
+
+async function waitForAuthenticatedSession() {
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const response = await fetch("/api/auth/me", {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    if (response.ok) return true;
+    await new Promise((resolve) => window.setTimeout(resolve, 40));
+  }
+  return false;
 }
 
 export function getLoginResponseMessageKey(status: number): AppMessageKey {

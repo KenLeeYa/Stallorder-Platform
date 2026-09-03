@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Clock3, Save } from "lucide-react";
+import { SettingsFeedbackDialog } from "@/components/settings-feedback-dialog";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { businessDayLabels } from "@/lib/business-hours";
 import { formatAppDate } from "@/lib/locale-format";
@@ -75,7 +76,6 @@ export function StallBusinessHoursManager({ stallId, initialHours }: { stallId: 
       </div>
     </div>
     <div className="pb-6">
-      {message ? <p role={hasError ? "alert" : "status"} className={`mb-3 text-sm font-medium ${hasError ? "text-red-700" : "text-stone-700"}`}>{message}</p> : null}
       <div className="divide-y divide-stone-200 border-y border-stone-200">{hours.map((hour, index) => {
         const opensAtKey = `hours.${index}.opensAt`;
         const closesAtKey = `hours.${index}.closesAt`;
@@ -83,6 +83,7 @@ export function StallBusinessHoursManager({ stallId, initialHours }: { stallId: 
       })}</div>
       <button type="button" disabled={busy || !dirty} onClick={() => void save()} className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{m("儲存營業時間")}</button>
     </div>
+    {message ? <SettingsFeedbackDialog message={message} kind={hasError ? "error" : "success"} onClose={() => setMessage("")} focusAfterClose={() => focusFirstInvalidField(containerRef.current, fieldErrors)} /> : null}
   </section>;
 }
 

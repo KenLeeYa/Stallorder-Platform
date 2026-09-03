@@ -51,6 +51,9 @@ export type QrOrderMessages = {
   lotterySectionTitle: string;
   lotterySectionDescription: string;
   lotterySpendProgress: (amount: string) => string;
+  lotteryEligibilityTitle: string;
+  lotteryEligibilityDescription: string;
+  lotteryEligibilityBack: string;
   lotteryStart: string;
   lotteryDrawingButton: string;
   lotteryAlreadyDrawn: string;
@@ -182,6 +185,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotterySectionTitle: "不知道點什麼？幫我抽",
     lotterySectionDescription: "依近 30 天完成訂單的熱銷趨勢推薦，也保留探索其他商品的機會；結帳折扣會另外獨立抽取。",
     lotterySpendProgress: (amount) => `再消費 ${amount} 即可獲得一次免費餐點抽獎。`,
+    lotteryEligibilityTitle: "恭喜獲得一次免費餐點抽獎",
+    lotteryEligibilityDescription: "你的訂單已符合活動資格。完成抽獎後，抽中的餐點會以 0 元自動加入這筆訂單。",
+    lotteryEligibilityBack: "先回去看看",
     lotteryStart: "開始抽抽樂",
     lotteryDrawingButton: "抽取中…",
     lotteryAlreadyDrawn: "今日已抽取",
@@ -309,6 +315,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotterySectionTitle: "Not sure what to order? Let us pick",
     lotterySectionDescription: "Recommendations follow completed-order trends from the last 30 days, with room to discover other items. Checkout discounts are drawn separately.",
     lotterySpendProgress: (amount) => `Add ${amount} more to unlock one free-meal draw.`,
+    lotteryEligibilityTitle: "You earned a free-meal draw",
+    lotteryEligibilityDescription: "This order qualifies for the offer. Complete the draw and the winning item will be added to this order for free.",
+    lotteryEligibilityBack: "Keep browsing",
     lotteryStart: "Start lucky draw",
     lotteryDrawingButton: "Drawing…",
     lotteryAlreadyDrawn: "Draw completed today",
@@ -436,6 +445,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotterySectionTitle: "何を注文するか迷ったら抽選",
     lotterySectionDescription: "過去30日間の完了注文の人気傾向をもとに、ほかの商品も発見できるようおすすめします。会計割引は別に抽選されます。",
     lotterySpendProgress: (amount) => `あと${amount}で無料メニュー抽選を1回利用できます。`,
+    lotteryEligibilityTitle: "無料メニュー抽選を1回獲得しました",
+    lotteryEligibilityDescription: "この注文はキャンペーンの対象です。抽選後、当選した商品が0円で自動追加されます。",
+    lotteryEligibilityBack: "メニューに戻る",
     lotteryStart: "抽選を始める",
     lotteryDrawingButton: "抽選中…",
     lotteryAlreadyDrawn: "本日は抽選済み",
@@ -563,6 +575,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotterySectionTitle: "무엇을 주문할지 고민되나요? 뽑아 드릴게요",
     lotterySectionDescription: "최근 30일 완료 주문의 인기 추세를 바탕으로 추천하며 다른 메뉴를 발견할 기회도 제공합니다. 결제 할인은 별도로 추첨됩니다.",
     lotterySpendProgress: (amount) => `${amount} 더 주문하면 무료 메뉴 추첨 1회를 받을 수 있습니다.`,
+    lotteryEligibilityTitle: "무료 메뉴 추첨 1회를 받았습니다",
+    lotteryEligibilityDescription: "이 주문은 행사 대상입니다. 추첨을 완료하면 당첨 메뉴가 0원으로 자동 추가됩니다.",
+    lotteryEligibilityBack: "메뉴 더 보기",
     lotteryStart: "추첨 시작",
     lotteryDrawingButton: "추첨 중…",
     lotteryAlreadyDrawn: "오늘 추첨 완료",
@@ -690,6 +705,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotterySectionTitle: "Chưa biết gọi món gì? Để chúng tôi chọn",
     lotterySectionDescription: "Gợi ý dựa trên xu hướng đơn hoàn tất trong 30 ngày qua, đồng thời giúp bạn khám phá món khác. Ưu đãi thanh toán được quay riêng.",
     lotterySpendProgress: (amount) => `Mua thêm ${amount} để nhận một lượt quay món miễn phí.`,
+    lotteryEligibilityTitle: "Bạn nhận được một lượt quay món miễn phí",
+    lotteryEligibilityDescription: "Đơn này đủ điều kiện ưu đãi. Sau khi quay, món trúng thưởng sẽ tự động được thêm vào đơn với giá 0.",
+    lotteryEligibilityBack: "Xem thêm món",
     lotteryStart: "Bắt đầu quay",
     lotteryDrawingButton: "Đang quay…",
     lotteryAlreadyDrawn: "Đã quay hôm nay",
@@ -817,6 +835,9 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     lotterySectionTitle: "ยังไม่รู้จะสั่งอะไร? ให้เราสุ่มให้",
     lotterySectionDescription: "คำแนะนำอ้างอิงแนวโน้มคำสั่งซื้อที่เสร็จสมบูรณ์ใน 30 วันที่ผ่านมา และยังเปิดโอกาสให้ค้นพบเมนูอื่น ส่วนลดตอนชำระเงินจะสุ่มแยกต่างหาก",
     lotterySpendProgress: (amount) => `สั่งเพิ่มอีก ${amount} เพื่อรับสิทธิ์สุ่มอาหารฟรี 1 ครั้ง`,
+    lotteryEligibilityTitle: "คุณได้รับสิทธิ์สุ่มอาหารฟรี 1 ครั้ง",
+    lotteryEligibilityDescription: "คำสั่งซื้อนี้เข้าเงื่อนไขโปรโมชั่น เมื่อสุ่มเสร็จ เมนูที่ได้รับจะถูกเพิ่มในคำสั่งซื้อในราคา 0 บาทโดยอัตโนมัติ",
+    lotteryEligibilityBack: "กลับไปดูเมนู",
     lotteryStart: "เริ่มสุ่ม",
     lotteryDrawingButton: "กำลังสุ่ม…",
     lotteryAlreadyDrawn: "สุ่มแล้ววันนี้",

@@ -8,6 +8,23 @@ const source = readFileSync(
 ).replace(/\r\n/g, "\n");
 
 describe("product note compact action hierarchy", () => {
+  it("shows both large note entry buttons without the duplicate toolbar or tabs", () => {
+    expect(source).toContain('data-testid="product-note-entry-actions"');
+    expect(source).toContain('data-testid="open-reusable-note-navigator"');
+    expect(source).toContain('data-testid="open-note-group-navigator"');
+    expect(source).not.toContain('data-testid="product-note-tools"');
+    expect(source).not.toContain('role="tablist"');
+    expect(source).not.toContain('role="tab"');
+  });
+
+  it("opens reusable single notes in the same large hierarchical navigator", () => {
+    expect(source).toContain('data-testid="open-reusable-note-navigator"');
+    expect(source).toContain('testId="reusable-note-navigator-dialog"');
+    expect(source).toContain("ReusableProductNoteCard");
+    expect(source).toContain("visibleNavigatorReusableNotes");
+    expect(source).not.toContain('className="mt-5 divide-y divide-stone-200 border-y border-stone-200"');
+  });
+
   it("opens note groups in one large hierarchical navigator instead of a long disclosure list", () => {
     expect(source).toContain('data-testid="open-note-group-navigator"');
     expect(source).toContain('testId="note-group-navigator-dialog"');
@@ -20,7 +37,7 @@ describe("product note compact action hierarchy", () => {
   it("uses one ellipsis trigger for reusable notes, groups, and group options", () => {
     expect(source).toContain("MoreHorizontal");
     expect(source).toContain("setNoteActionTarget");
-    expect(source).toContain('testId="reusable-note-action-trigger"');
+    expect(source).toContain('data-testid="reusable-note-action-trigger"');
     expect(source).toContain('testId="note-group-action-trigger"');
     expect(source).toContain('testId="note-option-action-trigger"');
   });

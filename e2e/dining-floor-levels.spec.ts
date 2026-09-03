@@ -36,6 +36,13 @@ async function waitForReactClickHandler(control: Locator) {
   }), { message: "等待 React 掛載 onClick" }).toBe(true);
 }
 
+async function acknowledgeSettingsFeedback(page: Page, message: string) {
+  const dialog = page.getByRole("dialog", { name: "設定已完成", exact: true });
+  await expect(dialog).toContainText(message);
+  await dialog.getByRole("button", { name: "我知道了", exact: true }).click();
+  await expect(dialog).toBeHidden();
+}
+
 test.beforeAll(async () => {
   const [floors, tables] = await Promise.all([
     prisma.diningFloor.findMany({ where: { stallId }, select: { id: true } }),
@@ -100,6 +107,7 @@ test("樓層桌型會連動商家配置、員工看板與店員點餐", async ({
   await createFloorButton.click();
   expect((await createFloorResponse).status()).toBe(200);
   await expect(page.getByRole("tab", { name: "2樓", exact: true })).toHaveAttribute("aria-selected", "true");
+  await acknowledgeSettingsFeedback(page, "樓層已新增。");
 
   const tableForm = page.locator('[data-field-key="new-table:code"]').locator("xpath=ancestor::div[contains(@class,'border-b')][1]");
   await tableForm.locator('[data-field-key="new-table:code"]').fill(qaTableCode);
@@ -113,6 +121,7 @@ test("樓層桌型會連動商家配置、員工看板與店員點餐", async ({
   ));
   await tableForm.getByRole("button", { name: "新增", exact: true }).click();
   expect((await createTableResponse).status()).toBe(200);
+  await acknowledgeSettingsFeedback(page, "桌位與專屬 QR 已建立。");
 
   const floorEditor = page.getByRole("region", { name: "桌位平面配置" });
   const qaTable = floorEditor.getByRole("button", { name: "移動 QA 2樓桌" });

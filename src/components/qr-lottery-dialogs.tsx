@@ -155,6 +155,83 @@ export function LotteryResultDialog({
   );
 }
 
+export function LotteryRewardEligibilityDialog({
+  title,
+  description,
+  confirmLabel,
+  backLabel,
+  onConfirm,
+  onBack,
+}: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  backLabel: string;
+  onConfirm: () => void;
+  onBack: () => void;
+}) {
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const backButtonRef = useRef<HTMLButtonElement>(null);
+  const onBackRef = useRef(onBack);
+
+  useEffect(() => {
+    onBackRef.current = onBack;
+  }, [onBack]);
+
+  useEffect(() => {
+    const returnFocusElement = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusFrame = window.requestAnimationFrame(() => confirmButtonRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onBackRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      event.preventDefault();
+      if (document.activeElement === confirmButtonRef.current) {
+        backButtonRef.current?.focus();
+      } else {
+        confirmButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      returnFocusElement?.focus();
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4">
+      <section
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="lottery-eligibility-title"
+        aria-describedby="lottery-eligibility-description"
+        data-testid="lottery-reward-eligibility-dialog"
+        className="w-full max-w-sm rounded-2xl bg-white p-6 text-stone-900 shadow-2xl"
+      >
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-violet-100">
+          <Dices aria-hidden="true" className="h-7 w-7 text-violet-700" />
+        </div>
+        <h2 id="lottery-eligibility-title" className="mt-4 text-center text-xl font-bold text-violet-950">{title}</h2>
+        <p id="lottery-eligibility-description" className="mt-3 text-center text-sm leading-6 text-stone-600">{description}</p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <button ref={backButtonRef} type="button" onClick={onBack} className="min-h-12 rounded-md border border-stone-300 px-4 text-sm font-semibold text-stone-700">{backLabel}</button>
+          <button ref={confirmButtonRef} type="button" onClick={onConfirm} className="min-h-12 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white">{confirmLabel}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function LotteryDailyLimitDialog({
   onClose,
   returnFocusRef,

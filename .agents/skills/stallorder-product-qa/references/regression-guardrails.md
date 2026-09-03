@@ -20,6 +20,8 @@
 | 列印 | 57mm 正式票只印重要資訊；`[A1]`…`[A4]` 是修改對照標記，不得列印。 | 把設計註記或過大行距帶到正式票。 |
 | 分頁 | 所有大型清單預設每頁 5 筆；登入裝置固定 5 筆且不提供筆數選擇。 | 沿用早期 10 筆預設或一次載入全部資料。 |
 | 攤位設定 | 取消重複「詳細資料」折疊；短設定直接顯示，長流程改群組、子頁或可捲動 modal。 | 每個小區塊都包一層 accordion。 |
+| 註記管理 | 主頁同時只顯示「單一註記」「註記群組」兩個大入口；匯入／匯出／新增移入各自可搜尋的分層遮罩，再開啟置中操作視窗。 | 保留重複頂部工具列／頁籤，或把單一註記攤成長清單。 |
+| 設定回饋 | 攤位設定與攤位商品設定的儲存成功／全域失敗使用共用置中回饋視窗；欄位錯誤留在欄位旁，關閉後聚焦錯誤欄位。 | 把訊息放在頁尾看不到，或把每個欄位提示都改成 modal。 |
 | 公開語系 | 選擇非中文語系後，分類、群組、商品、店休公告與新功能字串都不可漏回中文。 | 只翻 UI shell，動態商品／公告仍用來源中文。 |
 | 店員商品導覽 | 依已設定順序只顯示商品群組導覽，不重複同名分類與群組。 | Staff 用不同 mapping，再顯示兩層重複項目。 |
 | iPad 列印 | 先依瀏覽器、傳輸與印表機能力判定；配對藍牙或插上 Lightning 不等於 Safari 可直接列印。 | 未做實機／vendor transport 證據就宣稱支援。 |
@@ -27,6 +29,8 @@
 | 顧客已到店 | 等待顧客回覆改時間時，可用「顧客已到店」銜接原結帳；KDS 開啟須已完成製作，且仍要取餐碼與付款驗證。 | 把到店當成跳過 KDS、取餐碼或付款的捷徑。 |
 | 外帶提前時間 | 公開外帶最少提前 5 分鐘，DB、API、設定表單與既有資料正規化一致。 | 只改輸入框最小值，server 或舊資料仍接受小於 5 分鐘。 |
 | 外送說明 | 商家可設 500 字內純文字；只在外送進入時顯示置中、可關閉且依語系呈現的提醒。 | 在 Menu／外帶也彈出、允許 HTML，或空白內容仍遮住點餐。 |
+| 售完商品呈現 | 公開 Menu、QR、外帶與外送仍顯示已發佈且啟用的售完商品；圖片反灰、顯示當前語系的售完標示、顧客操作停用，server 仍拒絕舊購物車送單；Staff 現場點餐仍可使用。 | 直接把售完品過濾掉，或只做反灰卻仍能從顧客端加入購物車。 |
+| 結帳前加點推薦 | 攤位模組與個別商品推薦預設皆關閉；模組開啟且有合格候選品時才在結帳前顯示一次，排除已在購物車、售完、停用或跨攤商品。 | 在模組頁重複做商品選擇器、預設開啟、推薦不可供應商品，或略過正常客製與 server 驗證。 |
 | DR Vercel SSO | Create 不帶 `ssoProtection` 且 project 尚未連 Git／domain；驗證精確 ID 後 PATCH `all` 並 read-back，成功後才可 link/deploy/domain/DNS。 | Create 直接帶 SSO、先綁資源再補保護，或失敗時降級成 `all_except_custom_domains`。 |
 
 ## 變更觸發器與相依面
@@ -60,6 +64,7 @@ Customer/Menu/QR
 - 四組 KDS/列印開關都必須有可到達的 terminal path，不能留下隱藏 active job。
 - 顧客追蹤須自動同步；SSE／stream 只有一個 owner，並有 bounded polling fallback、stale 狀態與重試。
 - 修改原訂單使用 version/lock/idempotency，失敗保留原單；不可用 timeout retry 建出第二張單。
+- 顧客修改訂單、追蹤或取消遇到 transport/timeout 時只顯示語系化說明與可操作的重試，不可顯示 `signal timed out`、`Failed to fetch` 等底層訊息。DELETE 已確認 `CANCELLED` 後立即更新畫面，且忽略較早開始、較晚返回的舊狀態輪詢。
 - 店員修正公開外帶品項時，驗證未付款、來源、狀態、KDS／列印鎖；要求處理原因與顧客訊息，server 重算全單並撤銷尚未執行的舊列印工作。
 - 「顧客已到店」只解除等待改時間回覆：KDS 開啟時需訂單與品項皆 ready，KDS 關閉走明確人工完成路徑；原取餐碼、結帳與稽核不可略過。
 - 完成訂單只允許權限範圍內的取消與付款方式修正；商品、選項與數量不可跟著被改。
@@ -78,6 +83,8 @@ Customer/Menu/QR
 
 排序由同一份 server-authoritative sequence 產生；任何消費端不得各自以名稱、建立時間或 ID 重排。非中文 locale 缺翻譯時要在發佈前提示，不可靜默混回中文。
 
+- 單一註記與註記群組沿用同一個「大入口 → 搜尋／分層清單 → 置中操作」模型；320／390／768／1440 都要能看見標題、搜尋、關閉與操作，且整頁不得水平溢位。
+
 ### 公開 Menu、營業狀態或快取
 
 - 返回 Menu、切換外帶／外送、頁面恢復與 service worker cache 都要重新驗證營業時間、店休、臨停、預約規則、商品版本與售罄。
@@ -87,6 +94,9 @@ Customer/Menu/QR
 - 外送自訂說明只在 delivery mode 顯示置中 modal；空字串不顯示，500 字上限與純文字 escaping 在 server/client 都驗證。
 - QR／外帶／外送商品群組列固定在共用 header 下方；section scroll offset 必須同步，不能遮住商品、公告或結帳控制。
 - 新增 UI 字串時同步 central messages、所有啟用 locale、錯誤狀態與 accessibility name。
+- 售完只改顧客端可下單性：公開各模式保留圖卡、圖片反灰並顯示語系化售完標示；Staff 現場點餐仍保留品項。停用／未發佈不可被誤當成售完而公開。
+- 結帳前加點同時檢查攤位模組開關與個別商品選取；個別商品開關放在攤位商品內頁，或共用商品編輯頁抽抽樂控制下方的逐攤大按鈕中，預設關閉，取消不儲存，且清單列不重複顯示開關。候選商品須排除購物車既有品、售完／停用／跨攤品，客製品沿用正常客製流程。
+- 滿額／節慶免費抽獎只在可用的即時 QR／外帶流程送出資格資料；外送與預約不得顯示，也必須由 draw API 在呼叫資料庫函式前拒絕。達標提醒在最終送單前使用置中遮罩視窗，不可只放在頁面底部。
 
 ### 圖片上傳、預覽與裁切
 
@@ -136,6 +146,8 @@ Customer/Menu/QR
 - 未接通的付款、Passkeys/WebAuthn、外送 provider、電子發票或其他 provider 模組保持隱藏／disabled，且 direct API fail closed。
 - Google 登入是否顯示同時取決於 Platform policy 與 runtime credentials；缺設定時提供 Admin 診斷，不能讓商家陷入唯一不可用入口。
 - 商家說明用短句回答「這是什麼／要做什麼」，技術細節移到 Platform Admin 或診斷頁。
+- 攤位設定的儲存成功與全域儲存失敗使用共用置中回饋視窗；欄位格式、必填、重複日期／時段等精確錯誤仍貼近欄位。關閉全域錯誤後再把焦點送回第一個錯誤欄位。
+- 長期狀態、功能說明、連線狀態與危險刪除確認各有不同目的，不可因視覺統一而全部改成短暫成功訊息。
 
 ### 電子發票與外部 provider
 
@@ -163,6 +175,10 @@ Customer/Menu/QR
 ## 本機工作樹與測試服務
 
 - 每次先記錄 repo、branch、HEAD、`git status`、worktrees 和實際占用測試 port 的 process/cwd。
+- 本機人工 QA 一律用 `npm run dev:qa -- --port <固定連接埠>` 啟動；APP、瀏覽器、公開點餐與 CSRF origin 必須同一個 port。占用時停止並查明原 process，禁止 Next 自動改到另一個 port 後繼續測。
+- 啟動器必須拒絕 Production 環境、遠端資料庫與 origin 不一致，並輸出實際 worktree、HEAD、origin（不得輸出密鑰）。`/api/health` 回 200 只代表服務活著，不代表載入正確工作樹或功能可用。
+- 每次換 port 或重啟後，先停用該 local origin 的 service worker 並預熱登入與 availability 路徑，再在同一 origin 驗證 Owner、Staff、Kitchen、Platform Admin 四種快速登入；公開 Menu、QR 與外帶必須實際建立成功的 order session，再驗證現金交班。瀏覽器仍停在舊 port 或舊 session 時先清除該舊 origin 的狀態。
+- 本機快速登入只允許四個固定測試帳號，且同時要求 development、明確旗標、loopback app、loopback database 與 same-origin；即使平台目前只開 OAuth，本機按鈕仍可測試，但帳密／session 驗證不可繞過。Production 必須有負向測試證明不可到達。
 - 多個工作任務共用 dirty worktree 時先劃分檔案 ownership；任何 build 前等待 `worktree stable`。
 - 歷史 Docker Desktop log 不代表目前錯誤。先查 daemon、container、port、health、process start time 與最近 log timestamp；不要直接刪 container/image/volume。
 - `git clean` 前先 `git clean -d -n`，逐項說明用途、大小、能否重建；沒有逐項選擇不得刪除 `.agents`、`.codex`、audit artifacts 或其他 untracked data。

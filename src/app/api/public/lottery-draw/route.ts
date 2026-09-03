@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { publicLotteryChannelAllows } from "@/lib/public-lottery-channel";
 import { createRequestId, hashToken, isTrustedOrigin } from "@/lib/security";
 import {
   errorMessage,
@@ -66,6 +67,30 @@ export async function POST(request: Request) {
     );
   }
   const sessionHash = hashToken(parsed.data.orderSessionToken);
+  const orderSession = await prisma.orderSession.findUnique({
+    where: { tokenHash: sessionHash },
+    select: {
+      orderingMode: true,
+      fulfillmentTypeContext: true,
+    },
+  });
+  if (!orderSession) {
+    const code = "SESSION_NOT_FOUND";
+    return NextResponse.json(
+      { error: errorMessage(code), code },
+      { status: statusForCode(code), headers },
+    );
+  }
+  if (!publicLotteryChannelAllows(
+    orderSession.orderingMode,
+    orderSession.fulfillmentTypeContext,
+  )) {
+    const code = "LOTTERY_NOT_ELIGIBLE";
+    return NextResponse.json(
+      { error: errorMessage(code), code },
+      { status: statusForCode(code), headers },
+    );
+  }
   const deviceHash = createHmac("sha256", abuseSecret)
     .update(`device:${parsed.data.deviceId}`)
     .digest("hex");

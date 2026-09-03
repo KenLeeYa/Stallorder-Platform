@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 
+test.use({ serviceWorkers: "block" });
+
 loadLocalEnv();
 assertLocalDatabase();
 
@@ -313,6 +315,8 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       const lotterySwitch = page.getByRole("switch", { name: /抽抽樂推薦/ });
       await expect(lotterySwitch).toHaveAttribute("aria-checked", "false");
       await lotterySwitch.click();
+      const spendReward = page.getByRole("checkbox", { name: /滿額免費抽獎/ });
+      if (await spendReward.isChecked()) await spendReward.uncheck();
       await page.getByTestId(`lottery-discount-row-${temporaryDiscountId}`).getByRole("checkbox").check();
       await page.getByTestId(`lottery-discount-row-${secondTemporaryDiscountId}`).getByRole("checkbox").check();
       await page.getByTestId(`lottery-discount-rate-${temporaryDiscountId}`).fill("40");
@@ -334,6 +338,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
         lotteryEnabled: true,
         lotteryDiscountOptionId: temporaryDiscountId,
         lotteryDiscountWinRateBps: 4_000,
+        lotterySpendRewardEnabled: false,
         lotteryDiscountChances: [
           { discountOptionId: temporaryDiscountId, winRateBps: 4_000 },
           { discountOptionId: secondTemporaryDiscountId, winRateBps: 6_000 },

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { UserPlus, Users } from "lucide-react";
+import { SettingsFeedbackDialog } from "@/components/settings-feedback-dialog";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 
@@ -120,7 +121,7 @@ export function StallTeamManager({ stallId, initialMemberships }: { stallId: str
         })}
       </div>
       {memberships.length === 0 ? <p className="mt-5 text-sm text-stone-600">{m("尚未指派攤位成員。")}</p> : null}
-      {message ? <p role={hasError ? "alert" : "status"} className={hasError ? "mt-4 text-sm text-red-700" : "mt-4 text-sm text-emerald-700"}>{message}</p> : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={hasError ? "error" : "success"} onClose={() => setMessage("")} focusAfterClose={() => sectionRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()} /> : null}
       </div>
     </section>
   );

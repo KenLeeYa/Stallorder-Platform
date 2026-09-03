@@ -27,6 +27,7 @@ import {
   Plus,
   Save,
   Search,
+  ShoppingBag,
   Sparkles,
   Store,
   Trash2,
@@ -70,6 +71,7 @@ type Assignment = {
   isEnabled: boolean;
   isSoldOut: boolean;
   sortOrder: number;
+  checkoutUpsellSelected: boolean;
 };
 type Product = {
   id: string;
@@ -92,7 +94,7 @@ type Catalog = { categories: Category[]; groups: Group[]; products: Product[] };
 type Stall = { id: string; name: string; isActive: boolean };
 type CategoryDraft = Omit<Category, "id"> & { id?: string };
 type GroupDraft = Omit<Group, "id"> & { id?: string };
-type ProductDraft = Omit<Product, "id" | "stallProducts" | "bundleChoiceGroups" | "defaultPrice"> & {
+type ProductDraft = Omit<Product, "id" | "bundleChoiceGroups" | "defaultPrice"> & {
   id?: string;
   stallIds: string[];
   isSoldOut: boolean;
@@ -503,6 +505,7 @@ export function SharedCatalogManager({
       isActive: true,
       isSoldOut: false,
       stallIds: activeStalls.length === 1 ? [activeStalls[0]!.id] : [],
+      stallProducts: [],
       translations: [],
     });
   }
@@ -557,7 +560,17 @@ export function SharedCatalogManager({
     };
     const ok = await runCommand(
       productDraft.id
-        ? { operation: "UPDATE_PRODUCT", productId: productDraft.id, ...data, isSoldOut: productDraft.isSoldOut }
+        ? {
+          operation: "UPDATE_PRODUCT",
+          productId: productDraft.id,
+          ...data,
+          isSoldOut: productDraft.isSoldOut,
+          checkoutUpsellStallIds: productDraft.kind === "SINGLE"
+            ? productDraft.stallProducts
+              .filter((assignment) => assignment.checkoutUpsellSelected)
+              .map((assignment) => assignment.stallId)
+            : [],
+        }
         : { operation: "CREATE_PRODUCT", ...data, stallIds: productDraft.stallIds },
       productDraft.id ? label("商品已更新。") : label("商品已新增。"),
       "editor",
@@ -1235,6 +1248,53 @@ export function SharedCatalogManager({
                 <p className="rounded-md bg-stone-50 px-3 py-2 text-xs text-stone-600">{label("套餐需由客人選擇組合內容，目前不參與抽抽樂推薦。")}</p>
               )}
             </div>
+            {productDraft.id && productDraft.kind === "SINGLE" ? (
+              <div className="sm:col-span-2">
+                <p className="text-sm font-semibold text-stone-800">{label("結帳前加點推薦")}</p>
+                <div className="mt-2 grid gap-2">
+                  {productDraft.stallProducts.map((assignment) => {
+                    const stall = stalls.find((candidate) => candidate.id === assignment.stallId);
+                    const disabled = !assignment.checkoutUpsellSelected && (
+                      !stall?.isActive
+                      || !productDraft.isActive
+                      || productDraft.isSoldOut
+                      || !assignment.isEnabled
+                      || assignment.isSoldOut
+                    );
+                    return (
+                      <button
+                        key={assignment.stallId}
+                        type="button"
+                        data-testid="shared-product-upsell-switch"
+                        data-stall-id={assignment.stallId}
+                        role="switch"
+                        aria-checked={assignment.checkoutUpsellSelected}
+                        disabled={disabled}
+                        onClick={() => setProductDraft({
+                          ...productDraft,
+                          stallProducts: productDraft.stallProducts.map((candidate) => (
+                            candidate.stallId === assignment.stallId
+                              ? { ...candidate, checkoutUpsellSelected: !candidate.checkoutUpsellSelected }
+                              : candidate
+                          )),
+                        })}
+                        className={`flex min-h-16 w-full items-center justify-between gap-4 rounded-xl border-2 px-4 text-left font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${assignment.checkoutUpsellSelected ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-800"}`}
+                      >
+                        <span className="inline-flex items-center gap-3">
+                          <ShoppingBag className="h-5 w-5" />
+                          {singleStallMode
+                            ? label("結帳前加點推薦商品")
+                            : `${stall?.name ?? label("未命名攤位")}：${label("結帳前加點推薦")}`}
+                        </span>
+                        <span className={`rounded-full px-3 py-1 text-sm ${assignment.checkoutUpsellSelected ? "bg-teal-700 text-white" : "bg-stone-200 text-stone-700"}`}>{assignment.checkoutUpsellSelected ? label("開啟") : label("關閉")}</span>
+                      </button>
+                    );
+                  })}
+                  {productDraft.stallProducts.length === 0 ? <p className="rounded-xl border border-dashed border-stone-300 p-4 text-sm text-stone-600">{label("請先將商品分派至攤位，再設定推薦加點。")}</p> : null}
+                </div>
+                <p className="mt-2 text-xs text-stone-500">{label("推薦加點依攤位分開設定；攤位的「結帳前加點推薦」總開關也必須開啟。每攤最多 6 項。")}</p>
+              </div>
+            ) : null}
             {translationOptions.length > 0 ? <fieldset className="border-t border-stone-200 pt-4 sm:col-span-2">
               <legend className="flex items-center gap-2 text-sm font-semibold"><Languages className="h-4 w-4" />{label("商品翻譯")}</legend>
               <div className="mt-3 grid gap-4">

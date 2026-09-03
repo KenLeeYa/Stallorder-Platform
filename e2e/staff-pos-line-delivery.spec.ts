@@ -6,6 +6,8 @@ import {
   qrProductSelectionControl,
 } from "./local-navigation";
 
+test.use({ serviceWorkers: "block" });
+
 const prisma = new PrismaClient();
 const stallId = "22222222-2222-4222-8222-222222222222";
 const createdOrderIds: string[] = [];
@@ -29,12 +31,21 @@ async function login(page: Page) {
     return;
   }
   await page.goto("/login");
-  await page
-    .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
-    .click();
-  await page.getByLabel("電子郵件").fill("owner@stallorder.test");
-  await page.getByLabel("密碼").fill("StallOrderDemo!2026");
-  await page.getByRole("button", { name: "登入", exact: true }).click();
+  const origin = new URL(page.url()).origin;
+  const loginResponse = await page.context().request.post("/api/auth/login", {
+    data: {
+      email: "owner@stallorder.test",
+      password: "StallOrderDemo!2026",
+    },
+    headers: {
+      origin,
+      referer: page.url(),
+      "sec-fetch-site": "same-origin",
+    },
+  });
+  expect(loginResponse.status()).toBe(200);
+  const body = await loginResponse.json() as { next?: string };
+  await page.goto(body.next ?? "/");
   await expect(page).toHaveURL(/\/merchant\/dashboard(?:\?organizationId=|$)/, {
     timeout: 30_000,
   });
