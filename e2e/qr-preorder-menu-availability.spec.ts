@@ -63,7 +63,7 @@ test("分享外帶連結依取餐時段更新商品與套餐選項並清除失�
     });
   });
 
-  await page.route("**/create-order-session", async (route) => {
+  await page.route(/\/(?:create-order-session|api\/public\/order-session)$/u, async (route) => {
     await route.fulfill({
       status: 201,
       contentType: "application/json",
@@ -165,7 +165,7 @@ test("分享外帶連結依取餐時段更新商品與套餐選項並清除失�
     });
   });
 
-  await page.route("**/create-public-order", async (route) => {
+  await page.route(/\/(?:create-public-order|api\/public\/orders)$/u, async (route) => {
     await route.fulfill({
       status: 201,
       contentType: "application/json",
@@ -392,7 +392,9 @@ test("分享外帶連結依取餐時段更新商品與套餐選項並清除失�
 
   const orderRequest = page.waitForRequest(
     (request) =>
-      new URL(request.url()).pathname.endsWith("/create-public-order") &&
+      ["/create-public-order", "/api/public/orders"].some((path) =>
+        new URL(request.url()).pathname.endsWith(path),
+      ) &&
       request.method() === "POST",
   );
   const submit = page.getByRole("button", { name: "送出訂單", exact: true });
@@ -413,7 +415,7 @@ test("營業中的實體 QR 不顯示取餐時間且送單固定為即時外帶"
       body: JSON.stringify(availableConfig),
     });
   });
-  await page.route("**/create-order-session", async (route) => {
+  await page.route(/\/(?:create-order-session|api\/public\/order-session)$/u, async (route) => {
     await route.fulfill({
       status: 201,
       contentType: "application/json",
@@ -461,7 +463,7 @@ test("營業中的實體 QR 不顯示取餐時間且送單固定為即時外帶"
       }),
     });
   });
-  await page.route("**/create-public-order", async (route) => {
+  await page.route(/\/(?:create-public-order|api\/public\/orders)$/u, async (route) => {
     await route.fulfill({
       status: 201,
       contentType: "application/json",
@@ -502,7 +504,9 @@ test("營業中的實體 QR 不顯示取餐時間且送單固定為即時外帶"
 
   const orderRequest = page.waitForRequest(
     (request) =>
-      new URL(request.url()).pathname.endsWith("/create-public-order") &&
+      ["/create-public-order", "/api/public/orders"].some((path) =>
+        new URL(request.url()).pathname.endsWith(path),
+      ) &&
       request.method() === "POST",
   );
   await page.getByRole("button", { name: "送出訂單", exact: true }).click();

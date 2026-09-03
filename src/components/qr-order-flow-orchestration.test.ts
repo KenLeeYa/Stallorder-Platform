@@ -185,7 +185,7 @@ describe("QR order flow characterization", () => {
       scheduledPickupAt: morningSlot,
       customerName: "Lin",
       customerNote: "less ice",
-      customerPhone: "",
+      customerPhone: "0912345678",
       deliveryAddress: "",
       lines: [line("morning"), line("evening")],
     }, now);
@@ -202,6 +202,7 @@ describe("QR order flow characterization", () => {
       lines: [{ productId: "morning" }],
       customerName: "Lin",
       customerNote: "less ice",
+      customerPhone: "0912345678",
     });
   });
 

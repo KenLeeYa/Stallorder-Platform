@@ -62,6 +62,8 @@ export type PublicMenuProduct = {
 
 export type PublicMenu = {
   orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
+  orderingOpenNow?: boolean;
+  onlineMenuPath?: string;
   preorderSlots: string[];
   lotteryEnabled: boolean;
   checkoutUpsell?: {

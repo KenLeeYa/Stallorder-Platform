@@ -186,6 +186,46 @@ describe("Next public preorder menu", () => {
     });
   });
 
+  it("marks a physical QR as closed outside the regular weekly schedule", async () => {
+    const context = await qrCodeFindUnique();
+    qrCodeFindUnique.mockClear();
+    qrCodeFindUnique.mockResolvedValue({
+      ...context,
+      stall: {
+        ...context.stall,
+        businessStatus: "OPEN",
+        orderingState: "OPEN",
+        orderingEnabled: true,
+        businessHours: Array.from({ length: 7 }, (_, dayOfWeek) => ({
+          dayOfWeek,
+          opensAt: "17:00",
+          closesAt: "23:00",
+          isClosed: true,
+        })),
+      },
+    });
+    stallProductFindMany.mockResolvedValue([{
+      ...(await stallProductFindMany())[0],
+      availableFrom: null,
+      availableUntil: null,
+    }]);
+    calculateCapacitySnapshot.mockResolvedValue({
+      quoteMinMinutes: 10,
+      quoteMaxMinutes: 15,
+      acknowledgmentThresholdMinutes: 30,
+      requiresAcknowledgment: false,
+    });
+    const { getCachedPublicMenuForQrToken } = await import("./public-menu");
+
+    const menu = await getCachedPublicMenuForQrToken("closed-by-hours-qr", "DEFAULT");
+
+    expect(menu).toMatchObject({
+      orderingMode: "DEFAULT",
+      orderingOpenNow: false,
+      onlineMenuPath: "/store/preorder-stall?view=pickup",
+    });
+  });
+
   it("skips optional preorder slots for the physical QR server render", async () => {
     const context = await qrCodeFindUnique();
     qrCodeFindUnique.mockClear();

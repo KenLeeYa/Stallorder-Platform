@@ -14,6 +14,7 @@ const DEVICE_STORAGE_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PUBLIC_ORDER_PROTOCOL_VERSION = "1";
 const CIRCUIT_TIMEOUT_MS = 4_000;
+const REORDER_TIMEOUT_MS = 10_000;
 const AVAILABILITY_CACHE_MS = 2_000;
 const NO_FALLBACK_CODES = new Set([
   "TURNSTILE_UNAVAILABLE",
@@ -234,7 +235,7 @@ export function requestPrepareReorder(
       },
       body: JSON.stringify(input),
       cache: "no-store",
-      signal: withRequestTimeout(options.signal, options.timeoutMs ?? CIRCUIT_TIMEOUT_MS),
+      signal: withRequestTimeout(options.signal, options.timeoutMs ?? REORDER_TIMEOUT_MS),
     },
   );
 }

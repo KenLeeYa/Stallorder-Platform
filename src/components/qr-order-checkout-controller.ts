@@ -408,7 +408,7 @@ export async function submitQrOrderEditFlowCheckout({
       },
       body: JSON.stringify(body),
       cache: "no-store",
-      signal: AbortSignal.timeout(4_000),
+      signal: AbortSignal.timeout(10_000),
     });
     return {
       ok: response.ok,

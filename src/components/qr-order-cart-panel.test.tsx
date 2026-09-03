@@ -85,7 +85,6 @@ const baseProps: CartPanelProps = {
   turnstileRequested: false,
   turnstileResetKey: 0,
   checkoutBlocker: "",
-  message: "",
   isSubmitting: false,
   closeButtonRef: createRef<HTMLButtonElement>(),
   continueButtonRef: createRef<HTMLButtonElement>(),

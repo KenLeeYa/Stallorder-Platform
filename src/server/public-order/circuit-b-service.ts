@@ -705,13 +705,14 @@ export async function prepareReorderThroughCircuitB(
     throw new PublicOrderCircuitError("ORDER_ALREADY_STARTED", 409);
   }
 
+  const originalQrCode = order.orderSession?.qrCode ?? null;
   const matchingQrCodes = order.stall.qrCodes.filter((qrCode) => order.fulfillmentType === "DINE_IN"
     ? qrCode.diningTableId === order.diningTableId
     : qrCode.diningTableId === null && (
       qrCode.fulfillmentTypeContext === null
       || qrCode.fulfillmentTypeContext === order.fulfillmentType
     ));
-  const qrCode = matchingQrCodes.find((candidate) => (
+  const qrCode = originalQrCode ?? matchingQrCodes.find((candidate) => (
     !candidate.stallScheduleId
     && !candidate.locationId
     && !candidate.marketEventId
@@ -784,14 +785,21 @@ export async function prepareReorderThroughCircuitB(
     });
   }
 
-  const orderingMode = order.fulfillmentType === "DELIVERY" ? "DELIVERY" : "PREORDER";
+  const storedOrderingMode = order.orderSession?.orderingMode;
+  const orderingMode = storedOrderingMode === "DEFAULT"
+    || storedOrderingMode === "DELIVERY"
+    || storedOrderingMode === "PREORDER"
+    ? storedOrderingMode
+    : order.fulfillmentType === "DELIVERY" ? "DELIVERY" : "PREORDER";
   const view = orderingMode === "DELIVERY" ? "delivery" : "pickup";
   return {
     status: 200,
     body: {
       qrToken: qrCode.token,
       orderingMode,
-      orderPath: `/store/${encodeURIComponent(order.stall.code)}?view=${view}`,
+      orderPath: orderingMode === "DEFAULT"
+        ? `/q/${encodeURIComponent(qrCode.token)}`
+        : `/store/${encodeURIComponent(order.stall.code)}?view=${view}`,
       customerName: order.customerName,
       customerPhone: order.customerPhone ?? "",
       deliveryAddress: order.deliveryAddress ?? "",

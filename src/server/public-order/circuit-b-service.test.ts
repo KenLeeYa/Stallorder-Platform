@@ -778,6 +778,17 @@ describe("Circuit B public order service", () => {
       note: "",
       requestedFulfillmentAt: new Date("2026-08-27T09:00:00.000Z"),
       scheduledPickupAt: null,
+      orderSession: {
+        orderingMode: "DEFAULT",
+        qrCode: {
+          token: "demo-aming-chicken-qr-2026-rotate-me",
+          diningTableId: null,
+          fulfillmentTypeContext: null,
+          stallScheduleId: null,
+          locationId: null,
+          marketEventId: null,
+        },
+      },
       payment: null,
       productionTasks: [],
       printJobs: [],
@@ -833,8 +844,9 @@ describe("Circuit B public order service", () => {
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({
       qrToken: "demo-aming-chicken-qr-2026-rotate-me",
-      orderingMode: "PREORDER",
-      orderPath: "/store/AMING-01?view=pickup",
+      orderingMode: "DEFAULT",
+      orderPath: "/q/demo-aming-chicken-qr-2026-rotate-me",
+      customerPhone: "0912345678",
       availableItems: [{
         name: "香酥雞排",
         currentUnitPrice: 95,

@@ -18,6 +18,7 @@ import { useState } from "react";
 import { CheckoutUpsellDialog } from "@/components/checkout-upsell-dialog";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
 import { QrOrderCartPanel } from "@/components/qr-order-cart-panel";
+import { PublicOrderFeedbackDialog } from "@/components/public-order-feedback-dialog";
 import type { QrOrderFlowController } from "@/components/qr-order-flow-controller";
 import {
   LotteryDailyLimitDialog,
@@ -107,6 +108,7 @@ export function QrOrderFlowPresentation({
     message,
     orderingAvailability,
     orderingEnabled,
+    outsideBusinessHours,
     prefersReducedMotion,
     productConfigurationRef,
     productDrafts,
@@ -148,6 +150,7 @@ export function QrOrderFlowPresentation({
   const [upsellNextAction, setUpsellNextAction] = useState<"CHECKOUT" | "SUBMIT">("CHECKOUT");
   const [lotteryRewardPromptOpen, setLotteryRewardPromptOpen] = useState(false);
   const [lotteryRewardPromptReviewed, setLotteryRewardPromptReviewed] = useState(false);
+  const [outsideBusinessHoursDismissed, setOutsideBusinessHoursDismissed] = useState(false);
 
   if (isLoading) {
     return <main className="grid min-h-screen place-items-center px-5 text-sm text-stone-600">{copy.sessionLoading}</main>;
@@ -310,7 +313,6 @@ export function QrOrderFlowPresentation({
       turnstileRequested={turnstileRequested}
       turnstileResetKey={turnstileResetKey}
       checkoutBlocker={checkoutBlocker}
-      message={message}
       isSubmitting={isSubmitting}
       closeButtonRef={cartCloseButtonRef}
       continueButtonRef={cartContinueButtonRef}
@@ -574,6 +576,25 @@ export function QrOrderFlowPresentation({
           localizedProduct={localizedProduct}
           onAdd={addUpsellProduct}
           onContinue={continueFromUpsell}
+        />
+      ) : null}
+      {message ? (
+        <PublicOrderFeedbackDialog
+          title={copy.sessionStartError}
+          message={message}
+          primaryLabel={copy.close}
+          onPrimary={() => setMessage("")}
+          danger
+        />
+      ) : null}
+      {outsideBusinessHours && !outsideBusinessHoursDismissed && !session.specialClosure?.isActive ? (
+        <PublicOrderFeedbackDialog
+          title={copy.outsideBusinessHoursTitle}
+          message={copy.outsideBusinessHoursDescription}
+          primaryLabel={copy.outsideBusinessHoursAction}
+          secondaryLabel={copy.close}
+          onPrimary={() => window.location.assign(session.onlineMenuPath ?? `/store/${encodeURIComponent(session.stall.slug)}?view=pickup`)}
+          onSecondary={() => setOutsideBusinessHoursDismissed(true)}
         />
       ) : null}
     </main>

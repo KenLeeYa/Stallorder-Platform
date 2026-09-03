@@ -527,6 +527,8 @@ const definitions = {
   "print.takeOver": { "zh-TW": "本機接手", en: "Use this device", ja: "この端末で担当", ko: "이 기기에서 처리", vi: "Dùng thiết bị này", th: "ใช้อุปกรณ์นี้" },
   "print.noPrinter": { "zh-TW": "尚未設定印表機，列印工作會保留在待列印狀態。", en: "No printer is configured. Jobs will remain pending.", ja: "プリンターが未設定のため、ジョブは印刷待ちのまま保持されます。", ko: "설정된 프린터가 없어 작업은 인쇄 대기 상태로 유지됩니다.", vi: "Chưa cấu hình máy in. Công việc sẽ tiếp tục chờ in.", th: "ยังไม่ได้ตั้งค่าเครื่องพิมพ์ งานจะคงอยู่ในสถานะรอพิมพ์" },
   "print.jobs": { "zh-TW": "工作清單", en: "Jobs", ja: "ジョブ一覧", ko: "작업 목록", vi: "Danh sách công việc", th: "รายการงาน" },
+  "print.previousPage": { "zh-TW": "列印工作上一頁", en: "Previous print jobs page", ja: "印刷ジョブの前のページ", ko: "인쇄 작업 이전 페이지", vi: "Trang công việc in trước", th: "หน้างานพิมพ์ก่อนหน้า" },
+  "print.nextPage": { "zh-TW": "列印工作下一頁", en: "Next print jobs page", ja: "印刷ジョブの次のページ", ko: "인쇄 작업 다음 페이지", vi: "Trang công việc in tiếp theo", th: "หน้างานพิมพ์ถัดไป" },
   "print.order": { "zh-TW": "訂單 {orderNo}", en: "Order {orderNo}", ja: "注文 {orderNo}", ko: "주문 {orderNo}", vi: "Đơn {orderNo}", th: "ออเดอร์ {orderNo}" },
   "print.status.pending": { "zh-TW": "待列印", en: "Pending", ja: "印刷待ち", ko: "인쇄 대기", vi: "Chờ in", th: "รอพิมพ์" },
   "print.status.printing": { "zh-TW": "列印中", en: "Printing", ja: "印刷中", ko: "인쇄 중", vi: "Đang in", th: "กำลังพิมพ์" },
