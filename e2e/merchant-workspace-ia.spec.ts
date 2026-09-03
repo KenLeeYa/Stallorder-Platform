@@ -1,8 +1,22 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { waitForDefaultMerchantDashboard } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
+
+async function acknowledgeSettingsFeedback(
+  page: Page,
+  kind: "success" | "error",
+  message: string,
+) {
+  const dialog = page.getByRole(kind === "error" ? "alertdialog" : "dialog", {
+    name: kind === "error" ? "請確認設定" : "設定已完成",
+    exact: true,
+  });
+  await expect(dialog).toContainText(message);
+  await dialog.getByRole("button", { name: "我知道了", exact: true }).click();
+  await expect(dialog).toBeHidden();
+}
 
 test("單店入口、商品摺疊與訂單限制設定維持一致", async ({ page }) => {
   await page.goto("/login");
@@ -40,16 +54,19 @@ test("單店入口、商品摺疊與訂單限制設定維持一致", async ({ pa
   await estimatedWaitInput.fill("");
   await page.getByRole("button", { name: "儲存限制", exact: true }).click();
   await expect(estimatedWaitInput).toHaveValue("");
-  await expect(estimatedWaitInput).toBeFocused();
   await expect(page.getByText("顧客預估等候分鐘為必填欄位。", { exact: true })).toBeVisible();
+  await acknowledgeSettingsFeedback(page, "error", "請修正標示欄位後再儲存。");
+  await expect(estimatedWaitInput).toBeFocused();
 
   await estimatedWaitInput.fill("241");
   await page.getByRole("button", { name: "儲存限制", exact: true }).click();
   await expect(page.getByText("顧客預估等候分鐘請輸入 0 到 240 之間。", { exact: true })).toBeVisible();
+  await acknowledgeSettingsFeedback(page, "error", "請修正標示欄位後再儲存。");
 
   await estimatedWaitInput.fill("1.5");
   await page.getByRole("button", { name: "儲存限制", exact: true }).click();
   await expect(page.getByText("顧客預估等候分鐘請輸入整數。", { exact: true })).toBeVisible();
+  await acknowledgeSettingsFeedback(page, "error", "請修正標示欄位後再儲存。");
 
   await estimatedWaitInput.fill("15");
   const limitsResponse = page.waitForResponse((response) => (
@@ -59,5 +76,5 @@ test("單店入口、商品摺疊與訂單限制設定維持一致", async ({ pa
   ));
   await page.getByRole("button", { name: "儲存限制", exact: true }).click();
   expect((await limitsResponse).status()).toBe(200);
-  await expect(page.getByRole("status")).toHaveText("安全與訂單限制已更新。");
+  await acknowledgeSettingsFeedback(page, "success", "安全與訂單限制已更新。");
 });
