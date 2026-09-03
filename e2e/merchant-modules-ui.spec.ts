@@ -6,6 +6,7 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { catalogCsvHeaders } from "../src/lib/catalog-csv";
 import { QR_LOCALES } from "../src/lib/qr-order-i18n";
 import {
@@ -18,8 +19,45 @@ import {
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 const password = "StallOrderDemo!2026";
+const prisma = new PrismaClient();
+let originalBusinessHours: Array<{
+  id: string;
+  opensAt: string;
+  closesAt: string;
+  isClosed: boolean;
+}> = [];
 
 test.use({ serviceWorkers: "block" });
+
+test.beforeAll(async () => {
+  originalBusinessHours = await prisma.stallBusinessHour.findMany({
+    where: { stallId },
+    select: { id: true, opensAt: true, closesAt: true, isClosed: true },
+  });
+  await prisma.stallBusinessHour.updateMany({
+    where: { stallId },
+    data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+  });
+});
+
+test.afterAll(async () => {
+  try {
+    await prisma.$transaction(
+      originalBusinessHours.map((hour) =>
+        prisma.stallBusinessHour.update({
+          where: { id: hour.id },
+          data: {
+            opensAt: hour.opensAt,
+            closesAt: hour.closesAt,
+            isClosed: hour.isClosed,
+          },
+        }),
+      ),
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+});
 
 async function waitForReactHandler(
   control: Locator,
@@ -404,13 +442,16 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
     });
     try {
       const japanesePage = await japaneseContext.newPage();
-      await gotoLocalPath(
-        japanesePage,
-        "/q/demo-aming-chicken-qr-2026-rotate-me",
-      );
+      const qrPath = "/q/demo-aming-chicken-qr-2026-rotate-me";
+      const qrResponse = await japanesePage.goto(qrPath, {
+        waitUntil: "domcontentloaded",
+      });
+      expect(qrResponse?.status()).toBe(200);
+      expect(new URL(japanesePage.url()).pathname).toBe(qrPath);
       const languageMenu = japanesePage.getByRole("button", {
         name: "點餐語言",
       });
+      await expect(languageMenu).toBeVisible();
       await expect(languageMenu).toHaveAttribute(
         "data-current-locale",
         "zh-TW",
