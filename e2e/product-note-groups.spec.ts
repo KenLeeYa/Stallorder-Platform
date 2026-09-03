@@ -22,31 +22,64 @@ type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
 const authCookies = new Map<string, AuthCookies>();
 const prisma = new PrismaClient();
 let originalManagerAuthorizationCodeHash: string | null = null;
+let originalBusinessHours: Array<{
+  id: string;
+  opensAt: string;
+  closesAt: string;
+  isClosed: boolean;
+}> = [];
 
 test.use({ serviceWorkers: "block" });
 
 test.beforeAll(async () => {
-  const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({
-    where: { stallId },
-    select: { managerAuthorizationCodeHash: true },
-  });
+  const [settings, businessHours] = await Promise.all([
+    prisma.stallOrderingSettings.findUniqueOrThrow({
+      where: { stallId },
+      select: { managerAuthorizationCodeHash: true },
+    }),
+    prisma.stallBusinessHour.findMany({
+      where: { organizationId, stallId },
+      orderBy: { dayOfWeek: "asc" },
+      select: { id: true, opensAt: true, closesAt: true, isClosed: true },
+    }),
+  ]);
+  expect(businessHours).toHaveLength(7);
   originalManagerAuthorizationCodeHash = settings.managerAuthorizationCodeHash;
-  await prisma.stallOrderingSettings.update({
-    where: { stallId },
-    data: {
-      managerAuthorizationCodeHash: await hash(managerAuthorizationCode, 10),
-    },
-  });
+  originalBusinessHours = businessHours;
+  await prisma.$transaction([
+    prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: {
+        managerAuthorizationCodeHash: await hash(managerAuthorizationCode, 10),
+      },
+    }),
+    prisma.stallBusinessHour.updateMany({
+      where: { organizationId, stallId },
+      data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+    }),
+  ]);
 });
 
 test.afterAll(async () => {
   try {
-    await prisma.stallOrderingSettings.update({
-      where: { stallId },
-      data: {
-        managerAuthorizationCodeHash: originalManagerAuthorizationCodeHash,
-      },
-    });
+    await prisma.$transaction([
+      prisma.stallOrderingSettings.update({
+        where: { stallId },
+        data: {
+          managerAuthorizationCodeHash: originalManagerAuthorizationCodeHash,
+        },
+      }),
+      ...originalBusinessHours.map((hour) =>
+        prisma.stallBusinessHour.update({
+          where: { id: hour.id },
+          data: {
+            opensAt: hour.opensAt,
+            closesAt: hour.closesAt,
+            isClosed: hour.isClosed,
+          },
+        }),
+      ),
+    ]);
   } finally {
     await prisma.$disconnect();
   }

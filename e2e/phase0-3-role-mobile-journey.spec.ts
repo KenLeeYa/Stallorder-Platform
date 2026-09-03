@@ -23,12 +23,18 @@ const mobileViewport = { width: 390, height: 844 };
 let productId = "";
 let createdOrderId = "";
 let createdSessionId = "";
+let originalBusinessHours: Array<{
+  id: string;
+  opensAt: string;
+  closesAt: string;
+  isClosed: boolean;
+}> = [];
 
 test.describe("Phase 0-3 跨角色手機旅程", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
-    const [stall, qrCode, stallProduct, station] = await Promise.all([
+    const [stall, qrCode, stallProduct, station, businessHours] = await Promise.all([
       prisma.stall.findUniqueOrThrow({
         where: { id: stallId },
         select: {
@@ -69,6 +75,11 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         where: { organizationId, stallId, isActive: true },
         select: { id: true },
       }),
+      prisma.stallBusinessHour.findMany({
+        where: { organizationId, stallId },
+        orderBy: { dayOfWeek: "asc" },
+        select: { id: true, opensAt: true, closesAt: true, isClosed: true },
+      }),
     ]);
 
     expect(stall).toMatchObject({
@@ -93,7 +104,13 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         qrCode.fulfillmentTypeContext === "TAKEOUT",
     ).toBe(true);
     expect(station.id).not.toBe("");
+    expect(businessHours).toHaveLength(7);
     productId = stallProduct.productId;
+    originalBusinessHours = businessHours;
+    await prisma.stallBusinessHour.updateMany({
+      where: { organizationId, stallId },
+      data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+    });
   });
 
   test.afterAll(async () => {
@@ -111,7 +128,22 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         await prisma.order.deleteMany({ where: { id: createdOrderId } });
       }
     } finally {
-      await prisma.$disconnect();
+      try {
+        await Promise.all(
+          originalBusinessHours.map((hour) =>
+            prisma.stallBusinessHour.update({
+              where: { id: hour.id },
+              data: {
+                opensAt: hour.opensAt,
+                closesAt: hour.closesAt,
+                isClosed: hour.isClosed,
+              },
+            }),
+          ),
+        );
+      } finally {
+        await prisma.$disconnect();
+      }
     }
   });
 
