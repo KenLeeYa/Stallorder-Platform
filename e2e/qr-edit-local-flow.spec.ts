@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Route } from "@playwright/test";
 import { qrProductSelectionControl } from "./local-navigation";
 
 const qrToken = "demo-aming-chicken-qr-2026-rotate-me";
@@ -71,14 +71,19 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
   expect(reorderPageResponse.status()).toBe(200);
 
   let prepareAttempts = 0;
-  await page.route(`**/api/public/orders/${trackingToken}/reorder`, async (route) => {
+  const interceptFirstPrepareAttempt = async (route: Route) => {
     prepareAttempts += 1;
     if (prepareAttempts === 1) {
       await route.abort("timedout");
       return;
     }
     await route.continue();
-  });
+  };
+  await page.route("**/functions/v1/prepare-reorder", interceptFirstPrepareAttempt);
+  await page.route(
+    `**/api/public/orders/${trackingToken}/reorder`,
+    interceptFirstPrepareAttempt,
+  );
   await page.getByRole("link", { name: "修改訂單", exact: true }).click();
   await expect(page.getByText("目前無法準備訂單修改。", { exact: true })).toBeVisible({
     timeout: 10_000,
