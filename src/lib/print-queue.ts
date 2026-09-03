@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { cloudPrntServerUrl } from "@/server/cloudprnt/cloudprnt-credentials";
 
 export const PRINTER_OFFLINE_AFTER_MS = 90_000;
 export const PRINT_RESULT_UNKNOWN_AFTER_MS = 5 * 60_000;
@@ -82,6 +83,7 @@ export const printQueueCommandSchema = z.discriminatedUnion("operation", [
     autoDetectEnabled: printerConfiguration.autoDetectEnabled.optional(),
     openCashDrawerOnCashPayment: printerConfiguration.openCashDrawerOnCashPayment.optional(),
   }).strict(),
+  z.object({ operation: z.literal("ROTATE_CLOUDPRNT_TOKEN"), printerId: uuid }).strict(),
   z.object({ operation: z.literal("HEARTBEAT"), printerId: uuid }).strict(),
   z.object({ operation: z.literal("TEST_PRINTER"), printerId: uuid }).strict(),
   z.object({
@@ -189,14 +191,27 @@ export async function getPrintQueueState(stallId: string, organizationId: string
   const offlineBefore = Date.now() - PRINTER_OFFLINE_AFTER_MS;
   return {
     printModuleEnabled: settings?.printModuleEnabled ?? false,
-    printers: printers.map((printer) => ({
-      ...printer,
-      isOnline: printer.isEnabled && Boolean(
-        printer.lastSeenAt && printer.lastSeenAt.getTime() >= offlineBefore,
-      ),
-    })),
+    printers: printers.map((printer) => {
+      const { deviceTokenHash, ...safePrinter } = printer;
+      return {
+        ...safePrinter,
+        hasCloudPrntCredentials: Boolean(printer.deviceId && deviceTokenHash),
+        cloudPrntServerUrl: printer.deviceId ? safeCloudPrntServerUrl(printer.deviceId) : null,
+        isOnline: printer.isEnabled && Boolean(
+          printer.lastSeenAt && printer.lastSeenAt.getTime() >= offlineBefore,
+        ),
+      };
+    }),
     rules,
     catalog: categories,
     jobs,
   };
+}
+
+function safeCloudPrntServerUrl(deviceId: string) {
+  try {
+    return cloudPrntServerUrl(deviceId);
+  } catch {
+    return null;
+  }
 }

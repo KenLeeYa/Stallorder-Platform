@@ -85,6 +85,7 @@ This file is the durable owner acceptance baseline. It does not assert that a re
 - `PRN-004` Automatic print triggers, retry, status callback, manual reprint, and completed-order receipt print share one idempotent job contract. A retry cannot duplicate an order or silently increase copy count.
 - `PRN-005` A cash drawer connected to the printer opens only through a verified printer/bridge capability after an eligible completed payment. Drawer failure is a separate actionable hardware error, is audited, and does not rewrite the settled payment.
 - `PRN-006` Print settings may control event, copy count, destination/workstation, receipt fields, font emphasis, line spacing, logo/QR, cutter, buzzer, drawer pulse, and failure policy. Unsupported controls are hidden or disabled by detected printer capability.
+- `PRN-007` Each CloudPRNT printer has a stable, system-generated HTTPS Server URL and independent credentials. The setup UI permanently exposes the copyable Server URL and User Name/Device ID, exposes the raw Password/Device Token only immediately after generation or rotation, stores only its hash, and invalidates the prior password immediately on rotation. Credentials never appear in the URL or logs.
 
 ## Catalog, bundles, notes, media, and menu publication
 

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Bluetooth, Cable, Cloud, Pencil, Plus, Power, Printer, ReceiptText, Save, TestTube2, Trash2, TriangleAlert } from "lucide-react";
+import { Bluetooth, Cable, Check, Cloud, Copy, KeyRound, Pencil, Plus, Power, Printer, ReceiptText, RotateCw, Save, TestTube2, Trash2, TriangleAlert } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { MAX_PRINT_RULES_PER_STALL } from "@/lib/print-center-types";
 import type {
   PrinterConnectionType,
   PrinterView,
+  CloudPrntSetup,
   PrintFulfillmentType,
   PrintOrderOrigin,
   PrintOrderSource,
@@ -59,6 +60,8 @@ export function PrintCenterSettings({
   const [printerDraft, setPrinterDraft] = useState<PrinterDraft>(emptyPrinter);
   const [editingPrinterId, setEditingPrinterId] = useState<string | null>(null);
   const [editingPrinter, setEditingPrinter] = useState<(PrinterDraft & { isEnabled: boolean }) | null>(null);
+  const [cloudPrntSetup, setCloudPrntSetup] = useState<CloudPrntSetup>();
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const [ruleEditor, setRuleEditor] = useState<{ id: string | null; draft: PrintRuleDraft } | null>(null);
   const ruleLimitReached = state.rules.length >= MAX_PRINT_RULES_PER_STALL;
 
@@ -68,7 +71,10 @@ export function PrintCenterSettings({
       { operation: "REGISTER_PRINTER", ...printerDraft },
       t("print.printerAdded"),
     );
-    if (result) setPrinterDraft(emptyPrinter);
+    if (result) {
+      setPrinterDraft(emptyPrinter);
+      if (result.cloudPrntSetup) setCloudPrntSetup(result.cloudPrntSetup);
+    }
   }
 
   function beginPrinterEdit(printer: PrinterView) {
@@ -91,6 +97,7 @@ export function PrintCenterSettings({
       t("print.device.saved"),
     );
     if (result) {
+      if (result.cloudPrntSetup) setCloudPrntSetup(result.cloudPrntSetup);
       setEditingPrinterId(null);
       setEditingPrinter(null);
     }
@@ -108,6 +115,28 @@ export function PrintCenterSettings({
       openCashDrawerOnCashPayment: printer.openCashDrawerOnCashPayment,
       isEnabled: !printer.isEnabled,
     }, printer.isEnabled ? t("print.device.disabled") : t("print.device.enabled"));
+  }
+
+  async function generateCloudPrntPassword(printer: PrinterView) {
+    const confirmation = printer.hasCloudPrntCredentials
+      ? t("print.cloud.rotateConfirm", { name: printer.name })
+      : t("print.cloud.generateConfirm", { name: printer.name });
+    if (!window.confirm(confirmation)) return;
+    const result = await onRun(
+      { operation: "ROTATE_CLOUDPRNT_TOKEN", printerId: printer.id },
+      t("print.cloud.generated"),
+    );
+    if (result?.cloudPrntSetup) setCloudPrntSetup(result.cloudPrntSetup);
+  }
+
+  async function copyCloudPrntField(field: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      window.setTimeout(() => setCopiedField((current) => current === field ? null : current), 2_000);
+    } catch {
+      setCopiedField(null);
+    }
   }
 
   function beginNewRule() {
@@ -184,7 +213,7 @@ export function PrintCenterSettings({
         <summary className="cursor-pointer text-sm font-semibold">{t("print.device.add")}</summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <TextField label={t("print.printerName")} value={printerDraft.name} onChange={(name) => setPrinterDraft((current) => ({ ...current, name }))} />
-          <ConnectionSelect value={printerDraft.connectionType} onChange={(connectionType) => setPrinterDraft((current) => ({ ...current, connectionType }))} />
+          <ConnectionSelect value={printerDraft.connectionType} onChange={(connectionType) => setPrinterDraft((current) => ({ ...current, connectionType, ...(connectionType === "CLOUDPRNT" ? { autoDetectEnabled: false } : {}) }))} />
           <TextField label={t("print.device.model")} value={printerDraft.model} onChange={(model) => setPrinterDraft((current) => ({ ...current, model }))} />
           <PaperSelect value={printerDraft.paperWidthMm} onChange={(paperWidthMm) => setPrinterDraft((current) => ({ ...current, paperWidthMm }))} />
           <div className="flex flex-wrap gap-4 sm:col-span-2 lg:col-span-4">
@@ -195,6 +224,20 @@ export function PrintCenterSettings({
         <button type="button" disabled={busy || !printerDraft.name.trim()} onClick={() => void registerPrinter()} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-40"><Plus className="h-4 w-4" />{t("common.add")}</button>
       </details>
 
+      {cloudPrntSetup ? <section data-cloudprnt-one-time-setup role="alert" className="mt-4 rounded-md border-2 border-amber-400 bg-amber-50 p-4 text-sm text-amber-950">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0"><h3 className="flex items-center gap-2 font-semibold"><KeyRound className="h-4 w-4 shrink-0" />{t("print.cloud.setupTitle")}</h3><p className="mt-1 text-xs leading-5">{t("print.cloud.setupOnce")}</p></div>
+          <button type="button" onClick={() => { setCloudPrntSetup(undefined); setCopiedField(null); }} className="min-h-11 shrink-0 rounded-md border border-amber-400 px-3 text-xs font-semibold">{t("common.close")}</button>
+        </div>
+        <div className="mt-3 grid min-w-0 gap-2">
+          <CloudSetupValue label={t("print.cloud.serverUrl")} value={cloudPrntSetup.serverUrl} field="setup-server-url" copiedField={copiedField} onCopy={copyCloudPrntField} />
+          <CloudSetupValue label={t("print.cloud.username")} value={cloudPrntSetup.deviceId} field="setup-device-id" copiedField={copiedField} onCopy={copyCloudPrntField} />
+          <CloudSetupValue label={t("print.cloud.password")} value={cloudPrntSetup.deviceToken} field="setup-device-token" copiedField={copiedField} onCopy={copyCloudPrntField} />
+        </div>
+        <p className="mt-3 text-xs">{t("print.cloud.setupTiming", { poll: cloudPrntSetup.pollingIntervalSeconds, timeout: cloudPrntSetup.responseTimeoutSeconds })}</p>
+        <p className="mt-1 text-xs font-semibold">{t("print.cloud.setupAuth")}</p>
+      </section> : null}
+
       <div className="mt-4 grid gap-3 md:grid-cols-2">{state.printers.map((printer) => {
         const editing = editingPrinterId === printer.id && editingPrinter;
         return <article key={printer.id} className={`rounded-md border p-3 ${printer.isEnabled ? "border-stone-200" : "border-stone-200 bg-stone-50 opacity-75"}`}>
@@ -203,7 +246,11 @@ export function PrintCenterSettings({
               <div className="flex items-center gap-2"><ConnectionIcon type={printer.connectionType} /><strong className="truncate text-sm">{printer.name}</strong></div>
               <p className="mt-1 text-xs text-stone-500">{connectionLabel(t, printer.connectionType)} · {printer.model} · {printer.paperWidthMm === 80 ? "80 mm" : "57–58 mm"}</p>
               <p className={`mt-1 text-xs font-semibold ${printer.isOnline ? "text-emerald-700" : "text-stone-500"}`}>{printer.isOnline ? t("print.online") : t("print.offline")}{activePrinterId === printer.id ? ` · ${t("print.localActive")}` : ""}</p>
-              <p className="mt-1 text-xs text-stone-500">{printer.autoDetectEnabled ? t("print.device.autoDetectOn") : t("print.device.autoDetectOff")}{printer.openCashDrawerOnCashPayment ? ` · ${t("print.device.cashDrawerOn")}` : ""}</p>
+              {printer.connectionType === "CLOUDPRNT" ? <div data-cloudprnt-server-url className="mt-3 min-w-0 space-y-2 rounded-md border border-teal-200 bg-teal-50/60 p-2">
+                <CloudSetupValue label={t("print.cloud.serverUrl")} value={printer.cloudPrntServerUrl ?? t("print.cloud.urlUnavailable")} field={`server-url-${printer.id}`} copiedField={copiedField} onCopy={copyCloudPrntField} copyable={Boolean(printer.cloudPrntServerUrl)} />
+                <CloudSetupValue label={t("print.cloud.username")} value={printer.deviceId ?? t("print.cloud.notConfigured")} field={`device-id-${printer.id}`} copiedField={copiedField} onCopy={copyCloudPrntField} copyable={Boolean(printer.deviceId)} />
+                <p className="text-[11px] leading-4 text-stone-600">{t("print.cloud.passwordHidden")}</p>
+              </div> : <p className="mt-1 text-xs text-stone-500">{printer.autoDetectEnabled ? t("print.device.autoDetectOn") : t("print.device.autoDetectOff")}{printer.openCashDrawerOnCashPayment ? ` · ${t("print.device.cashDrawerOn")}` : ""}</p>}
             </div>
             <button type="button" title={t("common.edit")} onClick={() => beginPrinterEdit(printer)} className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-stone-300"><Pencil className="h-4 w-4" /></button>
           </div>
@@ -221,6 +268,7 @@ export function PrintCenterSettings({
           <div className="mt-3 flex flex-wrap gap-2 border-t border-stone-100 pt-3">
             {printer.connectionType !== "CLOUDPRNT" ? <button type="button" disabled={busy || !printer.isEnabled || activePrinterId === printer.id} onClick={() => onTakeOver(printer)} className="min-h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold disabled:opacity-40">{t("print.takeOver")}</button> : <span className="self-center text-xs text-stone-500">{t("print.device.cloudAutonomous")}</span>}
             <button type="button" disabled={busy || !printer.isEnabled} onClick={() => void onTest(printer)} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-semibold disabled:opacity-40"><TestTube2 className="h-4 w-4" />{t("print.device.test")}</button>
+            {printer.connectionType === "CLOUDPRNT" ? <button type="button" disabled={busy || !printer.isEnabled} onClick={() => void generateCloudPrntPassword(printer)} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-semibold disabled:opacity-40"><RotateCw className="h-4 w-4" />{t("print.cloud.generatePassword")}</button> : null}
             {printer.connectionType === "WEBPRNT_BLUETOOTH" ? <button type="button" disabled={busy || !printer.isEnabled || activePrinterId !== printer.id} onClick={() => void onOpenCashDrawer(printer)} className="min-h-9 rounded-md border border-stone-300 px-3 text-xs font-semibold disabled:opacity-40">{t("print.drawer.open")}</button> : null}
             <button type="button" disabled={busy} onClick={() => void togglePrinter(printer)} className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Power className="h-4 w-4" />{printer.isEnabled ? t("print.device.disable") : t("print.device.enable")}</button>
           </div>
@@ -345,6 +393,22 @@ function CheckboxGroup({ title, hint, values, options, onChange }: { title: stri
 
 function ToggleCheckbox({ label, checked, onChange, disabled = false }: { label: string; checked: boolean; onChange: () => void; disabled?: boolean }) {
   return <label className="inline-flex items-center gap-2 text-xs text-stone-700"><input type="checkbox" checked={checked} disabled={disabled} onChange={onChange} className="h-4 w-4 rounded border-stone-300" />{label}</label>;
+}
+
+function CloudSetupValue({ label, value, field, copiedField, onCopy, copyable = true }: {
+  label: string;
+  value: string;
+  field: string;
+  copiedField: string | null;
+  onCopy: (field: string, value: string) => Promise<void>;
+  copyable?: boolean;
+}) {
+  const { t } = useOperationsLocale();
+  const copied = copiedField === field;
+  return <div className="grid min-w-0 gap-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+    <div className="min-w-0"><p className="text-[11px] font-semibold text-stone-600">{label}</p><code className="mt-0.5 block break-all rounded bg-white/80 px-2 py-1.5 text-xs text-stone-900">{value}</code></div>
+    <button type="button" disabled={!copyable} aria-label={`${t("print.cloud.copy")} ${label}`} onClick={() => void onCopy(field, value)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-xs font-semibold disabled:opacity-40">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? t("print.cloud.copied") : t("print.cloud.copy")}</button>
+  </div>;
 }
 
 function toggleValue(values: string[], value: string) {

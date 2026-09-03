@@ -21,6 +21,9 @@ export type PrinterView = {
   isEnabled: boolean;
   isOnline: boolean;
   lastSeenAt: string | null;
+  deviceId: string | null;
+  hasCloudPrntCredentials: boolean;
+  cloudPrntServerUrl: string | null;
 };
 
 export type PrintRuleDraft = {
@@ -104,10 +107,19 @@ export type PrintQueueState = {
   jobs: PrintJobView[];
 };
 
+export type CloudPrntSetup = {
+  serverUrl: string;
+  deviceId: string;
+  deviceToken: string;
+  pollingIntervalSeconds: 5;
+  responseTimeoutSeconds: 60;
+};
+
 export type PrintQueueCommandResponse = {
   state: PrintQueueState;
   entityId?: string;
   printPayload?: PrintTicketPayload;
+  cloudPrntSetup?: CloudPrntSetup;
 };
 
 export type RunPrintQueueCommand = (

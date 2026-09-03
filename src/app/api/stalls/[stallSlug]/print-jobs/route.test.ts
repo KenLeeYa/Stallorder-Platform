@@ -109,6 +109,7 @@ beforeEach(() => {
   mocks.printRuleFindFirst.mockResolvedValue({ id: "77777777-7777-4777-8777-777777777777" });
   mocks.printRuleCreate.mockResolvedValue({ id: "77777777-7777-4777-8777-777777777777" });
   mocks.printRuleUpdate.mockResolvedValue({ id: "77777777-7777-4777-8777-777777777777" });
+  mocks.printerCreate.mockResolvedValue({ id: printerId });
   mocks.productCategoryCount.mockResolvedValue(0);
   mocks.productGroupCount.mockResolvedValue(0);
   mocks.printJobFindFirst.mockResolvedValue(null);
@@ -198,6 +199,60 @@ describe("print queue capability enforcement", () => {
       select: { printModuleEnabled: true },
     });
     expect(mocks.printJobCreate).toHaveBeenCalled();
+  });
+
+  it("returns a CloudPRNT password once while persisting only its hash", async () => {
+    const response = await postCommand({
+      operation: "REGISTER_PRINTER",
+      name: "廚房雲端印表機",
+      connectionType: "CLOUDPRNT",
+    });
+    const payload = await response.json() as {
+      cloudPrntSetup: { deviceId: string; deviceToken: string; serverUrl: string };
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.cloudPrntSetup.deviceId).toMatch(/^PRN_/u);
+    expect(payload.cloudPrntSetup.deviceToken).toMatch(/^cpt_v1_/u);
+    expect(payload.cloudPrntSetup.serverUrl).toContain(
+      `/api/cloudprnt/v1/${payload.cloudPrntSetup.deviceId}`,
+    );
+    const createCall = mocks.printerCreate.mock.calls[0]?.[0];
+    expect(createCall.data.deviceTokenHash).toMatch(/^[a-f0-9]{64}$/u);
+    expect(JSON.stringify(createCall)).not.toContain(payload.cloudPrntSetup.deviceToken);
+  });
+
+  it("rotates credentials only after resolving the tenant-scoped CloudPRNT printer", async () => {
+    mocks.printerFindFirst.mockResolvedValue({
+      id: printerId,
+      name: "雲端印表機",
+      isEnabled: true,
+      connectionType: "CLOUDPRNT",
+      model: "MCP31LB",
+      paperWidthMm: 58,
+      deviceId: "PRN_abcdefghijklmnop",
+      deviceTokenHash: "a".repeat(64),
+    });
+
+    const response = await postCommand({ operation: "ROTATE_CLOUDPRNT_TOKEN", printerId });
+    const payload = await response.json() as {
+      cloudPrntSetup: { deviceId: string; deviceToken: string };
+    };
+
+    expect(response.status).toBe(200);
+    expect(mocks.printerFindFirst).toHaveBeenCalledWith({
+      where: { id: printerId, organizationId, stallId },
+    });
+    expect(mocks.printerUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: printerId },
+      data: expect.objectContaining({
+        deviceTokenHash: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        credentialVersion: { increment: 1 },
+      }),
+    }));
+    expect(payload.cloudPrntSetup.deviceId).toBe("PRN_abcdefghijklmnop");
+    expect(JSON.stringify(mocks.printerUpdate.mock.calls[0]?.[0]))
+      .not.toContain(payload.cloudPrntSetup.deviceToken);
   });
 
   it("queues a customer receipt through the enabled receipt rule", async () => {
