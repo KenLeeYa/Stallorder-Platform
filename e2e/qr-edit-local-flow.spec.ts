@@ -169,6 +169,10 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
 
   let prepareAttempts = 0;
   const interceptFirstPrepareAttempt = async (route: Route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
     prepareAttempts += 1;
     if (prepareAttempts === 1) {
       await route.abort("timedout");
@@ -177,6 +181,10 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
     await route.continue();
   };
   await page.route("**/functions/v1/prepare-reorder", interceptFirstPrepareAttempt);
+  await page.route(
+    "**/api/public-order/prepare-reorder",
+    interceptFirstPrepareAttempt,
+  );
   await page.route(
     `**/api/public/orders/${trackingToken}/reorder`,
     interceptFirstPrepareAttempt,
@@ -192,6 +200,7 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
     (response) =>
       [
         "/functions/v1/prepare-reorder",
+        "/api/public-order/prepare-reorder",
         `/api/public/orders/${trackingToken}/reorder`,
       ].some((path) => new URL(response.url()).pathname.endsWith(path)) &&
       response.request().method() === "POST",
@@ -203,7 +212,10 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
   if (preparePath.endsWith(`/api/public/orders/${trackingToken}/reorder`)) {
     expect(prepareResponse.headers()["x-order-circuit"]).toBe("B");
   } else {
-    expect(preparePath).toBe("/functions/v1/prepare-reorder");
+    expect([
+      "/functions/v1/prepare-reorder",
+      "/api/public-order/prepare-reorder",
+    ]).toContain(preparePath);
   }
   await expect(
     page.getByRole("heading", { name: "修改訂單", exact: true }),

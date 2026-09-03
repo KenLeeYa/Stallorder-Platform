@@ -69,7 +69,7 @@ Deno.serve(async (request) => {
       throw new HttpInputError("PRINT_ALREADY_STARTED", 409);
     }
 
-    const [itemsQuery, stallQuery, qrQuery] = await Promise.all([
+    const [itemsQuery, stallQuery, qrQuery, orderSessionQuery] = await Promise.all([
       context.admin.from("order_items")
         .select("id, product_id, name, unit_price, quantity, note, status")
         .eq("order_id", context.order.id)
@@ -87,9 +87,13 @@ Deno.serve(async (request) => {
         .order("token_version", { ascending: false })
         .order("updated_at", { ascending: false })
         .limit(20),
+      context.admin.from("order_sessions")
+        .select("ordering_mode")
+        .eq("order_id", context.order.id)
+        .maybeSingle(),
     ]);
-    if (itemsQuery.error || stallQuery.error || qrQuery.error) {
-      throw itemsQuery.error ?? stallQuery.error ?? qrQuery.error;
+    if (itemsQuery.error || stallQuery.error || qrQuery.error || orderSessionQuery.error) {
+      throw itemsQuery.error ?? stallQuery.error ?? qrQuery.error ?? orderSessionQuery.error;
     }
     if (itemsQuery.data.some((item) => item.status !== "PENDING")) {
       throw new HttpInputError("ORDER_ALREADY_STARTED", 409);
@@ -163,9 +167,16 @@ Deno.serve(async (request) => {
       options: optionsQuery.data,
       now: Date.now(),
     });
-    const orderingMode = context.order.fulfillment_type === "DELIVERY" ? "DELIVERY" : "PREORDER";
+    const storedOrderingMode = orderSessionQuery.data?.ordering_mode;
+    const orderingMode = storedOrderingMode === "DEFAULT"
+      || storedOrderingMode === "DELIVERY"
+      || storedOrderingMode === "PREORDER"
+      ? storedOrderingMode
+      : context.order.fulfillment_type === "DELIVERY" ? "DELIVERY" : "PREORDER";
     const view = orderingMode === "DELIVERY" ? "delivery" : "pickup";
-    const orderPath = `/store/${encodeURIComponent(stallQuery.data.code)}?view=${view}`;
+    const orderPath = orderingMode === "DEFAULT"
+      ? `/q/${encodeURIComponent(qrCode.token)}`
+      : `/store/${encodeURIComponent(stallQuery.data.code)}?view=${view}`;
     return respond({
       qrToken: qrCode.token,
       orderingMode,

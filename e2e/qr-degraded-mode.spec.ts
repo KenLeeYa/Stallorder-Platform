@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { qrProductSelectionControl } from "./local-navigation";
+import { createOpenQrFixture } from "./open-qr-fixture";
 
-const demoQrToken = "demo-aming-chicken-qr-2026-rotate-me";
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "22222222-2222-4222-8222-222222222222";
+let qrFixture: Awaited<ReturnType<typeof createOpenQrFixture>>;
 const availableConfig = {
   mode: "NORMAL_PRIMARY",
   activeBackend: "PRIMARY",
@@ -14,6 +17,19 @@ const availableConfig = {
   jkoPay: "AVAILABLE",
   updatedAt: "2026-08-01T00:00:00.000Z",
 };
+
+test.beforeAll(async () => {
+  qrFixture = await createOpenQrFixture({
+    organizationId,
+    stallId,
+    tokenPrefix: "qr-degraded-e2e",
+    label: "QR degraded E2E",
+  });
+});
+
+test.afterAll(async () => {
+  await qrFixture.restore();
+});
 
 test("後端降級時保留 QR 菜單並停用所有送單操作", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -47,7 +63,7 @@ test("後端降級時保留 QR 菜單並停用所有送單操作", async ({ page
     });
   });
 
-  await page.goto(`/q/${demoQrToken}`);
+  await page.goto(`/q/${qrFixture.qrToken}`);
 
   await expect(
     page.getByRole("heading", { name: "阿明鹽酥雞", exact: true }),
@@ -141,7 +157,7 @@ test("安全工作階段失敗時顯示錯誤並可重新建立", async ({ page 
     });
   });
 
-  await page.goto(`/q/${demoQrToken}`);
+  await page.goto(`/q/${qrFixture.qrToken}`);
 
   const sessionStatus = page
     .locator("#main-content")
@@ -172,6 +188,15 @@ test("安全工作階段失敗時顯示錯誤並可重新建立", async ({ page 
   await expect(
     page.getByText("正在建立安全點餐工作階段...", { exact: true }),
   ).toHaveCount(0);
+  const sessionErrorDialog = page.getByRole("alertdialog", {
+    name: "目前無法開始點餐。",
+  });
+  await expect(sessionErrorDialog).toContainText(
+    "目前無法建立或查詢訂單，請稍後再試。",
+  );
+  await sessionErrorDialog
+    .getByRole("button", { name: "關閉", exact: true })
+    .click();
 
   await page.getByRole("button", { name: "重新檢查", exact: true }).click();
 
@@ -185,6 +210,10 @@ test("安全工作階段失敗時顯示錯誤並可重新建立", async ({ page 
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
   );
   expect(operationIds[1]).toBe(operationIds[0]);
+  await expect(sessionErrorDialog).toBeVisible();
+  await sessionErrorDialog
+    .getByRole("button", { name: "關閉", exact: true })
+    .click();
 
   await page.getByRole("button", { name: "重新檢查", exact: true }).click();
 
@@ -195,6 +224,10 @@ test("安全工作階段失敗時顯示錯誤並可重新建立", async ({ page 
   );
   expect(sessionRequestIds[2]).not.toBe(sessionRequestIds[1]);
   expect(operationIds[2]).not.toBe(operationIds[1]);
+  await expect(sessionErrorDialog).toBeVisible();
+  await sessionErrorDialog
+    .getByRole("button", { name: "關閉", exact: true })
+    .click();
 
   await page.getByRole("button", { name: "重新檢查", exact: true }).click();
 
@@ -275,7 +308,7 @@ test("後端 target 切換時忽略舊工作階段的晚到失敗", async ({ pag
     });
   });
 
-  await page.goto(`/q/${demoQrToken}`);
+  await page.goto(`/q/${qrFixture.qrToken}`);
 
   const sessionStatus = page
     .locator("#main-content")
@@ -332,7 +365,7 @@ test("已快取的 QR 菜單在網路中斷後維持唯讀", async ({ context, p
       response.request().method() === "POST" &&
       new URL(response.url()).pathname.endsWith("/create-order-session"),
   );
-  await page.goto(`/q/${demoQrToken}`);
+  await page.goto(`/q/${qrFixture.qrToken}`);
   await initialSessionResponse;
   await expect(
     page.getByRole("heading", { name: "阿明鹽酥雞", exact: true }),
