@@ -29,7 +29,7 @@ for (const fileName of [
 
 await assertPortAvailable(port);
 const environment = buildLocalQaEnvironment(port, process.env);
-const origin = environment.NEXT_PUBLIC_APP_URL;
+const origin = `http://127.0.0.1:${port}`;
 const nextCli = resolve(root, "node_modules", "next", "dist", "bin", "next");
 if (!existsSync(nextCli)) throw new Error("LOCAL_QA_DEPENDENCIES_MISSING");
 
