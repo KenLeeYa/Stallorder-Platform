@@ -113,6 +113,12 @@ describe("QR order flow characterization", () => {
       orderSessionToken: "session-token",
       expiresAt: "2026-08-13T00:15:00.000Z",
       lotteryEnabled: true,
+      lotteryReward: {
+        spendEnabled: true,
+        spendThresholdAmount: 666,
+        festivalEnabled: true,
+        festivalActive: true,
+      },
       products: [{
         ...product("legacy-shape"),
         kind: "SINGLE",
@@ -126,6 +132,11 @@ describe("QR order flow characterization", () => {
 
     expect(session.orderingMode).toBe("PREORDER");
     expect(session.lotteryEnabled).toBe(false);
+    expect(session.lotteryReward).toMatchObject({
+      spendEnabled: false,
+      festivalEnabled: false,
+      festivalActive: false,
+    });
     expect(session.products[0]).toMatchObject({
       kind: "SINGLE",
       bundleChoiceGroups: [],
@@ -133,6 +144,28 @@ describe("QR order flow characterization", () => {
       isBestSeller: false,
       isSoldOut: false,
       isOrderDiscountEligible: true,
+    });
+  });
+
+  it("fails closed for lottery campaigns in a stale DELIVERY session payload", () => {
+    const session = normalizeQrOrderSession({
+      ...menu("DELIVERY"),
+      orderSessionToken: "delivery-session",
+      expiresAt: "2026-08-13T00:15:00.000Z",
+      lotteryEnabled: true,
+      lotteryReward: {
+        spendEnabled: true,
+        spendThresholdAmount: 666,
+        festivalEnabled: true,
+        festivalActive: true,
+      },
+    }, "DELIVERY");
+
+    expect(session.lotteryEnabled).toBe(false);
+    expect(session.lotteryReward).toMatchObject({
+      spendEnabled: false,
+      festivalEnabled: false,
+      festivalActive: false,
     });
   });
 

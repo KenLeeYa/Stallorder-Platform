@@ -70,7 +70,10 @@ select throws_ok(
 update public.cash_shifts
 set status = 'CLOSED',
     closed_at = coalesce(closed_at, now()),
-    closed_by = coalesce(closed_by, opened_by)
+    closed_by = coalesce(closed_by, opened_by),
+    system_expected_amount = coalesce(system_expected_amount, opening_amount),
+    counted_amount = coalesce(counted_amount, opening_amount),
+    variance_amount = coalesce(variance_amount, 0)
 where stall_id = '22222222-2222-4222-8222-222222222222'
   and status = 'OPEN';
 insert into public.cash_shifts (

@@ -26,6 +26,7 @@ import {
 } from "../../supabase/functions/_shared/bestseller-ranking";
 import { completeCatalogLocales } from "../../supabase/functions/_shared/catalog-locale-completeness";
 import { getPublicEInvoiceCheckoutConfig } from "@/server/e-invoice/checkout-preference-service";
+import { publicLotteryChannelAllows } from "@/lib/public-lottery-channel";
 
 const QR_CONTEXT_TTL_SECONDS = 15;
 const PUBLIC_MENU_TTL_SECONDS = 45;
@@ -103,21 +104,30 @@ export async function getCachedPublicMenuForQrToken(
   const products = resolvedOrderingMode === "PREORDER"
     ? publicMenuProductsForPickupWindow(menu.products, preorderSlots)
     : publicMenuProductsForPickup(menu.products, new Date().toISOString());
+  const fulfillmentType = context.fulfillmentTypeContext
+    ?? (resolvedOrderingMode === "DELIVERY" ? "DELIVERY" : context.diningTable ? "DINE_IN" : "TAKEOUT");
+  const lotteryChannelAllowed = publicLotteryChannelAllows(
+    resolvedOrderingMode,
+    fulfillmentType,
+  );
 
   return {
     ...menu,
     products,
     orderingMode: resolvedOrderingMode,
     preorderSlots,
-    lotteryEnabled: resolvedOrderingMode === "DEFAULT" && settings.lotteryEnabled,
+    lotteryEnabled: resolvedOrderingMode === "DEFAULT"
+      && lotteryChannelAllowed
+      && settings.lotteryEnabled,
     deliveryNotice: resolvedOrderingMode === "DELIVERY"
       ? settings.deliveryCustomerNotice || null
       : null,
     lotteryReward: {
-      spendEnabled: settings.lotterySpendRewardEnabled,
+      spendEnabled: lotteryChannelAllowed && settings.lotterySpendRewardEnabled,
       spendThresholdAmount: settings.lotterySpendThresholdAmount,
-      festivalEnabled: settings.lotteryFestivalRewardEnabled,
-      festivalActive: lotteryFestivalIsActive(settings, context.stall.timezone),
+      festivalEnabled: lotteryChannelAllowed && settings.lotteryFestivalRewardEnabled,
+      festivalActive: lotteryChannelAllowed
+        && lotteryFestivalIsActive(settings, context.stall.timezone),
     },
     specialClosure,
     ...(invoiceCheckout ? { invoiceCheckout } : {}),
@@ -145,8 +155,7 @@ export async function getCachedPublicMenuForQrToken(
       coverImagePositionX: context.stall.coverImagePositionX,
       coverImagePositionY: context.stall.coverImagePositionY,
       coverImageZoom: context.stall.coverImageZoom,
-      fulfillmentType: context.fulfillmentTypeContext
-        ?? (resolvedOrderingMode === "DELIVERY" ? "DELIVERY" : context.diningTable ? "DINE_IN" : "TAKEOUT"),
+      fulfillmentType,
       table: context.diningTable
         ? { id: context.diningTable.id, code: context.diningTable.code, label: context.diningTable.label }
         : null,

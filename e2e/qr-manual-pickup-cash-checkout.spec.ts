@@ -8,6 +8,8 @@ import {
   qrProductSelectionControl,
 } from "./local-navigation";
 
+test.use({ serviceWorkers: "block" });
+
 loadLocalEnv();
 assertLocalDatabase();
 
@@ -246,6 +248,7 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       locale: "zh-TW",
       timezoneId: "Asia/Taipei",
       viewport: { width: 390, height: 844 },
+      serviceWorkers: "block",
     });
     try {
       const staffPage = await staffContext.newPage();
@@ -455,18 +458,18 @@ async function resolveCreatedRecordIds() {
 
 async function login(page: Page) {
   await page.goto("/login");
-  await page
-    .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
-    .click();
-  await page.getByLabel("電子郵件").fill("staff@stallorder.test");
-  await page.getByLabel("密碼").fill(password);
-  const loginResponsePromise = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === "/api/auth/login" &&
-      response.request().method() === "POST",
-  );
-  await page.getByRole("button", { name: "登入", exact: true }).click();
-  expect((await loginResponsePromise).status()).toBe(200);
+  const origin = new URL(page.url()).origin;
+  const loginResponse = await page.context().request.post("/api/auth/login", {
+    data: { email: "staff@stallorder.test", password },
+    headers: {
+      origin,
+      referer: page.url(),
+      "sec-fetch-site": "same-origin",
+    },
+  });
+  expect(loginResponse.status()).toBe(200);
+  const body = await loginResponse.json() as { next?: string };
+  await page.goto(body.next ?? "/");
   await expect(page).toHaveURL(/\/staff\//, { timeout: 30_000 });
 }
 

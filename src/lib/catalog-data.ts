@@ -3,7 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 
 export async function getOrganizationCatalog(organizationId: string, authorizedStallIds: string[]) {
-  const [categories, groups, products] = await Promise.all([
+  const [categories, groups, products, orderingSettings] = await Promise.all([
     prisma.productCategory.findMany({
       where: { organizationId },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -93,7 +93,29 @@ export async function getOrganizationCatalog(organizationId: string, authorizedS
         },
       },
     }),
+    prisma.stallOrderingSettings.findMany({
+      where: { stallId: { in: authorizedStallIds } },
+      select: { stallId: true, checkoutUpsellProductIds: true },
+    }),
   ]);
 
-  return { categories, groups, products };
+  const checkoutUpsellIdsByStall = new Map(
+    orderingSettings.map((settings) => [
+      settings.stallId,
+      new Set(settings.checkoutUpsellProductIds),
+    ]),
+  );
+  return {
+    categories,
+    groups,
+    products: products.map((product) => ({
+      ...product,
+      stallProducts: product.stallProducts.map((assignment) => ({
+        ...assignment,
+        checkoutUpsellSelected: checkoutUpsellIdsByStall
+          .get(assignment.stallId)
+          ?.has(product.id) ?? false,
+      })),
+    })),
+  };
 }

@@ -9,10 +9,7 @@ import { localizeSpecialClosureTitle } from "@/lib/special-closures-client";
 import { LocationGuideDialog } from "./location-guide-dialog";
 
 export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: AppLocale }) {
-  const sections = groupProductsByCategory(
-    menu.products.filter((product) => !product.isSoldOut),
-    locale,
-  );
+  const sections = groupProductsByCategory(menu.products, locale);
   const mapQuery = menu.stall.address?.trim() || menu.stall.location.trim() || menu.stall.name;
   const encodedMapQuery = encodeURIComponent(mapQuery);
   const googleMapsEmbedKey = process.env.GOOGLE_MAPS_EMBED_API_KEY?.trim();
@@ -170,6 +167,7 @@ function MenuProductCard({
   currency: string;
   locale: AppLocale;
 }) {
+  const soldOut = product.isSoldOut;
   const productTranslation = product.translations.find((translation) => translation.locale === locale);
   const productName = productTranslation?.name || product.name;
   const productDescription = productTranslation?.description || product.description;
@@ -196,9 +194,9 @@ function MenuProductCard({
   );
 
   return (
-    <article className="break-inside-avoid overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm print:rounded-none print:shadow-none">
+    <article className={`break-inside-avoid overflow-hidden rounded-2xl border shadow-sm print:rounded-none print:shadow-none ${soldOut ? "border-stone-300 bg-stone-100" : "border-stone-200 bg-white"}`}>
       <div className="grid min-h-36 grid-cols-[112px_minmax(0,1fr)] sm:grid-cols-[144px_minmax(0,1fr)]">
-        <div className="relative min-h-36 overflow-hidden bg-stone-100">
+        <div data-testid={soldOut ? "public-menu-sold-out-image" : undefined} className="relative min-h-36 overflow-hidden bg-stone-100">
           {product.imageUrl ? (
             <ProductImage
               src={product.imageUrl}
@@ -206,17 +204,19 @@ function MenuProductCard({
               width={432}
               height={432}
               sizes="(max-width: 639px) 112px, 144px"
-              className="h-full w-full object-cover"
+              className={`h-full w-full object-cover ${soldOut ? "grayscale opacity-45" : ""}`}
             />
           ) : (
             <div className="grid h-full min-h-36 place-items-center text-stone-300">
               <Store className="h-9 w-9" aria-hidden="true" />
             </div>
           )}
+          {soldOut ? <span data-testid="public-menu-sold-out-image-overlay" className="absolute inset-0 grid place-items-center bg-stone-950/45 px-2 text-center text-sm font-black text-white">{publicMessages.get(locale, "menuSoldOut")}</span> : null}
         </div>
         <div className="flex min-w-0 flex-col p-4">
           <div className="flex flex-wrap items-center gap-1.5">
             {product.kind === "BUNDLE" ? <span className="rounded-full bg-teal-50 px-2 py-1 text-[11px] font-bold text-teal-800">{publicMessages.get(locale, "menuBundleBadge")}</span> : null}
+            {soldOut ? <span data-testid="public-menu-sold-out-badge" className="rounded-full bg-stone-700 px-2 py-1 text-[11px] font-bold text-white">{publicMessages.get(locale, "menuSoldOut")}</span> : null}
             {product.isBestSeller ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-900">
                 <Flame className="h-3 w-3" aria-hidden="true" />{publicMessages.get(locale, "menuBestSeller")}

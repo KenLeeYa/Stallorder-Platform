@@ -15,7 +15,7 @@ describe("create-order-session lightweight query plan", () => {
     expect(lightweightReturn).toBeGreaterThan(planStart);
     expect(plan).toContain("parsed.data.includeMenu");
     expect(plan).toContain('admin.from("stalls")');
-    expect(plan).toContain("ordering_settings:stall_ordering_settings(checkout_upsell_enabled, checkout_upsell_product_ids)");
+    expect(plan).toContain("ordering_settings:stall_ordering_settings(checkout_upsell_enabled, checkout_upsell_product_ids, lottery_spend_reward_enabled, lottery_spend_threshold_amount, lottery_festival_reward_enabled, lottery_festival_starts_on, lottery_festival_ends_on)");
     expect(plan).toContain('admin.from("stall_products")');
     expect(plan).toContain("), 2)");
     expect(plan).not.toContain('admin.from("stall_ordering_settings")');
@@ -64,8 +64,17 @@ describe("create-order-session lightweight query plan", () => {
 
   it("returns checkout recommendations without adding a menu query", () => {
     expect(source).toContain("checkoutUpsell: {");
-    expect(source).toContain("stallQuery.data.ordering_settings?.checkout_upsell_enabled === true");
-    expect(source).toContain("stallQuery.data.ordering_settings?.checkout_upsell_product_ids");
+    expect(source).toContain("orderingSettings?.checkout_upsell_enabled === true");
+    expect(source).toContain("orderingSettings?.checkout_upsell_product_ids");
+  });
+
+  it("returns campaign eligibility only for live non-delivery sessions", () => {
+    expect(source).toContain('const lotteryChannelAllowed = orderingMode === "DEFAULT"');
+    expect(source).toContain('qrContext.fulfillment_type_context !== "DELIVERY"');
+    expect(source).toContain("lotteryReward: {");
+    expect(source).toContain("spendEnabled: lotteryChannelAllowed");
+    expect(source).toContain("festivalEnabled: lotteryChannelAllowed");
+    expect(source).toContain("festivalActive: lotteryFestivalActive");
   });
 
   it("returns sold-out products for display while keeping bundle components saleable-only", () => {

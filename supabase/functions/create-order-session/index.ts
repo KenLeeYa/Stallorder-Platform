@@ -236,7 +236,7 @@ Deno.serve(async (request) => {
     const fullMenuQueries = parsed.data.includeMenu
       ? await timing.measureDb(() => Promise.all([
         admin.from("stalls")
-          .select("organization_id, name, slug, location, currency, timezone, ordering_settings:stall_ordering_settings(checkout_upsell_enabled, checkout_upsell_product_ids)")
+          .select("organization_id, name, slug, location, currency, timezone, ordering_settings:stall_ordering_settings(checkout_upsell_enabled, checkout_upsell_product_ids, lottery_spend_reward_enabled, lottery_spend_threshold_amount, lottery_festival_reward_enabled, lottery_festival_starts_on, lottery_festival_ends_on)")
           .eq("id", result.stall_id)
           .single(),
         admin.from("stall_products")
@@ -662,6 +662,16 @@ Deno.serve(async (request) => {
     const products = orderingMode === "PREORDER"
       ? filterPublicMenuProductsForTimeWindow(rankedProducts, preorderSlots)
       : filterPublicMenuProductsForTime(rankedProducts, now);
+    const orderingSettings = stallQuery.data.ordering_settings;
+    const lotteryChannelAllowed = orderingMode === "DEFAULT"
+      && qrContext.fulfillment_type_context !== "DELIVERY";
+    const lotteryBusinessDate = localDateInTimeZone(new Date(now), stallQuery.data.timezone);
+    const lotteryFestivalActive = lotteryChannelAllowed
+      && orderingSettings?.lottery_festival_reward_enabled === true
+      && typeof orderingSettings.lottery_festival_starts_on === "string"
+      && typeof orderingSettings.lottery_festival_ends_on === "string"
+      && lotteryBusinessDate >= orderingSettings.lottery_festival_starts_on
+      && lotteryBusinessDate <= orderingSettings.lottery_festival_ends_on;
 
     return respond({
       ...buildPublicOrderSessionResponse({
@@ -684,11 +694,19 @@ Deno.serve(async (request) => {
       },
       products,
       preorderSlots,
-      lotteryEnabled: orderingMode === "DEFAULT" && settings.lottery_enabled === true,
+      lotteryEnabled: lotteryChannelAllowed && settings.lottery_enabled === true,
+      lotteryReward: {
+        spendEnabled: lotteryChannelAllowed
+          && orderingSettings?.lottery_spend_reward_enabled === true,
+        spendThresholdAmount: orderingSettings?.lottery_spend_threshold_amount ?? 666,
+        festivalEnabled: lotteryChannelAllowed
+          && orderingSettings?.lottery_festival_reward_enabled === true,
+        festivalActive: lotteryFestivalActive,
+      },
       checkoutUpsell: {
-        enabled: stallQuery.data.ordering_settings?.checkout_upsell_enabled === true,
-        productIds: Array.isArray(stallQuery.data.ordering_settings?.checkout_upsell_product_ids)
-          ? stallQuery.data.ordering_settings.checkout_upsell_product_ids
+        enabled: orderingSettings?.checkout_upsell_enabled === true,
+        productIds: Array.isArray(orderingSettings?.checkout_upsell_product_ids)
+          ? orderingSettings.checkout_upsell_product_ids
             .filter((productId): productId is string => typeof productId === "string")
           : [],
       },

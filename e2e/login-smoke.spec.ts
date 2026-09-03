@@ -9,7 +9,7 @@ test("手機登入欄位具備正確語意、焦點與無水平溢位", async ({
 
   await expect(page.getByRole("heading", { name: "商家登入" })).toBeVisible();
   await expect(page.getByText("StallOrder", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("已註冊商家請優先使用 Google 帳號登入。", { exact: true })).toBeVisible();
+  await expect(page.getByText("供商家負責人與管理人員使用；顧客 QR 點餐不需登入。", { exact: true })).toBeVisible();
   await expect(page.getByText(/平台管理員請使用/)).toHaveCount(0);
 
   const email = page.locator('input[name="email"]');
@@ -21,11 +21,12 @@ test("手機登入欄位具備正確語意、焦點與無水平溢位", async ({
     exact: true,
   });
 
-  await expect(googleLogin).toBeVisible();
   await expect(passwordLogin).toBeVisible();
   await expect(email).toBeHidden();
   await expect(passwordInput).toBeHidden();
-  expect((await googleLogin.boundingBox())!.y).toBeLessThan((await passwordLogin.boundingBox())!.y);
+  if (await googleLogin.isVisible()) {
+    expect((await googleLogin.boundingBox())!.y).toBeLessThan((await passwordLogin.boundingBox())!.y);
+  }
 
   await page.keyboard.press("Tab");
   await expect(page.locator(".skip-link")).toBeFocused();
@@ -76,6 +77,16 @@ test("店員由獨立入口登入並返回店員工作區", async ({ page }) => 
   await page.getByRole("button", { name: "登入", exact: true }).click();
 
   await expect(page).toHaveURL(/\/staff\/aming-chicken/);
+});
+
+test("廚房人員由獨立入口登入並返回生產看板", async ({ page }) => {
+  await page.goto("/staff/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
+  await page.getByLabel("電子郵件").fill("kitchen@stallorder.test");
+  await page.getByLabel("密碼").fill(password);
+  await page.getByRole("button", { name: "登入", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/kitchen\?stall=aming-chicken/);
 });
 
 test("本機平台管理員可登入管理後台", async ({ page }) => {

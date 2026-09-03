@@ -11,16 +11,31 @@ const modulesSource = readFileSync(
   fileURLToPath(new URL("./stall-modules-manager.tsx", import.meta.url)),
   "utf8",
 ).replace(/\r\n/g, "\n");
+const sharedCatalogSource = readFileSync(
+  fileURLToPath(new URL("./shared-catalog-manager.tsx", import.meta.url)),
+  "utf8",
+).replace(/\r\n/g, "\n");
 const migrationSource = readFileSync(
   fileURLToPath(new URL("../../supabase/migrations/20260902163000_checkout_upsell.sql", import.meta.url)),
   "utf8",
 ).replace(/\r\n/g, "\n");
 
 describe("checkout upsell product ownership", () => {
-  it("uses a per-product switch in stall product settings", () => {
+  it("keeps the per-product switch inside a touch-friendly product dialog", () => {
     expect(catalogSource).toContain("checkoutUpsellSelected: boolean");
+    expect(catalogSource).toContain('data-testid="stall-product-settings-trigger"');
+    expect(catalogSource).toContain('data-testid="stall-product-settings-dialog"');
     expect(catalogSource).toContain('data-testid="stall-product-upsell-switch"');
+    expect(catalogSource).toContain("min-h-16");
     expect(catalogSource).toContain("checkoutUpsellSelected: product.checkoutUpsellSelected");
+  });
+
+  it("also exposes the per-stall recommendation switch below lottery in shared product editing", () => {
+    expect(sharedCatalogSource).toContain("checkoutUpsellStallIds");
+    expect(sharedCatalogSource).toContain('data-testid="shared-product-upsell-switch"');
+    expect(sharedCatalogSource).toContain("可作為抽抽樂推薦／免費贈品");
+    expect(sharedCatalogSource.indexOf("shared-product-upsell-switch"))
+      .toBeGreaterThan(sharedCatalogSource.indexOf("可作為抽抽樂推薦／免費贈品"));
   });
 
   it("keeps the module page focused on enabling the feature, without a duplicate picker", () => {

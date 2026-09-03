@@ -4,17 +4,22 @@ import {
   test,
   type APIRequestContext,
   type Locator,
+  type Page,
 } from "@playwright/test";
 import { catalogCsvHeaders } from "../src/lib/catalog-csv";
 import { QR_LOCALES } from "../src/lib/qr-order-i18n";
 import {
   gotoLocalPath,
+  loginLocalTestAccount,
   openSharedCatalogProductActions,
   waitForDefaultMerchantDashboard,
 } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
+const password = "StallOrderDemo!2026";
+
+test.use({ serviceWorkers: "block" });
 
 async function waitForReactHandler(
   control: Locator,
@@ -42,24 +47,36 @@ async function waitForReactHandler(
     .toBe(true);
 }
 
+async function acknowledgeSettingsFeedback(
+  page: Page,
+  kind: "success" | "error",
+  message?: string,
+  focusAfterClose?: Locator,
+) {
+  const dialog = page.getByRole(kind === "error" ? "alertdialog" : "dialog", {
+    name: kind === "error" ? "請確認設定" : "設定已完成",
+    exact: true,
+  });
+  await expect(dialog).toBeVisible();
+  if (message) await expect(dialog).toContainText(message);
+  const acknowledge = dialog.getByRole("button", { name: "我知道了", exact: true });
+  await expect(acknowledge).toBeFocused();
+  const box = await dialog.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(Math.abs(box!.x + box!.width / 2 - viewport!.width / 2)).toBeLessThan(2);
+  await acknowledge.click();
+  await expect(dialog).toBeHidden();
+  if (focusAfterClose) await expect(focusAfterClose).toBeFocused();
+}
+
 test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async ({
   browser,
   page,
 }, testInfo) => {
   test.setTimeout(180_000);
-  await gotoLocalPath(page, "/login");
-  await page
-    .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
-    .click();
-  await page.getByLabel("電子郵件").fill("owner@stallorder.test");
-  await page.getByLabel("密碼").fill("StallOrderDemo!2026");
-  const loginResponse = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/auth/login") &&
-      response.request().method() === "POST",
-  );
-  await page.getByRole("button", { name: "登入", exact: true }).click();
-  expect((await loginResponse).status()).toBe(200);
+  await loginLocalTestAccount(page, "owner@stallorder.test", password);
   await waitForDefaultMerchantDashboard(page, organizationId);
 
   const settingsBasicPath = `/merchant/stalls/${stallId}/settings/basic`;
@@ -159,8 +176,8 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       { exact: true },
     ),
   ).toBeVisible();
-  await expect(phoneInput).toBeFocused();
   await expect(phoneInput).toHaveAttribute("aria-invalid", "true");
+  await acknowledgeSettingsFeedback(page, "error", undefined, phoneInput);
   await phoneInput.fill(originalPhone);
 
   const basicSaveResponse = page.waitForResponse(
@@ -184,9 +201,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
     ].sort(),
   );
   expect(basicResponse.request().postDataJSON().operation).toBe("UPDATE_BASIC");
-  await expect(
-    page.getByText("基本資料已更新。", { exact: true }),
-  ).toBeVisible();
+  await acknowledgeSettingsFeedback(page, "success", "基本資料已更新。");
 
   await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/operations`);
   await expect(
@@ -208,9 +223,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   expect(operationsResponse.request().postDataJSON().operation).toBe(
     "UPDATE_OPERATIONS",
   );
-  await expect(
-    page.getByText("營運狀態已更新。", { exact: true }),
-  ).toBeVisible();
+  await acknowledgeSettingsFeedback(page, "success", "營運狀態已更新。");
 
   await gotoLocalPath(
     page,
@@ -248,7 +261,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       exact: true,
     }),
   ).toBeVisible();
-  await expect(editableOpeningTime).toBeFocused();
+  await acknowledgeSettingsFeedback(page, "error", undefined, editableOpeningTime);
   await editableOpeningTime.fill(originalOpeningTime);
 
   await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/members`);
@@ -264,7 +277,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await expect(
     page.getByText("請輸入有效的 Email 格式。", { exact: true }),
   ).toBeVisible();
-  await expect(memberEmail).toBeFocused();
+  await acknowledgeSettingsFeedback(page, "error", undefined, memberEmail);
   await memberEmail.fill("");
 
   await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/dine-in`);
@@ -379,6 +392,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       );
       await localeSection.getByRole("button", { name: "儲存語系設定" }).click();
       expect((await disableResponse).status()).toBe(200);
+      await acknowledgeSettingsFeedback(page, "success", "QR 點餐語系已儲存。");
       japaneseChanged = true;
     }
     await expect(japaneseSwitch).toHaveAttribute("aria-checked", "false");
@@ -386,6 +400,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
     const japaneseContext = await browser.newContext({
       locale: "ja-JP",
       timezoneId: "Asia/Taipei",
+      serviceWorkers: "block",
     });
     try {
       const japanesePage = await japaneseContext.newPage();
@@ -441,9 +456,6 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       await expect(productEditor.getByLabel("日文名稱")).toHaveCount(0);
       await productEditor.getByRole("button", { name: "關閉" }).click();
 
-      await localizationPage
-        .getByRole("tab", { name: "註記群組", exact: true })
-        .click();
       await localizationPage.getByTestId("open-note-group-navigator").click();
       const noteGroupNavigator = localizationPage.getByTestId(
         "note-group-navigator-dialog",
@@ -544,6 +556,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   );
   await page.getByRole("button", { name: "儲存桌位位置" }).click();
   expect((await layoutResponse).status()).toBe(200);
+  await acknowledgeSettingsFeedback(page, "success", "桌位平面配置已儲存。");
   await floorTable.press(restoreKey);
   const restoreLayoutResponse = page.waitForResponse(
     (response) =>
@@ -552,6 +565,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   );
   await page.getByRole("button", { name: "儲存桌位位置" }).click();
   expect((await restoreLayoutResponse).status()).toBe(200);
+  await acknowledgeSettingsFeedback(page, "success", "桌位平面配置已儲存。");
   expect(
     await floorTable.evaluate((element) => ({
       left: (element as HTMLElement).style.left,
@@ -599,8 +613,8 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       { exact: true },
     ),
   ).toBeVisible();
-  await expect(newPaymentCode).toBeFocused();
   await expect(newPaymentCode).toHaveAttribute("aria-invalid", "true");
+  await acknowledgeSettingsFeedback(page, "error", undefined, newPaymentCode);
   await newPaymentCode.fill("");
   await newPaymentName.fill("");
 
@@ -665,20 +679,22 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await estimatedWaitInput.fill("");
   await page.getByRole("button", { name: "儲存限制", exact: true }).click();
   await expect(estimatedWaitInput).toHaveValue("");
-  await expect(estimatedWaitInput).toBeFocused();
   await expect(
     page.getByText("顧客預估等候分鐘為必填欄位。", { exact: true }),
   ).toBeVisible();
+  await acknowledgeSettingsFeedback(page, "error", "請修正標示欄位後再儲存。", estimatedWaitInput);
   await estimatedWaitInput.fill("241");
   await page.getByRole("button", { name: "儲存限制", exact: true }).click();
   await expect(
     page.getByText("顧客預估等候分鐘請輸入 0 到 240 之間。", { exact: true }),
   ).toBeVisible();
+  await acknowledgeSettingsFeedback(page, "error", "請修正標示欄位後再儲存。", estimatedWaitInput);
   await estimatedWaitInput.fill("1.5");
   await page.getByRole("button", { name: "儲存限制", exact: true }).click();
   await expect(
     page.getByText("顧客預估等候分鐘請輸入整數。", { exact: true }),
   ).toBeVisible();
+  await acknowledgeSettingsFeedback(page, "error", "請修正標示欄位後再儲存。", estimatedWaitInput);
   await estimatedWaitInput.fill("15");
   const limitsResponse = page.waitForResponse(
     (response) =>
@@ -688,7 +704,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   );
   await page.getByRole("button", { name: "儲存限制", exact: true }).click();
   expect((await limitsResponse).status()).toBe(200);
-  await expect(page.getByRole("status")).toHaveText("安全與訂單限制已更新。");
+  await acknowledgeSettingsFeedback(page, "success", "安全與訂單限制已更新。");
 
   const catalogPath = `/merchant/catalog?organizationId=${organizationId}`;
   if (process.env.PLAYWRIGHT_PRODUCTION_SERVER !== "true") {
@@ -705,7 +721,6 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await expect(
     page.getByRole("heading", { name: "商品註記設定" }),
   ).toBeVisible();
-  await page.getByRole("tab", { name: "註記群組" }).click();
   await page.getByTestId("open-note-group-navigator").click();
   const noteGroupNavigator = page.getByTestId("note-group-navigator-dialog");
   await noteGroupNavigator.getByPlaceholder("搜尋註記群組或選項").fill("辣度");

@@ -14,13 +14,14 @@ import {
   Truck,
   X,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { CheckoutUpsellDialog } from "@/components/checkout-upsell-dialog";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
 import { QrOrderCartPanel } from "@/components/qr-order-cart-panel";
 import type { QrOrderFlowController } from "@/components/qr-order-flow-controller";
 import {
   LotteryDailyLimitDialog,
+  LotteryRewardEligibilityDialog,
   LotteryResultDialog,
 } from "@/components/qr-lottery-dialogs";
 import { QrLanguageSelector } from "@/components/qr-language-selector";
@@ -145,16 +146,8 @@ export function QrOrderFlowPresentation({
   const [upsellDialogOpen, setUpsellDialogOpen] = useState(false);
   const [upsellProductIds, setUpsellProductIds] = useState<string[]>([]);
   const [upsellNextAction, setUpsellNextAction] = useState<"CHECKOUT" | "SUBMIT">("CHECKOUT");
-  const continueFromUpsell = useCallback(() => {
-    setUpsellReviewed(true);
-    setUpsellDialogOpen(false);
-    if (upsellNextAction === "SUBMIT") {
-      void submitOrder();
-      return;
-    }
-    setCartStep("CHECKOUT");
-    window.requestAnimationFrame(() => checkoutHeadingRef.current?.focus());
-  }, [checkoutHeadingRef, setCartStep, submitOrder, upsellNextAction]);
+  const [lotteryRewardPromptOpen, setLotteryRewardPromptOpen] = useState(false);
+  const [lotteryRewardPromptReviewed, setLotteryRewardPromptReviewed] = useState(false);
 
   if (isLoading) {
     return <main className="grid min-h-screen place-items-center px-5 text-sm text-stone-600">{copy.sessionLoading}</main>;
@@ -251,9 +244,35 @@ export function QrOrderFlowPresentation({
     window.requestAnimationFrame(() => checkoutHeadingRef.current?.focus());
   }
 
+  function openLotteryRewardPrompt() {
+    if (
+      !lotteryRewardPromptReviewed
+      && automaticLotteryRewardEligible
+      && !lotteryDraw
+      && lotteryError !== "NOT_ELIGIBLE"
+    ) {
+      setLotteryRewardPromptOpen(true);
+      return true;
+    }
+    return false;
+  }
+
   function requestSubmit() {
     if (openCheckoutUpsell("SUBMIT")) return;
+    if (openLotteryRewardPrompt()) return;
     void submitOrder();
+  }
+
+  function continueFromUpsell() {
+    setUpsellReviewed(true);
+    setUpsellDialogOpen(false);
+    if (upsellNextAction === "SUBMIT") {
+      if (openLotteryRewardPrompt()) return;
+      void submitOrder();
+      return;
+    }
+    setCartStep("CHECKOUT");
+    window.requestAnimationFrame(() => checkoutHeadingRef.current?.focus());
   }
 
   function addUpsellProduct(product: PublicMenuProduct) {
@@ -529,6 +548,20 @@ export function QrOrderFlowPresentation({
           message={deliveryNotice}
           dismissLabel={deliveryCopy.noticeDismiss}
           onDismiss={() => setDismissedDeliveryNotice(deliveryNotice)}
+        />
+      ) : null}
+      {lotteryRewardPromptOpen && !sessionExpiryDialogOpen && !lotteryDialogVisible && (!deliveryNotice || dismissedDeliveryNotice === deliveryNotice) ? (
+        <LotteryRewardEligibilityDialog
+          title={copy.lotteryEligibilityTitle}
+          description={copy.lotteryEligibilityDescription}
+          confirmLabel={copy.lotteryStart}
+          backLabel={copy.lotteryEligibilityBack}
+          onConfirm={() => {
+            setLotteryRewardPromptReviewed(true);
+            setLotteryRewardPromptOpen(false);
+            void drawLottery();
+          }}
+          onBack={() => setLotteryRewardPromptOpen(false)}
         />
       ) : null}
       {upsellDialogOpen && !sessionExpiryDialogOpen && !lotteryDialogVisible && (!deliveryNotice || dismissedDeliveryNotice === deliveryNotice) ? (

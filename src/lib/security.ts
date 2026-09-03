@@ -3,6 +3,12 @@ import { isIP } from "node:net";
 
 const LOCAL_IP_HASH_SECRET = "stallorder-development-ip-hash-secret";
 const TEMPORARY_PRODUCTION_TEST_ORIGINS = ["https://stallorder-platform.vercel.app"];
+const LOCAL_QA_QUICK_LOGIN_ACCOUNTS = new Set([
+  "owner@stallorder.test",
+  "staff@stallorder.test",
+  "kitchen@stallorder.test",
+  "platform.admin@stallorder.test",
+]);
 export const SESSION_DEVICE_COOKIE = "stallorder_auth_device";
 export const SESSION_DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 
@@ -123,39 +129,70 @@ export function isLocalQaLoginRateLimitDisabled(
 ) {
   if (environment.LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT !== "true") return false;
 
-  function isLoopbackUrl(value: string | undefined) {
-    if (!value) return false;
-    try {
-      const hostname = new URL(value).hostname;
-      return hostname === "localhost"
-        || hostname === "127.0.0.1"
-        || hostname === "::1"
-        || hostname === "[::1]";
-    } catch {
-      return false;
-    }
-  }
-
-  function isLocalQaAppUrl(value: string | undefined) {
-    if (!value) return false;
-    try {
-      const url = new URL(value);
-      if (url.protocol !== "http:") return false;
-      if (["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname)) return true;
-      const octets = url.hostname.split(".").map(Number);
-      if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
-        return false;
-      }
-      return octets[0] === 10
-        || (octets[0] === 172 && octets[1]! >= 16 && octets[1]! <= 31)
-        || (octets[0] === 192 && octets[1] === 168);
-    } catch {
-      return false;
-    }
-  }
-
   return isLocalQaAppUrl(environment.NEXT_PUBLIC_APP_URL)
     && isLoopbackUrl(environment.DATABASE_URL);
+}
+
+export function isLocalQaQuickLoginAllowed(
+  request: Request,
+  email: string,
+  environment: {
+    NODE_ENV?: string;
+    LOCAL_QA_QUICK_LOGIN_ENABLED?: string;
+    NEXT_PUBLIC_APP_URL?: string;
+    DATABASE_URL?: string;
+  } = process.env,
+) {
+  if (
+    environment.NODE_ENV !== "development"
+    || environment.LOCAL_QA_QUICK_LOGIN_ENABLED !== "true"
+    || !LOCAL_QA_QUICK_LOGIN_ACCOUNTS.has(email.trim().toLowerCase())
+    || !isLoopbackUrl(environment.NEXT_PUBLIC_APP_URL)
+    || !isLoopbackUrl(environment.DATABASE_URL)
+  ) return false;
+
+  try {
+    const requestOrigin = new URL(request.url).origin;
+    const suppliedOrigin = new URL(request.headers.get("origin") ?? "").origin;
+    const configuredOrigin = new URL(environment.NEXT_PUBLIC_APP_URL ?? "").origin;
+    const fetchSite = request.headers.get("sec-fetch-site");
+    return requestOrigin === configuredOrigin
+      && suppliedOrigin === configuredOrigin
+      && (!fetchSite || fetchSite === "same-origin" || fetchSite === "none");
+  } catch {
+    return false;
+  }
+}
+
+function isLoopbackUrl(value: string | undefined) {
+  if (!value) return false;
+  try {
+    const hostname = new URL(value).hostname;
+    return hostname === "localhost"
+      || hostname === "127.0.0.1"
+      || hostname === "::1"
+      || hostname === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
+function isLocalQaAppUrl(value: string | undefined) {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:") return false;
+    if (["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname)) return true;
+    const octets = url.hostname.split(".").map(Number);
+    if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+      return false;
+    }
+    return octets[0] === 10
+      || (octets[0] === 172 && octets[1]! >= 16 && octets[1]! <= 31)
+      || (octets[0] === 192 && octets[1] === 168);
+  } catch {
+    return false;
+  }
 }
 
 export function isTrustedOrigin(request: Request) {

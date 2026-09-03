@@ -41,11 +41,13 @@ describe("merchant mobile action bars", () => {
     expect(products).toContain("mx-auto mt-5 w-full max-w-sm xl:mx-0");
   });
 
-  it("keeps product-note action controls icon-only on mobile", () => {
+  it("shows the two large product-note entry buttons without the duplicate toolbar", () => {
     const notes = source("./product-note-groups-manager.tsx");
 
-    expect(notes).toContain('data-testid="product-note-tools"');
-    expect(notes).toContain('className="sr-only sm:not-sr-only"');
-    expect(notes).toContain("flex-nowrap gap-2 overflow-x-auto");
+    expect(notes).toContain('data-testid="product-note-entry-actions"');
+    expect(notes).toContain('data-testid="open-reusable-note-navigator"');
+    expect(notes).toContain('data-testid="open-note-group-navigator"');
+    expect(notes).toContain("mt-5 grid gap-3 md:grid-cols-2");
+    expect(notes).not.toContain('data-testid="product-note-tools"');
   });
 });

@@ -2,6 +2,7 @@
 
 import { CalendarOff, Clock3, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { useState } from "react";
+import { SettingsFeedbackDialog } from "@/components/settings-feedback-dialog";
 import { csrfHeaders } from "@/lib/csrf-client";
 import type { AppLocale } from "@/lib/app-locale";
 import { formatAppDate } from "@/lib/locale-format";
@@ -203,8 +204,6 @@ export function StallSpecialClosuresManager({
         </button>
       </div>
 
-      {message ? <p role={hasError ? "alert" : "status"} className={`mb-3 text-sm font-medium ${hasError ? "text-red-700" : "text-teal-800"}`}>{message}</p> : null}
-
       <div className="mt-3 grid gap-3">
         {closures.map((closure) => (
           <article key={closure.id}>
@@ -245,8 +244,6 @@ export function StallSpecialClosuresManager({
             </header>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-              {message ? <p role={hasError ? "alert" : "status"} className={`mb-4 rounded-lg px-3 py-2 text-sm font-medium ${hasError ? "bg-red-50 text-red-700" : "bg-teal-50 text-teal-800"}`}>{message}</p> : null}
-
               <h4 className="mb-3 text-lg font-bold text-stone-900">{label("日期區間")}</h4>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-sm font-semibold text-stone-700">{label("開始日期")}
@@ -372,6 +369,7 @@ export function StallSpecialClosuresManager({
           ) : null}
         </div>
       ) : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={hasError ? "error" : "success"} onClose={() => setMessage("")} /> : null}
     </section>
   );
 }
