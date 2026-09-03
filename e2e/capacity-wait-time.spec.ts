@@ -16,6 +16,7 @@ const capacityApiPath = `/api/stalls/${stallSlug}/capacity`;
 let originalCapacity: Awaited<ReturnType<typeof loadCapacity>>;
 let originalStall: Awaited<ReturnType<typeof loadStall>>;
 let originalQrCodes: Awaited<ReturnType<typeof loadQrCodes>> = [];
+let originalBusinessHours: Awaited<ReturnType<typeof loadBusinessHours>> = [];
 
 async function loadCapacity() {
   return prisma.stallCapacitySettings.findUniqueOrThrow({ where: { stallId } });
@@ -45,6 +46,14 @@ async function loadQrCodes() {
     where: { stallId },
     select: { id: true, state: true, expiresAt: true },
     orderBy: { id: "asc" },
+  });
+}
+
+async function loadBusinessHours() {
+  return prisma.stallBusinessHour.findMany({
+    where: { stallId },
+    select: { id: true, opensAt: true, closesAt: true, isClosed: true },
+    orderBy: { dayOfWeek: "asc" },
   });
 }
 
@@ -100,6 +109,10 @@ async function resetOpenCapacity() {
       where: { stallId },
       data: { state: "ACTIVE", expiresAt: null },
     }),
+    prisma.stallBusinessHour.updateMany({
+      where: { stallId },
+      data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+    }),
   ]);
 }
 
@@ -122,10 +135,11 @@ async function login(page: Page, email: string) {
 
 test.describe.serial("產能與等候時間", () => {
   test.beforeAll(async () => {
-    [originalCapacity, originalStall, originalQrCodes] = await Promise.all([
+    [originalCapacity, originalStall, originalQrCodes, originalBusinessHours] = await Promise.all([
       loadCapacity(),
       loadStall(),
       loadQrCodes(),
+      loadBusinessHours(),
     ]);
   });
 
@@ -163,6 +177,16 @@ test.describe.serial("產能與等候時間", () => {
           prisma.qrCode.update({
             where: { id: qrCode.id },
             data: { state: qrCode.state, expiresAt: qrCode.expiresAt },
+          }),
+        ),
+        ...originalBusinessHours.map((hour) =>
+          prisma.stallBusinessHour.update({
+            where: { id: hour.id },
+            data: {
+              opensAt: hour.opensAt,
+              closesAt: hour.closesAt,
+              isClosed: hour.isClosed,
+            },
           }),
         ),
       ]);
@@ -288,7 +312,9 @@ test.describe.serial("產能與等候時間", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const sessionResponsePromise = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname.endsWith("/create-order-session") &&
+        ["/create-order-session", "/api/public/order-session"].some((path) =>
+          new URL(response.url()).pathname.endsWith(path),
+        ) &&
         response.request().method() === "POST",
     );
     await page.goto(`/q/${qrToken}`);
