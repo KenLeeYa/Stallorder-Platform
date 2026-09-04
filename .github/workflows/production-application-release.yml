@@ -95,7 +95,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: npm audit --audit-level=moderate
+      - run: node scripts/run-npm-audit.mjs
 
       - name: Create immutable Production application Plan receipt
         env:
@@ -172,7 +172,7 @@ jobs:
 
       - run: npm ci
       - run: npm run production:check
-      - run: npm audit --audit-level=moderate
+      - run: node scripts/run-npm-audit.mjs
 
       - name: Download approved Production application Plan
         uses: actions/download-artifact@v4
