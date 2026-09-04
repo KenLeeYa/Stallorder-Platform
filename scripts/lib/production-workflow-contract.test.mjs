@@ -72,6 +72,14 @@ describe("Production workflow approval contract", () => {
       }
     }
 
+    const readinessRemote = readiness.slice(readiness.indexOf("  verify-remote:"));
+    const lockedInstall = readinessRemote.indexOf("npm ci --ignore-scripts");
+    const secretExport = readinessRemote.indexOf(
+      "node scripts/export-public-order-runtime-secrets.mjs",
+    );
+    expect(lockedInstall).toBeGreaterThan(-1);
+    expect(lockedInstall).toBeLessThan(secretExport);
+
     expect(disasterRecovery).toContain("PUBLIC_ORDER_SECRET_PREFIX=PRIMARY_");
     expect(disasterRecovery).toContain("PUBLIC_ORDER_SECRET_PREFIX=DR_");
     for (const name of [
