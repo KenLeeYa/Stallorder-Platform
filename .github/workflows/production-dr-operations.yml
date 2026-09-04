@@ -1538,6 +1538,17 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: node scripts/export-dr-runtime-environment.mjs
 
+      - name: Export Primary and DR public-order runtime secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUPABASE_PROJECT_REF="$PRIMARY_SUPABASE_PROJECT_REF" PUBLIC_ORDER_SECRET_PREFIX=PRIMARY_ \
+            node scripts/export-public-order-runtime-secrets.mjs
+          SUPABASE_PROJECT_REF="$DR_SUPABASE_PROJECT_REF" PUBLIC_ORDER_SECRET_PREFIX=DR_ \
+            node scripts/export-public-order-runtime-secrets.mjs
+
       - name: Export approved failover actor
         run: node scripts/export-failover-actor.mjs
 
@@ -1573,6 +1584,9 @@ jobs:
               -e "DR_SUPABASE_SECRET_KEY=${DR_SUPABASE_SECRET_KEY}" \
               -e "PRIMARY_SUPABASE_URL=${PRIMARY_SUPABASE_URL}" \
               -e "PRIMARY_SUPABASE_SECRET_KEY=${PRIMARY_SUPABASE_SECRET_KEY}" \
+              -e "ABUSE_HASH_SECRET=${PRIMARY_ABUSE_HASH_SECRET}" \
+              -e "TOKEN_DERIVATION_SECRET=${PRIMARY_TOKEN_DERIVATION_SECRET}" \
+              -e "TURNSTILE_SECRET_KEY=${PRIMARY_TURNSTILE_SECRET_KEY}" \
               -e "DR_REPLICATION_SUBSCRIPTION_NAME=stallorder_primary_to_dr"
           }
           deploy_dr() {
@@ -1608,6 +1622,9 @@ jobs:
               -e "DR_SUPABASE_SECRET_KEY=${DR_SUPABASE_SECRET_KEY}" \
               -e "PRIMARY_SUPABASE_URL=${PRIMARY_SUPABASE_URL}" \
               -e "PRIMARY_SUPABASE_SECRET_KEY=${PRIMARY_SUPABASE_SECRET_KEY}" \
+              -e "ABUSE_HASH_SECRET=${DR_ABUSE_HASH_SECRET}" \
+              -e "TOKEN_DERIVATION_SECRET=${DR_TOKEN_DERIVATION_SECRET}" \
+              -e "TURNSTILE_SECRET_KEY=${DR_TURNSTILE_SECRET_KEY}" \
               -e "DR_REPLICATION_SUBSCRIPTION_NAME=stallorder_primary_to_dr"
           }
           primary_epoch_1="$(deploy_primary 1)"
@@ -1844,6 +1861,9 @@ jobs:
           set_sensitive DR_DIRECT_URL "$DR_DIRECT_URL"
           set_sensitive DR_SUPABASE_SECRET_KEY "$DR_SUPABASE_SECRET_KEY"
           set_sensitive PRIMARY_SUPABASE_SECRET_KEY "$PRIMARY_SUPABASE_SECRET_KEY"
+          set_sensitive ABUSE_HASH_SECRET "$PRIMARY_ABUSE_HASH_SECRET"
+          set_sensitive TOKEN_DERIVATION_SECRET "$PRIMARY_TOKEN_DERIVATION_SECRET"
+          set_sensitive TURNSTILE_SECRET_KEY "$PRIMARY_TURNSTILE_SECRET_KEY"
           set_plain DR_SUPABASE_URL "$DR_SUPABASE_URL"
           set_plain PRIMARY_SUPABASE_URL "$PRIMARY_SUPABASE_URL"
           set_plain DR_REPLICATION_SUBSCRIPTION_NAME "stallorder_primary_to_dr"

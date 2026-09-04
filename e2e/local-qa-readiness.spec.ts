@@ -99,6 +99,56 @@ test("本機 QR 印刷按鈕會開啟瀏覽器列印／另存 PDF", async ({ pag
   await expect(page.locator("html")).toHaveAttribute("data-qa-print-count", "2");
 });
 
+test("商家 QR 管理在平板寬度左右滿版排列且印刷標籤整齊換行", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/login");
+  await page
+    .getByTestId("local-qa-login-grid")
+    .getByRole("button", { name: "商家", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/);
+  await page.goto("/merchant/aming-chicken");
+
+  const management = page.getByTestId("merchant-ordering-management");
+  const qr = page.getByTestId("merchant-ordering-qr");
+  const actions = page.getByTestId("merchant-ordering-actions");
+  await expect(management).toBeVisible();
+  await expect(actions).toBeVisible();
+  const layout = await page.evaluate(() => {
+    const rect = (testId: string) => {
+      const element = document.querySelector(`[data-testid="${testId}"]`);
+      if (!(element instanceof HTMLElement)) throw new Error(`MISSING_${testId}`);
+      const box = element.getBoundingClientRect();
+      return { x: box.x, y: box.y, width: box.width, right: box.right };
+    };
+    return {
+      viewportWidth: window.innerWidth,
+      management: rect("merchant-ordering-management"),
+      qr: rect("merchant-ordering-qr"),
+      actions: rect("merchant-ordering-actions"),
+    };
+  });
+  expect(layout.management.width).toBeGreaterThan(layout.viewportWidth * 0.85);
+  expect(layout.qr.x).toBeLessThan(layout.actions.x);
+  expect(layout.qr.right).toBeLessThanOrEqual(layout.actions.x);
+  expect(Math.abs(layout.qr.y - layout.actions.y)).toBeLessThanOrEqual(2);
+
+  for (const paper of ["A4", "A5", "A6"]) {
+    const printLink = qr.getByRole("link", { name: `${paper} 印刷版`, exact: true });
+    await expect(printLink).toBeVisible();
+    const labelLines = printLink.locator("span > span");
+    await expect(labelLines).toHaveCount(2);
+    await expect(labelLines.nth(0)).toHaveText(paper);
+    await expect(labelLines.nth(1)).toHaveText("印刷版");
+    const linePositions = await labelLines.evaluateAll((lines) => lines.map((line) => ({
+      display: getComputedStyle(line).display,
+      top: line.getBoundingClientRect().top,
+    })));
+    expect(linePositions[0]?.display).toBe("block");
+    expect(linePositions[1]?.top).toBeGreaterThan(linePositions[0]?.top ?? 0);
+  }
+});
+
 test("QR 非營業時間以置中視窗引導顧客前往線上 Menu", async ({ page }) => {
   await page.route(
     (url) => ["/create-order-session", "/api/public/order-session"].some(

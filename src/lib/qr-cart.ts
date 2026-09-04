@@ -53,6 +53,10 @@ export function qrCartStorageKey(qrToken: string, scope: "DEFAULT" | "DELIVERY" 
   return `stallorder_qr_cart:${encodeURIComponent(qrToken)}${suffix}`;
 }
 
+export function qrOrderEditDraftStorageKey(trackingToken: string) {
+  return `stallorder_qr_order_edit:${encodeURIComponent(trackingToken)}`;
+}
+
 export function qrCartLineKey(line: Pick<QrCartLine, "productId" | "note" | "noteOptionIds" | "bundleChoiceIds">) {
   return JSON.stringify([
     line.productId,
