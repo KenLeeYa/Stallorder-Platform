@@ -60,8 +60,8 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-QR-04` | `QR-007`,`QR-008`,`STAFF-008` | Edit changes the same line; add-another creates independent customization in both QR and Staff. |
 | `QA-QR-05` | `QR-010`,`LOT-005` | Hot badge is compact; no rank text; popularity excludes invalid orders. |
 | `QA-QR-06` | `QR-013`,`QR-014` | Success and modification flows preserve order integrity and return JSON errors. |
-| `QA-QR-07` | `QR-016`–`QR-018` | Missing name/phone is rejected; Staff status changes arrive without reload; ready uses a centered code plus sound/visual fallback when autoplay is blocked. |
-| `QA-QR-08` | `QR-019`,`QR-020` | Return-to-Menu revalidates availability/version; pre-confirm cancel and pre-lock amendment work, while locked orders remain unchanged and Staff is re-notified. |
+| `QA-QR-07` | `QR-016`–`QR-018` | Missing name/phone is rejected; a takeout/delivery amendment restores and preserves the original name and phone; Staff status changes arrive without reload; ready uses a centered code plus sound/visual fallback when autoplay is blocked. |
+| `QA-QR-08` | `QR-019`,`QR-020` | Return-to-Menu revalidates availability/version; the edit draft remains scoped to the tracked order and original service-mode route; pre-confirm cancel and pre-lock amendment update that same order, while locked orders remain unchanged and Staff is re-notified. |
 | `QA-QR-09` | `LOC-001`–`LOC-004` | Device locale and manual override resolve category/group/product/closure/order copy consistently; cache invalidation follows locale and catalog version. |
 | `QA-QR-10` | `QR-021` | Draft restore is scoped and bounded; valid lines restore, while next-day/version/price/sold-out changes are explained and cannot submit stale data. |
 | `QA-QR-11` | `QR-022` | Delivery notice appears once in a centered localized dialog only for delivery when configured; empty/plain-text/500-character boundaries and markup escaping pass. |
@@ -98,6 +98,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-PRN-02` | `PRN-003`–`PRN-006` | MCP31LB/57mm physical test covers compact content, no `[A1]` markers, auto/reprint retry, disconnect/paper-out, cutter/buzzer support, and cash-drawer outcome separately from payment. |
 | `QA-PRN-03` | `PRN-007` | Create and rotate two printer credentials; verify stable distinct URLs, one-time raw passwords, hash-only persistence, immediate old-password rejection, cross-printer denial, no secret in URL/logs, and copyable no-overflow setup at 320/390/768/1440 px. |
 | `QA-PRN-04` | `PRN-008`,`STAFF-018` | A reachable iPad webPRNT printer with no enabled auto-print rule reports setup required and does not promise output. Adding an enabled rule permits matching jobs; printing a QR receipt never removes the active order, while payment and eligible drawer opening remain successful if printing is absent or fails. |
+| `QA-PRN-05` | `PRN-009`,`MER-014` | At 390/768/1440 px, stall/table A4, A5, and A6 controls keep paper size and 「印刷版」 on two intentional lines, open only the selected print layout, and invoke browser print/save-PDF. Tablet QR management renders QR/print left and unified-link/actions right without overflow. |
 
 ### Catalog, notes, bundles, and image upload
 
@@ -139,6 +140,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-MER-07` | `MER-016` | Authorized report entry appears on desktop/mobile for one and many stalls; direct route authorization remains enforced and only page-internal multi-stall controls are conditional. |
 | `QA-MER-08` | `MER-017`,`MER-018` | Server pagination defaults to five; login devices have no size selector; orders/date filters and collapsible product analyses retain query state across pages. |
 | `QA-MER-09` | `MER-019`–`MER-022` | Metric cards, two-row filters, grouped non-accordion settings, independent scroll panes, and compact headers pass all viewports. |
+| `QA-MER-10` | `MER-014`,`PRN-009` | QR management remains bounded on desktop, full-width two-column on tablet, single-column on phone, and all A4/A5/A6 print actions stay visible and operable. |
 | `QA-ADM-01` | `ADM-001`–`ADM-004` | Responsive admin billing/plan UI, open-beta, and merchant billing visibility follow server flags. |
 | `QA-ADM-02` | `ADM-005`,`ADM-006`,`ADM-011` | The fixed-port launcher proves the expected worktree/HEAD/origin, refuses collision/remote DB, disables stale development service workers, and the four local roles plus public Menu, successful QR/takeout session creation, and cash smoke work on that same origin. The guarded OAuth-policy bypass remains absent/inert in Production and all origins fail closed outside local config. |
 | `QA-ADM-03` | `ADM-007`–`ADM-010` | Login methods reflect policy plus configured credentials; incomplete modules stay hidden/direct APIs closed; phone header/theme, simple copy, and privacy-safe device labels pass. |
@@ -165,7 +167,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 |---|---|---|
 | `QA-SEC-01` | Tenant isolation | Cross-organization/stall reads and writes fail at service/API/database layers; client tenant IDs cannot override principal scope. |
 | `QA-SEC-02` | Server totals | Product/bundle price, options, discount, tax, payment, and status transitions are recalculated from server records. |
-| `QA-SEC-03` | Auth/session | Rotation, revocation, CSRF/origin, rate limit, cookie/native-token scope, and role permissions have positive and negative tests. |
+| `QA-SEC-03` | Auth/session | Rotation, revocation, CSRF/origin, rate limit, cookie/native-token scope, and role permissions have positive and negative tests. Every deployed application and Edge participant in one environment receives the same active public-order token/hash secrets, while Primary and DR remain isolated; values never appear in logs or evidence. |
 | `QA-SEC-04` | Input/output | Schema validation, content type, upload parser limits, output encoding, safe logs, and JSON error contracts pass. |
 | `QA-SEC-05` | DB | Fresh migration rebuild, pgTAP/RLS/policies, grants, functions/search_path, remote lint, and history/dry-run pass. |
 | `QA-SEC-06` | Supply chain | Lockfile install, dependency audit, secret scan, SAST/deep scan, build provenance, and artifact evidence pass or have an explicit bounded exception. |
