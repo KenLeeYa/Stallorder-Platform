@@ -758,7 +758,9 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
     new RegExp(`/merchant/catalog\\?organizationId=${organizationId}$`),
   );
   await expect(page.getByRole("link", { name: "匯出 CSV" })).toBeVisible();
-  await expect(page.getByText("匯入 CSV", { exact: true })).toBeVisible();
+  await expect(
+    page.locator('label[title="匯入 CSV"]:visible').first(),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "商品註記設定" }),
   ).toBeVisible();
