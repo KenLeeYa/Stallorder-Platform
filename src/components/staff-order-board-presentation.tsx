@@ -998,9 +998,9 @@ function orderStatusLabel(status: OrderStatus, t: OperationsTranslator) {
   return t(status === "WAITING_CONFIRMATION" ? "staff.status.waiting" : status === "CONFIRMED" ? "staff.status.confirmed" : status === "PREPARING" ? "staff.status.preparing" : status === "PACKING" ? "staff.status.packing" : status === "READY" ? "staff.status.ready" : status === "COMPLETED" ? "staff.status.completed" : status === "CANCELLED" ? "staff.status.cancelled" : "staff.status.expired");
 }
 
-function contextualOrderStatusLabel(order: Pick<StaffOrderDto, "status" | "source" | "paymentStatus" | "fulfillmentType">, t: OperationsTranslator) {
+function contextualOrderStatusLabel(order: Pick<StaffOrderDto, "status" | "source" | "paymentStatus" | "fulfillmentType" | "items">, t: OperationsTranslator) {
   if (order.status !== "READY") return orderStatusLabel(order.status, t);
-  if (order.fulfillmentType === "DINE_IN") return t("staff.status.awaitingService");
+  if (order.fulfillmentType === "DINE_IN" && order.items.some((item) => item.status !== "SERVED")) return t("staff.status.awaitingService");
   if (order.source === "STAFF_POS" && order.paymentStatus === "UNPAID") return t("staff.status.awaitingCheckout");
   if (order.fulfillmentType === "DELIVERY" && order.paymentStatus === "PAID") return t("staff.status.awaitingDelivery");
   if (order.fulfillmentType === "TAKEOUT" && order.paymentStatus === "PAID") return t("staff.status.awaitingPickup");

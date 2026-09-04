@@ -118,7 +118,7 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
         <div data-testid="merchant-ordering-management" className="md:grid md:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)] md:items-start md:gap-5 xl:block">
           {orderUrl ? (
           <div data-testid="merchant-ordering-qr" className="mx-auto mt-5 w-full max-w-sm xl:mx-0 md:max-w-none xl:max-w-sm">
-            <div className="rounded-lg border border-stone-200 bg-white p-4"><QRCodeSVG data-testid="merchant-ordering-qr-code" value={orderUrl} size={240} className="h-auto w-full" /></div>
+            <div className="mx-auto max-w-sm rounded-lg border border-stone-200 bg-white p-4"><QRCodeSVG data-testid="merchant-ordering-qr-code" value={orderUrl} size={240} className="h-auto w-full" /></div>
             <p className="mt-3 text-sm font-medium">{label("顧客點餐 QR Code · v")}{ordering.qrCode?.tokenVersion}</p>
             <p className="mt-1 break-all text-xs text-stone-500">{orderUrl}</p>
             <div className="mt-3 grid grid-cols-3 gap-2">

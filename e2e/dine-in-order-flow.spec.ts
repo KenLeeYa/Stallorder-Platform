@@ -466,7 +466,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   ).toHaveCount(0);
 
   await expect(
-    staffOrder.getByText("待結帳／交付", { exact: true }).first(),
+    staffOrder.getByText("待出餐", { exact: true }).first(),
   ).toBeVisible({ timeout: 10_000 });
   const reopenDetails = staffOrder.getByRole("button", {
     name: "查看明細",
@@ -503,7 +503,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
     staffOrder.getByText("待結帳／交付", { exact: true }),
   ).toBeVisible();
   const summaryCheckoutButton = staffOrder
-    .getByRole("button", { name: "代結帳", exact: true })
+    .getByRole("button", { name: "結帳收款", exact: true })
     .first();
   await expect(summaryCheckoutButton).toBeVisible();
   const returnedOrderDetailsButton = staffOrder.getByRole("button", {
@@ -519,7 +519,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await expect(staffOrder.getByLabel("3 位數取餐碼")).toHaveCount(0);
   await summaryCheckoutButton.click();
 
-  const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
+  const checkout = staffPage.getByRole("dialog", { name: "結帳收款" });
   await expect(
     checkout.getByRole("button", { name: "LINE Pay" }),
   ).toBeVisible();
@@ -537,7 +537,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await captureMobileScreenshot(staffPage, testInfo, "05-staff-checkout");
   await verifyCompactViewport(staffPage, [
     checkout,
-    checkout.getByRole("button", { name: "完成訂單", exact: true }),
+    checkout.getByRole("button", { name: "確認收款", exact: true }),
   ]);
   await staffPage.route(
     "**/api/stalls/aming-chicken/orders/*",
@@ -558,7 +558,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
       response.url().includes("/api/stalls/aming-chicken/orders/") &&
       response.request().method() === "PATCH",
   );
-  await checkout.getByRole("button", { name: "完成訂單", exact: true }).click();
+  await checkout.getByRole("button", { name: "確認收款", exact: true }).click();
   expect((await rejectedCheckoutResponse).status()).toBe(409);
   await expect(checkout.getByRole("alert")).toContainText(
     "現金交易前必須先開啟現金班次。",
@@ -571,8 +571,28 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
       response.url().includes("/api/stalls/aming-chicken/orders/") &&
       response.request().method() === "PATCH",
   );
-  await checkout.getByRole("button", { name: "完成訂單", exact: true }).click();
+  await checkout.getByRole("button", { name: "確認收款", exact: true }).click();
   expect((await checkoutResponse).status()).toBe(200);
+  await expect(staffOrder).toBeVisible();
+  await expect(staffOrder.getByText("已付款", { exact: true })).toBeVisible();
+  const finalizeButton = staffOrder.getByRole("button", {
+    name: "完成訂單",
+    exact: true,
+  });
+  await expect(finalizeButton).toBeVisible();
+  await waitForReactHydration(finalizeButton);
+  const finalizeResponse = staffPage.waitForResponse(
+    (response) =>
+      response.url().includes("/api/stalls/aming-chicken/orders/") &&
+      response.request().method() === "PATCH",
+  );
+  await finalizeButton.click();
+  const completedResponse = await finalizeResponse;
+  expect(completedResponse.status()).toBe(200);
+  expect(completedResponse.request().postDataJSON()).toMatchObject({
+    status: "COMPLETED",
+    completionIntent: "FINALIZE",
+  });
   await expect(staffOrder).toHaveCount(0);
   const completedOrder = await prisma.order.findUniqueOrThrow({
     where: { id: createdOrderId },
