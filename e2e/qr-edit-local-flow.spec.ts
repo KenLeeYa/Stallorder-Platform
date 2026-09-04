@@ -273,7 +273,7 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
     expect.objectContaining({ name: "香酥雞排", quantity: 2 }),
   ]);
 
-  await page.goto(trackerUrl.toString());
+  await expect(page).toHaveURL(trackerUrl.toString());
   await expect(page.getByRole("button", { name: "取消訂單", exact: true })).toBeVisible();
   let cancellationStarted = false;
   await page.route(`**/api/public/orders/${trackingToken}`, async (route) => {
@@ -407,7 +407,7 @@ test("本機外帶自取修改訂單會保留顧客姓名與手機", async ({ pa
   });
   expect(editedOrder).toMatchObject({ customerName, customerPhone });
 
-  await page.goto(trackerUrl.toString());
+  await expect(page).toHaveURL(trackerUrl.toString());
   await expect(page.getByRole("button", { name: "取消訂單", exact: true })).toBeVisible();
   let cancellationStarted = false;
   await page.route(`**/api/public/orders/${trackingToken}`, async (route) => {
