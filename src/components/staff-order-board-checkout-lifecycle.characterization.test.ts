@@ -42,5 +42,8 @@ describe("StaffOrderBoard checkout lifecycle characterization", () => {
     expect(checkoutSource).toContain("controller.setManagerAuthorizationCode");
     expect(checkoutSource).toContain("disabled={!model.ready || busy}");
     expect(checkoutSource).toContain("前往現金交班");
+    expect(checkoutSource).toContain('checkoutOrder.source === "QR_MENU"');
+    expect(checkoutSource).toContain("收款後訂單會保留；餐點交付後再按「完成訂單」。");
+    expect(checkoutSource).toContain('qrPaymentOnly ? "確認收款" : "完成訂單"');
   });
 });

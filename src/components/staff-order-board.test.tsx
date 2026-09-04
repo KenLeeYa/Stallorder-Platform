@@ -178,19 +178,33 @@ describe("StaffOrderBoard ticket presentation", () => {
     const html = render([order({ source: "QR_MENU" })], { print: true, kds: false });
 
     expect(html).toContain("餐點完成・通知可取餐");
-    expect(html).not.toContain("代結帳");
+    expect(html).toContain("結帳收款");
     expect(html).not.toContain("列印並完成");
   });
 
-  it("shows checkout only after a non-KDS public pickup order is ready", () => {
+  it("keeps payment available when a non-KDS public pickup order is ready", () => {
     const html = render([order({
       source: "QR_MENU",
       status: "READY",
       items: [{ ...order().items[0], status: "READY", readyAt: "2026-08-13T04:09:00.000Z" }],
     })], { print: true, kds: false });
 
-    expect(html).toContain("代結帳");
+    expect(html).toContain("結帳收款");
     expect(html).not.toContain("餐點完成・通知可取餐");
+  });
+
+  it("keeps a paid QR pickup order visible for explicit completion without print coupling", () => {
+    const html = render([order({
+      source: "QR_MENU",
+      status: "READY",
+      paymentStatus: "PAID",
+      primaryPrintStatus: "PENDING",
+      items: [{ ...order().items[0], status: "READY", readyAt: "2026-08-13T04:09:00.000Z" }],
+    })], { print: true, kds: false });
+
+    expect(html).toContain("待取餐");
+    expect(html).toContain("完成訂單");
+    expect(html).not.toContain("已收款，列印完成後自動結單");
   });
 
   it("labels the pending-order transition as an acceptance action", () => {

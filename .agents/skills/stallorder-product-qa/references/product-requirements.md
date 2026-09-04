@@ -49,20 +49,22 @@ This file is the durable owner acceptance baseline. It does not assert that a re
 
 - `STAFF-001` Staff ordering supports dine-in, takeout, and delivery when each service mode is enabled for the stall.
 - `STAFF-002` Staff takeout/delivery scheduling uses the same calendar and five-minute, 24-hour time controls as public scheduling, with server validation.
-- `STAFF-003` Cash checkout MUST complete an eligible order, validate tendered amount, calculate change, and show actionable field errors.
+- `STAFF-003` Cash checkout MUST settle an eligible payment, validate tendered amount, calculate change, and show actionable field errors. It completes the order only when checkout is the terminal fulfillment action; QR prepayment follows `STAFF-018`.
 - `STAFF-004` Configured discounts are selectable at checkout and recalculate the authoritative server total. Per-product “不額外折扣” defaults off unless explicitly set and excludes that product from order-level discounts.
 - `STAFF-005` Completed-order payment-method correction returns structured JSON on every response, records actor/reason/old/new value, updates financial reports consistently, and never exposes HTML as JSON.
 - `STAFF-006` Payment method codes may use the supported character set declared by the product. Every constrained setting field MUST show an inline and submit-time Traditional Chinese validation message identifying the invalid field and rule.
 - `STAFF-007` Cancelling or correcting completed orders requires explicit authorization and an audit trail; reports, cash handoff, payment analysis, and inventory effects remain reconciled.
 - `STAFF-008` Staff cart behavior matches `QR-007` and `QR-008`: modifying a line is distinct from adding another line with different customization.
 - `STAFF-009` Staff ordering follows the configured product-group and product order used by QR/Menu. It shows one group navigation hierarchy and MUST NOT duplicate category and group rows for the same grouping.
-- `STAFF-010` Pickup verification is entered in a centered pre-checkout overlay. The primary checkout action opens the overlay when verification is required; Staff is not expected to find a separate field elsewhere.
+- `STAFF-010` Pickup verification is entered in a centered pre-completion overlay. A paid takeout order's final completion action opens the overlay when verification is required; payment collection remains independent, and Staff is not expected to find a separate field elsewhere.
 - `STAFF-011` Completed-order search defaults to the current local day, exposes order details and receipt reprint, and supports authorized cancellation. Payment-method correction may change only the payment method and related ledger/report entries, never products, options, or quantity.
 - `STAFF-012` A merchant-configured manager authorization code protects high discounts, completed-order cancellation/deletion, completed-payment correction, and other explicitly high-risk Staff actions. The server verifies the code, rate-limits attempts, records actor/reason/action, and never stores or logs plaintext.
 - `STAFF-013` Staff operational toolbars use equal-size icons, complete borders, one-row horizontal scrolling on constrained phone/tablet widths, accessible names/tooltips, and no compressed second row. Offline, translation, logout, saved-order, product, and checkout controls follow the same sizing contract.
 - `STAFF-014` Staff ordering removes permanent space-consuming instructional panels once the action is self-explanatory. Compact icon tooltips/accessibility names provide help; actionable validation, offline, safety, and order-state messages remain visible.
 - `STAFF-015` Staff may adjust an unpaid public takeout order only before production or printing locks it. The adjustment requires an explicit sold-out/replacement/quantity/other reason and a customer-facing message, reprices the complete order on the server, invalidates stale pending print jobs, records before/after audit data, and delivers the amendment to customer tracking without reload. Failure preserves the original order.
 - `STAFF-016` A per-stall sold-out flag blocks online customer ordering but does not hide or disable the product in authorized Staff onsite ordering. Master-product deactivation, stall-assignment disablement, schedule constraints, and other explicit Staff availability rules remain independently enforced.
+- `STAFF-017` When Staff or Kitchen enables screen wake lock, the preference persists across full reload, internal route navigation, and temporary backgrounding. Returning to a visible operational page MUST re-request a released lock and show the active state only after the browser grants a live sentinel.
+- `STAFF-018` A confirmed onsite QR order may be paid before production finishes. Successful payment records the authoritative payment and cash-shift linkage, triggers only configured print rules, and keeps the active order visible through KDS/manual fulfillment. Receipt success and pickup verification MUST NOT independently close the order; the explicit final completion action enforces ready/served and pickup gates, then sets `COMPLETED`.
 
 ## Kitchen, printing, and operational completion
 
@@ -86,6 +88,7 @@ This file is the durable owner acceptance baseline. It does not assert that a re
 - `PRN-005` A cash drawer connected to the printer opens only through a verified printer/bridge capability after an eligible completed payment. Drawer failure is a separate actionable hardware error, is audited, and does not rewrite the settled payment.
 - `PRN-006` Print settings may control event, copy count, destination/workstation, receipt fields, font emphasis, line spacing, logo/QR, cutter, buzzer, drawer pulse, and failure policy. Unsupported controls are hidden or disabled by detected printer capability.
 - `PRN-007` Each CloudPRNT printer has a stable, system-generated HTTPS Server URL and independent credentials. The setup UI permanently exposes the copyable Server URL and User Name/Device ID, exposes the raw Password/Device Token only immediately after generation or rotation, stores only its hash, and invalidates the prior password immediately on rotation. Credentials never appear in the URL or logs.
+- `PRN-008` Automatic-print readiness requires both a reachable enabled printer and at least one enabled `autoPrint` rule assigned to it. A connected printer without a rule is reported as `需要設定`; payments and cash-drawer actions remain independent and no automatic print is promised.
 
 ## Catalog, bundles, notes, media, and menu publication
 

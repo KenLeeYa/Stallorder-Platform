@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   createEvent: vi.fn(),
   queryRaw: vi.fn(),
   transaction: vi.fn(),
-  complete: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -17,10 +16,6 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/security", () => ({ hashToken: (value: string) => `hash:${value}` }));
-vi.mock("@/server/printing/streamlined-order-completion", () => ({
-  completeStreamlinedOrderAfterPickup: mocks.complete,
-}));
-
 import {
   findReadyPickupOrdersByCode,
   verifyReadyTakeoutOrder,
@@ -63,7 +58,7 @@ describe("pickup verification service", () => {
     expect(mocks.findMany).not.toHaveBeenCalled();
   });
 
-  it("atomically verifies the ready order and runs streamlined completion", async () => {
+  it("atomically verifies the ready order without closing it", async () => {
     const verifiedAt = new Date("2026-08-26T08:00:00.000Z");
     mocks.updateMany.mockResolvedValue({ count: 1 });
 
@@ -81,7 +76,6 @@ describe("pickup verification service", () => {
       eventType: "PICKUP_CODE_VERIFIED",
       createdBy: "staff-1",
     }) });
-    expect(mocks.complete).toHaveBeenCalledWith(expect.anything(), "order-1", verifiedAt);
   });
 
   it("does not emit an event when the order changed before verification", async () => {
@@ -96,6 +90,5 @@ describe("pickup verification service", () => {
       code: "738",
     })).resolves.toBeNull();
     expect(mocks.createEvent).not.toHaveBeenCalled();
-    expect(mocks.complete).not.toHaveBeenCalled();
   });
 });

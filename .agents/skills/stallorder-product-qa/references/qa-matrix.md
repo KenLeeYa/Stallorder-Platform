@@ -81,6 +81,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-ORD-06` | `STAFF-011`,`STAFF-012` | Completed orders default today, reprint is idempotent, manager code protects high-risk actions, and payment correction cannot mutate item lines. |
 | `QA-ORD-07` | `STAFF-013`,`STAFF-014` | Staff toolbar icons are equal, bordered, one row, and reachable; redundant helper panels are absent while safety/offline/validation messages remain. |
 | `QA-ORD-08` | `STAFF-015`,`QR-017` | Pre-production unpaid public takeout adjustment requires a reason/message, reprices and audits atomically, cancels stale pending print jobs, and reaches customer tracking; locked/paid failure leaves the order unchanged. |
+| `QA-ORD-09` | `STAFF-003`,`STAFF-010`,`STAFF-018` | Confirm a real QR order, collect cash before production, and verify it remains active as `PAID` with `completedAt=null`; finish KDS/manual production, verify pickup, then confirm the explicit terminal request alone removes and completes the order. Payment, cash drawer, configured print job, pickup verification, and completion remain independently auditable. |
 
 ### KDS and printing
 
@@ -92,9 +93,11 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-KDS-04` | `KDS-008` | Retry/callback/manual reprint is idempotent and copy counts/content are correct. |
 | `QA-KDS-05` | `KDS-001`,`QR-017`,`QR-018` | With KDS off, confirmation still exposes Staff completion; completion—not confirmation—moves the public order to ready and triggers customer alert. |
 | `QA-KDS-06` | `KDS-009`,`KDS-010` | Proxy checkout has one primary action; packaging is conditional; sticky group navigation works across Staff/QR/takeout/delivery without obscuring content. |
+| `QA-KDS-07` | `STAFF-017` | Enable wake lock, navigate through a Staff/Kitchen internal tool, simulate browser sentinel release while visible, and return. A fresh `navigator.wakeLock.request()` succeeds and the active control returns without another user toggle; disable and background/foreground paths remain correct. |
 | `QA-PRN-01` | `PRN-001`,`PRN-002` | Device/printer capability reports supported/setup/unsupported accurately; paired Bluetooth or cable alone never produces a false success. |
 | `QA-PRN-02` | `PRN-003`–`PRN-006` | MCP31LB/57mm physical test covers compact content, no `[A1]` markers, auto/reprint retry, disconnect/paper-out, cutter/buzzer support, and cash-drawer outcome separately from payment. |
 | `QA-PRN-03` | `PRN-007` | Create and rotate two printer credentials; verify stable distinct URLs, one-time raw passwords, hash-only persistence, immediate old-password rejection, cross-printer denial, no secret in URL/logs, and copyable no-overflow setup at 320/390/768/1440 px. |
+| `QA-PRN-04` | `PRN-008`,`STAFF-018` | A reachable iPad webPRNT printer with no enabled auto-print rule reports setup required and does not promise output. Adding an enabled rule permits matching jobs; printing a QR receipt never removes the active order, while payment and eligible drawer opening remain successful if printing is absent or fails. |
 
 ### Catalog, notes, bundles, and image upload
 

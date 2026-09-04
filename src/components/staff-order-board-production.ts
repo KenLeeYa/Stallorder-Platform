@@ -74,6 +74,13 @@ export async function transitionStaffOrderStatus(input: ProductionTransport & {
       headers: (input.getCsrfHeaders ?? csrfHeaders)(),
       body: JSON.stringify({
         status: input.status,
+        ...(input.status === "COMPLETED" && input.currentOrder?.source === "QR_MENU"
+          ? {
+              completionIntent: input.currentOrder.paymentStatus === "UNPAID"
+                ? "COLLECT_PAYMENT"
+                : "FINALIZE",
+            }
+          : {}),
         ...(input.status === "CANCELLED" ? {
           confirmationOrderNo: options.confirmationOrderNo,
           cancellationReason: options.cancellationReason,
@@ -88,8 +95,17 @@ export async function transitionStaffOrderStatus(input: ProductionTransport & {
     order?: StaffOrderDto;
     error?: string;
     completionPendingPrint?: boolean;
+    completionPendingFulfillment?: boolean;
   };
   if (!response.ok) throw new Error(payload.error ?? "目前無法更新訂單。");
+  if (input.status === "COMPLETED" && payload.completionPendingFulfillment) {
+    if (!payload.order) throw new Error("目前無法更新訂單。");
+    return {
+      kind: "replace",
+      order: payload.order,
+      message: "已收款，訂單會保留至餐點交付完成。",
+    };
+  }
   if (input.status === "COMPLETED" && payload.completionPendingPrint) {
     if (!payload.order) throw new Error("目前無法更新訂單。");
     return {

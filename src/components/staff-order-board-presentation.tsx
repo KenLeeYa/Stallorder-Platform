@@ -616,6 +616,7 @@ function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now
   const expanded = expandedOrderIds.has(order.id);
   const waitingForPrintCompletion = !kdsEnabled
     && printEnabled
+    && order.source !== "QR_MENU"
     && order.paymentStatus === "PAID"
     && order.primaryPrintStatus !== null
     && order.primaryPrintStatus !== "SUCCEEDED";
@@ -626,11 +627,34 @@ function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now
     && order.fulfillmentType !== "DINE_IN"
     && ["CONFIRMED", "PREPARING", "PACKING"].includes(order.status);
   const streamlinedCheckoutEligible = !kdsEnabled
+    && order.source !== "QR_MENU"
     && ["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.status)
     && !timing?.productionBlocked
     && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)
     && !requiresManualPublicReady
     ;
+  const qrPrepaymentEligible = order.source === "QR_MENU"
+    && order.paymentStatus === "UNPAID"
+    && ["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.status)
+    && !timing?.productionBlocked
+    && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState);
+  const qrCompletionEligible = order.source === "QR_MENU"
+    && order.paymentStatus === "PAID"
+    && !timing?.productionBlocked
+    && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)
+    && (
+      order.status === "READY"
+      || (
+        !kdsEnabled
+        && order.fulfillmentType === "DINE_IN"
+        && ["CONFIRMED", "PREPARING", "PACKING"].includes(order.status)
+      )
+    )
+    && (
+      !kdsEnabled
+      || order.fulfillmentType !== "DINE_IN"
+      || order.items.every((item) => item.status === "SERVED")
+    );
   const customerPresentCheckoutEligible = order.source === "QR_MENU"
     && order.fulfillmentType === "TAKEOUT"
     && order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED"
@@ -660,9 +684,11 @@ function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now
         <div className="flex flex-wrap gap-2">
           {editableOrderIds.has(order.id) ? <button type="button" onClick={() => actions.onOpenOrderEditor(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Pencil className="h-4 w-4" />{t("staff.order.edit")}</button> : null}
           {waitingForPrintCompletion ? <Link href={`/staff/${stall.slug}/print`} className={`inline-flex min-h-9 items-center gap-1 rounded-md border px-3 text-xs font-semibold ${printNeedsAttention ? "border-red-300 bg-red-50 text-red-800" : "border-teal-300 bg-teal-50 text-teal-900"}`}><Printer className="h-4 w-4" />{t(printNeedsAttention ? "staff.order.printNeedsAttention" : "staff.order.waitingForPrint")}</Link> : null}
+          {qrPrepaymentEligible && hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-emerald-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{t("staff.order.collectPayment")}</button> : null}
           {requiresManualPublicReady && canTransitionOrder(order.status, "READY", role) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onUpdateOrder(order.id, "READY")} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><CheckCheck className="h-4 w-4" />{t(order.fulfillmentType === "DELIVERY" ? "staff.order.finishAndNotifyDelivery" : "staff.order.finishAndNotifyPickup")}</button> : null}
+          {qrCompletionEligible && hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><CheckCheck className="h-4 w-4" />{t("staff.checkout.completeOrder")}</button> : null}
           {streamlinedCheckoutEligible && !waitingForPrintCompletion && hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : printEnabled ? t("staff.order.printAndComplete") : t("staff.checkout.completeOrder")}</button> : null}
-          {kdsEnabled && order.status === "READY" && hasPermission(role, "CHECKOUT_ORDERS") && (order.fulfillmentType !== "DINE_IN" || order.items.every((item) => item.status === "SERVED")) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : t("staff.checkout.completeOrder")}</button> : null}
+          {kdsEnabled && order.source !== "QR_MENU" && order.status === "READY" && hasPermission(role, "CHECKOUT_ORDERS") && (order.fulfillmentType !== "DINE_IN" || order.items.every((item) => item.status === "SERVED")) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : t("staff.checkout.completeOrder")}</button> : null}
         </div>
       </div>
       {!expanded ? <ul className="mt-3 space-y-2 rounded-md bg-stone-50 px-3 py-2.5 text-sm">
@@ -973,7 +999,7 @@ function orderStatusLabel(status: OrderStatus, t: OperationsTranslator) {
 }
 
 function contextualOrderStatusLabel(order: Pick<StaffOrderDto, "status" | "source" | "paymentStatus" | "fulfillmentType">, t: OperationsTranslator) {
-  if (order.status !== "READY" || order.source === "QR_MENU") return orderStatusLabel(order.status, t);
+  if (order.status !== "READY") return orderStatusLabel(order.status, t);
   if (order.fulfillmentType === "DINE_IN") return t("staff.status.awaitingService");
   if (order.source === "STAFF_POS" && order.paymentStatus === "UNPAID") return t("staff.status.awaitingCheckout");
   if (order.fulfillmentType === "DELIVERY" && order.paymentStatus === "PAID") return t("staff.status.awaitingDelivery");
