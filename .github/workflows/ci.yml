@@ -102,7 +102,7 @@ jobs:
       - name: Production-mode resilience smoke
         run: npm run test:e2e:resilience:production
       - name: Dependency audit
-        run: npm audit --audit-level=moderate
+        run: node scripts/run-npm-audit.mjs
       - name: Stop local Supabase
         if: always()
         run: npx supabase stop --no-backup

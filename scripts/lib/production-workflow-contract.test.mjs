@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "../..");
+const ci = read(".github/workflows/ci.yml");
 const readiness = read(".github/workflows/production-readiness.yml");
 const applicationRelease = read(".github/workflows/production-application-release.yml");
 const disasterRecovery = read(".github/workflows/production-dr-operations.yml");
@@ -17,6 +18,13 @@ const productionApproval = read("scripts/lib/production-approval.mjs");
 const vercel = JSON.parse(read("vercel.json"));
 
 describe("Production workflow approval contract", () => {
+  it("uses the fail-closed bounded dependency audit runner in every release gate", () => {
+    for (const workflow of [ci, readiness, applicationRelease]) {
+      expect(workflow).toContain("node scripts/run-npm-audit.mjs");
+      expect(workflow).not.toContain("npm audit --audit-level=moderate");
+    }
+  });
+
   it("keeps main Git pushes in Plan mode and gates Apply with a matching receipt", () => {
     expect(readiness).toContain("name: Create immutable Production plan receipt");
     expect(readiness).toContain("name: Verify manual approval is bound to the immutable plan");
