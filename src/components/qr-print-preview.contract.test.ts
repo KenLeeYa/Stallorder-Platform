@@ -22,6 +22,11 @@ describe("QR print preview paper layouts", () => {
     expect(previewSource).toContain('text-[40px]');
     expect(previewSource).toContain('h-[115mm] w-[115mm]');
     expect(previewSource).toContain('text-[30px]');
+    for (const paper of ["A4", "A5", "A6"]) {
+      expect(merchantProductsSource).toContain(`aria-label={label("${paper} 印刷版")}`);
+      expect(merchantProductsSource).toContain(`<span className="block">${paper}</span>`);
+    }
+    expect(merchantProductsSource).toContain('{label("印刷版")}');
   });
 
   it("prints only the selected QR sheets without merchant chrome or scroll containers", () => {

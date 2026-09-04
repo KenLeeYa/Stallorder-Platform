@@ -77,6 +77,7 @@ For a release or broad architecture change, cover at least:
 - Client fetch helpers check status/content type before parsing. HTML proxy/framework pages become a safe connectivity/system message with correlation ID, not a raw JSON parser exception.
 - Unexpected errors are logged server-side with redaction and correlation; responses never include stack, SQL, secret, token, provider payload, or internal host.
 - Mutations use idempotency and optimistic concurrency/version checks where duplicate or stale actions are harmful.
+- Public-order token derivation, abuse hashing, and Turnstile verification use the active provider-managed secrets for the deployed environment. The application and its Edge functions in that environment receive the same values through masked release automation; Primary and DR secrets remain isolated and no secret value enters logs, plans, artifacts, or client bundles.
 
 ## Public-code and lottery safety
 

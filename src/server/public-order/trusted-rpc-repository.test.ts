@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryRaw = vi.fn();
+const updateMany = vi.fn();
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     $queryRaw: queryRaw,
+    order: {
+      updateMany,
+    },
   },
 }));
 
@@ -13,6 +17,26 @@ describe("trusted public-order fulfillment-time RPC", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     queryRaw.mockResolvedValue([{ result: { ok: true } }]);
+    updateMany.mockResolvedValue({ count: 1 });
+  });
+
+  it("persists a normalized PREORDER phone only when the order has no phone", async () => {
+    const { persistPreorderCustomerPhone } = await import("./trusted-rpc-repository");
+
+    await persistPreorderCustomerPhone(
+      "11111111-1111-4111-8111-111111111111",
+      " 0912345678 ",
+    );
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "11111111-1111-4111-8111-111111111111",
+        customerPhone: null,
+      },
+      data: {
+        customerPhone: "0912345678",
+      },
+    });
   });
 
   it("routes takeaway and delivery requested times through the unified trusted RPC", async () => {

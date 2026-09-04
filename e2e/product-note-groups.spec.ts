@@ -322,8 +322,13 @@ test("商家可新增、修改、指派與刪除商品註記群組", async ({ pa
   await expect(
     page.getByRole("heading", { name: "商品註記設定" }),
   ).toBeVisible();
-  const settingsToggle = page.getByTestId("product-note-settings-toggle");
-  const settingsContent = page.locator("#product-note-settings-content");
+  const settingsToggle = page
+    .getByTestId("product-note-settings-toggle")
+    .filter({ visible: true });
+  const settingsContent = page
+    .locator("#product-note-settings-content")
+    .filter({ visible: true });
+  await expect(settingsToggle).toHaveCount(1);
   await expect(settingsToggle).toHaveAttribute("aria-expanded", "true");
   await settingsToggle.click();
   await expect(settingsToggle).toHaveText("展開商品註記設定");

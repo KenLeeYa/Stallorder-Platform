@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { CircleAlert, WifiOff } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useAppLocale } from "@/components/locale-provider";
 import {
   readWakeLockPreference,
@@ -75,6 +76,7 @@ function detectedQuality(online: boolean, latencyMs: number | null) {
 
 export function PwaRuntime({ children }: { children: ReactNode }) {
   const { t } = useAppLocale();
+  const pathname = usePathname();
   const [online, setOnline] = useState(true);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [effectiveType, setEffectiveType] = useState<string | null>(null);
@@ -215,8 +217,17 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     wakeLockRequestedRef.current = readWakeLockPreference(window.localStorage);
-    if (wakeLockRequestedRef.current) void requestWakeLock();
-  }, [requestWakeLock]);
+  }, []);
+
+  useEffect(() => {
+    if (
+      document.visibilityState === "visible"
+      && wakeLockRequestedRef.current
+      && !wakeLockRef.current
+    ) {
+      void requestWakeLock();
+    }
+  }, [pathname, requestWakeLock]);
 
   useEffect(() => {
     const restoreWakeLock = () => {

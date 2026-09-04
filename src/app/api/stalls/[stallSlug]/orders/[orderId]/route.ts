@@ -25,7 +25,10 @@ import {
   persistExternalOrderTransition,
 } from "@/server/delivery-platforms/external-order-status-service";
 import { DeliveryPlatformError } from "@/server/delivery-platforms/delivery-platform-errors";
-import { getStreamlinedCheckoutPlan } from "@/server/printing/streamlined-order-completion";
+import {
+  getStreamlinedCheckoutPlan,
+  shouldKeepQrOrderOpenAfterPayment,
+} from "@/server/printing/streamlined-order-completion";
 
 type RouteContext = { params: Promise<{ stallSlug: string; orderId: string }> };
 class TransitionConflict extends Error {}
@@ -117,7 +120,34 @@ async function handlePatch(
   const nextStatus = parsed.data.status;
   const cancellation = parsed.data.status === "CANCELLED" ? parsed.data : null;
   const orderingSettings = order.stall.orderingSettings;
+  const completionIntent = parsed.data.status === "COMPLETED"
+    ? parsed.data.completionIntent
+    : undefined;
+  if (completionIntent === "COLLECT_PAYMENT" && (
+    order.source !== "QR_MENU"
+    || order.externalProvider !== null
+  )) {
+    return NextResponse.json(
+      { error: "此訂單不支援先收款後履約。" },
+      { status: 409, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+  if (completionIntent === "COLLECT_PAYMENT" && order.paymentStatus !== "UNPAID") {
+    return NextResponse.json(
+      { error: "此訂單已由其他人完成收款，請重新整理。", code: "PAYMENT_ALREADY_RECORDED" },
+      { status: 409, headers: { "x-request-id": authorization.requestId } },
+    );
+  }
+  const qrPaymentOnly = shouldKeepQrOrderOpenAfterPayment({
+    requestedStatus: nextStatus,
+    currentStatus: order.status,
+    source: order.source,
+    paymentStatus: order.paymentStatus,
+    externalProvider: order.externalProvider,
+    completionIntent,
+  });
   const primaryPrintJob = nextStatus === "COMPLETED"
+    && !qrPaymentOnly
     && !orderingSettings?.kdsModuleEnabled
     && orderingSettings?.printModuleEnabled
     && order.externalProvider === null
@@ -127,7 +157,7 @@ async function handlePatch(
         select: { status: true },
       }))
     : null;
-  const streamlinedCheckout = getStreamlinedCheckoutPlan({
+  const streamlinedCheckout = qrPaymentOnly ? null : getStreamlinedCheckoutPlan({
     requestedStatus: nextStatus,
     currentStatus: order.status,
     fulfillmentType: order.fulfillmentType,
@@ -135,6 +165,8 @@ async function handlePatch(
     printModuleEnabled: orderingSettings?.printModuleEnabled ?? false,
     externalProvider: order.externalProvider,
     primaryPrintStatus: primaryPrintJob?.status ?? null,
+    source: order.source,
+    paymentStatus: order.paymentStatus,
   });
   try {
     const subscription = await entitlementService.getSubscriptionContext(order.organizationId);
@@ -210,7 +242,7 @@ async function handlePatch(
     }
   }
 
-  if (!streamlinedCheckout && !canTransitionOrder(order.status, nextStatus, authorization.role)) {
+  if (!streamlinedCheckout && !qrPaymentOnly && !canTransitionOrder(order.status, nextStatus, authorization.role)) {
     return NextResponse.json(
       { error: "目前狀態不允許此操作。" },
       { status: 409, headers: { "x-request-id": authorization.requestId } },
@@ -218,7 +250,7 @@ async function handlePatch(
   }
   if (
     nextStatus === "COMPLETED"
-    && streamlinedCheckout
+    && (streamlinedCheckout || qrPaymentOnly)
     && classifyStallOrderForProduction(order).productionBlocked
   ) {
     return NextResponse.json(
@@ -250,6 +282,7 @@ async function handlePatch(
     nextStatus === "COMPLETED"
     && order.fulfillmentType === "TAKEOUT"
     && order.source === "QR_MENU"
+    && !qrPaymentOnly
     && !order.pickupVerifiedAt
   ) {
     return NextResponse.json(
@@ -260,7 +293,7 @@ async function handlePatch(
 
   let checkout: Awaited<ReturnType<typeof resolveStaffCheckout>> | null = null;
 
-  if (nextStatus === "COMPLETED" && !streamlinedCheckout) {
+  if (nextStatus === "COMPLETED" && !streamlinedCheckout && !qrPaymentOnly) {
     const incompleteItemCount = await timing.measureDb(() => prisma.orderItem.count({
       where: {
         orderId: order.id,
@@ -361,7 +394,11 @@ async function handlePatch(
   }
 
   const now = new Date();
-  const persistedStatus = streamlinedCheckout?.targetStatus ?? nextStatus;
+  const persistedStatus = qrPaymentOnly
+    ? ["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.status)
+      ? order.status as "CONFIRMED" | "PREPARING" | "PACKING" | "READY"
+      : nextStatus
+    : streamlinedCheckout?.targetStatus ?? nextStatus;
   const manualPublicReady = persistedStatus === "READY"
     && !orderingSettings?.kdsModuleEnabled
     && order.source === "QR_MENU"
@@ -379,10 +416,13 @@ async function handlePatch(
           ...(order.status === "WAITING_CONFIRMATION"
             ? { confirmationExpiresAt: { gt: now } }
             : {}),
+          ...(nextStatus === "COMPLETED" && order.paymentStatus === "UNPAID"
+            ? { paymentStatus: "UNPAID" as const }
+            : {}),
         },
         data: {
           status: persistedStatus,
-          confirmedAt: persistedStatus === "CONFIRMED" ? now : order.confirmedAt,
+          confirmedAt: persistedStatus === "CONFIRMED" && !qrPaymentOnly ? now : order.confirmedAt,
           completedAt: persistedStatus === "COMPLETED" ? now : order.completedAt,
           paymentStatus: nextStatus === "COMPLETED" ? "PAID" : order.paymentStatus,
           paidAt: nextStatus === "COMPLETED" && order.paymentStatus === "UNPAID" ? now : order.paidAt,
@@ -466,7 +506,9 @@ async function handlePatch(
           stallId: order.stallId,
           orderId: order.id,
           eventType: nextStatus === "COMPLETED"
-            ? streamlinedCheckout?.completionPendingPrint
+            ? qrPaymentOnly
+              ? "QR_PAYMENT_COMPLETED_PENDING_FULFILLMENT"
+              : streamlinedCheckout?.completionPendingPrint
               ? "CHECKOUT_PENDING_PRINT"
               : order.paymentStatus === "PAID" ? "ORDER_COMPLETED_AFTER_PREPAYMENT" : "CHECKOUT_COMPLETED"
             : "STAFF_STATUS_CHANGED",
@@ -488,7 +530,9 @@ async function handlePatch(
 
     await timing.measureDb(() => recordAuditEvent({
       action: nextStatus === "COMPLETED"
-        ? order.paymentStatus === "PAID" ? "ORDER_COMPLETED_AFTER_PREPAYMENT" : "CHECKOUT_COMPLETED"
+        ? qrPaymentOnly
+          ? "QR_PAYMENT_COMPLETED_PENDING_FULFILLMENT"
+          : order.paymentStatus === "PAID" ? "ORDER_COMPLETED_AFTER_PREPAYMENT" : "CHECKOUT_COMPLETED"
         : "ORDER_STATUS_CHANGED",
       entityType: "ORDER",
       entityId: order.id,
@@ -511,6 +555,7 @@ async function handlePatch(
       {
         order: updatedOrder,
         completionPendingPrint: streamlinedCheckout?.completionPendingPrint ?? false,
+        completionPendingFulfillment: qrPaymentOnly,
       },
       { headers: { "x-request-id": authorization.requestId } },
     );

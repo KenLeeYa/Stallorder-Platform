@@ -136,15 +136,20 @@ export function restoreQrOrderSessionCart(input: {
     input.now,
     { orderingMode: input.session.orderingMode },
   );
+  const matchingPreorderSlot = (value: string) => {
+    if (!value) {
+      return "";
+    }
+    const valueTime = Date.parse(value);
+    if (!Number.isFinite(valueTime)) {
+      return "";
+    }
+    return input.session.preorderSlots.find((slot) => Date.parse(slot) === valueTime) ?? "";
+  };
   const restoredScheduledPickupAt = restoredDraft?.orderingMode === input.session.orderingMode
-    && input.session.preorderSlots.includes(restoredDraft.scheduledPickupAt)
-    ? restoredDraft.scheduledPickupAt
+    ? matchingPreorderSlot(restoredDraft.scheduledPickupAt)
     : "";
-  const currentScheduledPickupAt = input.session.preorderSlots.includes(
-    input.currentScheduledPickupAt,
-  )
-    ? input.currentScheduledPickupAt
-    : "";
+  const currentScheduledPickupAt = matchingPreorderSlot(input.currentScheduledPickupAt);
   const scheduledPickupAt = input.session.orderingMode === "PREORDER"
     ? restoredScheduledPickupAt || currentScheduledPickupAt
     : input.session.orderingMode === "DELIVERY"

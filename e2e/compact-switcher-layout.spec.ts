@@ -42,7 +42,7 @@ test("單一啟用攤位從頁首直接進入 QR 管理", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
 });
 
-test("QR 管理在各尺寸維持適當正方形且不隨桌面無限放大", async ({ page }) => {
+test("QR 管理在手機維持單欄、平板左右滿版且 QR 不隨桌面無限放大", async ({ page }) => {
   await loginAsOwner(page);
 
   for (const viewport of [
@@ -57,19 +57,30 @@ test("QR 管理在各尺寸維持適當正方形且不隨桌面無限放大", as
     const qrShell = page.getByTestId("merchant-ordering-qr");
     const qrCode = page.getByTestId("merchant-ordering-qr-code");
     await expect(qrCode, `${viewport.name} QR`).toBeVisible();
-    const layout = await qrShell.evaluate((shell) => {
+    const layout = await qrShell.evaluate((shell, viewportWidth) => {
       const shellBox = shell.getBoundingClientRect();
       const qr = shell.querySelector<SVGElement>('[data-testid="merchant-ordering-qr-code"]');
       const qrBox = qr?.getBoundingClientRect();
+      const actions = document.querySelector<HTMLElement>('[data-testid="merchant-ordering-actions"]');
+      const actionsBox = actions?.getBoundingClientRect();
       return {
         shell: { left: shellBox.left, right: shellBox.right, width: shellBox.width },
         qr: qrBox ? { width: qrBox.width, height: qrBox.height } : null,
+        actions: actionsBox ? { left: actionsBox.left, top: actionsBox.top } : null,
+        shellTop: shellBox.top,
+        sideBySide: viewportWidth >= 768 && viewportWidth < 1280,
         pageClientWidth: document.documentElement.clientWidth,
         pageScrollWidth: document.documentElement.scrollWidth,
       };
-    });
+    }, viewport.width);
 
-    expect(layout.shell.width, `${viewport.name} QR shell width`).toBeLessThanOrEqual(384.5);
+    if (layout.sideBySide) {
+      expect(layout.actions, `${viewport.name} action column`).not.toBeNull();
+      expect(layout.shell.right, `${viewport.name} QR precedes actions`).toBeLessThanOrEqual(layout.actions!.left);
+      expect(layout.shellTop, `${viewport.name} aligned columns`).toBeCloseTo(layout.actions!.top, 0);
+    } else {
+      expect(layout.shell.width, `${viewport.name} QR shell width`).toBeLessThanOrEqual(384.5);
+    }
     expect(layout.shell.left, `${viewport.name} QR left boundary`).toBeGreaterThanOrEqual(0);
     expect(layout.shell.right, `${viewport.name} QR right boundary`).toBeLessThanOrEqual(layout.pageClientWidth + 1);
     expect(layout.qr, `${viewport.name} QR box`).not.toBeNull();

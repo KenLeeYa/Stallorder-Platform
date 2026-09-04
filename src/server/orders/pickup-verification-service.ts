@@ -1,7 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/security";
-import { completeStreamlinedOrderAfterPickup } from "@/server/printing/streamlined-order-completion";
 
 type PickupVerificationMethod = "CODE" | "MANUAL";
 
@@ -79,7 +78,6 @@ export async function verifyReadyTakeoutOrder({
         createdBy: actorProfileId,
       },
     });
-    await completeStreamlinedOrderAfterPickup(transaction, orderId, verifiedAt);
     return { pickupVerifiedAt: verifiedAt, pickupVerificationMethod: verificationMethod };
   });
 }

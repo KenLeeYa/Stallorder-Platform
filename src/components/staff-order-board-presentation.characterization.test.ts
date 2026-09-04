@@ -69,6 +69,8 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain('data-testid="staff-pickup-code-lookup"');
     expect(presentationSource).toContain('data-testid="staff-pickup-code-dialog"');
     expect(controllerSource).toContain("verifyStaffOrderPickupByCode({");
-    expect(controllerSource).toContain("await openCheckoutDialog([verifiedOrder])");
+    expect(controllerSource).toContain('await updateOrder(orderId, "COMPLETED")');
+    expect(presentationSource).toContain("const qrPrepaymentEligible =");
+    expect(presentationSource).toContain("const qrCompletionEligible =");
   });
 });

@@ -206,6 +206,40 @@ describe("QR order flow characterization", () => {
     });
   });
 
+  it("restores a PREORDER cart when the saved and offered slots describe the same instant", () => {
+    const offeredSlot = "2026-08-13T02:00:00+00:00";
+    const session = normalizeQrOrderSession({
+      ...menu("PREORDER", {
+        preorderSlots: [offeredSlot],
+        products: [product("morning", { availableUntil: "2026-08-13T04:00:00.000Z" })],
+      }),
+      orderSessionToken: "session-token",
+      expiresAt: "2026-08-13T00:15:00.000Z",
+    }, "PREORDER");
+    const raw = serializeQrCartDraft({
+      orderingMode: "PREORDER",
+      scheduledPickupAt: "2026-08-13T02:00:00.000Z",
+      customerName: "Lin",
+      customerNote: "",
+      customerPhone: "0912345678",
+      deliveryAddress: "",
+      lines: [line("morning")],
+    }, now);
+
+    expect(restoreQrOrderSessionCart({
+      raw,
+      session,
+      currentScheduledPickupAt: "",
+      now,
+    })).toMatchObject({
+      restored: true,
+      scheduledPickupAt: offeredSlot,
+      draftScheduledPickupAt: offeredSlot,
+      lines: [{ productId: "morning" }],
+      customerPhone: "0912345678",
+    });
+  });
+
   it("restores DELIVERY contact fields and an optional scheduled time", () => {
     const session = normalizeQrOrderSession({
       ...menu("DELIVERY"),

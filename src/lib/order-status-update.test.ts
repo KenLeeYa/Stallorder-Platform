@@ -42,6 +42,7 @@ describe("訂單取消確認", () => {
   it("完成訂單只接受受控付款、折扣與實收欄位", () => {
     expect(orderStatusUpdateSchema.safeParse({
       status: "COMPLETED",
+      completionIntent: "COLLECT_PAYMENT",
       paymentOptionId: "99999999-9999-4999-8999-999999999991",
       discountOptionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
       cashReceived: 500,
@@ -52,6 +53,10 @@ describe("訂單取消確認", () => {
     expect(orderStatusUpdateSchema.safeParse({
       status: "COMPLETED",
       paymentOptionId: "not-a-uuid",
+    }).success).toBe(false);
+    expect(orderStatusUpdateSchema.safeParse({
+      status: "COMPLETED",
+      completionIntent: "PAY_AND_CLOSE",
     }).success).toBe(false);
     expect(orderStatusUpdateSchema.safeParse({
       status: "COMPLETED",

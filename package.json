@@ -85,6 +85,7 @@
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@actions/core": "1.11.1",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",

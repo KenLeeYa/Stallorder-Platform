@@ -1,8 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import {
-  completeStreamlinedOrderAfterPickup,
+  completeStreamlinedOrderAfterPrint,
   getStreamlinedCheckoutPlan,
+  shouldKeepQrOrderOpenAfterPayment,
 } from "./streamlined-order-completion";
 
 describe("streamlined staff checkout", () => {
@@ -13,6 +14,8 @@ describe("streamlined staff checkout", () => {
     printModuleEnabled: false,
     externalProvider: null,
     primaryPrintStatus: null,
+    source: "STAFF_POS",
+    paymentStatus: "UNPAID" as const,
   };
 
   it("completes immediately when both KDS and printing are disabled", () => {
@@ -51,63 +54,97 @@ describe("streamlined staff checkout", () => {
     expect(getStreamlinedCheckoutPlan({ ...base, kdsModuleEnabled: true })).toBeNull();
     expect(getStreamlinedCheckoutPlan({ ...base, externalProvider: "UBER_EATS" })).toBeNull();
   });
+
+  it("does not couple a prepaid QR order's final completion to receipt printing", () => {
+    expect(getStreamlinedCheckoutPlan({
+      ...base,
+      currentStatus: "READY",
+      printModuleEnabled: true,
+      source: "QR_MENU",
+      paymentStatus: "PAID",
+    })).toEqual({
+      targetStatus: "COMPLETED",
+      itemStatus: "READY",
+      queuePrint: false,
+      completionPendingPrint: false,
+    });
+  });
 });
 
-describe("streamlined QR takeout completion", () => {
-  function createTransaction(overrides: Record<string, unknown> = {}) {
+describe("QR payment and print separation", () => {
+  it("keeps an unpaid QR order open after staff records payment", () => {
+    expect(shouldKeepQrOrderOpenAfterPayment({
+      requestedStatus: "COMPLETED",
+      currentStatus: "CONFIRMED",
+      source: "QR_MENU",
+      paymentStatus: "UNPAID",
+      externalProvider: null,
+      completionIntent: "COLLECT_PAYMENT",
+    })).toBe(true);
+  });
+
+  it("does not reinterpret a final paid completion or external order as payment-only", () => {
+    expect(shouldKeepQrOrderOpenAfterPayment({
+      requestedStatus: "COMPLETED",
+      currentStatus: "READY",
+      source: "QR_MENU",
+      paymentStatus: "PAID",
+      externalProvider: null,
+      completionIntent: "COLLECT_PAYMENT",
+    })).toBe(false);
+    expect(shouldKeepQrOrderOpenAfterPayment({
+      requestedStatus: "COMPLETED",
+      currentStatus: "CONFIRMED",
+      source: "QR_MENU",
+      paymentStatus: "UNPAID",
+      externalProvider: "DELIVERY_PARTNER",
+      completionIntent: "COLLECT_PAYMENT",
+    })).toBe(false);
+    expect(shouldKeepQrOrderOpenAfterPayment({
+      requestedStatus: "COMPLETED",
+      currentStatus: "CONFIRMED",
+      source: "QR_MENU",
+      paymentStatus: "UNPAID",
+      externalProvider: null,
+      completionIntent: "FINALIZE",
+    })).toBe(false);
+  });
+
+  function createPrintTransaction(source: string) {
     const order = {
       id: "order-1",
       organizationId: "org-1",
       stallId: "stall-1",
       status: "READY",
-      source: "QR_MENU",
+      source,
       externalProvider: null,
       fulfillmentType: "TAKEOUT",
-      pickupVerifiedAt: new Date("2026-08-21T12:00:00.000Z"),
+      pickupVerifiedAt: null,
       paymentStatus: "PAID",
-      printJobs: [{ id: "print-1" }],
       stall: {
         orderingSettings: { kdsModuleEnabled: false, printModuleEnabled: true },
       },
-      ...overrides,
     };
     return {
+      printJob: { findFirst: vi.fn().mockResolvedValue({ order }) },
       order: {
-        findFirst: vi.fn().mockResolvedValue(order),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       orderEvent: { create: vi.fn().mockResolvedValue({}) },
     } as unknown as Prisma.TransactionClient;
   }
 
-  it("completes a printed KDS-off QR takeout order after pickup verification", async () => {
-    const transaction = createTransaction();
+  it("never closes a QR order merely because a receipt printed", async () => {
+    const transaction = createPrintTransaction("QR_MENU");
 
-    await expect(completeStreamlinedOrderAfterPickup(transaction, "order-1")).resolves.toBe(true);
-    expect(transaction.order.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ status: "COMPLETED" }),
-    }));
-    expect(transaction.orderEvent.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ eventType: "ORDER_AUTO_COMPLETED_AFTER_PICKUP" }),
-    });
-  });
-
-  it("keeps the order ready until its primary receipt succeeds", async () => {
-    const transaction = createTransaction({ printJobs: [] });
-
-    await expect(completeStreamlinedOrderAfterPickup(transaction, "order-1")).resolves.toBe(false);
+    await expect(completeStreamlinedOrderAfterPrint(transaction, "print-1")).resolves.toBe(false);
     expect(transaction.order.updateMany).not.toHaveBeenCalled();
   });
 
-  it("completes after pickup without a receipt when printing has been disabled", async () => {
-    const transaction = createTransaction({
-      printJobs: [],
-      stall: {
-        orderingSettings: { kdsModuleEnabled: false, printModuleEnabled: false },
-      },
-    });
+  it("preserves automatic post-print completion for staff POS orders", async () => {
+    const transaction = createPrintTransaction("STAFF_POS");
 
-    await expect(completeStreamlinedOrderAfterPickup(transaction, "order-1")).resolves.toBe(true);
+    await expect(completeStreamlinedOrderAfterPrint(transaction, "print-1")).resolves.toBe(true);
     expect(transaction.order.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: "COMPLETED" }),
     }));

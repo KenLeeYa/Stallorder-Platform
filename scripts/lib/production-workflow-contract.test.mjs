@@ -60,6 +60,31 @@ describe("Production workflow approval contract", () => {
     expect(applicationRelease).not.toContain("production-primary-migration");
   });
 
+  it("injects active Supabase public-order secrets into every Production application deployment", () => {
+    for (const workflow of [readiness, applicationRelease]) {
+      expect(workflow).toContain("node scripts/export-public-order-runtime-secrets.mjs");
+      for (const name of [
+        "ABUSE_HASH_SECRET",
+        "TOKEN_DERIVATION_SECRET",
+        "TURNSTILE_SECRET_KEY",
+      ]) {
+        expect(workflow).toContain(`-e "${name}=\${${name}}"`);
+      }
+    }
+
+    expect(disasterRecovery).toContain("PUBLIC_ORDER_SECRET_PREFIX=PRIMARY_");
+    expect(disasterRecovery).toContain("PUBLIC_ORDER_SECRET_PREFIX=DR_");
+    for (const name of [
+      "ABUSE_HASH_SECRET",
+      "TOKEN_DERIVATION_SECRET",
+      "TURNSTILE_SECRET_KEY",
+    ]) {
+      expect(disasterRecovery).toContain(`-e "${name}=\${PRIMARY_${name}}"`);
+      expect(disasterRecovery).toContain(`-e "${name}=\${DR_${name}}"`);
+      expect(disasterRecovery).toContain(`set_sensitive ${name} "$PRIMARY_${name}"`);
+    }
+  });
+
   it("requires a prior Plan receipt for every DR and status-page Apply", () => {
     for (const operation of [
       "plan-bootstrap",

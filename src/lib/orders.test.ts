@@ -59,7 +59,7 @@ describe("getContextualOrderStatusLabel", () => {
     ["unpaid dine in", { source: "STAFF_POS", paymentStatus: "UNPAID", fulfillmentType: "DINE_IN" }, "待出餐"],
     ["paid delivery", { source: "STAFF_POS", paymentStatus: "PAID", fulfillmentType: "DELIVERY" }, "待交付外送"],
     ["paid takeout", { source: "STAFF_POS", paymentStatus: "PAID", fulfillmentType: "TAKEOUT" }, "待取餐"],
-    ["QR pickup semantics", { source: "QR_MENU", paymentStatus: "PAID", fulfillmentType: "DELIVERY" }, "可取餐"],
+    ["paid QR delivery", { source: "QR_MENU", paymentStatus: "PAID", fulfillmentType: "DELIVERY" }, "待交付外送"],
   ])("labels READY in %s context", (_label, order, expected) => {
     expect(getContextualOrderStatusLabel({ status: "READY", ...order } as never)).toBe(expected);
   });

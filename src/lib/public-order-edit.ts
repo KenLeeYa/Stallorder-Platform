@@ -172,7 +172,7 @@ export async function editTrackedPublicOrder(input: {
             stallId: order.stallId,
             orderId: order.id,
             productId: item.productId,
-            sourceLineIndex: index,
+            sourceLineIndex: index + 1,
             name: item.name,
             baseUnitPrice: item.baseUnitPrice,
             unitPrice: item.unitPrice,

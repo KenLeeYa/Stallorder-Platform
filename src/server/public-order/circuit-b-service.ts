@@ -66,6 +66,7 @@ import {
   getTrackedOrderContext,
   getTrackedPublicOrder,
   issueIdempotentOrderSession,
+  persistPreorderCustomerPhone,
   persistPickupCodeDisplay,
   preflightPublicOrder,
   recordPublicOrderAttempt,
@@ -377,6 +378,11 @@ export async function createOrderThroughCircuitB(
 
   const existing = preflight.idempotent_order;
   if (existing) {
+    if (input.orderingMode === "PREORDER") {
+      await context.timing.measureDb(
+        () => persistPreorderCustomerPhone(existing.order_id, input.customerPhone),
+      );
+    }
     const tokens = await derivePublicOrderTokens(
       existing.order_id,
       requireSecret("TOKEN_DERIVATION_SECRET"),
@@ -478,6 +484,12 @@ export async function createOrderThroughCircuitB(
       code,
       statusForCode(code),
       buildPublicOrderCapacityDetails(result?.capacity),
+    );
+  }
+
+  if (input.orderingMode === "PREORDER") {
+    await context.timing.measureDb(
+      () => persistPreorderCustomerPhone(result.order!.order_id, input.customerPhone),
     );
   }
 
