@@ -50,5 +50,9 @@ describe("PrintQueueBoard cancelled-job recovery", () => {
     expect(html).toContain("A-001");
     expect(html).toContain("已取消");
     expect(html).toContain("補印");
+    expect(html).toContain('data-testid="print-jobs-date-from"');
+    expect(html).toContain('data-testid="print-jobs-date-to"');
+    expect(html).toContain('data-testid="print-jobs-page-size"');
+    expect(html).toContain('<option value="5" selected="">5</option>');
   });
 });

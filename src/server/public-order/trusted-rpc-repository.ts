@@ -445,6 +445,21 @@ export async function getReorderPreparationContext(orderId: string) {
       note: true,
       requestedFulfillmentAt: true,
       scheduledPickupAt: true,
+      orderSession: {
+        select: {
+          orderingMode: true,
+          qrCode: {
+            select: {
+              token: true,
+              diningTableId: true,
+              fulfillmentTypeContext: true,
+              stallScheduleId: true,
+              locationId: true,
+              marketEventId: true,
+            },
+          },
+        },
+      },
       payment: { select: { id: true } },
       productionTasks: { select: { status: true } },
       printJobs: { select: { status: true } },

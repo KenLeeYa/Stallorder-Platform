@@ -2,6 +2,7 @@ import "server-only";
 
 import { revalidateTag, unstable_cache } from "next/cache";
 import { calculateCapacitySnapshot } from "@/lib/capacity";
+import { isWithinBusinessHours } from "@/lib/business-hours";
 import { prisma } from "@/lib/prisma";
 import {
   compareConfiguredProductOrder,
@@ -13,6 +14,7 @@ import {
   dateInTimeZone,
   filterPreorderSlotsForSpecialClosures,
   serializeSpecialClosure,
+  specialClosureAppliesOnDate,
   specialClosureBlocksAt,
   type SpecialClosureView,
 } from "@/lib/special-closures";
@@ -101,6 +103,13 @@ export async function getCachedPublicMenuForQrToken(
     specialClosures,
     context.stall.timezone,
   );
+  const localDate = dateInTimeZone(new Date(), context.stall.timezone);
+  const currentSpecialClosure = specialClosures.find((closure) => (
+    specialClosureAppliesOnDate(closure, localDate)
+  ));
+  const orderingOpenNow = currentSpecialClosure
+    ? !specialClosureBlocksAt(currentSpecialClosure, context.stall.timezone)
+    : isWithinBusinessHours(context.stall.businessHours, context.stall.timezone);
   const products = resolvedOrderingMode === "PREORDER"
     ? publicMenuProductsForPickupWindow(menu.products, preorderSlots)
     : publicMenuProductsForPickup(menu.products, new Date().toISOString());
@@ -115,6 +124,8 @@ export async function getCachedPublicMenuForQrToken(
     ...menu,
     products,
     orderingMode: resolvedOrderingMode,
+    orderingOpenNow: resolvedOrderingMode === "DEFAULT" ? orderingOpenNow : true,
+    onlineMenuPath: `/store/${encodeURIComponent(context.stall.slug)}?view=pickup`,
     preorderSlots,
     lotteryEnabled: resolvedOrderingMode === "DEFAULT"
       && lotteryChannelAllowed
@@ -361,6 +372,14 @@ async function loadQrContext(qrToken: string) {
           businessStatus: true,
           orderingState: true,
           isSoldOut: true,
+          businessHours: {
+            select: {
+              dayOfWeek: true,
+              opensAt: true,
+              closesAt: true,
+              isClosed: true,
+            },
+          },
           organization: { select: { status: true } },
           orderingSettings: {
             select: {

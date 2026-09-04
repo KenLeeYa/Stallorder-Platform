@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, LoaderCircle, RotateCcw } from "lucide-react";
 import { ContextualBackButton } from "@/components/contextual-back-button";
+import { PublicOrderFeedbackDialog } from "@/components/public-order-feedback-dialog";
 import { useAppLocale } from "@/components/locale-provider";
 import { publicMessages } from "@/lib/messages/public";
 import { formatMoney } from "@/lib/money";
@@ -17,7 +18,7 @@ import { createWebUuid } from "@/lib/web-uuid";
 
 type ReorderData = {
   qrToken: string;
-  orderingMode: "PREORDER" | "DELIVERY";
+  orderingMode: "DEFAULT" | "PREORDER" | "DELIVERY";
   orderPath: string;
   customerName: string;
   customerPhone: string;
@@ -113,18 +114,21 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
 
       {loading ? <div className="mt-10 flex items-center gap-3 text-sm text-stone-600"><LoaderCircle className="h-5 w-5 animate-spin" />{publicMessages.get(locale, "reorderChecking")}</div> : null}
       {message ? (
-        <div className="mt-6 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <p role="alert">{message}</p>
-          {!data && !loading ? (
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-red-300 bg-white px-4 font-semibold text-red-800"
-            >
-              <RotateCcw className="h-4 w-4" />{publicMessages.get(locale, "reorderRetry")}
-            </button>
-          ) : null}
-        </div>
+        <PublicOrderFeedbackDialog
+          title={publicMessages.get(locale, "reorderTitle")}
+          message={message}
+          primaryLabel={!data && !loading
+            ? publicMessages.get(locale, "reorderRetry")
+            : publicMessages.get(locale, "reorderBack")}
+          onPrimary={() => {
+            if (!data && !loading) {
+              void load();
+              return;
+            }
+            setMessage("");
+          }}
+          danger
+        />
       ) : null}
       {data ? (
         <>

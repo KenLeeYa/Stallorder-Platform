@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { createOpenQrFixture } from "./open-qr-fixture";
+
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "22222222-2222-4222-8222-222222222222";
+let qrFixture: Awaited<ReturnType<typeof createOpenQrFixture>>;
 
 const expectedLocales = [
   { locale: "zh-TW", label: "繁體中文", flagPath: "/flags/tw.svg" },
@@ -9,8 +14,21 @@ const expectedLocales = [
   { locale: "th", label: "ไทย", flagPath: "/flags/th.svg" },
 ] as const;
 
+test.beforeAll(async () => {
+  qrFixture = await createOpenQrFixture({
+    organizationId,
+    stallId,
+    tokenPrefix: "qr-language-e2e",
+    label: "QR language E2E",
+  });
+});
+
+test.afterAll(async () => {
+  await qrFixture.restore();
+});
+
 test("QR 點餐語言選單的所有語系都有對應國旗", async ({ page }, testInfo) => {
-  await page.goto("/q/demo-aming-chicken-qr-2026-rotate-me");
+  await page.goto(`/q/${qrFixture.qrToken}`);
   const trigger = page.getByRole("button", { name: "點餐語言" });
   await expect(trigger).toHaveAttribute("data-current-locale", "zh-TW");
   await expect(trigger.locator('[data-locale-flag="zh-TW"]')).toBeVisible();

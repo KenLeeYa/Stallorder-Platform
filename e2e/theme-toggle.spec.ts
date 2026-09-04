@@ -142,6 +142,15 @@ test("商家可用月亮與太陽切換明暗模式並保留偏好", async ({ pa
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 
   await page.goto("/q/demo-aming-chicken-qr-2026-rotate-me");
+  const outsideBusinessHoursDialog = page.getByRole("alertdialog", {
+    name: "目前非營業時間",
+  });
+  if (await outsideBusinessHoursDialog.isVisible()) {
+    await outsideBusinessHoursDialog
+      .getByRole("button", { name: "關閉", exact: true })
+      .filter({ hasText: "關閉" })
+      .click();
+  }
   const qrToggle = page.getByRole("button", { name: "切換為暗黑模式" });
   await expect(qrToggle).toBeVisible({ timeout: 30_000 });
   await qrToggle.click();

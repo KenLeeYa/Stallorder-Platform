@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 import { ArrowLeft, FileDown, Printer } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
@@ -30,19 +31,26 @@ export function QrPrintPreview({
   backHref: string;
 }) {
   const { label, m } = useMerchantMessages();
+  const [printStatus, setPrintStatus] = useState("");
   const pages = paginateQrPrintItems(items, target);
   const single = target !== "tables";
-  const sheetWidth = paper === "A6" ? 89 : paper === "A5" ? 132 : 194;
-  const sheetHeight = paper === "A6" ? 132 : paper === "A5" ? 194 : 281;
+  const sheetWidth = paper === "A6" ? 105 : paper === "A5" ? 148 : 210;
+  const sheetHeight = paper === "A6" ? 148 : paper === "A5" ? 210 : 297;
   const singleTargetQuery = target === "table" && items[0]
     ? `target=table&tableId=${encodeURIComponent(items[0].id)}`
     : "target=stall";
 
+  function handlePrint() {
+    setPrintStatus(label("已送出列印指令，請在瀏覽器視窗選擇列印或另存 PDF。"));
+    window.focus();
+    window.print();
+  }
+
   return (
     <main className="qr-print-shell min-h-screen bg-stone-100 px-3 py-5 text-stone-950 sm:px-6">
       <style>{`
-        @page { size: ${paper} portrait; margin: 8mm; }
-        .qr-print-sheet { width: ${sheetWidth}mm; min-height: ${sheetHeight}mm; }
+        @page { size: ${paper} portrait; margin: 0; }
+        .qr-print-sheet { width: ${sheetWidth}mm; height: ${sheetHeight}mm; }
         :root[data-theme="dark"] .qr-print-sheet,
         :root[data-theme="dark"] .qr-print-card { background: #fff !important; color: #0c0a09 !important; }
         :root[data-theme="dark"] .qr-print-card { border-color: #115e59 !important; }
@@ -53,8 +61,12 @@ export function QrPrintPreview({
         :root[data-theme="dark"] .qr-print-note { color: #78716c !important; }
         :root[data-theme="dark"] .qr-print-stripe { background: linear-gradient(to right, #fbbf24, #0f766e, #10b981) !important; }
         @media print {
+          html:has(.qr-print-shell), body:has(.qr-print-shell), #main-content:has(> .qr-print-shell) { width: ${sheetWidth}mm !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+          body:has(.qr-print-shell) > :not(#main-content),
+          #main-content:has(> .qr-print-shell) > :not(.qr-print-shell) { display: none !important; }
           .skip-link, .qr-print-controls { display: none !important; }
-          .qr-print-shell { max-width: none !important; min-height: 0 !important; padding: 0 !important; background: #fff !important; }
+          .qr-print-shell { width: ${sheetWidth}mm !important; max-width: none !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+          .qr-print-pages { display: block !important; overflow: visible !important; padding: 0 !important; }
           .qr-print-sheet { margin: 0 !important; box-shadow: none !important; break-after: page; page-break-after: always; }
           .qr-print-sheet:last-child { break-after: auto; page-break-after: auto; }
           .qr-print-card { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
@@ -72,15 +84,16 @@ export function QrPrintPreview({
             <Link href={`/merchant/stalls/${stallId}/qr-print?${singleTargetQuery}&paper=A5`} aria-current={paper === "A5" ? "page" : undefined} className={`inline-flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm font-semibold ${paper === "A5" ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white"}`}><FileDown className="h-4 w-4" />A5</Link>
             <Link href={`/merchant/stalls/${stallId}/qr-print?${singleTargetQuery}&paper=A6`} aria-current={paper === "A6" ? "page" : undefined} className={`inline-flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm font-semibold ${paper === "A6" ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300 bg-white"}`}><FileDown className="h-4 w-4" />A6</Link>
           </> : null}
-          <button type="button" disabled={pages.length === 0} onClick={() => window.print()} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-40"><Printer className="h-4 w-4" />{label("列印／存成 PDF")}</button>
+          <button data-testid="qr-print-button" type="button" disabled={pages.length === 0} onClick={handlePrint} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-40"><Printer className="h-4 w-4" />{label("列印／存成 PDF")}</button>
         </div>
+        {printStatus ? <p role="status" className="w-full text-right text-xs font-medium text-teal-800">{printStatus}</p> : null}
       </header>
 
       {pages.length === 0 ? <p role="alert" className="qr-print-controls mx-auto max-w-xl rounded-lg border border-amber-300 bg-amber-50 p-5 text-sm font-semibold text-amber-900">{label("目前沒有可列印的有效 QR，請先建立或啟用 QR。")}</p> : null}
 
-      <div className="grid justify-center gap-6 overflow-x-auto pb-8">
+      <div className="qr-print-pages grid justify-center gap-6 overflow-x-auto pb-8">
         {pages.map((page, pageIndex) => (
-          <section key={`${target}-${pageIndex}`} aria-label={m("QR 印刷第 {value0} 頁", { value0: pageIndex + 1 })} className={`qr-print-sheet bg-white p-[8mm] shadow-xl ${single ? "flex items-stretch" : "grid grid-cols-2 grid-rows-3 gap-[6mm]"}`}>
+          <section key={`${target}-${pageIndex}`} aria-label={m("QR 印刷第 {value0} 頁", { value0: pageIndex + 1 })} className={`qr-print-sheet bg-white p-[16mm] shadow-xl ${single ? "flex items-stretch" : "grid grid-cols-2 grid-rows-3 gap-[6mm]"}`}>
             {page.map((item) => (
               <QrPrintCard key={item.id} item={item} stallName={stallName} compact={!single} paper={paper} />
             ))}

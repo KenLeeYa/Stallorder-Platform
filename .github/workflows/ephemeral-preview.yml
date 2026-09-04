@@ -26,7 +26,7 @@ jobs:
         github.event.pull_request.head.repo.full_name == github.repository
       )
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     environment:
       name: Preview
     env:
@@ -114,15 +114,15 @@ jobs:
           if [ -z "$branch_ref" ]; then
             supabase branches create "$PREVIEW_BRANCH_NAME" \
               --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
-              --region ap-northeast-1 \
-              --size micro \
+              --region ap-southeast-1 \
+              --size nano \
               --git-branch "$PREVIEW_GIT_BRANCH" \
               --log-level error >/dev/null
           fi
 
           branch_status=""
           preview_project_status=""
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 60); do
             branches="$(supabase branches list \
               --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
               --output json \
@@ -213,7 +213,7 @@ jobs:
         run: |
           set -euo pipefail
           stable_connections=0
-          for attempt in $(seq 1 12); do
+          for attempt in $(seq 1 60); do
             if supabase migration list --db-url "$EPHEMERAL_DATABASE_URL" >/dev/null 2>&1; then
               stable_connections="$((stable_connections + 1))"
               if [ "$stable_connections" -ge 2 ]; then
@@ -222,7 +222,7 @@ jobs:
             else
               stable_connections=0
             fi
-            if [ "$attempt" -lt 12 ]; then
+            if [ "$attempt" -lt 60 ]; then
               sleep 5
             fi
           done

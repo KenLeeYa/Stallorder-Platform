@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  submitQrOrderEditFlowCheckout,
   submitQrOrderCheckout,
+  type QrOrderCheckoutFlowInput,
   type QrOrderCheckoutTransport,
 } from "./qr-order-checkout-controller";
 
@@ -118,7 +120,144 @@ describe("QR order checkout controller", () => {
 
     expect(effects.navigateToOrder).toHaveBeenCalledWith("tracking-token");
   });
+
+  it("saves a pickup edit with its restored phone even though edit mode has no session expiry", async () => {
+    const requestOrder = vi.fn<QrOrderCheckoutTransport>().mockResolvedValue({
+      ok: true,
+      status: 200,
+      payload: { trackingToken: "tracking-token" },
+    });
+    const effects = {
+      ...checkoutEffects(),
+      onSessionUpdate: vi.fn(),
+      onWaitAcknowledgmentReset: vi.fn(),
+      onTurnstileInvalid: vi.fn(),
+    };
+    const sessionController = {
+      checkoutIdentity: vi.fn(() => ({
+        key: "22222222-2222-4222-8222-222222222222",
+        clientOrderId: "33333333-3333-4333-8333-333333333333",
+        turnstileIdempotencyKey: "44444444-4444-4444-8444-444444444444",
+        operationId: "55555555-5555-4555-8555-555555555555",
+        fingerprint: "fingerprint",
+      })),
+      clearCheckoutIdentity: vi.fn(),
+    };
+    const product = {
+      id: "66666666-6666-4666-8666-666666666666",
+      name: "香酥雞排",
+      description: "",
+      price: 95,
+      kind: "SINGLE" as const,
+      category: "炸物",
+      rank: null,
+      isBestSeller: false,
+      isSoldOut: false,
+      isOrderDiscountEligible: true,
+      imageUrl: null,
+      translations: [],
+      noteGroups: [],
+      bundleChoiceGroups: [],
+    };
+    const input = {
+      qrToken: "qr-token",
+      entryChannel: "SHARED_LINK",
+      orderingAvailability: "AVAILABLE",
+      orderingEnabled: true,
+      orderingMode: "PREORDER",
+      hasUnappliedFulfillmentTime: false,
+      sessionReady: true,
+      sessionExpired: false,
+      session: {
+        orderingMode: "PREORDER",
+        preorderSlots: ["2026-09-03T10:00:00.000Z"],
+        lotteryEnabled: false,
+        stall: {
+          name: "測試攤位",
+          slug: "test-stall",
+          location: "台中",
+          currency: "TWD",
+          timezone: "Asia/Taipei",
+          fulfillmentType: "TAKEOUT",
+          table: null,
+        },
+        products: [product],
+        supportedLocales: ["zh-TW"],
+        estimatedWaitMinutes: 0,
+        estimatedWaitMinMinutes: 0,
+        estimatedWaitMaxMinutes: 0,
+        waitAcknowledgmentThresholdMinutes: null,
+        requiresWaitAcknowledgment: false,
+        lastTableOrderAt: null,
+        limits: {
+          maxItemQuantity: 20,
+          maxUniqueProducts: 20,
+          maxTotalQuantity: 50,
+          maxNoteLength: 300,
+        },
+        orderSessionToken: "",
+        expiresAt: "",
+      },
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      cartLines: [{
+        id: "line-1",
+        productId: product.id,
+        quantity: 2,
+        note: "少鹽",
+        noteOptionIds: [],
+        bundleChoiceIds: [],
+      }],
+      visibleProducts: [product],
+      customerName: "王小姐",
+      customerPhone: "0912345678",
+      deliveryAddress: "",
+      customerNote: "到店取餐",
+      scheduledPickupAt: "2026-09-03T10:00:00.000Z",
+      lotteryDrawId: null,
+      waitAcknowledged: false,
+      turnstileToken: "verified-token",
+      invoiceBuyerSelection: null,
+      localizedProductName: (candidate) => candidate.name,
+      messages: checkoutMessages(),
+    } satisfies QrOrderCheckoutFlowInput;
+
+    const result = await submitQrOrderEditFlowCheckout({
+      input,
+      trackingToken: "tracking-token",
+      sessionController,
+      networkError: "network error",
+      localizeError: (code) => `localized:${code}`,
+      requestOrder,
+      effects,
+    });
+
+    expect(result).toBe("SUBMITTED");
+    expect(requestOrder).toHaveBeenCalledWith(expect.objectContaining({
+      customerName: "王小姐",
+      customerPhone: "0912345678",
+      items: [expect.objectContaining({ productId: product.id, quantity: 2 })],
+    }), "55555555-5555-4555-8555-555555555555");
+    expect(effects.navigateToOrder).toHaveBeenCalledWith("tracking-token");
+  });
 });
+
+function checkoutMessages() {
+  return {
+    orderingUnavailable: "ordering unavailable",
+    emptyCart: "empty cart",
+    unappliedFulfillmentTime: "unapplied time",
+    sessionLoading: "session loading",
+    sessionExpired: "session expired",
+    customerDetailsMissing: "customer details missing",
+    deliveryDetailsMissing: "delivery details missing",
+    waitAcknowledgmentRequired: "wait acknowledgment required",
+    securityRequired: "security required",
+    preorderTimeRequired: "preorder time required",
+    productUnavailable: "product unavailable",
+    invoiceDetailsInvalid: "invoice invalid",
+    requiredNotes: (name: string) => `required:${name}`,
+  };
+}
 
 function checkoutEffects() {
   return {

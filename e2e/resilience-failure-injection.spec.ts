@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { qrProductSelectionControl } from "./local-navigation";
+import { createOpenQrFixture } from "./open-qr-fixture";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -11,13 +12,24 @@ assertLocalDatabase();
 const prisma = new PrismaClient();
 const password = "StallOrderDemo!2026";
 const flagReason = "P8 E2E local Edge circuit failure injection";
-const demoQrToken = "demo-aming-chicken-qr-2026-rotate-me";
+let demoQrToken = "";
+const demoOrganizationId = "11111111-1111-4111-8111-111111111111";
 const demoStallId = "22222222-2222-4222-8222-222222222222";
+let qrFixture: Awaited<
+  ReturnType<typeof createOpenQrFixture>
+> | null = null;
 
 test.describe("P8 生產韌性故障注入", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
+    qrFixture = await createOpenQrFixture({
+      organizationId: demoOrganizationId,
+      stallId: demoStallId,
+      tokenPrefix: "e2e-resilience",
+      label: "E2E 韌性測試",
+    });
+    demoQrToken = qrFixture.qrToken;
     await removeTemporaryFlag();
     const [flag, owner] = await Promise.all([
       prisma.resilienceFeatureFlag.findUniqueOrThrow({
@@ -42,8 +54,15 @@ test.describe("P8 生產韌性故障注入", () => {
   });
 
   test.afterAll(async () => {
-    await removeTemporaryFlag();
-    await prisma.$disconnect();
+    try {
+      await removeTemporaryFlag();
+    } finally {
+      try {
+        await qrFixture?.restore();
+      } finally {
+        await prisma.$disconnect();
+      }
+    }
   });
 
   test("Supabase Edge 回傳 503 時以同一請求識別轉入 Circuit B", async ({

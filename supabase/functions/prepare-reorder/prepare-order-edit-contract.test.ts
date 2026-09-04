@@ -15,8 +15,12 @@ describe("prepare public order edit contract", () => {
     expect(source).toContain('task.status !== "PENDING"');
   });
 
-  it("returns the original customer draft and canonical code-based storefront path", () => {
+  it("returns the original customer draft and preserves the ordering entry path", () => {
     expect(source).toContain('.select("code")');
+    expect(source).toContain('.from("order_sessions")');
+    expect(source).toContain('.select("ordering_mode")');
+    expect(source).toContain('orderingMode === "DEFAULT"');
+    expect(source).toContain('`/q/${encodeURIComponent(qrCode.token)}`');
     expect(source).toContain("/store/${encodeURIComponent(stallQuery.data.code)}?view=${view}");
     expect(source).toContain("customerName: context.order.customer_name");
     expect(source).toContain("customerPhone: context.order.customer_phone");

@@ -42,7 +42,6 @@ type QrOrderCartPanelProps = {
   turnstileRequested: boolean;
   turnstileResetKey: number;
   checkoutBlocker: string;
-  message: string;
   isSubmitting: boolean;
   closeButtonRef: RefObject<HTMLButtonElement | null>;
   continueButtonRef: RefObject<HTMLButtonElement | null>;
@@ -87,7 +86,6 @@ export function QrOrderCartPanel({
   turnstileRequested,
   turnstileResetKey,
   checkoutBlocker,
-  message,
   isSubmitting,
   closeButtonRef,
   continueButtonRef,
@@ -291,7 +289,6 @@ export function QrOrderCartPanel({
           {isSubmitting ? copy.submitting : copy.submitOrder}
         </button>
         <p className="mt-3 text-xs leading-5 text-stone-500">{copy.confirmationNotice}</p>
-        {message ? <p role="alert" className="mt-3 text-sm text-red-700">{message}</p> : null}
       </div>
     </>
   );

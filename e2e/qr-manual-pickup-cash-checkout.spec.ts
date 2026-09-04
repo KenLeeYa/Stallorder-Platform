@@ -7,6 +7,7 @@ import {
   dismissStaffStartReminder,
   qrProductSelectionControl,
 } from "./local-navigation";
+import { createOpenQrFixture } from "./open-qr-fixture";
 
 test.use({ serviceWorkers: "block" });
 
@@ -16,7 +17,7 @@ assertLocalDatabase();
 const prisma = new PrismaClient();
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
-const takeoutQrToken = "demo-aming-chicken-qr-2026-rotate-me";
+let takeoutQrToken = "";
 const password = "StallOrderDemo!2026";
 const testMarker = `QR 人工現金 E2E ${Date.now()}-${randomUUID().slice(0, 8)}`;
 
@@ -27,11 +28,21 @@ let createdSessionId = "";
 let createdPaymentId = "";
 let cashPaymentOptionId = "";
 let createdOrderNo = "";
+let qrFixture: Awaited<
+  ReturnType<typeof createOpenQrFixture>
+> | null = null;
 
 test.describe("外帶 QR 人工核對與現金完成訂單", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
+    qrFixture = await createOpenQrFixture({
+      organizationId,
+      stallId,
+      tokenPrefix: "e2e-qr-manual-cash",
+      label: "E2E QR 人工現金",
+    });
+    takeoutQrToken = qrFixture.qrToken;
     const [stall, qrCode, cashPaymentOption, staff, openCashShift] =
       await Promise.all([
         prisma.stall.findUniqueOrThrow({
@@ -128,7 +139,11 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
         });
       }
     } finally {
-      await prisma.$disconnect();
+      try {
+        await qrFixture?.restore();
+      } finally {
+        await prisma.$disconnect();
+      }
     }
   });
 

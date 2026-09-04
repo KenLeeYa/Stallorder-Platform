@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "../..");
+const ci = read(".github/workflows/ci.yml");
 const readiness = read(".github/workflows/production-readiness.yml");
 const applicationRelease = read(".github/workflows/production-application-release.yml");
 const disasterRecovery = read(".github/workflows/production-dr-operations.yml");
@@ -17,6 +18,13 @@ const productionApproval = read("scripts/lib/production-approval.mjs");
 const vercel = JSON.parse(read("vercel.json"));
 
 describe("Production workflow approval contract", () => {
+  it("uses the fail-closed bounded dependency audit runner in every release gate", () => {
+    for (const workflow of [ci, readiness, applicationRelease]) {
+      expect(workflow).toContain("node scripts/run-npm-audit.mjs");
+      expect(workflow).not.toContain("npm audit --audit-level=moderate");
+    }
+  });
+
   it("keeps main Git pushes in Plan mode and gates Apply with a matching receipt", () => {
     expect(readiness).toContain("name: Create immutable Production plan receipt");
     expect(readiness).toContain("name: Verify manual approval is bound to the immutable plan");
@@ -385,12 +393,23 @@ describe("Production workflow approval contract", () => {
   });
 
   it("waits for the hosted branch action and stable database before Preview migrations", () => {
+    expect(ephemeralPreview).toContain("timeout-minutes: 50");
     expect(ephemeralPreview).toContain("preview_project_status");
     expect(ephemeralPreview).toContain("ACTIVE_HEALTHY|MIGRATIONS_FAILED");
     expect(ephemeralPreview).toContain(
       '[ "$preview_project_status" = "ACTIVE_HEALTHY" ]',
     );
 
+    const branchCreation = ephemeralPreview.indexOf(
+      "name: Create or reuse data-less Preview Branch",
+    );
+    const branchConfiguration = ephemeralPreview.indexOf(
+      "name: Load and mask Preview Branch configuration",
+    );
+    const branchCreationStep = ephemeralPreview.slice(
+      branchCreation,
+      branchConfiguration,
+    );
     const stability = ephemeralPreview.indexOf(
       "name: Wait for Preview Branch database stability",
     );
@@ -399,9 +418,15 @@ describe("Production workflow approval contract", () => {
     );
     const stabilityStep = ephemeralPreview.slice(stability, migrations);
 
+    expect(branchCreation).toBeGreaterThan(-1);
+    expect(branchCreation).toBeLessThan(branchConfiguration);
+    expect(branchCreationStep).toContain("--region ap-southeast-1");
+    expect(branchCreationStep).toContain("--size nano");
+    expect(branchCreationStep).toContain("for attempt in $(seq 1 60); do");
     expect(stability).toBeGreaterThan(-1);
     expect(stability).toBeLessThan(migrations);
-    expect(stabilityStep).toContain("for attempt in $(seq 1 12); do");
+    expect(stabilityStep).toContain("for attempt in $(seq 1 60); do");
+    expect(stabilityStep).toContain('if [ "$attempt" -lt 60 ]; then');
     expect(stabilityStep).toContain("stable_connections");
     expect(stabilityStep).toContain(
       'supabase migration list --db-url "$EPHEMERAL_DATABASE_URL"',

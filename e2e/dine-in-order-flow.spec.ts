@@ -20,11 +20,13 @@ const customerName = `內用 QA ${Date.now()}`;
 const mobileViewport = { width: 390, height: 844 };
 const compactViewport = { width: 320, height: 568 };
 let cashShiftId = "";
+let ownsCashShift = false;
 let createdOrderId = "";
 let originalAcknowledgmentThresholdMinutes: number | null = null;
 let originalStall: Awaited<ReturnType<typeof loadStall>> | null = null;
 let originalTableQrCode: Awaited<ReturnType<typeof loadTableQrCode>> | null =
   null;
+let originalBusinessHours: Awaited<ReturnType<typeof loadBusinessHours>> = [];
 
 async function loadStall() {
   return prisma.stall.findUniqueOrThrow({
@@ -42,6 +44,14 @@ async function loadTableQrCode() {
   return prisma.qrCode.findUniqueOrThrow({
     where: { token: tableQrToken },
     select: { id: true, state: true, expiresAt: true },
+  });
+}
+
+async function loadBusinessHours() {
+  return prisma.stallBusinessHour.findMany({
+    where: { stallId },
+    select: { id: true, opensAt: true, closesAt: true, isClosed: true },
+    orderBy: { dayOfWeek: "asc" },
   });
 }
 
@@ -64,18 +74,20 @@ test.beforeAll(async () => {
     where: { stallId_code: { stallId, code: "A1" } },
     data: { serviceState: "EMPTY", seatedAt: null },
   });
-  const [capacity, stall, tableQrCode] = await Promise.all([
+  const [capacity, stall, tableQrCode, businessHours] = await Promise.all([
     prisma.stallCapacitySettings.findUniqueOrThrow({
       where: { stallId },
       select: { acknowledgmentThresholdMinutes: true },
     }),
     loadStall(),
     loadTableQrCode(),
+    loadBusinessHours(),
   ]);
   originalAcknowledgmentThresholdMinutes =
     capacity.acknowledgmentThresholdMinutes;
   originalStall = stall;
   originalTableQrCode = tableQrCode;
+  originalBusinessHours = businessHours;
   await prisma.$transaction([
     prisma.stallCapacitySettings.update({
       where: { stallId },
@@ -94,21 +106,35 @@ test.beforeAll(async () => {
       where: { id: tableQrCode.id },
       data: { state: "ACTIVE", expiresAt: null },
     }),
+    prisma.stallBusinessHour.updateMany({
+      where: { stallId },
+      data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+    }),
   ]);
   const staff = await prisma.profile.findUniqueOrThrow({
     where: { email: "staff@stallorder.test" },
     select: { id: true },
   });
-  const shift = await prisma.cashShift.create({
-    data: {
-      organizationId,
-      stallId,
-      openingAmount: 0,
-      openedById: staff.id,
-      note: "Dine-in E2E 班次",
-    },
+  const activeShift = await prisma.cashShift.findFirst({
+    where: { stallId, status: "OPEN" },
+    select: { id: true },
+    orderBy: { openedAt: "desc" },
   });
-  cashShiftId = shift.id;
+  if (activeShift) {
+    cashShiftId = activeShift.id;
+  } else {
+    const shift = await prisma.cashShift.create({
+      data: {
+        organizationId,
+        stallId,
+        openingAmount: 0,
+        openedById: staff.id,
+        note: "Dine-in E2E 班次",
+      },
+    });
+    cashShiftId = shift.id;
+    ownsCashShift = true;
+  }
 });
 
 test.afterAll(async () => {
@@ -116,7 +142,7 @@ test.afterAll(async () => {
     if (createdOrderId)
       await prisma.order.deleteMany({ where: { id: createdOrderId } });
     await prisma.order.deleteMany({ where: { stallId, customerName } });
-    if (cashShiftId) {
+    if (cashShiftId && ownsCashShift) {
       await prisma.cashShiftReview.deleteMany({ where: { cashShiftId } });
       await prisma.cashShift.deleteMany({ where: { id: cashShiftId } });
     }
@@ -145,6 +171,16 @@ test.afterAll(async () => {
             expiresAt: originalTableQrCode.expiresAt,
           },
         }),
+        ...originalBusinessHours.map((hour) =>
+          prisma.stallBusinessHour.update({
+            where: { id: hour.id },
+            data: {
+              opensAt: hour.opensAt,
+              closesAt: hour.closesAt,
+              isClosed: hour.isClosed,
+            },
+          }),
+        ),
       ]);
     }
   } finally {
@@ -299,9 +335,14 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   ).toBeEnabled({ timeout: 15_000 });
 
   const createResponse = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname.endsWith("/create-public-order") &&
-      response.request().method() === "POST",
+    (response) => {
+      const pathname = new URL(response.url()).pathname;
+      return (
+        ["/create-public-order", "/api/public/orders"].some((path) =>
+          pathname.endsWith(path),
+        ) && response.request().method() === "POST"
+      );
+    },
   );
   await page.getByRole("button", { name: "Place order", exact: true }).click();
   const createdResponse = await createResponse;
@@ -424,6 +465,14 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
     kitchenOrder.getByRole("button", { name: "退回待製作", exact: true }),
   ).toHaveCount(0);
 
+  await expect(
+    staffOrder.getByText("待結帳／交付", { exact: true }).first(),
+  ).toBeVisible({ timeout: 10_000 });
+  const reopenDetails = staffOrder.getByRole("button", {
+    name: "查看明細",
+    exact: true,
+  });
+  if (await reopenDetails.isVisible()) await reopenDetails.click();
   await expect(staffOrder.getByText("餐點完成", { exact: true })).toHaveCount(
     2,
     { timeout: 10_000 },
@@ -457,9 +506,15 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
     .getByRole("button", { name: "代結帳", exact: true })
     .first();
   await expect(summaryCheckoutButton).toBeVisible();
-  await staffOrder
-    .getByRole("button", { name: "查看明細", exact: true })
-    .click();
+  const returnedOrderDetailsButton = staffOrder.getByRole("button", {
+    name: "查看明細",
+    exact: true,
+  });
+  await waitForReactHydration(returnedOrderDetailsButton);
+  await returnedOrderDetailsButton.click();
+  await expect(
+    staffOrder.getByRole("button", { name: "收合", exact: true }),
+  ).toHaveAttribute("aria-expanded", "true");
   await expect(staffOrder.getByText("已出餐", { exact: true })).toHaveCount(2);
   await expect(staffOrder.getByLabel("3 位數取餐碼")).toHaveCount(0);
   await summaryCheckoutButton.click();

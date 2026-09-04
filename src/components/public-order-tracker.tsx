@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BadgeCheck, ChevronDown, CircleHelp, CircleX, Clock3, FilePenLine, LoaderCircle, RefreshCw, Store, Trash2, X } from "lucide-react";
 import { LineNotificationControls } from "@/components/line-notification-controls";
+import { PublicOrderFeedbackDialog } from "@/components/public-order-feedback-dialog";
 import { useAppLocale } from "@/components/locale-provider";
 import type { AppLocale } from "@/lib/app-locale";
 import { playAlertSound, primeAlertSound } from "@/lib/browser-alert-sound";
@@ -41,7 +42,7 @@ export function getPublicOrderCustomerActions(
   const unpaid = paymentStatus === "UNPAID";
   return {
     canModify: publicFulfillment && unpaid && (orderStatus === "WAITING_CONFIRMATION" || orderStatus === "CONFIRMED"),
-    canCancel: publicFulfillment && unpaid && orderStatus === "WAITING_CONFIRMATION",
+    canCancel: unpaid && orderStatus === "WAITING_CONFIRMATION",
   };
 }
 
@@ -579,6 +580,31 @@ export function getQrOrderReturnPath(orderStatus: PublicOrderStatus, qrToken: st
     : null;
 }
 
+export function PublicOrderCancelDialog({
+  locale,
+  busy,
+  onConfirm,
+  onDismiss,
+}: {
+  locale: AppLocale;
+  busy: boolean;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <PublicOrderFeedbackDialog
+      title={publicOrderMessages.get(locale, "cancelOrder")}
+      message={publicOrderMessages.get(locale, "cancelConfirm")}
+      primaryLabel={publicOrderMessages.get(locale, busy ? "cancellingOrder" : "cancelOrder")}
+      secondaryLabel={publicOrderMessages.get(locale, "amendmentDismiss")}
+      busy={busy}
+      danger
+      onPrimary={onConfirm}
+      onSecondary={onDismiss}
+    />
+  );
+}
+
 export function PublicOrderTracker({
   trackingToken,
   qrToken = null,
@@ -594,6 +620,8 @@ export function PublicOrderTracker({
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [isResponding, setIsResponding] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelError, setCancelError] = useState("");
   const [fulfillmentFeedback, setFulfillmentFeedback] = useState<FulfillmentFeedback | null>(null);
   const [showPickupReadyDialog, setShowPickupReadyDialog] = useState(false);
   const [amendmentNotice, setAmendmentNotice] = useState<OrderAmendmentNotice | null>(null);
@@ -733,8 +761,9 @@ export function PublicOrderTracker({
   }, [locale, order, refreshOrder, trackingToken]);
 
   const cancelOrder = useCallback(async () => {
-    if (!window.confirm(publicOrderMessages.get(locale, "cancelConfirm"))) return;
+    setShowCancelDialog(false);
     setIsCancelling(true);
+    setCancelError("");
     setMessage("");
     const operationId = createPublicOrderOperationId();
     let response: Response;
@@ -747,16 +776,16 @@ export function PublicOrderTracker({
         },
         body: JSON.stringify({ deviceId: getOrCreateDeviceId() }),
         cache: "no-store",
-        signal: AbortSignal.timeout(4_000),
+        signal: AbortSignal.timeout(10_000),
       });
     } catch {
-      setMessage(publicOrderMessages.get(locale, "cancelFailed"));
+      setCancelError(publicOrderMessages.get(locale, "cancelFailed"));
       setIsCancelling(false);
       return;
     }
     const payload = await parseEdgeResponse(response);
     if (!response.ok || payload.orderStatus !== "CANCELLED") {
-      setMessage(!response.ok && typeof payload.code === "string"
+      setCancelError(!response.ok && typeof payload.code === "string"
         ? localizedPublicOrderError(locale, payload.code)
         : publicOrderMessages.get(locale, "cancelFailed"));
     } else {
@@ -878,7 +907,7 @@ export function PublicOrderTracker({
                     </Link>
                   ) : null}
                   {actions.canCancel ? (
-                    <button type="button" disabled={isCancelling} onClick={() => void cancelOrder()} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 disabled:opacity-50">
+                    <button type="button" disabled={isCancelling} onClick={() => setShowCancelDialog(true)} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 disabled:opacity-50">
                       {isCancelling ? <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Trash2 aria-hidden="true" className="h-4 w-4" />}
                       {publicOrderMessages.get(locale, isCancelling ? "cancellingOrder" : "cancelOrder")}
                     </button>
@@ -955,6 +984,23 @@ export function PublicOrderTracker({
           />
         )
         : null}
+      {showCancelDialog ? (
+        <PublicOrderCancelDialog
+          locale={locale}
+          busy={isCancelling}
+          onConfirm={() => void cancelOrder()}
+          onDismiss={() => setShowCancelDialog(false)}
+        />
+      ) : null}
+      {cancelError ? (
+        <PublicOrderFeedbackDialog
+          title={publicOrderMessages.get(locale, "cancelOrder")}
+          message={cancelError}
+          primaryLabel={publicOrderMessages.get(locale, "amendmentDismiss")}
+          onPrimary={() => setCancelError("")}
+          danger
+        />
+      ) : null}
     </main>
   );
 }

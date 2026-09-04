@@ -1,11 +1,86 @@
 import { expect, test, type Route } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { qrProductSelectionControl } from "./local-navigation";
 
-const qrToken = "demo-aming-chicken-qr-2026-rotate-me";
+const qrToken = `e2e-qr-edit-${Date.now()}`;
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "22222222-2222-4222-8222-222222222222";
+const prisma = new PrismaClient();
+let originalHours: Array<{
+  id: string;
+  opensAt: string;
+  closesAt: string;
+  isClosed: boolean;
+}> = [];
+let createdOrderId = "";
+let fixtureQrId = "";
 
 test.use({ serviceWorkers: "block" });
 
-test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單", async ({ page }) => {
+test.beforeAll(async () => {
+  const databaseUrl = process.env.DATABASE_URL;
+  const hostname = databaseUrl ? new URL(databaseUrl).hostname : "";
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(hostname)) {
+    throw new Error("QR_EDIT_E2E_REQUIRES_LOCAL_DATABASE");
+  }
+  originalHours = await prisma.stallBusinessHour.findMany({
+    where: { stallId },
+    select: { id: true, opensAt: true, closesAt: true, isClosed: true },
+  });
+  await prisma.stallBusinessHour.updateMany({
+    where: { stallId },
+    data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+  });
+  const qrVersion = await prisma.qrCode.aggregate({
+    where: { stallId },
+    _max: { tokenVersion: true },
+  });
+  fixtureQrId = (await prisma.qrCode.create({
+    data: {
+      organizationId,
+      stallId,
+      token: qrToken,
+      label: "QR edit local E2E",
+      state: "ACTIVE",
+      tokenVersion: (qrVersion._max.tokenVersion ?? 0) + 1,
+    },
+    select: { id: true },
+  })).id;
+});
+
+test.afterAll(async () => {
+  try {
+    if (createdOrderId) {
+      const orderSession = await prisma.orderSession.findFirst({
+        where: { orderId: createdOrderId },
+        select: { id: true },
+      });
+      await prisma.order.deleteMany({ where: { id: createdOrderId } });
+      if (orderSession) {
+        await prisma.publicOrderAttempt.deleteMany({
+          where: { orderSessionId: orderSession.id },
+        });
+        await prisma.orderSession.deleteMany({ where: { id: orderSession.id } });
+      }
+    }
+    if (fixtureQrId) {
+      await prisma.publicOrderAttempt.deleteMany({ where: { qrCodeId: fixtureQrId } });
+      await prisma.qrCode.deleteMany({ where: { id: fixtureQrId } });
+    }
+    await Promise.all(originalHours.map((hour) => prisma.stallBusinessHour.update({
+      where: { id: hour.id },
+      data: {
+        opensAt: hour.opensAt,
+        closesAt: hour.closesAt,
+        isClosed: hour.isClosed,
+      },
+    })));
+  } finally {
+    await prisma.$disconnect();
+  }
+});
+
+test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });
 
@@ -34,12 +109,13 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
   await expect(page.getByLabel("顧客稱呼")).toHaveCount(0);
   await expect(page.getByLabel("聯絡電話")).toHaveCount(0);
   await expect(page.getByLabel("訂單備註")).toBeVisible();
+  await page.getByLabel("訂單備註").fill(`QR edit E2E ${Date.now()}`);
   const waitAcknowledgment = page.getByRole("checkbox", {
     name: /我已了解目前預估等候時間/u,
   });
   if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
 
-  const createResponsePromise = page.waitForResponse(
+  let createResponsePromise = page.waitForResponse(
     (response) =>
       ["/create-public-order", "/api/public/orders"].some((path) =>
         new URL(response.url()).pathname.endsWith(path),
@@ -55,8 +131,29 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
   const submit = page.getByRole("button", { name: "送出訂單", exact: true });
   await expect(submit).toBeEnabled({ timeout: 20_000 });
   await submit.click();
-  const createResponse = await createResponsePromise;
+  let createResponse = await createResponsePromise;
+  if (createResponse.status() === 422) {
+    await expect(createResponse.json()).resolves.toMatchObject({
+      code: "WAIT_ACKNOWLEDGMENT_REQUIRED",
+    });
+    await expect(waitAcknowledgment).toBeVisible();
+    await waitAcknowledgment.check();
+    createResponsePromise = page.waitForResponse(
+      (response) =>
+        ["/create-public-order", "/api/public/orders"].some((path) =>
+          new URL(response.url()).pathname.endsWith(path),
+        ) && response.request().method() === "POST",
+    );
+    await expect(submit).toBeEnabled({ timeout: 20_000 });
+    await submit.click();
+    createResponse = await createResponsePromise;
+  }
   expect([200, 201]).toContain(createResponse.status());
+  const createRequest = createResponse.request().postDataJSON() as {
+    clientOrderId?: string;
+  };
+  createdOrderId = createRequest.clientOrderId ?? "";
+  expect(createdOrderId).toMatch(/^[0-9a-f-]{36}$/iu);
   await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+(?:\?.*)?$/u);
   const trackerUrl = new URL(page.url());
   expect(trackerUrl.searchParams.get("qr")).toBe(qrToken);
@@ -72,6 +169,10 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
 
   let prepareAttempts = 0;
   const interceptFirstPrepareAttempt = async (route: Route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
     prepareAttempts += 1;
     if (prepareAttempts === 1) {
       await route.abort("timedout");
@@ -80,6 +181,10 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
     await route.continue();
   };
   await page.route("**/functions/v1/prepare-reorder", interceptFirstPrepareAttempt);
+  await page.route(
+    "**/api/public-order/prepare-reorder",
+    interceptFirstPrepareAttempt,
+  );
   await page.route(
     `**/api/public/orders/${trackingToken}/reorder`,
     interceptFirstPrepareAttempt,
@@ -95,6 +200,7 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
     (response) =>
       [
         "/functions/v1/prepare-reorder",
+        "/api/public-order/prepare-reorder",
         `/api/public/orders/${trackingToken}/reorder`,
       ].some((path) => new URL(response.url()).pathname.endsWith(path)) &&
       response.request().method() === "POST",
@@ -106,7 +212,10 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
   if (preparePath.endsWith(`/api/public/orders/${trackingToken}/reorder`)) {
     expect(prepareResponse.headers()["x-order-circuit"]).toBe("B");
   } else {
-    expect(preparePath).toBe("/functions/v1/prepare-reorder");
+    expect([
+      "/functions/v1/prepare-reorder",
+      "/api/public-order/prepare-reorder",
+    ]).toContain(preparePath);
   }
   await expect(
     page.getByRole("heading", { name: "修改訂單", exact: true }),
@@ -124,9 +233,8 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
   await page
     .getByRole("button", { name: "前往目前菜單修改", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/store\/aming-01\?/u);
+  await expect(page).toHaveURL(new RegExp(`/q/${qrToken}\\?`, "u"));
   const editUrl = new URL(page.url());
-  expect(editUrl.searchParams.get("view")).toBe("pickup");
   expect(editUrl.searchParams.get("editOrder")).toMatch(
     /^sto_[A-Za-z0-9_-]+$/u,
   );
@@ -148,16 +256,15 @@ test("本機 QR 外帶可全天候下單並透過同站服務載入修改訂單"
     }
     await route.continue().catch(() => undefined);
   });
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toBe("確定要取消此訂單嗎？取消後無法復原。");
-    await dialog.accept();
-  });
   const cancelResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname.endsWith(`/api/public/orders/${trackingToken}`) &&
       response.request().method() === "DELETE",
   );
   await page.getByRole("button", { name: "取消訂單", exact: true }).click();
+  const cancelDialog = page.getByRole("alertdialog", { name: "取消訂單" });
+  await expect(cancelDialog).toContainText("確定要取消此訂單嗎？取消後無法復原。");
+  await cancelDialog.getByRole("button", { name: "取消訂單", exact: true }).click();
   expect((await cancelResponsePromise).status()).toBe(200);
   await expect(page.getByText("已取消", { exact: true })).toBeVisible({ timeout: 2_000 });
   await expect(page.getByText(/signal timed out/iu)).toHaveCount(0);
