@@ -420,6 +420,8 @@ describe("Production workflow approval contract", () => {
 
     expect(branchCreation).toBeGreaterThan(-1);
     expect(branchCreation).toBeLessThan(branchConfiguration);
+    expect(branchCreationStep).toContain("--region ap-southeast-1");
+    expect(branchCreationStep).toContain("--size nano");
     expect(branchCreationStep).toContain("for attempt in $(seq 1 60); do");
     expect(stability).toBeGreaterThan(-1);
     expect(stability).toBeLessThan(migrations);
