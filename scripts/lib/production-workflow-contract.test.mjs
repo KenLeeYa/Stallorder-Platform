@@ -385,12 +385,23 @@ describe("Production workflow approval contract", () => {
   });
 
   it("waits for the hosted branch action and stable database before Preview migrations", () => {
+    expect(ephemeralPreview).toContain("timeout-minutes: 50");
     expect(ephemeralPreview).toContain("preview_project_status");
     expect(ephemeralPreview).toContain("ACTIVE_HEALTHY|MIGRATIONS_FAILED");
     expect(ephemeralPreview).toContain(
       '[ "$preview_project_status" = "ACTIVE_HEALTHY" ]',
     );
 
+    const branchCreation = ephemeralPreview.indexOf(
+      "name: Create or reuse data-less Preview Branch",
+    );
+    const branchConfiguration = ephemeralPreview.indexOf(
+      "name: Load and mask Preview Branch configuration",
+    );
+    const branchCreationStep = ephemeralPreview.slice(
+      branchCreation,
+      branchConfiguration,
+    );
     const stability = ephemeralPreview.indexOf(
       "name: Wait for Preview Branch database stability",
     );
@@ -399,9 +410,13 @@ describe("Production workflow approval contract", () => {
     );
     const stabilityStep = ephemeralPreview.slice(stability, migrations);
 
+    expect(branchCreation).toBeGreaterThan(-1);
+    expect(branchCreation).toBeLessThan(branchConfiguration);
+    expect(branchCreationStep).toContain("for attempt in $(seq 1 60); do");
     expect(stability).toBeGreaterThan(-1);
     expect(stability).toBeLessThan(migrations);
-    expect(stabilityStep).toContain("for attempt in $(seq 1 12); do");
+    expect(stabilityStep).toContain("for attempt in $(seq 1 60); do");
+    expect(stabilityStep).toContain('if [ "$attempt" -lt 60 ]; then');
     expect(stabilityStep).toContain("stable_connections");
     expect(stabilityStep).toContain(
       'supabase migration list --db-url "$EPHEMERAL_DATABASE_URL"',
