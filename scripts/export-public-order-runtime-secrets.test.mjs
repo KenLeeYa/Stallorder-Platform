@@ -1,11 +1,14 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const actionCore = vi.hoisted(() => ({
+  exportVariable: vi.fn(),
+  setSecret: vi.fn(),
+}));
+
+vi.mock("@actions/core", () => actionCore);
 
 const originalArgv = [...process.argv];
 const managedEnvironmentNames = [
-  "GITHUB_ENV",
   "PUBLIC_ORDER_SECRET_PREFIX",
   "SUPABASE_ACCESS_TOKEN",
   "SUPABASE_PROJECT_REF",
@@ -20,18 +23,17 @@ afterEach(() => {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   }
+  actionCore.exportVariable.mockReset();
+  actionCore.setSecret.mockReset();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("public-order runtime secret export", () => {
   it("exports and masks the required project secrets without logging their values", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "stallorder-public-order-secrets-"));
-    const githubEnvironment = join(directory, "github-env");
     const projectRef = "abcdefghijklmnopqrst";
     const logged = [];
 
-    process.env.GITHUB_ENV = githubEnvironment;
     process.env.PUBLIC_ORDER_SECRET_PREFIX = "PRIMARY_";
     process.env.SUPABASE_ACCESS_TOKEN = "test-access-token";
     process.env.SUPABASE_PROJECT_REF = projectRef;
@@ -45,30 +47,24 @@ describe("public-order runtime secret export", () => {
     }));
     vi.spyOn(console, "log").mockImplementation((value) => logged.push(String(value)));
 
-    try {
-      await import("./export-public-order-runtime-secrets.mjs?success-test");
-      const lines = (await readFile(githubEnvironment, "utf8")).trim().split(/\r?\n/u);
+    await import("./export-public-order-runtime-secrets.mjs?success-test");
 
-      expect(lines).toEqual([
-        "PRIMARY_ABUSE_HASH_SECRET=abuse-value",
-        "PRIMARY_TOKEN_DERIVATION_SECRET=token-value",
-        "PRIMARY_TURNSTILE_SECRET_KEY=turnstile-value",
-      ]);
-      expect(logged).toEqual(expect.arrayContaining([
-        "::add-mask::abuse-value",
-        "::add-mask::token-value",
-        "::add-mask::turnstile-value",
-      ]));
-      expect(logged.join("\n")).toContain("public_order_runtime_secrets_exported");
-      expect(logged.join("\n")).not.toContain('"abuse-value"');
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+    expect(actionCore.setSecret.mock.calls).toEqual([
+      ["abuse-value"],
+      ["token-value"],
+      ["turnstile-value"],
+    ]);
+    expect(actionCore.exportVariable.mock.calls).toEqual([
+      ["PRIMARY_ABUSE_HASH_SECRET", "abuse-value"],
+      ["PRIMARY_TOKEN_DERIVATION_SECRET", "token-value"],
+      ["PRIMARY_TURNSTILE_SECRET_KEY", "turnstile-value"],
+    ]);
+    expect(logged).toEqual(['{"event":"public_order_runtime_secrets_exported"}']);
+    expect(logged.join("\n")).not.toContain(projectRef);
+    expect(logged.join("\n")).not.toContain("abuse-value");
   });
 
   it("fails closed when a required project secret is missing", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "stallorder-public-order-secrets-"));
-    process.env.GITHUB_ENV = join(directory, "github-env");
     process.env.PUBLIC_ORDER_SECRET_PREFIX = "";
     process.env.SUPABASE_ACCESS_TOKEN = "test-access-token";
     process.env.SUPABASE_PROJECT_REF = "abcdefghijklmnopqrst";
@@ -77,12 +73,9 @@ describe("public-order runtime secret export", () => {
     ]), { status: 200, headers: { "Content-Type": "application/json" } })));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    try {
-      await import("./export-public-order-runtime-secrets.mjs?missing-test");
-      expect(process.exitCode).toBe(1);
-    } finally {
-      process.exitCode = undefined;
-      await rm(directory, { recursive: true, force: true });
-    }
+    await import("./export-public-order-runtime-secrets.mjs?missing-test");
+    expect(process.exitCode).toBe(1);
+    expect(actionCore.exportVariable).not.toHaveBeenCalled();
+    process.exitCode = undefined;
   });
 });
