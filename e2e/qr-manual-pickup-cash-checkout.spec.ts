@@ -5,6 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import {
   dismissStaffStartReminder,
+  loginLocalTestAccount,
   qrProductSelectionControl,
 } from "./local-navigation";
 import { createOpenQrFixture } from "./open-qr-fixture";
@@ -32,7 +33,7 @@ let qrFixture: Awaited<
   ReturnType<typeof createOpenQrFixture>
 > | null = null;
 
-test.describe("外帶 QR 人工核對與現金完成訂單", () => {
+test.describe("外帶 QR 先收款、人工核對後完成訂單", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
@@ -147,16 +148,20 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
     }
   });
 
-  test("真實 QR 下單經人工核對後，以現金完成訂單", async ({
+  test("真實 QR 訂單可先收現金並保留到人工核對交付", async ({
     browser,
     page,
   }) => {
     test.setTimeout(180_000);
 
     const sessionResponsePromise = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname.endsWith("/create-order-session") &&
-        response.request().method() === "POST",
+      (response) => {
+        const pathname = new URL(response.url()).pathname;
+        return (
+          pathname.endsWith("/create-order-session") ||
+          pathname === "/api/public/order-session"
+        ) && response.request().method() === "POST";
+      },
     );
     await page.goto(`/q/${takeoutQrToken}`);
     const sessionResponse = await sessionResponsePromise;
@@ -203,9 +208,13 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
     ).toBeEnabled({ timeout: 20_000 });
 
     let createOrderResponsePromise = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname.endsWith("/create-public-order") &&
-        response.request().method() === "POST",
+      (response) => {
+        const pathname = new URL(response.url()).pathname;
+        return (
+          pathname.endsWith("/create-public-order") ||
+          pathname === "/api/public/orders"
+        ) && response.request().method() === "POST";
+      },
     );
     const submitOrder = page.getByRole("button", {
       name: "Place order",
@@ -221,9 +230,13 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
       await waitAcknowledgment.check();
       await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
       createOrderResponsePromise = page.waitForResponse(
-        (response) =>
-          new URL(response.url()).pathname.endsWith("/create-public-order") &&
-          response.request().method() === "POST",
+        (response) => {
+          const pathname = new URL(response.url()).pathname;
+          return (
+            pathname.endsWith("/create-public-order") ||
+            pathname === "/api/public/orders"
+          ) && response.request().method() === "POST";
+        },
       );
       await submitOrder.click();
       createOrderResponse = await createOrderResponsePromise;
@@ -291,6 +304,45 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
         status: "CONFIRMED",
       });
 
+      await staffOrder
+        .getByRole("button", { name: "結帳收款", exact: true })
+        .click();
+      const paymentDialog = staffPage.getByRole("dialog", { name: "結帳收款" });
+      await expect(paymentDialog).toContainText("收款後訂單會保留；餐點交付後再按「完成訂單」。");
+      await paymentDialog.getByRole("button", { name: "現金", exact: true }).click();
+      await paymentDialog
+        .getByLabel("客戶實收金額")
+        .fill(String(createdOrder.total));
+
+      const paymentResponsePromise = waitForOrderPatch(staffPage, createdOrderId);
+      await paymentDialog
+        .getByRole("button", { name: "確認收款", exact: true })
+        .click();
+      const paymentResponse = await paymentResponsePromise;
+      expect(paymentResponse.status()).toBe(200);
+      expect(paymentResponse.request().postDataJSON()).toMatchObject({
+        status: "COMPLETED",
+        completionIntent: "COLLECT_PAYMENT",
+        paymentOptionId: cashPaymentOptionId,
+        cashReceived: createdOrder.total,
+      });
+      await expect(paymentResponse.json()).resolves.toMatchObject({
+        completionPendingFulfillment: true,
+        order: { status: "CONFIRMED", paymentStatus: "PAID" },
+      });
+      await expect(staffOrder).toBeVisible();
+      await expect(staffOrder).toContainText("已付款");
+      const paidOrder = await prisma.order.findUniqueOrThrow({
+        where: { id: createdOrderId },
+        include: { payment: true },
+      });
+      createdPaymentId = paidOrder.payment?.id ?? "";
+      expect(paidOrder).toMatchObject({
+        status: "CONFIRMED",
+        paymentStatus: "PAID",
+        completedAt: null,
+      });
+
       const preparingResponsePromise = waitForItemsPatch(
         staffPage,
         createdOrderId,
@@ -314,10 +366,10 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
         status: "READY",
       });
       await staffOrder
-        .getByRole("button", { name: "代結帳", exact: true })
+        .getByRole("button", { name: "完成訂單", exact: true })
         .click();
       const pickupCheckout = staffPage.getByRole("dialog", {
-        name: "先驗證取餐碼，再進行結帳",
+        name: "驗證取餐碼並完成訂單",
       });
       await expect(pickupCheckout.getByLabel("3 位數取餐碼")).toBeVisible();
 
@@ -346,6 +398,10 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
             `/orders/${createdOrderId}/verify-pickup`,
           ) && response.request().method() === "POST",
       );
+      const completionResponsePromise = waitForOrderPatch(
+        staffPage,
+        createdOrderId,
+      );
       await confirmManualPickup.click();
       const manualPickupResponse = await manualPickupResponsePromise;
       expect(manualPickupResponse.status()).toBe(200);
@@ -354,31 +410,11 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
         confirmationOrderNo: orderNo,
         confirmedCustomerDetails: true,
       });
-      await expect(staffOrder).toContainText("已完成人工取餐核對");
-
-      const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
-      await expect(checkout).toBeVisible();
-      await checkout.getByRole("button", { name: "現金", exact: true }).click();
-      await checkout
-        .getByLabel("客戶實收金額")
-        .fill(String(createdOrder.total));
-      await expect(checkout.getByLabel("客戶實收金額")).toHaveValue(
-        String(createdOrder.total),
-      );
-
-      const checkoutResponsePromise = waitForOrderPatch(
-        staffPage,
-        createdOrderId,
-      );
-      await checkout
-        .getByRole("button", { name: "完成訂單", exact: true })
-        .click();
-      const checkoutResponse = await checkoutResponsePromise;
-      expect(checkoutResponse.status()).toBe(200);
-      expect(checkoutResponse.request().postDataJSON()).toMatchObject({
+      const completionResponse = await completionResponsePromise;
+      expect(completionResponse.status()).toBe(200);
+      expect(completionResponse.request().postDataJSON()).toEqual({
         status: "COMPLETED",
-        paymentOptionId: cashPaymentOptionId,
-        cashReceived: createdOrder.total,
+        completionIntent: "FINALIZE",
       });
       await expect(staffOrder).toHaveCount(0);
 
@@ -386,7 +422,6 @@ test.describe("外帶 QR 人工核對與現金完成訂單", () => {
         where: { id: createdOrderId },
         include: { payment: true, items: true },
       });
-      createdPaymentId = completedOrder.payment?.id ?? "";
       expect(completedOrder).toMatchObject({
         source: "QR_MENU",
         origin: "ONLINE_QR",
@@ -472,19 +507,7 @@ async function resolveCreatedRecordIds() {
 }
 
 async function login(page: Page) {
-  await page.goto("/login");
-  const origin = new URL(page.url()).origin;
-  const loginResponse = await page.context().request.post("/api/auth/login", {
-    data: { email: "staff@stallorder.test", password },
-    headers: {
-      origin,
-      referer: page.url(),
-      "sec-fetch-site": "same-origin",
-    },
-  });
-  expect(loginResponse.status()).toBe(200);
-  const body = await loginResponse.json() as { next?: string };
-  await page.goto(body.next ?? "/");
+  await loginLocalTestAccount(page, "staff@stallorder.test", password);
   await expect(page).toHaveURL(/\/staff\//, { timeout: 30_000 });
 }
 

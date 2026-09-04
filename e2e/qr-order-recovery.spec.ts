@@ -139,6 +139,10 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
   const orderNumberText = await page.getByText(/^訂單 /).textContent();
   const orderNo = orderNumberText?.replace(/^訂單\s*/, "") ?? "";
   expect(orderNo).not.toBe("");
+  const createdOrder = await prisma.order.findUniqueOrThrow({
+    where: { stallId_orderNo: { stallId, orderNo } },
+    select: { id: true },
+  });
   const trackingPath = new URL(page.url()).pathname;
   const trackingToken = trackingPath.replace(/^\/order\//u, "");
 
@@ -190,10 +194,39 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
       .getByRole("button", { name: "全部餐點完成（1）", exact: true })
       .click();
     await staffOrder
-      .getByRole("button", { name: "代結帳", exact: true })
+      .getByRole("button", { name: "結帳收款", exact: true })
+      .click();
+    const paymentDialog = staffPage.getByRole("dialog", {
+      name: "結帳收款",
+    });
+    await paymentDialog
+      .getByRole("button", { name: "LINE Pay", exact: true })
+      .click();
+    const paymentResponsePromise = staffPage.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith(
+          `/orders/${createdOrder.id}`,
+        ) && response.request().method() === "PATCH",
+    );
+    await paymentDialog
+      .getByRole("button", { name: "確認收款", exact: true })
+      .click();
+    const paymentResponse = await paymentResponsePromise;
+    expect(paymentResponse.status()).toBe(200);
+    expect(paymentResponse.request().postDataJSON()).toMatchObject({
+      status: "COMPLETED",
+      completionIntent: "COLLECT_PAYMENT",
+    });
+    await expect(paymentResponse.json()).resolves.toMatchObject({
+      completionPendingFulfillment: true,
+      order: { status: "READY", paymentStatus: "PAID" },
+    });
+    await expect(staffOrder).toContainText("已付款");
+    await staffOrder
+      .getByRole("button", { name: "完成訂單", exact: true })
       .click();
     const pickupCheckout = staffPage.getByRole("dialog", {
-      name: "先驗證取餐碼，再進行結帳",
+      name: "驗證取餐碼並完成訂單",
     });
     await expect(pickupCheckout.getByLabel("3 位數取餐碼")).toBeVisible();
     await pickupCheckout
@@ -213,21 +246,33 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
     await expect(confirmManualPickup).toBeDisabled();
     await manualDialog.getByLabel("已向顧客核對稱呼與全部餐點內容").check();
     await expect(confirmManualPickup).toBeEnabled();
-    const manualPickupRequest = staffPage.waitForRequest(
-      (request) =>
-        new URL(request.url()).pathname.endsWith("/verify-pickup") &&
-        request.method() === "POST",
+    const manualPickupResponsePromise = staffPage.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith(
+          `/orders/${createdOrder.id}/verify-pickup`,
+        ) && response.request().method() === "POST",
+    );
+    const completionResponsePromise = staffPage.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith(
+          `/orders/${createdOrder.id}`,
+        ) && response.request().method() === "PATCH",
     );
     await confirmManualPickup.click();
-    expect((await manualPickupRequest).postDataJSON()).toMatchObject({
+    const manualPickupResponse = await manualPickupResponsePromise;
+    expect(manualPickupResponse.status()).toBe(200);
+    expect(manualPickupResponse.request().postDataJSON()).toMatchObject({
       mode: "MANUAL",
       confirmationOrderNo: orderNo,
       confirmedCustomerDetails: true,
     });
-    await expect(staffOrder).toContainText("已完成人工取餐核對");
-    await expect(
-      staffPage.getByRole("dialog", { name: "完成訂單" }),
-    ).toBeVisible();
+    const completionResponse = await completionResponsePromise;
+    expect(completionResponse.status()).toBe(200);
+    expect(completionResponse.request().postDataJSON()).toEqual({
+      status: "COMPLETED",
+      completionIntent: "FINALIZE",
+    });
+    await expect(staffOrder).toHaveCount(0);
   } finally {
     await staffContext.close();
   }

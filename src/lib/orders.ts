@@ -181,7 +181,6 @@ export function getContextualOrderStatusLabel(order: Pick<
   "status" | "source" | "paymentStatus" | "fulfillmentType"
 >) {
   if (order.status !== "READY") return orderStatusLabels[order.status];
-  if (order.source === "QR_MENU") return orderStatusLabels.READY;
   if (order.fulfillmentType === "DINE_IN") return "待出餐";
   if (order.source === "STAFF_POS" && order.paymentStatus === "UNPAID") return "待結帳";
   if (order.fulfillmentType === "DELIVERY" && order.paymentStatus === "PAID") return "待交付外送";

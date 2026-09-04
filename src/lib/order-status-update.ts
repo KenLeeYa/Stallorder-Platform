@@ -6,6 +6,7 @@ export const orderStatusUpdateSchema = z.discriminatedUnion("status", [
   z.object({ status: nonCompletionStatus }).strict(),
   z.object({
     status: z.literal("COMPLETED"),
+    completionIntent: z.enum(["COLLECT_PAYMENT", "FINALIZE"]).optional(),
     paymentOptionId: z.string().uuid().nullable().optional(),
     discountOptionId: z.string().uuid().nullable().optional(),
     cashReceived: z.number().int().min(0).max(100_000_000).nullable().optional(),

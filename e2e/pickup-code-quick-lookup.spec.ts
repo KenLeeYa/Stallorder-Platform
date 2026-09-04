@@ -200,12 +200,12 @@ test.describe("每日三碼取餐與店員快速載單", () => {
           response.request().method() === "POST",
       );
       await lookupDialog
-        .getByRole("button", { name: "載入並開啟結帳", exact: true })
+        .getByRole("button", { name: "驗證並處理訂單", exact: true })
         .click();
       expect((await lookupResponse).status()).toBe(200);
 
       await expect(
-        page.getByRole("dialog", { name: "完成訂單" }),
+        page.getByRole("dialog", { name: "結帳收款" }),
       ).toBeVisible();
     });
     const verified = await prisma.order.findUniqueOrThrow({

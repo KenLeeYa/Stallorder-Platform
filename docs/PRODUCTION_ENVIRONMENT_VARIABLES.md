@@ -19,6 +19,9 @@ Production Primary、Production DR 或舊 Staging 連線填入通用 Git Preview
 | `SUPABASE_SECRET_KEY` | 僅在配對流程需要時注入 Branch secret | Production secret key | 是 | 受信任 server 的 Storage 管理；不得進 client bundle |
 | `NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL` | `https://<PR_PREVIEW_PROJECT_REF>.supabase.co/functions/v1` | `https://<PRODUCTION_SUPABASE_PROJECT_REF>.supabase.co/functions/v1` | 否 | Public order Edge API |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | 隔離測試策略；不得用 Production key | `<PRODUCTION_TURNSTILE_SITE_KEY>` | 否 | Turnstile widget |
+| `ABUSE_HASH_SECRET` | 配對 Preview Supabase 專案的值 | 作用中 Production Supabase 專案的同名值 | 是 | Circuit B 追蹤碼與裝置雜湊；必須與作用中的 Edge Function 一致 |
+| `TOKEN_DERIVATION_SECRET` | 配對 Preview Supabase 專案的值 | 作用中 Production Supabase 專案的同名值 | 是 | Circuit B 訂單追蹤 token 驗證；必須與作用中的 Edge Function 一致 |
+| `TURNSTILE_SECRET_KEY` | 配對 Preview 的測試策略 | 作用中 Production Supabase 專案的同名值 | 是 | Circuit B 修改訂單的 Turnstile 驗證 |
 | `AUDIT_IP_HASH_SECRET` | 每次流程產生的獨立值 | Production unique secret | 是 | Next.js audit IP HMAC |
 | `TRUSTED_CLIENT_IP_HEADER` | `x-forwarded-for` | `x-forwarded-for` | 否 | Vercel 覆寫的單一 client IP header |
 | `ALLOW_DEMO_SEED` | `false` | `false` | 否 | 正式 guardrail |
@@ -29,6 +32,8 @@ Production Primary、Production DR 或舊 Staging 連線填入通用 Git Preview
 | `REPORT_DELIVERY_MODE` | `simulate` | `live` | 否 | 正式不得 simulate |
 
 本專案沒有 `TRUST_PROXY_HEADERS`；不要新增未實作的 variable。Vercel 官方邊緣層會覆寫 `x-forwarded-for`，程式仍只接受單一合法 IP，拒絕逗號鏈與任意 header 名稱。
+
+Production Apply 會透過 Supabase Management API 讀取上述三個 public-order Secret，遮罩後只注入該次 Vercel deployment。DR 切換必須向 Primary 與 DR 各自讀取，並依實際 backend target 注入；禁止把 Primary 值沿用到 DR 或將值寫入 log／artifact。
 
 ## Supabase Edge secrets
 

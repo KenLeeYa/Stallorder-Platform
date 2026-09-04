@@ -49,6 +49,26 @@ describe("QR order cart draft persistence", () => {
     expect(storage.removeItem).not.toHaveBeenCalled();
   });
 
+  it("keeps pickup contact details in an order-specific edit draft", () => {
+    const storage = createStorage();
+
+    persistQrOrderCartDraft(input({
+      editTrackingToken: "sto_pickup/order",
+      orderingMode: "PREORDER",
+      customerName: "王小明",
+      customerPhone: "0912345678",
+      lines: [line],
+    }), () => storage);
+
+    expect(storage.setItem).toHaveBeenCalledOnce();
+    const [key, raw] = storage.setItem.mock.calls[0];
+    expect(key).toBe("stallorder_qr_order_edit:sto_pickup%2Forder");
+    expect(JSON.parse(raw)).toMatchObject({
+      customerName: "王小明",
+      customerPhone: "0912345678",
+    });
+  });
+
   it("removes the scoped key when all draft fields are empty", () => {
     const storage = createStorage();
 

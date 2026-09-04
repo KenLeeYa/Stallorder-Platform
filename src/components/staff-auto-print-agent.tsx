@@ -65,6 +65,11 @@ export function StaffAutoPrintAgent({ stallSlug }: { stallSlug: string }) {
         activePrinterRef.current = printer;
         window.localStorage.setItem(`stallorder_printer_${stallSlug}`, printer.id);
         await postPrintCommand(stallSlug, { operation: "HEARTBEAT", printerId: printer.id });
+        if (!hasAutomaticPrintRule(refreshed.state, printer.id)) {
+          setStatus("NOT_CONFIGURED");
+          setDetail(t("print.agent.noAutoRule"));
+          return;
+        }
         setStatus("READY");
         setDetail(t("print.device.detected", { printer: printer.name }));
 
@@ -159,9 +164,9 @@ export function StaffAutoPrintAgent({ stallSlug }: { stallSlug: string }) {
     /> : null}
     <p
       role="status"
-      className={`mt-2 flex min-h-8 items-center gap-2 border-y px-2 py-1 text-xs font-medium print:hidden ${status === "READY" ? "border-emerald-300 bg-emerald-50 text-emerald-900" : status === "ERROR" || status === "UNSUPPORTED" ? "border-amber-300 bg-amber-50 text-amber-950" : "border-stone-200 bg-stone-50 text-stone-600"}`}
+      className={`mt-2 flex min-h-8 items-center gap-2 border-y px-2 py-1 text-xs font-medium print:hidden ${status === "READY" ? "border-emerald-300 bg-emerald-50 text-emerald-900" : status === "ERROR" || status === "UNSUPPORTED" || status === "NOT_CONFIGURED" ? "border-amber-300 bg-amber-50 text-amber-950" : "border-stone-200 bg-stone-50 text-stone-600"}`}
     >
-      {status === "ERROR" || status === "UNSUPPORTED" ? <TriangleAlert className="h-4 w-4 shrink-0" /> : <Printer className="h-4 w-4 shrink-0" />}
+      {status === "ERROR" || status === "UNSUPPORTED" || status === "NOT_CONFIGURED" ? <TriangleAlert className="h-4 w-4 shrink-0" /> : <Printer className="h-4 w-4 shrink-0" />}
       <span>{detail || t("print.agent.checking")}</span>
     </p>
   </>;
@@ -175,6 +180,14 @@ function selectAutomaticPrinter(state: PrintQueueState, stallSlug: string) {
   ));
   const savedId = window.localStorage.getItem(`stallorder_printer_${stallSlug}`);
   return candidates.find((printer) => printer.id === savedId) ?? candidates[0] ?? null;
+}
+
+export function hasAutomaticPrintRule(state: Pick<PrintQueueState, "rules">, printerId: string) {
+  return state.rules.some((rule) => (
+    rule.printerId === printerId
+    && rule.isEnabled
+    && rule.autoPrint
+  ));
 }
 
 async function postPrintCommand(stallSlug: string, command: Record<string, unknown>) {

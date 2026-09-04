@@ -412,6 +412,18 @@ export function persistPickupCodeDisplay(orderId: string, pickupCode: string) {
   });
 }
 
+export function persistPreorderCustomerPhone(orderId: string, customerPhone: string) {
+  return prisma.order.updateMany({
+    where: {
+      id: orderId,
+      customerPhone: null,
+    },
+    data: {
+      customerPhone: customerPhone.trim().slice(0, 30),
+    },
+  });
+}
+
 export function getTrackedPublicOrder(trackingTokenHash: string, deviceHash: string) {
   return jsonResult<Record<string, unknown> & {
     orderId: string;

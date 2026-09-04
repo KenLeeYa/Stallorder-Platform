@@ -267,6 +267,7 @@ const merchantMessageRows = {
   "建立並啟用桌位後即可列印。": { "zh-TW": "建立並啟用桌位後即可列印。", en: "Create and enable a table before printing.", ja: "テーブルを作成して有効にすると印刷できます。", ko: "테이블을 만들고 활성화하면 인쇄할 수 있습니다.", vi: "Tạo và bật bàn trước khi in.", th: "สร้างและเปิดใช้โต๊ะก่อนพิมพ์" },
   "列印此桌": { "zh-TW": "列印此桌", en: "Print this table", ja: "この卓を印刷", ko: "이 테이블 인쇄", vi: "In bàn này", th: "พิมพ์โต๊ะนี้" },
   "A4 印刷版": { "zh-TW": "A4 印刷版", en: "A4 print", ja: "A4印刷", ko: "A4 인쇄", vi: "Bản in A4", th: "แบบพิมพ์ A4" },
+  "印刷版": { "zh-TW": "印刷版", en: "Print", ja: "印刷版", ko: "인쇄본", vi: "Bản in", th: "ฉบับพิมพ์" },
   "A5 印刷版": { "zh-TW": "A5 印刷版", en: "A5 print", ja: "A5印刷", ko: "A5 인쇄", vi: "Bản in A5", th: "แบบพิมพ์ A5" },
   "A6 印刷版": { "zh-TW": "A6 印刷版", en: "A6 print", ja: "A6印刷", ko: "A6 인쇄", vi: "Bản in A6", th: "แบบพิมพ์ A6" },
   "QR 印刷版預覽": { "zh-TW": "QR 印刷版預覽", en: "QR print preview", ja: "QR印刷プレビュー", ko: "QR 인쇄 미리보기", vi: "Xem trước bản in QR", th: "ตัวอย่างก่อนพิมพ์ QR" },

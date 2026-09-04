@@ -184,6 +184,9 @@ export function StaffOrderCheckoutDialog({
   if (!checkoutOrder) return null;
 
   const busy = updatingOrderId === checkoutOrder.id;
+  const qrPaymentOnly = state.orders.length === 1
+    && checkoutOrder.source === "QR_MENU"
+    && checkoutOrder.paymentStatus === "UNPAID";
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4 print:hidden">
@@ -196,7 +199,7 @@ export function StaffOrderCheckoutDialog({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 id="checkout-title" className="text-lg font-semibold">
-              {state.orders.length > 1 ? "同桌合併結帳" : "完成訂單"}
+              {state.orders.length > 1 ? "同桌合併結帳" : qrPaymentOnly ? "結帳收款" : "完成訂單"}
             </h2>
             <p className="mt-1 text-sm text-stone-600">
               {state.orders.length > 1
@@ -206,6 +209,11 @@ export function StaffOrderCheckoutDialog({
             {state.orders.length > 1 ? (
               <p className="mt-1 text-xs text-stone-500">
                 {state.orders.map((order) => order.orderNo).join("、")}
+              </p>
+            ) : null}
+            {qrPaymentOnly ? (
+              <p className="mt-2 text-xs font-medium text-teal-800">
+                收款後訂單會保留；餐點交付後再按「完成訂單」。
               </p>
             ) : null}
           </div>
@@ -363,7 +371,7 @@ export function StaffOrderCheckoutDialog({
             onClick={() => void controller.complete()}
             className="rounded-md bg-teal-800 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? "處理中…" : "完成訂單"}
+            {busy ? "處理中…" : qrPaymentOnly ? "確認收款" : "完成訂單"}
           </button>
         </div>
       </section>

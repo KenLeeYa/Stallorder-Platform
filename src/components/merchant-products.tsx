@@ -115,20 +115,22 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
           {label("攤位商品設定")}
         </button>
 
-        {orderUrl ? (
-          <div data-testid="merchant-ordering-qr" className="mx-auto mt-5 w-full max-w-sm xl:mx-0">
-            <div className="rounded-lg border border-stone-200 bg-white p-4"><QRCodeSVG data-testid="merchant-ordering-qr-code" value={orderUrl} size={240} className="h-auto w-full" /></div>
+        <div data-testid="merchant-ordering-management" className="md:grid md:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)] md:items-start md:gap-5 xl:block">
+          {orderUrl ? (
+          <div data-testid="merchant-ordering-qr" className="mx-auto mt-5 w-full max-w-sm xl:mx-0 md:max-w-none xl:max-w-sm">
+            <div className="mx-auto max-w-sm rounded-lg border border-stone-200 bg-white p-4"><QRCodeSVG data-testid="merchant-ordering-qr-code" value={orderUrl} size={240} className="h-auto w-full" /></div>
             <p className="mt-3 text-sm font-medium">{label("顧客點餐 QR Code · v")}{ordering.qrCode?.tokenVersion}</p>
             <p className="mt-1 break-all text-xs text-stone-500">{orderUrl}</p>
             <div className="mt-3 grid grid-cols-3 gap-2">
-              <Link href={`/merchant/stalls/${stall.id}/qr-print?target=stall&paper=A4`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900"><FileDown className="h-4 w-4" />{label("A4 印刷版")}</Link>
-              <Link href={`/merchant/stalls/${stall.id}/qr-print?target=stall&paper=A5`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white"><FileDown className="h-4 w-4" />{label("A5 印刷版")}</Link>
-              <Link href={`/merchant/stalls/${stall.id}/qr-print?target=stall&paper=A6`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900"><FileDown className="h-4 w-4" />{label("A6 印刷版")}</Link>
+              <Link aria-label={label("A4 印刷版")} href={`/merchant/stalls/${stall.id}/qr-print?target=stall&paper=A4`} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900"><FileDown className="h-4 w-4 shrink-0" /><span className="text-center leading-tight"><span className="block">A4</span><span className="block">{label("印刷版")}</span></span></Link>
+              <Link aria-label={label("A5 印刷版")} href={`/merchant/stalls/${stall.id}/qr-print?target=stall&paper=A5`} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white"><FileDown className="h-4 w-4 shrink-0" /><span className="text-center leading-tight"><span className="block">A5</span><span className="block">{label("印刷版")}</span></span></Link>
+              <Link aria-label={label("A6 印刷版")} href={`/merchant/stalls/${stall.id}/qr-print?target=stall&paper=A6`} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900"><FileDown className="h-4 w-4 shrink-0" /><span className="text-center leading-tight"><span className="block">A6</span><span className="block">{label("印刷版")}</span></span></Link>
             </div>
           </div>
-        ) : <p className="mt-5 text-sm text-red-700">{label("目前沒有可用的 QR Code，請執行輪替以建立新 QR。")}</p>}
+          ) : <p className="mt-5 text-sm text-red-700">{label("目前沒有可用的 QR Code，請執行輪替以建立新 QR。")}</p>}
 
-        <section aria-labelledby="public-menu-link-title" className="mt-5 rounded-lg border border-teal-200 bg-teal-50 p-4">
+          <div data-testid="merchant-ordering-actions" className="mt-5 min-w-0">
+          <section aria-labelledby="public-menu-link-title" className="rounded-lg border border-teal-200 bg-teal-50 p-4">
           <h2 id="public-menu-link-title" className="font-semibold text-teal-950">{label("統一公開連結")}</h2>
           <p className="mt-1 text-xs leading-5 text-teal-900">{label("可貼到 LINE、Google 商家或社群平台；顧客可在同一頁查看線上 Menu、選擇外帶自取或外送。")}</p>
           <p className="mt-3 break-all rounded-md bg-white px-3 py-2 text-xs text-stone-600">{label("永久路徑：")}{publicStorefrontPath}</p>
@@ -157,7 +159,9 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
           <button type="button" disabled={isSaving || !ordering.qrCode || ordering.qrCode.state === "REVOKED"} onClick={() => void runControl("REVOKE_QR")} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-800 disabled:opacity-40"><Ban className="h-4 w-4" />{label("撤銷目前 QR")}</button>
         </div>
         <Link href={`/merchant/${stall.slug}/reports`} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-teal-800"><BarChart3 className="h-4 w-4" />{label("查看每日報表")}</Link>
-        {sharedCatalogUrl ? <Link href={sharedCatalogUrl} className="mt-3 flex items-center gap-2 text-sm font-semibold text-teal-800"><Package className="h-4 w-4" />{label("管理共用商品主檔")}</Link> : null}
+          {sharedCatalogUrl ? <Link href={sharedCatalogUrl} className="mt-3 flex items-center gap-2 text-sm font-semibold text-teal-800"><Package className="h-4 w-4" />{label("管理共用商品主檔")}</Link> : null}
+          </div>
+        </div>
       </aside>
 
       <div className={`${catalogDialogOpen ? "fixed inset-0 z-50 flex items-stretch bg-black/50 p-3 sm:p-6" : "hidden"} min-h-0 xl:static xl:z-auto xl:block xl:h-full xl:bg-transparent xl:p-0`}>

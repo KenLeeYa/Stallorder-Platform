@@ -1,6 +1,7 @@
 import { buildQrCartDraft } from "@/components/qr-order-flow-orchestration";
 import {
   qrCartStorageKey,
+  qrOrderEditDraftStorageKey,
   serializeQrCartDraft,
   type QrCartLine,
   type QrCartOrderingMode,
@@ -12,6 +13,7 @@ export type QrOrderCartPersistenceInput = {
   sessionReady: boolean;
   cartReady: boolean;
   qrToken: string;
+  editTrackingToken?: string | null;
   orderingMode: QrCartOrderingMode;
   scheduledPickupAt: string;
   customerName: string;
@@ -38,7 +40,9 @@ export function persistQrOrderCartDraft(
       deliveryAddress: input.deliveryAddress,
       lines: input.lines,
     });
-    const storageKey = qrCartStorageKey(input.qrToken, input.orderingMode);
+    const storageKey = input.editTrackingToken
+      ? qrOrderEditDraftStorageKey(input.editTrackingToken)
+      : qrCartStorageKey(input.qrToken, input.orderingMode);
     if (draft) {
       storage.setItem(storageKey, serializeQrCartDraft(draft, input.now));
     } else {

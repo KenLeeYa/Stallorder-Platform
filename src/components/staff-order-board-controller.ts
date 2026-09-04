@@ -548,9 +548,26 @@ export function useStaffOrderBoardController({
 
   async function openCheckout(orderOrOrders: OrderWithItems | OrderWithItems[]) {
     const ordersToCheckout = Array.isArray(orderOrOrders) ? orderOrOrders : [orderOrOrders];
+    const singleQrOrder = ordersToCheckout.length === 1 && ordersToCheckout[0]?.source === "QR_MENU"
+      ? ordersToCheckout[0]
+      : null;
+    if (singleQrOrder?.paymentStatus === "PAID") {
+      if (
+        singleQrOrder.fulfillmentType === "TAKEOUT"
+        && singleQrOrder.status === "READY"
+        && !singleQrOrder.pickupVerifiedAt
+      ) {
+        setMessage("");
+        setPickupCheckoutOrderId(singleQrOrder.id);
+        return;
+      }
+      await updateOrder(singleQrOrder.id, "COMPLETED");
+      return;
+    }
     const requiresPickupVerification = ordersToCheckout.find((order) => (
       order.fulfillmentType === "TAKEOUT"
       && order.source === "QR_MENU"
+      && order.paymentStatus === "PAID"
       && order.status === "READY"
       && !order.pickupVerifiedAt
     ));
@@ -668,7 +685,7 @@ export function useStaffOrderBoardController({
       setPickupCodes((current) => ({ ...current, [orderId]: "" }));
       if (pickupCheckoutOrderId === orderId && verifiedOrder) {
         setPickupCheckoutOrderId(null);
-        await openCheckoutDialog([verifiedOrder]);
+        await updateOrder(orderId, "COMPLETED");
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : t("staff.error.network"));
@@ -705,8 +722,11 @@ export function useStaffOrderBoardController({
         .sort((left, right) => left.createdAt.localeCompare(right.createdAt)));
       setPickupLookupOpen(false);
       setPickupLookupCode("");
-      if (verifiedOrder.paymentStatus === "PAID" || verifiedOrder.status === "COMPLETED") {
+      if (verifiedOrder.status === "COMPLETED") {
         setMessage(t("staff.pickup.lookupPaidComplete", { number: verifiedOrder.orderNo }));
+      } else if (verifiedOrder.paymentStatus === "PAID") {
+        const completed = await updateOrder(verifiedOrder.id, "COMPLETED");
+        if (completed) setMessage(t("staff.pickup.lookupPaidComplete", { number: verifiedOrder.orderNo }));
       } else {
         await openCheckoutDialog([verifiedOrder]);
       }
@@ -743,7 +763,7 @@ export function useStaffOrderBoardController({
       )));
       if (pickupCheckoutOrderId === order.id) {
         setPickupCheckoutOrderId(null);
-        await openCheckoutDialog([{ ...order, ...pickup }]);
+        await updateOrder(order.id, "COMPLETED");
       }
       return true;
     } catch (error) {

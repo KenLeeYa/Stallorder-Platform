@@ -1,5 +1,6 @@
 import { expect, test, type Route } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { buildFulfillmentTimeSlots } from "../src/lib/fulfillment-time-options";
 import { qrProductSelectionControl } from "./local-navigation";
 
 const qrToken = `e2e-qr-edit-${Date.now()}`;
@@ -13,6 +14,7 @@ let originalHours: Array<{
   isClosed: boolean;
 }> = [];
 let createdOrderId = "";
+let createdPickupOrderId = "";
 let fixtureQrId = "";
 
 test.use({ serviceWorkers: "block" });
@@ -50,12 +52,12 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   try {
-    if (createdOrderId) {
+    for (const orderId of [createdOrderId, createdPickupOrderId].filter(Boolean)) {
       const orderSession = await prisma.orderSession.findFirst({
-        where: { orderId: createdOrderId },
+        where: { orderId },
         select: { id: true },
       });
-      await prisma.order.deleteMany({ where: { id: createdOrderId } });
+      await prisma.order.deleteMany({ where: { id: orderId } });
       if (orderSession) {
         await prisma.publicOrderAttempt.deleteMany({
           where: { orderSessionId: orderSession.id },
@@ -242,7 +244,170 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
     page.getByRole("heading", { name: "阿明鹽酥雞", exact: true }),
   ).toBeVisible();
 
-  await page.goto(trackerUrl.toString());
+  await page.getByTestId("qr-mobile-cart-summary").click();
+  const editCart = page.getByTestId("qr-cart-panel");
+  await expect(editCart.getByTestId("qr-cart-line")).toHaveCount(1);
+  await editCart.getByRole("button", { name: /增加 香酥雞排/u }).click();
+  await editCart
+    .getByRole("button", { name: "繼續填寫訂購資料", exact: true })
+    .click();
+  const editResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith(`/api/public/orders/${trackingToken}`) &&
+      response.request().method() === "PATCH",
+  );
+  const saveChanges = page.getByRole("button", {
+    name: "儲存訂單修改",
+    exact: true,
+  });
+  await expect(saveChanges).toBeEnabled({ timeout: 20_000 });
+  await saveChanges.click();
+  expect((await editResponsePromise).status()).toBe(200);
+  await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+(?:\?.*)?$/u);
+
+  const editedOrder = await prisma.order.findUniqueOrThrow({
+    where: { id: createdOrderId },
+    select: { items: { select: { name: true, quantity: true } } },
+  });
+  expect(editedOrder.items).toEqual([
+    expect.objectContaining({ name: "香酥雞排", quantity: 2 }),
+  ]);
+
+  await expect(page).toHaveURL(trackerUrl.toString());
+  await expect(page.getByRole("button", { name: "取消訂單", exact: true })).toBeVisible();
+  let cancellationStarted = false;
+  await page.route(`**/api/public/orders/${trackingToken}`, async (route) => {
+    if (route.request().method() === "DELETE") {
+      cancellationStarted = true;
+      await route.continue();
+      return;
+    }
+    if (route.request().method() === "GET" && cancellationStarted) {
+      await new Promise((resolve) => setTimeout(resolve, 4_500));
+    }
+    await route.continue().catch(() => undefined);
+  });
+  const cancelResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith(`/api/public/orders/${trackingToken}`) &&
+      response.request().method() === "DELETE",
+  );
+  await page.getByRole("button", { name: "取消訂單", exact: true }).click();
+  const cancelDialog = page.getByRole("alertdialog", { name: "取消訂單" });
+  await expect(cancelDialog).toContainText("確定要取消此訂單嗎？取消後無法復原。");
+  await cancelDialog.getByRole("button", { name: "取消訂單", exact: true }).click();
+  expect((await cancelResponsePromise).status()).toBe(200);
+  await expect(page.getByText("已取消", { exact: true })).toBeVisible({ timeout: 2_000 });
+  await expect(page.getByText(/signal timed out/iu)).toHaveCount(0);
+});
+
+test("本機外帶自取修改訂單會保留顧客姓名與手機", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const sessionResponse = page.waitForResponse(
+    (response) =>
+      ["/create-order-session", "/api/public/order-session"].some((path) =>
+        new URL(response.url()).pathname.endsWith(path),
+      ) && response.request().method() === "POST",
+  );
+  await page.goto("/store/aming-01?view=pickup");
+  const sessionResult = await sessionResponse;
+  expect(sessionResult.status()).toBe(201);
+  const session = await sessionResult.json() as {
+    preorderSlots: string[];
+    stall: { timezone: string };
+  };
+  await expect(
+    page.getByRole("heading", { name: "阿明鹽酥雞", exact: true }),
+  ).toBeVisible();
+
+  const pickupSlot = buildFulfillmentTimeSlots(
+    session.preorderSlots,
+    session.stall.timezone,
+  )[Math.min(6, session.preorderSlots.length - 1)];
+  expect(pickupSlot).toBeDefined();
+  const pickupFields = page.getByTestId("qr-preorder-fulfillment-time-fields");
+  await pickupFields.getByLabel("預約取餐日期").fill(pickupSlot!.date);
+  await pickupFields.getByLabel("預約取餐時間－時").selectOption(pickupSlot!.hour);
+  await pickupFields.getByLabel("預約取餐時間－分").selectOption(pickupSlot!.minute);
+  const applyPickupTime = page.getByRole("button", {
+    name: "套用這個時間",
+    exact: true,
+  });
+  await applyPickupTime.click();
+
+  const product = page.getByRole("article").filter({ hasText: "香酥雞排" });
+  await qrProductSelectionControl(product, "香酥雞排").click();
+  await product.getByRole("button", { name: "加入購物車", exact: true }).click();
+  await page.getByTestId("qr-mobile-cart-summary").click();
+  await page
+    .getByTestId("qr-cart-panel")
+    .getByRole("button", { name: "繼續填寫訂購資料", exact: true })
+    .click();
+
+  const customerName = "外帶修改測試";
+  const customerPhone = "0912345678";
+  await page.getByLabel("顧客稱呼").fill(customerName);
+  await page.getByLabel("聯絡電話").fill(customerPhone);
+
+  const createResponsePromise = page.waitForResponse(
+    (response) =>
+      ["/create-public-order", "/api/public/orders"].some((path) =>
+        new URL(response.url()).pathname.endsWith(path),
+      ) && response.request().method() === "POST",
+  );
+  const submit = page.getByRole("button", { name: "送出訂單", exact: true });
+  await expect(submit).toBeEnabled({ timeout: 20_000 });
+  await submit.click();
+  const createResponse = await createResponsePromise;
+  expect([200, 201]).toContain(createResponse.status());
+  const createRequest = createResponse.request().postDataJSON() as {
+    clientOrderId?: string;
+  };
+  createdPickupOrderId = createRequest.clientOrderId ?? "";
+  expect(createdPickupOrderId).toMatch(/^[0-9a-f-]{36}$/iu);
+
+  await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+(?:\?.*)?$/u);
+  const trackerUrl = new URL(page.url());
+  const trackingToken = new URL(page.url()).pathname.split("/").at(-1);
+  expect(trackingToken).toMatch(/^sto_[A-Za-z0-9_-]+$/u);
+  await page.getByRole("link", { name: "修改訂單", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "修改訂單", exact: true })).toBeVisible();
+  await page
+    .getByRole("button", { name: "前往目前菜單修改", exact: true })
+    .click();
+
+  await expect(page).toHaveURL(/\/store\/aming-01\?.*editOrder=sto_/u);
+  await expect(page.getByTestId("qr-mobile-cart-summary")).toBeVisible();
+  await page.getByTestId("qr-mobile-cart-summary").click();
+  await page
+    .getByTestId("qr-cart-panel")
+    .getByRole("button", { name: "繼續填寫訂購資料", exact: true })
+    .click();
+  await expect(page.getByLabel("顧客稱呼")).toHaveValue(customerName);
+  await expect(page.getByLabel("聯絡電話")).toHaveValue(customerPhone);
+
+  const editResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith(`/api/public/orders/${trackingToken}`) &&
+      response.request().method() === "PATCH",
+  );
+  const saveChanges = page.getByRole("button", {
+    name: "儲存訂單修改",
+    exact: true,
+  });
+  await expect(saveChanges).toBeEnabled({ timeout: 20_000 });
+  await saveChanges.click();
+  expect((await editResponsePromise).status()).toBe(200);
+
+  const editedOrder = await prisma.order.findUniqueOrThrow({
+    where: { id: createdPickupOrderId },
+    select: { customerName: true, customerPhone: true },
+  });
+  expect(editedOrder).toMatchObject({ customerName, customerPhone });
+
+  await expect(page).toHaveURL(trackerUrl.toString());
   await expect(page.getByRole("button", { name: "取消訂單", exact: true })).toBeVisible();
   let cancellationStarted = false;
   await page.route(`**/api/public/orders/${trackingToken}`, async (route) => {

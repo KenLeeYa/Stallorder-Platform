@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   issueIdempotentOrderSession: vi.fn(),
   lookupPublicOrderIdempotency: vi.fn(),
   lookupResumablePublicOrder: vi.fn(),
+  persistPreorderCustomerPhone: vi.fn(),
   persistPickupCodeDisplay: vi.fn(),
   preflightPublicOrder: vi.fn(),
   recordPublicOrderAttempt: vi.fn(),
@@ -53,6 +54,7 @@ vi.mock("@/server/public-order/trusted-rpc-repository", () => ({
   issueIdempotentOrderSession: mocks.issueIdempotentOrderSession,
   lookupPublicOrderIdempotency: mocks.lookupPublicOrderIdempotency,
   lookupResumablePublicOrder: mocks.lookupResumablePublicOrder,
+  persistPreorderCustomerPhone: mocks.persistPreorderCustomerPhone,
   persistPickupCodeDisplay: mocks.persistPickupCodeDisplay,
   preflightPublicOrder: mocks.preflightPublicOrder,
   recordPublicOrderAttempt: mocks.recordPublicOrderAttempt,
@@ -572,6 +574,44 @@ describe("Circuit B public order service", () => {
       }),
     );
     expect(mocks.createPublicOrderWithSchedule).not.toHaveBeenCalled();
+  });
+
+  it("persists the customer phone after creating a PREORDER", async () => {
+    const orderId = "33333333-3333-4333-8333-333333333333";
+    mocks.verifyTurnstile.mockResolvedValue({ ok: true });
+    mocks.createPublicOrderWithSchedule.mockResolvedValue({
+      ok: true,
+      idempotent_replay: false,
+      order: {
+        order_id: orderId,
+        order_no: "A100",
+        order_status: "WAITING_CONFIRMATION",
+        payment_status: "UNPAID",
+        total_amount: 100,
+        fulfillment_type: "TAKEOUT",
+        pickup_required: true,
+        pickup_code_display: "042",
+        created_at: "2026-09-04T08:00:00.000Z",
+      },
+    });
+    mocks.getOrderQuote.mockResolvedValue({ pickupCodeDisplay: "042" });
+    const { createOrderThroughCircuitB } = await import("./circuit-b-service");
+
+    const result = await createOrderThroughCircuitB(createPublicOrderSchema.parse({
+      ...validOrder(),
+      orderingMode: "PREORDER",
+      scheduledPickupAt: "2099-09-04T09:00:00.000Z",
+    }), {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    });
+
+    expect(result.status).toBe(201);
+    expect(mocks.persistPreorderCustomerPhone).toHaveBeenCalledWith(
+      orderId,
+      "0912345678",
+    );
   });
 
   it("canonicalizes UUID casing before Circuit B abuse hashing", async () => {

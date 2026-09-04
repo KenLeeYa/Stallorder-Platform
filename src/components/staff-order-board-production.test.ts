@@ -98,6 +98,62 @@ describe("StaffOrderBoard production transitions", () => {
     });
   });
 
+  it("keeps a QR order visible after payment while fulfillment continues", async () => {
+    const paid = staffOrder("order-a", "QR_MENU", "CONFIRMED", "PAID");
+    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({
+      order: paid,
+      completionPendingFulfillment: true,
+    }));
+
+    const result = await transitionStaffOrderStatus({
+      stallSlug: "stall-slug",
+      currentOrder: staffOrder("order-a", "QR_MENU", "CONFIRMED"),
+      orderId: "order-a",
+      status: "COMPLETED",
+      options: {
+        checkout: {
+          paymentOptionId: "cash",
+          discountOptionId: null,
+          cashReceived: null,
+          discountApprovalReason: null,
+          managerEmail: null,
+          managerPassword: null,
+        },
+      },
+      fetchImpl,
+      getCsrfHeaders: () => ({}),
+    });
+
+    expect(result).toEqual({
+      kind: "replace",
+      order: paid,
+      message: "已收款，訂單會保留至餐點交付完成。",
+    });
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({
+      status: "COMPLETED",
+      completionIntent: "COLLECT_PAYMENT",
+      paymentOptionId: "cash",
+    });
+  });
+
+  it("marks a paid QR request as final completion instead of another payment", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({}));
+
+    await transitionStaffOrderStatus({
+      stallSlug: "stall-slug",
+      currentOrder: staffOrder("order-a", "QR_MENU", "READY", "PAID"),
+      orderId: "order-a",
+      status: "COMPLETED",
+      fetchImpl,
+      getCsrfHeaders: () => ({}),
+    });
+
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual({
+      status: "COMPLETED",
+      completionIntent: "FINALIZE",
+    });
+  });
+
   it("preserves server and fallback errors for order status failures", async () => {
     await expect(transitionStaffOrderStatus({
       stallSlug: "stall-slug",
@@ -291,8 +347,9 @@ function staffOrder(
   id: string,
   source: StaffOrderDto["source"] = "PUBLIC_QR",
   status: StaffOrderDto["status"] = "CONFIRMED",
+  paymentStatus: StaffOrderDto["paymentStatus"] = "UNPAID",
 ) {
-  return { id, source, status } as StaffOrderDto;
+  return { id, source, status, paymentStatus } as StaffOrderDto;
 }
 
 function jsonResponse(payload: unknown, status = 200) {

@@ -12,7 +12,7 @@ import {
   parseEdgeResponse,
   requestPrepareReorder,
 } from "@/lib/public-order-client";
-import { qrCartStorageKey, serializeQrCartDraft } from "@/lib/qr-cart";
+import { qrOrderEditDraftStorageKey, serializeQrCartDraft } from "@/lib/qr-cart";
 import { localizedPublicOrderError } from "@/lib/qr-order-i18n";
 import { createWebUuid } from "@/lib/web-uuid";
 
@@ -79,7 +79,7 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
     if (!data || data.availableItems.length === 0) return;
     try {
       window.localStorage.setItem(
-        qrCartStorageKey(data.qrToken, data.orderingMode),
+        qrOrderEditDraftStorageKey(trackingToken),
         serializeQrCartDraft({
           orderingMode: data.orderingMode,
           scheduledPickupAt: data.scheduledPickupAt,

@@ -81,6 +81,18 @@ async function persistPickupCodeDisplay(
   if (error) throw error;
 }
 
+async function persistPreorderCustomerPhone(
+  admin: ReturnType<typeof createServiceClient>,
+  orderId: string,
+  customerPhone: string,
+) {
+  const { error } = await admin.from("orders")
+    .update({ customer_phone: customerPhone.trim().slice(0, 30) })
+    .eq("id", orderId)
+    .is("customer_phone", null);
+  if (error) throw error;
+}
+
 async function loadPickupCodeDisplay(
   admin: ReturnType<typeof createServiceClient>,
   orderId: string,
@@ -224,6 +236,11 @@ Deno.serve(async (request) => {
 
     const existing = preflight.idempotent_order;
     if (existing) {
+      if (input.orderingMode === "PREORDER") {
+        await timing.measureDb(
+          () => persistPreorderCustomerPhone(admin, existing.order_id, input.customerPhone),
+        );
+      }
       const tokens = await deriveCreatePublicOrderReplayTokens(existing.order_id, tokenSecret, existing);
       existing.pickup_code_display = await timing.measureDb(
         () => loadPickupCodeDisplay(admin, existing.order_id),
@@ -371,6 +388,12 @@ Deno.serve(async (request) => {
       return respond(
         buildPublicOrderFailureBody(code, errorMessage(code), result.capacity),
         statusForCode(code),
+      );
+    }
+
+    if (input.orderingMode === "PREORDER") {
+      await timing.measureDb(
+        () => persistPreorderCustomerPhone(admin, result.order!.order_id, input.customerPhone),
       );
     }
 

@@ -81,6 +81,7 @@ describe("PWA 安全無縫更新契約", () => {
     expect(runtime).toContain("readWakeLockPreference(window.localStorage)");
     expect(runtime).toContain("writeWakeLockPreference(window.localStorage, true)");
     expect(runtime).toContain("writeWakeLockPreference(window.localStorage, false)");
-    expect(runtime).toContain("if (wakeLockRequestedRef.current) void requestWakeLock()");
+    expect(runtime).toContain("const pathname = usePathname()");
+    expect(runtime).toContain("[pathname, requestWakeLock]");
   });
 });

@@ -29,6 +29,7 @@ test.describe("P2 後續成長功能", () => {
   });
 
   test("PWA manifest、Wake Lock 與離線唯讀防線可用", async ({ page, context, request }) => {
+    await page.setViewportSize({ width: 768, height: 1024 });
     const manifestResponse = await request.get("/manifest.webmanifest");
     expect(manifestResponse.ok()).toBe(true);
     const manifest = await manifestResponse.json();
@@ -52,15 +53,29 @@ test.describe("P2 後續成長功能", () => {
     expect(serviceWorker).toContain("countUnsynchronizedRecords");
 
     await page.addInitScript(() => {
-      const sentinel = new EventTarget() as EventTarget & { released: boolean; release: () => Promise<void> };
-      sentinel.released = false;
-      sentinel.release = async () => {
-        sentinel.released = true;
-        sentinel.dispatchEvent(new Event("release"));
-      };
+      let currentSentinel: EventTarget & { released: boolean; release: () => Promise<void> } | null = null;
+      let requestCount = 0;
       Object.defineProperty(navigator, "wakeLock", {
         configurable: true,
-        value: { request: async () => sentinel },
+        value: {
+          request: async () => {
+            requestCount += 1;
+            const sentinel = new EventTarget() as EventTarget & { released: boolean; release: () => Promise<void> };
+            sentinel.released = false;
+            sentinel.release = async () => {
+              sentinel.released = true;
+              sentinel.dispatchEvent(new Event("release"));
+            };
+            currentSentinel = sentinel;
+            return sentinel;
+          },
+        },
+      });
+      Object.assign(window, {
+        __wakeLockTest: {
+          getRequestCount: () => requestCount,
+          releaseCurrent: async () => currentSentinel?.release(),
+        },
       });
     });
     await login(page, "staff@stallorder.test");
@@ -69,6 +84,23 @@ test.describe("P2 後續成長功能", () => {
     const wakeButton = page.getByTitle("開啟螢幕保持喚醒");
     await expect(wakeButton).toBeVisible();
     await wakeButton.click();
+    await expect(page.getByTitle("關閉螢幕保持喚醒")).toBeVisible();
+
+    await page.locator('a[href="/staff/aming-chicken/cash"]').click();
+    await page.waitForURL("**/staff/aming-chicken/cash");
+    await page.evaluate(async () => {
+      const wakeLockTest = (window as typeof window & {
+        __wakeLockTest: { releaseCurrent: () => Promise<void> };
+      }).__wakeLockTest;
+      await wakeLockTest.releaseCurrent();
+    });
+    await page.goBack();
+    await page.waitForURL("**/staff/aming-chicken");
+    await expect.poll(() => page.evaluate(() => (
+      window as typeof window & {
+        __wakeLockTest: { getRequestCount: () => number };
+      }
+    ).__wakeLockTest.getRequestCount())).toBe(2);
     await expect(page.getByTitle("關閉螢幕保持喚醒")).toBeVisible();
 
     await context.setOffline(true);

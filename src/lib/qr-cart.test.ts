@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addQrCartLine,
   QR_CART_TTL_MS,
+  qrOrderEditDraftStorageKey,
   qrCartLineKey,
   replaceQrCartLine,
   restoreQrCartDraft,
@@ -33,6 +34,11 @@ function line(overrides: Partial<QrCartLine> = {}): QrCartLine {
 }
 
 describe("QR cart lines", () => {
+  it("isolates an order-edit draft from QR rotation and normal carts", () => {
+    expect(qrOrderEditDraftStorageKey("sto_token/with spaces"))
+      .toBe("stallorder_qr_order_edit:sto_token%2Fwith%20spaces");
+  });
+
   it("restores the legacy per-product draft as versioned cart lines", () => {
     const raw = JSON.stringify({
       savedAt: 1_000,

@@ -51,6 +51,7 @@ import {
 import {
   qrCartProductQuantity,
   qrCartStorageKey,
+  qrOrderEditDraftStorageKey,
   qrCartTotalQuantity,
   serializeQrCartDraft,
   type QrCartLine,
@@ -490,7 +491,7 @@ export function useQrOrderFlowController({
           return;
         }
       }
-      if (editMode && usableInitialMenu) {
+      if (editTrackingToken && usableInitialMenu) {
         const editSession: QrOrderSession = {
           ...usableInitialMenu,
           lotteryEnabled: false,
@@ -502,7 +503,7 @@ export function useQrOrderFlowController({
         let storedDraft: string | null = null;
         try {
           storedDraft = window.localStorage.getItem(
-            qrCartStorageKey(qrToken, editSession.orderingMode),
+            qrOrderEditDraftStorageKey(editTrackingToken),
           );
         } catch {
           storedDraft = null;
@@ -534,7 +535,7 @@ export function useQrOrderFlowController({
     return () => {
       active = false;
     };
-  }, [editMode, initialUiLocale, qrToken, requestedLocale, startNewOrder, startOrderSession, usableInitialMenu]);
+  }, [editMode, editTrackingToken, initialUiLocale, qrToken, requestedLocale, startNewOrder, startOrderSession, usableInitialMenu]);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -644,6 +645,7 @@ export function useQrOrderFlowController({
       sessionReady: Boolean(session),
       cartReady,
       qrToken,
+      editTrackingToken,
       orderingMode: activeOrderingMode,
       scheduledPickupAt,
       customerName,
@@ -652,7 +654,7 @@ export function useQrOrderFlowController({
       deliveryAddress,
       lines: cartLines,
     }, () => window.localStorage);
-  }, [activeOrderingMode, cartLines, cartReady, customerName, customerNote, customerPhone, deliveryAddress, qrToken, scheduledPickupAt, session]);
+  }, [activeOrderingMode, cartLines, cartReady, customerName, customerNote, customerPhone, deliveryAddress, editTrackingToken, qrToken, scheduledPickupAt, session]);
 
   const totalQuantity = qrCartTotalQuantity(cartLines);
   const activeCartStep = cartLines.length === 0 ? "CART" : cartStep;
@@ -739,7 +741,9 @@ export function useQrOrderFlowController({
         deliveryAddress,
         lines: cartLines,
       });
-      const storageKey = qrCartStorageKey(qrToken, activeOrderingMode);
+      const storageKey = editTrackingToken
+        ? qrOrderEditDraftStorageKey(editTrackingToken)
+        : qrCartStorageKey(qrToken, activeOrderingMode);
       if (draft) {
         window.localStorage.setItem(storageKey, serializeQrCartDraft(draft));
       } else {
@@ -814,7 +818,9 @@ export function useQrOrderFlowController({
         setTurnstileResetKey((value) => value + 1);
       },
       clearPersistedCart: () => {
-        window.localStorage.removeItem(qrCartStorageKey(qrToken, activeOrderingMode));
+        window.localStorage.removeItem(editTrackingToken
+          ? qrOrderEditDraftStorageKey(editTrackingToken)
+          : qrCartStorageKey(qrToken, activeOrderingMode));
       },
       navigateToOrder: (nextTrackingToken: string) => {
         persistQrOrderRecovery(window.localStorage, {

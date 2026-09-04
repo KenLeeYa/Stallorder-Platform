@@ -41,6 +41,15 @@ describe("merchant mobile action bars", () => {
     expect(products).toContain("mx-auto mt-5 w-full max-w-sm xl:mx-0");
   });
 
+  it("places QR controls left of public-link controls across tablet widths", () => {
+    const products = source("./merchant-products.tsx");
+
+    expect(products).toContain('data-testid="merchant-ordering-management"');
+    expect(products).toContain("md:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]");
+    expect(products).toContain("md:max-w-none xl:max-w-sm");
+    expect(products).toContain('data-testid="merchant-ordering-actions"');
+  });
+
   it("shows the two large product-note entry buttons without the duplicate toolbar", () => {
     const notes = source("./product-note-groups-manager.tsx");
 
