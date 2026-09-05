@@ -63,6 +63,10 @@ const MULTITENANT_EINVOICE_LOCAL_MOCK_MIGRATION_DIGEST =
   "67e542ef6d919bf24b4e3e77c77bbfac959086a19bfe0217988bb8bd96f7a8c4";
 const PUBLIC_TAKEOUT_AMENDMENT_DELIVERY_NOTICE_MIGRATION_DIGEST =
   "207a7533fae43b8d6b115497a9eb1b54e2b07a03b5ca3d49dbe0945d444d154d";
+const STALL_SCOPED_LOTTERY_CAMPAIGN_MIGRATION_DIGEST =
+  "20e922c7fb05bea22274c367a6f3171376278c51fd1fdbf56f1ccca4f589a09b";
+const FLEXIBLE_LOTTERY_FESTIVAL_CAMPAIGNS_MIGRATION_DIGEST =
+  "a17dd86b50981da8af900060371d12d992079a461039c53523b902aed6248167";
 
 export class AdditiveMigrationPlanError extends Error {
   constructor(code, details = {}) {
@@ -528,6 +532,7 @@ function assertSecurityObjectProvenance(
           existingTableTriggerMigration
           && (
             isGlobalStallCodeGuardTrigger(statement, tableIdentity)
+            || isStallLotteryRewardProductTrigger(statement, tableIdentity)
             || (
               integratedPrintCenterMigration
               && isIntegratedPrintCenterTrigger(statement, tableIdentity)
@@ -566,6 +571,7 @@ function assertSecurityObjectProvenance(
           existingTableTriggerMigration
           && (
             isGlobalStallCodeGuardTrigger(statement, tableIdentity)
+            || isStallLotteryRewardProductTrigger(statement, tableIdentity)
             || (
               paygOpenBetaBillingMigration
               && isPaygOpenBetaBillingTrigger(statement, tableIdentity)
@@ -1155,7 +1161,9 @@ function isApprovedCompatibleFunctionBodyMigration(sql) {
     || digest === PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST
     || digest === PAYG_CONTRACT_RUNTIME_GAPS_MIGRATION_DIGEST
     || digest === MULTITENANT_EINVOICE_LOCAL_MOCK_MIGRATION_DIGEST
-    || digest === PUBLIC_TAKEOUT_AMENDMENT_DELIVERY_NOTICE_MIGRATION_DIGEST;
+    || digest === PUBLIC_TAKEOUT_AMENDMENT_DELIVERY_NOTICE_MIGRATION_DIGEST
+    || digest === STALL_SCOPED_LOTTERY_CAMPAIGN_MIGRATION_DIGEST
+    || digest === FLEXIBLE_LOTTERY_FESTIVAL_CAMPAIGNS_MIGRATION_DIGEST;
 }
 
 function isApprovedStaffKdsSpecialClosuresMigration(sql) {
@@ -1169,7 +1177,9 @@ function isApprovedExistingTableTriggerMigration(sql) {
     || digest === GLOBAL_STALL_CODE_ROLLOUT_MIGRATION_DIGEST
     || digest === INTEGRATED_PRINT_CENTER_MIGRATION_DIGEST
     || digest === PAYG_OPEN_BETA_BILLING_MIGRATION_DIGEST
-    || digest === PAYG_CONTRACT_RUNTIME_GAPS_MIGRATION_DIGEST;
+    || digest === PAYG_CONTRACT_RUNTIME_GAPS_MIGRATION_DIGEST
+    || digest === STALL_SCOPED_LOTTERY_CAMPAIGN_MIGRATION_DIGEST
+    || digest === FLEXIBLE_LOTTERY_FESTIVAL_CAMPAIGNS_MIGRATION_DIGEST;
 }
 
 function isApprovedDeliveryProviderContractsMigration(sql) {
@@ -1195,6 +1205,12 @@ function isApprovedPaygOpenBetaBillingMigration(sql) {
 function isGlobalStallCodeGuardTrigger(statement, tableIdentity) {
   return tableIdentity === "public.stalls"
     && /^(?:create|drop)\s+trigger\s+(?:if\s+exists\s+)?stalls_validate_global_code_before_write\b/iu
+      .test(statement);
+}
+
+function isStallLotteryRewardProductTrigger(statement, tableIdentity) {
+  return tableIdentity === "public.order_items"
+    && /^(?:create|drop)\s+trigger\s+(?:if\s+exists\s+)?enforce_stall_lottery_reward_product\b/iu
       .test(statement);
 }
 
