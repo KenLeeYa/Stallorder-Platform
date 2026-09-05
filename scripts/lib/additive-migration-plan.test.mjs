@@ -79,6 +79,14 @@ const lotteryFreeProductCampaignsMigration = readFileSync(resolve(
   import.meta.dirname,
   "../../supabase/migrations/20260825120000_lottery_free_product_campaigns.sql",
 ), "utf8");
+const stallScopedLotteryCampaignMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260905120000_stall_scoped_lottery_campaigns.sql",
+), "utf8");
+const flexibleLotteryFestivalCampaignsMigration = readFileSync(resolve(
+  import.meta.dirname,
+  "../../supabase/migrations/20260905130000_flexible_lottery_festival_campaigns.sql",
+), "utf8");
 const drStandbyCompatibleMigrationFiles = [
   "20260821012140_reservation_preorder_foundation.sql",
   "20260821012142_digital_waitlist_foundation.sql",
@@ -135,6 +143,26 @@ describe("additive DR migration plan", () => {
 
   it("accepts the free-product lottery campaign as an additive migration", () => {
     expect(assertAdditiveMigrationSql(lotteryFreeProductCampaignsMigration)).toBe(true);
+  });
+
+  it("allows only the exact reviewed stall-scoped lottery transition", () => {
+    expect(assertAdditiveMigrationSql(stallScopedLotteryCampaignMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      stallScopedLotteryCampaignMigration.replace(
+        "and product.is_active",
+        "and not product.is_active",
+      ),
+    )).toThrow("FUNCTION_REPLACEMENT_EXISTING_OBJECT_FORBIDDEN");
+  });
+
+  it("allows only the exact reviewed flexible festival lottery transition", () => {
+    expect(assertAdditiveMigrationSql(flexibleLotteryFestivalCampaignsMigration)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(
+      flexibleLotteryFestivalCampaignsMigration.replace(
+        "draw.selected_product_id = new.product_id",
+        "draw.selected_product_id <> new.product_id",
+      ),
+    )).toThrow("SECURITY_MUTATION_EXISTING_OBJECT_FORBIDDEN");
   });
 
   it("parses exact pending versions from ASCII or Unicode Supabase output", () => {
