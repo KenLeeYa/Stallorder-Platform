@@ -5,7 +5,11 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 import { offlineSyncRequestSchema } from "../src/offline/offline-order-contract";
-import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
+import {
+  addFirstStaffCatalogProduct,
+  dismissStaffStartReminder,
+  gotoLocalPath,
+} from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -326,15 +330,7 @@ test.describe("P4 離線 PWA 基礎", () => {
       await staffPage.getByRole("button", { name: "新增現場訂單" }).click();
       const composer = staffPage.getByRole("dialog", { name: "店員點餐" });
       await composer.getByLabel("顧客名稱（選填）").fill(offlineCustomerName);
-      await composer.getByTitle(/^增加 /).first().click();
-      const noteGroups = composer.locator("fieldset");
-      for (let index = 0; index < await noteGroups.count(); index += 1) {
-        const group = noteGroups.nth(index);
-        if ((await group.locator("legend").innerText()).includes("*")) {
-          await group.locator("input").first().check();
-        }
-      }
-      await composer.getByRole("button", { name: "加入購物車", exact: true }).click();
+      await addFirstStaffCatalogProduct(staffPage, composer);
       await expect(composer.getByTestId("staff-cart-line")).toHaveCount(1);
       await composer.getByTestId("staff-order-cart-tab").click();
       await composer.getByTestId("staff-tablet-confirm-order").click();

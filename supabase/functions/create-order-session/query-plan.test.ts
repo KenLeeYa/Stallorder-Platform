@@ -15,9 +15,10 @@ describe("create-order-session lightweight query plan", () => {
     expect(lightweightReturn).toBeGreaterThan(planStart);
     expect(plan).toContain("parsed.data.includeMenu");
     expect(plan).toContain('admin.from("stalls")');
-    expect(plan).toContain("ordering_settings:stall_ordering_settings(checkout_upsell_enabled, checkout_upsell_product_ids, lottery_spend_reward_enabled, lottery_spend_threshold_amount, lottery_festival_reward_enabled, lottery_festival_starts_on, lottery_festival_ends_on)");
+    expect(plan).toContain("ordering_settings:stall_ordering_settings(checkout_upsell_enabled, checkout_upsell_product_ids, lottery_campaign_name, lottery_spend_reward_enabled, lottery_spend_threshold_amount, lottery_festival_reward_enabled, lottery_festival_starts_on, lottery_festival_ends_on)");
     expect(plan).toContain('admin.from("stall_products")');
-    expect(plan).toContain("), 2)");
+    expect(plan).toContain('admin.from("stall_lottery_campaigns")');
+    expect(plan).toContain("), 3)");
     expect(plan).not.toContain('admin.from("stall_ordering_settings")');
     expect(plan).not.toContain('admin.from("qr_codes")');
     expect(plan).not.toContain('admin.from("dining_tables")');
@@ -42,7 +43,7 @@ describe("create-order-session lightweight query plan", () => {
     );
     const scheduleValidation = source.indexOf('admin.rpc("issue_idempotent_order_session_with_schedule_targeted"');
     const lightweightReturn = source.indexOf("if (!parsed.data.includeMenu)");
-    const fullMenuBinding = source.indexOf("const [stallQuery, stallProductsQuery]", lightweightReturn);
+    const fullMenuBinding = source.indexOf("const [stallQuery, stallProductsQuery, festivalCampaignsQuery]", lightweightReturn);
 
     expect(canonicalPreflight).toBeGreaterThan(-1);
     expect(scheduleValidation).toBeGreaterThan(-1);

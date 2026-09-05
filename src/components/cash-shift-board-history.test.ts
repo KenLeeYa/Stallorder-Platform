@@ -8,13 +8,13 @@ const source = readFileSync(
 ).replace(/\r\n/g, "\n");
 
 describe("CashShiftBoard history filters", () => {
-  it("provides day, week, month, date-range, and five-row pagination controls", () => {
+  it("provides unified today, yesterday, week, month, custom-range, and five-row pagination controls", () => {
     expect(source).toContain('data-testid="cash-history-filters"');
     expect(source).toContain('data-testid="cash-history-date-from"');
     expect(source).toContain('data-testid="cash-history-date-to"');
-    expect(source).toContain('applyHistoryPreset("DAY")');
-    expect(source).toContain('applyHistoryPreset("WEEK")');
-    expect(source).toContain('applyHistoryPreset("MONTH")');
+    expect(source).toContain('["TODAY", "YESTERDAY", "WEEK", "MONTH", "CUSTOM"] as const');
+    expect(source).toContain('applyHistoryPreset(preset)');
+    expect(source).toContain('setHistoryPreset("CUSTOM")');
     expect(source).toContain("useState<OperationsPageSize>(5)");
     expect(source).toContain("CashHistoryPageSizeSelect");
     expect(source).toContain("CashHistoryPageNavigation");

@@ -293,6 +293,7 @@ test.describe("P1 營運功能", () => {
       .getByRole("button", { name: "開始班次", exact: true })
       .click();
     await expect(page.getByText("班次進行中", { exact: true })).toBeVisible();
+    await acknowledgeSuccessFeedback(page, "現金班次已開啟。");
     await page.getByRole("button", { name: /^記錄收支/ }).click();
     const movementDialog = page.getByRole("dialog", {
       name: "記錄現金收支",
@@ -340,17 +341,20 @@ test.describe("P1 營運功能", () => {
       .getByPlaceholder("搜尋桌號、訂單編號或顧客");
     for (const orderNo of [firstOrderNo, secondOrderNo]) {
       await orderSearch.fill(orderNo);
-      const order = page.getByRole("article").filter({ hasText: orderNo });
-      await order
-        .getByRole("button", { name: "查看明細", exact: true })
+      await page
+        .getByTestId("staff-order-list-pane")
+        .getByRole("button")
+        .filter({ hasText: orderNo })
         .click();
-      await order
+      const orderItems = page.getByTestId("staff-order-items-pane");
+      const orderActions = page.getByTestId("staff-order-actions-pane");
+      await orderActions
         .getByRole("button", { name: "確認接單", exact: true })
         .click();
-      await order.getByRole("button", { name: "全部開始製作（1）" }).click();
-      await order.getByRole("button", { name: "全部餐點完成（1）" }).click();
-      await order.getByRole("button", { name: "全部標記已出餐（1）" }).click();
-      await expect(order.getByText("已出餐", { exact: true })).toBeVisible();
+      await orderItems.getByRole("button", { name: "全部開始製作（1）" }).click();
+      await orderItems.getByRole("button", { name: "全部餐點完成（1）" }).click();
+      await orderItems.getByRole("button", { name: "全部標記已出餐（1）" }).click();
+      await expect(orderItems.getByText("已出餐", { exact: true })).toBeVisible();
     }
 
     await orderSearch.fill("");
@@ -409,6 +413,10 @@ test.describe("P1 營運功能", () => {
     await takeOverPrinter.click();
     expect((await heartbeatResponse).status()).toBe(200);
     await expect(page.getByText(/本機接手中/)).toBeVisible();
+    await acknowledgeSuccessFeedback(
+      page,
+      "此裝置已開始回報印表機連線狀態。",
+    );
     const initialJob = page
       .getByRole("article")
       .filter({ hasText: firstOrderNo })
@@ -504,12 +512,14 @@ test.describe("P1 營運功能", () => {
       .getByPlaceholder("搜尋桌號、訂單編號或顧客")
       .fill(cancelledOrderNo);
     const cancelledOrder = cancellationMain
-      .getByRole("article")
+      .getByTestId("staff-order-list-pane")
+      .getByRole("button")
       .filter({ hasText: cancelledOrderNo });
-    await cancelledOrder
-      .getByRole("button", { name: "查看明細", exact: true })
+    await cancelledOrder.click();
+    await cancellationMain
+      .getByTestId("staff-order-actions-pane")
+      .getByRole("button", { name: "取消訂單" })
       .click();
-    await cancelledOrder.getByRole("button", { name: "取消訂單" }).click();
     const cancellation = page.getByRole("alertdialog", {
       name: "確認取消訂單？",
     });
@@ -731,6 +741,26 @@ async function runPrintAction(page: Page, control: Locator, operation: string) {
   const response = waitForPrintOperation(page, operation);
   await control.click();
   expect((await response).status()).toBe(200);
+  const feedbackByOperation: Record<string, string> = {
+    SUCCESS: "已記錄列印成功。",
+    FAIL: "已記錄列印失敗，可重新排入。",
+    RETRY: "已重新排入列印佇列。",
+    REPRINT: "補印工作已建立。",
+  };
+  const feedback = feedbackByOperation[operation];
+  if (feedback) await acknowledgeSuccessFeedback(page, feedback);
+}
+
+async function acknowledgeSuccessFeedback(page: Page, message: string) {
+  const dialog = page.getByRole("dialog", {
+    name: "操作已完成",
+    exact: true,
+  });
+  await expect(dialog).toContainText(message);
+  await dialog
+    .getByRole("button", { name: "我知道了", exact: true })
+    .click();
+  await expect(dialog).toBeHidden();
 }
 
 function assertLocalDatabase() {

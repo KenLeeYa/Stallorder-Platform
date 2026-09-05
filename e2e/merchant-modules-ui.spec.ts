@@ -92,7 +92,7 @@ async function acknowledgeSettingsFeedback(
   focusAfterClose?: Locator,
 ) {
   const dialog = page.getByRole(kind === "error" ? "alertdialog" : "dialog", {
-    name: kind === "error" ? "請確認設定" : "設定已完成",
+    name: kind === "error" ? "請確認" : "操作已完成",
     exact: true,
   });
   await expect(dialog).toBeVisible();
@@ -490,6 +490,9 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       const productEditor = localizationPage.getByRole("dialog", {
         name: "編輯商品",
       });
+      await expect(productEditor.getByText("展開／收合", { exact: true })).toBeVisible();
+      await expect(productEditor.getByLabel("英文名稱")).toBeHidden();
+      await productEditor.getByText("商品翻譯", { exact: true }).click();
       await expect(productEditor.getByLabel("英文名稱")).toBeVisible();
       await expect(productEditor.getByLabel("英文名稱")).not.toHaveAttribute(
         "required",
@@ -517,7 +520,10 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       const noteEditor = localizationPage.getByRole("dialog", {
         name: "編輯註記群組",
       });
-      await noteEditor.getByText("多語名稱", { exact: true }).click();
+      await expect(
+        noteEditor.getByLabel("英文", { exact: true }),
+      ).toBeHidden();
+      await noteEditor.getByText("註記翻譯", { exact: true }).click();
       await expect(
         noteEditor.getByLabel("英文", { exact: true }),
       ).toBeVisible();
@@ -668,13 +674,13 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
     `/merchant/reports/overview?organizationId=${organizationId}`,
   );
   await expect(
-    page.getByRole("button", { name: "日", exact: true }),
+    page.getByRole("button", { name: "今天", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "週", exact: true }),
+    page.getByRole("button", { name: "本週", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "月", exact: true }),
+    page.getByRole("button", { name: "本月", exact: true }),
   ).toBeVisible();
   const hourlySales = page.getByTestId("hourly-sales-dashboard");
   const hourlySalesCells = hourlySales.getByTestId("hourly-sales-cell");

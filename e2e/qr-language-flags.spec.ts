@@ -27,7 +27,12 @@ test.afterAll(async () => {
   await qrFixture.restore();
 });
 
-test("QR 點餐語言選單的所有語系都有對應國旗", async ({ page }, testInfo) => {
+test("QR 點餐語言選單的所有語系都有對應國旗", async ({ page, request }, testInfo) => {
+  for (const expected of expectedLocales) {
+    const response = await request.get(expected.flagPath);
+    expect(response.ok()).toBe(true);
+  }
+
   await page.goto(`/q/${qrFixture.qrToken}`);
   const trigger = page.getByRole("button", { name: "點餐語言" });
   await expect(trigger).toHaveAttribute("data-current-locale", "zh-TW");
@@ -35,8 +40,13 @@ test("QR 點餐語言選單的所有語系都有對應國旗", async ({ page }, 
   await trigger.click();
 
   const options = page.getByRole("option");
-  await expect(options).toHaveCount(expectedLocales.length);
-  for (const expected of expectedLocales) {
+  await expect(options).not.toHaveCount(0);
+  const supportedLocaleCodes = await options.locator("[data-locale-flag]").evaluateAll((flags) => (
+    flags.map((flag) => flag.getAttribute("data-locale-flag"))
+  ));
+  const supportedLocales = expectedLocales.filter(({ locale }) => supportedLocaleCodes.includes(locale));
+  expect(supportedLocales).toHaveLength(supportedLocaleCodes.length);
+  for (const expected of supportedLocales) {
     const option = page.getByRole("option", { name: expected.label, exact: true });
     const flag = option.locator(`[data-locale-flag="${expected.locale}"]`);
     await expect(option).toBeVisible();

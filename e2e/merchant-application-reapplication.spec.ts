@@ -4,7 +4,10 @@ import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
-import { gotoLocalPath } from "./local-navigation";
+import {
+  establishLocalTestSession,
+  gotoLocalPath,
+} from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -15,6 +18,7 @@ const applicantEmail = "onboarding.application.e2e@stallorder.test";
 const adminEmail = "merchant.reapplication.admin.e2e@stallorder.test";
 const applicantAuthUserId = randomUUID();
 let withdrawnApplicationId = "";
+let applicantProfileId = "";
 
 test.describe("撤回後重新申請與平台追蹤", () => {
   test.describe.configure({ mode: "serial" });
@@ -49,6 +53,7 @@ test.describe("撤回後重新申請與平台追蹤", () => {
         },
       }),
     ]);
+    applicantProfileId = applicant.id;
     const application = await prisma.merchantApplication.create({
       data: {
         applicantProfileId: applicant.id,
@@ -187,8 +192,8 @@ async function login(page: Page, email: string) {
 }
 
 async function loginForOnboarding(page: Page) {
-  await page.goto("/login");
-  await page.getByRole("link", { name: "使用已驗證帳號申請開通" }).click();
+  await establishLocalTestSession(page, prisma, applicantProfileId);
+  await gotoLocalPath(page, "/onboarding");
   await expect(page).toHaveURL(/\/onboarding$/);
 }
 

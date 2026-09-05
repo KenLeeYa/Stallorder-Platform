@@ -13,10 +13,12 @@ import type {
 } from "@/lib/print-center-types";
 import {
   detectStarWebPrntEnvironment,
+  isStarWebPrntSdkReady,
   openStarCashDrawer,
   printWithStarWebPrnt,
   probeStarWebPrnt,
   StarWebPrntError,
+  STAR_WEBPRNT_SDK_LOAD_TIMEOUT_MS,
 } from "@/lib/star-webprnt-client";
 
 type AgentStatus = "CHECKING" | "READY" | "UNSUPPORTED" | "NOT_CONFIGURED" | "ERROR";
@@ -34,7 +36,9 @@ export function StaffAutoPrintAgent({ stallSlug }: { stallSlug: string }) {
     const detectEnvironment = window.setTimeout(() => {
       const detected = detectStarWebPrntEnvironment(window.navigator.userAgent);
       setEnvironment(detected);
-      if (detected !== "STAR_WEBPRNT") {
+      if (detected === "STAR_WEBPRNT") {
+        setScriptReady(isStarWebPrntSdkReady());
+      } else {
         setStatus("UNSUPPORTED");
         setDetail(detected === "IOS_SAFARI"
           ? t("print.bluetooth.safariBlocked")
@@ -43,6 +47,19 @@ export function StaffAutoPrintAgent({ stallSlug }: { stallSlug: string }) {
     }, 0);
     return () => window.clearTimeout(detectEnvironment);
   }, [t]);
+
+  useEffect(() => {
+    if (environment !== "STAR_WEBPRNT" || scriptReady) return;
+    const watchdog = window.setTimeout(() => {
+      const ready = isStarWebPrntSdkReady();
+      setScriptReady(ready);
+      if (!ready) {
+        setStatus("ERROR");
+        setDetail(t("print.bluetooth.bridgeFailed"));
+      }
+    }, STAR_WEBPRNT_SDK_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(watchdog);
+  }, [environment, scriptReady, t]);
 
   useEffect(() => {
     if (environment !== "STAR_WEBPRNT" || !scriptReady) return;
@@ -156,8 +173,16 @@ export function StaffAutoPrintAgent({ stallSlug }: { stallSlug: string }) {
       strategy="afterInteractive"
       integrity="sha256-0CXgr7eC9MfHOAgmVuwbMSnHbU6onTIP4w86ORtm9UQ="
       crossOrigin="anonymous"
-      onLoad={() => setScriptReady(Boolean(window.StarWebPrintTrader))}
+      onReady={() => {
+        const ready = isStarWebPrntSdkReady();
+        setScriptReady(ready);
+        if (!ready) {
+          setStatus("ERROR");
+          setDetail(t("print.bluetooth.bridgeFailed"));
+        }
+      }}
       onError={() => {
+        setScriptReady(false);
         setStatus("ERROR");
         setDetail(t("print.bluetooth.bridgeFailed"));
       }}

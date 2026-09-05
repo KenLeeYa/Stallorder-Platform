@@ -419,7 +419,7 @@ export function QrOrderFlowPresentation({
         {session.lotteryEnabled && activeOrderingMode === "DEFAULT" ? (
           <section className="mt-4 rounded-lg border border-violet-200 bg-violet-50 p-4" aria-label={copy.lotteryRegionLabel}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><h2 className="font-semibold text-violet-950">{copy.lotterySectionTitle}</h2><p className="mt-1 text-sm leading-6 text-violet-800">{automaticLotteryRewardConfigured && lotterySpendRemaining > 0 ? copy.lotterySpendProgress(formatMoney(lotterySpendRemaining, session.stall.currency, locale)) : copy.lotterySectionDescription}</p></div>
+              <div><h2 className="font-semibold text-violet-950">{session.lotteryCampaignName?.trim() || copy.lotterySectionTitle}</h2><p className="mt-1 text-sm leading-6 text-violet-800">{automaticLotteryRewardConfigured && lotterySpendRemaining > 0 ? copy.lotterySpendProgress(formatMoney(lotterySpendRemaining, session.stall.currency, locale)) : copy.lotterySectionDescription}</p></div>
               <button ref={lotteryButtonRef} type="button" disabled={!orderingEnabled || isDrawingLottery || (automaticLotteryRewardConfigured && !automaticLotteryRewardEligible && !lotteryDraw)} onClick={() => void drawLottery()} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-50"><Dices className="h-4 w-4" />{isDrawingLottery ? copy.lotteryDrawingButton : lotteryDraw ? copy.lotteryAlreadyDrawn : copy.lotteryStart}</button>
             </div>
             {lotteryError ? (
@@ -554,7 +554,7 @@ export function QrOrderFlowPresentation({
       ) : null}
       {lotteryRewardPromptOpen && !sessionExpiryDialogOpen && !lotteryDialogVisible && (!deliveryNotice || dismissedDeliveryNotice === deliveryNotice) ? (
         <LotteryRewardEligibilityDialog
-          title={copy.lotteryEligibilityTitle}
+          title={session.lotteryCampaignName?.trim() || copy.lotteryEligibilityTitle}
           description={copy.lotteryEligibilityDescription}
           confirmLabel={copy.lotteryStart}
           backLabel={copy.lotteryEligibilityBack}

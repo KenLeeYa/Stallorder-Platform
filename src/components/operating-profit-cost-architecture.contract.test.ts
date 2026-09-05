@@ -42,4 +42,9 @@ describe("operating profit cost architecture", () => {
     expect(dashboardSource).toContain('name="customCategoryName"');
     expect(dashboardSource).toContain("customExpenseCategoryNames");
   });
+
+  it("shows expense action results in the shared centered dialog", () => {
+    expect(dashboardSource).toContain("<SettingsFeedbackDialog");
+    expect(dashboardSource).not.toContain('{message ? <p role="status"');
+  });
 });

@@ -43,6 +43,18 @@ async function selectCatalogProductAction(
   await dialog.getByRole("button", { name: action, exact: true }).click();
 }
 
+async function acknowledgeSuccessFeedback(page: Page, message: string) {
+  const dialog = page.getByRole("dialog", {
+    name: "操作已完成",
+    exact: true,
+  });
+  await expect(dialog).toContainText(message);
+  await dialog
+    .getByRole("button", { name: "我知道了", exact: true })
+    .click();
+  await expect(dialog).toBeHidden();
+}
+
 test("商家可建立套餐、選擇群組與一般商品選項", async ({ page }) => {
   test.setTimeout(120_000);
   const bundleName = `套餐 QA ${Date.now()}`;
@@ -85,7 +97,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await componentEditor
     .getByRole("button", { name: "儲存", exact: true })
     .click();
-  await expect(page.getByRole("status")).toHaveText("商品已新增。");
+  await acknowledgeSuccessFeedback(page, "商品已新增。");
 
   const unavailableComponent = await prisma.product.findFirstOrThrow({
     where: { organizationId, name: unavailableComponentName },
@@ -107,7 +119,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await productEditor
     .getByRole("button", { name: "儲存", exact: true })
     .click();
-  await expect(page.getByRole("status")).toHaveText("商品已新增。");
+  await acknowledgeSuccessFeedback(page, "商品已新增。");
   const bundle = await prisma.product.findFirstOrThrow({
     where: { organizationId, name: bundleName },
     select: { id: true },
@@ -170,7 +182,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await expect(bundleEditor.getByLabel("最多選擇")).toBeFocused();
   await bundleEditor.getByLabel("最少選擇").fill("1");
   await bundleEditor.getByRole("button", { name: "儲存", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("套餐選擇群組已新增。");
+  await acknowledgeSuccessFeedback(page, "套餐選擇群組已新增。");
 
   const choiceGroup = bundleEditor
     .locator("section")
@@ -205,9 +217,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await choiceGroup.getByLabel("數量").fill("2");
   await choiceGroup.getByLabel("價差").fill("20");
   await choiceGroup.getByRole("button", { name: "儲存", exact: true }).click();
-  await expect(
-    page.getByText("套餐選項已新增。", { exact: true }),
-  ).toBeVisible();
+  await acknowledgeSuccessFeedback(page, "套餐選項已新增。");
   await expect(choiceGroup).toContainText("香酥雞排 × 2");
   await expect(choiceGroup).toContainText("+$20");
 
@@ -231,14 +241,10 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
   page.once("dialog", (dialog) => dialog.accept());
   await selectCatalogProductAction(page, bundleName, "刪除商品");
-  await expect(page.getByRole("status")).toHaveText(
-    "商品已刪除，歷史訂單快照已保留。",
-  );
+  await acknowledgeSuccessFeedback(page, "商品已刪除，歷史訂單快照已保留。");
   page.once("dialog", (dialog) => dialog.accept());
   await selectCatalogProductAction(page, unavailableComponentName, "刪除商品");
-  await expect(page.getByRole("status")).toHaveText(
-    "商品已刪除，歷史訂單快照已保留。",
-  );
+  await acknowledgeSuccessFeedback(page, "商品已刪除，歷史訂單快照已保留。");
 });
 
 test("手機版套餐操作列與商品編輯器不超出畫面", async ({ page }) => {

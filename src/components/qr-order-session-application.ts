@@ -72,9 +72,10 @@ export function resolveQrOrderSessionTransition({
     cartRecovery: result.cartRecovery,
     locale: preserveSupportedQrLocale(currentLocale, result.session.supportedLocales),
     sessionTimePhase: sessionCountdownPhase(result.session.expiresAt, now),
-    availability: currentAvailability === "CHECKING" || currentAvailability === "UNKNOWN"
-      ? "AVAILABLE"
-      : null,
+    // A successfully issued order session is the freshest authoritative proof that
+    // public ordering is reachable. It must win over an earlier failed availability
+    // probe, otherwise a slow first load can leave a valid session falsely disabled.
+    availability: "AVAILABLE",
     resetPreorderLottery: result.session.orderingMode === "PREORDER",
   };
 }
