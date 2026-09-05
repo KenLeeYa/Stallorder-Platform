@@ -73,4 +73,35 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain("const qrPrepaymentEligible =");
     expect(presentationSource).toContain("const qrCompletionEligible =");
   });
+
+  it("uses a three-pane order workspace on tablet and desktop while retaining mobile tickets", () => {
+    expect(presentationSource).toContain("max-w-[1600px]");
+    expect(presentationSource).toContain('data-testid="staff-order-master-detail"');
+    expect(presentationSource).toContain('data-testid="staff-order-items-pane"');
+    expect(presentationSource).toContain('data-testid="staff-order-actions-pane"');
+    expect(presentationSource).toContain("md:grid-cols-[minmax(13rem,0.78fr)_minmax(0,1.25fr)_minmax(12rem,0.82fr)]");
+    expect(presentationSource).toContain("md:hidden print:block");
+    expect(presentationSource).toContain("desktopWorkspace");
+
+    const workspaceStart = presentationSource.indexOf("function StaffSelectedOrderWorkspace(");
+    const workspaceEnd = presentationSource.indexOf("function StaffOrderTicket(", workspaceStart);
+    const workspaceSource = presentationSource.slice(workspaceStart, workspaceEnd);
+    expect(workspaceStart).toBeGreaterThan(-1);
+    expect(workspaceEnd).toBeGreaterThan(workspaceStart);
+    expect(workspaceSource).toContain('t("staff.order.items")');
+    expect(workspaceSource).toContain('t("staff.order.actions")');
+    expect(workspaceSource).not.toContain('t("staff.order.number"');
+    expect(workspaceSource).not.toContain("orderTimingSummary(");
+
+    const itemsPaneSource = workspaceSource.slice(0, workspaceSource.indexOf("</section>"));
+    const actionsPaneSource = workspaceSource.slice(workspaceSource.indexOf("<aside"));
+    expect(itemsPaneSource).toContain("onUpdateItemStatus");
+    expect(itemsPaneSource).toContain("formatMoney(item.unitPrice * item.quantity");
+    expect(itemsPaneSource).not.toContain("onOpenCheckout");
+    expect(itemsPaneSource).not.toContain("onPrintOrder");
+    expect(itemsPaneSource).not.toContain("cancellation.open");
+    expect(actionsPaneSource).toContain("onOpenCheckout");
+    expect(actionsPaneSource).toContain("onPrintOrder");
+    expect(actionsPaneSource).toContain("cancellation.open");
+  });
 });

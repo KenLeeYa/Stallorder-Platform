@@ -5,6 +5,7 @@ import { LocaleProvider } from "@/components/locale-provider";
 import { NavigationStateManager } from "@/components/navigation-state-manager";
 import { PwaRuntime } from "@/components/pwa-runtime";
 import { VercelPerformanceMonitoring } from "@/components/vercel-performance-monitoring";
+import { ClientExceptionReporter } from "@/components/client-exception-reporter";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { getAppMessage } from "@/lib/app-messages";
 import { initializeThemeScript } from "@/lib/theme";
@@ -76,6 +77,7 @@ export default async function RootLayout({
         <a href="#main-content" className="skip-link">{getAppMessage(locale, "shell.skipToMain")}</a>
         <LocaleProvider initialLocale={locale} hasLocaleCookie={hasLocaleCookie}>
           <PwaRuntime>
+            <ClientExceptionReporter />
             <NavigationStateManager />
             <div id="main-content" tabIndex={-1}>{children}</div>
           </PwaRuntime>

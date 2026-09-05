@@ -21,6 +21,9 @@ const mocks = vi.hoisted(() => ({
   settingsUpdate: vi.fn(),
   settingsUpdateMany: vi.fn(),
   stallProductCount: vi.fn(),
+  productUpdateMany: vi.fn(),
+  lotteryCampaignUpdateMany: vi.fn(),
+  lotteryCampaignCreate: vi.fn(),
   orderSessionUpdateMany: vi.fn(),
   productionTaskUpdateMany: vi.fn(),
   printJobUpdateMany: vi.fn(),
@@ -100,6 +103,9 @@ beforeEach(() => {
   mocks.settingsUpdate.mockResolvedValue({ stallId });
   mocks.settingsUpdateMany.mockResolvedValue({ count: 1 });
   mocks.stallProductCount.mockResolvedValue(1);
+  mocks.productUpdateMany.mockResolvedValue({ count: 1 });
+  mocks.lotteryCampaignUpdateMany.mockResolvedValue({ count: 0 });
+  mocks.lotteryCampaignCreate.mockResolvedValue({});
   mocks.orderSessionUpdateMany.mockResolvedValue({ count: 0 });
   mocks.productionTaskUpdateMany.mockResolvedValue({ count: 0 });
   mocks.printJobUpdateMany.mockResolvedValue({ count: 0 });
@@ -119,6 +125,11 @@ beforeEach(() => {
       updateMany: mocks.settingsUpdateMany,
     },
     stallProduct: { count: mocks.stallProductCount },
+    product: { updateMany: mocks.productUpdateMany },
+    stallLotteryCampaign: {
+      updateMany: mocks.lotteryCampaignUpdateMany,
+      create: mocks.lotteryCampaignCreate,
+    },
     orderSession: { updateMany: mocks.orderSessionUpdateMany },
     orderProductionTask: { updateMany: mocks.productionTaskUpdateMany },
     printJob: { updateMany: mocks.printJobUpdateMany },
@@ -400,10 +411,28 @@ describe("merchant lottery module writes", () => {
       where: { stallId, organizationId },
       data: expect.objectContaining({
         lotteryEnabled: true,
+        lotteryCampaignName: "開學抽好禮",
+        lotteryProductIds: [upsellProductId],
         lotteryDiscountOptionId: firstDiscountId,
         lotteryDiscountWinRateBps: 2500,
       }),
     }));
+    expect(mocks.stallProductCount).toHaveBeenCalledWith({
+      where: {
+        stallId,
+        organizationId,
+        productId: { in: [upsellProductId] },
+        isEnabled: true,
+        product: { isActive: true, kind: "SINGLE" },
+      },
+    });
+    expect(mocks.productUpdateMany).toHaveBeenCalledWith({
+      where: {
+        organizationId,
+        id: { in: [upsellProductId] },
+      },
+      data: { isLotteryEligible: true },
+    });
     expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
     expect(sqlText(mocks.executeRaw.mock.calls[0]?.[0])).toContain(
       "delete from public.stall_lottery_discount_chances",
@@ -411,6 +440,22 @@ describe("merchant lottery module writes", () => {
     expect(sqlText(mocks.executeRaw.mock.calls[1]?.[0])).toContain(
       "insert into public.stall_lottery_discount_chances",
     );
+  });
+
+  it("rejects a lottery without an eligible product", async () => {
+    mocks.readJson.mockResolvedValue({
+      data: { ...updateModulesCommand(), lotteryProductIds: [] },
+    });
+
+    const response = await patchModules();
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      fieldErrors: {
+        lotteryProductIds: "請至少選擇 1 個可抽商品。",
+      },
+    });
+    expect(mocks.settingsUpdate).not.toHaveBeenCalled();
   });
 
   it("rejects a disabled or cross-stall prize before changing settings", async () => {
@@ -427,6 +472,51 @@ describe("merchant lottery module writes", () => {
     });
     expect(mocks.settingsUpdate).not.toHaveBeenCalled();
     expect(mocks.executeRaw).not.toHaveBeenCalled();
+  });
+
+  it("stores named festival campaigns with their own trusted product pools", async () => {
+    const campaignId = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
+    mocks.discountFindMany.mockResolvedValue([
+      { id: firstDiscountId },
+      { id: secondDiscountId },
+    ]);
+    mocks.readJson.mockResolvedValue({
+      data: {
+        ...updateModulesCommand(),
+        lotteryFestivalRewardEnabled: true,
+        lotteryFestivalStartsOn: "2026-09-20",
+        lotteryFestivalEndsOn: "2026-09-27",
+        lotteryFestivalCampaigns: [{
+          id: campaignId,
+          name: "中秋加碼抽",
+          isEnabled: true,
+          startsOn: "2026-09-20",
+          endsOn: "2026-09-27",
+          productIds: [upsellProductId],
+          sortOrder: 0,
+        }],
+      },
+    });
+
+    const response = await patchModules();
+
+    expect(response.status).toBe(200);
+    expect(mocks.settingsUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        lotteryFestivalRewardEnabled: true,
+        lotteryFestivalStartsOn: new Date("2026-09-20T00:00:00.000Z"),
+        lotteryFestivalEndsOn: new Date("2026-09-27T00:00:00.000Z"),
+      }),
+    }));
+    expect(mocks.lotteryCampaignCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        id: campaignId,
+        organizationId,
+        stallId,
+        name: "中秋加碼抽",
+        productIds: [upsellProductId],
+      }),
+    });
   });
 
   it("removes a discount from the weighted pool when the merchant disables it", async () => {
@@ -495,6 +585,8 @@ function updateModulesCommand() {
     preorderMaxDays: 1,
     preorderSlotMinutes: 30,
     lotteryEnabled: true,
+    lotteryCampaignName: "開學抽好禮",
+    lotteryProductIds: [upsellProductId],
     lotteryDiscountOptionId: firstDiscountId,
     lotteryDiscountWinRateBps: 2500,
     lotteryDiscountChances: [

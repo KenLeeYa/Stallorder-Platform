@@ -58,6 +58,35 @@ export type PrintRuleView = PrintRuleDraft & {
   printer: { id: string; name: string; isEnabled: boolean };
 };
 
+export function printRuleDraftFromView(rule: PrintRuleView): PrintRuleDraft {
+  return {
+    name: rule.name,
+    printerId: rule.printerId,
+    isEnabled: rule.isEnabled,
+    documentType: rule.documentType,
+    trigger: rule.trigger,
+    orderSources: [...rule.orderSources],
+    orderOrigins: [...rule.orderOrigins],
+    fulfillmentTypes: [...rule.fulfillmentTypes],
+    productCategoryIds: [...rule.productCategoryIds],
+    productGroupIds: [...rule.productGroupIds],
+    copies: rule.copies,
+    fontScale: rule.fontScale,
+    splitMode: rule.splitMode,
+    aggregateItems: rule.aggregateItems,
+    autoPrint: rule.autoPrint,
+    showCustomerName: rule.showCustomerName,
+    showCustomerPhone: rule.showCustomerPhone,
+    showDeliveryAddress: rule.showDeliveryAddress,
+    showOrderNote: rule.showOrderNote,
+    showItemNotes: rule.showItemNotes,
+    showPrices: rule.showPrices,
+    showPaymentMethod: rule.showPaymentMethod,
+    feedLines: rule.feedLines,
+    sortOrder: rule.sortOrder,
+  };
+}
+
 export type PrintJobView = {
   id: string;
   documentType: PrintDocumentType;

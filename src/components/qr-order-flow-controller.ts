@@ -84,6 +84,10 @@ import {
   type QrLocale,
 } from "@/lib/qr-order-i18n";
 import { publicLotteryChannelAllows } from "@/lib/public-lottery-channel";
+import {
+  persistTakeoutCustomerMemory,
+  readTakeoutCustomerMemory,
+} from "@/lib/takeout-customer-memory";
 
 export type QrOrderFlowControllerInput = {
   qrToken: string;
@@ -362,13 +366,17 @@ export function useQrOrderFlowController({
       }
       const orderSession = transition.session;
       const cartRecovery = transition.cartRecovery;
+      const rememberedCustomer = entryChannel !== "QR"
+        && orderSession.stall.fulfillmentType === "TAKEOUT"
+        ? readTakeoutCustomerMemory(window.localStorage, orderSession.stall.slug)
+        : null;
       const nextLocale = transition.locale;
       localeRef.current = nextLocale;
       setLocale(nextLocale);
+      setCustomerName(cartRecovery.customerName || rememberedCustomer?.customerName || "");
+      setCustomerPhone(cartRecovery.customerPhone || rememberedCustomer?.customerPhone || "");
       if (cartRecovery.restored) {
-        setCustomerName(cartRecovery.customerName);
         setCustomerNote(cartRecovery.customerNote);
-        setCustomerPhone(cartRecovery.customerPhone);
         setDeliveryAddress(cartRecovery.deliveryAddress);
         setCartLines(cartRecovery.lines);
         setCartRestored(true);
@@ -655,6 +663,18 @@ export function useQrOrderFlowController({
       lines: cartLines,
     }, () => window.localStorage);
   }, [activeOrderingMode, cartLines, cartReady, customerName, customerNote, customerPhone, deliveryAddress, editTrackingToken, qrToken, scheduledPickupAt, session]);
+
+  useEffect(() => {
+    if (
+      !cartReady
+      || entryChannel === "QR"
+      || session?.stall.fulfillmentType !== "TAKEOUT"
+    ) return;
+    persistTakeoutCustomerMemory(window.localStorage, session.stall.slug, {
+      customerName,
+      customerPhone,
+    });
+  }, [cartReady, customerName, customerPhone, entryChannel, session?.stall.fulfillmentType, session?.stall.slug]);
 
   const totalQuantity = qrCartTotalQuantity(cartLines);
   const activeCartStep = cartLines.length === 0 ? "CART" : cartStep;

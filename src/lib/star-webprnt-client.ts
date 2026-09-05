@@ -1,5 +1,6 @@
 const STAR_WEBPRNT_ENDPOINT = "http://localhost:8001/StarWebPRNT/SendMessage";
 const MAX_STAR_PRNT_BYTES = 64 * 1024;
+export const STAR_WEBPRNT_SDK_LOAD_TIMEOUT_MS = 8_000;
 
 export type StarWebPrntEnvironment = "STAR_WEBPRNT" | "IOS_SAFARI" | "OTHER";
 export type StarWebPrntErrorCode =
@@ -74,6 +75,12 @@ export function detectStarWebPrntEnvironment(userAgent: string): StarWebPrntEnvi
     return "IOS_SAFARI";
   }
   return "OTHER";
+}
+
+export function isStarWebPrntSdkReady(
+  scope: { StarWebPrintTrader?: unknown } | undefined = typeof window === "undefined" ? undefined : window,
+) {
+  return typeof scope?.StarWebPrintTrader === "function";
 }
 
 export function buildStarWebPrntRequest(dataBase64: string) {

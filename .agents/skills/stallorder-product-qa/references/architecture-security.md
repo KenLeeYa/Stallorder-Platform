@@ -76,8 +76,10 @@ For a release or broad architecture change, cover at least:
 - Expected API responses set an explicit JSON content type and stable shape with machine code, safe Traditional Chinese message, and field details when relevant.
 - Client fetch helpers check status/content type before parsing. HTML proxy/framework pages become a safe connectivity/system message with correlation ID, not a raw JSON parser exception.
 - Unexpected errors are logged server-side with redaction and correlation; responses never include stack, SQL, secret, token, provider payload, or internal host.
+- Browser exception reporting accepts only same-origin, bounded structured events with an application-generated random event ID, top-level route/surface, allowlisted error class, and framework digest where available. It never accepts browser-supplied raw message, stack, request body, customer contact, token, URL query, or arbitrary metadata. Server request instrumentation follows the same redaction boundary.
 - Mutations use idempotency and optimistic concurrency/version checks where duplicate or stale actions are harmful.
 - Public-order token derivation, abuse hashing, and Turnstile verification use the active provider-managed secrets for the deployed environment. The application and its Edge functions in that environment receive the same values through masked release automation; Primary and DR secrets remain isolated and no secret value enters logs, plans, artifacts, or client bundles.
+- Public-order mutation recovery across application and canonical Edge runtimes never treats a tracking token/hash as authorization by itself. The canonical runtime first validates the exact tracking token and device token plus origin, IP/protocol policy, operation ID, and order scope; only that affirmative result may authorize a tenant-scoped lookup by tracking hash. Canonical timeout/unavailability fails closed and wrong-device responses remain indistinguishable from missing orders.
 
 ## Public-code and lottery safety
 
@@ -85,6 +87,7 @@ For a release or broad architecture change, cover at least:
 - Allocate codes atomically with a uniqueness constraint/transaction and bounded retry; never use a race-prone read-then-write loop.
 - Do not collect device serial numbers or invasive fingerprinting. Use an opaque random first-party token, rotate/expire it, hash where stored, and disclose retention.
 - Combine privacy-safe token enforcement with server-side rate/anomaly controls; do not rely only on localStorage.
+- Named festival campaigns are tenant/stall-owned service-role records with forced RLS. Enabled-date overlap is serialized and rejected in the database, while the draw path resolves the active campaign from the stall business date and selects only from that campaign's server-validated product IDs; client campaign or product claims are never authoritative.
 
 ## Hardware printing and cash-drawer boundary
 

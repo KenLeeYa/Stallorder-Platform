@@ -52,15 +52,17 @@ export function ReportExportButton({
   }
 
   return (
-    <div>
+    <div className="shrink-0">
       <button
         type="button"
+        title={t("reports.export.action")}
+        aria-label={t("reports.export.action")}
         disabled={exporting}
         onClick={() => void exportReport()}
-        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold disabled:opacity-50"
+        className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-2 text-sm font-semibold disabled:opacity-50 sm:px-4"
       >
         <Download className="h-4 w-4" />
-        {exporting ? t("reports.export.progress") : t("reports.export.action")}
+        <span className="sr-only sm:not-sr-only">{exporting ? t("reports.export.progress") : t("reports.export.action")}</span>
       </button>
       {error ? <p role="alert" className="mt-2 text-xs text-red-700">{error}</p> : null}
     </div>

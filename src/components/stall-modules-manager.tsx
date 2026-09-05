@@ -1,9 +1,9 @@
 "use client";
 
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { CalendarClock, Copy, Dices, FileDown, Languages, MapPinned, MessageCircle, Percent, Plus, Printer, QrCode, RotateCw, Save, ShoppingBag, SlidersHorizontal, Trash2, Truck, Utensils, WalletCards } from "lucide-react";
+import { CalendarClock, ChevronRight, Copy, Dices, FileDown, Languages, MapPinned, MessageCircle, Percent, Plus, Printer, QrCode, RotateCw, Save, Search, ShoppingBag, SlidersHorizontal, Trash2, Truck, Utensils, WalletCards, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { CollapsibleSectionSummary } from "@/components/collapsible-section-summary";
 import { DiningFloorEditor } from "@/components/dining-floor-editor";
@@ -50,6 +50,8 @@ export type ModuleState = {
     preorderMaxDays: number;
     preorderSlotMinutes: 5 | 15 | 30 | 60 | 120;
     lotteryEnabled: boolean;
+    lotteryCampaignName: string;
+    lotteryProductIds: string[];
     lotteryDiscountOptionId: string | null;
     lotteryDiscountWinRateBps: number;
     lotteryDiscountChances: Array<{
@@ -61,6 +63,15 @@ export type ModuleState = {
     lotteryFestivalRewardEnabled: boolean;
     lotteryFestivalStartsOn: string | null;
     lotteryFestivalEndsOn: string | null;
+    lotteryFestivalCampaigns: Array<{
+      id: string;
+      name: string;
+      isEnabled: boolean;
+      startsOn: string;
+      endsOn: string;
+      productIds: string[];
+      sortOrder: number;
+    }>;
     lotteryBirthdayRewardEnabled: boolean;
     enabledLocales: QrLocale[];
   };
@@ -87,6 +98,15 @@ export type ModuleState = {
     name: string;
     price: number;
     isAvailable: boolean;
+    isEnabled: boolean;
+    isSoldOut: boolean;
+    kind: "SINGLE" | "BUNDLE";
+    categoryId: string;
+    categoryName: string;
+    categorySortOrder: number;
+    groupId: string | null;
+    groupName: string | null;
+    groupSortOrder: number;
     translations: Array<{ locale: string; name: string }>;
   }>;
   paymentOptions: Array<{
@@ -126,6 +146,7 @@ type FloorDraft = Omit<ModuleState["floors"][number], "id">;
 type PaymentDraft = Omit<ModuleState["paymentOptions"][number], "id">;
 type DiscountDraft = Omit<ModuleState["discounts"][number], "id">;
 type MessageKind = "success" | "error";
+type LotteryProductPickerTarget = { kind: "base" } | { kind: "festival"; campaignId: string };
 
 export function buildPublicStorefrontShare(
   appUrl: string,
@@ -174,6 +195,13 @@ export function StallModulesManager({
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<MessageKind>("success");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [lotteryProductPicker, setLotteryProductPicker] = useState<{
+    target: LotteryProductPickerTarget;
+    productIds: string[];
+  } | null>(null);
+  const [expandedLotteryCampaignIds, setExpandedLotteryCampaignIds] = useState<Set<string>>(
+    () => new Set(initialState.settings.lotteryFestivalCampaigns.slice(0, 1).map((campaign) => campaign.id)),
+  );
   const managerRef = useRef<HTMLElement>(null);
   const isView = (...views: StallModuleView[]) => view === "all" || views.includes(view);
   const viewTitle = label({
@@ -338,9 +366,90 @@ export function StallModulesManager({
     }));
   }
 
+  function openLotteryProductPicker(target: LotteryProductPickerTarget, productIds: string[]) {
+    setLotteryProductPicker({ target, productIds: [...productIds] });
+  }
+
+  function applyLotteryProductPicker(productIds: string[]) {
+    if (!lotteryProductPicker) return;
+    const pickerTarget = lotteryProductPicker.target;
+    setState((current) => ({
+      ...current,
+      settings: pickerTarget.kind === "base"
+        ? { ...current.settings, lotteryProductIds: productIds }
+        : {
+            ...current.settings,
+            lotteryFestivalCampaigns: current.settings.lotteryFestivalCampaigns.map((campaign) => (
+              campaign.id === pickerTarget.campaignId
+                ? { ...campaign, productIds }
+                : campaign
+            )),
+          },
+    }));
+    setLotteryProductPicker(null);
+  }
+
+  function addLotteryFestivalCampaign() {
+    const campaignNumber = state.settings.lotteryFestivalCampaigns.length + 1;
+    const campaignId = crypto.randomUUID();
+    const today = new Date().toISOString().slice(0, 10);
+    setState((current) => ({
+      ...current,
+      settings: {
+        ...current.settings,
+        lotteryFestivalCampaigns: [
+          ...current.settings.lotteryFestivalCampaigns,
+          {
+            id: campaignId,
+            name: `${label("節慶活動")} ${campaignNumber}`,
+            isEnabled: false,
+            startsOn: today,
+            endsOn: today,
+            productIds: [],
+            sortOrder: campaignNumber - 1,
+          },
+        ],
+      },
+    }));
+    setExpandedLotteryCampaignIds((current) => new Set(current).add(campaignId));
+  }
+
+  function updateLotteryFestivalCampaign(
+    campaignId: string,
+    changes: Partial<ModuleState["settings"]["lotteryFestivalCampaigns"][number]>,
+  ) {
+    setState((current) => ({
+      ...current,
+      settings: {
+        ...current.settings,
+        lotteryFestivalCampaigns: current.settings.lotteryFestivalCampaigns.map((campaign) => (
+          campaign.id === campaignId ? { ...campaign, ...changes } : campaign
+        )),
+      },
+    }));
+  }
+
+  function removeLotteryFestivalCampaign(campaignId: string) {
+    setState((current) => ({
+      ...current,
+      settings: {
+        ...current.settings,
+        lotteryFestivalCampaigns: current.settings.lotteryFestivalCampaigns
+          .filter((campaign) => campaign.id !== campaignId)
+          .map((campaign, sortOrder) => ({ ...campaign, sortOrder })),
+      },
+    }));
+    setExpandedLotteryCampaignIds((current) => {
+      const next = new Set(current);
+      next.delete(campaignId);
+      return next;
+    });
+  }
+
   async function saveModules() {
     const settings = normalizeDisabledModuleSettings(state.settings);
     const firstLotteryDiscount = settings.lotteryDiscountChances?.[0] ?? null;
+    const firstEnabledFestival = settings.lotteryFestivalCampaigns.find((campaign) => campaign.isEnabled) ?? null;
     await run({
       operation: "UPDATE_MODULES",
       view,
@@ -360,14 +469,17 @@ export function StallModulesManager({
       preorderMaxDays: settings.preorderMaxDays,
       preorderSlotMinutes: settings.preorderSlotMinutes,
       lotteryEnabled: settings.lotteryEnabled,
+      lotteryCampaignName: settings.lotteryCampaignName,
+      lotteryProductIds: settings.lotteryProductIds,
       lotteryDiscountOptionId: firstLotteryDiscount?.discountOptionId ?? null,
       lotteryDiscountWinRateBps: firstLotteryDiscount?.winRateBps ?? 0,
       lotteryDiscountChances: settings.lotteryDiscountChances ?? [],
       lotterySpendRewardEnabled: settings.lotterySpendRewardEnabled,
       lotterySpendThresholdAmount: settings.lotterySpendThresholdAmount,
-      lotteryFestivalRewardEnabled: settings.lotteryFestivalRewardEnabled,
-      lotteryFestivalStartsOn: settings.lotteryFestivalStartsOn,
-      lotteryFestivalEndsOn: settings.lotteryFestivalEndsOn,
+      lotteryFestivalRewardEnabled: Boolean(firstEnabledFestival),
+      lotteryFestivalStartsOn: firstEnabledFestival?.startsOn ?? null,
+      lotteryFestivalEndsOn: firstEnabledFestival?.endsOn ?? null,
+      lotteryFestivalCampaigns: settings.lotteryFestivalCampaigns,
       lotteryBirthdayRewardEnabled: false,
     }, label("模組開關已儲存。"));
   }
@@ -482,25 +594,124 @@ export function StallModulesManager({
       {isView("lottery") && state.settings.lotteryEnabled ? <fieldset className="mt-4 rounded-lg border border-violet-200 bg-violet-50/60 p-4">
         <legend className="px-1 text-sm font-semibold text-violet-950">{label("免費餐點抽獎資格")}</legend>
         <p className="text-xs leading-5 text-violet-800">{label("符合資格後，顧客送出訂單前會看到抽獎視窗；抽中的免費商品由伺服器以 0 元贈品加入同一張訂單。")}</p>
+        <div className="mt-3 max-w-xl">
+          <TextInput
+            label={label("活動名稱")}
+            value={state.settings.lotteryCampaignName}
+            fieldKey={fieldKey("modules", "lotteryCampaignName")}
+            error={errorFor("modules", "lotteryCampaignName")}
+            maxLength={80}
+            onChange={(lotteryCampaignName) => setState((current) => ({
+              ...current,
+              settings: { ...current.settings, lotteryCampaignName },
+            }))}
+          />
+          <p className="mt-1 text-xs text-violet-800">{label("顧客會在點餐頁與抽獎視窗看到此名稱。")}</p>
+        </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className="rounded-md border border-violet-200 bg-white p-3 text-sm font-semibold text-stone-800">
-            <span className="flex min-h-8 items-center gap-2"><input type="checkbox" checked={state.settings.lotterySpendRewardEnabled} onChange={(event) => setState((current) => ({ ...current, settings: { ...current.settings, lotterySpendRewardEnabled: event.target.checked } }))} />{label("滿額免費抽獎")}</span>
-            <span className="mt-2 block text-xs font-normal text-stone-500">{label("以送出時的伺服器實際商品金額判定。")}</span>
-          </label>
+          <div className="rounded-md border border-violet-200 bg-white p-3">
+            <ModuleSwitch label={label("滿額免費抽獎")} checked={state.settings.lotterySpendRewardEnabled} onChange={(lotterySpendRewardEnabled) => setState((current) => ({ ...current, settings: { ...current.settings, lotterySpendRewardEnabled } }))} />
+            <p className="mt-2 text-xs text-stone-500">{label("以送出時的伺服器實際商品金額判定。")}</p>
+          </div>
           <NumberInput label={label("滿額門檻")} value={state.settings.lotterySpendThresholdAmount} fieldKey={fieldKey("modules", "lotterySpendThresholdAmount")} error={errorFor("modules", "lotterySpendThresholdAmount")} min={1} max={10_000_000} onChange={(lotterySpendThresholdAmount) => setState((current) => ({ ...current, settings: { ...current.settings, lotterySpendThresholdAmount } }))} />
-          <label className="rounded-md border border-violet-200 bg-white p-3 text-sm font-semibold text-stone-800 sm:col-span-2">
-            <span className="flex min-h-8 items-center gap-2"><input type="checkbox" checked={state.settings.lotteryFestivalRewardEnabled} onChange={(event) => setState((current) => ({ ...current, settings: { ...current.settings, lotteryFestivalRewardEnabled: event.target.checked } }))} />{label("節慶期間免費抽獎")}</span>
-            <span className="mt-2 block text-xs font-normal text-stone-500">{label("依攤位營業時區判定活動日期；同一裝置每日限一次。")}</span>
-          </label>
-          {state.settings.lotteryFestivalRewardEnabled ? <>
-            <DateInput label={label("活動開始日期")} value={state.settings.lotteryFestivalStartsOn ?? ""} fieldKey={fieldKey("modules", "lotteryFestivalStartsOn")} error={errorFor("modules", "lotteryFestivalStartsOn")} onChange={(lotteryFestivalStartsOn) => setState((current) => ({ ...current, settings: { ...current.settings, lotteryFestivalStartsOn: lotteryFestivalStartsOn || null } }))} />
-            <DateInput label={label("活動結束日期")} value={state.settings.lotteryFestivalEndsOn ?? ""} fieldKey={fieldKey("modules", "lotteryFestivalEndsOn")} error={errorFor("modules", "lotteryFestivalEndsOn")} onChange={(lotteryFestivalEndsOn) => setState((current) => ({ ...current, settings: { ...current.settings, lotteryFestivalEndsOn: lotteryFestivalEndsOn || null } }))} />
-          </> : null}
+          <div className="rounded-md border border-violet-200 bg-white p-3 text-sm text-violet-950 sm:col-span-2">
+            <span className="font-semibold">{label("節慶限定活動")}</span>
+            <p className="mt-1 text-xs leading-5 text-stone-500">{label("可在下方新增多個自訂活動；每個活動可分別設定日期與可抽商品。")}</p>
+          </div>
           <div className="rounded-md border border-stone-200 bg-white p-3 text-sm text-stone-500 sm:col-span-2">
             <span className="font-semibold text-stone-700">{label("壽星抽獎")}</span>
             <p className="mt-1 text-xs leading-5">{label("需先串接會員生日與電話驗證，避免顧客自行填寫生日重複領取；驗證完成前不開放。")}</p>
           </div>
         </div>
+      </fieldset> : null}
+      {isView("lottery") && state.settings.lotteryEnabled ? <fieldset className="mt-4 rounded-lg border border-violet-200 p-4">
+        <legend className="px-1 text-sm font-semibold text-stone-800">{label("可抽中的商品")}</legend>
+        <p className="text-xs leading-5 text-stone-500">{label("這是滿額抽獎與一般推薦共用的商品池；停用或售完商品會暫停抽選。")}</p>
+        <div
+          {...validationAttributes(fieldKey("modules", "lotteryProductIds"), errorFor("modules", "lotteryProductIds"))}
+          tabIndex={-1}
+          className="mt-3"
+        >
+          <button
+            type="button"
+            data-testid="open-lottery-product-picker"
+            onClick={() => openLotteryProductPicker({ kind: "base" }, state.settings.lotteryProductIds)}
+            className="flex min-h-20 w-full items-center justify-between gap-4 rounded-xl border-2 border-violet-300 bg-white px-4 text-left"
+          >
+            <span>
+              <span className="block text-sm font-semibold text-violet-950">{label("依分類與商品群組選擇")}</span>
+              <span className="mt-1 block text-xs text-stone-500">{label("開啟階層式選單，不在設定頁一次列出所有商品。")}</span>
+            </span>
+            <span className="shrink-0 rounded-full bg-violet-700 px-3 py-1 text-xs font-semibold text-white">{label("已選")} {state.settings.lotteryProductIds.length}/100</span>
+          </button>
+        </div>
+        <FieldError fieldKey={fieldKey("modules", "lotteryProductIds")} error={errorFor("modules", "lotteryProductIds")} />
+      </fieldset> : null}
+      {isView("lottery") && state.settings.lotteryEnabled ? <fieldset
+        {...validationAttributes(fieldKey("modules", "lotteryFestivalCampaigns"), errorFor("modules", "lotteryFestivalCampaigns"))}
+        tabIndex={-1}
+        className="mt-4 rounded-lg border border-violet-200 p-4"
+      >
+        <legend className="px-1 text-sm font-semibold text-stone-800">{label("節慶限定活動")}</legend>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className="max-w-2xl text-xs leading-5 text-stone-500">{label("可建立多個具名稱、日期與獨立商品池的活動。為避免同一天套用錯誤活動，已啟用的日期區間不可重疊。")}</p>
+          <button
+            type="button"
+            disabled={state.settings.lotteryFestivalCampaigns.length >= 20}
+            onClick={addLotteryFestivalCampaign}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-700 px-4 text-sm font-semibold text-white disabled:opacity-40"
+          ><Plus className="h-4 w-4" />{label("新增節慶活動")}</button>
+        </div>
+        <div className="mt-4 grid gap-4">
+          {state.settings.lotteryFestivalCampaigns.map((campaign) => (
+             <details
+               key={campaign.id}
+               data-testid="lottery-festival-campaign"
+               className="group rounded-xl border border-stone-200 bg-white"
+              open={expandedLotteryCampaignIds.has(campaign.id)}
+              onToggle={(event) => {
+                const isOpen = event.currentTarget.open;
+                setExpandedLotteryCampaignIds((current) => {
+                  if (current.has(campaign.id) === isOpen) return current;
+                  const next = new Set(current);
+                  if (isOpen) next.add(campaign.id);
+                  else next.delete(campaign.id);
+                  return next;
+                });
+              }}
+            >
+              <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 px-4 [&::-webkit-details-marker]:hidden">
+                <ChevronRight className="h-5 w-5 shrink-0 transition-transform group-open:rotate-90" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-stone-900">{campaign.name || label("未命名活動")}</span>
+                  <span className="mt-1 block text-xs text-stone-500">{campaign.startsOn} ～ {campaign.endsOn} · {label("已選")} {campaign.productIds.length}</span>
+                </span>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${campaign.isEnabled ? "bg-emerald-100 text-emerald-800" : "bg-stone-200 text-stone-600"}`}>{campaign.isEnabled ? label("啟用") : label("停用")}</span>
+              </summary>
+              <div className="grid gap-3 border-t border-stone-200 p-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <TextInput label={label("活動名稱")} value={campaign.name} maxLength={80} onChange={(name) => updateLotteryFestivalCampaign(campaign.id, { name })} />
+                </div>
+                <DateInput label={label("活動開始日期")} value={campaign.startsOn} onChange={(startsOn) => updateLotteryFestivalCampaign(campaign.id, { startsOn })} />
+                <DateInput label={label("活動結束日期")} value={campaign.endsOn} onChange={(endsOn) => updateLotteryFestivalCampaign(campaign.id, { endsOn })} />
+                <div className="sm:col-span-2">
+                  <ModuleSwitch label={label("啟用此節慶活動")} checked={campaign.isEnabled} onChange={(isEnabled) => updateLotteryFestivalCampaign(campaign.id, { isEnabled })} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openLotteryProductPicker({ kind: "festival", campaignId: campaign.id }, campaign.productIds)}
+                  className="flex min-h-16 items-center justify-between rounded-xl border-2 border-violet-300 px-4 text-left text-sm font-semibold text-violet-950 sm:col-span-2"
+                >
+                  <span>{label("選擇此活動可抽商品")}</span>
+                  <span className="rounded-full bg-violet-100 px-3 py-1 text-xs">{label("已選")} {campaign.productIds.length}/100</span>
+                </button>
+                <button type="button" onClick={() => removeLotteryFestivalCampaign(campaign.id)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300 px-4 text-sm font-semibold text-red-700 sm:col-span-2"><Trash2 className="h-4 w-4" />{label("移除此活動")}</button>
+              </div>
+            </details>
+          ))}
+          {state.settings.lotteryFestivalCampaigns.length === 0 ? <p className="rounded-xl border border-dashed border-stone-300 p-4 text-sm text-stone-600">{label("尚未新增節慶活動。一般滿額抽獎仍可使用上方共用商品池。")}</p> : null}
+        </div>
+        <FieldError fieldKey={fieldKey("modules", "lotteryFestivalCampaigns")} error={errorFor("modules", "lotteryFestivalCampaigns")} />
       </fieldset> : null}
       {isView("lottery") && state.settings.lotteryEnabled ? <fieldset className="mt-4 rounded-lg border border-stone-200 p-4">
         <legend className="px-1 text-sm font-semibold text-stone-800">{label("抽抽樂折扣獎項")}</legend>
@@ -763,11 +974,235 @@ export function StallModulesManager({
           })}</div>
         </div>
       </section>
+      {lotteryProductPicker ? <LotteryProductPickerDialog
+        title={lotteryProductPicker.target.kind === "base"
+          ? label("選擇一般抽獎商品")
+          : label("選擇節慶活動商品")}
+        products={state.upsellProducts}
+        initialProductIds={lotteryProductPicker.productIds}
+        translate={label}
+        onClose={() => setLotteryProductPicker(null)}
+        onApply={applyLotteryProductPicker}
+      /> : null}
       {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} focusAfterClose={() => managerRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()} /> : null}
         </div>
       </div>
     </section>
   );
+}
+
+function LotteryProductPickerDialog({
+  title,
+  products,
+  initialProductIds,
+  translate,
+  onClose,
+  onApply,
+}: {
+  title: string;
+  products: ModuleState["upsellProducts"];
+  initialProductIds: string[];
+  translate: (value: string) => string;
+  onClose: () => void;
+  onApply: (productIds: string[]) => void;
+}) {
+  const maxProductCount = 100;
+  const [search, setSearch] = useState("");
+  const [selectedProductIds, setSelectedProductIds] = useState(initialProductIds);
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Set<string>>(() => new Set());
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() => new Set());
+  const dialogRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    dialogRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
+  const availableProducts = useMemo(() => products
+    .filter((product) => product.kind === "SINGLE")
+    .filter((product) => {
+      const normalizedSearch = search.trim().toLocaleLowerCase("zh-TW");
+      if (!normalizedSearch) return true;
+      return [product.name, product.categoryName, product.groupName ?? ""]
+        .some((value) => value.toLocaleLowerCase("zh-TW").includes(normalizedSearch));
+    })
+    .sort((left, right) => left.categorySortOrder - right.categorySortOrder
+      || left.groupSortOrder - right.groupSortOrder
+      || left.name.localeCompare(right.name, "zh-TW")), [products, search]);
+  const categories = useMemo(() => {
+    const categoryMap = new Map<string, {
+      id: string;
+      name: string;
+      sortOrder: number;
+      groups: Map<string, { id: string; name: string; sortOrder: number; products: typeof availableProducts }>;
+    }>();
+    for (const product of availableProducts) {
+      const category = categoryMap.get(product.categoryId) ?? {
+        id: product.categoryId,
+        name: product.categoryName,
+        sortOrder: product.categorySortOrder,
+        groups: new Map(),
+      };
+      categoryMap.set(product.categoryId, category);
+      const groupKey = product.groupId ?? `ungrouped:${product.categoryId}`;
+      const group = category.groups.get(groupKey) ?? {
+        id: groupKey,
+        name: product.groupName ?? translate("未分組"),
+        sortOrder: product.groupSortOrder,
+        products: [],
+      };
+      group.products.push(product);
+      category.groups.set(groupKey, group);
+    }
+    return [...categoryMap.values()]
+      .sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "zh-TW"))
+      .map((category) => ({
+        ...category,
+        groups: [...category.groups.values()].sort((left, right) => (
+          left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "zh-TW")
+        )),
+      }));
+  }, [availableProducts, translate]);
+
+  function toggleProduct(productId: string) {
+    setSelectedProductIds((current) => {
+      if (current.includes(productId)) return current.filter((id) => id !== productId);
+      return current.length >= maxProductCount ? current : [...current, productId];
+    });
+  }
+
+  function setGroupProducts(productIds: string[], selected: boolean) {
+    setSelectedProductIds((current) => {
+      if (!selected) return current.filter((id) => !productIds.includes(id));
+      const additions = productIds
+        .filter((id) => !current.includes(id))
+        .slice(0, Math.max(0, maxProductCount - current.length));
+      return [...current, ...additions];
+    });
+  }
+
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-3 sm:p-6" role="presentation">
+    <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="lottery-product-picker-title" className="flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="flex items-start gap-3 border-b border-stone-200 p-4 sm:p-5">
+        <div className="min-w-0 flex-1">
+          <h2 id="lottery-product-picker-title" className="text-xl font-bold text-stone-950">{title}</h2>
+          <p className="mt-1 text-sm text-stone-500">{translate("依分類與商品群組展開；可搜尋商品，最多選擇 100 項。")}</p>
+        </div>
+        <button type="button" onClick={onClose} aria-label={translate("關閉商品選擇")} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-stone-300"><X className="h-5 w-5" /></button>
+      </div>
+      <div className="border-b border-stone-200 p-4">
+        <label className="relative block">
+          <span className="sr-only">{translate("搜尋商品")}</span>
+          <Search className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 text-stone-400" />
+          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} maxLength={120} placeholder={translate("搜尋商品、分類或群組")} className="h-12 w-full rounded-xl border border-stone-300 pl-11 pr-3 text-base" />
+        </label>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="grid gap-3">
+          {categories.map((category) => {
+            const categoryProducts = category.groups.flatMap((group) => group.products);
+            const categorySelectedCount = categoryProducts.filter((product) => selectedProductIds.includes(product.id)).length;
+            const searchMode = Boolean(search.trim());
+            return <details
+              key={category.id}
+              className="group rounded-xl border border-stone-200"
+              open={searchMode || expandedCategoryIds.has(category.id)}
+              onToggle={(event) => {
+                if (searchMode) return;
+                const isOpen = event.currentTarget.open;
+                setExpandedCategoryIds((current) => updateExpandedIds(
+                  current,
+                  category.id,
+                  isOpen,
+                ));
+              }}
+            >
+              <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 [&::-webkit-details-marker]:hidden">
+                <ChevronRight className="h-5 w-5 shrink-0 transition-transform group-open:rotate-90" />
+                <span className="min-w-0 flex-1 truncate font-semibold">{category.name}</span>
+                <span className="text-xs font-semibold text-violet-800">{categorySelectedCount}/{categoryProducts.length}</span>
+              </summary>
+              <div className="grid gap-3 border-t border-stone-200 p-3">
+                {category.groups.map((group) => {
+                  const enabledProductIds = group.products.filter((product) => product.isEnabled).map((product) => product.id);
+                  const selectedCount = group.products.filter((product) => selectedProductIds.includes(product.id)).length;
+                  return <details
+                    key={group.id}
+                    className="group/group rounded-xl bg-stone-50"
+                    open={searchMode || expandedGroupIds.has(group.id)}
+                    onToggle={(event) => {
+                      if (searchMode) return;
+                      const isOpen = event.currentTarget.open;
+                      setExpandedGroupIds((current) => updateExpandedIds(
+                        current,
+                        group.id,
+                        isOpen,
+                      ));
+                    }}
+                  >
+                    <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-3 [&::-webkit-details-marker]:hidden">
+                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open/group:rotate-90" />
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{group.name}</span>
+                      <span className="text-xs text-stone-500">{selectedCount}/{group.products.length}</span>
+                    </summary>
+                    <div className="border-t border-stone-200 p-3">
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        <button type="button" onClick={() => setGroupProducts(enabledProductIds, true)} className="min-h-10 rounded-lg border border-violet-300 bg-white px-3 text-xs font-semibold text-violet-900">{translate("全選此群組")}</button>
+                        <button type="button" onClick={() => setGroupProducts(group.products.map((product) => product.id), false)} className="min-h-10 rounded-lg border border-stone-300 bg-white px-3 text-xs font-semibold">{translate("清除此群組")}</button>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {group.products.map((product) => {
+                          const selected = selectedProductIds.includes(product.id);
+                          return <button
+                            key={product.id}
+                            type="button"
+                            role="switch"
+                            aria-checked={selected}
+                             disabled={!selected && (!product.isEnabled || selectedProductIds.length >= maxProductCount)}
+                             data-testid="lottery-product-picker-switch"
+                             data-product-id={product.id}
+                             onClick={() => toggleProduct(product.id)}
+                            className={`flex min-h-16 items-center justify-between gap-3 rounded-xl border-2 px-3 text-left text-sm disabled:cursor-not-allowed disabled:opacity-45 ${selected ? "border-violet-700 bg-violet-50" : "border-stone-300 bg-white"}`}
+                          >
+                            <span className="min-w-0">
+                              <span className="block break-words font-semibold">{product.name}</span>
+                              <span className="mt-1 block text-xs text-stone-500">{!product.isEnabled ? translate("攤位已停用") : product.isSoldOut ? translate("目前售完，仍保留設定") : translate("可供抽選")}</span>
+                            </span>
+                            <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${selected ? "bg-violet-700 text-white" : "bg-stone-200 text-stone-600"}`}>{selected ? translate("已加入") : translate("未加入")}</span>
+                          </button>;
+                        })}
+                      </div>
+                    </div>
+                  </details>;
+                })}
+              </div>
+            </details>;
+          })}
+          {categories.length === 0 ? <p className="rounded-xl border border-dashed border-stone-300 p-5 text-center text-sm text-stone-600">{translate(search ? "找不到符合搜尋條件的商品。" : "此攤位尚無可設定的一般商品。請先新增並分派商品。")}</p> : null}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 border-t border-stone-200 bg-white p-4">
+        <button type="button" onClick={onClose} className="min-h-12 rounded-xl border border-stone-300 px-4 font-semibold">{translate("取消")}</button>
+        <button type="button" onClick={() => onApply(selectedProductIds)} className="min-h-12 rounded-xl bg-violet-700 px-4 font-semibold text-white">{translate("套用")} {selectedProductIds.length}/{maxProductCount} {translate("項")}</button>
+      </div>
+    </section>
+  </div>;
+}
+
+function updateExpandedIds(current: Set<string>, id: string, isOpen: boolean) {
+  if (current.has(id) === isOpen) return current;
+  const next = new Set(current);
+  if (isOpen) next.add(id);
+  else next.delete(id);
+  return next;
 }
 
 function ModuleSwitch({ label, icon, checked, disabled = false, onChange }: { label: string; icon?: React.ReactNode; checked: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {

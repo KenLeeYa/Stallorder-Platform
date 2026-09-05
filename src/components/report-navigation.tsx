@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Banknote, ChartNoAxesCombined, ClipboardList, PackageSearch, Store, WalletCards } from "lucide-react";
+import { Banknote, ChartNoAxesCombined, ClipboardList, PackageSearch, SlidersHorizontal, Store, WalletCards } from "lucide-react";
 import { useState } from "react";
 import { ReportExportButton } from "@/components/report-export-button";
 import { useAppLocale } from "@/components/locale-provider";
@@ -9,6 +9,7 @@ import { createReportTranslator } from "@/lib/messages/reports";
 import type { OperationsPageSize } from "@/lib/operations-pagination";
 
 type Stall = { id: string; name: string };
+type DatePreset = "TODAY" | "YESTERDAY" | "WEEK" | "MONTH" | "CUSTOM";
 type ReportFiltersProps = {
   organizationId: string;
   stalls: Stall[];
@@ -45,42 +46,39 @@ function ReportFiltersForm({ organizationId, stalls, selectedStallIds, dateFrom,
   const [from, setFrom] = useState(dateFrom);
   const [to, setTo] = useState(dateTo);
   const [selectedIds, setSelectedIds] = useState(selectedStallIds);
+  const [preset, setPreset] = useState<DatePreset>(() => inferDatePreset(dateFrom, dateTo));
 
-  function applyPreset(preset: "day" | "week" | "month") {
-    const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    if (preset === "week") start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-    if (preset === "month") start.setDate(1);
-    setFrom(formatLocalDate(start));
-    setTo(formatLocalDate(today));
+  function applyPreset(nextPreset: Exclude<DatePreset, "CUSTOM">) {
+    const range = dateRangeForPreset(nextPreset);
+    setPreset(nextPreset);
+    setFrom(range.dateFrom);
+    setTo(range.dateTo);
   }
 
-  return <form method="get" className={`grid gap-3 border-b border-stone-200 py-3 sm:gap-4 sm:py-5 lg:items-end ${multiStallMode ? "lg:grid-cols-[minmax(340px,1.2fr)_minmax(260px,1fr)_auto]" : "lg:grid-cols-[minmax(340px,1fr)_auto]"}`}>
+  return <form method="get" className={`grid min-w-0 gap-3 border-b border-stone-200 py-3 sm:gap-4 sm:py-5 lg:items-end ${multiStallMode ? "lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,1fr)]" : ""}`}>
     <input type="hidden" name="organizationId" value={organizationId} />
     {pageSize ? <input type="hidden" name="pageSize" value={pageSize} /> : null}
-    <div>
-      <div className="flex items-center justify-between gap-2 sm:gap-3">
-        <span className="text-sm font-medium text-stone-700">{t("reports.filter.dateRange")}</span>
-        <div className="inline-flex overflow-hidden rounded-md border border-stone-300">
-          <button type="button" onClick={() => applyPreset("day")} className="h-8 border-r border-stone-300 px-3 text-xs font-semibold hover:bg-stone-100">{t("reports.filter.day")}</button>
-          <button type="button" onClick={() => applyPreset("week")} className="h-8 border-r border-stone-300 px-3 text-xs font-semibold hover:bg-stone-100">{t("reports.filter.week")}</button>
-          <button type="button" onClick={() => applyPreset("month")} className="h-8 px-3 text-xs font-semibold hover:bg-stone-100">{t("reports.filter.month")}</button>
+    <div className="min-w-0 max-w-full overflow-x-hidden">
+      <span className="text-sm font-medium text-stone-700">{t("reports.filter.dateRange")}</span>
+      <div data-testid="report-date-action-scroll" className="relative mt-2 w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain">
+        <div data-testid="report-date-action-row" className="flex w-max min-w-full flex-nowrap items-center gap-1 pb-1 sm:gap-2">
+          {(["TODAY", "YESTERDAY", "WEEK", "MONTH", "CUSTOM"] as const).map((value) => <button key={value} type="button" aria-pressed={preset === value} onClick={() => value === "CUSTOM" ? setPreset("CUSTOM") : applyPreset(value)} className={`min-h-11 min-w-11 shrink-0 rounded-md px-1 text-xs font-semibold sm:min-w-0 sm:px-3 ${preset === value ? "bg-stone-900 text-white" : "border border-stone-300 bg-white hover:bg-stone-100"}`}>{value === "TODAY" ? t("reports.filter.day") : value === "YESTERDAY" ? t("reports.filter.yesterday") : value === "WEEK" ? t("reports.filter.week") : value === "MONTH" ? t("reports.filter.month") : t("reports.filter.custom")}</button>)}
+          <div data-testid="report-filter-actions" className="ml-auto flex shrink-0 gap-1 sm:gap-2">
+            <button type="submit" title={t("reports.filter.apply")} aria-label={t("reports.filter.apply")} className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-2 text-sm font-semibold text-white sm:px-4"><SlidersHorizontal className="h-4 w-4" /><span className="sr-only sm:not-sr-only">{t("reports.filter.apply")}</span></button>
+            {showExport ? <ReportExportButton organizationId={organizationId} stallIds={selectedIds} dateFrom={from} dateTo={to} /> : null}
+          </div>
         </div>
       </div>
-      <div className="mt-1 grid gap-2 min-[360px]:grid-cols-[1fr_auto_1fr] min-[360px]:items-center">
-        <input required aria-label={t("reports.filter.startDate")} type="date" name="dateFrom" value={from} onChange={(event) => setFrom(event.target.value)} className="h-10 min-w-0 rounded-md border border-stone-300 px-3" />
+      {preset === "CUSTOM" ? <div className="mt-2 grid gap-2 min-[360px]:grid-cols-[1fr_auto_1fr] min-[360px]:items-center">
+        <input required aria-label={t("reports.filter.startDate")} type="date" name="dateFrom" value={from} max={to} onChange={(event) => setFrom(event.target.value)} className="h-11 min-w-0 rounded-md border border-stone-300 px-3" />
         <span className="text-center text-xs text-stone-600 min-[360px]:text-sm">{t("reports.filter.to")}</span>
-        <input required aria-label={t("reports.filter.endDate")} type="date" name="dateTo" value={to} onChange={(event) => setTo(event.target.value)} className="h-10 min-w-0 rounded-md border border-stone-300 px-3" />
-      </div>
+        <input required aria-label={t("reports.filter.endDate")} type="date" name="dateTo" value={to} min={from} onChange={(event) => setTo(event.target.value)} className="h-11 min-w-0 rounded-md border border-stone-300 px-3" />
+      </div> : <><input type="hidden" name="dateFrom" value={from} /><input type="hidden" name="dateTo" value={to} /><p className="mt-2 text-sm text-stone-600">{from} {t("reports.filter.to")} {to}</p></>}
     </div>
-    {multiStallMode ? <fieldset>
+    {multiStallMode ? <fieldset className="min-w-0">
       <legend className="text-sm font-medium text-stone-700">{t("reports.filter.stalls")}</legend>
       <div className="mt-1 flex min-h-10 flex-wrap items-center gap-x-4 gap-y-2">{stalls.map((stall) => <label key={stall.id} className="flex items-center gap-2 text-sm"><input type="checkbox" name="stallId" value={stall.id} checked={selectedIds.includes(stall.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, stall.id] : current.filter((id) => id !== stall.id))} />{stall.name}</label>)}</div>
     </fieldset> : null}
-    <div className="flex flex-wrap gap-2">
-      <button type="submit" className="min-h-10 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white">{t("reports.filter.apply")}</button>
-      {showExport ? <ReportExportButton organizationId={organizationId} stallIds={selectedIds} dateFrom={from} dateTo={to} /> : null}
-    </div>
   </form>;
 }
 
@@ -89,4 +87,24 @@ function formatLocalDate(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function dateRangeForPreset(preset: Exclude<DatePreset, "CUSTOM">, now = new Date()) {
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const start = new Date(end);
+  if (preset === "YESTERDAY") {
+    start.setDate(start.getDate() - 1);
+    end.setDate(end.getDate() - 1);
+  }
+  if (preset === "WEEK") start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  if (preset === "MONTH") start.setDate(1);
+  return { dateFrom: formatLocalDate(start), dateTo: formatLocalDate(end) };
+}
+
+function inferDatePreset(dateFrom: string, dateTo: string): DatePreset {
+  for (const preset of ["TODAY", "YESTERDAY", "WEEK", "MONTH"] as const) {
+    const range = dateRangeForPreset(preset);
+    if (range.dateFrom === dateFrom && range.dateTo === dateTo) return preset;
+  }
+  return "CUSTOM";
 }

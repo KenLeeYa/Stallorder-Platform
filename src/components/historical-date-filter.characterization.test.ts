@@ -15,12 +15,14 @@ describe("bounded historical data filters", () => {
     expect(operationsPage).toContain("dashboardDateRange(dateFrom, dateTo)");
   });
 
-  it("keeps day, week, month, and explicit date-range controls available", () => {
+  it("keeps the operations dates visible while reports retain the full shared preset set", () => {
     const consoleSource = source("src/components/operations-console.tsx");
-    expect(consoleSource).toContain('applyPreset("day")');
-    expect(consoleSource).toContain('applyPreset("week")');
-    expect(consoleSource).toContain('applyPreset("month")');
+    expect(consoleSource).toContain('applyPreset(preset: "day" | "week" | "month")');
+    expect(consoleSource).not.toContain('inferOperationsDatePreset');
     expect(consoleSource).toContain('name="dateFrom"');
     expect(consoleSource).toContain('name="dateTo"');
+
+    const reportSource = source("src/components/report-navigation.tsx");
+    expect(reportSource).toContain('["TODAY", "YESTERDAY", "WEEK", "MONTH", "CUSTOM"]');
   });
 });

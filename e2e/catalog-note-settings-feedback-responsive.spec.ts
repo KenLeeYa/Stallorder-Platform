@@ -53,7 +53,7 @@ test("單一註記分層遮罩與設定回饋通過響應式矩陣", async ({ pa
     await estimatedWait.fill("");
     await page.getByRole("button", { name: "儲存限制", exact: true }).click();
 
-    const feedback = page.getByRole("alertdialog", { name: "請確認設定", exact: true });
+    const feedback = page.getByRole("alertdialog", { name: "請確認", exact: true });
     await expect(feedback).toBeVisible();
     await expect(feedback).toContainText("請修正標示欄位後再儲存。");
     await expect(page.getByText("顧客預估等候分鐘為必填欄位。", { exact: true })).toBeVisible();
@@ -68,4 +68,35 @@ test("單一註記分層遮罩與設定回饋通過響應式矩陣", async ({ pa
     await acknowledge.click();
     await expect(estimatedWait).toBeFocused();
   }
+});
+
+test("編輯商品以明確提示展開與收合商品翻譯", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginLocalTestAccount(page, "owner@stallorder.test", password);
+  await waitForDefaultMerchantDashboard(page, organizationId);
+  await gotoLocalPath(page, `/merchant/catalog?organizationId=${organizationId}`);
+
+  await page.getByTestId("open-catalog-navigator").filter({ visible: true }).click();
+  const catalogNavigator = page.getByTestId("catalog-navigator-dialog");
+  await expect(catalogNavigator).toBeVisible();
+  await catalogNavigator.getByPlaceholder("搜尋所有商品").fill("香酥雞排");
+  await catalogNavigator.getByTestId("shared-product-actions").first().click();
+  await catalogNavigator.getByRole("button", { name: "編輯商品", exact: true }).click();
+
+  const productEditor = page.getByRole("dialog", { name: "編輯商品", exact: true });
+  await expect(productEditor).toBeVisible();
+  const translationDisclosure = productEditor.locator("details").filter({ hasText: "商品翻譯" });
+  const translationSummary = translationDisclosure.locator("summary");
+  await expect(translationSummary.getByText("商品翻譯", { exact: true })).toBeVisible();
+  await expect(translationSummary.getByText("展開／收合", { exact: true })).toBeVisible();
+  await expect(translationDisclosure).not.toHaveAttribute("open", "");
+
+  await translationSummary.click();
+  await expect(translationDisclosure).toHaveAttribute("open", "");
+  await expect(translationDisclosure.locator("input").first()).toBeVisible();
+
+  await translationSummary.click();
+  await expect(translationDisclosure).not.toHaveAttribute("open", "");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 });

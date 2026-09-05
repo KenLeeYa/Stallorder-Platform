@@ -3,6 +3,7 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Banknote, Boxes, ChevronRight, CircleDollarSign, LoaderCircle, PackageSearch, ReceiptText, TrendingDown, TrendingUp, TriangleAlert, UsersRound, WalletCards, X } from "lucide-react";
 import { ReportFilters } from "@/components/report-navigation";
+import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { parseFieldErrors } from "@/lib/form-field-errors";
 import type { getOperatingProfitDashboard } from "@/server/finance/operating-profit-service";
@@ -39,6 +40,7 @@ export function OperatingProfitDashboard({
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>("success");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [selectedExpenseCategory, setSelectedExpenseCategory] = useState("RENT");
   const [correctionTarget, setCorrectionTarget] = useState<ExpenseRecord | null>(null);
@@ -93,15 +95,18 @@ export function OperatingProfitDashboard({
       });
       const payload = await response.json() as Dashboard & { error?: string; fieldErrors?: unknown };
       if (!response.ok || payload.error) {
+        setMessageKind("error");
         setMessage(payload.error ?? "目前無法新增支出。");
         setFieldErrors(parseFieldErrors(payload.fieldErrors));
         return;
       }
       setDashboard(payload);
+      setMessageKind("success");
       setMessage("營業支出已入帳，損益與現金統計已重新計算。");
       form.reset();
       setSelectedExpenseCategory("RENT");
     } catch {
+      setMessageKind("error");
       setMessage("網路連線中斷，請稍後再試。");
     } finally {
       setBusy(false);
@@ -137,14 +142,17 @@ export function OperatingProfitDashboard({
       });
       const payload = await response.json() as Dashboard & { error?: string; fieldErrors?: unknown };
       if (!response.ok || payload.error) {
+        setMessageKind("error");
         setMessage(payload.error ?? "目前無法更正支出。");
         setFieldErrors(parseFieldErrors(payload.fieldErrors));
         return;
       }
       setDashboard(payload);
       setCorrectionTarget(null);
+      setMessageKind("success");
       setMessage("支出已更正；原紀錄與更正原因均已保留。損益與現金統計已重新計算。");
     } catch {
+      setMessageKind("error");
       setMessage("網路連線中斷，請稍後再試。");
     } finally {
       setBusy(false);
@@ -187,8 +195,6 @@ export function OperatingProfitDashboard({
     </section>
 
     {qualityAlerts.length ? <section className="rounded-xl border border-amber-300 bg-amber-50 p-4"><h2 className="flex items-center gap-2 font-semibold text-amber-950"><TriangleAlert className="h-5 w-5" />報表可信度待處理</h2><ul className="mt-2 grid gap-2 text-sm text-amber-950 sm:grid-cols-2">{qualityAlerts.map((alert) => <li key={alert} className="rounded-md bg-white/70 p-2">{alert}</li>)}</ul></section> : null}
-    {message ? <p role="status" className={`rounded-lg border p-3 text-sm ${Object.keys(fieldErrors).length || message.includes("無法") ? "border-red-200 bg-red-50 text-red-800" : "border-teal-200 bg-teal-50 text-teal-900"}`}>{message}</p> : null}
-
     <section className="grid gap-4 lg:grid-cols-2">
       <CollapsiblePanel testId="operating-profit-pnl" title="月度實際營運損益"><dl className="divide-y divide-stone-200 text-sm"><PnlRow label="淨營收" value={dashboard.summary.netSales} /><PnlRow label="－ 食材成本" value={-dashboard.summary.foodCost} /><PnlRow label="－ 一次性包材成本" value={-dashboard.summary.packagingCost} /><PnlRow label="＝ 毛利" value={dashboard.summary.grossProfit} strong /><PnlRow label="－ 已結案員工薪資" value={-dashboard.summary.payrollCost} /><PnlRow label="－ 租金、水電與其他支出" value={-dashboard.summary.operatingExpenseAmount} /><PnlRow label="＝ 營業利益" value={dashboard.summary.operatingProfit} strong /></dl><p className="mt-3 text-xs leading-5 text-stone-500">一次性餐盒、紙袋會依訂單計入包材成本；內用餐盤、餐具與設備不會逐單扣除，請依實際購置方式記錄在餐具／設備支出。</p></CollapsiblePanel>
       <CollapsiblePanel testId="operating-profit-cash-flow" title="本期現金收支"><dl className="divide-y divide-stone-200 text-sm"><PnlRow label="已收款" value={dashboard.summary.cashCollected} /><PnlRow label="－ 進貨付款／到貨金額" value={-dashboard.summary.purchaseSpend} /><PnlRow label="－ 已結案員工薪資" value={-dashboard.summary.payrollCost} /><PnlRow label="－ 其他營業支出" value={-dashboard.summary.operatingExpenseAmount} /><PnlRow label="＝ 現金淨流量" value={dashboard.summary.netCashMovement} strong /></dl><div className="mt-4 grid grid-cols-2 gap-2"><Mini label="主要成本率" value={percent(dashboard.summary.primeCostBasisPoints)} /><Mini label="報廢耗損" value={money(dashboard.summary.wasteCost)} /></div></CollapsiblePanel>
@@ -233,7 +239,6 @@ export function OperatingProfitDashboard({
       category={correctionCategory}
       onCategoryChange={setCorrectionCategory}
       fieldErrors={fieldErrors}
-      message={message}
       busy={busy}
       onClose={() => { if (!busy) setCorrectionTarget(null); }}
       onSubmit={correctExpense}
@@ -242,6 +247,7 @@ export function OperatingProfitDashboard({
     <section className="grid gap-4 lg:grid-cols-2"><CollapsiblePanel testId="operating-profit-expense-categories" title="支出分類"><div className="space-y-2">{dashboard.expenseCategories.map((row) => <div key={`${row.category}:${row.customCategoryName ?? ""}`} className="flex justify-between rounded-lg border border-stone-200 p-3 text-sm"><span>{row.category === "OTHER" && row.customCategoryName ? `其他：${row.customCategoryName}` : expenseLabels[row.category] ?? row.category}</span><strong>{money(row.amount)}</strong></div>)}{!dashboard.expenseCategories.length ? <p className="text-sm text-stone-600">此區間尚無其他營業支出。</p> : null}</div></CollapsiblePanel><CollapsiblePanel testId="operating-profit-daily-sales" title="每日淨營收"><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{dashboard.dailySales.map((row) => <div key={row.businessDate} className="rounded-lg border border-stone-200 p-3"><p className="text-xs text-stone-500">{row.businessDate}</p><strong className="mt-1 block">{money(row.netSales)}</strong></div>)}{!dashboard.dailySales.length ? <p className="text-sm text-stone-600">此區間尚無完成訂單。</p> : null}</div></CollapsiblePanel></section>
 
     <CollapsiblePanel testId="operating-profit-product-margins" title="商品毛利排行"><div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead><tr className="border-b border-stone-200 text-stone-600"><th className="p-2">商品</th><th className="p-2 text-right">銷量</th><th className="p-2 text-right">營收</th><th className="p-2 text-right">食材</th><th className="p-2 text-right">一次性包材</th><th className="p-2 text-right">估計成本</th><th className="p-2 text-right">毛利</th><th className="p-2 text-right">毛利率</th></tr></thead><tbody>{dashboard.productMargins.map((row) => <tr key={`${row.productId}-${row.productName}`} className="border-b border-stone-100"><td className="p-2 font-medium">{row.productName}</td><td className="p-2 text-right">{row.quantity}</td><td className="p-2 text-right">{money(row.revenue)}</td><td className="p-2 text-right">{money(row.foodCost)}</td><td className="p-2 text-right">{money(row.packagingCost)}</td><td className="p-2 text-right">{money(row.estimatedCost)}</td><td className="p-2 text-right">{money(row.grossProfit)}</td><td className="p-2 text-right font-semibold">{percent(row.grossMarginBasisPoints)}</td></tr>)}</tbody></table>{!dashboard.productMargins.length ? <p className="py-8 text-center text-sm text-stone-600">此區間尚無可計算商品。</p> : null}</div></CollapsiblePanel>
+    {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} focusAfterClose={() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()} /> : null}
   </div>;
 }
 
@@ -251,7 +257,6 @@ function ExpenseCorrectionDialog({
   category,
   onCategoryChange,
   fieldErrors,
-  message,
   busy,
   onClose,
   onSubmit,
@@ -261,7 +266,6 @@ function ExpenseCorrectionDialog({
   category: string;
   onCategoryChange: (category: string) => void;
   fieldErrors: Record<string, string>;
-  message: string;
   busy: boolean;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -275,7 +279,6 @@ function ExpenseCorrectionDialog({
         </header>
         <form onSubmit={onSubmit} className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950"><strong>原支出：</strong>{target.expenseDate} · {target.description} · {money(target.amount)}</div>
-          {message ? <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{message}</p> : null}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <SelectField label="歸屬攤位" name="stallId" required={false} defaultValue={target.stallId ?? ""} options={[["", "組織共用"], ...stalls.map((stall) => [stall.id, stall.name] as const)]} error={fieldErrors.stallId} />
             <Field label="支出日期" name="expenseDate" type="date" defaultValue={target.expenseDate} error={fieldErrors.expenseDate} />

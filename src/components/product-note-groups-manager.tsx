@@ -10,6 +10,7 @@ import {
 import { formatMoney } from "@/lib/money";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import { nextProductNoteSortOrder } from "@/lib/product-note-sort";
+import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
 
 type Translation = { locale: string; name: string };
 type NoteOption = {
@@ -115,6 +116,7 @@ export function ProductNoteGroupsManager({
   const [noteActionTarget, setNoteActionTarget] = useState<NoteActionTarget | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>("success");
   const [editorMessage, setEditorMessage] = useState("");
   const [editorFieldErrors, setEditorFieldErrors] = useState<Record<string, string>>({});
   const [importPreview, setImportPreview] = useState<ProductNoteImportPreview | null>(null);
@@ -259,6 +261,7 @@ export function ProductNoteGroupsManager({
           const firstField = Object.keys(nextFieldErrors)[0];
           if (firstField) requestAnimationFrame(() => editorRef.current?.querySelector<HTMLElement>(`[data-field-key="${firstField}"]`)?.focus());
         } else {
+          setMessageKind("error");
           setMessage(errorMessage);
         }
         return false;
@@ -266,12 +269,16 @@ export function ProductNoteGroupsManager({
       setGroups(payload.noteGroups);
       setReusableNotes(payload.reusableNotes);
       onChange?.(payload.noteGroups, payload.reusableNotes);
+      setMessageKind("success");
       setMessage(successMessage);
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? label(error.message) : m("目前無法更新註記群組。");
       if (inEditor) setEditorMessage(errorMessage);
-      else setMessage(errorMessage);
+      else {
+        setMessageKind("error");
+        setMessage(errorMessage);
+      }
       return false;
     } finally {
       setBusy(false);
@@ -297,8 +304,10 @@ export function ProductNoteGroupsManager({
       anchor.click();
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      setMessageKind("success");
       setMessage(m("商品註記已匯出。"));
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error ? label(error.message) : m("商品註記匯出失敗，請稍後再試。"));
     } finally {
       setBusy(false);
@@ -327,6 +336,7 @@ export function ProductNoteGroupsManager({
       });
       setImportError("");
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error ? label(error.message) : m("註記匯入預覽失敗。"));
     } finally {
       setBusy(false);
@@ -361,6 +371,7 @@ export function ProductNoteGroupsManager({
         onChange?.(payload.noteGroups, payload.reusableNotes);
       }
       setImportPreview(null);
+      setMessageKind("success");
       setMessage(typeof payload.warning === "string"
         ? label(payload.warning)
         : m("已匯入 {reusableNoteCount} 個共用註記、{groupCount} 個群組與 {optionCount} 個群組註記。", {
@@ -612,8 +623,8 @@ export function ProductNoteGroupsManager({
         </button>
       </div>
 
+      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
       <div id="product-note-settings-content" hidden={!settingsExpanded}>
-      {message ? <p role="status" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
       <div data-testid="product-note-entry-actions" className="mt-5 grid gap-3 md:grid-cols-2">
         <button
           type="button"
@@ -1075,7 +1086,7 @@ function ProductNoteTransferTools({
 function TranslationFields({ translations, options, onChange }: { translations: Translation[]; options: ReturnType<typeof getTranslationLocaleOptions>; onChange: (items: Translation[]) => void }) {
   const { label } = useMerchantMessages();
   if (options.length === 0) return null;
-  return <details className="border-t border-stone-200 pt-3 sm:col-span-2"><summary className="cursor-pointer text-sm font-semibold">{label("多語名稱")}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{options.map((option) => { const current = translations.find((item) => item.locale === option.locale)?.name ?? ""; return <label key={option.locale} className="text-sm font-medium text-stone-700">{label(option.label)}<input type="text" maxLength={120} value={current} onChange={(event) => { const next = translations.filter((item) => item.locale !== option.locale); if (event.target.value) next.push({ locale: option.locale, name: event.target.value }); onChange(next); }} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>; })}</div></details>;
+  return <details className="border-t border-stone-200 pt-3 sm:col-span-2"><summary className="cursor-pointer text-sm font-semibold">{label("註記翻譯")}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{options.map((option) => { const current = translations.find((item) => item.locale === option.locale)?.name ?? ""; return <label key={option.locale} className="text-sm font-medium text-stone-700">{label(option.label)}<input type="text" maxLength={120} value={current} onChange={(event) => { const next = translations.filter((item) => item.locale !== option.locale); if (event.target.value) next.push({ locale: option.locale, name: event.target.value }); onChange(next); }} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>; })}</div></details>;
 }
 
 function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constrained = false, fullScreen = false, testId, closeDisabled = false, children }: { title: string; onClose: () => void; dialogRef: React.RefObject<HTMLElement | null>; errorMessage: string; wide?: boolean; constrained?: boolean; fullScreen?: boolean; testId?: string; closeDisabled?: boolean; children: React.ReactNode }) {

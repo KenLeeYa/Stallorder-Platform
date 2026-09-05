@@ -4,7 +4,7 @@ import {
   type OperationsPageSize,
 } from "@/lib/operations-pagination";
 
-export type PrintJobDatePreset = "DAY" | "WEEK" | "MONTH";
+export type PrintJobDatePreset = "TODAY" | "YESTERDAY" | "WEEK" | "MONTH";
 
 function calendarDateInTimeZone(value: Date | string, timeZone: string) {
   const date = value instanceof Date ? value : new Date(value);
@@ -33,7 +33,11 @@ export function printJobDateRange(
   timeZone = "Asia/Taipei",
 ) {
   const dateTo = calendarDateInTimeZone(now, timeZone);
-  if (preset === "DAY") return { dateFrom: dateTo, dateTo };
+  if (preset === "TODAY") return { dateFrom: dateTo, dateTo };
+  if (preset === "YESTERDAY") {
+    const yesterday = moveCalendarDate(dateTo, -1);
+    return { dateFrom: yesterday, dateTo: yesterday };
+  }
   if (preset === "MONTH") return { dateFrom: `${dateTo.slice(0, 8)}01`, dateTo };
   const weekday = new Date(`${dateTo}T00:00:00.000Z`).getUTCDay();
   return {

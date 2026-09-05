@@ -6,6 +6,7 @@ import { Bluetooth, Check, ChevronLeft, ChevronRight, CircleOff, Cloud, External
 import { ContextualBackButton } from "@/components/contextual-back-button";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { PrintCenterSettings } from "@/components/print-center-settings";
+import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatAppDateTime } from "@/lib/locale-format";
 import { formatMoney } from "@/lib/money";
@@ -28,10 +29,12 @@ import {
 } from "@/lib/print-job-list";
 import {
   detectStarWebPrntEnvironment,
+  isStarWebPrntSdkReady,
   openStarCashDrawer,
   printWithStarWebPrnt,
   probeStarWebPrnt,
   StarWebPrntError,
+  STAR_WEBPRNT_SDK_LOAD_TIMEOUT_MS,
   starWebPrntLaunchUrl,
   type StarWebPrntEnvironment,
 } from "@/lib/star-webprnt-client";
@@ -51,10 +54,14 @@ export function PrintQueueBoard({ stall, initialState }: {
   const [systemPrintContent, setSystemPrintContent] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>("success");
   const [printEnvironment, setPrintEnvironment] = useState<DetectedPrintEnvironment>("CHECKING");
   const [webPrntScriptReady, setWebPrntScriptReady] = useState(false);
+  const [webPrntScriptFailed, setWebPrntScriptFailed] = useState(false);
+  const [webPrntBridgeMessage, setWebPrntBridgeMessage] = useState("");
   const [webPrntLaunchHref, setWebPrntLaunchHref] = useState("");
-  const [jobDateRange, setJobDateRange] = useState({ dateFrom: "", dateTo: "" });
+  const [jobDatePreset, setJobDatePreset] = useState<PrintJobDatePreset | "CUSTOM">("TODAY");
+  const [jobDateRange, setJobDateRange] = useState(() => printJobDateRange("TODAY"));
   const [jobPageSize, setJobPageSize] = useState<OperationsPageSize>(5);
   const [visibleJobPage, setVisibleJobPage] = useState(1);
   const [cancelledJobPage, setCancelledJobPage] = useState(1);
@@ -85,6 +92,7 @@ export function PrintQueueBoard({ stall, initialState }: {
     .join("|");
 
   function applyJobDatePreset(preset: PrintJobDatePreset) {
+    setJobDatePreset(preset);
     setJobDateRange(printJobDateRange(preset));
     setVisibleJobPage(1);
     setCancelledJobPage(1);
@@ -116,9 +124,13 @@ export function PrintQueueBoard({ stall, initialState }: {
       const payload = await response.json();
       if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : t("print.updateFailed"));
       setState(payload.state);
-      if (successMessage) setMessage(successMessage);
+      if (successMessage) {
+        setMessageKind("success");
+        setMessage(successMessage);
+      }
       return payload as PrintQueueCommandResponse;
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error ? error.message : t("common.networkError"));
       return null;
     } finally {
@@ -153,10 +165,25 @@ export function PrintQueueBoard({ stall, initialState }: {
     const detectEnvironment = window.setTimeout(() => {
       const environment = detectStarWebPrntEnvironment(window.navigator.userAgent);
       setPrintEnvironment(environment);
+      if (environment === "STAR_WEBPRNT") {
+        const ready = isStarWebPrntSdkReady();
+        setWebPrntScriptReady(ready);
+        setWebPrntScriptFailed(false);
+      }
       if (environment === "IOS_SAFARI") setWebPrntLaunchHref(starWebPrntLaunchUrl(window.location.href));
     }, 0);
     return () => window.clearTimeout(detectEnvironment);
   }, []);
+
+  useEffect(() => {
+    if (printEnvironment !== "STAR_WEBPRNT" || webPrntScriptReady || webPrntScriptFailed) return;
+    const watchdog = window.setTimeout(() => {
+      const ready = isStarWebPrntSdkReady();
+      setWebPrntScriptReady(ready);
+      setWebPrntScriptFailed(!ready);
+    }, STAR_WEBPRNT_SDK_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(watchdog);
+  }, [printEnvironment, webPrntScriptFailed, webPrntScriptReady]);
 
   useEffect(() => {
     const restorePrinter = window.setTimeout(() => {
@@ -182,15 +209,15 @@ export function PrintQueueBoard({ stall, initialState }: {
       probingRef.current = true;
       try {
         await probeStarWebPrnt();
+        setWebPrntBridgeMessage("");
         const saved = window.localStorage.getItem(`stallorder_printer_${stall.slug}`);
         const detected = candidates.find((printer) => printer.id === saved) ?? candidates[0];
         setActivePrinterId(detected.id);
         window.localStorage.setItem(`stallorder_printer_${stall.slug}`, detected.id);
         await sendHeartbeat(detected.id);
-        setMessage(t("print.device.detected", { printer: detected.name }));
       } catch (error) {
         setActivePrinterId((current) => candidates.some((printer) => printer.id === current) ? null : current);
-        setMessage(starWebPrntErrorMessage(t, error));
+        setWebPrntBridgeMessage(starWebPrntErrorMessage(t, error));
       } finally {
         probingRef.current = false;
       }
@@ -212,6 +239,7 @@ export function PrintQueueBoard({ stall, initialState }: {
 
   const takeOverPrinter = useCallback(async (printer: PrinterView) => {
     if (printer.connectionType === "WEBPRNT_BLUETOOTH" && printEnvironment !== "STAR_WEBPRNT") {
+      setMessageKind("error");
       setMessage(printEnvironment === "IOS_SAFARI" ? t("print.bluetooth.safariBlocked") : t("print.bluetooth.starBrowserRequired"));
       return;
     }
@@ -219,17 +247,20 @@ export function PrintQueueBoard({ stall, initialState }: {
       try {
         await probeStarWebPrnt();
       } catch (error) {
+        setMessageKind("error");
         setMessage(starWebPrntErrorMessage(t, error));
         return;
       }
     }
     setActivePrinterId(printer.id);
     window.localStorage.setItem(`stallorder_printer_${stall.slug}`, printer.id);
+    setMessageKind("success");
     setMessage(t("print.takeoverStarted"));
   }, [printEnvironment, stall.slug, t]);
 
   const openCashDrawer = useCallback(async (printer: PrinterView) => {
     if (printer.connectionType !== "WEBPRNT_BLUETOOTH" || activePrinterId !== printer.id) {
+      setMessageKind("error");
       setMessage(t("print.drawer.selectPrinter"));
       return;
     }
@@ -244,8 +275,10 @@ export function PrintQueueBoard({ stall, initialState }: {
     if (!authorized) return;
     try {
       await openStarCashDrawer();
+      setMessageKind("success");
       setMessage(t("print.drawer.opened"));
     } catch (error) {
+      setMessageKind("error");
       setMessage(starWebPrntErrorMessage(t, error));
     }
   }, [activePrinterId, run, t]);
@@ -253,31 +286,38 @@ export function PrintQueueBoard({ stall, initialState }: {
   const startPrint = useCallback(async (job: PrintJobView, selectedPrinter?: PrinterView | null) => {
     const printer = selectedPrinter ?? activePrinter;
     if (!printer) {
+      setMessageKind("error");
       setMessage(t("print.selectPrinter"));
       return;
     }
     if (job.printer && job.printer.id !== printer.id) {
+      setMessageKind("error");
       setMessage(t("print.job.assignedElsewhere", { printer: job.printer.name }));
       return;
     }
     if (printer.connectionType === "CLOUDPRNT") {
+      setMessageKind("error");
       setMessage(t("print.cloud.waiting"));
       return;
     }
     if (printer.connectionType === "WEBPRNT_BLUETOOTH") {
       if (printEnvironment === "CHECKING") {
+        setMessageKind("error");
         setMessage(t("print.bluetooth.checking"));
         return;
       }
       if (printEnvironment === "IOS_SAFARI") {
+        setMessageKind("error");
         setMessage(t("print.bluetooth.safariBlocked"));
         return;
       }
       if (printEnvironment !== "STAR_WEBPRNT") {
+        setMessageKind("error");
         setMessage(t("print.bluetooth.starBrowserRequired"));
         return;
       }
       if (!webPrntScriptReady) {
+        setMessageKind("error");
         setMessage(t("print.bluetooth.bridgeLoading"));
         return;
       }
@@ -296,11 +336,17 @@ export function PrintQueueBoard({ stall, initialState }: {
       try {
         await printWithStarWebPrnt(printPayload.dataBase64);
         const recorded = await run({ operation: "SUCCESS", jobId: job.id }, t("print.bluetooth.success"));
-        if (!recorded) setMessage(t("print.bluetooth.statusUnknown"));
+        if (!recorded) {
+          setMessageKind("error");
+          setMessage(t("print.bluetooth.statusUnknown"));
+        }
       } catch (error) {
         const failure = starWebPrntErrorMessage(t, error);
         const recorded = await run({ operation: "FAIL", jobId: job.id, error: failure }, t("print.failedRecorded"));
-        if (!recorded) setMessage(t("print.bluetooth.statusUnknown"));
+        if (!recorded) {
+          setMessageKind("error");
+          setMessage(t("print.bluetooth.statusUnknown"));
+        }
       } finally {
         setPrintingJobId(null);
       }
@@ -316,10 +362,12 @@ export function PrintQueueBoard({ stall, initialState }: {
 
   const testPrinter = useCallback(async (printer: PrinterView) => {
     if (printer.connectionType === "CLOUDPRNT") {
+      setMessageKind("error");
       setMessage(t("print.device.cloudTestUnavailable"));
       return;
     }
     if (printer.connectionType === "WEBPRNT_BLUETOOTH" && printEnvironment !== "STAR_WEBPRNT") {
+      setMessageKind("error");
       setMessage(printEnvironment === "IOS_SAFARI" ? t("print.bluetooth.safariBlocked") : t("print.bluetooth.starBrowserRequired"));
       return;
     }
@@ -334,8 +382,10 @@ export function PrintQueueBoard({ stall, initialState }: {
     }
     try {
       await printWithStarWebPrnt(tested.printPayload.dataBase64);
+      setMessageKind("success");
       setMessage(t("print.device.testSucceeded"));
     } catch (error) {
+      setMessageKind("error");
       setMessage(starWebPrntErrorMessage(t, error));
     }
   }, [printEnvironment, run, stall.slug, t]);
@@ -359,8 +409,16 @@ export function PrintQueueBoard({ stall, initialState }: {
       strategy="afterInteractive"
       integrity="sha256-0CXgr7eC9MfHOAgmVuwbMSnHbU6onTIP4w86ORtm9UQ="
       crossOrigin="anonymous"
-      onLoad={() => setWebPrntScriptReady(Boolean(window.StarWebPrintTrader))}
-      onError={() => setMessage(t("print.bluetooth.bridgeFailed"))}
+      onReady={() => {
+        const ready = isStarWebPrntSdkReady();
+        setWebPrntScriptReady(ready);
+        setWebPrntScriptFailed(!ready);
+        if (ready) setWebPrntBridgeMessage("");
+      }}
+      onError={() => {
+        setWebPrntScriptReady(false);
+        setWebPrntScriptFailed(true);
+      }}
     /> : null}
 
     <div className="flex flex-wrap items-start justify-between gap-4 print:hidden">
@@ -368,23 +426,20 @@ export function PrintQueueBoard({ stall, initialState }: {
       <button type="button" title={t("common.refresh")} onClick={() => void refresh()} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300"><RefreshCw className="h-4 w-4" /></button>
     </div>
     {!state.printModuleEnabled ? <p className="mt-5 border-y border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900 print:hidden">{t("print.moduleDisabled")}</p> : null}
-    {printEnvironment === "STAR_WEBPRNT" ? <p className={`mt-4 flex items-center gap-2 border-y px-3 py-3 text-sm font-medium print:hidden ${webPrntScriptReady ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}><Bluetooth className="h-4 w-4 shrink-0" />{webPrntScriptReady ? t("print.bluetooth.ready") : t("print.bluetooth.bridgeLoading")}</p> : null}
+    {printEnvironment === "STAR_WEBPRNT" ? <p className={`mt-4 flex items-center gap-2 border-y px-3 py-3 text-sm font-medium print:hidden ${webPrntScriptReady && !webPrntBridgeMessage ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}><Bluetooth className="h-4 w-4 shrink-0" />{webPrntBridgeMessage || (webPrntScriptReady ? t("print.bluetooth.ready") : webPrntScriptFailed ? t("print.bluetooth.bridgeFailed") : t("print.bluetooth.bridgeLoading"))}</p> : null}
     {printEnvironment === "IOS_SAFARI" ? <div className="mt-4 border-y border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950 print:hidden"><p>{t("print.bluetooth.safariHint")}</p>{webPrntLaunchHref ? <a href={webPrntLaunchHref} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-3 font-semibold text-white"><Bluetooth className="h-4 w-4" />{t("print.bluetooth.openBrowser")}<ExternalLink className="h-4 w-4" /></a> : null}</div> : null}
-    {message ? <p role="status" className="mt-4 border-y border-stone-200 bg-stone-50 px-3 py-3 text-sm font-medium text-stone-700 print:hidden">{message}</p> : null}
+    {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
 
     <PrintCenterSettings state={state} busy={busy} activePrinterId={activePrinterId} onRun={run} onTakeOver={takeOverPrinter} onTest={testPrinter} onOpenCashDrawer={openCashDrawer} />
 
     <section className="py-6 print:hidden">
       <div className="mb-5 rounded-xl border border-stone-200 bg-stone-50 p-4">
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => applyJobDatePreset("DAY")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold">{t("cash.historyDay")}</button>
-          <button type="button" onClick={() => applyJobDatePreset("WEEK")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold">{t("cash.historyWeek")}</button>
-          <button type="button" onClick={() => applyJobDatePreset("MONTH")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold">{t("cash.historyMonth")}</button>
-          <button type="button" onClick={() => { setJobDateRange({ dateFrom: "", dateTo: "" }); setVisibleJobPage(1); setCancelledJobPage(1); }} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold">{t("cash.historyAll")}</button>
+          {(["TODAY", "YESTERDAY", "WEEK", "MONTH", "CUSTOM"] as const).map((preset) => <button key={preset} type="button" aria-pressed={jobDatePreset === preset} onClick={() => { if (preset === "CUSTOM") setJobDatePreset("CUSTOM"); else applyJobDatePreset(preset); }} className={`min-h-11 rounded-lg px-3 text-sm font-semibold ${jobDatePreset === preset ? "bg-stone-900 text-white" : "border border-stone-300 bg-white"}`}>{preset === "TODAY" ? t("cash.historyDay") : preset === "YESTERDAY" ? t("cash.historyYesterday") : preset === "WEEK" ? t("cash.historyWeek") : preset === "MONTH" ? t("cash.historyMonth") : t("cash.historyCustom")}</button>)}
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-          <label className="text-xs font-semibold text-stone-600">{t("cash.historyDateFrom")}<input data-testid="print-jobs-date-from" type="date" value={jobDateRange.dateFrom} max={jobDateRange.dateTo || undefined} onChange={(event) => { setJobDateRange((current) => ({ ...current, dateFrom: event.target.value })); setVisibleJobPage(1); setCancelledJobPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900" /></label>
-          <label className="text-xs font-semibold text-stone-600">{t("cash.historyDateTo")}<input data-testid="print-jobs-date-to" type="date" value={jobDateRange.dateTo} min={jobDateRange.dateFrom || undefined} onChange={(event) => { setJobDateRange((current) => ({ ...current, dateTo: event.target.value })); setVisibleJobPage(1); setCancelledJobPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900" /></label>
+          {jobDatePreset === "CUSTOM" ? <><label className="text-xs font-semibold text-stone-600">{t("cash.historyDateFrom")}<input data-testid="print-jobs-date-from" type="date" value={jobDateRange.dateFrom} max={jobDateRange.dateTo || undefined} onChange={(event) => { setJobDateRange((current) => ({ ...current, dateFrom: event.target.value })); setVisibleJobPage(1); setCancelledJobPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900" /></label>
+          <label className="text-xs font-semibold text-stone-600">{t("cash.historyDateTo")}<input data-testid="print-jobs-date-to" type="date" value={jobDateRange.dateTo} min={jobDateRange.dateFrom || undefined} onChange={(event) => { setJobDateRange((current) => ({ ...current, dateTo: event.target.value })); setVisibleJobPage(1); setCancelledJobPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900" /></label></> : <p className="text-sm text-stone-600 sm:col-span-2">{jobDateRange.dateFrom} {t("cash.historyDateRangeTo")} {jobDateRange.dateTo}</p>}
           <label className="text-xs font-semibold text-stone-600">{t("cash.historyPerPage")}<select data-testid="print-jobs-page-size" value={jobPageSize} onChange={(event) => { setJobPageSize(Number(event.target.value) as OperationsPageSize); setVisibleJobPage(1); setCancelledJobPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900">{OPERATIONS_PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
         </div>
       </div>
