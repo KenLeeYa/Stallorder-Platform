@@ -197,6 +197,10 @@ This file is the durable owner acceptance baseline. It does not assert that a re
 - `MOB-003` Native authentication uses opaque server-owned credentials in SecureStore with device scope, rotation, revocation, and native CSRF/origin semantics; browser cookies are not copied as the security model.
 - `MOB-004` Mobile provider writes, offline POS, hardware printing, refund, subscriptions, and high-risk Admin writes remain flagged/canary until explicitly verified.
 
+## Protected release and DR
+
+- `REL-DR-STORAGE-01` DR Storage readiness MUST use the canonical object-and-manifest mirror proof. A manifest outside the active object inventory is accepted as a completed deletion tombstone only when `replication_status=DELETED`, `deleted_at` is present, and both checksums are null. Active objects still require matching Primary/DR inventories plus a mirrored, checksum-matched manifest; malformed tombstones, missing objects/manifests, pending states, and checksum differences fail closed.
+
 ## Cross-cutting validation and error behavior
 
 - `X-001` Every setting form identifies invalid fields in Traditional Chinese at submit/save and, when helpful, inline. “Unable to save” without a field/action reason is insufficient.

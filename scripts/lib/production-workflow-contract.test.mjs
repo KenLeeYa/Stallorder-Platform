@@ -14,6 +14,7 @@ const ephemeralPreview = read(".github/workflows/ephemeral-preview.yml");
 const statusPage = read(".github/workflows/status-page-deploy.yml");
 const drSmoke = read("scripts/run-dr-readonly-smoke.mjs");
 const drInitialization = read("scripts/initialize-production-dr.mjs");
+const drReplicationSnapshot = read("scripts/refresh-dr-replication-snapshot.mjs");
 const productionApproval = read("scripts/lib/production-approval.mjs");
 const vercel = JSON.parse(read("vercel.json"));
 
@@ -371,6 +372,14 @@ describe("Production workflow approval contract", () => {
     );
     expect(bootstrap).not.toContain(
       'test "$former_staging_storage_objects" = "0"',
+    );
+  });
+
+  it("uses the canonical Storage mirror proof for replication snapshots", () => {
+    expect(drReplicationSnapshot).toContain("buildDrStorageMirrorProof");
+    expect(drReplicationSnapshot).toContain("deleted_at");
+    expect(drReplicationSnapshot).not.toContain(
+      "where replication_status <> 'MIRRORED'",
     );
   });
 

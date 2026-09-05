@@ -32,6 +32,7 @@
 | 售完商品呈現 | 公開 Menu、QR、外帶與外送仍顯示已發佈且啟用的售完商品；圖片反灰、顯示當前語系的售完標示、顧客操作停用，server 仍拒絕舊購物車送單；Staff 現場點餐仍可使用。 | 直接把售完品過濾掉，或只做反灰卻仍能從顧客端加入購物車。 |
 | 結帳前加點推薦 | 攤位模組與個別商品推薦預設皆關閉；模組開啟且有合格候選品時才在結帳前顯示一次，排除已在購物車、售完、停用或跨攤商品。 | 在模組頁重複做商品選擇器、預設開啟、推薦不可供應商品，或略過正常客製與 server 驗證。 |
 | DR Vercel SSO | Create 不帶 `ssoProtection` 且 project 尚未連 Git／domain；驗證精確 ID 後 PATCH `all` 並 read-back，成功後才可 link/deploy/domain/DNS。 | Create 直接帶 SSO、先綁資源再補保護，或失敗時降級成 `all_except_custom_domains`。 |
+| DR Storage tombstone | Snapshot 與獨立 Storage 檢查共用正規 mirror proof；已從 active inventory 移除的項目只有在 `DELETED`、有 `deleted_at`、Primary/DR checksum 皆為 null 時才算完成刪除。 | 用 `replication_status <> 'MIRRORED'` 直接計數，將合法 tombstone 誤判；或反向忽略所有 `DELETED`，讓不完整刪除通過。 |
 
 ## 變更觸發器與相依面
 
