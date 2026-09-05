@@ -38,7 +38,8 @@ function job(id: string, createdAt: string): PrintJobView {
 describe("print job history filters", () => {
   it("uses Taiwan calendar dates for day, week, and month presets", () => {
     const now = new Date("2026-09-03T16:30:00.000Z");
-    expect(printJobDateRange("DAY", now)).toEqual({ dateFrom: "2026-09-04", dateTo: "2026-09-04" });
+    expect(printJobDateRange("TODAY", now)).toEqual({ dateFrom: "2026-09-04", dateTo: "2026-09-04" });
+    expect(printJobDateRange("YESTERDAY", now)).toEqual({ dateFrom: "2026-09-03", dateTo: "2026-09-03" });
     expect(printJobDateRange("WEEK", now)).toEqual({ dateFrom: "2026-08-31", dateTo: "2026-09-04" });
     expect(printJobDateRange("MONTH", now)).toEqual({ dateFrom: "2026-09-01", dateTo: "2026-09-04" });
   });

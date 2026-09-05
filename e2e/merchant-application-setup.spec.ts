@@ -212,12 +212,18 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
 
     await gotoLocalPath(page, `/staff/${requestedSlug}`);
     await dismissStaffStartReminder(page);
-    const orderCard = page.getByRole("article").filter({ hasText: createdTestOrder.orderNo });
-    await orderCard.getByRole("button", { name: "查看明細", exact: true }).click();
-    await expect(orderCard.getByText("開店測試訂單")).toBeVisible();
-    await orderCard.getByRole("button", { name: "確認接單", exact: true }).click();
-    await expect(orderCard.getByRole("button", { name: /全部開始製作|全部餐點完成/ })).toHaveCount(0);
-    await orderCard.getByRole("button", { name: "完成訂單", exact: true }).click();
+    const orderSelector = page
+      .getByTestId("staff-order-list-pane")
+      .getByRole("button")
+      .filter({ hasText: createdTestOrder.orderNo });
+    await orderSelector.click();
+    await expect(orderSelector).toHaveAttribute("aria-current", "true");
+    await expect(orderSelector.getByText("開店測試訂單", { exact: true })).toBeVisible();
+    const orderItemsPane = page.getByTestId("staff-order-items-pane");
+    const orderActionsPane = page.getByTestId("staff-order-actions-pane");
+    await orderActionsPane.getByRole("button", { name: "確認接單", exact: true }).click();
+    await expect(orderItemsPane.getByRole("button", { name: /全部開始製作|全部餐點完成/ })).toHaveCount(0);
+    await orderActionsPane.getByRole("button", { name: "完成訂單", exact: true }).click();
     await expect.poll(async () => (await prisma.order.findUnique({ where: { id: createdTestOrder.id } }))?.status).toBe("COMPLETED");
     expect(await prisma.usageEvent.count({
       where: { organizationId, referenceId: createdTestOrder.id, eventType: "BILLABLE_ORDER_COMPLETED" },

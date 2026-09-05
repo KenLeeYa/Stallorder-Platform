@@ -145,6 +145,8 @@ export async function POST(request: Request, context: RouteContext) {
           preorderMaxDays: source.settings.preorderMaxDays,
           preorderSlotMinutes: source.settings.preorderSlotMinutes,
           lotteryEnabled: source.settings.lotteryEnabled,
+          lotteryCampaignName: source.settings.lotteryCampaignName,
+          lotteryProductIds: source.settings.lotteryProductIds,
           lotteryDiscountOptionId: legacyLotteryDiscount?.discountOptionId ?? null,
           lotteryDiscountWinRateBps: legacyLotteryDiscount?.winRateBps ?? 0,
           lotterySpendRewardEnabled: source.settings.lotterySpendRewardEnabled,
@@ -156,6 +158,24 @@ export async function POST(request: Request, context: RouteContext) {
         },
       });
       await replaceLotteryDiscountChances({ transaction, stallId, chances: lotteryDiscountChances });
+      await transaction.stallLotteryCampaign.updateMany({
+        where: { organizationId, stallId, deletedAt: null },
+        data: { deletedAt: new Date(), isEnabled: false },
+      });
+      if (source.lotteryFestivalCampaigns.length > 0) {
+        await transaction.stallLotteryCampaign.createMany({
+          data: source.lotteryFestivalCampaigns.map((campaign) => ({
+            organizationId,
+            stallId,
+            name: campaign.name,
+            isEnabled: campaign.isEnabled,
+            startsOn: campaign.startsOn,
+            endsOn: campaign.endsOn,
+            productIds: campaign.productIds,
+            sortOrder: campaign.sortOrder,
+          })),
+        });
+      }
       if (!source.settings.takeoutPreorderEnabled) {
         await transaction.orderSession.updateMany({
           where: { organizationId, stallId, orderingMode: "PREORDER", status: "ACTIVE" },

@@ -30,12 +30,21 @@ describe("checkout upsell product ownership", () => {
     expect(catalogSource).toContain("checkoutUpsellSelected: product.checkoutUpsellSelected");
   });
 
-  it("also exposes the per-stall recommendation switch below lottery in shared product editing", () => {
+  it("keeps checkout upsell in shared product editing without the lottery switch", () => {
     expect(sharedCatalogSource).toContain("checkoutUpsellStallIds");
     expect(sharedCatalogSource).toContain('data-testid="shared-product-upsell-switch"');
-    expect(sharedCatalogSource).toContain("可作為抽抽樂推薦／免費贈品");
-    expect(sharedCatalogSource.indexOf("shared-product-upsell-switch"))
-      .toBeGreaterThan(sharedCatalogSource.indexOf("可作為抽抽樂推薦／免費贈品"));
+    expect(sharedCatalogSource).not.toContain("可作為抽抽樂推薦／免費贈品");
+    expect(sharedCatalogSource).toContain("<details");
+    expect(sharedCatalogSource).toContain('label("商品翻譯")');
+  });
+
+  it("owns lottery naming and eligible products inside the lottery module", () => {
+    expect(modulesSource).toContain("lotteryCampaignName");
+    expect(modulesSource).toContain("lotteryProductIds");
+    expect(modulesSource).toContain('data-testid="open-lottery-product-picker"');
+    expect(modulesSource).toContain('data-testid="lottery-product-picker-switch"');
+    expect(modulesSource).toContain("categoryName");
+    expect(modulesSource).toContain("groupName");
   });
 
   it("keeps the module page focused on enabling the feature, without a duplicate picker", () => {

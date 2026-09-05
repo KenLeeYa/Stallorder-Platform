@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { logEvent } from "@/lib/audit";
 import type { createPerformanceTiming } from "@/lib/performance-timing";
 import { getCachedPublicMenuForQrToken } from "@/lib/public-menu";
 import {
@@ -59,6 +60,7 @@ import {
   checkPublicOrderIntakeAvailability,
   checkPublicOrderSubmissionGate,
   createPublicOrderWithSchedule,
+  findTrackedPublicOrderIdByTokenHash,
   getLastDiningTableOrder,
   getOrderQuote,
   getOrderSessionMode,
@@ -73,6 +75,7 @@ import {
   revokeOrderSession,
   type StoredPublicOrder,
 } from "@/server/public-order/trusted-rpc-repository";
+import { validateTrackedPublicOrderAtCanonicalEdge } from "@/server/public-order/canonical-tracking-validator";
 
 type Timing = ReturnType<typeof createPerformanceTiming>;
 
@@ -635,6 +638,7 @@ export async function getOrderThroughCircuitB(
 type TrackedMutationContext = {
   clientIp: string;
   requestId: string;
+  operationId?: string;
   timing: Timing;
 };
 
@@ -662,8 +666,38 @@ async function resolveTrackedMutationOrder(
   const stored = await context.timing.measureDb(
     () => getTrackedPublicOrder(trackingHash, hashes.deviceHash),
   );
-  if (!stored?.orderId) throw new PublicOrderCircuitError("ORDER_NOT_FOUND", 404);
-  return stored.orderId;
+  if (stored?.orderId) return stored.orderId;
+
+  const validation = await context.timing.measure("externalApiMs", () => (
+    validateTrackedPublicOrderAtCanonicalEdge({
+      trackingToken: input.trackingToken,
+      deviceId: input.deviceId,
+      clientIp: context.clientIp,
+      operationId: context.operationId ?? context.requestId,
+    })
+  ));
+  if (validation.outcome === "NOT_FOUND") {
+    throw new PublicOrderCircuitError("ORDER_NOT_FOUND", 404);
+  }
+  if (validation.outcome === "UNAVAILABLE") {
+    logEvent("warn", "PUBLIC_ORDER_CANONICAL_DEVICE_VALIDATION_UNAVAILABLE", {
+      requestId: context.requestId,
+      operationId: context.operationId,
+      behavior,
+    });
+    throw new PublicOrderCircuitError("CIRCUIT_B_UNAVAILABLE", 503);
+  }
+
+  const recoveredOrderId = await context.timing.measureDb(
+    () => findTrackedPublicOrderIdByTokenHash(trackingHash),
+  );
+  if (!recoveredOrderId) throw new PublicOrderCircuitError("ORDER_NOT_FOUND", 404);
+  logEvent("warn", "PUBLIC_ORDER_DEVICE_HASH_RUNTIME_MISMATCH_RECOVERED", {
+    requestId: context.requestId,
+    operationId: context.operationId,
+    behavior,
+  });
+  return recoveredOrderId;
 }
 
 export async function saveInvoicePreferenceThroughCircuitB(

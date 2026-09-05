@@ -190,6 +190,73 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test("廚房訂單模式在手機堆疊並於平板桌機使用三區工作台", async ({ page }) => {
+  await login(page, "kitchen@stallorder.test");
+
+  for (const viewport of [
+    { name: "compact-mobile", width: 320, height: 568 },
+    { name: "mobile", width: 390, height: 844 },
+    { name: "tablet", width: 768, height: 1024 },
+    { name: "desktop", width: 1440, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto("/kitchen?stall=aming-chicken");
+
+    const mainContent = page.locator("#main-content");
+    const workspace = mainContent.getByTestId("kitchen-order-workspace");
+    const queue = mainContent.getByTestId("kitchen-order-queue-pane");
+    const items = mainContent.getByTestId("kitchen-order-items-pane");
+    const actions = mainContent.getByTestId("kitchen-order-actions-pane");
+    await expect(workspace, `${viewport.name} workspace`).toBeVisible();
+    await expect(queue, `${viewport.name} queue`).toBeVisible();
+    await expect(items, `${viewport.name} items`).toBeVisible();
+    await expect(actions, `${viewport.name} actions`).toBeVisible();
+    await expect(workspace.getByTestId("kitchen-order-queue-button").first()).toBeVisible();
+
+    const layout = await workspace.evaluate((element) => {
+      const box = (testId: string) => {
+        const target = element.querySelector<HTMLElement>(`[data-testid="${testId}"]`)!;
+        const bounds = target.getBoundingClientRect();
+        return {
+          left: Math.round(bounds.left),
+          right: Math.round(bounds.right),
+          top: Math.round(bounds.top),
+          bottom: Math.round(bounds.bottom),
+          overflowY: getComputedStyle(target).overflowY,
+        };
+      };
+      return {
+        queue: box("kitchen-order-queue-pane"),
+        items: box("kitchen-order-items-pane"),
+        actions: box("kitchen-order-actions-pane"),
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      };
+    });
+
+    expect(layout.queue.overflowY).toBe("auto");
+    expect(layout.items.overflowY).toBe("auto");
+    expect(layout.actions.overflowY).toBe("auto");
+    expect(layout.scrollWidth, `${viewport.name} page overflow`).toBeLessThanOrEqual(layout.clientWidth + 1);
+    if (viewport.width >= 768) {
+      expect(layout.queue.right, `${viewport.name} queue before items`).toBeLessThanOrEqual(layout.items.left);
+      expect(layout.items.right, `${viewport.name} items before actions`).toBeLessThanOrEqual(layout.actions.left);
+      expect(layout.queue.top, `${viewport.name} aligned top`).toBeCloseTo(layout.items.top, 0);
+      expect(layout.items.top, `${viewport.name} aligned actions`).toBeCloseTo(layout.actions.top, 0);
+    } else {
+      expect(layout.queue.bottom, `${viewport.name} queue stacks first`).toBeLessThanOrEqual(layout.items.top);
+      expect(layout.items.bottom, `${viewport.name} actions stack last`).toBeLessThanOrEqual(layout.actions.top);
+    }
+
+    const touchTargets = await workspace.getByRole("button").evaluateAll((buttons) => buttons.map((button) => {
+      const bounds = button.getBoundingClientRect();
+      return { width: bounds.width, height: bounds.height };
+    }));
+    expect(touchTargets.every(({ height }) => height >= 44), `${viewport.name} 44px controls`).toBe(true);
+    await expect(workspace.getByText("結帳收款", { exact: true })).toHaveCount(0);
+  }
+});
+
 test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
   await login(page, "owner@stallorder.test");
   await page.setViewportSize({ width: 320, height: 360 });
@@ -302,6 +369,7 @@ test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
   await page.goto(`/merchant/stalls/${stallId}/kitchen/settings?source=https://attacker.invalid`);
   const fallbackButton = page.getByRole("button", { name: "返回攤位設定", exact: true });
   await expect(fallbackButton).toBeVisible();
+  await waitForReactHydration(fallbackButton);
   await fallbackButton.click();
   await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}$`));
 });

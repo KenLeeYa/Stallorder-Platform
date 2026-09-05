@@ -129,11 +129,23 @@ const PHONE_NUMBER = /^\+?[0-9][0-9 ().-]{5,29}$/;
 class LocalizedCheckoutError extends Error {}
 
 const defaultRequestOrder: QrOrderCheckoutTransport = async (body, operationId) => {
-  const response = await requestPublicOrder(
-    "create-public-order",
-    body,
-    { operationId },
-  );
+  let response: Response;
+  try {
+    response = await requestPublicOrder(
+      "create-public-order",
+      body,
+      { operationId },
+    );
+  } catch {
+    // Reuse the exact idempotency key and operation ID. If the first response
+    // was lost after the database commit, the trusted endpoint returns the
+    // committed order instead of creating a duplicate or showing a false error.
+    response = await requestPublicOrder(
+      "create-public-order",
+      body,
+      { operationId, timeoutMs: 10_000 },
+    );
+  }
   return {
     ok: response.ok,
     status: response.status,
@@ -164,14 +176,24 @@ export async function submitQrOrderCheckout(input: QrOrderCheckoutInput) {
     }
 
     const trackingToken = String(response.payload.trackingToken);
-    const postOrderError = await input.afterOrderCreated?.(trackingToken);
-    if (postOrderError) throw new LocalizedCheckoutError(postOrderError);
+    try {
+      const postOrderError = await input.afterOrderCreated?.(trackingToken);
+      if (postOrderError) input.onMessage(postOrderError);
+    } catch {
+      // The order is already committed. Optional follow-up work must never make
+      // the customer believe that submitting the order failed.
+    }
     try {
       input.clearPersistedCart();
     } catch {
       // The order already succeeded; storage cleanup is best effort.
     }
-    input.navigateToOrder(trackingToken);
+    try {
+      input.navigateToOrder(trackingToken);
+    } catch {
+      // Navigation is client-side best effort after a committed order. The
+      // active order reference remains available for recovery on the next load.
+    }
   } catch (error) {
     input.onMessage(
       error instanceof LocalizedCheckoutError ? error.message : input.networkError,

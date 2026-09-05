@@ -4,6 +4,16 @@ import {
   type Page,
   type Response,
 } from "@playwright/test";
+import type { PrismaClient } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import {
+  createOpaqueToken,
+  hashToken,
+  SESSION_DEVICE_COOKIE,
+} from "../src/lib/security";
+
+const TEST_SESSION_COOKIE = "stallorder_session";
+const TEST_CSRF_COOKIE = "stallorder_csrf";
 
 export function qrProductSelectionControl(
   product: Locator,
@@ -16,13 +26,71 @@ export function qrProductSelectionControl(
     .first();
 }
 
+export async function addFirstStaffCatalogProduct(
+  page: Page,
+  composer: Locator,
+) {
+  const product = composer.getByTestId("staff-product-card").first();
+  await product.waitFor({ state: "visible" });
+  const openConfigurator = product.getByTestId(
+    "staff-open-product-configurator",
+  );
+
+  if ((await openConfigurator.count()) > 0) {
+    await openConfigurator.click();
+    const configurator = page.getByTestId("staff-product-configurator");
+    await configurator.waitFor({ state: "visible" });
+    const productName = (await configurator.locator("h3").innerText()).trim();
+    const groups = configurator.locator("section");
+    for (let index = 0; index < (await groups.count()); index += 1) {
+      const group = groups.nth(index);
+      const heading = group.locator("h4").first();
+      if (
+        (await heading.count()) === 0 ||
+        !(await heading.innerText()).includes("*")
+      )
+        continue;
+      const options = group.getByTestId("staff-configurator-option");
+      if (
+        await options.evaluateAll((elements) =>
+          elements.some((element) => element.getAttribute("aria-checked") === "true"),
+        )
+      )
+        continue;
+      for (let optionIndex = 0; optionIndex < (await options.count()); optionIndex += 1) {
+        const option = options.nth(optionIndex);
+        if (await option.isEnabled()) {
+          await option.click();
+          break;
+        }
+      }
+    }
+    await configurator
+      .getByRole("button", { name: "加入購物車", exact: true })
+      .click();
+    await configurator.waitFor({ state: "hidden" });
+    return productName;
+  }
+
+  const increase = product.getByTitle(/^增加 /).first();
+  const productName = (await increase.getAttribute("title"))?.replace(/^增加 /, "");
+  if (!productName) throw new Error("店員點餐測試找不到第一個商品名稱。");
+  await increase.click();
+  await product
+    .getByRole("button", { name: "加入購物車", exact: true })
+    .click();
+  return productName;
+}
+
 export async function openSharedCatalogProductActions(
   page: Page,
   productName: string,
 ) {
   const navigator = page.getByTestId("catalog-navigator-dialog");
   if (!(await navigator.isVisible())) {
-    const openNavigator = page.getByTestId("open-catalog-navigator");
+    const openNavigator = page
+      .getByTestId("open-catalog-navigator")
+      .filter({ visible: true });
     await openNavigator.waitFor({ state: "visible" });
     await openNavigator.click();
     await navigator.waitFor({ state: "visible" });
@@ -122,6 +190,61 @@ export async function loginLocalTestAccount(
   }
   await gotoLocalPath(page, body.next);
   return body.next;
+}
+
+export async function establishLocalTestSession(
+  page: Page,
+  database: PrismaClient,
+  profileId: string,
+) {
+  const token = createOpaqueToken();
+  const csrfToken = createOpaqueToken();
+  const deviceId = randomUUID();
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1_000);
+  const profile = await database.profile.findUniqueOrThrow({
+    where: { id: profileId },
+    select: { sessionVersion: true },
+  });
+  await database.authSession.create({
+    data: {
+      profileId,
+      tokenHash: hashToken(token),
+      csrfTokenHash: hashToken(csrfToken),
+      deviceId,
+      expiresAt,
+      profileSessionVersion: profile.sessionVersion,
+    },
+  });
+  const origin = new URL(
+    page.url() === "about:blank"
+      ? (process.env.PLAYWRIGHT_APP_URL ?? "http://localhost:3001")
+      : page.url(),
+  ).origin;
+  await page.context().addCookies([
+    {
+      name: TEST_SESSION_COOKIE,
+      value: token,
+      url: origin,
+      httpOnly: true,
+      sameSite: "Lax",
+      expires: expiresAt.getTime() / 1_000,
+    },
+    {
+      name: TEST_CSRF_COOKIE,
+      value: csrfToken,
+      url: origin,
+      sameSite: "Lax",
+      expires: expiresAt.getTime() / 1_000,
+    },
+    {
+      name: SESSION_DEVICE_COOKIE,
+      value: deviceId,
+      url: origin,
+      httpOnly: true,
+      sameSite: "Lax",
+      expires: expiresAt.getTime() / 1_000,
+    },
+  ]);
 }
 
 export async function dismissStaffStartReminder(page: Page) {

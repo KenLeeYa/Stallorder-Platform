@@ -3,6 +3,10 @@ import { createPerformanceTiming } from "@/lib/performance-timing";
 import { createPublicOrderSchema } from "../../../supabase/functions/_shared/schemas";
 
 const mocks = vi.hoisted(() => ({
+  cancelTrackedPublicOrder: vi.fn(),
+  editTrackedPublicOrder: vi.fn(),
+  findTrackedPublicOrderIdByTokenHash: vi.fn(),
+  validateTrackedPublicOrderAtCanonicalEdge: vi.fn(),
   resolveResilienceFeatureFlags: vi.fn(),
   verifyTurnstile: vi.fn(),
   getCachedPublicMenuForQrToken: vi.fn(),
@@ -25,6 +29,20 @@ const mocks = vi.hoisted(() => ({
   preflightPublicOrder: vi.fn(),
   recordPublicOrderAttempt: vi.fn(),
   revokeOrderSession: vi.fn(),
+}));
+
+vi.mock("@/lib/public-order-edit", () => ({
+  cancelTrackedPublicOrder: mocks.cancelTrackedPublicOrder,
+  editTrackedPublicOrder: mocks.editTrackedPublicOrder,
+  PublicOrderEditError: class PublicOrderEditError extends Error {
+    constructor(public readonly code: string) {
+      super(code);
+    }
+  },
+}));
+
+vi.mock("@/server/public-order/canonical-tracking-validator", () => ({
+  validateTrackedPublicOrderAtCanonicalEdge: mocks.validateTrackedPublicOrderAtCanonicalEdge,
 }));
 
 vi.mock("@/server/resilience/feature-flag-service", () => ({
@@ -51,6 +69,7 @@ vi.mock("@/server/public-order/trusted-rpc-repository", () => ({
   getPublicSessionMenuContext: mocks.getPublicSessionMenuContext,
   getTrackedOrderContext: mocks.getTrackedOrderContext,
   getTrackedPublicOrder: mocks.getTrackedPublicOrder,
+  findTrackedPublicOrderIdByTokenHash: mocks.findTrackedPublicOrderIdByTokenHash,
   issueIdempotentOrderSession: mocks.issueIdempotentOrderSession,
   lookupPublicOrderIdempotency: mocks.lookupPublicOrderIdempotency,
   lookupResumablePublicOrder: mocks.lookupResumablePublicOrder,
@@ -126,6 +145,70 @@ describe("Circuit B public order service", () => {
     mocks.lookupPublicOrderIdempotency.mockResolvedValue(null);
     mocks.checkPublicOrderSubmissionGate.mockResolvedValue({ ok: true });
     mocks.recordPublicOrderAttempt.mockResolvedValue([]);
+    mocks.validateTrackedPublicOrderAtCanonicalEdge.mockResolvedValue({ outcome: "NOT_FOUND" });
+  });
+
+  it("recovers a tracked mutation only after the canonical Edge runtime validates the same device", async () => {
+    mocks.getTrackedPublicOrder.mockResolvedValue(null);
+    mocks.validateTrackedPublicOrderAtCanonicalEdge.mockResolvedValue({ outcome: "AUTHORIZED" });
+    mocks.findTrackedPublicOrderIdByTokenHash.mockResolvedValue(
+      "33333333-3333-4333-8333-333333333333",
+    );
+    mocks.cancelTrackedPublicOrder.mockResolvedValue({ cancelled: true });
+    const { cancelOrderThroughCircuitB } = await import("./circuit-b-service");
+
+    const result = await cancelOrderThroughCircuitB({
+      trackingToken: `sto_${"a".repeat(43)}`,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    });
+
+    expect(result).toEqual({ status: 200, body: { cancelled: true } });
+    expect(mocks.validateTrackedPublicOrderAtCanonicalEdge).toHaveBeenCalledWith({
+      trackingToken: `sto_${"a".repeat(43)}`,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+      clientIp: "203.0.113.8",
+      operationId: "request-test",
+    });
+    expect(mocks.findTrackedPublicOrderIdByTokenHash).toHaveBeenCalledOnce();
+    expect(mocks.cancelTrackedPublicOrder).toHaveBeenCalledWith(
+      "33333333-3333-4333-8333-333333333333",
+    );
+  });
+
+  it("does not bypass device binding when the canonical Edge runtime rejects the device", async () => {
+    mocks.getTrackedPublicOrder.mockResolvedValue(null);
+    mocks.validateTrackedPublicOrderAtCanonicalEdge.mockResolvedValue({ outcome: "NOT_FOUND" });
+    const { cancelOrderThroughCircuitB } = await import("./circuit-b-service");
+
+    await expect(cancelOrderThroughCircuitB({
+      trackingToken: `sto_${"b".repeat(43)}`,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    })).rejects.toMatchObject({ code: "ORDER_NOT_FOUND", status: 404 });
+
+    expect(mocks.findTrackedPublicOrderIdByTokenHash).not.toHaveBeenCalled();
+  });
+
+  it("reports a recoverable service failure instead of a false not-found when canonical validation is unavailable", async () => {
+    mocks.getTrackedPublicOrder.mockResolvedValue(null);
+    mocks.validateTrackedPublicOrderAtCanonicalEdge.mockResolvedValue({ outcome: "UNAVAILABLE" });
+    const { cancelOrderThroughCircuitB } = await import("./circuit-b-service");
+
+    await expect(cancelOrderThroughCircuitB({
+      trackingToken: `sto_${"c".repeat(43)}`,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+    }, {
+      clientIp: "203.0.113.8",
+      requestId: "request-test",
+      timing: timing(),
+    })).rejects.toMatchObject({ code: "CIRCUIT_B_UNAVAILABLE", status: 503 });
   });
 
   afterEach(() => {

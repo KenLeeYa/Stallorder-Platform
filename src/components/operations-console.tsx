@@ -13,6 +13,7 @@ import {
   MerchantListPageNavigation as PageNavigation,
   MerchantListPageSizeSelect as PageSizeSelect,
 } from "@/components/merchant-list-pagination";
+import { SettingsFeedbackDialog } from "@/components/settings-feedback-dialog";
 import {
   type OperationsPageMeta,
   type OperationsPageSize,
@@ -184,14 +185,14 @@ export function OperationsConsole({
           {canViewAudit ? (
             <>
               <FilterSelect wrapperClassName="col-start-2 row-start-3 md:col-start-3 md:row-start-2" data-testid="operations-filter-audit-outcome" label={m("稽核結果")} name="auditOutcome" defaultValue={filters.auditOutcome ?? "ALL"}><option value="ALL">{m("全部")}</option><option value="SUCCESS">{m("成功")}</option><option value="DENIED">{m("拒絕")}</option><option value="FAILURE">{m("失敗")}</option></FilterSelect>
-              <label className="col-span-2 col-start-1 row-start-4 text-xs font-semibold text-stone-600 md:col-span-2 md:col-start-1 md:row-start-3">{m("搜尋稽核")}<input data-testid="operations-filter-audit-query" type="text" name="auditQuery" defaultValue={filters.auditQuery} maxLength={80} placeholder={m("操作、資料類型或 Request ID")} className="mt-1 h-10 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>
+              <label className="col-span-2 col-start-1 row-start-4 text-xs font-semibold text-stone-600 md:col-span-2 md:col-start-1 md:row-start-3">{m("搜尋稽核")}<input data-testid="operations-filter-audit-query" type="text" name="auditQuery" defaultValue={filters.auditQuery} maxLength={80} placeholder={m("操作、資料類型或 Request ID")} className="mt-1 h-11 w-full rounded-md border border-stone-300 px-3 text-sm" /></label>
             </>
           ) : null}
-          <div data-testid="operations-filter-actions" className="col-start-2 row-start-5 flex items-end justify-end gap-2 md:col-start-3 md:row-start-4"><button type="submit" className="inline-flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white sm:px-4">{m("套用篩選")}</button><button type="button" title={m("重新整理")} aria-label={m("重新整理")} onClick={() => router.refresh()} className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-stone-300"><RefreshCw className="h-4 w-4" /></button></div>
+          <div data-testid="operations-filter-actions" className="col-start-2 row-start-5 flex items-end justify-end gap-2 md:col-start-3 md:row-start-4"><button type="submit" className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white sm:px-4">{m("套用篩選")}</button><button type="button" title={m("重新整理")} aria-label={m("重新整理")} onClick={() => router.refresh()} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><RefreshCw className="h-4 w-4" /></button></div>
         </div>
       </form>
 
-      {message ? <p role="status" className={`border-b border-stone-200 py-3 text-sm font-medium ${hasError ? "text-red-700" : "text-emerald-700"}`}>{message}</p> : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={hasError ? "error" : "success"} onClose={() => setMessage("")} /> : null}
 
       <section className="border-b border-stone-200 py-6" aria-labelledby="alerts-title">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -239,11 +240,11 @@ export function OperationsConsole({
 }
 
 function FilterSelect({ label, children, wrapperClassName = "", ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; wrapperClassName?: string }) {
-  return <label className={`${wrapperClassName} min-w-0 text-xs font-semibold text-stone-600`}>{label}<select {...props} className="mt-1 h-10 min-w-0 w-full rounded-md border border-stone-300 bg-white px-2 text-sm">{children}</select></label>;
+  return <label className={`${wrapperClassName} min-w-0 text-xs font-semibold text-stone-600`}>{label}<select {...props} className="mt-1 h-11 min-w-0 w-full rounded-md border border-stone-300 bg-white px-2 text-sm">{children}</select></label>;
 }
 
 function FilterInput({ label, wrapperClassName = "", ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; wrapperClassName?: string }) {
-  return <label className={`${wrapperClassName} min-w-0 text-xs font-semibold text-stone-600`}>{label}<input type="text" maxLength={80} {...props} className="mt-1 h-10 min-w-0 w-full rounded-md border border-stone-300 px-2 text-sm" /></label>;
+  return <label className={`${wrapperClassName} min-w-0 text-xs font-semibold text-stone-600`}>{label}<input type="text" maxLength={80} {...props} className="mt-1 h-11 min-w-0 w-full rounded-md border border-stone-300 px-2 text-sm" /></label>;
 }
 
 function OperationsDateRangeFields({
@@ -282,12 +283,12 @@ function OperationsDateRangeFields({
   return (
     <>
       <div data-testid="operations-date-presets" className="col-start-1 row-start-5 grid grid-cols-3 gap-2 self-end md:col-start-3 md:row-start-3">
-        <button type="button" onClick={() => applyPreset("day")} className="min-h-10 min-w-0 rounded-md border border-stone-300 px-1 text-xs font-semibold sm:px-3">{todayLabel}</button>
-        <button type="button" onClick={() => applyPreset("week")} className="min-h-10 min-w-0 rounded-md border border-stone-300 px-1 text-xs font-semibold sm:px-3">{weekLabel}</button>
-        <button type="button" onClick={() => applyPreset("month")} className="min-h-10 min-w-0 rounded-md border border-stone-300 px-1 text-xs font-semibold sm:px-3">{monthLabel}</button>
+        <button type="button" onClick={() => applyPreset("day")} className="min-h-11 min-w-0 rounded-md border border-stone-300 px-1 text-xs font-semibold sm:px-3">{todayLabel}</button>
+        <button type="button" onClick={() => applyPreset("week")} className="min-h-11 min-w-0 rounded-md border border-stone-300 px-1 text-xs font-semibold sm:px-3">{weekLabel}</button>
+        <button type="button" onClick={() => applyPreset("month")} className="min-h-11 min-w-0 rounded-md border border-stone-300 px-1 text-xs font-semibold sm:px-3">{monthLabel}</button>
       </div>
-      <FilterInput required wrapperClassName="col-start-2 row-start-1 md:col-start-1 md:row-start-2" data-testid="operations-filter-date-from" label={startLabel} type="date" name="dateFrom" value={from} onChange={(event) => setFrom(event.target.value)} />
-      <FilterInput required wrapperClassName="col-start-2 row-start-2 md:col-start-2 md:row-start-2" data-testid="operations-filter-date-to" label={endLabel} type="date" name="dateTo" value={to} onChange={(event) => setTo(event.target.value)} />
+      <FilterInput required wrapperClassName="col-start-2 row-start-1 md:col-start-1 md:row-start-2" data-testid="operations-filter-date-from" label={startLabel} type="date" name="dateFrom" value={from} max={to} onChange={(event) => setFrom(event.target.value)} />
+      <FilterInput required wrapperClassName="col-start-2 row-start-2 md:col-start-2 md:row-start-2" data-testid="operations-filter-date-to" label={endLabel} type="date" name="dateTo" value={to} min={from} onChange={(event) => setTo(event.target.value)} />
     </>
   );
 }

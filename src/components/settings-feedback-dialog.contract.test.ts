@@ -16,6 +16,8 @@ describe("stall settings operation feedback", () => {
     expect(dialog).toContain("fixed inset-0");
     expect(dialog).toContain("focus");
     expect(dialog).toContain('event.key === "Escape"');
+    expect(dialog).toContain("useAppLocale");
+    expect(dialog).not.toContain("useMerchantMessages");
   });
 
   it("replaces transient inline messages in every stall settings editor", () => {
@@ -32,6 +34,23 @@ describe("stall settings operation feedback", () => {
     ];
 
     for (const fileName of settingEditors) {
+      expect(source(fileName), fileName).toContain("<SettingsFeedbackDialog");
+    }
+  });
+
+  it("is reused for operational action outcomes", () => {
+    const actionSurfaces = [
+      "./employee-workforce-panel.tsx",
+      "./operating-profit-dashboard.tsx",
+      "./operations-console.tsx",
+      "./print-queue-board.tsx",
+      "./workforce-manager.tsx",
+      "./cash-shift-board.tsx",
+      "./shared-catalog-manager.tsx",
+      "./product-note-groups-manager.tsx",
+    ];
+
+    for (const fileName of actionSurfaces) {
       expect(source(fileName), fileName).toContain("<SettingsFeedbackDialog");
     }
   });

@@ -1553,6 +1553,8 @@ const merchantMessageRows = {
   "搜尋註記群組或選項": { "zh-TW": "搜尋註記群組或選項", en: "Search note groups or options", ja: "注記グループまたはオプションを検索", ko: "메모 그룹 또는 옵션 검색", vi: "Tìm nhóm hoặc tùy chọn ghi chú", th: "ค้นหากลุ่มหรือตัวเลือกหมายเหตุ" },
   "設定已完成": { "zh-TW": "設定已完成", en: "Settings saved", ja: "設定が完了しました", ko: "설정이 완료되었습니다", vi: "Đã lưu cài đặt", th: "บันทึกการตั้งค่าแล้ว" },
   "請確認設定": { "zh-TW": "請確認設定", en: "Check the settings", ja: "設定を確認してください", ko: "설정을 확인하세요", vi: "Vui lòng kiểm tra cài đặt", th: "โปรดตรวจสอบการตั้งค่า" },
+  "操作已完成": { "zh-TW": "操作已完成", en: "Action completed", ja: "操作が完了しました", ko: "작업이 완료되었습니다", vi: "Đã hoàn tất thao tác", th: "ดำเนินการเสร็จแล้ว" },
+  "請確認": { "zh-TW": "請確認", en: "Please check", ja: "ご確認ください", ko: "확인해 주세요", vi: "Vui lòng kiểm tra", th: "โปรดตรวจสอบ" },
   "我知道了": { "zh-TW": "我知道了", en: "Got it", ja: "確認しました", ko: "확인했습니다", vi: "Đã hiểu", th: "รับทราบ" },
   "搜尋單一註記": { "zh-TW": "搜尋單一註記", en: "Search single notes", ja: "単一の注記を検索", ko: "단일 메모 검색", vi: "Tìm ghi chú đơn", th: "ค้นหาหมายเหตุเดี่ยว" },
   "返回註記群組": { "zh-TW": "返回註記群組", en: "Back to note groups", ja: "注記グループに戻る", ko: "메모 그룹으로 돌아가기", vi: "Quay lại nhóm ghi chú", th: "กลับไปยังกลุ่มหมายเหตุ" },

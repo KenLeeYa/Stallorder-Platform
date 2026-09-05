@@ -66,6 +66,7 @@ export type PublicMenu = {
   onlineMenuPath?: string;
   preorderSlots: string[];
   lotteryEnabled: boolean;
+  lotteryCampaignName?: string;
   checkoutUpsell?: {
     enabled: boolean;
     productIds: string[];

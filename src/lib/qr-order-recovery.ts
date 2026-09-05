@@ -1,6 +1,7 @@
 const QR_ORDER_RECOVERY_KEY_PREFIX = "stallorder_qr_order_recovery:v1:";
 const QR_ORDER_RECOVERY_TTL_MS = 24 * 60 * 60 * 1_000;
 const DEFINITIVELY_MISSING_ORDER_STATUSES = new Set([401, 403, 404, 410]);
+const FINISHED_ORDER_STATUSES = new Set(["COMPLETED", "CANCELLED", "EXPIRED"]);
 
 type QrOrderRecoveryStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
@@ -96,7 +97,17 @@ export async function resolveQrOrderRecovery({
       trackingToken: reference.trackingToken,
       deviceId: reference.deviceId,
     });
-    if (response.ok) return reference;
+    if (response.ok) {
+      const payload = await response.clone().json().catch(() => null) as {
+        order?: { orderStatus?: unknown };
+      } | null;
+      const orderStatus = payload?.order?.orderStatus;
+      if (typeof orderStatus === "string" && FINISHED_ORDER_STATUSES.has(orderStatus)) {
+        clearQrOrderRecovery(storage, qrToken);
+        return null;
+      }
+      return reference;
+    }
     if (DEFINITIVELY_MISSING_ORDER_STATUSES.has(response.status)) {
       clearQrOrderRecovery(storage, qrToken);
       return null;

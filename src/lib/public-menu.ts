@@ -119,6 +119,12 @@ export async function getCachedPublicMenuForQrToken(
     resolvedOrderingMode,
     fulfillmentType,
   );
+  const activeFestivalCampaign = activeLotteryFestivalCampaign(
+    context.stall.lotteryCampaigns ?? [],
+    context.stall.timezone,
+  );
+  const hasFestivalCampaigns = (context.stall.lotteryCampaigns ?? [])
+    .some((campaign) => campaign.isEnabled);
 
   return {
     ...menu,
@@ -130,15 +136,18 @@ export async function getCachedPublicMenuForQrToken(
     lotteryEnabled: resolvedOrderingMode === "DEFAULT"
       && lotteryChannelAllowed
       && settings.lotteryEnabled,
+    lotteryCampaignName: activeFestivalCampaign?.name ?? settings.lotteryCampaignName,
     deliveryNotice: resolvedOrderingMode === "DELIVERY"
       ? settings.deliveryCustomerNotice || null
       : null,
     lotteryReward: {
       spendEnabled: lotteryChannelAllowed && settings.lotterySpendRewardEnabled,
       spendThresholdAmount: settings.lotterySpendThresholdAmount,
-      festivalEnabled: lotteryChannelAllowed && settings.lotteryFestivalRewardEnabled,
+      festivalEnabled: lotteryChannelAllowed
+        && (hasFestivalCampaigns || settings.lotteryFestivalRewardEnabled),
       festivalActive: lotteryChannelAllowed
-        && lotteryFestivalIsActive(settings, context.stall.timezone),
+        && (Boolean(activeFestivalCampaign)
+          || lotteryFestivalIsActive(settings, context.stall.timezone)),
     },
     specialClosure,
     ...(invoiceCheckout ? { invoiceCheckout } : {}),
@@ -381,6 +390,17 @@ async function loadQrContext(qrToken: string) {
             },
           },
           organization: { select: { status: true } },
+          lotteryCampaigns: {
+            where: { deletedAt: null },
+            orderBy: [{ sortOrder: "asc" }, { startsOn: "asc" }],
+            select: {
+              id: true,
+              name: true,
+              isEnabled: true,
+              startsOn: true,
+              endsOn: true,
+            },
+          },
           orderingSettings: {
             select: {
               dineInEnabled: true,
@@ -388,6 +408,7 @@ async function loadQrContext(qrToken: string) {
               deliveryCustomerNotice: true,
               takeoutPreorderEnabled: true,
               lotteryEnabled: true,
+              lotteryCampaignName: true,
               lotterySpendRewardEnabled: true,
               lotterySpendThresholdAmount: true,
               lotteryFestivalRewardEnabled: true,
@@ -503,16 +524,44 @@ function publicSpecialClosureAnnouncement(
 
 function lotteryFestivalIsActive(settings: {
   lotteryFestivalRewardEnabled: boolean;
-  lotteryFestivalStartsOn: Date | null;
-  lotteryFestivalEndsOn: Date | null;
+  lotteryFestivalStartsOn: Date | string | null;
+  lotteryFestivalEndsOn: Date | string | null;
 }, timeZone: string) {
   if (!settings.lotteryFestivalRewardEnabled
       || !settings.lotteryFestivalStartsOn
       || !settings.lotteryFestivalEndsOn) return false;
   const businessDate = dateInTimeZone(new Date(), timeZone);
-  const startsOn = settings.lotteryFestivalStartsOn.toISOString().slice(0, 10);
-  const endsOn = settings.lotteryFestivalEndsOn.toISOString().slice(0, 10);
+  const startsOn = serializedDateOnly(settings.lotteryFestivalStartsOn);
+  const endsOn = serializedDateOnly(settings.lotteryFestivalEndsOn);
+  if (!startsOn || !endsOn) return false;
   return startsOn <= businessDate && businessDate <= endsOn;
+}
+
+function activeLotteryFestivalCampaign(
+  campaigns: readonly {
+    id: string;
+    name: string;
+    isEnabled: boolean;
+    startsOn: Date | string;
+    endsOn: Date | string;
+  }[],
+  timeZone: string,
+) {
+  const businessDate = dateInTimeZone(new Date(), timeZone);
+  return campaigns.find((campaign) => {
+    const startsOn = serializedDateOnly(campaign.startsOn);
+    const endsOn = serializedDateOnly(campaign.endsOn);
+    return campaign.isEnabled
+      && startsOn !== null
+      && endsOn !== null
+      && startsOn <= businessDate
+      && endsOn >= businessDate;
+  }) ?? null;
+}
+
+function serializedDateOnly(value: Date | string) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
 }
 
 function publicStallIsAvailable(stall: {

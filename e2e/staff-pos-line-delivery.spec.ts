@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { buildFulfillmentTimeSlots } from "../src/lib/fulfillment-time-options";
 import {
+  addFirstStaffCatalogProduct,
   dismissStaffStartReminder,
   qrProductSelectionControl,
 } from "./local-navigation";
@@ -329,23 +330,7 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
     await expect(
       dialog.getByLabel("地址（選填）", { exact: true }),
     ).toHaveValue("");
-    await dialog
-      .getByTitle(/^增加 /)
-      .first()
-      .click();
-    const fieldsets = dialog.locator("fieldset");
-    for (let index = 0; index < (await fieldsets.count()); index += 1) {
-      const fieldset = fieldsets.nth(index);
-      if ((await fieldset.locator("legend").innerText()).includes("*")) {
-        await fieldset
-          .locator('input[type="radio"], input[type="checkbox"]')
-          .first()
-          .check();
-      }
-    }
-    await dialog
-      .getByRole("button", { name: "加入購物車", exact: true })
-      .click();
+    await addFirstStaffCatalogProduct(page, dialog);
     await dialog.getByTestId("staff-tablet-confirm-order").click();
     await dialog.getByRole("button", { name: "稍後結帳", exact: true }).click();
 
@@ -633,31 +618,7 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
     .getByLabel("取餐時間－分")
     .selectOption(targetPickupSlot.minute);
 
-  const firstIncrease = dialog.getByTitle(/^增加 /).first();
-  const selectedProductName = (
-    await firstIncrease.getAttribute("title")
-  )?.replace(/^增加 /, "");
-  if (!selectedProductName)
-    throw new Error("店員點餐測試找不到第一個商品名稱。");
-  await firstIncrease.click();
-  const fieldsets = dialog.locator("fieldset");
-  for (let index = 0; index < (await fieldsets.count()); index += 1) {
-    const fieldset = fieldsets.nth(index);
-    if ((await fieldset.locator("legend").innerText()).includes("*")) {
-      await fieldset
-        .locator('input[type="radio"], input[type="checkbox"]')
-        .first()
-        .check();
-    }
-  }
-  const addToCart = dialog.getByRole("button", {
-    name: "加入購物車",
-    exact: true,
-  });
-  await expect
-    .poll(async () => (await addToCart.boundingBox())?.height ?? 0)
-    .toBeGreaterThanOrEqual(44);
-  await addToCart.click();
+  const selectedProductName = await addFirstStaffCatalogProduct(page, dialog);
   const draftCustomerName = `現場暫存 ${Date.now()}`;
   const draftCustomerPhone = "0912345678";
   const draftCustomerNote = `敏感備註 ${Date.now()}`;
@@ -750,7 +711,21 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   await expect(dialog.getByTestId("staff-mobile-cart-summary")).toBeVisible();
   await catalogToggle.click();
   await expect(catalogToggle).toHaveAttribute("aria-expanded", "true");
-  await expect(dialog.getByTitle(`減少 ${selectedProductName}`)).toBeDisabled();
+  const restoredProduct = dialog
+    .getByTestId("staff-product-card")
+    .filter({ hasText: selectedProductName })
+    .first();
+  await expect(restoredProduct).toContainText("購物車已有 1 份");
+  const directDecrease = restoredProduct.getByTitle(
+    `減少 ${selectedProductName}`,
+  );
+  if ((await directDecrease.count()) > 0) {
+    await expect(directDecrease).toBeDisabled();
+  } else {
+    await expect(
+      restoredProduct.getByTestId("staff-open-product-configurator"),
+    ).toBeVisible();
+  }
   await dialog.getByTestId("staff-mobile-cart-summary").click();
   const cartPanel = dialog.getByTestId("staff-order-cart-panel");
   await expect(cartPanel).toBeVisible();
@@ -1312,14 +1287,20 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
     await login(staffPage);
     await staffPage.goto("/staff/aming-chicken");
     await dismissStaffStartReminder(staffPage);
-    const staffOrder = staffPage
-      .getByRole("article")
+    await staffPage
+      .getByRole("main")
+      .getByPlaceholder("搜尋桌號、訂單編號或顧客")
+      .fill(customerName);
+    const staffOrderCard = staffPage
+      .getByTestId("staff-order-list-pane")
+      .getByRole("button")
       .filter({ hasText: customerName });
-    await staffOrder
-      .getByRole("button", { name: "查看明細", exact: true })
-      .click();
-    await expect(staffOrder).toContainText("顧客希望送達");
-    await staffOrder
+    await expect(staffOrderCard).toBeVisible();
+    await staffOrderCard.click();
+    const staffOrderItems = staffPage.getByTestId("staff-order-items-pane");
+    const staffOrderActions = staffPage.getByTestId("staff-order-actions-pane");
+    await expect(staffOrderActions).toContainText("顧客希望送達");
+    await staffOrderActions
       .getByRole("button", { name: "提出新時間", exact: true })
       .click();
 
@@ -1379,9 +1360,9 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
       operation: "PROPOSE",
       proposedFulfillmentAt,
     });
-    await expect(staffOrder).toContainText("等待顧客確認新送達時間");
+    await expect(staffOrderActions).toContainText("等待顧客確認新送達時間");
     await expect(
-      staffOrder.getByRole("button", { name: /全部開始製作/ }),
+      staffOrderItems.getByRole("button", { name: /全部開始製作/ }),
     ).toHaveCount(0);
 
     await page.getByRole("button", { name: "重新整理訂單" }).click();
@@ -1439,7 +1420,7 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
     await staffPage
       .getByRole("button", { name: "重新整理", exact: true })
       .click();
-    await expect(staffOrder).toContainText("已確認送達");
+    await expect(staffOrderActions).toContainText("已確認送達");
   } finally {
     await staffContext.close();
   }

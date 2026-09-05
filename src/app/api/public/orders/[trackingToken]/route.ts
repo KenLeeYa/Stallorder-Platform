@@ -105,7 +105,7 @@ export async function PATCH(
 
     const result = await editOrderThroughCircuitB(
       { ...command.data, trackingToken: identity.data.trackingToken },
-      { clientIp, requestId, timing },
+      { clientIp, requestId, operationId, timing },
     );
     return circuitBResponse(result.body, result.status, requestId, timing, operationId);
   } catch (error) {
@@ -154,7 +154,7 @@ export async function DELETE(
 
     const result = await cancelOrderThroughCircuitB(
       { ...command.data, trackingToken: identity.data.trackingToken },
-      { clientIp, requestId, timing },
+      { clientIp, requestId, operationId, timing },
     );
     return circuitBResponse(result.body, result.status, requestId, timing, operationId);
   } catch (error) {

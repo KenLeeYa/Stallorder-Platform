@@ -14,6 +14,16 @@ async function loginAsOwner(page: Page) {
   await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/);
 }
 
+async function acknowledgeProductUpdated(page: Page) {
+  const feedback = page.getByRole("dialog", {
+    name: "操作已完成",
+    exact: true,
+  });
+  await expect(feedback).toContainText("商品已更新。");
+  await feedback.getByRole("button", { name: "我知道了", exact: true }).click();
+  await expect(feedback).toBeHidden();
+}
+
 test("共享商品編輯頁可依攤位設定推薦加點", async ({ page }) => {
   await loginAsOwner(page);
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
@@ -21,11 +31,9 @@ test("共享商品編輯頁可依攤位設定推薦加點", async ({ page }) => 
   await productActions.getByRole("button", { name: "編輯商品", exact: true }).click();
 
   let editor = page.getByRole("dialog", { name: "編輯商品", exact: true });
-  const lotterySwitch = editor.getByRole("switch", { name: "可作為抽抽樂推薦／免費贈品", exact: true });
   const upsellSwitch = editor.getByTestId("shared-product-upsell-switch");
-  await expect(lotterySwitch).toBeVisible();
+  await expect(editor.getByText("結帳前加點推薦", { exact: true })).toBeVisible();
   await expect(upsellSwitch).toBeVisible();
-  expect((await upsellSwitch.boundingBox())!.y).toBeGreaterThan((await lotterySwitch.boundingBox())!.y);
 
   const originalState = await upsellSwitch.getAttribute("aria-checked");
   if (await upsellSwitch.isEnabled()) await upsellSwitch.click();
@@ -36,6 +44,7 @@ test("共享商品編輯頁可依攤位設定推薦加點", async ({ page }) => 
   ));
   await editor.getByRole("button", { name: "儲存", exact: true }).click();
   expect((await saveResponse).status()).toBe(200);
+  await acknowledgeProductUpdated(page);
 
   const reopenedActions = await openSharedCatalogProductActions(page, "香酥雞排");
   await reopenedActions.getByRole("button", { name: "編輯商品", exact: true }).click();
@@ -53,6 +62,7 @@ test("共享商品編輯頁可依攤位設定推薦加點", async ({ page }) => 
   ));
   await editor.getByRole("button", { name: "儲存", exact: true }).click();
   expect((await restoreResponse).status()).toBe(200);
+  await acknowledgeProductUpdated(page);
 });
 
 for (const viewport of [
@@ -104,7 +114,7 @@ for (const viewport of [
     await dialog.getByRole("button", { name: "儲存設定", exact: true }).click();
     await expect(dialog).toHaveCount(0);
 
-    const feedback = page.getByRole("dialog", { name: "設定已完成", exact: true });
+    const feedback = page.getByRole("dialog", { name: "操作已完成", exact: true });
     await expect(feedback).toBeVisible();
     await expect(feedback).toContainText("設定已儲存");
     const feedbackBox = await feedback.boundingBox();

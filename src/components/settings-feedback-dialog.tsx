@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { CircleCheck, TriangleAlert, X } from "lucide-react";
-import { useMerchantMessages } from "@/lib/messages/merchant-client";
+import { useAppLocale } from "@/components/locale-provider";
 
 export type SettingsFeedbackKind = "success" | "error";
 
@@ -17,7 +17,7 @@ export function SettingsFeedbackDialog({
   onClose: () => void;
   focusAfterClose?: () => void;
 }) {
-  const { label } = useMerchantMessages();
+  const { t } = useAppLocale();
   const dialogRef = useRef<HTMLElement>(null);
   const acknowledgeRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -76,7 +76,7 @@ export function SettingsFeedbackDialog({
     }
   }
 
-  const title = label(kind === "error" ? "請確認設定" : "設定已完成");
+  const title = t(kind === "error" ? "feedback.error.title" : "feedback.success.title");
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4" data-testid="settings-feedback-dialog-backdrop">
@@ -97,10 +97,10 @@ export function SettingsFeedbackDialog({
             <h2 id="settings-feedback-title" className="text-xl font-bold">{title}</h2>
             <p id="settings-feedback-message" role={kind === "success" ? "status" : undefined} className="mt-2 break-words text-sm leading-6 text-stone-700">{message}</p>
           </div>
-          <button type="button" onClick={close} aria-label={label("關閉")} title={label("關閉")} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-stone-300"><X className="h-5 w-5" aria-hidden="true" /></button>
+          <button type="button" onClick={close} aria-label={t("feedback.close")} title={t("feedback.close")} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-stone-300"><X className="h-5 w-5" aria-hidden="true" /></button>
         </div>
         <button ref={acknowledgeRef} type="button" onClick={close} className={`mt-6 min-h-12 w-full rounded-xl px-4 text-base font-semibold text-white ${kind === "error" ? "bg-red-700 hover:bg-red-800" : "bg-teal-800 hover:bg-teal-900"}`}>
-          {label("我知道了")}
+          {t("feedback.acknowledge")}
         </button>
       </section>
     </div>

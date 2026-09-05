@@ -2,11 +2,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildStarWebPrntRequest,
   detectStarWebPrntEnvironment,
+  isStarWebPrntSdkReady,
   openStarCashDrawer,
   probeStarWebPrnt,
 } from "./star-webprnt-client";
 
 describe("Star WebPRNT client", () => {
+  it("recognizes an SDK that loaded before client-side navigation", () => {
+    expect(isStarWebPrntSdkReady({ StarWebPrintTrader: class Trader {} })).toBe(true);
+    expect(isStarWebPrntSdkReady({})).toBe(false);
+    expect(isStarWebPrntSdkReady(undefined)).toBe(false);
+  });
+
   afterEach(() => vi.unstubAllGlobals());
 
   it("distinguishes Star WebPRNT Browser from iPad Safari", () => {
