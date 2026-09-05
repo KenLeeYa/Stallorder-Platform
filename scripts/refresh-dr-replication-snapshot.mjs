@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { replicatedPublicTables } from "./lib/dr-replication-scope.mjs";
+import { buildDrStorageMirrorProof } from "./lib/dr-storage-mirror.mjs";
 
 const subscriptionName = "stallorder_primary_to_dr";
 const args = new Set(process.argv.slice(2));
@@ -294,26 +295,27 @@ async function compareStorageCounts() {
       "select bucket_id, name from storage.objects order by bucket_id, name",
     ),
     primary.$queryRawUnsafe(
-      `select count(*)::integer as count
+      `select
+         bucket,
+         object_path,
+         replication_status,
+         primary_checksum,
+         dr_checksum,
+         deleted_at
        from public.storage_object_manifest
-       where replication_status <> 'MIRRORED'
-          or primary_checksum is null
-          or dr_checksum is distinct from primary_checksum`,
+       order by bucket, object_path`,
     ),
   ]);
-  const primaryCount = primaryRows.length;
-  const drCount = drRows.length;
-  const inventoryDigest = (rows) => createHash("sha256")
-    .update(JSON.stringify(rows))
-    .digest("hex");
-  const pendingOrInvalidManifests = Number(manifestRows[0]?.count ?? -1);
+  const proof = buildDrStorageMirrorProof({
+    primaryObjects: primaryRows,
+    drObjects: drRows,
+    manifestRows,
+  });
   return {
-    primary: primaryCount,
-    dr: drCount,
-    pendingOrInvalidManifests,
-    equal: primaryCount === drCount
-      && inventoryDigest(primaryRows) === inventoryDigest(drRows)
-      && pendingOrInvalidManifests === 0,
+    primary: proof.primaryObjects,
+    dr: proof.drObjects,
+    pendingOrInvalidManifests: proof.pendingOrInvalidManifests,
+    equal: proof.storageMirrorVerified,
   };
 }
 

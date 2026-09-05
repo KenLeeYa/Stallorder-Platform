@@ -50,6 +50,56 @@ describe("DR Storage mirror proof", () => {
     });
   });
 
+  it("accepts a completed deletion tombstone outside the active inventory", () => {
+    const proof = buildDrStorageMirrorProof({
+      primaryObjects: objects,
+      drObjects: [...objects].reverse(),
+      manifestRows: [
+        ...manifests,
+        {
+          bucket: "product-images",
+          object_path: "catalog/deleted.webp",
+          replication_status: "DELETED",
+          primary_checksum: null,
+          dr_checksum: null,
+          deleted_at: new Date("2026-09-05T00:00:00.000Z"),
+        },
+      ],
+    });
+
+    expect(proof).toMatchObject({
+      storageMirrorVerified: true,
+      primaryObjects: 2,
+      drObjects: 2,
+      manifestRows: 2,
+      pendingOrInvalidManifests: 0,
+    });
+  });
+
+  it("fails closed for a malformed deletion tombstone", () => {
+    const deletedManifest = {
+      bucket: "product-images",
+      object_path: "catalog/deleted.webp",
+      replication_status: "DELETED",
+      primary_checksum: null,
+      dr_checksum: null,
+      deleted_at: new Date("2026-09-05T00:00:00.000Z"),
+    };
+
+    for (const override of [
+      { deleted_at: null },
+      { replication_status: "MIRRORED" },
+      { primary_checksum: "a".repeat(64) },
+      { dr_checksum: "a".repeat(64) },
+    ]) {
+      expect(() => buildDrStorageMirrorProof({
+        primaryObjects: objects,
+        drObjects: objects,
+        manifestRows: [...manifests, { ...deletedManifest, ...override }],
+      })).toThrow("STORAGE_MANIFEST_INVENTORY_MISMATCH");
+    }
+  });
+
   it("fails closed for a missing DR object or manifest", () => {
     expect(() => buildDrStorageMirrorProof({
       primaryObjects: objects,
