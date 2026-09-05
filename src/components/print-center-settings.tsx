@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { Bluetooth, Cable, Check, Cloud, Copy, KeyRound, Pencil, Plus, Power, Printer, ReceiptText, RotateCw, Save, TestTube2, Trash2, TriangleAlert } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
-import { MAX_PRINT_RULES_PER_STALL } from "@/lib/print-center-types";
+import {
+  MAX_PRINT_RULES_PER_STALL,
+  printRuleDraftFromView,
+} from "@/lib/print-center-types";
 import type {
   PrinterConnectionType,
   PrinterView,
@@ -172,12 +175,11 @@ export function PrintCenterSettings({
   }
 
   function beginRuleEdit(rule: PrintRuleView) {
-    const { id, printer: _printer, ...draft } = rule;
+    const draft = printRuleDraftFromView(rule);
     const cloudPrinter = state.printers.some((printer) => (
       printer.id === draft.printerId && printer.connectionType === "CLOUDPRNT"
     ));
-    void _printer;
-    setRuleEditor({ id, draft: cloudPrinter ? { ...draft, autoPrint: true } : draft });
+    setRuleEditor({ id: rule.id, draft: cloudPrinter ? { ...draft, autoPrint: true } : draft });
   }
 
   async function saveRule() {

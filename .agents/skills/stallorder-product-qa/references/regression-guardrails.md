@@ -66,6 +66,9 @@ Customer/Menu/QR
 - 顧客追蹤須自動同步；SSE／stream 只有一個 owner，並有 bounded polling fallback、stale 狀態與重試。
 - 修改原訂單使用 version/lock/idempotency，失敗保留原單；不可用 timeout retry 建出第二張單。
 - 修改草稿以 tracking token／訂單為範圍，回到原 QR、外帶或外送 Menu；外帶／外送須恢復並保留原姓名與電話。選定時間以解析後的同一時刻比較，不得用不同序列化格式的原始字串誤判變更。
+- 裝置雜湊在 application／Edge 路徑不一致時，不得直接用 tracking hash 當授權。必須由 canonical Edge 以原 tracking token、device token、origin、IP/protocol、operation ID 驗證成功後，才可在同 tenant/stall 範圍找回訂單；驗證逾時或不可用一律 fail closed。
+- 建單回應遺失只能以完全相同 payload 與 operation/idempotency ID 重試；已提交成功的 replay 要進入追蹤頁，不能顯示假失敗，也不能建立第二張訂單。
+- 未完成追蹤單可在離頁／重掃後恢復；完成、取消、拒絕等 terminal 狀態要清除 active-order reference。外帶常客記憶只保存有界限的姓名與電話，不把購物車、備註或地址混入。
 - 顧客修改訂單、追蹤或取消遇到 transport/timeout 時只顯示語系化說明與可操作的重試，不可顯示 `signal timed out`、`Failed to fetch` 等底層訊息。DELETE 已確認 `CANCELLED` 後立即更新畫面，且忽略較早開始、較晚返回的舊狀態輪詢。
 - 店員修正公開外帶品項時，驗證未付款、來源、狀態、KDS／列印鎖；要求處理原因與顧客訊息，server 重算全單並撤銷尚未執行的舊列印工作。
 - 「顧客已到店」只解除等待改時間回覆：KDS 開啟時需訂單與品項皆 ready，KDS 關閉走明確人工完成路徑；原取餐碼、結帳與稽核不可略過。
@@ -86,6 +89,8 @@ Customer/Menu/QR
 排序由同一份 server-authoritative sequence 產生；任何消費端不得各自以名稱、建立時間或 ID 重排。非中文 locale 缺翻譯時要在發佈前提示，不可靜默混回中文。
 
 - 單一註記與註記群組沿用同一個「大入口 → 搜尋／分層清單 → 置中操作」模型；320／390／768／1440 都要能看見標題、搜尋、關閉與操作，且整頁不得水平溢位。
+- 商品與註記翻譯使用可折疊區塊，summary 要有左側三角形與「展開／收合」提示。抽抽樂名稱、條件、獎項與可抽商品集中在攤位抽抽樂模組，商品編輯頁不得再放抽抽樂資格開關。100 項以上商品必須透過有界置中遮罩的「分類 → 商品群組 → 商品」階層與搜尋選取，不得在主頁攤平成長清單；展開狀態不能因勾選而重設。可抽商品以最多 100 個、per-stall 明確 ID 清單為權威，抽取時再驗證指派、種類、啟用、售完與發佈狀態。
+- 節慶抽獎以第一級活動記錄保存名稱、啟用狀態、日期、排序與獨立商品池；同攤位已啟用日期不可交疊（含首尾同日），前後端與 DB 都要拒絕，停用草稿可重疊。公開資格與抽選使用攤位時區 business date，且只能從當期活動池產生並保存 campaign snapshot；不得退回任一全域平面商品池。
 
 ### 公開 Menu、營業狀態或快取
 
@@ -149,8 +154,9 @@ Customer/Menu/QR
 - 未接通的付款、Passkeys/WebAuthn、外送 provider、電子發票或其他 provider 模組保持隱藏／disabled，且 direct API fail closed。
 - Google 登入是否顯示同時取決於 Platform policy 與 runtime credentials；缺設定時提供 Admin 診斷，不能讓商家陷入唯一不可用入口。
 - 商家說明用短句回答「這是什麼／要做什麼」，技術細節移到 Platform Admin 或診斷頁。
-- 攤位設定的儲存成功與全域儲存失敗使用共用置中回饋視窗；欄位格式、必填、重複日期／時段等精確錯誤仍貼近欄位。關閉全域錯誤後再把焦點送回第一個錯誤欄位。
+- 設定、商品／註記、列印、報表、排班、營運與交班等一次性操作的完成結果與全域失敗使用共用置中回饋視窗；欄位格式、必填、重複日期／時段等精確錯誤仍貼近欄位。關閉全域錯誤後再把焦點送回第一個錯誤欄位。
 - 長期狀態、功能說明、連線狀態與危險刪除確認各有不同目的，不可因視覺統一而全部改成短暫成功訊息。
+- 未知 client/server exception 只記錄隨機事件 ID、頂層 surface/route、allowlisted error type 與必要 framework digest；禁止接收或寫入原始 message、stack、token、query、request body、顧客聯絡資料或任意 browser metadata。
 
 ### 電子發票與外部 provider
 
@@ -174,6 +180,9 @@ Customer/Menu/QR
 - 語言與主題切換同列對齊，不因 locale 字長把登出、購物車或確認動作推走。
 - Modal 有固定 header/close、內部 body scroll、可見 footer actions、focus trap/restore；不能讓內容逐字換行。
 - 長雙欄頁面各欄獨立捲動；phone/tablet 改成獨立按鈕＋modal／dedicated view。
+- 店員訂單看板在 tablet/desktop 固定為「訂單清單 → 品項與價格／出餐 → 訂單操作」三欄；三欄各自捲動，中欄不重複訂單號、顧客或履約摘要，右欄保留既有權限與狀態 Gate 下的結帳、列印、修改、確認、取消與必要履約操作。phone 維持單欄，不可為了共用桌機版而產生橫向溢位。
+- 廚房訂單模式在 tablet/desktop 固定為「訂單清單 → 生產品項 → 廚房操作」三欄並各自捲動；phone 依序堆疊。不得把店員端結帳／付款能力帶進 KDS，既有品項狀態、整單完成、預約／取餐資訊與取消權限 Gate 必須保留。
+- 攤位報表與營業損益把「套用篩選／匯出」緊接在「自訂」右側的同一可水平捲動列；320／390 只藏文字、不藏圖示或 accessible name，768／1440 顯示文字。稽核／營運警示維持參考圖的配對手機排列與三欄桌機排列，開始／結束日期常駐，今天／本週／本月維持原位置。
 
 ## 本機工作樹與測試服務
 

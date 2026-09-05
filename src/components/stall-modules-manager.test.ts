@@ -28,6 +28,8 @@ function moduleState(): ModuleState {
       preorderMaxDays: 7,
       preorderSlotMinutes: 15,
       lotteryEnabled: false,
+      lotteryCampaignName: "抽抽樂",
+      lotteryProductIds: ["product-1"],
       lotteryDiscountOptionId: "discount-1",
       lotteryDiscountWinRateBps: 1_000,
       lotteryDiscountChances: [{ discountOptionId: "discount-1", winRateBps: 1_000 }],
@@ -36,6 +38,7 @@ function moduleState(): ModuleState {
       lotteryFestivalRewardEnabled: false,
       lotteryFestivalStartsOn: null,
       lotteryFestivalEndsOn: null,
+      lotteryFestivalCampaigns: [],
       lotteryBirthdayRewardEnabled: false,
       enabledLocales: ["zh-TW"],
     },
@@ -58,6 +61,15 @@ function moduleState(): ModuleState {
       name: "加點飲料",
       price: 40,
       isAvailable: true,
+      isEnabled: true,
+      isSoldOut: false,
+      kind: "SINGLE",
+      categoryId: "category-1",
+      categoryName: "飲料",
+      categorySortOrder: 0,
+      groupId: "group-1",
+      groupName: "茶飲",
+      groupSortOrder: 0,
       translations: [],
     }],
     paymentOptions: [{
@@ -180,5 +192,35 @@ describe("buildPublicStorefrontShare", () => {
     expect(html).toContain("營運模組與內用桌位");
     expect(html).toContain("外帶、外送與 LINE 連結");
     expect(html).toContain("桌位平面配置");
+  });
+
+  it("keeps a large lottery catalog compact until the hierarchical picker is opened", () => {
+    const state = moduleState();
+    state.settings.lotteryEnabled = true;
+    state.upsellProducts = Array.from({ length: 120 }, (_, index) => ({
+      ...state.upsellProducts[0],
+      id: `product-${index + 1}`,
+      name: `商品 ${index + 1}`,
+      categoryId: index < 60 ? "category-1" : "category-2",
+      categoryName: index < 60 ? "飲料" : "餐點",
+      groupId: `group-${Math.floor(index / 20) + 1}`,
+      groupName: `商品群組 ${Math.floor(index / 20) + 1}`,
+    }));
+
+    const html = renderToStaticMarkup(createElement(MessageTestProvider, {
+      initialLocale: "zh-TW",
+    }, createElement(StallModulesManager, {
+      stallId: "stall-1",
+      stallCode: "VIET-FOOD-YC",
+      appUrl: "https://app.qidaigo.com",
+      initialState: state,
+      view: "lottery",
+    })));
+
+    expect(html).toContain('data-testid="open-lottery-product-picker"');
+    expect(html).toContain("依分類與商品群組選擇");
+    expect(html).toContain("新增節慶活動");
+    expect(html).not.toContain('data-testid="lottery-product-switch"');
+    expect(html).not.toContain("商品 120");
   });
 });

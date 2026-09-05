@@ -7,7 +7,7 @@ const trackingToken = `sto_${"r".repeat(48)}`;
 const deviceId = "11111111-1111-4111-8111-111111111111";
 const recoveryKey = `stallorder_qr_order_recovery:v1:${encodeURIComponent(qrToken)}`;
 
-test("iPhone 重掃同一 QR 載回已完成訂單，明確返回 Menu 才開始新單", async ({ context, page }) => {
+test("iPhone 重掃同一 QR 不會載回已完成訂單", async ({ context, page }) => {
   let sessionRequestCount = 0;
   await page.addInitScript(({ key, storedQrToken, storedTrackingToken, storedDeviceId }) => {
     window.localStorage.setItem(key, JSON.stringify({
@@ -74,15 +74,9 @@ test("iPhone 重掃同一 QR 載回已完成訂單，明確返回 Menu 才開始
 
   await page.goto(`/q/${qrToken}`);
 
-  await expect(page).toHaveURL(new RegExp(
-    `/order/${trackingToken.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\?qr=`,
-    "u",
-  ));
-  await expect(page.getByText("已完成", { exact: true }).first()).toBeVisible();
-  expect(sessionRequestCount).toBe(0);
-
-  await page.getByRole("button", { name: "返回 Menu", exact: true }).click();
-  await expect(page).toHaveURL(`/q/${qrToken}?newOrder=1`);
+  await expect(page).toHaveURL(`/q/${qrToken}`);
+  await expect(page.getByText("已完成", { exact: true })).toHaveCount(0);
+  await expect.poll(() => sessionRequestCount).toBeGreaterThan(0);
   await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), recoveryKey))
     .toBeNull();
 });

@@ -65,6 +65,57 @@ const lotteryDiscountChancesSchema = z.array(z.object({
     }
   });
 
+export const lotteryFestivalCampaignsSchema = z.array(z.object({
+  id: uuid,
+  name: z.string().trim()
+    .min(1, "請輸入節慶活動名稱。")
+    .max(80, "節慶活動名稱不可超過 80 個字元。"),
+  isEnabled: z.boolean(),
+  startsOn: date,
+  endsOn: date,
+  productIds: z.array(uuid)
+    .max(100, "每個節慶活動最多可選 100 個商品。")
+    .refine((productIds) => new Set(productIds).size === productIds.length, "同一活動的商品不可重複。"),
+  sortOrder: z.number().int("活動排序必須是整數。")
+    .min(0, "活動排序不可小於 0。")
+    .max(10_000, "活動排序不可超過 10000。"),
+}).strict().superRefine((campaign, context) => {
+  if (campaign.endsOn < campaign.startsOn) {
+    context.addIssue({
+      code: "custom",
+      path: ["endsOn"],
+      message: "活動結束日期不可早於開始日期。",
+    });
+  }
+  if (campaign.isEnabled && campaign.productIds.length === 0) {
+    context.addIssue({
+      code: "custom",
+      path: ["productIds"],
+      message: "啟用活動前請至少選擇 1 個可抽商品。",
+    });
+  }
+}))
+  .max(20, "每個攤位最多可設定 20 個節慶活動。")
+  .superRefine((campaigns, context) => {
+    const normalizedNames = campaigns.map((campaign) => campaign.name.trim().toLocaleLowerCase("zh-TW"));
+    if (new Set(normalizedNames).size !== normalizedNames.length) {
+      context.addIssue({ code: "custom", message: "節慶活動名稱不可重複。" });
+    }
+    const enabledCampaigns = campaigns.filter((campaign) => campaign.isEnabled);
+    for (let leftIndex = 0; leftIndex < enabledCampaigns.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < enabledCampaigns.length; rightIndex += 1) {
+        const left = enabledCampaigns[leftIndex];
+        const right = enabledCampaigns[rightIndex];
+        if (left.startsOn <= right.endsOn && right.startsOn <= left.endsOn) {
+          context.addIssue({ code: "custom", message: "已啟用的節慶活動日期不可重疊。" });
+          return;
+        }
+      }
+    }
+  });
+
+export type LotteryFestivalCampaignInput = z.infer<typeof lotteryFestivalCampaignsSchema>[number];
+
 const moduleUpdateViewSchema = z.enum([
   "all",
   "dine-in",
@@ -110,6 +161,14 @@ export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
       error: "預約時段間隔只能選擇 5、15、30、60 或 120 分鐘。",
     }),
     lotteryEnabled: z.boolean(),
+    lotteryCampaignName: z.string().trim()
+      .min(1, "請輸入活動名稱。")
+      .max(80, "活動名稱不可超過 80 個字元。")
+      .default("抽抽樂"),
+    lotteryProductIds: z.array(uuid)
+      .max(100, "抽抽樂最多可選 100 個商品。")
+      .refine((productIds) => new Set(productIds).size === productIds.length, "抽抽樂商品不可重複。")
+      .default([]),
     lotteryDiscountOptionId: uuid.nullable(),
     lotteryDiscountWinRateBps: z.number().int("折扣中獎率必須是整數百分比。")
       .min(0, "折扣中獎率不可小於 0%。")
@@ -122,6 +181,7 @@ export const stallModuleCommandSchema = z.discriminatedUnion("operation", [
     lotteryFestivalRewardEnabled: z.boolean(),
     lotteryFestivalStartsOn: date.nullable(),
     lotteryFestivalEndsOn: date.nullable(),
+    lotteryFestivalCampaigns: lotteryFestivalCampaignsSchema.optional(),
     lotteryBirthdayRewardEnabled: z.boolean().refine(
       (enabled) => !enabled,
       "壽星抽獎需先串接可驗證的會員生日，避免冒領，目前不能啟用。",
@@ -170,11 +230,14 @@ const fieldLabels: Record<string, string> = {
   preorderSlotMinutes: "預約時段間隔",
   checkoutUpsellProductIds: "推薦商品",
   lotteryDiscountOptionId: "中獎折扣",
+  lotteryCampaignName: "活動名稱",
+  lotteryProductIds: "抽抽樂商品",
   lotteryDiscountWinRateBps: "折扣中獎率",
   lotteryDiscountChances: "多折扣中獎率",
   lotterySpendThresholdAmount: "滿額抽獎門檻",
   lotteryFestivalStartsOn: "節慶開始日期",
   lotteryFestivalEndsOn: "節慶結束日期",
+  lotteryFestivalCampaigns: "節慶活動",
   lotteryBirthdayRewardEnabled: "壽星抽獎",
   enabledLocales: "QR 點餐語系",
   rateBps: "付款比例",
@@ -226,6 +289,8 @@ type ModuleSettingsForSave = {
   preorderMaxDays: number;
   preorderSlotMinutes: 5 | 15 | 30 | 60 | 120;
   lotteryEnabled: boolean;
+  lotteryCampaignName?: string;
+  lotteryProductIds?: string[];
   lotteryDiscountOptionId: string | null;
   lotteryDiscountWinRateBps: number;
   lotteryDiscountChances?: Array<{ discountOptionId: string; winRateBps: number }>;
@@ -234,6 +299,7 @@ type ModuleSettingsForSave = {
   lotteryFestivalRewardEnabled: boolean;
   lotteryFestivalStartsOn: string | null;
   lotteryFestivalEndsOn: string | null;
+  lotteryFestivalCampaigns?: LotteryFestivalCampaignInput[];
   lotteryBirthdayRewardEnabled: boolean;
 };
 

@@ -7,6 +7,7 @@ const sourceDiscountId = "44444444-4444-4444-8444-444444444444";
 const targetDiscountId = "55555555-5555-4555-8555-555555555555";
 const secondSourceDiscountId = "44444444-4444-4444-8444-444444444445";
 const secondTargetDiscountId = "55555555-5555-4555-8555-555555555556";
+const sourceProductId = "77777777-7777-4777-8777-777777777777";
 
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
@@ -21,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   discountFindMany: vi.fn(),
   executeRaw: vi.fn(),
   orderSessionUpdateMany: vi.fn(),
+  lotteryCampaignUpdateMany: vi.fn(),
+  lotteryCampaignCreateMany: vi.fn(),
   recordAuditEvent: vi.fn(),
   invalidatePublicMenu: vi.fn(),
 }));
@@ -74,16 +77,33 @@ const sourceTemplate = {
   ],
   stallProducts: [],
   businessHours: [],
+  lotteryFestivalCampaigns: [
+    {
+      id: "88888888-8888-4888-8888-888888888888",
+      organizationId,
+      stallId: sourceStallId,
+      name: "中秋節",
+      isEnabled: true,
+      startsOn: new Date("2026-09-20T00:00:00.000Z"),
+      endsOn: new Date("2026-09-27T00:00:00.000Z"),
+      productIds: [sourceProductId],
+      sortOrder: 0,
+      deletedAt: null,
+    },
+  ],
   settings: {
     paymentModuleEnabled: true,
     discountModuleEnabled: true,
     discountApprovalThresholdBps: 8000,
     staffDeliveryEnabled: true,
+    deliveryCustomerNotice: "請留意外送通知",
     takeoutPreorderEnabled: true,
     preorderMinLeadMinutes: 90,
     preorderMaxDays: 14,
     preorderSlotMinutes: 60,
     lotteryEnabled: true,
+    lotteryCampaignName: "抽抽樂",
+    lotteryProductIds: [sourceProductId],
     lotteryDiscountOptionId: sourceDiscountId,
     lotteryDiscountWinRateBps: 2500,
     lotterySpendRewardEnabled: true,
@@ -143,6 +163,10 @@ beforeEach(() => {
       findMany: mocks.discountFindMany,
     },
     orderSession: { updateMany: mocks.orderSessionUpdateMany },
+    stallLotteryCampaign: {
+      updateMany: mocks.lotteryCampaignUpdateMany,
+      createMany: mocks.lotteryCampaignCreateMany,
+    },
     $executeRaw: mocks.executeRaw,
   }));
 });
@@ -177,11 +201,14 @@ describe("stall template ordering experience linkage", () => {
       where: { stallId: targetStallId },
       data: {
         staffDeliveryEnabled: true,
+        deliveryCustomerNotice: "請留意外送通知",
         takeoutPreorderEnabled: true,
         preorderMinLeadMinutes: 90,
         preorderMaxDays: 14,
         preorderSlotMinutes: 60,
         lotteryEnabled: true,
+        lotteryCampaignName: "抽抽樂",
+        lotteryProductIds: [sourceProductId],
         lotteryDiscountOptionId: targetDiscountId,
         lotteryDiscountWinRateBps: 2500,
         lotterySpendRewardEnabled: true,
@@ -193,6 +220,24 @@ describe("stall template ordering experience linkage", () => {
       },
     });
     expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
+    expect(mocks.lotteryCampaignUpdateMany).toHaveBeenCalledWith({
+      where: { organizationId, stallId: targetStallId, deletedAt: null },
+      data: { deletedAt: expect.any(Date), isEnabled: false },
+    });
+    expect(mocks.lotteryCampaignCreateMany).toHaveBeenCalledWith({
+      data: [
+        {
+          organizationId,
+          stallId: targetStallId,
+          name: "中秋節",
+          isEnabled: true,
+          startsOn: new Date("2026-09-20T00:00:00.000Z"),
+          endsOn: new Date("2026-09-27T00:00:00.000Z"),
+          productIds: [sourceProductId],
+          sortOrder: 0,
+        },
+      ],
+    });
   });
 
   it("remaps an existing lottery discount when only discount options are copied", async () => {

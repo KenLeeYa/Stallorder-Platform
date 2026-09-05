@@ -167,6 +167,100 @@ describe("stall module field validation", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts one stall-scoped lottery campaign name and unique product list", () => {
+    const productIds = [
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+    ];
+    expect(stallModuleCommandSchema.safeParse({
+      ...validModuleCommand(),
+      lotteryCampaignName: "一中夜市幸運抽",
+      lotteryProductIds: productIds,
+    }).success).toBe(true);
+    expect(stallModuleCommandSchema.safeParse({
+      ...validModuleCommand(),
+      lotteryCampaignName: "   ",
+      lotteryProductIds: productIds,
+    }).success).toBe(false);
+    expect(stallModuleCommandSchema.safeParse({
+      ...validModuleCommand(),
+      lotteryCampaignName: "一中夜市幸運抽",
+      lotteryProductIds: [productIds[0], productIds[0]],
+    }).success).toBe(false);
+  });
+
+  it("accepts multiple named festival campaigns with separate product pools", () => {
+    const result = stallModuleCommandSchema.safeParse({
+      ...validModuleCommand(),
+      lotteryFestivalCampaigns: [
+        {
+          id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
+          name: "中秋加碼抽",
+          isEnabled: true,
+          startsOn: "2026-09-20",
+          endsOn: "2026-09-27",
+          productIds: ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1"],
+          sortOrder: 0,
+        },
+        {
+          id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc2",
+          name: "雙十限定抽",
+          isEnabled: true,
+          startsOn: "2026-10-08",
+          endsOn: "2026-10-12",
+          productIds: ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2"],
+          sortOrder: 1,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects duplicate names, invalid dates, empty prize pools, and overlapping festival campaigns", () => {
+    const result = stallModuleCommandSchema.safeParse({
+      ...validModuleCommand(),
+      lotteryFestivalCampaigns: [
+        {
+          id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1",
+          name: "節慶抽獎",
+          isEnabled: true,
+          startsOn: "2026-10-10",
+          endsOn: "2026-10-01",
+          productIds: [],
+          sortOrder: 0,
+        },
+        {
+          id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc2",
+          name: "節慶抽獎",
+          isEnabled: true,
+          startsOn: "2026-10-05",
+          endsOn: "2026-10-12",
+          productIds: ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2"],
+          sortOrder: 1,
+        },
+        {
+          id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc3",
+          name: "重疊活動",
+          isEnabled: true,
+          startsOn: "2026-10-10",
+          endsOn: "2026-10-15",
+          productIds: ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3"],
+          sortOrder: 2,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues.map((issue) => issue.message)).toEqual(expect.arrayContaining([
+      "活動結束日期不可早於開始日期。",
+      "啟用活動前請至少選擇 1 個可抽商品。",
+      "節慶活動名稱不可重複。",
+      "已啟用的節慶活動日期不可重疊。",
+    ]));
+  });
+
   it("rejects duplicate lottery discounts and a combined chance above 100 percent", () => {
     const duplicate = stallModuleCommandSchema.safeParse({
       ...validModuleCommand(),
@@ -261,6 +355,8 @@ function validModuleCommand() {
     preorderMaxDays: 7,
     preorderSlotMinutes: 5 as const,
     lotteryEnabled: true,
+    lotteryCampaignName: "抽抽樂",
+    lotteryProductIds: ["bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1"],
     lotteryDiscountOptionId: null,
     lotteryDiscountWinRateBps: 0,
     lotterySpendRewardEnabled: false,

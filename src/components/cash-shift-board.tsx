@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ContextualBackButton } from "@/components/contextual-back-button";
+import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
 import {
   ArrowDown,
   ArrowUp,
@@ -100,6 +101,7 @@ type CashShiftPermissions = {
 };
 
 type CashShiftAction = "OPEN" | "MOVE" | "REFUND" | "CLOSE";
+type CashHistoryPreset = "TODAY" | "YESTERDAY" | "WEEK" | "MONTH" | "CUSTOM";
 
 export function CashShiftBoard({
   stall,
@@ -130,9 +132,12 @@ export function CashShiftBoard({
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>("success");
   const [activeAction, setActiveAction] = useState<CashShiftAction | null>(null);
-  const [historyDateFrom, setHistoryDateFrom] = useState("");
-  const [historyDateTo, setHistoryDateTo] = useState("");
+  const initialHistoryDate = calendarDateInTimeZone(new Date(), "Asia/Taipei");
+  const [historyPreset, setHistoryPreset] = useState<CashHistoryPreset>("TODAY");
+  const [historyDateFrom, setHistoryDateFrom] = useState(initialHistoryDate);
+  const [historyDateTo, setHistoryDateTo] = useState(initialHistoryDate);
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPageSize, setHistoryPageSize] = useState<OperationsPageSize>(5);
   const actionTriggerRef = useRef<HTMLElement | null>(null);
@@ -184,9 +189,11 @@ export function CashShiftBoard({
       const payload = await response.json();
       if (!response.ok) throw new Error(t(getOperationsErrorMessageKey(payload.code, "cash.error.update")));
       applyPayload(payload);
+      setMessageKind("success");
       setMessage(successMessage);
       return true;
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error ? error.message : t("staff.error.network"));
       return false;
     } finally {
@@ -324,9 +331,11 @@ export function CashShiftBoard({
         ...input,
       });
       await refreshOfflineSnapshot();
+      setMessageKind("success");
       setMessage(successMessage);
       return true;
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error
         ? offlineCashErrorMessage(error.message, t)
         : t("cash.error.offlineGeneric"));
@@ -342,6 +351,7 @@ export function CashShiftBoard({
   ) {
     const comment = reviewComments[shiftId]?.trim() || null;
     if (decision !== "APPROVED" && !comment) {
+      setMessageKind("error");
       setMessage(t("cash.review.reasonRequired"));
       return;
     }
@@ -392,13 +402,19 @@ export function CashShiftBoard({
     historyPagination.page * historyPagination.pageSize,
   );
 
-  function applyHistoryPreset(preset: "DAY" | "WEEK" | "MONTH") {
+  function applyHistoryPreset(preset: Exclude<CashHistoryPreset, "CUSTOM">) {
     const today = calendarDateInTimeZone(new Date(), "Asia/Taipei");
     const start = new Date(`${today}T00:00:00.000Z`);
+    const end = new Date(start);
+    if (preset === "YESTERDAY") {
+      start.setUTCDate(start.getUTCDate() - 1);
+      end.setUTCDate(end.getUTCDate() - 1);
+    }
     if (preset === "WEEK") start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
     if (preset === "MONTH") start.setUTCDate(1);
+    setHistoryPreset(preset);
     setHistoryDateFrom(start.toISOString().slice(0, 10));
-    setHistoryDateTo(today);
+    setHistoryDateTo(end.toISOString().slice(0, 10));
     setHistoryPage(1);
   }
 
@@ -415,7 +431,7 @@ export function CashShiftBoard({
     </header>
 
     {!permissions.canManage ? <p className="mt-4 border-l-4 border-stone-300 pl-3 text-sm text-stone-600">{t("cash.readOnly")}</p> : null}
-    {message && !activeAction ? <p role="status" aria-live="polite" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
+    {message && !activeAction ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
     <OfflineQueueStatus
       stallId={stall.id}
       stallSlug={stall.slug}
@@ -503,18 +519,15 @@ export function CashShiftBoard({
     <section className="border-t border-stone-200 py-6">
       <div className="flex items-center gap-2"><CircleDollarSign className="h-5 w-5 text-teal-700" /><h2 className="text-xl font-semibold">{t("cash.historyTitle")}</h2></div>
       <div data-testid="cash-history-filters" className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3 sm:p-4">
-        <div className="grid grid-cols-3 gap-2" aria-label={t("cash.historyPresets")}>
-          <button type="button" onClick={() => applyHistoryPreset("DAY")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800">{t("cash.historyDay")}</button>
-          <button type="button" onClick={() => applyHistoryPreset("WEEK")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800">{t("cash.historyWeek")}</button>
-          <button type="button" onClick={() => applyHistoryPreset("MONTH")} className="min-h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800">{t("cash.historyMonth")}</button>
+        <div className="flex flex-wrap gap-2" aria-label={t("cash.historyPresets")}>
+          {(["TODAY", "YESTERDAY", "WEEK", "MONTH", "CUSTOM"] as const).map((preset) => <button key={preset} type="button" aria-pressed={historyPreset === preset} onClick={() => preset === "CUSTOM" ? setHistoryPreset("CUSTOM") : applyHistoryPreset(preset)} className={`min-h-11 rounded-lg px-3 text-sm font-semibold ${historyPreset === preset ? "bg-stone-900 text-white" : "border border-stone-300 bg-white text-stone-800"}`}>{preset === "TODAY" ? t("cash.historyDay") : preset === "YESTERDAY" ? t("cash.historyYesterday") : preset === "WEEK" ? t("cash.historyWeek") : preset === "MONTH" ? t("cash.historyMonth") : t("cash.historyCustom")}</button>)}
         </div>
-        <div className="mt-3 grid gap-2 min-[420px]:grid-cols-[1fr_auto_1fr] min-[420px]:items-end">
+        {historyPreset === "CUSTOM" ? <div className="mt-3 grid gap-2 min-[420px]:grid-cols-[1fr_auto_1fr] min-[420px]:items-end">
           <label className="text-xs font-semibold text-stone-600">{t("cash.historyDateFrom")}<input data-testid="cash-history-date-from" type="date" value={historyDateFrom} onChange={(event) => { setHistoryDateFrom(event.target.value); setHistoryPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900" /></label>
           <span className="hidden pb-3 text-center text-sm text-stone-500 min-[420px]:block">{t("cash.historyTo")}</span>
           <label className="text-xs font-semibold text-stone-600">{t("cash.historyDateTo")}<input data-testid="cash-history-date-to" type="date" min={historyDateFrom || undefined} value={historyDateTo} onChange={(event) => { setHistoryDateTo(event.target.value); setHistoryPage(1); }} className="mt-1 h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-900" /></label>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <button type="button" onClick={() => { setHistoryDateFrom(""); setHistoryDateTo(""); setHistoryPage(1); }} className="min-h-10 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700">{t("cash.historyAll")}</button>
+        </div> : <p className="mt-3 text-sm text-stone-600">{historyDateFrom} {t("cash.historyDateRangeTo")} {historyDateTo}</p>}
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
           <CashHistoryPageSizeSelect locale={locale} t={t} value={historyPageSize} onChange={(value) => { setHistoryPageSize(value); setHistoryPage(1); }} />
         </div>
       </div>

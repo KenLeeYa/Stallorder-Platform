@@ -19,7 +19,16 @@ export const applyStallTemplateSchema = z.object({
 }).strict();
 
 export async function loadStallTemplateData(stallId: string, organizationId: string) {
-  const [stall, paymentOptions, discounts, stallProducts, businessHours, settings, lotteryDiscountChances] = await Promise.all([
+  const [
+    stall,
+    paymentOptions,
+    discounts,
+    stallProducts,
+    businessHours,
+    settings,
+    lotteryDiscountChances,
+    lotteryFestivalCampaigns,
+  ] = await Promise.all([
     prisma.stall.findFirstOrThrow({ where: { id: stallId, organizationId }, select: { id: true, name: true } }),
     prisma.paymentOption.findMany({ where: { stallId, organizationId }, orderBy: [{ sortOrder: "asc" }, { code: "asc" }] }),
     prisma.discountOption.findMany({ where: { stallId, organizationId }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
@@ -42,6 +51,8 @@ export async function loadStallTemplateData(stallId: string, organizationId: str
         preorderMaxDays: true,
         preorderSlotMinutes: true,
         lotteryEnabled: true,
+        lotteryCampaignName: true,
+        lotteryProductIds: true,
         lotteryDiscountOptionId: true,
         lotteryDiscountWinRateBps: true,
         lotterySpendRewardEnabled: true,
@@ -64,6 +75,10 @@ export async function loadStallTemplateData(stallId: string, organizationId: str
       where chance.stall_id = ${stallId}::uuid
       order by discount.sort_order, discount.id
     `,
+    prisma.stallLotteryCampaign.findMany({
+      where: { organizationId, stallId, deletedAt: null },
+      orderBy: [{ sortOrder: "asc" }, { startsOn: "asc" }, { id: "asc" }],
+    }),
   ]);
   return {
     stall,
@@ -72,6 +87,7 @@ export async function loadStallTemplateData(stallId: string, organizationId: str
     stallProducts,
     businessHours,
     settings,
+    lotteryFestivalCampaigns,
     lotteryDiscountChances: lotteryDiscountChances.length > 0
       ? lotteryDiscountChances
       : settings.lotteryDiscountOptionId && settings.lotteryDiscountWinRateBps > 0
@@ -148,7 +164,7 @@ function orderingExperienceDiff(
     ["時段間隔", `${source.settings.preorderSlotMinutes} 分鐘`, `${target.settings.preorderSlotMinutes} 分鐘`],
     ["抽抽樂", enabledLabel(source.settings.lotteryEnabled), enabledLabel(target.settings.lotteryEnabled)],
     ["滿額免費抽獎", source.settings.lotterySpendRewardEnabled ? `${source.settings.lotterySpendThresholdAmount} 元` : "停用", target.settings.lotterySpendRewardEnabled ? `${target.settings.lotterySpendThresholdAmount} 元` : "停用"],
-    ["節慶免費抽獎", festivalRewardLabel(source.settings), festivalRewardLabel(target.settings)],
+    ["節慶免費抽獎", festivalRewardLabel(source), festivalRewardLabel(target)],
     ["折扣獎項", sourceDiscounts, targetDiscounts],
   ];
   return values
@@ -156,11 +172,16 @@ function orderingExperienceDiff(
     .map(([label, sourceValue, targetValue]) => `${label}：${targetValue} → ${sourceValue}`);
 }
 
-function festivalRewardLabel(settings: {
-  lotteryFestivalRewardEnabled: boolean;
-  lotteryFestivalStartsOn: Date | null;
-  lotteryFestivalEndsOn: Date | null;
-}) {
+function festivalRewardLabel(data: Awaited<ReturnType<typeof loadStallTemplateData>>) {
+  if (data.lotteryFestivalCampaigns.length > 0) {
+    return data.lotteryFestivalCampaigns
+      .map((campaign) => (
+        `${campaign.name} ${campaign.startsOn.toISOString().slice(0, 10)}～${campaign.endsOn.toISOString().slice(0, 10)}`
+        + `（${campaign.productIds.length} 項商品，${campaign.isEnabled ? "啟用" : "停用"}）`
+      ))
+      .join("、");
+  }
+  const { settings } = data;
   if (!settings.lotteryFestivalRewardEnabled) return "停用";
   const startsOn = settings.lotteryFestivalStartsOn?.toISOString().slice(0, 10) ?? "未設定";
   const endsOn = settings.lotteryFestivalEndsOn?.toISOString().slice(0, 10) ?? "未設定";

@@ -9,6 +9,7 @@ function source(relativePath: string) {
 }
 
 const reportNavigation = source("./report-navigation.tsx");
+const reportExportButton = source("./report-export-button.tsx");
 const reportMessages = source("../lib/messages/reports.ts");
 const merchantMessages = source("../lib/messages/merchant.ts");
 const merchantHeader = source("./merchant-workspace-header.tsx");
@@ -55,10 +56,26 @@ describe("merchant report behavior contract", () => {
   });
 
   it("reuses the stall report day, week, and month query controls for operating profit", () => {
-    expect(reportNavigation).toContain('applyPreset(preset: "day" | "week" | "month")');
+    expect(reportNavigation).toContain('applyPreset(nextPreset: Exclude<DatePreset, "CUSTOM">)');
+    expect(reportNavigation).toContain('["TODAY", "YESTERDAY", "WEEK", "MONTH", "CUSTOM"]');
     expect(operatingProfitPage).toContain('multiStallMode={workspace.operatingMode === "MULTI_STALL"}');
     expect(operatingProfitDashboard).toContain("<ReportFilters");
     expect(operatingProfitDashboard).toContain("showExport={false}");
+  });
+
+  it("places apply and export immediately after custom with compact phone labels", () => {
+    const customIndex = reportNavigation.indexOf('value === "CUSTOM"');
+    const actionsIndex = reportNavigation.indexOf('data-testid="report-filter-actions"');
+    expect(reportNavigation).toContain('data-testid="report-date-action-row"');
+    expect(reportNavigation).toContain('data-testid="report-date-action-scroll"');
+    expect(reportNavigation).toContain("grid min-w-0");
+    expect(reportNavigation).toContain("w-full min-w-0 max-w-full overflow-x-auto");
+    expect(reportNavigation).toContain("min-w-0 max-w-full overflow-x-hidden");
+    expect(actionsIndex).toBeGreaterThan(customIndex);
+    expect(reportNavigation).toContain("ml-auto flex shrink-0");
+    expect(reportNavigation).toContain("sr-only sm:not-sr-only");
+    expect(reportExportButton).toContain("sr-only sm:not-sr-only");
+    expect(reportExportButton).toContain('aria-label={t("reports.export.action")}');
   });
 
   it("keeps long operating-profit data panels collapsible", () => {

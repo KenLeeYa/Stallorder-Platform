@@ -26,4 +26,10 @@ describe("workforce large action flow", () => {
     expect(source).toContain('hidden={activeAction !== "policy"}');
     expect(source).not.toContain("<details");
   });
+
+  it("shares report date presets and centered operation feedback", () => {
+    expect(source).toContain("<ReportFilters");
+    expect(source).toContain("showExport={false}");
+    expect(source).toContain("<SettingsFeedbackDialog");
+  });
 });

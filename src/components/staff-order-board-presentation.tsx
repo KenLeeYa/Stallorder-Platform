@@ -1,6 +1,7 @@
 "use client";
 
 import type { OrderItemStatus, OrderStatus, UserRole } from "@prisma/client";
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -248,7 +249,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
   } = props;
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-4 py-3 md:px-8 md:py-5">
+    <main className="mx-auto min-h-screen w-full max-w-[1600px] px-4 py-3 md:px-6 md:py-5 xl:px-8">
       <StaffOrderBoardToolbar
         stall={stall}
         account={account}
@@ -608,10 +609,130 @@ type StaffTicketListProps = Pick<
 };
 
 function StaffTicketList(props: StaffTicketListProps) {
-  return <div className="mt-6 grid gap-4 md:grid-cols-2 print:block"><div className="md:col-span-2 print:hidden"><h2 className="text-lg font-semibold">{props.t("staff.today.title")}</h2><p className="mt-1 text-sm text-stone-600">{props.t("staff.today.description")}</p></div>{props.orders.map((order) => <StaffOrderTicket key={order.id} {...props} order={order} />)}</div>;
+  const [selectedOrderId, setSelectedOrderId] = useState(props.orders[0]?.id ?? null);
+  const selectedOrder = props.orders.find((order) => order.id === selectedOrderId) ?? props.orders[0] ?? null;
+
+  return <section className="mt-6 print:block">
+    <div className="print:hidden"><h2 className="text-lg font-semibold">{props.t("staff.today.title")}</h2><p className="mt-1 text-sm text-stone-600">{props.t("staff.today.description")}</p></div>
+    <div className="mt-4 grid gap-4 md:hidden print:block" data-testid="staff-order-mobile-list">
+      {props.orders.map((order) => <StaffOrderTicket key={order.id} {...props} order={order} />)}
+    </div>
+    {selectedOrder ? <div data-testid="staff-order-master-detail" className="mt-4 hidden min-h-[32rem] gap-4 md:grid md:h-[calc(100dvh-14rem)] md:grid-cols-[minmax(13rem,0.78fr)_minmax(0,1.25fr)_minmax(12rem,0.82fr)] print:hidden">
+      <nav aria-label={props.t("staff.today.title")} className="min-h-0 overflow-y-auto rounded-xl border border-stone-200 bg-stone-50 p-2" data-testid="staff-order-list-pane">
+        <div className="grid gap-2">
+          {props.orders.map((order) => {
+            const selected = order.id === selectedOrder.id;
+            const timing = props.orderProductionTimings.get(order.id);
+            return <button key={order.id} type="button" aria-current={selected ? "true" : undefined} onClick={() => setSelectedOrderId(order.id)} className={`min-h-24 rounded-lg border p-3 text-left ${selected ? "border-teal-700 bg-teal-50 ring-2 ring-teal-200" : "border-stone-200 bg-white hover:border-stone-400"}`}>
+              <span className="flex items-center justify-between gap-2"><strong className="text-sm">{props.t("staff.order.number", { number: order.orderNo })}</strong><span className="rounded bg-white px-2 py-0.5 text-xs font-semibold text-teal-800">{contextualOrderStatusLabel(order, props.t)}</span></span>
+              <span className="mt-2 block truncate text-sm font-semibold">{order.customerName}</span>
+              <span className="mt-1 block text-xs text-stone-600">{orderTimingSummary(order, timing, props.now, props.stall.timezone, props.locale, props.t)}</span>
+              <span className="mt-2 block text-xs font-semibold text-stone-800">{props.t("common.portions", { count: order.items.reduce((sum, item) => sum + item.quantity, 0) })} · {formatMoney(order.total, props.currency, props.locale)}</span>
+            </button>;
+          })}
+        </div>
+      </nav>
+      <StaffOrderTicket {...props} order={selectedOrder} desktopWorkspace />
+    </div> : null}
+  </section>;
 }
 
-function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now, selectedItemIds, updatingOrderId, updatingItemId, updatingItemsOrderId, cancellation, timeProposal, actions, stall, locale, t, orderProductionTimings, reminderOrderIds, expandedOrderIds, editableOrderIds }: StaffTicketListProps & { order: StaffOrderDto }) {
+type StaffOrderTicketProps = StaffTicketListProps & {
+  order: StaffOrderDto;
+  desktopWorkspace?: boolean;
+};
+
+type StaffSelectedOrderWorkspaceProps = StaffOrderTicketProps & {
+  waitingForPrintCompletion: boolean;
+  printNeedsAttention: boolean;
+  requiresManualPublicReady: boolean;
+  streamlinedCheckoutEligible: boolean;
+  qrPrepaymentEligible: boolean;
+  qrCompletionEligible: boolean;
+  customerPresentCheckoutEligible: boolean;
+};
+
+function StaffSelectedOrderWorkspace({
+  order,
+  currency,
+  role,
+  printEnabled,
+  kdsEnabled,
+  selectedItemIds,
+  updatingOrderId,
+  updatingItemId,
+  updatingItemsOrderId,
+  cancellation,
+  timeProposal,
+  actions,
+  stall,
+  locale,
+  t,
+  reminderOrderIds,
+  editableOrderIds,
+  waitingForPrintCompletion,
+  printNeedsAttention,
+  requiresManualPublicReady,
+  streamlinedCheckoutEligible,
+  qrPrepaymentEligible,
+  qrCompletionEligible,
+  customerPresentCheckoutEligible,
+}: StaffSelectedOrderWorkspaceProps) {
+  const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  const statusActions = staffStatusOptions
+    .filter((option) => canTransitionOrder(order.status, option.value, role))
+    .filter((option) => !["PREPARING", "PACKING", "READY", "COMPLETED"].includes(option.value))
+    .filter((option) => order.source !== "OFFLINE_POS" || option.value === "CANCELLED");
+  const regularStatusActions = statusActions.filter((option) => option.value !== "CANCELLED");
+  const cancelStatusAction = statusActions.find((option) => option.value === "CANCELLED");
+  const primaryActionClass = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50";
+  const secondaryActionClass = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50";
+
+  return <>
+    <section aria-labelledby={`staff-order-items-title-${order.id}`} className="min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white" data-testid="staff-order-items-pane">
+      <div className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur">
+        <div className="flex items-center justify-between gap-3">
+          <h2 id={`staff-order-items-title-${order.id}`} className="text-base font-bold">{t("staff.order.items")}</h2>
+          <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-700">{t("common.portions", { count: itemCount })}</span>
+        </div>
+        {kdsEnabled && order.status !== "WAITING_CONFIRMATION" ? <div className="mt-3 flex flex-wrap gap-2 print:hidden">{order.items.some((item) => item.status === "PENDING") && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState) && canTransitionOrderItem("PENDING", "PREPARING", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "PREPARING")} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md bg-amber-700 px-3 text-xs font-semibold text-white disabled:opacity-50"><Play className="h-4 w-4" />{t("staff.order.allStart", { count: order.items.filter((item) => item.status === "PENDING").length })}</button> : null}{order.items.some((item) => item.status === "PREPARING") && canTransitionOrderItem("PREPARING", "READY", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "READY")} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><CheckCheck className="h-4 w-4" />{t("staff.order.allReady", { count: order.items.filter((item) => item.status === "PREPARING").length })}</button> : null}{order.items.some((item) => item.status === "READY") && canTransitionOrderItem("READY", "SERVED", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "SERVED")} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><PackageCheck className="h-4 w-4" />{t(order.fulfillmentType === "DINE_IN" ? "staff.order.allServed" : order.fulfillmentType === "DELIVERY" ? "staff.order.allDelivered" : "staff.order.allPickedUp", { count: order.items.filter((item) => item.status === "READY").length })}</button> : null}</div> : null}
+      </div>
+      <div className="p-4">
+        <ul className="divide-y divide-stone-200" data-testid="staff-order-item-list">{order.items.map((item) => { const selectable = kdsEnabled && order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, role) && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)); return <li key={item.id} className="relative grid gap-3 py-4">{selectable ? <input type="checkbox" aria-label={t("staff.order.selectItem", { order: order.orderNo, item: item.name })} checked={selectedItemIds.has(item.id)} onChange={(event) => actions.onToggleSelectedItem(item.id, event.target.checked)} className="absolute left-0 top-4 h-4 w-4 print:hidden" /> : null}<div className={`min-w-0 ${selectable ? "pl-7" : ""}`}><div className="flex items-start justify-between gap-3"><span className="min-w-0 break-words font-semibold">{item.quantity} × {item.name}</span><span className="shrink-0 font-semibold">{formatMoney(item.unitPrice * item.quantity, currency, locale)}</span></div>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs leading-5 text-teal-800">{formatStaffNoteOptions(locale, item.noteOptions, currency, true)}</p> : null}{item.note ? <p className="mt-1 text-xs leading-5 text-stone-600">{t("staff.order.note", { note: item.note })}</p> : null}{kdsEnabled ? <span className={`mt-2 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${item.status === "SERVED" ? "bg-emerald-50 text-emerald-800" : item.status === "READY" ? "bg-blue-50 text-blue-800" : item.status === "PREPARING" ? "bg-amber-50 text-amber-800" : "bg-stone-100 text-stone-600"}`}>{orderItemStatusLabel(item.status, t)}</span> : null}</div>{kdsEnabled && order.source !== "OFFLINE_POS" && item.status !== "SERVED" && order.status !== "WAITING_CONFIRMATION" && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)) ? <div className="flex justify-end"><ItemStatusButton itemStatus={item.status} role={role} busy={updatingItemId === item.id || updatingItemsOrderId === order.id} t={t} onUpdate={(status) => void actions.onUpdateItemStatus(order.id, item.id, status)} /></div> : null}</li>; })}</ul>
+      </div>
+    </section>
+
+    <aside aria-labelledby={`staff-order-actions-title-${order.id}`} className="min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-stone-50" data-testid="staff-order-actions-pane">
+      <div className="sticky top-0 z-10 border-b border-stone-200 bg-stone-50/95 px-4 py-3 backdrop-blur">
+        <h2 id={`staff-order-actions-title-${order.id}`} className="text-base font-bold">{t("staff.order.actions")}</h2>
+        <div className="mt-2 flex items-end justify-between gap-3"><div>{order.discountAmount > 0 ? <p className="text-xs text-stone-500">{t("staff.order.originalPrice", { amount: formatMoney(order.subtotal, currency, locale) })} · {order.discountLabel}</p> : null}<strong className="text-xl">{formatMoney(order.total, currency, locale)}</strong></div><span className="text-xs font-semibold text-stone-600">{paymentStatusLabel(order.paymentStatus, t)}</span></div>
+      </div>
+      <div className="space-y-3 p-4" data-testid="staff-order-primary-actions">
+        {reminderOrderIds.has(order.id) ? <p className="rounded-md bg-amber-100 px-3 py-2 text-xs font-bold text-amber-950">{t("staff.preorder.reminderBadge")}</p> : null}
+        {order.note ? <p className="rounded-md bg-amber-50 p-3 text-sm leading-6 text-amber-900">{t("staff.order.orderNote", { note: order.note })}</p> : null}
+        {qrPrepaymentEligible && hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onOpenCheckout(order)} className={primaryActionClass}><WalletCards className="h-4 w-4" />{t("staff.order.collectPayment")}</button> : null}
+        {qrCompletionEligible && hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onOpenCheckout(order)} className={primaryActionClass}><CheckCheck className="h-4 w-4" />{t("staff.checkout.completeOrder")}</button> : null}
+        {streamlinedCheckoutEligible && !waitingForPrintCompletion && hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className={primaryActionClass}><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : printEnabled ? t("staff.order.printAndComplete") : t("staff.checkout.completeOrder")}</button> : null}
+        {kdsEnabled && order.source !== "QR_MENU" && order.status === "READY" && hasPermission(role, "CHECKOUT_ORDERS") && (order.fulfillmentType !== "DINE_IN" || order.items.every((item) => item.status === "SERVED")) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => order.paymentStatus === "PAID" ? void actions.onUpdateOrder(order.id, "COMPLETED") : void actions.onOpenCheckout(order)} className={primaryActionClass}><WalletCards className="h-4 w-4" />{order.paymentStatus === "UNPAID" ? t("staff.order.checkoutForCustomer") : t("staff.checkout.completeOrder")}</button> : null}
+        {customerPresentCheckoutEligible ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onCheckoutCustomerPresent(order)} className={primaryActionClass}><WalletCards className="h-4 w-4" />{t("staff.order.customerPresentCheckout")}</button> : null}
+        {requiresManualPublicReady && canTransitionOrder(order.status, "READY", role) ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onUpdateOrder(order.id, "READY")} className={primaryActionClass}><CheckCheck className="h-4 w-4" />{t(order.fulfillmentType === "DELIVERY" ? "staff.order.finishAndNotifyDelivery" : "staff.order.finishAndNotifyPickup")}</button> : null}
+        {regularStatusActions.map((option) => <button key={option.value} type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onUpdateOrder(order.id, option.value)} className={secondaryActionClass}>{staffStatusActionLabel(option.value, t)}</button>)}
+        {waitingForPrintCompletion ? <Link href={`/staff/${stall.slug}/print`} className={`${secondaryActionClass} ${printNeedsAttention ? "border-red-300 bg-red-50 text-red-800" : "border-teal-300 bg-teal-50 text-teal-900"}`}><Printer className="h-4 w-4" />{t(printNeedsAttention ? "staff.order.printNeedsAttention" : "staff.order.waitingForPrint")}</Link> : null}
+        {printEnabled && kdsEnabled && !order.isTest ? <button type="button" onClick={() => void actions.onPrintOrder(order.id)} className={secondaryActionClass}><Printer className="h-4 w-4" />{t("staff.order.queuePrint")}</button> : null}
+        {editableOrderIds.has(order.id) ? <button type="button" onClick={() => actions.onOpenOrderEditor(order)} className={secondaryActionClass}><Pencil className="h-4 w-4" />{t("staff.order.edit")}</button> : null}
+
+        {order.fulfillmentType !== "DINE_IN" && order.fulfillmentTimeState !== "NOT_REQUESTED" ? <div className={`rounded-md border px-3 py-3 text-sm ${order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? "border-amber-300 bg-amber-50 text-amber-950" : order.fulfillmentTimeState === "DECLINED" || order.fulfillmentTimeState === "EXPIRED" ? "border-red-200 bg-red-50 text-red-900" : "border-teal-200 bg-teal-50 text-teal-950"}`}><div className="flex items-start gap-2"><Clock3 className="mt-0.5 h-4 w-4 shrink-0" /><div className="min-w-0 flex-1"><p className="font-semibold">{fulfillmentTimeTitle(order, locale, t)}</p>{order.fulfillmentTimeChangeReason ? <p className="mt-1 text-xs">{t("staff.order.reason", { reason: order.fulfillmentTimeChangeReason })}</p> : null}{order.fulfillmentTimeResponseExpiresAt && order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? <p className="mt-1 text-xs">{t("staff.order.replyBy", { time: formatStaffFulfillmentTime(order.fulfillmentTimeResponseExpiresAt, locale) })}</p> : null}</div></div>{order.source !== "OFFLINE_POS" && ["WAITING_CONFIRMATION", "CONFIRMED"].includes(order.status) ? <div className="mt-3 grid gap-2">{order.fulfillmentTimeState === "REQUESTED" ? <button type="button" disabled={updatingOrderId === order.id} onClick={() => void actions.onUpdateFulfillmentTime(order, { operation: "CONFIRM_REQUESTED", version: order.fulfillmentTimeVersion })} className="min-h-10 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50">{t("staff.order.acceptOriginalTime")}</button> : null}<button type="button" disabled={updatingOrderId === order.id || !timeProposal.canOpen} onClick={() => timeProposal.open(order)} className="min-h-10 rounded-md border border-current px-3 text-xs font-semibold disabled:opacity-40">{order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? t("staff.order.editProposal") : t("staff.order.proposeTime")}</button></div> : null}</div> : null}
+        {order.status === "WAITING_CONFIRMATION" ? <p className="rounded-md bg-amber-50 p-3 text-xs font-medium leading-5 text-amber-800">{t("staff.order.confirmBeforeProduction", { time: formatAppDateTime(locale, order.confirmationExpiresAt, { timeStyle: "short", timeZone: stall.timezone }) })}</p> : null}
+        {order.fulfillmentType === "DELIVERY" ? <div className="flex items-start gap-2 rounded-md border border-stone-200 bg-white px-3 py-3 text-sm"><Truck className="mt-0.5 h-4 w-4 shrink-0 text-teal-800" /><div className="min-w-0"><p className="break-words font-medium">{order.deliveryAddress || t("staff.delivery.noAddress")}</p>{order.customerPhone ? <p className="mt-1 text-stone-600">{order.customerPhone}</p> : <p className="mt-1 text-stone-500">{t("staff.delivery.noPhone")}</p>}</div></div> : null}
+        {order.status === "READY" && order.fulfillmentType === "TAKEOUT" && order.source === "QR_MENU" && order.pickupVerifiedAt && hasPermission(role, "CHECKOUT_ORDERS") ? <div className="flex items-center gap-2 rounded-md bg-teal-50 p-3 text-sm font-medium text-teal-800"><CheckCircle2 className="h-4 w-4" />{order.pickupVerificationMethod === "MANUAL" ? t("staff.pickup.manualVerified") : t("staff.pickup.codeVerified")}</div> : null}
+      </div>
+      {cancelStatusAction ? <div className="sticky bottom-0 border-t border-stone-200 bg-stone-50/95 p-4 backdrop-blur"><button type="button" disabled={updatingOrderId === order.id} aria-haspopup="dialog" onClick={() => cancellation.open({ id: order.id, orderNo: order.orderNo, customerName: order.customerName })} className="min-h-11 w-full rounded-md border border-red-300 bg-white px-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">{staffStatusActionLabel(cancelStatusAction.value, t)}</button></div> : null}
+    </aside>
+  </>;
+}
+
+function StaffOrderTicket(props: StaffOrderTicketProps) {
+  const { order, currency, role, printEnabled, kdsEnabled, now, selectedItemIds, updatingOrderId, updatingItemId, updatingItemsOrderId, cancellation, timeProposal, actions, stall, locale, t, orderProductionTimings, reminderOrderIds, expandedOrderIds, editableOrderIds, desktopWorkspace = false } = props;
   const timing = orderProductionTimings.get(order.id);
   const expanded = expandedOrderIds.has(order.id);
   const waitingForPrintCompletion = !kdsEnabled
@@ -662,6 +783,16 @@ function StaffOrderTicket({ order, currency, role, printEnabled, kdsEnabled, now
       (!kdsEnabled && ["WAITING_CONFIRMATION", "CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.status))
       || (kdsEnabled && order.status === "READY" && order.items.every((item) => item.status === "READY" || item.status === "SERVED"))
     );
+  if (desktopWorkspace) return <StaffSelectedOrderWorkspace
+    {...props}
+    waitingForPrintCompletion={waitingForPrintCompletion}
+    printNeedsAttention={printNeedsAttention}
+    requiresManualPublicReady={requiresManualPublicReady}
+    streamlinedCheckoutEligible={streamlinedCheckoutEligible}
+    qrPrepaymentEligible={qrPrepaymentEligible}
+    qrCompletionEligible={qrCompletionEligible}
+    customerPresentCheckoutEligible={customerPresentCheckoutEligible}
+  />;
   return (
     <article className={`rounded-lg border p-4 ${reminderOrderIds.has(order.id) ? "animate-pulse border-amber-500 ring-2 ring-amber-300" : orderAgeClasses(order, timing, now)}`}>
       {reminderOrderIds.has(order.id) ? <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-xs font-bold text-amber-950">{t("staff.preorder.reminderBadge")}</p> : null}

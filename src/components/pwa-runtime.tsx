@@ -42,6 +42,8 @@ type WakeLockSentinel = EventTarget & {
   release: () => Promise<void>;
 };
 
+const WAKE_LOCK_RELEASED_EVENT = "stallorder:wake-lock-released";
+
 type PwaContextValue = {
   online: boolean;
   quality: NetworkQuality;
@@ -128,6 +130,7 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
       sentinel.addEventListener("release", () => {
         if (wakeLockRef.current === sentinel) wakeLockRef.current = null;
         setWakeLockActive(false);
+        window.setTimeout(() => window.dispatchEvent(new Event(WAKE_LOCK_RELEASED_EVENT)), 0);
       }, { once: true });
       return true;
     } catch {
@@ -240,7 +243,15 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
       }
     };
     document.addEventListener("visibilitychange", restoreWakeLock);
-    return () => document.removeEventListener("visibilitychange", restoreWakeLock);
+    window.addEventListener("focus", restoreWakeLock);
+    window.addEventListener("pageshow", restoreWakeLock);
+    window.addEventListener(WAKE_LOCK_RELEASED_EVENT, restoreWakeLock);
+    return () => {
+      document.removeEventListener("visibilitychange", restoreWakeLock);
+      window.removeEventListener("focus", restoreWakeLock);
+      window.removeEventListener("pageshow", restoreWakeLock);
+      window.removeEventListener(WAKE_LOCK_RELEASED_EVENT, restoreWakeLock);
+    };
   }, [requestWakeLock]);
 
   const quality = detectedQuality(online, latencyMs);

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 
 test.use({ serviceWorkers: "block" });
@@ -14,6 +14,11 @@ const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 const takeoutQrToken = "demo-aming-chicken-qr-2026-rotate-me";
 const password = "StallOrderDemo!2026";
+const activeFestivalStartsOn = taipeiDateOffset(-1);
+const activeFestivalEndsOn = taipeiDateOffset(1);
+const overlappingFestivalStartsOn = activeFestivalEndsOn;
+const futureFestivalStartsOn = taipeiDateOffset(2);
+const futureFestivalEndsOn = taipeiDateOffset(4);
 
 type OrderingSettingsSnapshot = {
   dineInEnabled: boolean;
@@ -28,8 +33,22 @@ type OrderingSettingsSnapshot = {
   preorderMaxDays: number;
   preorderSlotMinutes: number;
   lotteryEnabled: boolean;
+  lotteryCampaignName: string;
+  lotteryProductIds: string[];
   lotteryDiscountOptionId: string | null;
   lotteryDiscountWinRateBps: number;
+  lotterySpendRewardEnabled: boolean;
+  lotterySpendThresholdAmount: number;
+  lotteryFestivalRewardEnabled: boolean;
+  lotteryFestivalStartsOn: Date | null;
+  lotteryFestivalEndsOn: Date | null;
+  lotteryBirthdayRewardEnabled: boolean;
+};
+
+type LotteryProductSnapshot = {
+  id: string;
+  name: string;
+  isLotteryEligible: boolean;
 };
 
 type StallSnapshot = {
@@ -58,22 +77,42 @@ type LotteryDiscountChanceSnapshot = {
   winRateBps: number;
 };
 
+type LotteryCampaignSnapshot = {
+  id: string;
+  organizationId: string;
+  stallId: string;
+  name: string;
+  isEnabled: boolean;
+  startsOn: Date;
+  endsOn: Date;
+  productIds: string[];
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+};
+
 let originalSettings: OrderingSettingsSnapshot | null = null;
 let originalStall: StallSnapshot | null = null;
 let originalHours: BusinessHourSnapshot[] = [];
 let originalQr: QrSnapshot | null = null;
 let originalLotteryDiscountChances: LotteryDiscountChanceSnapshot[] = [];
+let originalLotteryCampaigns: LotteryCampaignSnapshot[] = [];
+let lotteryProducts: LotteryProductSnapshot[] = [];
 let temporaryDiscountId = "";
 let temporaryDiscountName = "";
 let secondTemporaryDiscountId = "";
 let secondTemporaryDiscountName = "";
+let temporaryCampaignName = "";
+let temporaryFestivalCampaignName = "";
+let secondTemporaryFestivalCampaignName = "";
 const createdSessionTokenHashes = new Set<string>();
 
 test.describe("預約與抽抽樂設定的公開點餐整合", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
-    const [settings, stall, hours, qr, lotteryDiscountChances] = await Promise.all([
+    const [settings, stall, hours, qr, lotteryDiscountChances, campaigns, productAssignments] = await Promise.all([
       prisma.stallOrderingSettings.findUniqueOrThrow({
         where: { stallId },
         select: {
@@ -89,8 +128,16 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
           preorderMaxDays: true,
           preorderSlotMinutes: true,
           lotteryEnabled: true,
+          lotteryCampaignName: true,
+          lotteryProductIds: true,
           lotteryDiscountOptionId: true,
           lotteryDiscountWinRateBps: true,
+          lotterySpendRewardEnabled: true,
+          lotterySpendThresholdAmount: true,
+          lotteryFestivalRewardEnabled: true,
+          lotteryFestivalStartsOn: true,
+          lotteryFestivalEndsOn: true,
+          lotteryBirthdayRewardEnabled: true,
         },
       }),
       prisma.stall.findUniqueOrThrow({
@@ -120,6 +167,35 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
         where chance.stall_id = ${stallId}::uuid
         order by chance.discount_option_id
       `,
+      prisma.stallLotteryCampaign.findMany({
+        where: { stallId, organizationId },
+        select: {
+          id: true,
+          organizationId: true,
+          stallId: true,
+          name: true,
+          isEnabled: true,
+          startsOn: true,
+          endsOn: true,
+          productIds: true,
+          sortOrder: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
+        },
+      }),
+      prisma.stallProduct.findMany({
+        where: {
+          stallId,
+          organizationId,
+          isEnabled: true,
+          product: { isActive: true, kind: "SINGLE" },
+        },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          product: { select: { id: true, name: true, isLotteryEligible: true } },
+        },
+      }),
     ]);
 
     expect(hours).toHaveLength(7);
@@ -127,6 +203,9 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
     originalStall = stall;
     originalHours = hours;
     originalQr = qr;
+    originalLotteryCampaigns = campaigns;
+    lotteryProducts = productAssignments.map((assignment) => assignment.product);
+    expect(lotteryProducts.length).toBeGreaterThanOrEqual(2);
     originalLotteryDiscountChances = lotteryDiscountChances.length > 0
       ? lotteryDiscountChances
       : settings.lotteryDiscountOptionId && settings.lotteryDiscountWinRateBps > 0
@@ -137,6 +216,9 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
         : [];
     temporaryDiscountName = `整合測試九折 ${Date.now()}`;
     secondTemporaryDiscountName = `整合測試八折 ${Date.now()}`;
+    temporaryCampaignName = `一中幸運抽 ${Date.now()}`;
+    temporaryFestivalCampaignName = `冬季暖心抽 ${Date.now()}`;
+    secondTemporaryFestivalCampaignName = `跨年加碼抽 ${Date.now()}`;
 
     const [discount, secondDiscount] = await Promise.all([
       prisma.discountOption.create({
@@ -174,6 +256,8 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
           preorderMaxDays: 1,
           preorderSlotMinutes: 30,
           lotteryEnabled: false,
+          lotteryCampaignName: "抽抽樂",
+          lotteryProductIds: [],
           lotteryDiscountOptionId: null,
           lotteryDiscountWinRateBps: 0,
         },
@@ -182,6 +266,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
         delete from public.stall_lottery_discount_chances
         where stall_id = ${stallId}::uuid
       `,
+      prisma.stallLotteryCampaign.deleteMany({ where: { stallId, organizationId } }),
       prisma.stall.update({
         where: { id: stallId },
         data: {
@@ -205,6 +290,22 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
 
   test.afterAll(async () => {
     try {
+      if (createdSessionTokenHashes.size > 0) {
+        for (const tokenHash of createdSessionTokenHashes) {
+          await prisma.$executeRaw`
+            delete from public.public_lottery_draws draw
+            where exists (
+              select 1
+              from public.order_sessions session_record
+              where session_record.id = draw.order_session_id
+                and session_record.token_hash = ${tokenHash}
+            )
+          `;
+        }
+        await prisma.orderSession.deleteMany({
+          where: { tokenHash: { in: [...createdSessionTokenHashes] }, orderId: null },
+        });
+      }
       if (originalSettings) {
         await prisma.$transaction(async (transaction) => {
           await transaction.stallOrderingSettings.update({
@@ -234,6 +335,10 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
               ) as chance(discount_option_id uuid, win_rate_bps smallint)
             `;
           }
+          await transaction.stallLotteryCampaign.deleteMany({ where: { stallId, organizationId } });
+          if (originalLotteryCampaigns.length > 0) {
+            await transaction.stallLotteryCampaign.createMany({ data: originalLotteryCampaigns });
+          }
         });
       }
       if (originalStall) {
@@ -253,11 +358,10 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
           data: { state: originalQr.state, expiresAt: originalQr.expiresAt },
         });
       }
-      if (createdSessionTokenHashes.size > 0) {
-        await prisma.orderSession.deleteMany({
-          where: { tokenHash: { in: [...createdSessionTokenHashes] }, orderId: null },
-        });
-      }
+      await Promise.all(lotteryProducts.map((product) => prisma.product.update({
+        where: { id: product.id },
+        data: { isLotteryEligible: product.isLotteryEligible },
+      })));
       if (temporaryDiscountId || secondTemporaryDiscountId) {
         await prisma.discountOption.deleteMany({
           where: { id: { in: [temporaryDiscountId, secondTemporaryDiscountId].filter(Boolean) } },
@@ -315,8 +419,56 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       const lotterySwitch = page.getByRole("switch", { name: /抽抽樂推薦/ });
       await expect(lotterySwitch).toHaveAttribute("aria-checked", "false");
       await lotterySwitch.click();
-      const spendReward = page.getByRole("checkbox", { name: /滿額免費抽獎/ });
-      if (await spendReward.isChecked()) await spendReward.uncheck();
+      await page.getByLabel("活動名稱").fill(temporaryCampaignName);
+      const [baseLotteryProduct, secondFestivalProduct] = lotteryProducts;
+      await chooseLotteryProduct(
+        page,
+        page.getByTestId("open-lottery-product-picker"),
+        baseLotteryProduct,
+      );
+      await expect(page.getByTestId("open-lottery-product-picker")).toContainText("已選 1/100");
+
+      await page.getByRole("button", { name: "新增節慶活動", exact: true }).click();
+      const festivalCampaigns = page.getByTestId("lottery-festival-campaign");
+      await expect(festivalCampaigns).toHaveCount(1);
+      const firstFestival = festivalCampaigns.first();
+      await firstFestival.getByLabel("活動名稱").fill(temporaryFestivalCampaignName);
+      await firstFestival.getByLabel("活動開始日期").fill(activeFestivalStartsOn);
+      await firstFestival.getByLabel("活動結束日期").fill(activeFestivalEndsOn);
+      await chooseLotteryProduct(
+        page,
+        firstFestival.getByRole("button", { name: /選擇此活動可抽商品/ }),
+        baseLotteryProduct,
+      );
+      await firstFestival.getByRole("switch", { name: /啟用此節慶活動/ }).click();
+
+      await page.getByRole("button", { name: "新增節慶活動", exact: true }).click();
+      await expect(festivalCampaigns).toHaveCount(2);
+      const secondFestival = festivalCampaigns.last();
+      await secondFestival.getByLabel("活動名稱").fill(secondTemporaryFestivalCampaignName);
+      await secondFestival.getByLabel("活動開始日期").fill(overlappingFestivalStartsOn);
+      await secondFestival.getByLabel("活動結束日期").fill(futureFestivalEndsOn);
+      await chooseLotteryProduct(
+        page,
+        secondFestival.getByRole("button", { name: /選擇此活動可抽商品/ }),
+        secondFestivalProduct,
+      );
+      await secondFestival.getByRole("switch", { name: /啟用此節慶活動/ }).click();
+
+      const overlapResponsePromise = page.waitForResponse((response) => (
+        new URL(response.url()).pathname === `/api/merchant/stalls/${stallId}/modules`
+        && response.request().method() === "PATCH"
+        && response.request().postDataJSON()?.operation === "UPDATE_MODULES"
+      ));
+      await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+      expect((await overlapResponsePromise).status()).toBe(400);
+      const overlapDialog = page.getByRole("alertdialog");
+      await expect(overlapDialog).toContainText("請檢查以下欄位：節慶活動。");
+      await overlapDialog.getByRole("button", { name: "我知道了", exact: true }).click();
+      await secondFestival.getByLabel("活動開始日期").fill(futureFestivalStartsOn);
+
+      const spendReward = page.getByRole("switch", { name: /滿額免費抽獎/ });
+      if ((await spendReward.getAttribute("aria-checked")) === "true") await spendReward.click();
       await page.getByTestId(`lottery-discount-row-${temporaryDiscountId}`).getByRole("checkbox").check();
       await page.getByTestId(`lottery-discount-row-${secondTemporaryDiscountId}`).getByRole("checkbox").check();
       await page.getByTestId(`lottery-discount-rate-${temporaryDiscountId}`).fill("40");
@@ -336,6 +488,8 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       expect(lotterySaveBody).toMatchObject({
         view: "lottery",
         lotteryEnabled: true,
+        lotteryCampaignName: temporaryCampaignName,
+        lotteryProductIds: [baseLotteryProduct.id],
         lotteryDiscountOptionId: temporaryDiscountId,
         lotteryDiscountWinRateBps: 4_000,
         lotterySpendRewardEnabled: false,
@@ -343,11 +497,38 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
           { discountOptionId: temporaryDiscountId, winRateBps: 4_000 },
           { discountOptionId: secondTemporaryDiscountId, winRateBps: 6_000 },
         ],
+        lotteryFestivalCampaigns: [
+          {
+            name: temporaryFestivalCampaignName,
+            isEnabled: true,
+            startsOn: activeFestivalStartsOn,
+            endsOn: activeFestivalEndsOn,
+            productIds: [baseLotteryProduct.id],
+            sortOrder: 0,
+          },
+          {
+            name: secondTemporaryFestivalCampaignName,
+            isEnabled: true,
+            startsOn: futureFestivalStartsOn,
+            endsOn: futureFestivalEndsOn,
+            productIds: [secondFestivalProduct.id],
+            sortOrder: 1,
+          },
+        ],
       });
       await expect(page.getByRole("status")).toHaveText("模組開關已儲存。");
 
       await page.reload();
       await expect(page.getByRole("switch", { name: /抽抽樂推薦/ })).toHaveAttribute("aria-checked", "true");
+      await expect(page.getByLabel("活動名稱").first()).toHaveValue(temporaryCampaignName);
+      await expect(page.getByTestId("open-lottery-product-picker")).toContainText("已選 1/100");
+      await expectLotteryProductSelected(
+        page,
+        page.getByTestId("open-lottery-product-picker"),
+        baseLotteryProduct,
+      );
+      await expect(page.getByText(temporaryFestivalCampaignName, { exact: true })).toBeVisible();
+      await expect(page.getByText(secondTemporaryFestivalCampaignName, { exact: true })).toBeVisible();
       await expect(page.getByTestId(`lottery-discount-row-${temporaryDiscountId}`).getByRole("checkbox")).toBeChecked();
       await expect(page.getByTestId(`lottery-discount-row-${secondTemporaryDiscountId}`).getByRole("checkbox")).toBeChecked();
       await expect(page.getByTestId(`lottery-discount-rate-${temporaryDiscountId}`)).toHaveValue("40");
@@ -360,6 +541,8 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
           preorderMaxDays: true,
           preorderSlotMinutes: true,
           lotteryEnabled: true,
+          lotteryCampaignName: true,
+          lotteryProductIds: true,
           lotteryDiscountOptionId: true,
           lotteryDiscountWinRateBps: true,
         },
@@ -369,9 +552,40 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
         preorderMaxDays: 5,
         preorderSlotMinutes: 60,
         lotteryEnabled: true,
+        lotteryCampaignName: temporaryCampaignName,
+        lotteryProductIds: [baseLotteryProduct.id],
         lotteryDiscountOptionId: temporaryDiscountId,
         lotteryDiscountWinRateBps: 4_000,
       });
+      await expect.poll(async () => prisma.stallLotteryCampaign.findMany({
+        where: { stallId, organizationId, deletedAt: null },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          name: true,
+          isEnabled: true,
+          startsOn: true,
+          endsOn: true,
+          productIds: true,
+          sortOrder: true,
+        },
+      })).toEqual([
+        {
+          name: temporaryFestivalCampaignName,
+          isEnabled: true,
+          startsOn: new Date(`${activeFestivalStartsOn}T00:00:00.000Z`),
+          endsOn: new Date(`${activeFestivalEndsOn}T00:00:00.000Z`),
+          productIds: [baseLotteryProduct.id],
+          sortOrder: 0,
+        },
+        {
+          name: secondTemporaryFestivalCampaignName,
+          isEnabled: true,
+          startsOn: new Date(`${futureFestivalStartsOn}T00:00:00.000Z`),
+          endsOn: new Date(`${futureFestivalEndsOn}T00:00:00.000Z`),
+          productIds: [secondFestivalProduct.id],
+          sortOrder: 1,
+        },
+      ]);
       await expect.poll(async () => prisma.$queryRaw<LotteryDiscountChanceSnapshot[]>`
         select
           chance.discount_option_id as "discountOptionId",
@@ -436,14 +650,57 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
   });
 });
 
+async function chooseLotteryProduct(
+  page: Page,
+  trigger: Locator,
+  product: LotteryProductSnapshot,
+) {
+  await trigger.click();
+  const dialog = page.getByRole("dialog").filter({
+    has: page.getByPlaceholder("搜尋商品、分類或群組"),
+  });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("依分類與商品群組展開");
+  await dialog.getByPlaceholder("搜尋商品、分類或群組").fill(product.name);
+  const productSwitch = dialog.locator(
+    `[data-testid="lottery-product-picker-switch"][data-product-id="${product.id}"]`,
+  );
+  await expect(productSwitch).toContainText(product.name);
+  const expandedBeforeSelection = await dialog.locator("details[open]").count();
+  expect(expandedBeforeSelection).toBeGreaterThanOrEqual(2);
+  if ((await productSwitch.getAttribute("aria-checked")) !== "true") await productSwitch.click();
+  await expect(productSwitch).toHaveAttribute("aria-checked", "true");
+  expect(await dialog.locator("details[open]").count()).toBe(expandedBeforeSelection);
+  await dialog.getByRole("button", { name: /^套用 \d+\/100 項$/ }).click();
+  await expect(dialog).toBeHidden();
+}
+
+async function expectLotteryProductSelected(
+  page: Page,
+  trigger: Locator,
+  product: LotteryProductSnapshot,
+) {
+  await trigger.click();
+  const dialog = page.getByRole("dialog").filter({
+    has: page.getByPlaceholder("搜尋商品、分類或群組"),
+  });
+  await dialog.getByPlaceholder("搜尋商品、分類或群組").fill(product.name);
+  await expect(dialog.locator(
+    `[data-testid="lottery-product-picker-switch"][data-product-id="${product.id}"]`,
+  )).toHaveAttribute("aria-checked", "true");
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(dialog).toBeHidden();
+}
+
 async function verifyLiveLottery(browser: Browser) {
   const context = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
   try {
     const page = await context.newPage();
-    const sessionResponsePromise = page.waitForResponse((response) => (
-      new URL(response.url()).pathname.endsWith("/create-order-session")
-      && response.request().method() === "POST"
-    ));
+    const sessionResponsePromise = page.waitForResponse((response) => {
+      const pathname = new URL(response.url()).pathname;
+      return ["/create-order-session", "/api/public/order-session"].some((path) => pathname.endsWith(path))
+        && response.request().method() === "POST";
+    }, { timeout: 30_000 });
     await page.goto(`/q/${takeoutQrToken}`);
     const sessionResponse = await sessionResponsePromise;
     expect([200, 201]).toContain(sessionResponse.status());
@@ -452,7 +709,7 @@ async function verifyLiveLottery(browser: Browser) {
     rememberSessionToken(sessionPayload.orderSessionToken);
     expect(typeof sessionPayload.orderSessionToken).toBe("string");
     if (typeof sessionPayload.orderSessionToken !== "string") {
-      throw new Error("create-order-session 未回傳 orderSessionToken");
+      throw new Error("點餐工作階段未回傳 orderSessionToken");
     }
     const sessionTokenHash = createHash("sha256")
       .update(sessionPayload.orderSessionToken)
@@ -460,11 +717,14 @@ async function verifyLiveLottery(browser: Browser) {
 
     const lottery = page.getByRole("region", { name: "抽抽樂推薦" });
     await expect(lottery).toBeVisible();
+    await expect(lottery.getByRole("heading", { name: temporaryFestivalCampaignName, exact: true })).toBeVisible();
     const drawResponsePromise = page.waitForResponse((response) => (
       new URL(response.url()).pathname === "/api/public/lottery-draw"
       && response.request().method() === "POST"
     ));
-    await lottery.getByRole("button", { name: "開始抽抽樂", exact: true }).click();
+    const lotteryButton = lottery.getByRole("button", { name: "開始抽抽樂", exact: true });
+    await expect(lotteryButton).toBeEnabled();
+    await lotteryButton.click();
     const drawResponse = await drawResponsePromise;
     expect(drawResponse.status()).toBe(200);
     const resultDialog = page.getByTestId("lottery-result-dialog");
@@ -473,21 +733,33 @@ async function verifyLiveLottery(browser: Browser) {
     const [draw] = await prisma.$queryRaw<Array<{
       discountLabel: string | null;
       discountOptionId: string | null;
+      selectedProductId: string;
+      campaignName: string | null;
+      rewardKind: string;
+      qualificationType: string;
     }>>`
       select
         draw.discount_label as "discountLabel",
-        draw.discount_option_id as "discountOptionId"
+        draw.discount_option_id as "discountOptionId",
+        draw.selected_product_id as "selectedProductId",
+        draw.campaign_name as "campaignName",
+        draw.reward_kind as "rewardKind",
+        draw.qualification_type as "qualificationType"
       from public.public_lottery_draws draw
       join public.order_sessions session_record
         on session_record.id = draw.order_session_id
       where session_record.token_hash = ${sessionTokenHash}
       limit 1
     `;
-    expect(draw).toBeDefined();
-    expect([temporaryDiscountId, secondTemporaryDiscountId]).toContain(draw?.discountOptionId);
-    expect([temporaryDiscountName, secondTemporaryDiscountName]).toContain(draw?.discountLabel);
-    await expect(resultDialog.getByTestId("lottery-discount-result"))
-      .toContainText(String(draw?.discountLabel));
+    expect(draw).toMatchObject({
+      discountLabel: null,
+      discountOptionId: null,
+      selectedProductId: lotteryProducts[0].id,
+      campaignName: temporaryFestivalCampaignName,
+      rewardKind: "FREE_PRODUCT",
+      qualificationType: "FESTIVAL",
+    });
+    await expect(resultDialog.getByTestId("lottery-discount-result")).not.toBeEmpty();
     await resultDialog.getByRole("button", { name: "取消", exact: true }).click();
     await expect(page.getByTestId("qr-mobile-cart-summary")).toHaveCount(0);
   } finally {
@@ -507,10 +779,11 @@ async function verifyClosedPreorder(browser: Browser) {
         consoleErrors.push({ text: message.text(), url: message.location().url });
       }
     });
-    const physicalQrSessionPromise = page.waitForResponse((response) => (
-      new URL(response.url()).pathname.endsWith("/create-order-session")
-      && response.request().method() === "POST"
-    ));
+    const physicalQrSessionPromise = page.waitForResponse((response) => {
+      const pathname = new URL(response.url()).pathname;
+      return ["/create-order-session", "/api/public/order-session"].some((path) => pathname.endsWith(path))
+        && response.request().method() === "POST";
+    }, { timeout: 30_000 });
     await page.goto(`/q/${takeoutQrToken}`);
     const physicalQrSession = await physicalQrSessionPromise;
     expect(physicalQrSession.request().postDataJSON()).toMatchObject({ orderingMode: "DEFAULT" });
@@ -518,10 +791,11 @@ async function verifyClosedPreorder(browser: Browser) {
     await expect(page.getByRole("heading", { name: "目前無法使用此 QR Code", exact: true })).toBeVisible();
     await expect(page.getByTestId("qr-preorder-fulfillment-time-fields")).toHaveCount(0);
 
-    const sessionResponsePromise = page.waitForResponse((response) => (
-      new URL(response.url()).pathname.endsWith("/create-order-session")
-      && response.request().method() === "POST"
-    ));
+    const sessionResponsePromise = page.waitForResponse((response) => {
+      const pathname = new URL(response.url()).pathname;
+      return ["/create-order-session", "/api/public/order-session"].some((path) => pathname.endsWith(path))
+        && response.request().method() === "POST";
+    }, { timeout: 30_000 });
     await page.goto("/store/aming-01?view=pickup");
     const sessionResponse = await sessionResponsePromise;
     expect([200, 201]).toContain(sessionResponse.status());
@@ -575,7 +849,24 @@ async function restoreThroughUi(page: Page) {
   expect((await preorderResponsePromise).status()).toBe(200);
 
   await page.goto(`/merchant/stalls/${stallId}/settings/lottery`);
-  await setSwitch(page, /抽抽樂推薦/, originalSettings.lotteryEnabled);
+  await setSwitch(page, /抽抽樂推薦/, true);
+  await page.getByLabel("活動名稱").first().fill(originalSettings.lotteryCampaignName);
+  await page.getByTestId("open-lottery-product-picker").click();
+  const productDialog = page.getByRole("dialog").filter({
+    has: page.getByPlaceholder("搜尋商品、分類或群組"),
+  });
+  const productSearch = productDialog.getByPlaceholder("搜尋商品、分類或群組");
+  for (const product of lotteryProducts) {
+    await productSearch.fill(product.name);
+    const productSwitch = productDialog.locator(
+      `[data-testid="lottery-product-picker-switch"][data-product-id="${product.id}"]`,
+    );
+    const shouldBeSelected = originalSettings.lotteryProductIds.includes(product.id);
+    if ((await productSwitch.getAttribute("aria-checked")) !== String(shouldBeSelected)) {
+      await productSwitch.click();
+    }
+  }
+  await productDialog.getByRole("button", { name: /^套用 \d+\/100 項$/ }).click();
   if (originalSettings.lotteryEnabled) {
     const selectedDiscounts = page.locator('input[id^="lottery-discount-"]:checked');
     while (await selectedDiscounts.count()) await selectedDiscounts.first().uncheck();
@@ -588,6 +879,11 @@ async function restoreThroughUi(page: Page) {
       );
     }
   }
+  await setSwitch(
+    page,
+    /抽抽樂推薦/,
+    originalSettings.lotteryEnabled && originalSettings.lotteryProductIds.length > 0,
+  );
   const lotteryResponsePromise = page.waitForResponse((response) => (
     new URL(response.url()).pathname === `/api/merchant/stalls/${stallId}/modules`
     && response.request().method() === "PATCH"
@@ -617,6 +913,19 @@ async function setSwitch(page: Page, name: RegExp, enabled: boolean) {
 function rememberSessionToken(value: unknown) {
   if (typeof value !== "string" || value.length === 0) return;
   createdSessionTokenHashes.add(createHash("sha256").update(value).digest("hex"));
+}
+
+function taipeiDateOffset(days: number) {
+  const formatter = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(new Date()).map((part) => [part.type, part.value]));
+  const date = new Date(`${parts.year}-${parts.month}-${parts.day}T12:00:00+08:00`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 async function login(page: Page) {

@@ -5,6 +5,7 @@ import { PrintQueueBoard, type PrintQueueState } from "@/components/print-queue-
 
 describe("PrintQueueBoard cancelled-job recovery", () => {
   it("keeps a cancelled streamlined print job visible with a reprint action", () => {
+    const now = new Date().toISOString();
     const state: PrintQueueState = {
       printModuleEnabled: true,
       printers: [],
@@ -17,7 +18,7 @@ describe("PrintQueueBoard cancelled-job recovery", () => {
         attemptCount: 0,
         maxAttempts: 3,
         lastError: null,
-        queuedAt: "2026-08-21T10:00:00.000Z",
+        queuedAt: now,
         printedAt: null,
         reprintOfId: null,
         isRoutingCopy: false,
@@ -32,7 +33,7 @@ describe("PrintQueueBoard cancelled-job recovery", () => {
           tableLabel: null,
           fulfillmentType: "TAKEOUT",
           total: 100,
-          createdAt: "2026-08-21T10:00:00.000Z",
+          createdAt: now,
           items: [],
         },
       }],
@@ -50,8 +51,10 @@ describe("PrintQueueBoard cancelled-job recovery", () => {
     expect(html).toContain("A-001");
     expect(html).toContain("已取消");
     expect(html).toContain("補印");
-    expect(html).toContain('data-testid="print-jobs-date-from"');
-    expect(html).toContain('data-testid="print-jobs-date-to"');
+    expect(html).toContain("今日");
+    expect(html).toContain("自訂");
+    expect(html).not.toContain('data-testid="print-jobs-date-from"');
+    expect(html).not.toContain('data-testid="print-jobs-date-to"');
     expect(html).toContain('data-testid="print-jobs-page-size"');
     expect(html).toContain('<option value="5" selected="">5</option>');
   });

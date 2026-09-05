@@ -33,7 +33,7 @@ describe("shared catalog compact action hierarchy", () => {
     expect(source).not.toContain("h-36 w-full object-cover");
   });
 
-  it("opens the catalog through one large hierarchical dialog instead of a long disclosure tree", () => {
+  it("opens the catalog through one large hierarchical dialog while keeping translations collapsible", () => {
     expect(source).toContain('data-testid="open-catalog-navigator"');
     expect(source).toContain('testId="catalog-navigator-dialog"');
     expect(source).toContain('type CatalogNavigatorLevel');
@@ -41,7 +41,11 @@ describe("shared catalog compact action hierarchy", () => {
     expect(source).toContain('kind: "GROUPS"');
     expect(source).toContain('kind: "PRODUCTS"');
     expect(source).toContain('min-h-24');
-    expect(source).not.toContain("<details");
+    expect(source).toContain("<details");
+    expect(source).toContain('label("商品翻譯")');
+    expect(source).toContain('label("展開／收合")');
+    expect(source).toContain("group-open:rotate-90");
+    expect(source).not.toContain("<details key={category");
   });
 
   it("uses large touch switches instead of precision checkboxes in catalog workflows", () => {
@@ -49,7 +53,7 @@ describe("shared catalog compact action hierarchy", () => {
     expect(source).toContain('aria-checked={checked}');
     expect(source).toContain('min-h-14');
     expect(source).toContain("開啟後，員工結帳折扣");
-    expect(source).toContain("預設開啟；關閉後");
+    expect(source).not.toContain("可作為抽抽樂推薦／免費贈品");
     expect(source).not.toContain("取消勾選");
     expect(source).not.toContain('type="checkbox"');
   });
