@@ -17,7 +17,10 @@ let createdOrderId = "";
 let createdPickupOrderId = "";
 let fixtureQrId = "";
 
-test.use({ serviceWorkers: "block" });
+test.use({
+  serviceWorkers: "block",
+  userAgent: "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/149 Mobile Safari/537.36 Line/14.0.0",
+});
 
 test.beforeAll(async () => {
   const databaseUrl = process.env.DATABASE_URL;
@@ -162,6 +165,15 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
   const trackingToken = trackerUrl.pathname.split("/").at(-1);
   expect(trackingToken).toMatch(/^sto_[A-Za-z0-9_-]+$/u);
   expect((await trackerResponsePromise).status()).toBe(200);
+  const trackerHeader = page.getByTestId("public-order-tracker-header");
+  const trackerStallName = page.getByTestId("public-order-tracker-stall-name");
+  const trackerActions = page.getByTestId("public-order-tracker-actions");
+  await expect(trackerHeader).toBeVisible();
+  await expect(trackerActions).toBeVisible();
+  const stallNameBox = await trackerStallName.boundingBox();
+  expect(stallNameBox).not.toBeNull();
+  expect(stallNameBox!.width).toBeGreaterThan(stallNameBox!.height * 2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await expect(page.getByRole("link", { name: "修改訂單", exact: true })).toBeVisible();
 
   const reorderPageResponse = await page.request.get(

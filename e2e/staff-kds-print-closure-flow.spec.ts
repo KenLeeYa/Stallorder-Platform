@@ -35,7 +35,7 @@ const createdOrderIds: string[] = [];
 const createdClosureIds: string[] = [];
 
 async function acknowledgeSettingsFeedback(page: Page, message: string) {
-  const dialog = page.getByRole("dialog", { name: "設定已完成", exact: true });
+  const dialog = page.getByRole("dialog", { name: "操作已完成", exact: true });
   await expect(dialog).toContainText(message);
   await dialog.getByRole("button", { name: "我知道了", exact: true }).click();
   await expect(dialog).toBeHidden();
@@ -489,6 +489,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     try {
       const ownerPage = await ownerContext.newPage();
       await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
+      await setModule(ownerPage, "kds", "廚房 KDS", "kdsModuleEnabled", false);
       await setModule(
         ownerPage,
         "printing",
@@ -612,6 +613,10 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await printer
         .getByRole("button", { name: "本機接手", exact: true })
         .click();
+      await acknowledgeSettingsFeedback(
+        staffPage,
+        "此裝置已開始回報印表機連線狀態。",
+      );
       const printJob = staffPage
         .getByRole("article")
         .filter({ hasText: order.orderNo });

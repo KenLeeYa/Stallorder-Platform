@@ -611,15 +611,22 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       await login(staffPage, "staff@stallorder.test");
       await staffPage.goto("/staff/aming-chicken");
       await dismissStaffStartReminder(staffPage);
-      const staffOrder = staffPage
-        .getByRole("article")
-        .filter({ hasText: customerName });
-      await expect(staffOrder).toBeVisible();
-      await expect(staffOrder).toContainText(`訂單 ${orderNo}`);
-      await expect(staffOrder).toContainText(retainedProductName);
-      await expect(staffOrder).toContainText(noteOptionName);
-      await expect(staffOrder).not.toContainText(prunedProductName);
-      await expect(staffOrder).toContainText("顧客希望取餐");
+      await staffPage
+        .getByRole("main")
+        .getByPlaceholder("搜尋桌號、訂單編號或顧客")
+        .fill(orderNo);
+      const staffOrderCard = staffPage
+        .getByTestId("staff-order-list-pane")
+        .getByRole("button")
+        .filter({ hasText: orderNo });
+      await expect(staffOrderCard).toContainText(customerName);
+      await staffOrderCard.click();
+      const staffOrderItems = staffPage.getByTestId("staff-order-items-pane");
+      const staffOrderActions = staffPage.getByTestId("staff-order-actions-pane");
+      await expect(staffOrderItems).toContainText(retainedProductName);
+      await expect(staffOrderItems).toContainText(noteOptionName);
+      await expect(staffOrderItems).not.toContainText(prunedProductName);
+      await expect(staffOrderActions).toContainText("顧客希望取餐");
 
       const acceptTimeResponsePromise = staffPage.waitForResponse(
         (response) =>
@@ -627,7 +634,7 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
             `/orders/${createdOrderId}/fulfillment-time`,
           ) && response.request().method() === "PATCH",
       );
-      await staffOrder
+      await staffOrderActions
         .getByRole("button", { name: "接受原時間", exact: true })
         .click();
       const acceptTimeResponse = await acceptTimeResponsePromise;
@@ -654,7 +661,7 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
         operation: "CONFIRM_REQUESTED",
         version: 1,
       });
-      await expect(staffOrder).toContainText("已確認取餐");
+      await expect(staffOrderActions).toContainText("已確認取餐");
 
       const confirmOrderResponsePromise = staffPage.waitForResponse(
         (response) =>
@@ -662,7 +669,7 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
             `/orders/${createdOrderId}`,
           ) && response.request().method() === "PATCH",
       );
-      await staffOrder
+      await staffOrderActions
         .getByRole("button", { name: "確認接單", exact: true })
         .click();
       const confirmOrderResponse = await confirmOrderResponsePromise;
@@ -670,9 +677,9 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       expect(confirmOrderResponse.request().postDataJSON()).toMatchObject({
         status: "CONFIRMED",
       });
-      await expect(staffOrder).toContainText("待製作");
+      await expect(staffOrderItems).toContainText("待製作");
       await expect(
-        staffOrder.getByRole("button", { name: "確認接單", exact: true }),
+        staffOrderActions.getByRole("button", { name: "確認接單", exact: true }),
       ).toHaveCount(0);
 
       await expect

@@ -121,6 +121,50 @@ describe("QR order checkout controller", () => {
     expect(effects.navigateToOrder).toHaveBeenCalledWith("tracking-token");
   });
 
+  it("does not misreport a committed order as failed when a post-order task needs attention", async () => {
+    const effects = checkoutEffects();
+
+    await submitQrOrderCheckout({
+      body: { qrToken: "qr-token" },
+      operationId: "operation-id",
+      networkError: "network error",
+      localizeError: (code) => `localized:${code}`,
+      requestOrder: vi.fn<QrOrderCheckoutTransport>().mockResolvedValue({
+        ok: true,
+        status: 200,
+        payload: { trackingToken: "tracking-token" },
+      }),
+      afterOrderCreated: vi.fn().mockResolvedValue("invoice needs attention"),
+      ...effects,
+    });
+
+    expect(effects.clearPersistedCart).toHaveBeenCalledOnce();
+    expect(effects.navigateToOrder).toHaveBeenCalledWith("tracking-token");
+    expect(effects.onMessage).toHaveBeenLastCalledWith("invoice needs attention");
+    expect(effects.onMessage).not.toHaveBeenCalledWith("network error");
+  });
+
+  it("does not misreport a committed order when a post-order task rejects", async () => {
+    const effects = checkoutEffects();
+
+    await submitQrOrderCheckout({
+      body: { qrToken: "qr-token" },
+      operationId: "operation-id",
+      networkError: "network error",
+      localizeError: (code) => `localized:${code}`,
+      requestOrder: vi.fn<QrOrderCheckoutTransport>().mockResolvedValue({
+        ok: true,
+        status: 200,
+        payload: { trackingToken: "tracking-token" },
+      }),
+      afterOrderCreated: vi.fn().mockRejectedValue(new Error("follow-up failed")),
+      ...effects,
+    });
+
+    expect(effects.navigateToOrder).toHaveBeenCalledWith("tracking-token");
+    expect(effects.onMessage).not.toHaveBeenCalledWith("network error");
+  });
+
   it("saves a pickup edit with its restored phone even though edit mode has no session expiry", async () => {
     const requestOrder = vi.fn<QrOrderCheckoutTransport>().mockResolvedValue({
       ok: true,

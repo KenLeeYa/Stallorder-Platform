@@ -36,7 +36,9 @@ describe("QR order recovery", () => {
   it("validates the original order with its persisted device id before resuming", async () => {
     const storage = memoryStorage();
     persistQrOrderRecovery(storage, { qrToken, trackingToken, deviceId }, now);
-    const validateOrder = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const validateOrder = vi.fn().mockResolvedValue(Response.json({
+      order: { orderStatus: "WAITING_CONFIRMATION" },
+    }));
 
     await expect(resolveQrOrderRecovery({
       storage,
@@ -46,6 +48,24 @@ describe("QR order recovery", () => {
     })).resolves.toMatchObject({ trackingToken, deviceId });
     expect(validateOrder).toHaveBeenCalledWith({ trackingToken, deviceId });
   });
+
+  it.each(["COMPLETED", "CANCELLED", "EXPIRED"])(
+    "removes a %s order so a new scan does not restore a finished order",
+    async (orderStatus) => {
+      const storage = memoryStorage();
+      persistQrOrderRecovery(storage, { qrToken, trackingToken, deviceId }, now);
+
+      await expect(resolveQrOrderRecovery({
+        storage,
+        qrToken,
+        now,
+        validateOrder: vi.fn().mockResolvedValue(Response.json({
+          order: { orderStatus },
+        })),
+      })).resolves.toBeNull();
+      expect(readQrOrderRecovery(storage, qrToken, now)).toBeNull();
+    },
+  );
 
   it("removes a definitively missing order but preserves recovery during infrastructure failure", async () => {
     const storage = memoryStorage();

@@ -445,9 +445,12 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   const startPreparationButton = kitchenOrder
     .getByRole("button", { name: "開始製作", exact: true })
     .first();
+  const kitchenOrderItemsPane = kitchenPage
+    .locator("#main-content")
+    .getByTestId("kitchen-order-items-pane");
   await captureMobileScreenshot(kitchenPage, testInfo, "04-kitchen-kds-order");
   await verifyCompactViewport(kitchenPage, [
-    kitchenOrder,
+    kitchenOrderItemsPane,
     startPreparationButton,
   ]);
   await waitForReactHydration(startPreparationButton);
@@ -458,9 +461,11 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await kitchenOrder
     .getByRole("button", { name: "整單完成", exact: true })
     .click();
-  await expect(kitchenOrder.getByText("已完成", { exact: true })).toHaveCount(
-    2,
-  );
+  await expect(
+    kitchenOrder
+      .getByTestId("kitchen-order-item-list")
+      .getByText("已完成", { exact: true }),
+  ).toHaveCount(2);
   await expect(
     kitchenOrder.getByRole("button", { name: "退回待製作", exact: true }),
   ).toHaveCount(0);

@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
-import { dismissStaffStartReminder } from "./local-navigation";
+import {
+  addFirstStaffCatalogProduct,
+  dismissStaffStartReminder,
+} from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -78,6 +81,7 @@ test.describe.serial("現金交班與短溢收", () => {
     await page.getByLabel("備註（選填）").fill("Cash shift E2E 班次");
     await page.getByRole("button", { name: "開始班次" }).click();
     await expect(page.getByText("班次進行中", { exact: true })).toBeVisible();
+    await acknowledgeSuccessFeedback(page, "現金班次已開啟。");
     shiftId = (await prisma.cashShift.findFirstOrThrow({
       where: { stallId, note: "Cash shift E2E 班次" },
       orderBy: { openedAt: "desc" },
@@ -98,15 +102,7 @@ test.describe.serial("現金交班與短溢收", () => {
     await openComposerButton.click();
     const composer = page.getByRole("dialog", { name: "店員點餐" });
     await expect(composer).toBeVisible();
-    await composer.getByTitle(/^增加 /).first().click();
-    const requiredGroups = composer.locator("fieldset");
-    for (let index = 0; index < await requiredGroups.count(); index += 1) {
-      const group = requiredGroups.nth(index);
-      if ((await group.locator("legend").innerText()).includes("*")) {
-        await group.locator('input[type="radio"], input[type="checkbox"]').first().check();
-      }
-    }
-    await composer.getByRole("button", { name: "加入購物車", exact: true }).click();
+    await addFirstStaffCatalogProduct(page, composer);
     await composer.getByLabel("顧客名稱（選填）").fill(customerName);
     await composer.getByTestId("staff-mobile-cart-summary").click();
     await expect(composer.getByTestId("staff-order-cart-panel")).toBeVisible();
@@ -141,6 +137,7 @@ test.describe.serial("現金交班與短溢收", () => {
     await movementButton.click();
     expect((await cashInResponse).status()).toBe(200);
     await expect(page.getByText(/補入零用金/)).toBeVisible();
+    await acknowledgeSuccessFeedback(page, "現金收支已記錄。");
     await page.getByRole("button", { name: "記錄收支" }).click();
     await page.getByLabel("類型").selectOption("CASH_OUT");
     await page.getByLabel("金額", { exact: true }).fill("50");
@@ -153,6 +150,7 @@ test.describe.serial("現金交班與短溢收", () => {
     await movementButton.click();
     expect((await cashOutResponse).status()).toBe(200);
     await expect(page.getByText(/臨時採買/)).toBeVisible();
+    await acknowledgeSuccessFeedback(page, "現金收支已記錄。");
 
     await page.getByRole("button", { name: "現金退款" }).click();
     await page.getByLabel("原付款").selectOption(paidOrder.payment!.id);
@@ -160,11 +158,13 @@ test.describe.serial("現金交班與短溢收", () => {
     await page.getByLabel("管理授權碼").fill(managerAuthorizationCode);
     await page.getByRole("button", { name: "確認退款" }).click();
     await expect(page.getByRole("status")).toContainText("現金退款已記錄");
+    await acknowledgeSuccessFeedback(page, "現金退款已記錄。");
     await page.getByRole("button", { name: "盤點交班" }).click();
     await page.getByLabel("實際盤點金額").fill("1100");
     await expect(page.getByText("短收", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "送出交班複核" }).click();
     await expect(page.getByText("等待複核", { exact: true })).toBeVisible();
+    await acknowledgeSuccessFeedback(page, "盤點已送出，等待店長或老闆複核。");
 
     const pending = await prisma.cashShift.findUniqueOrThrow({ where: { id: shiftId } });
     expect(pending.status).toBe("CLOSING");
@@ -178,6 +178,7 @@ test.describe.serial("現金交班與短溢收", () => {
     await expect(shiftRecord).toContainText("等待複核");
     await shiftRecord.getByRole("button", { name: "核准結班" }).click();
     await expect(shiftRecord.getByText("已結班", { exact: true })).toBeVisible();
+    await acknowledgeSuccessFeedback(ownerPage, "複核結果已記錄。");
     await ownerPage.context().close();
 
     const completed = await prisma.cashShift.findUniqueOrThrow({
@@ -313,6 +314,13 @@ test.describe.serial("現金交班與短溢收", () => {
     await kitchenPage.context().close();
   });
 });
+
+async function acknowledgeSuccessFeedback(page: Page, message: string) {
+  const dialog = page.getByRole("dialog", { name: "操作已完成" });
+  await expect(dialog).toContainText(message);
+  await dialog.getByRole("button", { name: "我知道了", exact: true }).click();
+  await expect(dialog).toBeHidden();
+}
 
 async function waitForReactHydration(control: Locator) {
   await expect.poll(() => control.evaluate((element) => (

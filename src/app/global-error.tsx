@@ -1,14 +1,16 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import {
   DEFAULT_APP_LOCALE,
   resolveNavigatorLocale,
   type AppLocale,
 } from "@/lib/app-locale";
 import { getAppMessage } from "@/lib/app-messages";
+import { reportClientException } from "@/lib/client-exception-reporting";
 
 export default function GlobalError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
@@ -19,6 +21,9 @@ export default function GlobalError({
     readNavigatorLocale,
     readDefaultLocale,
   );
+  useEffect(() => {
+    reportClientException({ type: "REACT_BOUNDARY", error, digest: error.digest });
+  }, [error]);
 
   return (
     <html lang={locale} suppressHydrationWarning>

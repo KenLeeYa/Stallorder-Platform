@@ -236,7 +236,7 @@ Deno.serve(async (request) => {
     const fullMenuQueries = parsed.data.includeMenu
       ? await timing.measureDb(() => Promise.all([
         admin.from("stalls")
-          .select("organization_id, name, slug, location, currency, timezone, ordering_settings:stall_ordering_settings(checkout_upsell_enabled, checkout_upsell_product_ids, lottery_spend_reward_enabled, lottery_spend_threshold_amount, lottery_festival_reward_enabled, lottery_festival_starts_on, lottery_festival_ends_on)")
+          .select("organization_id, name, slug, location, currency, timezone, ordering_settings:stall_ordering_settings(checkout_upsell_enabled, checkout_upsell_product_ids, lottery_campaign_name, lottery_spend_reward_enabled, lottery_spend_threshold_amount, lottery_festival_reward_enabled, lottery_festival_starts_on, lottery_festival_ends_on)")
           .eq("id", result.stall_id)
           .single(),
         admin.from("stall_products")
@@ -244,10 +244,18 @@ Deno.serve(async (request) => {
           .eq("stall_id", result.stall_id)
           .order("sort_order", { ascending: true })
           .limit(100),
-      ]), 2)
+        admin.from("stall_lottery_campaigns")
+          .select("id, name, starts_on, ends_on, product_ids, sort_order")
+          .eq("stall_id", result.stall_id)
+          .eq("is_enabled", true)
+          .is("deleted_at", null)
+          .order("sort_order", { ascending: true })
+          .order("starts_on", { ascending: true })
+          .limit(20),
+      ]), 3)
       : null;
-    if (fullMenuQueries?.[0].error || fullMenuQueries?.[1].error) {
-      throw fullMenuQueries[0].error ?? fullMenuQueries[1].error;
+    if (fullMenuQueries?.[0].error || fullMenuQueries?.[1].error || fullMenuQueries?.[2].error) {
+      throw fullMenuQueries[0].error ?? fullMenuQueries[1].error ?? fullMenuQueries[2].error;
     }
 
     if (!parsed.data.includeMenu) {
@@ -259,7 +267,7 @@ Deno.serve(async (request) => {
       }), result.idempotent_replay ? 200 : 201);
     }
 
-    const [stallQuery, stallProductsQuery] = fullMenuQueries!;
+    const [stallQuery, stallProductsQuery, festivalCampaignsQuery] = fullMenuQueries!;
 
     const table = qrContext.table;
     const lastTableOrderQuery = table
@@ -666,12 +674,26 @@ Deno.serve(async (request) => {
     const lotteryChannelAllowed = orderingMode === "DEFAULT"
       && qrContext.fulfillment_type_context !== "DELIVERY";
     const lotteryBusinessDate = localDateInTimeZone(new Date(now), stallQuery.data.timezone);
-    const lotteryFestivalActive = lotteryChannelAllowed
-      && orderingSettings?.lottery_festival_reward_enabled === true
-      && typeof orderingSettings.lottery_festival_starts_on === "string"
-      && typeof orderingSettings.lottery_festival_ends_on === "string"
-      && lotteryBusinessDate >= orderingSettings.lottery_festival_starts_on
-      && lotteryBusinessDate <= orderingSettings.lottery_festival_ends_on;
+    const festivalCampaigns = Array.isArray(festivalCampaignsQuery.data)
+      ? festivalCampaignsQuery.data
+      : [];
+    const activeFestivalCampaign = festivalCampaigns.find((campaign) => (
+      typeof campaign?.name === "string"
+      && typeof campaign?.starts_on === "string"
+      && typeof campaign?.ends_on === "string"
+      && lotteryBusinessDate >= campaign.starts_on
+      && lotteryBusinessDate <= campaign.ends_on
+    ));
+    const lotteryFestivalActive = lotteryChannelAllowed && (
+      Boolean(activeFestivalCampaign)
+      || (
+        orderingSettings?.lottery_festival_reward_enabled === true
+        && typeof orderingSettings.lottery_festival_starts_on === "string"
+        && typeof orderingSettings.lottery_festival_ends_on === "string"
+        && lotteryBusinessDate >= orderingSettings.lottery_festival_starts_on
+        && lotteryBusinessDate <= orderingSettings.lottery_festival_ends_on
+      )
+    );
 
     return respond({
       ...buildPublicOrderSessionResponse({
@@ -695,12 +717,18 @@ Deno.serve(async (request) => {
       products,
       preorderSlots,
       lotteryEnabled: lotteryChannelAllowed && settings.lottery_enabled === true,
+      lotteryCampaignName: typeof activeFestivalCampaign?.name === "string"
+        ? activeFestivalCampaign.name
+        : typeof orderingSettings?.lottery_campaign_name === "string"
+        ? orderingSettings.lottery_campaign_name
+        : "抽抽樂",
       lotteryReward: {
         spendEnabled: lotteryChannelAllowed
           && orderingSettings?.lottery_spend_reward_enabled === true,
         spendThresholdAmount: orderingSettings?.lottery_spend_threshold_amount ?? 666,
         festivalEnabled: lotteryChannelAllowed
-          && orderingSettings?.lottery_festival_reward_enabled === true,
+          && (festivalCampaigns.length > 0
+            || orderingSettings?.lottery_festival_reward_enabled === true),
         festivalActive: lotteryFestivalActive,
       },
       checkoutUpsell: {

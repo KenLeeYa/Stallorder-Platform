@@ -37,7 +37,7 @@ async function waitForReactClickHandler(control: Locator) {
 }
 
 async function acknowledgeSettingsFeedback(page: Page, message: string) {
-  const dialog = page.getByRole("dialog", { name: "設定已完成", exact: true });
+  const dialog = page.getByRole("dialog", { name: "操作已完成", exact: true });
   await expect(dialog).toContainText(message);
   await dialog.getByRole("button", { name: "我知道了", exact: true }).click();
   await expect(dialog).toBeHidden();

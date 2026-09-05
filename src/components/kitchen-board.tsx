@@ -78,6 +78,7 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
   const alertsEnabledRef = useRef(false);
   const [data, setData] = useState(initialData);
   const [mode, setMode] = useState<KitchenBoardMode>(initialData.settings.defaultView);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(() => preferredKitchenOrderId(initialData.tasks));
   const [stationId, setStationId] = useState(initialData.stations[0]?.id ?? "");
   const [now, setNow] = useState(() => Date.parse(initialData.serverNow));
   const [connection, setConnection] = useState<"CONNECTING" | "CONNECTED" | "FALLBACK">("CONNECTING");
@@ -275,13 +276,6 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
   );
   const itemAggregates = useMemo(() => aggregateKitchenItems(visibleTasks), [visibleTasks]);
   const canCancelOrder = ["PLATFORM_ADMIN", "ORGANIZATION_OWNER", "ORGANIZATION_ADMIN", "STALL_MANAGER"].includes(role);
-  const orderStatusLabels: Record<KitchenBoardTask["orderStatus"], string> = {
-    CONFIRMED: t("kitchen.status.confirmed"),
-    PREPARING: t("kitchen.status.preparing"),
-    PACKING: t("kitchen.status.packing"),
-    READY: t("kitchen.status.ready"),
-  };
-
   return (
     <>
       <KitchenNavigation
@@ -347,36 +341,20 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
             </article>
           ))}
         </section>
-      ) : (
-        <div className="mt-5 space-y-7">
-          {(["CONFIRMED", "PREPARING", "PACKING", "READY"] as const).map((status) => {
-            const orders = groupedOrders.filter((order) => order.status === status);
-            if (orders.length === 0) return null;
-            return (
-              <section key={status}>
-                <div className="mb-3 flex items-center gap-2"><h2 className="text-lg font-semibold">{orderStatusLabels[status]}</h2><span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs font-semibold">{orders.length}</span></div>
-                <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                  {orders.map((order) => (
-                    <OrderTicket
-                      key={order.id}
-                      order={order}
-                      now={now}
-                      warningMinutes={data.settings.warningMinutes}
-                      criticalMinutes={data.settings.criticalMinutes}
-                      timeZone={data.settings.timeZone}
-                      busyId={busyId}
-                      canCancelOrder={canCancelOrder}
-                      onTask={(taskId, nextStatus) => mutate({ operation: "UPDATE_TASK", taskId, status: nextStatus }, taskId)}
-                      onComplete={() => mutate({ operation: "COMPLETE_ORDER", orderId: order.id }, order.id)}
-                      onCancel={() => openCancellation(order.id, order.orderNo)}
-                    />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      )}
+      ) : <KitchenOrderWorkspace
+        orders={groupedOrders}
+        selectedOrderId={selectedOrderId}
+        onSelectOrder={setSelectedOrderId}
+        now={now}
+        warningMinutes={data.settings.warningMinutes}
+        criticalMinutes={data.settings.criticalMinutes}
+        timeZone={data.settings.timeZone}
+        busyId={busyId}
+        canCancelOrder={canCancelOrder}
+        onTask={(taskId, nextStatus) => mutate({ operation: "UPDATE_TASK", taskId, status: nextStatus }, taskId)}
+        onComplete={(orderId) => mutate({ operation: "COMPLETE_ORDER", orderId }, orderId)}
+        onCancel={openCancellation}
+      />}
 
       {visibleTasks.length === 0 ? (
         <div className="mt-16 text-center text-stone-500"><PackageCheck className="mx-auto h-10 w-10" /><p className="mt-3 font-medium">{t("kitchen.empty")}</p></div>
@@ -429,8 +407,10 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
   );
 }
 
-function OrderTicket({ order, now, warningMinutes, criticalMinutes, timeZone, busyId, canCancelOrder, onTask, onComplete, onCancel }: {
-  order: ReturnType<typeof groupTasksByOrder>[number];
+function KitchenOrderWorkspace({ orders, selectedOrderId, onSelectOrder, now, warningMinutes, criticalMinutes, timeZone, busyId, canCancelOrder, onTask, onComplete, onCancel }: {
+  orders: ReturnType<typeof groupTasksByOrder>;
+  selectedOrderId: string | null;
+  onSelectOrder: (orderId: string) => void;
   now: number;
   warningMinutes: number;
   criticalMinutes: number;
@@ -438,18 +418,107 @@ function OrderTicket({ order, now, warningMinutes, criticalMinutes, timeZone, bu
   busyId: string | null;
   canCancelOrder: boolean;
   onTask: (taskId: string, status: "PENDING" | "PREPARING" | "COMPLETED") => Promise<boolean>;
-  onComplete: () => Promise<boolean>;
-  onCancel: () => void;
+  onComplete: (orderId: string) => Promise<boolean>;
+  onCancel: (orderId: string, orderNo: string) => void;
 }) {
   const { locale, t } = useOperationsLocale();
+  const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0] ?? null;
+  if (!selectedOrder) return null;
+  const selectedWait = kitchenOrderWaitPresentation(selectedOrder, now, warningMinutes, criticalMinutes, t);
+  const statusLabels: Record<KitchenBoardTask["orderStatus"], string> = {
+    CONFIRMED: t("kitchen.status.confirmed"),
+    PREPARING: t("kitchen.status.preparing"),
+    PACKING: t("kitchen.status.packing"),
+    READY: t("kitchen.status.ready"),
+  };
+  const pendingCount = selectedOrder.tasks.filter((task) => task.status === "PENDING").length;
+  const preparingCount = selectedOrder.tasks.filter((task) => task.status === "PREPARING").length;
+  const completedCount = selectedOrder.tasks.filter((task) => task.status === "COMPLETED").length;
+  return (
+    <section data-testid="kitchen-order-workspace" className="mt-5 grid min-w-0 gap-3 md:h-[calc(100dvh-7rem)] md:min-h-[34rem] md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)_minmax(0,0.85fr)]">
+      <aside aria-labelledby="kitchen-order-queue-title" data-testid="kitchen-order-queue-pane" className="max-h-72 min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-stone-50 md:max-h-none">
+        <div className="sticky top-0 z-10 border-b border-stone-200 bg-stone-50/95 px-3 py-3 backdrop-blur">
+          <div className="flex items-center justify-between gap-2"><h2 id="kitchen-order-queue-title" className="font-semibold">{t("kitchen.workspace.queue")}</h2><span className="rounded-full bg-stone-200 px-2 py-0.5 text-xs font-semibold">{orders.length}</span></div>
+        </div>
+        <div className="space-y-4 p-2">
+          {(["CONFIRMED", "PREPARING", "PACKING", "READY"] as const).map((status) => {
+            const statusOrders = orders.filter((order) => order.status === status);
+            if (statusOrders.length === 0) return null;
+            return <section key={status} aria-label={statusLabels[status]}>
+              <div className="mb-1 flex items-center justify-between px-1"><h3 className="text-xs font-bold text-stone-600">{statusLabels[status]}</h3><span className="text-xs text-stone-500">{statusOrders.length}</span></div>
+              <div className="space-y-2">{statusOrders.map((order) => {
+                const wait = kitchenOrderWaitPresentation(order, now, warningMinutes, criticalMinutes, t);
+                const selected = order.id === selectedOrder.id;
+                return <button key={order.id} type="button" data-testid="kitchen-order-queue-button" aria-pressed={selected} onClick={() => onSelectOrder(order.id)} className={`min-h-11 w-full rounded-lg border-l-4 px-3 py-3 text-left transition ${wait.border} ${selected ? "bg-teal-50 ring-2 ring-teal-600" : "bg-white hover:bg-stone-100"}`}>
+                  <div className="flex items-start justify-between gap-2"><strong className="min-w-0 break-words">#{order.orderNo}</strong><span className={`shrink-0 text-xs font-semibold ${wait.level === "CRITICAL" ? "text-red-700" : wait.level === "WARNING" ? "text-amber-700" : "text-stone-600"}`}>{wait.label}</span></div>
+                  <p className="mt-1 text-xs text-stone-600">{fulfillmentLabel(t, order.fulfillmentType, order.tableLabel)} · {t("kitchen.workspace.itemCount", { count: order.tasks.length })}</p>
+                </button>;
+              })}</div>
+            </section>;
+          })}
+        </div>
+      </aside>
+
+      <article className="contents" aria-labelledby="kitchen-selected-order-title">
+      <section aria-labelledby="kitchen-selected-order-title" data-testid="kitchen-order-items-pane" className="max-h-[60dvh] min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white md:max-h-none">
+        <div className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="kitchen-selected-order-title" className="text-xl font-bold">#{selectedOrder.orderNo}</h2>
+                {selectedOrder.externalProvider ? <span className="rounded bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-800">{deliveryProviderLabel(selectedOrder.externalProvider)}</span> : null}
+              </div>
+              <p className="mt-1 text-sm text-stone-600">{fulfillmentLabel(t, selectedOrder.fulfillmentType, selectedOrder.tableLabel)} · {sourceLabel(t, selectedOrder.source)}</p>
+            </div>
+            <div className={`shrink-0 text-right ${selectedWait.level === "CRITICAL" ? "text-red-700" : selectedWait.level === "WARNING" ? "text-amber-700" : "text-stone-600"}`}>
+              <span className="inline-flex items-center gap-1 text-sm font-semibold"><Clock3 className="h-4 w-4" />{selectedWait.label}</span>
+              {selectedOrder.pickupCode ? <p className="mt-1 font-mono text-lg font-bold">{t("kitchen.order.pickupCode", { code: selectedOrder.pickupCode })}</p> : null}
+            </div>
+          </div>
+        </div>
+        <div className="p-4">
+          <ul data-testid="kitchen-order-item-list" className="divide-y divide-stone-100">
+            {selectedOrder.tasks.map((task) => <li key={task.id}><TaskRow task={task} busy={busyId === task.id} locked={selectedOrder.status === "READY"} onTask={onTask} /></li>)}
+          </ul>
+          {selectedOrder.note ? <div className="mt-3 flex gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900"><MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" /><span>{selectedOrder.externalProvider ? t("kitchen.order.platformNote") : ""}{selectedOrder.note}</span></div> : null}
+        </div>
+      </section>
+
+      <aside aria-labelledby="kitchen-order-actions-title" data-testid="kitchen-order-actions-pane" className="min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-stone-50">
+        <div className="sticky top-0 z-10 border-b border-stone-200 bg-stone-50/95 px-4 py-3 backdrop-blur"><h2 id="kitchen-order-actions-title" className="font-semibold">{t("kitchen.workspace.actions")}</h2></div>
+        <div data-testid="kitchen-order-primary-actions" className="space-y-4 p-4">
+          <dl className="grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="rounded-lg bg-white p-2"><dt className="text-stone-500">{t("kitchen.status.confirmed")}</dt><dd className="mt-1 text-xl font-bold">{pendingCount}</dd></div>
+            <div className="rounded-lg bg-blue-50 p-2"><dt className="text-blue-700">{t("kitchen.status.preparing")}</dt><dd className="mt-1 text-xl font-bold text-blue-900">{preparingCount}</dd></div>
+            <div className="rounded-lg bg-emerald-50 p-2"><dt className="text-emerald-700">{t("kitchen.status.ready")}</dt><dd className="mt-1 text-xl font-bold text-emerald-900">{completedCount}</dd></div>
+          </dl>
+          {selectedWait.level !== "NORMAL" ? <p className={`rounded-md px-3 py-2 text-sm font-bold ${selectedWait.level === "CRITICAL" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`} role="status">{selectedWait.level === "CRITICAL" ? t("kitchen.wait.critical") : t("kitchen.wait.warning")}</p> : null}
+          {selectedWait.effectiveFulfillmentAt ? <p className="rounded-md border border-teal-200 bg-white px-3 py-2 text-sm font-medium text-teal-800">{t("kitchen.reservation.time", { time: formatKitchenDateTime(locale, selectedWait.effectiveFulfillmentAt, timeZone) })}</p> : null}
+          {selectedOrder.externalOrderNumber ? <p className="rounded-md bg-white px-3 py-2 text-sm text-stone-700">{t("kitchen.order.platformNo", { number: selectedOrder.externalOrderNumber })}</p> : null}
+          {selectedOrder.externalProvider ? <p className="rounded-md bg-white px-3 py-2 text-sm text-stone-700">{selectedOrder.riderPickupAt ? t("kitchen.order.riderPickedUp", { time: formatKitchenTime(locale, selectedOrder.riderPickupAt, timeZone) }) : t("kitchen.order.awaitRider")}</p> : null}
+          {selectedOrder.tasks.some((task) => task.status !== "COMPLETED") ? <button type="button" disabled={busyId !== null} onClick={() => void onComplete(selectedOrder.id)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50"><CheckCheck className="h-5 w-5" />{t("kitchen.order.complete")}</button> : <p className="rounded-md bg-emerald-50 px-3 py-3 text-center text-sm font-semibold text-emerald-800"><PackageCheck className="mr-2 inline h-4 w-4" />{t("kitchen.status.ready")}</p>}
+        </div>
+        {canCancelOrder ? <div className="sticky bottom-0 border-t border-stone-200 bg-stone-50/95 p-4 backdrop-blur"><button type="button" disabled={busyId !== null} onClick={() => onCancel(selectedOrder.id, selectedOrder.orderNo)} className="min-h-11 w-full rounded-md border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 disabled:opacity-50">{t("common.cancel")}</button></div> : null}
+      </aside>
+      </article>
+    </section>
+  );
+}
+
+function kitchenOrderWaitPresentation(
+  order: ReturnType<typeof groupTasksByOrder>[number],
+  now: number,
+  warningMinutes: number,
+  criticalMinutes: number,
+  t: (key: OperationsMessageKey, values?: Record<string, string | number>) => string,
+) {
   const effectiveFulfillmentAt = resolveEffectiveFulfillmentAt(order);
   const productionStartedAt = order.tasks.reduce<number | null>((earliest, task) => {
     if (!task.startedAt) return earliest;
     const startedAt = Date.parse(task.startedAt);
     return earliest === null ? startedAt : Math.min(earliest, startedAt);
   }, null);
-  const fallbackStartedAt = productionStartedAt
-    ?? Date.parse(order.confirmedAt ?? order.createdAt);
+  const fallbackStartedAt = productionStartedAt ?? Date.parse(order.confirmedAt ?? order.createdAt);
   const wait = kitchenWaitDisplay(
     now,
     order.status === "CONFIRMED" && productionStartedAt === null
@@ -457,57 +526,18 @@ function OrderTicket({ order, now, warningMinutes, criticalMinutes, timeZone, bu
       : null,
     fallbackStartedAt,
   );
-  const elapsed = wait.elapsedMinutes;
-  const waitLabel = wait.beforeFulfillment
+  const label = wait.beforeFulfillment
     ? t("kitchen.wait.until", { minutes: Math.ceil(((effectiveFulfillmentAt?.getTime() ?? now) - now) / 60_000) })
     : effectiveFulfillmentAt && order.status === "CONFIRMED" && productionStartedAt === null
-      ? t("kitchen.wait.overdue", { minutes: elapsed })
-      : t("kitchen.wait.elapsed", { minutes: elapsed });
-  const level = kitchenWaitLevel(elapsed, warningMinutes, criticalMinutes);
-  const border = level === "CRITICAL" ? "border-red-500" : level === "WARNING" ? "border-amber-500" : "border-stone-200";
-  return (
-    <article className={`rounded-md border-2 ${border} bg-white p-4`}>
-      <div className="flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-xl font-bold">#{order.orderNo}</h3>
-            {order.externalProvider ? <span className="rounded bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-800">{deliveryProviderLabel(order.externalProvider)}</span> : null}
-          </div>
-          <p className="mt-1 text-sm text-stone-600">{fulfillmentLabel(t, order.fulfillmentType, order.tableLabel)} · {sourceLabel(t, order.source)}</p>
-          {order.externalOrderNumber ? <p className="mt-1 text-xs font-medium text-stone-600">{t("kitchen.order.platformNo", { number: order.externalOrderNumber })}</p> : null}
-          {effectiveFulfillmentAt ? <p className="mt-1 text-xs font-medium text-teal-800">{t("kitchen.reservation.time", { time: formatKitchenDateTime(locale, effectiveFulfillmentAt, timeZone) })}</p> : null}
-          {order.externalProvider ? <p className="mt-1 text-xs font-medium text-stone-600">{order.riderPickupAt ? t("kitchen.order.riderPickedUp", { time: formatKitchenTime(locale, order.riderPickupAt, timeZone) }) : t("kitchen.order.awaitRider")}</p> : null}
-        </div>
-        <div className={`text-right ${level === "CRITICAL" ? "text-red-700" : level === "WARNING" ? "text-amber-700" : "text-stone-600"}`}>
-          <span className="inline-flex items-center gap-1 text-sm font-semibold"><Clock3 className="h-4 w-4" />{waitLabel}</span>
-          {level !== "NORMAL" ? (
-            <p className="mt-1 text-xs font-bold" role="status">
-              {level === "CRITICAL" ? t("kitchen.wait.critical") : t("kitchen.wait.warning")}
-            </p>
-          ) : null}
-          {order.pickupCode ? <p className="mt-1 font-mono text-lg font-bold">{t("kitchen.order.pickupCode", { code: order.pickupCode })}</p> : null}
-        </div>
-      </div>
-      <div className="divide-y divide-stone-100">
-        {order.tasks.map((task) => (
-          <TaskRow
-            key={task.id}
-            task={task}
-            busy={busyId === task.id}
-            locked={order.status === "READY"}
-            onTask={onTask}
-          />
-        ))}
-      </div>
-      {order.note ? <div className="mt-3 flex gap-2 bg-amber-50 p-3 text-sm text-amber-900"><MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" /><span>{order.externalProvider ? t("kitchen.order.platformNote") : ""}{order.note}</span></div> : null}
-      <div className="mt-4 flex flex-wrap gap-2">
-        {order.tasks.some((task) => task.status !== "COMPLETED") ? (
-          <button type="button" disabled={busyId !== null} onClick={() => void onComplete()} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50"><CheckCheck className="h-5 w-5" />{t("kitchen.order.complete")}</button>
-        ) : null}
-        {canCancelOrder ? <button type="button" disabled={busyId !== null} onClick={onCancel} className="min-h-11 rounded-md border border-red-300 px-4 text-sm font-semibold text-red-700 disabled:opacity-50">{t("common.cancel")}</button> : null}
-      </div>
-    </article>
-  );
+      ? t("kitchen.wait.overdue", { minutes: wait.elapsedMinutes })
+      : t("kitchen.wait.elapsed", { minutes: wait.elapsedMinutes });
+  const level = kitchenWaitLevel(wait.elapsedMinutes, warningMinutes, criticalMinutes);
+  return {
+    label,
+    level,
+    border: level === "CRITICAL" ? "border-red-500" : level === "WARNING" ? "border-amber-500" : "border-stone-300",
+    effectiveFulfillmentAt,
+  };
 }
 
 function TaskRow({ task, busy, locked, onTask }: { task: KitchenBoardTask; busy: boolean; locked: boolean; onTask: (taskId: string, status: "PENDING" | "PREPARING" | "COMPLETED") => Promise<boolean> }) {
@@ -537,6 +567,11 @@ function groupTasksByOrder(tasks: KitchenBoardTask[]) {
     else groups.set(task.orderId, { id: task.orderId, orderNo: task.orderNo, pickupCode: task.pickupCode, source: task.source, externalProvider: task.externalProvider, externalOrderNumber: task.externalOrderNumber, scheduledPickupAt: task.scheduledPickupAt, requestedFulfillmentAt: task.requestedFulfillmentAt, committedFulfillmentAt: task.committedFulfillmentAt, riderPickupAt: task.riderPickupAt, fulfillmentType: task.fulfillmentType, tableLabel: task.tableLabel, note: task.orderNote, status: task.orderStatus, createdAt: task.orderCreatedAt, confirmedAt: task.confirmedAt, tasks: [task] });
   }
   return [...groups.values()].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
+function preferredKitchenOrderId(tasks: KitchenBoardTask[]) {
+  const orders = groupTasksByOrder(tasks);
+  return orders.find((order) => order.status !== "READY")?.id ?? orders[0]?.id ?? null;
 }
 
 function formatKitchenTime(locale: AppLocale, value: string, timeZone: string) {

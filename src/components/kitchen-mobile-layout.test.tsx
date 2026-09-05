@@ -193,4 +193,73 @@ describe("kitchen mobile layout", () => {
     expect(html).toContain('role="status"');
     expect(html).toContain("<span class=\"sr-only\">訂單</span>");
   });
+
+  it("separates the kitchen order queue, selected items, and kitchen-only actions", () => {
+    const html = renderToStaticMarkup(
+      <MessageTestProvider initialLocale="zh-TW">
+        <KitchenBoard
+          stall={{ id: "11111111-1111-4111-8111-111111111111", organizationId: "22222222-2222-4222-8222-222222222222", slug: "demo", name: "測試攤位" }}
+          canManage
+          workModeDestinations={[]}
+          initialData={{
+            settings: {
+              warningMinutes: 10,
+              criticalMinutes: 20,
+              defaultView: "ORDER",
+              timeZone: "Asia/Taipei",
+              businessDayCutoffHour: 0,
+            },
+            stations: [{ id: "station-1", name: "熱台", code: "HOT" }],
+            tasks: [{
+              id: "task-1",
+              orderId: "order-1",
+              orderItemId: "item-1",
+              orderNo: "260905-001",
+              pickupCode: "101",
+              source: "QR_MENU",
+              externalProvider: null,
+              externalOrderNumber: null,
+              scheduledPickupAt: null,
+              requestedFulfillmentAt: null,
+              committedFulfillmentAt: null,
+              fulfillmentTimeState: "NOT_REQUESTED",
+              riderPickupAt: null,
+              fulfillmentType: "TAKEOUT",
+              tableLabel: null,
+              orderNote: "不要辣",
+              orderStatus: "CONFIRMED",
+              orderCreatedAt: "2026-09-05T09:50:00.000Z",
+              confirmedAt: "2026-09-05T09:51:00.000Z",
+              itemName: "鹽酥雞",
+              quantity: 2,
+              itemNote: null,
+              modifiers: ["加蒜"],
+              station: { id: "station-1", name: "熱台", code: "HOT" },
+              status: "PENDING",
+              startedAt: null,
+              completedAt: null,
+              assignedTo: null,
+            }],
+            futureReservations: [],
+            alertOrderIds: ["order-1"],
+            serverNow: "2026-09-05T10:00:00.000Z",
+          }}
+          role="ORGANIZATION_OWNER"
+        />
+      </MessageTestProvider>,
+    );
+
+    const queueIndex = html.indexOf('data-testid="kitchen-order-queue-pane"');
+    const itemsIndex = html.indexOf('data-testid="kitchen-order-items-pane"');
+    const actionsIndex = html.indexOf('data-testid="kitchen-order-actions-pane"');
+    expect(html).toContain('data-testid="kitchen-order-workspace"');
+    expect(queueIndex).toBeGreaterThan(-1);
+    expect(itemsIndex).toBeGreaterThan(queueIndex);
+    expect(actionsIndex).toBeGreaterThan(itemsIndex);
+    expect(html.match(/overflow-y-auto/g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+    expect(html).toContain('data-testid="kitchen-order-queue-button"');
+    expect(html).toContain('data-testid="kitchen-order-item-list"');
+    expect(html).toContain('data-testid="kitchen-order-primary-actions"');
+    expect(html).not.toContain("結帳收款");
+  });
 });

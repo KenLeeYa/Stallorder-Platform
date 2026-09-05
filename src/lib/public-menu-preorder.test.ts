@@ -186,6 +186,50 @@ describe("Next public preorder menu", () => {
     });
   });
 
+  it("publishes the active named festival campaign independently from the legacy date fields", async () => {
+    const context = await qrCodeFindUnique();
+    qrCodeFindUnique.mockClear();
+    qrCodeFindUnique.mockResolvedValue({
+      ...context,
+      stall: {
+        ...context.stall,
+        businessStatus: "OPEN",
+        orderingState: "OPEN",
+        orderingEnabled: true,
+        lotteryCampaigns: [{
+          id: "campaign-mid-autumn",
+          name: "中秋加碼抽",
+          isEnabled: true,
+          // Next.js cache serialization returns database dates as ISO strings.
+          startsOn: "2000-01-01T00:00:00.000Z",
+          endsOn: "2099-12-31T00:00:00.000Z",
+        }],
+      },
+    });
+    stallProductFindMany.mockResolvedValue([{
+      ...(await stallProductFindMany())[0],
+      availableFrom: null,
+      availableUntil: null,
+    }]);
+    calculateCapacitySnapshot.mockResolvedValue({
+      quoteMinMinutes: 10,
+      quoteMaxMinutes: 15,
+      acknowledgmentThresholdMinutes: 30,
+      requiresAcknowledgment: false,
+    });
+    const { getCachedPublicMenuForQrToken } = await import("./public-menu");
+
+    const menu = await getCachedPublicMenuForQrToken("festival-campaign-qr", "DEFAULT");
+
+    expect(menu).toMatchObject({
+      lotteryCampaignName: "中秋加碼抽",
+      lotteryReward: {
+        festivalEnabled: true,
+        festivalActive: true,
+      },
+    });
+  });
+
   it("marks a physical QR as closed outside the regular weekly schedule", async () => {
     const context = await qrCodeFindUnique();
     qrCodeFindUnique.mockClear();

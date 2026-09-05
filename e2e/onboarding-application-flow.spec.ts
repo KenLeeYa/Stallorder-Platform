@@ -4,6 +4,10 @@ import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { generatePublicIdentifierSuggestion } from "../src/lib/public-identifier-suggestion";
+import {
+  establishLocalTestSession,
+  gotoLocalPath,
+} from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -171,8 +175,8 @@ test.describe("商家申請表單流程", () => {
 });
 
 async function loginForOnboarding(page: Page) {
-  await page.goto("/login");
-  await page.getByRole("link", { name: "使用已驗證帳號申請開通" }).click();
+  await establishLocalTestSession(page, prisma, profileId);
+  await gotoLocalPath(page, "/onboarding");
   await expect(page).toHaveURL(/\/onboarding$/);
 }
 

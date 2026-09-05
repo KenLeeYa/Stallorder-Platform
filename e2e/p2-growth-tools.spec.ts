@@ -158,8 +158,10 @@ test.describe("P2 後續成長功能", () => {
     const alert = page.getByRole("article").filter({ hasText: alertMessage });
     await expect(alert).toBeVisible();
     await alert.getByRole("button", { name: "確認警示" }).click();
+    await acknowledgeSuccessFeedback(page, "警示已確認並留下稽核紀錄。");
     await expect(alert.getByText("已確認", { exact: true })).toBeVisible();
     await alert.getByRole("button", { name: "標記已解除" }).click();
+    await acknowledgeSuccessFeedback(page, "警示已標記為已解除。");
     await expect(alert.getByText("已解除", { exact: true })).toBeVisible();
 
     const record = await prisma.operationalAlert.findFirstOrThrow({ where: { organizationId, message: alertMessage } });
@@ -278,6 +280,18 @@ async function login(page: Page, email: string) {
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
   await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=|\/staff\//, { timeout: 30_000 });
+}
+
+async function acknowledgeSuccessFeedback(page: Page, message: string) {
+  const dialog = page.getByRole("dialog", {
+    name: "操作已完成",
+    exact: true,
+  });
+  await expect(dialog).toContainText(message);
+  await dialog
+    .getByRole("button", { name: "我知道了", exact: true })
+    .click();
+  await expect(dialog).toBeHidden();
 }
 
 function assertLocalDatabase() {

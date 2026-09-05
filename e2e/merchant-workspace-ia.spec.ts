@@ -10,7 +10,7 @@ async function acknowledgeSettingsFeedback(
   message: string,
 ) {
   const dialog = page.getByRole(kind === "error" ? "alertdialog" : "dialog", {
-    name: kind === "error" ? "請確認設定" : "設定已完成",
+    name: kind === "error" ? "請確認" : "操作已完成",
     exact: true,
   });
   await expect(dialog).toContainText(message);

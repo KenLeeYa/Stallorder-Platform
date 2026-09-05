@@ -35,6 +35,7 @@ import {
   X,
 } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
+import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
 import { readApiJson } from "@/lib/api-response";
 import { prepareProductImageForUpload } from "@/lib/client-product-image";
 import { csrfFormHeaders, csrfHeaders } from "@/lib/csrf-client";
@@ -299,6 +300,7 @@ export function SharedCatalogManager({
   const [bundleChoiceDraft, setBundleChoiceDraft] = useState<BundleChoiceDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>("success");
   const [editorMessage, setEditorMessage] = useState("");
   const [editorFieldErrors, setEditorFieldErrors] = useState<Record<string, string>>({});
   const [bundleMessage, setBundleMessage] = useState("");
@@ -380,18 +382,23 @@ export function SharedCatalogManager({
           setEditorFieldErrors(nextFieldErrors);
           focusFirstInvalidField(editorRef.current, nextFieldErrors);
         } else {
+          setMessageKind("error");
           setMessage(errorMessage);
         }
         return false;
       }
       setCatalog(payload.catalog);
+      setMessageKind("success");
       setMessage(successMessage);
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : label("網路連線中斷，請稍後再試。");
       if (feedbackTarget === "bundle") setBundleMessage(errorMessage);
       else if (feedbackTarget === "editor") setEditorMessage(errorMessage);
-      else setMessage(errorMessage);
+      else {
+        setMessageKind("error");
+        setMessage(errorMessage);
+      }
       return false;
     } finally {
       setBusy(false);
@@ -424,12 +431,14 @@ export function SharedCatalogManager({
       setReusableNotes(payload.reusableNotes);
       setNoteGroupsRevision((current) => current + 1);
       const translatedFields = Number(payload.summary?.translatedFields ?? 0);
+      setMessageKind("success");
       setMessage(
         translatedFields > 0
           ? m("AI 翻譯已完成，共補齊 {value0} 個缺漏欄位。", { value0: translatedFields })
           : label("目前啟用的語系皆已完成翻譯。"),
       );
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error ? error.message : label("目前無法完成 AI 翻譯。"));
     } finally {
       setAiTranslating(false);
@@ -445,6 +454,7 @@ export function SharedCatalogManager({
     clearEditorFeedback();
     const category = sortedCategories.find((item) => item.id === categoryId) ?? sortedCategories[0];
     if (!category) {
+      setMessageKind("error");
       setMessage(label("請先建立可用的商品分類。"));
       return;
     }
@@ -480,6 +490,7 @@ export function SharedCatalogManager({
     const category = sortedCategories.find((item) => item.id === location?.categoryId && item.isActive)
       ?? sortedCategories.find((item) => item.isActive);
     if (!category) {
+      setMessageKind("error");
       setMessage(label("請先建立可用的商品分類。"));
       setCategoryDraft({ name: "", sortOrder: catalog.categories.length + 1, isActive: true, translations: [] });
       return;
@@ -594,6 +605,7 @@ export function SharedCatalogManager({
       if (!response.ok) throw new Error(payload.error ?? label("商品匯入失敗。"));
       setImportPreview({ file, ...payload });
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error ? error.message : label("商品匯入失敗。"));
     } finally {
       setBusy(false);
@@ -617,8 +629,10 @@ export function SharedCatalogManager({
       if (!response.ok) throw new Error(payload.error ?? label("商品匯入失敗。"));
       setCatalog(payload.catalog);
       setImportPreview(null);
+      setMessageKind("success");
       setMessage(m("已套用 {value0} 筆商品{value1}。", { value0: payload.importedCount, value1: payload.skippedCount > 0 ? m("，略過 {value0} 筆錯誤資料", { value0: payload.skippedCount }) : "" }));
     } catch (error) {
+      setMessageKind("error");
       setMessage(error instanceof Error ? error.message : label("商品匯入失敗。"));
     } finally {
       setBusy(false);
@@ -844,6 +858,7 @@ export function SharedCatalogManager({
     const component = singleProducts.find((product) => product.isActive) ?? singleProducts[0];
     const choiceGroup = bundleProduct?.bundleChoiceGroups.find((group) => group.id === choiceGroupId);
     if (!component) {
+      setMessageKind("error");
       setMessage(label("請先建立一般商品，才能加入套餐選項。"));
       return;
     }
@@ -1023,7 +1038,7 @@ export function SharedCatalogManager({
         </div>
       </div>
 
-      {message ? <p role="status" className="mt-4 text-sm font-medium text-stone-700">{message}</p> : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
       <div id="shared-product-catalog" data-shared-product-catalog className="mt-5">
         <button
           type="button"
@@ -1238,16 +1253,6 @@ export function SharedCatalogManager({
               <CheckField label={label("不適用訂單折扣")} checked={!productDraft.isOrderDiscountEligible} onChange={(excluded) => setProductDraft({ ...productDraft, isOrderDiscountEligible: !excluded })} />
               <p className="mt-1 text-xs text-stone-500">{label("開啟後，員工結帳折扣與 QR 抽抽樂折扣都不會套用此商品。套餐以套餐商品本身的設定為準。")}</p>
             </div>
-            <div className="sm:col-span-2">
-              {productDraft.kind === "SINGLE" ? (
-                <>
-                  <CheckField label={label("可作為抽抽樂推薦／免費贈品")} checked={productDraft.isLotteryEligible} onChange={(isLotteryEligible) => setProductDraft({ ...productDraft, isLotteryEligible })} />
-                  <p className="mt-1 text-xs text-stone-500">{label("預設開啟；關閉後，此商品不會被抽中。需必選客製內容的商品不會作為免費贈品。")}</p>
-                </>
-              ) : (
-                <p className="rounded-md bg-stone-50 px-3 py-2 text-xs text-stone-600">{label("套餐需由客人選擇組合內容，目前不參與抽抽樂推薦。")}</p>
-              )}
-            </div>
             {productDraft.id && productDraft.kind === "SINGLE" ? (
               <div className="sm:col-span-2">
                 <p className="text-sm font-semibold text-stone-800">{label("結帳前加點推薦")}</p>
@@ -1295,15 +1300,20 @@ export function SharedCatalogManager({
                 <p className="mt-2 text-xs text-stone-500">{label("推薦加點依攤位分開設定；攤位的「結帳前加點推薦」總開關也必須開啟。每攤最多 6 項。")}</p>
               </div>
             ) : null}
-            {translationOptions.length > 0 ? <fieldset className="border-t border-stone-200 pt-4 sm:col-span-2">
-              <legend className="flex items-center gap-2 text-sm font-semibold"><Languages className="h-4 w-4" />{label("商品翻譯")}</legend>
+            {translationOptions.length > 0 ? <details className="group border-t border-stone-200 pt-4 sm:col-span-2">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                <Languages className="h-4 w-4" />
+                <span>{label("商品翻譯")}</span>
+                <span className="ml-auto text-xs font-normal text-stone-500">{label("展開／收合")}</span>
+              </summary>
               <div className="mt-3 grid gap-4">
                 {translationOptions.map((option) => {
                   const translation = productDraft.translations.find((item) => item.locale === option.locale) ?? { locale: option.locale, name: "", description: "" };
                   return <div key={option.locale} className="grid gap-2 sm:grid-cols-2"><TextField label={m("{value0}名稱", { value0: option.label })} value={translation.name} required={false} onChange={(name) => updateTranslation(option.locale, { name })} /><label className="text-sm font-medium text-stone-700">{option.label}{label("說明")}<textarea rows={2} maxLength={500} value={translation.description} onChange={(event) => updateTranslation(option.locale, { description: event.target.value })} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label></div>;
                 })}
               </div>
-            </fieldset> : null}
+            </details> : null}
             {!productDraft.id
               ? (!singleStallMode ? <StallChecks stalls={stalls} selected={productDraft.stallIds} error={editorFieldErrors.stallIds} onChange={(stallIds) => { clearEditorField("stallIds"); setProductDraft({ ...productDraft, stallIds }); }} /> : null)
               : <CheckField label={singleStallMode ? label("商品已售完") : label("所有攤位皆已售完")} checked={productDraft.isSoldOut} onChange={(isSoldOut) => setProductDraft({ ...productDraft, isSoldOut })} />}

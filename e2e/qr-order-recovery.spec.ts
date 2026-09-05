@@ -179,21 +179,22 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
     await staffPage.goto("/staff/aming-chicken");
     await dismissStaffStartReminder(staffPage);
     const staffOrder = staffPage
-      .getByRole("article")
+      .getByTestId("staff-order-list-pane")
+      .getByRole("button")
       .filter({ hasText: orderNo });
-    await staffOrder
-      .getByRole("button", { name: "查看明細", exact: true })
-      .click();
-    await staffOrder
+    await staffOrder.click();
+    const staffOrderItems = staffPage.getByTestId("staff-order-items-pane");
+    const staffOrderActions = staffPage.getByTestId("staff-order-actions-pane");
+    await staffOrderActions
       .getByRole("button", { name: "確認接單", exact: true })
       .click();
-    await staffOrder
+    await staffOrderItems
       .getByRole("button", { name: "全部開始製作（1）", exact: true })
       .click();
-    await staffOrder
+    await staffOrderItems
       .getByRole("button", { name: "全部餐點完成（1）", exact: true })
       .click();
-    await staffOrder
+    await staffOrderActions
       .getByRole("button", { name: "結帳收款", exact: true })
       .click();
     const paymentDialog = staffPage.getByRole("dialog", {
@@ -221,8 +222,8 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
       completionPendingFulfillment: true,
       order: { status: "READY", paymentStatus: "PAID" },
     });
-    await expect(staffOrder).toContainText("已付款");
-    await staffOrder
+    await expect(staffOrderActions).toContainText("已付款");
+    await staffOrderActions
       .getByRole("button", { name: "完成訂單", exact: true })
       .click();
     const pickupCheckout = staffPage.getByRole("dialog", {

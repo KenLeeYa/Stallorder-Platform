@@ -424,6 +424,7 @@ model Organization {
   auditLogs                     AuditLog[]
   qrCodes                       QrCode[]
   orderingSettings              StallOrderingSettings[]
+  lotteryCampaigns              StallLotteryCampaign[]
   orderSessions                 OrderSession[]
   orders                        Order[]
   orderItems                    OrderItem[]
@@ -541,6 +542,7 @@ model Stall {
   paymentOptions         PaymentOption[]
   discountOptions        DiscountOption[]
   lotteryDiscountChances StallLotteryDiscountChance[]
+  lotteryCampaigns       StallLotteryCampaign[]
   orderSessions          OrderSession[]
   publicOrderAttempts    PublicOrderAttempt[]
   publicRateLimitBuckets PublicRateLimitBucket[]
@@ -2271,6 +2273,8 @@ model StallOrderingSettings {
   managerAuthorizationCodeHash      String?      @map("manager_authorization_code_hash")
   managerAuthorizationCodeUpdatedAt DateTime?    @map("manager_authorization_code_updated_at")
   lotteryEnabled                 Boolean      @default(false) @map("lottery_enabled")
+  lotteryCampaignName            String       @default("抽抽樂") @map("lottery_campaign_name") @db.VarChar(80)
+  lotteryProductIds              String[]     @default([]) @map("lottery_product_ids") @db.Uuid
   lotteryDiscountOptionId        String?      @map("lottery_discount_option_id") @db.Uuid
   lotteryDiscountWinRateBps      Int          @default(0) @map("lottery_discount_win_rate_bps") @db.SmallInt
   lotterySpendRewardEnabled      Boolean      @default(false) @map("lottery_spend_reward_enabled")
@@ -2613,6 +2617,27 @@ model StallLotteryDiscountChance {
   @@id([stallId, discountOptionId])
   @@index([discountOptionId])
   @@map("stall_lottery_discount_chances")
+}
+
+model StallLotteryCampaign {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  stallId        String       @map("stall_id") @db.Uuid
+  name           String       @db.VarChar(80)
+  isEnabled      Boolean      @default(false) @map("is_enabled")
+  startsOn       DateTime     @map("starts_on") @db.Date
+  endsOn         DateTime     @map("ends_on") @db.Date
+  productIds     String[]     @default([]) @map("product_ids") @db.Uuid
+  sortOrder      Int          @default(0) @map("sort_order")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall          Stall        @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, stallId, deletedAt, sortOrder])
+  @@index([stallId, isEnabled, startsOn, endsOn])
+  @@map("stall_lottery_campaigns")
 }
 
 model OrderSession {

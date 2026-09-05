@@ -800,10 +800,10 @@ export function PublicOrderTracker({
 
   return (
     <main className="mx-auto min-h-screen max-w-xl px-4 py-6 sm:px-5 sm:py-10">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4" data-testid="public-order-tracker-header">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-teal-800">{publicOrderMessages.get(locale, "liveStatus")}</p>
-          <h1 className="mt-1 text-3xl font-semibold">{order?.stallName ?? "StallOrder"}</h1>
+          <h1 className="mt-1 break-words text-2xl font-semibold leading-tight sm:text-3xl" data-testid="public-order-tracker-stall-name">{order?.stallName ?? "StallOrder"}</h1>
           <p className="mt-2 text-xs text-stone-500">
             {!isOnline
               ? publicOrderMessages.get(locale, "offlineAuto")
@@ -814,7 +814,7 @@ export function PublicOrderTracker({
                   : publicOrderMessages.get(locale, "waitingUpdate")}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap" data-testid="public-order-tracker-actions">
           {qrOrderReturnPath
             ? (
               <button
@@ -846,7 +846,7 @@ export function PublicOrderTracker({
         </div>
       </div>
 
-      {message ? <p role="alert" className="mt-6 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{message}</p> : null}
+      {message && !isOnline ? <p role="status" className="mt-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{message}</p> : null}
       {order ? (
         <section className="mt-5 border-y border-stone-200 py-4 sm:mt-8 sm:py-6">
           <div className="flex items-center gap-3">
@@ -998,6 +998,15 @@ export function PublicOrderTracker({
           message={cancelError}
           primaryLabel={publicOrderMessages.get(locale, "amendmentDismiss")}
           onPrimary={() => setCancelError("")}
+          danger
+        />
+      ) : null}
+      {message && isOnline ? (
+        <PublicOrderFeedbackDialog
+          title={publicOrderMessages.get(locale, "liveStatus")}
+          message={message}
+          primaryLabel={publicOrderMessages.get(locale, "amendmentDismiss")}
+          onPrimary={() => setMessage("")}
           danger
         />
       ) : null}

@@ -437,6 +437,14 @@ export function getTrackedPublicOrder(trackingTokenHash: string, deviceHash: str
   `);
 }
 
+export async function findTrackedPublicOrderIdByTokenHash(trackingTokenHash: string) {
+  const order = await prisma.order.findUnique({
+    where: { trackingTokenHash },
+    select: { id: true },
+  });
+  return order?.id ?? null;
+}
+
 export async function getReorderPreparationContext(orderId: string) {
   const now = new Date();
   const order = await prisma.order.findUnique({

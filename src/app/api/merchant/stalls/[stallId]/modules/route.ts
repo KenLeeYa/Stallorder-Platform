@@ -142,6 +142,40 @@ export async function PATCH(request: Request, context: RouteContext) {
             throw new CheckoutUpsellConfigurationError("推薦商品已停用或不屬於此攤位，請重新選擇。");
           }
         }
+        if (updatesLottery && command.lotteryEnabled && command.lotteryProductIds.length === 0) {
+          throw new LotteryProductConfigurationError("請至少選擇 1 個可抽商品。");
+        }
+        if (updatesLottery && command.lotteryProductIds.length > 0) {
+          const eligibleAssignments = await transaction.stallProduct.count({
+            where: {
+              stallId,
+              organizationId,
+              productId: { in: command.lotteryProductIds },
+              isEnabled: true,
+              product: { isActive: true, kind: "SINGLE" },
+            },
+          });
+          if (eligibleAssignments !== command.lotteryProductIds.length) {
+            throw new LotteryProductConfigurationError("抽抽樂商品已停用、不是一般商品或不屬於此攤位，請重新選擇。");
+          }
+        }
+        const festivalProductIds = command.lotteryFestivalCampaigns
+          ? [...new Set(command.lotteryFestivalCampaigns.flatMap((campaign) => campaign.productIds))]
+          : [];
+        if (updatesLottery && festivalProductIds.length > 0) {
+          const eligibleAssignments = await transaction.stallProduct.count({
+            where: {
+              stallId,
+              organizationId,
+              productId: { in: festivalProductIds },
+              isEnabled: true,
+              product: { isActive: true, kind: "SINGLE" },
+            },
+          });
+          if (eligibleAssignments !== festivalProductIds.length) {
+            throw new LotteryProductConfigurationError("節慶活動商品已停用、不是一般商品或不屬於此攤位，請重新選擇。");
+          }
+        }
         if (updatesLottery && command.lotteryFestivalRewardEnabled) {
           if (!command.lotteryFestivalStartsOn || !command.lotteryFestivalEndsOn) {
             throw new LotteryCampaignConfigurationError({
@@ -180,6 +214,10 @@ export async function PATCH(request: Request, context: RouteContext) {
           }
         }
         const legacyLotteryDiscount = lotteryDiscountChances[0] ?? null;
+        const firstEnabledFestival = command.lotteryFestivalCampaigns
+          ?.filter((campaign) => campaign.isEnabled)
+          .sort((left, right) => left.sortOrder - right.sortOrder || left.startsOn.localeCompare(right.startsOn))[0]
+          ?? null;
         await transaction.stallOrderingSettings.update({
           where: { stallId, organizationId },
           data: {
@@ -222,21 +260,74 @@ export async function PATCH(request: Request, context: RouteContext) {
             } : {}),
             ...(updatesLottery ? {
               lotteryEnabled: command.lotteryEnabled,
+              lotteryCampaignName: command.lotteryCampaignName,
+              lotteryProductIds: command.lotteryProductIds,
               lotteryDiscountOptionId: legacyLotteryDiscount?.discountOptionId ?? null,
               lotteryDiscountWinRateBps: legacyLotteryDiscount?.winRateBps ?? 0,
               lotterySpendRewardEnabled: command.lotterySpendRewardEnabled,
               lotterySpendThresholdAmount: command.lotterySpendThresholdAmount,
-              lotteryFestivalRewardEnabled: command.lotteryFestivalRewardEnabled,
-              lotteryFestivalStartsOn: command.lotteryFestivalStartsOn
-                ? new Date(`${command.lotteryFestivalStartsOn}T00:00:00.000Z`)
+              lotteryFestivalRewardEnabled: command.lotteryFestivalCampaigns
+                ? Boolean(firstEnabledFestival)
+                : command.lotteryFestivalRewardEnabled,
+              lotteryFestivalStartsOn: (command.lotteryFestivalCampaigns
+                ? firstEnabledFestival?.startsOn
+                : command.lotteryFestivalStartsOn)
+                ? new Date(`${command.lotteryFestivalCampaigns ? firstEnabledFestival?.startsOn : command.lotteryFestivalStartsOn}T00:00:00.000Z`)
                 : null,
-              lotteryFestivalEndsOn: command.lotteryFestivalEndsOn
-                ? new Date(`${command.lotteryFestivalEndsOn}T00:00:00.000Z`)
+              lotteryFestivalEndsOn: (command.lotteryFestivalCampaigns
+                ? firstEnabledFestival?.endsOn
+                : command.lotteryFestivalEndsOn)
+                ? new Date(`${command.lotteryFestivalCampaigns ? firstEnabledFestival?.endsOn : command.lotteryFestivalEndsOn}T00:00:00.000Z`)
                 : null,
               lotteryBirthdayRewardEnabled: false,
             } : {}),
           },
         });
+        if (updatesLottery && command.lotteryFestivalCampaigns) {
+          const submittedCampaignIds = command.lotteryFestivalCampaigns.map((campaign) => campaign.id);
+          await transaction.stallLotteryCampaign.updateMany({
+            where: {
+              organizationId,
+              stallId,
+              deletedAt: null,
+              ...(submittedCampaignIds.length > 0 ? { id: { notIn: submittedCampaignIds } } : {}),
+            },
+            data: { isEnabled: false, deletedAt: new Date() },
+          });
+          for (const campaign of command.lotteryFestivalCampaigns) {
+            const campaignData = {
+              name: campaign.name,
+              isEnabled: campaign.isEnabled,
+              startsOn: new Date(`${campaign.startsOn}T00:00:00.000Z`),
+              endsOn: new Date(`${campaign.endsOn}T00:00:00.000Z`),
+              productIds: campaign.productIds,
+              sortOrder: campaign.sortOrder,
+              deletedAt: null,
+            };
+            const updated = await transaction.stallLotteryCampaign.updateMany({
+              where: { id: campaign.id, organizationId, stallId },
+              data: campaignData,
+            });
+            if (updated.count === 0) {
+              await transaction.stallLotteryCampaign.create({
+                data: { id: campaign.id, organizationId, stallId, ...campaignData },
+              });
+            }
+          }
+        }
+        const lotteryEligibleProductIds = [...new Set([
+          ...command.lotteryProductIds,
+          ...festivalProductIds,
+        ])];
+        if (updatesLottery && lotteryEligibleProductIds.length > 0) {
+          await transaction.product.updateMany({
+            where: {
+              organizationId,
+              id: { in: lotteryEligibleProductIds },
+            },
+            data: { isLotteryEligible: true },
+          });
+        }
         const nextKdsModuleEnabled = updatesModuleView(command.view, "kds")
           ? command.kdsModuleEnabled
           : existingSettings?.kdsModuleEnabled ?? false;
@@ -637,6 +728,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     const invalidCheckoutUpsell = error instanceof CheckoutUpsellConfigurationError
       ? error
       : null;
+    const invalidLotteryProduct = error instanceof LotteryProductConfigurationError
+      ? error
+      : null;
     const activeOrders = error instanceof ActiveTableOrdersError;
     const floorInUse = error instanceof DiningFloorInUseError;
     const duplicateFieldErrors = duplicate
@@ -644,16 +738,18 @@ export async function PATCH(request: Request, context: RouteContext) {
       : undefined;
     return NextResponse.json(
       {
-        error: duplicateFieldErrors?.name ? "樓層名稱已存在。" : duplicateFieldErrors ? "代碼已存在。" : duplicate ? "資料與現有設定衝突，請重新整理後再試。" : invalidLotteryDiscount ? "抽抽樂折扣已停用或不存在，請重新選擇。" : invalidLotteryCampaign ? "請檢查免費抽獎活動日期。" : invalidCheckoutUpsell ? invalidCheckoutUpsell.message : notFound ? "找不到指定設定。" : activeOrders ? "桌位仍有未完成訂單，請先停用而不要刪除。" : floorInUse ? "樓層仍有桌位，請先移動或刪除桌位。" : "目前無法更新模組設定。",
+        error: duplicateFieldErrors?.name ? "樓層名稱已存在。" : duplicateFieldErrors ? "代碼已存在。" : duplicate ? "資料與現有設定衝突，請重新整理後再試。" : invalidLotteryDiscount ? "抽抽樂折扣已停用或不存在，請重新選擇。" : invalidLotteryCampaign ? "請檢查免費抽獎活動日期。" : invalidCheckoutUpsell ? invalidCheckoutUpsell.message : invalidLotteryProduct ? invalidLotteryProduct.message : notFound ? "找不到指定設定。" : activeOrders ? "桌位仍有未完成訂單，請先停用而不要刪除。" : floorInUse ? "樓層仍有桌位，請先移動或刪除桌位。" : "目前無法更新模組設定。",
         ...(duplicateFieldErrors ? { fieldErrors: duplicateFieldErrors } : invalidLotteryDiscount ? {
           fieldErrors: { lotteryDiscountChances: "抽抽樂折扣已停用或不存在，請重新選擇。" },
         } : invalidLotteryCampaign ? {
           fieldErrors: invalidLotteryCampaign.fieldErrors,
         } : invalidCheckoutUpsell ? {
           fieldErrors: { checkoutUpsellProductIds: invalidCheckoutUpsell.message },
+        } : invalidLotteryProduct ? {
+          fieldErrors: { lotteryProductIds: invalidLotteryProduct.message },
         } : {}),
       },
-      { status: duplicate || activeOrders || floorInUse ? 409 : invalidLotteryDiscount || invalidLotteryCampaign || invalidCheckoutUpsell ? 400 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
+      { status: duplicate || activeOrders || floorInUse ? 409 : invalidLotteryDiscount || invalidLotteryCampaign || invalidCheckoutUpsell || invalidLotteryProduct ? 400 : notFound ? 404 : 500, headers: { "x-request-id": authorization.requestId } },
     );
   }
 }
@@ -694,5 +790,6 @@ class LotteryCampaignConfigurationError extends Error {
   }
 }
 class CheckoutUpsellConfigurationError extends Error {}
+class LotteryProductConfigurationError extends Error {}
 class ActiveTableOrdersError extends Error {}
 class DiningFloorInUseError extends Error {}

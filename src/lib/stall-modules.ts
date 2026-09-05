@@ -6,7 +6,7 @@ import { isQrLocale } from "@/lib/qr-order-i18n";
 export { stallModuleCommandSchema } from "@/lib/stall-module-contract";
 
 export async function getStallModuleState(stallId: string, organizationId: string) {
-  const [settings, floors, tables, paymentOptions, discounts, lotteryDiscountChances, upsellProducts] = await Promise.all([
+  const [settings, floors, tables, paymentOptions, discounts, lotteryDiscountChances, lotteryFestivalCampaigns, upsellProducts] = await Promise.all([
     prisma.stallOrderingSettings.findFirstOrThrow({
       where: { stallId, organizationId },
       select: {
@@ -26,6 +26,8 @@ export async function getStallModuleState(stallId: string, organizationId: strin
         preorderMaxDays: true,
         preorderSlotMinutes: true,
         lotteryEnabled: true,
+        lotteryCampaignName: true,
+        lotteryProductIds: true,
         lotteryDiscountOptionId: true,
         lotteryDiscountWinRateBps: true,
         lotterySpendRewardEnabled: true,
@@ -68,6 +70,19 @@ export async function getStallModuleState(stallId: string, organizationId: strin
       from public.stall_lottery_discount_chances chance
       where chance.stall_id = ${stallId}::uuid
     `),
+    prisma.stallLotteryCampaign.findMany({
+      where: { stallId, organizationId, deletedAt: null },
+      orderBy: [{ sortOrder: "asc" }, { startsOn: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        isEnabled: true,
+        startsOn: true,
+        endsOn: true,
+        productIds: true,
+        sortOrder: true,
+      },
+    }),
     prisma.stallProduct.findMany({
       where: {
         stallId,
@@ -84,6 +99,9 @@ export async function getStallModuleState(stallId: string, organizationId: strin
           select: {
             name: true,
             defaultPrice: true,
+            kind: true,
+            category: { select: { id: true, name: true, sortOrder: true } },
+            group: { select: { id: true, name: true, sortOrder: true } },
             translations: { select: { locale: true, name: true } },
           },
         },
@@ -115,6 +133,11 @@ export async function getStallModuleState(stallId: string, organizationId: strin
       lotteryDiscountChances: orderedLotteryDiscountChances.length > 0
         ? orderedLotteryDiscountChances
         : legacyLotteryDiscountChances,
+      lotteryFestivalCampaigns: lotteryFestivalCampaigns.map((campaign) => ({
+        ...campaign,
+        startsOn: campaign.startsOn.toISOString().slice(0, 10),
+        endsOn: campaign.endsOn.toISOString().slice(0, 10),
+      })),
       lotteryFestivalStartsOn: settings.lotteryFestivalStartsOn?.toISOString().slice(0, 10) ?? null,
       lotteryFestivalEndsOn: settings.lotteryFestivalEndsOn?.toISOString().slice(0, 10) ?? null,
       preorderSlotMinutes: ([5, 15, 30, 60, 120] as const).includes(
@@ -131,6 +154,15 @@ export async function getStallModuleState(stallId: string, organizationId: strin
       name: assignment.product.name,
       price: assignment.priceOverride ?? assignment.product.defaultPrice,
       isAvailable: assignment.isEnabled && !assignment.isSoldOut,
+      isEnabled: assignment.isEnabled,
+      isSoldOut: assignment.isSoldOut,
+      kind: assignment.product.kind,
+      categoryId: assignment.product.category.id,
+      categoryName: assignment.product.category.name,
+      categorySortOrder: assignment.product.category.sortOrder,
+      groupId: assignment.product.group?.id ?? null,
+      groupName: assignment.product.group?.name ?? null,
+      groupSortOrder: assignment.product.group?.sortOrder ?? 10_001,
       translations: assignment.product.translations,
     })),
     paymentOptions,

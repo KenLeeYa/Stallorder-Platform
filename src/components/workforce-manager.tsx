@@ -13,6 +13,8 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
+import { ReportFilters } from "@/components/report-navigation";
+import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { parseFieldErrors } from "@/lib/form-field-errors";
 import type { getWorkforceDashboard } from "@/server/workforce/workforce-service";
@@ -52,6 +54,7 @@ export function WorkforceManager({
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>("success");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [activeAction, setActiveAction] = useState<WorkforceAction | null>(null);
   const stallOptions = useMemo(() => {
@@ -102,14 +105,17 @@ export function WorkforceManager({
       });
       const payload = await response.json() as WorkforceDashboard & { error?: string; fieldErrors?: unknown };
       if (!response.ok || payload.error) {
+        setMessageKind("error");
         setMessage(payload.error ?? "目前無法更新員工薪資資料。");
         setFieldErrors(parseFieldErrors(payload.fieldErrors));
         return false;
       }
       setDashboard(payload);
+      setMessageKind("success");
       setMessage(successMessage);
       return true;
     } catch {
+      setMessageKind("error");
       setMessage("網路連線中斷，請稍後再試。");
       return false;
     } finally {
@@ -142,12 +148,17 @@ export function WorkforceManager({
         </div>
       </section>
 
-      <form method="get" className="grid gap-3 rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:grid-cols-[1fr_1fr_auto]">
-        <input type="hidden" name="organizationId" value={organizationId} />
-        <Field label="開始日" name="dateFrom" type="date" defaultValue={dashboard.dateFrom} />
-        <Field label="結束日" name="dateTo" type="date" defaultValue={dashboard.dateTo} />
-        <button type="submit" className="min-h-14 self-end rounded-xl bg-stone-950 px-5 text-base font-semibold text-white">查詢</button>
-      </form>
+      <section className="rounded-xl border border-stone-200 bg-white px-4 shadow-sm">
+        <ReportFilters
+          organizationId={organizationId}
+          stalls={[]}
+          selectedStallIds={[]}
+          dateFrom={dashboard.dateFrom}
+          dateTo={dashboard.dateTo}
+          multiStallMode={false}
+          showExport={false}
+        />
+      </section>
 
       <section aria-label="員工薪資摘要" className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Metric icon={UsersRound} label="計薪員工" value={`${dashboard.payrollPreview.length} 人`} />
@@ -155,8 +166,6 @@ export function WorkforceManager({
         <Metric icon={CircleDollarSign} label="本期薪資試算" value={money(dashboard.totals.grossAmount)} />
         <Metric icon={CalendarDays} label="待審休假／異常" value={`${dashboard.totals.pendingLeaveCount}／${dashboard.anomalies.length}`} />
       </section>
-
-      {message ? <p role="status" className={`rounded-lg border p-3 text-sm ${Object.keys(fieldErrors).length || message.includes("無法") || message.includes("缺少") ? "border-red-200 bg-red-50 text-red-800" : "border-teal-200 bg-teal-50 text-teal-900"}`}>{message}</p> : null}
 
       <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-semibold">本期薪資預覽</h2>
@@ -188,7 +197,6 @@ export function WorkforceManager({
 
       {activeAction ? (
         <WorkforceActionDialog title={workforceActionCopy[activeAction].title} description={workforceActionCopy[activeAction].description} busy={busy} onClose={closeAction}>
-          {message ? <p role="status" className={`mb-4 rounded-lg border p-3 text-sm ${Object.keys(fieldErrors).length ? "border-red-200 bg-red-50 text-red-800" : "border-teal-200 bg-teal-50 text-teal-900"}`}>{message}</p> : null}
           <WorkforceForm hidden={activeAction !== "wage"} title="設定員工時薪" busy={busy} onSubmit={(event) => void submitForm(event, (data) => ({ operation: "SET_WAGE_RATE", profileId: data.get("profileId"), stallId: data.get("stallId") || null, hourlyRate: Number(data.get("hourlyRate")), effectiveFrom: data.get("effectiveFrom"), effectiveTo: data.get("effectiveTo") || null, note: data.get("note") || null }), "員工時薪已更新。") }>
           <SelectField label="員工" name="profileId" options={dashboard.employees.map((employee) => [employee.profileId, employee.displayName])} error={fieldErrors.profileId} />
           <SelectField label="適用攤位" name="stallId" required={false} options={[["", "全部所屬攤位"], ...stallOptions]} error={fieldErrors.stallId} />
@@ -226,6 +234,8 @@ export function WorkforceManager({
           </WorkforceForm>
         </WorkforceActionDialog>
       ) : null}
+
+      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} focusAfterClose={() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()} /> : null}
 
       <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"><h2 className="text-lg font-semibold">班表安排</h2><p className="mt-1 text-sm text-stone-600">需要調整時先取消原班表，再新增正確班別，保留變更紀錄。</p><div className="mt-3 grid gap-2 md:grid-cols-2">{activeSchedules.map((schedule) => <article key={schedule.id} className="grid gap-3 rounded-lg border border-stone-200 p-3 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="font-semibold">{schedule.profileName} · {schedule.workDate}</p><p className="text-sm text-stone-600">{dayTypeLabels[schedule.dayType] ?? schedule.dayType}{schedule.shiftStartAt && schedule.shiftEndAt ? ` · ${new Date(schedule.shiftStartAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}～${new Date(schedule.shiftEndAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}` : " · 排休"}</p></div><button type="button" disabled={busy} onClick={() => void sendCommand({ operation: "CANCEL_SCHEDULE", scheduleId: schedule.id }, "原班表已取消，請新增調整後的班別。") } className="min-h-10 rounded-md border border-red-300 px-3 text-sm font-semibold text-red-700 disabled:opacity-50">取消／調整</button></article>)}{!activeSchedules.length ? <p className="text-sm text-stone-600">此區間尚無已發布班表。</p> : null}</div></section>
 
