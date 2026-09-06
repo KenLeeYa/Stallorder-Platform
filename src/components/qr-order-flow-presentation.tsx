@@ -593,7 +593,7 @@ export function QrOrderFlowPresentation({
           message={copy.outsideBusinessHoursDescription}
           primaryLabel={copy.outsideBusinessHoursAction}
           secondaryLabel={copy.close}
-          onPrimary={() => window.location.assign(session.onlineMenuPath ?? `/store/${encodeURIComponent(session.stall.slug)}?view=pickup`)}
+          onPrimary={() => window.location.assign(session.onlineMenuPath ?? `/store/${encodeURIComponent(session.stall.code ?? session.stall.slug)}`)}
           onSecondary={() => setOutsideBusinessHoursDismissed(true)}
         />
       ) : null}
