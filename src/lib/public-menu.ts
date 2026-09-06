@@ -29,6 +29,7 @@ import {
 import { completeCatalogLocales } from "../../supabase/functions/_shared/catalog-locale-completeness";
 import { getPublicEInvoiceCheckoutConfig } from "@/server/e-invoice/checkout-preference-service";
 import { publicLotteryChannelAllows } from "@/lib/public-lottery-channel";
+import { buildPublicStorefrontPath } from "@/lib/public-storefront";
 
 const QR_CONTEXT_TTL_SECONDS = 15;
 const PUBLIC_MENU_TTL_SECONDS = 45;
@@ -131,7 +132,7 @@ export async function getCachedPublicMenuForQrToken(
     products,
     orderingMode: resolvedOrderingMode,
     orderingOpenNow: resolvedOrderingMode === "DEFAULT" ? orderingOpenNow : true,
-    onlineMenuPath: `/store/${encodeURIComponent(context.stall.slug)}?view=pickup`,
+    onlineMenuPath: buildPublicStorefrontPath(context.stall.code),
     preorderSlots,
     lotteryEnabled: resolvedOrderingMode === "DEFAULT"
       && lotteryChannelAllowed
@@ -163,6 +164,7 @@ export async function getCachedPublicMenuForQrToken(
     stall: {
       name: context.stall.name,
       slug: context.stall.slug,
+      code: context.stall.code,
       location: context.location?.name ?? context.stall.location,
       address: context.stall.address,
       currency: context.stall.currency,
@@ -364,6 +366,7 @@ async function loadQrContext(qrToken: string) {
         select: {
           name: true,
           slug: true,
+          code: true,
           location: true,
           address: true,
           currency: true,

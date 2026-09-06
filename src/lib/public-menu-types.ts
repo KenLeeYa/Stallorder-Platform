@@ -103,6 +103,7 @@ export type PublicMenu = {
   stall: {
     name: string;
     slug: string;
+    code?: string;
     location: string;
     address?: string;
     currency: string;

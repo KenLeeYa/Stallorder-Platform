@@ -40,6 +40,7 @@ describe("Next public preorder menu", () => {
       stall: {
         name: "預約攤位",
         slug: "preorder-stall",
+        code: "preorder-code",
         location: "台北",
         currency: "TWD",
         timezone: "Asia/Taipei",
@@ -266,7 +267,7 @@ describe("Next public preorder menu", () => {
     expect(menu).toMatchObject({
       orderingMode: "DEFAULT",
       orderingOpenNow: false,
-      onlineMenuPath: "/store/preorder-stall?view=pickup",
+      onlineMenuPath: "/store/preorder-code",
     });
   });
 

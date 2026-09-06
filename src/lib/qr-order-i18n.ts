@@ -226,7 +226,7 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
     qrUnavailableTitle: "目前無法使用此 QR Code",
     outsideBusinessHoursTitle: "目前非營業時間",
     outsideBusinessHoursDescription: "QR 點餐目前未開放；如要預約餐點，請前往線上 Menu。",
-    outsideBusinessHoursAction: "前往線上 Menu 預約",
+    outsideBusinessHoursAction: "線上 Menu 預約",
     degradedTitle: "線上送單暫時停用",
     degradedMessage: "您仍可查看菜單，請至攤位櫃台點餐。",
     retryAvailability: "重新檢查",
