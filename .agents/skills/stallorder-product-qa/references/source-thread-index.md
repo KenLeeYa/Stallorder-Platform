@@ -45,6 +45,8 @@ Related ChatGPT project discussions include system-conversion analysis, external
 
 ## Maintaining this index
 
+The 2026-09-06/07 owner report supersedes post-confirmation customer amendments: “商家已確認訂單，無法修改訂單”. The same report authorizes urgent Production repair of customer modification and takeout time responses, while audio, utensils, tablet layout, holiday notices and update overlays remain local-only until owner testing. A repeated failure must be traced across runtime configuration, public/Staff APIs and customer feedback, not only its visible error text.
+
 When the owner changes a rule:
 
 1. update the requirement and QA case;

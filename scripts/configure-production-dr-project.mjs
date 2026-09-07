@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { setSecret } from "@actions/core";
+
 const accessToken = required("SUPABASE_ACCESS_TOKEN");
 const primaryRef = required("PRIMARY_SUPABASE_PROJECT_REF");
 const drRef = required("DR_SUPABASE_PROJECT_REF");
@@ -21,18 +24,19 @@ try {
     "TURNSTILE_SECRET_KEY",
   ];
   const synchronized = secretNames.map((name) => {
-    const value = primarySecrets.find((secret) => secret.name === name)?.value;
-    if (!value) throw new Error(`PRIMARY_EDGE_SECRET_MISSING_${name}`);
+    const digest = primarySecrets.find((secret) => secret.name === name)?.value;
+    if (!digest) throw new Error(`PRIMARY_EDGE_SECRET_MISSING_${name}`);
+    const value = required(`PRIMARY_${name}`);
+    setSecret(value);
+    if (createHash("sha256").update(value).digest("hex") !== digest) {
+      throw new Error(`PUBLIC_ORDER_SECRET_DIGEST_MISMATCH_${name}`);
+    }
     return { name, value };
   });
-  const primaryOrigins = primarySecrets.find(
-    (secret) => secret.name === "PUBLIC_APP_ORIGINS",
-  )?.value;
   synchronized.push(
     {
       name: "PUBLIC_APP_ORIGINS",
-      value: primaryOrigins
-        || `${appBaseUrl.origin},https://stallorder-platform.vercel.app`,
+      value: `${appBaseUrl.origin},https://stallorder-platform.vercel.app`,
     },
     { name: "APP_ENV", value: "production" },
     { name: "TURNSTILE_EXPECTED_HOSTNAME", value: appBaseUrl.hostname },

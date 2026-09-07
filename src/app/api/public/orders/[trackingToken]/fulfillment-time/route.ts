@@ -5,7 +5,8 @@ import { z } from "zod";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { checkPublicRateLimit } from "@/lib/rate-limit";
-import { createRequestId, hashClientIp, hashToken, isTrustedOrigin } from "@/lib/security";
+import { createRequestId, getClientIp, hashClientIp, hashToken, isTrustedOrigin } from "@/lib/security";
+import { validateTrackedPublicOrderAtCanonicalEdge } from "@/server/public-order/canonical-tracking-validator";
 import {
   errorMessage,
   statusForCode,
@@ -92,17 +93,37 @@ export async function POST(
       );
     }
 
-    const rows = await prisma.$queryRaw<Array<{ result: FulfillmentTimeResponseResult | null }>>(
-      Prisma.sql`
-        select public.respond_to_fulfillment_time(
-          ${trackingTokenHash}::text,
-          ${deviceHash}::text,
-          ${parsedBody.data.version}::integer,
-          ${parsedBody.data.response}::text
-        ) as result
-      `,
-    );
-    const result = rows[0]?.result;
+    const respond = async (verifiedDeviceHash: string) => {
+      const rows = await prisma.$queryRaw<Array<{ result: FulfillmentTimeResponseResult | null }>>(
+        Prisma.sql`
+          select public.respond_to_fulfillment_time(
+            ${trackingTokenHash}::text,
+            ${verifiedDeviceHash}::text,
+            ${parsedBody.data.version}::integer,
+            ${parsedBody.data.response}::text
+          ) as result
+        `,
+      );
+      return rows[0]?.result;
+    };
+    let result = await respond(deviceHash);
+    if (result?.code === "ORDER_NOT_FOUND") {
+      const validation = await validateTrackedPublicOrderAtCanonicalEdge({
+        ...parsedIdentity.data,
+        clientIp: getClientIp(request),
+        operationId: requestId,
+      });
+      if (validation.outcome === "UNAVAILABLE") {
+        result = { ok: false, code: "FULFILLMENT_TIME_SERVICE_UNAVAILABLE" };
+      } else if (validation.outcome === "AUTHORIZED") {
+        // The canonical Edge must authorize both the token and device before this lookup.
+        const order = await prisma.order.findUnique({
+          where: { trackingTokenHash },
+          select: { deviceHash: true },
+        });
+        if (order) result = await respond(order.deviceHash);
+      }
+    }
     if (!result?.ok) {
       const code = result?.code ?? "FULFILLMENT_TIME_SERVICE_UNAVAILABLE";
       return NextResponse.json(
@@ -113,14 +134,11 @@ export async function POST(
 
     return NextResponse.json(result, { status: 200, headers });
   } catch (error) {
-    const detail = error instanceof Error
-      ? error.message.replace(/[\r\n]/g, " ").slice(0, 300)
-      : "unknown";
     console.error(JSON.stringify({
       level: "error",
       event: "PUBLIC_FULFILLMENT_TIME_RESPONSE_FAILED",
       requestId,
-      detail,
+      code: error instanceof Prisma.PrismaClientKnownRequestError ? error.code : "UNEXPECTED_ERROR",
     }));
     return NextResponse.json(
       {

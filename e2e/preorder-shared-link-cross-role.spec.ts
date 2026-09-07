@@ -343,7 +343,8 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
 
     const sessionResponsePromise = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname.endsWith("/create-order-session") &&
+        ["/create-order-session", "/api/public/order-session"].some((path) =>
+          new URL(response.url()).pathname.endsWith(path)) &&
         response.request().method() === "POST",
     );
     await page.goto("/s/aming-chicken");
@@ -438,7 +439,8 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
 
     let createOrderResponsePromise = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname.endsWith("/create-public-order") &&
+        ["/create-public-order", "/api/public/orders"].some((path) =>
+          new URL(response.url()).pathname.endsWith(path)) &&
         response.request().method() === "POST",
     );
     const submitOrder = page.getByRole("button", {
@@ -457,7 +459,8 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
       createOrderResponsePromise = page.waitForResponse(
         (response) =>
-          new URL(response.url()).pathname.endsWith("/create-public-order") &&
+          ["/create-public-order", "/api/public/orders"].some((path) =>
+            new URL(response.url()).pathname.endsWith(path)) &&
           response.request().method() === "POST",
       );
       await submitOrder.click();

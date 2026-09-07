@@ -45,6 +45,7 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
   const [data, setData] = useState<ReorderData | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [editLocked, setEditLocked] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     setMessage("");
@@ -55,6 +56,7 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
       });
       const payload = await parseEdgeResponse(response);
       if (!response.ok) {
+        setEditLocked(["ORDER_ALREADY_CONFIRMED", "ORDER_ALREADY_STARTED", "ORDER_NOT_FOUND", "PRINT_ALREADY_STARTED", "PAYMENT_ALREADY_RECORDED"].includes(String(payload.code)));
         setMessage(
           typeof payload.code === "string"
           ? localizedPublicOrderError(locale, payload.code)
@@ -117,10 +119,14 @@ export function ReorderReview({ trackingToken }: { trackingToken: string }) {
         <PublicOrderFeedbackDialog
           title={publicMessages.get(locale, "reorderTitle")}
           message={message}
-          primaryLabel={!data && !loading
+          primaryLabel={!data && !loading && !editLocked
             ? publicMessages.get(locale, "reorderRetry")
             : publicMessages.get(locale, "reorderBack")}
           onPrimary={() => {
+            if (editLocked) {
+              window.location.assign(`/order/${encodeURIComponent(trackingToken)}`);
+              return;
+            }
             if (!data && !loading) {
               void load();
               return;

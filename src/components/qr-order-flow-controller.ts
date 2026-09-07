@@ -88,6 +88,7 @@ import {
   persistTakeoutCustomerMemory,
   readTakeoutCustomerMemory,
 } from "@/lib/takeout-customer-memory";
+import { publicOrderMessages } from "@/lib/messages/public-order";
 
 export type QrOrderFlowControllerInput = {
   qrToken: string;
@@ -904,8 +905,9 @@ export function useQrOrderFlowController({
     configuringProductId,
     copy: editMode ? {
       ...copy,
+      sessionStartError: copy.saveOrderChanges,
       submitOrder: copy.saveOrderChanges,
-      confirmationNotice: copy.editConfirmationNotice,
+      confirmationNotice: publicOrderMessages.get(locale, "modifyWaitingNotice"),
     } : copy,
     customerName,
     customerMembershipPreview,

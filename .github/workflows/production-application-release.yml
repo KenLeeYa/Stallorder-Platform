@@ -222,6 +222,9 @@ jobs:
       - name: Export active public-order runtime secrets
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PRIMARY_ABUSE_HASH_SECRET: ${{ secrets.PRIMARY_ABUSE_HASH_SECRET }}
+          PRIMARY_TOKEN_DERIVATION_SECRET: ${{ secrets.PRIMARY_TOKEN_DERIVATION_SECRET }}
+          PRIMARY_TURNSTILE_SECRET_KEY: ${{ secrets.PRIMARY_TURNSTILE_SECRET_KEY }}
         run: node scripts/export-public-order-runtime-secrets.mjs
 
       - name: Install pinned Vercel CLI

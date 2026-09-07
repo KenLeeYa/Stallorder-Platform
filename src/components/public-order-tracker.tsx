@@ -38,10 +38,10 @@ export function getPublicOrderCustomerActions(
   fulfillmentType: PublicFulfillmentType,
   paymentStatus: PublicOrder["paymentStatus"],
 ) {
-  const publicFulfillment = fulfillmentType === "TAKEOUT" || fulfillmentType === "DELIVERY";
+  const publicFulfillment = fulfillmentType === "TAKEOUT" || fulfillmentType === "DELIVERY" || fulfillmentType === "DINE_IN";
   const unpaid = paymentStatus === "UNPAID";
   return {
-    canModify: publicFulfillment && unpaid && (orderStatus === "WAITING_CONFIRMATION" || orderStatus === "CONFIRMED"),
+    canModify: publicFulfillment && unpaid && orderStatus === "WAITING_CONFIRMATION",
     canCancel: unpaid && orderStatus === "WAITING_CONFIRMATION",
   };
 }
@@ -500,6 +500,7 @@ function FulfillmentTimePanel({
     locale,
   );
   const canRespond = order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED"
+    && !["COMPLETED", "CANCELLED", "EXPIRED"].includes(order.orderStatus)
     && order.fulfillmentTimeVersion >= 1
     && pendingAt !== null;
 
@@ -737,6 +738,9 @@ export function PublicOrderTracker({
       });
       const payload = await parseEdgeResponse(response);
       if (!response.ok) {
+        if (["FULFILLMENT_TIME_PROPOSAL_STALE", "FULFILLMENT_TIME_PROPOSAL_EXPIRED", "FULFILLMENT_TIME_UNAVAILABLE"].includes(String(payload.code))) {
+          await refreshOrder();
+        }
         throw new Error(
           typeof payload.code === "string"
             ? localizedPublicOrderError(locale, payload.code)
@@ -753,7 +757,9 @@ export function PublicOrderTracker({
     } catch (error) {
       setFulfillmentFeedback({
         kind: "error",
-        message: error instanceof Error ? error.message : publicOrderMessages.get(locale, "timeConfirmError"),
+        message: error instanceof Error && !["TimeoutError", "AbortError", "TypeError"].includes(error.name)
+          ? error.message
+          : publicOrderMessages.get(locale, "timeConfirmError"),
       });
     } finally {
       setIsResponding(false);
@@ -897,7 +903,8 @@ export function PublicOrderTracker({
           <div className="mt-6 divide-y divide-stone-100 border-y border-stone-200">{order.items.map((item) => <div key={item.id} className="grid gap-2 py-3 text-sm sm:grid-cols-[1fr_auto]"><div><span>{item.quantity} × {item.name}</span>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs text-teal-800">{formatNoteOptions(locale, item.noteOptions)}</p> : null}{item.note ? <p className="mt-1 text-xs text-stone-500">{publicOrderMessages.get(locale, "itemNote", { note: item.note })}</p> : null}</div><span className="font-medium text-stone-600">{publicOrderMessages.get(locale, itemStatusMessageKeys[item.status])}</span></div>)}</div>
           {(() => {
             const actions = getPublicOrderCustomerActions(order.orderStatus, order.fulfillmentType, order.paymentStatus);
-            if (!actions.canModify && !actions.canCancel) return null;
+            const confirmed = ["CONFIRMED", "PREPARING", "PACKING", "READY"].includes(order.orderStatus);
+            if (!actions.canModify && !actions.canCancel && !confirmed) return null;
             return (
               <section aria-label={publicOrderMessages.get(locale, "orderActions")} className="mt-5 rounded-md border border-stone-200 bg-stone-50 p-4">
                 <div className="flex flex-wrap gap-2">
@@ -905,6 +912,10 @@ export function PublicOrderTracker({
                     <Link href={`/order/${encodeURIComponent(trackingToken)}/reorder`} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white">
                       <FilePenLine aria-hidden="true" className="h-4 w-4" />{publicOrderMessages.get(locale, "modifyOrder")}
                     </Link>
+                  ) : confirmed ? (
+                    <button type="button" onClick={() => setMessage(localizedPublicOrderError(locale, "ORDER_ALREADY_CONFIRMED"))} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-600">
+                      <FilePenLine aria-hidden="true" className="h-4 w-4" />{publicOrderMessages.get(locale, "modifyOrder")}
+                    </button>
                   ) : null}
                   {actions.canCancel ? (
                     <button type="button" disabled={isCancelling} onClick={() => setShowCancelDialog(true)} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 disabled:opacity-50">
@@ -914,7 +925,7 @@ export function PublicOrderTracker({
                   ) : null}
                 </div>
                 <p className="mt-3 text-xs leading-5 text-stone-600">
-                  {publicOrderMessages.get(locale, order.orderStatus === "CONFIRMED" ? "modifyConfirmedNotice" : "modifyWaitingNotice")}
+                  {confirmed ? localizedPublicOrderError(locale, "ORDER_ALREADY_CONFIRMED") : publicOrderMessages.get(locale, "modifyWaitingNotice")}
                 </p>
               </section>
             );
