@@ -64,4 +64,6 @@ Apply 部署一個隨機命名、最多有效五分鐘的暫存 Edge Function。
 
 測試涵蓋 runtime-only 與首次建置兩種模式的缺值／摘要誤當原值／原值不符在任何寫入前停止、目標不得是 Primary、回讀不符不得宣告完成，以及必須在相符 Plan 和 Edge 驗證之後才可通過 DR readiness。DR／Plan 相關 50 項及完整 Vitest 3,027 項通過（9 項既有跳過），lint 與 production guardrails 通過。
 
+CI `34085487899` 偵測到既有 Wake Lock 回歸測試不穩定：以 href 選擇現金交班連結時找到兩個 DOM 元素，重試成功仍因 `failOnFlakyTests` 被阻擋。測試改依目前可存取的「現金交班」link role 定位，保留原有導航／返回重新喚醒／離線寫入拒絕的所有斷言；沒有使用 `.first()`、放寬逾時或跳過案例。相符的本機 production build 以 CI 的不穩定即失敗規則連續執行三次，3/3 通過（44.7 秒）。
+
 只有新單音效、餐具選擇、三區滿版平板看板、特殊休假通知與系統更新遮罩，均依使用者指示限定本機測試。iPad 關屏通知建議另附本機功能文件；沒有實體 iPad 的關屏測試不得聲稱已驗證。
