@@ -228,7 +228,7 @@ jobs:
                 --source PRIMARY --target DR --inspect --upgrade-only \
                 > artifacts/production-dr-operation-plan.json
               echo "PRODUCTION_APPROVAL_OPERATION=production-dr-incremental-replication" >> "$GITHUB_ENV"
-              printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"primaryMigrationRunId":"%s","source":"PRIMARY","strategy":"UPGRADE_ONLY","target":"DR"}\n' \
+              printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"primaryMigrationRunId":"%s","source":"PRIMARY","strategy":"UPGRADE_ONLY","target":"DR","syncPublicOrderRuntime":true}\n' \
                 "$INPUT_PRIMARY_MIGRATION_RUN_ID" >> "$GITHUB_ENV"
               ;;
             plan-replication-conflict-repair)
@@ -324,7 +324,7 @@ jobs:
                 exit 1
               }
               echo "PRODUCTION_APPROVAL_OPERATION=production-dr-incremental-replication" >> "$GITHUB_ENV"
-              printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"primaryMigrationRunId":"%s","source":"PRIMARY","strategy":"UPGRADE_ONLY","target":"DR"}\n' \
+              printf 'PRODUCTION_APPROVAL_PARAMETERS_JSON={"primaryMigrationRunId":"%s","source":"PRIMARY","strategy":"UPGRADE_ONLY","target":"DR","syncPublicOrderRuntime":true}\n' \
                 "$INPUT_PRIMARY_MIGRATION_RUN_ID" >> "$GITHUB_ENV"
               ;;
             replication-conflict-repair:REPAIR_PRODUCTION_DR_REPLICATION_CONFLICT)
@@ -649,6 +649,39 @@ jobs:
           set -euo pipefail
           node scripts/refresh-dr-replication-snapshot.mjs --wait-seconds 300 \
             | tee dr-artifacts/incremental-replication-snapshot.json
+
+      - name: Synchronize and verify the original public-order runtime on DR
+        env:
+          DR_CHANGE_CONFIRMATION: SYNC_PRODUCTION_DR_RUNTIME
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PRIMARY_ABUSE_HASH_SECRET: ${{ secrets.PRIMARY_ABUSE_HASH_SECRET }}
+          PRIMARY_TOKEN_DERIVATION_SECRET: ${{ secrets.PRIMARY_TOKEN_DERIVATION_SECRET }}
+          PRIMARY_TURNSTILE_SECRET_KEY: ${{ secrets.PRIMARY_TURNSTILE_SECRET_KEY }}
+        run: node scripts/configure-production-dr-project.mjs --runtime-only
+
+      - name: Deploy and verify the approved DR Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cli=node_modules/supabase/dist/supabase.js
+          node "$cli" functions deploy --project-ref "$DR_SUPABASE_PROJECT_REF" \
+            --use-api --import-map supabase/functions/deno.json
+          deployed_functions="$(node "$cli" functions list --project-ref "$DR_SUPABASE_PROJECT_REF" --output json)"
+          for function_directory in supabase/functions/*; do
+            test -f "$function_directory/index.ts" || continue
+            function_name="$(basename "$function_directory")"
+            jq -e --arg function_name "$function_name" \
+              'any(.[]; (.slug // .name) == $function_name and .status == "ACTIVE")' \
+              <<<"$deployed_functions" >/dev/null || {
+                echo "::error::DR Edge Function is not ACTIVE: ${function_name}."
+                exit 1
+              }
+          done
+          jq '{secretsReadbackMatched: true, edgeFunctionsVerified: true,
+            functions: [.[] | {name: (.slug // .name), version, status}]}' \
+            <<<"$deployed_functions" > dr-artifacts/public-order-runtime-readiness.json
 
       - name: Verify DR readiness after incremental replication
         env:

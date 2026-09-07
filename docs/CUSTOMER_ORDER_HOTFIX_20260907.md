@@ -56,4 +56,12 @@ Apply 部署一個隨機命名、最多有效五分鐘的暫存 Edge Function。
 
 ## 其餘需求
 
+### DR 連動修正
+
+2026-09-07 的唯讀摘要比對證實，DR 的三項訂單密鑰及 `PUBLIC_APP_ORIGINS` 都是 Primary 摘要再次雜湊的結果；過去備援建置也受相同的 secret-list 誤用影響。不能以資料庫複寫正常推定點餐驗證正常。
+
+受保護的 incremental replication Plan/Apply 現明確綁定 `syncPublicOrderRuntime: true`。在同版 Production 成功後，使用已核對的原始三項訂單密鑰同步 DR，從公開網址建立來源設定，回讀八項 runtime 設定的摘要，部署該版 DR Edge 並驗證 ACTIVE，再產生 readiness。runtime-only 模式不變更 Primary 原值、Auth、專案名稱或網域，也不重設／灌入資料。DB／provider 認證仍分環境；需要延續已複寫顧客訂單的 token/hash 原值依受保護 Plan 同步。正式套用仍待新 Plan 與核准。
+
+測試涵蓋 runtime-only 與首次建置兩種模式的缺值／摘要誤當原值／原值不符在任何寫入前停止、目標不得是 Primary、回讀不符不得宣告完成，以及必須在相符 Plan 和 Edge 驗證之後才可通過 DR readiness。DR／Plan 相關 50 項及完整 Vitest 3,027 項通過（9 項既有跳過），lint 與 production guardrails 通過。
+
 只有新單音效、餐具選擇、三區滿版平板看板、特殊休假通知與系統更新遮罩，均依使用者指示限定本機測試。iPad 關屏通知建議另附本機功能文件；沒有實體 iPad 的關屏測試不得聲稱已驗證。
