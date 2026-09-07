@@ -9,6 +9,7 @@ import {
   qrProductSelectionControl,
 } from "./local-navigation";
 import { createOpenQrFixture } from "./open-qr-fixture";
+import { createEnglishOrderCatalogFixture } from "./english-order-catalog-fixture";
 
 test.use({ serviceWorkers: "block" });
 
@@ -16,6 +17,7 @@ loadLocalEnv();
 assertLocalDatabase();
 
 const prisma = new PrismaClient();
+let restoreEnglishCatalog: (() => Promise<void>) | undefined;
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 let takeoutQrToken = "";
@@ -36,7 +38,8 @@ let qrFixture: Awaited<
 test.describe("外帶 QR 先收款、人工核對後完成訂單", () => {
   test.describe.configure({ mode: "serial" });
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ playwright }) => {
+    restoreEnglishCatalog = await createEnglishOrderCatalogFixture(prisma, playwright);
     qrFixture = await createOpenQrFixture({
       organizationId,
       stallId,
@@ -143,7 +146,7 @@ test.describe("外帶 QR 先收款、人工核對後完成訂單", () => {
       try {
         await qrFixture?.restore();
       } finally {
-        await prisma.$disconnect();
+        try { await restoreEnglishCatalog?.(); } finally { await prisma.$disconnect(); }
       }
     }
   });

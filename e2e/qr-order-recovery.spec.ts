@@ -5,10 +5,12 @@ import {
   qrProductSelectionControl,
 } from "./local-navigation";
 import { createOpenQrFixture } from "./open-qr-fixture";
+import { createEnglishOrderCatalogFixture } from "./english-order-catalog-fixture";
 
 test.use({ serviceWorkers: "block" });
 
 const prisma = new PrismaClient();
+let restoreEnglishCatalog: (() => Promise<void>) | undefined;
 let takeoutQrToken = "";
 const password = "StallOrderDemo!2026";
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -18,7 +20,8 @@ let qrFixture: Awaited<
   ReturnType<typeof createOpenQrFixture>
 > | null = null;
 
-test.beforeAll(async () => {
+test.beforeAll(async ({ playwright }) => {
+  restoreEnglishCatalog = await createEnglishOrderCatalogFixture(prisma, playwright);
   qrFixture = await createOpenQrFixture({
     organizationId,
     stallId,
@@ -47,7 +50,7 @@ test.afterAll(async () => {
     try {
       await qrFixture?.restore();
     } finally {
-      await prisma.$disconnect();
+      try { await restoreEnglishCatalog?.(); } finally { await prisma.$disconnect(); }
     }
   }
 });

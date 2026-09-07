@@ -6,6 +6,7 @@ import {
   type TestInfo,
 } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { createEnglishOrderCatalogFixture } from "./english-order-catalog-fixture";
 import {
   dismissStaffStartReminder,
   qrProductSelectionControl,
@@ -14,6 +15,7 @@ import {
 const password = "StallOrderDemo!2026";
 const tableQrToken = "demo-aming-chicken-table-a1-qr-2026";
 const prisma = new PrismaClient();
+let restoreEnglishCatalog: (() => Promise<void>) | undefined;
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 const customerName = `內用 QA ${Date.now()}`;
@@ -55,7 +57,8 @@ async function loadBusinessHours() {
   });
 }
 
-test.beforeAll(async () => {
+test.beforeAll(async ({ playwright }) => {
+  restoreEnglishCatalog = await createEnglishOrderCatalogFixture(prisma, playwright);
   await prisma.order.deleteMany({
     where: { stallId, customerName: { startsWith: "內用 QA " } },
   });
@@ -184,7 +187,7 @@ test.afterAll(async () => {
       ]);
     }
   } finally {
-    await prisma.$disconnect();
+    try { await restoreEnglishCatalog?.(); } finally { await prisma.$disconnect(); }
   }
 });
 

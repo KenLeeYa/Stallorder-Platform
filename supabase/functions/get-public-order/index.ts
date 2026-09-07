@@ -49,9 +49,9 @@ Deno.serve(async (request) => {
 
     const admin = createServiceClient();
     const { data: globalGateResult, error: globalGateError } = await timing.measureDb(() => admin.rpc(
-      "check_global_public_request_gate",
+      "check_public_order_tracking_gate",
       {
-        p_scope: "TRACKING",
+        p_tracking_token_hash: trackingHash,
         p_ip_hash: ipHash,
         p_device_hash: deviceHash,
         p_behavior_hash: behaviorHash,
@@ -59,10 +59,13 @@ Deno.serve(async (request) => {
       },
     ));
     if (globalGateError) throw globalGateError;
-    const globalGate = globalGateResult as { ok: boolean; code?: string };
+    const globalGate = globalGateResult as { ok: boolean; code?: string; retryAfterSeconds?: number };
     if (!globalGate.ok) {
       const code = globalGate.code ?? "RATE_LIMITED";
-      return respond({ error: errorMessage(code), code }, 429);
+      const retryAfterSeconds = globalGate.retryAfterSeconds ?? 300;
+      const response = respond({ error: errorMessage(code), code, retryAfterSeconds }, 429);
+      response.headers.set("retry-after", String(retryAfterSeconds));
+      return response;
     }
 
     const { data, error } = await timing.measureDb(() => admin.rpc("get_public_order", {
