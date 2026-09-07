@@ -81,8 +81,12 @@ describe("protected runtime recovery orchestration", () => {
     expect(cleanup[3]).toBe(deploy[3]);
     expect(cleanup).toContain("abcdefghijklmnopqrst");
     expect(deploy).not.toContain("--no-verify-jwt");
+    expect(deployedConfig.serviceAuthorizationHash).toBe(createHash("sha256").update("Bearer legacy.service.jwt").digest("hex"));
+    expect(JSON.stringify(deployedConfig)).not.toContain("legacy.service.jwt");
     const artifacts = mocks.write.mock.calls.filter(call => String(call[0]).endsWith("public-order-secret-envelope.json"));
     expect(artifacts).toHaveLength(mode === "success" ? 1 : 0);
     expect(JSON.stringify(console.log.mock.calls)).not.toContain("legacy.service.jwt");
+    expect(JSON.stringify(console.log.mock.calls)).toContain("public_order_recovery_function_deleted");
+    if (mode === "invoke-fails") expect(JSON.stringify(console.error.mock.calls)).toContain("RECOVERY_INVOKE_FAILED_HTTP_503");
   });
 });

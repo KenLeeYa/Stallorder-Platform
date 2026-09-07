@@ -119,6 +119,18 @@ require every published table/column to exist physically on DR, forbid
 `hostaddr`, and require `sslmode=require` plus `row_security=off`. The approved
 Plan is reconfirmed byte-for-byte immediately before mutation.
 
+Incremental release receipts also bind `syncPublicOrderRuntime: true`. After
+replication catches up, the same approved revision synchronizes the three
+verified original public-order secrets from Primary to DR, derives allowed
+origins from `APP_BASE_URL`, and reads back all eight runtime setting digests.
+It then deploys the reviewed DR Edge Functions and verifies their ACTIVE
+state before declaring readiness. This runtime-only operation does not change
+Primary secrets, database/provider credentials, Auth settings, project names,
+or application domains, and never resets or seeds DR. The source originals
+must match Primary metadata before the first write; target readback failure
+stops readiness. Artifacts contain verification results and function metadata,
+never secret values or masking directives.
+
 ### `bootstrap`
 
 Plan operation: `plan-bootstrap` with `PLAN_PRODUCTION_DR`

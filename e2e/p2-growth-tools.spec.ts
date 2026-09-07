@@ -86,7 +86,7 @@ test.describe("P2 後續成長功能", () => {
     await wakeButton.click();
     await expect(page.getByTitle("關閉螢幕保持喚醒")).toBeVisible();
 
-    await page.locator('a[href="/staff/aming-chicken/cash"]').click();
+    await page.getByRole("link", { name: "現金交班", exact: true }).click();
     await page.waitForURL("**/staff/aming-chicken/cash");
     await page.evaluate(async () => {
       const wakeLockTest = (window as typeof window & {
