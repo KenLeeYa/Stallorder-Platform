@@ -300,6 +300,25 @@ describe("Production workflow approval contract", () => {
     expect(job).not.toContain("drop subscription");
   });
 
+  it("binds DR order runtime synchronization to the current replication Plan before readiness", () => {
+    const plan = workflowJob(disasterRecovery, "plan");
+    const approval = workflowJob(disasterRecovery, "approval");
+    const job = workflowJob(disasterRecovery, "incremental-replication");
+    expect(plan).toContain('"syncPublicOrderRuntime":true');
+    expect(approval).toContain('"syncPublicOrderRuntime":true');
+    const sync = job.indexOf("configure-production-dr-project.mjs --runtime-only");
+    const deploy = job.indexOf("Deploy and verify the approved DR Edge Functions");
+    const ready = job.indexOf("check-dr-readiness.mjs --target DR --apply");
+    expect(sync).toBeGreaterThan(job.indexOf("production-approval.mjs verify-evidence"));
+    expect(sync).toBeLessThan(deploy);
+    expect(deploy).toBeLessThan(ready);
+    expect(job).toContain("DR_CHANGE_CONFIRMATION: SYNC_PRODUCTION_DR_RUNTIME");
+    expect(job).toContain("PRIMARY_ABUSE_HASH_SECRET: ${{ secrets.PRIMARY_ABUSE_HASH_SECRET }}");
+    expect(job).toContain("PRIMARY_TOKEN_DERIVATION_SECRET: ${{ secrets.PRIMARY_TOKEN_DERIVATION_SECRET }}");
+    expect(job).toContain("PRIMARY_TURNSTILE_SECRET_KEY: ${{ secrets.PRIMARY_TURNSTILE_SECRET_KEY }}");
+    expect(job).not.toContain("--no-verify-jwt");
+  });
+
   it("requires successful DR schema evidence before Primary migration evidence", () => {
     const verifyDrSchema = readiness.indexOf(
       "name: Verify DR schema completed before the Production Plan or Apply",

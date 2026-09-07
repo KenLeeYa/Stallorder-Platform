@@ -6,6 +6,7 @@ const primaryRef = required("PRIMARY_SUPABASE_PROJECT_REF");
 const drRef = required("DR_SUPABASE_PROJECT_REF");
 const appBaseUrl = new URL(required("APP_BASE_URL"));
 if (appBaseUrl.protocol !== "https:") throw new Error("APP_BASE_URL_INVALID");
+const runtimeOnly = process.argv[2] === "--runtime-only";
 
 const headers = {
   authorization: `Bearer ${accessToken}`,
@@ -13,10 +14,12 @@ const headers = {
 };
 
 try {
+  if (process.argv.length > (runtimeOnly ? 3 : 2)) throw new Error("DR_CONFIGURATION_ARGUMENTS_INVALID");
   requireApproval();
+  if (primaryRef === drRef) throw new Error("DR_TARGET_MUST_DIFFER_FROM_PRIMARY");
   const [primarySecrets, drAuth] = await Promise.all([
     management(`/v1/projects/${primaryRef}/secrets`),
-    management(`/v1/projects/${drRef}/config/auth`),
+    runtimeOnly ? Promise.resolve(null) : management(`/v1/projects/${drRef}/config/auth`),
   ]);
   const secretNames = [
     "ABUSE_HASH_SECRET",
@@ -48,35 +51,42 @@ try {
     method: "POST",
     body: JSON.stringify(synchronized),
   });
-
-  if (
-    drAuth.external_google_enabled !== true
-    || !drAuth.external_google_client_id
-    || !drAuth.external_google_secret
-  ) {
-    throw new Error("DR_GOOGLE_AUTH_NOT_CONFIGURED");
+  const readback = await management(`/v1/projects/${drRef}/secrets`);
+  for (const { name, value } of synchronized) {
+    if (readback.find((secret) => secret.name === name)?.value !== createHash("sha256").update(value).digest("hex")) {
+      throw new Error("DR_RUNTIME_READBACK_MISMATCH");
+    }
   }
-  await management(`/v1/projects/${drRef}/config/auth`, {
-    method: "PATCH",
-    body: JSON.stringify({
-      site_url: appBaseUrl.origin,
-      uri_allow_list: [
-        `${appBaseUrl.origin}/auth/callback`,
-        `${appBaseUrl.origin}/invite/claim`,
-      ].join(","),
-    }),
-  });
-  await management(`/v1/projects/${drRef}`, {
-    method: "PATCH",
-    body: JSON.stringify({ name: "stallorder-dr" }),
-  });
+
+  if (!runtimeOnly) {
+    if (
+      drAuth.external_google_enabled !== true
+      || !drAuth.external_google_client_id
+      || !drAuth.external_google_secret
+    ) {
+      throw new Error("DR_GOOGLE_AUTH_NOT_CONFIGURED");
+    }
+    await management(`/v1/projects/${drRef}/config/auth`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        site_url: appBaseUrl.origin,
+        uri_allow_list: [
+          `${appBaseUrl.origin}/auth/callback`,
+          `${appBaseUrl.origin}/invite/claim`,
+        ].join(","),
+      }),
+    });
+    await management(`/v1/projects/${drRef}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: "stallorder-dr" }),
+    });
+  }
 
   console.log(JSON.stringify({
-    event: "production_dr_project_configured",
+    event: runtimeOnly ? "production_dr_runtime_configured" : "production_dr_project_configured",
     drProjectRef: drRef,
-    projectName: "stallorder-dr",
-    authSiteUrl: appBaseUrl.origin,
-    googleAuthConfigured: true,
+    ...(!runtimeOnly ? { projectName: "stallorder-dr", authSiteUrl: appBaseUrl.origin, googleAuthConfigured: true } : {}),
+    digestsMatched: true,
     synchronizedSecretNames: synchronized.map((secret) => secret.name),
   }, null, 2));
 } catch (error) {
@@ -110,7 +120,8 @@ function requireApproval() {
   if (process.env.PRODUCTION_ENVIRONMENT_APPROVED !== "true") {
     throw new Error("PRODUCTION_ENVIRONMENT_NOT_APPROVED");
   }
-  if (process.env.DR_CHANGE_CONFIRMATION !== "CONFIGURE_PRODUCTION_DR_PROJECT") {
-    throw new Error("CONFIRMATION_REQUIRED_CONFIGURE_PRODUCTION_DR_PROJECT");
+  const confirmation = runtimeOnly ? "SYNC_PRODUCTION_DR_RUNTIME" : "CONFIGURE_PRODUCTION_DR_PROJECT";
+  if (process.env.DR_CHANGE_CONFIRMATION !== confirmation) {
+    throw new Error(`CONFIRMATION_REQUIRED_${confirmation}`);
   }
 }

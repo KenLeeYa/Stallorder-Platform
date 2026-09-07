@@ -11,6 +11,7 @@ beforeAll(() => {
   const keys = generateKeyPairSync("rsa", { modulusLength: 4096 });
   privateKey = keys.privateKey;
   config = { projectRef: "abcdefghijklmnopqrst", recoveryId: "test-recovery", createdAt: now - 1000, expiresAt: now + 299_000,
+    serviceAuthorizationHash: hash("Bearer service-role-key"),
     nonceHash: hash("a".repeat(64)), recipientPublicKey: keys.publicKey.export({ type: "spki", format: "der" }).toString("base64"),
     digests: Object.fromEntries(Object.entries(values).map(([name, value]) => [name, hash(value)])) };
 });
@@ -38,9 +39,15 @@ describe("encrypted public-order runtime recovery", () => {
     const plaintext = Buffer.concat([decipher.update(ciphertext.subarray(0, -16)), decipher.final()]);
     expect(JSON.parse(plaintext.toString())).toEqual(values);
   });
+  it("authenticates the exact management API service JWT even when the built-in runtime key differs", async () => {
+    const response = await handler({ env: { SUPABASE_SERVICE_ROLE_KEY: "stale-runtime-service-key" } })(request());
+    expect(response.status).toBe(200);
+  });
   it.each([
     ["anonymous", { authorization: "" }, {}],
     ["customer JWT", { authorization: "Bearer customer-token" }, {}],
+    ["stale runtime JWT", { authorization: "Bearer stale-runtime-service-key" }, { env: { SUPABASE_SERVICE_ROLE_KEY: "stale-runtime-service-key" } }],
+    ["missing service authorization binding", {}, { config: { serviceAuthorizationHash: undefined } }],
     ["missing nonce", { "x-recovery-nonce": "" }, {}],
     ["wrong nonce", { "x-recovery-nonce": "b".repeat(64) }, {}],
     ["expired", {}, { now: now + 300_000 }],
