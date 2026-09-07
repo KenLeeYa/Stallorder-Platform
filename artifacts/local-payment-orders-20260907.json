@@ -1,0 +1,54 @@
+{
+  "testedAt": "2026-09-07T15:43:19.538Z",
+  "samples": [
+    {
+      "id": "741b1f29-1e81-426b-b112-63e9bde6e461",
+      "orderNo": "QA-PAY-5795351-1",
+      "scenario": "SUCCESS_WEBHOOK_BEFORE_RETURN",
+      "transactionStatus": "PAID",
+      "paymentStatus": "PAID"
+    },
+    {
+      "id": "2b57e5cb-694c-4491-a1dc-b8677d7cf96f",
+      "orderNo": "QA-PAY-5795351-2",
+      "scenario": "SUCCESS_RETURN_BEFORE_WEBHOOK",
+      "transactionStatus": "PAID",
+      "paymentStatus": "PAID"
+    },
+    {
+      "id": "9bf7b25f-ad6f-4d50-841c-753d4dd01ca5",
+      "orderNo": "QA-PAY-5795351-3",
+      "scenario": "PENDING",
+      "transactionStatus": "PENDING",
+      "paymentStatus": "UNPAID"
+    },
+    {
+      "id": "e239e00e-7a93-46b0-aad3-e5be166230b3",
+      "orderNo": "QA-PAY-5795351-4",
+      "scenario": "FAILED",
+      "transactionStatus": "FAILED",
+      "paymentStatus": "UNPAID"
+    },
+    {
+      "id": "7e28c35f-0563-41ec-8c9d-d5310ed5a51e",
+      "orderNo": "QA-PAY-5795351-5",
+      "scenario": "EXPIRED",
+      "transactionStatus": "EXPIRED",
+      "paymentStatus": "UNPAID"
+    },
+    {
+      "id": "8c3141ae-41de-4bda-8b9f-a745f69a5fd3",
+      "orderNo": "QA-PAY-5795351-6",
+      "scenario": "FULL_REFUND",
+      "transactionStatus": "REFUNDED",
+      "paymentStatus": "REFUNDED"
+    },
+    {
+      "id": "8238eccf-86df-4c66-a26a-daed6cab293a",
+      "orderNo": "QA-PAY-5795351-7",
+      "scenario": "RECONCILIATION_MISMATCH",
+      "transactionStatus": "RECONCILIATION_REQUIRED",
+      "paymentStatus": "PAID"
+    }
+  ]
+}

@@ -11,6 +11,8 @@ describe("local QA runtime", () => {
     const environment = buildLocalQaEnvironment(3012, {
       NODE_ENV: "development",
       DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+      REPORT_DELIVERY_MODE: "live",
+      PAYMENT_PROVIDER_MODE: "live",
     });
 
     expect(environment.APP_BASE_URL).toBe("http://127.0.0.1:3012");
@@ -18,6 +20,8 @@ describe("local QA runtime", () => {
     expect(environment.PUBLIC_ORDER_FUNCTION_ORIGIN).toBe("http://127.0.0.1:3012");
     expect(environment.LOCAL_DEV_ALLOWED_ORIGINS).toBe("http://127.0.0.1:3012");
     expect(environment.LOCAL_QA_QUICK_LOGIN_ENABLED).toBe("true");
+    expect(environment.REPORT_DELIVERY_MODE).toBe("simulate");
+    expect(environment.PAYMENT_PROVIDER_MODE).toBe("mock");
     expect(environment.NEXT_PUBLIC_ENABLE_PWA_IN_DEVELOPMENT).toBe("false");
     expect(environment.NEXT_PUBLIC_FORCE_PUBLIC_ORDER_CIRCUIT_B).toBe("true");
     expect(environment.NEXT_PUBLIC_TURNSTILE_SITE_KEY).toBe("1x00000000000000000000AA");

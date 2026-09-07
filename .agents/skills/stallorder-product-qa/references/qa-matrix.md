@@ -13,6 +13,13 @@ Use this matrix to select tests before changing code. Add or update automated te
 
 ## Universal preflight
 
+- Local integrated acceptance is recorded in `docs/LOCAL_ALL_FEATURES_QA_20260907.md`. Run browser mutation cases sequentially against the dedicated local QA database; run the complete transactional SQL suite in a separate freshly migrated database so retained manual examples do not invalidate seed-only assumptions.
+- `QA-LOT-04`: master disabled with saved active spend/holiday campaigns; Node and Edge responses and client checkout agree. Live table draw → idempotent retry → zero-price gift → KDS → checkout; gift discount eligibility stays false. Database coverage: `lottery_dine_in_channel.test.sql`.
+- `QA-PAY-LOCAL-01`: configure network failure and retry; seven mock outcomes, request lost before commit, response lost after commit, one transaction per attempt, refund state and explicit reconciliation case. `e2e/payment-workflow-local.spec.ts`.
+- `QA-CAP-LOCAL-01`: twelve real local orders, queue-based wait quotes, automatic pause/resume, held-session rejection, manual pause and close/open, final stock and Staff/Kitchen examples. `e2e/operations-surge-local.spec.ts`.
+- `QA-TIME-LOCAL-01`: compare Edge same-table last-addition time with the database ISO instant and render it in Asia/Taipei. `public-order-contract.test.ts` and `e2e/dine-in-order-flow.spec.ts`.
+- `QA-MODAL-LOCAL-01`: session failure and degraded status must produce one operable error dialog. Closing it exposes the persistent retry action; successive expired/context failures rotate identities only when required. `e2e/qr-degraded-mode.spec.ts`.
+
 | ID | Check | Pass condition |
 |---|---|---|
 | `QA-PRE-01` | Repository identity | Exact repo, branch, HEAD, upstream, worktree path, and dirty state recorded. |
@@ -121,7 +128,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 |---|---|---|
 | `QA-CAT-01` | `CAT-001`–`CAT-003`,`CAT-010` | Responsive tool grouping, group collapse, collapsible product translation, global single toggle, and menu publication icon remain reachable. |
 | `QA-CAT-02` | `CAT-002` | Bundle publish makes it visible/orderable in QR and Staff; price and group constraints are server-authoritative. |
-| `QA-CAT-03` | `CAT-004`–`CAT-006` | The main page simultaneously shows exactly two large entries for single notes and note groups, with no duplicate top toolbar or tabs. Each opens the same searchable hierarchy and centered action dialog; note translations collapse; note selection scrolls, confirms, multi-adds, deduplicates, orders, and round-trips import/export inside the overlays. |
+| `QA-CAT-03` | `CAT-004`–`CAT-006` | Phone shows two large note entries and centered searchable overlays. Tablet/desktop immediately exposes an inline group/option board with compact entry actions; search/select/edit/save/reload retain group context. Single notes, translations, multi-add, sorting, deduplication and import/export remain reachable. |
 | `QA-CAT-04` | `CAT-007` | Numeric zero placeholder clears correctly and invalid numeric values identify the field. |
 | `QA-CAT-05` | `CAT-008`,`CAT-009` | Valid image uploads and invalid type/size/dimension failures return JSON; processed media meets bounds. |
 | `QA-CAT-06` | `CAT-011`,`CAT-012` | With 120+ assigned products, the lottery settings page remains compact and opens a bounded category → product-group → product picker with search, persistent disclosure state, group select/clear, and a 100-item counter/limit. Stall-scoped IDs persist only through the lottery module; unassigned/bundle/disabled products are rejected when saving, while selected sold-out products remain configured but are excluded from draw/order commit until restored. IDs are deduplicated, no-extra-discount flags persist through create/edit/import/assignment/publish, and the shared product editor has no lottery eligibility switch. |
@@ -129,7 +136,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-CAT-08` | `CAT-014`,`CAT-015` | Product and promo images preview, pan/zoom/crop, save, reload, render responsively, delete, and show JSON-backed success/failure; promo placement does not lengthen the page top. |
 | `QA-CAT-09` | `CAT-004`,`CAT-016`,`MER-021` | Shared-catalog/note icons form one row with distinct category/group controls; single-note/group overlays and stall-product assignment remain reachable at phone/tablet sizes, and desktop panes scroll independently. |
 | `QA-CAT-10` | `CAT-017`,`X-003` | Upload/assignment/publication/translation/order actions are reachable and provide immediate success/failure feedback without duplicate submission. |
-| `QA-CAT-11` | `CAT-018` | At 320/390/768/1440 widths, empty virtual ungrouped buckets are absent, real empty groups stay editable, a real ungrouped product can be assigned and leaves the bucket on reload, and category/group filters show matching products. Note group/option search, empty results and real note edit/save/reload work through sidebar or phone hierarchy without overflow. See `docs/CATALOG_HIERARCHY_TEST_ORDERS_20260907.md`; local seed replay preserves the same 10 test orders and user progress. |
+| `QA-CAT-11` | `CAT-018` | At 320/390/768/1440 widths, empty virtual ungrouped buckets are absent, real empty groups stay editable, a real ungrouped product can be assigned and leaves the bucket on reload, and category/group filters show matching products. Note group/option search, empty results and real note edit/save/reload work through sidebar or phone hierarchy without overflow. See `docs/CATALOG_HIERARCHY_TEST_ORDERS_20260907.md`; local seed replay preserves the same 10 test orders and user progress. Inline-board follow-up: `catalog-inline-board-local.spec.ts` measures equal pane bottoms (within 2 px) at 768/1440 and verifies inline notes, independent scroll and phone fallback at 320/390. |
 
 ### Lottery, capacity, and reservations
 

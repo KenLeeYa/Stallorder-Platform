@@ -375,6 +375,14 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
   test("設定經 PATCH 儲存與重載後，真實 QR 依營業狀態切換抽抽樂與預約", async ({ browser, page }) => {
     test.setTimeout(180_000);
     await login(page);
+    const dependencyMessages: string[] = [];
+    let acceptDependencyChange = false;
+    page.on("dialog", async (dialog) => {
+      expect(dialog.type()).toBe("confirm");
+      dependencyMessages.push(dialog.message());
+      if (acceptDependencyChange) await dialog.accept();
+      else await dialog.dismiss();
+    });
 
     try {
       await page.goto(`/merchant/stalls/${stallId}/settings/online-ordering`);
@@ -390,6 +398,10 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       await page.getByLabel("最少提前（分鐘）").fill("45");
       await page.getByLabel("最多預約天數").fill("5");
       await page.getByLabel("時段間隔").selectOption("60");
+      await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+      expect(dependencyMessages).toEqual([expect.stringContaining("已成立訂單不會自動改期")]);
+      expect((await prisma.stallOrderingSettings.findUniqueOrThrow({ where: { stallId } })).preorderMaxDays).toBe(1);
+      acceptDependencyChange = true;
       const preorderSaveResponsePromise = page.waitForResponse((response) => (
         new URL(response.url()).pathname === `/api/merchant/stalls/${stallId}/modules`
         && response.request().method() === "PATCH"
@@ -408,6 +420,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
         preorderSlotMinutes: 60,
       });
       await expect(page.getByRole("status")).toHaveText("模組開關已儲存。");
+      await page.getByRole("dialog").getByRole("button", { name: "我知道了", exact: true }).click();
 
       await page.reload();
       await expect(page.getByRole("switch", { name: /外帶自取（需選時段）/ })).toHaveAttribute("aria-checked", "true");
@@ -517,6 +530,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
         ],
       });
       await expect(page.getByRole("status")).toHaveText("模組開關已儲存。");
+      await page.getByRole("dialog").getByRole("button", { name: "我知道了", exact: true }).click();
 
       await page.reload();
       await expect(page.getByRole("switch", { name: /抽抽樂推薦/ })).toHaveAttribute("aria-checked", "true");
@@ -642,6 +656,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       await page.getByRole("button", { name: "儲存營運狀態", exact: true }).click();
       expect((await closeResponsePromise).status()).toBe(200);
       await expect(page.getByRole("status")).toHaveText("營運狀態已更新。");
+      await page.getByRole("dialog").getByRole("button", { name: "我知道了", exact: true }).click();
 
       await verifyClosedPreorder(browser);
     } finally {

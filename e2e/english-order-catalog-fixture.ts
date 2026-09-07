@@ -11,6 +11,7 @@ export async function createEnglishOrderCatalogFixture(prisma: PrismaClient, pla
   const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({ where: { stallId }, select: { enabledLocales: true } });
   const visibility = await prisma.stallProduct.findMany({ where: { stallId }, select: { id: true, isEnabled: true } });
   const groupTranslationIds: string[] = [], optionTranslationIds: string[] = [];
+  const untranslatedAssignmentIds: string[] = [];
   const origin = process.env.PLAYWRIGHT_APP_URL ?? "http://localhost:3001";
   const request = await playwright.request.newContext({ baseURL: origin });
   let headers: Record<string, string> | undefined;
@@ -23,6 +24,7 @@ export async function createEnglishOrderCatalogFixture(prisma: PrismaClient, pla
   const restore = async () => {
     try {
       for (const { id, isEnabled } of visibility) await prisma.stallProduct.update({ where: { id }, data: { isEnabled } });
+      await prisma.productNoteGroupAssignment.updateMany({ where: { id: { in: untranslatedAssignmentIds } }, data: { isActive: true } });
       await prisma.productNoteGroupTranslation.deleteMany({ where: { id: { in: groupTranslationIds } } });
       await prisma.productNoteOptionTranslation.deleteMany({ where: { id: { in: optionTranslationIds } } });
       if (headers) await applyLocales(settings.enabledLocales);
@@ -41,7 +43,16 @@ export async function createEnglishOrderCatalogFixture(prisma: PrismaClient, pla
     await prisma.stallProduct.updateMany({ where: { stallId, productId: { notIn: products.map(product => product.id) } }, data: { isEnabled: false } });
     const names: Record<string, string> = { "包裝需求": "Packaging preferences", "不加胡椒": "No pepper", "加蒜": "Extra garlic", "分開裝": "Pack separately" };
     const seen = new Set<string>();
-    for (const product of products) for (const { noteGroup } of product.noteGroupAssignments) {
+    for (const product of products) for (const assignment of product.noteGroupAssignments) {
+      const { noteGroup } = assignment;
+      if ((!noteGroup.translations.some(row => row.locale === "en") && !names[noteGroup.name])
+        || noteGroup.options.some(option => !option.translations.some(row => row.locale === "en") && !names[option.name])) {
+        // Retained examples from other tests may attach additional untranslated
+        // options. Keep this English fixture scoped and restore the assignment.
+        untranslatedAssignmentIds.push(assignment.id);
+        await prisma.productNoteGroupAssignment.update({ where: { id: assignment.id }, data: { isActive: false } });
+        continue;
+      }
       if (seen.has(noteGroup.id)) continue;
       seen.add(noteGroup.id);
       if (!noteGroup.translations.some(translation => translation.locale === "en")) {

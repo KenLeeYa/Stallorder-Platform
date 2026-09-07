@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   expect,
   test,
@@ -13,7 +14,12 @@ import {
 } from "./local-navigation";
 
 const password = "StallOrderDemo!2026";
-const tableQrToken = "demo-aming-chicken-table-a1-qr-2026";
+const tableQrToken = "qa-dine-" + randomUUID();
+const tableCode = "QA" + Date.now().toString().slice(-5);
+const tableLabel = tableCode + " 桌";
+let tableId = "";
+let floorId = "";
+const floorName = tableCode + " 驗收區";
 const prisma = new PrismaClient();
 let restoreEnglishCatalog: (() => Promise<void>) | undefined;
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -73,10 +79,18 @@ test.beforeAll(async ({ playwright }) => {
     });
     await prisma.cashShift.deleteMany({ where: { id: { in: staleShiftIds } } });
   }
-  await prisma.diningTable.update({
-    where: { stallId_code: { stallId, code: "A1" } },
-    data: { serviceState: "EMPTY", seatedAt: null },
-  });
+  const floor = await prisma.diningFloor.create({ data: { organizationId, stallId, name: floorName, sortOrder: 999 } });
+  floorId = floor.id;
+  const table = await prisma.diningTable.create({ data: {
+    organizationId, stallId, code: tableCode, label: tableLabel, floorId: floor.id,
+    serviceState: "EMPTY", seatedAt: null,
+  } });
+  tableId = table.id;
+  const version = await prisma.qrCode.aggregate({ where: { stallId }, _max: { tokenVersion: true } });
+  await prisma.qrCode.create({ data: {
+    organizationId, stallId, diningTableId: tableId, token: tableQrToken,
+    tokenVersion: (version._max.tokenVersion ?? 0) + 1, label: "Dine-in E2E table",
+  } });
   const [capacity, stall, tableQrCode, businessHours] = await Promise.all([
     prisma.stallCapacitySettings.findUniqueOrThrow({
       where: { stallId },
@@ -149,10 +163,7 @@ test.afterAll(async () => {
       await prisma.cashShiftReview.deleteMany({ where: { cashShiftId } });
       await prisma.cashShift.deleteMany({ where: { id: cashShiftId } });
     }
-    await prisma.diningTable.update({
-      where: { stallId_code: { stallId, code: "A1" } },
-      data: { serviceState: "EMPTY", seatedAt: null },
-    });
+
     if (
       originalAcknowledgmentThresholdMinutes !== null &&
       originalStall !== null &&
@@ -186,6 +197,9 @@ test.afterAll(async () => {
         ),
       ]);
     }
+    await prisma.qrCode.deleteMany({ where: { token: tableQrToken } });
+    if (tableId) await prisma.diningTable.deleteMany({ where: { id: tableId } });
+    if (floorId) await prisma.diningFloor.deleteMany({ where: { id: floorId } });
   } finally {
     try { await restoreEnglishCatalog?.(); } finally { await prisma.$disconnect(); }
   }
@@ -269,7 +283,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await page.setViewportSize(mobileViewport);
   await page.goto(`/q/${tableQrToken}`);
   await expect(
-    page.getByRole("main").getByText("內用 · A1 桌", { exact: true }),
+    page.getByRole("main").getByText(`內用 · ${tableLabel}`, { exact: true }),
   ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
@@ -337,6 +351,11 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
     page.getByRole("button", { name: "Place order", exact: true }),
   ).toBeEnabled({ timeout: 15_000 });
 
+  const trackingResponse = page.waitForResponse((response) => {
+    const path = new URL(response.url()).pathname;
+    return response.status() === 200 && (path.endsWith("/get-public-order")
+      || (path.startsWith("/api/public/orders/sto_") && response.request().method() === "GET"));
+  });
   const createResponse = page.waitForResponse(
     (response) => {
       const pathname = new URL(response.url()).pathname;
@@ -348,6 +367,18 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
     },
   );
   await page.getByRole("button", { name: "Place order", exact: true }).click();
+  const rewardPrompt = page.getByTestId("lottery-reward-eligibility-dialog");
+  await expect.poll(async () => await rewardPrompt.isVisible() || /\/order\//.test(page.url())).toBe(true);
+  const claimedReward = await rewardPrompt.isVisible();
+  if (claimedReward) {
+    await rewardPrompt.getByRole("button", { name: "Start lucky draw", exact: true }).click();
+    const result = page.getByTestId("lottery-result-dialog");
+    await expect(result).toHaveAttribute("data-phase", "result");
+    await result.getByRole("button", { name: "Claim free item", exact: true }).click();
+    await expect(result).not.toBeVisible();
+    await page.getByRole("button", { name: "Place order", exact: true }).click();
+  }
+  const expectedLineCount = claimedReward ? 3 : 2;
   const createdResponse = await createResponse;
   expect(createdResponse.status()).toBe(201);
   const createOrderRequest = createdResponse.request().postDataJSON() as {
@@ -361,6 +392,19 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   });
   expect(createOrderRequest.clientOrderId).toEqual(expect.any(String));
   createdOrderId = createOrderRequest.clientOrderId ?? "";
+  const tracked = await (await trackingResponse).json();
+  const latestTableOrder = await prisma.order.findFirstOrThrow({
+    where: { stallId, diningTable: { code: tableCode } }, orderBy: { createdAt: "desc" },
+  });
+  expect(tracked.order.lastTableOrderAt).toBe(latestTableOrder.createdAt.toISOString());
+  const orderedItems = await prisma.orderItem.findMany({ where: { orderId: createdOrderId } });
+  expect(orderedItems).toHaveLength(expectedLineCount);
+  expect(orderedItems.filter((item) => item.unitPrice > 0)).toHaveLength(2);
+  if (claimedReward) {
+    expect(orderedItems.filter((item) => item.lotteryDrawId)).toEqual([
+      expect.objectContaining({ unitPrice: 0, quantity: 1, isOrderDiscountEligible: false }),
+    ]);
+  }
   await expect(page).toHaveURL(/\/order\//);
   const orderNumberLabel = await page
     .getByText(/^訂單 /)
@@ -368,7 +412,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
     .innerText();
   const orderNo = orderNumberLabel.replace(/^訂單 /, "");
   await expect(page.getByText("內用桌位", { exact: true })).toBeVisible();
-  await expect(page.getByText("A1 桌", { exact: true })).toBeVisible();
+  await expect(page.getByText(tableLabel, { exact: true })).toBeVisible();
   await expect(page.getByText("取餐驗證碼", { exact: true })).toHaveCount(0);
   await captureMobileScreenshot(page, testInfo, "02-customer-order-tracker");
   await verifyCompactViewport(page, [
@@ -389,11 +433,11 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await expect(
     staffMain.getByRole("switch", { name: /新單提示音已(?:開啟|關閉)/ }),
   ).toBeVisible();
-  await staffMain.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill("A1");
+  await staffMain.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill(tableCode);
   const staffOrder = staffMain
     .getByRole("article")
     .filter({ hasText: `訂單 ${orderNo}` });
-  await expect(staffOrder).toContainText("內用 · A1 桌");
+  await expect(staffOrder).toContainText(`內用 · ${tableLabel}`);
   await staffOrder
     .getByRole("button", { name: "查看明細", exact: true })
     .click();
@@ -444,7 +488,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
     .filter({ hasText: "#" + orderNo });
   await expect(kitchenOrder).toBeVisible();
   await expectNoHorizontalOverflow(kitchenPage);
-  await expect(kitchenOrder).toContainText("內用 A1 桌 · QR 點餐");
+  await expect(kitchenOrder).toContainText(`內用 ${tableLabel} · QR 點餐`);
   const startPreparationButton = kitchenOrder
     .getByRole("button", { name: "開始製作", exact: true })
     .first();
@@ -468,7 +512,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
     kitchenOrder
       .getByTestId("kitchen-order-item-list")
       .getByText("已完成", { exact: true }),
-  ).toHaveCount(2);
+  ).toHaveCount(expectedLineCount);
   await expect(
     kitchenOrder.getByRole("button", { name: "退回待製作", exact: true }),
   ).toHaveCount(0);
@@ -482,7 +526,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   });
   if (await reopenDetails.isVisible()) await reopenDetails.click();
   await expect(staffOrder.getByText("餐點完成", { exact: true })).toHaveCount(
-    2,
+    expectedLineCount,
     { timeout: 10_000 },
   );
   await staffPage.getByRole("link", { name: "桌位平面圖" }).click();
@@ -490,16 +534,17 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await expect(
     staffPage.getByRole("region", { name: "內用桌位平面" }),
   ).toBeVisible();
-  await staffPage.getByRole("button", { name: /^A1 桌，/ }).click();
-  const tableDetail = staffPage.getByRole("region", { name: "A1 桌" });
+  await staffPage.getByRole("tab", { name: floorName, exact: true }).click();
+  await staffPage.getByRole("button", { name: new RegExp(`^${tableLabel}，`) }).click();
+  const tableDetail = staffPage.getByRole("region", { name: tableLabel });
   await expect(tableDetail).toContainText(`訂單 ${orderNo}`);
   const tableOrder = tableDetail
     .locator("article")
     .filter({ hasText: `訂單 ${orderNo}` });
   await tableOrder
-    .getByRole("button", { name: "全部標記已出餐（2）", exact: true })
+    .getByRole("button", { name: `全部標記已出餐（${expectedLineCount}）`, exact: true })
     .click();
-  await expect(tableOrder.getByText("已出餐", { exact: true })).toHaveCount(2);
+  await expect(tableOrder.getByText("已出餐", { exact: true })).toHaveCount(expectedLineCount);
   expect(
     await staffPage.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,
@@ -523,7 +568,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await expect(
     staffOrder.getByRole("button", { name: "收合", exact: true }),
   ).toHaveAttribute("aria-expanded", "true");
-  await expect(staffOrder.getByText("已出餐", { exact: true })).toHaveCount(2);
+  await expect(staffOrder.getByText("已出餐", { exact: true })).toHaveCount(expectedLineCount);
   await expect(staffOrder.getByLabel("3 位數取餐碼")).toHaveCount(0);
   await summaryCheckoutButton.click();
 
@@ -609,8 +654,9 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   expect(completedOrder.payment?.cashShiftId).toBe(cashShiftId);
 
   await staffPage.goto("/staff/aming-chicken/floor");
+  await staffPage.getByRole("tab", { name: floorName, exact: true }).click();
   const cleaningTable = staffPage.getByRole("button", {
-    name: /A1 桌，待清潔/,
+    name: new RegExp(`${tableLabel}，待清潔`),
   });
   await expect(cleaningTable).toBeVisible({ timeout: 10_000 });
   await waitForReactHydration(cleaningTable);
@@ -621,13 +667,13 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await expect(finishCleaning).toBeVisible();
   await finishCleaning.click();
   await expect(
-    staffPage.getByRole("button", { name: /A1 桌，空桌/ }),
+    staffPage.getByRole("button", { name: new RegExp(`${tableLabel}，空桌`) }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "重新整理訂單" }).click();
   await expect(page.getByText("已完成", { exact: true })).toBeVisible();
   await expect(page.getByText("已付款", { exact: true })).toBeVisible();
-  await expect(page.getByText("已出餐", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("已出餐", { exact: true })).toHaveCount(expectedLineCount);
   await expectNoHorizontalOverflow(page);
 
   const merchantContext = await browser.newContext({

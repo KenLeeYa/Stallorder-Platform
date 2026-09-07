@@ -591,7 +591,7 @@ export function QrOrderFlowPresentation({
           danger
         />
       ) : null}
-      {degradedMode && !outsideBusinessHours && !session.specialClosure?.isActive ? <OrderingUnavailableDialog
+      {degradedMode && !message && !sessionStartError && !outsideBusinessHours && !session.specialClosure?.isActive ? <OrderingUnavailableDialog
         key={orderingAvailability} locale={locale} maintenance={orderingAvailability === "MAINTENANCE"}
         busy={availabilityRefreshing} onRetry={() => refreshAvailability(true)} /> : null}
       {outsideBusinessHours && !outsideBusinessHoursDismissed && !session.specialClosure?.isActive ? (

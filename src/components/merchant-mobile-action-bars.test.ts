@@ -50,13 +50,13 @@ describe("merchant mobile action bars", () => {
     expect(products).toContain('data-testid="merchant-ordering-actions"');
   });
 
-  it("shows the two large product-note entry buttons without the duplicate toolbar", () => {
+  it("preserves phone note entries and exposes an inline board for larger screens", () => {
     const notes = source("./product-note-groups-manager.tsx");
 
     expect(notes).toContain('data-testid="product-note-entry-actions"');
     expect(notes).toContain('data-testid="open-reusable-note-navigator"');
     expect(notes).toContain('data-testid="open-note-group-navigator"');
-    expect(notes).toContain("mt-5 grid gap-3 md:grid-cols-2");
+    expect(notes).toContain('data-testid="product-note-inline-board"');
     expect(notes).not.toContain('data-testid="product-note-tools"');
   });
 });

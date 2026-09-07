@@ -230,7 +230,7 @@ export function useQrOrderFlowController({
         + bundlePriceAdjustment(product.bundleChoiceGroups, line.bundleChoiceIds),
     ) * line.quantity;
   }, 0) : 0;
-  const lotteryChannelAllowed = publicLotteryChannelAllows(
+  const lotteryChannelAllowed = session?.lotteryEnabled === true && publicLotteryChannelAllows(
     activeOrderingMode,
     session?.stall.fulfillmentType,
   );

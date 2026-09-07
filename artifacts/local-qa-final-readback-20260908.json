@@ -1,0 +1,87 @@
+{
+  "checkedAt": "2026-09-07T18:14:33.977Z",
+  "environment": "http://127.0.0.1:3018",
+  "originalOrdersPreserved": [
+    {
+      "id": "2ff41288-0190-4970-b237-6477682c7930",
+      "orderNo": "260907-094",
+      "status": "WAITING_CONFIRMATION",
+      "isTest": true
+    },
+    {
+      "id": "1065e5ae-8bf1-426d-8538-ae5c41dc83ca",
+      "orderNo": "260907-103",
+      "status": "COMPLETED",
+      "isTest": true
+    },
+    {
+      "id": "6f14d05f-e25e-4897-9bbe-b2ec4eb53aa7",
+      "orderNo": "260907-096",
+      "status": "WAITING_CONFIRMATION",
+      "isTest": true
+    },
+    {
+      "id": "b012f006-23a2-416b-bf45-2cd47f6e188f",
+      "orderNo": "260907-099",
+      "status": "CONFIRMED",
+      "isTest": true
+    },
+    {
+      "id": "950c90b9-8471-4ee1-bcf8-6f3f0b728f4b",
+      "orderNo": "260907-101",
+      "status": "PREPARING",
+      "isTest": true
+    },
+    {
+      "id": "4ce70567-9f7d-4203-aa13-dfb2f2f9daac",
+      "orderNo": "260907-095",
+      "status": "WAITING_CONFIRMATION",
+      "isTest": true
+    },
+    {
+      "id": "9d2c4df9-c7b5-4912-bc70-2c8bebc5aebd",
+      "orderNo": "260907-097",
+      "status": "CONFIRMED",
+      "isTest": true
+    },
+    {
+      "id": "1fe01024-6f6b-4337-b9fa-aca09042df18",
+      "orderNo": "260907-102",
+      "status": "COMPLETED",
+      "isTest": true
+    },
+    {
+      "id": "2c3182da-9ab3-43af-9876-c07b3b867064",
+      "orderNo": "260907-098",
+      "status": "CONFIRMED",
+      "isTest": true
+    },
+    {
+      "id": "5190b78e-7651-46f4-85f6-8151c28515ae",
+      "orderNo": "260907-100",
+      "status": "PREPARING",
+      "isTest": true
+    }
+  ],
+  "surgeExamples": [
+    {
+      "name": "尖峰測試・關店範例 1",
+      "stallId": "c0ab579a-758b-4491-9bfb-9faf5f635858",
+      "businessStatus": "CLOSED",
+      "orderCount": 12
+    },
+    {
+      "name": "尖峰測試・關店範例 2",
+      "stallId": "13c822e6-99e0-488c-b16c-fd5cebbdd183",
+      "businessStatus": "CLOSED",
+      "orderCount": 12
+    },
+    {
+      "name": "尖峰測試・營業中",
+      "stallId": "92dfe97c-efaa-4a32-bd0b-fe657212859a",
+      "businessStatus": "OPEN",
+      "orderCount": 12
+    }
+  ],
+  "retiredScriptSessions": 1
+}

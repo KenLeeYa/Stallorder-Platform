@@ -489,7 +489,7 @@ export function ProductNoteGroupsManager({
   }
 
   function leaveGroupNavigator(next: () => void) {
-    closeGroupNavigator();
+    if (groupNavigatorOpen) closeGroupNavigator();
     requestAnimationFrame(next);
   }
 
@@ -602,6 +602,21 @@ export function ProductNoteGroupsManager({
     await runCommand({ operation: "REORDER_NOTE_OPTIONS", noteGroupId, noteOptionIds }, label("註記選項排序已更新。"));
   }
 
+  const groupBoard = (
+    <ProductNoteGroupBoard
+      groups={visibleNavigatorGroups}
+      selectedGroup={groupNavigatorGroup}
+      query={normalizedGroupNavigatorQuery}
+      currency={currency}
+      onSelect={(id) => { setGroupNavigatorGroupId(id); setGroupNavigatorQuery(""); }}
+      onManage={(group) => leaveGroupNavigator(() => setNoteActionTarget({ kind: "NOTE_GROUP", id: group.id }))}
+      onOption={(group, option) => leaveGroupNavigator(() => setNoteActionTarget({ kind: "NOTE_OPTION", groupId: group.id, id: option.id }))}
+      onAttach={(group) => leaveGroupNavigator(() => openAttachDialog(group))}
+      onCreate={(group) => leaveGroupNavigator(() => setOptionDraft({ noteGroupId: group.id, reusableNoteId: null, name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(group.options), isActive: true, translations: [] }))}
+      canAttach={(group) => !busy && sortedReusableNotes.some((note) => !group.options.some((option) => option.reusableNoteId === note.id))}
+    />
+  );
+
   return (
     <section aria-labelledby="product-notes-heading" className="mt-10 border-t border-stone-200 pt-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -625,7 +640,7 @@ export function ProductNoteGroupsManager({
 
       {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
       <div id="product-note-settings-content" hidden={!settingsExpanded}>
-      <div data-testid="product-note-entry-actions" className="mt-5 grid gap-3 md:grid-cols-2">
+      <div data-testid="product-note-entry-actions" className="mt-5 grid gap-3 md:flex md:flex-wrap">
         <button
           type="button"
           data-testid="open-reusable-note-navigator"
@@ -633,9 +648,9 @@ export function ProductNoteGroupsManager({
             setReusableNoteNavigatorQuery("");
             setReusableNoteNavigatorOpen(true);
           }}
-          className="flex min-h-28 w-full items-center gap-4 rounded-2xl border-2 border-teal-700 bg-teal-50 p-5 text-left shadow-sm transition hover:bg-teal-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
+          className="flex min-h-28 w-full items-center gap-4 rounded-2xl border-2 border-teal-700 bg-teal-50 p-5 text-left shadow-sm transition hover:bg-teal-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 md:min-h-11 md:w-auto md:gap-2 md:rounded-lg md:border md:px-3 md:py-2"
         >
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-teal-700 text-white"><MessageSquareText className="h-7 w-7" /></span>
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-teal-700 text-white md:h-8 md:w-8 md:rounded-md"><MessageSquareText className="h-7 w-7 md:h-5 md:w-5" /></span>
           <span className="min-w-0 flex-1">
             <strong className="block text-lg text-teal-950">{label("所有單一註記")}</strong>
             <span className="mt-1 block text-sm text-teal-900">{m("{count} 個單一註記", { count: reusableNotes.length })}</span>
@@ -650,15 +665,29 @@ export function ProductNoteGroupsManager({
             setGroupNavigatorQuery("");
             setGroupNavigatorOpen(true);
           }}
-          className="flex min-h-28 w-full items-center gap-4 rounded-2xl border-2 border-teal-700 bg-teal-50 p-5 text-left shadow-sm transition hover:bg-teal-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
+          className="flex min-h-28 w-full items-center gap-4 rounded-2xl border-2 border-teal-700 bg-teal-50 p-5 text-left shadow-sm transition hover:bg-teal-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 md:min-h-11 md:w-auto md:gap-2 md:rounded-lg md:border md:px-3 md:py-2"
         >
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-teal-700 text-white"><Layers3 className="h-7 w-7" /></span>
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-teal-700 text-white md:h-8 md:w-8 md:rounded-md"><Layers3 className="h-7 w-7 md:h-5 md:w-5" /></span>
           <span className="min-w-0 flex-1">
-            <strong className="block text-lg text-teal-950">{label("註記群組")}</strong>
+            <strong className="block text-lg text-teal-950"><span className="md:hidden">{label("註記群組")}</span><span className="hidden md:inline">{label("放大註記群組")}</span></strong>
             <span className="mt-1 block text-sm text-teal-900">{m("{groupCount} 個群組 · {optionCount} 個註記選項", { groupCount: groups.length, optionCount: groups.reduce((count, group) => count + group.options.length, 0) })}</span>
           </span>
           <ChevronRight className="h-7 w-7 shrink-0 text-teal-800" />
         </button>
+      </div>
+
+      <div data-testid="product-note-inline-board" className={groupNavigatorOpen ? "hidden" : "mt-4 hidden md:block"}>
+        <div className="mb-3 grid gap-3">
+          <ProductNoteTransferTools busy={busy} onExport={() => void exportProductNotes()} onImport={(file) => void previewProductNoteImport(file)} />
+          <div className="flex flex-wrap gap-3">
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">{label("搜尋註記群組或選項")}</span>
+              <input type="search" maxLength={80} value={groupNavigatorQuery} onChange={(event) => setGroupNavigatorQuery(event.target.value)} placeholder={label("搜尋註記群組或選項")} className="min-h-11 w-full rounded-lg border border-stone-300 px-3 text-base" />
+            </label>
+            <button type="button" onClick={() => setGroupDraft({ name: "", selectionMode: "MULTIPLE", isRequired: false, minSelections: 0, maxSelections: null, sortOrder: nextProductNoteSortOrder(groups), isActive: true, translations: [], productIds: [] })} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-stone-900 px-4 font-semibold text-white"><Plus className="h-5 w-5" />{label("新增群組")}</button>
+          </div>
+        </div>
+        {groupBoard}
       </div>
 
       {reusableNoteNavigatorOpen ? (
@@ -731,18 +760,7 @@ export function ProductNoteGroupsManager({
             </div>
 
             <div className="hidden md:block">
-              <ProductNoteGroupBoard
-                groups={visibleNavigatorGroups}
-                selectedGroup={groupNavigatorGroup}
-                query={normalizedGroupNavigatorQuery}
-                currency={currency}
-                onSelect={(id) => { setGroupNavigatorGroupId(id); setGroupNavigatorQuery(""); }}
-                onManage={(group) => leaveGroupNavigator(() => setNoteActionTarget({ kind: "NOTE_GROUP", id: group.id }))}
-                onOption={(group, option) => leaveGroupNavigator(() => setNoteActionTarget({ kind: "NOTE_OPTION", groupId: group.id, id: option.id }))}
-                onAttach={(group) => leaveGroupNavigator(() => openAttachDialog(group))}
-                onCreate={(group) => leaveGroupNavigator(() => setOptionDraft({ noteGroupId: group.id, reusableNoteId: null, name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(group.options), isActive: true, translations: [] }))}
-                canAttach={(group) => !busy && sortedReusableNotes.some((note) => !group.options.some((option) => option.reusableNoteId === note.id))}
-              />
+              {groupBoard}
             </div>
             <div className="md:hidden">
             {!groupNavigatorGroup ? (
@@ -1263,8 +1281,8 @@ function ProductNoteGroupBoard({ groups, selectedGroup, query, currency, onSelec
   const { label, m } = useMerchantMessages();
   const shownGroups = selectedGroup ? [selectedGroup] : groups;
   const matches = (names: string[]) => !query || names.join(" ").normalize("NFKC").toLocaleLowerCase("zh-TW").includes(query);
-  return <div data-testid="note-group-board" className="grid min-w-0 grid-cols-[210px_minmax(0,1fr)] overflow-hidden rounded-lg border border-stone-300 xl:grid-cols-[240px_minmax(0,1fr)]">
-    <nav aria-label={label("註記群組")} className="max-h-[60vh] overflow-y-auto border-r border-stone-200 bg-stone-50 p-2">
+  return <div data-testid="note-group-board" className="grid h-[60vh] min-h-[28rem] min-w-0 grid-cols-[210px_minmax(0,1fr)] overflow-hidden rounded-lg border border-stone-300 xl:grid-cols-[240px_minmax(0,1fr)]">
+    <nav aria-label={label("註記群組")} className="min-h-0 overflow-y-auto border-r border-stone-200 bg-stone-50 p-2">
       <p className="p-2 text-sm font-semibold text-stone-600">{label("註記群組")}</p>
       <button type="button" aria-pressed={!selectedGroup} onClick={() => onSelect(null)} className="min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-left text-sm font-semibold aria-pressed:border-teal-700 aria-pressed:bg-teal-50">{label("全部群組")}</button>
       {groups.map((group) => <button key={group.id} type="button" aria-label={group.name} aria-pressed={selectedGroup?.id === group.id} onClick={() => onSelect(group.id)} className="mt-3 flex min-h-14 w-full items-center gap-2 rounded-lg border border-stone-300 bg-stone-200 p-3 text-left aria-pressed:border-teal-700 aria-pressed:bg-teal-700 aria-pressed:text-white">
@@ -1273,7 +1291,7 @@ function ProductNoteGroupBoard({ groups, selectedGroup, query, currency, onSelec
       </button>)}
       {!groups.length ? <p className="p-3 text-sm text-stone-500">{label("找不到符合的註記群組。")}</p> : null}
     </nav>
-    <div className="max-h-[60vh] min-w-0 overflow-y-auto p-3">
+    <div className="min-h-0 min-w-0 overflow-y-auto p-3">
       {shownGroups.map((group) => {
         const options = [...group.options].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-TW"))
           .filter((option) => matches([group.name, ...group.translations.map((row) => row.name)]) || matches([option.name, ...option.translations.map((row) => row.name)]));

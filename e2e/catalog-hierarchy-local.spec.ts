@@ -109,8 +109,7 @@ test("a group-only note edits through the board and retains its price and group 
     await establishLocalTestSession(page, prisma, ownerId);
     await page.setViewportSize({ width: 768, height: 900 });
     await gotoLocalPath(page, "/merchant/catalog");
-    await page.getByTestId("open-note-group-navigator").click();
-    const dialog = page.getByTestId("note-group-navigator-dialog");
+    const dialog = page.getByTestId("product-note-inline-board");
     await dialog.getByRole("navigation", { name: "註記群組", exact: true }).getByRole("button", { name: group.name, exact: true }).click();
     await dialog.getByTestId("note-option-action-trigger").filter({ hasText: "QA 原始註記", visible: true }).click();
     await page.getByTestId("product-note-action-dialog").getByRole("button", { name: "編輯", exact: true }).click();
@@ -122,7 +121,9 @@ test("a group-only note edits through the board and retains its price and group 
     const option = await prisma.productNoteOption.findUniqueOrThrow({ where: { id: group.options[0].id } });
     expect({ name: option.name, price: option.priceDelta, group: option.noteGroupId }).toEqual({ name: "QA 修改後註記", price: 7, group: group.id });
     await page.reload();
-    await page.getByTestId("open-note-group-navigator").click();
+    await expect.poll(() => dialog.getByPlaceholder("搜尋註記群組或選項").evaluate((element) =>
+      Object.keys(element).some(key => key.startsWith("__reactProps$")),
+    )).toBe(true);
     await dialog.getByPlaceholder("搜尋註記群組或選項").fill("QA 修改後註記");
     await expect(dialog.getByTestId("note-option-action-trigger").filter({ visible: true })).toContainText("$7");
   } finally { await prisma.productNoteGroup.delete({ where: { id: group.id } }); }

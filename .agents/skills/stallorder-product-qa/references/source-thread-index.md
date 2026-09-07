@@ -53,3 +53,7 @@ When the owner changes a rule:
 2. add a conflict-resolution note here when it supersedes an older instruction;
 3. add or update executable regression tests;
 4. do not delete historical task records merely because the rule changed.
+
+### 2026-09-07 local inline-board correction and expanded QA
+
+The owner reported unequal product sidebar height and notes still showing only two large cards. Tablet/desktop must show the group/option board inline and align product pane bottoms; phone keeps the established hierarchy. Earlier two-card-only desktop instructions are superseded. The same request authorizes enabling supported local features, functional/error/open-close/load tests, and retaining synthetic examples; it does not authorize Production deployment or real provider transactions.

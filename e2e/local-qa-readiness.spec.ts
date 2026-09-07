@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 const quickLoginDestinations = [
-  ["商家", /\/merchant\/dashboard\?organizationId=/],
-  ["店員", /\/staff\/aming-chicken/],
-  ["廚房", /\/kitchen\?stall=aming-chicken/],
-  ["平台管理者", /\/admin\/billing$/],
+  ["商家", /\/merchant\/dashboard\?organizationId=/, "/merchant/dashboard?organizationId=11111111-1111-4111-8111-111111111111"],
+  ["店員", /\/staff\/aming-chicken/, "/staff/aming-chicken"],
+  ["廚房", /\/kitchen\?stall=aming-chicken/, "/kitchen?stall=aming-chicken"],
+  ["平台管理者", /\/admin\/billing$/, "/admin/billing"],
 ] as const;
 
 test.skip(
@@ -12,9 +12,9 @@ test.skip(
   "Only the explicit local QA readiness command may exercise development quick login.",
 );
 
-for (const [role, destination] of quickLoginDestinations) {
+for (const [role, destination, next] of quickLoginDestinations) {
   test(`本機快速登入：${role}`, async ({ page }) => {
-    await page.goto("/login");
+    await page.goto("/login?next=" + encodeURIComponent(next));
     const grid = page.getByTestId("local-qa-login-grid");
     await expect(grid).toBeVisible();
 
@@ -53,7 +53,7 @@ test("本機公開 Menu、QR、外帶自取與現金交班可實際操作", asyn
     await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeVisible();
   }
 
-  await page.goto("/login");
+  await page.goto("/login?next=" + encodeURIComponent("/staff/aming-chicken"));
   await page.getByTestId("local-qa-login-grid").getByRole("button", { name: "店員", exact: true }).click();
   await expect(page).toHaveURL(/\/staff\/aming-chicken/);
   const cashResponse = await page.goto("/staff/aming-chicken/cash");
@@ -70,7 +70,7 @@ test("本機 QR 印刷按鈕會開啟瀏覽器列印／另存 PDF", async ({ pag
       document.documentElement.dataset.qaPrintCount = String(count);
     };
   });
-  await page.goto("/login");
+  await page.goto("/login?next=" + encodeURIComponent(quickLoginDestinations[0][2]));
   await page
     .getByTestId("local-qa-login-grid")
     .getByRole("button", { name: "商家", exact: true })
@@ -101,7 +101,7 @@ test("本機 QR 印刷按鈕會開啟瀏覽器列印／另存 PDF", async ({ pag
 
 test("還原版商家 QR 在平板保留左側管理欄且印刷連結可操作", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
-  await page.goto("/login");
+  await page.goto("/login?next=" + encodeURIComponent(quickLoginDestinations[0][2]));
   await page
     .getByTestId("local-qa-login-grid")
     .getByRole("button", { name: "商家", exact: true })

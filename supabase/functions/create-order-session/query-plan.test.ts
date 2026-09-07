@@ -71,6 +71,7 @@ describe("create-order-session lightweight query plan", () => {
 
   it("returns campaign eligibility only for live non-delivery sessions", () => {
     expect(source).toContain('const lotteryChannelAllowed = orderingMode === "DEFAULT"');
+    expect(source).toContain('&& settings.lottery_enabled === true');
     expect(source).toContain('qrContext.fulfillment_type_context !== "DELIVERY"');
     expect(source).toContain("lotteryReward: {");
     expect(source).toContain("spendEnabled: lotteryChannelAllowed");

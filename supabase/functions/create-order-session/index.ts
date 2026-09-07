@@ -672,6 +672,7 @@ Deno.serve(async (request) => {
       : filterPublicMenuProductsForTime(rankedProducts, now);
     const orderingSettings = stallQuery.data.ordering_settings;
     const lotteryChannelAllowed = orderingMode === "DEFAULT"
+      && settings.lottery_enabled === true
       && qrContext.fulfillment_type_context !== "DELIVERY";
     const lotteryBusinessDate = localDateInTimeZone(new Date(now), stallQuery.data.timezone);
     const festivalCampaigns = Array.isArray(festivalCampaignsQuery.data)

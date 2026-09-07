@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
@@ -13,8 +14,8 @@ assertLocalDatabase();
 
 const prisma = new PrismaClient();
 const organizationId = "11111111-1111-4111-8111-111111111111";
-const stallId = "22222222-2222-4222-8222-222222222222";
-const stallSlug = "aming-chicken";
+const stallId = randomUUID();
+const stallSlug = "cash-shift-e2e-" + stallId.slice(0, 8);
 const password = "StallOrderDemo!2026";
 const managerAuthorizationCode = "246810";
 const financeEmail = "cash.finance.e2e@stallorder.test";
@@ -26,6 +27,30 @@ let orderId = "";
 test.describe.serial("現金交班與短溢收", () => {
   test.beforeAll(async () => {
     await cleanupFixtures();
+    // A retained demo cash shift may already be open. Give this lifecycle its own stall.
+    await prisma.stall.create({ data: {
+      id: stallId, organizationId, slug: stallSlug, code: stallSlug,
+      name: "現金交班 QA", address: "本機測試", location: "本機測試",
+      orderingEnabled: true, orderingState: "OPEN", businessStatus: "OPEN",
+    } });
+    const memberships = await prisma.stallMembership.findMany({
+      where: { stallId: "22222222-2222-4222-8222-222222222222", isActive: true },
+      select: { profileId: true, role: true },
+    });
+    await prisma.stallMembership.createMany({
+      data: memberships.map((member) => ({ ...member, stallId, organizationId })),
+    });
+    const product = await prisma.product.findFirstOrThrow({
+      where: { organizationId, isActive: true },
+      orderBy: { sortOrder: "asc" },
+    });
+    await prisma.stallProduct.create({ data: {
+      organizationId, stallId, productId: product.id, isEnabled: true,
+    } });
+    await prisma.stallOrderingSettings.create({
+      data: { organizationId, stallId, paymentModuleEnabled: true, kdsModuleEnabled: false },
+    });
+    await prisma.paymentOption.create({ data: { organizationId, stallId, code: "CASH", name: "現金", kind: "CASH" } });
     const owner = await prisma.profile.findUniqueOrThrow({
       where: { email: "owner@stallorder.test" },
       select: { passwordHash: true },
@@ -60,11 +85,7 @@ test.describe.serial("現金交班與短溢收", () => {
         await prisma.authSession.deleteMany({ where: { profileId: financeProfileId } });
       }
       await prisma.profile.deleteMany({ where: { email: financeEmail } });
-      await prisma.rateLimitBucket.deleteMany();
-      await prisma.stallOrderingSettings.update({
-        where: { stallId },
-        data: { managerAuthorizationCodeHash: null },
-      });
+      await prisma.stall.deleteMany({ where: { id: stallId } });
     } finally {
       await prisma.$disconnect();
     }
@@ -338,7 +359,9 @@ async function newRolePage(browser: Browser, email: string, destination: RegExp)
 }
 
 async function login(page: Page, email: string, destination: RegExp) {
-  await page.goto("/login");
+  const staffPath = email === "staff@stallorder.test" ? `/staff/${stallSlug}`
+    : email === "kitchen@stallorder.test" ? `/kitchen?stall=${stallSlug}` : null;
+  await page.goto(staffPath ? `/login?next=${encodeURIComponent(staffPath)}` : "/login");
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
@@ -347,7 +370,7 @@ async function login(page: Page, email: string, destination: RegExp) {
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await responsePromise).status()).toBe(200);
-  await expect(page).toHaveURL(destination, { timeout: 30_000 });
+  await expect(page).toHaveURL(staffPath ? new URL(staffPath, page.url()).href : destination, { timeout: 30_000 });
 }
 
 async function cleanupFixtures() {

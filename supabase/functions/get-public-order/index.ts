@@ -13,7 +13,7 @@ import {
 import { getPublicOrderSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
 import { createEdgePerformanceTiming, finalizeEdgeResponse } from "../_shared/performance.ts";
-import { resolveStoredPickupCode } from "../_shared/public-order-contract.ts";
+import { normalizeStoredOrderTimestamp, resolveStoredPickupCode } from "../_shared/public-order-contract.ts";
 
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
@@ -142,7 +142,7 @@ Deno.serve(async (request) => {
           orderContext.data.quoted_wait_minutes ?? settingsQuery.data.estimated_wait_minutes,
         quotedWaitMinutes: orderContext.data.quoted_wait_minutes,
         quotedReadyAt: orderContext.data.quoted_ready_at,
-        lastTableOrderAt: lastTableOrderQuery.data?.created_at ?? null,
+        lastTableOrderAt: normalizeStoredOrderTimestamp(lastTableOrderQuery.data?.created_at),
       },
     }, 200);
   } catch (error) {

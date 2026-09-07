@@ -1,0 +1,290 @@
+{
+  "recordedAt": "2026-09-07T18:14:33.973Z",
+  "examples": [
+    {
+      "name": "尖峰測試・關店範例 1",
+      "organizationId": "c7eec60a-ce41-415f-98ae-408e965d1239",
+      "stallId": "c0ab579a-758b-4491-9bfb-9faf5f635858",
+      "slug": "qa-surge-1788798604060",
+      "businessStatus": "CLOSED",
+      "staff": "http://127.0.0.1:3018/staff/qa-surge-1788798604060",
+      "kitchen": "http://127.0.0.1:3018/kitchen?stall=qa-surge-1788798604060",
+      "orders": [
+        {
+          "id": "e3f49e9e-4646-461c-80e9-f9390da1dbaa",
+          "orderNo": "260908-001",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:40:04.362Z"
+        },
+        {
+          "id": "4f2497e5-5174-4c87-a35e-e627587f48c2",
+          "orderNo": "260908-002",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:40:04.490Z"
+        },
+        {
+          "id": "6461327a-7270-4ef5-aa6f-f2837dbe3b44",
+          "orderNo": "260908-003",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:40:04.603Z"
+        },
+        {
+          "id": "7608fba8-b7cf-46f8-9654-c2bcf9384adb",
+          "orderNo": "260908-004",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:40:04.684Z"
+        },
+        {
+          "id": "5f1a41a6-d5bd-45f4-b1a7-e8884b60a547",
+          "orderNo": "260908-005",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:40:04.776Z"
+        },
+        {
+          "id": "07dc0b8a-1c57-424c-a62a-c3b03ce64a53",
+          "orderNo": "260908-006",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.940Z"
+        },
+        {
+          "id": "38d77c18-6628-4e6f-81a8-b5c7ad1d41ae",
+          "orderNo": "260908-007",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.940Z"
+        },
+        {
+          "id": "1d354169-9463-4e8d-ae01-b753da4c97f0",
+          "orderNo": "260908-008",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.940Z"
+        },
+        {
+          "id": "9d232a73-f997-4b27-91cb-530d0e7afbaf",
+          "orderNo": "260908-009",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.940Z"
+        },
+        {
+          "id": "82886193-5a93-4b9d-b12c-67077499cdc2",
+          "orderNo": "260908-010",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.940Z"
+        },
+        {
+          "id": "76b48a5f-214e-4147-8369-cb4883a5baaa",
+          "orderNo": "260908-011",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.940Z"
+        },
+        {
+          "id": "29eb8608-88a2-46f7-9ef6-b3d4a85a6fac",
+          "orderNo": "260908-012",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.940Z"
+        }
+      ]
+    },
+    {
+      "name": "尖峰測試・關店範例 2",
+      "organizationId": "f4422f37-dcb3-4cd1-82d8-50ca6b2b80fb",
+      "stallId": "13c822e6-99e0-488c-b16c-fd5cebbdd183",
+      "slug": "qa-surge-1788798705085",
+      "businessStatus": "CLOSED",
+      "staff": "http://127.0.0.1:3018/staff/qa-surge-1788798705085",
+      "kitchen": "http://127.0.0.1:3018/kitchen?stall=qa-surge-1788798705085",
+      "orders": [
+        {
+          "id": "644c0a3a-e8dd-4703-bbac-60428f959029",
+          "orderNo": "260908-001",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:41:45.374Z"
+        },
+        {
+          "id": "b7a89c82-5d56-48d4-8a7c-dc43347bbfa3",
+          "orderNo": "260908-002",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:41:45.512Z"
+        },
+        {
+          "id": "0e8eeb04-36d7-439b-8a19-db9c4b7cc078",
+          "orderNo": "260908-003",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:41:45.625Z"
+        },
+        {
+          "id": "a53b9b28-a716-43ad-85ed-cb606f9b698a",
+          "orderNo": "260908-004",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:41:45.712Z"
+        },
+        {
+          "id": "aa97eb0c-eaf7-4deb-b322-af2647cb7969",
+          "orderNo": "260908-005",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:41:45.814Z"
+        },
+        {
+          "id": "fa7bc7c2-7491-439e-9b72-8b904634109c",
+          "orderNo": "260908-006",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.956Z"
+        },
+        {
+          "id": "a9df2bc0-8ba4-4ed1-b66f-9817ea9e556e",
+          "orderNo": "260908-007",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.956Z"
+        },
+        {
+          "id": "018f2410-b367-40c1-aacb-44b9ee04b399",
+          "orderNo": "260908-008",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.956Z"
+        },
+        {
+          "id": "5e5748cb-2200-484c-b79d-676cf1166498",
+          "orderNo": "260908-009",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.956Z"
+        },
+        {
+          "id": "9c8c9a7a-e427-4238-acc7-79c59a735130",
+          "orderNo": "260908-010",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.956Z"
+        },
+        {
+          "id": "43269b87-52f7-4249-a251-94ba670fa03d",
+          "orderNo": "260908-011",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.956Z"
+        },
+        {
+          "id": "8b5a3f2d-7a91-41c8-98a6-e87d9db6a64d",
+          "orderNo": "260908-012",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.956Z"
+        }
+      ]
+    },
+    {
+      "name": "尖峰測試・營業中",
+      "organizationId": "0c15ff5d-ca95-40bc-b2d0-fe3c995599f1",
+      "stallId": "92dfe97c-efaa-4a32-bd0b-fe657212859a",
+      "slug": "qa-surge-1788798753504",
+      "businessStatus": "OPEN",
+      "staff": "http://127.0.0.1:3018/staff/qa-surge-1788798753504",
+      "kitchen": "http://127.0.0.1:3018/kitchen?stall=qa-surge-1788798753504",
+      "orders": [
+        {
+          "id": "254ef8b8-8942-422e-a08c-162467a89967",
+          "orderNo": "260908-001",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:42:34.005Z"
+        },
+        {
+          "id": "cf93e980-6686-4bd2-9afe-f26f758e2660",
+          "orderNo": "260908-002",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:42:34.101Z"
+        },
+        {
+          "id": "14dfe98b-9cdd-4dea-8bbe-70dceb886bdc",
+          "orderNo": "260908-003",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:42:34.190Z"
+        },
+        {
+          "id": "149a3172-2987-4b44-a76f-03975be59ec0",
+          "orderNo": "260908-004",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:42:34.282Z"
+        },
+        {
+          "id": "030ccdd0-7552-4b86-9ae2-c83cfae4463c",
+          "orderNo": "260908-005",
+          "status": "READY",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:42:34.361Z"
+        },
+        {
+          "id": "e5b1ce9d-c818-4a4f-b5f4-79f0d994e63a",
+          "orderNo": "260908-006",
+          "status": "CONFIRMED",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-07T16:42:34.443Z"
+        },
+        {
+          "id": "0b6400d5-cd84-46f8-8382-fadc743b2593",
+          "orderNo": "260908-007",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.970Z"
+        },
+        {
+          "id": "7354118f-fbe7-4a4e-af73-fbd149294b42",
+          "orderNo": "260908-008",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.970Z"
+        },
+        {
+          "id": "5af8f3a9-0473-4892-899f-0911f1d22eb8",
+          "orderNo": "260908-009",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.970Z"
+        },
+        {
+          "id": "5715508a-c88b-4011-8700-d009c929f943",
+          "orderNo": "260908-010",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.970Z"
+        },
+        {
+          "id": "05969ae1-e340-4620-8117-2573db87d84f",
+          "orderNo": "260908-011",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.970Z"
+        },
+        {
+          "id": "4b18eb8e-3815-45e5-85d5-86153c2e41c5",
+          "orderNo": "260908-012",
+          "status": "WAITING_CONFIRMATION",
+          "isTest": true,
+          "confirmationExpiresAt": "2026-09-08T16:34:33.970Z"
+        }
+      ]
+    }
+  ]
+}

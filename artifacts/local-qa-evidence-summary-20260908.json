@@ -1,0 +1,826 @@
+{
+  "generatedAt": "2026-09-07T18:17:19.861Z",
+  "environment": "http://127.0.0.1:3018",
+  "scope": "LOCAL_QA_ONLY",
+  "baseCommit": "aa47c4d67e5ba71a517fd3622afeee6ec85fcfec",
+  "method": "Latest actually executed result per suite, title and project; unrun cases do not replace prior evidence.",
+  "counts": {
+    "expected": 116,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "title": "catalog-hierarchy-local.spec.ts > empty ungrouped buckets are absent and category/group filters identify the item list > ",
+      "file": "catalog-hierarchy-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 4416
+    },
+    {
+      "title": "catalog-hierarchy-local.spec.ts > a real ungrouped product is editable and leaves the system bucket after assignment > ",
+      "file": "catalog-hierarchy-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 6443
+    },
+    {
+      "title": "catalog-hierarchy-local.spec.ts > note groups have a tablet sidebar, distinct option rows and a usable phone hierarchy > ",
+      "file": "catalog-hierarchy-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 2775
+    },
+    {
+      "title": "catalog-hierarchy-local.spec.ts > a group-only note edits through the board and retains its price and group after reload > ",
+      "file": "catalog-hierarchy-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 4202
+    },
+    {
+      "title": "catalog-inline-board-local.spec.ts > product panes share the bottom edge and notes are directly usable on tablet and desktop > ",
+      "file": "catalog-inline-board-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 2212
+    },
+    {
+      "title": "catalog-note-settings-feedback-responsive.spec.ts > 單一註記分層遮罩與設定回饋通過響應式矩陣 > ",
+      "file": "catalog-note-settings-feedback-responsive.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 17660
+    },
+    {
+      "title": "catalog-note-settings-feedback-responsive.spec.ts > 編輯商品以明確提示展開與收合商品翻譯 > ",
+      "file": "catalog-note-settings-feedback-responsive.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 3951
+    },
+    {
+      "title": "catalog-operations-local.spec.ts > stock admin is tenant scoped, CSRF protected and rejects stale whole batches > ",
+      "file": "catalog-operations-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 2716
+    },
+    {
+      "title": "catalog-operations-local.spec.ts > QR edit at zero stock, replay, cancellation and overselling use real transactions > ",
+      "file": "catalog-operations-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 5614
+    },
+    {
+      "title": "catalog-operations-local.spec.ts > special opening permits real preorders and cutoff rejects new QR sessions > ",
+      "file": "catalog-operations-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 604
+    },
+    {
+      "title": "catalog-operations-local.spec.ts > Edge fallback enforces the same stock transaction and returns a specific conflict > ",
+      "file": "catalog-operations-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 3537
+    },
+    {
+      "title": "catalog-operations-local.spec.ts > printed table QR survives enabling dine-in, main QR rotation and pause-close-open > ",
+      "file": "catalog-operations-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 10941
+    },
+    {
+      "title": "catalog-operations-local.spec.ts > removing the only stall role blocks an existing login and preserves membership history > ",
+      "file": "catalog-operations-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 3686
+    },
+    {
+      "title": "catalog-operations-local.spec.ts > catalog desktop/tablet group board and mobile stock editor render without horizontal overflow > ",
+      "file": "catalog-operations-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 3759
+    },
+    {
+      "title": "customer-order-functional-qa-local.spec.ts > staff tablet time dialog and customer phone complete three rounds without stale success messages > ",
+      "file": "customer-order-functional-qa-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 43467
+    },
+    {
+      "title": "customer-order-functional-qa-local.spec.ts > two tabs cannot overwrite an answered proposal and reconnect receives a newer proposal > ",
+      "file": "customer-order-functional-qa-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 13155
+    },
+    {
+      "title": "customer-order-functional-qa-local.spec.ts > a delayed old tracking response cannot revive an accepted proposal > ",
+      "file": "customer-order-functional-qa-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 9911
+    },
+    {
+      "title": "customer-order-functional-qa-local.spec.ts > expiry, response loss, duplicate commands and a cancelled order keep authoritative state > ",
+      "file": "customer-order-functional-qa-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 10260
+    },
+    {
+      "title": "customer-order-functional-qa-local.spec.ts > Node and Edge share one tracking budget without starving other orders or mutations on shared Wi-Fi > ",
+      "file": "customer-order-functional-qa-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 7375
+    },
+    {
+      "title": "customer-order-functional-qa-local.spec.ts > PROPOSE cannot change an order cancelled while the staff request waits for the row lock > ",
+      "file": "customer-order-functional-qa-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 603
+    },
+    {
+      "title": "customer-order-functional-qa-local.spec.ts > CONFIRM_REQUESTED cannot change an order cancelled while the staff request waits for the row lock > ",
+      "file": "customer-order-functional-qa-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 297
+    },
+    {
+      "title": "customer-tracking-idle-local.spec.ts > decline then re-propose survives six real idle minutes and a temporary tracking cooldown > ",
+      "file": "customer-tracking-idle-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 380469
+    },
+    {
+      "title": "local-order-experience.spec.ts > only an arriving new order plays sound; edit, checkout, completion and reappearing snapshots stay silent > ",
+      "file": "local-order-experience.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 37416
+    },
+    {
+      "title": "local-order-experience.spec.ts > an existing preorder shows a new closure notice and a pickup-day popup without cancelling the order > ",
+      "file": "local-order-experience.spec.ts",
+      "status": "expected",
+      "run": "all-features-core.json",
+      "durationMs": 7387
+    },
+    {
+      "title": "qr-edit-local-flow.spec.ts > 本機 QR 外帶可修改原訂單並由顧客取消 > ",
+      "file": "qr-edit-local-flow.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r4.json",
+      "durationMs": 3181
+    },
+    {
+      "title": "qr-edit-local-flow.spec.ts > 本機外帶自取修改訂單會保留顧客姓名與手機 > ",
+      "file": "qr-edit-local-flow.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 2627
+    },
+    {
+      "title": "capacity-wait-time.spec.ts > 產能與等候時間 > 商家可檢視完整容量設定與商品規則 > ",
+      "file": "capacity-wait-time.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-operations-r2.json",
+      "durationMs": 2662
+    },
+    {
+      "title": "cash-shift-reconciliation.spec.ts > 現金交班與短溢收 > 店員現金收款、退款與關班後由老闆複核 > ",
+      "file": "cash-shift-reconciliation.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 17324
+    },
+    {
+      "title": "cds-pickup-display.spec.ts > 公開 CDS 只顯示必要欄位並即時移動與移除訂單 > ",
+      "file": "cds-pickup-display.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-r3.json",
+      "durationMs": 6332
+    },
+    {
+      "title": "cds-pickup-display.spec.ts > CDS 即時連線中斷時以輪詢同步 > ",
+      "file": "cds-pickup-display.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-r3.json",
+      "durationMs": 12626
+    },
+    {
+      "title": "cds-pickup-display.spec.ts > 管理者可輪替與撤銷 Token，且跨組織管理遭拒 > ",
+      "file": "cds-pickup-display.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-r3.json",
+      "durationMs": 2103
+    },
+    {
+      "title": "central-settings-validation.spec.ts > 中央設定欄位錯誤 > 同一登入 session 依序顯示六組繁中欄位錯誤並聚焦第一欄 > ",
+      "file": "central-settings-validation.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-operations-r2.json",
+      "durationMs": 3422
+    },
+    {
+      "title": "capacity-wait-time.spec.ts > 產能與等候時間 > 店員可手動暫停及恢復公開接單 > ",
+      "file": "capacity-wait-time.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-operations-r2.json",
+      "durationMs": 16241
+    },
+    {
+      "title": "capacity-wait-time.spec.ts > 產能與等候時間 > 廚房角色不能存取容量控制或商家設定 > ",
+      "file": "capacity-wait-time.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-operations-r2.json",
+      "durationMs": 1326
+    },
+    {
+      "title": "capacity-wait-time.spec.ts > 產能與等候時間 > 高等候時間須由顧客確認後才能送出 > ",
+      "file": "capacity-wait-time.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-operations-r2.json",
+      "durationMs": 1433
+    },
+    {
+      "title": "competitive-module-navigation.spec.ts > 已啟用的庫存、成長與菜單版本可由商家介面開啟 > ",
+      "file": "competitive-module-navigation.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-operations-r2.json",
+      "durationMs": 1832
+    },
+    {
+      "title": "dine-in-order-flow.spec.ts > 內用桌位從 QR 點餐連動廚房、出餐與折扣結帳 > ",
+      "file": "dine-in-order-flow.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r6.json",
+      "durationMs": 22700
+    },
+    {
+      "title": "dining-floor-levels.spec.ts > 樓層桌型會連動商家配置、員工看板與店員點餐 > ",
+      "file": "dining-floor-levels.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-operations-r2.json",
+      "durationMs": 12730
+    },
+    {
+      "title": "merchant-modules-ui.spec.ts > 商戶可在獨立頁面管理營運模組、桌位與 QR 語系 > ",
+      "file": "merchant-modules-ui.spec.ts",
+      "status": "expected",
+      "run": "all-features-fixes-r1.json",
+      "durationMs": 11626
+    },
+    {
+      "title": "p1-operational-tools.spec.ts > P1 營運功能 > 同桌追加點餐可合併結帳、經理核准、列印重試並納入現金交班 > ",
+      "file": "p1-operational-tools.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r5.json",
+      "durationMs": 19753
+    },
+    {
+      "title": "p2-growth-tools.spec.ts > P2 後續成長功能 > PWA manifest、Wake Lock 與離線唯讀防線可用 > ",
+      "file": "p2-growth-tools.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-r3.json",
+      "durationMs": 11589
+    },
+    {
+      "title": "p2-growth-tools.spec.ts > P2 後續成長功能 > 翻譯完整度可篩選缺漏並開啟安全 QR 語系預覽 > ",
+      "file": "p2-growth-tools.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-r3.json",
+      "durationMs": 1726
+    },
+    {
+      "title": "p2-growth-tools.spec.ts > P2 後續成長功能 > 營運警示可確認與解除並寫入稽核紀錄 > ",
+      "file": "p2-growth-tools.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-r3.json",
+      "durationMs": 1489
+    },
+    {
+      "title": "p2-growth-tools.spec.ts > P2 後續成長功能 > 稽核紀錄與營運警示可獨立調整每頁顯示數量 > ",
+      "file": "p2-growth-tools.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-r3.json",
+      "durationMs": 1426
+    },
+    {
+      "title": "p2-growth-tools.spec.ts > P2 後續成長功能 > 報表排程可建立並完成本機模擬寄送 > ",
+      "file": "p2-growth-tools.spec.ts",
+      "status": "expected",
+      "run": "all-features-built-r3.json",
+      "durationMs": 1670
+    },
+    {
+      "title": "payment-workflow-local.spec.ts > 付款測試連線中斷後顯示錯誤並可重試，不會永久停用按鈕 > ",
+      "file": "payment-workflow-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 896
+    },
+    {
+      "title": "payment-workflow-local.spec.ts > 七種模擬付款結果、退款與對帳可從介面執行，失敗請求可恢復且不碰原有訂單 > ",
+      "file": "payment-workflow-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 4787
+    },
+    {
+      "title": "preorder-lottery-settings-integration.spec.ts > 預約與抽抽樂設定的公開點餐整合 > 設定經 PATCH 儲存與重載後，真實 QR 依營業狀態切換抽抽樂與預約 > ",
+      "file": "preorder-lottery-settings-integration.spec.ts",
+      "status": "expected",
+      "run": "all-features-fixes-r1.json",
+      "durationMs": 11332
+    },
+    {
+      "title": "product-bundles.spec.ts > 商家可建立套餐、選擇群組與一般商品選項 > ",
+      "file": "product-bundles.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 15131
+    },
+    {
+      "title": "product-bundles.spec.ts > 手機版套餐操作列與商品編輯器不超出畫面 > ",
+      "file": "product-bundles.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 2152
+    },
+    {
+      "title": "product-note-groups.spec.ts > 商家可新增、修改、指派與刪除商品註記群組 > ",
+      "file": "product-note-groups.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 5373
+    },
+    {
+      "title": "product-note-groups.spec.ts > 群組內共用與專用註記排序可儲存並於重載後保留 > ",
+      "file": "product-note-groups.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 4972
+    },
+    {
+      "title": "product-note-groups.spec.ts > 商家可原子批次加入多個既有共用註記 > ",
+      "file": "product-note-groups.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 10240
+    },
+    {
+      "title": "product-note-groups.spec.ts > 共用單一註記可加入多個群組、同步更新並阻擋使用中刪除 > ",
+      "file": "product-note-groups.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 6440
+    },
+    {
+      "title": "product-note-groups.spec.ts > 商品註記可匯出、預覽並以單一交易匯入 > ",
+      "file": "product-note-groups.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 3242
+    },
+    {
+      "title": "product-note-groups.spec.ts > QR 註記選擇會由後端驗價並顯示於店員訂單 > ",
+      "file": "product-note-groups.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r6.json",
+      "durationMs": 22688
+    },
+    {
+      "title": "product-note-groups.spec.ts > QR 瀏覽器語系 > QR 依瀏覽器語系自動切換並保留手動選擇 > ",
+      "file": "product-note-groups.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 2142
+    },
+    {
+      "title": "cash-shift-reconciliation.spec.ts > 現金交班與短溢收 > 手機現金 Dashboard 在 320、390 與 768 寬度可掃讀且操作視窗可捲動與還原焦點 > ",
+      "file": "cash-shift-reconciliation.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 1788
+    },
+    {
+      "title": "cash-shift-reconciliation.spec.ts > 現金交班與短溢收 > 財務角色唯讀，廚房角色無法存取現金資料 > ",
+      "file": "cash-shift-reconciliation.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 2554
+    },
+    {
+      "title": "responsive-route-matrix.spec.ts > 核心營運頁面在手機、平板與桌面不產生全頁水平溢位 > ",
+      "file": "responsive-route-matrix.spec.ts",
+      "status": "expected",
+      "run": "all-features-orders-r2.json",
+      "durationMs": 17546
+    },
+    {
+      "title": "responsive-route-matrix.spec.ts > 舊公開連結在 HTTP 層導向攤位代碼入口 > ",
+      "file": "responsive-route-matrix.spec.ts",
+      "status": "expected",
+      "run": "all-features-orders-r2.json",
+      "durationMs": 119
+    },
+    {
+      "title": "responsive-route-matrix.spec.ts > compact-mobile 公開菜單與點餐入口不產生全頁水平溢位 > ",
+      "file": "responsive-route-matrix.spec.ts",
+      "status": "expected",
+      "run": "all-features-orders-r2.json",
+      "durationMs": 1253
+    },
+    {
+      "title": "responsive-route-matrix.spec.ts > mobile 公開菜單與點餐入口不產生全頁水平溢位 > ",
+      "file": "responsive-route-matrix.spec.ts",
+      "status": "expected",
+      "run": "all-features-orders-r2.json",
+      "durationMs": 1006
+    },
+    {
+      "title": "staff-kds-print-closure-flow.spec.ts > 單店員 KDS／列印分流與公休公告 > KDS 與列印皆關閉時，店員結帳一次即完成且不建立隱藏工作 > ",
+      "file": "staff-kds-print-closure-flow.spec.ts",
+      "status": "expected",
+      "run": "all-features-orders-r2.json",
+      "durationMs": 24657
+    },
+    {
+      "title": "staff-kds-print-closure-flow.spec.ts > 單店員 KDS／列印分流與公休公告 > KDS 關閉時，Menu 外帶單由店員完成並自動通知顧客可取餐 > ",
+      "file": "staff-kds-print-closure-flow.spec.ts",
+      "status": "expected",
+      "run": "all-features-orders-r2.json",
+      "durationMs": 12891
+    },
+    {
+      "title": "staff-kds-print-closure-flow.spec.ts > 單店員 KDS／列印分流與公休公告 > KDS 關閉但列印開啟時，確認即排入列印且收款後成功自動結單 > ",
+      "file": "staff-kds-print-closure-flow.spec.ts",
+      "status": "expected",
+      "run": "all-features-orders-r2.json",
+      "durationMs": 24383
+    },
+    {
+      "title": "staff-kds-print-closure-flow.spec.ts > 單店員 KDS／列印分流與公休公告 > 單日公休同步顯示於公開 Menu 與 QR，且顧客無法下單 > ",
+      "file": "staff-kds-print-closure-flow.spec.ts",
+      "status": "expected",
+      "run": "all-features-orders-r2.json",
+      "durationMs": 2758
+    },
+    {
+      "title": "staff-pos-line-delivery.spec.ts > 內用顧客名稱與桌位欄位在桌面版對齊 > ",
+      "file": "staff-pos-line-delivery.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r4.json",
+      "durationMs": 13250
+    },
+    {
+      "title": "staff-pos-line-delivery.spec.ts > 店員內用與外送使用獨立設定，且建立訂單時重新驗證 > ",
+      "file": "staff-pos-line-delivery.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 12538
+    },
+    {
+      "title": "staff-pos-line-delivery.spec.ts > 店員可在手機介面代客點餐並立即完成收款 > ",
+      "file": "staff-pos-line-delivery.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r4.json",
+      "durationMs": 16080
+    },
+    {
+      "title": "staff-pos-line-delivery.spec.ts > 店員可將同商品不同註記分列加入購物車，並移除選錯的獨立列 > ",
+      "file": "staff-pos-line-delivery.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 13306
+    },
+    {
+      "title": "staff-pos-line-delivery.spec.ts > LINE 固定外送網址可指定送達時間，店家提議後由顧客確認 > ",
+      "file": "staff-pos-line-delivery.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r3.json",
+      "durationMs": 14290
+    },
+    {
+      "title": "staff-pos-line-delivery.spec.ts > 外送頁依瀏覽器語系顯示英文欄位 > ",
+      "file": "staff-pos-line-delivery.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r5.json",
+      "durationMs": 1366
+    },
+    {
+      "title": "stall-schedule-locations.spec.ts > 出攤地點與行程 > 商家可建立地點與行程，公開頁只顯示安全欄位及攤位時區 > ",
+      "file": "stall-schedule-locations.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r5.json",
+      "durationMs": 2253
+    },
+    {
+      "title": "stall-schedule-locations.spec.ts > 出攤地點與行程 > 廚房角色無法存取行程管理 API > ",
+      "file": "stall-schedule-locations.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r5.json",
+      "durationMs": 880
+    },
+    {
+      "title": "p1-operational-tools.spec.ts > P1 營運功能 > 多攤位範本先顯示差異再套用全部營運設定 > ",
+      "file": "p1-operational-tools.spec.ts",
+      "status": "expected",
+      "run": "all-features-critical-r5.json",
+      "durationMs": 1484
+    },
+    {
+      "title": "offline-pwa-foundation.spec.ts > P4 離線 PWA 基礎 > 裝置須由管理者指定唯一 Leader 後才取得離線 Permit > ",
+      "file": "offline-pwa-foundation.spec.ts",
+      "status": "expected",
+      "run": "all-features-resilience.json",
+      "durationMs": 22359
+    },
+    {
+      "title": "qr-degraded-mode.spec.ts > 後端降級時保留 QR 菜單並停用所有送單操作 > ",
+      "file": "qr-degraded-mode.spec.ts",
+      "status": "expected",
+      "run": "all-features-resilience-r2.json",
+      "durationMs": 2013
+    },
+    {
+      "title": "qr-degraded-mode.spec.ts > 安全工作階段失敗時顯示錯誤並可重新建立 > ",
+      "file": "qr-degraded-mode.spec.ts",
+      "status": "expected",
+      "run": "all-features-resilience-r2.json",
+      "durationMs": 1128
+    },
+    {
+      "title": "qr-degraded-mode.spec.ts > 後端 target 切換時忽略舊工作階段的晚到失敗 > ",
+      "file": "qr-degraded-mode.spec.ts",
+      "status": "expected",
+      "run": "all-features-resilience-r2.json",
+      "durationMs": 724
+    },
+    {
+      "title": "qr-degraded-mode.spec.ts > 已快取的 QR 菜單在網路中斷後維持唯讀 > ",
+      "file": "qr-degraded-mode.spec.ts",
+      "status": "expected",
+      "run": "all-features-resilience-r2.json",
+      "durationMs": 1006
+    },
+    {
+      "title": "resilience-failure-injection.spec.ts > P8 生產韌性故障注入 > Supabase Edge 回傳 503 時以同一請求識別轉入 Circuit B > ",
+      "file": "resilience-failure-injection.spec.ts",
+      "status": "expected",
+      "run": "all-features-resilience.json",
+      "durationMs": 10748
+    },
+    {
+      "title": "resilience-failure-injection.spec.ts > P8 生產韌性故障注入 > 同一 QR 的三個不同裝置可並行建立安全工作階段 > ",
+      "file": "resilience-failure-injection.spec.ts",
+      "status": "expected",
+      "run": "all-features-resilience.json",
+      "durationMs": 357
+    },
+    {
+      "title": "resilience-failure-injection.spec.ts > P8 生產韌性故障注入 > SSE 與 Realtime 同時失效時顯示 5 秒輪詢並持續抓取訂單 > ",
+      "file": "resilience-failure-injection.spec.ts",
+      "status": "expected",
+      "run": "all-features-resilience.json",
+      "durationMs": 5450
+    },
+    {
+      "title": "api-response-contract-regressions.spec.ts > 圖片上傳與付款更正 API 回應契約 > 圖片 API 回傳 HTML 時顯示可追蹤錯誤而非 JSON 解析訊息 > ",
+      "file": "api-response-contract-regressions.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 3436
+    },
+    {
+      "title": "api-response-contract-regressions.spec.ts > 圖片上傳與付款更正 API 回應契約 > 圖片 API 成功時會更新商品草稿並關閉裁切視窗 > ",
+      "file": "api-response-contract-regressions.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 1831
+    },
+    {
+      "title": "api-response-contract-regressions.spec.ts > 圖片上傳與付款更正 API 回應契約 > 空白付款錯誤回應不會顯示 Unexpected end of JSON input > ",
+      "file": "api-response-contract-regressions.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 13982
+    },
+    {
+      "title": "api-response-contract-regressions.spec.ts > 圖片上傳與付款更正 API 回應契約 > 付款方式更正可通過真實資料庫限制並完成更新 > ",
+      "file": "api-response-contract-regressions.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 11701
+    },
+    {
+      "title": "kds-production-board.spec.ts > KDS 即時事件流使用獨立權限邊界 > ",
+      "file": "kds-production-board.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 1338
+    },
+    {
+      "title": "kds-production-board.spec.ts > 廚房角色可在手機 KDS 操作且只取得安全欄位 > ",
+      "file": "kds-production-board.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 5366
+    },
+    {
+      "title": "kds-production-board.spec.ts > 廚房訂單模式在手機堆疊並於平板桌機使用三區工作台 > ",
+      "file": "kds-production-board.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 2677
+    },
+    {
+      "title": "kds-production-board.spec.ts > 攤位管理者可進入工作站與 KDS 設定 > ",
+      "file": "kds-production-board.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 3095
+    },
+    {
+      "title": "line-notifications-and-reorder.spec.ts > LINE 通知與 Menu 返回 > 商家可開啟 LINE 設定，KITCHEN 無管理權限 > ",
+      "file": "line-notifications-and-reorder.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 2268
+    },
+    {
+      "title": "line-notifications-and-reorder.spec.ts > LINE 通知與 Menu 返回 > 訂單追蹤可顯示 LINE 控制，並以無快取網址返回目前 Menu > ",
+      "file": "line-notifications-and-reorder.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 770
+    },
+    {
+      "title": "merchant-stall-settings-navigation.spec.ts > 手機版攤位設定以跳轉頁面呈現 > ",
+      "file": "merchant-stall-settings-navigation.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 13478
+    },
+    {
+      "title": "operations-report-filter-responsive.spec.ts > 稽核與營運警示在各裝置維持參考圖日期排列 > ",
+      "file": "operations-report-filter-responsive.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 2254
+    },
+    {
+      "title": "operations-report-filter-responsive.spec.ts > 攤位報表與營業損益把動作緊接在自訂右側 > ",
+      "file": "operations-report-filter-responsive.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 2574
+    },
+    {
+      "title": "public-display-menu.spec.ts > 公開 Menu 以匿名唯讀方式呈現並適合手機瀏覽 > ",
+      "file": "public-display-menu.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 553
+    },
+    {
+      "title": "public-display-menu.spec.ts > 不存在或不可公開的攤位不會洩漏菜單資料 > ",
+      "file": "public-display-menu.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 17
+    },
+    {
+      "title": "qr-independent-cart-lines.spec.ts > QR 同商品可加入兩個不同註記列，報價低頻更新且返回頂端不遮住手機購物車 > ",
+      "file": "qr-independent-cart-lines.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 2798
+    },
+    {
+      "title": "qr-order-iphone-recovery.spec.ts > iPhone 重掃同一 QR 不會載回已完成訂單 > ",
+      "file": "qr-order-iphone-recovery.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 1914
+    },
+    {
+      "title": "qr-order-recovery.spec.ts > 重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核對 > ",
+      "file": "qr-order-recovery.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended-r2.json",
+      "durationMs": 17174
+    },
+    {
+      "title": "stall-checkout-upsell-product-settings.spec.ts > 共享商品編輯頁可依攤位設定推薦加點 > ",
+      "file": "stall-checkout-upsell-product-settings.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 2296
+    },
+    {
+      "title": "stall-checkout-upsell-product-settings.spec.ts > phone 商品內頁提供大型推薦加點開關 > ",
+      "file": "stall-checkout-upsell-product-settings.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 1611
+    },
+    {
+      "title": "stall-checkout-upsell-product-settings.spec.ts > tablet 商品內頁提供大型推薦加點開關 > ",
+      "file": "stall-checkout-upsell-product-settings.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended-r2.json",
+      "durationMs": 1660
+    },
+    {
+      "title": "stall-checkout-upsell-product-settings.spec.ts > desktop 商品內頁提供大型推薦加點開關 > ",
+      "file": "stall-checkout-upsell-product-settings.spec.ts",
+      "status": "expected",
+      "run": "all-features-extended.json",
+      "durationMs": 1853
+    },
+    {
+      "title": "operations-surge-local.spec.ts > retained peak-hour orders raise quotes, pause safely, recover automatically and respect manual closure > ",
+      "file": "operations-surge-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-surge-r7.json",
+      "durationMs": 7016
+    },
+    {
+      "title": "catalog-inline-board-local.spec.ts > product panes share the bottom edge and notes are directly usable on tablet and desktop > webkit",
+      "file": "catalog-inline-board-local.spec.ts",
+      "status": "expected",
+      "run": "all-features-webkit.json",
+      "durationMs": 2867
+    },
+    {
+      "title": "local-qa-readiness.spec.ts > 本機快速登入：商家 > ",
+      "file": "local-qa-readiness.spec.ts",
+      "status": "expected",
+      "run": "all-features-readiness.json",
+      "durationMs": 5174
+    },
+    {
+      "title": "local-qa-readiness.spec.ts > 本機快速登入：店員 > ",
+      "file": "local-qa-readiness.spec.ts",
+      "status": "expected",
+      "run": "all-features-readiness.json",
+      "durationMs": 4854
+    },
+    {
+      "title": "local-qa-readiness.spec.ts > 本機快速登入：廚房 > ",
+      "file": "local-qa-readiness.spec.ts",
+      "status": "expected",
+      "run": "all-features-readiness.json",
+      "durationMs": 2662
+    },
+    {
+      "title": "local-qa-readiness.spec.ts > 本機快速登入：平台管理者 > ",
+      "file": "local-qa-readiness.spec.ts",
+      "status": "expected",
+      "run": "all-features-readiness.json",
+      "durationMs": 2803
+    },
+    {
+      "title": "local-qa-readiness.spec.ts > 本機公開 Menu、QR、外帶自取與現金交班可實際操作 > ",
+      "file": "local-qa-readiness.spec.ts",
+      "status": "expected",
+      "run": "all-features-readiness.json",
+      "durationMs": 15547
+    },
+    {
+      "title": "local-qa-readiness.spec.ts > 本機 QR 印刷按鈕會開啟瀏覽器列印／另存 PDF > ",
+      "file": "local-qa-readiness.spec.ts",
+      "status": "expected",
+      "run": "all-features-readiness.json",
+      "durationMs": 7796
+    },
+    {
+      "title": "local-qa-readiness.spec.ts > 還原版商家 QR 在平板保留左側管理欄且印刷連結可操作 > ",
+      "file": "local-qa-readiness.spec.ts",
+      "status": "expected",
+      "run": "all-features-readiness.json",
+      "durationMs": 5126
+    },
+    {
+      "title": "local-qa-readiness.spec.ts > QR 非營業時間以置中視窗引導顧客前往線上 Menu > ",
+      "file": "local-qa-readiness.spec.ts",
+      "status": "expected",
+      "run": "all-features-readiness.json",
+      "durationMs": 1905
+    }
+  ]
+}

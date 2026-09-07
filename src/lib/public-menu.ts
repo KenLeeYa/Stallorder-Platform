@@ -116,7 +116,7 @@ export async function getCachedPublicMenuForQrToken(
     : publicMenuProductsForPickup(menu.products, new Date().toISOString());
   const fulfillmentType = context.fulfillmentTypeContext
     ?? (resolvedOrderingMode === "DELIVERY" ? "DELIVERY" : context.diningTable ? "DINE_IN" : "TAKEOUT");
-  const lotteryChannelAllowed = publicLotteryChannelAllows(
+  const lotteryChannelAllowed = settings.lotteryEnabled && publicLotteryChannelAllows(
     resolvedOrderingMode,
     fulfillmentType,
   );

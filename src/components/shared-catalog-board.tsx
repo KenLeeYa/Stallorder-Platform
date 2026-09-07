@@ -80,8 +80,8 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
     </div>
     <p className="border-x border-stone-200 px-3 py-2 text-xs leading-5 text-stone-600">批次售完、供應與庫存僅影響上方選定攤位。編輯主檔會影響共用該商品的所有攤位。</p>
     {message ? <p role="status" className="border-x border-stone-200 bg-amber-50 p-3 text-sm">{message}</p> : null}
-    <div className={`${soldOutOnly ? "grid" : "hidden md:grid"} min-w-0 border border-stone-200 md:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]`}>
-      <nav aria-label="分類與群組" className="max-h-[65vh] overflow-y-auto border-b border-stone-200 bg-stone-50 p-2 md:border-r md:border-b-0">
+    <div className={`${soldOutOnly ? "grid" : "hidden md:grid"} min-w-0 border border-stone-200 md:h-[75vh] md:min-h-[32rem] md:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]`}>
+      <nav aria-label="分類與群組" className="max-h-[65vh] overflow-y-auto border-b border-stone-200 bg-stone-50 p-2 md:min-h-0 md:max-h-none md:border-r md:border-b-0">
         <p className="px-2 pb-2 text-sm font-semibold text-stone-600">分類 → 群組</p>
         <button type="button" aria-pressed={!categoryId} onClick={() => { setCategoryId(""); setGroupId(null); resetSelection(); }} className={button + " w-full text-left aria-pressed:border-teal-700 aria-pressed:bg-teal-50"}>全部商品（{products.length}）</button>
         {[...categories].sort((a,b) => a.sortOrder-b.sortOrder).map((category) => {
@@ -108,7 +108,7 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
           </div>;
         })}
       </nav>
-      <div className="min-w-0">
+      <div className="flex min-h-0 min-w-0 flex-col">
         <div className="border-b border-stone-200 bg-stone-50 p-3">
           <h3 data-testid="catalog-list-heading" className="break-words font-semibold"><span className="mb-1 block text-xs text-stone-600">商品品項 · {visible.length} 項</span>{selectedCategory ? `${selectedCategory.name} / ${groupId === "" ? "未分組商品" : selectedGroup?.name ?? "全部群組"}` : "全部商品"}</h3>
           {groupId === "" ? <p className="mt-2 text-sm text-stone-600">系統清單：這些商品尚未指定群組。請編輯商品的「群組」欄位完成歸組。</p> : null}
@@ -122,7 +122,7 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
           <button type="button" disabled={busy || !selectedIds.length} onClick={() => void bulk("BULK_ENABLED",true)} className={button}>開放供應</button>
           <button type="button" disabled={busy || !selectedIds.length} onClick={() => setStockProducts(stockRows(visible.filter((row) => selected.has(row.id))))} className={button}>設定所選庫存</button>
         </div>
-        <div className="max-h-[65vh] overflow-y-auto">
+        <div className="max-h-[65vh] min-h-0 overflow-y-auto md:max-h-none md:flex-1">
           {visible.map((row) => <article key={row.id} data-testid="catalog-management-row" className="flex flex-wrap items-center gap-3 border-b border-stone-100 p-3">
             <input type="checkbox" aria-label={`選取 ${row.name}`} disabled={!row.isAssigned} checked={selected.has(row.id)} onChange={(e) => setSelected((current) => { const next=new Set(current); if(e.target.checked) next.add(row.id); else next.delete(row.id); return next; })} />
             <div className="min-w-32 flex-1"><p className="text-xs text-stone-600">{categories.find((category) => category.id === row.categoryId)?.name} / {groups.find((group) => group.id === row.groupId)?.name ?? "未分組商品"}</p><h3 className="font-semibold">{row.name}</h3><p className="text-xs text-stone-500">{!row.isAssigned ? "未指派此攤位 · " : ""}{!row.isActive ? "主檔停用 · " : ""}{!row.assignment.isEnabled ? "未供應 · " : ""}{row.assignment.isSoldOut ? "手動售完 · " : ""}{row.assignment.stockRemaining === 0 ? "庫存售完" : row.assignment.stockRemaining == null ? "不限量" : `剩餘 ${row.assignment.stockRemaining} 份`}</p></div>
