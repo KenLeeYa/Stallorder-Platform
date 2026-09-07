@@ -5,10 +5,16 @@ const mocks = vi.hoisted(() => ({
   queryRaw: vi.fn(),
   rateLimit: vi.fn(),
   trustedOrigin: vi.fn(),
+  canonicalValidation: vi.fn(),
+  findOrder: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { $queryRaw: mocks.queryRaw },
+  prisma: { $queryRaw: mocks.queryRaw, order: { findUnique: mocks.findOrder } },
+}));
+
+vi.mock("@/server/public-order/canonical-tracking-validator", () => ({
+  validateTrackedPublicOrderAtCanonicalEdge: mocks.canonicalValidation,
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -18,6 +24,7 @@ vi.mock("@/lib/rate-limit", () => ({
 vi.mock("@/lib/security", () => ({
   createRequestId: () => "fulfillment-time-request-id",
   hashClientIp: () => "source-ip-hash",
+  getClientIp: () => "203.0.113.10",
   hashToken: () => "t".repeat(64),
   isTrustedOrigin: mocks.trustedOrigin,
 }));
@@ -42,8 +49,11 @@ function responseRequest(body: unknown = validBody) {
 
 describe("POST /api/public/orders/:trackingToken/fulfillment-time", () => {
   beforeEach(() => {
+    vi.resetAllMocks();
     vi.stubEnv("ABUSE_HASH_SECRET", "test-abuse-secret");
     mocks.trustedOrigin.mockReturnValue(true);
+    mocks.canonicalValidation.mockResolvedValue({ outcome: "NOT_FOUND" });
+    mocks.findOrder.mockResolvedValue({ deviceHash: "canonical-device-hash" });
     mocks.rateLimit.mockResolvedValue({
       allowed: true,
       remaining: 11,
@@ -114,6 +124,60 @@ describe("POST /api/public/orders/:trackingToken/fulfillment-time", () => {
       code: "FULFILLMENT_TIME_PROPOSAL_STALE",
       error: "此時間提議已更新，請重新整理訂單後再確認。",
     });
+  });
+
+  it.each(["ACCEPT", "DECLINE"])("recovers %s only after canonical token AND device validation", async (choice) => {
+    mocks.queryRaw.mockResolvedValueOnce([{ result: { ok: false, code: "ORDER_NOT_FOUND" } }]);
+    mocks.canonicalValidation.mockResolvedValue({ outcome: "AUTHORIZED" });
+    const route = await import("./route");
+    const response = await route.POST(responseRequest({ ...validBody, response: choice }), {
+      params: Promise.resolve({ trackingToken }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.canonicalValidation).toHaveBeenCalledWith({
+      trackingToken, deviceId: validBody.deviceId,
+      clientIp: "203.0.113.10", operationId: "fulfillment-time-request-id",
+    });
+    expect(mocks.findOrder).toHaveBeenCalledWith({
+      where: { trackingTokenHash: "t".repeat(64) }, select: { deviceHash: true },
+    });
+    expect(mocks.queryRaw.mock.calls[1][0].values).toEqual([
+      "t".repeat(64), "canonical-device-hash", 2, choice,
+    ]);
+  });
+
+  it.each([
+    ["NOT_FOUND", 404, "ORDER_NOT_FOUND"],
+    ["UNAVAILABLE", 503, "FULFILLMENT_TIME_SERVICE_UNAVAILABLE"],
+  ])("fails closed for canonical %s without looking up a token alone", async (outcome, status, code) => {
+    mocks.queryRaw.mockResolvedValueOnce([{ result: { ok: false, code: "ORDER_NOT_FOUND" } }]);
+    mocks.canonicalValidation.mockResolvedValue({ outcome });
+    const route = await import("./route");
+    const response = await route.POST(responseRequest(), {
+      params: Promise.resolve({ trackingToken }),
+    });
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({ code });
+    expect(mocks.findOrder).not.toHaveBeenCalled();
+    expect(mocks.queryRaw).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["FULFILLMENT_TIME_PROPOSAL_STALE", 409],
+    ["FULFILLMENT_TIME_PROPOSAL_EXPIRED", 409],
+    ["FULFILLMENT_TIME_UNAVAILABLE", 409],
+  ])("preserves %s from the locked RPC after canonical recovery", async (code, status) => {
+    mocks.queryRaw
+      .mockResolvedValueOnce([{ result: { ok: false, code: "ORDER_NOT_FOUND" } }])
+      .mockResolvedValueOnce([{ result: { ok: false, code } }]);
+    mocks.canonicalValidation.mockResolvedValue({ outcome: "AUTHORIZED" });
+    const route = await import("./route");
+    const response = await route.POST(responseRequest(), {
+      params: Promise.resolve({ trackingToken }),
+    });
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({ code });
   });
 
   it("rejects an untrusted origin before rate-limit or database access", async () => {

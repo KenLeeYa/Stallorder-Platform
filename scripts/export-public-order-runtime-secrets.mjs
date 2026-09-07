@@ -1,4 +1,5 @@
 import { exportVariable, setSecret } from "@actions/core";
+import { createHash } from "node:crypto";
 
 const requiredSecretNames = [
   "ABUSE_HASH_SECRET",
@@ -25,9 +26,14 @@ try {
   if (!response.ok) throw new Error(`SUPABASE_PROJECT_SECRETS_${response.status}`);
   const secrets = await response.json();
   const values = requiredSecretNames.map((name) => {
-    const value = secrets.find((secret) => secret.name === name)?.value;
-    if (!value) throw new Error(`SUPABASE_PROJECT_SECRET_MISSING_${name}`);
+    // Management API values are SHA-256 digests, never recoverable plaintext.
+    const digest = secrets.find((secret) => secret.name === name)?.value;
+    if (!digest) throw new Error(`SUPABASE_PROJECT_SECRET_MISSING_${name}`);
+    const value = required(`${prefix || "PRIMARY_"}${name}`);
     setSecret(value);
+    if (createHash("sha256").update(value).digest("hex") !== digest) {
+      throw new Error(`PUBLIC_ORDER_SECRET_DIGEST_MISMATCH_${name}`);
+    }
     return [`${prefix}${name}`, value];
   });
   if (values[0][1] === values[1][1]) {

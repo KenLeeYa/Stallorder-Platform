@@ -10,6 +10,10 @@ const MAX_CLOCK_SKEW_MS = 5 * 60 * 1_000;
 export const PRODUCTION_PLAN_TTL_MS = 24 * 60 * 60 * 1_000;
 
 export const PRODUCTION_OPERATIONS = Object.freeze({
+  "production-public-order-secret-recovery": {
+    workflowPath: ".github/workflows/production-public-order-secret-recovery.yml",
+    allowedPlanEvents: ["workflow_dispatch"],
+  },
   "production-application": {
     workflowPath: ".github/workflows/production-application-release.yml",
     allowedPlanEvents: ["workflow_dispatch"],

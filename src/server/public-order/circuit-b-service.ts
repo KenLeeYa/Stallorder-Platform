@@ -6,6 +6,7 @@ import type { createPerformanceTiming } from "@/lib/performance-timing";
 import { getCachedPublicMenuForQrToken } from "@/lib/public-menu";
 import {
   cancelTrackedPublicOrder,
+  assertTrackedPublicOrderEditable,
   editTrackedPublicOrder,
   PublicOrderEditError,
 } from "@/lib/public-order-edit";
@@ -738,7 +739,10 @@ export async function prepareReorderThroughCircuitB(
   if (order.discountAmount !== 0 || order.discountOptionId) {
     throw new PublicOrderCircuitError("DISCOUNT_ALREADY_APPLIED", 409);
   }
-  if (order.status !== "WAITING_CONFIRMATION" && order.status !== "CONFIRMED") {
+  if (order.status === "CONFIRMED") {
+    throw new PublicOrderCircuitError("ORDER_ALREADY_CONFIRMED", 409);
+  }
+  if (order.status !== "WAITING_CONFIRMATION") {
     throw new PublicOrderCircuitError("ORDER_ALREADY_STARTED", 409);
   }
   if (order.productionTasks.some((task) => task.status !== "PENDING")) {
@@ -865,6 +869,13 @@ export async function editOrderThroughCircuitB(
   context: TrackedMutationContext,
 ) {
   const orderId = await resolveTrackedMutationOrder(input, context, "tracking-edit");
+  try {
+    // Return the order's actual lock reason before consuming a new challenge token.
+    // The mutation checks again under its row locks to cover merchant/customer races.
+    await context.timing.measureDb(() => assertTrackedPublicOrderEditable(orderId));
+  } catch (error) {
+    throw publicOrderMutationError(error);
+  }
   const turnstile = await context.timing.measure("turnstileMs", () => verifyTurnstile({
     token: input.turnstileToken,
     remoteIp: context.clientIp,

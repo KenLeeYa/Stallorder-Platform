@@ -73,7 +73,7 @@ export function errorMessage(code: string) {
     SCHEDULE_CONTEXT_MISMATCH: "點餐行程已變更，請重新掃描 QR Code。",
     WAIT_ACKNOWLEDGMENT_REQUIRED: "請先確認目前預估等候時間。",
     ORDER_CONFLICT: "訂單發生衝突，請重新掃描後再試。",
-    ORDER_ALREADY_CONFIRMED: "商家已確認訂單，若需取消請直接聯絡商家。",
+    ORDER_ALREADY_CONFIRMED: "商家已確認訂單，無法修改或取消訂單。如需協助請直接聯絡商家。",
     ORDER_ALREADY_STARTED: "此訂單已開始製作，無法再由顧客自行修改。",
     PRINT_ALREADY_STARTED: "此訂單已開始列印，無法再由顧客自行修改。",
     PAYMENT_ALREADY_RECORDED: "此訂單已有付款紀錄，無法再由顧客自行修改。",

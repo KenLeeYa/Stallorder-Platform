@@ -8,7 +8,8 @@ describe("prepare public order edit contract", () => {
   it("uses order-edit safety gates without the LINE repeat-order entitlement", () => {
     expect(source).not.toContain("LINE_REPEAT_ORDER");
     expect(source).toContain('context.order.status !== "WAITING_CONFIRMATION"');
-    expect(source).toContain('context.order.status !== "CONFIRMED"');
+    expect(source).toContain('context.order.status === "CONFIRMED"');
+    expect(source).toContain('new HttpInputError("ORDER_ALREADY_CONFIRMED", 409)');
     expect(source).toContain('context.admin.rpc("reorder_print_job_started"');
     expect(source).toContain("printQuery.data === true");
     expect(source).not.toContain('.from("print_jobs")');

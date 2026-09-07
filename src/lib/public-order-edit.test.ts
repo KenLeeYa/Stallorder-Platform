@@ -25,20 +25,20 @@ describe("public order self-service eligibility", () => {
     expect(getPublicOrderCancelFailure(order())).toBeNull();
   });
 
-  it("allows a confirmed but unstarted order to return to confirmation after editing", () => {
+  it("rejects confirmed orders even before production or printing starts", () => {
     const confirmed = order({
       status: "CONFIRMED",
       items: [{ status: "PENDING", productionTask: { status: "PENDING" } }],
       printJobs: [{ status: "PENDING" }],
     });
 
-    expect(getPublicOrderEditFailure(confirmed)).toBeNull();
+    expect(getPublicOrderEditFailure(confirmed)).toBe("ORDER_ALREADY_CONFIRMED");
     expect(getPublicOrderCancelFailure(confirmed)).toBe("ORDER_ALREADY_CONFIRMED");
   });
 
   it("blocks edits after production, printing, payment, or discounts have started", () => {
     expect(getPublicOrderEditFailure(order({ items: [{ status: "PREPARING", productionTask: { status: "PREPARING" } }] }))).toBe("ORDER_ALREADY_STARTED");
-    expect(getPublicOrderEditFailure(order({ status: "CONFIRMED", printJobs: [{ status: "SUCCEEDED" }] }))).toBe("PRINT_ALREADY_STARTED");
+    expect(getPublicOrderEditFailure(order({ printJobs: [{ status: "SUCCEEDED" }] }))).toBe("PRINT_ALREADY_STARTED");
     expect(getPublicOrderEditFailure(order({ paymentStatus: "PAID", payment: { id: "payment" } }))).toBe("PAYMENT_ALREADY_RECORDED");
     expect(getPublicOrderEditFailure(order({ discountAmount: 10 }))).toBe("DISCOUNT_ALREADY_APPLIED");
   });

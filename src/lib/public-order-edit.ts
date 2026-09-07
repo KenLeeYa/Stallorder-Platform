@@ -42,9 +42,10 @@ export class PublicOrderEditError extends Error {
 
 export function getPublicOrderEditFailure(order: PublicOrderEditEligibility): PublicOrderEditFailure | null {
   if (!editableSources.has(order.source)) return "NOT_EDITABLE_SOURCE";
+  if (order.status === "CONFIRMED") return "ORDER_ALREADY_CONFIRMED";
   if (order.paymentStatus !== "UNPAID" || order.payment) return "PAYMENT_ALREADY_RECORDED";
   if (order.discountAmount !== 0 || order.discountOptionId) return "DISCOUNT_ALREADY_APPLIED";
-  if (order.status !== "WAITING_CONFIRMATION" && order.status !== "CONFIRMED") return "ORDER_ALREADY_STARTED";
+  if (order.status !== "WAITING_CONFIRMATION") return "ORDER_ALREADY_STARTED";
   if (order.items.some((item) => item.status !== "PENDING" || (item.productionTask && item.productionTask.status !== "PENDING"))) {
     return "ORDER_ALREADY_STARTED";
   }
@@ -56,6 +57,21 @@ export function getPublicOrderCancelFailure(order: PublicOrderEditEligibility): 
   const editFailure = getPublicOrderEditFailure(order);
   if (editFailure) return editFailure;
   return order.status === "WAITING_CONFIRMATION" ? null : "ORDER_ALREADY_CONFIRMED";
+}
+
+export async function assertTrackedPublicOrderEditable(orderId: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      source: true, status: true, paymentStatus: true,
+      payment: { select: { id: true } }, discountAmount: true, discountOptionId: true,
+      items: { select: { status: true, productionTask: { select: { status: true } } } },
+      printJobs: { select: { status: true } },
+    },
+  });
+  if (!order) throw new PublicOrderEditError("ORDER_NOT_FOUND");
+  const failure = getPublicOrderEditFailure(order);
+  if (failure) throw new PublicOrderEditError(failure);
 }
 
 export async function editTrackedPublicOrder(input: {
@@ -137,6 +153,15 @@ export async function editTrackedPublicOrder(input: {
       );
       if (customerDetailsFailure) throw new PublicOrderEditError(customerDetailsFailure);
 
+      const soldOutItems = await transaction.stallProduct.count({
+        where: {
+          organizationId: order.organizationId,
+          stallId: order.stallId,
+          productId: { in: input.request.items.map((item) => item.productId) },
+          isSoldOut: true,
+        },
+      });
+      if (soldOutItems > 0) throw new StaffOrderCreateError("PRODUCT_UNAVAILABLE");
       const prepared = await prepareStaffOrderItems(
         transaction,
         order.organizationId,
