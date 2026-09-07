@@ -210,6 +210,11 @@ This file is the durable owner acceptance baseline. It does not assert that a re
 
 ## Cross-cutting validation and error behavior
 
+- `OPS-STOCK-001` Stock counts sellable stall/product portions: nullable unlimited, zero unavailable, transactional allocation at order creation (including reservations), amendment deltas and idempotent pre-production returns. Counted stock starts with current availability, without retroactive changes for old orders.
+- `OPS-CALENDAR-001` Reservation horizon includes all allowed slots on local day N. Special opening/closure overrides the weekly schedule in both displays and submission/time-proposal validation. QR cutoff preserves existing-order recovery.
+- `OPS-QR-001` Printed table QR survives enabling dine-in and rotating the main QR. OPEN resumes unexpired paused tokens, not revoked tokens. Printing while dependencies are disabled explains why ordering is unavailable.
+- `OPS-CATALOG-001` Tablet/desktop show persistent group management; phone keeps hierarchical navigation. Bulk stock/availability has an explicit stall scope; role revocation preserves history and does not silently revoke unrelated roles.
+
 - `X-001` Every setting form identifies invalid fields in Traditional Chinese at submit/save and, when helpful, inline. “Unable to save” without a field/action reason is insufficient.
 - `X-002` Every internal API expected to return JSON returns JSON for success, validation, authorization, conflict, dependency failure, and unexpected error. Client code verifies content type before JSON parsing and shows safe user messages. Unknown client render failures and server request exceptions emit bounded structured events with a random correlation/event ID, route/surface and allowlisted error type only; raw messages, stack traces, tokens, contact data, request bodies, and provider payloads are never accepted from the browser or written to logs.
 - `X-003` Loading actions disable duplicate submission, provide immediate feedback, and retain recoverable input after failure.

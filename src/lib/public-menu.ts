@@ -310,7 +310,19 @@ async function getCachedStallMenu(stallId: string) {
     ["public-stall-menu", stallId],
     { revalidate: PUBLIC_MENU_TTL_SECONDS, tags: [tag] },
   );
-  return getMenu();
+  const [menu, stock] = await Promise.all([
+    getMenu(),
+    prisma.stallProduct.findMany({
+      where: { stallId, stockRemaining: 0 },
+      select: { productId: true },
+    }),
+  ]);
+  if (!menu) return null;
+  const exhausted = new Set(stock.map((row) => row.productId));
+  return { ...menu, products: menu.products.map((product) => ({
+    ...product,
+    isSoldOut: product.isSoldOut || exhausted.has(product.id),
+  })) };
 }
 
 async function findPublicStallBySlug(stallSlug: string) {

@@ -34,6 +34,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { SharedCatalogBoard } from "@/components/shared-catalog-board";
 import { ProductImage } from "@/components/product-image";
 import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
 import { readApiJson } from "@/lib/api-response";
@@ -66,6 +67,8 @@ type TaxonomyTranslation = { locale: string; name: string };
 type Category = { id: string; name: string; sortOrder: number; isActive: boolean; translations: TaxonomyTranslation[] };
 type Group = { id: string; categoryId: string; name: string; sortOrder: number; isActive: boolean; translations: TaxonomyTranslation[] };
 type Assignment = {
+  stockRemaining?: number | null;
+  stockVersion?: number;
   id: string;
   stallId: string;
   priceOverride: number | null;
@@ -1028,6 +1031,7 @@ export function SharedCatalogManager({
             <label title={label("匯入 CSV")} className="inline-grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Upload className="h-5 w-5" /><span className="hidden xl:inline">{label("匯入 CSV")}</span><input type="file" aria-label={label("匯入 CSV")} accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewCatalogImport(file); event.currentTarget.value = ""; }} /></label>
             </div>
             <div data-testid="shared-catalog-create-actions" className="flex shrink-0 gap-2 xl:flex-wrap xl:justify-end">
+              <button type="button" title="分類與群組排序" aria-label="分類與群組排序" onClick={() => { setCatalogNavigatorLevel({ kind: "CATEGORIES" }); setCatalogNavigatorAction(null); setCatalogSearch(""); setCatalogNavigatorOpen(true); }} className="hidden h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 md:inline-grid"><Boxes className="h-5 w-5" /></button>
               <button type="button" title={label("新增分類")} aria-label={label("新增分類")} onClick={createCategory} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><FolderPlus className="h-5 w-5" /><span className="hidden xl:inline">{label("分類")}</span></button>
               <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={() => createGroup()} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Layers3 className="h-5 w-5" /><span className="hidden xl:inline">{label("群組")}</span></button>
               <button type="button" title={label("新增商品")} aria-label={label("新增商品")} onClick={() => createProduct("SINGLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackagePlus className="h-5 w-5" /><span className="hidden xl:inline">{label("商品")}</span></button>
@@ -1039,6 +1043,18 @@ export function SharedCatalogManager({
       </div>
 
       {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
+      <SharedCatalogBoard currency={currency} categories={catalog.categories} groups={catalog.groups} products={catalog.products} stalls={stalls}
+        onEdit={(id) => { const product = catalog.products.find((row) => row.id === id); if (product) editProduct(product); }}
+        onEditCategory={(id) => { const category = catalog.categories.find((row) => row.id === id); if (category) editCategory(category); }}
+        onEditGroup={(id) => { const group = catalog.groups.find((row) => row.id === id); if (group) editGroup(group); }}
+        onMore={(id) => { const product = catalog.products.find((row) => row.id === id); if (product) { openCatalogProductActions(product); setCatalogNavigatorOpen(true); } }}
+        onUpdated={(stallId, rows) => setCatalog((current) => ({ ...current, products: current.products.map((product) => {
+          const changed = rows.find((row) => row.productId === product.id);
+          return changed ? { ...product, stallProducts: product.stallProducts.map((assignment) => assignment.stallId === stallId
+            ? { ...assignment, stockRemaining: changed.stockRemaining, stockVersion: changed.stockVersion, isSoldOut: changed.isSoldOut, isEnabled: changed.isEnabled }
+            : assignment) } : product;
+        }) }))}
+      />
       <div id="shared-product-catalog" data-shared-product-catalog className="mt-5">
         <button
           type="button"
@@ -1049,7 +1065,7 @@ export function SharedCatalogManager({
             setCatalogSearch("");
             setCatalogNavigatorOpen(true);
           }}
-          className="flex min-h-32 w-full items-center gap-4 rounded-xl border-2 border-teal-700 bg-teal-50 p-5 text-left shadow-sm transition hover:bg-teal-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
+          className="flex md:hidden min-h-32 w-full items-center gap-4 rounded-xl border-2 border-teal-700 bg-teal-50 p-5 text-left shadow-sm transition hover:bg-teal-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
         >
           <span className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-teal-700 text-white"><Boxes className="h-8 w-8" /></span>
           <span className="min-w-0 flex-1">

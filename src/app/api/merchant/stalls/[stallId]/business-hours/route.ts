@@ -5,6 +5,7 @@ import { businessHoursSchema, getBusinessHoursFieldErrors } from "@/lib/business
 import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { invalidatePublicMenu, invalidatePublicQrToken } from "@/lib/public-menu";
 import { hashClientIp } from "@/lib/security";
 
 type RouteContext = { params: Promise<{ stallId: string }> };
@@ -53,6 +54,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     ipHash: hashClientIp(request),
     after: { hours: parsed.data.hours },
   });
+  invalidatePublicMenu(stallId);
+  const qrCodes = await prisma.qrCode.findMany({ where: { organizationId, stallId }, select: { token: true } });
+  for (const qr of qrCodes) invalidatePublicQrToken(qr.token);
   return NextResponse.json(
     { hours: await prisma.stallBusinessHour.findMany({ where: { organizationId, stallId }, orderBy: { dayOfWeek: "asc" } }) },
     { headers: { "x-request-id": authorization.requestId } },

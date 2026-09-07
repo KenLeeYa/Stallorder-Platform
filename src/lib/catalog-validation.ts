@@ -251,8 +251,22 @@ export const stallProductSettingsSchema = z.object({
 
 export const stallProductBulkCommandSchema = z.discriminatedUnion("operation", [
   z.object({
+    operation: z.literal("BULK_STOCK"),
+    items: z.array(z.object({
+      productId: uuid,
+      expectedVersion: z.number().int().nonnegative(),
+      mode: z.enum(["SET", "ADD", "UNLIMITED"]),
+      quantity: z.number().int().min(0).max(1_000_000),
+    }).strict()).min(1).max(500).refine((items) => new Set(items.map((item) => item.productId)).size === items.length),
+  }).strict(),
+  z.object({
+    operation: z.literal("BULK_ENABLED"),
+    productIds: z.array(uuid).min(1).max(500).refine((ids) => new Set(ids).size === ids.length),
+    isEnabled: z.boolean(),
+  }).strict(),
+  z.object({
     operation: z.literal("BULK_SOLD_OUT"),
-    productIds: z.array(uuid).min(1).max(100).refine((ids) => new Set(ids).size === ids.length),
+    productIds: z.array(uuid).min(1).max(500).refine((ids) => new Set(ids).size === ids.length),
     isSoldOut: z.boolean(),
   }).strict(),
   z.object({

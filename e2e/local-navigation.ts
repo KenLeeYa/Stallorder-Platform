@@ -6,6 +6,7 @@ import {
 } from "@playwright/test";
 import type { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
+import { AUTH_SESSION_MAX_AGE_SECONDS } from "../src/lib/session-lifetime";
 import {
   createOpaqueToken,
   hashToken,
@@ -200,7 +201,8 @@ export async function establishLocalTestSession(
   const token = createOpaqueToken();
   const csrfToken = createOpaqueToken();
   const deviceId = randomUUID();
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1_000);
+  // Match a fresh login; a one-hour fixture immediately triggers background rotation.
+  const expiresAt = new Date(Date.now() + AUTH_SESSION_MAX_AGE_SECONDS * 1_000);
   const profile = await database.profile.findUniqueOrThrow({
     where: { id: profileId },
     select: { sessionVersion: true },

@@ -35,18 +35,18 @@ describe("merchant mobile action bars", () => {
 
     expect(products).toContain('aria-haspopup="dialog"');
     expect(products).toContain('role={catalogDialogOpen ? "dialog" : undefined}');
-    expect(products).toContain("xl:h-full xl:overflow-y-auto xl:overscroll-contain");
+    expect(products).toContain("md:h-full md:overflow-y-auto md:overscroll-contain");
     expect(products).toContain("min-h-0 flex-1 overflow-y-auto overscroll-contain");
     expect(products).toContain('data-testid="merchant-ordering-qr"');
-    expect(products).toContain("mx-auto mt-5 w-full max-w-sm xl:mx-0");
+    expect(products).toContain("mx-auto mt-5 w-full max-w-sm md:mx-0");
   });
 
-  it("places QR controls left of public-link controls across tablet widths", () => {
+  it("keeps QR controls in the sidebar while the tablet catalog is always visible", () => {
     const products = source("./merchant-products.tsx");
 
     expect(products).toContain('data-testid="merchant-ordering-management"');
-    expect(products).toContain("md:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]");
-    expect(products).toContain("md:max-w-none xl:max-w-sm");
+    expect(products).toContain("md:static md:z-auto md:block");
+    expect(products).not.toContain("md:gap-5 md:block");
     expect(products).toContain('data-testid="merchant-ordering-actions"');
   });
 

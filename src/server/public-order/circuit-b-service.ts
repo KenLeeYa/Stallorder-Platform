@@ -474,10 +474,13 @@ export async function createOrderThroughCircuitB(
     scheduledPickupAt: input.scheduledPickupAt,
     lotteryDrawId: input.lotteryDrawId,
   })).catch((error: unknown) => {
-    if (error instanceof Error && error.message.includes("PICKUP_CODE_CAPACITY_EXCEEDED")) {
+    const code = error instanceof Error
+      ? ["PICKUP_CODE_CAPACITY_EXCEEDED", "PRODUCT_STOCK_INSUFFICIENT"].find((value) => error.message.includes(value))
+      : undefined;
+    if (code) {
       throw new PublicOrderCircuitError(
-        "PICKUP_CODE_CAPACITY_EXCEEDED",
-        statusForCode("PICKUP_CODE_CAPACITY_EXCEEDED"),
+        code,
+        statusForCode(code),
       );
     }
     throw error;

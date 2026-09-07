@@ -93,8 +93,8 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
   }
 
   return (
-    <main className="mx-auto grid min-h-[calc(100dvh-76px)] max-w-7xl gap-6 px-4 py-5 md:px-8 xl:h-[calc(100dvh-76px)] xl:min-h-0 xl:grid-cols-[340px_minmax(0,1fr)] xl:overflow-hidden">
-      <aside className="h-fit min-h-0 xl:h-full xl:overflow-y-auto xl:overscroll-contain xl:pr-3">
+    <main className="mx-auto grid min-h-[calc(100dvh-76px)] max-w-7xl gap-6 px-4 py-5 md:px-8 md:h-[calc(100dvh-76px)] md:min-h-0 md:grid-cols-[340px_minmax(0,1fr)] md:overflow-hidden">
+      <aside className="h-fit min-h-0 md:h-full md:overflow-y-auto md:overscroll-contain md:pr-3">
         <div><p className="text-sm font-medium text-teal-800">{label("攤位管理")}</p><p className="mt-1 text-xs text-stone-500">{account.displayName} · {label(roleLabels[account.role])}</p></div>
         <h1 className="mt-2 text-3xl font-semibold">{stall.name}</h1>
 
@@ -109,15 +109,15 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
           type="button"
           aria-haspopup="dialog"
           onClick={() => setCatalogDialogOpen(true)}
-          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white xl:hidden"
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white md:hidden"
         >
           <Package className="h-5 w-5" />
           {label("攤位商品設定")}
         </button>
 
-        <div data-testid="merchant-ordering-management" className="md:grid md:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)] md:items-start md:gap-5 xl:block">
+        <div data-testid="merchant-ordering-management">
           {orderUrl ? (
-          <div data-testid="merchant-ordering-qr" className="mx-auto mt-5 w-full max-w-sm xl:mx-0 md:max-w-none xl:max-w-sm">
+          <div data-testid="merchant-ordering-qr" className="mx-auto mt-5 w-full max-w-sm md:mx-0">
             <div className="mx-auto max-w-sm rounded-lg border border-stone-200 bg-white p-4"><QRCodeSVG data-testid="merchant-ordering-qr-code" value={orderUrl} size={240} className="h-auto w-full" /></div>
             <p className="mt-3 text-sm font-medium">{label("顧客點餐 QR Code · v")}{ordering.qrCode?.tokenVersion}</p>
             <p className="mt-1 break-all text-xs text-stone-500">{orderUrl}</p>
@@ -164,20 +164,20 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
         </div>
       </aside>
 
-      <div className={`${catalogDialogOpen ? "fixed inset-0 z-50 flex items-stretch bg-black/50 p-3 sm:p-6" : "hidden"} min-h-0 xl:static xl:z-auto xl:block xl:h-full xl:bg-transparent xl:p-0`}>
+      <div className={`${catalogDialogOpen ? "fixed inset-0 z-50 flex items-stretch bg-black/50 p-3 sm:p-6" : "hidden"} min-h-0 md:static md:z-auto md:block md:h-full md:bg-transparent md:p-0`}>
         <section
           role={catalogDialogOpen ? "dialog" : undefined}
           aria-modal={catalogDialogOpen ? true : undefined}
           aria-labelledby={catalogDialogOpen ? "stall-product-dialog-title" : undefined}
-          className="flex max-h-full w-full flex-col overflow-hidden rounded-lg bg-white shadow-xl xl:h-full xl:max-h-none xl:rounded-none xl:bg-transparent xl:shadow-none"
+          className="flex max-h-full w-full flex-col overflow-hidden rounded-lg bg-white shadow-xl md:h-full md:max-h-none md:rounded-none md:bg-transparent md:shadow-none"
         >
-          <div className="flex items-center justify-between gap-3 border-b border-stone-200 px-4 py-3 xl:hidden">
+          <div className="flex items-center justify-between gap-3 border-b border-stone-200 px-4 py-3 md:hidden">
             <h2 id="stall-product-dialog-title" className="text-lg font-semibold">{label("攤位商品設定")}</h2>
             <button ref={catalogCloseRef} type="button" title={label("關閉")} aria-label={label("關閉")} onClick={closeCatalogDialog} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300">
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 xl:h-full xl:p-0 xl:pl-1 xl:pr-3">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 md:h-full md:p-0 md:pl-1 md:pr-3">
             {message ? <p role="alert" className="mb-4 text-sm text-red-700">{message}</p> : null}
             <StallCatalogSettings stallId={stall.id} currency={stall.currency} initialProducts={products} sourceStalls={sourceStalls} />
           </div>

@@ -69,3 +69,7 @@ Report:
 - release receipts and remaining rollback or DR risks.
 
 Use Taiwan Traditional Chinese for StallOrder user-facing text and status, while preserving technical identifiers.
+
+## Catalog operations invariants
+
+For SKU stock, reservation horizon, cutoff, printed QR or membership changes, read `docs/CATALOG_OPERATIONS_LOCAL_20260907.md` and exercise `QA-OPS-01` through `QA-OPS-05`. Keep each stall's stock transactional; edits apply deltas, reservations allocate at creation, pre-production cancellation returns once, and started production never restocks. Preserve printed table QR across module toggles and main-QR rotation; never revive revoked tokens. Reservation day N is inclusive in the stall timezone and special hours override weekly hours. These changes are local-only until protected release evidence is recorded.

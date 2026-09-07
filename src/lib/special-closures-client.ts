@@ -13,6 +13,7 @@ export function localizeSpecialClosureTitle(title: string, locale: AppLocale) {
 }
 
 export type SpecialClosureView = {
+  lastOrderAt?: string | null;
   id: string;
   startsOn: string;
   endsOn: string;

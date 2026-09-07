@@ -197,6 +197,16 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-PERF-04` | Database | Capture query count/duration and explain/index evidence for changed hot queries; prove no N+1 or cross-tenant overfetch. |
 | `QA-PERF-05` | Regression | Repository budgets are authoritative. If no budget exists, do not claim improvement without repeated measurements and disclose variance; any material regression blocks release pending owner decision. |
 
+## Catalog operations local acceptance
+
+| ID | Layer | Required evidence |
+| --- | --- | --- |
+| `QA-OPS-01` | Database/API | New/reserved stock allocation, edit delta, replay, zero-stock unchanged edit, simultaneous last portion, atomic failure and manual-restock version conflicts. |
+| `QA-OPS-02` | Database/API | Pre-production return once; started order/item/KDS and paid/completed flows do not return stock; unlimited-to-counted excludes legacy orders. |
+| `QA-OPS-03` | Calendar | Inclusive local day N, N+1 denial, 30-day cap, special opening/closure, overnight cutoff and no reopening after closing; Node and Edge canonical gates preserved. |
+| `QA-OPS-04` | QR/RBAC | Printed table URL survives enable/rotate/pause-close-open; warning before printing when disabled; revoked credentials stay revoked; removing final role denies an existing login while history remains. |
+| `QA-OPS-05` | UI | Real stock save and bulk sold-out, 320/390/768/1440 widths, readable dialog and no horizontal overflow, desktop group board and phone navigator, explicit stall scope. |
+
 ## Completion evidence template
 
 ```text

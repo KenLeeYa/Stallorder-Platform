@@ -62,6 +62,8 @@ export async function getOrganizationCatalog(organizationId: string, authorizedS
             priceOverride: true,
             isEnabled: true,
             isSoldOut: true,
+            stockRemaining: true,
+            stockVersion: true,
             sortOrder: true,
           },
         },
