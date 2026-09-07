@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BadgeCheck, ChevronDown, CircleHelp, CircleX, Clock3, FilePenLine, LoaderCircle, RefreshCw, Store, Trash2, X } from "lucide-react";
 import { LineNotificationControls } from "@/components/line-notification-controls";
 import { PublicOrderFeedbackDialog } from "@/components/public-order-feedback-dialog";
+import { PublicOrderClosureNotice } from "@/components/public-order-closure-notice";
 import { useAppLocale } from "@/components/locale-provider";
 import type { AppLocale } from "@/lib/app-locale";
 import { playAlertSound, primeAlertSound } from "@/lib/browser-alert-sound";
@@ -893,6 +894,11 @@ export function PublicOrderTracker({
               : null}
             {order.fulfillmentType === "DINE_IN" && order.lastTableOrderAt ? <div className="mt-1 text-xs text-stone-500">{publicOrderMessages.get(locale, "lastTableOrder", { time: new Date(order.lastTableOrderAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) })}</div> : null}
           </div>
+          {order.publicMenuIdentifier && !["COMPLETED", "CANCELLED", "EXPIRED"].includes(order.orderStatus)
+            && (order.committedFulfillmentAt || order.requestedFulfillmentAt || order.pendingFulfillmentAt) ? <PublicOrderClosureNotice
+              key={order.orderNo} identifier={order.publicMenuIdentifier} locale={locale}
+              fulfillmentAt={order.committedFulfillmentAt ?? order.requestedFulfillmentAt}
+              pendingAt={order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? order.pendingFulfillmentAt : null} /> : null}
           <FulfillmentTimePanel
             order={order}
             feedback={fulfillmentFeedback}

@@ -550,7 +550,6 @@ export function useQrOrderFlowController({
     if (!deviceId) return;
     const lifecycle = startQrOrderAvailabilityLifecycle({
       deviceId,
-      sessionReady: () => sessionReadyRef.current,
       currentStatus: () => availabilityStatusRef.current,
       onRefreshingChange: setAvailabilityRefreshing,
       onMissingAvailability: () => updateOrderingAvailability("UNAVAILABLE"),

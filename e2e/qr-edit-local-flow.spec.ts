@@ -115,6 +115,25 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
   await expect(page.getByLabel("聯絡電話")).toHaveCount(0);
   await expect(page.getByLabel("訂單備註")).toBeVisible();
   await page.getByLabel("訂單備註").fill(`QR edit E2E ${Date.now()}`);
+  const noteBeforeEdit = await page.getByLabel("訂單備註").inputValue();
+  const utensils = page.getByRole("checkbox", { name: "需要免洗餐具", exact: true });
+  await expect(utensils).not.toBeChecked();
+  await utensils.check();
+  let maintenance = true;
+  await page.route("**/api/availability/config", async (route) => {
+    const response = await route.fetch();
+    const config = await response.json();
+    await route.fulfill({ response, json: { ...config, qrOrdering: maintenance ? "MAINTENANCE" : config.qrOrdering } });
+  });
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(page.getByRole("alertdialog", { name: "點餐系統更新中" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeDisabled();
+  maintenance = false;
+  await page.getByRole("alertdialog", { name: "點餐系統更新中" }).getByRole("button", { name: "重新檢查", exact: true }).click();
+  await expect(page.getByRole("alertdialog", { name: "點餐系統更新中" })).toBeHidden();
+  await expect(utensils).toBeChecked();
+  await expect(page.getByLabel("訂單備註")).toHaveValue(noteBeforeEdit);
+  await page.unroute("**/api/availability/config");
   const waitAcknowledgment = page.getByRole("checkbox", {
     name: /我已了解目前預估等候時間/u,
   });
@@ -135,6 +154,7 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
   });
   const submit = page.getByRole("button", { name: "送出訂單", exact: true });
   await expect(submit).toBeEnabled({ timeout: 20_000 });
+  await page.screenshot({ path: test.info().outputPath("utensils-checkout.png") });
   await submit.click();
   let createResponse = await createResponsePromise;
   if (createResponse.status() === 422) {
@@ -159,6 +179,7 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
   };
   createdOrderId = createRequest.clientOrderId ?? "";
   expect(createdOrderId).toMatch(/^[0-9a-f-]{36}$/iu);
+  expect((await prisma.order.findUniqueOrThrow({ where: { id: createdOrderId } })).note).toBe("【免洗餐具：需要】\n" + noteBeforeEdit);
   await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+(?:\?.*)?$/u);
   const trackerUrl = new URL(page.url());
   expect(trackerUrl.searchParams.get("qr")).toBe(qrToken);
@@ -263,6 +284,9 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
   await editCart
     .getByRole("button", { name: "繼續填寫訂購資料", exact: true })
     .click();
+  await expect(page.getByRole("checkbox", { name: "需要免洗餐具", exact: true })).toBeChecked();
+  await expect(page.getByLabel("訂單備註")).toHaveValue(noteBeforeEdit);
+  await page.getByRole("checkbox", { name: "需要免洗餐具", exact: true }).uncheck();
   const editResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname.endsWith(`/api/public/orders/${trackingToken}`) &&
@@ -279,8 +303,9 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
 
   const editedOrder = await prisma.order.findUniqueOrThrow({
     where: { id: createdOrderId },
-    select: { items: { select: { name: true, quantity: true } } },
+    select: { note: true, items: { select: { name: true, quantity: true } } },
   });
+  expect(editedOrder.note).toBe(noteBeforeEdit);
   expect(editedOrder.items).toEqual([
     expect.objectContaining({ name: "香酥雞排", quantity: 2 }),
   ]);

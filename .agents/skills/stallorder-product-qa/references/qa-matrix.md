@@ -2,6 +2,15 @@
 
 Use this matrix to select tests before changing code. Add or update automated tests in the repository where practical; this document is not a substitute for executable coverage.
 
+## 2026-09-07 local order-experience acceptance
+
+| ID | Requirements | Pass condition |
+| --- | --- | --- |
+| `QA-EXP-01` | `NOT-001`, `NOT-003` | Browser audio observer increments for a new order, never for edits, checkout, completion, known-order reappearance or due reminders; retain visible notices and report iPad hardware verification separately. |
+| `QA-EXP-02` | `QR-026` | Default off, takeaway/delivery only, note-length guard and six-language labels; real create/edit preserves preference and free text, unchecking removes only the preference. |
+| `QA-EXP-03` | `QR-027` | Add a closure after an order exists; future banner, pickup-day modal, dismiss without repeated polling popup, announcement removal and unchanged order state. Include timezone date boundaries and special opening windows. |
+| `QA-EXP-04` | `QR-028`, `STAFF-019` | With an existing cart, simulate maintenance and recovery; submission blocks and cart survives. Three-pane board fills 768/1024/1440 viewport, independent overflow works and below-board tools remain reachable. |
+
 ## Universal preflight
 
 | ID | Check | Pass condition |

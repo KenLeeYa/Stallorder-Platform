@@ -366,12 +366,28 @@ describe("QrOrderCartPanel checkout blocker presentation", () => {
     expect(submitOpeningTag(html)).not.toMatch(/\sdisabled=""/);
   });
 
-  it("keeps only the note field for direct QR checkout", () => {
+  it("keeps the note and utensils choice without contact fields for direct QR checkout", () => {
     const html = renderPanel({ entryChannel: "QR" });
 
     expect(html).not.toContain('aria-label="顧客稱呼"');
     expect(html).not.toContain('aria-label="聯絡電話"');
     expect(html).toContain('aria-label="訂單備註"');
+    expect(html).toContain("需要免洗餐具");
+  });
+
+  it("hides utensils for dine-in and localizes the takeaway choice", () => {
+    const dineIn = renderPanel({ session: { ...baseProps.session, stall: { ...baseProps.session.stall, fulfillmentType: "DINE_IN" } } });
+    expect(dineIn).not.toContain("需要免洗餐具");
+    const english = renderPanel({ locale: "en", copy: qrOrderMessages.en });
+    expect(english).toContain("Include disposable utensils");
+  });
+
+  it("preserves an existing long note and blocks submission until the utensils request fits", () => {
+    const note = "原".repeat(300);
+    const html = renderPanel({ customerNote: "【免洗餐具：需要】\n" + note });
+    expect(html).toContain(note);
+    expect(html).toContain("備註太長");
+    expect(submitOpeningTag(html)).toMatch(/\sdisabled=""/);
   });
 
   it("renders only server-enabled invoice choices and marks local mock output clearly", () => {

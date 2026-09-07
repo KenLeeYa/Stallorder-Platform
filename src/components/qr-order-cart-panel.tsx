@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from "react";
 import { AlertTriangle, Minus, Plus, Send, X } from "lucide-react";
 import { TurnstileWidget } from "@/components/turnstile-widget";
+import { readOrderUtensils, writeOrderUtensils, utensilsMessages, utensilsNoteOverhead } from "@/lib/order-utensils";
 import { deliveryOrderMessages } from "@/lib/delivery-order-i18n";
 import { formatMoney } from "@/lib/money";
 import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
@@ -112,6 +113,10 @@ export function QrOrderCartPanel({
     session.stall.fulfillmentType === "TAKEOUT"
     || session.stall.fulfillmentType === "DELIVERY"
   );
+  const utensils = readOrderUtensils(customerNote);
+  const utensilsCopy = utensilsMessages[locale];
+  const canRequestUtensils = session.stall.fulfillmentType !== "DINE_IN";
+  const utensilsNoteTooLong = canRequestUtensils && utensils.required && customerNote.length > session.limits.maxNoteLength;
 
   return (
     <>
@@ -236,14 +241,24 @@ export function QrOrderCartPanel({
               />
           ) : null}
           {activeOrderingMode !== "PREORDER" ? fulfillmentTimePicker : null}
+          {canRequestUtensils ? <div className="rounded-md border border-stone-200 p-3">
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 font-medium">
+              <input type="checkbox" checked={utensils.required} disabled={!orderingEnabled}
+                onChange={(event) => onCustomerNoteChange(writeOrderUtensils(utensils.note, event.target.checked))}
+                className="h-5 w-5 shrink-0 accent-teal-700" />
+              <span>{utensilsCopy.label}</span>
+            </label>
+            <p className="mt-1 text-xs leading-5 text-stone-600">{utensilsCopy.hint}</p>
+            {utensilsNoteTooLong ? <p role="alert" className="mt-2 text-sm text-red-700">{utensilsCopy.tooLong}</p> : null}
+          </div> : null}
           <textarea
             aria-label={copy.orderNote}
             className="form-input min-h-20"
             placeholder={copy.orderNotePlaceholder(session.limits.maxNoteLength)}
-            maxLength={session.limits.maxNoteLength}
-            value={customerNote}
+            maxLength={session.limits.maxNoteLength - (canRequestUtensils && utensils.required ? utensilsNoteOverhead : 0)}
+            value={canRequestUtensils ? utensils.note : customerNote}
             disabled={!orderingEnabled}
-            onChange={(event) => onCustomerNoteChange(event.target.value)}
+            onChange={(event) => onCustomerNoteChange(canRequestUtensils ? writeOrderUtensils(event.target.value, utensils.required) : event.target.value)}
           />
           {session.invoiceCheckout ? (
             <CheckoutInvoiceSelector
@@ -284,7 +299,7 @@ export function QrOrderCartPanel({
           ) : null}
         </div>
         {checkoutBlocker ? <p data-testid="qr-checkout-blocker" role="status" className="mt-3 text-sm font-medium text-amber-800">{checkoutBlocker}</p> : null}
-        <button type="button" disabled={isSubmitting || Boolean(checkoutBlocker)} onClick={onSubmit} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" disabled={isSubmitting || Boolean(checkoutBlocker) || utensilsNoteTooLong} onClick={onSubmit} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-4 w-4" />
           {isSubmitting ? copy.submitting : copy.submitOrder}
         </button>

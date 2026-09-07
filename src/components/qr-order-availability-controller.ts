@@ -20,7 +20,6 @@ export type QrOrderAvailabilityLifecycle = {
 
 type QrOrderAvailabilityInput = {
   deviceId: string;
-  sessionReady: () => boolean;
   currentStatus: () => AvailabilityStatus;
   loadAvailability?: (
     deviceId: string,
@@ -57,7 +56,7 @@ export function startQrOrderAvailabilityLifecycle(
     if (disposed) return;
     input.onRefreshingChange(false);
     if (!config) {
-      if (!input.sessionReady()) input.onMissingAvailability();
+      input.onMissingAvailability();
       return;
     }
 
