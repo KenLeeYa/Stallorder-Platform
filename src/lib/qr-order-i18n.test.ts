@@ -107,6 +107,19 @@ describe("QR 語系偏好與目錄支援", () => {
 });
 
 describe("QR 點餐介面翻譯", () => {
+  it("explains proposal and order lifecycle failures without a generic create-order error", () => {
+    expect(localizedPublicOrderError("zh-TW", "FULFILLMENT_TIME_PROPOSAL_STALE")).toContain("已更新或已回覆");
+    expect(localizedPublicOrderError("zh-TW", "FULFILLMENT_TIME_PROPOSAL_EXPIRED")).toContain("已逾時");
+    expect(localizedPublicOrderError("zh-TW", "FULFILLMENT_TIME_UNAVAILABLE")).toContain("無法回覆取餐");
+    expect(localizedPublicOrderError("zh-TW", "ORDER_NOT_FOUND")).toContain("找不到此訂單");
+    expect(localizedPublicOrderError("zh-TW", "ORDER_ALREADY_STARTED")).toContain("無法修改");
+  });
+  it("distinguishes platform outages from a merchant closure and confirmed-order edits", () => {
+    expect(localizedPublicOrderError("zh-TW", "QR_ORDERING_UNAVAILABLE")).not.toContain("攤位目前暫停");
+    expect(localizedPublicOrderError("zh-TW", "QR_ORDERING_DEGRADED")).not.toContain("攤位目前暫停");
+    expect(localizedPublicOrderError("zh-TW", "STALL_CLOSED")).toContain("攤位目前暫停");
+    expect(localizedPublicOrderError("zh-TW", "ORDER_ALREADY_CONFIRMED")).toContain("商家已確認訂單，無法修改");
+  });
   it("翻譯既有商品分類", () => {
     expect(localizedQrCategory("en", "炸物")).toBe("Deep-fried food");
     expect(localizedQrCategory("ja", "炸物")).toBe("揚げ物");

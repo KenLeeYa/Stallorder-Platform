@@ -91,7 +91,7 @@ describe("public order progress", () => {
       canCancel: true,
     });
     expect(getPublicOrderCustomerActions("CONFIRMED", "DELIVERY", "UNPAID")).toEqual({
-      canModify: true,
+      canModify: false,
       canCancel: false,
     });
     expect(getPublicOrderCustomerActions("PREPARING", "TAKEOUT", "UNPAID")).toEqual({
@@ -99,7 +99,7 @@ describe("public order progress", () => {
       canCancel: false,
     });
     expect(getPublicOrderCustomerActions("WAITING_CONFIRMATION", "DINE_IN", "UNPAID")).toEqual({
-      canModify: false,
+      canModify: true,
       canCancel: true,
     });
   });

@@ -39,7 +39,10 @@ Deno.serve(async (request) => {
     if (Number(context.order.discount_amount) !== 0 || context.order.discount_option_id) {
       throw new HttpInputError("DISCOUNT_ALREADY_APPLIED", 409);
     }
-    if (context.order.status !== "WAITING_CONFIRMATION" && context.order.status !== "CONFIRMED") {
+    if (context.order.status === "CONFIRMED") {
+      throw new HttpInputError("ORDER_ALREADY_CONFIRMED", 409);
+    }
+    if (context.order.status !== "WAITING_CONFIRMATION") {
       throw new HttpInputError("ORDER_ALREADY_STARTED", 409);
     }
 

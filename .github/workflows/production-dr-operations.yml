@@ -1404,6 +1404,9 @@ jobs:
         env:
           DR_CHANGE_CONFIRMATION: CONFIGURE_PRODUCTION_DR_PROJECT
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PRIMARY_ABUSE_HASH_SECRET: ${{ secrets.PRIMARY_ABUSE_HASH_SECRET }}
+          PRIMARY_TOKEN_DERIVATION_SECRET: ${{ secrets.PRIMARY_TOKEN_DERIVATION_SECRET }}
+          PRIMARY_TURNSTILE_SECRET_KEY: ${{ secrets.PRIMARY_TURNSTILE_SECRET_KEY }}
         run: node scripts/configure-production-dr-project.mjs
 
       - name: Deploy trusted Edge Functions to DR
@@ -1541,6 +1544,12 @@ jobs:
       - name: Export Primary and DR public-order runtime secrets
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PRIMARY_ABUSE_HASH_SECRET: ${{ secrets.PRIMARY_ABUSE_HASH_SECRET }}
+          PRIMARY_TOKEN_DERIVATION_SECRET: ${{ secrets.PRIMARY_TOKEN_DERIVATION_SECRET }}
+          PRIMARY_TURNSTILE_SECRET_KEY: ${{ secrets.PRIMARY_TURNSTILE_SECRET_KEY }}
+          DR_ABUSE_HASH_SECRET: ${{ secrets.DR_ABUSE_HASH_SECRET }}
+          DR_TOKEN_DERIVATION_SECRET: ${{ secrets.DR_TOKEN_DERIVATION_SECRET }}
+          DR_TURNSTILE_SECRET_KEY: ${{ secrets.DR_TURNSTILE_SECRET_KEY }}
         shell: bash
         run: |
           set -euo pipefail

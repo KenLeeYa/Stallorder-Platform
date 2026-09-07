@@ -4,6 +4,7 @@ import { createPublicOrderSchema } from "../../../supabase/functions/_shared/sch
 
 const mocks = vi.hoisted(() => ({
   cancelTrackedPublicOrder: vi.fn(),
+  assertTrackedPublicOrderEditable: vi.fn(),
   editTrackedPublicOrder: vi.fn(),
   findTrackedPublicOrderIdByTokenHash: vi.fn(),
   validateTrackedPublicOrderAtCanonicalEdge: vi.fn(),
@@ -33,6 +34,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/public-order-edit", () => ({
   cancelTrackedPublicOrder: mocks.cancelTrackedPublicOrder,
+  assertTrackedPublicOrderEditable: mocks.assertTrackedPublicOrderEditable,
   editTrackedPublicOrder: mocks.editTrackedPublicOrder,
   PublicOrderEditError: class PublicOrderEditError extends Error {
     constructor(public readonly code: string) {
@@ -177,6 +179,25 @@ describe("Circuit B public order service", () => {
     expect(mocks.cancelTrackedPublicOrder).toHaveBeenCalledWith(
       "33333333-3333-4333-8333-333333333333",
     );
+  });
+
+  it("returns merchant confirmation before checking Turnstile on a stale edit form", async () => {
+    mocks.getTrackedPublicOrder.mockResolvedValue({ orderId: "33333333-3333-4333-8333-333333333333" });
+    const { PublicOrderEditError } = await import("@/lib/public-order-edit");
+    mocks.assertTrackedPublicOrderEditable.mockRejectedValueOnce(new PublicOrderEditError("ORDER_ALREADY_CONFIRMED"));
+    const { updateTrackedPublicOrderSchema } = await import("@/lib/public-order-edit-contract");
+    const request = updateTrackedPublicOrderSchema.parse({
+      ...Object.fromEntries(Object.entries(validOrder()).filter(([key]) => [
+        "deviceId", "idempotencyKey", "turnstileToken", "customerName", "customerPhone", "items",
+      ].includes(key))),
+    });
+    const { editOrderThroughCircuitB } = await import("./circuit-b-service");
+    await expect(editOrderThroughCircuitB({
+      ...request, trackingToken: `sto_${"a".repeat(43)}`,
+    }, { clientIp: "203.0.113.10", requestId: "request-test", timing: timing() }))
+      .rejects.toMatchObject({ code: "ORDER_ALREADY_CONFIRMED", status: 409 });
+    expect(mocks.verifyTurnstile).not.toHaveBeenCalled();
+    expect(mocks.editTrackedPublicOrder).not.toHaveBeenCalled();
   });
 
   it("does not bypass device binding when the canonical Edge runtime rejects the device", async () => {
