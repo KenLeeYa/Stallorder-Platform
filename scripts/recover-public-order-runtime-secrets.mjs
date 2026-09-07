@@ -66,7 +66,7 @@ async function recover(projectRef, recipientPublicKey, digests) {
   const nonce = randomBytes(32).toString("hex");
   setSecret(nonce);
   const createdAt = Date.now();
-  const config = { projectRef, recoveryId, recipientPublicKey, digests, nonceHash: hash(nonce), createdAt, expiresAt: createdAt + 300_000 };
+  const config = { projectRef, recoveryId, recipientPublicKey, digests, serviceAuthorizationHash: hash(`Bearer ${serviceKey}`), nonceHash: hash(nonce), createdAt, expiresAt: createdAt + 300_000 };
   const directory = await mkdtemp(join(tmpdir(), "stallorder-recovery-"));
   const sourceDirectory = join(directory, "supabase", "functions", functionName);
   await mkdir(sourceDirectory, { recursive: true });
@@ -79,7 +79,7 @@ async function recover(projectRef, recipientPublicKey, digests) {
     const response = await fetch(`https://${projectRef}.supabase.co/functions/v1/${functionName}`, {
       method: "POST", headers: { authorization: `Bearer ${serviceKey}`, "x-recovery-nonce": nonce }, signal: AbortSignal.timeout(30_000),
     });
-    if (!response.ok) throw new Error("RECOVERY_INVOKE_FAILED");
+    if (!response.ok) throw new Error(`RECOVERY_INVOKE_FAILED_HTTP_${response.status}`);
     envelope = await response.json();
     if (envelope.projectRef !== projectRef || envelope.recoveryId !== recoveryId || envelope.schemaVersion !== 1) throw new Error("RECOVERY_RESPONSE_INVALID");
   } finally {
@@ -87,6 +87,7 @@ async function recover(projectRef, recipientPublicKey, digests) {
     runNode(cli, ["functions", "delete", functionName, "--project-ref", projectRef, "--yes"], 60_000);
     const remaining = await management(`/v1/projects/${projectRef}/functions`);
     if (remaining.some((fn) => (fn.slug ?? fn.name) === functionName)) throw new Error("RECOVERY_FUNCTION_CLEANUP_FAILED");
+    console.log(JSON.stringify({ event: "public_order_recovery_function_deleted", projectRef, functionName, functionDeleted: true }));
   }
   await mkdir("artifacts", { recursive: true });
   await writeFile("artifacts/public-order-secret-envelope.json", JSON.stringify({ ...envelope, functionName, functionDeleted: true, digests, recoveredAt: new Date().toISOString() }, null, 2));

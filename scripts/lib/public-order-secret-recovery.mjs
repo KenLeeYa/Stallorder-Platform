@@ -10,11 +10,10 @@ export function createPublicOrderSecretRecoveryHandler(config, { getEnv, now = D
     if (request.method !== "POST" || now() < config.createdAt || now() >= config.expiresAt
       || config.expiresAt - config.createdAt > 300_000
       || getEnv("SUPABASE_URL") !== `https://${config.projectRef}.supabase.co`) return deny();
-    const serviceKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
     const authorization = request.headers.get("authorization") ?? "";
     const nonce = request.headers.get("x-recovery-nonce") ?? "";
-    if (!serviceKey || authorization.length > 4096 || nonce.length !== 64
-      || await hash(authorization) !== await hash(`Bearer ${serviceKey}`)
+    if (!/^[a-f0-9]{64}$/.test(config.serviceAuthorizationHash ?? "") || authorization.length > 4096 || nonce.length !== 64
+      || await hash(authorization) !== config.serviceAuthorizationHash
       || await hash(nonce) !== config.nonceHash) return deny();
     try {
       const values = {};

@@ -38,7 +38,7 @@ API 授權讀取成功。已透過 Cloudflare 官方管理 API 取回 Turnstile 
 
 `ABUSE_HASH_SECRET` 與 `TOKEN_DERIVATION_SECRET` 尚未找到原始備份。已檢查本機專案設定、使用者／系統／程序的 PowerShell Environment 設定及 PSReadLine 歷史；不能從單向摘要還原。正式恢復須保留舊訂單的裝置驗證相容性，不能直接以新值取代。沒有密鑰來源與正式驗證收據前，不得標為已上線。
 
-## 受保護的原值復原程序（尚未執行）
+## 受保護的原值復原程序
 
 新增 `Production Public Order Secret Recovery` Plan/Apply，固定取回上述兩個名稱。Plan 綁定 main/staging 相同內容樹、當前 Supabase 專案、兩個正式摘要及本機 RSA 4096 公鑰指紋。Apply 須以目前 Plan run ID 與 `RECOVER_PUBLIC_ORDER_ORIGINAL_SECRETS` 確認，沿用既有 owner、期限及 commit/tree 驗證。
 
@@ -46,7 +46,13 @@ Apply 部署一個隨機命名、最多有效五分鐘的暫存 Edge Function。
 
 成功及失敗均刪除本次產生的確切函式，管理 API 回讀確認不存在後，才上傳加密封套。若工作流程被中斷而來不及刪除，函式到期即拒絕；須完成刪除確認才能繼續正式發佈。由本機私鑰解密後，再讀正式摘要逐一核對，才保存到 git 忽略檔。此程序不輪替密鑰、不修改訂單資料、不部署其他功能。
 
-測試：加解密控制、匿名／一般 JWT／錯 nonce／過期／錯專案／摘要漂移拒絕，以及 Plan 失敗不部署、呼叫失敗與部署結果不明時清理，都已通過。正式執行仍待目前版本的受保護 Plan/Apply 收據。
+首次核准 Plan `34083711597`，Apply `34084006656` 在 2026-09-07 12:41（台灣時間）啟動暫存函式後得到 HTTP 404，未交付密鑰。清理流程完成，管理 API 再次確認沒有殘留 recovery 函式。唯讀比對證實：內建 `SUPABASE_URL` 的摘要符合專案，但內建 `SUPABASE_SERVICE_ROLE_KEY` 的摘要與管理 API 當前回傳的 service-role JWT 不同，因此舊版 runtime key 比對會拒絕呼叫；管理 API 及 JWT gateway 授權並未過期。
+
+修正將函式授權綁定到本次受信任管理 API 取得的精確 service-role JWT 指紋，不再依賴與該 JWT 不同的內建環境值。JWT gateway、nonce、專案、五分鐘期限、兩個原始密鑰摘要及加密／清理要求保持有效。程式只記錄 HTTP 狀態與確切暫存函式刪除完成事件，不印出 provider response、JWT 或原始密鑰。
+
+測試先重現內建 runtime key 漂移導致拒絕，再驗證當前 service-role JWT 成功、舊 runtime JWT 拒絕、缺少 JWT 指紋拒絕。既有加解密、匿名／一般 JWT／錯 nonce／過期／錯專案／摘要漂移拒絕，以及 Plan 失敗不部署、呼叫失敗與部署結果不明時清理持續涵蓋。修正版必須重新取得相符 commit/tree 的 Plan/Apply；舊 Plan 不適用新版本。
+
+修正版驗證：相關 32 項、完整 Vitest 3,019 項通過（9 項既有條件式跳過），lint、production guardrails、依賴 audit 通過。以同一 handler 原始碼在隔離的本機 Supabase Edge 實際執行，使用測試用密鑰重現 runtime key 漂移，當前 JWT 加密交付及本機解密通過，舊 JWT／錯 nonce／GET 全數拒絕；暫存本機 fixture 已刪除。此本機 Edge 證據涵蓋函式內驗證和 Web Crypto，正式 gateway JWT 驗證仍須由新的受保護 Apply 驗證。應用程式、資料庫及一般 Edge 功能檔案與已驗證的 `02ac137` 完全相同。
 
 ## 其餘需求
 
