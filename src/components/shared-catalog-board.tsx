@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Layers3, Pencil } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
 import { ProductStockEditor, type StockAssignment, type StockProduct } from "@/components/product-stock-editor";
@@ -45,6 +46,8 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
   const selectable = visible.filter((row) => row.isAssigned);
   const selectedIds = selectable.filter((row) => selected.has(row.id)).map((row) => row.id);
   const allSelected = selectable.length > 0 && selectedIds.length === selectable.length;
+  const selectedCategory = categories.find((row) => row.id === categoryId);
+  const selectedGroup = groups.find((row) => row.id === groupId);
   function resetSelection() { setSelected(new Set()); setMessage(""); }
   function stockRows(rows: typeof assigned) {
     return rows.map((row) => ({ productId: row.id, name: row.name, stockRemaining: row.assignment.stockRemaining, stockVersion: row.assignment.stockVersion }));
@@ -77,15 +80,39 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
     </div>
     <p className="border-x border-stone-200 px-3 py-2 text-xs leading-5 text-stone-600">批次售完、供應與庫存僅影響上方選定攤位。編輯主檔會影響共用該商品的所有攤位。</p>
     {message ? <p role="status" className="border-x border-stone-200 bg-amber-50 p-3 text-sm">{message}</p> : null}
-    <div className={`${soldOutOnly ? "grid" : "hidden md:grid"} min-w-0 border border-stone-200 md:grid-cols-[170px_minmax(0,1fr)]`}>
+    <div className={`${soldOutOnly ? "grid" : "hidden md:grid"} min-w-0 border border-stone-200 md:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]`}>
       <nav aria-label="分類與群組" className="max-h-[65vh] overflow-y-auto border-b border-stone-200 bg-stone-50 p-2 md:border-r md:border-b-0">
-        <button type="button" aria-pressed={!categoryId} onClick={() => { setCategoryId(""); setGroupId(null); resetSelection(); }} className={button + " w-full text-left"}>全部群組</button>
-        {[...categories].sort((a,b) => a.sortOrder-b.sortOrder).map((category) => <div key={category.id} className="mt-3">
-          <div className="flex items-center"><button type="button" aria-pressed={categoryId===category.id && groupId===null} onClick={() => { setCategoryId(category.id); setGroupId(null); resetSelection(); }} className="min-h-11 min-w-0 flex-1 rounded-md px-2 text-left text-sm font-bold aria-pressed:bg-teal-100">{category.name}{!category.isActive ? "（停用）" : ""}</button><button type="button" aria-label={`編輯分類 ${category.name}`} onClick={() => onEditCategory(category.id)} className="min-h-11 px-2 text-xs text-teal-800">編輯</button></div>
-          {[{id:"",name:"未分組",isActive:true},...groups.filter((row) => row.categoryId===category.id).sort((a,b) => a.sortOrder-b.sortOrder)].map((group) => <div key={group.id} className="ml-2 flex items-center"><button type="button" aria-pressed={categoryId===category.id && groupId===group.id} onClick={() => { setCategoryId(category.id); setGroupId(group.id); resetSelection(); }} className="min-h-11 min-w-0 flex-1 rounded-md px-2 text-left text-sm aria-pressed:bg-teal-100">{group.name}{!group.isActive ? "（停用）" : ""}</button>{group.id ? <button type="button" aria-label={`編輯群組 ${group.name}`} onClick={() => onEditGroup(group.id)} className="min-h-11 px-2 text-xs text-teal-800">編輯</button> : null}</div>)}
-        </div>)}
+        <p className="px-2 pb-2 text-sm font-semibold text-stone-600">分類 → 群組</p>
+        <button type="button" aria-pressed={!categoryId} onClick={() => { setCategoryId(""); setGroupId(null); resetSelection(); }} className={button + " w-full text-left aria-pressed:border-teal-700 aria-pressed:bg-teal-50"}>全部商品（{products.length}）</button>
+        {[...categories].sort((a,b) => a.sortOrder-b.sortOrder).map((category) => {
+          const categoryProducts = products.filter((row) => row.categoryId === category.id);
+          const ungroupedCount = categoryProducts.filter((row) => row.groupId === null).length;
+          return <div key={category.id} className="mt-4 overflow-hidden rounded-lg border border-stone-300 bg-white">
+            <div className="flex items-center bg-stone-200 p-1">
+              <button type="button" aria-label={`篩選分類 ${category.name}`} aria-pressed={categoryId===category.id && groupId===null} onClick={() => { setCategoryId(category.id); setGroupId(null); resetSelection(); }} className="min-h-11 min-w-0 flex-1 rounded-md px-2 py-1 text-left aria-pressed:bg-teal-700 aria-pressed:text-white">
+                <span className="block text-xs">分類 · {categoryProducts.length} 項</span>
+                <span className="break-words font-bold">{category.name}{!category.isActive ? "（停用）" : ""}</span>
+              </button>
+              <button type="button" aria-label={`編輯分類 ${category.name}`} title={`編輯分類 ${category.name}`} onClick={() => onEditCategory(category.id)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-teal-800 hover:bg-white"><Pencil aria-hidden="true" className="h-4 w-4" /></button>
+            </div>
+            <div className="my-2 ml-3 border-l-2 border-stone-200 pl-1">
+              {groups.filter((row) => row.categoryId===category.id).sort((a,b) => a.sortOrder-b.sortOrder).map((group) => <div key={group.id} className="flex items-center">
+                <button type="button" aria-label={`篩選群組 ${group.name}`} aria-pressed={categoryId===category.id && groupId===group.id} onClick={() => { setCategoryId(category.id); setGroupId(group.id); resetSelection(); }} className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm aria-pressed:bg-teal-100 aria-pressed:font-bold aria-pressed:text-teal-950">
+                  <Layers3 aria-hidden="true" className="h-4 w-4 shrink-0 text-teal-700" />
+                  <span className="min-w-0 flex-1 break-words">{group.name}{!group.isActive ? "（停用）" : ""}<span className="block text-xs text-stone-600">群組 · {categoryProducts.filter((row) => row.groupId===group.id).length} 項</span></span>
+                </button>
+                <button type="button" aria-label={`編輯群組 ${group.name}`} title={`編輯群組 ${group.name}`} onClick={() => onEditGroup(group.id)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-teal-800 hover:bg-stone-100"><Pencil aria-hidden="true" className="h-4 w-4" /></button>
+              </div>)}
+              {ungroupedCount > 0 ? <button type="button" aria-label={`篩選未分組商品 ${category.name}`} aria-pressed={categoryId===category.id && groupId===""} onClick={() => { setCategoryId(category.id); setGroupId(""); resetSelection(); }} className="min-h-11 w-full rounded-md px-2 py-2 text-left text-sm text-stone-600 aria-pressed:bg-teal-100 aria-pressed:text-teal-950">未分組商品（{ungroupedCount}）<span className="block text-xs">系統清單</span></button> : null}
+            </div>
+          </div>;
+        })}
       </nav>
       <div className="min-w-0">
+        <div className="border-b border-stone-200 bg-stone-50 p-3">
+          <h3 data-testid="catalog-list-heading" className="break-words font-semibold"><span className="mb-1 block text-xs text-stone-600">商品品項 · {visible.length} 項</span>{selectedCategory ? `${selectedCategory.name} / ${groupId === "" ? "未分組商品" : selectedGroup?.name ?? "全部群組"}` : "全部商品"}</h3>
+          {groupId === "" ? <p className="mt-2 text-sm text-stone-600">系統清單：這些商品尚未指定群組。請編輯商品的「群組」欄位完成歸組。</p> : null}
+        </div>
         <div className="flex flex-wrap items-center gap-2 border-b border-stone-200 p-3">
           <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={allSelected} onChange={(e) => setSelected(e.target.checked ? new Set(selectable.map((row) => row.id)) : new Set())} />全選本清單（{visible.length}）</label>
           <span className="text-sm text-stone-500">已選 {selectedIds.length} 項</span>
@@ -98,7 +125,7 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
         <div className="max-h-[65vh] overflow-y-auto">
           {visible.map((row) => <article key={row.id} data-testid="catalog-management-row" className="flex flex-wrap items-center gap-3 border-b border-stone-100 p-3">
             <input type="checkbox" aria-label={`選取 ${row.name}`} disabled={!row.isAssigned} checked={selected.has(row.id)} onChange={(e) => setSelected((current) => { const next=new Set(current); if(e.target.checked) next.add(row.id); else next.delete(row.id); return next; })} />
-            <div className="min-w-32 flex-1"><h3 className="font-semibold">{row.name}</h3><p className="text-xs text-stone-500">{!row.isAssigned ? "未指派此攤位 · " : ""}{!row.isActive ? "主檔停用 · " : ""}{!row.assignment.isEnabled ? "未供應 · " : ""}{row.assignment.isSoldOut ? "手動售完 · " : ""}{row.assignment.stockRemaining === 0 ? "庫存售完" : row.assignment.stockRemaining == null ? "不限量" : `剩餘 ${row.assignment.stockRemaining} 份`}</p></div>
+            <div className="min-w-32 flex-1"><p className="text-xs text-stone-600">{categories.find((category) => category.id === row.categoryId)?.name} / {groups.find((group) => group.id === row.groupId)?.name ?? "未分組商品"}</p><h3 className="font-semibold">{row.name}</h3><p className="text-xs text-stone-500">{!row.isAssigned ? "未指派此攤位 · " : ""}{!row.isActive ? "主檔停用 · " : ""}{!row.assignment.isEnabled ? "未供應 · " : ""}{row.assignment.isSoldOut ? "手動售完 · " : ""}{row.assignment.stockRemaining === 0 ? "庫存售完" : row.assignment.stockRemaining == null ? "不限量" : `剩餘 ${row.assignment.stockRemaining} 份`}</p></div>
             <span className="text-sm tabular-nums">{formatMoney(row.assignment.priceOverride ?? row.defaultPrice, currency, "zh-TW")}</span>
             <button type="button" disabled={!row.isAssigned} onClick={() => setStockProducts(stockRows([row]))} className={button}>庫存</button>
             <button type="button" onClick={() => onEdit(row.id)} className={button}>編輯</button>

@@ -29,6 +29,9 @@ const merchantDescriptionOverrides = {
 } as const satisfies Record<string, MerchantMessageRow>;
 
 const merchantMessageRows = {
+  "全部群組": { "zh-TW": "全部群組", en: "All groups", ja: "すべてのグループ", ko: "모든 그룹", vi: "Tất cả nhóm", th: "ทุกกลุ่ม" },
+  "{count} 個註記選項": { "zh-TW": "{count} 個註記選項", en: "{count} note options", ja: "注記オプション {count} 件", ko: "메모 옵션 {count}개", vi: "{count} tùy chọn ghi chú", th: "ตัวเลือกหมายเหตุ {count} รายการ" },
+  "系統清單：這些商品尚未指定群組。請編輯商品的「群組」欄位完成歸組。": { "zh-TW": "系統清單：這些商品尚未指定群組。請編輯商品的「群組」欄位完成歸組。", en: "System list: these products have no group. Edit each product's Group field to assign it.", ja: "システム一覧：これらの商品にはグループが未設定です。商品の「グループ」を編集して設定してください。", ko: "시스템 목록: 그룹이 지정되지 않은 상품입니다. 상품의 그룹 필드를 편집하여 지정하세요.", vi: "Danh sách hệ thống: các sản phẩm này chưa có nhóm. Chỉnh sửa trường Nhóm của sản phẩm để phân nhóm.", th: "รายการระบบ: สินค้าเหล่านี้ยังไม่มีกลุ่ม แก้ไขช่องกลุ่มของสินค้าเพื่อจัดกลุ่ม" },
   "營運模式": { "zh-TW": "營運模式", en: "Operating mode", ja: "運営モード", ko: "운영 모드", vi: "Chế độ vận hành", th: "โหมดการดำเนินงาน" },
   "單一攤位營運": { "zh-TW": "單一攤位營運", en: "Single-stall operations", ja: "単一店舗運営", ko: "단일 매장 운영", vi: "Vận hành một quầy", th: "ดำเนินงานร้านเดียว" },
   "多攤位營運": { "zh-TW": "多攤位營運", en: "Multi-stall operations", ja: "複数店舗運営", ko: "다중 매장 운영", vi: "Vận hành nhiều quầy", th: "ดำเนินงานหลายร้าน" },

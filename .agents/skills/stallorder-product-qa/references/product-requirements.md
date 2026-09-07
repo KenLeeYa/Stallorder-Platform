@@ -119,6 +119,7 @@ This file is the durable owner acceptance baseline. It does not assert that a re
 - `CAT-015` Public Menu promotional media supports upload, preview, responsive crop/focal-point adjustment, delete, and success/failure feedback. It renders inside the merchant-information/banner region, not as an oversized page-lengthening image above it.
 - `CAT-016` On phone/tablet, shared-catalog and shared-note action groups stay in one compact horizontally scrollable icon row. Category and group creation use distinct icons and accessible names.
 - `CAT-017` Every catalog-management upload, assignment, publication, translation, and ordering control shows immediate success/failure feedback and remains reachable without scrolling an unrelated pane.
+- `CAT-018` Catalog category/group/item levels have distinct labels, indentation and counts. Ungrouped products are a virtual list for nullable product group IDs, shown only when nonempty and edited through each product; real empty groups remain manageable. Notes use a group sidebar and option pane on tablet/desktop, while phone retains hierarchical navigation and the two main note entry points.
 
 ## Lottery and hot-product recommendation
 

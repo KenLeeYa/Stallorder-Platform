@@ -1,0 +1,661 @@
+{
+  "batch": "CATALOG-BOARD-10-20260907",
+  "createdAt": "2026-09-07T13:32:54.229Z",
+  "appUrl": "http://127.0.0.1:3018",
+  "orders": [
+    {
+      "id": "2ff41288-0190-4970-b237-6477682c7930",
+      "orderNo": "260907-094",
+      "customerName": "版面測試 01",
+      "status": "WAITING_CONFIRMATION",
+      "fulfillmentType": "TAKEOUT",
+      "tableLabel": null,
+      "note": "【本機測試 01】單品新單，請由店員確認",
+      "total": 220,
+      "isTest": true,
+      "confirmationExpiresAt": "2026-09-08T13:31:03.299Z",
+      "items": [
+        {
+          "name": "香酥雞排",
+          "quantity": 2,
+          "note": "請依客製註記製作，餐點分開放。",
+          "noteOptions": [
+            {
+              "groupName": "加料",
+              "optionName": "加蛋"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "不加胡椒"
+            }
+          ]
+        }
+      ],
+      "productionTasks": []
+    },
+    {
+      "id": "4ce70567-9f7d-4203-aa13-dfb2f2f9daac",
+      "orderNo": "260907-095",
+      "customerName": "版面測試 02",
+      "status": "WAITING_CONFIRMATION",
+      "fulfillmentType": "DINE_IN",
+      "tableLabel": "A1 桌",
+      "note": "【本機測試 02】內用新單，確認桌號與客製註記",
+      "total": 185,
+      "isTest": true,
+      "confirmationExpiresAt": "2026-09-08T13:31:03.506Z",
+      "items": [
+        {
+          "name": "地瓜薯條",
+          "quantity": 2,
+          "note": "請依客製註記製作，餐點分開放。",
+          "noteOptions": []
+        },
+        {
+          "name": "台式鹽酥雞",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "小辣"
+            }
+          ]
+        }
+      ],
+      "productionTasks": []
+    },
+    {
+      "id": "6f14d05f-e25e-4897-9bbe-b2ec4eb53aa7",
+      "orderNo": "260907-096",
+      "customerName": "版面測試 03",
+      "status": "WAITING_CONFIRMATION",
+      "fulfillmentType": "TAKEOUT",
+      "tableLabel": null,
+      "note": "【本機測試 03】多人外帶，請分開裝袋。此單用於長清單、上下捲動及多品項確認。",
+      "total": 585,
+      "isTest": true,
+      "confirmationExpiresAt": "2026-09-08T13:31:03.683Z",
+      "items": [
+        {
+          "name": "台式鹽酥雞",
+          "quantity": 2,
+          "note": "請依客製註記製作，餐點分開放。",
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "中辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加九層塔"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "分開裝"
+            }
+          ]
+        },
+        {
+          "name": "甜不辣",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "中辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加九層塔"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "分開裝"
+            }
+          ]
+        },
+        {
+          "name": "米血糕",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "中辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加九層塔"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "分開裝"
+            }
+          ]
+        },
+        {
+          "name": "百頁豆腐",
+          "quantity": 2,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "中辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加九層塔"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "分開裝"
+            }
+          ]
+        },
+        {
+          "name": "雞蛋豆腐",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "中辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加九層塔"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "分開裝"
+            }
+          ]
+        },
+        {
+          "name": "四季豆",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "中辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加九層塔"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "分開裝"
+            }
+          ]
+        },
+        {
+          "name": "杏鮑菇",
+          "quantity": 2,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "中辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加九層塔"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "分開裝"
+            }
+          ]
+        }
+      ],
+      "productionTasks": []
+    },
+    {
+      "id": "9d2c4df9-c7b5-4912-bc70-2c8bebc5aebd",
+      "orderNo": "260907-097",
+      "customerName": "版面測試 04",
+      "status": "CONFIRMED",
+      "fulfillmentType": "DINE_IN",
+      "tableLabel": "A1 桌",
+      "note": "【本機測試 04】已確認，請由廚房開始製作",
+      "total": 175,
+      "isTest": true,
+      "confirmationExpiresAt": "2026-09-07T13:41:03.722Z",
+      "items": [
+        {
+          "name": "甜不辣",
+          "quantity": 2,
+          "note": "請依客製註記製作，餐點分開放。",
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "大辣"
+            }
+          ]
+        },
+        {
+          "name": "米血糕",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "大辣"
+            }
+          ]
+        },
+        {
+          "name": "百頁豆腐",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "大辣"
+            }
+          ]
+        }
+      ],
+      "productionTasks": [
+        {
+          "status": "PENDING"
+        },
+        {
+          "status": "PENDING"
+        },
+        {
+          "status": "PENDING"
+        }
+      ]
+    },
+    {
+      "id": "2c3182da-9ab3-43af-9876-c07b3b867064",
+      "orderNo": "260907-098",
+      "customerName": "版面測試 05",
+      "status": "CONFIRMED",
+      "fulfillmentType": "TAKEOUT",
+      "tableLabel": null,
+      "note": "【本機測試 05】同品項多份數，核對數量與金額",
+      "total": 260,
+      "isTest": true,
+      "confirmationExpiresAt": "2026-09-07T13:41:10.413Z",
+      "items": [
+        {
+          "name": "米血糕",
+          "quantity": 4,
+          "note": "請依客製註記製作，餐點分開放。",
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "不辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加起司"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "加蒜"
+            }
+          ]
+        }
+      ],
+      "productionTasks": [
+        {
+          "status": "PENDING"
+        }
+      ]
+    },
+    {
+      "id": "b012f006-23a2-416b-bf45-2cd47f6e188f",
+      "orderNo": "260907-099",
+      "customerName": "版面測試 06",
+      "status": "CONFIRMED",
+      "fulfillmentType": "DINE_IN",
+      "tableLabel": "A1 桌",
+      "note": "【本機測試 06】跨分類餐點，核對不同工作站與註記",
+      "total": 300,
+      "isTest": true,
+      "confirmationExpiresAt": "2026-09-07T13:41:10.813Z",
+      "items": [
+        {
+          "name": "百頁豆腐",
+          "quantity": 2,
+          "note": "請依客製註記製作，餐點分開放。",
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "小辣"
+            }
+          ]
+        },
+        {
+          "name": "雞蛋豆腐",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "小辣"
+            }
+          ]
+        },
+        {
+          "name": "四季豆",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "小辣"
+            }
+          ]
+        },
+        {
+          "name": "杏鮑菇",
+          "quantity": 2,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "小辣"
+            }
+          ]
+        }
+      ],
+      "productionTasks": [
+        {
+          "status": "PENDING"
+        },
+        {
+          "status": "PENDING"
+        },
+        {
+          "status": "PENDING"
+        },
+        {
+          "status": "PENDING"
+        }
+      ]
+    },
+    {
+      "id": "5190b78e-7651-46f4-85f6-8151c28515ae",
+      "orderNo": "260907-100",
+      "customerName": "版面測試 07",
+      "status": "PREPARING",
+      "fulfillmentType": "TAKEOUT",
+      "tableLabel": null,
+      "note": "【本機測試 07】製作中，請測試逐項完成",
+      "total": 200,
+      "isTest": true,
+      "confirmationExpiresAt": "2026-09-07T13:41:11.011Z",
+      "items": [
+        {
+          "name": "雞蛋豆腐",
+          "quantity": 2,
+          "note": "請依客製註記製作，餐點分開放。",
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "中辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加蛋"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "不加胡椒"
+            }
+          ]
+        },
+        {
+          "name": "四季豆",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "中辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加蛋"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "不加胡椒"
+            }
+          ]
+        }
+      ],
+      "productionTasks": [
+        {
+          "status": "PREPARING"
+        },
+        {
+          "status": "PREPARING"
+        }
+      ]
+    },
+    {
+      "id": "950c90b9-8471-4ee1-bcf8-6f3f0b728f4b",
+      "orderNo": "260907-101",
+      "customerName": "版面測試 08",
+      "status": "PREPARING",
+      "fulfillmentType": "DINE_IN",
+      "tableLabel": "A1 桌",
+      "note": "【本機測試 08】製作中長清單，請測試整單製作流程",
+      "total": 295,
+      "isTest": true,
+      "confirmationExpiresAt": "2026-09-07T13:41:15.844Z",
+      "items": [
+        {
+          "name": "四季豆",
+          "quantity": 2,
+          "note": "請依客製註記製作，餐點分開放。",
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "大辣"
+            }
+          ]
+        },
+        {
+          "name": "杏鮑菇",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "大辣"
+            }
+          ]
+        },
+        {
+          "name": "玉米筍",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "大辣"
+            }
+          ]
+        },
+        {
+          "name": "冬瓜茶",
+          "quantity": 2,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "甜度",
+              "optionName": "無糖"
+            },
+            {
+              "groupName": "冰量",
+              "optionName": "去冰"
+            }
+          ]
+        },
+        {
+          "name": "無糖綠茶",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "冰量",
+              "optionName": "去冰"
+            }
+          ]
+        }
+      ],
+      "productionTasks": [
+        {
+          "status": "PREPARING"
+        },
+        {
+          "status": "PREPARING"
+        },
+        {
+          "status": "PREPARING"
+        },
+        {
+          "status": "PREPARING"
+        },
+        {
+          "status": "PREPARING"
+        }
+      ]
+    },
+    {
+      "id": "1fe01024-6f6b-4337-b9fa-aca09042df18",
+      "orderNo": "260907-102",
+      "customerName": "版面測試 09",
+      "status": "READY",
+      "fulfillmentType": "TAKEOUT",
+      "tableLabel": null,
+      "note": "【本機測試 09】多品項已製作完成，請核對後交付顧客",
+      "total": 210,
+      "isTest": true,
+      "confirmationExpiresAt": "2026-09-07T13:41:18.041Z",
+      "items": [
+        {
+          "name": "杏鮑菇",
+          "quantity": 2,
+          "note": "請依客製註記製作，餐點分開放。",
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "不辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加九層塔"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "分開裝"
+            }
+          ]
+        },
+        {
+          "name": "玉米筍",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "不辣"
+            },
+            {
+              "groupName": "加料",
+              "optionName": "加九層塔"
+            },
+            {
+              "groupName": "包裝需求",
+              "optionName": "分開裝"
+            }
+          ]
+        },
+        {
+          "name": "冬瓜茶",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "甜度",
+              "optionName": "半糖"
+            },
+            {
+              "groupName": "冰量",
+              "optionName": "少冰"
+            }
+          ]
+        }
+      ],
+      "productionTasks": [
+        {
+          "status": "COMPLETED"
+        },
+        {
+          "status": "COMPLETED"
+        },
+        {
+          "status": "COMPLETED"
+        }
+      ]
+    },
+    {
+      "id": "1065e5ae-8bf1-426d-8538-ae5c41dc83ca",
+      "orderNo": "260907-103",
+      "customerName": "版面測試 10",
+      "status": "READY",
+      "fulfillmentType": "TAKEOUT",
+      "tableLabel": null,
+      "note": "【本機測試 10】已可取餐，請由店員完成訂單",
+      "total": 135,
+      "isTest": true,
+      "confirmationExpiresAt": "2026-09-07T13:41:19.659Z",
+      "items": [
+        {
+          "name": "玉米筍",
+          "quantity": 2,
+          "note": "請依客製註記製作，餐點分開放。",
+          "noteOptions": [
+            {
+              "groupName": "辣度",
+              "optionName": "小辣"
+            }
+          ]
+        },
+        {
+          "name": "冬瓜茶",
+          "quantity": 1,
+          "note": null,
+          "noteOptions": [
+            {
+              "groupName": "甜度",
+              "optionName": "無糖"
+            },
+            {
+              "groupName": "冰量",
+              "optionName": "去冰"
+            }
+          ]
+        }
+      ],
+      "productionTasks": [
+        {
+          "status": "COMPLETED"
+        },
+        {
+          "status": "COMPLETED"
+        }
+      ]
+    }
+  ]
+}
