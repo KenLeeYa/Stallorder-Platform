@@ -15,6 +15,10 @@ async function loginAsOwner(page: Page) {
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
   await page.getByRole("button", { name: "登入", exact: true }).click();
+  await expect(page).toHaveURL(/\/(?:merchant\/dashboard\?organizationId=|select-organization$)/, { timeout: 30_000 });
+  if (new URL(page.url()).pathname === "/select-organization") {
+    await page.locator(`a[href="/merchant/dashboard?organizationId=${organizationId}"]`).click();
+  }
   await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/, { timeout: 30_000 });
 }
 
@@ -42,7 +46,7 @@ test("單一啟用攤位從頁首直接進入 QR 管理", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
 });
 
-test("QR 管理在手機維持單欄、平板左右滿版且 QR 不隨桌面無限放大", async ({ page }) => {
+test("QR 管理在手機維持單欄、平板電腦保留管理側欄與可見商品且 QR 不放大", async ({ page }) => {
   await loginAsOwner(page);
 
   for (const viewport of [
@@ -63,24 +67,35 @@ test("QR 管理在手機維持單欄、平板左右滿版且 QR 不隨桌面無�
       const qrBox = qr?.getBoundingClientRect();
       const actions = document.querySelector<HTMLElement>('[data-testid="merchant-ordering-actions"]');
       const actionsBox = actions?.getBoundingClientRect();
+      const catalogBox = document.getElementById("stall-products-heading")?.closest("section")?.getBoundingClientRect();
+      const sidebarBox = shell.closest("aside")?.getBoundingClientRect();
       return {
-        shell: { left: shellBox.left, right: shellBox.right, width: shellBox.width },
+        shell: { left: shellBox.left, right: shellBox.right, bottom: shellBox.bottom, width: shellBox.width },
         qr: qrBox ? { width: qrBox.width, height: qrBox.height } : null,
         actions: actionsBox ? { left: actionsBox.left, top: actionsBox.top } : null,
-        shellTop: shellBox.top,
-        sideBySide: viewportWidth >= 768 && viewportWidth < 1280,
+        catalog: catalogBox ? { left: catalogBox.left, width: catalogBox.width } : null,
+        sidebar: sidebarBox ? { right: sidebarBox.right } : null,
+        persistentCatalog: viewportWidth >= 768,
         pageClientWidth: document.documentElement.clientWidth,
         pageScrollWidth: document.documentElement.scrollWidth,
       };
     }, viewport.width);
 
-    if (layout.sideBySide) {
-      expect(layout.actions, `${viewport.name} action column`).not.toBeNull();
-      expect(layout.shell.right, `${viewport.name} QR precedes actions`).toBeLessThanOrEqual(layout.actions!.left);
-      expect(layout.shellTop, `${viewport.name} aligned columns`).toBeCloseTo(layout.actions!.top, 0);
+    expect(layout.actions, `${viewport.name} QR controls`).not.toBeNull();
+    expect(layout.actions!.left, `${viewport.name} aligned QR controls`).toBeCloseTo(layout.shell.left, 0);
+    expect(layout.actions!.top, `${viewport.name} controls below QR`).toBeGreaterThanOrEqual(layout.shell.bottom);
+    const catalogHeading = page.getByRole("heading", { name: "供應與價格", exact: true });
+    if (layout.persistentCatalog) {
+      await expect(catalogHeading, `${viewport.name} directly usable catalog`).toBeVisible();
+      expect(layout.catalog, `${viewport.name} catalog region`).not.toBeNull();
+      expect(layout.sidebar, `${viewport.name} management sidebar`).not.toBeNull();
+      expect(layout.catalog!.left, `${viewport.name} catalog beside management`).toBeGreaterThanOrEqual(layout.sidebar!.right);
+      expect(layout.catalog!.width, `${viewport.name} readable catalog`).toBeGreaterThanOrEqual(280);
     } else {
-      expect(layout.shell.width, `${viewport.name} QR shell width`).toBeLessThanOrEqual(384.5);
+      await expect(catalogHeading, `${viewport.name} catalog opens on demand`).toBeHidden();
+      await expect(page.getByRole("button", { name: "攤位商品設定", exact: true })).toBeVisible();
     }
+    expect(layout.shell.width, `${viewport.name} QR shell width`).toBeLessThanOrEqual(384.5);
     expect(layout.shell.left, `${viewport.name} QR left boundary`).toBeGreaterThanOrEqual(0);
     expect(layout.shell.right, `${viewport.name} QR right boundary`).toBeLessThanOrEqual(layout.pageClientWidth + 1);
     expect(layout.qr, `${viewport.name} QR box`).not.toBeNull();

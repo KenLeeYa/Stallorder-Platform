@@ -9,6 +9,7 @@ const orderId = randomUUID();
 const qrToken = "tracking-idle-" + randomUUID();
 let qrId = "";
 let productId = "";
+let circuitFlagOverrideId = "";
 let originalHours: Awaited<ReturnType<typeof prisma.stallBusinessHour.findMany>>;
 
 test.use({ serviceWorkers: "block", viewport: { width: 390, height: 844 } });
@@ -19,6 +20,12 @@ test.beforeAll(async () => {
     throw new Error("DEDICATED_TRACKING_LOCAL_LAB_REQUIRED");
   }
   originalHours = await prisma.stallBusinessHour.findMany({ where: { stallId } });
+  const flag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "DUAL_ORDER_INTAKE_ENABLED" }, select: { id: true } });
+  circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
+    flagId: flag.id, scopeType: "GLOBAL", enabled: true,
+    reason: "Isolated idle tracking Circuit B regression",
+    expiresAt: new Date(Date.now() + 15 * 60_000),
+  } })).id;
   await prisma.stallBusinessHour.updateMany({ where: { stallId }, data: { opensAt: "00:00", closesAt: "23:59", isClosed: false, lastOrderAt: null } });
   const category = await prisma.productCategory.findFirstOrThrow({ where: { organizationId, isActive: true } });
   productId = (await prisma.product.create({ data: {
@@ -34,6 +41,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   try {
+    if (circuitFlagOverrideId) await prisma.resilienceFeatureFlagOverride.deleteMany({ where: { id: circuitFlagOverrideId } });
     await prisma.order.deleteMany({ where: { id: orderId } });
     if (qrId) {
       await prisma.publicOrderAttempt.deleteMany({ where: { qrCodeId: qrId } });

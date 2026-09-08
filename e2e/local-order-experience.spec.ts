@@ -11,11 +11,18 @@ const qrToken = "experience-" + randomUUID();
 const orderIds: string[] = [];
 let qrId = "";
 let productId = "";
+let circuitFlagOverrideId = "";
 let closureId = "";
 let originalHours: Array<{ id: string; opensAt: string; closesAt: string; isClosed: boolean }> = [];
 test.use({ serviceWorkers: "block" });
 test.beforeAll(async () => {
   if (!["localhost", "127.0.0.1"].includes(new URL(process.env.DATABASE_URL ?? "").hostname)) throw new Error("LOCAL_EXPERIENCE_TEST_ONLY");
+  const flag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "DUAL_ORDER_INTAKE_ENABLED" }, select: { id: true } });
+  circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
+    flagId: flag.id, scopeType: "GLOBAL", enabled: true,
+    reason: "Isolated order experience Circuit B regression",
+    expiresAt: new Date(Date.now() + 15 * 60_000),
+  } })).id;
   originalHours = await prisma.stallBusinessHour.findMany({ where: { stallId }, select: { id: true, opensAt: true, closesAt: true, isClosed: true } });
   await prisma.stallBusinessHour.updateMany({ where: { stallId }, data: { opensAt: "00:00", closesAt: "23:59", isClosed: false } });
   const version = await prisma.qrCode.aggregate({ where: { stallId }, _max: { tokenVersion: true } });
@@ -28,6 +35,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => {
   try {
+    if (circuitFlagOverrideId) await prisma.resilienceFeatureFlagOverride.deleteMany({ where: { id: circuitFlagOverrideId } });
     if (closureId) await prisma.stallSpecialClosure.deleteMany({ where: { id: closureId } });
     await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
     if (qrId) {
