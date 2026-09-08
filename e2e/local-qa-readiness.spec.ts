@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 const quickLoginDestinations = [
-  ["商家", /\/merchant\/dashboard\?organizationId=/],
-  ["店員", /\/staff\/aming-chicken/],
-  ["廚房", /\/kitchen\?stall=aming-chicken/],
-  ["平台管理者", /\/admin\/billing$/],
+  ["商家", /\/merchant\/dashboard\?organizationId=/, "/merchant/dashboard?organizationId=11111111-1111-4111-8111-111111111111"],
+  ["店員", /\/staff\/aming-chicken/, "/staff/aming-chicken"],
+  ["廚房", /\/kitchen\?stall=aming-chicken/, "/kitchen?stall=aming-chicken"],
+  ["平台管理者", /\/admin\/billing$/, "/admin/billing"],
 ] as const;
 
 test.skip(
@@ -12,9 +12,9 @@ test.skip(
   "Only the explicit local QA readiness command may exercise development quick login.",
 );
 
-for (const [role, destination] of quickLoginDestinations) {
+for (const [role, destination, next] of quickLoginDestinations) {
   test(`本機快速登入：${role}`, async ({ page }) => {
-    await page.goto("/login");
+    await page.goto("/login?next=" + encodeURIComponent(next));
     const grid = page.getByTestId("local-qa-login-grid");
     await expect(grid).toBeVisible();
 
@@ -53,7 +53,7 @@ test("本機公開 Menu、QR、外帶自取與現金交班可實際操作", asyn
     await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeVisible();
   }
 
-  await page.goto("/login");
+  await page.goto("/login?next=" + encodeURIComponent("/staff/aming-chicken"));
   await page.getByTestId("local-qa-login-grid").getByRole("button", { name: "店員", exact: true }).click();
   await expect(page).toHaveURL(/\/staff\/aming-chicken/);
   const cashResponse = await page.goto("/staff/aming-chicken/cash");
@@ -70,7 +70,7 @@ test("本機 QR 印刷按鈕會開啟瀏覽器列印／另存 PDF", async ({ pag
       document.documentElement.dataset.qaPrintCount = String(count);
     };
   });
-  await page.goto("/login");
+  await page.goto("/login?next=" + encodeURIComponent(quickLoginDestinations[0][2]));
   await page
     .getByTestId("local-qa-login-grid")
     .getByRole("button", { name: "商家", exact: true })
@@ -99,9 +99,9 @@ test("本機 QR 印刷按鈕會開啟瀏覽器列印／另存 PDF", async ({ pag
   await expect(page.locator("html")).toHaveAttribute("data-qa-print-count", "2");
 });
 
-test("商家 QR 管理在平板寬度左右滿版排列且印刷標籤整齊換行", async ({ page }) => {
+test("還原版商家 QR 在平板保留左側管理欄且印刷連結可操作", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 });
-  await page.goto("/login");
+  await page.goto("/login?next=" + encodeURIComponent(quickLoginDestinations[0][2]));
   await page
     .getByTestId("local-qa-login-grid")
     .getByRole("button", { name: "商家", exact: true })
@@ -119,23 +119,29 @@ test("商家 QR 管理在平板寬度左右滿版排列且印刷標籤整齊換�
       const element = document.querySelector(`[data-testid="${testId}"]`);
       if (!(element instanceof HTMLElement)) throw new Error(`MISSING_${testId}`);
       const box = element.getBoundingClientRect();
-      return { x: box.x, y: box.y, width: box.width, right: box.right };
+      return { x: box.x, y: box.y, width: box.width, right: box.right, bottom: box.bottom };
     };
     return {
       viewportWidth: window.innerWidth,
+      pageFits: document.documentElement.scrollWidth <= window.innerWidth + 1,
       management: rect("merchant-ordering-management"),
       qr: rect("merchant-ordering-qr"),
       actions: rect("merchant-ordering-actions"),
     };
   });
-  expect(layout.management.width).toBeGreaterThan(layout.viewportWidth * 0.85);
-  expect(layout.qr.x).toBeLessThan(layout.actions.x);
-  expect(layout.qr.right).toBeLessThanOrEqual(layout.actions.x);
-  expect(Math.abs(layout.qr.y - layout.actions.y)).toBeLessThanOrEqual(2);
+  expect(layout.management.width).toBeLessThan(layout.viewportWidth * 0.5);
+  expect(layout.management.width).toBeGreaterThanOrEqual(300);
+  expect(Math.abs(layout.qr.x - layout.actions.x)).toBeLessThanOrEqual(2);
+  expect(layout.actions.y).toBeGreaterThanOrEqual(layout.qr.bottom);
+  expect(layout.management.right).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.pageFits).toBe(true);
 
   for (const paper of ["A4", "A5", "A6"]) {
     const printLink = qr.getByRole("link", { name: `${paper} 印刷版`, exact: true });
     await expect(printLink).toBeVisible();
+    await expect(printLink).toHaveAttribute("href", new RegExp(`paper=${paper}`));
+    const printBox = await printLink.boundingBox();
+    expect(printBox!.height).toBeGreaterThanOrEqual(44);
     const labelLines = printLink.locator("span > span");
     await expect(labelLines).toHaveCount(2);
     await expect(labelLines.nth(0)).toHaveText(paper);
@@ -174,7 +180,9 @@ test("QR 非營業時間以置中視窗引導顧客前往線上 Menu", async ({ 
   const dialog = page.getByRole("alertdialog", { name: "目前非營業時間" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("請前往線上 Menu");
-  await expect(
-    dialog.getByRole("button", { name: "前往線上 Menu 預約", exact: true }),
-  ).toBeVisible();
+  const preorder = dialog.getByRole("button", { name: "線上 Menu 預約", exact: true });
+  await expect(preorder).toBeVisible();
+  await page.unrouteAll({ behavior: "wait" });
+  await preorder.click();
+  await expect(page).toHaveURL(/\/store\/aming-01\?view=pickup$/);
 });

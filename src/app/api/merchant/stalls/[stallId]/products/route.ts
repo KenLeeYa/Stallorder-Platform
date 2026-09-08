@@ -13,6 +13,13 @@ import { invalidatePublicMenu } from "@/lib/public-menu";
 type RouteContext = { params: Promise<{ stallId: string }> };
 class StallCatalogConflict extends Error {}
 
+export async function GET(request: Request, context: RouteContext) {
+  const { stallId } = await context.params;
+  const authorization = await authorizeStallManagementApiRequest(request, stallId, "MANAGE_PRODUCTS");
+  if (!authorization.ok) return authorization.response;
+  return NextResponse.json({ products: await getStallProducts(stallId, authorization.workspace.id) }, { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } });
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const { stallId } = await context.params;
   const authorization = await authorizeStallManagementApiRequest(request, stallId, "MANAGE_PRODUCTS");
@@ -35,16 +42,37 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const organizationId = authorization.workspace.id;
   const command = parsed.data;
+  const stockChanges: Array<{ productId: string; before: number | null; after: number | null }> = [];
   try {
     const changedCount = await prisma.$transaction(async (transaction) => {
-      if (command.operation === "BULK_SOLD_OUT") {
+      if (command.operation === "BULK_STOCK") {
+        for (const item of [...command.items].sort((a, b) => a.productId.localeCompare(b.productId))) {
+          const existing = await transaction.stallProduct.findFirst({
+            where: { organizationId, stallId, productId: item.productId },
+            select: { id: true, stockRemaining: true, stockVersion: true },
+          });
+          if (!existing) throw new StallCatalogConflict("NOT_FOUND");
+          if (existing.stockVersion !== item.expectedVersion) throw new StallCatalogConflict("STOCK_CHANGED");
+          if (item.mode === "ADD" && existing.stockRemaining === null) throw new StallCatalogConflict("STOCK_UNLIMITED");
+          const quantity = item.mode === "UNLIMITED" ? null : item.mode === "ADD" ? existing.stockRemaining! + item.quantity : item.quantity;
+          if (quantity !== null && quantity > 1_000_000) throw new StallCatalogConflict("STOCK_LIMIT");
+          const changed = await transaction.stallProduct.updateMany({
+            where: { id: existing.id, organizationId, stallId, stockVersion: item.expectedVersion },
+            data: { stockRemaining: quantity },
+          });
+          if (changed.count !== 1) throw new StallCatalogConflict("STOCK_CHANGED");
+          stockChanges.push({ productId: item.productId, before: existing.stockRemaining, after: quantity });
+        }
+        return stockChanges.length;
+      }
+      if (command.operation === "BULK_SOLD_OUT" || command.operation === "BULK_ENABLED") {
         const ownedCount = await transaction.stallProduct.count({
           where: { stallId, organizationId, productId: { in: command.productIds } },
         });
         if (ownedCount !== command.productIds.length) throw new StallCatalogConflict("NOT_FOUND");
         const changed = await transaction.stallProduct.updateMany({
           where: { stallId, organizationId, productId: { in: command.productIds } },
-          data: { isSoldOut: command.isSoldOut },
+          data: command.operation === "BULK_SOLD_OUT" ? { isSoldOut: command.isSoldOut } : { isEnabled: command.isEnabled },
         });
         return changed.count;
       }
@@ -104,16 +132,19 @@ export async function PATCH(request: Request, context: RouteContext) {
       organizationId,
       stallId,
       actorProfileId: authorization.principal.user.id,
-      action: command.operation === "BULK_SOLD_OUT" ? "STALL_PRODUCTS_BULK_SOLD_OUT_CHANGED" : "STALL_CATALOG_COPIED",
+      action: command.operation === "BULK_STOCK" ? "STALL_PRODUCTS_STOCK_CHANGED" : command.operation === "BULK_ENABLED" ? "STALL_PRODUCTS_ENABLED_CHANGED" : command.operation === "BULK_SOLD_OUT" ? "STALL_PRODUCTS_BULK_SOLD_OUT_CHANGED" : "STALL_CATALOG_COPIED",
       entityType: "STALL_CATALOG",
       entityId: stallId,
       outcome: "SUCCESS",
       requestId: authorization.requestId,
       ipHash: hashClientIp(request),
+      before: command.operation === "BULK_STOCK" ? { products: stockChanges.map((row) => ({ productId: row.productId, stockRemaining: row.before })) } : undefined,
+      after: command.operation === "BULK_STOCK" ? { products: stockChanges.map((row) => ({ productId: row.productId, stockRemaining: row.after })) } : undefined,
       metadata: {
         changedCount,
-        ...(command.operation === "BULK_SOLD_OUT"
-          ? { isSoldOut: command.isSoldOut }
+        ...(command.operation === "BULK_SOLD_OUT" ? { isSoldOut: command.isSoldOut }
+          : command.operation === "BULK_ENABLED" ? { isEnabled: command.isEnabled }
+          : command.operation === "BULK_STOCK" ? {}
           : { sourceStallId: command.sourceStallId }),
       },
     });
@@ -124,9 +155,14 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   } catch (error) {
     if (!(error instanceof StallCatalogConflict)) throw error;
+    const stockErrors: Record<string, string> = {
+      STOCK_CHANGED: "庫存剛被訂單或其他店員更新，整批未儲存。請重新整理後確認剩餘份數。",
+      STOCK_UNLIMITED: "不限量商品請先設定目前剩餘份數，再使用增加補貨。",
+      STOCK_LIMIT: "庫存不可超過 1,000,000 份。",
+    };
     const denied = error.message === "SOURCE_DENIED";
     return NextResponse.json(
-      { error: denied ? "無權讀取來源攤位商品。" : error.message === "SAME_STALL" ? "來源攤位不可與目前攤位相同。" : "部分商品不存在或不屬於此攤位。" },
+      { error: stockErrors[error.message] ?? (denied ? "無權讀取來源攤位商品。" : error.message === "SAME_STALL" ? "來源攤位不可與目前攤位相同。" : "部分商品不存在或不屬於此攤位。"), code: error.message },
       { status: denied ? 403 : error.message === "NOT_FOUND" ? 404 : 409, headers: { "x-request-id": authorization.requestId } },
     );
   }
@@ -157,6 +193,8 @@ async function getStallProducts(stallId: string, organizationId: string) {
     effectivePrice: effectiveProductPrice(assignment.product.defaultPrice, assignment.priceOverride),
     isEnabled: assignment.isEnabled,
     isSoldOut: assignment.isSoldOut,
+    stockRemaining: assignment.stockRemaining,
+    stockVersion: assignment.stockVersion,
     sortOrder: assignment.sortOrder,
     availableFrom: assignment.availableFrom,
     availableUntil: assignment.availableUntil,

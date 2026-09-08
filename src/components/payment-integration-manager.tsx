@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
 
 type Provider = {
   provider: string;
@@ -90,48 +91,70 @@ export function PaymentIntegrationManager({
   const [selectedChannels, setSelectedChannels] = useState<string[]>(["TAKEOUT", "STAFF_POS", "PUBLIC_MENU"]);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>("error");
+  const mockAttempt = useRef<{ fingerprint: string; key: string } | null>(null);
   const selectedProvider = useMemo(() => providers.find((item) => item.provider === provider), [provider, providers]);
   const availableOrders = orders.filter((order) => order.stallId === stallId);
 
   async function configureMock() {
+    if (pending) return;
     setPending(true);
     setMessage("");
-    const response = await fetch("/api/merchant/payment-integrations", {
-      method: "POST",
-      headers: csrfHeaders(),
-      body: JSON.stringify({ organizationId, stallId, provider, environment: "MOCK", enabledChannels: selectedChannels }),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (response.ok && body.connection) {
-      setConnections((current) => [
-        ...current.filter((connection) => !(connection.stallId === stallId && connection.provider === provider && connection.environment === "MOCK")),
-        { ...body.connection, stallId, lastVerifiedAt: new Date().toISOString(), lastErrorCode: null },
-      ]);
-      setMessage(copy.configured);
-    } else {
-      setMessage(typeof body.error === "string" ? body.error : copy.configureFailed);
+    setMessageKind("error");
+    try {
+      const response = await fetch("/api/merchant/payment-integrations", {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify({ organizationId, stallId, provider, environment: "MOCK", enabledChannels: selectedChannels }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok && body.connection) {
+        setConnections((current) => [
+          ...current.filter((connection) => !(connection.stallId === stallId && connection.provider === provider && connection.environment === "MOCK")),
+          { ...body.connection, stallId, lastVerifiedAt: new Date().toISOString(), lastErrorCode: null },
+        ]);
+        setMessageKind("success");
+        setMessage(copy.configured);
+      } else {
+        setMessage(typeof body.error === "string" ? body.error : copy.configureFailed);
+      }
+    } catch {
+      setMessage(copy.configureFailed);
+    } finally {
+      setPending(false);
     }
-    setPending(false);
   }
 
   async function runMock() {
-    if (!orderId) return;
+    if (!orderId || pending) return;
     setPending(true);
     setMessage("");
-    const idempotencyKey = crypto.randomUUID();
-    const response = await fetch("/api/merchant/payment-integrations/mock", {
-      method: "POST",
-      headers: { ...csrfHeaders(), "x-idempotency-key": idempotencyKey },
-      body: JSON.stringify({ organizationId, stallId, orderId, provider, scenario }),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (response.ok && body.transaction) {
-      setTransactions((current) => [body.transaction, ...current.filter((transaction) => transaction.id !== body.transaction.id)]);
-      setMessage(`${copy.testCompleted}: ${body.transaction.status}. ${copy.testCompletedEvidence}`);
-    } else {
-      setMessage(typeof body.error === "string" ? body.error : copy.testFailed);
+    setMessageKind("error");
+    const fingerprint = JSON.stringify({ organizationId, stallId, orderId, provider, scenario });
+    if (mockAttempt.current?.fingerprint !== fingerprint) {
+      mockAttempt.current = { fingerprint, key: crypto.randomUUID() };
     }
-    setPending(false);
+    const idempotencyKey = mockAttempt.current.key;
+    try {
+      const response = await fetch("/api/merchant/payment-integrations/mock", {
+        method: "POST",
+        headers: { ...csrfHeaders(), "x-idempotency-key": idempotencyKey },
+        body: JSON.stringify({ organizationId, stallId, orderId, provider, scenario }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok && body.transaction) {
+        mockAttempt.current = null;
+        setMessageKind("success");
+        setTransactions((current) => [body.transaction, ...current.filter((transaction) => transaction.id !== body.transaction.id)]);
+        setMessage(`${copy.testCompleted}: ${body.transaction.status}. ${copy.testCompletedEvidence}`);
+      } else {
+        setMessage(typeof body.error === "string" ? body.error : copy.testFailed);
+      }
+    } catch {
+      setMessage(copy.testFailed);
+    } finally {
+      setPending(false);
+    }
   }
 
   function toggleChannel(channel: string) {
@@ -146,7 +169,7 @@ export function PaymentIntegrationManager({
         <strong>{copy.localOnly}</strong>
         <p className="mt-1">{copy.localOnlyDescription}</p>
       </section>
-      {message ? <p role="status" className="rounded-md border border-stone-200 bg-white p-3 text-sm">{message}</p> : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
 
       <section className="rounded-xl border border-stone-200 bg-white p-5">
         <h2 className="text-xl font-semibold">{copy.mockConnection}</h2>

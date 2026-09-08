@@ -28,6 +28,7 @@ export async function getStaffOrderPageConfiguration(
       orderBy: [{ sortOrder: "asc" }, { product: { sortOrder: "asc" } }],
       select: {
         priceOverride: true,
+        stockRemaining: true,
         sortOrder: true,
         product: {
           select: {
@@ -243,6 +244,7 @@ export async function getStaffOrderPageConfiguration(
       group: assignment.product.group?.name ?? null,
       groupTranslations: assignment.product.group?.translations ?? [],
       price: assignment.priceOverride ?? assignment.product.defaultPrice,
+      stockRemaining: assignment.stockRemaining,
       isOrderDiscountEligible: assignment.product.isOrderDiscountEligible,
       kind: assignment.product.kind,
       bundleChoiceGroups: assignment.product.kind === "BUNDLE" ? bundleChoiceGroups : [],

@@ -121,6 +121,25 @@ describe("Next public preorder menu", () => {
     expect(query.where.AND).toBeUndefined();
   });
 
+  it("turning off lottery also suppresses saved spend and active festival eligibility", async () => {
+    const context = await qrCodeFindUnique();
+    qrCodeFindUnique.mockResolvedValue({
+      ...context,
+      stall: {
+        ...context.stall, businessStatus: "OPEN", orderingState: "OPEN",
+        orderingSettings: { ...context.stall.orderingSettings, lotteryEnabled: false },
+        lotteryCampaigns: [{ name: "Active saved campaign", isEnabled: true,
+          startsOn: new Date("2000-01-01"), endsOn: new Date("2099-12-31") }],
+      },
+    });
+    const { getCachedPublicMenuForQrToken } = await import("./public-menu");
+    const menu = await getCachedPublicMenuForQrToken("lottery-disabled-qr", "DEFAULT");
+    expect(menu).toMatchObject({
+      lotteryEnabled: false,
+      lotteryReward: { spendEnabled: false, festivalEnabled: false, festivalActive: false },
+    });
+  });
+
   it("removes closed local dates from preorder slots without hiding the closure notice", async () => {
     specialClosureFindMany.mockResolvedValue([{
       id: "closure-a",

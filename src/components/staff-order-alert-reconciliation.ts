@@ -16,7 +16,7 @@ export function reconcileStaffOrderAlerts(
     else if (previousStatus !== "WAITING_CONFIRMATION") modifiedOrderCount += 1;
   }
 
-  previousStatuses.clear();
+  // A temporarily absent order or a delayed snapshot must not become a new-order alert again.
   nextOrders.forEach((order) => previousStatuses.set(order.id, order.status));
   return { newOrderCount, modifiedOrderCount };
 }

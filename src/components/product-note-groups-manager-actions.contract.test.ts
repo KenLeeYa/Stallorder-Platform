@@ -46,7 +46,8 @@ describe("product note compact action hierarchy", () => {
     expect(source).toContain('data-testid="product-note-action-dialog"');
     expect(source).toContain("ProductNoteActionButton");
     expect(source).toContain('role="dialog"');
-    expect(source).toContain('aria-modal="true"');
+    expect(source).toContain('aria-modal={active || undefined}');
+    expect(source).toContain('aria-hidden={!active || undefined}');
   });
 
   it("uses large touch switches for note, group, and product selection", () => {

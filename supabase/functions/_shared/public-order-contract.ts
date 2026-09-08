@@ -1,5 +1,13 @@
 export type PublicOrderingMode = "DEFAULT" | "DELIVERY" | "PREORDER";
 
+export function normalizeStoredOrderTimestamp(value: string | null | undefined) {
+  if (!value) return null;
+  // Prisma's timestamp columns store UTC without an offset. PostgREST returns
+  // that offsetless text, which browsers otherwise interpret as local time.
+  const timestamp = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`;
+  return new Date(timestamp).toISOString();
+}
+
 export type PublicOrderCapacity = {
   quote_min_minutes?: number;
   quote_max_minutes?: number;

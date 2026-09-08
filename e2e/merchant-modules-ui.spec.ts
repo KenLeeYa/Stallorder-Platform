@@ -783,7 +783,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(noteGroupNavigator).toHaveCount(0);
-  await expect(page.getByTestId("open-catalog-navigator")).toBeVisible();
+  await expect(page.getByRole("region", { name: "商品批次管理", exact: true })).toBeVisible();
   const validCsvRow = [
     "",
     "測試分類",

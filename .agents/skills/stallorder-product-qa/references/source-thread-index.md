@@ -53,3 +53,11 @@ When the owner changes a rule:
 2. add a conflict-resolution note here when it supersedes an older instruction;
 3. add or update executable regression tests;
 4. do not delete historical task records merely because the rule changed.
+
+### 2026-09-07 local inline-board correction and expanded QA
+
+The owner reported unequal product sidebar height and notes still showing only two large cards. Tablet/desktop must show the group/option board inline and align product pane bottoms; phone keeps the established hierarchy. Earlier two-card-only desktop instructions are superseded. The same request authorizes enabling supported local features, functional/error/open-close/load tests, and retaining synthetic examples; it does not authorize Production deployment or real provider transactions.
+
+### 2026-09-08 reusable-note navigation correction
+
+The owner showed "管理 不加胡椒" over the catalog after selecting a reusable note and required the "所有單一註記" window to remain. `leaveReusableNoteNavigator` had explicitly closed the navigator and reset its query; older E2E helpers silently reopened it. Preserve the parent navigator beneath child actions/editors and verify actual return state without reopening it. This is a local UI correction, not a Production release request.

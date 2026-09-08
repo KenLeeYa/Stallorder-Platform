@@ -34,6 +34,8 @@ export function buildLocalQaEnvironment(port, environment = process.env) {
     LOCAL_DEV_ALLOWED_ORIGINS: origin,
     LOCAL_QA_QUICK_LOGIN_ENABLED: "true",
     LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT: "true",
+    REPORT_DELIVERY_MODE: "simulate",
+    PAYMENT_PROVIDER_MODE: "mock",
     NEXT_PUBLIC_ENABLE_PWA_IN_DEVELOPMENT: "false",
     NEXT_PUBLIC_FORCE_PUBLIC_ORDER_CIRCUIT_B: "true",
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",

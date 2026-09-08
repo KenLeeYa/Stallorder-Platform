@@ -5,10 +5,12 @@ import {
   qrProductSelectionControl,
 } from "./local-navigation";
 import { createOpenQrFixture } from "./open-qr-fixture";
+import { createEnglishOrderCatalogFixture } from "./english-order-catalog-fixture";
 
 test.use({ serviceWorkers: "block" });
 
 const prisma = new PrismaClient();
+let restoreEnglishCatalog: (() => Promise<void>) | undefined;
 let takeoutQrToken = "";
 const password = "StallOrderDemo!2026";
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -18,7 +20,8 @@ let qrFixture: Awaited<
   ReturnType<typeof createOpenQrFixture>
 > | null = null;
 
-test.beforeAll(async () => {
+test.beforeAll(async ({ playwright }) => {
+  restoreEnglishCatalog = await createEnglishOrderCatalogFixture(prisma, playwright);
   qrFixture = await createOpenQrFixture({
     organizationId,
     stallId,
@@ -47,7 +50,7 @@ test.afterAll(async () => {
     try {
       await qrFixture?.restore();
     } finally {
-      await prisma.$disconnect();
+      try { await restoreEnglishCatalog?.(); } finally { await prisma.$disconnect(); }
     }
   }
 });
@@ -109,10 +112,26 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
 
   let createResponsePromise = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname.endsWith("/create-public-order") &&
+      ["/create-public-order", "/api/public/orders"].some(path => new URL(response.url()).pathname.endsWith(path)) &&
       response.request().method() === "POST",
   );
   await submitOrder.click();
+  const upsell = page.getByRole("dialog", { name: "One more look before checkout", exact: true });
+  if (await upsell.isVisible()) {
+    await upsell.getByRole("button", { name: "No thanks, checkout", exact: true }).click();
+    await expect(upsell).not.toBeVisible();
+  }
+  const rewardPrompt = page.getByTestId("lottery-reward-eligibility-dialog");
+  const claimedReward = await rewardPrompt.isVisible();
+  if (claimedReward) {
+    await rewardPrompt.getByRole("button", { name: "Start lucky draw", exact: true }).click();
+    const result = page.getByTestId("lottery-result-dialog");
+    await expect(result).toHaveAttribute("data-phase", "result");
+    await result.getByRole("button", { name: "Claim free item", exact: true }).click();
+    await expect(result).not.toBeVisible();
+    await submitOrder.click();
+  }
+  const expectedLineCount = claimedReward ? 2 : 1;
   let createResponse = await createResponsePromise;
   if (createResponse.status() === 422) {
     await expect(createResponse.json()).resolves.toMatchObject({
@@ -123,7 +142,7 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
     await expect(submitOrder).toBeEnabled({ timeout: 15_000 });
     createResponsePromise = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname.endsWith("/create-public-order") &&
+        ["/create-public-order", "/api/public/orders"].some(path => new URL(response.url()).pathname.endsWith(path)) &&
         response.request().method() === "POST",
     );
     await submitOrder.click();
@@ -189,10 +208,10 @@ test("重掃同一 QR 找回原訂單，遺失三位數取餐碼時可人工核�
       .getByRole("button", { name: "確認接單", exact: true })
       .click();
     await staffOrderItems
-      .getByRole("button", { name: "全部開始製作（1）", exact: true })
+      .getByRole("button", { name: `全部開始製作（${expectedLineCount}）`, exact: true })
       .click();
     await staffOrderItems
-      .getByRole("button", { name: "全部餐點完成（1）", exact: true })
+      .getByRole("button", { name: `全部餐點完成（${expectedLineCount}）`, exact: true })
       .click();
     await staffOrderActions
       .getByRole("button", { name: "結帳收款", exact: true })

@@ -2183,6 +2183,9 @@ model StallProduct {
   priceOverride  Int?         @map("price_override")
   isEnabled      Boolean      @default(true) @map("is_enabled")
   isSoldOut      Boolean      @default(false) @map("is_sold_out")
+  stockRemaining Int?        @map("stock_remaining")
+  stockVersion   Int         @default(0) @map("stock_version")
+  stockStartedAt DateTime?   @map("stock_started_at") @db.Timestamptz
   availableFrom  DateTime?    @map("available_from")
   availableUntil DateTime?    @map("available_until")
   sortOrder      Int          @default(0) @map("sort_order")
@@ -2401,6 +2404,7 @@ model StallBusinessHour {
   dayOfWeek      Int          @map("day_of_week") @db.SmallInt
   opensAt        String       @default("17:00") @map("opens_at")
   closesAt       String       @default("23:00") @map("closes_at")
+  lastOrderAt    String?      @map("last_order_at")
   isClosed       Boolean      @default(false) @map("is_closed")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
@@ -2420,6 +2424,7 @@ model StallSpecialClosure {
   endsOn         DateTime     @map("ends_on") @db.Date
   opensAt        String?      @map("opens_at")
   closesAt       String?      @map("closes_at")
+  lastOrderAt    String?      @map("last_order_at")
   title          String       @default("公休日")
   message        String       @default("")
   createdAt      DateTime     @default(now()) @map("created_at")
@@ -2676,6 +2681,8 @@ model OrderSession {
 }
 
 model Order {
+  stockAllocations         Json                @default("{}") @map("stock_allocations")
+  stockConsumed            Boolean             @default(false) @map("stock_consumed")
   id                       String              @id @default(uuid()) @db.Uuid
   organizationId           String              @map("organization_id") @db.Uuid
   stallId                  String              @map("stall_id") @db.Uuid

@@ -29,9 +29,36 @@
 1. LINE Login callback URL：`https://staging.qidaigo.com/api/public/line/callback`。
 2. 到攤位管理的「LINE 通知」輸入 LINE Login Channel ID、Messaging API Channel Access Token、Messaging API Channel Secret、LINE Login Channel Secret。
 3. 儲存後複製畫面產生的 Webhook URL，貼入 Messaging API channel 並啟用 Webhook。
-4. 憑證透過受 RBAC、CSRF、Origin validation 與 rate limit 保護的 API 寫入 Supabase Vault；瀏覽器、資料表、log 與 Git 都不保存明文。
+4. 憑證透過受 RBAC、CSRF、Origin validation 與 rate limit 保護的 API 寫入 Supabase Vault；表單編輯期間只暫存在目前頁面的記憶體，儲存後清空，不寫入瀏覽器持久儲存、一般資料表、log 或 Git。
 
 正式環境需改用 `https://app.qidaigo.com/api/public/line/callback`，且必須使用 Production 專用 LINE channel 與 Vault secret，不得沿用 Staging 憑證。
+
+## 商家首次設定引導（2026-09-08）
+
+入口為「攤位管理 → LINE 訂單通知」。新設定預設從第一步開始；已有設定則直接顯示第四步的 Webhook 與實測說明，可按「修改串接設定」回到欄位。各步驟可直接切換，編輯草稿會保留到本次頁面離開為止。
+
+| 步驟 | 商家操作 | 系統提供 |
+| --- | --- | --- |
+| 1 官方帳號 | 用自己的 OA 啟用 Messaging API，選擇 Provider，取得 Messaging API Token 與 Secret | 官方後台另開分頁、Provider 不可更換提醒、欄位取得位置及密碼輸入 |
+| 2 LINE Login | 在同一 Provider 建立 Web app Channel、連結 OA、填入 Login ID／Secret 與 Callback URL | 依目前環境產生顧客用 `/api/public/line/callback`，一鍵複製及複製失敗時的手動選取 |
+| 3 通知設定 | 填顯示名稱、OA 網址，選確認／取餐／取消通知並儲存 | 沿用既有權限與 Vault 寫入；欄位錯誤回到對應步驟，確認錯誤視窗後聚焦；網路失敗保留草稿供重試 |
+| 4 Webhook 與實測 | 將攤位 Webhook 貼入 Messaging API，Verify 成功後啟用 Use webhook，再以顧客訂單完成授權及收訊測試 | 儲存後產生攤位 Webhook URL，提供好友、Channel 狀態、憑證、額度及原有 Webhook 衝突的排查說明 |
+
+- 不需申請額外 Vault 帳號。更新設定仍依既有 UPSERT 合約要求三項憑證；可以重用有效原值，無須為了重填而在 LINE 重新簽發 Token。
+- 本機／非 HTTPS 的環境會持續顯示 LINE 無法連入的說明；網址維持本環境值，不偷偷替換成正式站。公開 HTTPS 本身也不代表 LINE 已通過驗證。
+- `ACTIVE` 代表設定已儲存及整合狀態開啟，介面會明示「尚未驗證實際收訊」。步驟位置不代表驗證成功，沒有自動勾選或假成功徽章。
+- 本次未加入 LINE Channel 自動建立、憑證／Webhook 即時驗證、測試推播、Token 自動續期或 Module attach 授權；LINE 後台與真正收訊仍需依引導操作。OA 管理員建立及發布 Channel 的流程保留在 LINE。
+- 現行顧客綁定以訂單為範圍，尚未建立跨訂單會員身分。本引導不會宣稱會員串接已完成。
+- 每個 Channel 僅一個 Webhook URL；已有其他 CRM／機器人，或多攤位共用 OA 時，先確認既有整合設計，避免覆蓋其他服務。
+- 桌機 1440、平板 768、手機 390／320 使用同一流程；步驟及主操作至少 48px，窄版兩欄步驟、單欄欄位，並保留既有未儲存離頁提醒。新引導字串具六種介面語系。
+
+來源：[Messaging API 開始使用](https://developers.line.biz/en/docs/messaging-api/getting-started/)、[LINE Login 設定](https://developers.line.biz/en/docs/line-login/getting-started/)、[連結官方帳號](https://developers.line.biz/en/docs/line-login/link-a-bot/)、[Webhook 設定](https://developers.line.biz/en/docs/messaging-api/building-bot/)。
+
+驗收：`QA-MER-11`；`e2e/line-setup-guide-local.spec.ts`（本機 loopback 限制，成功寫入回應及失敗使用 mock，無真實憑證或推播）、`e2e/line-notifications-and-reorder.spec.ts`（真實驗證 API 400／Kitchen 403、顧客入口與返回 Menu mock）、既有 LINE 合約／通知處理／OAuth／Callback 測試。上線狀態以相同 commit 的受保護發布證據為準；應用程式上線不代表商家的真實 LINE 收訊已驗收。
+
+本機驗收結果：7 項引導案例與 2 項既有流程案例通過，包含停用取消／錯誤／成功回饋；8 個單元測試檔共 20 項通過。TypeScript、修改檔 ESLint、323 個 TSX 的 UI control audit、Production build 及變更內容的 Gitleaks 掃描皆通過。原始 checkout 的未提交 diff 指紋保持不變。
+
+本次正式發布已依使用者追加要求擴大為 LINE 引導與先前本機功能的完整整合；資料庫、Edge、應用與 DR 必須依 [整合發布紀錄](FUNCTIONAL_RELEASE_20260908.md) 的完整受保護流程驗證。早先單獨 LINE 候選的 9 項瀏覽器、3,027 項單元測試屬於歷史證據，不替代完整整合驗證。
 
 ## 安全控制
 

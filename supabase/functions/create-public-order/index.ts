@@ -350,7 +350,7 @@ Deno.serve(async (request) => {
       createArguments,
     ));
     if (createError) {
-      const knownCode = ["TOO_MANY_PENDING_ORDERS", "PICKUP_CODE_CAPACITY_EXCEEDED"]
+      const knownCode = ["TOO_MANY_PENDING_ORDERS", "PICKUP_CODE_CAPACITY_EXCEEDED", "PRODUCT_STOCK_INSUFFICIENT"]
         .find((code) => createError.message.includes(code));
       if (knownCode) {
         const code = knownCode;

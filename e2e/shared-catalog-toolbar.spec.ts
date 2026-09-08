@@ -11,6 +11,10 @@ async function login(page: Page) {
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
+  await expect(page).toHaveURL(/\/(?:merchant\/dashboard\?organizationId=|select-organization)/);
+  if (new URL(page.url()).pathname === "/select-organization") {
+    await page.locator(`a[href="/merchant/dashboard?organizationId=${organizationId}"]`).click();
+  }
   await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/);
 }
 
@@ -44,7 +48,9 @@ test("商品管理工具列依裝置寬度維持功能分列且不溢位", async
         return { top: bounds.top, height: bounds.height };
       }),
     );
-  expect(desktopCreateButtons).toHaveLength(4);
+  expect(desktopCreateButtons).toHaveLength(5);
+  const sortAction = createRow.getByRole("button", { name: "分類與群組排序", exact: true });
+  await expect(sortAction).toBeVisible();
   expect(
     new Set(desktopCreateButtons.map(({ top }) => Math.round(top))).size,
   ).toBe(1);
@@ -52,9 +58,10 @@ test("商品管理工具列依裝置寬度維持功能分列且不溢位", async
     expect(bounds.height).toBeGreaterThanOrEqual(44);
 
   await page.setViewportSize({ width: 375, height: 812 });
+  await expect(sortAction).toBeHidden();
   const actions = catalogRegion.getByTestId("shared-catalog-action-scroller");
   const toolbarControls = actions.locator(
-    ":scope > div > button, :scope > div > a, :scope > div > label",
+    ":scope > div > button:visible, :scope > div > a:visible, :scope > div > label:visible",
   );
   const mobileBounds = await toolbarControls.evaluateAll((controls) =>
     controls.map((control) => {

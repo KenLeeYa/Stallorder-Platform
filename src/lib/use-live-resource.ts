@@ -4,6 +4,13 @@ import { useCallback, useEffect, useEffectEvent, useRef } from "react";
 
 export type LiveResourceCursor = number | string;
 
+export class LiveResourceRetryError extends Error {
+  constructor(message: string, public readonly retryAfterMs: number) {
+    super(message);
+    this.name = "LiveResourceRetryError";
+  }
+}
+
 export type LiveResourceEnvironment = {
   visibilityState: () => DocumentVisibilityState;
   online: () => boolean;
@@ -69,6 +76,7 @@ export function startLiveResource<T, C extends LiveResourceCursor = LiveResource
   let active = false;
   let stopped = false;
   let failureCount = 0;
+  let retryNotBefore = 0;
 
   const cancelRefreshTimer = () => {
     if (refreshTimer === null) return;
@@ -135,15 +143,19 @@ export function startLiveResource<T, C extends LiveResourceCursor = LiveResource
       });
       if (abort.signal.aborted || stopped || !active) return;
       failureCount = 0;
+      retryNotBefore = 0;
       acceptResult(result, requestedCursor);
     } catch (error) {
       if (abort.signal.aborted || stopped || !active) return;
       failureCount += 1;
       options.onError?.(error);
-      scheduleRefresh(Math.min(
+      const retryDelayMs = Math.max(error instanceof LiveResourceRetryError
+        && Number.isFinite(error.retryAfterMs) ? error.retryAfterMs : 0, Math.min(
         retryBaseMs * 2 ** (failureCount - 1),
         maxBackoffMs,
       ));
+      retryNotBefore = Date.now() + retryDelayMs;
+      scheduleRefresh(retryDelayMs);
     } finally {
       if (refreshAbort !== abort) return;
       refreshAbort = null;
@@ -171,6 +183,11 @@ export function startLiveResource<T, C extends LiveResourceCursor = LiveResource
 
   const requestRefresh = (requestedCursor?: C) => {
     if (stopped || !active) return Promise.resolve();
+    if (Date.now() < retryNotBefore) {
+      options.onLoadingChange?.(false);
+      scheduleRefresh(retryNotBefore - Date.now());
+      return Promise.resolve();
+    }
     if (inFlight) {
       queued = true;
       rememberQueuedCursor(requestedCursor);

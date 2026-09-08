@@ -1044,7 +1044,7 @@ export function StaffOrderComposer({
                         <p className="mt-1 text-sm font-semibold">{formatMoney(unitPrice, stall.currency, locale)}</p>
                             {cartQuantity > 0 ? <p className="mt-1 text-xs font-medium text-teal-800">{t("composer.inCart", { count: cartQuantity })}</p> : null}
                           </div>
-                          {hasConfiguration ? <button
+                          {product.stockRemaining === 0 ? <span className="rounded-md bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">庫存售完</span> : hasConfiguration ? <button
                             type="button"
                             data-testid="staff-open-product-configurator"
                             onClick={() => openProductConfigurator(product)}
@@ -1055,7 +1055,7 @@ export function StaffOrderComposer({
                             <button type="button" title={t("composer.increaseItem", { item: productCopy.name })} onClick={() => setQuantity(product.id, quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md bg-teal-800 text-white"><Plus className="h-4 w-4" /></button>
                           </div>}
                         </div>
-                        {!hasConfiguration && quantity > 0 ? <button type="button" onClick={() => addProductToCart(product)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white"><ShoppingCart className="h-4 w-4" />{t("composer.addToCart")}</button> : null}
+                        {!hasConfiguration && quantity > 0 && product.stockRemaining !== 0 ? <button type="button" onClick={() => addProductToCart(product)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white"><ShoppingCart className="h-4 w-4" />{t("composer.addToCart")}</button> : null}
                         </article>;
                     })}
                   </div> : null}

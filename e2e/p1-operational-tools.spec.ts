@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
 import {
+  continueQrCheckout,
   dismissStaffStartReminder,
   qrProductSelectionControl,
 } from "./local-navigation";
@@ -14,8 +16,9 @@ assertLocalDatabase();
 const prisma = new PrismaClient();
 const password = "StallOrderDemo!2026";
 const organizationId = "11111111-1111-4111-8111-111111111111";
-const primaryStallId = "22222222-2222-4222-8222-222222222222";
-const tableQrToken = "demo-aming-chicken-table-a1-qr-2026";
+const primaryStallId = randomUUID();
+const primaryStallSlug = "p1-operations-" + primaryStallId.slice(0, 8);
+const tableQrToken = "p1-table-" + primaryStallId;
 const managerAuthorizationCode = "246810";
 const sourceSlug = "p1-template-source";
 const targetSlug = "p1-template-target";
@@ -36,6 +39,44 @@ test.describe("P1 營運功能", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
+    await prisma.stall.create({ data: {
+      id: primaryStallId, organizationId, slug: primaryStallSlug, code: primaryStallSlug,
+      name: "同桌合併與列印 QA", address: "本機", location: "本機",
+      orderingEnabled: true, orderingState: "OPEN", businessStatus: "OPEN",
+      orderingSettings: { create: { organizationId, dineInEnabled: true, paymentModuleEnabled: true,
+        discountModuleEnabled: true, printModuleEnabled: true, kdsModuleEnabled: true } },
+      paymentOptions: { create: { organizationId, code: "CASH", name: "現金", kind: "CASH" } },
+      businessHours: { create: Array.from({ length: 7 }, (_, dayOfWeek) => ({
+        organizationId, dayOfWeek, opensAt: "00:00", closesAt: "23:59",
+      })) },
+    } });
+    const members = await prisma.stallMembership.findMany({
+      where: { stallId: "22222222-2222-4222-8222-222222222222", isActive: true },
+      select: { profileId: true, role: true },
+    });
+    await prisma.stallMembership.createMany({
+      data: members.map((member) => ({ ...member, organizationId, stallId: primaryStallId })),
+    });
+    const menu = await prisma.product.findMany({
+      where: { organizationId, name: { in: ["香酥雞排", "地瓜薯條"] } },
+    });
+    await prisma.stallProduct.createMany({
+      data: menu.map((product) => ({ organizationId, stallId: primaryStallId, productId: product.id })),
+    });
+    const table = await prisma.diningTable.create({ data: {
+      organizationId, stallId: primaryStallId, code: "A1", label: "A1 桌",
+    } });
+    await prisma.qrCode.create({ data: {
+      organizationId, stallId: primaryStallId, diningTableId: table.id, token: tableQrToken,
+      label: "P1 A1", tokenVersion: 1,
+    } });
+    const printer = await prisma.printer.create({ data: {
+      organizationId, stallId: primaryStallId, name: "P1 QA 印表機", connectionType: "SYSTEM_PRINT",
+    } });
+    await prisma.printRule.create({ data: {
+      organizationId, stallId: primaryStallId, printerId: printer.id,
+      name: "P1 接單列印", trigger: "ORDER_CONFIRMED", documentType: "KITCHEN_TICKET",
+    } });
     originalPrimaryBusinessHours = await prisma.stallBusinessHour.findMany({
       where: { stallId: primaryStallId },
       select: { id: true, opensAt: true, closesAt: true, isClosed: true },
@@ -96,7 +137,7 @@ test.describe("P1 營運功能", () => {
         data: {
           organizationId,
           subscriptionId: subscription.id,
-          quantity: 2,
+          quantity: 3,
           unitPrice: 0,
           reason: "P1 E2E fixture",
         },
@@ -266,6 +307,8 @@ test.describe("P1 營運功能", () => {
         }),
       ),
     );
+    await prisma.billingStallUsageSummary.deleteMany({ where: { stallId: primaryStallId } });
+    await prisma.stall.deleteMany({ where: { id: primaryStallId } });
     await prisma.$disconnect();
   });
 
@@ -275,7 +318,7 @@ test.describe("P1 營運功能", () => {
   }) => {
     test.setTimeout(180_000);
     await login(page, "staff@stallorder.test");
-    await page.goto("/staff/aming-chicken/cash");
+    await page.goto(`/staff/${primaryStallSlug}/cash`);
     const openShiftTrigger = page.getByRole("button", {
       name: "開始現金班次",
       exact: true,
@@ -306,7 +349,7 @@ test.describe("P1 營運功能", () => {
       .fill("P1 E2E 備用金");
     const movementResponse = page.waitForResponse(
       (response) =>
-        response.url().endsWith("/api/stalls/aming-chicken/cash-shifts") &&
+        response.url().endsWith(`/api/stalls/${primaryStallSlug}/cash-shifts`) &&
         response.request().method() === "POST",
     );
     await movementDialog
@@ -327,14 +370,14 @@ test.describe("P1 營運功能", () => {
     const secondCustomer = await secondContext.newPage();
     const firstOrderNo = await createDineInOrder(
       firstCustomer,
-      "Deep-Fried Chicken Cutlet",
+      "香酥雞排",
     );
     const secondOrderNo = await createDineInOrder(
       secondCustomer,
-      "Sweet Potato Fries",
+      "地瓜薯條",
     );
 
-    await page.goto("/staff/aming-chicken");
+    await page.goto(`/staff/${primaryStallSlug}`);
     await dismissStaffStartReminder(page);
     const orderSearch = page
       .getByRole("main")
@@ -404,7 +447,7 @@ test.describe("P1 營運功能", () => {
         .size,
     ).toBe(1);
 
-    await page.goto("/staff/aming-chicken/print");
+    await page.goto(`/staff/${primaryStallSlug}/print`);
     const takeOverPrinter = page
       .getByRole("button", { name: "本機接手" })
       .first();
@@ -462,7 +505,7 @@ test.describe("P1 營運功能", () => {
     );
     await expect(reprintJob).toContainText("待列印");
 
-    await page.goto("/staff/aming-chicken/cash");
+    await page.goto(`/staff/${primaryStallSlug}/cash`);
     const cashMain = page.locator("#main-content");
     await expect(cashMain).toHaveCount(1);
     await expect(cashMain.getByText("$2,606", { exact: true })).toBeVisible();
@@ -476,7 +519,7 @@ test.describe("P1 營運功能", () => {
     await expect(page.getByText("帳款相符", { exact: true })).toBeVisible();
     const closeShiftResponse = page.waitForResponse(
       (response) =>
-        response.url().endsWith("/api/stalls/aming-chicken/cash-shifts") &&
+        response.url().endsWith(`/api/stalls/${primaryStallSlug}/cash-shifts`) &&
         response.request().method() === "POST",
     );
     await closeShiftDialog
@@ -503,9 +546,9 @@ test.describe("P1 營運功能", () => {
     const cancelCustomer = await cancelContext.newPage();
     const cancelledOrderNo = await createDineInOrder(
       cancelCustomer,
-      "Deep-Fried Chicken Cutlet",
+      "香酥雞排",
     );
-    await page.goto("/staff/aming-chicken");
+    await page.goto(`/staff/${primaryStallSlug}`);
     await dismissStaffStartReminder(page);
     const cancellationMain = page.getByRole("main");
     await cancellationMain
@@ -529,7 +572,7 @@ test.describe("P1 營運功能", () => {
     const cancellationResponse = page.waitForResponse(
       (response) =>
         new URL(response.url()).pathname.includes(
-          "/api/stalls/aming-chicken/orders/",
+          `/api/stalls/${primaryStallSlug}/orders/`,
         ) && response.request().method() === "PATCH",
       { timeout: 30_000 },
     );
@@ -605,7 +648,8 @@ async function login(page: Page, email: string) {
   const warmupResponse = await page.context().request.get("/api/auth/login");
   expect(warmupResponse.status()).toBe(405);
   await warmupResponse.dispose();
-  await page.goto("/login");
+  const destination = email === "staff@stallorder.test" ? `/staff/${primaryStallSlug}` : `/merchant/dashboard?organizationId=${organizationId}`;
+  await page.goto(`/login?next=${encodeURIComponent(destination)}`);
   const emailLogin = page.getByRole("button", {
     name: "使用電子郵件與密碼登入",
     exact: true,
@@ -637,34 +681,33 @@ async function createDineInOrder(page: Page, productName: string) {
   });
   expect(qrResponse?.status()).toBe(200);
   expect(new URL(page.url()).pathname).toBe(qrPath);
-  const languageMenu = page.getByRole("button", { name: "點餐語言" });
-  await expect(languageMenu).toBeVisible();
-  await languageMenu.click();
-  await page.getByRole("option", { name: "English", exact: true }).click();
   const product = page.getByRole("article").filter({ hasText: productName });
   await qrProductSelectionControl(
     product,
     productName,
-    `Increase ${productName}`,
+    `增加 ${productName}`,
   ).click();
   await product
-    .getByRole("button", { name: "Add to cart", exact: true })
+    .getByRole("button", { name: "加入購物車", exact: true })
     .click();
+  const continueButton = page.getByRole("button", { name: "繼續填寫訂購資料", exact: true });
+  if (await continueButton.isVisible()) await continueButton.click();
+  await continueQrCheckout(page);
   const waitAcknowledgment = page.getByRole("checkbox", {
-    name: /I understand the estimated wait/,
+    name: /我已了解目前預估等候時間/,
   });
   if (await waitAcknowledgment.isVisible()) await waitAcknowledgment.check();
-  await expect(page.getByLabel("Customer name")).toHaveCount(0);
-  await expect(page.getByLabel("Phone", { exact: true })).toHaveCount(0);
-  await expect(page.getByLabel("Order notes", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("顧客稱呼")).toHaveCount(0);
+  await expect(page.getByLabel("聯絡電話", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("訂單備註", { exact: true })).toBeVisible();
   const submitButton = page.getByRole("button", {
-    name: "Place order",
+    name: "送出訂單",
     exact: true,
   });
   await expect(submitButton).toBeEnabled({ timeout: 15_000 });
   let responsePromise = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname.endsWith("/create-public-order") &&
+      ["/create-public-order", "/api/public/orders"].some(path => new URL(response.url()).pathname.endsWith(path)) &&
       response.request().method() === "POST",
   );
   await submitButton.click();
@@ -678,7 +721,7 @@ async function createDineInOrder(page: Page, productName: string) {
     await expect(submitButton).toBeEnabled({ timeout: 15_000 });
     responsePromise = page.waitForResponse(
       (nextResponse) =>
-        new URL(nextResponse.url()).pathname.endsWith("/create-public-order") &&
+        ["/create-public-order", "/api/public/orders"].some(path => new URL(nextResponse.url()).pathname.endsWith(path)) &&
         nextResponse.request().method() === "POST",
     );
     await submitButton.click();

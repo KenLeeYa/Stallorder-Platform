@@ -38,6 +38,9 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
     await expect(hourly.getByText("23:00", { exact: true })).toBeVisible();
     await expect(mainContent.locator('form input[name="stallId"]')).toHaveCount(0);
 
+    // A two-day range can match WEEK on Tuesdays; explicitly enter custom-date editing.
+    await mainContent.getByRole("button", { name: "自訂", exact: true }).click();
+    await expect(mainContent.locator('input[type="date"]')).toHaveCount(2);
     const dateInputWidths = await mainContent.locator('input[type="date"]').evaluateAll((inputs) => inputs.map((input) => input.getBoundingClientRect().width));
     expect(dateInputWidths.every((width) => width >= 150)).toBe(true);
 
@@ -130,6 +133,10 @@ async function login(page: Page) {
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await response).status()).toBe(200);
+  await expect(page).toHaveURL(/\/(?:merchant\/dashboard\?organizationId=|select-organization)/);
+  if (new URL(page.url()).pathname === "/select-organization") {
+    await page.locator(`a[href="/merchant/dashboard?organizationId=${organizationId}"]`).click();
+  }
   await waitForDefaultMerchantDashboard(page, organizationId);
 }
 

@@ -13,7 +13,7 @@ import {
 import { getPublicOrderSchema } from "../_shared/schemas.ts";
 import { createServiceClient } from "../_shared/supabase.ts";
 import { createEdgePerformanceTiming, finalizeEdgeResponse } from "../_shared/performance.ts";
-import { resolveStoredPickupCode } from "../_shared/public-order-contract.ts";
+import { normalizeStoredOrderTimestamp, resolveStoredPickupCode } from "../_shared/public-order-contract.ts";
 
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
@@ -49,9 +49,9 @@ Deno.serve(async (request) => {
 
     const admin = createServiceClient();
     const { data: globalGateResult, error: globalGateError } = await timing.measureDb(() => admin.rpc(
-      "check_global_public_request_gate",
+      "check_public_order_tracking_gate",
       {
-        p_scope: "TRACKING",
+        p_tracking_token_hash: trackingHash,
         p_ip_hash: ipHash,
         p_device_hash: deviceHash,
         p_behavior_hash: behaviorHash,
@@ -59,10 +59,13 @@ Deno.serve(async (request) => {
       },
     ));
     if (globalGateError) throw globalGateError;
-    const globalGate = globalGateResult as { ok: boolean; code?: string };
+    const globalGate = globalGateResult as { ok: boolean; code?: string; retryAfterSeconds?: number };
     if (!globalGate.ok) {
       const code = globalGate.code ?? "RATE_LIMITED";
-      return respond({ error: errorMessage(code), code }, 429);
+      const retryAfterSeconds = globalGate.retryAfterSeconds ?? 300;
+      const response = respond({ error: errorMessage(code), code, retryAfterSeconds }, 429);
+      response.headers.set("retry-after", String(retryAfterSeconds));
+      return response;
     }
 
     const { data, error } = await timing.measureDb(() => admin.rpc("get_public_order", {
@@ -139,7 +142,7 @@ Deno.serve(async (request) => {
           orderContext.data.quoted_wait_minutes ?? settingsQuery.data.estimated_wait_minutes,
         quotedWaitMinutes: orderContext.data.quoted_wait_minutes,
         quotedReadyAt: orderContext.data.quoted_ready_at,
-        lastTableOrderAt: lastTableOrderQuery.data?.created_at ?? null,
+        lastTableOrderAt: normalizeStoredOrderTimestamp(lastTableOrderQuery.data?.created_at),
       },
     }, 200);
   } catch (error) {

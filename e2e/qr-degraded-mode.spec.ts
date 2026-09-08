@@ -1,10 +1,14 @@
 import { expect, test } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
+import { createEnglishOrderCatalogFixture } from "./english-order-catalog-fixture";
 import { qrProductSelectionControl } from "./local-navigation";
 import { createOpenQrFixture } from "./open-qr-fixture";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 let qrFixture: Awaited<ReturnType<typeof createOpenQrFixture>>;
+const prisma = new PrismaClient();
+let restoreEnglishCatalog: (() => Promise<void>) | undefined;
 const availableConfig = {
   mode: "NORMAL_PRIMARY",
   activeBackend: "PRIMARY",
@@ -18,7 +22,8 @@ const availableConfig = {
   updatedAt: "2026-08-01T00:00:00.000Z",
 };
 
-test.beforeAll(async () => {
+test.beforeAll(async ({ playwright }) => {
+  restoreEnglishCatalog = await createEnglishOrderCatalogFixture(prisma, playwright);
   qrFixture = await createOpenQrFixture({
     organizationId,
     stallId,
@@ -28,7 +33,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await qrFixture.restore();
+  try { await qrFixture?.restore(); }
+  finally { try { await restoreEnglishCatalog?.(); } finally { await prisma.$disconnect(); } }
 });
 
 test("後端降級時保留 QR 菜單並停用所有送單操作", async ({ page }) => {
@@ -194,6 +200,7 @@ test("安全工作階段失敗時顯示錯誤並可重新建立", async ({ page 
   await expect(sessionErrorDialog).toContainText(
     "目前無法建立或查詢訂單，請稍後再試。",
   );
+  await expect(page.getByRole("alertdialog")).toHaveCount(1);
   await sessionErrorDialog
     .getByRole("button", { name: "關閉", exact: true })
     .click();
