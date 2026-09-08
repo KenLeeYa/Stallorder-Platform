@@ -269,10 +269,11 @@ export function useStaffOrderBoardController({
     newOrderCount: number;
     modifiedOrderCount: number;
   }) => {
-    if (!alertsEnabledRef.current) return;
     if (newOrderCount + modifiedOrderCount === 0) return;
-    if ("vibrate" in navigator) navigator.vibrate([180, 80, 180]);
-    playConfiguredAlert();
+    if (alertsEnabledRef.current && newOrderCount > 0) {
+      if ("vibrate" in navigator) navigator.vibrate([180, 80, 180]);
+      playConfiguredAlert();
+    }
     setMessage(newOrderCount > 0 && modifiedOrderCount > 0
       ? t("staff.newAndModifiedOrders", {
           newCount: newOrderCount,
@@ -831,6 +832,7 @@ export function useStaffOrderBoardController({
     const fulfillmentAt = timing?.effectiveFulfillmentAt?.getTime();
     if (!fulfillmentAt
       || order.status === "WAITING_CONFIRMATION"
+      || ["COMPLETED", "CANCELLED", "EXPIRED"].includes(order.status)
       || fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)
       || order.items.every((item) => item.status === "SERVED")) return [];
     const leadMilliseconds = (modules.preorderReminderMinutes ?? 30) * 60_000;
@@ -842,11 +844,9 @@ export function useStaffOrderBoardController({
     }
     const newlyDue = [...reminderOrderIds].filter((orderId) => !remindedPreorderIdsRef.current.has(orderId));
     newlyDue.forEach((orderId) => remindedPreorderIdsRef.current.add(orderId));
-    if (newlyDue.length === 0 || !alertsEnabledRef.current) return;
-    if ("vibrate" in navigator) navigator.vibrate([240, 100, 240, 100, 400]);
-    playConfiguredAlert();
+    if (newlyDue.length === 0) return;
     setMessage(t("staff.preorder.reminder", { count: newlyDue.length }));
-  }, [playConfiguredAlert, reminderOrderIds, t]);
+  }, [reminderOrderIds, t]);
   const futureUnpaidTotal = futureOrders.reduce((sum, order) => (
     sum + (order.paymentStatus === "UNPAID" ? order.total : 0)
   ), 0);

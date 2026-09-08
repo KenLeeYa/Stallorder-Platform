@@ -58,6 +58,7 @@ import {
 import { isInvoiceDevMode } from "@/server/e-invoice/runtime-policy";
 import {
   checkGlobalPublicRequestGate,
+  checkPublicOrderTrackingGate,
   checkPublicOrderIntakeAvailability,
   checkPublicOrderSubmissionGate,
   createPublicOrderWithSchedule,
@@ -96,10 +97,11 @@ function requireSecret(name: "ABUSE_HASH_SECRET" | "TOKEN_DERIVATION_SECRET" | "
   return value;
 }
 
-function gateError(gate: { ok: boolean; code?: string } | null) {
+function gateError(gate: { ok: boolean; code?: string; retryAfterSeconds?: number } | null) {
   if (gate?.ok) return;
   const code = gate?.code ?? "RATE_LIMITED";
-  throw new PublicOrderCircuitError(code, statusForCode(code));
+  throw new PublicOrderCircuitError(code, statusForCode(code),
+    gate?.retryAfterSeconds ? { retryAfterSeconds: gate.retryAfterSeconds } : undefined);
 }
 
 function intakeError(gate: { ok: boolean; code?: string } | null) {
@@ -474,10 +476,13 @@ export async function createOrderThroughCircuitB(
     scheduledPickupAt: input.scheduledPickupAt,
     lotteryDrawId: input.lotteryDrawId,
   })).catch((error: unknown) => {
-    if (error instanceof Error && error.message.includes("PICKUP_CODE_CAPACITY_EXCEEDED")) {
+    const code = error instanceof Error
+      ? ["PICKUP_CODE_CAPACITY_EXCEEDED", "PRODUCT_STOCK_INSUFFICIENT"].find((value) => error.message.includes(value))
+      : undefined;
+    if (code) {
       throw new PublicOrderCircuitError(
-        "PICKUP_CODE_CAPACITY_EXCEEDED",
-        statusForCode("PICKUP_CODE_CAPACITY_EXCEEDED"),
+        code,
+        statusForCode(code),
       );
     }
     throw error;
@@ -543,8 +548,8 @@ export async function getOrderThroughCircuitB(
     deviceId: input.deviceId,
     behavior: `tracking:${trackingHash}`,
   });
-  const globalGate = await context.timing.measureDb(() => checkGlobalPublicRequestGate({
-    scope: "TRACKING",
+  const globalGate = await context.timing.measureDb(() => checkPublicOrderTrackingGate({
+    trackingTokenHash: trackingHash,
     ipHash: hashes.ipHash,
     deviceHash: hashes.deviceHash,
     behaviorHash: hashes.behaviorHash,

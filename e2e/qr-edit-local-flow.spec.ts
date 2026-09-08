@@ -1,7 +1,7 @@
 import { expect, test, type Route } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { buildFulfillmentTimeSlots } from "../src/lib/fulfillment-time-options";
-import { qrProductSelectionControl } from "./local-navigation";
+import { continueQrCheckout as continueCheckout, qrProductSelectionControl } from "./local-navigation";
 
 const qrToken = `e2e-qr-edit-${Date.now()}`;
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -16,6 +16,7 @@ let originalHours: Array<{
 let createdOrderId = "";
 let createdPickupOrderId = "";
 let fixtureQrId = "";
+let originalLotteryEnabled = false;
 
 test.use({
   serviceWorkers: "block",
@@ -28,6 +29,9 @@ test.beforeAll(async () => {
   if (!["localhost", "127.0.0.1", "[::1]"].includes(hostname)) {
     throw new Error("QR_EDIT_E2E_REQUIRES_LOCAL_DATABASE");
   }
+  originalLotteryEnabled = (await prisma.stallOrderingSettings.findUniqueOrThrow({ where: { stallId } })).lotteryEnabled;
+  // This amendment case covers an ordinary paid cart; lottery gifts have separate lifecycle cases.
+  await prisma.stallOrderingSettings.update({ where: { stallId }, data: { lotteryEnabled: false } });
   originalHours = await prisma.stallBusinessHour.findMany({
     where: { stallId },
     select: { id: true, opensAt: true, closesAt: true, isClosed: true },
@@ -55,6 +59,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   try {
+    await prisma.stallOrderingSettings.update({ where: { stallId }, data: { lotteryEnabled: originalLotteryEnabled } });
     for (const orderId of [createdOrderId, createdPickupOrderId].filter(Boolean)) {
       const orderSession = await prisma.orderSession.findFirst({
         where: { orderId },
@@ -111,10 +116,30 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
   await cart
     .getByRole("button", { name: "繼續填寫訂購資料", exact: true })
     .click();
+  await continueCheckout(page);
   await expect(page.getByLabel("顧客稱呼")).toHaveCount(0);
   await expect(page.getByLabel("聯絡電話")).toHaveCount(0);
-  await expect(page.getByLabel("訂單備註")).toBeVisible();
-  await page.getByLabel("訂單備註").fill(`QR edit E2E ${Date.now()}`);
+  await expect(page.getByRole("textbox", { name: "訂單備註", exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "訂單備註", exact: true }).fill(`QR edit E2E ${Date.now()}`);
+  const noteBeforeEdit = await page.getByRole("textbox", { name: "訂單備註", exact: true }).inputValue();
+  const utensils = page.getByRole("checkbox", { name: "需要免洗餐具", exact: true });
+  await expect(utensils).not.toBeChecked();
+  await utensils.check();
+  let maintenance = true;
+  await page.route("**/api/availability/config", async (route) => {
+    const response = await route.fetch();
+    const config = await response.json();
+    await route.fulfill({ response, json: { ...config, qrOrdering: maintenance ? "MAINTENANCE" : config.qrOrdering } });
+  });
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(page.getByRole("alertdialog", { name: "點餐系統更新中" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeDisabled();
+  maintenance = false;
+  await page.getByRole("alertdialog", { name: "點餐系統更新中" }).getByRole("button", { name: "重新檢查", exact: true }).click();
+  await expect(page.getByRole("alertdialog", { name: "點餐系統更新中" })).toBeHidden();
+  await expect(utensils).toBeChecked();
+  await expect(page.getByRole("textbox", { name: "訂單備註", exact: true })).toHaveValue(noteBeforeEdit);
+  await page.unroute("**/api/availability/config");
   const waitAcknowledgment = page.getByRole("checkbox", {
     name: /我已了解目前預估等候時間/u,
   });
@@ -135,6 +160,7 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
   });
   const submit = page.getByRole("button", { name: "送出訂單", exact: true });
   await expect(submit).toBeEnabled({ timeout: 20_000 });
+  await page.screenshot({ path: test.info().outputPath("utensils-checkout.png") });
   await submit.click();
   let createResponse = await createResponsePromise;
   if (createResponse.status() === 422) {
@@ -159,6 +185,7 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
   };
   createdOrderId = createRequest.clientOrderId ?? "";
   expect(createdOrderId).toMatch(/^[0-9a-f-]{36}$/iu);
+  expect((await prisma.order.findUniqueOrThrow({ where: { id: createdOrderId } })).note).toBe("【免洗餐具：需要】\n" + noteBeforeEdit);
   await expect(page).toHaveURL(/\/order\/sto_[A-Za-z0-9_-]+(?:\?.*)?$/u);
   const trackerUrl = new URL(page.url());
   expect(trackerUrl.searchParams.get("qr")).toBe(qrToken);
@@ -263,6 +290,10 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
   await editCart
     .getByRole("button", { name: "繼續填寫訂購資料", exact: true })
     .click();
+  await continueCheckout(page);
+  await expect(page.getByRole("checkbox", { name: "需要免洗餐具", exact: true })).toBeChecked();
+  await expect(page.getByRole("textbox", { name: "訂單備註", exact: true })).toHaveValue(noteBeforeEdit);
+  await page.getByRole("checkbox", { name: "需要免洗餐具", exact: true }).uncheck();
   const editResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname.endsWith(`/api/public/orders/${trackingToken}`) &&
@@ -279,8 +310,9 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
 
   const editedOrder = await prisma.order.findUniqueOrThrow({
     where: { id: createdOrderId },
-    select: { items: { select: { name: true, quantity: true } } },
+    select: { note: true, items: { select: { name: true, quantity: true } } },
   });
+  expect(editedOrder.note).toBe(noteBeforeEdit);
   expect(editedOrder.items).toEqual([
     expect.objectContaining({ name: "香酥雞排", quantity: 2 }),
   ]);
@@ -357,6 +389,7 @@ test("本機外帶自取修改訂單會保留顧客姓名與手機", async ({ pa
     .getByTestId("qr-cart-panel")
     .getByRole("button", { name: "繼續填寫訂購資料", exact: true })
     .click();
+  await continueCheckout(page);
 
   const customerName = "外帶修改測試";
   const customerPhone = "0912345678";
@@ -397,6 +430,7 @@ test("本機外帶自取修改訂單會保留顧客姓名與手機", async ({ pa
     .getByTestId("qr-cart-panel")
     .getByRole("button", { name: "繼續填寫訂購資料", exact: true })
     .click();
+  await continueCheckout(page);
   await expect(page.getByLabel("顧客稱呼")).toHaveValue(customerName);
   await expect(page.getByLabel("聯絡電話")).toHaveValue(customerPhone);
 

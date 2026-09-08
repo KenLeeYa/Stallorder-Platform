@@ -241,6 +241,7 @@ export async function POST(request: Request, context: RouteContext) {
             dayOfWeek: hour.dayOfWeek,
             opensAt: hour.opensAt,
             closesAt: hour.closesAt,
+            lastOrderAt: hour.lastOrderAt,
             isClosed: hour.isClosed,
           })),
         });

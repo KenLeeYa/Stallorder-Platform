@@ -71,6 +71,7 @@ describe("create-order-session lightweight query plan", () => {
 
   it("returns campaign eligibility only for live non-delivery sessions", () => {
     expect(source).toContain('const lotteryChannelAllowed = orderingMode === "DEFAULT"');
+    expect(source).toContain('&& settings.lottery_enabled === true');
     expect(source).toContain('qrContext.fulfillment_type_context !== "DELIVERY"');
     expect(source).toContain("lotteryReward: {");
     expect(source).toContain("spendEnabled: lotteryChannelAllowed");
@@ -81,7 +82,7 @@ describe("create-order-session lightweight query plan", () => {
   it("returns sold-out products for display while keeping bundle components saleable-only", () => {
     expect(source).toContain("is_enabled, is_sold_out");
     expect(source).toContain("assignment.is_enabled || !product.is_active");
-    expect(source).toContain("const isSoldOut = assignment?.is_sold_out === true || !product.is_active");
+    expect(source).toContain("const isSoldOut = assignment?.is_sold_out === true || assignment?.stock_remaining === 0 || !product.is_active");
     expect(source).toContain("&& !assignment.is_sold_out");
   });
 });

@@ -247,9 +247,11 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
     viewMode,
     actions,
   } = props;
+  const fullViewportBoard = account.role !== "KITCHEN" && viewMode === "TICKETS";
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-[1600px] px-4 py-3 md:px-6 md:py-5 xl:px-8">
+    <main className={`mx-auto min-h-screen w-full px-4 py-3 ${fullViewportBoard ? "md:px-3" : "max-w-[1600px] md:px-6 md:py-5 xl:px-8"}`}>
+      <div data-testid="staff-primary-workspace" className={fullViewportBoard ? "md:flex md:h-[calc(100dvh-1.5rem)] md:min-h-0 md:flex-col" : undefined}>
       <StaffOrderBoardToolbar
         stall={stall}
         account={account}
@@ -299,6 +301,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         />
       ) : (
         <StaffTicketList
+          fullViewport={fullViewportBoard}
           orders={filteredOrders}
           currency={stall.currency}
           role={account.role}
@@ -329,6 +332,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
           {props.query ? t("staff.order.emptySearch") : t("staff.order.emptyToday")}
         </p>
       ) : null}
+      </div>
       {viewMode === "TICKETS" ? (
         <StaffFutureOrders
           orders={props.futureOrders}
@@ -583,6 +587,7 @@ type StaffTicketListProps = Pick<
   | "reminderOrderIds"
   | "expandedOrderIds"
 > & {
+  fullViewport?: boolean;
   orders: StaffOrderDto[];
   currency: string;
   role: UserRole;
@@ -612,12 +617,12 @@ function StaffTicketList(props: StaffTicketListProps) {
   const [selectedOrderId, setSelectedOrderId] = useState(props.orders[0]?.id ?? null);
   const selectedOrder = props.orders.find((order) => order.id === selectedOrderId) ?? props.orders[0] ?? null;
 
-  return <section className="mt-6 print:block">
+  return <section className={`mt-6 print:block ${props.fullViewport ? "md:mt-3 md:flex md:min-h-0 md:flex-1 md:flex-col" : ""}`}>
     <div className="print:hidden"><h2 className="text-lg font-semibold">{props.t("staff.today.title")}</h2><p className="mt-1 text-sm text-stone-600">{props.t("staff.today.description")}</p></div>
     <div className="mt-4 grid gap-4 md:hidden print:block" data-testid="staff-order-mobile-list">
       {props.orders.map((order) => <StaffOrderTicket key={order.id} {...props} order={order} />)}
     </div>
-    {selectedOrder ? <div data-testid="staff-order-master-detail" className="mt-4 hidden min-h-[32rem] gap-4 md:grid md:h-[calc(100dvh-14rem)] md:grid-cols-[minmax(13rem,0.78fr)_minmax(0,1.25fr)_minmax(12rem,0.82fr)] print:hidden">
+    {selectedOrder ? <div data-testid="staff-order-master-detail" className={`mt-4 hidden gap-4 md:grid md:grid-cols-[minmax(13rem,0.78fr)_minmax(0,1.25fr)_minmax(12rem,0.82fr)] print:hidden ${props.fullViewport ? "md:min-h-0 md:flex-1" : "min-h-[32rem] md:h-[calc(100dvh-14rem)]"}`}>
       <nav aria-label={props.t("staff.today.title")} className="min-h-0 overflow-y-auto rounded-xl border border-stone-200 bg-stone-50 p-2" data-testid="staff-order-list-pane">
         <div className="grid gap-2">
           {props.orders.map((order) => {

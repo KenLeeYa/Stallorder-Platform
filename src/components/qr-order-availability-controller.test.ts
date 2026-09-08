@@ -19,6 +19,16 @@ const availableConfig: PublicAvailabilityConfig = {
 };
 
 describe("QR order availability controller", () => {
+  it("reports an outage even when a cart already has a session", async () => {
+    const fixture = availabilityEnvironment();
+    const onMissingAvailability = vi.fn();
+    const lifecycle = startQrOrderAvailabilityLifecycle({ deviceId: "device-id",
+      currentStatus: () => "AVAILABLE", loadAvailability: async () => null, environment: fixture.environment,
+      onRefreshingChange: vi.fn(), onMissingAvailability, onOrderingDisabled: vi.fn(), onOrderingAvailable: vi.fn() });
+    await flushMicrotasks();
+    expect(onMissingAvailability).toHaveBeenCalledOnce();
+    lifecycle.stop();
+  });
   it("owns polling and restarts a session only for recovery, retry, or target changes", async () => {
     const fixture = availabilityEnvironment();
     let status: "DEGRADED" | "AVAILABLE" = "DEGRADED";
@@ -26,7 +36,6 @@ describe("QR order availability controller", () => {
     const onOrderingAvailable = vi.fn();
     const lifecycle = startQrOrderAvailabilityLifecycle({
       deviceId: "device-id",
-      sessionReady: () => true,
       currentStatus: () => status,
       loadAvailability,
       environment: fixture.environment,
@@ -77,7 +86,6 @@ describe("QR order availability controller", () => {
     const onOrderingDisabled = vi.fn();
     const lifecycle = startQrOrderAvailabilityLifecycle({
       deviceId: "device-id",
-      sessionReady: () => false,
       currentStatus: () => "UNAVAILABLE",
       loadAvailability,
       environment: fixture.environment,

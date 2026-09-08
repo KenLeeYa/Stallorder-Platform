@@ -75,7 +75,7 @@ for (const viewport of [
     await loginAsOwner(page);
     await page.goto("/merchant/aming-chicken");
 
-    if (viewport.width < 1280) {
+    if (viewport.width < 768) {
       await page.getByRole("button", {
         name: "攤位商品設定",
         exact: true,

@@ -60,6 +60,7 @@ export function StallTeamManager({ stallId, initialMemberships }: { stallId: str
   }
 
   async function updateMembership(membership: Membership, role: StallRole, isActive: boolean) {
+    if (!isActive && !window.confirm(label("移除此成員的攤位角色？歷史訂單與操作紀錄會保留；其他攤位或組織角色仍需分別管理。"))) return;
     const scope = `membership-${membership.id}`;
     setMessage("");
     setHasError(false);
@@ -100,6 +101,7 @@ export function StallTeamManager({ stallId, initialMemberships }: { stallId: str
         <h2 id="stall-team-heading" className="min-w-0 flex-1 text-lg font-semibold">{m("攤位成員")}</h2>
       </div>
       <div className="pb-7">
+      <p className="rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-900">{label("「移除權限」會停用此角色並保留稽核紀錄，可重新啟用。若同一人有其他攤位角色或組織管理權限，仍可能存取此攤位，請一併檢查。")}</p>
       <form ref={addMemberFormRef} noValidate action={addMember} className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
         <label className="text-sm font-medium">{m("帳號 Email")}<input {...fieldValidationProps("email", fieldErrors.email)} type="email" required maxLength={120} className={inputClass(fieldErrors.email)} />{fieldErrors.email ? <span id={fieldErrorId("email")} role="alert" className="mt-1 block text-xs font-medium text-red-700">{fieldErrors.email}</span> : null}</label>
         <label className="text-sm font-medium">{m("角色")}<select {...fieldValidationProps("role", fieldErrors.role)} defaultValue="STAFF" className={`${inputClass(fieldErrors.role)} bg-white`}><option value="STALL_MANAGER">{m("攤位經理")}</option><option value="STAFF">{m("店員")}</option><option value="KITCHEN">{m("廚房")}</option></select>{fieldErrors.role ? <span id={fieldErrorId("role")} role="alert" className="mt-1 block text-xs font-medium text-red-700">{fieldErrors.role}</span> : null}</label>
@@ -115,7 +117,7 @@ export function StallTeamManager({ stallId, initialMemberships }: { stallId: str
             <div><div className="font-medium">{membership.profile.displayName}</div><div className="mt-1 text-sm text-stone-500">{membership.profile.email ?? m("未提供電子郵件")}</div></div>
             <div className="flex flex-wrap items-center gap-2">
               <div><select {...scopedFieldValidationProps(roleFieldKey, roleError)} aria-label={m("變更 {name} 的角色", { name: membership.profile.displayName })} value={membership.role} disabled={isSaving || !membership.isActive} onChange={(event) => void updateMembership(membership, event.target.value as StallRole, true)} className={`h-10 rounded-md border bg-white px-2 text-sm ${roleError ? "border-red-500" : "border-stone-300"}`}><option value="STALL_MANAGER">{m("攤位經理")}</option><option value="STAFF">{m("店員")}</option><option value="KITCHEN">{m("廚房")}</option></select>{roleError ? <span id={fieldErrorId(roleFieldKey)} role="alert" className="mt-1 block max-w-52 text-xs font-medium text-red-700">{roleError}</span> : null}</div>
-              <button type="button" disabled={isSaving} onClick={() => void updateMembership(membership, membership.role, !membership.isActive)} className={`h-10 rounded-md border px-3 text-sm font-semibold ${membership.isActive ? "border-red-300 text-red-800" : "border-stone-300 text-stone-700"}`}>{membership.isActive ? m("停用") : m("重新啟用")}</button>
+              <button type="button" disabled={isSaving} onClick={() => void updateMembership(membership, membership.role, !membership.isActive)} className={`h-10 rounded-md border px-3 text-sm font-semibold ${membership.isActive ? "border-red-300 text-red-800" : "border-stone-300 text-stone-700"}`}>{membership.isActive ? label("移除權限") : m("重新啟用")}</button>
             </div>
           </div>;
         })}

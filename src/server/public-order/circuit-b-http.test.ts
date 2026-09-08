@@ -2,9 +2,20 @@ import { Prisma } from "@prisma/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPerformanceTiming } from "@/lib/performance-timing";
 import { circuitBFailureResponse } from "@/server/public-order/circuit-b-http";
+import { PublicOrderCircuitError } from "@/server/public-order/circuit-b-service";
 
 describe("Circuit B failure diagnostics", () => {
   afterEach(() => vi.restoreAllMocks());
+
+  it("returns the trusted cooldown in both JSON and Retry-After", async () => {
+    const response = circuitBFailureResponse(
+      new PublicOrderCircuitError("RATE_LIMITED", 429, { retryAfterSeconds: 42 }),
+      "request-test", timing(), "TRACKING_FAILED", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    );
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("42");
+    expect(await response.json()).toMatchObject({ code: "RATE_LIMITED", retryAfterSeconds: 42 });
+  });
 
   it("logs only allowlisted Prisma and SQLSTATE diagnostics", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);

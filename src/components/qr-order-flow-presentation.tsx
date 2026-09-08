@@ -19,6 +19,7 @@ import { CheckoutUpsellDialog } from "@/components/checkout-upsell-dialog";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
 import { QrOrderCartPanel } from "@/components/qr-order-cart-panel";
 import { PublicOrderFeedbackDialog } from "@/components/public-order-feedback-dialog";
+import { OrderingUnavailableDialog } from "@/components/ordering-unavailable-dialog";
 import type { QrOrderFlowController } from "@/components/qr-order-flow-controller";
 import {
   LotteryDailyLimitDialog,
@@ -162,6 +163,9 @@ export function QrOrderFlowPresentation({
         <ShieldCheck className="h-8 w-8 text-red-700" />
         <h1 className="mt-4 text-2xl font-semibold">{copy.qrUnavailableTitle}</h1>
         <p role="alert" className="mt-3 text-sm leading-6 text-stone-600">{message}</p>
+        {degradedMode && !outsideBusinessHours ? <OrderingUnavailableDialog key={orderingAvailability}
+          locale={locale} maintenance={orderingAvailability === "MAINTENANCE"} busy={availabilityRefreshing}
+          onRetry={() => refreshAvailability(true)} /> : null}
       </main>
     );
   }
@@ -587,6 +591,9 @@ export function QrOrderFlowPresentation({
           danger
         />
       ) : null}
+      {degradedMode && !message && !sessionStartError && !outsideBusinessHours && !session.specialClosure?.isActive ? <OrderingUnavailableDialog
+        key={orderingAvailability} locale={locale} maintenance={orderingAvailability === "MAINTENANCE"}
+        busy={availabilityRefreshing} onRetry={() => refreshAvailability(true)} /> : null}
       {outsideBusinessHours && !outsideBusinessHoursDismissed && !session.specialClosure?.isActive ? (
         <PublicOrderFeedbackDialog
           title={copy.outsideBusinessHoursTitle}

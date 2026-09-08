@@ -97,6 +97,21 @@ const drStandbyCompatibleMigrationFiles = [
 ];
 
 describe("additive DR migration plan", () => {
+  it.each([
+    "20260907151000_ordering_calendar_cutoff.sql",
+    "20260907151100_stall_product_stock.sql",
+    "20260907190000_public_tracking_polling.sql",
+    "20260907200000_live_table_lottery_channel.sql",
+    "20260907200100_live_table_lottery_order_commit.sql",
+    "20260907200200_lottery_gift_discount_snapshot.sql",
+  ])("accepts only the reviewed order-operations migration %s", (file) => {
+    const sql = readFileSync(resolve(import.meta.dirname, "../../supabase/migrations", file), "utf8");
+    expect(assertAdditiveMigrationSql(sql)).toBe(true);
+    expect(() => assertAdditiveMigrationSql(`${sql}\n-- unreviewed revision`)).toThrow();
+    expect(() => assertAdditiveMigrationSql(`${sql}\ndrop table public.orders;`)).toThrow();
+    expect(() => assertAdditiveMigrationSql(`${sql}\ngrant execute on all functions in schema public to anon;`)).toThrow();
+  });
+
   it("allows only the exact reviewed organization operating-mode backfill", () => {
     expect(assertAdditiveMigrationSql(organizationOperatingModeMigration)).toBe(true);
     expect(() => assertAdditiveMigrationSql(

@@ -126,6 +126,24 @@ export function checkGlobalPublicRequestGate(input: {
   `);
 }
 
+export function checkPublicOrderTrackingGate(input: {
+  trackingTokenHash: string;
+  ipHash: string;
+  deviceHash: string;
+  behaviorHash: string;
+  requestId: string;
+}) {
+  return jsonResult<{ ok: boolean; code?: string; retryAfterSeconds?: number }>(Prisma.sql`
+    select public.check_public_order_tracking_gate(
+      ${input.trackingTokenHash}::text,
+      ${input.ipHash}::text,
+      ${input.deviceHash}::text,
+      ${input.behaviorHash}::text,
+      ${input.requestId}::text
+    ) as result
+  `);
+}
+
 export function preflightPublicOrder(input: {
   scope: "SESSION" | "ORDER";
   qrToken: string;
@@ -651,6 +669,6 @@ export function recordPublicOrderAttempt(input: {
       ${input.orderSessionHash ?? null}::text,
       ${input.behaviorHash ?? null}::text,
       ${input.idempotencyHash ?? null}::text
-    ) as result
+    )::text as result
   `);
 }

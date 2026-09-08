@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BadgeCheck, ChevronDown, CircleHelp, CircleX, Clock3, FilePenLine, LoaderCircle, RefreshCw, Store, Trash2, X } from "lucide-react";
 import { LineNotificationControls } from "@/components/line-notification-controls";
 import { PublicOrderFeedbackDialog } from "@/components/public-order-feedback-dialog";
+import { PublicOrderClosureNotice } from "@/components/public-order-closure-notice";
 import { useAppLocale } from "@/components/locale-provider";
 import type { AppLocale } from "@/lib/app-locale";
 import { playAlertSound, primeAlertSound } from "@/lib/browser-alert-sound";
@@ -18,7 +19,7 @@ import {
   requestPublicOrder,
   respondToFulfillmentTime,
 } from "@/lib/public-order-client";
-import { useLiveResource } from "@/lib/use-live-resource";
+import { LiveResourceRetryError, useLiveResource } from "@/lib/use-live-resource";
 import { localizedPublicOrderError } from "@/lib/qr-order-i18n";
 import { buildQrNewOrderPath } from "@/lib/qr-order-recovery";
 
@@ -618,17 +619,20 @@ export function PublicOrderTracker({
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
+  const [syncMessage, setSyncMessage] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [isResponding, setIsResponding] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelError, setCancelError] = useState("");
-  const [fulfillmentFeedback, setFulfillmentFeedback] = useState<FulfillmentFeedback | null>(null);
+  const [fulfillmentFeedback, setFulfillmentFeedback] = useState<(FulfillmentFeedback & { version: number; uncertain?: boolean }) | null>(null);
   const [showPickupReadyDialog, setShowPickupReadyDialog] = useState(false);
   const [amendmentNotice, setAmendmentNotice] = useState<OrderAmendmentNotice | null>(null);
   const announcedReadyOrderRef = useRef<string | null>(null);
   const announcedAmendmentRef = useRef<string | null>(null);
   const cancellationConfirmedRef = useRef(false);
+  const answeredProposalVersionRef = useRef<number | null>(null);
+  const latestProposalVersionRef = useRef(0);
   const qrOrderReturnPath = order ? getQrOrderReturnPath(order.orderStatus, qrToken) : null;
 
   useEffect(() => {
@@ -656,6 +660,11 @@ export function PublicOrderTracker({
     const payload = await parseEdgeResponse(response);
     signal.throwIfAborted();
     if (!response.ok) {
+      if (response.status === 429) {
+        const seconds = Number(payload.retryAfterSeconds ?? response.headers.get("retry-after"));
+        const delay = Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 300) : 300;
+        throw new LiveResourceRetryError(publicOrderMessages.get(locale, "syncDelayed"), Math.ceil(delay * 1_000));
+      }
       throw new Error(response.status === 404
         ? publicOrderMessages.get(locale, "orderNotFound")
         : typeof payload.code === "string"
@@ -689,9 +698,19 @@ export function PublicOrderTracker({
       if (cancellationConfirmedRef.current && nextOrder.orderStatus !== "CANCELLED") {
         return;
       }
+      const answeredVersion = answeredProposalVersionRef.current;
+      if (answeredVersion !== null && (
+        nextOrder.fulfillmentTimeVersion < answeredVersion
+        || (nextOrder.fulfillmentTimeVersion === answeredVersion && nextOrder.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED")
+      )) return;
+      latestProposalVersionRef.current = nextOrder.fulfillmentTimeVersion;
       setOrder(nextOrder);
+      setFulfillmentFeedback(current => current?.uncertain
+        && current.version === nextOrder.fulfillmentTimeVersion
+        && ["CONFIRMED", "DECLINED"].includes(nextOrder.fulfillmentTimeState) ? null : current);
       setLastUpdatedAt(new Date());
       setMessage("");
+      setSyncMessage("");
       if (
         nextOrder.merchantAmendment
         && announcedAmendmentRef.current !== nextOrder.merchantAmendment.id
@@ -711,7 +730,7 @@ export function PublicOrderTracker({
       }
     },
     onError: (error) => {
-      setMessage(error instanceof Error
+      setSyncMessage(error instanceof Error
         ? error.message
         : publicOrderMessages.get(locale, "updateError"));
     },
@@ -719,7 +738,7 @@ export function PublicOrderTracker({
     onOnlineChange: (online) => {
       setIsOnline(online);
       if (!online) {
-        setMessage(publicOrderMessages.get(locale, "offlineAuto"));
+        setSyncMessage(publicOrderMessages.get(locale, "offlineAuto"));
         setIsLoading(false);
       }
     },
@@ -749,14 +768,32 @@ export function PublicOrderTracker({
       }
       setFulfillmentFeedback({
         kind: "success",
+        version: order.fulfillmentTimeVersion,
         message: responseValue === "ACCEPT"
           ? publicOrderMessages.get(locale, "timeAccepted")
           : publicOrderMessages.get(locale, "timeDeclined"),
       });
+      if ((payload.state === "CONFIRMED" || payload.state === "DECLINED") && typeof payload.version === "number") {
+        const state = payload.state;
+        const version = payload.version;
+        answeredProposalVersionRef.current = version;
+        setOrder(current => current && current.fulfillmentTimeVersion === order.fulfillmentTimeVersion ? {
+          ...current,
+          fulfillmentTimeState: state,
+          fulfillmentTimeVersion: version,
+          committedFulfillmentAt: typeof payload.committedFulfillmentAt === "string"
+            ? payload.committedFulfillmentAt : current.committedFulfillmentAt,
+          pendingFulfillmentAt: null,
+          fulfillmentTimeResponseExpiresAt: null,
+        } : current);
+      }
       await refreshOrder();
     } catch (error) {
+      const uncertain = error instanceof Error && ["TimeoutError", "AbortError", "TypeError"].includes(error.name);
       setFulfillmentFeedback({
         kind: "error",
+        version: uncertain ? order.fulfillmentTimeVersion : latestProposalVersionRef.current,
+        uncertain,
         message: error instanceof Error && !["TimeoutError", "AbortError", "TypeError"].includes(error.name)
           ? error.message
           : publicOrderMessages.get(locale, "timeConfirmError"),
@@ -852,7 +889,7 @@ export function PublicOrderTracker({
         </div>
       </div>
 
-      {message && !isOnline ? <p role="status" className="mt-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{message}</p> : null}
+      {syncMessage ? <p role="status" data-testid="public-order-sync-status" className="mt-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{syncMessage}</p> : null}
       {order ? (
         <section className="mt-5 border-y border-stone-200 py-4 sm:mt-8 sm:py-6">
           <div className="flex items-center gap-3">
@@ -893,9 +930,14 @@ export function PublicOrderTracker({
               : null}
             {order.fulfillmentType === "DINE_IN" && order.lastTableOrderAt ? <div className="mt-1 text-xs text-stone-500">{publicOrderMessages.get(locale, "lastTableOrder", { time: new Date(order.lastTableOrderAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) })}</div> : null}
           </div>
+          {order.publicMenuIdentifier && !["COMPLETED", "CANCELLED", "EXPIRED"].includes(order.orderStatus)
+            && (order.committedFulfillmentAt || order.requestedFulfillmentAt || order.pendingFulfillmentAt) ? <PublicOrderClosureNotice
+              key={order.orderNo} identifier={order.publicMenuIdentifier} locale={locale}
+              fulfillmentAt={order.committedFulfillmentAt ?? order.requestedFulfillmentAt}
+              pendingAt={order.fulfillmentTimeState === "CUSTOMER_ACTION_REQUIRED" ? order.pendingFulfillmentAt : null} /> : null}
           <FulfillmentTimePanel
             order={order}
-            feedback={fulfillmentFeedback}
+            feedback={fulfillmentFeedback?.version === order.fulfillmentTimeVersion ? fulfillmentFeedback : null}
             isResponding={isResponding}
             onRespond={(response) => void respondToProposal(response)}
             locale={locale}

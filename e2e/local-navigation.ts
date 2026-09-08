@@ -1,5 +1,6 @@
 import {
   errors,
+  expect,
   type Locator,
   type Page,
   type Response,
@@ -15,6 +16,17 @@ import {
 
 const TEST_SESSION_COOKIE = "stallorder_session";
 const TEST_CSRF_COOKIE = "stallorder_csrf";
+
+export async function continueQrCheckout(page: Page) {
+  const upsell = page.getByRole("dialog", { name: "結帳前，再看看", exact: true });
+  await expect.poll(async () => (
+    await upsell.isVisible() || await page.getByLabel("訂單備註").filter({ visible: true }).isVisible()
+  )).toBe(true);
+  if (await upsell.isVisible()) {
+    await upsell.getByRole("button", { name: "不用，直接結帳", exact: true }).click();
+    await expect(upsell).not.toBeVisible();
+  }
+}
 
 export function qrProductSelectionControl(
   product: Locator,
@@ -87,7 +99,18 @@ export async function openSharedCatalogProductActions(
   page: Page,
   productName: string,
 ) {
+  const desktopSearch = page.getByRole("searchbox", { name: "搜尋管理商品", exact: true });
   const navigator = page.getByTestId("catalog-navigator-dialog");
+  if (await desktopSearch.isVisible() && !(await navigator.isVisible())) {
+    await desktopSearch.fill(productName);
+    const row = page.getByTestId("catalog-management-row").filter({
+      has: page.getByRole("heading", { name: productName, exact: true }),
+    });
+    await row.getByRole("button", { name: `更多操作 ${productName}`, exact: true }).click();
+    const actions = page.getByRole("dialog", { name: `商品：${productName}`, exact: true });
+    await actions.waitFor({ state: "visible" });
+    return actions;
+  }
   if (!(await navigator.isVisible())) {
     const openNavigator = page
       .getByTestId("open-catalog-navigator")

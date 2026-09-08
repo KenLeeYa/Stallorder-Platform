@@ -8,10 +8,18 @@ import {
   publicOrderNeedsPickupCode,
   publicOrderSessionAbuseBehavior,
   publicOrderSubmissionAbuseBehavior,
+  normalizeStoredOrderTimestamp,
   resolveStoredPickupCode,
 } from "./public-order-contract";
 
 describe("canonical public order pure contract", () => {
+  it("serializes PostgREST UTC timestamp-without-zone identically to Prisma", () => {
+    expect(normalizeStoredOrderTimestamp("2026-09-07T15:40:11.437")).toBe("2026-09-07T15:40:11.437Z");
+    expect(normalizeStoredOrderTimestamp("2026-09-07T23:40:11.437+08:00")).toBe("2026-09-07T15:40:11.437Z");
+    expect(normalizeStoredOrderTimestamp("2026-09-07T15:40:11.437Z")).toBe("2026-09-07T15:40:11.437Z");
+    expect(normalizeStoredOrderTimestamp(null)).toBeNull();
+    expect(normalizeStoredOrderTimestamp(undefined)).toBeNull();
+  });
   const storedOrder = {
     order_id: "11111111-1111-4111-8111-111111111111",
     order_no: "A001",

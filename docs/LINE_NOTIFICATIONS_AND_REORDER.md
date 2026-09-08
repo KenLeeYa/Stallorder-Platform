@@ -58,7 +58,7 @@
 
 本機驗收結果：7 項引導案例與 2 項既有流程案例通過，包含停用取消／錯誤／成功回饋；8 個單元測試檔共 20 項通過。TypeScript、修改檔 ESLint、323 個 TSX 的 UI control audit、Production build 及變更內容的 Gitleaks 掃描皆通過。原始 checkout 的未提交 diff 指紋保持不變。
 
-正式發布候選從已驗證的 `staging` 底版獨立整合本次引導；不包含其他本機介面、商品或訂單功能。發布底版的 9 項瀏覽器流程與完整 3,027 項單元測試通過（9 項既有條件式案例略過），並完成完整 lint、typecheck、UI audit、build、production guardrails 與零弱點套件 audit。測試 session 的期限與實際新登入相同，避免剛登入即觸發背景 session rotation。應用程式、資料庫結構、Edge Function 的差異分開檢查；本次無 migration 或 Edge 變更，可採既有 `production-application-release.yml` 的全新 Plan／Apply，先驗證未綁網域的產物，再升級網域並執行正式 smoke，失敗依原流程 rollback。
+本次正式發布已依使用者追加要求擴大為 LINE 引導與先前本機功能的完整整合；資料庫、Edge、應用與 DR 必須依 [整合發布紀錄](FUNCTIONAL_RELEASE_20260908.md) 的完整受保護流程驗證。早先單獨 LINE 候選的 9 項瀏覽器、3,027 項單元測試屬於歷史證據，不替代完整整合驗證。
 
 ## 安全控制
 

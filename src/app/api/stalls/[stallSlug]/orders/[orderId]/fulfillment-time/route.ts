@@ -150,6 +150,7 @@ export async function PATCH(request: Request, context: RouteContext) {
             stallId: authorization.stall.id,
             fulfillmentTimeVersion: parsed.data.version,
             fulfillmentTimeState: "REQUESTED",
+            status: current.status,
           },
           data: {
             committedFulfillmentAt: current.requestedFulfillmentAt,
@@ -203,6 +204,8 @@ export async function PATCH(request: Request, context: RouteContext) {
             id: current.id,
             stallId: authorization.stall.id,
             fulfillmentTimeVersion: current.fulfillmentTimeVersion,
+            fulfillmentTimeState: current.fulfillmentTimeState,
+            status: current.status,
           },
           data: {
             pendingFulfillmentAt: proposedAt,

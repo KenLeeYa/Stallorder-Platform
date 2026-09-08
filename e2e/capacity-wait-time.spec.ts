@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import {
+  continueQrCheckout,
   dismissStaffStartReminder,
   gotoLocalPath,
   qrProductSelectionControl,
@@ -343,6 +344,7 @@ test.describe.serial("產能與等候時間", () => {
       .click();
     await expect(page.getByLabel("顧客稱呼")).toHaveCount(0);
     await expect(page.getByLabel("聯絡電話")).toHaveCount(0);
+    await continueQrCheckout(page);
     await expect(page.getByLabel("訂單備註")).toBeVisible();
 
     const submit = page.getByRole("button", { name: "送出訂單", exact: true });

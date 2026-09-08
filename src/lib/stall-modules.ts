@@ -48,7 +48,7 @@ export async function getStallModuleState(stallId: string, organizationId: strin
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
       include: {
         qrCodes: {
-          where: { state: "ACTIVE" },
+          where: { state: { in: ["ACTIVE", "PAUSED"] } },
           orderBy: { tokenVersion: "desc" },
           take: 1,
           select: { id: true, token: true, state: true, tokenVersion: true },

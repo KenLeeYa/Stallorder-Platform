@@ -90,6 +90,7 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
 
   for (const viewport of [
     { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
     { width: 1440, height: 900 },
   ]) {
     await page.setViewportSize(viewport);
@@ -129,7 +130,10 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
     expect(listBox!.x + listBox!.width).toBeLessThan(itemsBox!.x);
     expect(itemsBox!.x + itemsBox!.width).toBeLessThan(actionsBox!.x);
     expect(layoutBox!.x + layoutBox!.width).toBeLessThanOrEqual(viewport.width + 1);
+    expect(layoutBox!.y + layoutBox!.height).toBeLessThanOrEqual(viewport.height);
+    expect(layoutBox!.y + layoutBox!.height).toBeGreaterThan(viewport.height - 24);
     expect(overflow).toEqual({ list: "auto", items: "auto", actions: "auto", pageFits: true });
+    await page.screenshot({ path: test.info().outputPath(`full-board-${viewport.width}.png`) });
 
     const longOrderScroll = await page.evaluate(() => {
       const itemsPaneElement = document.querySelector<HTMLElement>('[data-testid="staff-order-items-pane"]')!;
@@ -157,6 +161,8 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
     });
     expect(longOrderScroll).toEqual({ canScroll: true, didScroll: true, actionsStayedPut: true });
   }
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 });
 
 test("Star webPRNT SDK 載入失敗會在有限時間內離開永久載入狀態", async ({ browser }) => {
