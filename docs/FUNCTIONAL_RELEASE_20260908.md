@@ -36,3 +36,5 @@
 整合候選的新鮮驗證：完整 lint／UI audit／typecheck／build 通過，143 支 migration 在空白資料庫依序套用、71 個 pgTAP 檔案共 1,603 項斷言及 DB lint 通過。38 個顧客、店員、商品、註記、付款及 LINE 瀏覽器案例的最後一次結果均通過；其中 24 項環境對齊重測全數通過，閒置追蹤實測 369 秒、126 次讀取無錯誤，之後的 429 等待與恢復亦通過。全套 unit/contract、dependency/secret 掃描和雲端檢查以最後候選的產物為準。
 
 既有 additive release gate 依 SQL 指紋審查函式更換與既有資料表 trigger。本次沿用該機制登錄上述六支已審查 migration 的完整內容指紋；只讓完全相符的庫存 migration 建立 deferred constraint triggers，仍執行原本的 statement、grant、資料刪除、RLS 及 schema 破壞檢查。新增六項正向與竄改／附加 DROP／附加匿名授權的拒絕測試；與發布流程契約合計 120 項通過。每次遠端 Plan/Apply 仍比對 commit、tree、migration 清單與內容 digest。
+
+尖峰訂單範例使用獨立 QA 店主執行，避免保留資料使 CI 共用帳號在後續測試多出組織選擇頁。本機仍賦予原有商家、店員與廚房測試帳號查看範例的權限；CI 只保留獨立身分，無須刪除範例資料。獨立身分的尖峰加時、暫停／恢復、關店、庫存與店員／廚房案例重新執行通過。

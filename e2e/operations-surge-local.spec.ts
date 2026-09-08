@@ -19,14 +19,20 @@ test("retained peak-hour orders raise quotes, pause safely, recover automaticall
   if (!["localhost", "127.0.0.1"].includes(db.hostname) || db.port !== (process.env.CI ? "54322" : "55722") || !["localhost", "127.0.0.1"].includes(new URL(app).hostname)) throw new Error("DEDICATED_SURGE_LAB_REQUIRED");
   const suffix = Date.now().toString();
   const organizationId = randomUUID(), stallId = randomUUID(), slug = "qa-surge-" + suffix;
-  const owner = await prisma.profile.findUniqueOrThrow({ where: { email: "owner@stallorder.test" } });
+  const owner = await prisma.profile.create({ data: {
+    email: slug + "@stallorder.test", displayName: "QA 尖峰店主",
+    emailVerified: true, authMigrationRequired: false,
+  } });
   const plan = await prisma.planVersion.findFirstOrThrow({ where: { plan: { code: "TRIAL" }, effectiveUntil: null } });
   await prisma.organization.create({ data: { id: organizationId, name: "QA 尖峰與關店 " + suffix.slice(-4), slug, businessName: "本機流程範例", status: "ACTIVE", email: slug + "@stallorder.test", phone: "0900000000" } });
   await prisma.subscription.create({ data: { organizationId, planId: plan.planId, planVersionId: plan.id, status: "ACTIVE", billingInterval: "MONTHLY", billingPeriodStart: new Date(), billingPeriodEnd: new Date(Date.now() + 30 * 86400_000) } });
   await prisma.stall.create({ data: { id: stallId, organizationId, name: "尖峰流程範例攤位", slug, code: "qa-surge-" + suffix.slice(-7), address: "本機測試", location: "本機測試", isActive: true, businessStatus: "OPEN", orderingState: "OPEN", orderingEnabled: true } });
-  for (const [email, role] of [["owner@stallorder.test", "ORGANIZATION_OWNER"], ["staff@stallorder.test", "STAFF"], ["kitchen@stallorder.test", "KITCHEN"]] as const) {
+  await prisma.organizationMembership.create({ data: { organizationId, profileId: owner.id, role: "ORGANIZATION_OWNER", allStalls: true, isPrimaryOwner: true } });
+  // Retain local examples for the demo accounts without changing the shared CI
+  // accounts' organization/stall navigation for unrelated tests in later shards.
+  if (!process.env.CI) for (const [email, role] of [["owner@stallorder.test", "ORGANIZATION_OWNER"], ["staff@stallorder.test", "STAFF"], ["kitchen@stallorder.test", "KITCHEN"]] as const) {
     const profile = await prisma.profile.findUniqueOrThrow({ where: { email } });
-    if (role === "ORGANIZATION_OWNER") await prisma.organizationMembership.create({ data: { organizationId, profileId: profile.id, role, allStalls: true, isPrimaryOwner: true } });
+    if (role === "ORGANIZATION_OWNER") await prisma.organizationMembership.create({ data: { organizationId, profileId: profile.id, role, allStalls: true, isPrimaryOwner: false } });
     if (role !== "ORGANIZATION_OWNER") await prisma.stallMembership.create({ data: { organizationId, stallId, profileId: profile.id, role } });
   }
   const category = await prisma.productCategory.create({ data: { organizationId, name: "QA 炸物" } });
