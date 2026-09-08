@@ -231,14 +231,13 @@ async function ensurePublicCatalogNoteLocaleFixtures(locales: string[]) {
 }
 
 async function login(page: Page, email: string) {
+  const destination = email === "staff@stallorder.test"
+    ? "/staff/aming-chicken"
+    : `/merchant/dashboard?organizationId=${organizationId}`;
   const cachedCookies = authCookies.get(email);
   if (cachedCookies) {
     await page.context().addCookies(cachedCookies);
-    await page.goto(
-      email === "staff@stallorder.test"
-        ? "/staff/aming-chicken"
-        : "/merchant/dashboard",
-    );
+    await page.goto(destination);
     await expect(page).toHaveURL(
       /\/merchant\/dashboard(?:\?organizationId=|$)|\/staff\//,
     );
@@ -247,6 +246,7 @@ async function login(page: Page, email: string) {
     return;
   }
   await loginLocalTestAccount(page, email, password);
+  await page.goto(destination);
   await expect(page).toHaveURL(
     /\/merchant\/dashboard(?:\?organizationId=|$)|\/staff\//,
   );
@@ -268,6 +268,10 @@ async function acknowledgeSettingsFeedback(
 }
 
 async function openNoteGroupNavigator(page: Page) {
+  const singleNotes = page.getByTestId("reusable-note-navigator-dialog");
+  if (await singleNotes.isVisible()) {
+    await singleNotes.getByRole("button", { name: "關閉", exact: true }).click();
+  }
   const navigator = page.getByTestId("note-group-navigator-dialog");
   if (!(await navigator.isVisible())) {
     await page.getByTestId("open-note-group-navigator").click();
@@ -1028,6 +1032,34 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
   await createEditor.getByRole("button", { name: "儲存" }).click();
   await acknowledgeSettingsFeedback(page, "success", "共用單一註記已新增。");
 
+  const singleNotes = page.getByTestId("reusable-note-navigator-dialog");
+  await expect(singleNotes).toBeVisible();
+  for (const [action, message] of [
+    ["上移", "共用註記排序已更新。"],
+    ["下移", "共用註記排序已更新。"],
+    ["停用", "共用單一註記已停用，所有群組已同步。"],
+    ["啟用", "共用單一註記已啟用，所有群組已同步。"],
+  ]) {
+    await selectProductNoteAction(page, noteName, action);
+    await expect(singleNotes).toBeVisible();
+    await acknowledgeSettingsFeedback(page, "success", message);
+    await expect(singleNotes.getByPlaceholder("搜尋單一註記")).toHaveValue(noteName);
+    await expect(singleNotes.getByPlaceholder("搜尋單一註記")).toBeFocused();
+  }
+  page.once("dialog", dialog => dialog.dismiss());
+  await selectProductNoteAction(page, noteName, "刪除");
+  await expect(singleNotes).toBeVisible();
+  await expect(singleNotes.getByRole("button", { name: `管理 ${noteName}`, exact: true })).toBeVisible();
+
+  const notesApi = `/api/merchant/organizations/${organizationId}/product-notes`;
+  await page.route(`**${notesApi}`, route => route.fulfill({
+    status: 503, contentType: "application/json", json: { error: "目前無法更新註記群組。" },
+  }), { times: 1 });
+  await selectProductNoteAction(page, noteName, "停用");
+  await acknowledgeSettingsFeedback(page, "error", "目前無法更新註記群組。");
+  await expect(singleNotes).toBeVisible();
+  await expect(singleNotes.getByPlaceholder("搜尋單一註記")).toHaveValue(noteName);
+
   const duplicateEditor = await openNewReusableNoteEditor(page);
   const duplicateName = duplicateEditor.getByLabel("註記名稱");
   await duplicateName.fill(noteName);
@@ -1100,8 +1132,8 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
   await acknowledgeSettingsFeedback(page, "success",
     "共用單一註記已更新，所有群組已同步。",
   );
-  await page.getByTestId("open-reusable-note-navigator").click();
   const updatedNoteNavigator = page.getByTestId("reusable-note-navigator-dialog");
+  await expect(updatedNoteNavigator).toBeVisible();
   await updatedNoteNavigator.getByPlaceholder("搜尋單一註記").fill(updatedName);
   await expect(
     updatedNoteNavigator.getByRole("button", { name: `管理 ${updatedName}`, exact: true }),
@@ -1152,8 +1184,8 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
     "刪除",
   );
   await acknowledgeSettingsFeedback(page, "success", "共用單一註記已刪除。");
-  await page.getByTestId("open-reusable-note-navigator").click();
   const deletedNoteNavigator = page.getByTestId("reusable-note-navigator-dialog");
+  await expect(deletedNoteNavigator).toBeVisible();
   await deletedNoteNavigator.getByPlaceholder("搜尋單一註記").fill(updatedName);
   await expect(
     deletedNoteNavigator.getByRole("button", { name: `管理 ${updatedName}`, exact: true }),

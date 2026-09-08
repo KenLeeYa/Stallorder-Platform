@@ -48,6 +48,8 @@ Every entry must identify the affected user roles, routes/services/data/environm
 
 | 2026-09-08 | `LOCAL-ALL-FEATURES-QA-001` | Implemented, local only | Align catalog pane bottoms; render note groups/options inline on tablet and desktop. Fix recoverable payment feedback and lost-response idempotency, master lottery gating and live-table draw/commit consistency, free-gift discount snapshots, UTC table-addition timestamps, and competing session/degraded error dialogs. | Merchant catalog/notes/payments, customer QR, Edge/Node, draw/order RPCs, item snapshot trigger, local QA runtime and retained examples; three migrations applied to local labs only | `CAT-004`, `CAT-018`, `LOT-008`, `CAP-007`, `CAP-008`; [local report](LOCAL_ALL_FEATURES_QA_20260907.md), independent SQL regression, responsive and fault-injection journeys; no remote release |
 
+| 2026-09-08 | `LOCAL-NOTE-NAVIGATION-001` | Implemented, local only | Keep the reusable-note navigator, query and scroll mounted beneath item actions/editors; isolate foreground keyboard handling and restore list focus after feedback. Replace tests that silently reopened the list with direct return assertions. | Merchant shared catalog / notes; no API or schema change | `CAT-019`, `QA-CAT-12`; [local correction report](REUSABLE_NOTE_NAVIGATION_FIX_20260908.md), responsive navigation and note CRUD/error regressions |
+
 ## Maintenance rule
 
 Do not rewrite an old row to make a later rollout look complete. Append a new row when status changes, include the exact commit/tree and protected evidence, and mark the prior row superseded only when the new decision is accepted.

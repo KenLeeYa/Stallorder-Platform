@@ -122,6 +122,7 @@ export function ProductNoteGroupsManager({
   const [importPreview, setImportPreview] = useState<ProductNoteImportPreview | null>(null);
   const [importError, setImportError] = useState("");
   const editorRef = useRef<HTMLElement>(null);
+  const reusableNoteNavigatorRef = useRef<HTMLElement>(null);
   const translationOptions = getTranslationLocaleOptions(enabledTranslationLocales);
   const sortedGroups = useMemo(
     () => [...groups].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "zh-TW")),
@@ -477,11 +478,6 @@ export function ProductNoteGroupsManager({
     setReusableNoteNavigatorQuery("");
   }
 
-  function leaveReusableNoteNavigator(next: () => void) {
-    closeReusableNoteNavigator();
-    requestAnimationFrame(next);
-  }
-
   function closeGroupNavigator() {
     setGroupNavigatorOpen(false);
     setGroupNavigatorGroupId(null);
@@ -638,13 +634,14 @@ export function ProductNoteGroupsManager({
         </button>
       </div>
 
-      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} focusAfterClose={reusableNoteNavigatorOpen ? () => reusableNoteNavigatorRef.current?.querySelector<HTMLElement>('input[type="search"]')?.focus({ preventScroll: true }) : undefined} /> : null}
       <div id="product-note-settings-content" hidden={!settingsExpanded}>
       <div data-testid="product-note-entry-actions" className="mt-5 grid gap-3 md:flex md:flex-wrap">
         <button
           type="button"
           data-testid="open-reusable-note-navigator"
-          onClick={() => {
+          onClick={(event) => {
+            event.currentTarget.focus({ preventScroll: true });
             setReusableNoteNavigatorQuery("");
             setReusableNoteNavigatorOpen(true);
           }}
@@ -694,7 +691,8 @@ export function ProductNoteGroupsManager({
         <Editor
           title={label("所有單一註記")}
           onClose={closeReusableNoteNavigator}
-          dialogRef={editorRef}
+          dialogRef={reusableNoteNavigatorRef}
+          active={!noteActionTarget && !reusableNoteDraft && !importPreview && !message}
           errorMessage=""
           fullScreen
           testId="reusable-note-navigator-dialog"
@@ -711,7 +709,7 @@ export function ProductNoteGroupsManager({
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400" />
                 <input type="search" maxLength={80} value={reusableNoteNavigatorQuery} onChange={(event) => setReusableNoteNavigatorQuery(event.target.value)} placeholder={label("搜尋單一註記")} className="min-h-14 w-full rounded-xl border border-stone-300 pl-12 pr-4 text-base" />
               </label>
-              <button type="button" onClick={() => leaveReusableNoteNavigator(() => setReusableNoteDraft({ name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(reusableNotes), isActive: true, translations: [] }))} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-base font-semibold text-white"><Plus className="h-5 w-5" />{label("新增單一註記")}</button>
+              <button type="button" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); setReusableNoteDraft({ name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(reusableNotes), isActive: true, translations: [] }); }} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-base font-semibold text-white"><Plus className="h-5 w-5" />{label("新增單一註記")}</button>
             </div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {visibleNavigatorReusableNotes.map((note) => (
@@ -719,7 +717,7 @@ export function ProductNoteGroupsManager({
                   key={note.id}
                   note={note}
                   currency={currency}
-                  onOpen={() => leaveReusableNoteNavigator(() => setNoteActionTarget({ kind: "REUSABLE_NOTE", id: note.id }))}
+                  onOpen={() => setNoteActionTarget({ kind: "REUSABLE_NOTE", id: note.id })}
                 />
               ))}
               {visibleNavigatorReusableNotes.length === 0 ? <p className="rounded-xl border border-dashed border-stone-300 p-8 text-center text-sm text-stone-500 md:col-span-2 xl:col-span-3">{label(normalizedReusableNoteNavigatorQuery ? "找不到符合的單一註記。" : "尚未建立共用單一註記。")}</p> : null}
@@ -1123,10 +1121,15 @@ function TranslationFields({ translations, options, onChange }: { translations: 
   return <details className="border-t border-stone-200 pt-3 sm:col-span-2"><summary className="cursor-pointer text-sm font-semibold">{label("註記翻譯")}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{options.map((option) => { const current = translations.find((item) => item.locale === option.locale)?.name ?? ""; return <label key={option.locale} className="text-sm font-medium text-stone-700">{label(option.label)}<input type="text" maxLength={120} value={current} onChange={(event) => { const next = translations.filter((item) => item.locale !== option.locale); if (event.target.value) next.push({ locale: option.locale, name: event.target.value }); onChange(next); }} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>; })}</div></details>;
 }
 
-function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constrained = false, fullScreen = false, testId, closeDisabled = false, children }: { title: string; onClose: () => void; dialogRef: React.RefObject<HTMLElement | null>; errorMessage: string; wide?: boolean; constrained?: boolean; fullScreen?: boolean; testId?: string; closeDisabled?: boolean; children: React.ReactNode }) {
+function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constrained = false, fullScreen = false, testId, closeDisabled = false, active = true, children }: { title: string; onClose: () => void; dialogRef: React.RefObject<HTMLElement | null>; errorMessage: string; wide?: boolean; constrained?: boolean; fullScreen?: boolean; testId?: string; closeDisabled?: boolean; active?: boolean; children: React.ReactNode }) {
   const { label } = useMerchantMessages();
   const onCloseRef = useRef(onClose);
   const closeDisabledRef = useRef(closeDisabled);
+  const activeRef = useRef(active);
+
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -1156,6 +1159,7 @@ function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constra
     (activeDialog.querySelector<HTMLElement>("[data-dialog-initial-focus]") ?? focusableElements()[0] ?? activeDialog).focus();
 
     function handleKeyDown(event: KeyboardEvent) {
+      if (!activeRef.current) return;
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -1204,7 +1208,8 @@ function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constra
         data-testid={testId}
         tabIndex={-1}
         role="dialog"
-        aria-modal="true"
+        aria-modal={active || undefined}
+        aria-hidden={!active || undefined}
         aria-label={title}
         className={`my-auto w-full rounded-lg bg-white p-5 shadow-xl ${fullScreen ? "flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] max-w-6xl flex-col overflow-hidden sm:h-[min(92dvh,900px)] sm:max-h-[min(92dvh,900px)]" : `${wide ? "max-w-2xl" : "max-w-md"} ${constrained ? "flex h-[calc(100dvh-1rem)] max-h-[52rem] flex-col overflow-hidden sm:h-[calc(100dvh-2rem)]" : ""}`}`}
       >
@@ -1245,7 +1250,7 @@ function ProductNoteGroupCard({ group, onOpen, onManage }: { group: ProductNoteG
 function ReusableProductNoteCard({ note, currency, onOpen }: { note: ReusableProductNoteView; currency: string; onOpen: () => void }) {
   const { locale, m, label } = useMerchantMessages();
   return (
-    <button type="button" data-testid="reusable-note-action-trigger" aria-label={m("管理 {name}", { name: note.name })} onClick={onOpen} className="flex min-h-28 w-full items-center gap-4 rounded-2xl border border-stone-300 bg-white p-5 text-left shadow-sm hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
+    <button type="button" data-testid="reusable-note-action-trigger" aria-label={m("管理 {name}", { name: note.name })} onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); onOpen(); }} className="flex min-h-28 w-full items-center gap-4 rounded-2xl border border-stone-300 bg-white p-5 text-left shadow-sm hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
       <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-stone-100 text-stone-700"><MessageSquareText className="h-6 w-6" /></span>
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2"><strong className="break-words text-lg">{note.name}</strong>{!note.isActive ? <span className="text-xs font-semibold text-red-700">{label("已停用")}</span> : null}</span>
