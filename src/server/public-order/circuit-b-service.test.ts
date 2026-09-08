@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   verifyTurnstile: vi.fn(),
   getCachedPublicMenuForQrToken: vi.fn(),
   checkGlobalPublicRequestGate: vi.fn(),
+  checkPublicOrderTrackingGate: vi.fn(),
   checkPublicOrderIntakeAvailability: vi.fn(),
   checkPublicOrderSubmissionGate: vi.fn(),
   createPublicOrderWithSchedule: vi.fn(),
@@ -61,6 +62,7 @@ vi.mock("@/lib/public-menu", () => ({
 
 vi.mock("@/server/public-order/trusted-rpc-repository", () => ({
   checkGlobalPublicRequestGate: mocks.checkGlobalPublicRequestGate,
+  checkPublicOrderTrackingGate: mocks.checkPublicOrderTrackingGate,
   checkPublicOrderIntakeAvailability: mocks.checkPublicOrderIntakeAvailability,
   checkPublicOrderSubmissionGate: mocks.checkPublicOrderSubmissionGate,
   createPublicOrderWithSchedule: mocks.createPublicOrderWithSchedule,
@@ -120,6 +122,7 @@ describe("Circuit B public order service", () => {
       DUAL_ORDER_INTAKE_ENABLED: { enabled: true },
     });
     mocks.checkGlobalPublicRequestGate.mockResolvedValue({ ok: true });
+    mocks.checkPublicOrderTrackingGate.mockResolvedValue({ ok: true });
     mocks.checkPublicOrderIntakeAvailability.mockResolvedValue({ ok: true });
     mocks.lookupResumablePublicOrder.mockResolvedValue(null);
     mocks.preflightPublicOrder.mockImplementation(async (input: { intakeCode?: string | null }) => ({
@@ -179,6 +182,36 @@ describe("Circuit B public order service", () => {
     expect(mocks.cancelTrackedPublicOrder).toHaveBeenCalledWith(
       "33333333-3333-4333-8333-333333333333",
     );
+    expect(mocks.checkGlobalPublicRequestGate).toHaveBeenCalledWith(expect.objectContaining({ scope: "TRACKING" }));
+    expect(mocks.checkPublicOrderTrackingGate).not.toHaveBeenCalled();
+  });
+
+  it("keeps background tracking on the device-bound read budget while still requiring order authorization", async () => {
+    mocks.getTrackedPublicOrder.mockResolvedValue(null);
+    const { getOrderThroughCircuitB } = await import("./circuit-b-service");
+    await expect(getOrderThroughCircuitB({
+      trackingToken: `sto_${"a".repeat(43)}`,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+    }, { clientIp: "203.0.113.8", requestId: "request-test", timing: timing() }))
+      .rejects.toMatchObject({ code: "ORDER_NOT_FOUND", status: 404 });
+
+    const gate = mocks.checkPublicOrderTrackingGate.mock.calls[0][0];
+    expect(gate.trackingTokenHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(gate.deviceHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(mocks.getTrackedPublicOrder).toHaveBeenCalledWith(gate.trackingTokenHash, gate.deviceHash);
+    expect(mocks.checkGlobalPublicRequestGate).not.toHaveBeenCalled();
+  });
+
+  it("returns the read gate cooldown without loading the order or falling through to another circuit", async () => {
+    mocks.checkPublicOrderTrackingGate.mockResolvedValueOnce({ ok: false, code: "RATE_LIMITED", retryAfterSeconds: 42 });
+    const { getOrderThroughCircuitB } = await import("./circuit-b-service");
+    await expect(getOrderThroughCircuitB({
+      trackingToken: `sto_${"a".repeat(43)}`,
+      deviceId: "11111111-1111-4111-8111-111111111111",
+    }, { clientIp: "203.0.113.8", requestId: "request-test", timing: timing() }))
+      .rejects.toMatchObject({ code: "RATE_LIMITED", status: 429, responseBody: { retryAfterSeconds: 42 } });
+    expect(mocks.getTrackedPublicOrder).not.toHaveBeenCalled();
+    expect(mocks.validateTrackedPublicOrderAtCanonicalEdge).not.toHaveBeenCalled();
   });
 
   it("returns merchant confirmation before checking Turnstile on a stale edit form", async () => {

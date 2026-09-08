@@ -31,6 +31,10 @@ async function login(page: Page) {
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
+  await expect(page).toHaveURL(/\/(?:merchant\/dashboard\?organizationId=|select-organization)/);
+  if (new URL(page.url()).pathname === "/select-organization") {
+    await page.locator(`a[href="/merchant/dashboard?organizationId=${organizationId}"]`).click();
+  }
   await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/);
 }
 
@@ -64,25 +68,11 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await login(page);
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
 
-  const catalog = page.locator("[data-shared-product-catalog]");
-  await expect(catalog).toHaveCount(1);
+  const catalog = page.getByRole("region", { name: "商品批次管理", exact: true });
   await expect(catalog).toBeVisible();
-  await expect(catalog).toHaveJSProperty("tagName", "DIV");
-  const catalogTrigger = page.getByTestId("open-catalog-navigator");
-  await expect(catalogTrigger).toBeVisible();
-  await catalogTrigger.click();
-  const catalogNavigator = page.getByTestId("catalog-navigator-dialog");
-  await expect(catalogNavigator).toBeVisible();
-  await expect(catalogNavigator.getByPlaceholder("搜尋所有商品")).toBeVisible();
-  await catalogNavigator.getByPlaceholder("搜尋所有商品").fill("香酥雞排");
-  await expect(
-    catalogNavigator.getByRole("button", {
-      name: "操作：香酥雞排",
-      exact: true,
-    }),
-  ).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(catalogNavigator).toHaveCount(0);
+  await catalog.getByRole("searchbox", { name: "搜尋管理商品" }).fill("香酥雞排");
+  await expect(catalog.getByRole("heading", { name: "香酥雞排", exact: true })).toBeVisible();
+  await catalog.getByRole("searchbox", { name: "搜尋管理商品" }).clear();
 
   await page
     .getByTestId("shared-catalog-create-actions")
@@ -269,7 +259,7 @@ test("手機版套餐操作列與商品編輯器不超出畫面", async ({ page 
   await login(page);
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
 
-  await page.getByTestId("open-catalog-navigator").click();
+  await page.getByTestId("open-catalog-navigator").filter({ visible: true }).click();
   const catalogNavigator = page.getByTestId("catalog-navigator-dialog");
   await catalogNavigator.getByPlaceholder("搜尋所有商品").fill(bundleName);
   const bundleActionsTrigger = catalogNavigator.getByRole("button", {

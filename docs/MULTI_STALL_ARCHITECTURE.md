@@ -116,3 +116,7 @@ Application session
 - 不允許匿名直接寫入訂單。
 - 不允許 Kitchen 讀取財務資料或 Finance 修改營運資料。
 - 不依賴 channel 名稱、前端 role 或 client scope 做唯一授權。
+
+## 本機可售份數與權限撤銷（2026-09-07）
+
+庫存以 organization + stall + product 為範圍，批次修改使用版本比對，訂單差額扣補在資料庫交易中鎖定同一庫存列；複製攤位設定不複製實物庫存。移除攤位成員採停用該角色而保留訂單／稽核紀錄，其他有效角色仍依授權聯集判斷。完整規則與本機驗收見 [商品營運功能](CATALOG_OPERATIONS_LOCAL_20260907.md)。

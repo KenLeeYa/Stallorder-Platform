@@ -36,9 +36,16 @@ export default async function QrPrintPage({ params, searchParams }: PageProps) {
       id: true,
       name: true,
       slug: true,
+      orderingState: true,
+      orderingEnabled: true,
+      isSoldOut: true,
+      orderingSettings: { select: { dineInEnabled: true } },
       qrCodes: {
         where: {
           diningTableId: null,
+          stallScheduleId: null,
+          locationId: null,
+          marketEventId: null,
           fulfillmentTypeContext: null,
           state: { in: ["ACTIVE", "PAUSED"] },
         },
@@ -83,6 +90,10 @@ export default async function QrPrintPage({ params, searchParams }: PageProps) {
       target={request.target}
       paper={request.paper}
       items={items}
+      warnings={[
+        ...(request.target !== "stall" && !stall.orderingSettings?.dineInEnabled ? ["內用點餐尚未開啟：桌位 QR 可先列印，但開啟內用前無法點餐。啟用後可沿用這張 QR，無須輪替。"] : []),
+        ...(!stall.orderingEnabled || stall.orderingState !== "OPEN" || stall.isSoldOut ? ["攤位目前未開放點餐或已全攤售完，顧客掃描後會收到暫停提醒。請確認營業與供應設定後再提供顧客使用。"] : []),
+      ]}
       backHref={request.target === "stall" ? `/merchant/${stall.slug}` : `/merchant/stalls/${stall.id}/settings/dining-tables`}
     />
   );

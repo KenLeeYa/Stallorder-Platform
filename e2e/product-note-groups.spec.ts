@@ -10,6 +10,7 @@ import { hash } from "bcryptjs";
 import type { ProductNoteTransfer } from "../src/lib/product-note-transfer";
 import {
   dismissStaffStartReminder,
+  continueQrCheckout,
   loginLocalTestAccount,
   qrProductSelectionControl,
 } from "./local-navigation";
@@ -23,8 +24,10 @@ type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
 const authCookies = new Map<string, AuthCookies>();
 const prisma = new PrismaClient();
 let originalManagerAuthorizationCodeHash: string | null = null;
+let originalLotteryEnabled = false;
 let originalEnabledLocales: string[] = [];
 let fixtureQrId = "";
+let reusableNoteSortFixtureId = "";
 const localeFixtureTranslationIds = {
   noteGroups: [] as string[],
   noteOptions: [] as string[],
@@ -42,7 +45,7 @@ test.beforeAll(async () => {
   const [settings, businessHours, qrVersion] = await Promise.all([
     prisma.stallOrderingSettings.findUniqueOrThrow({
       where: { stallId },
-      select: { managerAuthorizationCodeHash: true, enabledLocales: true },
+      select: { managerAuthorizationCodeHash: true, enabledLocales: true, lotteryEnabled: true },
     }),
     prisma.stallBusinessHour.findMany({
       where: { organizationId, stallId },
@@ -56,6 +59,7 @@ test.beforeAll(async () => {
   ]);
   expect(businessHours).toHaveLength(7);
   originalManagerAuthorizationCodeHash = settings.managerAuthorizationCodeHash;
+  originalLotteryEnabled = settings.lotteryEnabled;
   originalEnabledLocales = settings.enabledLocales;
   originalBusinessHours = businessHours;
   await prisma.$transaction([
@@ -63,6 +67,7 @@ test.beforeAll(async () => {
       where: { stallId },
       data: {
         managerAuthorizationCodeHash: await hash(managerAuthorizationCode, 10),
+        lotteryEnabled: false,
         enabledLocales: Array.from(new Set([
           ...settings.enabledLocales,
           "en",
@@ -93,6 +98,9 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   try {
     await prisma.$transaction([
+      ...(reusableNoteSortFixtureId
+        ? [prisma.reusableProductNote.deleteMany({ where: { id: reusableNoteSortFixtureId } })]
+        : []),
       ...(localeFixtureTranslationIds.noteOptions.length > 0
         ? [prisma.productNoteOptionTranslation.deleteMany({
             where: { id: { in: localeFixtureTranslationIds.noteOptions } },
@@ -113,6 +121,7 @@ test.afterAll(async () => {
         where: { stallId },
         data: {
           managerAuthorizationCodeHash: originalManagerAuthorizationCodeHash,
+          lotteryEnabled: originalLotteryEnabled,
           enabledLocales: originalEnabledLocales,
         },
       }),
@@ -226,14 +235,13 @@ async function ensurePublicCatalogNoteLocaleFixtures(locales: string[]) {
 }
 
 async function login(page: Page, email: string) {
+  const destination = email === "staff@stallorder.test"
+    ? "/staff/aming-chicken"
+    : `/merchant/dashboard?organizationId=${organizationId}`;
   const cachedCookies = authCookies.get(email);
   if (cachedCookies) {
     await page.context().addCookies(cachedCookies);
-    await page.goto(
-      email === "staff@stallorder.test"
-        ? "/staff/aming-chicken"
-        : "/merchant/dashboard",
-    );
+    await page.goto(destination);
     await expect(page).toHaveURL(
       /\/merchant\/dashboard(?:\?organizationId=|$)|\/staff\//,
     );
@@ -242,6 +250,7 @@ async function login(page: Page, email: string) {
     return;
   }
   await loginLocalTestAccount(page, email, password);
+  await page.goto(destination);
   await expect(page).toHaveURL(
     /\/merchant\/dashboard(?:\?organizationId=|$)|\/staff\//,
   );
@@ -263,9 +272,13 @@ async function acknowledgeSettingsFeedback(
 }
 
 async function openNoteGroupNavigator(page: Page) {
+  const singleNotes = page.getByTestId("reusable-note-navigator-dialog");
+  if (await singleNotes.isVisible()) {
+    await singleNotes.getByRole("button", { name: "關閉", exact: true }).click();
+  }
   const navigator = page.getByTestId("note-group-navigator-dialog");
   if (!(await navigator.isVisible())) {
-    await page.getByTestId("open-note-group-navigator").click();
+    await page.getByTestId("open-note-group-navigator").filter({ visible: true }).click();
     await expect(navigator).toBeVisible();
   }
   const backButton = navigator.getByRole("button", {
@@ -299,7 +312,7 @@ async function openAttachReusableNotesDialog(page: Page, groupName: string) {
   await group.getByRole("button", { name: /加入既有共用註記/ }).click();
   const dialog = page.getByRole("dialog", { name: /將共用註記加入/ });
   await expect(dialog).toBeVisible();
-  return { dialog, trigger: page.getByTestId("open-note-group-navigator") };
+  return { dialog, trigger: page.getByTestId("open-note-group-navigator").filter({ visible: true }) };
 }
 
 async function openProductNoteGroupActions(page: Page, groupName: string) {
@@ -332,7 +345,7 @@ async function openProductNoteGroupOptionActions(
 ) {
   const group = await openNoteGroup(page, groupName);
   const option = group
-    .getByTestId("note-option-action-trigger")
+    .locator('[data-testid="note-option-action-trigger"]:visible')
     .filter({ hasText: optionName });
   await expect(option).toBeVisible();
   await option.click();
@@ -382,7 +395,7 @@ async function openProductNoteActions(
 ) {
   const navigator = page.getByTestId("reusable-note-navigator-dialog");
   if (!(await navigator.isVisible())) {
-    await page.getByTestId("open-reusable-note-navigator").click();
+    await page.getByTestId("open-reusable-note-navigator").filter({ visible: true }).click();
     await expect(navigator).toBeVisible();
   }
   await navigator.getByPlaceholder("搜尋單一註記").fill(itemName);
@@ -400,7 +413,7 @@ async function openProductNoteActions(
 async function openNewReusableNoteEditor(page: Page) {
   const navigator = page.getByTestId("reusable-note-navigator-dialog");
   if (!(await navigator.isVisible())) {
-    await page.getByTestId("open-reusable-note-navigator").click();
+    await page.getByTestId("open-reusable-note-navigator").filter({ visible: true }).click();
     await expect(navigator).toBeVisible();
   }
   await navigator.getByRole("button", { name: "新增單一註記", exact: true }).click();
@@ -685,7 +698,7 @@ test("群組內共用與專用註記排序可儲存並於重載後保留", async
   await page.reload();
   group = await openNoteGroup(page, groupName);
   const optionNames = group
-    .getByTestId("note-option-action-trigger")
+    .locator('[data-testid="note-option-action-trigger"]:visible')
     .locator("strong");
   await expect(optionNames).toHaveText([reusableName, dedicatedName]);
 
@@ -788,7 +801,7 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
   await expect(joinButton).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(closeButton).toBeFocused();
-  await page.getByTestId("open-note-group-navigator").focus();
+  await page.getByTestId("open-note-group-navigator").filter({ visible: true }).focus();
   await page.keyboard.press("Tab");
   await expect(closeButton).toBeFocused();
   await search.focus();
@@ -934,7 +947,7 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
   for (const noteName of noteNames) {
     await expect(
       group
-        .getByTestId("note-option-action-trigger")
+        .locator('[data-testid="note-option-action-trigger"]:visible')
         .filter({ hasText: noteName }),
     ).toHaveCount(0);
   }
@@ -1011,17 +1024,63 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
   const suffix = Date.now();
   const noteName = `香菜另外放 QA ${suffix}`;
   const updatedName = `香菜另放 QA ${suffix}`;
+  const precedingNoteName = `排序前置註記 QA ${suffix}`;
+  const lastNote = await prisma.reusableProductNote.aggregate({
+    where: { organizationId }, _max: { sortOrder: true },
+  });
+  reusableNoteSortFixtureId = (await prisma.reusableProductNote.create({ data: {
+    organizationId, name: precedingNoteName, sortOrder: (lastNote._max.sortOrder ?? 0) + 1,
+  } })).id;
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
-  await expect(page.getByTestId("open-reusable-note-navigator")).toBeVisible();
-  await expect(page.getByTestId("open-note-group-navigator")).toBeVisible();
+  // Require a unique visible entry while Next.js retains hidden streaming markup.
+  await expect(page.getByTestId("open-reusable-note-navigator").filter({ visible: true })).toHaveCount(1);
+  await expect(page.getByTestId("open-reusable-note-navigator").filter({ visible: true })).toBeVisible();
+  await expect(page.getByTestId("open-note-group-navigator").filter({ visible: true })).toHaveCount(1);
+  await expect(page.getByTestId("open-note-group-navigator").filter({ visible: true })).toBeVisible();
 
   const createEditor = await openNewReusableNoteEditor(page);
   await createEditor.getByLabel("註記名稱").fill(noteName);
   await createEditor.getByLabel("價格調整").fill("7");
   await createEditor.getByRole("button", { name: "儲存" }).click();
   await acknowledgeSettingsFeedback(page, "success", "共用單一註記已新增。");
+
+  const singleNotes = page.getByTestId("reusable-note-navigator-dialog");
+  await expect(singleNotes).toBeVisible();
+  for (const [action, message] of [
+    ["上移", "共用註記排序已更新。"],
+    ["下移", "共用註記排序已更新。"],
+    ["停用", "共用單一註記已停用，所有群組已同步。"],
+    ["啟用", "共用單一註記已啟用，所有群組已同步。"],
+  ]) {
+    await selectProductNoteAction(page, noteName, action);
+    await expect(singleNotes).toBeVisible();
+    await acknowledgeSettingsFeedback(page, "success", message);
+    if (action === "上移" || action === "下移") {
+      await expect.poll(async () => (await prisma.reusableProductNote.findMany({
+        where: { organizationId, name: { in: [noteName, precedingNoteName] } },
+        orderBy: { sortOrder: "asc" }, select: { name: true },
+      })).map(note => note.name)).toEqual(action === "上移"
+        ? [noteName, precedingNoteName]
+        : [precedingNoteName, noteName]);
+    }
+    await expect(singleNotes.getByPlaceholder("搜尋單一註記")).toHaveValue(noteName);
+    await expect(singleNotes.getByPlaceholder("搜尋單一註記")).toBeFocused();
+  }
+  page.once("dialog", dialog => dialog.dismiss());
+  await selectProductNoteAction(page, noteName, "刪除");
+  await expect(singleNotes).toBeVisible();
+  await expect(singleNotes.getByRole("button", { name: `管理 ${noteName}`, exact: true })).toBeVisible();
+
+  const notesApi = `/api/merchant/organizations/${organizationId}/product-notes`;
+  await page.route(`**${notesApi}`, route => route.fulfill({
+    status: 503, contentType: "application/json", json: { error: "目前無法更新註記群組。" },
+  }), { times: 1 });
+  await selectProductNoteAction(page, noteName, "停用");
+  await acknowledgeSettingsFeedback(page, "error", "目前無法更新註記群組。");
+  await expect(singleNotes).toBeVisible();
+  await expect(singleNotes.getByPlaceholder("搜尋單一註記")).toHaveValue(noteName);
 
   const duplicateEditor = await openNewReusableNoteEditor(page);
   const duplicateName = duplicateEditor.getByLabel("註記名稱");
@@ -1095,8 +1154,8 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
   await acknowledgeSettingsFeedback(page, "success",
     "共用單一註記已更新，所有群組已同步。",
   );
-  await page.getByTestId("open-reusable-note-navigator").click();
   const updatedNoteNavigator = page.getByTestId("reusable-note-navigator-dialog");
+  await expect(updatedNoteNavigator).toBeVisible();
   await updatedNoteNavigator.getByPlaceholder("搜尋單一註記").fill(updatedName);
   await expect(
     updatedNoteNavigator.getByRole("button", { name: `管理 ${updatedName}`, exact: true }),
@@ -1115,7 +1174,7 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
 
   for (const groupName of ["辣度", "加料"]) {
     const group = await openNoteGroup(page, groupName);
-    await expect(group.getByText(updatedName, { exact: true })).toBeVisible();
+    await expect(group.getByText(updatedName, { exact: true }).filter({ visible: true })).toBeVisible();
     await group.getByRole("button", { name: "關閉", exact: true }).click();
     page.once("dialog", (dialog) => dialog.accept());
     await selectProductNoteGroupOptionAction(
@@ -1132,7 +1191,7 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
     const reopenedGroup = await openNoteGroup(page, groupName);
     await expect(
       reopenedGroup
-        .getByTestId("note-option-action-trigger")
+        .locator('[data-testid="note-option-action-trigger"]:visible')
         .filter({ hasText: updatedName }),
     ).toHaveCount(0);
     await reopenedGroup
@@ -1147,8 +1206,8 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
     "刪除",
   );
   await acknowledgeSettingsFeedback(page, "success", "共用單一註記已刪除。");
-  await page.getByTestId("open-reusable-note-navigator").click();
   const deletedNoteNavigator = page.getByTestId("reusable-note-navigator-dialog");
+  await expect(deletedNoteNavigator).toBeVisible();
   await deletedNoteNavigator.getByPlaceholder("搜尋單一註記").fill(updatedName);
   await expect(
     deletedNoteNavigator.getByRole("button", { name: `管理 ${updatedName}`, exact: true }),
@@ -1163,7 +1222,7 @@ test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) 
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
-  await page.getByTestId("open-reusable-note-navigator").click();
+  await page.getByTestId("open-reusable-note-navigator").filter({ visible: true }).click();
   const transferNavigator = page.getByTestId("reusable-note-navigator-dialog");
   await expect(transferNavigator).toBeVisible();
 
@@ -1270,7 +1329,7 @@ test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) 
   await acknowledgeSettingsFeedback(page, "success",
     "已匯入 1 個共用註記、1 個群組與 1 個群組註記",
   );
-  await expect(page.getByText(noteName, { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: `管理 ${noteName}`, exact: true })).toBeVisible();
 
   const mergeTransfer = structuredClone(transfer);
   mergeTransfer.reusableNotes[0].priceDelta = 9;
@@ -1361,91 +1420,111 @@ test.describe("QR 瀏覽器語系", () => {
   test.use({ locale: "ja-JP", timezoneId: "Asia/Taipei" });
 
   test("QR 依瀏覽器語系自動切換並保留手動選擇", async ({ browser, page }) => {
-    await ensurePublicCatalogNoteLocaleFixtures(["en", "ja"]);
-    const ownerContext = await browser.newContext({ locale: "zh-TW" });
+    const visibility = await prisma.stallProduct.findMany({ where: { stallId }, select: { id: true, isEnabled: true } });
     try {
-      const ownerPage = await ownerContext.newPage();
-      await login(ownerPage, "owner@stallorder.test");
-      await ownerPage.goto(`/merchant/stalls/${stallId}/settings/printing`);
-      const cacheInvalidationResponse = ownerPage.waitForResponse(
+      // Locale selection requires a completely translated menu; the retained
+      // local catalog deliberately contains additional untranslated products.
+      await prisma.stallProduct.updateMany({ where: { stallId, productId: { notIn: [
+        "44444444-4444-4444-8444-444444444441", "44444444-4444-4444-8444-444444444442", "44444444-4444-4444-8444-444444444443",
+      ] } }, data: { isEnabled: false } });
+      await ensurePublicCatalogNoteLocaleFixtures(["en", "ja"]);
+      const ownerContext = await browser.newContext({ locale: "zh-TW" });
+      try {
+        const ownerPage = await ownerContext.newPage();
+        await login(ownerPage, "owner@stallorder.test");
+        await ownerPage.goto(`/merchant/stalls/${stallId}/settings/printing`);
+        const cacheInvalidationResponse = ownerPage.waitForResponse(
+          (response) =>
+            response.request().method() === "PATCH"
+            && new URL(response.url()).pathname.endsWith(
+              `/api/merchant/stalls/${stallId}/modules`,
+            ),
+        );
+        await ownerPage
+          .getByRole("button", { name: "儲存設定", exact: true })
+          .click();
+        expect((await cacheInvalidationResponse).status()).toBe(200);
+      } finally {
+        await ownerContext.close();
+      }
+      const sessionResponse = page.waitForResponse(
         (response) =>
-          response.request().method() === "PATCH"
-          && new URL(response.url()).pathname.endsWith(
-            `/api/merchant/stalls/${stallId}/modules`,
-          ),
+          ["/create-order-session", "/api/public/order-session"].some((path) =>
+            new URL(response.url()).pathname.endsWith(path),
+          ) && response.request().method() === "POST",
       );
-      await ownerPage
-        .getByRole("button", { name: "儲存設定", exact: true })
+      await page.goto(`/q/${takeoutQrToken}`);
+      expect((await sessionResponse).status()).toBe(201);
+      await expect(page.locator("html")).toHaveAttribute("lang", "ja");
+      await expect(
+        page.getByRole("button", { name: "メニュー言語" }),
+      ).toHaveAttribute("data-current-locale", "ja");
+      await expect(
+        page.getByRole("heading", { name: "揚げ物", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "台湾風鶏の唐揚げ" }),
+      ).toBeVisible();
+
+      const japaneseProduct = page
+        .getByRole("article")
+        .filter({ hasText: "台湾風鶏の唐揚げ" });
+      await qrProductSelectionControl(
+        japaneseProduct,
+        "台湾風鶏の唐揚げ",
+        "台湾風鶏の唐揚げを増やす",
+      ).click();
+      const japaneseProductDialog = page.getByRole("dialog", {
+        name: "台湾風鶏の唐揚げ",
+      });
+      await expect(japaneseProductDialog).toBeVisible();
+      await expect(
+        japaneseProductDialog.getByRole("radiogroup", { name: /辛さ/ }),
+      ).toBeVisible();
+      await expect(
+        japaneseProductDialog.getByRole("radio", {
+          name: "小辛",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        japaneseProductDialog.getByRole("group", { name: /追加トッピング/ }),
+      ).toBeVisible();
+      await japaneseProductDialog
+        .getByRole("button", { name: "閉じる", exact: true })
         .click();
-      expect((await cacheInvalidationResponse).status()).toBe(200);
+      await expect(japaneseProductDialog).toBeHidden();
+
+      await page.getByRole("button", { name: "メニュー言語" }).click();
+      await page.getByRole("option", { name: "English", exact: true }).click();
+      await expect(page.locator("html")).toHaveAttribute("lang", "en");
+      await expect(
+        page.getByRole("heading", { name: "Pepper Popcorn Chicken" }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Your order" }),
+      ).toBeVisible();
+
+      await page.reload();
+      await expect(
+        page.getByRole("button", { name: "Menu language" }),
+      ).toHaveAttribute("data-current-locale", "en");
+      await expect(
+        page.getByRole("heading", { name: "Pepper Popcorn Chicken" }),
+      ).toBeVisible();
     } finally {
-      await ownerContext.close();
+      for (const row of visibility) await prisma.stallProduct.update({ where: { id: row.id }, data: { isEnabled: row.isEnabled } });
+      const cookies = authCookies.get("owner@stallorder.test");
+      if (cookies) {
+        const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({ where: { stallId } });
+        const response = await page.request.patch(`/api/merchant/stalls/${stallId}/modules`, {
+          headers: { origin: new URL(page.url()).origin, cookie: cookies.map(row => `${row.name}=${row.value}`).join("; "),
+            "x-csrf-token": cookies.find(row => row.name === "stallorder_csrf")!.value },
+          data: { operation: "UPDATE_LOCALES", enabledLocales: settings.enabledLocales },
+        });
+        expect(response.status()).toBe(200);
+      }
     }
-    const sessionResponse = page.waitForResponse(
-      (response) =>
-        ["/create-order-session", "/api/public/order-session"].some((path) =>
-          new URL(response.url()).pathname.endsWith(path),
-        ) && response.request().method() === "POST",
-    );
-    await page.goto(`/q/${takeoutQrToken}`);
-    expect((await sessionResponse).status()).toBe(201);
-    await expect(page.locator("html")).toHaveAttribute("lang", "ja");
-    await expect(
-      page.getByRole("button", { name: "メニュー言語" }),
-    ).toHaveAttribute("data-current-locale", "ja");
-    await expect(
-      page.getByRole("heading", { name: "揚げ物", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "台湾風鶏の唐揚げ" }),
-    ).toBeVisible();
-
-    const japaneseProduct = page
-      .getByRole("article")
-      .filter({ hasText: "台湾風鶏の唐揚げ" });
-    await qrProductSelectionControl(
-      japaneseProduct,
-      "台湾風鶏の唐揚げ",
-      "台湾風鶏の唐揚げを増やす",
-    ).click();
-    const japaneseProductDialog = page.getByRole("dialog", {
-      name: "台湾風鶏の唐揚げ",
-    });
-    await expect(japaneseProductDialog).toBeVisible();
-    await expect(
-      japaneseProductDialog.getByRole("radiogroup", { name: /辛さ/ }),
-    ).toBeVisible();
-    await expect(
-      japaneseProductDialog.getByRole("radio", {
-        name: "小辛",
-        exact: true,
-      }),
-    ).toBeVisible();
-    await expect(
-      japaneseProductDialog.getByRole("group", { name: /追加トッピング/ }),
-    ).toBeVisible();
-    await japaneseProductDialog
-      .getByRole("button", { name: "閉じる", exact: true })
-      .click();
-    await expect(japaneseProductDialog).toBeHidden();
-
-    await page.getByRole("button", { name: "メニュー言語" }).click();
-    await page.getByRole("option", { name: "English", exact: true }).click();
-    await expect(page.locator("html")).toHaveAttribute("lang", "en");
-    await expect(
-      page.getByRole("heading", { name: "Pepper Popcorn Chicken" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Your order" }),
-    ).toBeVisible();
-
-    await page.reload();
-    await expect(
-      page.getByRole("button", { name: "Menu language" }),
-    ).toHaveAttribute("data-current-locale", "en");
-    await expect(
-      page.getByRole("heading", { name: "Pepper Popcorn Chicken" }),
-    ).toBeVisible();
   });
 });
 
@@ -1459,6 +1538,9 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await page.getByRole("radio", { name: "中辣", exact: true }).click();
   await page.getByRole("checkbox", { name: /加蛋/ }).click();
   await qrProduct.getByRole("button", { name: "加入購物車" }).click();
+  const continueButton = page.getByRole("button", { name: "繼續填寫訂購資料", exact: true });
+  if (await continueButton.isVisible()) await continueButton.click();
+  await continueQrCheckout(page);
   await expect(page.getByLabel("顧客稱呼")).toHaveCount(0);
   await expect(page.getByLabel("聯絡電話")).toHaveCount(0);
   await page.getByLabel("訂單備註").fill("胡椒少一點");
@@ -1482,6 +1564,9 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
       ) && response.request().method() === "POST",
   );
   await submitOrder.click();
+  if (await page.getByRole("dialog", { name: "結帳前，再看看", exact: true }).isVisible()) {
+    await continueQrCheckout(page);
+  }
   let createResponse = await createResponsePromise;
   if (createResponse.status() === 422) {
     await expect(createResponse.json()).resolves.toMatchObject({

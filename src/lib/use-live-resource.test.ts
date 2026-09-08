@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   startLiveResource,
+  LiveResourceRetryError,
   type LiveResourceEnvironment,
 } from "./use-live-resource";
 
@@ -164,6 +165,52 @@ describe("live resource controller", () => {
     expect(load).toHaveBeenCalledTimes(3);
     vi.advanceTimersByTime(1);
     expect(load).toHaveBeenCalledTimes(4);
+    controller.stop();
+  });
+
+  it("honors server cooldown across refresh clicks, visibility and online events", async () => {
+    vi.useFakeTimers();
+    const browser = createEnvironment();
+    const load = vi.fn()
+      .mockRejectedValueOnce(new LiveResourceRetryError("limited", 60_000))
+      .mockResolvedValue({ value: "updated" });
+    const onData = vi.fn();
+    const controller = startLiveResource({
+      environment: browser.environment, intervalMs: 3_000, maxBackoffMs: 4_000,
+      load, onData,
+    });
+    await flushPromises();
+    await controller.refresh();
+    browser.setVisibility("hidden");
+    browser.setVisibility("visible");
+    browser.setOnline(false);
+    browser.setOnline(true);
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(onData).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(onData).toHaveBeenLastCalledWith("updated", undefined);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(load).toHaveBeenCalledTimes(3);
+    controller.stop();
+  });
+
+  it("does not let a queued slow refresh bypass a cooldown", async () => {
+    vi.useFakeTimers();
+    const browser = createEnvironment();
+    let rejectLoad: (error: Error) => void = () => undefined;
+    const load = vi.fn(() => new Promise<{ value: string }>((_resolve, reject) => { rejectLoad = reject; }));
+    const onLoadingChange = vi.fn();
+    const controller = startLiveResource({ environment: browser.environment, intervalMs: 3_000, load, onData: vi.fn(), onLoadingChange });
+    vi.advanceTimersByTime(3_000);
+    rejectLoad(new LiveResourceRetryError("limited", 10_000));
+    await flushPromises();
+    expect(onLoadingChange).toHaveBeenLastCalledWith(false);
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(load).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(load).toHaveBeenCalledTimes(2);
     controller.stop();
   });
 

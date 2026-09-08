@@ -22,6 +22,7 @@ export function QrPrintPreview({
   paper,
   items,
   backHref,
+  warnings = [],
 }: {
   stallId: string;
   stallName: string;
@@ -29,6 +30,7 @@ export function QrPrintPreview({
   paper: QrPrintPaper;
   items: QrPrintItem[];
   backHref: string;
+  warnings?: string[];
 }) {
   const { label, m } = useMerchantMessages();
   const [printStatus, setPrintStatus] = useState("");
@@ -41,6 +43,7 @@ export function QrPrintPreview({
     : "target=stall";
 
   function handlePrint() {
+    if (warnings.length && !window.confirm(warnings.join("\n\n") + "\n\n仍要先列印嗎？")) return;
     setPrintStatus(label("已送出列印指令，請在瀏覽器視窗選擇列印或另存 PDF。"));
     window.focus();
     window.print();
@@ -86,6 +89,7 @@ export function QrPrintPreview({
           </> : null}
           <button data-testid="qr-print-button" type="button" disabled={pages.length === 0} onClick={handlePrint} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-40"><Printer className="h-4 w-4" />{label("列印／存成 PDF")}</button>
         </div>
+        {warnings.length ? <div role="alert" className="w-full rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{warnings.map((warning) => <p key={warning} className="py-1">{warning}</p>)}</div> : null}
         {printStatus ? <p role="status" className="w-full text-right text-xs font-medium text-teal-800">{printStatus}</p> : null}
       </header>
 

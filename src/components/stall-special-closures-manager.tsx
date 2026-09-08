@@ -18,6 +18,7 @@ type Draft = {
   endsOn: string;
   opensAt: string;
   closesAt: string;
+  lastOrderAt: string;
   title: string;
   message: string;
 };
@@ -29,6 +30,7 @@ function emptyDraft(): Draft {
     endsOn: "",
     opensAt: "15:00",
     closesAt: "19:00",
+    lastOrderAt: "",
     title: "公休日",
     message: "",
   };
@@ -41,6 +43,7 @@ function draftFromClosure(closure: SpecialClosureView): Draft {
     endsOn: closure.endsOn,
     opensAt: closure.opensAt ?? "15:00",
     closesAt: closure.closesAt ?? "19:00",
+    lastOrderAt: closure.lastOrderAt ?? "",
     title: closure.title,
     message: closure.message,
   };
@@ -165,6 +168,7 @@ export function StallSpecialClosuresManager({
       endsOn: normalizedEndsOn,
       opensAt: draft.mode === "OPEN_HOURS" ? draft.opensAt : null,
       closesAt: draft.mode === "OPEN_HOURS" ? draft.closesAt : null,
+      lastOrderAt: draft.mode === "OPEN_HOURS" ? draft.lastOrderAt || null : null,
       title: draft.title,
       message: draft.message,
     }, label(editingClosureId ? "特殊營業日已更新。" : "特殊營業日已新增。"));
@@ -294,10 +298,14 @@ export function StallSpecialClosuresManager({
                     </label>
                   </div>
                   {invalidTimeRange ? <p role="alert" className="mt-2 text-sm font-semibold text-red-700">{label("結束時間必須晚於開始時間。")}</p> : null}
+                  <label className="mt-3 block text-sm font-semibold text-stone-700">{label("QR 最後點餐時間（留空至打烊）")}
+                    <input type="time" value={draft.lastOrderAt} onChange={(event) => setDraft((current) => ({ ...current, lastOrderAt: event.target.value }))} className="mt-2 h-12 w-full rounded-xl border border-stone-300 bg-white px-3 text-base" />
+                  </label>
                 </fieldset>
               ) : null}
 
               <div className="mt-6 grid gap-4">
+                <p role="note" className="rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-900">{label("此設定會影響 QR 接單、外帶與外送預約，以及店員可選的取餐時間。已成立訂單不會自動取消，請確認受影響預約並聯絡顧客。")}</p>
                 <label className="text-sm font-semibold text-stone-700">{label("公告標題")}
                   <input type="text" required maxLength={80} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="mt-2 h-12 w-full rounded-xl border border-stone-300 bg-white px-3 text-base" />
                 </label>

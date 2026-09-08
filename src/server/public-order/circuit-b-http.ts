@@ -54,8 +54,14 @@ export function circuitBResponse(
   timing: Timing,
   operationId: string,
 ) {
+  const response = NextResponse.json(body, { status });
+  const retryAfter = body && typeof body === "object" && "retryAfterSeconds" in body
+    ? body.retryAfterSeconds : undefined;
+  if (status === 429 && typeof retryAfter === "number" && Number.isInteger(retryAfter) && retryAfter > 0) {
+    response.headers.set("retry-after", String(retryAfter));
+  }
   return finalizeCircuitBResponse(
-    NextResponse.json(body, { status }),
+    response,
     requestId,
     timing,
     operationId,

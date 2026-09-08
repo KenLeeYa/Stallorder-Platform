@@ -2,7 +2,23 @@
 
 Use this matrix to select tests before changing code. Add or update automated tests in the repository where practical; this document is not a substitute for executable coverage.
 
+## 2026-09-07 local order-experience acceptance
+
+| ID | Requirements | Pass condition |
+| --- | --- | --- |
+| `QA-EXP-01` | `NOT-001`, `NOT-003` | Browser audio observer increments for a new order, never for edits, checkout, completion, known-order reappearance or due reminders; retain visible notices and report iPad hardware verification separately. |
+| `QA-EXP-02` | `QR-026` | Default off, takeaway/delivery only, note-length guard and six-language labels; real create/edit preserves preference and free text, unchecking removes only the preference. |
+| `QA-EXP-03` | `QR-027` | Add a closure after an order exists; future banner, pickup-day modal, dismiss without repeated polling popup, announcement removal and unchanged order state. Include timezone date boundaries and special opening windows. |
+| `QA-EXP-04` | `QR-028`, `STAFF-019` | With an existing cart, simulate maintenance and recovery; submission blocks and cart survives. Three-pane board fills 768/1024/1440 viewport, independent overflow works and below-board tools remain reachable. |
+
 ## Universal preflight
+
+- Local integrated acceptance is recorded in `docs/LOCAL_ALL_FEATURES_QA_20260907.md`. Run browser mutation cases sequentially against the dedicated local QA database; run the complete transactional SQL suite in a separate freshly migrated database so retained manual examples do not invalidate seed-only assumptions.
+- `QA-LOT-04`: master disabled with saved active spend/holiday campaigns; Node and Edge responses and client checkout agree. Live table draw → idempotent retry → zero-price gift → KDS → checkout; gift discount eligibility stays false. Database coverage: `lottery_dine_in_channel.test.sql`.
+- `QA-PAY-LOCAL-01`: configure network failure and retry; seven mock outcomes, request lost before commit, response lost after commit, one transaction per attempt, refund state and explicit reconciliation case. `e2e/payment-workflow-local.spec.ts`.
+- `QA-CAP-LOCAL-01`: twelve real local orders, queue-based wait quotes, automatic pause/resume, held-session rejection, manual pause and close/open, final stock and Staff/Kitchen examples. `e2e/operations-surge-local.spec.ts`.
+- `QA-TIME-LOCAL-01`: compare Edge same-table last-addition time with the database ISO instant and render it in Asia/Taipei. `public-order-contract.test.ts` and `e2e/dine-in-order-flow.spec.ts`.
+- `QA-MODAL-LOCAL-01`: session failure and degraded status must produce one operable error dialog. Closing it exposes the persistent retry action; successive expired/context failures rotate identities only when required. `e2e/qr-degraded-mode.spec.ts`.
 
 | ID | Check | Pass condition |
 |---|---|---|
@@ -70,6 +86,8 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-QR-12` | `QR-011`,`STAFF-016` | Published/enabled sold-out items stay visible in public Menu/QR/takeout/delivery with grayscale image and localized label; all customer add/customize controls and stale submission are blocked, while authorized Staff onsite ordering retains the item. Disabled and unpublished controls remain hidden. |
 | `QA-QR-13` | `QR-023` | Module and per-product recommendation default off; the large per-product switch is inside the stall product-detail dialog and the shared editor provides one switch per assigned stall below the lottery control. Both persist only on save and are not duplicated on catalog rows. Enabling both shows eligible recommendations once before checkout, skip/add/customization work, and cart-existing, sold-out, disabled, missing, or cross-stall candidates are excluded by UI and server validation. |
 | `QA-QR-14` | `QR-024` | Commit an order but drop its first response; verify the exact same payload and operation ID retries once, returns the committed order, opens tracking, and creates no duplicate or false failure. Force a reorder transport timeout and verify localized guidance plus a working retry with no raw timeout text. Delay the first post-cancel read, verify confirmed cancellation renders immediately, and verify the stale read cannot restore the active state. Run the same tracking contract for QR, takeout, and delivery orders. |
+| `QA-QR-15` | `QR-017`, `QR-025` | Decline, re-propose, then idle for six real minutes without clearing rate counters. Exercise Node/Edge shared read limits, independent orders on shared Wi-Fi, invalid devices, cooldown plus manual/queued/visibility/reconnect refresh, and a mutation during read cooldown. Background failures stay inline; automatic recovery and cleanup must complete. |
+| `QA-QR-16` | `QR-025` | Actual Staff tablet dialog and Customer phone complete three proposal rounds. Two tabs cannot overwrite one answer; delayed reads cannot revive buttons; expired, lost-response and terminal paths preserve events/stock. Reproduce cancellation holding the DB row lock while Staff PROPOSE and CONFIRM_REQUESTED wait; stale writes return 409 without a new proposal/event. New versions hide old success feedback. |
 
 ### Pickup codes and checkout
 
@@ -110,14 +128,16 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 |---|---|---|
 | `QA-CAT-01` | `CAT-001`–`CAT-003`,`CAT-010` | Responsive tool grouping, group collapse, collapsible product translation, global single toggle, and menu publication icon remain reachable. |
 | `QA-CAT-02` | `CAT-002` | Bundle publish makes it visible/orderable in QR and Staff; price and group constraints are server-authoritative. |
-| `QA-CAT-03` | `CAT-004`–`CAT-006` | The main page simultaneously shows exactly two large entries for single notes and note groups, with no duplicate top toolbar or tabs. Each opens the same searchable hierarchy and centered action dialog; note translations collapse; note selection scrolls, confirms, multi-adds, deduplicates, orders, and round-trips import/export inside the overlays. |
+| `QA-CAT-03` | `CAT-004`–`CAT-006` | Phone shows two large note entries and centered searchable overlays. Tablet/desktop immediately exposes an inline group/option board with compact entry actions; search/select/edit/save/reload retain group context. Single notes, translations, multi-add, sorting, deduplication and import/export remain reachable. |
 | `QA-CAT-04` | `CAT-007` | Numeric zero placeholder clears correctly and invalid numeric values identify the field. |
+| `QA-CAT-12` | `CAT-019`,`MER-007`,`MER-013` | At 320/390/768/1440, open a reusable note from a filtered/scrolled navigator and close its actions/editor with X or Escape; verify the original list, query, scroll and focus remain without reopening the entry. Check create/save, reorder, enable/disable, deletion cancellation, in-use deletion rejection, successful deletion and API failure. Test helpers may explicitly close the list to switch workflows, but must never reopen it to conceal a failed return. |
 | `QA-CAT-05` | `CAT-008`,`CAT-009` | Valid image uploads and invalid type/size/dimension failures return JSON; processed media meets bounds. |
 | `QA-CAT-06` | `CAT-011`,`CAT-012` | With 120+ assigned products, the lottery settings page remains compact and opens a bounded category → product-group → product picker with search, persistent disclosure state, group select/clear, and a 100-item counter/limit. Stall-scoped IDs persist only through the lottery module; unassigned/bundle/disabled products are rejected when saving, while selected sold-out products remain configured but are excluded from draw/order commit until restored. IDs are deduplicated, no-extra-discount flags persist through create/edit/import/assignment/publish, and the shared product editor has no lottery eligibility switch. |
 | `QA-CAT-07` | `CAT-013`,`STAFF-009`,`LOC-002` | Category/group/product order and translated names match Merchant, public Menu/QR, Staff, KDS/print, and reports. |
 | `QA-CAT-08` | `CAT-014`,`CAT-015` | Product and promo images preview, pan/zoom/crop, save, reload, render responsively, delete, and show JSON-backed success/failure; promo placement does not lengthen the page top. |
 | `QA-CAT-09` | `CAT-004`,`CAT-016`,`MER-021` | Shared-catalog/note icons form one row with distinct category/group controls; single-note/group overlays and stall-product assignment remain reachable at phone/tablet sizes, and desktop panes scroll independently. |
 | `QA-CAT-10` | `CAT-017`,`X-003` | Upload/assignment/publication/translation/order actions are reachable and provide immediate success/failure feedback without duplicate submission. |
+| `QA-CAT-11` | `CAT-018` | At 320/390/768/1440 widths, empty virtual ungrouped buckets are absent, real empty groups stay editable, a real ungrouped product can be assigned and leaves the bucket on reload, and category/group filters show matching products. Note group/option search, empty results and real note edit/save/reload work through sidebar or phone hierarchy without overflow. See `docs/CATALOG_HIERARCHY_TEST_ORDERS_20260907.md`; local seed replay preserves the same 10 test orders and user progress. Inline-board follow-up: `catalog-inline-board-local.spec.ts` measures equal pane bottoms (within 2 px) at 768/1440 and verifies inline notes, independent scroll and phone fallback at 320/390. |
 
 ### Lottery, capacity, and reservations
 
@@ -145,6 +165,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-MER-08` | `MER-017`,`MER-018` | Server pagination defaults to five; login devices have no size selector; order/print/cash date filters and collapsible product analyses retain query state across pages. |
 | `QA-MER-09` | `MER-019`–`MER-022` | Metric cards, compact action rows, grouped non-accordion settings, independent scroll panes, and compact headers pass all viewports without page-level horizontal overflow. |
 | `QA-MER-10` | `MER-014`,`PRN-009` | QR management remains bounded on desktop, full-width two-column on tablet, single-column on phone, and all A4/A5/A6 print actions stay visible and operable. |
+| `QA-MER-11` | `MER-024`,`MER-023` | At 320/390/768/1440, navigate all LINE setup steps and preserve drafts; verify external-console links, Provider guidance, environment Callback/Webhook paths, local warning, masked fields, save error/retry/focus, secret clearing after success and reopening setup. Check clipboard success and denial/manual fallback, real invalid-input and role denial, plus the customer LINE entry and Menu return. Mock success is not live verification. |
 | `QA-ADM-01` | `ADM-001`–`ADM-004` | Responsive admin billing/plan UI, open-beta, and merchant billing visibility follow server flags. |
 | `QA-ADM-02` | `ADM-005`,`ADM-006`,`ADM-011` | The fixed-port launcher proves the expected worktree/HEAD/origin, refuses collision/remote DB, disables stale development service workers, and the four local roles plus public Menu, successful QR/takeout session creation, and cash smoke work on that same origin. The guarded OAuth-policy bypass remains absent/inert in Production and all origins fail closed outside local config. |
 | `QA-ADM-03` | `ADM-007`–`ADM-010` | Login methods reflect policy plus configured credentials; incomplete modules stay hidden/direct APIs closed; phone header/theme, simple copy, and privacy-safe device labels pass. |
@@ -187,6 +208,16 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-PERF-03` | Browser | Report navigation/TTFB and Core Web Vitals or repository-declared equivalents for affected views at phone/tablet/desktop. |
 | `QA-PERF-04` | Database | Capture query count/duration and explain/index evidence for changed hot queries; prove no N+1 or cross-tenant overfetch. |
 | `QA-PERF-05` | Regression | Repository budgets are authoritative. If no budget exists, do not claim improvement without repeated measurements and disclose variance; any material regression blocks release pending owner decision. |
+
+## Catalog operations local acceptance
+
+| ID | Layer | Required evidence |
+| --- | --- | --- |
+| `QA-OPS-01` | Database/API | New/reserved stock allocation, edit delta, replay, zero-stock unchanged edit, simultaneous last portion, atomic failure and manual-restock version conflicts. |
+| `QA-OPS-02` | Database/API | Pre-production return once; started order/item/KDS and paid/completed flows do not return stock; unlimited-to-counted excludes legacy orders. |
+| `QA-OPS-03` | Calendar | Inclusive local day N, N+1 denial, 30-day cap, special opening/closure, overnight cutoff and no reopening after closing; Node and Edge canonical gates preserved. |
+| `QA-OPS-04` | QR/RBAC | Printed table URL survives enable/rotate/pause-close-open; warning before printing when disabled; revoked credentials stay revoked; removing final role denies an existing login while history remains. |
+| `QA-OPS-05` | UI | Real stock save and bulk sold-out, 320/390/768/1440 widths, readable dialog and no horizontal overflow, desktop group board and phone navigator, explicit stall scope. |
 
 ## Completion evidence template
 

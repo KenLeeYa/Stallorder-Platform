@@ -50,7 +50,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (parsed.data.operation === "DELETE") {
       const existing = await transaction.stallSpecialClosure.findFirst({
         where: { id: parsed.data.closureId, organizationId, stallId },
-        select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, title: true, message: true },
+        select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, lastOrderAt: true, title: true, message: true },
       });
       if (!existing) return { status: "NOT_FOUND" as const };
       await transaction.stallSpecialClosure.delete({ where: { id: existing.id } });
@@ -62,7 +62,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const existing = parsed.data.operation === "UPDATE"
       ? await transaction.stallSpecialClosure.findFirst({
           where: { id: parsed.data.closureId, organizationId, stallId },
-          select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, title: true, message: true },
+          select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, lastOrderAt: true, title: true, message: true },
         })
       : null;
     if (parsed.data.operation === "UPDATE" && !existing) {
@@ -86,6 +86,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       endsOn,
       opensAt: parsed.data.opensAt,
       closesAt: parsed.data.closesAt,
+      lastOrderAt: parsed.data.lastOrderAt ?? null,
       title: parsed.data.title,
       message: parsed.data.message,
     };
@@ -144,7 +145,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const closures = await prisma.stallSpecialClosure.findMany({
     where: { organizationId, stallId },
     orderBy: [{ startsOn: "asc" }, { createdAt: "asc" }],
-    select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, title: true, message: true },
+    select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, lastOrderAt: true, title: true, message: true },
   });
   return NextResponse.json(
     { closures: closures.map(serializeSpecialClosure) },

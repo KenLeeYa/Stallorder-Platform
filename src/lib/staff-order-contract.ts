@@ -84,6 +84,7 @@ export type CreateStaffOrderInput = z.infer<typeof createStaffOrderSchema>;
 export type StaffOrderCatalog = {
   products: Array<{
     id: string;
+    stockRemaining?: number | null;
     name: string;
     description: string;
     translations?: Array<{ locale: string; name: string; description: string }>;

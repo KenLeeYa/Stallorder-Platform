@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Copy, Eye, EyeOff, PackageCheck, PackageX, Save, ShoppingBag, X } from "lucide-react";
+import { ProductStockEditor, type StockAssignment } from "@/components/product-stock-editor";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
@@ -9,6 +10,8 @@ import { effectiveProductPrice } from "@/lib/shared-catalog";
 import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
 
 export type StallCatalogProduct = {
+  stockRemaining?: number | null;
+  stockVersion?: number;
   id: string;
   productId: string;
   categoryName: string;
@@ -52,11 +55,15 @@ export function StallCatalogSettings({
   } | null>(null);
   const productSettingsDialogRef = useRef<HTMLElement>(null);
   const productSettingsCloseRef = useRef<HTMLButtonElement>(null);
+  const [stockIds, setStockIds] = useState<string[] | null>(null);
+  const [soldOnly, setSoldOnly] = useState(false);
+  const [groupFilter, setGroupFilter] = useState("");
+  const visibleProducts = products.filter((row) => (!soldOnly || row.isSoldOut || row.stockRemaining === 0) && (!groupFilter || JSON.stringify([row.categoryName, row.groupName]) === groupFilter));
   const categories = useMemo(
     () => [...new Set(products.map((product) => product.categoryName))],
     [products],
   );
-  const allSelected = products.length > 0 && products.every((product) => selectedProductIds.has(product.productId));
+  const allSelected = visibleProducts.length > 0 && visibleProducts.every((product) => selectedProductIds.has(product.productId));
   const settingsProduct = productSettingsDraft
     ? products.find((product) => product.productId === productSettingsDraft.productId) ?? null
     : null;
@@ -209,14 +216,28 @@ export function StallCatalogSettings({
         <h2 id="stall-products-heading" className="mt-1 text-2xl font-semibold">{m("供應與價格")}</h2>
         <p className="mt-2 text-sm text-stone-600">{m("價格留空時使用組織主檔預設售價；售罄商品仍會顯示，但顧客無法點選。")}</p>
       </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" aria-pressed={soldOnly} onClick={() => { setSoldOnly(!soldOnly); setSelectedProductIds(new Set()); }} className="min-h-11 rounded-md border border-stone-300 px-3 text-sm font-semibold">已售完（{products.filter((row) => row.isSoldOut || row.stockRemaining === 0).length}）</button>
+        <button type="button" onClick={() => setStockIds(products.map((row) => row.productId))} className="min-h-11 rounded-md border border-stone-300 px-3 text-sm font-semibold">全部商品庫存</button>
+        <button type="button" disabled={!selectedProductIds.size} onClick={() => setStockIds([...selectedProductIds])} className="min-h-11 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-40">設定所選庫存</button>
+        <select aria-label="篩選商品群組" value={groupFilter} onChange={(e) => { setGroupFilter(e.target.value); setSelectedProductIds(new Set()); }} className="h-11 max-w-full rounded-md border border-stone-300 bg-white px-3 text-sm">
+          <option value="">全部群組</option>
+          {[...new Set(products.map((row) => JSON.stringify([row.categoryName,row.groupName])))].map((key) => <option key={key} value={key}>{(JSON.parse(key) as Array<string | null>).filter(Boolean).join(" / ")}</option>)}
+        </select>
+      </div>
       <div className="flex flex-col gap-3 border-b border-stone-200 py-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={allSelected} onChange={(event) => setSelectedProductIds(event.target.checked ? new Set(products.map((product) => product.productId)) : new Set())} />{m("全選商品")}</label>
+          <label className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={allSelected} onChange={(event) => setSelectedProductIds(event.target.checked ? new Set(visibleProducts.map((product) => product.productId)) : new Set())} />{m("全選商品")}</label>
           <button type="button" disabled={selectedProductIds.size === 0 || busyId !== null} onClick={() => void runBulk({ operation: "BULK_SOLD_OUT", productIds: [...selectedProductIds], isSoldOut: true }, m("已批次標記售完"))} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-300 px-3 text-sm font-semibold text-red-800 disabled:opacity-40"><PackageX className="h-4 w-4" />{m("批次售完")}</button>
           <button type="button" disabled={selectedProductIds.size === 0 || busyId !== null} onClick={() => void runBulk({ operation: "BULK_SOLD_OUT", productIds: [...selectedProductIds], isSoldOut: false }, m("已批次恢復供應"))} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-emerald-400 px-3 text-sm font-semibold text-emerald-800 disabled:opacity-40"><PackageCheck className="h-4 w-4" />{m("恢復供應")}</button>
         </div>
         {sourceStalls.length > 0 ? <div className="flex min-w-0 flex-wrap items-end gap-2"><label className="text-xs font-semibold text-stone-600">{m("複製其他攤位設定")}<select value={sourceStallId} onChange={(event) => setSourceStallId(event.target.value)} className="mt-1 block h-10 max-w-56 rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-900">{sourceStalls.map((stall) => <option key={stall.id} value={stall.id}>{stall.name}（{stall.code}）</option>)}</select></label><button type="button" disabled={busyId !== null || !sourceStallId} onClick={() => void copyFromStall()} className="inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-40"><Copy className="h-4 w-4" />{m("合併設定")}</button></div> : null}
       </div>
+      {stockIds ? <ProductStockEditor stallId={stallId} stallName="目前攤位" products={products.filter((row) => stockIds.includes(row.productId))}
+        onSaved={(rows: StockAssignment[]) => {
+          const next = productsRef.current.map((row) => { const changed = rows.find((value) => value.productId === row.productId); return changed ? { ...row, stockRemaining: changed.stockRemaining, stockVersion: changed.stockVersion, isSoldOut: changed.isSoldOut, isEnabled: changed.isEnabled } : row; });
+          productsRef.current = next; setProducts(next);
+        }} onClose={() => setStockIds(null)} /> : null}
       {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
       <details open data-stall-product-list className="group mt-4">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 border-y border-stone-200 py-3 font-semibold hover:text-teal-800 [&::-webkit-details-marker]:hidden">
@@ -224,16 +245,16 @@ export function StallCatalogSettings({
           <ChevronDown className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" />
         </summary>
         <div className="divide-y divide-stone-200 border-b border-stone-200">
-          {categories.map((category) => (
+          {categories.filter((category) => visibleProducts.some((row) => row.categoryName === category)).map((category) => (
             <details key={category} open className="py-1">
               <summary className="min-h-12 cursor-pointer py-3 font-semibold">{category}</summary>
               <div className="divide-y divide-stone-100 pb-3">
-                {products.filter((product) => product.categoryName === category).map((product) => (
+                {visibleProducts.filter((product) => product.categoryName === category).map((product) => (
                 <div key={product.productId} className="grid gap-3 py-4 lg:grid-cols-[minmax(180px,1fr)_150px_90px_auto] lg:items-end">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <input type="checkbox" aria-label={m("選取 {productName}", { productName: product.name })} checked={selectedProductIds.has(product.productId)} onChange={(event) => setSelectedProductIds((current) => { const next = new Set(current); if (event.target.checked) next.add(product.productId); else next.delete(product.productId); return next; })} />
-                      <h3 className="font-semibold">{product.name}</h3>
+                      <h3 className="font-semibold">{product.name}</h3><button type="button" onClick={() => setStockIds([product.productId])} className="min-h-10 rounded-md border border-stone-300 px-2 text-xs font-semibold">庫存：{product.stockRemaining == null ? "不限量" : product.stockRemaining + " 份"}</button>
                       {product.groupName ? <span className="rounded-md bg-stone-100 px-2 py-0.5 text-xs text-stone-600">{product.groupName}</span> : null}
                       {product.checkoutUpsellSelected ? <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">{m("結帳推薦中")}</span> : null}
                       {!product.masterIsActive ? <span className="text-xs font-semibold text-red-700">{m("主檔已停用")}</span> : null}

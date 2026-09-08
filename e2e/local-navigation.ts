@@ -1,11 +1,13 @@
 import {
   errors,
+  expect,
   type Locator,
   type Page,
   type Response,
 } from "@playwright/test";
 import type { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
+import { AUTH_SESSION_MAX_AGE_SECONDS } from "../src/lib/session-lifetime";
 import {
   createOpaqueToken,
   hashToken,
@@ -14,6 +16,17 @@ import {
 
 const TEST_SESSION_COOKIE = "stallorder_session";
 const TEST_CSRF_COOKIE = "stallorder_csrf";
+
+export async function continueQrCheckout(page: Page) {
+  const upsell = page.getByRole("dialog", { name: "結帳前，再看看", exact: true });
+  await expect.poll(async () => (
+    await upsell.isVisible() || await page.getByLabel("訂單備註").filter({ visible: true }).isVisible()
+  )).toBe(true);
+  if (await upsell.isVisible()) {
+    await upsell.getByRole("button", { name: "不用，直接結帳", exact: true }).click();
+    await expect(upsell).not.toBeVisible();
+  }
+}
 
 export function qrProductSelectionControl(
   product: Locator,
@@ -86,7 +99,18 @@ export async function openSharedCatalogProductActions(
   page: Page,
   productName: string,
 ) {
+  const desktopSearch = page.getByRole("searchbox", { name: "搜尋管理商品", exact: true });
   const navigator = page.getByTestId("catalog-navigator-dialog");
+  if (await desktopSearch.isVisible() && !(await navigator.isVisible())) {
+    await desktopSearch.fill(productName);
+    const row = page.getByTestId("catalog-management-row").filter({
+      has: page.getByRole("heading", { name: productName, exact: true }),
+    });
+    await row.getByRole("button", { name: `更多操作 ${productName}`, exact: true }).click();
+    const actions = page.getByRole("dialog", { name: `商品：${productName}`, exact: true });
+    await actions.waitFor({ state: "visible" });
+    return actions;
+  }
   if (!(await navigator.isVisible())) {
     const openNavigator = page
       .getByTestId("open-catalog-navigator")
@@ -200,7 +224,8 @@ export async function establishLocalTestSession(
   const token = createOpaqueToken();
   const csrfToken = createOpaqueToken();
   const deviceId = randomUUID();
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1_000);
+  // A fresh fixture should not trigger immediate background session rotation.
+  const expiresAt = new Date(Date.now() + AUTH_SESSION_MAX_AGE_SECONDS * 1_000);
   const profile = await database.profile.findUniqueOrThrow({
     where: { id: profileId },
     select: { sessionVersion: true },
@@ -266,6 +291,9 @@ export async function waitForDefaultMerchantDashboard(
   page: Page,
   organizationId: string,
 ) {
+  if (new URL(page.url()).pathname === "/select-organization") {
+    await page.locator(`a[href="/merchant/dashboard?organizationId=${organizationId}"]`).click();
+  }
   await page.waitForURL(
     (url) =>
       url.pathname === "/merchant/dashboard" &&

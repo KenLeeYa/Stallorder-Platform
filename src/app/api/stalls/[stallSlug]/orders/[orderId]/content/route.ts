@@ -109,12 +109,13 @@ function editErrorResponse(error: unknown, requestId: string) {
     const messages: Partial<Record<StaffOrderCreateError["code"], string>> = {
       ORDER_LIMIT_EXCEEDED: "商品數量或備註超過此攤位設定的上限。",
       PRODUCT_UNAVAILABLE: "商品供應或價格剛剛已變更，請重新選擇。",
+      PRODUCT_STOCK_INSUFFICIENT: "商品剩餘份數不足，請減少數量或重新選擇餐點。",
       INVALID_PRODUCT_NOTES: "商品註記未符合必選或數量限制。",
       ORDER_CONFLICT: "訂單剛剛已被其他人更新，請重新整理後再試。",
     };
     return NextResponse.json(
       { error: messages[error.code] ?? "目前無法修改此訂單。", code: error.code },
-      { status: error.code === "ORDER_CONFLICT" ? 409 : 400, headers },
+      { status: error.code === "PRODUCT_STOCK_INSUFFICIENT" || error.code === "ORDER_CONFLICT" ? 409 : 400, headers },
     );
   }
   return null;

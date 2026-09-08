@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validLastOrderTime } from "@/lib/last-order-time";
 import type { SpecialClosureView } from "@/lib/special-closures-client";
 
 export * from "@/lib/special-closures-client";
@@ -18,6 +19,7 @@ const closureFieldShape = {
   endsOn: dateField,
   opensAt: timeField.nullable().optional().default(null),
   closesAt: timeField.nullable().optional().default(null),
+  lastOrderAt: timeField.nullable().optional(),
   title: z.string().trim().min(1, "請輸入公告標題。").max(80, "公告標題最多 80 個字。"),
   message: z.string().trim().max(240, "公告內容最多 240 個字。"),
 };
@@ -39,6 +41,9 @@ function validateClosureFields(
     context.addIssue({ code: "custom", path: [value.opensAt ? "closesAt" : "opensAt"], message: "請同時設定開始與結束時間。" });
   } else if (value.opensAt && value.closesAt && value.closesAt <= value.opensAt) {
     context.addIssue({ code: "custom", path: ["closesAt"], message: "結束時間必須晚於開始時間。" });
+  }
+  if (value.lastOrderAt && (!value.opensAt || !value.closesAt || !validLastOrderTime(value.opensAt, value.closesAt, value.lastOrderAt))) {
+    context.addIssue({ code: "custom", path: ["lastOrderAt"], message: "最後點餐時間必須在營業時間內。" });
   }
 }
 
@@ -65,6 +70,7 @@ export function serializeSpecialClosure(closure: {
   endsOn: Date;
   opensAt?: string | null;
   closesAt?: string | null;
+  lastOrderAt?: string | null;
   title: string;
   message: string;
 }): SpecialClosureView {
@@ -74,6 +80,7 @@ export function serializeSpecialClosure(closure: {
     endsOn: closure.endsOn.toISOString().slice(0, 10),
     opensAt: closure.opensAt ?? null,
     closesAt: closure.closesAt ?? null,
+    ...(closure.lastOrderAt !== undefined ? { lastOrderAt: closure.lastOrderAt } : {}),
     title: closure.title,
     message: closure.message,
   };
