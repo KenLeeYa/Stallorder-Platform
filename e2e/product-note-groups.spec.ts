@@ -278,7 +278,7 @@ async function openNoteGroupNavigator(page: Page) {
   }
   const navigator = page.getByTestId("note-group-navigator-dialog");
   if (!(await navigator.isVisible())) {
-    await page.getByTestId("open-note-group-navigator").click();
+    await page.getByTestId("open-note-group-navigator").filter({ visible: true }).click();
     await expect(navigator).toBeVisible();
   }
   const backButton = navigator.getByRole("button", {
@@ -312,7 +312,7 @@ async function openAttachReusableNotesDialog(page: Page, groupName: string) {
   await group.getByRole("button", { name: /加入既有共用註記/ }).click();
   const dialog = page.getByRole("dialog", { name: /將共用註記加入/ });
   await expect(dialog).toBeVisible();
-  return { dialog, trigger: page.getByTestId("open-note-group-navigator") };
+  return { dialog, trigger: page.getByTestId("open-note-group-navigator").filter({ visible: true }) };
 }
 
 async function openProductNoteGroupActions(page: Page, groupName: string) {
@@ -395,7 +395,7 @@ async function openProductNoteActions(
 ) {
   const navigator = page.getByTestId("reusable-note-navigator-dialog");
   if (!(await navigator.isVisible())) {
-    await page.getByTestId("open-reusable-note-navigator").click();
+    await page.getByTestId("open-reusable-note-navigator").filter({ visible: true }).click();
     await expect(navigator).toBeVisible();
   }
   await navigator.getByPlaceholder("搜尋單一註記").fill(itemName);
@@ -413,7 +413,7 @@ async function openProductNoteActions(
 async function openNewReusableNoteEditor(page: Page) {
   const navigator = page.getByTestId("reusable-note-navigator-dialog");
   if (!(await navigator.isVisible())) {
-    await page.getByTestId("open-reusable-note-navigator").click();
+    await page.getByTestId("open-reusable-note-navigator").filter({ visible: true }).click();
     await expect(navigator).toBeVisible();
   }
   await navigator.getByRole("button", { name: "新增單一註記", exact: true }).click();
@@ -801,7 +801,7 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
   await expect(joinButton).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(closeButton).toBeFocused();
-  await page.getByTestId("open-note-group-navigator").focus();
+  await page.getByTestId("open-note-group-navigator").filter({ visible: true }).focus();
   await page.keyboard.press("Tab");
   await expect(closeButton).toBeFocused();
   await search.focus();
@@ -1034,11 +1034,11 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
-  // The first load briefly retains a hidden Next.js streaming segment.
-  await expect(page.getByTestId("open-reusable-note-navigator")).toHaveCount(1);
-  await expect(page.getByTestId("open-reusable-note-navigator")).toBeVisible();
-  await expect(page.getByTestId("open-note-group-navigator")).toHaveCount(1);
-  await expect(page.getByTestId("open-note-group-navigator")).toBeVisible();
+  // Require a unique visible entry while Next.js retains hidden streaming markup.
+  await expect(page.getByTestId("open-reusable-note-navigator").filter({ visible: true })).toHaveCount(1);
+  await expect(page.getByTestId("open-reusable-note-navigator").filter({ visible: true })).toBeVisible();
+  await expect(page.getByTestId("open-note-group-navigator").filter({ visible: true })).toHaveCount(1);
+  await expect(page.getByTestId("open-note-group-navigator").filter({ visible: true })).toBeVisible();
 
   const createEditor = await openNewReusableNoteEditor(page);
   await createEditor.getByLabel("註記名稱").fill(noteName);
@@ -1222,7 +1222,7 @@ test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) 
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
-  await page.getByTestId("open-reusable-note-navigator").click();
+  await page.getByTestId("open-reusable-note-navigator").filter({ visible: true }).click();
   const transferNavigator = page.getByTestId("reusable-note-navigator-dialog");
   await expect(transferNavigator).toBeVisible();
 

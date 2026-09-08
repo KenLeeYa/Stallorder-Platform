@@ -500,7 +500,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
       await expect(productEditor.getByLabel("日文名稱")).toHaveCount(0);
       await productEditor.getByRole("button", { name: "關閉" }).click();
 
-      await localizationPage.getByTestId("open-note-group-navigator").click();
+      await localizationPage.getByTestId("open-note-group-navigator").filter({ visible: true }).click();
       const noteGroupNavigator = localizationPage.getByTestId(
         "note-group-navigator-dialog",
       );
@@ -770,7 +770,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await expect(
     page.getByRole("heading", { name: "商品註記設定" }),
   ).toBeVisible();
-  await page.getByTestId("open-note-group-navigator").click();
+  await page.getByTestId("open-note-group-navigator").filter({ visible: true }).click();
   const noteGroupNavigator = page.getByTestId("note-group-navigator-dialog");
   await noteGroupNavigator.getByPlaceholder("搜尋註記群組或選項").fill("辣度");
   const noteGroupCard = noteGroupNavigator

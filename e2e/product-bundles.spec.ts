@@ -31,6 +31,10 @@ async function login(page: Page) {
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
+  await expect(page).toHaveURL(/\/(?:merchant\/dashboard\?organizationId=|select-organization)/);
+  if (new URL(page.url()).pathname === "/select-organization") {
+    await page.locator(`a[href="/merchant/dashboard?organizationId=${organizationId}"]`).click();
+  }
   await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/);
 }
 
@@ -255,7 +259,7 @@ test("手機版套餐操作列與商品編輯器不超出畫面", async ({ page 
   await login(page);
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
 
-  await page.getByTestId("open-catalog-navigator").click();
+  await page.getByTestId("open-catalog-navigator").filter({ visible: true }).click();
   const catalogNavigator = page.getByTestId("catalog-navigator-dialog");
   await catalogNavigator.getByPlaceholder("搜尋所有商品").fill(bundleName);
   const bundleActionsTrigger = catalogNavigator.getByRole("button", {
