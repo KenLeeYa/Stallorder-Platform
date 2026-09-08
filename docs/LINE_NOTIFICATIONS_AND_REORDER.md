@@ -33,7 +33,7 @@
 
 正式環境需改用 `https://app.qidaigo.com/api/public/line/callback`，且必須使用 Production 專用 LINE channel 與 Vault secret，不得沿用 Staging 憑證。
 
-## 商家首次設定引導（2026-09-08，本機已實作）
+## 商家首次設定引導（2026-09-08）
 
 入口為「攤位管理 → LINE 訂單通知」。新設定預設從第一步開始；已有設定則直接顯示第四步的 Webhook 與實測說明，可按「修改串接設定」回到欄位。各步驟可直接切換，編輯草稿會保留到本次頁面離開為止。
 
@@ -54,9 +54,11 @@
 
 來源：[Messaging API 開始使用](https://developers.line.biz/en/docs/messaging-api/getting-started/)、[LINE Login 設定](https://developers.line.biz/en/docs/line-login/getting-started/)、[連結官方帳號](https://developers.line.biz/en/docs/line-login/link-a-bot/)、[Webhook 設定](https://developers.line.biz/en/docs/messaging-api/building-bot/)。
 
-驗收：`QA-MER-11`；`e2e/line-setup-guide-local.spec.ts`（專用本機 3018／55722，成功寫入回應及失敗使用 mock，無真實憑證或推播）、`e2e/line-notifications-and-reorder.spec.ts`（真實驗證 API 400／Kitchen 403、顧客入口與返回 Menu mock）、既有 LINE 合約／通知處理／OAuth／Callback 測試。此版本未部署正式環境，也不代表真實 LINE 收訊已驗收。
+驗收：`QA-MER-11`；`e2e/line-setup-guide-local.spec.ts`（本機 loopback 限制，成功寫入回應及失敗使用 mock，無真實憑證或推播）、`e2e/line-notifications-and-reorder.spec.ts`（真實驗證 API 400／Kitchen 403、顧客入口與返回 Menu mock）、既有 LINE 合約／通知處理／OAuth／Callback 測試。上線狀態以相同 commit 的受保護發布證據為準；應用程式上線不代表商家的真實 LINE 收訊已驗收。
 
 本機驗收結果：7 項引導案例與 2 項既有流程案例通過，包含停用取消／錯誤／成功回饋；8 個單元測試檔共 20 項通過。TypeScript、修改檔 ESLint、323 個 TSX 的 UI control audit、Production build 及變更內容的 Gitleaks 掃描皆通過。原始 checkout 的未提交 diff 指紋保持不變。
+
+正式發布候選從已驗證的 `staging` 底版獨立整合本次引導；不包含其他本機介面、商品或訂單功能。發布底版的 9 項瀏覽器流程與完整 3,027 項單元測試通過（9 項既有條件式案例略過），並完成完整 lint、typecheck、UI audit、build、production guardrails 與零弱點套件 audit。測試 session 的期限與實際新登入相同，避免剛登入即觸發背景 session rotation。應用程式、資料庫結構、Edge Function 的差異分開檢查；本次無 migration 或 Edge 變更，可採既有 `production-application-release.yml` 的全新 Plan／Apply，先驗證未綁網域的產物，再升級網域並執行正式 smoke，失敗依原流程 rollback。
 
 ## 安全控制
 
