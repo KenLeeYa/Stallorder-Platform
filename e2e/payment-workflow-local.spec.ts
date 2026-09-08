@@ -23,7 +23,16 @@ test.beforeAll(async () => {
 });
 test.beforeEach(async ({ page }) => {
   await establishLocalTestSession(page, prisma, "55555555-5555-4555-8555-555555555551");
-  await gotoLocalPath(page, `/merchant/payments?organizationId=${organizationId}`);
+  const paymentsPath = `/merchant/payments?organizationId=${organizationId}`;
+  // The server caches flag snapshots for two seconds; await this fixture's visibility.
+  await expect.poll(async () => {
+    const response = await page.request.get(paymentsPath, { maxRedirects: 0 });
+    const status = response.status();
+    await response.dispose();
+    expect([200, 404]).toContain(status);
+    return status;
+  }).toBe(200);
+  await gotoLocalPath(page, paymentsPath);
 });
 test.afterAll(async () => {
   try {

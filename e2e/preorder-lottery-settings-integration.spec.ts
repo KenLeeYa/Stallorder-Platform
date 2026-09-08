@@ -625,6 +625,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       ));
       await discountSaveButton.click();
       expect((await disableDiscountResponsePromise).status()).toBe(200);
+      await acknowledgeModuleSave(page, "折扣已儲存。");
       await page.goto(`/merchant/stalls/${stallId}/settings/lottery`);
       await expect(page.getByTestId(`lottery-discount-row-${temporaryDiscountId}`)).toHaveCount(0);
       await expect.poll(async () => prisma.$queryRaw<Array<{ count: number }>>`
@@ -862,6 +863,7 @@ async function restoreThroughUi(page: Page) {
   ));
   await page.getByRole("button", { name: "儲存設定", exact: true }).click();
   expect((await preorderResponsePromise).status()).toBe(200);
+  await acknowledgeModuleSave(page, "模組開關已儲存。");
 
   await page.goto(`/merchant/stalls/${stallId}/settings/lottery`);
   await setSwitch(page, /抽抽樂推薦/, true);
@@ -906,6 +908,7 @@ async function restoreThroughUi(page: Page) {
   ));
   await page.getByRole("button", { name: "儲存設定", exact: true }).click();
   expect((await lotteryResponsePromise).status()).toBe(200);
+  await acknowledgeModuleSave(page, "模組開關已儲存。");
 
   await page.goto(`/merchant/stalls/${stallId}/settings/operations`);
   await page.getByLabel("營業狀態").selectOption(originalStall.businessStatus);
@@ -918,6 +921,14 @@ async function restoreThroughUi(page: Page) {
   ));
   await page.getByRole("button", { name: "儲存營運狀態", exact: true }).click();
   expect((await operationsResponsePromise).status()).toBe(200);
+  await expect(page.getByRole("status")).toHaveText("營運狀態已更新。");
+  await page.getByRole("dialog").getByRole("button", { name: "我知道了", exact: true }).click();
+}
+
+async function acknowledgeModuleSave(page: Page, message: string) {
+  await expect(page.getByRole("status")).toHaveText(message);
+  await page.getByRole("dialog").getByRole("button", { name: "我知道了", exact: true }).click();
+  await expect(page.locator('[data-settings-scope="stall-modules"]')).toHaveAttribute("data-dirty", "false");
 }
 
 async function setSwitch(page: Page, name: RegExp, enabled: boolean) {
@@ -949,6 +960,10 @@ async function login(page: Page) {
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
+  await expect(page).toHaveURL(/\/(?:merchant\/dashboard\?organizationId=|select-organization)/, { timeout: 30_000 });
+  if (new URL(page.url()).pathname === "/select-organization") {
+    await page.locator(`a[href="/merchant/dashboard?organizationId=${organizationId}"]`).click();
+  }
   await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/, { timeout: 30_000 });
 }
 

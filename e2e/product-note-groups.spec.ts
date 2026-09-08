@@ -27,6 +27,7 @@ let originalManagerAuthorizationCodeHash: string | null = null;
 let originalLotteryEnabled = false;
 let originalEnabledLocales: string[] = [];
 let fixtureQrId = "";
+let reusableNoteSortFixtureId = "";
 const localeFixtureTranslationIds = {
   noteGroups: [] as string[],
   noteOptions: [] as string[],
@@ -97,6 +98,9 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   try {
     await prisma.$transaction([
+      ...(reusableNoteSortFixtureId
+        ? [prisma.reusableProductNote.deleteMany({ where: { id: reusableNoteSortFixtureId } })]
+        : []),
       ...(localeFixtureTranslationIds.noteOptions.length > 0
         ? [prisma.productNoteOptionTranslation.deleteMany({
             where: { id: { in: localeFixtureTranslationIds.noteOptions } },
@@ -1020,6 +1024,13 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
   const suffix = Date.now();
   const noteName = `香菜另外放 QA ${suffix}`;
   const updatedName = `香菜另放 QA ${suffix}`;
+  const precedingNoteName = `排序前置註記 QA ${suffix}`;
+  const lastNote = await prisma.reusableProductNote.aggregate({
+    where: { organizationId }, _max: { sortOrder: true },
+  });
+  reusableNoteSortFixtureId = (await prisma.reusableProductNote.create({ data: {
+    organizationId, name: precedingNoteName, sortOrder: (lastNote._max.sortOrder ?? 0) + 1,
+  } })).id;
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
@@ -1043,6 +1054,14 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
     await selectProductNoteAction(page, noteName, action);
     await expect(singleNotes).toBeVisible();
     await acknowledgeSettingsFeedback(page, "success", message);
+    if (action === "上移" || action === "下移") {
+      await expect.poll(async () => (await prisma.reusableProductNote.findMany({
+        where: { organizationId, name: { in: [noteName, precedingNoteName] } },
+        orderBy: { sortOrder: "asc" }, select: { name: true },
+      })).map(note => note.name)).toEqual(action === "上移"
+        ? [noteName, precedingNoteName]
+        : [precedingNoteName, noteName]);
+    }
     await expect(singleNotes.getByPlaceholder("搜尋單一註記")).toHaveValue(noteName);
     await expect(singleNotes.getByPlaceholder("搜尋單一註記")).toBeFocused();
   }

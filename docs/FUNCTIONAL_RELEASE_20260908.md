@@ -46,3 +46,5 @@
 相同的 Circuit B fixture 前置條件一併套用於閒置追蹤與訂單體驗測試；正式執行模式補驗 3 項通過，包含真實閒置 367 秒、125 次讀取、429 等待恢復、新單音效與特殊店休公告。既有 compact-switcher 瀏覽器斷言仍沿用舊 QR／按鈕左右排列，與已保留的 `fd86e43` 功能版及 `local-qa-readiness` 契約不符；改為檢查現有平板／電腦管理側欄、直接可見的商品區、手機按需開啟，以及 QR 尺寸和整頁不溢位。應用版型未因此改動。
 
 付款模擬 fixture 明確開啟隔離資料庫的付款管理介面，結束後移除自身 override；Playwright 自建的 loopback Preview server 明確使用 mock payment mode，正式 runtime policy 仍拒絕 Production mock。付款及 LINE 引導在 production server 的 9 項案例與付款安全契約 7 項全部通過。QR 側欄亦通過手機、平板、縮放桌機及桌機驗證；本機保留多組織時由正常選擇組織頁進入指定測試組織。
+
+完整 CI 的三項測試前置條件已重現並修正：付款頁等待既有兩秒 feature snapshot 快取反映臨時 override；單一註記排序建立自身前一筆資料並核對資料庫排序，結束後只移除自身 fixture；抽獎／預約整合在 PATCH 後完成成功視窗及未儲存狀態的確認，才離開設定頁。原先未預期 beforeunload 的失敗斷言仍保留，未修改應用儲存邏輯或放寬檢查。四項 focused production server 案例全數通過，完整 CI 以新候選重新執行。
