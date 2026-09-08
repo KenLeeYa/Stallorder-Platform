@@ -1034,7 +1034,10 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  // The first load briefly retains a hidden Next.js streaming segment.
+  await expect(page.getByTestId("open-reusable-note-navigator")).toHaveCount(1);
   await expect(page.getByTestId("open-reusable-note-navigator")).toBeVisible();
+  await expect(page.getByTestId("open-note-group-navigator")).toHaveCount(1);
   await expect(page.getByTestId("open-note-group-navigator")).toBeVisible();
 
   const createEditor = await openNewReusableNoteEditor(page);
