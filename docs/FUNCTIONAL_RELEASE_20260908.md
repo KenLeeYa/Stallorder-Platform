@@ -48,3 +48,5 @@
 付款模擬 fixture 明確開啟隔離資料庫的付款管理介面，結束後移除自身 override；Playwright 自建的 loopback Preview server 明確使用 mock payment mode，正式 runtime policy 仍拒絕 Production mock。付款及 LINE 引導在 production server 的 9 項案例與付款安全契約 7 項全部通過。QR 側欄亦通過手機、平板、縮放桌機及桌機驗證；本機保留多組織時由正常選擇組織頁進入指定測試組織。
 
 完整 CI 的三項測試前置條件已重現並修正：付款頁等待既有兩秒 feature snapshot 快取反映臨時 override；單一註記排序建立自身前一筆資料並核對資料庫排序，結束後只移除自身 fixture；抽獎／預約整合在 PATCH 後完成成功視窗及未儲存狀態的確認，才離開設定頁。原先未預期 beforeunload 的失敗斷言仍保留，未修改應用儲存邏輯或放寬檢查。四項 focused production server 案例全數通過，完整 CI 以新候選重新執行。
+
+後段 CI 另揭露報表測試的日期相依性：「昨天到今天」在週二會匹配 WEEK，須先按「自訂」再測試日期欄位與匯出。補驗明確要求兩個日期欄位存在，保留尺寸／匯出內容檢查。商品工具列則加入已提供的桌機／平板分類排序按鈕，手機只計入可見控制項並確認排序按鈕隱藏。兩項 production server 案例、lint 與 typecheck 通過。先前本機補跑因建置時缺少測試 site key 而停用送單，依 CI build 環境重建後，五项 QR 改單／購物車／送單案例通過；其餘保留資料造成的多組織選擇、翻譯完整度及加點提示差異，與乾淨 CI fixture 的驗證結果分開記錄。
