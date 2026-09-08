@@ -291,6 +291,9 @@ export async function waitForDefaultMerchantDashboard(
   page: Page,
   organizationId: string,
 ) {
+  if (new URL(page.url()).pathname === "/select-organization") {
+    await page.locator(`a[href="/merchant/dashboard?organizationId=${organizationId}"]`).click();
+  }
   await page.waitForURL(
     (url) =>
       url.pathname === "/merchant/dashboard" &&

@@ -32,7 +32,7 @@ test("empty ungrouped buckets are absent and category/group filters identify the
       await expect(page.getByTestId("catalog-list-heading")).toContainText("炸物 / 人氣炸物");
       await expect(page.getByTestId("catalog-management-row")).toHaveCount(3);
     } else {
-      await page.getByTestId("open-catalog-navigator").click();
+      await page.getByTestId("open-catalog-navigator").filter({ visible: true }).click();
       const dialog = page.getByTestId("catalog-navigator-dialog");
       const count = await prisma.product.count({ where: { organizationId, category: { name: "炸物" } } });
       await dialog.getByRole("button", { name: new RegExp(`炸物.*${count}`) }).first().click();
@@ -83,7 +83,7 @@ test("note groups have a tablet sidebar, distinct option rows and a usable phone
   await gotoLocalPath(page, `/merchant/catalog?organizationId=${organizationId}`);
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.getByTestId("open-note-group-navigator").click();
+    await page.getByTestId("open-note-group-navigator").filter({ visible: true }).click();
     const dialog = page.getByTestId("note-group-navigator-dialog");
     await dialog.getByPlaceholder("搜尋註記群組或選項").fill("QA-no-match-unique");
     await expect(dialog.getByText("找不到符合的註記群組。", { exact: true }).filter({ visible: true })).toBeVisible();
@@ -113,7 +113,8 @@ test("a group-only note edits through the board and retains its price and group 
     await establishLocalTestSession(page, prisma, ownerId);
     await page.setViewportSize({ width: 768, height: 900 });
     await gotoLocalPath(page, `/merchant/catalog?organizationId=${organizationId}`);
-    const dialog = page.getByTestId("product-note-inline-board");
+    // Next.js can retain a hidden streaming copy during navigation and reload.
+    const dialog = page.getByTestId("product-note-inline-board").filter({ visible: true });
     await dialog.getByRole("navigation", { name: "註記群組", exact: true }).getByRole("button", { name: group.name, exact: true }).click();
     await dialog.getByTestId("note-option-action-trigger").filter({ hasText: "QA 原始註記", visible: true }).click();
     await page.getByTestId("product-note-action-dialog").getByRole("button", { name: "編輯", exact: true }).click();

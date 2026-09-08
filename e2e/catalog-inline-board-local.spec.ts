@@ -21,7 +21,7 @@ test("product panes share the bottom edge and notes are directly usable on table
     const grid = nav.locator("..");
     const left = (await nav.boundingBox())!, whole = (await grid.boundingBox())!;
     expect(Math.abs(left.y + left.height - whole.y - whole.height)).toBeLessThanOrEqual(2);
-    const inline = page.getByTestId("product-note-inline-board");
+    const inline = page.getByTestId("product-note-inline-board").filter({ visible: true });
     await expect(inline).toBeVisible();
     await inline.getByRole("button", { name: "冰量", exact: true }).click();
     await expect(inline.getByTestId("note-option-action-trigger").filter({ hasText: "去冰" })).toBeVisible();
@@ -34,7 +34,7 @@ test("product panes share the bottom edge and notes are directly usable on table
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(page.getByTestId("product-note-inline-board")).not.toBeVisible();
-    await page.getByTestId("open-note-group-navigator").click();
+    await page.getByTestId("open-note-group-navigator").filter({ visible: true }).click();
     await expect(page.getByTestId("note-group-navigator-dialog")).toBeVisible();
     await page.keyboard.press("Escape");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
