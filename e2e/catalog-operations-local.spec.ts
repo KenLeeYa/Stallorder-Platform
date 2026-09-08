@@ -198,7 +198,7 @@ test("catalog desktop/tablet group board and mobile stock editor render without 
     const board=page.getByRole("region",{name:"商品批次管理"});
     await expect(board.getByRole("button",{name:"全部商品庫存",exact:true})).toBeVisible();
     if(width>=768) await expect(page.getByTestId("catalog-management-row").first()).toBeVisible();
-    else await expect(page.getByTestId("open-catalog-navigator")).toBeVisible();
+    else await expect(page.getByTestId("open-catalog-navigator").filter({ visible: true })).toBeVisible();
     await page.screenshot({path:`test-results/catalog-board-${width}.png`,fullPage:false});
     await board.getByRole("button",{name:"全部商品庫存",exact:true}).click();
     const dialog=page.getByRole("dialog",{name:/庫存份數/});await expect(dialog).toBeVisible();

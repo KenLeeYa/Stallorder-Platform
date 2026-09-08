@@ -21,7 +21,7 @@ for (const width of [1440, 768, 390, 320]) {
     await establishLocalTestSession(page, prisma, owner.id);
     await gotoLocalPath(page, catalogPath);
     await page.waitForLoadState("networkidle");
-    await page.getByTestId("open-reusable-note-navigator").click();
+    await page.getByTestId("open-reusable-note-navigator").filter({ visible: true }).click();
     const navigator = page.getByTestId("reusable-note-navigator-dialog");
     const search = navigator.getByPlaceholder("搜尋單一註記");
     await search.fill("不加胡椒");
@@ -69,7 +69,7 @@ for (const width of [1440, 768, 390, 320]) {
     await page.screenshot({ path: test.info().outputPath(`single-notes-return-${width}.png`) });
     await navigator.getByRole("button", { name: "關閉", exact: true }).click();
     await expect(navigator).toHaveCount(0);
-    await expect(page.getByTestId("open-reusable-note-navigator")).toBeFocused();
+    await expect(page.getByTestId("open-reusable-note-navigator").filter({ visible: true })).toBeFocused();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   });
 }
