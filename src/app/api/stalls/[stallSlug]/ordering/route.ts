@@ -46,6 +46,10 @@ const controlSchema = z.discriminatedUnion("action", [
 
 type RouteContext = { params: Promise<{ stallSlug: string }> };
 
+// The main ordering QR has its own lifecycle. Printed table and event QRs
+// must never be selected or revoked by the main-QR controls.
+const mainQrScope = { diningTableId: null, stallScheduleId: null, locationId: null, marketEventId: null, fulfillmentTypeContext: null };
+
 export async function PATCH(request: Request, context: RouteContext) {
   const { stallSlug } = await context.params;
   const authorization = await authorizeApiRequest(request, stallSlug, "MANAGE_ORDERING");
@@ -89,6 +93,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       orderingState: true,
       isSoldOut: true,
       qrCodes: {
+        where: mainQrScope,
         orderBy: { tokenVersion: "desc" },
         take: 1,
         select: { state: true, tokenVersion: true },
@@ -131,7 +136,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const stall = await transaction.stall.findUniqueOrThrow({
       where: { id: authorization.stall.id },
       include: {
-        qrCodes: { orderBy: { tokenVersion: "desc" }, take: 1 },
+        qrCodes: { where: mainQrScope, orderBy: { tokenVersion: "desc" }, take: 1 },
         orderingSettings: true,
       },
     });
@@ -171,6 +176,10 @@ export async function PATCH(request: Request, context: RouteContext) {
           where: { organizationId: stall.organizationId, stallId: stall.id },
           data: { pauseSource: "NONE" },
         });
+        await transaction.qrCode.updateMany({
+          where: { stallId: stall.id, state: "PAUSED", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+          data: { state: "ACTIVE" },
+        });
         break;
       case "MARK_SOLD_OUT":
         await transaction.stall.update({ where: { id: stall.id }, data: { isSoldOut: true } });
@@ -188,8 +197,8 @@ export async function PATCH(request: Request, context: RouteContext) {
         break;
       }
       case "ROTATE_QR": {
-        await transaction.qrCode.updateMany({ where: { stallId: stall.id, state: { in: ["ACTIVE", "PAUSED"] } }, data: { state: "REVOKED" } });
-        await transaction.orderSession.updateMany({ where: { stallId: stall.id, status: "ACTIVE" }, data: { status: "REVOKED", revokedAt: now } });
+        await transaction.qrCode.updateMany({ where: { stallId: stall.id, ...mainQrScope, state: { in: ["ACTIVE", "PAUSED"] } }, data: { state: "REVOKED" } });
+        await transaction.orderSession.updateMany({ where: { stallId: stall.id, qrCode: mainQrScope, status: "ACTIVE" }, data: { status: "REVOKED", revokedAt: now } });
         const nextVersion = (stall.qrCodes[0]?.tokenVersion ?? 0) + 1;
         await transaction.qrCode.create({
           data: {
@@ -249,7 +258,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       select: {
         orderingState: true,
         isSoldOut: true,
-        qrCodes: { orderBy: { tokenVersion: "desc" }, take: 1, select: { token: true, state: true, tokenVersion: true } },
+        qrCodes: { where: mainQrScope, orderBy: { tokenVersion: "desc" }, take: 1, select: { token: true, state: true, tokenVersion: true } },
         orderingSettings: true,
       },
     });

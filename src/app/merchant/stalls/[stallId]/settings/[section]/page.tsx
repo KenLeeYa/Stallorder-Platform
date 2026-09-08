@@ -142,14 +142,14 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
     const businessHours = await prisma.stallBusinessHour.findMany({
       where: { stallId, organizationId: workspace.id },
       orderBy: { dayOfWeek: "asc" },
-      select: { dayOfWeek: true, opensAt: true, closesAt: true, isClosed: true },
+      select: { dayOfWeek: true, opensAt: true, closesAt: true, lastOrderAt: true, isClosed: true },
     });
     content = <StallBusinessHoursManager stallId={stall.id} initialHours={businessHours} />;
   } else if (rawSection === "special-hours") {
     const closures = await prisma.stallSpecialClosure.findMany({
       where: { stallId, organizationId: workspace.id },
       orderBy: [{ startsOn: "asc" }, { createdAt: "asc" }],
-      select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, title: true, message: true },
+      select: { id: true, startsOn: true, endsOn: true, opensAt: true, closesAt: true, lastOrderAt: true, title: true, message: true },
     });
     content = (
       <StallSpecialClosuresManager

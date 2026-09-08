@@ -13,6 +13,7 @@ export type BusinessHourView = {
   dayOfWeek: number;
   opensAt: string;
   closesAt: string;
+  lastOrderAt?: string | null;
   isClosed: boolean;
 };
 
@@ -81,6 +82,18 @@ export function StallBusinessHoursManager({ stallId, initialHours }: { stallId: 
         const closesAtKey = `hours.${index}.closesAt`;
         return <div key={hour.dayOfWeek} className="grid gap-3 py-3 sm:grid-cols-[100px_100px_1fr] sm:items-center"><strong className="text-sm">{formatAppDate(locale, new Date(Date.UTC(2024, 0, 7 + hour.dayOfWeek)), { weekday: "long", timeZone: "UTC" })}</strong><label className="flex items-center gap-2 text-xs font-semibold text-stone-600"><input type="checkbox" checked={hour.isClosed} onChange={(event) => update(hour.dayOfWeek, { isClosed: event.target.checked })} />{m("公休")}</label><div className="grid grid-cols-2 gap-3"><label className="text-xs font-semibold text-stone-600">{m("開始")}<input {...fieldValidationProps(opensAtKey, fieldErrors[opensAtKey])} type="time" disabled={hour.isClosed} value={hour.opensAt} onChange={(event) => update(hour.dayOfWeek, { opensAt: event.target.value })} className={timeInputClass(fieldErrors[opensAtKey])} />{fieldErrors[opensAtKey] ? <span id={fieldErrorId(opensAtKey)} role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors[opensAtKey]}</span> : null}</label><label className="text-xs font-semibold text-stone-600">{m("結束")}<input {...fieldValidationProps(closesAtKey, fieldErrors[closesAtKey])} type="time" disabled={hour.isClosed} value={hour.closesAt} onChange={(event) => update(hour.dayOfWeek, { closesAt: event.target.value })} className={timeInputClass(fieldErrors[closesAtKey])} />{fieldErrors[closesAtKey] ? <span id={fieldErrorId(closesAtKey)} role="alert" className="mt-1 block text-xs text-red-700">{fieldErrors[closesAtKey]}</span> : null}</label></div></div>;
       })}</div>
+      <fieldset className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <legend className="px-1 font-semibold">QR 最後點餐時間</legend>
+        <p className="text-sm text-stone-700">{label("留空表示接單至打烊。超過設定時間會提醒顧客至櫃檯詢問；已成立訂單仍可追蹤與處理。")}</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{hours.map((hour, index) => {
+          const key = `hours.${index}.lastOrderAt`;
+          return <label key={hour.dayOfWeek} className="text-sm font-medium">{label(businessDayLabels[hour.dayOfWeek])}
+            <input {...fieldValidationProps(key, fieldErrors[key])} type="time" disabled={hour.isClosed} value={hour.lastOrderAt ?? ""} onChange={(event) => update(hour.dayOfWeek, { lastOrderAt: event.target.value || null })} className={timeInputClass(fieldErrors[key])} />
+            {fieldErrors[key] ? <span id={fieldErrorId(key)} role="alert" className="text-xs text-red-700">{fieldErrors[key]}</span> : null}
+          </label>;
+        })}</div>
+        <p className="mt-3 text-xs text-stone-600">{label("特殊營業日會優先使用該日期的營業與最後點餐時間，請一併設定。")}</p>
+      </fieldset>
       <button type="button" disabled={busy || !dirty} onClick={() => void save()} className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{m("儲存營業時間")}</button>
     </div>
     {message ? <SettingsFeedbackDialog message={message} kind={hasError ? "error" : "success"} onClose={() => setMessage("")} focusAfterClose={() => focusFirstInvalidField(containerRef.current, fieldErrors)} /> : null}

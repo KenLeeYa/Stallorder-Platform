@@ -6,42 +6,50 @@ const password = "StallOrderDemo!2026";
 const trackingToken = `sto_${"t".repeat(48)}`;
 test.describe("LINE 通知與 Menu 返回", () => {
   test("商家可開啟 LINE 設定，KITCHEN 無管理權限", async ({ page, browser }) => {
-    await login(page, "owner@stallorder.test", /\/merchant\/dashboard\?organizationId=/);
+    await login(page, "owner@stallorder.test", /\/merchant\/stalls\/[^/]+\/line/, `/merchant/stalls/${stallId}/line`);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/merchant/stalls/${stallId}/line`);
     await expect(page.getByRole("heading", { name: "LINE 訂單通知" })).toBeVisible();
-    await expect(page.getByLabel("LINE Login Channel ID")).toBeVisible();
+    await page.getByRole("button", { name: "1 官方帳號", exact: true }).click();
     await expect(page.getByLabel("Messaging API Channel Access Token")).toHaveAttribute("type", "password");
     await expect(page.getByLabel("Messaging API Channel Secret")).toHaveAttribute("type", "password");
-    await expect(page.getByLabel("LINE Login Channel Secret")).toHaveAttribute("type", "password");
     await expect(page.getByLabel("Messaging API Channel Access Token")).toHaveAttribute("minlength", "16");
+    await page.getByLabel("Messaging API Channel Access Token", { exact: true }).fill("local-test-placeholder-only");
+    await page.getByLabel("Messaging API Channel Secret", { exact: true }).fill("local-test-placeholder-only");
+    await page.getByRole("button", { name: "下一步", exact: true }).click();
+    await expect(page.getByLabel("LINE Login Channel Secret")).toHaveAttribute("type", "password");
+    await page.getByLabel("LINE Login Channel Secret", { exact: true }).fill("local-test-placeholder-only");
 
     const channelIdField = page.getByLabel("LINE Login Channel ID");
     await channelIdField.fill("中文代碼");
+    await page.getByRole("button", { name: "下一步", exact: true }).click();
     const invalidChannelResponse = page.waitForResponse((response) => (
       response.url().endsWith(`/api/merchant/stalls/${stallId}/line`)
       && response.request().method() === "PATCH"
     ));
-    await page.getByRole("button", { name: "儲存並輪替憑證" }).click();
+    await page.getByRole("button", { name: "儲存串接設定", exact: true }).click();
     expect((await invalidChannelResponse).status()).toBe(400);
+    await page.getByRole("alertdialog").getByRole("button", { name: "我知道了", exact: true }).click();
     await expect(page.getByText("LINE Login Channel ID 格式不正確。", { exact: true }).first()).toBeVisible();
     await expect(channelIdField).toHaveAttribute("aria-invalid", "true");
     await expect(channelIdField).toBeFocused();
     await expect(channelIdField).toHaveValue("中文代碼");
 
     await channelIdField.fill("");
+    await page.getByRole("button", { name: "下一步", exact: true }).click();
     const blankChannelResponse = page.waitForResponse((response) => (
       response.url().endsWith(`/api/merchant/stalls/${stallId}/line`)
       && response.request().method() === "PATCH"
     ));
-    await page.getByRole("button", { name: "儲存並輪替憑證" }).click();
+    await page.getByRole("button", { name: "儲存串接設定", exact: true }).click();
     expect((await blankChannelResponse).status()).toBe(400);
+    await page.getByRole("alertdialog").getByRole("button", { name: "我知道了", exact: true }).click();
     await expect(channelIdField).toHaveAttribute("aria-invalid", "true");
     await expect(channelIdField).toBeFocused();
     await expect(channelIdField).toHaveValue("");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
-    const kitchenPage = await newRolePage(browser, "kitchen@stallorder.test", /\/kitchen/);
+    const kitchenPage = await newRolePage(browser, "kitchen@stallorder.test", /\/kitchen/, "/kitchen/aming-chicken");
     const responseStatus = await kitchenPage.evaluate(async (url) => {
       const response = await fetch(url, { credentials: "same-origin" });
       return response.status;
@@ -69,7 +77,7 @@ test.describe("LINE 通知與 Menu 返回", () => {
 });
 
 async function mockPublicFunctions(page: Page) {
-  await page.route(/\/functions\/v1\/get-public-order$|\/api\/public-order\/get-public-order$/, async (route) => {
+  await page.route(url => url.pathname === `/api/public/orders/${trackingToken}` || url.pathname.endsWith("/get-public-order"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -113,15 +121,15 @@ async function mockPublicFunctions(page: Page) {
   });
 }
 
-async function newRolePage(browser: Browser, email: string, destination: RegExp) {
+async function newRolePage(browser: Browser, email: string, destination: RegExp, nextPath: string) {
   const context = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei" });
   const page = await context.newPage();
-  await login(page, email, destination);
+  await login(page, email, destination, nextPath);
   return page;
 }
 
-async function login(page: Page, email: string, destination: RegExp) {
-  await page.goto("/login");
+async function login(page: Page, email: string, destination: RegExp, nextPath?: string) {
+  await page.goto(nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : "/login");
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);

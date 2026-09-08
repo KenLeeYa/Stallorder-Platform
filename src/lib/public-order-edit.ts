@@ -1,4 +1,5 @@
 import "server-only";
+import { isOrderStockError } from "@/lib/order-stock-error";
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -278,6 +279,7 @@ export async function editTrackedPublicOrder(input: {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
     if (error instanceof PublicOrderEditError || error instanceof StaffOrderCreateError) throw error;
+    if (isOrderStockError(error)) throw new StaffOrderCreateError("PRODUCT_STOCK_INSUFFICIENT");
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
       throw new PublicOrderEditError("ORDER_CONFLICT");
     }

@@ -448,6 +448,12 @@ export function StallModulesManager({
 
   async function saveModules() {
     const settings = normalizeDisabledModuleSettings(state.settings);
+    const impacts: string[] = [];
+    if (savedState.settings.dineInEnabled && !settings.dineInEnabled) impacts.push("關閉內用後，已列印的桌位 QR 暫時無法點餐；重新開啟可沿用原 QR。");
+    if (savedState.settings.takeoutPreorderEnabled && !settings.takeoutPreorderEnabled) impacts.push("關閉外帶預約後，顧客不能再建立預約；既有預約仍需由店員處理，不會自動取消。");
+    if (savedState.settings.deliveryModuleEnabled && !settings.deliveryModuleEnabled) impacts.push("關閉顧客外送後，公開菜單不再接受新外送單；既有外送單仍需處理。");
+    if (savedState.settings.preorderMaxDays !== settings.preorderMaxDays || savedState.settings.preorderSlotMinutes !== settings.preorderSlotMinutes) impacts.push("預約範圍或間隔變更會套用於新預約與時間提案；已成立訂單不會自動改期，請另行確認。");
+    if (impacts.length && !window.confirm(impacts.join("\n\n") + "\n\n確定儲存這些變更？")) return;
     const firstLotteryDiscount = settings.lotteryDiscountChances?.[0] ?? null;
     const firstEnabledFestival = settings.lotteryFestivalCampaigns.find((campaign) => campaign.isEnabled) ?? null;
     await run({
@@ -582,7 +588,7 @@ export function StallModulesManager({
         <NumberInput label={label("最少提前（分鐘）")} value={state.settings.preorderMinLeadMinutes} fieldKey={fieldKey("modules", "preorderMinLeadMinutes")} error={errorFor("modules", "preorderMinLeadMinutes")} min={5} max={1440} onChange={(preorderMinLeadMinutes) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMinLeadMinutes } }))} />
         <NumberInput label={label("最多預約天數")} value={state.settings.preorderMaxDays} fieldKey={fieldKey("modules", "preorderMaxDays")} error={errorFor("modules", "preorderMaxDays")} min={1} max={30} onChange={(preorderMaxDays) => setState((current) => ({ ...current, settings: { ...current.settings, preorderMaxDays } }))} />
         <label className="text-xs font-medium text-stone-600">{label("時段間隔")}<select {...validationAttributes(fieldKey("modules", "preorderSlotMinutes"), errorFor("modules", "preorderSlotMinutes"))} value={state.settings.preorderSlotMinutes} onChange={(event) => setState((current) => ({ ...current, settings: { ...current.settings, preorderSlotMinutes: Number(event.target.value) as 5 | 15 | 30 | 60 | 120 } }))} className={`${inputClass(errorFor("modules", "preorderSlotMinutes"))} bg-white`}><option value={5}>{label("5 分鐘")}</option><option value={15}>{label("15 分鐘")}</option><option value={30}>{label("30 分鐘")}</option><option value={60}>{label("60 分鐘")}</option><option value={120}>{label("120 分鐘")}</option></select><FieldError fieldKey={fieldKey("modules", "preorderSlotMinutes")} error={errorFor("modules", "preorderSlotMinutes")} /></label>
-        <p className="text-xs text-stone-500 sm:col-span-3">{label("關店期間只接受營業時間內的合法外帶時段；暫停接單與售罄仍會阻擋預約。")}</p>
+        <p className="text-xs text-stone-500 sm:col-span-3">{label("從今天起至第 N 天，包含最後一天。例如 9/1 設 7 天，可預約到 9/8；特殊營業時間與店休優先，暫停接單與售罄仍會阻擋預約。")}</p>
       </div> : null}
       {isView("online-ordering") && state.settings.checkoutUpsellEnabled ? (
         <div className="mt-4 rounded-lg border border-teal-200 bg-teal-50/60 p-4 text-sm text-teal-950">
@@ -825,6 +831,7 @@ export function StallModulesManager({
         className={`${isView("dining-tables") ? "" : "hidden "}border-b border-stone-200`}
       >
         <CollapsibleSectionSummary icon={QrCode} title={label("內用桌位與專屬 QR")} level={3} />
+          {!savedState.settings.dineInEnabled ? <p role="alert" className="my-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">內用點餐尚未開啟，桌位 QR 暫時無法使用。可先列印，啟用內用後沿用原 QR，無須輪替或重新列印。</p> : null}
         <div className="pb-6">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-teal-200 bg-teal-50 p-4">
             <div><p className="text-sm font-semibold text-teal-950">{label("桌位 QR 印刷版")}</p><p className="mt-1 text-xs text-teal-800">{label("A4 會自動排列裁切間距，每張最多 6 個桌位。")}</p></div>

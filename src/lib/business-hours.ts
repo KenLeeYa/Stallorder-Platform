@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validLastOrderTime } from "@/lib/last-order-time";
 
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 export const businessDayLabels = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"] as const;
@@ -11,6 +12,7 @@ const businessHourSchema = z.object({
   dayOfWeek: z.number().int().min(0).max(6),
   opensAt: z.unknown(),
   closesAt: z.unknown(),
+  lastOrderAt: z.string().regex(TIME_PATTERN).nullable().optional(),
   isClosed: z.boolean(),
 }).strict().superRefine((hour, context) => {
   if (hour.isClosed) return;
@@ -19,6 +21,9 @@ const businessHourSchema = z.object({
   }
   if (!isTime(hour.closesAt)) {
     context.addIssue({ code: "custom", path: ["closesAt"], message: "時間格式必須為 HH:mm。" });
+  }
+  if (isTime(hour.opensAt) && isTime(hour.closesAt) && !validLastOrderTime(hour.opensAt, hour.closesAt, hour.lastOrderAt)) {
+    context.addIssue({ code: "custom", path: ["lastOrderAt"], message: "最後點餐時間必須在營業時間內。" });
   }
 }).transform((hour) => ({
   ...hour,
@@ -104,11 +109,13 @@ export function getBusinessHoursFieldErrors(error: z.ZodError) {
       ? issue.path[1]
       : null;
     const field = typeof issue.path[2] === "string" ? issue.path[2] : null;
-    if (index !== null && (field === "opensAt" || field === "closesAt")) {
+    if (index !== null && (field === "opensAt" || field === "closesAt" || field === "lastOrderAt")) {
       const key = `hours.${index}.${field}`;
       const dayLabel = businessDayLabels[index] ?? `第 ${index + 1} 天`;
-      const timeLabel = field === "opensAt" ? "開始時間" : "結束時間";
-      fieldErrors[key] ??= `${dayLabel}${timeLabel}格式必須為 HH:mm。`;
+      const timeLabel = field === "opensAt" ? "開始時間" : field === "lastOrderAt" ? "最後點餐時間" : "結束時間";
+      fieldErrors[key] ??= field === "lastOrderAt" && issue.code === "custom"
+        ? `${dayLabel}${issue.message}`
+        : `${dayLabel}${timeLabel}格式必須為 HH:mm。`;
       continue;
     }
     if (!fieldErrors.hours) {

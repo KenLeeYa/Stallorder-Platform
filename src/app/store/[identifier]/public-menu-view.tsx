@@ -68,9 +68,6 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
               />
             </div>
           </div>
-          <p className="mt-6 max-w-2xl text-sm leading-6 text-teal-50 print:text-stone-600">
-            {publicMessages.get(locale, "menuDescription")}
-          </p>
         </div>
       </header>
 

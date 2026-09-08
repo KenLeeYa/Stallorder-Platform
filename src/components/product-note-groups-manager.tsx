@@ -122,6 +122,7 @@ export function ProductNoteGroupsManager({
   const [importPreview, setImportPreview] = useState<ProductNoteImportPreview | null>(null);
   const [importError, setImportError] = useState("");
   const editorRef = useRef<HTMLElement>(null);
+  const reusableNoteNavigatorRef = useRef<HTMLElement>(null);
   const translationOptions = getTranslationLocaleOptions(enabledTranslationLocales);
   const sortedGroups = useMemo(
     () => [...groups].sort((left, right) => left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "zh-TW")),
@@ -477,11 +478,6 @@ export function ProductNoteGroupsManager({
     setReusableNoteNavigatorQuery("");
   }
 
-  function leaveReusableNoteNavigator(next: () => void) {
-    closeReusableNoteNavigator();
-    requestAnimationFrame(next);
-  }
-
   function closeGroupNavigator() {
     setGroupNavigatorOpen(false);
     setGroupNavigatorGroupId(null);
@@ -489,7 +485,7 @@ export function ProductNoteGroupsManager({
   }
 
   function leaveGroupNavigator(next: () => void) {
-    closeGroupNavigator();
+    if (groupNavigatorOpen) closeGroupNavigator();
     requestAnimationFrame(next);
   }
 
@@ -602,6 +598,21 @@ export function ProductNoteGroupsManager({
     await runCommand({ operation: "REORDER_NOTE_OPTIONS", noteGroupId, noteOptionIds }, label("註記選項排序已更新。"));
   }
 
+  const groupBoard = (
+    <ProductNoteGroupBoard
+      groups={visibleNavigatorGroups}
+      selectedGroup={groupNavigatorGroup}
+      query={normalizedGroupNavigatorQuery}
+      currency={currency}
+      onSelect={(id) => { setGroupNavigatorGroupId(id); setGroupNavigatorQuery(""); }}
+      onManage={(group) => leaveGroupNavigator(() => setNoteActionTarget({ kind: "NOTE_GROUP", id: group.id }))}
+      onOption={(group, option) => leaveGroupNavigator(() => setNoteActionTarget({ kind: "NOTE_OPTION", groupId: group.id, id: option.id }))}
+      onAttach={(group) => leaveGroupNavigator(() => openAttachDialog(group))}
+      onCreate={(group) => leaveGroupNavigator(() => setOptionDraft({ noteGroupId: group.id, reusableNoteId: null, name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(group.options), isActive: true, translations: [] }))}
+      canAttach={(group) => !busy && sortedReusableNotes.some((note) => !group.options.some((option) => option.reusableNoteId === note.id))}
+    />
+  );
+
   return (
     <section aria-labelledby="product-notes-heading" className="mt-10 border-t border-stone-200 pt-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -623,19 +634,20 @@ export function ProductNoteGroupsManager({
         </button>
       </div>
 
-      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} focusAfterClose={reusableNoteNavigatorOpen ? () => reusableNoteNavigatorRef.current?.querySelector<HTMLElement>('input[type="search"]')?.focus({ preventScroll: true }) : undefined} /> : null}
       <div id="product-note-settings-content" hidden={!settingsExpanded}>
-      <div data-testid="product-note-entry-actions" className="mt-5 grid gap-3 md:grid-cols-2">
+      <div data-testid="product-note-entry-actions" className="mt-5 grid gap-3 md:flex md:flex-wrap">
         <button
           type="button"
           data-testid="open-reusable-note-navigator"
-          onClick={() => {
+          onClick={(event) => {
+            event.currentTarget.focus({ preventScroll: true });
             setReusableNoteNavigatorQuery("");
             setReusableNoteNavigatorOpen(true);
           }}
-          className="flex min-h-28 w-full items-center gap-4 rounded-2xl border-2 border-teal-700 bg-teal-50 p-5 text-left shadow-sm transition hover:bg-teal-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
+          className="flex min-h-28 w-full items-center gap-4 rounded-2xl border-2 border-teal-700 bg-teal-50 p-5 text-left shadow-sm transition hover:bg-teal-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 md:min-h-11 md:w-auto md:gap-2 md:rounded-lg md:border md:px-3 md:py-2"
         >
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-teal-700 text-white"><MessageSquareText className="h-7 w-7" /></span>
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-teal-700 text-white md:h-8 md:w-8 md:rounded-md"><MessageSquareText className="h-7 w-7 md:h-5 md:w-5" /></span>
           <span className="min-w-0 flex-1">
             <strong className="block text-lg text-teal-950">{label("所有單一註記")}</strong>
             <span className="mt-1 block text-sm text-teal-900">{m("{count} 個單一註記", { count: reusableNotes.length })}</span>
@@ -650,22 +662,37 @@ export function ProductNoteGroupsManager({
             setGroupNavigatorQuery("");
             setGroupNavigatorOpen(true);
           }}
-          className="flex min-h-28 w-full items-center gap-4 rounded-2xl border-2 border-teal-700 bg-teal-50 p-5 text-left shadow-sm transition hover:bg-teal-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
+          className="flex min-h-28 w-full items-center gap-4 rounded-2xl border-2 border-teal-700 bg-teal-50 p-5 text-left shadow-sm transition hover:bg-teal-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 md:min-h-11 md:w-auto md:gap-2 md:rounded-lg md:border md:px-3 md:py-2"
         >
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-teal-700 text-white"><Layers3 className="h-7 w-7" /></span>
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-teal-700 text-white md:h-8 md:w-8 md:rounded-md"><Layers3 className="h-7 w-7 md:h-5 md:w-5" /></span>
           <span className="min-w-0 flex-1">
-            <strong className="block text-lg text-teal-950">{label("註記群組")}</strong>
+            <strong className="block text-lg text-teal-950"><span className="md:hidden">{label("註記群組")}</span><span className="hidden md:inline">{label("放大註記群組")}</span></strong>
             <span className="mt-1 block text-sm text-teal-900">{m("{groupCount} 個群組 · {optionCount} 個註記選項", { groupCount: groups.length, optionCount: groups.reduce((count, group) => count + group.options.length, 0) })}</span>
           </span>
           <ChevronRight className="h-7 w-7 shrink-0 text-teal-800" />
         </button>
       </div>
 
+      <div data-testid="product-note-inline-board" className={groupNavigatorOpen ? "hidden" : "mt-4 hidden md:block"}>
+        <div className="mb-3 grid gap-3">
+          <ProductNoteTransferTools busy={busy} onExport={() => void exportProductNotes()} onImport={(file) => void previewProductNoteImport(file)} />
+          <div className="flex flex-wrap gap-3">
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">{label("搜尋註記群組或選項")}</span>
+              <input type="search" maxLength={80} value={groupNavigatorQuery} onChange={(event) => setGroupNavigatorQuery(event.target.value)} placeholder={label("搜尋註記群組或選項")} className="min-h-11 w-full rounded-lg border border-stone-300 px-3 text-base" />
+            </label>
+            <button type="button" onClick={() => setGroupDraft({ name: "", selectionMode: "MULTIPLE", isRequired: false, minSelections: 0, maxSelections: null, sortOrder: nextProductNoteSortOrder(groups), isActive: true, translations: [], productIds: [] })} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-stone-900 px-4 font-semibold text-white"><Plus className="h-5 w-5" />{label("新增群組")}</button>
+          </div>
+        </div>
+        {groupBoard}
+      </div>
+
       {reusableNoteNavigatorOpen ? (
         <Editor
           title={label("所有單一註記")}
           onClose={closeReusableNoteNavigator}
-          dialogRef={editorRef}
+          dialogRef={reusableNoteNavigatorRef}
+          active={!noteActionTarget && !reusableNoteDraft && !importPreview && !message}
           errorMessage=""
           fullScreen
           testId="reusable-note-navigator-dialog"
@@ -682,7 +709,7 @@ export function ProductNoteGroupsManager({
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400" />
                 <input type="search" maxLength={80} value={reusableNoteNavigatorQuery} onChange={(event) => setReusableNoteNavigatorQuery(event.target.value)} placeholder={label("搜尋單一註記")} className="min-h-14 w-full rounded-xl border border-stone-300 pl-12 pr-4 text-base" />
               </label>
-              <button type="button" onClick={() => leaveReusableNoteNavigator(() => setReusableNoteDraft({ name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(reusableNotes), isActive: true, translations: [] }))} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-base font-semibold text-white"><Plus className="h-5 w-5" />{label("新增單一註記")}</button>
+              <button type="button" onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); setReusableNoteDraft({ name: "", priceDelta: 0, sortOrder: nextProductNoteSortOrder(reusableNotes), isActive: true, translations: [] }); }} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-base font-semibold text-white"><Plus className="h-5 w-5" />{label("新增單一註記")}</button>
             </div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {visibleNavigatorReusableNotes.map((note) => (
@@ -690,7 +717,7 @@ export function ProductNoteGroupsManager({
                   key={note.id}
                   note={note}
                   currency={currency}
-                  onOpen={() => leaveReusableNoteNavigator(() => setNoteActionTarget({ kind: "REUSABLE_NOTE", id: note.id }))}
+                  onOpen={() => setNoteActionTarget({ kind: "REUSABLE_NOTE", id: note.id })}
                 />
               ))}
               {visibleNavigatorReusableNotes.length === 0 ? <p className="rounded-xl border border-dashed border-stone-300 p-8 text-center text-sm text-stone-500 md:col-span-2 xl:col-span-3">{label(normalizedReusableNoteNavigatorQuery ? "找不到符合的單一註記。" : "尚未建立共用單一註記。")}</p> : null}
@@ -730,6 +757,10 @@ export function ProductNoteGroupsManager({
               ) : null}
             </div>
 
+            <div className="hidden md:block">
+              {groupBoard}
+            </div>
+            <div className="md:hidden">
             {!groupNavigatorGroup ? (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {visibleNavigatorGroups.map((group) => (
@@ -754,6 +785,7 @@ export function ProductNoteGroupsManager({
                 </div>
               </div>
             )}
+            </div>
           </div>
         </Editor>
       ) : null}
@@ -1089,10 +1121,15 @@ function TranslationFields({ translations, options, onChange }: { translations: 
   return <details className="border-t border-stone-200 pt-3 sm:col-span-2"><summary className="cursor-pointer text-sm font-semibold">{label("註記翻譯")}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{options.map((option) => { const current = translations.find((item) => item.locale === option.locale)?.name ?? ""; return <label key={option.locale} className="text-sm font-medium text-stone-700">{label(option.label)}<input type="text" maxLength={120} value={current} onChange={(event) => { const next = translations.filter((item) => item.locale !== option.locale); if (event.target.value) next.push({ locale: option.locale, name: event.target.value }); onChange(next); }} className="mt-1 w-full rounded-md border border-stone-300 px-3 py-2" /></label>; })}</div></details>;
 }
 
-function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constrained = false, fullScreen = false, testId, closeDisabled = false, children }: { title: string; onClose: () => void; dialogRef: React.RefObject<HTMLElement | null>; errorMessage: string; wide?: boolean; constrained?: boolean; fullScreen?: boolean; testId?: string; closeDisabled?: boolean; children: React.ReactNode }) {
+function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constrained = false, fullScreen = false, testId, closeDisabled = false, active = true, children }: { title: string; onClose: () => void; dialogRef: React.RefObject<HTMLElement | null>; errorMessage: string; wide?: boolean; constrained?: boolean; fullScreen?: boolean; testId?: string; closeDisabled?: boolean; active?: boolean; children: React.ReactNode }) {
   const { label } = useMerchantMessages();
   const onCloseRef = useRef(onClose);
   const closeDisabledRef = useRef(closeDisabled);
+  const activeRef = useRef(active);
+
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -1122,6 +1159,7 @@ function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constra
     (activeDialog.querySelector<HTMLElement>("[data-dialog-initial-focus]") ?? focusableElements()[0] ?? activeDialog).focus();
 
     function handleKeyDown(event: KeyboardEvent) {
+      if (!activeRef.current) return;
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -1170,7 +1208,8 @@ function Editor({ title, onClose, dialogRef, errorMessage, wide = false, constra
         data-testid={testId}
         tabIndex={-1}
         role="dialog"
-        aria-modal="true"
+        aria-modal={active || undefined}
+        aria-hidden={!active || undefined}
         aria-label={title}
         className={`my-auto w-full rounded-lg bg-white p-5 shadow-xl ${fullScreen ? "flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] max-w-6xl flex-col overflow-hidden sm:h-[min(92dvh,900px)] sm:max-h-[min(92dvh,900px)]" : `${wide ? "max-w-2xl" : "max-w-md"} ${constrained ? "flex h-[calc(100dvh-1rem)] max-h-[52rem] flex-col overflow-hidden sm:h-[calc(100dvh-2rem)]" : ""}`}`}
       >
@@ -1193,10 +1232,11 @@ function ProductNoteActionButton({ icon, label, onSelect, disabled = false, dang
 function ProductNoteGroupCard({ group, onOpen, onManage }: { group: ProductNoteGroupView; onOpen: () => void; onManage: () => void }) {
   const { m, label } = useMerchantMessages();
   return (
-    <div className="grid min-h-28 grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-2xl border border-stone-300 bg-white shadow-sm">
+    <div className="grid min-h-28 grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-2xl border border-teal-200 bg-teal-50 shadow-sm">
       <button type="button" onClick={onOpen} className="flex min-w-0 items-center gap-4 p-5 text-left hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-700">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-800"><MessageSquareText className="h-6 w-6" /></span>
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-teal-700 text-white"><Layers3 className="h-6 w-6" /></span>
         <span className="min-w-0 flex-1">
+          <span className="block text-xs font-semibold text-teal-800">{label("註記群組")}</span>
           <span className="flex flex-wrap items-center gap-2"><strong className="break-words text-lg">{group.name}</strong>{!group.isActive ? <span className="text-xs font-semibold text-red-700">{label("已停用")}</span> : null}</span>
           <span className="mt-1 block text-sm text-stone-600">{m("{selectionMode} · {required} · {optionCount} 個註記選項 · {productCount} 項商品", { selectionMode: group.selectionMode === "SINGLE" ? label("單選") : label("複選"), required: group.isRequired ? label("必選") : label("選填"), optionCount: group.options.length, productCount: group.assignments.length })}</span>
         </span>
@@ -1210,7 +1250,7 @@ function ProductNoteGroupCard({ group, onOpen, onManage }: { group: ProductNoteG
 function ReusableProductNoteCard({ note, currency, onOpen }: { note: ReusableProductNoteView; currency: string; onOpen: () => void }) {
   const { locale, m, label } = useMerchantMessages();
   return (
-    <button type="button" data-testid="reusable-note-action-trigger" aria-label={m("管理 {name}", { name: note.name })} onClick={onOpen} className="flex min-h-28 w-full items-center gap-4 rounded-2xl border border-stone-300 bg-white p-5 text-left shadow-sm hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
+    <button type="button" data-testid="reusable-note-action-trigger" aria-label={m("管理 {name}", { name: note.name })} onClick={(event) => { event.currentTarget.focus({ preventScroll: true }); onOpen(); }} className="flex min-h-28 w-full items-center gap-4 rounded-2xl border border-stone-300 bg-white p-5 text-left shadow-sm hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
       <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-stone-100 text-stone-700"><MessageSquareText className="h-6 w-6" /></span>
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2"><strong className="break-words text-lg">{note.name}</strong>{!note.isActive ? <span className="text-xs font-semibold text-red-700">{label("已停用")}</span> : null}</span>
@@ -1221,18 +1261,62 @@ function ReusableProductNoteCard({ note, currency, onOpen }: { note: ReusablePro
   );
 }
 
-function ProductNoteOptionCard({ option, currency, testId, onOpen }: { option: NoteOption; currency: string; testId?: string; onOpen: () => void }) {
+function ProductNoteOptionCard({ option, currency, testId, onOpen, compact = false }: { option: NoteOption; currency: string; testId?: string; onOpen: () => void; compact?: boolean }) {
   const { locale, label } = useMerchantMessages();
   return (
-    <button type="button" data-testid={testId} onClick={onOpen} className="flex min-h-28 w-full items-center gap-4 rounded-2xl border border-stone-300 bg-white p-5 text-left shadow-sm hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
+    <button type="button" data-testid={testId} onClick={onOpen} className={`flex w-full items-center gap-4 border border-stone-300 bg-white text-left hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${compact ? "min-h-20 rounded-lg p-3" : "min-h-28 rounded-2xl p-5 shadow-sm"}`}>
       <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-stone-100 text-stone-700"><MessageSquareText className="h-6 w-6" /></span>
       <span className="min-w-0 flex-1">
+        <span className="block text-xs text-stone-600">{label("註記選項")}</span>
         <span className="flex flex-wrap items-center gap-2"><strong className="break-words text-lg">{option.name}</strong>{!option.isActive ? <span className="text-xs font-semibold text-red-700">{label("已停用")}</span> : null}</span>
         <span className="mt-1 block text-sm text-stone-600">{option.priceDelta === 0 ? label("不加價") : `${option.priceDelta > 0 ? "+" : ""}${formatMoney(option.priceDelta, currency, locale)}`} · {option.reusableNoteId ? label("共用單一註記") : label("群組專用")}</span>
       </span>
       <MoreHorizontal className="h-6 w-6 shrink-0 text-stone-500" />
     </button>
   );
+}
+
+function ProductNoteGroupBoard({ groups, selectedGroup, query, currency, onSelect, onManage, onOption, onAttach, onCreate, canAttach }: {
+  groups: ProductNoteGroupView[]; selectedGroup: ProductNoteGroupView | null; query: string; currency: string;
+  onSelect: (id: string | null) => void; onManage: (group: ProductNoteGroupView) => void;
+  onOption: (group: ProductNoteGroupView, option: NoteOption) => void;
+  onAttach: (group: ProductNoteGroupView) => void; onCreate: (group: ProductNoteGroupView) => void;
+  canAttach: (group: ProductNoteGroupView) => boolean;
+}) {
+  const { label, m } = useMerchantMessages();
+  const shownGroups = selectedGroup ? [selectedGroup] : groups;
+  const matches = (names: string[]) => !query || names.join(" ").normalize("NFKC").toLocaleLowerCase("zh-TW").includes(query);
+  return <div data-testid="note-group-board" className="grid h-[60vh] min-h-[28rem] min-w-0 grid-cols-[210px_minmax(0,1fr)] overflow-hidden rounded-lg border border-stone-300 xl:grid-cols-[240px_minmax(0,1fr)]">
+    <nav aria-label={label("註記群組")} className="min-h-0 overflow-y-auto border-r border-stone-200 bg-stone-50 p-2">
+      <p className="p-2 text-sm font-semibold text-stone-600">{label("註記群組")}</p>
+      <button type="button" aria-pressed={!selectedGroup} onClick={() => onSelect(null)} className="min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-left text-sm font-semibold aria-pressed:border-teal-700 aria-pressed:bg-teal-50">{label("全部群組")}</button>
+      {groups.map((group) => <button key={group.id} type="button" aria-label={group.name} aria-pressed={selectedGroup?.id === group.id} onClick={() => onSelect(group.id)} className="mt-3 flex min-h-14 w-full items-center gap-2 rounded-lg border border-stone-300 bg-stone-200 p-3 text-left aria-pressed:border-teal-700 aria-pressed:bg-teal-700 aria-pressed:text-white">
+        <Layers3 aria-hidden="true" className="h-5 w-5 shrink-0" />
+        <span className="min-w-0"><strong className="block break-words">{group.name}{!group.isActive ? `（${label("已停用")}）` : ""}</strong><span className="block text-xs">{m("{count} 個註記選項", { count: group.options.length })}</span></span>
+      </button>)}
+      {!groups.length ? <p className="p-3 text-sm text-stone-500">{label("找不到符合的註記群組。")}</p> : null}
+    </nav>
+    <div className="min-h-0 min-w-0 overflow-y-auto p-3">
+      {shownGroups.map((group) => {
+        const options = [...group.options].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-TW"))
+          .filter((option) => matches([group.name, ...group.translations.map((row) => row.name)]) || matches([option.name, ...option.translations.map((row) => row.name)]));
+        return <section key={group.id} aria-label={group.name} className="mb-4 last:mb-0">
+          <div className="flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 p-3">
+            <div className="min-w-0 flex-1"><p className="text-xs font-semibold text-teal-800">{label("註記群組")}</p><h3 className="break-words font-bold text-teal-950">{group.name}{!group.isActive ? `（${label("已停用")}）` : ""}</h3><p className="text-sm text-stone-600">{group.selectionMode === "SINGLE" ? label("單選") : label("複選")} · {group.isRequired ? label("必選") : label("選填")} · {group.assignments.length} {label("商品")}</p></div>
+            <IconButton label={m("管理 {name}", { name: group.name })} onClick={() => onManage(group)}><Pencil className="h-4 w-4" /></IconButton>
+          </div>
+          {selectedGroup ? <div className="my-2 flex flex-wrap gap-2">
+            <button type="button" disabled={!canAttach(group)} onClick={() => onAttach(group)} className="min-h-11 rounded-md border border-teal-700 px-3 text-sm font-semibold text-teal-800 disabled:opacity-40">{label("加入既有共用註記")}</button>
+            <button type="button" onClick={() => onCreate(group)} className="min-h-11 rounded-md border border-stone-300 px-3 text-sm font-semibold">{label("新增群組專用註記")}</button>
+          </div> : null}
+          <div className="mt-2 ml-3 grid gap-2 border-l-2 border-stone-200 pl-3">
+            {options.map((option) => <ProductNoteOptionCard key={option.id} option={option} currency={currency} compact testId="note-option-action-trigger" onOpen={() => onOption(group, option)} />)}
+            {!options.length ? <p className="p-3 text-sm text-stone-500">{label(query ? "找不到符合的註記選項。" : "尚未建立註記選項。")}</p> : null}
+          </div>
+        </section>;
+      })}
+    </div>
+  </div>;
 }
 
 function moveOrderedId(ids: string[], index: number, direction: -1 | 1) {

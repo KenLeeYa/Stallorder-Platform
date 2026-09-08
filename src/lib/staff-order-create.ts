@@ -1,4 +1,5 @@
 import "server-only";
+import { isOrderStockError } from "@/lib/order-stock-error";
 
 import { Prisma, type PrismaClient, type ProductKind, type UserRole } from "@prisma/client";
 import { calculateCapacitySnapshot } from "@/lib/capacity";
@@ -77,6 +78,7 @@ export class StaffOrderCreateError extends Error {
   constructor(public readonly code:
     | "ORDER_LIMIT_EXCEEDED"
     | "PRODUCT_UNAVAILABLE"
+    | "PRODUCT_STOCK_INSUFFICIENT"
     | "INVALID_PRODUCT_NOTES"
     | "TABLE_UNAVAILABLE"
     | "DELIVERY_UNAVAILABLE"
@@ -294,6 +296,10 @@ export async function createStaffOrder(input: {
     return { order, idempotent: false };
   } catch (error) {
     if (error instanceof StaffOrderCreateError) throw error;
+    if (isOrderStockError(error)) throw new StaffOrderCreateError("PRODUCT_STOCK_INSUFFICIENT");
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      throw new StaffOrderCreateError("ORDER_CONFLICT");
+    }
     if (error instanceof CashShiftOperationError && error.code === "ACTIVE_SHIFT_REQUIRED") {
       throw new StaffOrderCreateError("ACTIVE_SHIFT_REQUIRED");
     }

@@ -139,7 +139,7 @@ export function StallAlertSoundSettings({
         <Volume2 aria-hidden="true" className="mt-0.5 h-5 w-5 text-teal-700" />
         <div>
           <h3 id="order-alert-sound-heading" className="text-lg font-semibold text-stone-900">{m("訂單提醒音")}</h3>
-          <p className="mt-1 text-sm leading-6 text-stone-600">{m("店員開啟訂單提醒後，新訂單與到期預約單會使用此音效；裝置靜音與系統音量仍由裝置控制。")}</p>
+          <p className="mt-1 text-sm leading-6 text-stone-600">{m("店員開啟訂單提醒後，只有新訂單會使用此音效；裝置靜音與系統音量仍由裝置控制。")}</p>
         </div>
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-3">

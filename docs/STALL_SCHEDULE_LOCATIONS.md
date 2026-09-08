@@ -60,3 +60,7 @@ Phase 5 提供移動攤販所需的常用地點、市集活動、出攤行程、
 - Schema／合約與 RBAC：`src/lib/stall-schedule-contract.test.ts`、`src/lib/stall-schedules.test.ts`、`src/lib/rbac.test.ts`
 - RLS、跨攤位、排程與 QR：`supabase/tests/database/stall_schedule_locations.test.sql`
 - UI、公開資料最小化、時區與角色：`e2e/stall-schedule-locations.spec.ts`
+
+## 本機預約與截單補充（2026-09-07）
+
+預約 horizon 定義為攤位時區今天至第 N 天（含整天）；特殊休假／營業時段優先於週表，顧客選單與店員提案共用資料庫時段 resolver。QR 最後點餐时间針對新單，不阻斷既有訂單追蹤及 idempotent replay。主 QR 的輪替不撤銷桌位、地點、行程、活動 QR。詳見 [本機驗收與連動](CATALOG_OPERATIONS_LOCAL_20260907.md)。

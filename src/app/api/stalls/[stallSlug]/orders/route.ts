@@ -114,6 +114,7 @@ function staffOrderErrorResponse(error: unknown, requestId: string) {
     const messages: Record<StaffOrderCreateError["code"], string> = {
       ORDER_LIMIT_EXCEEDED: "商品數量或備註超過此攤位設定的上限。",
       PRODUCT_UNAVAILABLE: "商品供應或價格剛剛已變更，請重新選擇。",
+      PRODUCT_STOCK_INSUFFICIENT: "商品剩餘份數不足，請減少數量或重新選擇餐點。",
       INVALID_PRODUCT_NOTES: "商品註記未符合必選或數量限制。",
       TABLE_UNAVAILABLE: "內用桌位已停用或不存在。",
       DELIVERY_UNAVAILABLE: "此攤位尚未開啟外送模組。",
@@ -123,7 +124,7 @@ function staffOrderErrorResponse(error: unknown, requestId: string) {
     };
     return NextResponse.json(
       { error: messages[error.code], code: error.code },
-      { status: error.code === "ORDER_CONFLICT" || error.code === "ACTIVE_SHIFT_REQUIRED" ? 409 : 400, headers },
+      { status: error.code === "PRODUCT_STOCK_INSUFFICIENT" || error.code === "ORDER_CONFLICT" || error.code === "ACTIVE_SHIFT_REQUIRED" ? 409 : 400, headers },
     );
   }
   if (error instanceof StaffCheckoutError) {

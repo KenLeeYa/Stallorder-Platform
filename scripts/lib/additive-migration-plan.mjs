@@ -67,6 +67,18 @@ const STALL_SCOPED_LOTTERY_CAMPAIGN_MIGRATION_DIGEST =
   "20e922c7fb05bea22274c367a6f3171376278c51fd1fdbf56f1ccca4f589a09b";
 const FLEXIBLE_LOTTERY_FESTIVAL_CAMPAIGNS_MIGRATION_DIGEST =
   "a17dd86b50981da8af900060371d12d992079a461039c53523b902aed6248167";
+// Reviewed additive columns and compatible function/trigger changes. Any SQL
+// revision must be reviewed again; see docs/FUNCTIONAL_RELEASE_20260908.md.
+const STOCK_PORTIONS_MIGRATION_DIGEST =
+  "75bb97c2a1e6bd411c02a1cd4c819f165cef86e5be0be5d98c928efb2226c84d";
+const ORDER_OPERATIONS_MIGRATION_DIGESTS = new Set([
+  "46e30e5c335d3a641824ee917579138db2f0e747ce17ed7ac5cf75d94f08c458", // calendar/cutoff
+  STOCK_PORTIONS_MIGRATION_DIGEST,
+  "d7950a2a5020e0c843b55864681befe42f48ea4b80f3af7ec3b94978f506b578", // tracking polling
+  "d5a48ad0d9139b71b0449aa0c0dac3a9fcd806e1218b9b177b71f6fd92561f7c", // table lottery draw
+  "b326d4cd24dd246547628a207d11fcb9b85b1614bc5a7419d432653fd8c8363f", // table lottery commit
+  "f903bc3eaf1ee6981bb903540596bad3b2fe1e6e56322f320a0d50346785a114", // gift discount snapshot
+]);
 
 export class AdditiveMigrationPlanError extends Error {
   constructor(code, details = {}) {
@@ -193,8 +205,11 @@ export function assertAdditiveMigrationSql(sql) {
     throw new AdditiveMigrationPlanError("MIGRATION_SQL_INVALID");
   }
   const phaseThreeHardLock = isApprovedPhaseThreeHardLockMigration(sql);
+  const orderOperationsDigest = sha256(sql.replace(/\r\n/gu, "\n").trim());
+  const orderOperationsMigration = ORDER_OPERATIONS_MIGRATION_DIGESTS.has(orderOperationsDigest);
+  const stockPortionsMigration = orderOperationsDigest === STOCK_PORTIONS_MIGRATION_DIGEST;
   const compatibleFunctionBodyMigration =
-    isApprovedCompatibleFunctionBodyMigration(sql);
+    orderOperationsMigration || isApprovedCompatibleFunctionBodyMigration(sql);
   const existingTableTriggerMigration =
     isApprovedExistingTableTriggerMigration(sql);
   const integratedPrintCenterMigration =
@@ -218,7 +233,7 @@ export function assertAdditiveMigrationSql(sql) {
   const staffKdsSpecialClosuresMigration =
     isApprovedStaffKdsSpecialClosuresMigration(sql);
   const drStandbyCompatibleMigration =
-    phaseThreeHardLock || isApprovedDrStandbyCompatibleMigration(sql);
+    phaseThreeHardLock || orderOperationsMigration || isApprovedDrStandbyCompatibleMigration(sql);
   const scan = scanSql(sql);
   assertDoBlocksSafe(scan, drStandbyCompatibleMigration);
   const statements = scan.scrubbedSql
@@ -322,6 +337,7 @@ export function assertAdditiveMigrationSql(sql) {
       organizationOperatingModeMigration,
       multitenantEinvoiceLocalMockMigration,
       publicTakeoutAmendmentDeliveryNoticeMigration,
+      stockPortionsMigration,
     );
   }
   assertReplacementPairs(replacements);
@@ -336,6 +352,7 @@ export function assertAdditiveMigrationSql(sql) {
     privateProductImageDeliveryMigration,
     organizationOperatingModeMigration,
     multitenantEinvoiceLocalMockMigration,
+    stockPortionsMigration,
   );
   assertReplacementObjectProvenance(
     statements,
@@ -373,6 +390,7 @@ function assertSecurityObjectProvenance(
   privateProductImageDeliveryMigration,
   organizationOperatingModeMigration,
   multitenantEinvoiceLocalMockMigration,
+  stockPortionsMigration,
 ) {
   const createdTables = new Map();
   const createdFunctions = new Map();
@@ -512,10 +530,10 @@ function assertSecurityObjectProvenance(
     }
 
     const trigger = statement.match(new RegExp(
-      `^create\\s+trigger\\s+${IDENTIFIER_SOURCE}[\\s\\S]*?\\bon\\s+(${QUALIFIED_IDENTIFIER_SOURCE})\\b`,
+      `^create\\s+(?:constraint\\s+)?trigger\\s+${IDENTIFIER_SOURCE}[\\s\\S]*?\\bon\\s+(${QUALIFIED_IDENTIFIER_SOURCE})\\b`,
       "iu",
     ));
-    if (/^create\s+trigger\b/iu.test(statement)) {
+    if (/^create\s+(?:constraint\s+)?trigger\b/iu.test(statement)) {
       if (!trigger) {
         throw new AdditiveMigrationPlanError(
           "SECURITY_MUTATION_STATEMENT_UNPARSEABLE",
@@ -524,6 +542,8 @@ function assertSecurityObjectProvenance(
       const tableIdentity = normalizeIdentifier(trigger[1]);
       if (
         !objectWasCreatedEarlier(createdTables, tableIdentity, index)
+        && !(stockPortionsMigration
+          && /^public\.(?:stall_products|orders|order_items|order_production_tasks)$/u.test(tableIdentity))
         && !(
           phaseThreeHardLock
           && isPhaseThreeHardLockTrigger(statement, tableIdentity)
@@ -1546,8 +1566,10 @@ function assertAllowedStatement(
   organizationOperatingModeMigration,
   multitenantEinvoiceLocalMockMigration,
   publicTakeoutAmendmentDeliveryNoticeMigration,
+  stockPortionsMigration,
 ) {
   const allowed = [
+    stockPortionsMigration && /^create\s+constraint\s+trigger\b/iu.test(statement),
     phaseThreeHardLock && isPhaseThreeHardLockCleanup(statement),
     staffKdsSpecialClosuresMigration
       && /^alter\s+table\s+public\.stall_ordering_settings\s+alter\s+column\s+kds_module_enabled\s+set\s+default\s+false$/iu.test(statement),

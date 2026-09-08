@@ -1,7 +1,9 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
+import { createEnglishOrderCatalogFixture } from "./english-order-catalog-fixture";
 import { buildFulfillmentTimeSlots } from "../src/lib/fulfillment-time-options";
 import {
+  continueQrCheckout,
   addFirstStaffCatalogProduct,
   dismissStaffStartReminder,
   qrProductSelectionControl,
@@ -211,16 +213,16 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
   await expect(catalogToggle).toHaveAttribute("aria-expanded", "true");
   await expect(dialog.getByTestId("staff-product-list")).toBeVisible();
   const friedGroup = dialog.locator(
-    '[data-testid="staff-product-group"][data-category="炸物"]',
+    '[data-testid="staff-product-group"][data-category="炸物"][data-group="人氣炸物"]',
   );
   const drinkGroup = dialog.locator(
     '[data-testid="staff-product-group"][data-category="飲料"]',
-  );
+  ).first();
   await expect(friedGroup).toBeVisible();
   await expect(drinkGroup).toBeVisible();
   const cartPositionBeforeCategoryJump = await cartPanel.boundingBox();
   await groupNavigation
-    .getByRole("link", { name: "清涼飲品", exact: true })
+    .getByRole("link", { name: (await drinkGroup.getAttribute("data-group"))!, exact: true })
     .click();
   await expect
     .poll(async () => menuPanel.evaluate((element) => element.scrollTop))
@@ -501,13 +503,13 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
     ),
   ).toBe("sticky");
   await expect(
-    dialog.locator('[data-testid="staff-product-group"][data-category="炸物"]'),
+    dialog.locator('[data-testid="staff-product-group"][data-category="炸物"][data-group="人氣炸物"]'),
   ).toBeVisible();
   await expect(
-    dialog.locator('[data-testid="staff-product-group"][data-category="飲料"]'),
+    dialog.locator('[data-testid="staff-product-group"][data-category="飲料"]').first(),
   ).toBeVisible();
   await groupNavigation
-    .getByRole("link", { name: "清涼飲品", exact: true })
+    .getByRole("link", { name: (await dialog.locator('[data-testid="staff-product-group"][data-category="飲料"]').first().getAttribute("data-group"))!, exact: true })
     .click();
   await expect
     .poll(async () => menuPanel.evaluate((element) => element.scrollTop))
@@ -1108,6 +1110,7 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
   await deliveryCartPanel
     .getByRole("button", { name: "繼續填寫訂購資料", exact: true })
     .click();
+  await continueQrCheckout(page);
   await expect(deliveryCartPanel.getByLabel("聯絡電話")).toBeVisible();
   await expect(deliveryCartPanel.getByLabel("外送地址")).toBeVisible();
   await expect(
@@ -1195,6 +1198,7 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
   await restoredDeliveryCartPanel
     .getByRole("button", { name: "繼續填寫訂購資料", exact: true })
     .click();
+  await continueQrCheckout(page);
   await expect(
     restoredDeliveryCartPanel.getByRole("radio", { name: "指定送達時間" }),
   ).toBeChecked();
@@ -1426,7 +1430,8 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
   }
 });
 
-test("外送頁依瀏覽器語系顯示英文欄位", async ({ browser }) => {
+test("外送頁依瀏覽器語系顯示英文欄位", async ({ browser, playwright }) => {
+  const restoreEnglishCatalog = await createEnglishOrderCatalogFixture(prisma, playwright);
   await prisma.publicRateLimitBucket.deleteMany({ where: { stallId } });
   const context = await browser.newContext({
     locale: "en-US",
@@ -1465,6 +1470,11 @@ test("外送頁依瀏覽器語系顯示英文欄位", async ({ browser }) => {
     await deliveryCartPanel
       .getByRole("button", { name: "Continue to checkout", exact: true })
       .click();
+    const upsell = page.getByRole("dialog", { name: "One more look before checkout", exact: true });
+    if (await upsell.isVisible()) {
+      await upsell.getByRole("button", { name: "No thanks, checkout", exact: true }).click();
+      await expect(upsell).toBeHidden();
+    }
     await expect(deliveryCartPanel.getByLabel("Contact phone")).toBeVisible({
       timeout: 30_000,
     });
@@ -1478,6 +1488,6 @@ test("外送頁依瀏覽器語系顯示英文欄位", async ({ browser }) => {
       }),
     ).toBeVisible();
   } finally {
-    await context.close();
+    try { await context.close(); } finally { await restoreEnglishCatalog(); }
   }
 });

@@ -210,7 +210,7 @@ test("公開 CDS 只顯示必要欄位並即時移動與移除訂單", async ({ 
   const ready = page.locator('section[aria-label="可以取餐"]');
   await expect(preparing.getByText(preparingOrderNo, { exact: true })).toBeVisible();
   await expect(ready.getByText(readyOrderNo, { exact: true })).toBeVisible();
-  await expect(ready.getByText("取餐碼 ••8", { exact: true })).toBeVisible();
+  await expect(ready.getByRole("article").filter({ hasText: readyOrderNo }).getByText("取餐碼 ••8", { exact: true })).toBeVisible();
   await expect(page.getByText("請留意取餐號碼", { exact: true })).toBeVisible();
 
   const payload = await page.evaluate(async (slug) => {

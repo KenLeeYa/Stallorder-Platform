@@ -23,6 +23,8 @@ type ErrorMessageKey =
   | "invalidRequest"
   | "qrUnavailable"
   | "orderingUnavailable"
+  | "lastOrderPassed"
+  | "stockInsufficient"
   | "capacityPaused"
   | "sessionInvalid"
   | "rateLimited"
@@ -292,6 +294,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "訂單資料不正確，請重新確認。",
       qrUnavailable: "此 QR Code 目前無法使用，請洽詢店員。",
       orderingUnavailable: "攤位目前暫停或關閉點餐。",
+      lastOrderPassed: "超過最後點餐時間，請至櫃檯詢問。",
+      stockInsufficient: "部分商品庫存不足，請調整數量後再試。",
       capacityPaused: "目前訂單較多，暫停接單，請稍後再試。",
       sessionInvalid: "點餐工作階段已失效，請重新掃描 QR Code。",
       rateLimited: "操作過於頻繁，請稍後再試。",
@@ -425,6 +429,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "The order details are invalid. Review them and try again.",
       qrUnavailable: "This QR code is unavailable. Please ask a staff member for help.",
       orderingUnavailable: "This stall is not accepting orders right now.",
+      lastOrderPassed: "The last ordering time has passed. Please ask at the counter.",
+      stockInsufficient: "Some items have insufficient stock. Please adjust the quantities.",
       capacityPaused: "Order volume is currently high. Ordering is paused; please try again shortly.",
       sessionInvalid: "Your ordering session is no longer valid. Scan the QR code again.",
       rateLimited: "Too many attempts. Please wait and try again.",
@@ -558,6 +564,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "注文内容が正しくありません。確認して再度お試しください。",
       qrUnavailable: "このQRコードはご利用いただけません。スタッフにお尋ねください。",
       orderingUnavailable: "この店舗は現在注文を受け付けていません。",
+      lastOrderPassed: "ラストオーダーの時間を過ぎました。カウンターでお尋ねください。",
+      stockInsufficient: "一部商品の在庫が不足しています。数量を調整してください。",
       capacityPaused: "現在注文が集中しているため、受付を一時停止しています。しばらくしてからお試しください。",
       sessionInvalid: "注文セッションが無効です。QRコードを再度読み取ってください。",
       rateLimited: "操作回数が多すぎます。しばらくしてから再度お試しください。",
@@ -691,6 +699,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "주문 정보가 올바르지 않습니다. 다시 확인해 주세요.",
       qrUnavailable: "이 QR 코드를 사용할 수 없습니다. 직원에게 문의해 주세요.",
       orderingUnavailable: "이 매장은 현재 주문을 받고 있지 않습니다.",
+      lastOrderPassed: "마지막 주문 시간이 지났습니다. 카운터에 문의해 주세요.",
+      stockInsufficient: "일부 상품의 재고가 부족합니다. 수량을 조정해 주세요.",
       capacityPaused: "현재 주문이 많아 주문 접수를 잠시 중단했습니다. 잠시 후 다시 시도해 주세요.",
       sessionInvalid: "주문 세션이 유효하지 않습니다. QR 코드를 다시 스캔해 주세요.",
       rateLimited: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
@@ -824,6 +834,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "Thông tin đơn hàng không hợp lệ. Vui lòng kiểm tra lại.",
       qrUnavailable: "Mã QR này không khả dụng. Vui lòng liên hệ nhân viên.",
       orderingUnavailable: "Quầy hiện không nhận đơn hàng.",
+      lastOrderPassed: "Đã qua giờ nhận món cuối. Vui lòng hỏi tại quầy.",
+      stockInsufficient: "Một số món không đủ số lượng. Vui lòng điều chỉnh số lượng.",
       capacityPaused: "Hiện có nhiều đơn hàng nên quầy tạm ngừng nhận đơn. Vui lòng thử lại sau.",
       sessionInvalid: "Phiên đặt món không còn hiệu lực. Vui lòng quét lại mã QR.",
       rateLimited: "Bạn thao tác quá thường xuyên. Vui lòng thử lại sau.",
@@ -957,6 +969,8 @@ export const qrOrderMessages: Record<QrLocale, QrOrderMessages> = {
       invalidRequest: "ข้อมูลคำสั่งซื้อไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง",
       qrUnavailable: "ไม่สามารถใช้ QR Code นี้ได้ โปรดสอบถามพนักงาน",
       orderingUnavailable: "ร้านยังไม่รับคำสั่งซื้อในขณะนี้",
+      lastOrderPassed: "เลยเวลารับออเดอร์สุดท้ายแล้ว กรุณาสอบถามที่เคาน์เตอร์",
+      stockInsufficient: "สินค้าบางรายการมีจำนวนไม่เพียงพอ กรุณาปรับจำนวน",
       capacityPaused: "ขณะนี้มีคำสั่งซื้อจำนวนมาก ร้านจึงหยุดรับออร์เดอร์ชั่วคราว โปรดลองอีกครั้งภายหลัง",
       sessionInvalid: "เซสชันการสั่งซื้อไม่ถูกต้อง โปรดสแกน QR Code อีกครั้ง",
       rateLimited: "มีการทำรายการบ่อยเกินไป โปรดลองอีกครั้งในภายหลัง",
@@ -999,6 +1013,8 @@ const errorMessageKeys: Record<string, ErrorMessageKey> = {
   QR_ORDERING_DEGRADED: "orderingUnavailable",
   QR_ORDERING_UNAVAILABLE: "orderingUnavailable",
   STALL_CLOSED: "orderingUnavailable",
+  QR_LAST_ORDER_PASSED: "lastOrderPassed",
+  PRODUCT_STOCK_INSUFFICIENT: "stockInsufficient",
   STALL_SPECIAL_CLOSURE: "orderingUnavailable",
   ORDERING_PAUSED: "orderingUnavailable",
   STALL_SOLD_OUT: "orderingUnavailable",
