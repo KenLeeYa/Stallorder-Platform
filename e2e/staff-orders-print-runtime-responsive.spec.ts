@@ -18,6 +18,7 @@ const responsivePrisma = new PrismaClient();
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 let responsiveOrderId = "";
+let responsiveOrderNo = "";
 
 test.beforeAll(async () => {
   loadLocalEnv();
@@ -46,12 +47,12 @@ test.beforeAll(async () => {
       fulfillmentType: "TAKEOUT",
       status: "WAITING_CONFIRMATION",
       paymentStatus: "UNPAID",
-      subtotal: 95,
-      total: 95,
+      subtotal: 95 * 25,
+      total: 95 * 25,
       deviceHash: createHash("sha256").update(`device-${unique}`).digest("hex"),
       confirmationExpiresAt: new Date(Date.now() + 10 * 60_000),
       items: {
-        create: {
+        create: Array.from({ length: 25 }, (_, index) => ({
           organizationId,
           stallId,
           productId: product.id,
@@ -59,13 +60,15 @@ test.beforeAll(async () => {
           baseUnitPrice: 95,
           unitPrice: 95,
           quantity: 1,
-          status: "PENDING",
-        },
+          status: "PENDING" as const,
+          note: `響應式測試品項 ${index + 1}`,
+        })),
       },
     },
-    select: { id: true },
+    select: { id: true, orderNo: true },
   });
   responsiveOrderId = order.id;
+  responsiveOrderNo = order.orderNo;
 });
 
 test.afterAll(async () => {
@@ -103,7 +106,13 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
     await expect(listPane).toBeVisible();
     await expect(itemsPane).toBeVisible();
     await expect(actionsPane).toBeVisible();
-    await expect(listPane.getByRole("button").first()).toHaveAttribute("aria-current", "true");
+    if (viewport.width === 768) {
+      await expect(listPane.getByRole("button").first()).toHaveAttribute("aria-current", "true");
+    }
+    const fixtureOrder = listPane.getByRole("button").filter({ hasText: responsiveOrderNo });
+    await fixtureOrder.click();
+    await expect(fixtureOrder).toHaveAttribute("aria-current", "true");
+    await expect(itemsPane.getByTestId("staff-order-item-list").locator("li")).toHaveCount(25);
     await expect(itemsPane.getByRole("heading", { name: "訂單品項", exact: true })).toBeVisible();
     await expect(actionsPane.getByRole("heading", { name: "訂單操作", exact: true })).toBeVisible();
 
@@ -138,24 +147,12 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
     const longOrderScroll = await page.evaluate(() => {
       const itemsPaneElement = document.querySelector<HTMLElement>('[data-testid="staff-order-items-pane"]')!;
       const actionsPaneElement = document.querySelector<HTMLElement>('[data-testid="staff-order-actions-pane"]')!;
-      const itemList = document.querySelector<HTMLElement>('[data-testid="staff-order-item-list"]')!;
-      const item = itemList.firstElementChild;
-      const clones: Element[] = [];
-      if (item) {
-        for (let index = 0; index < 24; index += 1) {
-          const clone = item.cloneNode(true) as Element;
-          clone.setAttribute("data-qa-scroll-clone", "true");
-          itemList.append(clone);
-          clones.push(clone);
-        }
-      }
       itemsPaneElement.scrollTop = itemsPaneElement.scrollHeight;
       const result = {
         canScroll: itemsPaneElement.scrollHeight > itemsPaneElement.clientHeight,
         didScroll: itemsPaneElement.scrollTop > 0,
         actionsStayedPut: actionsPaneElement.scrollTop === 0,
       };
-      clones.forEach((clone) => clone.remove());
       itemsPaneElement.scrollTop = 0;
       return result;
     });
