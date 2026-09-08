@@ -8,12 +8,19 @@ const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 const ids: string[] = [];
 let productId = "", secondProductId = "", qrToken = "", qrId = "", ownerId = "";
+let circuitFlagOverrideId = "";
 let originalHours: Awaited<ReturnType<typeof prisma.stallBusinessHour.findMany>>;
 test.use({ serviceWorkers: "block" });
 test.describe.configure({ mode: "serial" });
 test.beforeAll(async () => {
   const db = new URL(process.env.DATABASE_URL ?? "");
   if (!["127.0.0.1","localhost"].includes(db.hostname) || db.port !== (process.env.CI ? "54322" : "55722")) throw new Error("DEDICATED_CATALOG_LOCAL_LAB_REQUIRED");
+  const flag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "DUAL_ORDER_INTAKE_ENABLED" }, select: { id: true } });
+  circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
+    flagId: flag.id, scopeType: "GLOBAL", enabled: true,
+    reason: "Isolated catalog Circuit B regression",
+    expiresAt: new Date(Date.now() + 15 * 60_000),
+  } })).id;
   // Reset this dedicated lab's request counters between reruns; production policies stay enabled.
   await prisma.publicRateLimitBucket.deleteMany({});
   await prisma.rateLimitBucket.deleteMany({});
@@ -31,6 +38,7 @@ test.beforeAll(async () => {
   qrId=(await prisma.qrCode.create({data:{organizationId,stallId,token:qrToken,label:"Catalog local QA",state:"ACTIVE",tokenVersion:(version._max.tokenVersion??0)+1}})).id;
 });
 test.afterAll(async () => {
+  if (circuitFlagOverrideId) await prisma.resilienceFeatureFlagOverride.deleteMany({ where: { id: circuitFlagOverrideId } });
   await prisma.order.deleteMany({where:{id:{in:ids}}});
   if(qrId) {
     await prisma.publicOrderAttempt.deleteMany({where:{qrCodeId:qrId}});

@@ -38,3 +38,7 @@
 既有 additive release gate 依 SQL 指紋審查函式更換與既有資料表 trigger。本次沿用該機制登錄上述六支已審查 migration 的完整內容指紋；只讓完全相符的庫存 migration 建立 deferred constraint triggers，仍執行原本的 statement、grant、資料刪除、RLS 及 schema 破壞檢查。新增六項正向與竄改／附加 DROP／附加匿名授權的拒絕測試；與發布流程契約合計 120 項通過。每次遠端 Plan/Apply 仍比對 commit、tree、migration 清單與內容 digest。
 
 尖峰訂單範例使用獨立 QA 店主執行，避免保留資料使 CI 共用帳號在後續測試多出組織選擇頁。本機仍賦予原有商家、店員與廚房測試帳號查看範例的權限；CI 只保留獨立身分，無須刪除範例資料。獨立身分的尖峰加時、暫停／恢復、關店、庫存與店員／廚房案例重新執行通過。
+
+雲端正式模式 E2E 揭露新增測試缺少 Circuit B 功能開關前置條件；catalog 與 functional QA 改為在已驗證的隔離資料庫建立有期限的測試 override，結束後只移除自己建立的 override。正式功能預設與 gate 保持原有規則。
+
+補驗以 Next production server 執行上述兩組完整流程，14 項全數通過，包含零庫存改單、併發超賣、Node／Edge、紙本桌位 QR、撤銷權限、三輪取餐時間提案、雙分頁、逾時與取消競態。

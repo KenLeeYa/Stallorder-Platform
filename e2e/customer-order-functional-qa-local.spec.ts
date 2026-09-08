@@ -9,6 +9,7 @@ const organizationId = "11111111-1111-4111-8111-111111111111";
 const qrToken = "functional-qa-" + randomUUID();
 const orderIds: string[] = [];
 let qrId = "", productId = "";
+let circuitFlagOverrideId = "";
 let originalHours: Awaited<ReturnType<typeof prisma.stallBusinessHour.findMany>>;
 let staff: APIRequestContext;
 let staffHeaders: Record<string, string>;
@@ -26,6 +27,12 @@ test.beforeAll(async ({ playwright }) => {
     if (!["localhost", "127.0.0.1"].includes(url.hostname) || url.port !== port) throw new Error("DEDICATED_FUNCTIONAL_QA_LAB_REQUIRED");
   }
   originalHours = await prisma.stallBusinessHour.findMany({ where: { stallId } });
+  const flag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "DUAL_ORDER_INTAKE_ENABLED" }, select: { id: true } });
+  circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
+    flagId: flag.id, scopeType: "GLOBAL", enabled: true,
+    reason: "Isolated functional Circuit B regression",
+    expiresAt: new Date(Date.now() + 15 * 60_000),
+  } })).id;
   await prisma.stallBusinessHour.updateMany({ where: { stallId }, data: { opensAt: "00:00", closesAt: "23:59", lastOrderAt: null, isClosed: false } });
   const category = await prisma.productCategory.findFirstOrThrow({ where: { organizationId, isActive: true } });
   productId = (await prisma.product.create({ data: { organizationId, categoryId: category.id,
@@ -47,6 +54,7 @@ test.beforeAll(async ({ playwright }) => {
 
 test.afterAll(async () => {
   try {
+    if (circuitFlagOverrideId) await prisma.resilienceFeatureFlagOverride.deleteMany({ where: { id: circuitFlagOverrideId } });
     await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
     if (qrId) {
       await prisma.publicOrderAttempt.deleteMany({ where: { qrCodeId: qrId } });
