@@ -7,18 +7,29 @@ import { establishLocalTestSession, gotoLocalPath } from "./local-navigation";
 const prisma = new PrismaClient();
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
+let paymentsUiOverrideId = "";
 test.use({ serviceWorkers: "block" });
-test.beforeAll(() => {
+test.beforeAll(async () => {
   const database = new URL(process.env.DATABASE_URL ?? "");
   if (database.port !== (process.env.CI ? "54322" : "55722") || !["127.0.0.1", "localhost"].includes(database.hostname)) {
     throw new Error("DEDICATED_LOCAL_PAYMENT_LAB_REQUIRED");
   }
+  const flag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "PAYMENTS_ADMIN_UI_ENABLED" }, select: { id: true } });
+  paymentsUiOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
+    flagId: flag.id, scopeType: "GLOBAL", enabled: true,
+    reason: "Isolated mock payment workflow regression",
+    expiresAt: new Date(Date.now() + 15 * 60_000),
+  } })).id;
 });
 test.beforeEach(async ({ page }) => {
   await establishLocalTestSession(page, prisma, "55555555-5555-4555-8555-555555555551");
   await gotoLocalPath(page, `/merchant/payments?organizationId=${organizationId}`);
 });
-test.afterAll(async () => { await prisma.$disconnect(); });
+test.afterAll(async () => {
+  try {
+    if (paymentsUiOverrideId) await prisma.resilienceFeatureFlagOverride.deleteMany({ where: { id: paymentsUiOverrideId } });
+  } finally { await prisma.$disconnect(); }
+});
 
 test("付款測試連線中斷後顯示錯誤並可重試，不會永久停用按鈕", async ({ page }) => {
   await page.route("**/api/merchant/payment-integrations", (route) => route.abort("connectionfailed"));
