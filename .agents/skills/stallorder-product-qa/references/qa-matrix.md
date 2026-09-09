@@ -6,7 +6,7 @@ Use this matrix to select tests before changing code. Add or update automated te
 
 | ID | Requirements | Pass condition |
 | --- | --- | --- |
-| `QA-LOGIN-01` | `LOGIN-001`, `ADM-005`, `ADM-007` | Both login routes load the full-viewport scene at 320/390/768/1440px, the tablet remains inside the viewport, password entry is reachable through internal scrolling with 44px targets and no horizontal overflow. Existing keyboard/dialog and authenticated session tests remain enabled. Verify configured providers, six locales, dark theme and 200% text separately on the final candidate. `e2e/login-smoke.spec.ts`. |
+| `QA-LOGIN-01` | `LOGIN-001`, `ADM-005`, `ADM-007` | Both login routes load the full-viewport scene at 320/390/768/1440px, the tablet remains inside the viewport, password entry is reachable through internal scrolling with 44px targets and no horizontal overflow. At 360×740px with Google configured, scrolling must leave the entire password button inside the screen without fractional-pixel clipping. Existing keyboard/dialog and authenticated session tests remain enabled. Verify configured providers, six locales, dark theme and 200% text separately on the final candidate. `e2e/login-smoke.spec.ts`. |
 
 ## 2026-09-07 local order-experience acceptance
 

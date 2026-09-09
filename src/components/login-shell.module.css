@@ -39,6 +39,7 @@
   height: 100%;
   overflow: auto;
   overscroll-behavior: contain;
+  scroll-padding-block: 12px;
   padding: clamp(12px, 1.6vw, 24px);
   scrollbar-width: thin;
   scrollbar-color: #a8a29e transparent;

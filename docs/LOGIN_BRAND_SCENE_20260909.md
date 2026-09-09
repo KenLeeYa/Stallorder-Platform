@@ -28,4 +28,6 @@
 - `src/components/login-form.test.tsx`、`src/lib/login-routing.test.ts`、`src/lib/message-catalog.test.ts`：角色、語系、provider、申請 URL、錯誤映射及路由。
 - 最後候選另檢查橫式手機、寬螢幕、六語、深色模式、200% 文字與 API 錯誤後的輸入及 next 保留。未連接 DB 的本機 UI 測試不能代替配對 Preview 的真實登入流程。
 
+360×740px 且顯示 Google 入口時，瀏覽器將帳密按鈕捲到可視區邊緣會產生 0.296875px 的底部裁切。CI 與配對 Preview 均已重現；螢幕捲動容器保留 12px `scroll-padding-block`，使按鈕捲入完整可視範圍。原本的完整按鈕邊界、鍵盤焦點及 dialog 斷言維持不變。
+
 本次應用程式發布使用既有 `.github/workflows/production-application-release.yml`，由新的 main/staging 同樹 Plan 綁定 Apply。它先建置未綁正式網域的 Production deployment，通過 smoke 才 promote，正式 smoke 失敗時依既有 workflow 回復 alias。未包含資料庫／Edge 變更，因此不執行它們的 Apply。配對 Preview 與 CI 仍保留隔離資料庫及完整相依回歸；發布後核對實際 deployment SHA、Plan ID、正式登入畫面與 health，另讀取 DR readiness，不將歷史收據當成本次證據。
