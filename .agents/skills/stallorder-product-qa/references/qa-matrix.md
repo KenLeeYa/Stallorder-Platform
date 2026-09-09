@@ -2,6 +2,12 @@
 
 Use this matrix to select tests before changing code. Add or update automated tests in the repository where practical; this document is not a substitute for executable coverage.
 
+## Login presentation acceptance
+
+| ID | Requirements | Pass condition |
+| --- | --- | --- |
+| `QA-LOGIN-01` | `LOGIN-001`, `ADM-005`, `ADM-007` | Both login routes load the full-viewport scene at 320/390/768/1440px, the tablet remains inside the viewport, password entry is reachable through internal scrolling with 44px targets and no horizontal overflow. Existing keyboard/dialog and authenticated session tests remain enabled. Verify configured providers, six locales, dark theme and 200% text separately on the final candidate. `e2e/login-smoke.spec.ts`. |
+
 ## 2026-09-07 local order-experience acceptance
 
 | ID | Requirements | Pass condition |

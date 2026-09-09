@@ -1,7 +1,6 @@
 import { LoginApplicationPrompt } from "@/components/login-application-prompt";
 import { LoginForm } from "@/components/login-form";
-import { LocaleSelector } from "@/components/locale-selector";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { LoginShell } from "@/components/login-shell";
 import { isSupabaseAuthConfigured } from "@/lib/supabase-auth";
 import { getOAuthLoginUiConfig } from "@/server/auth/oauth/provider-registry";
 
@@ -45,11 +44,7 @@ export default async function LoginPage() {
     && process.env.LOCAL_QA_QUICK_LOGIN_ENABLED === "true";
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-4 py-8">
-      <div className="fixed right-4 top-4 z-10 flex items-center gap-2">
-        <LocaleSelector />
-        <ThemeToggle />
-      </div>
+    <LoginShell>
       <LoginForm
         legacyGoogleEnabled={legacyGoogleEnabled}
         oauthOnly={oauth.oauthOnly}
@@ -57,6 +52,6 @@ export default async function LoginPage() {
         localQaAccounts={localQaQuickLoginEnabled ? [...localQaAccounts] : undefined}
       />
       <LoginApplicationPrompt applicationUrl={applicationUrl} />
-    </main>
+    </LoginShell>
   );
 }

@@ -8,7 +8,9 @@ test("手機登入欄位具備正確語意、焦點與無水平溢位", async ({
   await page.goto("/login");
 
   await expect(page.getByRole("heading", { name: "商家登入" })).toBeVisible();
-  await expect(page.getByText("StallOrder", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "返回首頁", exact: true })).toBeVisible();
+  const brandImage = page.getByRole("img", { name: /StallOrder 攤點通形象圖/ });
+  await expect(brandImage).toBeVisible();
   await expect(page.getByText("供商家負責人與管理人員使用；顧客 QR 點餐不需登入。", { exact: true })).toBeVisible();
   await expect(page.getByText(/平台管理員請使用/)).toHaveCount(0);
 
@@ -22,6 +24,11 @@ test("手機登入欄位具備正確語意、焦點與無水平溢位", async ({
   });
 
   await expect(passwordLogin).toBeVisible();
+  await passwordLogin.scrollIntoViewIfNeeded();
+  const screen = await page.getByTestId("login-screen").boundingBox();
+  const loginButton = await passwordLogin.boundingBox();
+  expect(loginButton!.y).toBeGreaterThanOrEqual(screen!.y);
+  expect(loginButton!.y + loginButton!.height).toBeLessThanOrEqual(screen!.y + screen!.height);
   await expect(email).toBeHidden();
   await expect(passwordInput).toBeHidden();
   if (await googleLogin.isVisible()) {
@@ -46,6 +53,39 @@ test("手機登入欄位具備正確語意、焦點與無水平溢位", async ({
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(passwordLogin).toBeFocused();
+});
+
+test("滿版登入形象圖保留螢幕內操作與響應式可達性", async ({ page }) => {
+  for (const route of ["/login", "/staff/login"]) {
+    for (const width of [320, 390, 768, 1440]) {
+      await test.step(`${route} at ${width}px`, async () => {
+        const height = width < 500 ? 844 : 900;
+        await page.setViewportSize({ width, height });
+        await page.goto(route);
+        const image = page.getByRole("img", { name: /StallOrder 攤點通形象圖/ });
+        await expect.poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true);
+        const passwordLogin = page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true });
+        await expect(passwordLogin).toBeEnabled();
+        await passwordLogin.scrollIntoViewIfNeeded();
+
+        const screen = (await page.getByTestId("login-screen").boundingBox())!;
+        const button = (await passwordLogin.boundingBox())!;
+        const background = (await image.boundingBox())!;
+        expect(screen.x).toBeGreaterThanOrEqual(0);
+        expect(screen.y).toBeGreaterThanOrEqual(0);
+        expect(screen.x + screen.width).toBeLessThanOrEqual(width);
+        expect(screen.y + screen.height).toBeLessThanOrEqual(height);
+        expect(button.y).toBeGreaterThanOrEqual(screen.y);
+        expect(button.y + button.height).toBeLessThanOrEqual(screen.y + screen.height);
+        expect(button.height).toBeGreaterThanOrEqual(44);
+        expect(background.x).toBeLessThanOrEqual(1);
+        expect(background.y).toBeLessThanOrEqual(1);
+        expect(background.x + background.width).toBeGreaterThanOrEqual(width - 1);
+        expect(background.y + background.height).toBeGreaterThanOrEqual(height - 1);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+      });
+    }
+  }
 });
 
 test("示範 Owner 可登入並建立有效 session", async ({ page }) => {
