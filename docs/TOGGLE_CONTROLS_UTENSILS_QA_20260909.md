@@ -114,4 +114,18 @@ npx playwright test --config e2e/toggle-surfaces-local.config.ts -g 'Employee le
 npm run build
 ```
 
-對應規則：`X-009`、`PRN-010`、`QA-UI-11`、`QA-PRN-06`。
+## 店員品項選取開關遮蔽補充修正
+
+2026-09-09 使用者回報三區看板的品項開關壓住餐點資訊。原因是 `StaffSelectedOrderWorkspace` 與手機 `StaffOrderTicket` 仍將原生勾選框絕對定位，內容僅保留 `pl-7` 的空間；改成 56px／長者模式加大的開關後，控制項寬度超過原本留白。先前的控制項尺寸與整頁溢位測試沒有檢查相鄰餐點內容是否重疊。
+
+兩處改為正常 grid 排列：左欄依開關實際寬度配置，右欄呈現數量、名稱、金額、註記與製作狀態，下方獨立一列靠右放製作按鈕。名稱與金額在窄欄位可換行；不可選取的品項保留完整內容寬度。列印隱藏開關時回到單欄。沒有改動選取、批次製作、品項狀態、取餐或權限邏輯。
+
+在保留的本機訂單 `260907-097` 重現，修正前 Chromium 的開關與資訊欄空間斷言失敗；修正後 Chromium／WebKit 均通過 320／390／768／1024／1112／1440 px × 一般／長者 × 亮／暗模式。直接驗證開關與資訊至少 8px 間隔、44px 操作範圍、品項列及整頁不水平溢位、不遮住製作按鈕，以及點選與 Space 選取／取消。實際頁面無 JavaScript 錯誤。3 檔看板／選取相關單元測試共 23 項通過。測試只改本機選取狀態，沒有送出製作或取餐動作。
+
+```powershell
+$env:PLAYWRIGHT_APP_URL = 'http://127.0.0.1:3018'
+$env:PLAYWRIGHT_REUSE_EXISTING_SERVER = 'true'
+npx playwright test --config e2e/toggle-surfaces-local.config.ts -g 'Staff item selection' --output test-results/staff-switch-after
+```
+
+對應規則：`X-009`、`PRN-010`、`QA-UI-01`–`QA-UI-03`、`QA-UI-11`、`QA-ORD-10`、`QA-PRN-06`。

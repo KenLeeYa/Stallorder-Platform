@@ -72,6 +72,87 @@ for (const [surface, route] of [
   });
 }
 
+test("Staff item selection switches never cover item details or production actions", async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  const order = await prisma.order.findFirstOrThrow({
+    where: {
+      stallId, isTest: true, status: { in: ["CONFIRMED", "PREPARING"] },
+      fulfillmentTimeState: { notIn: ["REQUESTED", "CUSTOMER_ACTION_REQUIRED"] },
+      source: { not: "OFFLINE_POS" },
+      items: { some: { status: "PENDING" } },
+      OR: [{ scheduledPickupAt: null }, { scheduledPickupAt: { lte: new Date() } }],
+    },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, orderNo: true },
+  });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.setViewportSize({ width: 1112, height: 834 });
+  await establishLocalTestSession(page, prisma, ownerId);
+  await gotoLocalPath(page, "/staff/aming-chicken");
+  await dismissStaffStartReminder(page);
+  await page.locator('input[type="search"]').fill(order.orderNo);
+  await expect(page.getByTestId("staff-order-list-pane").getByRole("button")).toHaveCount(1);
+
+  for (const width of [1112, 320, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 834 });
+    const mobile = page.getByTestId("staff-order-mobile-list");
+    if (width < 768) {
+      const details = mobile.locator(`button[aria-controls="order-details-${order.id}"]`);
+      if (await details.getAttribute("aria-expanded") !== "true") await details.click();
+    }
+    const surface = width < 768 ? mobile.locator(`[id="order-details-${order.id}"]`) : page.getByTestId("staff-order-items-pane");
+    const switches = surface.getByRole("checkbox");
+    await expect(switches.first()).toBeVisible();
+    for (const mode of ["standard", "senior"]) {
+      for (const theme of ["light", "dark"]) {
+        await page.locator("html").evaluate((html, value) => {
+          html.dataset.interfaceMode = value.mode;
+          html.dataset.theme = value.theme;
+        }, { mode, theme });
+        if (width === 1112 && mode === "senior" && theme === "dark") {
+          await page.screenshot({ path: testInfo.outputPath("staff-item-switches-1112.png") });
+        }
+        const rows = await switches.evaluateAll((controls) => controls.map((control) => {
+          const row = control.closest("li")!;
+          const details = row.querySelector(":scope > div")!;
+          const toggle = control.getBoundingClientRect();
+          const content = details.getBoundingClientRect();
+          const parent = row.getBoundingClientRect();
+          return {
+            width: toggle.width, height: toggle.height, gap: content.left - toggle.right,
+            left: toggle.left - parent.left, right: content.right - parent.right,
+            rowScroll: row.scrollWidth, rowWidth: row.clientWidth,
+            actionOverlaps: Array.from(row.querySelectorAll("button")).some((button) => {
+              const box = button.getBoundingClientRect();
+              return toggle.left < box.right && toggle.right > box.left && toggle.top < box.bottom && toggle.bottom > box.top;
+            }),
+          };
+        }));
+        for (const row of rows) {
+          const context = JSON.stringify({ width, mode, theme, row });
+          expect(row.gap, context).toBeGreaterThanOrEqual(8);
+          expect(row.width, context).toBeGreaterThanOrEqual(44);
+          expect(row.height, context).toBeGreaterThanOrEqual(44);
+          expect(row.left, context).toBeGreaterThanOrEqual(0);
+          expect(row.right, context).toBeLessThanOrEqual(1);
+          expect(row.rowScroll, context).toBeLessThanOrEqual(row.rowWidth + 1);
+          expect(row.actionOverlaps, context).toBe(false);
+        }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      }
+    }
+    const first = switches.first();
+    await first.check();
+    await expect(first).toBeChecked();
+    await first.focus();
+    await page.keyboard.press("Space");
+    await expect(first).not.toBeChecked();
+    await page.screenshot({ path: testInfo.outputPath(`staff-item-switches-${width}.png`) });
+  }
+  expect(errors).toEqual([]);
+});
+
 test("Staff modifier switches change the actual cart draft without submitting an order", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await establishLocalTestSession(page, prisma, ownerId);
