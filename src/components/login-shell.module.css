@@ -1,0 +1,105 @@
+.root {
+  position: relative;
+  height: 100svh;
+  overflow: hidden;
+  isolation: isolate;
+  background: #1c1917;
+}
+
+.canvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(104.83vw, 56.28svh, 460px);
+  aspect-ratio: 941 / 1672;
+  transform: translate(-52.3%, -50%);
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Bounds follow the empty display in the portrait background, not the bezel. */
+.screen {
+  position: absolute;
+  left: 21%;
+  top: 36.12%;
+  width: 62.7%;
+  height: 28.35%;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--background);
+  box-shadow: 0 0 0 2px var(--background);
+}
+
+.screenScroll {
+  display: flex;
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: 12px;
+  padding: clamp(12px, 1.6vw, 24px);
+  scrollbar-width: thin;
+  scrollbar-color: #a8a29e transparent;
+}
+
+.contents {
+  width: 100%;
+  max-width: 27rem;
+  min-width: 0;
+  margin: auto;
+}
+
+.toolbar {
+  position: absolute;
+  z-index: 1;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  transform: translateX(-50%);
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: 18px;
+  background: rgb(250 250 249 / 88%);
+  backdrop-filter: blur(12px);
+}
+
+:global(:root[data-theme="dark"]) .toolbar {
+  border-color: rgb(120 113 108 / 60%);
+  background: rgb(28 25 23 / 90%);
+}
+
+@media (min-aspect-ratio: 4/3) {
+  .canvas {
+    left: 0;
+    width: max(100vw, 177.68svh, 1000px);
+    aspect-ratio: 1672 / 941;
+    transform: translateY(-50%);
+  }
+
+  .screen {
+    left: 34.81%;
+    top: 30.39%;
+    width: 37.08%;
+    height: 40.81%;
+  }
+
+  .toolbar {
+    top: max(16px, env(safe-area-inset-top));
+    right: max(16px, env(safe-area-inset-right));
+    bottom: auto;
+    left: auto;
+    transform: none;
+  }
+}
+
+@media (min-aspect-ratio: 4/3) and (max-width: 999px) {
+  .canvas {
+    left: 50%;
+    width: max(107.2vw, 177.68svh, 1000px);
+    transform: translate(-53.35%, -50%);
+  }
+}

@@ -9,6 +9,10 @@ This file is the durable owner acceptance baseline. It does not assert that a re
 - `FLAGGED`: present behind a server-controlled feature flag and fail closed when unavailable.
 - IDs are stable and should be referenced by tests and release notes.
 
+## Login presentation
+
+- `LOGIN-001` Merchant and Staff login use a full-viewport brand scene with real interactive controls inside its central tablet display. Adapt the scene to portrait/landscape viewports; keep the display reachable at 320/390/768/1440px and permit internal scrolling for additional providers or enlarged text. Preserve server-selected authentication policy, callback/next handling, password-dialog focus and Production exclusion of local QA controls. Details: `docs/LOGIN_BRAND_SCENE_20260909.md`.
+
 ## QR ordering and public menus
 
 - `QR-001` QR session establishment MUST leave the loading state or show a useful, retryable Traditional Chinese error; it MUST NOT remain indefinitely at “正在建立安全點餐工作階段”.
