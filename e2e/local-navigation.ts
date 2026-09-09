@@ -101,6 +101,15 @@ export async function openSharedCatalogProductActions(
 ) {
   const desktopSearch = page.getByRole("searchbox", { name: "搜尋管理商品", exact: true });
   const navigator = page.getByTestId("catalog-navigator-dialog");
+  const openNavigator = page
+    .getByTestId("open-catalog-navigator")
+    .filter({ visible: true });
+  await desktopSearch
+    .or(navigator)
+    .or(openNavigator)
+    .filter({ visible: true })
+    .first()
+    .waitFor({ state: "visible" });
   if (await desktopSearch.isVisible() && !(await navigator.isVisible())) {
     await desktopSearch.fill(productName);
     const row = page.getByTestId("catalog-management-row").filter({
@@ -112,9 +121,6 @@ export async function openSharedCatalogProductActions(
     return actions;
   }
   if (!(await navigator.isVisible())) {
-    const openNavigator = page
-      .getByTestId("open-catalog-navigator")
-      .filter({ visible: true });
     await openNavigator.waitFor({ state: "visible" });
     await openNavigator.click();
     await navigator.waitFor({ state: "visible" });
