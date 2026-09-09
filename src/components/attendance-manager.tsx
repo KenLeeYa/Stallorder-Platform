@@ -130,23 +130,23 @@ export function AttendanceManager({
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <NumberField label="店家緯度" value={policy.latitude} min={-90} max={90} step="0.000001" onChange={(latitude) => setPolicy((current) => ({ ...current, latitude }))} />
           <NumberField label="店家經度" value={policy.longitude} min={-180} max={180} step="0.000001" onChange={(longitude) => setPolicy((current) => ({ ...current, longitude }))} />
-          <label className="grid gap-1.5 text-sm font-semibold">有效半徑
-            <select value={policy.radiusMeters} onChange={(event) => setPolicy((current) => ({ ...current, radiusMeters: Number(event.target.value) }))} className="h-12 rounded-md border border-stone-300 bg-white px-3 font-normal">
+          <label className="grid min-w-0 gap-1.5 text-sm font-semibold">有效半徑
+            <select value={policy.radiusMeters} onChange={(event) => setPolicy((current) => ({ ...current, radiusMeters: Number(event.target.value) }))} className="h-12 min-w-0 w-full rounded-md border border-stone-300 bg-white px-3 font-normal">
               <option value={100}>100 公尺（空曠、單層店面）</option>
               <option value={150}>150 公尺（建議）</option>
               <option value={200}>200 公尺（高樓、密集街區）</option>
               <option value={300}>300 公尺（特殊場域）</option>
             </select>
           </label>
-          <label className="grid gap-1.5 text-sm font-semibold">可接受定位誤差
-            <select value={policy.maxAccuracyMeters} onChange={(event) => setPolicy((current) => ({ ...current, maxAccuracyMeters: Number(event.target.value) }))} className="h-12 rounded-md border border-stone-300 bg-white px-3 font-normal">
+          <label className="grid min-w-0 gap-1.5 text-sm font-semibold">可接受定位誤差
+            <select value={policy.maxAccuracyMeters} onChange={(event) => setPolicy((current) => ({ ...current, maxAccuracyMeters: Number(event.target.value) }))} className="h-12 min-w-0 w-full rounded-md border border-stone-300 bg-white px-3 font-normal">
               <option value={50}>50 公尺（嚴格）</option>
               <option value={80}>80 公尺（建議）</option>
               <option value={120}>120 公尺（高樓環境）</option>
             </select>
           </label>
-          <label className="grid gap-1.5 text-sm font-semibold">定位證據保留
-            <select value={policy.locationEvidenceDays} onChange={(event) => setPolicy((current) => ({ ...current, locationEvidenceDays: Number(event.target.value) }))} className="h-12 rounded-md border border-stone-300 bg-white px-3 font-normal">
+          <label className="grid min-w-0 gap-1.5 text-sm font-semibold">定位證據保留
+            <select value={policy.locationEvidenceDays} onChange={(event) => setPolicy((current) => ({ ...current, locationEvidenceDays: Number(event.target.value) }))} className="h-12 min-w-0 w-full rounded-md border border-stone-300 bg-white px-3 font-normal">
               <option value={30}>30 天</option>
               <option value={90}>90 天（建議）</option>
               <option value={180}>180 天</option>
@@ -237,7 +237,7 @@ function AttendanceReviewDialog({ stallId, record, onClose, onUpdated }: { stall
   return <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/65 p-3 sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section role="dialog" aria-modal="true" aria-labelledby="attendance-review-title" className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><h2 id="attendance-review-title" className="text-xl font-semibold">覆核 {record.profileName} 的打卡</h2><p className="mt-1 text-sm text-stone-500">{formatTime(record.occurredAt)} · {record.eventType === "CLOCK_IN" ? "上班" : "下班"}</p></div><button type="button" onClick={onClose} aria-label="關閉覆核視窗" className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-5 w-5" /></button></div><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" aria-pressed={decision === "ACCEPTED"} onClick={() => setDecision("ACCEPTED")} className={`min-h-12 rounded-md border font-semibold ${decision === "ACCEPTED" ? "border-teal-700 bg-teal-50 text-teal-900" : "border-stone-300"}`}>核准</button><button type="button" aria-pressed={decision === "REJECTED"} onClick={() => setDecision("REJECTED")} className={`min-h-12 rounded-md border font-semibold ${decision === "REJECTED" ? "border-red-600 bg-red-50 text-red-800" : "border-stone-300"}`}>拒絕</button></div><label className="mt-4 grid gap-2 text-sm font-semibold">覆核原因<textarea ref={noteRef} value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} rows={4} className="rounded-md border border-stone-300 p-3 font-normal" /></label>{error ? <p role="alert" className="mt-3 text-sm text-red-700">{error}</p> : null}<button type="button" disabled={busy || note.trim().length < 2} onClick={() => void submit()} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 font-semibold text-white disabled:opacity-50">{busy ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}確認覆核</button></section></div>;
 }
 
-function NumberField({ label, value, min, max, step, onChange }: { label: string; value: number | null; min: number; max: number; step: string; onChange: (value: number | null) => void }) { return <label className="grid gap-1.5 text-sm font-semibold">{label}<input type="number" value={value ?? ""} min={min} max={max} step={step} onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))} className="h-12 rounded-md border border-stone-300 px-3 font-normal" /></label>; }
+function NumberField({ label, value, min, max, step, onChange }: { label: string; value: number | null; min: number; max: number; step: string; onChange: (value: number | null) => void }) { return <label className="grid min-w-0 gap-1.5 text-sm font-semibold">{label}<input type="number" value={value ?? ""} min={min} max={max} step={step} onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))} className="h-12 min-w-0 w-full rounded-md border border-stone-300 px-3 font-normal" /></label>; }
 function DecisionBadge({ decision }: { decision: string }) { const copy = decision === "ACCEPTED" ? "已接受" : decision === "REJECTED" ? "已阻擋" : "待覆核"; const color = decision === "ACCEPTED" ? "bg-emerald-100 text-emerald-800" : decision === "REJECTED" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-900"; return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${color}`}>{copy}</span>; }
 function formatTime(value: string) { return new Intl.DateTimeFormat("zh-TW", { dateStyle: "short", timeStyle: "short" }).format(new Date(value)); }
 function formatMeters(value: number | null) { return value === null ? "已清除" : `${Math.round(value)} 公尺`; }

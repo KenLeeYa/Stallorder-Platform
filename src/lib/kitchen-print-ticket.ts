@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { readOrderUtensils } from "./order-utensils";
 
 export const KITCHEN_TICKET_COLUMNS = 32;
 export const KITCHEN_TICKET_80MM_COLUMNS = 48;
@@ -260,7 +261,7 @@ function formatCustomerReceipt(input: CustomerReceiptInput) {
     appendWrapped(lines, `地址：${sanitizeText(order.deliveryAddress)}`, "", columns);
   }
   if (input.showCustomerPhone !== false && order.customerPhone) appendWrapped(lines, `電話：${sanitizeText(order.customerPhone)}`, "", columns);
-  if (input.showOrderNote !== false && order.note) appendWrapped(lines, `備註：${sanitizeText(order.note)}`, "", columns);
+  appendOrderNotes(lines, order.note, input.showOrderNote, columns);
   lines.push(fitLine(`列印 ${formatTime(input.printedAt, input.timeZone)}`, columns));
   return `${lines.join("\n")}\n`;
 }
@@ -304,10 +305,16 @@ export function formatKitchenTicket(input: KitchenTicketInput) {
   }
 
   lines.push(divider(columns));
-  if (input.showOrderNote !== false && order.note) appendWrapped(lines, `備註：${sanitizeText(order.note)}`, "", columns);
+  appendOrderNotes(lines, order.note, input.showOrderNote, columns);
   const totalQuantity = order.items.reduce((total, item) => total + item.quantity, 0);
   lines.push(fitLine(`共${order.items.length}品項／${totalQuantity}份｜列印${formatTime(input.printedAt, input.timeZone)}`, columns));
   return `${lines.join("\n")}\n`;
+}
+
+function appendOrderNotes(lines: string[], orderNote: string | null, showOrderNote: boolean | undefined, columns: number) {
+  const utensils = readOrderUtensils(orderNote ?? "");
+  if (utensils.required) appendWrapped(lines, "免洗餐具：需要", "", columns);
+  if (showOrderNote !== false && utensils.note) appendWrapped(lines, `備註：${sanitizeText(utensils.note)}`, "", columns);
 }
 
 function fulfillmentLabel(type: KitchenTicketInput["order"]["fulfillmentType"]) {
