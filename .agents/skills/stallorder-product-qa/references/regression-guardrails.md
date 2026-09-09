@@ -197,6 +197,7 @@ Customer/Menu/QR
 - 本機快速登入只允許四個固定測試帳號，且同時要求 development、明確旗標、loopback app、loopback database 與 same-origin；即使平台目前只開 OAuth，本機按鈕仍可測試，但帳密／session 驗證不可繞過。Production 必須有負向測試證明不可到達。
 - 多個工作任務共用 dirty worktree 時先劃分檔案 ownership；任何 build 前等待 `worktree stable`。
 - 歷史 Docker Desktop log 不代表目前錯誤。先查 daemon、container、port、health、process start time 與最近 log timestamp；不要直接刪 container/image/volume。
+- 2026-09-10 起，本機測試服務按需啟用，測試結束後預設停止本次啟用的 Docker 與開發程序；仍有任務依賴或使用者明確保留人工 QA 時記錄例外。停止需依精確 project label，保留容器、映像、資料與 volumes。重啟 Docker Desktop 後核對允許清單，避免舊環境自動復活；交接列出保留／停止服務與再啟用方式。詳見 `docs/LOCAL_TEST_SERVICE_LIFECYCLE.md`。
 - `git clean` 前先 `git clean -d -n`，逐項說明用途、大小、能否重建；沒有逐項選擇不得刪除 `.agents`、`.codex`、audit artifacts 或其他 untracked data。
 - 本機 LAN／business-hours bypass／測試帳密／mock 只可在明確 local guard 下使用；Production build 必須證明不可到達。
 
