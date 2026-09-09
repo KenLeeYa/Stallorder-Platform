@@ -111,16 +111,14 @@ export function LoginForm({
   return (
     <section
       aria-labelledby="login-title"
-      className="w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-sm"
+      aria-describedby="login-description"
+      className="w-full min-w-0"
     >
-      <div className="mb-6">
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-md bg-teal-50 text-teal-800">
-          <LogIn className="h-5 w-5" />
-        </div>
-        <h1 id="login-title" className="text-2xl font-semibold">{t(titleKey)}</h1>
-        <p className="mt-2 text-sm text-stone-600">{t(descriptionKey)}</p>
+      <div className="mb-4">
+        <h1 id="login-title" className="text-2xl font-semibold tracking-tight">{t(titleKey)}</h1>
+        <p id="login-description" className="mt-2 text-xs leading-5 text-stone-600">{t(descriptionKey)}</p>
       </div>
-      {urlError ? <p role="alert" className="mb-4 text-sm text-red-700">{urlError}</p> : null}
+      {urlError ? <p role="alert" className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm leading-6 text-red-700">{urlError}</p> : null}
       {localQaAccounts?.length ? (
         <div className="mb-5 rounded-md border border-teal-200 bg-teal-50 p-3">
           <p className="text-xs font-semibold text-teal-900">本機測試快速登入</p>
@@ -153,7 +151,7 @@ export function LoginForm({
               <a href={`/auth/google${requestedNextPath ? `?next=${encodeURIComponent(requestedNextPath)}` : ""}`} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800"><LogIn className="h-4 w-4" />{t("login.oauth.useProvider", { provider: "Google" })}</a>
             ) : null}
           </div>
-          <p className="mt-3 text-center text-xs text-stone-500">
+          <p className="mt-3 text-center text-xs leading-5 text-stone-600">
             {legacyGoogleEnabled && oauthProviders.length === 0
               ? t("login.oauth.legacyHint")
               : t("login.oauth.linkedHint")}
@@ -163,7 +161,7 @@ export function LoginForm({
       {!oauthOnly ? (
         <>
           {hasOAuthProvider ? (
-            <div className="my-5 flex items-center gap-3 text-xs text-stone-500">
+            <div className="my-3 flex items-center gap-3 text-xs text-stone-500">
               <span className="h-px flex-1 bg-stone-200" />
               <span>{t("login.otherMethods")}</span>
               <span className="h-px flex-1 bg-stone-200" />
@@ -193,7 +191,7 @@ export function LoginForm({
           onCancel={(event) => {
             if (isSubmitting) event.preventDefault();
           }}
-          className="m-auto w-[calc(100%-2rem)] max-w-md rounded-lg border border-stone-200 bg-white p-0 text-stone-950 shadow-2xl backdrop:bg-stone-950/70"
+          className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl border border-stone-200 bg-white p-0 text-stone-950 shadow-2xl backdrop:bg-stone-950/70"
         >
           <form onSubmit={submit} className="p-6">
             <div className="flex items-start justify-between gap-4">
@@ -209,7 +207,7 @@ export function LoginForm({
                 disabled={isSubmitting}
                 aria-label={t("login.passwordDialog.close")}
                 title={t("login.passwordDialog.close")}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-stone-300 text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-stone-300 text-stone-700 hover:bg-stone-50 disabled:opacity-50"
               >
                 <X className="h-4 w-4" />
               </button>
