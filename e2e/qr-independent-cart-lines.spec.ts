@@ -320,6 +320,8 @@ test("QR 同商品可加入兩個不同註記列，報價低頻更新且返回�
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 
   const sessionStatus = page.getByTestId("qr-session-status");
+  // Freeze only after hydration so a real-time tick cannot race the hidden-page baseline.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1_000));
   const sessionStatusBeforeHidden = await sessionStatus.textContent();
   const availabilityBeforeHidden = availabilityRequests;
   await page.evaluate(() => {
@@ -343,6 +345,7 @@ test("QR 同商品可加入兩個不同註記列，報價低頻更新且返回�
     .poll(() => availabilityRequests)
     .toBeGreaterThan(availabilityBeforeHidden);
   await expect(sessionStatus).not.toHaveText(sessionStatusBeforeHidden ?? "");
+  await page.clock.resume();
 
   await page.clock.fastForward(60_000);
   await expect.poll(() => sessionRequests).toBeGreaterThanOrEqual(2);
