@@ -115,8 +115,10 @@ test("only an arriving new order plays sound; edit, checkout, completion and rea
 test("an existing preorder shows a new closure notice and a pickup-day popup without cancelling the order", async ({ page }) => {
   test.setTimeout(120_000);
   const order = await createOrder(page, true);
-  const today = dateInTimeZone(new Date(), "Asia/Taipei");
-  const tomorrowAt = new Date(new Date(order.pickupAt).getTime() + 24 * 60 * 60_000);
+  const pickupAt = new Date(order.pickupAt);
+  await page.clock.setFixedTime(pickupAt);
+  const pickupDay = dateInTimeZone(pickupAt, "Asia/Taipei");
+  const tomorrowAt = new Date(pickupAt.getTime() + 24 * 60 * 60_000);
   const tomorrow = dateInTimeZone(tomorrowAt, "Asia/Taipei");
   await prisma.order.update({ where: { id: order.id }, data: { committedFulfillmentAt: tomorrowAt } });
   await page.context().addCookies([{ name: "stallorder_device", value: order.deviceId, url: order.origin }]);
@@ -124,13 +126,13 @@ test("an existing preorder shows a new closure notice and a pickup-day popup wit
   await page.goto("/order/" + order.trackingToken);
   await expect(page.getByTestId("order-closure-notice")).toHaveCount(0);
   closureId = (await prisma.stallSpecialClosure.create({ data: {
-    organizationId, stallId, startsOn: new Date(today), endsOn: new Date(tomorrow),
+    organizationId, stallId, startsOn: new Date(pickupDay), endsOn: new Date(tomorrow),
     title: "臨時店休測試", message: "請聯絡店家重新安排取餐時間。".repeat(20).slice(0, 240),
   } })).id;
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   await expect(page.getByTestId("order-closure-notice")).toContainText("臨時店休測試");
   await expect(page.getByRole("alertdialog", { name: "取餐安排遇到店休公告" })).toHaveCount(0);
-  await prisma.order.update({ where: { id: order.id }, data: { committedFulfillmentAt: new Date(order.pickupAt) } });
+  await prisma.order.update({ where: { id: order.id }, data: { committedFulfillmentAt: pickupAt } });
   await page.reload();
   await expect(page.getByRole("alertdialog", { name: "取餐安排遇到店休公告" })).toContainText("訂單仍保留");
   for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1440, height: 900 }]) {
