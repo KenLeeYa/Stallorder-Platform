@@ -27,7 +27,7 @@ test.beforeAll(async () => {
   originalHours = await prisma.stallBusinessHour.findMany({
     where: { stallId }, select: { id: true, opensAt: true, closesAt: true, isClosed: true },
   });
-  await prisma.stallBusinessHour.updateMany({ where: { stallId }, data: { opensAt: "00:00", closesAt: "23:59", isClosed: false } });
+  await prisma.stallBusinessHour.updateMany({ where: { stallId }, data: { opensAt: "00:00", closesAt: "00:00", isClosed: false } });
   const version = await prisma.qrCode.aggregate({ where: { stallId }, _max: { tokenVersion: true } });
   qrId = (await prisma.qrCode.create({ data: {
     organizationId, stallId, token: qrToken, label: "customer lifecycle regression", state: "ACTIVE",

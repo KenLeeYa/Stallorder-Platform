@@ -279,7 +279,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       }),
       prisma.stallBusinessHour.updateMany({
         where: { stallId, organizationId },
-        data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+        data: { opensAt: "00:00", closesAt: "00:00", isClosed: false },
       }),
       prisma.qrCode.update({
         where: { id: qr.id },

@@ -73,4 +73,23 @@ describe("business hours availability", () => {
       new Date("2026-09-03T17:30:00.000Z"),
     )).toBe(true);
   });
+
+  it("keeps equal opening and closing times available across midnight", () => {
+    const allDayHours = weeklyHours.map((hour) => ({
+      ...hour,
+      opensAt: "00:00",
+      closesAt: "00:00",
+    }));
+
+    expect(isWithinBusinessHours(
+      allDayHours,
+      "Asia/Taipei",
+      new Date("2026-09-03T15:59:00.000Z"),
+    )).toBe(true);
+    expect(isWithinBusinessHours(
+      allDayHours,
+      "Asia/Taipei",
+      new Date("2026-09-03T16:00:00.000Z"),
+    )).toBe(true);
+  });
 });

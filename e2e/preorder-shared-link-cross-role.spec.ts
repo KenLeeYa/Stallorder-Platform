@@ -148,7 +148,7 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       }),
       prisma.stallBusinessHour.updateMany({
         where: { organizationId, stallId },
-        data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+        data: { opensAt: "00:00", closesAt: "00:00", isClosed: false },
       }),
     ]);
 

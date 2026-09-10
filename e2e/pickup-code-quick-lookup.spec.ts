@@ -84,7 +84,7 @@ test.describe("每日三碼取餐與店員快速載單", () => {
       }),
       prisma.stallBusinessHour.updateMany({
         where: { organizationId, stallId },
-        data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+        data: { opensAt: "00:00", closesAt: "00:00", isClosed: false },
       }),
     ]);
     fixtureQrId = (
