@@ -21,6 +21,17 @@
 
 單一指令逾時不代表資料損壞；應以 Desktop、Engine 與容器查詢三項結果交叉判斷。
 
+## 已驗證的殘留 socket 隔離（2026-09-10）
+
+Docker Desktop 4.88.1 在當次啟動日誌先後回報 `sailor-ingest.sock`、`docker-secrets-engine/engine.sock` 無法存取，Engine pipe 未建立；是目前啟動的錯誤，不是歷史日誌推測。這次透過隔離暫存通訊目錄恢復，無需重裝。
+
+僅在 backend 已退出、Engine 不可用、沒有 Vmmem/WSL VM 寫入，且目錄核對確實為非 reparse-point 的 runtime 目錄時，才可移開至同層時間戳備份並重建空目錄：
+
+- `C:\Users\KY\AppData\Local\Docker\run`：備份為 `run.stale-20260910-001330` 與 `run.stale-20260910-001534`。
+- `C:\Users\KY\AppData\Local\docker-secrets-engine`：本次先確認唯一內容為 0 bytes 的 `engine.sock`，備份為 `docker-secrets-engine.stale-20260910-001534`。若內容不同，不能把憑證目錄概括當成暫存目錄搬動。
+
+這不是刪除 Docker 資料的通用授權。必須驗證絕對來源／目標同層、保留備份，不動 `wsl/disk/docker_data.vhdx`、設定或 volumes。成功啟動後立即按 [測試服務生命週期](LOCAL_TEST_SERVICE_LIFECYCLE.md) 核對實際運行清單；Desktop 重新啟動可能恢復舊容器。本次 Engine、兩組供應鏈 DB/API 與四個前端 origin 健康檢查通過，50 個 volumes 保留。
+
 ## 需要重裝時的安全順序
 
 只有在相同錯誤可重現、一般重新啟動無效時才進行：

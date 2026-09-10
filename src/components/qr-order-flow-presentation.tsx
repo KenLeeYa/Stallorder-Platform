@@ -349,7 +349,7 @@ export function QrOrderFlowPresentation({
   return (
     <main className="mx-auto grid min-h-screen max-w-5xl gap-6 px-4 py-5 pb-28 md:grid-cols-[minmax(0,1fr)_340px] md:px-8 md:pb-5">
       {session.specialClosure ? <SpecialClosureNoticeDialog closure={session.specialClosure} locale={locale} timeZone={session.stall.timezone} /> : null}
-      <section>
+      <section className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
           <div><p className="text-sm font-medium text-teal-800">{session.stall.location}</p><h1 className="mt-1 text-3xl font-semibold">{session.stall.name}</h1></div>
           <div data-testid="qr-display-controls" className="ml-auto flex shrink-0 items-end gap-2">

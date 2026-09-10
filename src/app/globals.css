@@ -404,11 +404,93 @@ input[type="reset"] {
   color: #78716c;
 }
 
-input[type="checkbox"],
 input[type="radio"] {
   width: 1.125rem;
   height: 1.125rem;
   accent-color: var(--focus-ring);
+}
+
+/* Keep native checkbox form/validation semantics, with one switch presentation on every surface. */
+input[type="checkbox"],
+.selection-toggle {
+  --toggle-track: #78716c;
+  --toggle-thumb: #ffffff;
+  --toggle-position: 0.875rem;
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: 3.5rem;
+  min-width: 3.5rem;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  flex-shrink: 0;
+  border: 0.5rem solid transparent;
+  border-inline-width: 0.125rem;
+  border-radius: 999px;
+  padding: 0;
+  background: radial-gradient(circle at var(--toggle-position) center, var(--toggle-thumb) 0.625rem, transparent calc(0.625rem + 1px)) var(--toggle-track);
+  background-origin: padding-box;
+  background-clip: padding-box;
+  cursor: pointer;
+  touch-action: manipulation;
+  vertical-align: middle;
+}
+
+input[type="checkbox"]:checked,
+.selection-toggle[data-checked="true"] {
+  --toggle-track: #0f766e;
+  --toggle-position: calc(100% - 0.875rem);
+}
+
+input[type="checkbox"]:indeterminate {
+  --toggle-track: #0f766e;
+  --toggle-position: 50%;
+}
+
+input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+input[type="checkbox"][aria-invalid="true"],
+input[type="checkbox"]:user-invalid {
+  outline: 2px solid var(--field-border-invalid);
+  outline-offset: 2px;
+}
+
+label:has(> input[type="checkbox"]) {
+  min-height: 2.75rem;
+}
+
+:root[data-theme="dark"] input[type="checkbox"]:checked,
+:root[data-theme="dark"] input[type="checkbox"]:indeterminate,
+:root[data-theme="dark"] .selection-toggle[data-checked="true"] {
+  --toggle-track: #2dd4bf;
+  --toggle-thumb: #134e4a;
+}
+
+:root[data-interface-mode="senior"] input[type="checkbox"],
+:root[data-interface-mode="senior"] .selection-toggle {
+  width: 4rem;
+  min-width: 4rem;
+  min-height: 3.5rem;
+  border-block-width: 0.75rem;
+}
+
+@media (forced-colors: active) {
+  input[type="checkbox"],
+  .selection-toggle {
+    forced-color-adjust: none;
+    --toggle-track: ButtonText !important;
+    --toggle-thumb: ButtonFace !important;
+  }
+
+  :root input[type="checkbox"]:checked,
+  :root input[type="checkbox"]:indeterminate,
+  :root .selection-toggle[data-checked="true"] {
+    --toggle-track: Highlight !important;
+    --toggle-thumb: HighlightText !important;
+  }
 }
 
 .form-input {

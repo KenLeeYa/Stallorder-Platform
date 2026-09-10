@@ -359,6 +359,7 @@ function RuleEditor({ state, draft, setDraft, busy, onSave, onCancel }: {
         <ToggleCheckbox label={t("print.rule.showOrderNote")} checked={draft.showOrderNote} onChange={() => patch({ showOrderNote: !draft.showOrderNote })} />
         <ToggleCheckbox label={t("print.rule.showItemNotes")} checked={draft.showItemNotes} onChange={() => patch({ showItemNotes: !draft.showItemNotes })} />
       </div>
+      <p className="mt-2 text-xs text-stone-600">{t("print.rule.utensilsAlwaysPrinted")}</p>
     </details>
 
     <div className="mt-4 flex flex-wrap gap-4">

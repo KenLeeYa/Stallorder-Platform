@@ -48,6 +48,25 @@ describe("print rule ticket resolution", () => {
     expect(payload.content).toContain("分單：飲料");
     expect(countSequence(bytes, Buffer.from([0x1b, 0x64, 0x02]))).toBe(2);
   });
+
+  it("freezes the utensils line once and reuses the exact payload for retry and reprint", async () => {
+    const { resolvePrintJobTicketPayload } = await import("./print-job-ticket");
+    const queued = job({ copies: 2 });
+    const payload = await resolvePrintJobTicketPayload({
+      ...queued,
+      order: { ...queued.order, note: "【免洗餐具：需要】\n請分袋" },
+      printRule: { ...queued.printRule, showOrderNote: false },
+    } as never);
+    expect(payload.content.match(/免洗餐具：需要/g)).toHaveLength(2);
+    expect(payload.content).not.toContain("請分袋");
+    mocks.updateMany.mockClear();
+    for (const reprintOfId of [null, queued.id]) {
+      const replayed = await resolvePrintJobTicketPayload({ ...queued, payload, order: null, reprintOfId } as never);
+      expect(replayed).toEqual(payload);
+    }
+    expect(mocks.updateMany).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
 });
 
 function job(overrides: {
