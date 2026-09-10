@@ -9,6 +9,7 @@ import {
   missingActiveEdgeFunctions,
   sanitizeProviderErrorCode,
   validateApprovedDrOperatorEntryPlan,
+  validateCloudflareAccessApplicationsPage,
   validateDrSupabaseBindings,
 } from "./lib/dr-operator-entry.mjs";
 
@@ -946,12 +947,7 @@ async function readCloudflareAccessState() {
     error.providerErrorCode = sanitizeProviderErrorCode(payload);
     throw error;
   }
-  if (
-    !Array.isArray(payload.result)
-    || Number(payload.result_info?.total_pages ?? 1) !== 1
-  ) {
-    throw new Error("DR_ENTRY_CLOUDFLARE_ACCESS_APPLICATIONS_INVALID");
-  }
+  const applications = validateCloudflareAccessApplicationsPage(payload);
 
   const [organization, identityProviders, serviceTokens] = await Promise.all([
     cloudflare(`/accounts/${cloudflareAccountId}/access/organizations`),
@@ -979,7 +975,7 @@ async function readCloudflareAccessState() {
       type: identityProvider.type,
       restrictToAccountMembers: true,
     } : null,
-    applications: payload.result.map(safeAccessApplication),
+    applications: applications.map(safeAccessApplication),
     serviceTokens: serviceTokens.map(safeAccessServiceToken),
   };
 }

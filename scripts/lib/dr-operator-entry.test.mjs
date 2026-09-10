@@ -4,6 +4,7 @@ import {
   missingActiveEdgeFunctions,
   sanitizeProviderErrorCode,
   validateApprovedDrOperatorEntryPlan,
+  validateCloudflareAccessApplicationsPage,
   validateDrSupabaseBindings,
 } from "./dr-operator-entry.mjs";
 
@@ -219,6 +220,24 @@ describe("DR operator runtime bindings", () => {
 });
 
 describe("DR operator provider diagnostics", () => {
+  it("accepts Cloudflare's empty Access application page", () => {
+    expect(validateCloudflareAccessApplicationsPage({
+      result: [],
+      result_info: { total_pages: 0 },
+    })).toEqual([]);
+  });
+
+  it("rejects malformed or unexpectedly paginated Access application pages", () => {
+    expect(() => validateCloudflareAccessApplicationsPage({
+      result: [{ id: "unexpected" }],
+      result_info: { total_pages: 0 },
+    })).toThrow("DR_ENTRY_CLOUDFLARE_ACCESS_APPLICATIONS_INVALID");
+    expect(() => validateCloudflareAccessApplicationsPage({
+      result: [],
+      result_info: { total_pages: 2 },
+    })).toThrow("DR_ENTRY_CLOUDFLARE_ACCESS_APPLICATIONS_INVALID");
+  });
+
   it("keeps only a short provider error code and never a free-form secret", () => {
     expect(sanitizeProviderErrorCode({ error: { code: "bad_request" } })).toBe(
       "bad_request",
