@@ -60,6 +60,8 @@ The 58 mm profile uses 32 columns and omits empty sections and decorative blank 
 
 Draft annotations such as `[A1]`–`[A4]` are never printed. Font scale is implemented with documented StarPRNT size commands; the compact setting is the paper-saving default. Every payload ends with two feed lines and one partial cut.
 
+An explicit customer utensils request is printed as `免洗餐具：需要` on both kitchen tickets and customer receipts, independently of the general `showOrderNote` setting. The note-backed request marker is parsed once; the remaining free text still follows that setting. Every routed section and copy retains the request. Empty or legacy notes do not imply an explicit negative preference. This applies when generating a new payload; existing immutable jobs remain unchanged on retry/reprint. See [toggle and utensils acceptance](TOGGLE_CONTROLS_UTENSILS_QA_20260909.md).
+
 ## Queue safety and recovery
 
 - The first matching rule reuses the legacy root job; additional destinations become routing copies.

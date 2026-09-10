@@ -163,6 +163,32 @@ describe("QrOrderMenu presentation", () => {
     expect(unavailable).toContain("此時段暫無可預約商品，請選擇其他取餐時間。");
   });
 
+  it("shows multi-select switches while preserving selected, limited and single-choice states", () => {
+    const multipleProduct = {
+      ...product,
+      noteGroups: [{
+        ...product.noteGroups[0],
+        selectionMode: "MULTIPLE" as const,
+        maxSelections: 2,
+        options: [
+          product.noteGroups[0].options[0],
+          { ...product.noteGroups[0].options[0], id: "medium", name: "中辣" },
+          { ...product.noteGroups[0].options[0], id: "hot", name: "大辣" },
+        ],
+      }],
+    };
+    const html = renderMenu({
+      visibleProducts: [multipleProduct],
+      configuringProductId: product.id,
+      productDrafts: { [product.id]: { quantity: 1, noteOptionIds: ["mild", "medium"], bundleChoiceIds: [] } },
+    });
+    expect(html.match(/class="selection-toggle" data-checked="true"/g)).toHaveLength(2);
+    expect(html.match(/class="selection-toggle" data-checked="false"/g)).toHaveLength(1);
+    expect(html).toContain('role="checkbox" aria-checked="false" disabled=""');
+    expect(html).toContain('role="radio"');
+    expect(html).not.toContain('type="checkbox"');
+  });
+
   it("keeps sold-out products visible, greys the image, and blocks ordering controls", () => {
     const html = renderMenu({
       visibleProducts: [{
