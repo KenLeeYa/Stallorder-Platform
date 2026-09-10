@@ -85,8 +85,10 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
   await gotoLocalPath(page, `/staff/${stallSlug}`);
   await dismissStaffStartReminder(page);
 
-  const mobileList = page.getByTestId("staff-order-mobile-list");
-  const masterDetail = page.getByTestId("staff-order-master-detail");
+  const workspace = page.locator("#main-content").getByTestId("staff-primary-workspace");
+  await expect(workspace).toHaveCount(1);
+  const mobileList = workspace.getByTestId("staff-order-mobile-list");
+  const masterDetail = workspace.getByTestId("staff-order-master-detail");
   await expect(mobileList).toBeVisible();
   await expect(mobileList.locator("article").first()).toBeVisible();
   await expect(masterDetail).toBeHidden();
@@ -100,9 +102,9 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
     await expect(mobileList).toBeHidden();
     await expect(masterDetail).toBeVisible();
 
-    const listPane = page.getByTestId("staff-order-list-pane");
-    const itemsPane = page.getByTestId("staff-order-items-pane");
-    const actionsPane = page.getByTestId("staff-order-actions-pane");
+    const listPane = masterDetail.getByTestId("staff-order-list-pane");
+    const itemsPane = masterDetail.getByTestId("staff-order-items-pane");
+    const actionsPane = masterDetail.getByTestId("staff-order-actions-pane");
     await expect(listPane).toBeVisible();
     await expect(itemsPane).toBeVisible();
     await expect(actionsPane).toBeVisible();
@@ -126,9 +128,9 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
       itemsPane.boundingBox(),
       actionsPane.boundingBox(),
       page.evaluate(() => ({
-        list: getComputedStyle(document.querySelector<HTMLElement>('[data-testid="staff-order-list-pane"]')!).overflowY,
-        items: getComputedStyle(document.querySelector<HTMLElement>('[data-testid="staff-order-items-pane"]')!).overflowY,
-        actions: getComputedStyle(document.querySelector<HTMLElement>('[data-testid="staff-order-actions-pane"]')!).overflowY,
+        list: getComputedStyle(document.querySelector<HTMLElement>('#main-content [data-testid="staff-order-list-pane"]')!).overflowY,
+        items: getComputedStyle(document.querySelector<HTMLElement>('#main-content [data-testid="staff-order-items-pane"]')!).overflowY,
+        actions: getComputedStyle(document.querySelector<HTMLElement>('#main-content [data-testid="staff-order-actions-pane"]')!).overflowY,
         pageFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
       })),
     ]);
@@ -145,8 +147,8 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
     await page.screenshot({ path: test.info().outputPath(`full-board-${viewport.width}.png`) });
 
     const longOrderScroll = await page.evaluate(() => {
-      const itemsPaneElement = document.querySelector<HTMLElement>('[data-testid="staff-order-items-pane"]')!;
-      const actionsPaneElement = document.querySelector<HTMLElement>('[data-testid="staff-order-actions-pane"]')!;
+      const itemsPaneElement = document.querySelector<HTMLElement>('#main-content [data-testid="staff-order-items-pane"]')!;
+      const actionsPaneElement = document.querySelector<HTMLElement>('#main-content [data-testid="staff-order-actions-pane"]')!;
       itemsPaneElement.scrollTop = itemsPaneElement.scrollHeight;
       const result = {
         canScroll: itemsPaneElement.scrollHeight > itemsPaneElement.clientHeight,
