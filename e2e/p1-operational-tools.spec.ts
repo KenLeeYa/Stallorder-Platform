@@ -47,7 +47,7 @@ test.describe("P1 營運功能", () => {
         discountModuleEnabled: true, printModuleEnabled: true, kdsModuleEnabled: true } },
       paymentOptions: { create: { organizationId, code: "CASH", name: "現金", kind: "CASH" } },
       businessHours: { create: Array.from({ length: 7 }, (_, dayOfWeek) => ({
-        organizationId, dayOfWeek, opensAt: "00:00", closesAt: "23:59",
+        organizationId, dayOfWeek, opensAt: "00:00", closesAt: "00:00",
       })) },
     } });
     const members = await prisma.stallMembership.findMany({
@@ -83,7 +83,7 @@ test.describe("P1 營運功能", () => {
     });
     await prisma.stallBusinessHour.updateMany({
       where: { stallId: primaryStallId },
-      data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+      data: { opensAt: "00:00", closesAt: "00:00", isClosed: false },
     });
     await prisma.rateLimitBucket.deleteMany();
     await prisma.publicRateLimitBucket.deleteMany({

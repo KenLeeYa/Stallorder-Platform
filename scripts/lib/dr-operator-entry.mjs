@@ -75,6 +75,21 @@ export function sanitizeProviderErrorCode(payload) {
   return /^[A-Za-z0-9_.:-]{1,80}$/u.test(code) ? code : null;
 }
 
+export function validateCloudflareAccessApplicationsPage(payload) {
+  const applications = payload?.result;
+  const totalPages = Number(payload?.result_info?.total_pages ?? 1);
+  if (
+    !Array.isArray(applications)
+    || !Number.isInteger(totalPages)
+    || totalPages < 0
+    || totalPages > 1
+    || (totalPages === 0 && applications.length > 0)
+  ) {
+    throw new Error("DR_ENTRY_CLOUDFLARE_ACCESS_APPLICATIONS_INVALID");
+  }
+  return applications;
+}
+
 export function buildDrOperatorEntryPlan(input) {
   validateSource(input.source);
   validateDrRuntime(input.drRuntime);

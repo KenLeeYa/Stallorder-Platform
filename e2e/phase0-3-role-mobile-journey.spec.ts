@@ -92,7 +92,7 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
     originalBusinessHours = businessHours;
     await prisma.stallBusinessHour.updateMany({
       where: { organizationId, stallId },
-      data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+      data: { opensAt: "00:00", closesAt: "00:00", isClosed: false },
     });
     fixtureQrId = (
       await prisma.qrCode.create({

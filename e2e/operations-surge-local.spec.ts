@@ -39,7 +39,7 @@ test("retained peak-hour orders raise quotes, pause safely, recover automaticall
   const product = await prisma.product.create({ data: { organizationId, categoryId: category.id, name: "尖峰驗收餐", defaultPrice: 50, description: "保留供店員與廚房操作", stallProducts: { create: { organizationId, stallId, isEnabled: true, stockRemaining: 100 } } } });
   const station = await prisma.kitchenStation.create({ data: { organizationId, stallId, code: "QA", name: "QA 製餐區" } });
   await prisma.kitchenStationAssignment.create({ data: { organizationId, stallId, stationId: station.id, productId: product.id } });
-  await prisma.stallBusinessHour.createMany({ data: Array.from({ length: 7 }, (_, dayOfWeek) => ({ organizationId, stallId, dayOfWeek, opensAt: "00:00", closesAt: "23:59", isClosed: false })) });
+  await prisma.stallBusinessHour.createMany({ data: Array.from({ length: 7 }, (_, dayOfWeek) => ({ organizationId, stallId, dayOfWeek, opensAt: "00:00", closesAt: "00:00", isClosed: false })) });
   await prisma.stallOrderingSettings.create({ data: { organizationId, stallId, kdsModuleEnabled: true, paymentModuleEnabled: true, takeoutPreorderEnabled: true, preorderMinLeadMinutes: 5, enabledLocales: ["zh-TW"] } });
   const circuitFlag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "DUAL_ORDER_INTAKE_ENABLED" } });
   circuitOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: { flagId: circuitFlag.id, scopeType: "GLOBAL", enabled: true, reason: "Local retained capacity scenario", createdByProfileId: owner.id, updatedByProfileId: owner.id } })).id;

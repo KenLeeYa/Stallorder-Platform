@@ -38,7 +38,7 @@ test.beforeAll(async () => {
   });
   await prisma.stallBusinessHour.updateMany({
     where: { stallId },
-    data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+    data: { opensAt: "00:00", closesAt: "00:00", isClosed: false },
   });
   const qrVersion = await prisma.qrCode.aggregate({
     where: { stallId },

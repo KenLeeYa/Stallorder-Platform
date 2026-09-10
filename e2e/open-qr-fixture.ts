@@ -37,7 +37,7 @@ export async function createOpenQrFixture(input: {
     originalHours = hours;
     await prisma.stallBusinessHour.updateMany({
       where: { organizationId: input.organizationId, stallId: input.stallId },
-      data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+      data: { opensAt: "00:00", closesAt: "00:00", isClosed: false },
     });
     qrCodeId = (
       await prisma.qrCode.create({
