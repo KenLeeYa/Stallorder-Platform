@@ -58,6 +58,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-UI-08` | Navigation | Back/return restores origin route, query, filters, selection, and unsaved state when policy permits. |
 | `QA-UI-09` | Localization | Traditional Chinese and one enabled non-Chinese locale cover static UI, dynamic catalog names, closure/status messages, errors, accessibility labels, and new feature copy without mixed-language leakage. |
 | `QA-UI-10` | Compact action rows | Phone/tablet icon controls remain one orderly scrollable row with equal visual size, complete borders, reachable final actions, and no page-level horizontal overflow. |
+| `QA-UI-11` | `X-009` | Switch presentation preserves native and custom selection behavior, required consent, disabled fields, same-name multi-values, reset and label/Space activation; test 320/390/768/1440 px with senior/dark/high-contrast states, real bulk selection and customer/Staff modifiers. In Staff three-pane and mobile item rows, assert actual separation from item text and production buttons; target size and page overflow alone cannot detect controls covering adjacent content. |
 
 ## Role and permission journeys
 
@@ -127,6 +128,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-PRN-03` | `PRN-007` | Create and rotate two printer credentials; verify stable distinct URLs, one-time raw passwords, hash-only persistence, immediate old-password rejection, cross-printer denial, no secret in URL/logs, and copyable no-overflow setup at 320/390/768/1440 px. |
 | `QA-PRN-04` | `PRN-008`,`STAFF-018` | A reachable iPad webPRNT printer with no enabled auto-print rule reports setup required and does not promise output. Adding an enabled rule permits matching jobs; printing a QR receipt never removes the active order, while payment and eligible drawer opening remain successful if printing is absent or fails. |
 | `QA-PRN-05` | `PRN-009`,`MER-014` | At 390/768/1440 px, stall/table A4, A5, and A6 controls keep paper size and 「印刷版」 on two intentional lines, open only the selected print layout, and invoke browser print/save-PDF. Tablet QR management renders QR/print left and unified-link/actions right without overflow. |
+| `QA-PRN-06` | `PRN-010` | Turn general notes off with an explicit utensils request; kitchen/receipt text and bytes retain it once per routed copy at 58/80 mm and every font scale. Ordinary notes follow the setting, legacy data invents no preference, and retry/reprint reuse the exact stored payload. |
 
 ### Catalog, notes, bundles, and image upload
 

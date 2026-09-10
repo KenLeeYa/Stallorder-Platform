@@ -16,6 +16,14 @@ For every owner-approved architecture or product-function change in this reposit
 
 Before release, verify that code, executable tests, repository documentation, the change ledger, and applicable Skill rules describe the same behavior. A release with missing or contradictory change memory is incomplete.
 
+## Local test service lifecycle
+
+- Start only the Docker/Supabase project and development processes needed for the current test. Verify project labels, ports, worktree and active consumers first; never infer ownership from the current directory alone.
+- After testing, stop services started for that test by default. Keep them running only for an active dependent task or an explicit owner request to retain a manual QA environment; record that exception and its ports.
+- Stop exact project containers without deleting containers, images, volumes or test data. Never use prune, reset, volume deletion, or a machine-wide Docker stop while another task still depends on it.
+- Record what remains running, what stopped, and how to resume. A stopped Engine is not proof that unwanted containers will remain stopped after Engine startup; reconcile the running allowlist after starting Docker Desktop.
+- See `docs/LOCAL_TEST_SERVICE_LIFECYCLE.md` for the current service inventory and safe stop/start procedure.
+
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
