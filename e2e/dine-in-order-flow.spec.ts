@@ -125,7 +125,7 @@ test.beforeAll(async ({ playwright }) => {
     }),
     prisma.stallBusinessHour.updateMany({
       where: { stallId },
-      data: { opensAt: "00:00", closesAt: "23:59", isClosed: false },
+      data: { opensAt: "00:00", closesAt: "00:00", isClosed: false },
     }),
   ]);
   const staff = await prisma.profile.findUniqueOrThrow({

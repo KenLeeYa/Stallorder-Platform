@@ -26,7 +26,7 @@ test.beforeAll(async () => {
     reason: "Isolated idle tracking Circuit B regression",
     expiresAt: new Date(Date.now() + 15 * 60_000),
   } })).id;
-  await prisma.stallBusinessHour.updateMany({ where: { stallId }, data: { opensAt: "00:00", closesAt: "23:59", isClosed: false, lastOrderAt: null } });
+  await prisma.stallBusinessHour.updateMany({ where: { stallId }, data: { opensAt: "00:00", closesAt: "00:00", isClosed: false, lastOrderAt: null } });
   const category = await prisma.productCategory.findFirstOrThrow({ where: { organizationId, isActive: true } });
   productId = (await prisma.product.create({ data: {
     organizationId, categoryId: category.id, name: "閒置追蹤驗收餐", description: "local tracking fixture", defaultPrice: 50,
