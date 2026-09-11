@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDrOperatorEntryPlan,
+  classifyExclusiveVercelDomainSet,
   classifyDirectVercelTlsResponse,
   missingActiveEdgeFunctions,
   sanitizeProviderErrorCode,
@@ -224,6 +225,22 @@ describe("DR operator runtime bindings", () => {
 });
 
 describe("DR operator provider diagnostics", () => {
+  it("waits for an empty Vercel domain readback but rejects any unexpected domain", () => {
+    expect(classifyExclusiveVercelDomainSet([], "dr.qidaigo.com")).toBe("pending");
+    expect(classifyExclusiveVercelDomainSet(
+      [{ name: "dr.qidaigo.com" }],
+      "dr.qidaigo.com",
+    )).toBe("ready");
+    expect(classifyExclusiveVercelDomainSet(
+      [{ name: "other.qidaigo.com" }],
+      "dr.qidaigo.com",
+    )).toBe("invalid");
+    expect(classifyExclusiveVercelDomainSet(
+      [{ name: "dr.qidaigo.com" }, { name: "other.qidaigo.com" }],
+      "dr.qidaigo.com",
+    )).toBe("invalid");
+  });
+
   it("accepts only a fail-closed DR response reached through Vercel HTTPS", () => {
     expect(classifyDirectVercelTlsResponse({
       status: 403,
