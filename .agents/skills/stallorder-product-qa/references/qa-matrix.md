@@ -129,6 +129,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-PRN-04` | `PRN-008`,`STAFF-018` | A reachable iPad webPRNT printer with no enabled auto-print rule reports setup required and does not promise output. Adding an enabled rule permits matching jobs; printing a QR receipt never removes the active order, while payment and eligible drawer opening remain successful if printing is absent or fails. |
 | `QA-PRN-05` | `PRN-009`,`MER-014` | At 390/768/1440 px, stall/table A4, A5, and A6 controls keep paper size and 「印刷版」 on two intentional lines, open only the selected print layout, and invoke browser print/save-PDF. Tablet QR management renders QR/print left and unified-link/actions right without overflow. |
 | `QA-PRN-06` | `PRN-010` | Turn general notes off with an explicit utensils request; kitchen/receipt text and bytes retain it once per routed copy at 58/80 mm and every font scale. Ordinary notes follow the setting, legacy data invents no preference, and retry/reprint reuse the exact stored payload. |
+| `QA-PRN-07` | `PRN-011`,`PRN-008` | Cancel a failed primary ticket, fail/cancel a reprint, then successfully reprint that reprint. Paid CONFIRMED counter orders recover tablet/mobile manual completion without new charges/jobs; paid READY orders auto-complete once. Original failures remain recorded. Unrelated receipt/routing success, unpaid orders, QR/KDS/external orders and duplicate callbacks never bypass their gates. |
 
 ### Catalog, notes, bundles, and image upload
 
