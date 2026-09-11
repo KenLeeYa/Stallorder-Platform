@@ -95,13 +95,18 @@ the protected route never became ready because the deployment had intentionally
 used `--skip-domain` and remained staged. Vercel's
 [documented production flow](https://vercel.com/docs/cli/alias#preferred-production-commands)
 requires an explicit `vercel promote` after `--prod --skip-domain`; Apply now
-promotes only the exact deployment URL after the new project has only the
+promotes only the exact deployment URL after the new project exposes the
 Plan-bound DR hostname, before creating DNS or enabling Cloudflare proxying.
 Apply `34624546397` then stopped immediately after the domain-add request when
 the separate project-domain collection had not produced the required exclusive
-readback. The promotion guard now retries only an empty collection for a bounded
-period. It still fails immediately if any non-Plan domain appears, and it times
-out without promoting if the exact single-domain state never becomes visible.
+readback. The promotion guard now retries a collection containing no custom
+domain for a bounded period. Apply `34637017472` proved that Vercel's
+[automatic `.vercel.app` project domain](https://vercel.com/docs/domains/working-with-domains)
+is also present in that collection. The guard therefore permits Vercel-managed
+`.vercel.app` domains while requiring exactly one custom domain equal to the
+Plan-bound DR hostname. It still fails immediately for any other custom domain,
+duplicate Plan hostname or malformed entry, and times out without promoting if
+the Plan hostname never becomes visible.
 
 ## Protected workflow
 
