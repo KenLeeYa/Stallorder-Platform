@@ -271,8 +271,11 @@ describe("Production workflow approval contract", () => {
       promoteStart,
     );
     const promoteBody = drOperatorEntryScript.slice(promoteStart, promoteEnd);
-    expect(promoteBody).toContain("domains.length !== 1");
+    expect(promoteBody).toContain("classifyExclusiveVercelDomainSet(domains, hostname)");
+    expect(promoteBody).toContain("attempt <= 12");
+    expect(promoteBody).toContain("await delay(5_000)");
     expect(promoteBody).toContain("DR_ENTRY_PROMOTE_DOMAIN_SET_INVALID");
+    expect(promoteBody).toContain("DR_ENTRY_PROMOTE_DOMAIN_READBACK_TIMEOUT");
     expect(promoteBody).toContain('"promote", deploymentUrl');
     expect(promoteBody).toContain('"--yes"');
     expect(promoteBody).toContain('"DR_ENTRY_PROMOTE_FAILED"');
