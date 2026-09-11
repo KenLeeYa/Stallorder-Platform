@@ -742,7 +742,7 @@ async function waitForDomainConfigured(hostname) {
 }
 
 async function waitForDirectVercelTls(hostname) {
-  for (let attempt = 1; attempt <= 30; attempt += 1) {
+  for (let attempt = 1; attempt <= 90; attempt += 1) {
     try {
       const response = await fetch(`https://${hostname}${planProbePath()}`, {
         headers: { accept: "application/json", "cache-control": "no-cache" },
@@ -760,7 +760,7 @@ async function waitForDirectVercelTls(hostname) {
     } catch {
       // DNS propagation and certificate issuance are expected to converge here.
     }
-    if (attempt < 30) await delay(10_000);
+    if (attempt < 90) await delay(10_000);
   }
   throw new Error("DR_ENTRY_VERCEL_ORIGIN_TLS_TIMEOUT");
 }
