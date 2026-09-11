@@ -97,6 +97,11 @@ used `--skip-domain` and remained staged. Vercel's
 requires an explicit `vercel promote` after `--prod --skip-domain`; Apply now
 promotes only the exact deployment URL after the new project has only the
 Plan-bound DR hostname, before creating DNS or enabling Cloudflare proxying.
+Apply `34624546397` then stopped immediately after the domain-add request when
+the separate project-domain collection had not produced the required exclusive
+readback. The promotion guard now retries only an empty collection for a bounded
+period. It still fails immediately if any non-Plan domain appears, and it times
+out without promoting if the exact single-domain state never becomes visible.
 
 ## Protected workflow
 

@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   DR_OPERATOR_ENTRY,
   buildDrOperatorEntryPlan,
+  classifyExclusiveVercelDomainSet,
   classifyDirectVercelTlsResponse,
   missingActiveEdgeFunctions,
   sanitizeProviderErrorCode,
@@ -549,15 +550,23 @@ async function deployDrRuntime(plan, accessResources) {
 }
 
 async function promoteDrDeployment(deploymentUrl, targetProjectId, hostname) {
-  const domains = (await vercel(
-    `/v9/projects/${targetProjectId}/domains?limit=100`,
-  )).domains ?? [];
-  if (domains.length !== 1 || domains[0].name !== hostname) {
-    throw new Error("DR_ENTRY_PROMOTE_DOMAIN_SET_INVALID");
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    const domains = (await vercel(
+      `/v9/projects/${targetProjectId}/domains?limit=100`,
+    )).domains ?? [];
+    const state = classifyExclusiveVercelDomainSet(domains, hostname);
+    if (state === "ready") {
+      await runVercel([
+        "promote", deploymentUrl, "--yes",
+      ], "DR_ENTRY_PROMOTE_FAILED");
+      return;
+    }
+    if (state === "invalid") {
+      throw new Error("DR_ENTRY_PROMOTE_DOMAIN_SET_INVALID");
+    }
+    if (attempt < 12) await delay(5_000);
   }
-  await runVercel([
-    "promote", deploymentUrl, "--yes",
-  ], "DR_ENTRY_PROMOTE_FAILED");
+  throw new Error("DR_ENTRY_PROMOTE_DOMAIN_READBACK_TIMEOUT");
 }
 
 async function vercelCurl(baseUrl) {

@@ -75,6 +75,14 @@ export function sanitizeProviderErrorCode(payload) {
   return /^[A-Za-z0-9_.:-]{1,80}$/u.test(code) ? code : null;
 }
 
+export function classifyExclusiveVercelDomainSet(domains, hostname) {
+  if (!Array.isArray(domains) || typeof hostname !== "string" || !hostname) {
+    return "invalid";
+  }
+  if (domains.length === 0) return "pending";
+  return domains.length === 1 && domains[0]?.name === hostname ? "ready" : "invalid";
+}
+
 export function classifyDirectVercelTlsResponse({
   status,
   cacheControl,
