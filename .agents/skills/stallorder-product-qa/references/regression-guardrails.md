@@ -194,6 +194,7 @@ Customer/Menu/QR
 ## 店員推播與 Menu 公告相依
 
 - `STAFF-PUSH-001` 相依 orders INSERT／idempotency、auth session family/version、攤位權限、RLS、加密訂閱、cron／lease、根 Service Worker 與離線更新保護。改單／付款／完成只能 UPDATE，不可因通知需求重建訂單；登出／撤權後停止投遞。分開記錄 provider 接收、裝置顯示及實機音效。
+- 商家提示音設定作用於前景看板的新單音效；Web Push／30 秒測試採手機或瀏覽器通知鈴聲，不能宣稱會自動套用商家音檔。2026-09-12 OPPO 無聲由使用者確認為 Chrome 開啟無聲通知，關閉後回報預設 App 鈴聲；不可據此改變新單去重或替更新訂單增加音效。
 - 鎖屏通知以 `silent: false` 要求 OS 音效，不能宣稱已覆蓋 Android 通知類別、鈴聲、靜音、勿擾或通知冷卻。重複 delivery 不再提示，不同新單仍分別要求音效。重新連結及延遲測試必須驗證 active SW 的非靜音能力，舊版或無回應時不得排定測試；禁止強制跳過既有離線更新保護。音效指引及驗收見 `docs/STAFF_PRINTER_INDICATOR_PUSH_SOUND_20260912.md`。
 - `MENU-ANNOUNCEMENT-001` 相依 MANAGE_STALL／CSRF、攤位時區、Menu 讀取、特殊店休、modal 焦點與版本。店休優先，只顯示一個遮罩；公告不能解除營業／庫存／維護 Gate。案例見 `QA-PUSH-01`／`QA-MENU-ANN-01` 與 `docs/STAFF_PUSH_MENU_ANNOUNCEMENTS_20260911.md`。
 

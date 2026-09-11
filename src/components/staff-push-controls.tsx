@@ -86,6 +86,7 @@ export function StaffPushControls({ stallSlug }: { stallSlug: string }) {
     </button>
     <ExperienceDialog open={open} onClose={() => setOpen(false)} title="新訂單鎖屏通知">
       <p className="text-sm leading-6">螢幕關閉時也能接收新訂單。結帳、完成及修改訂單不推播；提示音由裝置音量、通知與勿擾設定控制。</p>
+      <p className="mt-2 text-sm leading-6 text-stone-600">此處的「30 秒後測試通知」使用手機／Chrome 的通知鈴聲，不會套用商家設定的看板提示音。看板保持在前景且開啟聲音時，新訂單才會播放商家所選音效。</p>
       {support ? <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{support}</p> : null}
       {status && !status.configured ? <p role="status" className="mt-3 text-amber-700">尚未設定 Web Push，請聯絡系統管理者。</p> : null}
       <div className="mt-4 grid gap-3">

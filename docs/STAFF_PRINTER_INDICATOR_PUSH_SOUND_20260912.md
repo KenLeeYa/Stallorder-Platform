@@ -13,7 +13,9 @@
 
 ## Android 音效：已知與待確認
 
-使用者回報 OPPO Reno11 5G、Android 16、Chrome 瀏覽器分頁已能顯示鎖屏通知，但沒有音效；另已確認網站設為快訊／響鈴且有鈴聲。因此不能將原因直接歸為通知類別靜音，仍需核對新版 worker、通知音量／勿擾、Chrome 與 ColorOS 行為。iPad 本輪未實測。
+使用者最初回報 OPPO Reno11 5G、Android 16、Chrome 瀏覽器分頁能顯示通知，但亮屏／鎖屏都沒有音效，其他 App 有聲。2026-09-12 使用者後續確認 Chrome 設定開啟了「無聲通知」；關閉後已聽到預設 App 通知聲音。此為使用者實機回報，無聲原因已定位；未由自動化量測喇叭。iPad 本輪未實測。
+
+使用者進一步指出預設通知聲音與商家設定不同。這是兩種播放方式：`staff-order-board-controller.ts` 的前景新單提醒透過 `playAlertSound` 讀取商家 preset／volume／repeatCount／customUrl；`public/sw.js` 的系統通知由 Chrome／作業系統決定鈴聲。「30 秒後測試通知」只測後者，即使螢幕亮著也不會觸發看板的新單音效。已在商家六語系音效說明與店員鎖屏通知視窗標示適用範圍，未修改聲音播放、通知頻道或新單判斷。
 
 原程式未指定 `silent`，採平台預設。現在明確傳 `silent: false`；不同新單各自要求通知音效，重試同一通知仍去重，維持 `renotify: false`。此參數不是繞過手機靜音、勿擾或通知類別的手段，不能據此宣稱實機音效已修好。通知 API 沒有可指定網頁自訂 MP3 的標準 `sound` 參數。[Notifications 標準](https://notifications.spec.whatwg.org/)
 
@@ -28,7 +30,7 @@
 
 Android 官方說明：快訊與靜音可分別設定；通知冷卻可降低密集通知的聲音干擾。實際選單依製造商而異。[通知設定](https://support.google.com/android/answer/9079661?hl=zh-Hant)
 
-若更新後、通知音量正常且沒有勿擾仍無聲，需用這台 OPPO 比較其他 Chrome 網站及一般 App 的通知，才能繼續區分 Chrome 通知類別與 ColorOS 系統行為；伺服器顯示回報無法量測喇叭是否發聲。目前等待新版的鎖屏測試結果。
+Web Push 不能自動把商家設定的音檔設為手機通知鈴聲；若裝置的通知類別提供自訂音檔選擇，可由使用者另行選擇同一音檔。若需要由產品直接管理鎖屏自訂音效，須另行評估原生 App、通知頻道與平台權限，不能以加入主畫面或 `silent: false` 宣稱已具備此能力。
 
 ## 驗證與本機環境
 
@@ -39,7 +41,8 @@ Android 官方說明：快訊與靜音可分別設定；通知冷卻可降低密
 - Playwright 用模擬印表機與通知 API，列印佇列固定無工作，不送紙、不改單、不建立假訂閱、不向實機發推播。顯示／音效的物理結果仍須使用者驗證。
 - LAN HTTPS 憑證鏈與 IP SAN 驗證通過；實際根 Service Worker 回報 `supported: true, silent: false`。自動化瀏覽器的原生通知權限為 denied，原生顯示探測因此未通過；不能把此限制當成 OPPO 無聲的原因，也不能宣稱實機發聲已驗證。詳見 `worker-capability.json` 與 `active-push-loopback.log`。
 - 證據目錄：`C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/printer-indicator-push-sound-20260912`。
+- 後續音效適用範圍說明：只修改顯示文字與商家六語系字典，5 檔／16 項既有音效、SW、提醒及語系回歸通過，TypeScript／異動檔 ESLint 通過。未更改播放邏輯，未重跑全站或實體硬體自動化；收據位於上述目錄的 `android-sound-isolation` 子目錄。
 
 保留既有手動 QA 服務：3018（應用程式）、55722（本組 DB）、3019（裝置設定說明）、3443（LAN HTTPS）與背景推播 worker。沿用原 VAPID／加密設定與本機測試 CA，不重設使用者訂閱，不操作其他工作區的服務。啟停方式與當次 PID 收據仍由 [前次服務指南](LOCAL_TEST_SERVICE_LIFECYCLE.md) 指定的 `start-app.mjs`／`start-device-qa.mjs` 維護；本輪重啟後需讀取新的 PID。測試結束且無人使用時再停止這些精確服務，保留資料。
 
-本機入口為 `http://127.0.0.1:3018/login`；同 Wi-Fi 裝置使用 `https://192.168.1.102:3443/login`。已安裝測試 CA 的 OPPO 可沿用此入口與既有訂閱。先完成網站更新，開啟店員看板的鎖屏通知設定，按「30 秒後測試通知」；先保持亮屏觀察一次，再鎖屏測試一次。若仍沒有聲音，回報兩次各自是否有聲，以及一般 App 通知是否正常發聲，以便繼續定位。
+本機入口為 `http://127.0.0.1:3018/login`；同 Wi-Fi 裝置使用 `https://192.168.1.102:3443/login`。已安裝測試 CA 的 OPPO 可沿用此入口與既有訂閱。後續驗收分開執行商家「試聽」／前景新單與「30 秒後測試通知」／鎖屏系統通知，不能期待兩者自動使用相同音色。2026-09-12 額外診斷曾啟動 ADB 查詢裝置，未發現連線裝置，已停止本次啟動的 ADB daemon；原人工 QA 服務繼續保留。
