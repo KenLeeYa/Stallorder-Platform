@@ -99,7 +99,7 @@ describe("DR operator entry plan", () => {
     });
     expect(plan.planDigest).toMatch(/^[0-9a-f]{64}$/u);
     expect(plan.applySteps).toContain(
-      "bind dr.qidaigo.com, create its Cloudflare CNAME as DNS-only, prove direct Vercel HTTPS readiness, then enable the proxy",
+      "bind dr.qidaigo.com, promote the exact staged deployment, create its Cloudflare CNAME as DNS-only, prove direct Vercel HTTPS readiness, then enable the proxy",
     );
     expect(validateApprovedDrOperatorEntryPlan(plan)).toBe(plan);
   });

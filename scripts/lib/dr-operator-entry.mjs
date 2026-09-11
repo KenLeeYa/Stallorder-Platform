@@ -201,7 +201,7 @@ export function buildDrOperatorEntryPlan(input) {
       "create an unlinked stallorder-dr Vercel project with Standard deployment protection for generated deployment URLs",
       "deploy the exact source commit with vercel.dr.json, DR-only runtime bindings and Plan-bound Cloudflare Access JWT validation",
       "verify the generated deployment rejects unauthenticated access and the authenticated operator probe reports READY",
-      "bind dr.qidaigo.com, create its Cloudflare CNAME as DNS-only, prove direct Vercel HTTPS readiness, then enable the proxy",
+      "bind dr.qidaigo.com, promote the exact staged deployment, create its Cloudflare CNAME as DNS-only, prove direct Vercel HTTPS readiness, then enable the proxy",
       "verify unauthenticated edge denial, service-token QA, origin JWT validation, DR services and app.qidaigo.com health",
       "delete the temporary QA service token and its policy after verification",
       "remove the stale staging.qidaigo.com Vercel binding and Cloudflare record",
