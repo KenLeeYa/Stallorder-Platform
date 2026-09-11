@@ -52,10 +52,12 @@ and cannot move `app.qidaigo.com`.
    hostname fails closed. This prevents a public-origin bypass from trusting a
    forged Access header.
 7. Apply checks DR Auth and Storage health and lists every DR Edge Function as
-   `ACTIVE`, binds the hostname, and creates a **proxied** Cloudflare CNAME.
-   It proves unauthenticated edge denial and runs the operator probe with the
-   temporary service token. The token and its Service Auth policy are then
-   deleted and read back as absent.
+   `ACTIVE`, binds the hostname, and creates the exact Cloudflare CNAME as
+   DNS-only so Vercel can verify the direct target. After Vercel reports the
+   domain configured, Apply updates that same record ID to **proxied**, reads
+   back its identity and proxy state, proves unauthenticated edge denial, and
+   runs the operator probe with the temporary service token. The token and its
+   Service Auth policy are then deleted and read back as absent.
 8. Only after those checks pass does Apply retire the stale
    `staging.qidaigo.com` binding/record and prove `app.qidaigo.com` is healthy.
 
