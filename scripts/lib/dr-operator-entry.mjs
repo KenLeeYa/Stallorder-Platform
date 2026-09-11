@@ -2,10 +2,13 @@ import { createHash } from "node:crypto";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const VERCEL_PROJECT_PATTERN = /^prj_[A-Za-z0-9]+$/u;
+const VERCEL_DEPLOYMENT_PATTERN = /^dpl_[A-Za-z0-9]+$/u;
+const VERCEL_DEPLOYMENT_URL_PATTERN = /^[a-z0-9.-]+\.vercel\.app$/u;
 const VERCEL_CNAME_PATTERN = /^(?:cname\.vercel-dns|[a-z0-9-]+\.vercel-dns-[0-9]+)\.com$/u;
 
 export const DR_OPERATOR_ENTRY = Object.freeze({
   hostname: "dr.qidaigo.com",
+  primaryHostname: "app.qidaigo.com",
   legacyHostname: "staging.qidaigo.com",
   projectName: "stallorder-dr",
   accessApplicationName: "StallOrder Production DR Operator",
@@ -108,6 +111,78 @@ export function classifyDirectVercelTlsResponse({
   };
 }
 
+export function buildVercelCliEnvironment({
+  baseEnv,
+  vercelTeamId,
+  projectId,
+}) {
+  if (!/^team_[A-Za-z0-9]+$/u.test(vercelTeamId ?? "")) {
+    throw new Error("DR_ENTRY_VERCEL_CLI_TEAM_INVALID");
+  }
+  if (!VERCEL_PROJECT_PATTERN.test(projectId ?? "")) {
+    throw new Error("DR_ENTRY_VERCEL_CLI_PROJECT_INVALID");
+  }
+  return {
+    ...baseEnv,
+    VERCEL_ORG_ID: vercelTeamId,
+    VERCEL_PROJECT_ID: projectId,
+  };
+}
+
+export function assertVercelDeploymentProjectIsolation({
+  sourceProjectId,
+  targetProjectId,
+  expectedDeploymentUrl,
+  expectedProjectName,
+  deployment,
+}) {
+  if (targetProjectId === sourceProjectId) {
+    throw new Error("DR_ENTRY_TARGET_PROJECT_COLLIDES_WITH_SOURCE");
+  }
+  if (
+    !VERCEL_PROJECT_PATTERN.test(targetProjectId ?? "")
+    || !VERCEL_DEPLOYMENT_PATTERN.test(deployment?.id ?? "")
+    || deployment?.projectId !== targetProjectId
+  ) {
+    throw new Error("DR_ENTRY_DEPLOYMENT_PROJECT_MISMATCH");
+  }
+  if (
+    deployment.url !== expectedDeploymentUrl
+    || deployment.name !== expectedProjectName
+    || deployment.target !== "production"
+    || deployment.readyState !== "READY"
+  ) {
+    throw new Error("DR_ENTRY_DEPLOYMENT_READBACK_INVALID");
+  }
+}
+
+export function primaryVercelStateMatches(expected, actual) {
+  return expected?.hostname === actual?.hostname
+    && expected?.healthStatus === actual?.healthStatus
+    && expected?.alias?.hostname === actual?.alias?.hostname
+    && expected?.alias?.projectId === actual?.alias?.projectId
+    && expected?.alias?.deploymentId === actual?.alias?.deploymentId
+    && expected?.alias?.deploymentUrl === actual?.alias?.deploymentUrl
+    && expected?.deployment?.id === actual?.deployment?.id
+    && expected?.deployment?.url === actual?.deployment?.url
+    && expected?.deployment?.projectId === actual?.deployment?.projectId
+    && expected?.deployment?.name === actual?.deployment?.name
+    && expected?.deployment?.target === actual?.deployment?.target
+    && expected?.deployment?.readyState === actual?.deployment?.readyState;
+}
+
+export function isPlanOwnedDrDeployment(plan, primary) {
+  return primary?.hostname === DR_OPERATOR_ENTRY.primaryHostname
+    && primary?.alias?.hostname === DR_OPERATOR_ENTRY.primaryHostname
+    && primary?.alias?.projectId === plan?.target?.sourceProjectId
+    && primary?.deployment?.projectId === plan?.target?.sourceProjectId
+    && primary?.alias?.deploymentId === primary?.deployment?.id
+    && primary?.alias?.deploymentUrl === primary?.deployment?.url
+    && primary?.deployment?.backendTarget === "DR"
+    && primary?.deployment?.sourceCommit === plan?.source?.commitSha
+    && primary?.deployment?.drPlanDigest === plan?.planDigest;
+}
+
 export function validateCloudflareAccessApplicationsPage(payload) {
   const applications = payload?.result;
   const totalPages = Number(payload?.result_info?.total_pages ?? 1);
@@ -160,7 +235,7 @@ export function buildDrOperatorEntryPlan(input) {
   }
 
   const core = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     operation: "CREATE_PROTECTED_DR_OPERATOR_ENTRY",
     changesRemoteState: false,
     source: input.source,
@@ -195,6 +270,7 @@ export function buildDrOperatorEntryPlan(input) {
       },
     },
     before: {
+      primary: input.providers.vercel.primary,
       targetProject: null,
       drDomainBindings: [],
       drDnsRecords: [],
@@ -211,9 +287,10 @@ export function buildDrOperatorEntryPlan(input) {
       },
     },
     applySteps: [
+      "require an exact healthy app.qidaigo.com alias and deployment snapshot before every DR mutation",
       "create a one-hour Cloudflare Access QA service token and a self-hosted dr.qidaigo.com application limited to Cloudflare account members",
       "create an unlinked stallorder-dr Vercel project with Standard deployment protection for generated deployment URLs",
-      "deploy the exact source commit with vercel.dr.json, DR-only runtime bindings and Plan-bound Cloudflare Access JWT validation",
+      "deploy the exact source commit with Vercel CLI explicitly bound to the new DR project, then read back its actual project identity",
       "verify the generated deployment rejects unauthenticated access and the authenticated operator probe reports READY",
       "bind dr.qidaigo.com, promote the exact staged deployment, create its Cloudflare CNAME as DNS-only, prove direct Vercel HTTPS readiness, then enable the proxy",
       "verify unauthenticated edge denial, service-token QA, origin JWT validation, DR services and app.qidaigo.com health",
@@ -221,6 +298,7 @@ export function buildDrOperatorEntryPlan(input) {
       "remove the stale staging.qidaigo.com Vercel binding and Cloudflare record",
     ],
     rollback: [
+      "restore the exact recorded Primary deployment and verify its alias and health if any DR command changed it",
       "restore the recorded staging.qidaigo.com Vercel binding and Cloudflare CNAME if they were removed",
       "delete the newly created dr.qidaigo.com Cloudflare record and Vercel binding",
       "delete the newly created stallorder-dr Vercel project",
@@ -255,6 +333,9 @@ export function validateApprovedDrOperatorEntryPlan(plan) {
   }
   if (plan.changesRemoteState !== false) {
     throw new Error("DR_ENTRY_PLAN_MODE_INVALID");
+  }
+  if (plan.schemaVersion !== 3 || !plan.before?.primary) {
+    throw new Error("DR_ENTRY_PLAN_SCHEMA_INVALID");
   }
   return plan;
 }
@@ -302,6 +383,7 @@ function validateProviderState(providers) {
   if (providers.vercel.sourceProject.name !== "stallorder-platform") {
     throw new Error("DR_ENTRY_SOURCE_PROJECT_INVALID");
   }
+  validatePrimaryVercelState(providers.vercel.primary, providers.vercel.sourceProject.id);
   if (!/^[a-f0-9]{32}$/u.test(providers.cloudflare.zoneId ?? "")) {
     throw new Error("DR_ENTRY_CLOUDFLARE_ZONE_INVALID");
   }
@@ -340,6 +422,42 @@ function validateProviderState(providers) {
     )
   ) {
     throw new Error("LEGACY_STAGING_DNS_TARGET_INVALID");
+  }
+}
+
+function validatePrimaryVercelState(primary, sourceProjectId) {
+  if (
+    primary?.hostname !== DR_OPERATOR_ENTRY.primaryHostname
+    || primary.alias?.hostname !== DR_OPERATOR_ENTRY.primaryHostname
+    || !/^[A-Za-z0-9_.:-]{1,256}$/u.test(primary.alias?.uid ?? "")
+    || !VERCEL_DEPLOYMENT_PATTERN.test(primary.alias?.deploymentId ?? "")
+    || !VERCEL_DEPLOYMENT_URL_PATTERN.test(primary.alias?.deploymentUrl ?? "")
+    || !VERCEL_DEPLOYMENT_PATTERN.test(primary.deployment?.id ?? "")
+    || !VERCEL_DEPLOYMENT_URL_PATTERN.test(primary.deployment?.url ?? "")
+  ) {
+    throw new Error("DR_ENTRY_PRIMARY_STATE_INVALID");
+  }
+  if (
+    primary.alias.projectId !== sourceProjectId
+    || primary.deployment.projectId !== sourceProjectId
+    || primary.deployment.name !== "stallorder-platform"
+  ) {
+    throw new Error("DR_ENTRY_PRIMARY_PROJECT_IDENTITY_MISMATCH");
+  }
+  if (
+    primary.alias.deploymentId !== primary.deployment.id
+    || primary.alias.deploymentUrl !== primary.deployment.url
+  ) {
+    throw new Error("DR_ENTRY_PRIMARY_DEPLOYMENT_IDENTITY_MISMATCH");
+  }
+  if (primary.deployment.target !== "production" || primary.deployment.readyState !== "READY") {
+    throw new Error("DR_ENTRY_PRIMARY_DEPLOYMENT_NOT_READY");
+  }
+  if (primary.deployment.backendTarget === "DR") {
+    throw new Error("DR_ENTRY_PRIMARY_BACKEND_IDENTITY_INVALID");
+  }
+  if (primary.healthStatus !== 200) {
+    throw new Error("DR_ENTRY_PRIMARY_HEALTH_NOT_READY");
   }
 }
 
