@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import { derivePublicOrderTokens } from "../supabase/functions/_shared/crypto";
 import {
   dismissStaffStartReminder,
+  loginLocalTestAccount,
   qrProductSelectionControl,
 } from "./local-navigation";
 
@@ -722,7 +723,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     });
     try {
       const page = await context.newPage();
-      await login(page, "staff@stallorder.test", new RegExp(`/staff/${stallSlug}`));
+      await loginLocalTestAccount(page, "staff@stallorder.test", password);
       await page.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(page);
       const main = page.locator("#main-content");
