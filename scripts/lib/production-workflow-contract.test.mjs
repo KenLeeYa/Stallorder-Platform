@@ -290,6 +290,9 @@ describe("Production workflow approval contract", () => {
     const directTlsBody = drOperatorEntryScript.slice(directTlsStart, directTlsEnd);
     expect(directTlsBody).toContain("https://${hostname}${planProbePath()}");
     expect(directTlsBody).toContain("classifyDirectVercelTlsResponse");
+    expect(directTlsBody).toContain("attempt <= 90");
+    expect(directTlsBody).toContain("attempt < 90");
+    expect(directTlsBody).toContain("await delay(10_000)");
     expect(directTlsBody).toContain("DR_ENTRY_VERCEL_ORIGIN_TLS_TIMEOUT");
 
     const rollbackStart = drOperatorEntryScript.indexOf("async function rollbackEntry(");
