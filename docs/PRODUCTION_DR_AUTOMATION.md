@@ -52,12 +52,12 @@ and cannot move `app.qidaigo.com`.
    hostname fails closed. This prevents a public-origin bypass from trusting a
    forged Access header.
 7. Apply checks DR Auth and Storage health and lists every DR Edge Function as
-   `ACTIVE`, binds the hostname, and creates the exact Cloudflare CNAME as
-   DNS-only so Vercel can verify the direct target. A configured-domain flag is
-   not treated as certificate readiness: Apply also performs a real HTTPS
-   request while the record is DNS-only and requires the DR proxy's fail-closed
-   `403`, `no-store`, and Vercel routing evidence. Only then does Apply update
-   that same record ID to **proxied**, read back its identity and proxy state,
+   `ACTIVE`, binds the hostname, promotes the exact staged deployment to its
+   custom domains, and creates the exact Cloudflare CNAME as DNS-only. A
+   configured-domain flag is not treated as certificate readiness: Apply also
+   performs a real HTTPS request while the record is DNS-only and requires the
+   DR proxy's fail-closed `403`, `no-store`, and Vercel routing evidence. Only
+   then does Apply update that same record ID to **proxied**, read back its identity and proxy state,
    prove unauthenticated edge denial, and run the operator probe with the
    temporary service token. The token and its Service Auth policy are then
    deleted and read back as absent.
@@ -90,6 +90,13 @@ reported the custom domain configured before its origin certificate was ready,
 so Cloudflare Access admitted the QA token but the proxied origin handshake
 returned `525`. The corrected order waits for an actual DNS-only HTTPS handshake
 and protected application response before enabling the Cloudflare proxy.
+Apply `34607558544` then reached that gate and Vercel issued the certificate, but
+the protected route never became ready because the deployment had intentionally
+used `--skip-domain` and remained staged. Vercel's
+[documented production flow](https://vercel.com/docs/cli/alias#preferred-production-commands)
+requires an explicit `vercel promote` after `--prod --skip-domain`; Apply now
+promotes only the exact deployment URL after the new project has only the
+Plan-bound DR hostname, before creating DNS or enabling Cloudflare proxying.
 
 ## Protected workflow
 

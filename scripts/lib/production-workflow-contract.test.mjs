@@ -217,8 +217,16 @@ describe("Production workflow approval contract", () => {
   });
 
   it("verifies the Vercel custom domain before enabling the Cloudflare proxy", () => {
+    const bindVercelDomain = drOperatorEntryScript.indexOf(
+      'await vercel(`/v10/projects/${targetProjectId}/domains`, {',
+    );
+    const promoteDeployment = drOperatorEntryScript.indexOf(
+      "await promoteDrDeployment(deploymentUrl, targetProjectId, plan.target.hostname);",
+      bindVercelDomain,
+    );
     const createDnsRecord = drOperatorEntryScript.indexOf(
       "const drDnsRecord = await cloudflare(",
+      bindVercelDomain,
     );
     const verifyVercelDomain = drOperatorEntryScript.indexOf(
       "await waitForDomainConfigured(plan.target.hostname);",
@@ -237,7 +245,10 @@ describe("Production workflow approval contract", () => {
       verifyVercelDomain,
     );
 
+    expect(bindVercelDomain).toBeGreaterThan(-1);
+    expect(promoteDeployment).toBeGreaterThan(bindVercelDomain);
     expect(createDnsRecord).toBeGreaterThan(-1);
+    expect(createDnsRecord).toBeGreaterThan(promoteDeployment);
     expect(verifyVercelDomain).toBeGreaterThan(createDnsRecord);
     expect(
       drOperatorEntryScript.slice(createDnsRecord, verifyVercelDomain),
@@ -251,6 +262,20 @@ describe("Production workflow approval contract", () => {
       drOperatorEntryScript.slice(verifyVercelDomain, enableCloudflareProxy),
     ).toContain("proxied: true");
     expect(verifyProtectedDomain).toBeGreaterThan(enableCloudflareProxy);
+
+    const promoteStart = drOperatorEntryScript.indexOf(
+      "async function promoteDrDeployment(deploymentUrl, targetProjectId, hostname)",
+    );
+    const promoteEnd = drOperatorEntryScript.indexOf(
+      "async function vercelCurl",
+      promoteStart,
+    );
+    const promoteBody = drOperatorEntryScript.slice(promoteStart, promoteEnd);
+    expect(promoteBody).toContain("domains.length !== 1");
+    expect(promoteBody).toContain("DR_ENTRY_PROMOTE_DOMAIN_SET_INVALID");
+    expect(promoteBody).toContain('"promote", deploymentUrl');
+    expect(promoteBody).toContain('"--yes"');
+    expect(promoteBody).toContain('"DR_ENTRY_PROMOTE_FAILED"');
 
     const directTlsStart = drOperatorEntryScript.indexOf(
       "async function waitForDirectVercelTls(hostname)",

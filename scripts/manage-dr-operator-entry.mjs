@@ -205,6 +205,7 @@ async function applyEntry(plan) {
       method: "POST",
       body: JSON.stringify({ name: plan.target.hostname }),
     });
+    await promoteDrDeployment(deploymentUrl, targetProjectId, plan.target.hostname);
     const configuredTarget = await waitForRecommendedCname(
       plan.target.hostname,
       plan.target.cnameTarget,
@@ -545,6 +546,18 @@ async function deployDrRuntime(plan, accessResources) {
   );
   if (!deploymentUrl) throw new Error("DR_ENTRY_DEPLOYMENT_URL_MISSING");
   return deploymentUrl;
+}
+
+async function promoteDrDeployment(deploymentUrl, targetProjectId, hostname) {
+  const domains = (await vercel(
+    `/v9/projects/${targetProjectId}/domains?limit=100`,
+  )).domains ?? [];
+  if (domains.length !== 1 || domains[0].name !== hostname) {
+    throw new Error("DR_ENTRY_PROMOTE_DOMAIN_SET_INVALID");
+  }
+  await runVercel([
+    "promote", deploymentUrl, "--yes",
+  ], "DR_ENTRY_PROMOTE_FAILED");
 }
 
 async function vercelCurl(baseUrl) {
