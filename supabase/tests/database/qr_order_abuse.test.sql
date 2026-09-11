@@ -233,13 +233,23 @@ select ok(
 );
 
 select pg_temp.add_session('gate-session');
+create temporary table pg_temp.gate_probe_results (
+  response_code text
+) on commit drop;
 do $$
+declare
+  gate_result jsonb;
 begin
-  for counter in 1..8 loop
-    perform public.check_public_order_submission_gate(
+  -- A fixed five-minute bucket can roll over while the remote suite is running.
+  -- Seventeen attempts still exceed the limit of eight after at most one rollover.
+  for counter in 1..17 loop
+    gate_result := public.check_public_order_submission_gate(
       encode(extensions.digest('gate-session', 'sha256'), 'hex'),
       'gate-ip', 'gate-device', 'gate-qr', 'gate-behavior', 'gate-' || counter
     );
+    insert into pg_temp.gate_probe_results (response_code)
+    values (gate_result->>'code');
+    exit when gate_result->>'code' = 'RATE_LIMITED';
   end loop;
 end;
 $$;
@@ -249,10 +259,12 @@ select is(
   '前置 gate 同時計算六種 rate limit 維度'
 );
 select is(
-  public.check_public_order_submission_gate(
-    encode(extensions.digest('gate-session', 'sha256'), 'hex'),
-    'gate-ip', 'gate-device', 'gate-qr', 'gate-behavior', 'gate-9'
-  )->>'code',
+  (
+    select response_code
+    from pg_temp.gate_probe_results
+    where response_code = 'RATE_LIMITED'
+    limit 1
+  ),
   'RATE_LIMITED',
   '超過時間窗限制時拒絕送單'
 );

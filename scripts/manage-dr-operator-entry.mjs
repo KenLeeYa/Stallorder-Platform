@@ -526,8 +526,6 @@ async function vercelCurl(baseUrl) {
     "--deployment",
     baseUrl,
     "--yes",
-    "--token",
-    vercelToken,
   ], "DR_ENTRY_PROTECTED_PROBE_FAILED");
   const start = output.indexOf("{");
   if (start < 0) throw new Error("DR_ENTRY_PROBE_JSON_MISSING");

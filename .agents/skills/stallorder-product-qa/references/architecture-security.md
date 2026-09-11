@@ -18,6 +18,9 @@
 - Use `Update Existing Project` on that exact ID to PATCH `ssoProtection.deploymentType=all`, then read back the same project and require the value to remain exactly `all`.
 - Only after the PATCH and read-back pass may the workflow link Git, deploy, or bind a domain, alias, or DNS record.
 - If PATCH or read-back fails, delete only the exact project ID created by that attempt, verify rollback completion, and stop. Never retry by degrading to `all_except_custom_domains` or by linking/deploying first.
+- Authenticated generated-deployment probes that use `vercel curl` MUST rely on the workflow-scoped `VERCEL_TOKEN` environment variable. Do not pass an explicit `--token`; Vercel CLI 56.3.1 forwards it to the underlying curl process and aborts the probe before the request runs.
+- If a protected DR Apply fails after remote mutations begin, roll back and read back every resource by its exact recorded identity. A generic cleanup result is not proof that Vercel, domain/DNS, Cloudflare Access, QA-token, or prior-binding state was restored or removed as intended.
+- Any source or workflow correction after a failed Apply requires a fresh immutable Plan bound to the corrected commit and tree. Never retry with the failed Apply's Plan, receipt, or run ID.
 
 ## Performance investigation order
 
