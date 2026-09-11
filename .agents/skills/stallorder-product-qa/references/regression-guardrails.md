@@ -198,6 +198,7 @@ Customer/Menu/QR
 - 啟動器必須拒絕 Production 環境、遠端資料庫與 origin 不一致，並輸出實際 worktree、HEAD、origin（不得輸出密鑰）。`/api/health` 回 200 只代表服務活著，不代表載入正確工作樹或功能可用。
 - 每次換 port 或重啟後，先停用該 local origin 的 service worker 並預熱登入與 availability 路徑，再在同一 origin 驗證 Owner、Staff、Kitchen、Platform Admin 四種快速登入；公開 Menu、QR 與外帶必須實際建立成功的 order session，再驗證現金交班。瀏覽器仍停在舊 port 或舊 session 時先清除該舊 origin 的狀態。
 - 本機快速登入只允許四個固定測試帳號，且同時要求 development、明確旗標、loopback app、loopback database 與 same-origin；即使平台目前只開 OAuth，本機按鈕仍可測試，但帳密／session 驗證不可繞過。Production 必須有負向測試證明不可到達。
+- 本機角色按鈕沒有明確 next 時，直接開啟該固定測試帳號的示範商戶／攤位頁；明確 next 仍優先，不能改掉一般登入的多商戶選擇與服務端授權。四角色測試必須從純 /login 開始，另驗證 /staff/login 和 next 保留；不能只測預先附上 next 的網址而漏掉按鈕預設行為。
 - 多個工作任務共用 dirty worktree 時先劃分檔案 ownership；任何 build 前等待 `worktree stable`。
 - 歷史 Docker Desktop log 不代表目前錯誤。先查 daemon、container、port、health、process start time 與最近 log timestamp；不要直接刪 container/image/volume。
 - 2026-09-10 起，本機測試服務按需啟用，測試結束後預設停止本次啟用的 Docker 與開發程序；仍有任務依賴或使用者明確保留人工 QA 時記錄例外。停止需依精確 project label，保留容器、映像、資料與 volumes。重啟 Docker Desktop 後核對允許清單，避免舊環境自動復活；交接列出保留／停止服務與再啟用方式。詳見 `docs/LOCAL_TEST_SERVICE_LIFECYCLE.md`。

@@ -12,6 +12,8 @@
 
 ## 2026-09-10 盤點
 
+2026-09-11 人工 QA 例外：使用者要求啟用勾選介面版本供測試；目前另保留 `Stallorder-Platform-order-selection-checkboxes-20260911` 的 3018 與 `stallorder-catalog-ops-20260907` 的 DB 55722（僅 DB 容器，其他 7 個仍停止）。兩組供應鏈及其他工作區既有服務未異動。實際工作樹、啟動方式、停止程序與驗證見 [本機快速登入](LOCAL_QA_QUICK_LOGIN_20260911.md)。測試結束後停止本次服務並保留資料。
+
 停止前 Docker Engine 29.7.2，共 45 個運行容器：44 個屬於 StallOrder 五組 Supabase 環境，另 1 個為 Jarvis 資料庫。以下使用判斷來自實際程序、連接埠、工作區設定及任務狀態，非依歷史文件推測。
 
 | Supabase project / 容器 | 容器數 | 前端 | API / DB | 停止前使用情形 | 本次使用者選擇 |
