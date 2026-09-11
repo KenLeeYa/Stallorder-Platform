@@ -107,6 +107,12 @@ is also present in that collection. The guard therefore permits Vercel-managed
 Plan-bound DR hostname. It still fails immediately for any other custom domain,
 duplicate Plan hostname or malformed entry, and times out without promoting if
 the Plan hostname never becomes visible.
+Apply `34648606836` passed that readback and reached the direct Vercel TLS gate,
+but exhausted its original 30 attempts before the origin certificate became
+ready. Vercel documents that DNS convergence and automatic certificate issuance
+can each take a few minutes. The direct HTTPS gate now makes 90 attempts
+separated by ten seconds while retaining the exact `403`, `no-store` and Vercel
+origin checks. The workflow remains bounded by its 45-minute job timeout.
 
 ## Protected workflow
 
