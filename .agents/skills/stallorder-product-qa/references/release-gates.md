@@ -62,8 +62,10 @@ This gate runs before any Git link, deployment, custom-domain/alias binding, or 
 3. PATCH that exact ID through `Update Existing Project` with `ssoProtection.deploymentType=all`.
 4. Read back the same project and require `ssoProtection.deploymentType` to equal `all` before continuing.
 5. If PATCH or read-back fails, delete only that exact project ID, verify rollback completion, and stop the Apply. `all_except_custom_domains` is never an accepted fallback.
-6. Run any authenticated generated-deployment probe through `vercel curl` with the workflow-scoped `VERCEL_TOKEN`; never pass an explicit `--token`, which Vercel CLI 56.3.1 forwards to the underlying curl process.
-7. On any later failure, roll back every resource mutated by that Apply using its exact recorded ID and independently read back the expected restored or deleted state. Do not reuse the failed Apply's Plan; create a fresh immutable Plan for any corrected source or workflow revision.
+6. Create the Plan-bound Cloudflare CNAME as DNS-only (`proxied=false`) and read back the same record ID, name, type, and normalized content before asking Vercel to validate the custom domain.
+7. Wait until Vercel reports the domain with `misconfigured=false`; only then PATCH that same Cloudflare record ID to `proxied=true` and read back the unchanged identity plus the enabled proxy state before protected-domain checks.
+8. Run any authenticated generated-deployment probe through `vercel curl` with the workflow-scoped `VERCEL_TOKEN`; never pass an explicit `--token`, which Vercel CLI 56.3.1 forwards to the underlying curl process.
+9. On any later failure, roll back every resource mutated by that Apply using its exact recorded ID and independently read back the expected restored or deleted state. The tracked CNAME may be observed with either `proxied=false` or `proxied=true` while this sequence is in flight, but rollback may accept either state only when ID, name, type, and normalized content all match. Do not reuse the failed Apply's Plan; create a fresh immutable Plan for any corrected source or workflow revision.
 
 ## Gate 5 — Production Plan and Apply
 
