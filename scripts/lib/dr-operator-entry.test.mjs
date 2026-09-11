@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDrOperatorEntryPlan,
+  classifyDirectVercelTlsResponse,
   missingActiveEdgeFunctions,
   sanitizeProviderErrorCode,
   validateApprovedDrOperatorEntryPlan,
@@ -97,6 +98,9 @@ describe("DR operator entry plan", () => {
       },
     });
     expect(plan.planDigest).toMatch(/^[0-9a-f]{64}$/u);
+    expect(plan.applySteps).toContain(
+      "bind dr.qidaigo.com, create its Cloudflare CNAME as DNS-only, prove direct Vercel HTTPS readiness, then enable the proxy",
+    );
     expect(validateApprovedDrOperatorEntryPlan(plan)).toBe(plan);
   });
 
@@ -220,6 +224,39 @@ describe("DR operator runtime bindings", () => {
 });
 
 describe("DR operator provider diagnostics", () => {
+  it("accepts only a fail-closed DR response reached through Vercel HTTPS", () => {
+    expect(classifyDirectVercelTlsResponse({
+      status: 403,
+      cacheControl: "no-store",
+      vercelId: "hnd1::example",
+      server: null,
+    })).toEqual({
+      ready: true,
+      status: 403,
+      noStore: true,
+      reachedVercel: true,
+    });
+
+    expect(classifyDirectVercelTlsResponse({
+      status: 525,
+      cacheControl: "no-store",
+      vercelId: null,
+      server: "cloudflare",
+    }).ready).toBe(false);
+    expect(classifyDirectVercelTlsResponse({
+      status: 403,
+      cacheControl: null,
+      vercelId: "hnd1::example",
+      server: null,
+    }).ready).toBe(false);
+    expect(classifyDirectVercelTlsResponse({
+      status: 200,
+      cacheControl: "no-store",
+      vercelId: "hnd1::example",
+      server: null,
+    }).ready).toBe(false);
+  });
+
   it("accepts Cloudflare's empty Access application page", () => {
     expect(validateCloudflareAccessApplicationsPage({
       result: [],

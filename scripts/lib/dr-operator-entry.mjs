@@ -75,6 +75,25 @@ export function sanitizeProviderErrorCode(payload) {
   return /^[A-Za-z0-9_.:-]{1,80}$/u.test(code) ? code : null;
 }
 
+export function classifyDirectVercelTlsResponse({
+  status,
+  cacheControl,
+  vercelId,
+  server,
+}) {
+  const noStore = String(cacheControl ?? "")
+    .split(",")
+    .some((directive) => directive.trim().toLowerCase() === "no-store");
+  const reachedVercel = Boolean(String(vercelId ?? "").trim())
+    || String(server ?? "").trim().toLowerCase() === "vercel";
+  return {
+    ready: status === 403 && noStore && reachedVercel,
+    status,
+    noStore,
+    reachedVercel,
+  };
+}
+
 export function validateCloudflareAccessApplicationsPage(payload) {
   const applications = payload?.result;
   const totalPages = Number(payload?.result_info?.total_pages ?? 1);
@@ -182,7 +201,7 @@ export function buildDrOperatorEntryPlan(input) {
       "create an unlinked stallorder-dr Vercel project with Standard deployment protection for generated deployment URLs",
       "deploy the exact source commit with vercel.dr.json, DR-only runtime bindings and Plan-bound Cloudflare Access JWT validation",
       "verify the generated deployment rejects unauthenticated access and the authenticated operator probe reports READY",
-      "bind dr.qidaigo.com to the DR project and create its proxied Cloudflare CNAME",
+      "bind dr.qidaigo.com, create its Cloudflare CNAME as DNS-only, prove direct Vercel HTTPS readiness, then enable the proxy",
       "verify unauthenticated edge denial, service-token QA, origin JWT validation, DR services and app.qidaigo.com health",
       "delete the temporary QA service token and its policy after verification",
       "remove the stale staging.qidaigo.com Vercel binding and Cloudflare record",
