@@ -3,6 +3,7 @@ import { BellRing } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { readApiJson } from "@/lib/api-response";
+import { verifyStaffPushWorker } from "@/lib/staff-push-client";
 import { ExperienceDialog } from "./experience-dialog";
 
 type Status = {
@@ -57,16 +58,7 @@ export function StaffPushControls({ stallSlug }: { stallSlug: string }) {
     if (!status?.publicKey) throw new Error("推播服務尚未設定。");
     const registration = await navigator.serviceWorker.register("/sw.js?pwa-enabled=1", { scope: "/" });
     await Promise.race([navigator.serviceWorker.ready, new Promise((_, reject) => setTimeout(() => reject(new Error("通知服務啟動逾時，請重新整理再試。")), 20_000))]);
-    await new Promise<void>((resolve, reject) => {
-      const channel = new MessageChannel();
-      const timer = setTimeout(() => { channel.port1.close(); reject(new Error("通知服務正在更新，請先完成畫面上的系統更新，再開啟鎖屏通知。")); }, 3000);
-      channel.port1.onmessage = event => {
-        clearTimeout(timer); channel.port1.close();
-        if (event.data?.supported) resolve();
-        else reject(new Error("請先更新網站，再開啟鎖屏通知。"));
-      };
-      registration.active?.postMessage({ type: "STAFF_PUSH_CAPABILITY" }, [channel.port2]);
-    });
+    await verifyStaffPushWorker(registration);
     const existing = await registration.pushManager.getSubscription();
     // Re-enrol after login/stall changes; never reassign somebody else's queued delivery.
     await command({ operation: "UNSUBSCRIBE" });
@@ -99,13 +91,29 @@ export function StaffPushControls({ stallSlug }: { stallSlug: string }) {
       <div className="mt-4 grid gap-3">
         <button type="button" className={button + " bg-teal-700 text-white"} disabled={busy || Boolean(support) || !status?.configured}
           onClick={() => void run(enable)}>{enrolled ? "重新連結這台裝置" : "開啟鎖屏通知"}</button>
-        <button type="button" className={button} disabled={busy || !enrolled} onClick={() => void run(async () => {
+        <button type="button" className={button} disabled={busy || Boolean(support) || !enrolled} onClick={() => void run(async () => {
+          const registration = await navigator.serviceWorker.getRegistration("/");
+          if (!registration || !await registration.pushManager.getSubscription()) throw new Error("請先重新連結這台裝置，再測試通知。");
+          if (Notification.permission !== "granted") throw new Error("通知權限未開放，請至裝置設定允許此網站通知。");
+          await registration.update();
+          await verifyStaffPushWorker(registration);
           await command({ operation: "TEST", subscriptionId: enrolled!.id });
-          setMessage("已排定 30 秒後測試，現在可鎖屏。收到通知後點擊即可回到店員看板。");
+          setMessage("已排定 30 秒後測試，現在可鎖屏。本次已要求非靜音通知；實際音效仍依手機的通知與音量設定。收到後點擊即可回到店員看板。");
         })}>30 秒後測試通知</button>
         <button type="button" className={button} disabled={busy || !status?.configured} onClick={() => void run(disable)}>關閉這台裝置通知</button>
       </div>
       {message ? <p role="status" className="mt-4 whitespace-normal rounded-lg bg-stone-100 p-3 text-sm text-stone-800">{message}</p> : null}
+      <details className="mt-4 rounded-lg border border-stone-300 p-3 text-sm leading-6">
+        <summary className="min-h-11 cursor-pointer content-center font-semibold">收到通知但沒有聲音</summary>
+        <p className="mt-2">Android／OPPO 的 Chrome 分頁通知，請檢查這個網站的通知類別。看板上方的聲音按鈕只控制畫面開啟時的新單音效。</p>
+        <ol className="mt-2 list-decimal space-y-2 pl-5">
+          <li>在手機通知列長按剛收到的 StallOrder 通知，進入通知設定，將該網站設為「快訊／響鈴」，並確認通知鈴聲不是「無」或「靜音」。名稱依 ColorOS 版本而異。</li>
+          <li>確認手機的通知／鈴聲音量已提高，且未開啟靜音、勿擾或睡眠模式；只調高媒體音量不會改變通知音量。</li>
+          <li>若連續測試時才變安靜，檢查系統是否提供「通知冷卻」並暫時關閉後再測一次。</li>
+          <li>設定後按「30 秒後測試通知」並鎖屏。網頁無法替你變更系統通知鈴聲，也不能強制覆蓋靜音或勿擾設定。</li>
+        </ol>
+        <a className="mt-3 inline-block underline" href="https://support.google.com/android/answer/9079661?hl=zh-Hant" target="_blank" rel="noreferrer">查看 Android 官方通知設定說明</a>
+      </details>
       {enrolled?.deliveries.length ? <section className="mt-5 border-t border-stone-200 pt-4">
         <h3 className="font-semibold">最近測試／通知</h3>
         {enrolled.deliveries.map(job => <p key={job.id} className="mt-2 text-sm" data-testid="push-delivery-status">

@@ -33,9 +33,23 @@ describe("Web Push service worker", () => {
     const w = worker();
     await w.push(); await w.push();
     expect(w.showNotification).toHaveBeenCalledTimes(1);
-    expect(w.showNotification.mock.calls[0][1]).toMatchObject({ renotify: false, data: { url: "/staff/qa" } });
+    expect(w.showNotification.mock.calls[0][1]).toMatchObject({ silent: false, renotify: false, data: { url: "/staff/qa" } });
     expect(w.fetch).toHaveBeenCalledWith("/api/push/receipt", expect.anything());
     expect(w.showNotification.mock.invocationCallOrder[0]).toBeLessThan(w.fetch.mock.invocationCallOrder[0]);
+  });
+  it("requests sound for each distinct new order without re-alerting retries", async () => {
+    const w = worker();
+    await w.push();
+    await w.push({ ...w.payload, tag: "staff-order-cccccccc-cccc-4ccc-8ccc-cccccccccccc" });
+    await w.push();
+    expect(w.showNotification).toHaveBeenCalledTimes(2);
+    for (const [, options] of w.showNotification.mock.calls) expect(options.silent).toBe(false);
+  });
+  it("reports the active notification sound policy to the test controls", () => {
+    const w = worker();
+    const postMessage = vi.fn();
+    w.listeners.message({ data: { type: "STAFF_PUSH_CAPABILITY" }, ports: [{ postMessage }] });
+    expect(postMessage).toHaveBeenCalledWith({ supported: true, silent: false });
   });
   it("ignores invalid payloads and external notification targets", async () => {
     const w = worker();

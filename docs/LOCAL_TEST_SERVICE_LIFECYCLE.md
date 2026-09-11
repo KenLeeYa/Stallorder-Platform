@@ -105,3 +105,11 @@ docker ps -a --filter "label=com.supabase.cli.project=$testProject" --format '{{
 此例外以 `LOCAL_QA_ENABLE_WEB_PUSH=true` 保留實際根 Service Worker。新的啟動入口位於 `C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/staff-push-announcements-20260911/start-app.mjs` 及同目錄 `start-device-qa.mjs`；都以 `Start-Process -WindowStyle Hidden` 執行。`app-process.json`／`device-process.json`／`https-process.json` 記錄當次 owner，不沿用前一節的舊 PID。
 
 測試結束後重新核對這兩棵程序與 3018／3019／3443 owner，停止其精確程序，並在沒有其他依賴時停止本組 DB。不得停止兩組供應鏈或 `kuanguard-db-1`。憑證、範例資料、映像和 volumes 保留，無須刪除；裝置可移除本次測試 CA。重啟前確認憑證尚在七天效期內。入口、驗證限制及完整步驟見 [Web Push／公告實機指南](STAFF_PUSH_MENU_ANNOUNCEMENTS_20260911.md)。
+
+## 2026-09-12 印表機圖示／OPPO 音效複測保留例外
+
+同一人工 QA 工作樹改由 `codex/staff-printer-indicator-push-sound-20260912` 提供。建置後已重啟 3018 應用程式、3019／3443 裝置入口及背景推播 worker；本組 DB 55722 保留，其他七個 Supabase 容器仍停止。兩組供應鏈與其他工作區服務未異動。
+
+沿用上一節 `staff-push-announcements-20260911` 的啟動程式與更新後的 `app-process.json`／`device-process.json`／`https-process.json`。本輪應用程式與裝置程序日誌存於同層 `printer-indicator-push-sound-20260912` 的 `app-runtime.log`／`device-runtime.log`；停止前仍需核對目前 port owner 與父子程序，不能只照文件 PID 執行。
+
+使用者已確認 Android 16／OPPO Reno11 5G 的網站通知設為快訊且有鈴聲，仍待新版鎖屏實測，因此保留上述五項依賴供手動 QA。未旋轉測試 CA、VAPID 或加密憑證，未清除既有訂閱與測試資料。測試結束後依既有程序停止，需測試時再啟用。驗證範圍與實機限制見 [本輪記錄](STAFF_PRINTER_INDICATOR_PUSH_SOUND_20260912.md)。

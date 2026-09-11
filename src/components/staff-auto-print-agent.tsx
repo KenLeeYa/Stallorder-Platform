@@ -21,9 +21,13 @@ import {
   STAR_WEBPRNT_SDK_LOAD_TIMEOUT_MS,
 } from "@/lib/star-webprnt-client";
 
-type AgentStatus = "CHECKING" | "READY" | "UNSUPPORTED" | "NOT_CONFIGURED" | "ERROR";
+type AgentStatus = "CHECKING" | "READY" | "CONNECTED_NO_RULE" | "UNSUPPORTED" | "NOT_CONFIGURED" | "ERROR";
+export type StaffAutoPrintState = { stallSlug: string; status: AgentStatus; detail: string };
 
-export function StaffAutoPrintAgent({ stallSlug }: { stallSlug: string }) {
+export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
+  stallSlug: string;
+  onStatusChange?: (state: StaffAutoPrintState) => void;
+}) {
   const { t } = useOperationsLocale();
   const [environment, setEnvironment] = useState<ReturnType<typeof detectStarWebPrntEnvironment> | null>(null);
   const [scriptReady, setScriptReady] = useState(false);
@@ -31,6 +35,10 @@ export function StaffAutoPrintAgent({ stallSlug }: { stallSlug: string }) {
   const [detail, setDetail] = useState("");
   const busyRef = useRef(false);
   const activePrinterRef = useRef<PrinterView | null>(null);
+
+  useEffect(() => {
+    onStatusChange?.({ stallSlug, status, detail });
+  }, [stallSlug, status, detail, onStatusChange]);
 
   useEffect(() => {
     const detectEnvironment = window.setTimeout(() => {
@@ -83,7 +91,7 @@ export function StaffAutoPrintAgent({ stallSlug }: { stallSlug: string }) {
         window.localStorage.setItem(`stallorder_printer_${stallSlug}`, printer.id);
         await postPrintCommand(stallSlug, { operation: "HEARTBEAT", printerId: printer.id });
         if (!hasAutomaticPrintRule(refreshed.state, printer.id)) {
-          setStatus("NOT_CONFIGURED");
+          setStatus("CONNECTED_NO_RULE");
           setDetail(t("print.agent.noAutoRule"));
           return;
         }
@@ -188,10 +196,12 @@ export function StaffAutoPrintAgent({ stallSlug }: { stallSlug: string }) {
       }}
     /> : null}
     <p
+      id={`staff-printer-status-${stallSlug}`}
+      data-testid="staff-printer-status"
       role="status"
-      className={`mt-2 flex min-h-8 items-center gap-2 border-y px-2 py-1 text-xs font-medium print:hidden ${status === "READY" ? "border-emerald-300 bg-emerald-50 text-emerald-900" : status === "ERROR" || status === "UNSUPPORTED" || status === "NOT_CONFIGURED" ? "border-amber-300 bg-amber-50 text-amber-950" : "border-stone-200 bg-stone-50 text-stone-600"}`}
+      className={status === "READY" || status === "CHECKING" ? "sr-only" : "mt-2 flex min-h-8 items-center gap-2 border-y border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-950 print:hidden"}
     >
-      {status === "ERROR" || status === "UNSUPPORTED" || status === "NOT_CONFIGURED" ? <TriangleAlert className="h-4 w-4 shrink-0" /> : <Printer className="h-4 w-4 shrink-0" />}
+      {status === "READY" || status === "CHECKING" ? <Printer className="h-4 w-4 shrink-0" /> : <TriangleAlert className="h-4 w-4 shrink-0" />}
       <span>{detail || t("print.agent.checking")}</span>
     </p>
   </>;

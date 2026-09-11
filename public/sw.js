@@ -59,7 +59,8 @@ self.addEventListener("push", (event) => {
     if (!shown) {
       await self.registration.showNotification(payload.title, {
         body: payload.body, icon: "/icons/stallorder-192.png", badge: "/icons/stallorder-192.png",
-        tag: payload.tag, renotify: false, data: { url: payload.url },
+        // Request the OS alert sound; device/channel settings still take precedence.
+        tag: payload.tag, silent: false, renotify: false, data: { url: payload.url },
       });
       await rememberPush(payload.tag).catch(() => undefined);
     }
@@ -207,7 +208,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "STAFF_PUSH_CAPABILITY") {
-    event.ports?.[0]?.postMessage({ supported: true });
+    event.ports?.[0]?.postMessage({ supported: true, silent: false });
     return;
   }
   if (event.data?.type === "CHECK_UPDATE_SAFETY") {

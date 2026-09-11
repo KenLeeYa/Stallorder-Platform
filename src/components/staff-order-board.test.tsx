@@ -121,7 +121,7 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html.indexOf('data-testid="staff-function-order-group"')).toBeLessThan(html.indexOf('data-testid="staff-function-status-group"'));
     expect(html.indexOf('data-testid="staff-function-status-group"')).toBeLessThan(html.indexOf('data-testid="staff-function-device-group"'));
     expect(html).toContain("overflow-x-auto");
-    expect(html).toContain("sm:overflow-x-visible");
+    expect(html).not.toContain("sm:overflow-x-visible");
     expect(html).toContain("sticky top-0");
     expect(html).toMatch(/<header[^>]*data-testid="staff-sticky-header"[^>]*overflow-x-clip[^>]*overflow-y-visible/);
     expect(html).toContain("overscroll-x-contain");

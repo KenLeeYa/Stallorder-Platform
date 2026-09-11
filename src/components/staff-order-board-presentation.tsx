@@ -40,7 +40,7 @@ import { MobileSeniorActionMenu } from "@/components/mobile-senior-action-menu";
 import { PwaControls } from "@/components/pwa-controls";
 import { StaffPushControls } from "@/components/staff-push-controls";
 import { CompletedOrdersPanel } from "@/components/completed-orders-panel";
-import { StaffAutoPrintAgent } from "@/components/staff-auto-print-agent";
+import { StaffAutoPrintAgent, type StaffAutoPrintState } from "@/components/staff-auto-print-agent";
 import { StaffCapacityControl } from "@/components/staff-capacity-control";
 import { StaffOrderComposer } from "@/components/staff-order-composer";
 import type { StaffOrderUndoBatch } from "@/components/staff-order-board-batch";
@@ -239,6 +239,7 @@ export type StaffOrderBoardPresentationProps = {
 
 export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationProps) {
   const { locale, t } = useOperationsLocale();
+  const [printerState, setPrinterState] = useState<StaffAutoPrintState | null>(null);
   const {
     stall,
     account,
@@ -269,10 +270,11 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         isRefreshing={props.isRefreshing}
         message={props.message}
         posConfigurationLoading={props.posConfigurationLoading}
+        printerState={printerState?.stallSlug === stall.slug ? printerState : null}
         actions={actions}
         t={t}
       />
-      {props.modules.print && account.role !== "KITCHEN" ? <StaffAutoPrintAgent stallSlug={stall.slug} /> : null}
+      {props.modules.print && account.role !== "KITCHEN" ? <StaffAutoPrintAgent key={stall.slug} stallSlug={stall.slug} onStatusChange={setPrinterState} /> : null}
       {props.modules.kds ? <StaffOrderBatchBars
         selectedItems={selectedItems}
         canUpdateSelection={props.canUpdateSelection}
@@ -402,6 +404,7 @@ type StaffOrderBoardToolbarProps = Pick<
   | "posConfigurationLoading"
 > & {
   t: OperationsTranslator;
+  printerState: StaffAutoPrintState | null;
   actions: Pick<
     Actions,
     | "onOpenComposer"
@@ -429,10 +432,13 @@ function StaffOrderBoardToolbar({
   isRefreshing,
   message,
   posConfigurationLoading,
+  printerState,
   t,
   actions,
 }: StaffOrderBoardToolbarProps) {
   const role = account.role;
+  const printerConnected = printerState?.status === "READY" || printerState?.status === "CONNECTED_NO_RULE";
+  const printerNeedsAttention = printerState && !["READY", "CHECKING"].includes(printerState.status);
   const switcherVisibility = getOperationalSwitcherVisibility(
     workModeDestinations,
     "STAFF",
@@ -459,7 +465,7 @@ function StaffOrderBoardToolbar({
           </div>
         </div>
         <MobileSeniorActionMenu label={t("staff.functions")}>
-          <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" data-persist-horizontal-scroll="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-2 pr-4 print:hidden sm:overflow-x-visible sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
+          <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" data-persist-horizontal-scroll="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-2 pr-4 print:hidden sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
         <div data-testid="staff-function-identity-group" className="flex items-center gap-2 border-r border-stone-200 pr-2">
           {switcherVisibility.showWorkMode ? <WorkModeSwitcher
             destinations={workModeDestinations}
@@ -487,7 +493,13 @@ function StaffOrderBoardToolbar({
           {orderCatalog && hasPermission(role, "CREATE_ORDERS") ? <button type="button" title={t("staff.action.createOrder")} disabled={posConfigurationLoading} onClick={() => void actions.onOpenComposer()} className={`${staffFunctionTileClass} bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}><ShoppingCart className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.createOrder")}</span></button> : null}
           {hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" data-testid="staff-pickup-code-lookup" title={t("staff.action.pickupLookup")} onClick={actions.onOpenPickupLookup} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><KeyRound className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.pickupLookup")}</span></button> : null}
           {modules.dineIn ? <Link href={`/staff/${stall.slug}/floor`} title={t("staff.action.floor")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><MapPinned className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.floor")}</span></Link> : null}
-          {modules.print && hasPermission(role, "MANAGE_PRINT_QUEUE") ? <Link href={`/staff/${stall.slug}/print`} title={t("staff.action.printQueue")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><Printer className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.printQueue")}</span></Link> : null}
+          {modules.print && hasPermission(role, "MANAGE_PRINT_QUEUE") ? <Link
+            href={`/staff/${stall.slug}/print`}
+            title={`${t("staff.action.printQueue")}：${printerState?.detail || t("print.agent.checking")}`}
+            aria-describedby={printerState ? `staff-printer-status-${stall.slug}` : undefined}
+            data-printer-status={printerState?.status ?? "CHECKING"}
+            className={`${staffFunctionTileClass} relative border ${printerConnected ? "border-teal-700 bg-teal-50 text-teal-800" : printerNeedsAttention ? "border-amber-400 bg-amber-50 text-amber-900" : "border-stone-300 bg-white text-stone-700"}`}
+          ><Printer className={staffFunctionIconClass} />{printerNeedsAttention ? <span aria-hidden="true" className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-600" /> : null}<span className="sr-only">{t("staff.action.printQueue")}</span></Link> : null}
           {hasPermission(role, "MANAGE_CASH_SHIFT") ? <Link href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><WalletCards className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.cashShift")}</span></Link> : null}
           {capacity ? <StaffCapacityControl stallSlug={stall.slug} initialData={capacity} compact /> : null}
         </div>
