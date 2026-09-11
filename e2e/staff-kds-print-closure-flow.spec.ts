@@ -682,6 +682,125 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     }
   });
 
+  test("列印失敗後再次重印成功，平板與手機恢復完成訂單且不重複收款", async ({ browser }, testInfo) => {
+    test.setTimeout(180_000);
+    await prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: { kdsModuleEnabled: false, printModuleEnabled: true },
+    });
+    const competingPrinters = await prisma.printer.findMany({
+      where: { stallId, id: { not: createdPrinterId }, isEnabled: true },
+      select: { id: true },
+    });
+    temporarilyDisabledPrinterIds.push(...competingPrinters.map((printer) => printer.id));
+    await prisma.printer.updateMany({
+      where: { id: { in: competingPrinters.map((printer) => printer.id) } },
+      data: { isEnabled: false },
+    });
+    await prisma.printer.update({
+      where: { id: createdPrinterId },
+      data: { isEnabled: true, lastSeenAt: new Date() },
+    });
+    const order = await createConfirmedOrder(`${runMarker} 重印復原`);
+    // Reproduce a paid counter order whose original ticket failed during an outage.
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { paymentStatus: "PAID", paidAt: new Date(), fulfillmentType: "DINE_IN" },
+    });
+    const primary = await prisma.printJob.findFirstOrThrow({
+      where: { orderId: order.id, reprintOfId: null },
+    });
+    await prisma.printJob.update({
+      where: { id: primary.id },
+      data: { status: "CANCELLED", attemptCount: 3, lastError: "QA simulated printer outage" },
+    });
+    const paymentCount = await prisma.payment.count({ where: { orderId: order.id } });
+    const context = await browser.newContext({
+      locale: "zh-TW",
+      timezoneId: "Asia/Taipei",
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const page = await context.newPage();
+      await login(page, "staff@stallorder.test", new RegExp(`/staff/${stallSlug}`));
+      await page.goto(`/staff/${stallSlug}`);
+      await dismissStaffStartReminder(page);
+      const main = page.locator("#main-content");
+      const ticket = main.getByRole("article").filter({ hasText: order.customerName });
+      await expect(ticket).toContainText("列印需要處理");
+      await expect(ticket.getByRole("button", { name: "列印並完成", exact: true })).toHaveCount(0);
+
+      const csrf = (await context.cookies()).find((cookie) => cookie.name === "stallorder_csrf")?.value;
+      expect(csrf).toBeTruthy();
+      const headers = { "x-csrf-token": decodeURIComponent(csrf!), origin: new URL(page.url()).origin };
+      const printUrl = `/api/stalls/${stallSlug}/print-jobs`;
+      const command = async (data: Record<string, string>) => {
+        const response = await context.request.post(printUrl, { headers, data });
+        expect(response.status(), await response.text()).toBe(200);
+        return response.json() as Promise<{ entityId: string }>;
+      };
+      const first = await command({ operation: "REPRINT", jobId: primary.id });
+      await command({ operation: "CLAIM", jobId: first.entityId, printerId: createdPrinterId });
+      await command({ operation: "FAIL", jobId: first.entityId, error: "QA simulated printer rejection" });
+      await command({ operation: "CANCEL", jobId: first.entityId });
+      const second = await command({ operation: "REPRINT", jobId: first.entityId });
+      await command({ operation: "CLAIM", jobId: second.entityId, printerId: createdPrinterId });
+      await command({ operation: "SUCCESS", jobId: second.entityId });
+      const duplicate = await context.request.post(printUrl, {
+        headers, data: { operation: "SUCCESS", jobId: second.entityId },
+      });
+      expect(duplicate.status()).toBe(409);
+      expect(await prisma.order.findUniqueOrThrow({
+        where: { id: order.id }, select: { status: true, paymentStatus: true },
+      })).toEqual({ status: "CONFIRMED", paymentStatus: "PAID" });
+
+      await page.setViewportSize({ width: 1024, height: 768 });
+      await page.reload();
+      await dismissStaffStartReminder(page);
+      await main.getByTestId("staff-order-list-pane").getByRole("button")
+        .filter({ hasText: order.customerName }).click();
+      const actions = main.getByTestId("staff-order-actions-pane");
+      await expect(actions.getByRole("button", { name: "列印並完成", exact: true })).toBeEnabled();
+      await expect(actions).not.toContainText("列印需要處理");
+      await page.screenshot({ path: testInfo.outputPath("reprint-recovered-tablet.png") });
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      const complete = ticket.getByRole("button", { name: "列印並完成", exact: true });
+      await expect(complete).toBeEnabled();
+      await expect(ticket).not.toContainText("列印需要處理");
+      const completedResponse = waitForOrderPatch(page, order.id);
+      await complete.click();
+      const response = await completedResponse;
+      expect(response.status()).toBe(200);
+      expect(await response.json()).toMatchObject({ completionPendingPrint: false });
+      await expect(ticket).toHaveCount(0);
+
+      const final = await prisma.order.findUniqueOrThrow({
+        where: { id: order.id },
+        select: { status: true, paymentStatus: true, total: true, items: { select: { status: true } } },
+      });
+      expect(final).toEqual({
+        status: "COMPLETED", paymentStatus: "PAID", total: order.total, items: [{ status: "SERVED" }],
+      });
+      expect(await prisma.payment.count({ where: { orderId: order.id } })).toBe(paymentCount);
+      const jobs = await prisma.printJob.findMany({
+        where: { orderId: order.id }, orderBy: { createdAt: "asc" },
+        select: { id: true, status: true, reprintOfId: true },
+      });
+      expect(jobs).toEqual([
+        { id: primary.id, status: "CANCELLED", reprintOfId: null },
+        { id: first.entityId, status: "CANCELLED", reprintOfId: primary.id },
+        { id: second.entityId, status: "SUCCEEDED", reprintOfId: first.entityId },
+      ]);
+      const repeat = await context.request.patch(`/api/stalls/${stallSlug}/orders/${order.id}`, {
+        headers, data: { status: "COMPLETED", completionIntent: "FINALIZE" },
+      });
+      expect(repeat.status()).toBe(409);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("單日公休同步顯示於公開 Menu 與 QR，且顧客無法下單", async ({
     browser,
   }, testInfo) => {

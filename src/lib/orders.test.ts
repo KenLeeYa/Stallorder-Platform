@@ -2,6 +2,28 @@ import { describe, expect, it } from "vitest";
 import { getContextualOrderStatusLabel, serializeStaffOrder } from "@/lib/orders";
 
 describe("serializeStaffOrder legacy fulfillment compatibility", () => {
+  it("recognizes a successful reprint after the original paid POS ticket was cancelled", () => {
+    const order = {
+      source: "STAFF_POS",
+      fulfillmentType: "DINE_IN",
+      status: "CONFIRMED",
+      paymentStatus: "PAID",
+      createdAt: new Date("2026-09-11T04:00:00Z"),
+      confirmationExpiresAt: new Date("2026-09-11T04:05:00Z"),
+      items: [],
+      printJobs: [
+        { id: "original", reprintOfId: null, status: "CANCELLED", documentType: "KITCHEN_TICKET", isRoutingCopy: false },
+        { id: "reprint", reprintOfId: "original", status: "SUCCEEDED", documentType: "KITCHEN_TICKET", isRoutingCopy: false },
+      ],
+    } as unknown as Parameters<typeof serializeStaffOrder>[0];
+
+    expect(serializeStaffOrder(order)).toMatchObject({
+      status: "CONFIRMED",
+      paymentStatus: "PAID",
+      primaryPrintStatus: "SUCCEEDED",
+    });
+  });
+
   it("shows a scheduled-only QR takeout upgrade fixture as confirmed", () => {
     const scheduledPickupAt = new Date("2026-08-07T04:30:00.000Z");
     const order = {
