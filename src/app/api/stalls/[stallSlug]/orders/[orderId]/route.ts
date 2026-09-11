@@ -10,6 +10,7 @@ import { ManagerAuthorizationError, verifyManagerAuthorization } from "@/lib/man
 import { cancellationMatchesOrder, orderStatusUpdateSchema } from "@/lib/order-status-update";
 import { staffOrderSelect } from "@/lib/orders";
 import { prisma } from "@/lib/prisma";
+import { primaryPrintJobsQuery, resolvePrimaryPrintStatus } from "@/lib/primary-print-status";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { canTransitionOrder, hasPermission } from "@/lib/rbac";
 import { createRequestId, hashClientIp } from "@/lib/security";
@@ -146,17 +147,16 @@ async function handlePatch(
     externalProvider: order.externalProvider,
     completionIntent,
   });
-  const primaryPrintJob = nextStatus === "COMPLETED"
+  const printJobs = nextStatus === "COMPLETED"
     && !qrPaymentOnly
     && !orderingSettings?.kdsModuleEnabled
     && orderingSettings?.printModuleEnabled
     && order.externalProvider === null
-    ? await timing.measureDb(() => prisma.printJob.findFirst({
-        where: { orderId: order.id, reprintOfId: null },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        select: { status: true },
+    ? await timing.measureDb(() => prisma.printJob.findMany({
+        where: { orderId: order.id, organizationId: order.organizationId, stallId: order.stallId },
+        ...primaryPrintJobsQuery,
       }))
-    : null;
+    : [];
   const streamlinedCheckout = qrPaymentOnly ? null : getStreamlinedCheckoutPlan({
     requestedStatus: nextStatus,
     currentStatus: order.status,
@@ -164,7 +164,7 @@ async function handlePatch(
     kdsModuleEnabled: orderingSettings?.kdsModuleEnabled ?? true,
     printModuleEnabled: orderingSettings?.printModuleEnabled ?? false,
     externalProvider: order.externalProvider,
-    primaryPrintStatus: primaryPrintJob?.status ?? null,
+    primaryPrintStatus: resolvePrimaryPrintStatus(printJobs),
     source: order.source,
     paymentStatus: order.paymentStatus,
   });

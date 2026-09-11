@@ -104,6 +104,7 @@ This file is the durable owner acceptance baseline. It does not assert that a re
 - `PRN-008` Automatic-print readiness requires both a reachable enabled printer and at least one enabled `autoPrint` rule assigned to it. A connected printer without a rule is reported as `需要設定`; payments and cash-drawer actions remain independent and no automatic print is promised.
 - `PRN-009` Merchant stall/table QR print controls expose A4, A5, and A6 as unambiguous two-line paper-size/「印刷版」 actions. The print view contains only the selected paper layout, and its print/save-PDF action invokes the browser print flow without the merchant application shell.
 - `PRN-010` Explicit note-backed utensils requests print independently of general order notes on kitchen tickets, receipts and each routed copy. Unrecorded legacy preferences remain unknown. Retry/reprint preserve the existing immutable payload; no retroactive preference or historical payload rewrite is implied.
+- `PRN-011` Primary-ticket completion recognizes confirmed success in its same-document manual reprint family, including nested reprints, across Staff reads, completion API and post-print callback. Failed history stays intact; unrelated receipts/routing copies cannot satisfy the requirement. QR, KDS, payment and fulfillment gates remain independent.
 
 ## Catalog, bundles, notes, media, and menu publication
 

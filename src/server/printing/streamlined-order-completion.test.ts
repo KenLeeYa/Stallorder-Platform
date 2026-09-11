@@ -110,7 +110,15 @@ describe("QR payment and print separation", () => {
     })).toBe(false);
   });
 
-  function createPrintTransaction(source: string) {
+  const successfulPrimary = {
+    id: "print-1",
+    reprintOfId: null,
+    status: "SUCCEEDED",
+    documentType: "KITCHEN_TICKET",
+    isRoutingCopy: false,
+  };
+
+  function createPrintTransaction(source: string, overrides: Record<string, unknown> = {}) {
     const order = {
       id: "order-1",
       organizationId: "org-1",
@@ -121,9 +129,11 @@ describe("QR payment and print separation", () => {
       fulfillmentType: "TAKEOUT",
       pickupVerifiedAt: null,
       paymentStatus: "PAID",
+      printJobs: [successfulPrimary],
       stall: {
         orderingSettings: { kdsModuleEnabled: false, printModuleEnabled: true },
       },
+      ...overrides,
     };
     return {
       printJob: { findFirst: vi.fn().mockResolvedValue({ order }) },
@@ -148,5 +158,47 @@ describe("QR payment and print separation", () => {
     expect(transaction.order.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: "COMPLETED" }),
     }));
+  });
+
+  it("completes a paid READY order after a replacement ticket succeeds", async () => {
+    const transaction = createPrintTransaction("STAFF_POS", {
+      printJobs: [
+        { ...successfulPrimary, status: "CANCELLED" },
+        { ...successfulPrimary, id: "reprint-1", reprintOfId: successfulPrimary.id },
+      ],
+    });
+    await expect(completeStreamlinedOrderAfterPrint(transaction, "reprint-1")).resolves.toBe(true);
+    expect(transaction.orderEvent.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not auto-complete from an unrelated successful receipt", async () => {
+    const transaction = createPrintTransaction("STAFF_POS", {
+      printJobs: [
+        { ...successfulPrimary, status: "CANCELLED" },
+        { ...successfulPrimary, id: "receipt", documentType: "CUSTOMER_RECEIPT" },
+      ],
+    });
+    await expect(completeStreamlinedOrderAfterPrint(transaction, "receipt")).resolves.toBe(false);
+    expect(transaction.order.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { status: "CONFIRMED" },
+    { status: "COMPLETED" },
+    { paymentStatus: "UNPAID" },
+    { externalProvider: "DELIVERY_PARTNER" },
+    { stall: { orderingSettings: { kdsModuleEnabled: true, printModuleEnabled: true } } },
+    { stall: { orderingSettings: { kdsModuleEnabled: false, printModuleEnabled: false } } },
+  ])("preserves order, payment and KDS guards after successful printing: %j", async (overrides) => {
+    const transaction = createPrintTransaction("STAFF_POS", overrides);
+    await expect(completeStreamlinedOrderAfterPrint(transaction, "print-1")).resolves.toBe(false);
+    expect(transaction.order.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("does not emit duplicate completion events when another callback already finished", async () => {
+    const transaction = createPrintTransaction("STAFF_POS");
+    vi.mocked(transaction.order.updateMany).mockResolvedValueOnce({ count: 0 });
+    await expect(completeStreamlinedOrderAfterPrint(transaction, "print-1")).resolves.toBe(false);
+    expect(transaction.orderEvent.create).not.toHaveBeenCalled();
   });
 });

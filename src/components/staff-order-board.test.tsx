@@ -174,6 +174,18 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).not.toContain("完成此桌");
   });
 
+  it("restores manual completion for a paid POS order after its ticket is printed", () => {
+    const html = render([order({
+      fulfillmentType: "DINE_IN",
+      paymentStatus: "PAID",
+      primaryPrintStatus: "SUCCEEDED",
+    })], { print: true, kds: false });
+
+    expect(html).toContain("列印並完成");
+    expect(html).not.toContain("列印需要處理");
+    expect(html).not.toContain("代結帳");
+  });
+
   it("gives a confirmed public pickup order an explicit ready action when KDS is off", () => {
     const html = render([order({ source: "QR_MENU" })], { print: true, kds: false });
 
