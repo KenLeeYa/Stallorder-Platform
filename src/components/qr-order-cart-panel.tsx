@@ -245,7 +245,7 @@ export function QrOrderCartPanel({
             <label className="flex min-h-11 cursor-pointer items-center gap-3 font-medium">
               <input type="checkbox" checked={utensils.required} disabled={!orderingEnabled}
                 onChange={(event) => onCustomerNoteChange(writeOrderUtensils(utensils.note, event.target.checked))}
-                className="h-5 w-5 shrink-0 accent-teal-700" />
+                className="ordering-checkbox" />
               <span>{utensilsCopy.label}</span>
             </label>
             <p className="mt-1 text-xs leading-5 text-stone-600">{utensilsCopy.hint}</p>
@@ -278,7 +278,7 @@ export function QrOrderCartPanel({
           <label className="mt-4 flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
             <input
               type="checkbox"
-              className="mt-1 shrink-0"
+              className="ordering-checkbox mt-1"
               checked={waitAcknowledged}
               disabled={!orderingEnabled}
               onChange={(event) => onWaitAcknowledgedChange(event.target.checked)}

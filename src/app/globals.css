@@ -410,9 +410,8 @@ input[type="radio"] {
   accent-color: var(--focus-ring);
 }
 
-/* Keep native checkbox form/validation semantics, with one switch presentation on every surface. */
-input[type="checkbox"],
-.selection-toggle {
+/* Settings retain their switch presentation; ordering selections are scoped below. */
+input[type="checkbox"] {
   --toggle-track: #78716c;
   --toggle-thumb: #ffffff;
   --toggle-position: 0.875rem;
@@ -436,8 +435,7 @@ input[type="checkbox"],
   vertical-align: middle;
 }
 
-input[type="checkbox"]:checked,
-.selection-toggle[data-checked="true"] {
+input[type="checkbox"]:checked {
   --toggle-track: #0f766e;
   --toggle-position: calc(100% - 0.875rem);
 }
@@ -463,14 +461,12 @@ label:has(> input[type="checkbox"]) {
 }
 
 :root[data-theme="dark"] input[type="checkbox"]:checked,
-:root[data-theme="dark"] input[type="checkbox"]:indeterminate,
-:root[data-theme="dark"] .selection-toggle[data-checked="true"] {
+:root[data-theme="dark"] input[type="checkbox"]:indeterminate {
   --toggle-track: #2dd4bf;
   --toggle-thumb: #134e4a;
 }
 
-:root[data-interface-mode="senior"] input[type="checkbox"],
-:root[data-interface-mode="senior"] .selection-toggle {
+:root[data-interface-mode="senior"] input[type="checkbox"] {
   width: 4rem;
   min-width: 4rem;
   min-height: 3.5rem;
@@ -478,18 +474,59 @@ label:has(> input[type="checkbox"]) {
 }
 
 @media (forced-colors: active) {
-  input[type="checkbox"],
-  .selection-toggle {
+  input[type="checkbox"] {
     forced-color-adjust: none;
     --toggle-track: ButtonText !important;
     --toggle-thumb: ButtonFace !important;
   }
 
   :root input[type="checkbox"]:checked,
-  :root input[type="checkbox"]:indeterminate,
-  :root .selection-toggle[data-checked="true"] {
+  :root input[type="checkbox"]:indeterminate {
     --toggle-track: Highlight !important;
     --toggle-thumb: HighlightText !important;
+  }
+}
+
+/* Compact native checkboxes keep the whole label as their touch target. */
+:root input[type="checkbox"].ordering-checkbox {
+  -webkit-appearance: auto;
+  appearance: auto;
+  width: 1.5rem;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  min-height: 1.5rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  accent-color: var(--focus-ring);
+  forced-color-adjust: auto;
+}
+
+.ordering-checkbox-target {
+  min-width: 2.75rem;
+  cursor: pointer;
+}
+
+:root[data-interface-mode="senior"] label:has(> .ordering-checkbox) {
+  min-height: 3.5rem;
+}
+
+:root[data-interface-mode="senior"] .ordering-checkbox-target {
+  min-width: 3.5rem;
+}
+
+@media (forced-colors: active) {
+  .ordering-selection-mark {
+    forced-color-adjust: none;
+    border-color: ButtonText;
+    background: ButtonFace;
+    color: transparent;
+  }
+
+  .ordering-selection-mark[data-checked="true"] {
+    border-color: Highlight;
+    background: Highlight;
+    color: HighlightText;
   }
 }
 

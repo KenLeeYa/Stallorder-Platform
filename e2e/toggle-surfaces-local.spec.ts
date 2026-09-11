@@ -72,7 +72,7 @@ for (const [surface, route] of [
   });
 }
 
-test("Staff item selection switches never cover item details or production actions", async ({ page }, testInfo) => {
+test("Staff item selection checkboxes never cover item details or production actions", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const order = await prisma.order.findFirstOrThrow({
     where: {
@@ -116,7 +116,7 @@ test("Staff item selection switches never cover item details or production actio
         const rows = await switches.evaluateAll((controls) => controls.map((control) => {
           const row = control.closest("li")!;
           const details = row.querySelector(":scope > div")!;
-          const toggle = control.getBoundingClientRect();
+          const toggle = control.closest("label")!.getBoundingClientRect();
           const content = details.getBoundingClientRect();
           const parent = row.getBoundingClientRect();
           return {
@@ -150,10 +150,12 @@ test("Staff item selection switches never cover item details or production actio
     await expect(first).not.toBeChecked();
     await page.screenshot({ path: testInfo.outputPath(`staff-item-switches-${width}.png`) });
   }
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".ordering-checkbox-target").first()).toBeHidden();
   expect(errors).toEqual([]);
 });
 
-test("Staff modifier switches change the actual cart draft without submitting an order", async ({ page }, testInfo) => {
+test("Staff modifier checkboxes change the actual cart draft without submitting an order", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await establishLocalTestSession(page, prisma, ownerId);
   await gotoLocalPath(page, "/staff/aming-chicken");
@@ -162,12 +164,12 @@ test("Staff modifier switches change the actual cart draft without submitting an
   const product = page.getByTestId("staff-product-card").filter({ hasText: "香酥雞排" }).first();
   await product.getByTestId("staff-open-product-configurator").click();
   const configurator = page.getByTestId("staff-product-configurator");
-  const choice = configurator.getByRole("checkbox").filter({ has: page.locator(".selection-toggle") }).first();
+  const choice = configurator.getByRole("checkbox").filter({ has: page.locator(".ordering-selection-mark") }).first();
   await expect(choice).toBeVisible();
   const selected = await choice.getAttribute("aria-checked");
   await choice.click();
   await expect(choice).toHaveAttribute("aria-checked", selected === "true" ? "false" : "true");
-  await expect(choice.locator(".selection-toggle")).toHaveAttribute("data-checked", selected === "true" ? "false" : "true");
+  await expect(choice.locator(".ordering-selection-mark")).toHaveAttribute("data-checked", selected === "true" ? "false" : "true");
   await choice.focus();
   await page.keyboard.press("Space");
   await expect(choice).toHaveAttribute("aria-checked", selected!);
@@ -177,13 +179,16 @@ test("Staff modifier switches change the actual cart draft without submitting an
       await page.locator("html").evaluate((html, value) => { html.dataset.interfaceMode = value; }, mode);
       const bounds = await choice.boundingBox();
       expect(bounds?.height).toBeGreaterThanOrEqual(44);
+      const marker = await choice.locator(".ordering-selection-mark").boundingBox();
+      expect(marker?.width).toBeLessThanOrEqual(28);
+      expect(marker?.width).toBe(marker?.height);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     }
     await page.screenshot({ path: testInfo.outputPath(`staff-modifiers-${width}.png`) });
   }
 });
 
-test("Customer modifier and utensils switches remain usable through cart review", async ({ page }, testInfo) => {
+test("Customer modifier and utensils checkboxes remain usable through cart review", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const qr = await prisma.qrCode.findFirstOrThrow({
     where: { stallId, state: "ACTIVE", diningTableId: null, expiresAt: null },
@@ -198,7 +203,7 @@ test("Customer modifier and utensils switches remain usable through cart review"
   const choice = configurator.getByRole("checkbox").first();
   await choice.click();
   await expect(choice).toBeChecked();
-  await expect(choice.locator(".selection-toggle")).toHaveAttribute("data-checked", "true");
+  await expect(choice.locator(".ordering-selection-mark")).toHaveAttribute("data-checked", "true");
   await choice.focus();
   await page.keyboard.press("Space");
   await expect(choice).not.toBeChecked();

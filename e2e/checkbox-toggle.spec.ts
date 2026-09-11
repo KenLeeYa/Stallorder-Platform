@@ -11,14 +11,14 @@ test.beforeAll(async () => {
 });
 
 for (const width of [320, 390, 768, 1440]) {
-  test(`toggle appearance preserves native forms and touch targets at ${width}px`, async ({ page }, testInfo) => {
+  test(`compact ordering checkboxes and setting switches preserve forms and touch targets at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 1000 });
     await page.setContent(`<!doctype html><html lang="zh-TW"><body>
-      <main class="mx-auto max-w-xl p-4"><h1 class="text-2xl font-bold">按鈕式開關</h1>
+      <main class="mx-auto max-w-xl p-4"><h1 class="text-2xl font-bold">勾選餐點與功能開關</h1>
       <form class="mt-4 grid gap-3">
         <label class="flex items-center gap-3"><input type="checkbox" name="enabled" class="h-4 w-4" checked>啟用功能</label>
-        <label class="flex items-center gap-3"><input type="checkbox" name="utensils" class="h-5 w-5">需要免洗餐具</label>
-        <label class="flex items-start gap-3"><input type="checkbox" name="terms" required>我已閱讀並同意條款，確認後才可送出表單</label>
+        <label class="flex items-center gap-3"><input type="checkbox" name="utensils" class="ordering-checkbox">需要免洗餐具</label>
+        <label class="flex items-start gap-3"><input type="checkbox" name="terms" class="ordering-checkbox" required>我已閱讀並同意條款，確認後才可送出表單</label>
         <fieldset class="flex gap-4"><legend>權限範圍</legend>
           <label class="flex items-center gap-2"><input type="checkbox" name="scope" value="catalog">商品</label>
           <label class="flex items-center gap-2"><input type="checkbox" name="scope" value="orders">訂單</label>
@@ -28,18 +28,16 @@ for (const width of [320, 390, 768, 1440]) {
         <button class="min-h-11 rounded border p-2" type="submit">儲存設定</button>
         <button class="min-h-11 rounded border p-2" type="reset">還原設定</button>
       </form>
-      <button type="button" role="checkbox" aria-checked="false" class="mt-4 flex min-h-14 w-full items-center justify-between gap-3 rounded border p-3"
-        onclick="const selected = this.getAttribute('aria-checked') !== 'true'; this.setAttribute('aria-checked', String(selected)); this.querySelector('span').dataset.checked = String(selected)">
-        加料選項<span aria-hidden="true" class="selection-toggle" data-checked="false"></span>
-      </button></main></body></html>`);
+      <div class="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-3">
+        <label class="ordering-checkbox-target grid place-items-center self-start print:hidden"><input type="checkbox" class="ordering-checkbox" aria-label="選取餐點"></label>
+        <div>牛肉河粉<br>不要香菜</div>
+      </div></main></body></html>`);
     await page.addStyleTag({ content: css });
     await page.locator('[name="mixed"]').evaluate((input: HTMLInputElement) => { input.indeterminate = true; });
 
     const utensils = page.getByRole("checkbox", { name: "需要免洗餐具" });
-    const before = await utensils.evaluate((input) => getComputedStyle(input).backgroundPosition + getComputedStyle(input).backgroundImage);
     await page.getByText("需要免洗餐具", { exact: true }).click();
     await expect(utensils).toBeChecked();
-    expect(await utensils.evaluate((input) => getComputedStyle(input).backgroundPosition + getComputedStyle(input).backgroundImage)).not.toBe(before);
     await utensils.focus();
     await page.keyboard.press("Space");
     await expect(utensils).not.toBeChecked();
@@ -51,14 +49,12 @@ for (const width of [320, 390, 768, 1440]) {
       valid: true, entries: [["enabled", "on"], ["terms", "on"], ["scope", "catalog"], ["scope", "orders"]],
     });
     await expect(page.getByRole("checkbox", { name: /權限不足/ })).toBeDisabled();
-    const option = page.getByRole("checkbox", { name: "加料選項" });
-    await option.click();
-    await expect(option).toBeChecked();
-    await expect(option.locator(".selection-toggle")).toHaveAttribute("data-checked", "true");
-    await option.focus();
+    const item = page.getByRole("checkbox", { name: "選取餐點" });
+    await item.locator("..").click({ position: { x: 2, y: 2 } });
+    await expect(item).toBeChecked();
+    await item.focus();
     await page.keyboard.press("Space");
-    await expect(option).not.toBeChecked();
-    await expect(option.locator(".selection-toggle")).toHaveAttribute("data-checked", "false");
+    await expect(item).not.toBeChecked();
 
     for (const mode of ["standard", "senior"]) {
       for (const theme of ["light", "dark"]) {
@@ -66,7 +62,7 @@ for (const width of [320, 390, 768, 1440]) {
           html.dataset.interfaceMode = settings.mode;
           html.dataset.theme = settings.theme;
         }, { mode, theme });
-        const controls = await page.locator('input[type="checkbox"], .selection-toggle').evaluateAll((inputs) => inputs.map((input) => {
+        const controls = await page.locator('input[type="checkbox"]:not(.ordering-checkbox)').evaluateAll((inputs) => inputs.map((input) => {
           const box = input.getBoundingClientRect();
           const style = getComputedStyle(input);
           return { width: box.width, height: box.height, appearance: style.appearance, background: style.backgroundImage };
@@ -76,6 +72,19 @@ for (const width of [320, 390, 768, 1440]) {
           expect(control.height).toBeGreaterThanOrEqual(44);
           expect(control.appearance).toBe("none");
           expect(control.background).not.toBe("none");
+        }
+        const selections = await page.locator(".ordering-checkbox").evaluateAll((inputs) => inputs.map((input) => {
+          const box = input.getBoundingClientRect();
+          const target = input.closest("label")!.getBoundingClientRect();
+          return { width: box.width, height: box.height, targetWidth: target.width, targetHeight: target.height, appearance: getComputedStyle(input).appearance };
+        }));
+        for (const selection of selections) {
+          expect(selection.width).toBeGreaterThanOrEqual(24);
+          expect(selection.width).toBeLessThanOrEqual(28);
+          expect(selection.height).toBe(selection.width);
+          expect(selection.targetWidth).toBeGreaterThanOrEqual(44);
+          expect(selection.targetHeight).toBeGreaterThanOrEqual(44);
+          expect(selection.appearance).toBe("auto");
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
         if (theme === "light") await page.screenshot({ path: testInfo.outputPath(`toggles-${width}-${mode}.png`) });
@@ -88,5 +97,7 @@ for (const width of [320, 390, 768, 1440]) {
     await expect(utensils).not.toBeChecked();
     await expect(page.getByRole("checkbox", { name: "啟用功能" })).toBeChecked();
     await expect(page.getByRole("checkbox", { name: /我已閱讀/ })).not.toBeChecked();
+    await page.emulateMedia({ media: "print" });
+    await expect(item).toBeHidden();
   });
 }

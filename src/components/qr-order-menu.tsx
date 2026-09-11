@@ -291,6 +291,5 @@ export function QrOrderMenu({
 }
 
 function SelectionMark({ selected, multiple = false }: { selected: boolean; multiple?: boolean }) {
-  if (multiple) return <span aria-hidden="true" className="selection-toggle" data-checked={selected} />;
-  return <span aria-hidden="true" className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 text-sm font-black ${selected ? "border-teal-700 bg-teal-700 text-white" : "border-stone-400 bg-white text-transparent"}`}>✓</span>;
+  return <span aria-hidden="true" data-checked={selected} className={`ordering-selection-mark grid h-6 w-6 shrink-0 place-items-center border-2 text-sm font-black ${multiple ? "rounded-md" : "rounded-full"} ${selected ? "border-teal-700 bg-teal-700 text-white" : "border-stone-400 bg-white text-transparent"}`}>✓</span>;
 }

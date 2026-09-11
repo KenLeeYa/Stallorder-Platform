@@ -45,6 +45,8 @@ Related ChatGPT project discussions include system-conversion analysis, external
 
 ## Maintaining this index
 
+The 2026-09-11 owner request supersedes the all-checkboxes-as-switches presentation for ordering: restore compact checkmarks across Staff, QR, takeaway and delivery, retaining large hit areas and selection rules. Broader management-control redesign is a recommendation request; it does not authorize a redesign of every page or a Production deployment for this local change.
+
 The 2026-09-06/07 owner report supersedes post-confirmation customer amendments: “商家已確認訂單，無法修改訂單”. The same report authorizes urgent Production repair of customer modification and takeout time responses, while audio, utensils, tablet layout, holiday notices and update overlays remain local-only until owner testing. A repeated failure must be traced across runtime configuration, public/Staff APIs and customer feedback, not only its visible error text.
 
 When the owner changes a rule:

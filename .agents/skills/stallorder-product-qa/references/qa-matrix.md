@@ -58,7 +58,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-UI-08` | Navigation | Back/return restores origin route, query, filters, selection, and unsaved state when policy permits. |
 | `QA-UI-09` | Localization | Traditional Chinese and one enabled non-Chinese locale cover static UI, dynamic catalog names, closure/status messages, errors, accessibility labels, and new feature copy without mixed-language leakage. |
 | `QA-UI-10` | Compact action rows | Phone/tablet icon controls remain one orderly scrollable row with equal visual size, complete borders, reachable final actions, and no page-level horizontal overflow. |
-| `QA-UI-11` | `X-009` | Switch presentation preserves native and custom selection behavior, required consent, disabled fields, same-name multi-values, reset and label/Space activation; test 320/390/768/1440 px with senior/dark/high-contrast states, real bulk selection and customer/Staff modifiers. In Staff three-pane and mobile item rows, assert actual separation from item text and production buttons; target size and page overflow alone cannot detect controls covering adjacent content. |
+| `QA-UI-11` | `X-009` | Ordering checkmarks stay compact while their card/label hit areas remain at least 44px. Preserve native/custom selection, required consent, disabled fields, same-name values, reset, label/Space activation and selection limits. Test 320/390/768/1440 px, senior/dark/high-contrast, QR/takeaway/delivery and Staff modifiers; settings outside ordering keep their existing presentation. In Staff three-pane/mobile rows assert separation from item text/actions and hidden controls in print. |
 
 ## Role and permission journeys
 

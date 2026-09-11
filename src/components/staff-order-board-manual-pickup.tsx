@@ -156,7 +156,7 @@ export function StaffOrderManualPickupDialog({
             type="checkbox"
             checked={pending.confirmedCustomerDetails}
             onChange={(event) => controller.setConfirmedCustomerDetails(event.target.checked)}
-            className="mt-1 h-4 w-4"
+            className="ordering-checkbox mt-1"
           />
           已向顧客核對稱呼與全部餐點內容
         </label>
