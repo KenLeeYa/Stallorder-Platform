@@ -6,6 +6,7 @@ import type {
   PrintJobStatus,
   Prisma,
 } from "@prisma/client";
+import { primaryPrintJobsQuery, resolvePrimaryPrintStatus } from "@/lib/primary-print-status";
 
 const streamlinedSourceStatuses = new Set<OrderStatus>([
   "CONFIRMED",
@@ -87,6 +88,7 @@ export async function completeStreamlinedOrderAfterPrint(
           source: true,
           externalProvider: true,
           paymentStatus: true,
+          printJobs: primaryPrintJobsQuery,
           stall: {
             select: {
               orderingSettings: {
@@ -109,6 +111,7 @@ export async function completeStreamlinedOrderAfterPrint(
     || order.source === "QR_MENU"
     || order.status !== "READY"
     || order.paymentStatus !== "PAID"
+    || resolvePrimaryPrintStatus(order.printJobs) !== "SUCCEEDED"
   ) {
     return false;
   }
