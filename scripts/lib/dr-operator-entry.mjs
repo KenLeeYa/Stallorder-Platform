@@ -79,8 +79,14 @@ export function classifyExclusiveVercelDomainSet(domains, hostname) {
   if (!Array.isArray(domains) || typeof hostname !== "string" || !hostname) {
     return "invalid";
   }
-  if (domains.length === 0) return "pending";
-  return domains.length === 1 && domains[0]?.name === hostname ? "ready" : "invalid";
+  const names = domains.map((domain) => domain?.name);
+  if (names.some((name) => typeof name !== "string" || !name)) return "invalid";
+
+  const customDomains = names.filter((name) => !name.endsWith(".vercel.app"));
+  if (customDomains.length === 0) return "pending";
+  return customDomains.length === 1 && customDomains[0] === hostname
+    ? "ready"
+    : "invalid";
 }
 
 export function classifyDirectVercelTlsResponse({

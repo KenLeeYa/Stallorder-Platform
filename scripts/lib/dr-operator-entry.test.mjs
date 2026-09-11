@@ -225,10 +225,17 @@ describe("DR operator runtime bindings", () => {
 });
 
 describe("DR operator provider diagnostics", () => {
-  it("waits for an empty Vercel domain readback but rejects any unexpected domain", () => {
+  it("allows Vercel-managed domains while requiring the exclusive custom domain", () => {
     expect(classifyExclusiveVercelDomainSet([], "dr.qidaigo.com")).toBe("pending");
     expect(classifyExclusiveVercelDomainSet(
-      [{ name: "dr.qidaigo.com" }],
+      [{ name: "stallorder-dr-random-animal.vercel.app" }],
+      "dr.qidaigo.com",
+    )).toBe("pending");
+    expect(classifyExclusiveVercelDomainSet(
+      [
+        { name: "stallorder-dr-random-animal.vercel.app" },
+        { name: "dr.qidaigo.com" },
+      ],
       "dr.qidaigo.com",
     )).toBe("ready");
     expect(classifyExclusiveVercelDomainSet(
@@ -239,6 +246,11 @@ describe("DR operator provider diagnostics", () => {
       [{ name: "dr.qidaigo.com" }, { name: "other.qidaigo.com" }],
       "dr.qidaigo.com",
     )).toBe("invalid");
+    expect(classifyExclusiveVercelDomainSet(
+      [{ name: "dr.qidaigo.com" }, { name: "dr.qidaigo.com" }],
+      "dr.qidaigo.com",
+    )).toBe("invalid");
+    expect(classifyExclusiveVercelDomainSet([{}], "dr.qidaigo.com")).toBe("invalid");
   });
 
   it("accepts only a fail-closed DR response reached through Vercel HTTPS", () => {
