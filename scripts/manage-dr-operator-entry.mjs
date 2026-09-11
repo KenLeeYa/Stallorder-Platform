@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   DR_OPERATOR_ENTRY,
   buildDrOperatorEntryPlan,
+  classifyDirectVercelTlsResponse,
   missingActiveEdgeFunctions,
   sanitizeProviderErrorCode,
   validateApprovedDrOperatorEntryPlan,
@@ -230,6 +231,7 @@ async function applyEntry(plan) {
       throw new Error("DR_ENTRY_DNS_CREATE_INVALID");
     }
     await waitForDomainConfigured(plan.target.hostname);
+    const directOriginTls = await waitForDirectVercelTls(plan.target.hostname);
     const proxiedDrDnsRecord = await cloudflare(
       `/zones/${cloudflareZoneId}/dns_records/${drDnsRecordId}`,
       {
@@ -286,6 +288,7 @@ async function applyEntry(plan) {
       temporaryQaAccessRemoved: true,
       unauthenticatedDeploymentStatus,
       unauthenticatedCustomDomainStatus,
+      directOriginTls,
       probe: customDomainProbe,
       supabaseServices,
       primaryHealthStatus: primaryHealth.status,
@@ -714,6 +717,30 @@ async function waitForDomainConfigured(hostname) {
     if (attempt < 30) await delay(10_000);
   }
   throw new Error("DR_ENTRY_DOMAIN_CONFIGURATION_TIMEOUT");
+}
+
+async function waitForDirectVercelTls(hostname) {
+  for (let attempt = 1; attempt <= 30; attempt += 1) {
+    try {
+      const response = await fetch(`https://${hostname}${planProbePath()}`, {
+        headers: { accept: "application/json", "cache-control": "no-cache" },
+        redirect: "manual",
+        signal: AbortSignal.timeout(15_000),
+      });
+      const result = classifyDirectVercelTlsResponse({
+        status: response.status,
+        cacheControl: response.headers.get("cache-control"),
+        vercelId: response.headers.get("x-vercel-id"),
+        server: response.headers.get("server"),
+      });
+      await response.arrayBuffer();
+      if (result.ready) return result;
+    } catch {
+      // DNS propagation and certificate issuance are expected to converge here.
+    }
+    if (attempt < 30) await delay(10_000);
+  }
+  throw new Error("DR_ENTRY_VERCEL_ORIGIN_TLS_TIMEOUT");
 }
 
 async function retireLegacyStaging(plan) {

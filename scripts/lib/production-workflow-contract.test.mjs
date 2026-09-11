@@ -228,6 +228,10 @@ describe("Production workflow approval contract", () => {
       '"ENABLE_CLOUDFLARE_DNS_PROXY"',
       verifyVercelDomain,
     );
+    const verifyDirectVercelTls = drOperatorEntryScript.indexOf(
+      "const directOriginTls = await waitForDirectVercelTls(plan.target.hostname);",
+      verifyVercelDomain,
+    );
     const verifyProtectedDomain = drOperatorEntryScript.indexOf(
       "const unauthenticatedCustomDomainStatus = await waitForProtectedDomain(",
       verifyVercelDomain,
@@ -238,14 +242,27 @@ describe("Production workflow approval contract", () => {
     expect(
       drOperatorEntryScript.slice(createDnsRecord, verifyVercelDomain),
     ).toContain("proxied: false");
-    expect(enableCloudflareProxy).toBeGreaterThan(verifyVercelDomain);
+    expect(verifyDirectVercelTls).toBeGreaterThan(verifyVercelDomain);
+    expect(enableCloudflareProxy).toBeGreaterThan(verifyDirectVercelTls);
     expect(
-      drOperatorEntryScript.slice(verifyVercelDomain, enableCloudflareProxy),
+      drOperatorEntryScript.slice(verifyDirectVercelTls, enableCloudflareProxy),
     ).toContain('method: "PATCH"');
     expect(
       drOperatorEntryScript.slice(verifyVercelDomain, enableCloudflareProxy),
     ).toContain("proxied: true");
     expect(verifyProtectedDomain).toBeGreaterThan(enableCloudflareProxy);
+
+    const directTlsStart = drOperatorEntryScript.indexOf(
+      "async function waitForDirectVercelTls(hostname)",
+    );
+    const directTlsEnd = drOperatorEntryScript.indexOf(
+      "async function retireLegacyStaging(plan)",
+      directTlsStart,
+    );
+    const directTlsBody = drOperatorEntryScript.slice(directTlsStart, directTlsEnd);
+    expect(directTlsBody).toContain("https://${hostname}${planProbePath()}");
+    expect(directTlsBody).toContain("classifyDirectVercelTlsResponse");
+    expect(directTlsBody).toContain("DR_ENTRY_VERCEL_ORIGIN_TLS_TIMEOUT");
 
     const rollbackStart = drOperatorEntryScript.indexOf("async function rollbackEntry(");
     const rollbackEnd = drOperatorEntryScript.indexOf(

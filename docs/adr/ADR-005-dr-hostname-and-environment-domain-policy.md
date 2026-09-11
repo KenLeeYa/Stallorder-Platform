@@ -71,7 +71,7 @@ Apply order:
 3. Build the DR-configured deployment without assigning a public domain or Cron jobs. Bind its Access team domain and newly assigned application audience into both build and runtime configuration.
 4. Prove the generated deployment rejects unauthenticated access; use authenticated `vercel curl` to validate the operator endpoint, database fence, Supabase binding, Auth, Storage, and Edge Functions.
 5. Add and verify the `dr.qidaigo.com` Vercel binding.
-6. Add the exact Cloudflare CNAME recorded by the Plan as DNS-only, verify Vercel sees the direct target as configured, then update that same record ID to **proxied** and read back its final identity and proxy state.
+6. Add the exact Cloudflare CNAME recorded by the Plan as DNS-only, verify Vercel sees the direct target as configured, then require a real HTTPS handshake that reaches Vercel and returns the DR proxy's fail-closed `403` with `no-store`. Only after that certificate-and-routing proof may Apply update the same record ID to **proxied** and read back its final identity and proxy state.
 7. Prove the custom domain rejects unauthenticated access, then use the short-lived service token to reach a `READY` operator probe through Cloudflare. The origin must accept only a valid `Cf-Access-Jwt-Assertion` for the Plan-bound issuer and audience.
 8. Delete the temporary Service Auth policy and token and read both back as absent. Keep only the account-member Allow policy.
 9. Remove the Vercel `staging.qidaigo.com` branch binding and its Cloudflare DNS record.
