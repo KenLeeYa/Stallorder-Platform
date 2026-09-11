@@ -75,6 +75,12 @@ credentials, authorization headers, JWTs or request payloads. The earlier
 `All Deployments` design and its failed Apply evidence remain historical input;
 they no longer define the DR access boundary.
 
+The authenticated generated-deployment probe relies on the workflow-scoped
+`VERCEL_TOKEN` environment variable. Do not pass `--token` to `vercel curl`:
+Vercel CLI 56.3.1 forwards that option to the underlying curl process, which
+rejects it before the probe runs. Apply `34557436938` demonstrated this failure
+and completed its exact-resource rollback before the invocation was corrected.
+
 ## Protected workflow
 
 `.github/workflows/production-dr-operations.yml` has five protected Plan/Apply

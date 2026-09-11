@@ -202,6 +202,20 @@ describe("Production workflow approval contract", () => {
     expect(drOperatorEntryScript).toContain("providerErrorCode");
   });
 
+  it("uses the VERCEL_TOKEN environment variable for the protected deployment probe", () => {
+    const start = drOperatorEntryScript.indexOf("async function vercelCurl");
+    const end = drOperatorEntryScript.indexOf(
+      "async function cloudflareAccessProbe",
+      start,
+    );
+    const protectedProbe = drOperatorEntryScript.slice(start, end);
+
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    expect(protectedProbe).not.toContain('"--token"');
+    expect(protectedProbe).not.toContain("vercelToken");
+  });
+
   it("applies additive schema to DR before Primary and never resets DR", () => {
     const plan = workflowJob(disasterRecovery, "plan");
     const job = workflowJob(disasterRecovery, "dr-schema");
