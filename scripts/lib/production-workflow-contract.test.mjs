@@ -216,6 +216,47 @@ describe("Production workflow approval contract", () => {
     expect(protectedProbe).not.toContain("vercelToken");
   });
 
+  it("verifies the Vercel custom domain before enabling the Cloudflare proxy", () => {
+    const createDnsRecord = drOperatorEntryScript.indexOf(
+      "const drDnsRecord = await cloudflare(",
+    );
+    const verifyVercelDomain = drOperatorEntryScript.indexOf(
+      "await waitForDomainConfigured(plan.target.hostname);",
+      createDnsRecord,
+    );
+    const enableCloudflareProxy = drOperatorEntryScript.indexOf(
+      '"ENABLE_CLOUDFLARE_DNS_PROXY"',
+      verifyVercelDomain,
+    );
+    const verifyProtectedDomain = drOperatorEntryScript.indexOf(
+      "const unauthenticatedCustomDomainStatus = await waitForProtectedDomain(",
+      verifyVercelDomain,
+    );
+
+    expect(createDnsRecord).toBeGreaterThan(-1);
+    expect(verifyVercelDomain).toBeGreaterThan(createDnsRecord);
+    expect(
+      drOperatorEntryScript.slice(createDnsRecord, verifyVercelDomain),
+    ).toContain("proxied: false");
+    expect(enableCloudflareProxy).toBeGreaterThan(verifyVercelDomain);
+    expect(
+      drOperatorEntryScript.slice(verifyVercelDomain, enableCloudflareProxy),
+    ).toContain('method: "PATCH"');
+    expect(
+      drOperatorEntryScript.slice(verifyVercelDomain, enableCloudflareProxy),
+    ).toContain("proxied: true");
+    expect(verifyProtectedDomain).toBeGreaterThan(enableCloudflareProxy);
+
+    const rollbackStart = drOperatorEntryScript.indexOf("async function rollbackEntry(");
+    const rollbackEnd = drOperatorEntryScript.indexOf(
+      "async function waitForRollbackState(",
+      rollbackStart,
+    );
+    const rollbackBody = drOperatorEntryScript.slice(rollbackStart, rollbackEnd);
+    expect(rollbackBody).toContain('typeof createdRecord.proxied !== "boolean"');
+    expect(rollbackBody).not.toContain("createdRecord.proxied !== true");
+  });
+
   it("applies additive schema to DR before Primary and never resets DR", () => {
     const plan = workflowJob(disasterRecovery, "plan");
     const job = workflowJob(disasterRecovery, "dr-schema");

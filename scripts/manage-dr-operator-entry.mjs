@@ -215,13 +215,38 @@ async function applyEntry(plan) {
         name: plan.target.hostname,
         content: configuredTarget,
         ttl: 1,
-        proxied: true,
+        proxied: false,
         comment: "Protected StallOrder DR operator validation entry",
       }),
     });
     drDnsRecordId = drDnsRecord.id;
-    if (!drDnsRecordId) throw new Error("DR_ENTRY_DNS_CREATE_INVALID");
+    if (
+      !drDnsRecordId
+      || drDnsRecord.name !== plan.target.hostname
+      || drDnsRecord.type !== "CNAME"
+      || String(drDnsRecord.content ?? "").replace(/\.$/u, "") !== configuredTarget
+      || drDnsRecord.proxied !== false
+    ) {
+      throw new Error("DR_ENTRY_DNS_CREATE_INVALID");
+    }
     await waitForDomainConfigured(plan.target.hostname);
+    const proxiedDrDnsRecord = await cloudflare(
+      `/zones/${cloudflareZoneId}/dns_records/${drDnsRecordId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ proxied: true }),
+      },
+      "ENABLE_CLOUDFLARE_DNS_PROXY",
+    );
+    if (
+      proxiedDrDnsRecord.id !== drDnsRecordId
+      || proxiedDrDnsRecord.name !== plan.target.hostname
+      || proxiedDrDnsRecord.type !== "CNAME"
+      || String(proxiedDrDnsRecord.content ?? "").replace(/\.$/u, "") !== configuredTarget
+      || proxiedDrDnsRecord.proxied !== true
+    ) {
+      throw new Error("DR_ENTRY_DNS_PROXY_READBACK_FAILED");
+    }
     const unauthenticatedCustomDomainStatus = await waitForProtectedDomain(
       `https://${plan.target.hostname}`,
     );
@@ -721,7 +746,7 @@ async function rollbackEntry(plan, {
         createdRecord.name !== plan.target.hostname
         || createdRecord.type !== "CNAME"
         || String(createdRecord.content ?? "").replace(/\.$/u, "") !== plan.target.cnameTarget
-        || createdRecord.proxied !== true
+        || typeof createdRecord.proxied !== "boolean"
       ) {
         throw new Error("DR_ENTRY_ROLLBACK_DNS_IDENTITY_MISMATCH");
       }
