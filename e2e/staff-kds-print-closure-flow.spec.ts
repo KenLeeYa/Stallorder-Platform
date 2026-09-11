@@ -733,12 +733,21 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
 
       const csrf = (await context.cookies()).find((cookie) => cookie.name === "stallorder_csrf")?.value;
       expect(csrf).toBeTruthy();
-      const headers = { "x-csrf-token": decodeURIComponent(csrf!), origin: new URL(page.url()).origin };
+      // Browser fetch preserves production Secure cookies on the loopback test host.
+      const request = (url: string, method: "POST" | "PATCH", data: Record<string, string>) =>
+        page.evaluate(async ({ url, method, data, csrf }) => {
+          const response = await fetch(url, {
+            method,
+            headers: { "content-type": "application/json", "x-csrf-token": csrf },
+            body: JSON.stringify(data),
+          });
+          return { status: response.status, body: await response.json() };
+        }, { url, method, data, csrf: decodeURIComponent(csrf!) });
       const printUrl = `/api/stalls/${stallSlug}/print-jobs`;
       const command = async (data: Record<string, string>) => {
-        const response = await context.request.post(printUrl, { headers, data });
-        expect(response.status(), await response.text()).toBe(200);
-        return response.json() as Promise<{ entityId: string }>;
+        const response = await request(printUrl, "POST", data);
+        expect(response.status, JSON.stringify(response.body)).toBe(200);
+        return response.body as { entityId: string };
       };
       const first = await command({ operation: "REPRINT", jobId: primary.id });
       await command({ operation: "CLAIM", jobId: first.entityId, printerId: createdPrinterId });
@@ -747,10 +756,8 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       const second = await command({ operation: "REPRINT", jobId: first.entityId });
       await command({ operation: "CLAIM", jobId: second.entityId, printerId: createdPrinterId });
       await command({ operation: "SUCCESS", jobId: second.entityId });
-      const duplicate = await context.request.post(printUrl, {
-        headers, data: { operation: "SUCCESS", jobId: second.entityId },
-      });
-      expect(duplicate.status()).toBe(409);
+      const duplicate = await request(printUrl, "POST", { operation: "SUCCESS", jobId: second.entityId });
+      expect(duplicate.status).toBe(409);
       expect(await prisma.order.findUniqueOrThrow({
         where: { id: order.id }, select: { status: true, paymentStatus: true },
       })).toEqual({ status: "CONFIRMED", paymentStatus: "PAID" });
@@ -793,10 +800,10 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
         { id: first.entityId, status: "CANCELLED", reprintOfId: primary.id },
         { id: second.entityId, status: "SUCCEEDED", reprintOfId: first.entityId },
       ]);
-      const repeat = await context.request.patch(`/api/stalls/${stallSlug}/orders/${order.id}`, {
-        headers, data: { status: "COMPLETED", completionIntent: "FINALIZE" },
+      const repeat = await request(`/api/stalls/${stallSlug}/orders/${order.id}`, "PATCH", {
+        status: "COMPLETED", completionIntent: "FINALIZE",
       });
-      expect(repeat.status()).toBe(409);
+      expect(repeat.status).toBe(409);
     } finally {
       await context.close();
     }
