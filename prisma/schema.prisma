@@ -2183,6 +2183,7 @@ model StallProduct {
   priceOverride  Int?         @map("price_override")
   isEnabled      Boolean      @default(true) @map("is_enabled")
   isSoldOut      Boolean      @default(false) @map("is_sold_out")
+  soldOutUntil   DateTime?    @map("sold_out_until") @db.Timestamptz(6)
   stockRemaining Int?        @map("stock_remaining")
   stockVersion   Int         @default(0) @map("stock_version")
   stockStartedAt DateTime?   @map("stock_started_at") @db.Timestamptz
@@ -3116,6 +3117,7 @@ model PrintJob {
   printRuleId     String?        @map("print_rule_id") @db.Uuid
   requestedById  String?        @map("requested_by") @db.Uuid
   reprintOfId    String?        @map("reprint_of_id") @db.Uuid
+  amendmentId   String?        @map("amendment_id") @db.Uuid
   isRoutingCopy   Boolean        @default(false) @map("is_routing_copy")
   documentType    PrintDocumentType @default(KITCHEN_TICKET) @map("document_type")
   status         PrintJobStatus @default(PENDING)

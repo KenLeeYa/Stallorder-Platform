@@ -72,6 +72,7 @@ import {
 import { formatMoney } from "@/lib/money";
 import { getOperationsErrorMessageKey } from "@/lib/messages/operations-errors";
 import { canTransitionOrderItem } from "@/lib/order-item-status";
+import type { ConfiguredEditProduct } from "@/components/staff-order-edit-product-picker";
 import type { StaffOrderDto } from "@/lib/orders";
 import { isCompletePickupCode, normalizePickupCode } from "@/lib/pickup-code";
 import { hasPermission } from "@/lib/rbac";
@@ -89,6 +90,10 @@ export type StaffOrderEditLine = {
   details: string;
 } | {
   kind: "NEW";
+  note: string;
+  noteOptionIds: string[];
+  bundleChoiceIds: string[];
+  details: string;
   key: string;
   productId: string;
   name: string;
@@ -155,6 +160,7 @@ export function useStaffOrderBoardController({
   const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(new Set());
   const [futureOrdersExpanded, setFutureOrdersExpanded] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const orderEditRevision = useRef<{ changeId: string; expectedUpdatedAt: string } | null>(null);
   const [orderEditLines, setOrderEditLines] = useState<StaffOrderEditLine[]>([]);
   const [orderEditProductId, setOrderEditProductId] = useState("");
   const [orderEditBusy, setOrderEditBusy] = useState(false);
@@ -453,6 +459,8 @@ export function useStaffOrderBoardController({
 
   function openOrderEditor(order: OrderWithItems) {
     if (!canEditOrderContent(order)) return;
+    if (!order.updatedAt) { setMessage(t("staff.error.edit")); return; }
+    orderEditRevision.current = { changeId: crypto.randomUUID(), expectedUpdatedAt: order.updatedAt };
     setEditingOrderId(order.id);
     setOrderEditMessage("");
     setOrderEditProductId("");
@@ -482,22 +490,21 @@ export function useStaffOrderBoardController({
     )));
   }
 
-  function addOrderEditProduct() {
-    const product = orderCatalog?.products.find((candidate) => candidate.id === orderEditProductId);
+  function addOrderEditProduct(configuration: ConfiguredEditProduct) {
+    const product = orderCatalog?.products.find((candidate) => candidate.id === configuration.productId);
     if (!product) return;
     setOrderEditLines((current) => [...current, {
       kind: "NEW",
       key: `new-${crypto.randomUUID()}`,
-      productId: product.id,
       name: product.name,
-      unitPrice: product.price,
+      ...configuration,
       quantity: 1,
     }]);
     setOrderEditProductId("");
   }
 
   async function saveOrderEdit() {
-    if (!editingOrderId || orderEditLines.length === 0) return;
+    if (!editingOrderId || !orderEditRevision.current || orderEditLines.length === 0) return;
     setOrderEditBusy(true);
     setOrderEditMessage("");
     try {
@@ -505,15 +512,16 @@ export function useStaffOrderBoardController({
         method: "PATCH",
         headers: csrfHeaders(),
         body: JSON.stringify({
+          ...orderEditRevision.current,
           items: orderEditLines.map((line) => line.kind === "EXISTING"
             ? { kind: "EXISTING", itemId: line.itemId, quantity: line.quantity }
             : {
                 kind: "NEW",
                 productId: line.productId,
                 quantity: line.quantity,
-                note: "",
-                noteOptionIds: [],
-                bundleChoiceIds: [],
+                note: line.note,
+                noteOptionIds: line.noteOptionIds,
+                bundleChoiceIds: line.bundleChoiceIds,
               }),
           ...(orders.find((order) => order.id === editingOrderId)?.source === "QR_MENU"
             ? {
@@ -850,10 +858,7 @@ export function useStaffOrderBoardController({
   const futureUnpaidTotal = futureOrders.reduce((sum, order) => (
     sum + (order.paymentStatus === "UNPAID" ? order.total : 0)
   ), 0);
-  const orderEditProducts = useMemo(() => (orderCatalog?.products ?? []).filter((product) => (
-    product.noteGroups.every((group) => group.minSelections === 0)
-    && (product.bundleChoiceGroups ?? []).every((group) => group.minSelections === 0)
-  )), [orderCatalog]);
+  const orderEditProducts = orderCatalog?.products ?? [];
   const selectedItems = orders
     .filter((order) => order.source !== "OFFLINE_POS")
     .flatMap((order) => order.items.map((item) => ({

@@ -1,4 +1,6 @@
 import "server-only";
+import { createHash } from "node:crypto";
+import { isProductSoldOut } from "@/lib/product-availability";
 
 import { revalidateTag, unstable_cache } from "next/cache";
 import { calculateCapacitySnapshot } from "@/lib/capacity";
@@ -305,20 +307,23 @@ export function invalidatePublicQrToken(qrToken: string) {
 
 async function getCachedStallMenu(stallId: string) {
   const tag = stallMenuCacheTag(stallId);
+  // Include the live effective state so expiration also restores cached bundle choices.
+  const availability = await prisma.stallProduct.findMany({
+    where: { stallId },
+    orderBy: { productId: "asc" },
+    select: { productId: true, isEnabled: true, isSoldOut: true, soldOutUntil: true, stockRemaining: true },
+  });
+  const signature = createHash("sha256").update(JSON.stringify(availability.map((row) => [
+    row.productId, row.isEnabled, isProductSoldOut(row), row.stockRemaining === 0,
+  ]))).digest("hex");
   const getMenu = unstable_cache(
     () => loadStallMenu(stallId),
-    ["public-stall-menu", stallId],
+    ["public-stall-menu", stallId, signature],
     { revalidate: PUBLIC_MENU_TTL_SECONDS, tags: [tag] },
   );
-  const [menu, stock] = await Promise.all([
-    getMenu(),
-    prisma.stallProduct.findMany({
-      where: { stallId, stockRemaining: 0 },
-      select: { productId: true },
-    }),
-  ]);
+  const menu = await getMenu();
   if (!menu) return null;
-  const exhausted = new Set(stock.map((row) => row.productId));
+  const exhausted = new Set(availability.filter((row) => row.stockRemaining === 0).map((row) => row.productId));
   return { ...menu, products: menu.products.map((product) => ({
     ...product,
     isSoldOut: product.isSoldOut || exhausted.has(product.id),
@@ -623,6 +628,7 @@ async function loadStallMenu(
       select: {
         isEnabled: true,
         isSoldOut: true,
+        soldOutUntil: true,
         priceOverride: true,
         sortOrder: true,
         availableFrom: true,
@@ -741,10 +747,10 @@ async function loadStallMenu(
   if (!settings) return null;
 
   const displayedAssignments = assignments.filter((assignment) => (
-    assignment.isEnabled || !assignment.product.isActive
+    assignment.isEnabled && assignment.product.isActive
   ));
   const saleableProductIds = new Set(assignments.flatMap((assignment) => (
-    assignment.isEnabled && !assignment.isSoldOut && assignment.product.isActive
+    assignment.isEnabled && !isProductSoldOut(assignment) && assignment.product.isActive
       ? [assignment.product.id]
       : []
   )));
@@ -753,7 +759,7 @@ async function loadStallMenu(
   );
   const publicProducts = displayedAssignments.flatMap((assignment) => {
     const product = assignment.product;
-    const isSoldOut = assignment.isSoldOut || !product.isActive;
+    const isSoldOut = isProductSoldOut(assignment) || !product.isActive;
     const bundleChoiceGroups = product.kind === "BUNDLE"
       ? product.bundleChoiceGroups.map((group) => ({
         id: group.id,

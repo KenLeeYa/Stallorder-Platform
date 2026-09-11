@@ -65,12 +65,14 @@ describe("Next public preorder menu", () => {
       },
     });
     stallProductFindMany.mockResolvedValue([{
+      isEnabled: true, isSoldOut: false, soldOutUntil: null,
       priceOverride: null,
       sortOrder: 0,
       availableFrom: new Date("2099-08-03T04:00:00.000Z"),
       availableUntil: new Date("2099-08-03T06:00:00.000Z"),
       product: {
         id: "future-lunch",
+        isActive: true,
         organizationId: "organization-a",
         name: "明日午餐",
         description: "",
@@ -405,12 +407,14 @@ describe("Next public preorder menu", () => {
 
   it("keeps an optional bundle group visible when its add-on is unavailable", async () => {
     stallProductFindMany.mockResolvedValue([{
+      isEnabled: true, isSoldOut: false, soldOutUntil: null,
       priceOverride: null,
       sortOrder: 0,
       availableFrom: null,
       availableUntil: null,
       product: {
         id: "optional-bundle",
+        isActive: true,
         organizationId: "organization-a",
         name: "可選加購套餐",
         description: "",

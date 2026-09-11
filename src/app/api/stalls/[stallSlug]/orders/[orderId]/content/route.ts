@@ -95,8 +95,7 @@ function editErrorResponse(error: unknown, requestId: string) {
       CUSTOMER_NOTICE_REQUIRED: "修改線上外帶訂單時，請選擇原因並填寫通知顧客的內容。",
       PAYMENT_ALREADY_RECORDED: "此訂單已結帳或已套用付款資料，無法修改商品。",
       ORDER_ALREADY_STARTED: "餐點已開始製作，無法再修改訂單商品。",
-      PRINT_ALREADY_STARTED: "此訂單已開始列印，請取消訂單並重新建立以避免出單內容不一致。",
-      UNSUPPORTED_EXISTING_CONFIGURATION: "此訂單含無法安全回推的套餐或舊商品設定，請取消後重新建立訂單。",
+      UNSUPPORTED_EXISTING_CONFIGURATION: "此訂單包含活動贈品，需先確認活動資格與贈品處理方式，無法直接調整商品。",
       ITEM_CONFLICT: "訂單商品已變更或有重複設定，請重新整理後再試。",
       ORDER_CONFLICT: "訂單剛剛已被其他人更新，請重新整理後再試。",
     };

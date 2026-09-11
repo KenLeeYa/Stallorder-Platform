@@ -78,3 +78,22 @@ docker ps -a --filter "label=com.supabase.cli.project=$testProject" --format '{{
 - 唯讀快照與驗證收據位於 `C:\Users\KY\.codex\visualizations\2026\09\06\01a0761b-0cdb-73e1-82cc-59a3e93d5d66\docker-service-audit-20260910`；包含 `before-selective-stop.json`、`selective-stop-result.json`、`final-containers.json`、`final-verification.json` 與 volumes 清單，未保存密鑰或容器 environment。
 
 本次是服務恢復與資源整理，未重跑供應鏈完整交易驗收，未更改開發中的供應鏈程式。使用者明確要求保留的兩組服務，在供應鏈測試結束後仍須依固定規則停止。
+
+## 2026-09-11 商品供應／訂單變更手動 QA 保留例外
+
+使用者要求本機測試與保留範例資料；本次驗收後保留以下最小服務：
+
+- 3018：`Stallorder-Platform-order-selection-checkboxes-20260911`，分支 `codex/catalog-availability-amendments-20260911`，提供四個快速登入按鈕。
+- 55722：`supabase_db_stallorder-catalog-ops-20260907`，容器 `59f8e85233fa`，healthy。此 project 其餘七個容器保持停止；55721 / Edge / Realtime 未啟動，本機公共流程走 Circuit B。
+- 兩組供應鏈仍有原本 16 個容器，另有他工作區 `kuanguard-db-1`；本次未操作這些服務。
+
+已套用兩份商品供應／變更單 migration，保留測試商品與訂單。新功能及最新範例請見 [驗收記錄](CATALOG_AVAILABILITY_AND_ORDER_AMENDMENTS_20260911.md)。留存範例超過原容量門檻，本機已改為 100 單／300 份，自動暫停／恢復不變；原值 20／60 保存在收據，可於容量頁還原。
+
+啟停入口及收據：
+
+- `C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/quick-login-environment-20260911/start-local-qa.mjs`：載入已驗證的本機環境，啟動工作區的 `scripts/start-local-qa.mjs --port 3018`。用 `Start-Process -WindowStyle Hidden` 啟動，避免彈出額外終端視窗。
+- 同目錄 `server-process.json` 記錄當次 launcher／runtime PID、工作區和連接埠。停止前必須讀回當下 3018 的 owner、父子程序及命令列，僅停止這棵開發程序；PID 會改變，不沿用舊文件中的 PID。
+- 停止前確認 DB 沒有其他活躍任務，再 `docker stop --timeout 30 supabase_db_stallorder-catalog-ops-20260907`；只停止，不刪資料。
+- 下次需要時核對容器 label 後 `docker start supabase_db_stallorder-catalog-ops-20260907`，等 healthy 再啟動上述 launcher。不啟動整組不需要的 Supabase 容器。
+
+此次為使用者待進行的手動 QA 例外；使用者確認測試結束後應停止 3018 與本組 DB，需要時再恢復。

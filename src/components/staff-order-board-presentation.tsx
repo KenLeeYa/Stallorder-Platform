@@ -1,5 +1,6 @@
 "use client";
 
+import { StaffOrderEditProductPicker, type ConfiguredEditProduct } from "@/components/staff-order-edit-product-picker";
 import type { OrderItemStatus, OrderStatus, UserRole } from "@prisma/client";
 import { useState } from "react";
 import dynamic from "next/dynamic";
@@ -156,7 +157,7 @@ type Actions = {
   ) => Promise<void>;
   onViewModeChange: (mode: StaffOrderBoardViewMode) => void;
   onCreated: (order: StaffOrderDto) => void;
-  onAddOrderEditProduct: () => void;
+  onAddOrderEditProduct: (configuration: ConfiguredEditProduct) => void;
   onChangeOrderEditProduct: (productId: string) => void;
   onChangeOrderEditQuantity: (key: string, delta: number) => void;
   onChangeOrderEditAmendmentReason: (reason: StaffOrderPublicAmendmentReason) => void;
@@ -933,7 +934,7 @@ function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, d
                 <div key={line.key} className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2"><strong>{line.name}</strong>{line.kind === "NEW" ? <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">{t("staff.edit.new")}</span> : null}</div>
-                    {line.kind === "EXISTING" && line.details ? <p className="mt-1 text-xs text-stone-600">{line.details}</p> : null}
+                    {line.details ? <p className="mt-1 text-xs text-stone-600">{line.details}</p> : null}
                     <p className="mt-1 text-xs text-stone-500">{formatMoney(line.unitPrice, stall.currency, locale)} × {line.quantity} = {formatMoney(line.unitPrice * line.quantity, stall.currency, locale)}</p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -948,13 +949,13 @@ function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, d
             </div>
             <div className="mt-5 rounded-md border border-stone-200 bg-stone-50 p-4">
               <label htmlFor="order-edit-product" className="text-xs font-semibold text-stone-700">{t("staff.edit.addProduct")}</label>
-              <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="mt-2 grid gap-2">
                 <select id="order-edit-product" value={orderEditor.selectedProductId} onChange={(event) => actions.onChangeOrderEditProduct(event.target.value)} disabled={orderEditor.busy} className="h-11 min-w-0 rounded-md border border-stone-300 bg-white px-3 text-sm disabled:opacity-50">
                   <option value="">{t("staff.edit.selectSimple")}</option>
                   {orderEditor.products.map((product) => <option key={product.id} value={product.id}>{product.name} · {formatMoney(product.price, stall.currency, locale)}</option>)}
                 </select>
-                <button type="button" disabled={orderEditor.busy || !orderEditor.selectedProductId} onClick={actions.onAddOrderEditProduct} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-4 text-sm font-semibold disabled:opacity-40"><Plus className="h-4 w-4" />{t("staff.edit.add")}</button>
               </div>
+              {orderEditor.products.filter((product) => product.id === orderEditor.selectedProductId).map((product) => <StaffOrderEditProductPicker key={product.id} product={product} currency={stall.currency} busy={orderEditor.busy} onAdd={actions.onAddOrderEditProduct} />)}
               <p className="mt-2 text-xs leading-5 text-stone-600">{t("staff.edit.customizationWarning")}</p>
             </div>
             {publicAmendment ? (

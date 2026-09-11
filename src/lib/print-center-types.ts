@@ -97,6 +97,7 @@ export type PrintJobView = {
   queuedAt: string;
   printedAt: string | null;
   reprintOfId: string | null;
+  amendmentId?: string | null;
   isRoutingCopy: boolean;
   printer: {
     id: string;

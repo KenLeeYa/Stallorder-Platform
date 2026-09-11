@@ -366,7 +366,7 @@ export async function POST(request: Request, context: RouteContext) {
         });
         if (!order) throw new PrintQueueNotFoundError();
         const existing = await transaction.printJob.findFirst({
-          where: { orderId: order.id, reprintOfId: null },
+          where: { orderId: order.id, reprintOfId: null, amendmentId: null },
           select: { id: true },
         });
         if (existing) return existing.id;
@@ -396,10 +396,11 @@ export async function POST(request: Request, context: RouteContext) {
         });
         if (!order) throw new PrintQueueNotFoundError();
         const existing = await transaction.printJob.findFirst({
-          where: { orderId: order.id, organizationId, stallId, documentType: "CUSTOMER_RECEIPT" },
+          where: { orderId: order.id, organizationId, stallId, documentType: "CUSTOMER_RECEIPT", amendmentId: null },
           orderBy: { createdAt: "desc" },
         });
         if (existing) {
+          const hasAmendment = await transaction.printJob.count({ where: { orderId: order.id, amendmentId: { not: null } } }) > 0;
           const assignedPrinter = existing.printerId
             ? await transaction.printer.findFirst({ where: { id: existing.printerId, organizationId, stallId, isEnabled: true } })
             : null;
@@ -418,8 +419,8 @@ export async function POST(request: Request, context: RouteContext) {
               reprintOfId: existing.id,
               documentType: "CUSTOMER_RECEIPT",
               copies: existing.copies,
-              payload: existing.payload === null ? undefined : existing.payload,
-              templateVersion: existing.templateVersion,
+              payload: hasAmendment || existing.payload === null ? undefined : existing.payload,
+              templateVersion: hasAmendment ? undefined : existing.templateVersion,
             },
           });
           return reprint.id;
@@ -530,6 +531,7 @@ export async function POST(request: Request, context: RouteContext) {
             printRuleId: job.printRuleId,
             requestedById: authorization.principal.user.id,
             reprintOfId: job.id,
+            amendmentId: job.amendmentId,
             documentType: job.documentType,
             copies: job.copies,
             payload: job.payload === null ? undefined : job.payload,
