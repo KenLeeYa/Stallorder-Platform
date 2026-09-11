@@ -97,3 +97,11 @@ docker ps -a --filter "label=com.supabase.cli.project=$testProject" --format '{{
 - 下次需要時核對容器 label 後 `docker start supabase_db_stallorder-catalog-ops-20260907`，等 healthy 再啟動上述 launcher。不啟動整組不需要的 Supabase 容器。
 
 此次為使用者待進行的手動 QA 例外；使用者確認測試結束後應停止 3018 與本組 DB，需要時再恢復。
+
+## 2026-09-11 Web Push 實機 QA 保留例外
+
+上述 3018 同一工作樹現由 `codex/staff-push-menu-announcements-20260911` 提供，含先前商品供應／改單／快速登入及新推播／公告功能；DB 55722 持續使用原 fixture。新增 `192.168.1.102:3019`（公開測試 CA 與說明）、`:3443`（LAN HTTPS），及無監聽 port 的本機推播背景 worker，供使用者 iPad／Android 同 Wi-Fi 測試。其餘服務的運行／停止狀態未改變。
+
+此例外以 `LOCAL_QA_ENABLE_WEB_PUSH=true` 保留實際根 Service Worker。新的啟動入口位於 `C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/staff-push-announcements-20260911/start-app.mjs` 及同目錄 `start-device-qa.mjs`；都以 `Start-Process -WindowStyle Hidden` 執行。`app-process.json`／`device-process.json`／`https-process.json` 記錄當次 owner，不沿用前一節的舊 PID。
+
+測試結束後重新核對這兩棵程序與 3018／3019／3443 owner，停止其精確程序，並在沒有其他依賴時停止本組 DB。不得停止兩組供應鏈或 `kuanguard-db-1`。憑證、範例資料、映像和 volumes 保留，無須刪除；裝置可移除本次測試 CA。重啟前確認憑證尚在七天效期內。入口、驗證限制及完整步驟見 [Web Push／公告實機指南](STAFF_PUSH_MENU_ANNOUNCEMENTS_20260911.md)。

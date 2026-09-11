@@ -1,4 +1,5 @@
 import "server-only";
+import { activeMenuAnnouncement, serializeMenuAnnouncement } from "@/lib/menu-announcement";
 import { createHash } from "node:crypto";
 import { isProductSoldOut } from "@/lib/product-availability";
 
@@ -253,13 +254,16 @@ async function getPublicDisplayMenuForStallSlug(
   const stall = await findPublicStallBySlug(stallSlug);
   if (!stall || !publicStallCanDisplayMenu(stall)) return null;
 
-  const [menu, specialClosure] = await Promise.all([
+  const [menu, specialClosure, announcementRow] = await Promise.all([
     menuLoader(stall.id),
     getPublicSpecialClosure(stall.id, stall.timezone),
+    prisma.stallMenuAnnouncement.findUnique({ where: { stallId: stall.id } }),
   ]);
   if (!menu) return null;
+  const announcement = announcementRow ? serializeMenuAnnouncement(announcementRow) : null;
   return {
     ...menu,
+    announcement: activeMenuAnnouncement(announcement) ? announcement : null,
     orderingMode: "DEFAULT",
     preorderSlots: [],
     lotteryEnabled: false,

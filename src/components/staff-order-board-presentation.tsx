@@ -38,6 +38,7 @@ import { useOperationsLocale } from "@/components/operations-locale";
 import { LogoutButton } from "@/components/logout-button";
 import { MobileSeniorActionMenu } from "@/components/mobile-senior-action-menu";
 import { PwaControls } from "@/components/pwa-controls";
+import { StaffPushControls } from "@/components/staff-push-controls";
 import { CompletedOrdersPanel } from "@/components/completed-orders-panel";
 import { StaffAutoPrintAgent } from "@/components/staff-auto-print-agent";
 import { StaffCapacityControl } from "@/components/staff-capacity-control";
@@ -497,6 +498,7 @@ function StaffOrderBoardToolbar({
           <LiveConnectionBadge state={liveConnection} t={t} />
         </div>
         <div data-testid="staff-function-device-group" className="flex items-center gap-2">
+          <StaffPushControls stallSlug={stall.slug} />
           <button type="button" role="switch" aria-checked={alertsEnabled} aria-label={alertsEnabled ? t("staff.action.notificationsOn") : t("staff.action.notificationsOff")} onClick={actions.onToggleAlerts} title={alertsEnabled ? t("staff.action.notificationsDisable") : t("staff.action.notificationsEnable")} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>{alertsEnabled ? <Volume2 className={staffFunctionIconClass} /> : <VolumeX className={staffFunctionIconClass} />}<span aria-hidden="true" className="sr-only">{t("staff.action.notifications")}</span></button>
           <div data-testid="staff-function-offline" className={`${staffFunctionTileClass} relative overflow-visible text-stone-700 [&>div]:h-11 [&>div]:w-11 [&>div>button:first-child]:h-11 [&>div>button:first-child]:w-11 [&>div>button:first-child]:border [&>div>button:first-child]:border-stone-300 [&>div>button:first-child>svg]:h-5 [&>div>button:first-child>svg]:w-5`}><OfflineBootstrapControl stallId={stall.id} stallSlug={stall.slug} appVersion={appVersion} /><span className="sr-only">{t("staff.action.offlineDevice")}</span></div>
           <button type="button" onClick={actions.onRefresh} title={t("common.refresh")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} /><span className="sr-only">{t("common.refresh")}</span></button>
@@ -623,15 +625,15 @@ function StaffTicketList(props: StaffTicketListProps) {
     <div className="mt-4 grid gap-4 md:hidden print:block" data-testid="staff-order-mobile-list">
       {props.orders.map((order) => <StaffOrderTicket key={order.id} {...props} order={order} />)}
     </div>
-    {selectedOrder ? <div data-testid="staff-order-master-detail" className={`mt-4 hidden gap-4 md:grid md:grid-cols-[minmax(13rem,0.78fr)_minmax(0,1.25fr)_minmax(12rem,0.82fr)] print:hidden ${props.fullViewport ? "md:min-h-0 md:flex-1" : "min-h-[32rem] md:h-[calc(100dvh-14rem)]"}`}>
-      <nav aria-label={props.t("staff.today.title")} className="min-h-0 overflow-y-auto rounded-xl border border-stone-200 bg-stone-50 p-2" data-testid="staff-order-list-pane">
-        <div className="grid gap-2">
+    {selectedOrder ? <div data-testid="staff-order-master-detail" className={`mt-4 hidden min-w-0 gap-3 md:grid md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)_minmax(0,0.85fr)] xl:gap-4 print:hidden ${props.fullViewport ? "md:min-h-0 md:flex-1" : "min-h-[32rem] md:h-[calc(100dvh-14rem)]"}`}>
+      <nav aria-label={props.t("staff.today.title")} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-stone-50 p-2" data-testid="staff-order-list-pane">
+        <div className="grid min-w-0 grid-cols-1 gap-2">
           {props.orders.map((order) => {
             const selected = order.id === selectedOrder.id;
             const timing = props.orderProductionTimings.get(order.id);
-            return <button key={order.id} type="button" aria-current={selected ? "true" : undefined} onClick={() => setSelectedOrderId(order.id)} className={`min-h-24 rounded-lg border p-3 text-left ${selected ? "border-teal-700 bg-teal-50 ring-2 ring-teal-200" : "border-stone-200 bg-white hover:border-stone-400"}`}>
-              <span className="flex items-start justify-between gap-2"><span className="min-w-0"><strong className="block text-sm">{props.t("staff.order.number", { number: order.orderNo })}</strong>{order.isTest ? <span className="mt-1 inline-flex rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{props.t("staff.order.test")}</span> : null}</span><span className="shrink-0 rounded bg-white px-2 py-0.5 text-xs font-semibold text-teal-800">{contextualOrderStatusLabel(order, props.t)}</span></span>
-              <span className="mt-2 block truncate text-sm font-semibold">{order.customerName}</span>
+            return <button key={order.id} type="button" aria-current={selected ? "true" : undefined} onClick={() => setSelectedOrderId(order.id)} className={`min-h-24 w-full min-w-0 whitespace-normal rounded-lg border p-3 text-left [overflow-wrap:anywhere] ${selected ? "border-teal-700 bg-teal-50 ring-2 ring-teal-200" : "border-stone-200 bg-white hover:border-stone-400"}`}>
+              <span className="flex flex-wrap items-start justify-between gap-2"><span className="min-w-0"><strong className="block text-sm">{props.t("staff.order.number", { number: order.orderNo })}</strong>{order.isTest ? <span className="mt-1 inline-flex rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{props.t("staff.order.test")}</span> : null}</span><span className="max-w-full rounded bg-white px-2 py-0.5 text-xs font-semibold text-teal-800">{contextualOrderStatusLabel(order, props.t)}</span></span>
+              <span className="mt-2 block text-sm font-semibold">{order.customerName}</span>
               <span className="mt-1 block text-xs text-stone-600">{orderTimingSummary(order, timing, props.now, props.stall.timezone, props.locale, props.t)}</span>
               <span className="mt-2 block text-xs font-semibold text-stone-800">{props.t("common.portions", { count: order.items.reduce((sum, item) => sum + item.quantity, 0) })} · {formatMoney(order.total, props.currency, props.locale)}</span>
             </button>;
@@ -695,7 +697,7 @@ function StaffSelectedOrderWorkspace({
   const secondaryActionClass = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50";
 
   return <>
-    <section aria-labelledby={`staff-order-items-title-${order.id}`} className="min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white" data-testid="staff-order-items-pane">
+    <section aria-labelledby={`staff-order-items-title-${order.id}`} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white [overflow-wrap:anywhere]" data-testid="staff-order-items-pane">
       <div className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <h2 id={`staff-order-items-title-${order.id}`} className="text-base font-bold">{t("staff.order.items")}</h2>
@@ -708,7 +710,7 @@ function StaffSelectedOrderWorkspace({
       </div>
     </section>
 
-    <aside aria-labelledby={`staff-order-actions-title-${order.id}`} className="min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-stone-50" data-testid="staff-order-actions-pane">
+    <aside aria-labelledby={`staff-order-actions-title-${order.id}`} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-stone-50 [overflow-wrap:anywhere]" data-testid="staff-order-actions-pane">
       <div className="sticky top-0 z-10 border-b border-stone-200 bg-stone-50/95 px-4 py-3 backdrop-blur">
         <h2 id={`staff-order-actions-title-${order.id}`} className="text-base font-bold">{t("staff.order.actions")}</h2>
         <div className="mt-2 flex items-end justify-between gap-3"><div>{order.discountAmount > 0 ? <p className="text-xs text-stone-500">{t("staff.order.originalPrice", { amount: formatMoney(order.subtotal, currency, locale) })} · {order.discountLabel}</p> : null}<strong className="text-xl">{formatMoney(order.total, currency, locale)}</strong></div><span className="text-xs font-semibold text-stone-600">{paymentStatusLabel(order.paymentStatus, t)}</span></div>

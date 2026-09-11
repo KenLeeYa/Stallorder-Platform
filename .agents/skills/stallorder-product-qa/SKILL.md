@@ -70,6 +70,10 @@ Report:
 
 Use Taiwan Traditional Chinese for StallOrder user-facing text and status, while preserving technical identifiers.
 
+## Staff Web Push and Menu announcements
+
+For the responsive Staff queue, device notifications or Menu announcements, read `docs/STAFF_PUSH_MENU_ANNOUNCEMENTS_20260911.md` and run `QA-ORD-10`, `QA-PUSH-01`, `QA-MENU-ANN-01`. Keep new-order INSERT-only enqueueing, live session/role authorization, encrypted device subscriptions, bounded delivery and signed display receipts. Do not replace offline/PWA update protections or call provider acceptance hardware success. Menu announcements follow special-closure notices and never override ordering eligibility. Development PWA may be explicitly retained only for device QA; document the LAN HTTPS/worker service lifecycle.
+
 ## Catalog operations invariants
 
 For SKU stock, reservation horizon, cutoff, printed QR or membership changes, read `docs/CATALOG_OPERATIONS_LOCAL_20260907.md` and exercise `QA-OPS-01` through `QA-OPS-05`. Keep each stall's stock transactional; edits apply deltas, reservations allocate at creation, pre-production cancellation returns once, and started production never restocks. Preserve printed table QR across module toggles and main-QR rotation; never revive revoked tokens. Reservation day N is inclusive in the stall timezone and special hours override weekly hours. These changes are local-only until protected release evidence is recorded.

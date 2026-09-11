@@ -29,6 +29,7 @@ const merchantDescriptionOverrides = {
 } as const satisfies Record<string, MerchantMessageRow>;
 
 const merchantMessageRows = {
+  "線上 Menu 公告": { "zh-TW": "線上 Menu 公告", en: "Online menu announcement", ja: "オンラインメニューのお知らせ", ko: "온라인 메뉴 공지", vi: "Thông báo thực đơn trực tuyến", th: "ประกาศเมนูออนไลน์" },
   "官方帳號": { "zh-TW": "官方帳號", en: "Official account", ja: "公式アカウント", ko: "공식 계정", vi: "Tài khoản chính thức", th: "บัญชีทางการ" },
   "通知設定": { "zh-TW": "通知設定", en: "Notification settings", ja: "通知設定", ko: "알림 설정", vi: "Cài đặt thông báo", th: "ตั้งค่าการแจ้งเตือน" },
   "Webhook 與實測": { "zh-TW": "Webhook 與實測", en: "Webhook and testing", ja: "Webhook と動作確認", ko: "Webhook 및 테스트", vi: "Webhook và kiểm thử", th: "Webhook และการทดสอบ" },
