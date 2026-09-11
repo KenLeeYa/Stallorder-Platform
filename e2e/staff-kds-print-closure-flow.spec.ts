@@ -705,7 +705,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     // Reproduce a paid counter order whose original ticket failed during an outage.
     await prisma.order.update({
       where: { id: order.id },
-      data: { paymentStatus: "PAID", paidAt: new Date(), fulfillmentType: "DINE_IN" },
+      data: { paymentStatus: "PAID", paidAt: new Date(), fulfillmentType: "DINE_IN", tableLabel: "QA-A1" },
     });
     const primary = await prisma.printJob.findFirstOrThrow({
       where: { orderId: order.id, reprintOfId: null },
