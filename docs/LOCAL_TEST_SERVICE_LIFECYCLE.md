@@ -12,6 +12,8 @@
 
 ## 2026-09-10 盤點
 
+2026-09-11 人工 QA 例外：使用者要求啟用勾選介面版本供測試；目前另保留 `Stallorder-Platform-order-selection-checkboxes-20260911` 的 3018 與 `stallorder-catalog-ops-20260907` 的 DB 55722（僅 DB 容器，其他 7 個仍停止）。兩組供應鏈及其他工作區既有服務未異動。實際工作樹、啟動方式、停止程序與驗證見 [本機快速登入](LOCAL_QA_QUICK_LOGIN_20260911.md)。測試結束後停止本次服務並保留資料。
+
 停止前 Docker Engine 29.7.2，共 45 個運行容器：44 個屬於 StallOrder 五組 Supabase 環境，另 1 個為 Jarvis 資料庫。以下使用判斷來自實際程序、連接埠、工作區設定及任務狀態，非依歷史文件推測。
 
 | Supabase project / 容器 | 容器數 | 前端 | API / DB | 停止前使用情形 | 本次使用者選擇 |
@@ -76,3 +78,38 @@ docker ps -a --filter "label=com.supabase.cli.project=$testProject" --format '{{
 - 唯讀快照與驗證收據位於 `C:\Users\KY\.codex\visualizations\2026\09\06\01a0761b-0cdb-73e1-82cc-59a3e93d5d66\docker-service-audit-20260910`；包含 `before-selective-stop.json`、`selective-stop-result.json`、`final-containers.json`、`final-verification.json` 與 volumes 清單，未保存密鑰或容器 environment。
 
 本次是服務恢復與資源整理，未重跑供應鏈完整交易驗收，未更改開發中的供應鏈程式。使用者明確要求保留的兩組服務，在供應鏈測試結束後仍須依固定規則停止。
+
+## 2026-09-11 商品供應／訂單變更手動 QA 保留例外
+
+使用者要求本機測試與保留範例資料；本次驗收後保留以下最小服務：
+
+- 3018：`Stallorder-Platform-order-selection-checkboxes-20260911`，分支 `codex/catalog-availability-amendments-20260911`，提供四個快速登入按鈕。
+- 55722：`supabase_db_stallorder-catalog-ops-20260907`，容器 `59f8e85233fa`，healthy。此 project 其餘七個容器保持停止；55721 / Edge / Realtime 未啟動，本機公共流程走 Circuit B。
+- 兩組供應鏈仍有原本 16 個容器，另有他工作區 `kuanguard-db-1`；本次未操作這些服務。
+
+已套用兩份商品供應／變更單 migration，保留測試商品與訂單。新功能及最新範例請見 [驗收記錄](CATALOG_AVAILABILITY_AND_ORDER_AMENDMENTS_20260911.md)。留存範例超過原容量門檻，本機已改為 100 單／300 份，自動暫停／恢復不變；原值 20／60 保存在收據，可於容量頁還原。
+
+啟停入口及收據：
+
+- `C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/quick-login-environment-20260911/start-local-qa.mjs`：載入已驗證的本機環境，啟動工作區的 `scripts/start-local-qa.mjs --port 3018`。用 `Start-Process -WindowStyle Hidden` 啟動，避免彈出額外終端視窗。
+- 同目錄 `server-process.json` 記錄當次 launcher／runtime PID、工作區和連接埠。停止前必須讀回當下 3018 的 owner、父子程序及命令列，僅停止這棵開發程序；PID 會改變，不沿用舊文件中的 PID。
+- 停止前確認 DB 沒有其他活躍任務，再 `docker stop --timeout 30 supabase_db_stallorder-catalog-ops-20260907`；只停止，不刪資料。
+- 下次需要時核對容器 label 後 `docker start supabase_db_stallorder-catalog-ops-20260907`，等 healthy 再啟動上述 launcher。不啟動整組不需要的 Supabase 容器。
+
+此次為使用者待進行的手動 QA 例外；使用者確認測試結束後應停止 3018 與本組 DB，需要時再恢復。
+
+## 2026-09-11 Web Push 實機 QA 保留例外
+
+上述 3018 同一工作樹現由 `codex/staff-push-menu-announcements-20260911` 提供，含先前商品供應／改單／快速登入及新推播／公告功能；DB 55722 持續使用原 fixture。新增 `192.168.1.102:3019`（公開測試 CA 與說明）、`:3443`（LAN HTTPS），及無監聽 port 的本機推播背景 worker，供使用者 iPad／Android 同 Wi-Fi 測試。其餘服務的運行／停止狀態未改變。
+
+此例外以 `LOCAL_QA_ENABLE_WEB_PUSH=true` 保留實際根 Service Worker。新的啟動入口位於 `C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/staff-push-announcements-20260911/start-app.mjs` 及同目錄 `start-device-qa.mjs`；都以 `Start-Process -WindowStyle Hidden` 執行。`app-process.json`／`device-process.json`／`https-process.json` 記錄當次 owner，不沿用前一節的舊 PID。
+
+測試結束後重新核對這兩棵程序與 3018／3019／3443 owner，停止其精確程序，並在沒有其他依賴時停止本組 DB。不得停止兩組供應鏈或 `kuanguard-db-1`。憑證、範例資料、映像和 volumes 保留，無須刪除；裝置可移除本次測試 CA。重啟前確認憑證尚在七天效期內。入口、驗證限制及完整步驟見 [Web Push／公告實機指南](STAFF_PUSH_MENU_ANNOUNCEMENTS_20260911.md)。
+
+## 2026-09-12 印表機圖示／OPPO 音效複測保留例外
+
+同一人工 QA 工作樹改由 `codex/staff-printer-indicator-push-sound-20260912` 提供。建置後已重啟 3018 應用程式、3019／3443 裝置入口及背景推播 worker；本組 DB 55722 保留，其他七個 Supabase 容器仍停止。兩組供應鏈與其他工作區服務未異動。
+
+沿用上一節 `staff-push-announcements-20260911` 的啟動程式與更新後的 `app-process.json`／`device-process.json`／`https-process.json`。本輪應用程式與裝置程序日誌存於同層 `printer-indicator-push-sound-20260912` 的 `app-runtime.log`／`device-runtime.log`；停止前仍需核對目前 port owner 與父子程序，不能只照文件 PID 執行。
+
+使用者已確認 Android 16／OPPO Reno11 5G 的網站通知設為快訊且有鈴聲，仍待新版鎖屏實測，因此保留上述五項依賴供手動 QA。未旋轉測試 CA、VAPID 或加密憑證，未清除既有訂閱與測試資料。測試結束後依既有程序停止，需測試時再啟用。驗證範圍與實機限制見 [本輪記錄](STAFF_PRINTER_INDICATOR_PUSH_SOUND_20260912.md)。

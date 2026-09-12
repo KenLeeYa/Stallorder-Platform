@@ -1,4 +1,5 @@
 import "server-only";
+import { isProductSoldOut } from "@/lib/product-availability";
 
 import { randomUUID } from "node:crypto";
 import { logEvent } from "@/lib/audit";
@@ -786,10 +787,11 @@ export async function prepareReorderThroughCircuitB(
     const isWithinWindow = assignment
       && (!assignment.availableFrom || assignment.availableFrom.getTime() <= now)
       && (!assignment.availableUntil || assignment.availableUntil.getTime() > now);
-    if (!item.productId || !product?.isActive || !assignment?.isEnabled || assignment.isSoldOut || !isWithinWindow) {
+    const paused = assignment ? isProductSoldOut(assignment) : false;
+    if (!item.productId || !product?.isActive || !assignment?.isEnabled || paused || !isWithinWindow) {
       unavailableItems.push({
         name: item.name,
-        reason: assignment?.isSoldOut ? "目前售罄" : "目前無法供應",
+        reason: paused ? "目前售罄" : "目前無法供應",
       });
       continue;
     }

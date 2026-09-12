@@ -11,6 +11,10 @@ This is a fail-closed sequence. A green earlier run cannot substitute for eviden
 
 ## Gate 0 — preflight
 
+- Apply the incident rules in `docs/incidents/2026-09-12-dr-production-outage.md`: record the live Primary project, deployment, alias, login, health and QR baseline; recheck them around provider mutations. A pilot with three merchants still requires these checks.
+- DR remains paused until the current operation is explicitly authorized. Separate DR database schema/replication from DR operator website/provider publication; conditional permission for a release with no DR impact does not establish permission to resume either.
+- The historical Vercel DR bootstrap paragraph below is superseded by the incident rules and current `manage-dr-operator-entry.mjs`: use exact target project identity with explicit CLI environment isolation, preserve the Primary target, and require rollback/readback of every affected project.
+
 - Fetch/prune remote refs without altering user work.
 - Record clean release worktree, branch, HEAD, tree, upstream, open PRs, and relevant worktrees.
 - Reconcile other work by patch/tree equivalence; do not merge stale branches wholesale.

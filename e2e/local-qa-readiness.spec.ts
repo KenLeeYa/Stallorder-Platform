@@ -12,9 +12,9 @@ test.skip(
   "Only the explicit local QA readiness command may exercise development quick login.",
 );
 
-for (const [role, destination, next] of quickLoginDestinations) {
+for (const [role, destination] of quickLoginDestinations) {
   test(`本機快速登入：${role}`, async ({ page }) => {
-    await page.goto("/login?next=" + encodeURIComponent(next));
+    await page.goto("/login");
     const grid = page.getByTestId("local-qa-login-grid");
     await expect(grid).toBeVisible();
 
@@ -29,6 +29,23 @@ for (const [role, destination, next] of quickLoginDestinations) {
   });
 }
 
+for (const [role, destination] of quickLoginDestinations.slice(1, 3)) {
+  test(`本機員工入口快速登入：${role}`, async ({ page }) => {
+    await page.goto("/staff/login");
+    const grid = page.getByTestId("local-qa-login-grid");
+    await expect(grid.getByRole("button")).toHaveCount(2);
+    await grid.getByRole("button", { name: role, exact: true }).click();
+    await expect(page).toHaveURL(destination);
+  });
+}
+
+test("本機快速登入保留指定的原始目的地", async ({ page }) => {
+  const next = "/merchant/catalog?organizationId=11111111-1111-4111-8111-111111111111";
+  await page.goto("/login?next=" + encodeURIComponent(next));
+  await page.getByTestId("local-qa-login-grid").getByRole("button", { name: "商家", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp("/merchant/catalog\\?organizationId="));
+});
+
 test("本機公開 Menu、QR、外帶自取與現金交班可實際操作", async ({ page }) => {
   test.setTimeout(180_000);
   const menuResponse = await page.goto("/store/aming-01?view=menu");
@@ -36,7 +53,7 @@ test("本機公開 Menu、QR、外帶自取與現金交班可實際操作", asyn
   await expect(page.getByRole("heading", { name: "發生錯誤", exact: true })).toHaveCount(0);
 
   for (const path of [
-    "/q/demo-aming-chicken-qr-2026-rotate-me",
+    "/q/demo-aming-chicken-table-a1-qr-2026",
     "/store/aming-01?view=pickup",
   ]) {
     const sessionResponse = page.waitForResponse((response) => (

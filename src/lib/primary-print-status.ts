@@ -6,21 +6,33 @@ export const primaryPrintJobsQuery = {
     id: true,
     status: true,
     reprintOfId: true,
+    amendmentId: true,
     isRoutingCopy: true,
     documentType: true,
   },
 } satisfies Prisma.PrintJobFindManyArgs;
 
-type PrintJob = Prisma.PrintJobGetPayload<{ select: typeof primaryPrintJobsQuery.select }>;
+type SelectedPrintJob = Prisma.PrintJobGetPayload<{ select: typeof primaryPrintJobsQuery.select }>;
+type PrintJob = Omit<SelectedPrintJob, "amendmentId"> & { amendmentId?: string | null };
 
 // Input uses primaryPrintJobsQuery ordering. A reprint can itself be reprinted.
 export function resolvePrimaryPrintStatus(jobs: readonly PrintJob[]): PrintJobStatus | null {
-  const primary = jobs.find((job) => job.reprintOfId === null && !job.isRoutingCopy);
+  const primary = jobs.find((job) => job.reprintOfId === null && !job.isRoutingCopy && !job.amendmentId);
   if (!primary) return null;
+  const initialStatus = resolveDocumentStatus(jobs, primary);
+  if (initialStatus !== "SUCCEEDED") return initialStatus;
+  const amendments = jobs.filter((job) => job.reprintOfId === null && job.amendmentId);
+  const amendmentStatuses = amendments.map((job) => resolveDocumentStatus(jobs, job));
+  return amendmentStatuses.find((status) => status === "FAILED" || status === "CANCELLED")
+    ?? amendmentStatuses.find((status) => status !== "SUCCEEDED") ?? "SUCCEEDED";
+}
+
+function resolveDocumentStatus(jobs: readonly PrintJob[], primary: PrintJob): PrintJobStatus {
 
   const children = new Map<string, PrintJob[]>();
   for (const job of jobs) {
-    if (job.reprintOfId === null || job.isRoutingCopy || job.documentType !== primary.documentType) continue;
+    if (job.reprintOfId === null || job.isRoutingCopy || job.documentType !== primary.documentType
+      || (job.amendmentId ?? null) !== (primary.amendmentId ?? null)) continue;
     const siblings = children.get(job.reprintOfId) ?? [];
     siblings.push(job);
     children.set(job.reprintOfId, siblings);

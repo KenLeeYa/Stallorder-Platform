@@ -119,7 +119,7 @@ export const sharedCatalogCommandSchema = z.discriminatedUnion("operation", [
     isOrderDiscountEligible: z.boolean().optional(),
     isLotteryEligible: z.boolean().optional(),
     sortOrder,
-    isSoldOut: z.boolean(),
+    isSoldOut: z.boolean().optional(),
     checkoutUpsellStallIds: stallIds.optional(),
     translations: productTranslations,
   }).strict(),
@@ -238,8 +238,8 @@ export function getSharedCatalogFieldErrors(error: z.ZodError): Record<string, s
 
 export const stallProductSettingsSchema = z.object({
   priceOverride: z.number().int().min(0).max(10_000_000).nullable(),
-  isEnabled: z.boolean(),
-  isSoldOut: z.boolean(),
+  isEnabled: z.boolean().optional(),
+  isSoldOut: z.boolean().optional(),
   sortOrder,
   availableFrom: z.string().datetime({ offset: true }).nullable().default(null),
   availableUntil: z.string().datetime({ offset: true }).nullable().default(null),
@@ -250,6 +250,19 @@ export const stallProductSettingsSchema = z.object({
 ), { message: "供應結束時間必須晚於開始時間。", path: ["availableUntil"] });
 
 export const stallProductBulkCommandSchema = z.discriminatedUnion("operation", [
+  z.object({
+    operation: z.literal("BULK_AVAILABILITY"),
+    productIds: z.array(uuid).min(1).max(500).refine((ids) => new Set(ids).size === ids.length),
+    mode: z.enum(["AVAILABLE", "TEMPORARY", "TODAY", "UNTIL_DATE", "PERMANENT"]),
+    minutes: z.union([z.literal(15), z.literal(30), z.literal(60), z.literal(120)]).optional(),
+    resumeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+      const date = new Date(`${value}T00:00:00Z`);
+      return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+    }).optional(),
+  }).strict().superRefine((value, context) => {
+    if (value.mode === "TEMPORARY" && !value.minutes) context.addIssue({ code: "custom", path: ["minutes"], message: "請選擇暫停時間。" });
+    if (value.mode === "UNTIL_DATE" && !value.resumeDate) context.addIssue({ code: "custom", path: ["resumeDate"], message: "請選擇恢復供應日期。" });
+  }),
   z.object({
     operation: z.literal("BULK_STOCK"),
     items: z.array(z.object({

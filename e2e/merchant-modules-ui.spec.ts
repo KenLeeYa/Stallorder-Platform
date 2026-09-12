@@ -706,7 +706,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await stallProductList.locator("summary").first().click();
   await expect(stallProductList).not.toHaveAttribute("open", "");
   await stallProductList.locator("summary").first().click();
-  await expect(page.getByRole("button", { name: "批次售完" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "批次供應設定" })).toBeVisible();
   await expect(page.getByLabel("供應開始").first()).toBeVisible();
   await expect(page.getByLabel("供應結束").first()).toBeVisible();
   await expect(page.getByText("安全與訂單限制", { exact: true })).toHaveCount(

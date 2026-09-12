@@ -472,7 +472,6 @@ export async function POST(request: Request, context: RouteContext) {
           data: {
             isSoldOut: command.isSoldOut,
             sortOrder: command.sortOrder,
-            ...(!existing.isActive ? { isEnabled: true } : {}),
           },
         });
         if (command.checkoutUpsellStallIds !== undefined) {
@@ -804,7 +803,7 @@ export async function POST(request: Request, context: RouteContext) {
     }
     if ("translations" in command && command.translations) after.translations = command.translations;
     if ("isActive" in command) after.isActive = command.isActive;
-    if ("isSoldOut" in command) after.isSoldOut = command.isSoldOut;
+    if ("isSoldOut" in command && command.isSoldOut !== undefined) after.isSoldOut = command.isSoldOut;
     if ("stallIds" in command) after.stallIds = [...command.stallIds].sort();
     if ("bundleProductId" in command) after.bundleProductId = command.bundleProductId;
     if ("choiceGroupId" in command) after.choiceGroupId = command.choiceGroupId;

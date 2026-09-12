@@ -1,3 +1,4 @@
+import { manualProductPauseActive } from "../_shared/product-availability.ts";
 import {
   deriveOrderSessionToken,
   derivePublicOrderTokens,
@@ -240,7 +241,7 @@ Deno.serve(async (request) => {
           .eq("id", result.stall_id)
           .single(),
         admin.from("stall_products")
-          .select("product_id, price_override, sort_order, available_from, available_until, is_enabled, is_sold_out, stock_remaining")
+          .select("product_id, price_override, sort_order, available_from, available_until, is_enabled, is_sold_out, sold_out_until, stock_remaining")
           .eq("stall_id", result.stall_id)
           .order("sort_order", { ascending: true })
           .limit(100),
@@ -481,7 +482,7 @@ Deno.serve(async (request) => {
         const assignment = assignmentsByProductId.get(product.id);
         return product.is_active
           && assignment?.is_enabled
-          && !assignment.is_sold_out
+          && !manualProductPauseActive(assignment.is_sold_out, assignment.sold_out_until)
           && categoriesById.has(product.category_id)
           && (!product.group_id || groupsById.has(product.group_id));
       })
@@ -546,7 +547,7 @@ Deno.serve(async (request) => {
         const category = categoriesById.get(product.category_id);
         const group = product.group_id ? groupsById.get(product.group_id) : null;
         const assignment = assignmentsByProductId.get(product.id);
-        const isSoldOut = assignment?.is_sold_out === true || assignment?.stock_remaining === 0 || !product.is_active;
+        const isSoldOut = manualProductPauseActive(assignment?.is_sold_out === true, assignment?.sold_out_until) || assignment?.stock_remaining === 0 || !product.is_active;
         const bundleChoiceGroups = product.kind === "BUNDLE"
           ? (bundleGroupsByProductId.get(product.id) ?? []).map((group) => ({
             id: group.id,
@@ -585,7 +586,7 @@ Deno.serve(async (request) => {
         );
         return category
           && assignment
-          && (assignment.is_enabled || !product.is_active)
+          && assignment.is_enabled && product.is_active
           && (isSoldOut || bundleIsComplete)
           && (!product.group_id || group) ? [{
           id: product.id,

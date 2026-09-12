@@ -17,6 +17,7 @@ import {
   MapPinned,
   MapPinCheck,
   MessageCircle,
+  Megaphone,
   MonitorUp,
   Percent,
   Printer,
@@ -95,6 +96,7 @@ export function StallSettingsOverview({
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/operations`} icon={Activity} label={m("營運狀態")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/business-hours`} icon={Clock3} label={m("營業時間")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/special-hours`} icon={CalendarOff} label={m("特殊營業日與公休公告")} />
+          <SettingsLink href={`/merchant/stalls/${stallId}/settings/announcements`} icon={Megaphone} label={m("線上 Menu 公告")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/dine-in`} icon={Utensils} label={m("內用點餐")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/dining-tables`} icon={MapPinned} label={m("內用桌位與專屬 QR")} />
           <SettingsLink href={`/merchant/stalls/${stallId}/settings/online-ordering`} icon={CalendarClock} label={m("線上點餐與預約")} />
