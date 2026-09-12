@@ -624,8 +624,13 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
         .filter({ hasText: orderNo });
       await expect(staffOrderCard).toContainText(customerName);
       await staffOrderCard.click();
-      const staffOrderItems = staffPage.getByTestId("staff-order-items-pane");
-      const staffOrderActions = staffPage.getByTestId("staff-order-actions-pane");
+      await expect(staffOrderCard).toHaveAttribute("aria-current", "true");
+      const staffOrderItems = staffPage.locator(
+        `[data-testid="staff-order-items-pane"][aria-labelledby="staff-order-items-title-${createdOrderId}"]`,
+      );
+      const staffOrderActions = staffPage.locator(
+        `[data-testid="staff-order-actions-pane"][aria-labelledby="staff-order-actions-title-${createdOrderId}"]`,
+      );
       await expect(staffOrderItems).toContainText(retainedProductName);
       await expect(staffOrderItems).toContainText(noteOptionName);
       await expect(staffOrderItems).not.toContainText(prunedProductName);
