@@ -26,7 +26,7 @@ verified `main` tree after it matches `staging`.
 
 `.github/workflows/production-dr-operator-entry.yml` is the independent
 domain/runtime workflow for `dr.qidaigo.com`. It is not a database promotion
-and cannot move `app.qidaigo.com`.
+and must never move `app.qidaigo.com`.
 
 1. Merge the exact change through `staging`, CI, paired Ephemeral Preview and
    Playwright, then promote the identical tree to `main`.
@@ -70,6 +70,30 @@ IDs created by that run. The rollback never changes a database writer role.
 The Access application and DNS record are never created when Access is disabled,
 the identity provider is not account-member restricted, the token lacks the
 required permissions, or Standard deployment protection cannot be read back.
+
+Apply `34648606836` exposed a Vercel project-isolation defect: writing a new
+`.vercel/project.json` did not override the workflow-level
+`VERCEL_PROJECT_ID`, so a DR deploy/promote could target the Production project
+and move the Primary alias. Plan schema 3 closes that path by recording the
+exact healthy `app.qidaigo.com` alias, deployment and health response. Every
+Vercel CLI subprocess now explicitly receives the intended team and project
+IDs; the generated deployment is read back from the Vercel API and must belong
+to the new `stallorder-dr` project, be a ready Production deployment and match
+the exact deployment hostname before promotion. Apply rechecks the Plan-bound
+Primary before and after deployment and promotion and during final readback.
+An existing deployment marked `backend_target=DR` is never accepted as a
+Primary baseline, even if its health endpoint later returns HTTP 200.
+Schema 2 Plan artifacts are invalid and must not be reused.
+
+Rollback may restore the recorded Primary deployment only when the currently
+bound deployment is attributable to that exact Plan (matching
+`dr_plan_digest`, `source_commit`, `backend_target=DR`, source project and
+alias/deployment identity). An unrelated Primary change is treated as a
+concurrent Production release and stops with
+`DR_ENTRY_PRIMARY_CONCURRENT_CHANGE`; it is never overwritten. A rollback is
+complete only after the Primary alias, deployment identity and HTTP 200 health
+state exactly match the Plan snapshot and all DR resources and legacy staging
+state also pass readback.
 
 The Create Project request contains only fields supported by Vercel's current
 `/v11/projects` schema. Node.js `24.x` and Standard protection are set together
