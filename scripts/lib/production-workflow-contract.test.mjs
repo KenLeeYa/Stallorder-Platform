@@ -9,6 +9,7 @@ const applicationRelease = read(".github/workflows/production-application-releas
 const disasterRecovery = read(".github/workflows/production-dr-operations.yml");
 const drOperatorEntry = read(".github/workflows/production-dr-operator-entry.yml");
 const drOperatorEntryScript = read("scripts/manage-dr-operator-entry.mjs");
+const drOperatorEntryLib = read("scripts/lib/dr-operator-entry.mjs");
 const drVercel = JSON.parse(read("vercel.dr.json"));
 const ephemeralPreview = read(".github/workflows/ephemeral-preview.yml");
 const statusPage = read(".github/workflows/status-page-deploy.yml");
@@ -216,12 +217,57 @@ describe("Production workflow approval contract", () => {
     expect(protectedProbe).not.toContain("vercelToken");
   });
 
+  it("isolates every Vercel CLI mutation to the new DR project and preserves Primary", () => {
+    expect(drOperatorEntryScript).toContain(
+      "assertVercelDeploymentProjectIsolation",
+    );
+    expect(drOperatorEntryScript).toContain(
+      "DR_ENTRY_TARGET_PROJECT_COLLIDES_WITH_SOURCE",
+    );
+    expect(drOperatorEntryLib).toContain(
+      "DR_ENTRY_DEPLOYMENT_PROJECT_MISMATCH",
+    );
+    expect(drOperatorEntryScript).toContain(
+      "buildVercelCliEnvironment",
+    );
+    expect(drOperatorEntryLib).toContain(
+      "VERCEL_PROJECT_ID: projectId",
+    );
+    expect(drOperatorEntryLib).toContain(
+      "VERCEL_ORG_ID: vercelTeamId",
+    );
+    expect(drOperatorEntryScript).toContain(
+      "await assertDeploymentProjectIdentity(deploymentUrl, targetProjectId)",
+    );
+    expect(drOperatorEntryScript).toContain(
+      "await assertPrimaryStateUnchanged(plan)",
+    );
+    expect(drOperatorEntryScript).toContain(
+      "await restorePrimaryIfChanged(plan)",
+    );
+    expect(drOperatorEntryScript).toContain(
+      "DR_ENTRY_PRIMARY_ROLLBACK_READBACK_FAILED",
+    );
+    expect(drOperatorEntryScript).toContain(
+      "DR_ENTRY_PRIMARY_CONCURRENT_CHANGE",
+    );
+    expect(drOperatorEntryScript).toContain(
+      "isPlanOwnedDrDeployment(plan, current)",
+    );
+    expect(drOperatorEntryScript).toContain(
+      '`dr_plan_digest=${plan.planDigest}`',
+    );
+    expect(drOperatorEntryScript).toContain(
+      "/v13/deployments/${encodeURIComponent(hostname)}",
+    );
+  });
+
   it("verifies the Vercel custom domain before enabling the Cloudflare proxy", () => {
     const bindVercelDomain = drOperatorEntryScript.indexOf(
       'await vercel(`/v10/projects/${targetProjectId}/domains`, {',
     );
     const promoteDeployment = drOperatorEntryScript.indexOf(
-      "await promoteDrDeployment(deploymentUrl, targetProjectId, plan.target.hostname);",
+      "await promoteDrDeployment(deploymentUrl, targetProjectId, plan);",
       bindVercelDomain,
     );
     const createDnsRecord = drOperatorEntryScript.indexOf(
@@ -264,7 +310,7 @@ describe("Production workflow approval contract", () => {
     expect(verifyProtectedDomain).toBeGreaterThan(enableCloudflareProxy);
 
     const promoteStart = drOperatorEntryScript.indexOf(
-      "async function promoteDrDeployment(deploymentUrl, targetProjectId, hostname)",
+      "async function promoteDrDeployment(deploymentUrl, targetProjectId, plan)",
     );
     const promoteEnd = drOperatorEntryScript.indexOf(
       "async function vercelCurl",

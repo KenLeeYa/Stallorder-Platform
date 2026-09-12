@@ -5,10 +5,14 @@ import { promisify } from "node:util";
 import { PrismaClient } from "@prisma/client";
 import {
   DR_OPERATOR_ENTRY,
+  assertVercelDeploymentProjectIsolation,
   buildDrOperatorEntryPlan,
+  buildVercelCliEnvironment,
   classifyExclusiveVercelDomainSet,
   classifyDirectVercelTlsResponse,
+  isPlanOwnedDrDeployment,
   missingActiveEdgeFunctions,
+  primaryVercelStateMatches,
   sanitizeProviderErrorCode,
   validateApprovedDrOperatorEntryPlan,
   validateCloudflareAccessApplicationsPage,
@@ -126,9 +130,10 @@ async function readProviderState() {
   const drDomainBindings = domainSets.flatMap(({ project, domains }) => domains
     .filter((domain) => domain.name === DR_OPERATOR_ENTRY.hostname)
     .map((domain) => ({ projectId: project.id, projectName: project.name, domain: safeDomain(domain) })));
-  const [drConfig, stagingConfig] = await Promise.all([
+  const [drConfig, stagingConfig, primary] = await Promise.all([
     vercelDomainConfig(DR_OPERATOR_ENTRY.hostname),
     vercelDomainConfig(DR_OPERATOR_ENTRY.legacyHostname),
+    readPrimaryVercelState(),
   ]);
   const cnameTarget = preferredCname(drConfig);
   const legacyCnameTarget = preferredCname(stagingConfig);
@@ -140,6 +145,7 @@ async function readProviderState() {
     vercel: {
       teamId: vercelTeamId,
       sourceProject: { id: sourceProject.id, name: sourceProject.name },
+      primary,
       targetProject: targetProject
         ? { id: targetProject.id, name: targetProject.name, ssoProtection: targetProject.ssoProtection }
         : null,
@@ -164,12 +170,42 @@ async function readProviderState() {
   };
 }
 
+async function readPrimaryVercelState() {
+  const hostname = DR_OPERATOR_ENTRY.primaryHostname;
+  const [alias, deployment, healthStatus] = await Promise.all([
+    vercel(`/v4/aliases/${encodeURIComponent(hostname)}`),
+    vercel(`/v13/deployments/${encodeURIComponent(hostname)}`),
+    readPrimaryHealthStatus(),
+  ]);
+  return {
+    hostname,
+    alias: safePrimaryAlias(alias),
+    deployment: safeVercelDeployment(deployment),
+    healthStatus,
+  };
+}
+
+async function readPrimaryHealthStatus() {
+  try {
+    const response = await fetch(
+      `https://${DR_OPERATOR_ENTRY.primaryHostname}/api/health`,
+      { redirect: "manual", signal: AbortSignal.timeout(15_000) },
+    );
+    const status = response.status;
+    await response.arrayBuffer();
+    return status;
+  } catch {
+    throw new Error("DR_ENTRY_PRIMARY_HEALTH_CHECK_FAILED");
+  }
+}
+
 async function applyEntry(plan) {
   let targetProjectId = null;
   let drDnsRecordId = null;
   let accessApplicationId = null;
   let qaServiceTokenId = null;
   try {
+    await assertPrimaryStateUnchanged(plan);
     const accessResources = await createCloudflareAccessResources(plan);
     accessApplicationId = accessResources.applicationId;
     qaServiceTokenId = accessResources.serviceTokenId;
@@ -186,6 +222,9 @@ async function applyEntry(plan) {
     if (!/^prj_[A-Za-z0-9]+$/u.test(targetProjectId ?? "")) {
       throw new Error("DR_ENTRY_PROJECT_CREATE_INVALID");
     }
+    if (targetProjectId === sourceProjectId) {
+      throw new Error("DR_ENTRY_TARGET_PROJECT_COLLIDES_WITH_SOURCE");
+    }
     await vercel(`/v9/projects/${targetProjectId}`, {
       method: "PATCH",
       body: JSON.stringify({
@@ -195,10 +234,16 @@ async function applyEntry(plan) {
     }, "ENABLE_STANDARD_DEPLOYMENT_PROTECTION");
     await assertTargetProjectProtected(targetProjectId);
     await linkProject(targetProjectId);
+    await assertPrimaryStateUnchanged(plan);
 
-    const deploymentUrl = await deployDrRuntime(plan, accessResources);
+    const deploymentUrl = await deployDrRuntime(plan, accessResources, targetProjectId);
+    const targetDeployment = await assertDeploymentProjectIdentity(
+      deploymentUrl,
+      targetProjectId,
+    );
+    await assertPrimaryStateUnchanged(plan);
     const unauthenticatedDeploymentStatus = await assertProtected(deploymentUrl);
-    const deploymentProbe = await vercelCurl(deploymentUrl);
+    const deploymentProbe = await vercelCurl(deploymentUrl, targetProjectId);
     assertProbeReady(deploymentProbe, plan.target.runtime);
     const supabaseServices = await verifyDrSupabaseServices(plan.target.runtime);
 
@@ -206,7 +251,7 @@ async function applyEntry(plan) {
       method: "POST",
       body: JSON.stringify({ name: plan.target.hostname }),
     });
-    await promoteDrDeployment(deploymentUrl, targetProjectId, plan.target.hostname);
+    await promoteDrDeployment(deploymentUrl, targetProjectId, plan);
     const configuredTarget = await waitForRecommendedCname(
       plan.target.hostname,
       plan.target.cnameTarget,
@@ -263,11 +308,7 @@ async function applyEntry(plan) {
     qaServiceTokenId = null;
 
     await retireLegacyStaging(plan);
-    const primaryHealth = await fetch("https://app.qidaigo.com/api/health", {
-      redirect: "manual",
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (primaryHealth.status !== 200) throw new Error("PRIMARY_HEALTH_CHANGED_DURING_DR_ENTRY");
+    const primary = await assertPrimaryStateUnchanged(plan);
     const finalState = await readProviderStateAfterApply(
       plan,
       targetProjectId,
@@ -284,6 +325,7 @@ async function applyEntry(plan) {
       drDnsRecordId,
       accessApplicationId,
       deploymentUrl,
+      targetDeployment,
       hostname: plan.target.hostname,
       protection: plan.target.protection,
       accessAudience: accessResources.audience,
@@ -293,7 +335,8 @@ async function applyEntry(plan) {
       directOriginTls,
       probe: customDomainProbe,
       supabaseServices,
-      primaryHealthStatus: primaryHealth.status,
+      primary,
+      primaryHealthStatus: primary.healthStatus,
       legacyStagingRetired: finalState.legacyStagingRetired,
       completedAt: new Date().toISOString(),
     };
@@ -498,12 +541,13 @@ async function removeTemporaryQaAccess(resources) {
   }
 }
 
-async function deployDrRuntime(plan, accessResources) {
+async function deployDrRuntime(plan, accessResources, targetProjectId) {
   assertDrEnvironmentBindings(plan.target.runtime.supabaseProjectRef);
   const deploymentArgs = [
     "deploy", ".", "--prod", "--skip-domain", "--force", "--yes",
     "--local-config", "vercel.dr.json", "--token", vercelToken,
     "--meta", `source_commit=${plan.source.commitSha}`,
+    "--meta", `dr_plan_digest=${plan.planDigest}`,
     "--meta", "backend_target=DR",
   ];
   const buildAndRuntime = {
@@ -541,7 +585,11 @@ async function deployDrRuntime(plan, accessResources) {
     deploymentArgs.push("--env", `${name}=${value}`);
   }
 
-  const output = await runVercel(deploymentArgs, "DR_ENTRY_DEPLOY_FAILED");
+  const output = await runVercel(
+    deploymentArgs,
+    "DR_ENTRY_DEPLOY_FAILED",
+    targetProjectId,
+  );
   const deploymentUrl = output.split(/\r?\n/u).map((value) => value.trim()).findLast(
     (value) => /^https:\/\/[a-z0-9.-]+\.vercel\.app$/u.test(value),
   );
@@ -549,16 +597,23 @@ async function deployDrRuntime(plan, accessResources) {
   return deploymentUrl;
 }
 
-async function promoteDrDeployment(deploymentUrl, targetProjectId, hostname) {
+async function promoteDrDeployment(deploymentUrl, targetProjectId, plan) {
+  const hostname = plan.target.hostname;
+  await assertDeploymentProjectIdentity(deploymentUrl, targetProjectId);
+  await assertPrimaryStateUnchanged(plan);
   for (let attempt = 1; attempt <= 12; attempt += 1) {
     const domains = (await vercel(
       `/v9/projects/${targetProjectId}/domains?limit=100`,
     )).domains ?? [];
     const state = classifyExclusiveVercelDomainSet(domains, hostname);
     if (state === "ready") {
+      await assertDeploymentProjectIdentity(deploymentUrl, targetProjectId);
+      await assertPrimaryStateUnchanged(plan);
       await runVercel([
         "promote", deploymentUrl, "--yes",
-      ], "DR_ENTRY_PROMOTE_FAILED");
+      ], "DR_ENTRY_PROMOTE_FAILED", targetProjectId);
+      await assertDeploymentProjectIdentity(deploymentUrl, targetProjectId);
+      await assertPrimaryStateUnchanged(plan);
       return;
     }
     if (state === "invalid") {
@@ -569,17 +624,52 @@ async function promoteDrDeployment(deploymentUrl, targetProjectId, hostname) {
   throw new Error("DR_ENTRY_PROMOTE_DOMAIN_READBACK_TIMEOUT");
 }
 
-async function vercelCurl(baseUrl) {
+async function vercelCurl(baseUrl, targetProjectId) {
   const output = await runVercel([
     "curl",
     planProbePath(),
     "--deployment",
     baseUrl,
     "--yes",
-  ], "DR_ENTRY_PROTECTED_PROBE_FAILED");
+  ], "DR_ENTRY_PROTECTED_PROBE_FAILED", targetProjectId);
   const start = output.indexOf("{");
   if (start < 0) throw new Error("DR_ENTRY_PROBE_JSON_MISSING");
   return JSON.parse(output.slice(start));
+}
+
+async function assertDeploymentProjectIdentity(deploymentUrl, targetProjectId) {
+  const parsed = new URL(deploymentUrl);
+  if (
+    parsed.protocol !== "https:"
+    || parsed.username
+    || parsed.password
+    || parsed.port
+    || !parsed.hostname.endsWith(".vercel.app")
+  ) {
+    throw new Error("DR_ENTRY_DEPLOYMENT_URL_INVALID");
+  }
+  const hostname = parsed.hostname;
+  const deployment = await vercel(
+    `/v13/deployments/${encodeURIComponent(hostname)}`,
+    {},
+    "READ_DR_DEPLOYMENT_IDENTITY",
+  );
+  assertVercelDeploymentProjectIsolation({
+    sourceProjectId,
+    targetProjectId,
+    expectedDeploymentUrl: hostname,
+    expectedProjectName: planTargetProjectName(),
+    deployment,
+  });
+  return safeVercelDeployment(deployment);
+}
+
+async function assertPrimaryStateUnchanged(plan) {
+  const primary = await readPrimaryVercelState();
+  if (!primaryVercelStateMatches(plan.before.primary, primary)) {
+    throw new Error("DR_ENTRY_PRIMARY_STATE_CHANGED");
+  }
+  return primary;
 }
 
 async function cloudflareAccessProbe(baseUrl, accessResources) {
@@ -776,12 +866,43 @@ async function retireLegacyStaging(plan) {
   );
 }
 
+async function restorePrimaryIfChanged(plan) {
+  const current = await readPrimaryVercelState();
+  if (primaryVercelStateMatches(plan.before.primary, current)) {
+    return false;
+  }
+  if (!isPlanOwnedDrDeployment(plan, current)) {
+    throw new Error("DR_ENTRY_PRIMARY_CONCURRENT_CHANGE");
+  }
+  await runVercel([
+    "promote",
+    `https://${plan.before.primary.deployment.url}`,
+    "--yes",
+  ], "DR_ENTRY_PRIMARY_RESTORE_FAILED", sourceProjectId);
+  await waitForPrimaryRollbackState(plan);
+  return true;
+}
+
+async function waitForPrimaryRollbackState(plan) {
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    try {
+      const primary = await readPrimaryVercelState();
+      if (primaryVercelStateMatches(plan.before.primary, primary)) return;
+    } catch {
+      // Alias propagation and application health are expected to converge here.
+    }
+    if (attempt < 12) await delay(5_000);
+  }
+  throw new Error("DR_ENTRY_PRIMARY_ROLLBACK_READBACK_FAILED");
+}
+
 async function rollbackEntry(plan, {
   targetProjectId,
   drDnsRecordId,
   accessApplicationId,
   qaServiceTokenId,
 }) {
+  const primaryRecoveryPerformed = await restorePrimaryIfChanged(plan);
   const projects = (await vercel("/v9/projects?limit=100")).projects ?? [];
   const target = projects.find((project) => project.name === plan.target.projectName);
   const records = await cloudflare(`/zones/${cloudflareZoneId}/dns_records?per_page=100`);
@@ -891,17 +1012,20 @@ async function rollbackEntry(plan, {
     operation: "ROLLBACK_PROTECTED_DR_OPERATOR_ENTRY",
     planDigest: plan.planDigest,
     completed: true,
+    primaryRecoveryPerformed,
+    primaryStateVerified: true,
     completedAt: new Date().toISOString(),
   };
 }
 
 async function waitForRollbackState(plan) {
   for (let attempt = 1; attempt <= 12; attempt += 1) {
-    const [projectsResponse, sourceDomainsResponse, records, accessState] = await Promise.all([
+    const [projectsResponse, sourceDomainsResponse, records, accessState, primary] = await Promise.all([
       vercel("/v9/projects?limit=100"),
       vercel(`/v9/projects/${sourceProjectId}/domains?limit=100`),
       cloudflare(`/zones/${cloudflareZoneId}/dns_records?per_page=100`),
       readCloudflareAccessState(),
+      readPrimaryVercelState(),
     ]);
     const targetAbsent = !(projectsResponse.projects ?? []).some(
       (project) => project.name === plan.target.projectName,
@@ -922,6 +1046,7 @@ async function waitForRollbackState(plan) {
     const qaTokenAbsent = !accessState.serviceTokens.some(
       (token) => token.name === plan.target.cloudflareAccess.qaServiceTokenName,
     );
+    const primaryRestored = primaryVercelStateMatches(plan.before.primary, primary);
     if (
       targetAbsent
       && drDnsAbsent
@@ -929,6 +1054,7 @@ async function waitForRollbackState(plan) {
       && restoredDns
       && accessApplicationAbsent
       && qaTokenAbsent
+      && primaryRestored
     ) return;
     if (attempt < 12) await delay(5_000);
   }
@@ -941,6 +1067,7 @@ async function readProviderStateAfterApply(
   accessApplicationId,
 ) {
   await assertTargetProjectProtected(targetProjectId);
+  await assertPrimaryStateUnchanged(plan);
   const sourceDomains = (await vercel(
     `/v9/projects/${sourceProjectId}/domains?limit=100`,
   )).domains ?? [];
@@ -985,6 +1112,7 @@ async function readProviderStateAfterApply(
   )) {
     throw new Error("DR_ENTRY_QA_SERVICE_TOKEN_FINAL_READBACK_FAILED");
   }
+  await assertPrimaryStateUnchanged(plan);
   return { legacyStagingRetired };
 }
 
@@ -1107,11 +1235,16 @@ function cloudflareHeaders() {
   return { authorization: `Bearer ${cloudflareToken}`, "content-type": "application/json" };
 }
 
-async function runVercel(commandArgs, errorCode) {
+async function runVercel(commandArgs, errorCode, projectId) {
+  const env = buildVercelCliEnvironment({
+    baseEnv: process.env,
+    vercelTeamId,
+    projectId,
+  });
   try {
     const result = await execFileAsync("vercel", commandArgs, {
       cwd: process.cwd(),
-      env: process.env,
+      env,
       maxBuffer: 16 * 1024 * 1024,
     });
     return result.stdout;
@@ -1142,6 +1275,30 @@ function safeDomain(domain) {
     gitBranch: domain.gitBranch ?? null,
     redirect: domain.redirect ?? null,
     redirectStatusCode: domain.redirectStatusCode ?? null,
+  };
+}
+
+function safePrimaryAlias(alias) {
+  return {
+    uid: alias?.uid ?? null,
+    hostname: alias?.alias ?? null,
+    projectId: alias?.projectId ?? null,
+    deploymentId: alias?.deploymentId ?? null,
+    deploymentUrl: alias?.deployment?.url ?? null,
+  };
+}
+
+function safeVercelDeployment(deployment) {
+  return {
+    id: deployment?.id ?? null,
+    url: deployment?.url ?? null,
+    projectId: deployment?.projectId ?? null,
+    name: deployment?.name ?? null,
+    target: deployment?.target ?? null,
+    readyState: deployment?.readyState ?? null,
+    backendTarget: deployment?.meta?.backend_target ?? null,
+    sourceCommit: deployment?.meta?.source_commit ?? null,
+    drPlanDigest: deployment?.meta?.dr_plan_digest ?? null,
   };
 }
 
@@ -1201,6 +1358,10 @@ function preferredCname(config) {
 
 function planProbePath() {
   return "/api/health/dr/operator";
+}
+
+function planTargetProjectName() {
+  return DR_OPERATOR_ENTRY.projectName;
 }
 
 function requireConfirmation(expected) {
